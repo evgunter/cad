@@ -8,6 +8,8 @@ github: 694
 refs: [561, 689, S107]
 parent: PORT-DIMS-1
 pr: 2702
+priority: P1
+cost: D
 ---
 
 ## From GitHub issue 694

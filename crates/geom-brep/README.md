@@ -23,7 +23,7 @@ escalated typed refusal, never a raw comparison.
 
 | Decisions | Lives in |
 |---|---|
-| C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`) |
+| C1 locus ladder | `crates/geom/src/curves.rs` (`Curve3`: Line, Circle, Ellipse, Spiric, Nurbs); `crates/geom-brep/src/intersect.rs` (`Rung`) |
 | C2, C3 SSI and its certificate | `crates/geom-brep/src/ssi.rs` + `ssi/{march,certify,exhaust,enclose,jet,system}.rs` |
 | C4 pcurves | `crates/geom-brep/src/pcurve_cache.rs` (value, certificate), `pcurve.rs` (conic constructors), `crates/topo/src/pcurves.rs` (storage, minting, branch walk); description form in `description.rs` |
 | C5 dispatch table | `crates/geom-brep/src/intersect.rs` (`route`, the section functions) |
@@ -38,7 +38,7 @@ escalated typed refusal, never a raw comparison.
 | O2 approximating surface | `crates/geom/src/surfaces/approx.rs` (`Surface::Approx`) |
 | O3 meters and fit | `crates/geom-brep/src/offset_meters.rs`, `offset_fit.rs`, `patch_bound.rs` |
 | O4 shell | `crates/topo/src/shell.rs`, `boolean/voids.rs`, `replace_face.rs`, `offset_together.rs`, `offset_axial.rs` |
-| O5 validator posture | `crates/topo/src/validate.rs` (`recertify_approx`) |
+| O5 validator posture | `crates/topo/src/validate.rs` (`OffsetFitLane::recertify`) |
 
 ## Curved geometry (CURVED-DESIGN C1–C12)
 
@@ -48,8 +48,11 @@ escalated typed refusal, never a raw comparison.
 of an `Intersection` edge (the 3-D curve cached against the intensional
 description `{s1, s2, witness}`) is, by surface-kind pair and most exact
 first: rung 1, closed-form `Line`/`Circle`; rung 2, the exact conic
-`Curve3::Ellipse` (tilted plane×cylinder, equal-radius cylinder×cylinder),
-whose residual is zero by construction; rung 3, a fitted cubic
+`Curve3::Ellipse` (tilted plane×cylinder, equal-radius cylinder×cylinder)
+and the exact quartic `Curve3::Spiric` (the axis-parallel plane×torus
+section, one oval in the torus's own minor angle — minted by the
+offset-axial door for a hollowed partial revolve's rim, not by the C5
+table), whose residuals are zero by construction; rung 3, a fitted cubic
 `Curve3::Nurbs` carrying the C2 certificate. Parabola and hyperbola are
 outside the inventory by decision: a generic-tilt plane×cone routes to
 rung 3 permanently. Conics round-trip to rational-quadratic NURBS only as
@@ -246,16 +249,21 @@ implemented.
 
 ### Arithmetic substrate and the BVH
 
-**C9 — Enclosures run on an in-house interval ring.** Every enclosure
+**C9 — Enclosures run on the in-repo interval backend.** Every enclosure
 certification needs is transcendental-free (implicit residuals are
 polynomial, de Boor is ring arithmetic, hull bounds are convexity facts),
-so `geom_core::RingInterval` provides `±`, `×`, `÷` and integer powers
-with unconditional outward ulp-widening, always compiled, MIT-clean, not
-a `Real`. It is certification substrate; the evaluation scalar
-`geom_core::Interval` (behind the `interval` feature, backend the in-repo
-`interval-transcendentals` crate) is a `Real` instantiation for replay.
-No copyleft dependency exists in any build configuration. Certification
-code reads brackets through the `Bounds`/`Enclosure` traits.
+so `geom_core::RingInterval` provides `±`, `×`, `÷` and integer powers —
+a newtype over `interval-transcendentals`' `DInterval`, outward-rounded
+where the operation is inexact, always compiled, MIT-clean, not a
+`Real`. Its refusal is the backend's decoration (`dec < Def`), read as
+`is_poison()`, so a bracket that may not certify carries ordinary
+endpoints and a consumer asks the refusal by name. It is certification
+substrate; the evaluation scalar `geom_core::Interval` is the other
+role — the same backend, `Real`-instantiated for replay, with the
+`interval` feature gating the lane impls above `geom-core` and the
+interval test files rather than the type. No copyleft dependency exists
+in any build configuration. Certification code reads brackets through
+the `Bounds`/`Enclosure` traits.
 
 **C10 — One deterministic AABB tree, conservative-superset contract.**
 `crates/bvh`: arena-order build, median split on the longest centroid
@@ -426,8 +434,9 @@ boundary.
 **O5 — The validator re-derives per face, as it does per edge.** Tier 3
 never trusts a stored certificate: `validate.rs` re-runs the O3
 derivation on every `Approx` face on every call through
-`PropsQuadLane::recertify_approx` (`ApproxCertification` on failure;
-`ApproxLaneUnsupported` on a scalar lane that cannot derive it). The
+`geom_brep::OffsetFitLane::recertify`, the door the pass takes as a
+parameter (`ApproxCertification` on failure; `ApproxLaneUnsupported`
+where the scalar's seam hands the pass no door). The
 stored `OffsetCertificate` is provenance, kept for reporting. `Approx`
 faces inherit the NURBS-adjacent exemption from dihedral marks (C7).
 

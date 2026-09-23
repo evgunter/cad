@@ -56,6 +56,12 @@ mod shared;
 mod approx_surface;
 #[path = "arc_eval_anchor.rs"]
 mod arc_eval_anchor;
+#[path = "bool5_wedge_arm.rs"]
+mod bool5_wedge_arm;
+#[path = "bool5r1_probes.rs"]
+mod bool5r1_probes;
+#[path = "bool5r2_wedge_probes.rs"]
+mod bool5r2_wedge_probes;
 #[path = "budget_faces.rs"]
 mod budget_faces;
 #[path = "cert1_r1_probes.rs"]
@@ -105,6 +111,10 @@ mod offa_r1_probes;
 mod offb_r1_probes;
 #[path = "onb_c_payoff_interval.rs"]
 mod onb_c_payoff_interval;
+#[path = "props_cone_apex_cap.rs"]
+mod props_cone_apex_cap;
+#[path = "props_sphere_pole_side.rs"]
+mod props_sphere_pole_side;
 #[path = "r2_probe_sphere_polar.rs"]
 mod r2_probe_sphere_polar;
 
@@ -128,6 +138,8 @@ mod r2_quad_digit_probe;
 
 #[path = "offset_fit.rs"]
 mod offset_fit;
+#[path = "ring2_r2_probes.rs"]
+mod ring2_r2_probes;
 
 #[path = "cert5_r2_probes.rs"]
 mod cert5_r2_probes;

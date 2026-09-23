@@ -9,8 +9,8 @@ conversation, because each is the same defect: a held value with no
 witness of which world it belongs to. Ev ratified DI1–DI5 in chat on
 2026-09-04, DI5 in the stronger reading stated below. The page was
 `docs/DOCM-IDENTITY-DESIGN.md` until DOCM's exit on 2026-09-13, when it
-moved beside the code it governs; `docs/DOC-LEDGER.md` carries the
-history. The reference vocabulary is the companion page
+moved beside the code it governs. The reference vocabulary is the
+companion page
 `crates/editor-core/REFERENCES.md`. Mechanics here are measured, not
 assumed; where a file:line has drifted, the name beside it is the
 stable half.
@@ -56,9 +56,13 @@ in the same history, and the node is live.** Along any forward path
 from the mint the counter is monotone, so the id cannot be re-minted;
 on any other branch it can. A hold therefore carries the id plus its
 minting entry, which the history computes at pick time by walking up
-until the counter drops below the id (`History::entry`,
-`Doc::next_id`), and the per-frame `reconcile` / `standing` checks
-descent before liveness.
+until it passes the last entry whose document has minted the id
+(`History::entry`, `Doc::has_minted`), and the per-frame `reconcile` /
+`standing` checks descent before liveness. `has_minted` is the
+counter's one public reading and answers minting alone — a deleted
+id is still minted, and liveness stays `Doc::node`'s question — so
+the monotonicity this walk rests on is argued where the counter
+lives rather than restated at the holder.
 
 - Undoing an unrelated later edit keeps a pick valid; undoing past
   the mint invalidates it; redoing onto the original branch restores
@@ -76,9 +80,9 @@ descent before liveness.
   per-frame question and stays so.
 
 *Record: the rule is ratified; the build is VIEW's and is not in the
-tree — `layer3-recipenodeid-aliases-across-rewinds`, parked behind
-`next-id-has-no-layer3-door`, and no holder checks descent today.
-History in `docs/DOC-LEDGER.md`.*
+tree — `layer3-recipenodeid-aliases-across-rewinds`, open since
+`Doc::has_minted` gave the walk its reading, and no holder checks
+descent today.*
 
 ## DI2 — The memo is a pure function of the document; the store is the session's
 
@@ -118,19 +122,19 @@ Consequences:
 
 *Record: the memo half and A4's narrowed sentence are DOCM-4 (PR
 1808), with DI3; the re-mount door is open at
-`document-seam-no-in-session-change-detection`. History in
-`docs/DOC-LEDGER.md`.*
+`document-seam-no-in-session-change-detection`.*
 
 ## DI3 — An evaluation carries its document's identity
 
-`product`, `assemble` and `SolvedPoses::placement` each take a
-document plus an evaluation that must be OF that document, and without
-a stamp nothing can check the pairing; mispairing would be silent
-misbehaviour. **`Evaluation` carries `document: DocumentId`**, stamped
-by `evaluate` from `doc.id()`, and every door that takes the pair
-refuses a mismatch typed
+A pairing door takes a document plus a value that must be OF that
+document, and without a stamp nothing can check the pairing;
+mispairing would be silent misbehaviour. **`Evaluation` carries
+`document: DocumentId`**, stamped by `evaluate` from `doc.id()`, and
+every door that takes the pair refuses a mismatch typed
 (`ProductError::EvaluationOfAnotherDocument { expected, found }` and
-its siblings). The version half is not stamped: within one document,
+its siblings). Which doors those are is
+`crates/editor-core/ASSEMBLY.md`'s A2a, the one place that list is
+written. The version half is not stamped: within one document,
 the per-node content keys already decide reuse, and a pin per
 evaluation would cost a canonicalization per run for a check the keys
 make. The memo lookup itself (`prior.nodes.get(&id)`) makes the same
@@ -138,8 +142,7 @@ id check, so a prior from another document is refused rather than
 mined for coincidental hits.
 
 *Record: built by DOCM-4 (PR 1808); which doors read the stamp is
-`crates/editor-core/ASSEMBLY.md` A2a. History in
-`docs/DOC-LEDGER.md`.*
+`crates/editor-core/ASSEMBLY.md` A2a.*
 
 ## DI4 — Saving at a path never forks identity; forking is its own act
 
@@ -166,8 +169,7 @@ typed:
 `crates/pncad/src/workspace.rs` — the two acts are `Workspace::save_at`
 and `Workspace::save_as_new_document`, the refusal
 `WorkspaceError::SaveWouldDuplicateId { id, existing }` — closing
-`save-a-copy-duplicate-id-bricks-store`. History in
-`docs/DOC-LEDGER.md`.*
+`save-a-copy-duplicate-id-bricks-store`.*
 
 ## DI5 — Releasing a free-move gesture is the placement edit
 
@@ -196,7 +198,7 @@ which is what a user expects of a part they placed. Consequences:
 *Record: the build is CHROME's and is not in the tree —
 `no-persistent-setplacement-session-op` is open, the whole free-move
 family in `SessionOp` is still display-only, and `display.rs` still
-states the old boundary. History in `docs/DOC-LEDGER.md`.*
+states the old boundary.*
 
 ## What this doc does not touch
 

@@ -15,7 +15,7 @@
 //!
 //! [`expected`] is a SECOND, hand-written copy of the answers, so an
 //! accidental edit to the predicate fails here rather than passing by
-//! agreeing with itself. Its match is exhaustive: a forty-second
+//! agreeing with itself. Its match is exhaustive: a forty-third
 //! `SessionOp` does not compile until someone writes down whether a
 //! drag refuses it, which is the property the table exists to buy.
 //! Its index half, checked against `OP_COUNT`, is what makes a MISSING
@@ -27,16 +27,26 @@
 //! not by consulting behaviour. Both copies were written by one author
 //! in one commit, so the honest scope is narrower than "the answers are
 //! checked": reversing the whole table — every op permitted, in the
-//! predicate and in `expected` together — turns five tests red across
-//! the viewer suite, which witnesses 20 of the 26 refusals from outside
-//! this file. The six with no external witness are
+//! predicate and in `expected` together — turns eight tests red, five
+//! of them outside this file.
+//!
+//! **Which refusals those five witness is a second census and has its
+//! own rule**: an op is witnessed from outside when a test outside this
+//! file asserts `Refusal::GestureInFlight` for it with a drag open —
+//! the union of the ops in those five assertion sites. That union is 19
+//! of the 24 refusals. The five with no external witness are
 //! [`SessionOp::DeleteNode`], [`SessionOp::ProbeBounds`],
-//! [`SessionOp::SetSlotUnit`], [`SessionOp::CreateParam`],
-//! [`SessionOp::BeginParamGesture`] and [`SessionOp::AddMate`]; for
-//! those, `expected` is the only place the answer is written down
-//! rather than a check on a written answer. That is strictly more than
-//! the dispatch recorded before the table existed, and it is not the
-//! same as an independent confirmation.
+//! [`SessionOp::SetSlotUnit`], [`SessionOp::CreateParam`] and
+//! [`SessionOp::AddMate`]; for those, `expected` is the only place the
+//! answer is written down rather than a check on a written answer.
+//! That is strictly more than the dispatch recorded before the table
+//! existed, and it is not the same as an independent confirmation.
+//!
+//! **What the census rule cannot see** is a test that witnesses a
+//! refusal without naming it — one asserting that nothing was
+//! committed, say — so 19 is a floor on the witnessed set and not a
+//! measurement of it. The reversal count above is the measurement that
+//! does not depend on the naming.
 //!
 //! # What the behavioural rows deliver
 //!
@@ -62,7 +72,7 @@
 //! sets, so there are two tables and this file checks both.
 //! [`SessionOp::permitted_during_free_move`] has two refusals rather
 //! than 26 and they have a name, so it is NOT restated here as a
-//! second copy of 41 rows: `replaces_the_document` says the property
+//! second copy of 42 rows: `replaces_the_document` says the property
 //! the table encodes — an operation that puts a different document
 //! under the session — and
 //! `the_free_move_table_refuses_exactly_the_replacement_doors` checks
@@ -82,10 +92,12 @@
 
 use crate::common;
 
+use std::collections::BTreeSet;
+
 use common::{len, len3, scl3};
 use pncad::document::{
     Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocParam, DocumentId, Expr, Frame,
-    MateFrame, MatePrimitive, Node, ParamName, ProfileProgram, RecipeNodeId, SitedRef, SlotId,
+    MateFrame, MatePrimitive, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, MM, StableName};
@@ -93,8 +105,8 @@ use pncad::select::ContactClass;
 use viewer::display::DisplayFault;
 use viewer::props::SlotValue;
 use viewer::session::{
-    BoundsTarget, CancelDoor, DatumSpec, DocSession, FaceSelection, Hovered, PatternRuleSpec,
-    Refusal, Selection, SessionOp,
+    BoundsTarget, CancelDoor, DocSession, FaceSelection, FreeMoveName, GestureName, Hovered,
+    PatternRuleSpec, ProfilePlane, Refusal, Selection, SessionOp, ValueGestureName,
 };
 
 /// The number of `SessionOp` variants, which is also the number of
@@ -103,7 +115,7 @@ use viewer::session::{
 /// `the_table_answers_for_every_op` checks the samples land on each
 /// exactly once — so a variant added without a sample fails, and one
 /// added without an answer does not compile.
-const OP_COUNT: usize = 41;
+const OP_COUNT: usize = 44;
 
 /// A document with a literal-driven extrude — a slot a gesture can
 /// actually open on, which the expression-driven fixture is not.
@@ -190,6 +202,14 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             name: param.clone(),
             value: SlotValue::Continuous(0.02),
         },
+        SessionOp::SetParamUnit {
+            name: param.clone(),
+            unit: MM.def(),
+        },
+        SessionOp::SetParamText {
+            name: param.clone(),
+            text: "5 mm".to_owned(),
+        },
         SessionOp::CreateParam {
             name: param.clone(),
             value: DocParam::continuous(Dimension::Length, 0.005),
@@ -234,8 +254,8 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
         SessionOp::CommitFreeMove { instance: node },
         SessionOp::CancelFreeMove,
         SessionOp::AddMate {
-            a: SitedRef::at_mint(face(node)),
-            b: SitedRef::at_mint(face(node)),
+            a: common::head(face(node)),
+            b: common::head(face(node)),
             class: ContactClass::Rest,
             alignment: alignment(),
         },
@@ -243,14 +263,10 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             name: "view1b-fresh".to_owned(),
         },
         SessionOp::AddDatum {
-            datum: DatumSpec::Frame {
-                origin: len3([0.0; 3]),
-                u: scl3([1.0, 0.0, 0.0]),
-                v: scl3([0.0, 1.0, 0.0]),
-            },
+            datum: ProfilePlane::world_xy().expect("the world xy frame lowers"),
         },
         SessionOp::AddProfile {
-            plane: node,
+            plane: ProfilePlane::Existing(node),
             loops: vec![],
         },
         SessionOp::AddExtrude {
@@ -306,6 +322,14 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
         SessionOp::AddInstance {
             id: DocumentId::derive("view1b-no-such-part"),
         },
+        SessionOp::EditProfile {
+            node,
+            base: pncad::document::ProfileProgram {
+                plane: node,
+                loops: vec![],
+            },
+            loops: vec![],
+        },
     ]
 }
 
@@ -327,8 +351,16 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::SetSlotExpression { .. } => (6, false),
         SessionOp::SetParam { .. } => (7, false),
         SessionOp::CreateParam { .. } => (8, false),
-        SessionOp::BeginGesture { .. } => (9, false),
-        SessionOp::BeginParamGesture { .. } => (10, false),
+        // The two doors that OPEN a value gesture. Permitted by this
+        // table and refused anyway, by `g1::Slot::begin` — rule 1,
+        // held once for both gestures and off the very state this
+        // table is consulted on. A `false` row here would raise the
+        // same `GestureInFlight` one layer up and leave the door's own
+        // arm unreachable, which is the argument
+        // `permitted_during_free_move` already makes for
+        // `BeginFreeMove`.
+        SessionOp::BeginGesture { .. } => (9, true),
+        SessionOp::BeginParamGesture { .. } => (10, true),
         // The gesture's own driving doors: a guard here would leave a
         // drag with no way to end. Permitted BY THIS TABLE is the
         // whole of what these rows say — the four that name a target
@@ -372,6 +404,11 @@ fn expected(op: &SessionOp) -> (usize, bool) {
         SessionOp::AddFillet { .. } => (38, false),
         SessionOp::AddChamfer { .. } => (39, false),
         SessionOp::AddInstance { .. } => (40, false),
+        SessionOp::EditProfile { .. } => (41, false),
+        // The parameter row's other two doors, both document edits
+        // and both fenced for `SetParam`'s reason.
+        SessionOp::SetParamUnit { .. } => (42, false),
+        SessionOp::SetParamText { .. } => (43, false),
     }
 }
 
@@ -402,6 +439,14 @@ fn the_table_answers_for_every_op() {
 /// compared with the predicate `perform` itself reads, so a wrong entry
 /// agrees with itself here; a re-added arm-level guard, or a `perform`
 /// that stopped consulting the table, does not.
+///
+/// **The two begin doors are fenced and NOT by this table**, the way
+/// `no_operation_dissolves_an_in_flight_free_move_in_silence` says the
+/// same of `BeginFreeMove`: a second begin under an open drag is
+/// refused by `g1::Slot::begin` itself, with the same
+/// `GestureInFlight` one layer down. The expectation says so rather
+/// than smoothing it over, because a table row would be a second
+/// spelling of one answer.
 #[test]
 fn every_op_behaves_as_the_table_says() {
     let tol = Tol::witness();
@@ -421,9 +466,13 @@ fn every_op_behaves_as_the_table_says() {
         );
         let outcome = session.perform(op.clone());
         let fenced = matches!(outcome.refusal, Some(Refusal::GestureInFlight));
+        let begins_a_second_gesture = matches!(
+            op,
+            SessionOp::BeginGesture { .. } | SessionOp::BeginParamGesture { .. }
+        );
         assert_eq!(
             fenced,
-            !op.permitted_during_value_gesture(),
+            !op.permitted_during_value_gesture() || begins_a_second_gesture,
             "{op:?} refused {:?} with a gesture in flight",
             outcome.refusal
         );
@@ -435,6 +484,95 @@ fn every_op_behaves_as_the_table_says() {
         }
     }
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **A refused begin runs no target check** — rule 1 before the
+/// target, at both value-gesture doors.
+///
+/// `g1::Slot::begin` validates only once the slot is known free, so a
+/// begin arriving under an open drag is answered *finish the drag
+/// first* rather than told about a field it was never going to open.
+/// That ordering is the whole of what moving the answer down had to
+/// preserve: with the mid-gesture table's rows gone, the two doors'
+/// own checks — a driven slot, a parameter the document does not
+/// declare — would otherwise run first and answer a question nobody
+/// asked.
+///
+/// Both halves matter, so both are asserted: under an open drag the
+/// refusal is `GestureInFlight`, and with no drag open the SAME two
+/// begins still get their own refusals, so the check has not been
+/// dropped on the way in.
+///
+/// Where it goes red: hoist `guard_driven` or the parameter lookup out
+/// of `DocSession::start`'s closure and the first half turns into
+/// `DrivenByExpression` / `NoSuchParam`; drop either check and the
+/// second half stops refusing at all.
+#[test]
+fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
+    let tol = Tol::witness();
+    let (mut session, first, second, param) = two_fields(tol);
+    let undeclared = ParamName::new("no-such-parameter");
+
+    // The second extrude's distance becomes a computed slot, which is
+    // what `begin_gesture`'s own check refuses.
+    assert!(
+        session
+            .perform(SessionOp::SetSlotExpression {
+                node: second,
+                slot: SlotId::Distance,
+                text: param.0.clone(),
+            })
+            .refusal
+            .is_none(),
+        "the fixture's second slot is driven by the parameter"
+    );
+
+    let driven = SessionOp::BeginGesture {
+        node: second,
+        slot: SlotId::Distance,
+    };
+    let missing = SessionOp::BeginParamGesture {
+        name: undeclared.clone(),
+    };
+
+    // With nothing in flight, each door answers for its own target.
+    assert!(
+        matches!(
+            session.perform(driven.clone()).refusal,
+            Some(Refusal::DrivenByExpression { .. })
+        ),
+        "a drag on a computed slot is refused by the slot's driver"
+    );
+    assert!(
+        matches!(
+            session.perform(missing.clone()).refusal,
+            Some(Refusal::NoSuchParam(ref name)) if *name == undeclared
+        ),
+        "a drag on an undeclared parameter is refused by the lookup"
+    );
+
+    assert!(
+        session
+            .perform(SessionOp::BeginGesture {
+                node: first,
+                slot: SlotId::Distance,
+            })
+            .refusal
+            .is_none(),
+        "the fixture's drag opens"
+    );
+
+    // And under an open drag, rule 1 answers both before they do.
+    let refused = session.perform(driven).refusal;
+    assert!(
+        matches!(refused, Some(Refusal::GestureInFlight)),
+        "the driven slot's check answered for a gesture nothing was opening: {refused:?}"
+    );
+    let refused = session.perform(missing).refusal;
+    assert!(
+        matches!(refused, Some(Refusal::GestureInFlight)),
+        "the parameter lookup answered for a gesture nothing was opening: {refused:?}"
+    );
 }
 
 /// The other half of "unchanged behaviour": with no gesture open, the
@@ -671,7 +809,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
 // --- the cancel doors -----------------------------------------------
 
 /// **Which operations cancel a GESTURE**, written down exhaustively so
-/// that a forty-second operation cannot join the enum without answering
+/// that a forty-third operation cannot join the enum without answering
 /// whether the chrome owes it a door.
 ///
 /// The rule ranges over what an operation cancels, NOT over what it is
@@ -693,6 +831,8 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
         | SessionOp::SetParam { .. }
+        | SessionOp::SetParamUnit { .. }
+        | SessionOp::SetParamText { .. }
         | SessionOp::CreateParam { .. }
         | SessionOp::BeginGesture { .. }
         | SessionOp::BeginParamGesture { .. }
@@ -714,6 +854,7 @@ fn cancels_a_gesture(op: &SessionOp) -> bool {
         | SessionOp::NewDocument { .. }
         | SessionOp::AddDatum { .. }
         | SessionOp::AddProfile { .. }
+        | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddBoolean { .. }
@@ -769,6 +910,214 @@ fn every_gesture_cancel_has_a_chrome_door() {
         "a door with no cancelling operation behind it"
     );
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **One name per family**, and the witness that the list is complete.
+///
+/// `family` is an exhaustive match, so a third kind of gesture does not
+/// compile until it is sampled here; the rows below then range over
+/// every family rather than over the two their author had in mind.
+fn family(name: &GestureName) -> usize {
+    match name {
+        GestureName::Value(ValueGestureName::Slot { .. }) => 0,
+        GestureName::Value(ValueGestureName::Param(_)) => 1,
+        GestureName::FreeMove(_) => 2,
+    }
+}
+
+/// Two distinct names per family, which is what an injectivity check
+/// needs: the pairs differ in the payload and in nothing else.
+fn sample_names() -> Vec<GestureName> {
+    let names = vec![
+        GestureName::Value(ValueGestureName::Slot {
+            node: RecipeNodeId(3),
+            slot: SlotId::Distance,
+        }),
+        GestureName::Value(ValueGestureName::Slot {
+            node: RecipeNodeId(4),
+            slot: SlotId::Distance,
+        }),
+        GestureName::Value(ValueGestureName::Param(ParamName("h".into()))),
+        GestureName::Value(ValueGestureName::Param(ParamName("w".into()))),
+        GestureName::FreeMove(FreeMoveName {
+            instance: RecipeNodeId(3),
+        }),
+        GestureName::FreeMove(FreeMoveName {
+            instance: RecipeNodeId(4),
+        }),
+    ];
+    let covered: BTreeSet<usize> = names.iter().map(family).collect();
+    assert_eq!(
+        covered,
+        BTreeSet::from([0, 1, 2]),
+        "a gesture family with no sample name"
+    );
+    names
+}
+
+/// The three operations a gesture name mints, which is the other
+/// direction of [`SessionOp::names_gesture`].
+///
+/// The begin and the commit are asked of [`GestureName`] itself, which
+/// is the door a chrome builds a vocabulary through
+/// (`widgets::value_gesture`, `widgets::free_move_gesture`); only the
+/// preview goes to the half, because its value kind is the half's.
+fn minted(name: &GestureName) -> [SessionOp; 3] {
+    let preview = match name {
+        GestureName::Value(value) => value.preview(1.0),
+        GestureName::FreeMove(probe) => probe.preview(Frame::translation([1.0, 0.0, 0.0])),
+    };
+    [name.begin(), preview, name.commit()]
+}
+
+/// **The three spellings are one concept, and the tree says so
+/// mechanically.**
+///
+/// Six driving operations name their gesture three ways — a node and
+/// a slot, a parameter name, an instance — and
+/// [`SessionOp::names_gesture`] is where they become one
+/// [`GestureName`]. Asserted over `every_op`'s samples, which
+/// `the_table_answers_for_every_op` holds to one per variant, so the
+/// population is the whole enum:
+///
+/// - an operation names a gesture exactly when its VARIANT is one a
+///   gesture name mints. The population that answers comes from
+///   [`sample_names`] through [`minted`] rather than from a second
+///   hand-written list of the enum: this file's own rule is that a
+///   second copy catches a wrong entry, and a copy in the same order
+///   and grouping as the original catches a typist, not an author.
+/// - reading a name off an operation and minting the operations back
+///   from that name land on the same VARIANT.
+/// - every operation a name mints reads back as that same name.
+///
+/// **What the last two are together, and what they are not.** Each
+/// alone is weak: the variant check ignores the payload, and the
+/// round trip is a FIXED-POINT check, which any idempotent wrong
+/// answer satisfies — `names_gesture` returning `RecipeNodeId(0)` for
+/// every slot drag passes both, and passed the whole viewer suite.
+/// `a_name_is_the_payload_it_was_read_off` is the row that closes it,
+/// by anchoring the round trip at a name this file wrote rather than
+/// at one `names_gesture` produced.
+#[test]
+fn every_driving_operation_names_one_gesture() {
+    let tol = Tol::witness();
+    let dir = common::tempdir("view-gesture-name-census");
+    let (_, node) = fixture(tol);
+    let mintable: Vec<SessionOp> = sample_names().iter().flat_map(minted).collect();
+    for op in every_op(node, &dir.join("saved.pncad")) {
+        let named = op.names_gesture();
+        assert_eq!(
+            named.is_some(),
+            mintable.iter().any(|minted| same_variant(minted, &op)),
+            "whether {op:?} names a gesture"
+        );
+        let Some(name) = named else { continue };
+        let vocabulary = minted(&name);
+        assert!(
+            vocabulary.iter().any(|minted| same_variant(minted, &op)),
+            "{op:?} names a gesture whose own operations are not of its variant"
+        );
+        for minted in vocabulary {
+            assert_eq!(
+                minted.names_gesture().as_ref(),
+                Some(&name),
+                "{minted:?} was minted by a name it does not answer with"
+            );
+        }
+    }
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
+/// **A name carries the payload it was read off.**
+///
+/// `every_driving_operation_names_one_gesture` structurally cannot see
+/// this. Its containment arm compares VARIANTS, and its round trip is
+/// a FIXED POINT — it reads a name off an operation and checks that
+/// minting from THAT name reads back the same — so any wrong answer
+/// that is idempotent satisfies it. A `names_gesture` whose slot arm
+/// answered `RecipeNodeId(0)` for every slot drag, discarding the node
+/// the operation exists to carry, passes that row and passed the whole
+/// viewer suite.
+///
+/// **The anchor is what closes it**: [`sample_names`] is hand-written
+/// and owes nothing to `names_gesture`, so minting from one of those
+/// and reading it back is an IDENTITY check rather than a fixed-point
+/// one. That mutation reds here on the first name.
+///
+/// The second arm is injectivity — two operations that drive different
+/// gestures must not read back as one name, or a chrome that spells
+/// its target once would steer whichever drag collided with it. It is
+/// the weaker of the two and kept because it fails differently: the
+/// identity arm names the payload that was dropped, this one names the
+/// two gestures that became one.
+///
+/// Both range over the sampled targets and not over all of them: two
+/// nodes, two parameters and two instances, one pair per family, with
+/// [`sample_names`]'s own exhaustive witness that no family is missing.
+#[test]
+fn a_name_is_the_payload_it_was_read_off() {
+    let names = sample_names();
+    for name in &names {
+        for op in minted(name) {
+            let read = op
+                .names_gesture()
+                .expect("a minted operation names its gesture");
+            assert_eq!(
+                &read, name,
+                "{op:?} was minted by this name and reads back as another"
+            );
+        }
+    }
+    for (i, name) in names.iter().enumerate() {
+        for other in names.iter().skip(i + 1) {
+            assert_ne!(name, other, "two sample names are one name");
+            for op in minted(name) {
+                let read = op
+                    .names_gesture()
+                    .expect("a minted operation names its gesture");
+                assert_ne!(
+                    &read, other,
+                    "{op:?} reads back as another gesture's name, so two drags became one"
+                );
+            }
+        }
+    }
+}
+
+/// **A gesture's cancel is its DRAG's**, and the name is what decides
+/// which of the two.
+///
+/// The two cancels are one per drag rather than one per gesture, so
+/// [`GestureName::cancel`] is the only place the choice is made: a
+/// control that emitted the other drag's cancel would abandon a
+/// gesture nobody let go of, or refuse while the pointer still holds
+/// one. `widgets`' own escape rows drive both through a real widget;
+/// this is the mapping those two rest on, over both names of each
+/// drag.
+#[test]
+fn a_names_cancel_is_its_own_drags() {
+    for name in [
+        GestureName::Value(ValueGestureName::Slot {
+            node: RecipeNodeId(3),
+            slot: SlotId::Distance,
+        }),
+        GestureName::Value(ValueGestureName::Param(ParamName("h".into()))),
+    ] {
+        assert!(
+            matches!(name.cancel(), SessionOp::CancelGesture),
+            "a value drag's cancel"
+        );
+    }
+    assert!(
+        matches!(
+            GestureName::FreeMove(FreeMoveName {
+                instance: RecipeNodeId(3)
+            })
+            .cancel(),
+            SessionOp::CancelFreeMove
+        ),
+        "a probe's cancel"
+    );
 }
 
 /// **A door that cannot act says the refusal its OWN operation gives.**
@@ -898,9 +1247,11 @@ fn strand_the_distance_drag(session: &mut DocSession, extrude: RecipeNodeId) {
 /// with no row to report it — the session half, end to end, through the
 /// ops the widget emits. The last link, *a group that is not in the
 /// list is not drawn and so reports no release*, is
-/// `pane::properties_ui`'s `for group in &groups` and this crate has no
-/// headless egui harness to execute it (`panel_display.rs` says the
-/// same of the field's own wiring). It is read, not run.
+/// `pane::properties_ui`'s `for group in &groups`, which is a
+/// `ViewerBehavior` METHOD: it borrows the whole application, so no
+/// headless drive reaches it (`panel_display.rs` says the same of the
+/// field's own wiring, and `viewer::pane::headless` says what a drive
+/// can reach instead). It is read, not run.
 ///
 /// Where it goes red: give `CancelGesture` back to the no-op it would
 /// be if `perform` stopped taking the gesture, or take the door out of
@@ -938,7 +1289,7 @@ fn a_drags_own_preview_can_strand_it_and_the_door_closes_it() {
             .perform(SessionOp::SetSlot {
                 node: extrude,
                 slot: SlotId::Distance,
-                value: SlotValue::of(Dimension::Length, 0.006),
+                value: SlotValue::of(Dimension::Length, 0.006).expect("a finite length is a value"),
             })
             .refusal
             .is_none(),
@@ -952,7 +1303,7 @@ fn a_drags_own_preview_can_strand_it_and_the_door_closes_it() {
 ///
 /// The value drag's stranding trace above does not carry over to this
 /// gesture and this row does not claim it does: the probe's field is
-/// drawn off the shown document (`display::is_instance` and
+/// drawn off the shown document (`display::instance_check` and
 /// `display::free_move_check`), not off the landed evaluation, and a
 /// document change while a probe is in flight is pruned rather than
 /// stranded. What holds here is the other half of the item — the
@@ -1024,8 +1375,9 @@ fn the_free_move_door_is_live_exactly_while_the_probe_is() {
 /// so a name-shaped sweep finds only `perform`'s arms and reports the
 /// defect as still open. One read, in the toolbar.
 ///
-/// What it cannot see is whether that read is REACHED — the toolbar is
-/// an `egui` closure and this crate has no headless harness for one.
+/// What it cannot see is whether that read is REACHED — the toolbar
+/// draws inside a `ViewerBehavior` method, which borrows the whole
+/// application and so is out of a headless drive's reach.
 /// This row holds the emitter count against going back to zero, which
 /// is the state the item describes; the call site being three lines of
 /// a panel drawn on every frame is the rest of it.
@@ -1054,9 +1406,11 @@ fn the_cancel_doors_have_a_reader_in_the_chrome() {
 /// rather than as a second copy of its rows.**
 ///
 /// `expected` above is a hand-written copy of
-/// `permitted_during_value_gesture` because that table has 26 refusals
-/// with no shorter description than the list itself. The free-move
-/// table has two, and they have a name: an operation that REPLACES the
+/// `permitted_during_value_gesture` because that table has 25 refusals
+/// with no shorter description than the list itself — 24 of them move
+/// the document, the history or the file a drag previews against, and
+/// `ProbeBounds` is the twenty-fifth and reads rather than moves. The
+/// free-move table has two, and they have a name: an operation that REPLACES the
 /// document the session is about — as against one that moves it, which
 /// a prune answers for by reporting. So this says the name, and
 /// `the_free_move_table_refuses_exactly_the_replacement_doors` checks
@@ -1064,7 +1418,7 @@ fn the_cancel_doors_have_a_reader_in_the_chrome() {
 /// that is wrong or a property that has stopped being the reason, and
 /// both are things to find out.
 ///
-/// **Exhaustive on purpose**, like `expected`: a forty-second `SessionOp`
+/// **Exhaustive on purpose**, like `expected`: a forty-third `SessionOp`
 /// does not compile until someone says whether it replaces the
 /// document.
 fn replaces_the_document(op: &SessionOp) -> bool {
@@ -1081,6 +1435,8 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::SetSlotUnit { .. }
         | SessionOp::SetSlotExpression { .. }
         | SessionOp::SetParam { .. }
+        | SessionOp::SetParamUnit { .. }
+        | SessionOp::SetParamText { .. }
         | SessionOp::CreateParam { .. }
         | SessionOp::BeginGesture { .. }
         | SessionOp::BeginParamGesture { .. }
@@ -1102,6 +1458,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
         | SessionOp::AddMate { .. }
         | SessionOp::AddDatum { .. }
         | SessionOp::AddProfile { .. }
+        | SessionOp::EditProfile { .. }
         | SessionOp::AddExtrude { .. }
         | SessionOp::AddRevolve { .. }
         | SessionOp::AddBoolean { .. }
@@ -1116,7 +1473,7 @@ fn replaces_the_document(op: &SessionOp) -> bool {
 }
 
 /// The free-move table is exactly the replacement doors, on the same
-/// sample roster the value table is checked on — so a forty-second
+/// sample roster the value table is checked on — so a forty-third
 /// operation is answered for both drags or does not compile.
 #[test]
 fn the_free_move_table_refuses_exactly_the_replacement_doors() {
@@ -1280,11 +1637,11 @@ fn committed_distance(
 ///
 /// The chrome emits a drag as a triple — begin, previews, commit
 /// (`widgets::drag_gesture_ops`) — and only the begin is refused while
-/// another drag is open (`permitted_during_value_gesture`). The
-/// preview and the commit have to be permitted or a drag could never
-/// end, so what keeps the second field's numbers out of the first
-/// field's slot is that they NAME their field and the open gesture
-/// answers for the name.
+/// another drag is open (`g1::Slot::begin`'s first rule; the
+/// mid-gesture table permits all three). The preview and the commit
+/// have to be permitted or a drag could never end, so what keeps the
+/// second field's numbers out of the first field's slot is that they
+/// NAME their field and the open gesture answers for the name.
 ///
 /// The second field is taken twice, because a value gesture has two
 /// doors and they are addressed differently: another node's literal
@@ -1805,17 +2162,14 @@ enum Answer {
 /// vocabulary-free reading, plus what the machine has committed for
 /// the subject, in micrometres.
 ///
-/// **What each half of this row is evidence for is not the same**, and
-/// reading it as one statement overstates the drag's. Rule 2 and rule
-/// 3 are `g1::Slot`'s for both, so a mutation there reds both halves
-/// together, which is the property the shared machine buys. Rule 1 is
-/// answered for the PROBE by `g1::Slot::begin` and for the DRAG by
-/// `SessionOp::permitted_during_value_gesture`, one layer up, which
-/// refuses `BeginGesture` before the door runs: the two answer the
-/// same refusal and only one of them is the slot's. The row asserts
-/// the answer, which is what a user meets;
-/// `work/view/the-value-drags-in-flight-refusal-has-two-spellings.md`
-/// holds the question of which spelling should keep it.
+/// **All three rules are `g1::Slot`'s for both halves**, so a mutation
+/// in that module reds both together, which is the property the shared
+/// machine buys. Rule 1 used to be the exception: it was answered for
+/// the probe by `g1::Slot::begin` and for the drag by
+/// `SessionOp::permitted_during_value_gesture` one layer up, which
+/// refused `BeginGesture` before the door ran, so the drag's `InFlight`
+/// step witnessed the table rather than the slot. The two begin rows
+/// are `true` now and the step reaches the door.
 ///
 /// Where it goes red: drop the name check in `g1::Slot::preview` or in
 /// `commit` and the `Wrong` steps stop refusing, in both halves; drop

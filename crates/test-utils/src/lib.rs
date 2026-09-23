@@ -14,6 +14,11 @@
 //!   why deriving it was tried and refused.
 //! - [`fuzz`], the harness every randomized falsification sweep draws
 //!   its RNG, its per-run seed and its EFFORT dial from.
+//! - [`mod@own_thread`] and [`panic_capture`], the two halves of one
+//!   capture: the panic MESSAGE an assertion produced, taken from a
+//!   panic hook rather than by downcasting the unwind payload, and the
+//!   same thing for a subject that has to run on a thread of its own
+//!   because a panic leaves process- or thread-state behind it.
 //! - [`mod@roster`], the weld between a file's `//!` roster of its own
 //!   `#[test]` rows and the rows libtest says the binary holds — one
 //!   ident per row, so a retired name is a compile error.
@@ -43,12 +48,11 @@
 //! without inverting the layering. Below everything, there is no cycle
 //! to create.
 
-#[cfg(test)]
-mod panic_capture;
-
 pub mod census;
 pub mod f6;
 pub mod fuzz;
+pub mod own_thread;
+pub mod panic_capture;
 pub mod roster;
 pub mod source;
 pub mod tightness;

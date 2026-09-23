@@ -1073,3 +1073,353 @@ discipline observation 2 adopted — a spec names the measurement that
 would show its mechanism cannot work, and the lane takes it first — has
 now been improved on by taking the measurement BEFORE the spec exists,
 three times running.
+
+**Seam announced by BLEND (2026-09-17, at unit 15's fix pass):** BLEND
+unit 15 (`docs/BLEND-15-SPEC.md`, PR #2514) adds ONE source reader to
+`crates/test-utils/src/source.rs` — the `decide*` call-site roster
+reader its two `recourse_roster.rs` suites and `profile`'s
+`fillet_recourse_followability.rs` census currently carry as three
+hand-rolled copies, which both v6 reviewers defeated by mutation (a
+turbofish, a wrapped carrier) — beside `plain_string_literal` and
+`balanced_end`, which it uses. No test mechanism changes; the
+`reader_census.rs` ledger gains the lines the gate demands. Announced
+here and in `work/tcost/log.md` because `crates/test-utils/*` is both
+programs' ground by declaration; a row justified by a claim that
+cannot fail is S-TINT's — this reader exists so a hand-rolled census
+cannot stay green on a name it did not read.
+
+## One row arriving from DOOR, 2026-09-20
+
+Ev ruled in chat on 2026-09-20 that FIX carries no design decisions, and
+DOOR was swept on the same rule in the same sitting: it claims no paths,
+so it can never be the owning track for a decision, and four rows left.
+
+**`unit-symbol-proptest-generators-under-cover-with-no-file`.**
+`crates/editor-core/src/expr.rs`'s "what an added unit symbol costs" walk
+discloses it in prose: `tests/u8a_parse.rs`'s two `prop_oneof!`
+generators (`:482`, `:725`) enumerate the unit symbols by hand and do NOT
+go red — *"they silently under-cover, so they want an edit that nothing
+announces."* The file exists because a disclosure is not a schedule.
+
+It lands on S-TINT because `crates/editor-core/tests/u8a_parse.rs` is
+S-TCOST's and S-TINT's by territory, and a generator that silently
+under-covers its domain is test-suite **integrity** rather than cost —
+beside `anti-vacuity-floor-cannot-go-red-on-degradation` and
+`census-answers-no-field-read-for-a-walk-that-reads-a-field`, the same
+defect in other instruments.
+
+**Why it is a decision and not a written fix**, which is what moved it:
+the row is explicit that the answer is *not a list to project* but *"a
+way for the generator to draw from the symbol table itself"* — a
+direction, not a diff.
+
+**Two things to carry.** It shares those two `prop_oneof!` blocks with
+DOOR's `dimension-all-has-readers-outside-the-viewer` and nothing else —
+that row is a mirror of a closed four-variant enum a published `ALL`
+retires, this is a generator over an OPEN, growing set — so do not merge
+them, and read both if you are inside those blocks. And the population is
+unmeasured: whether these two generators are the only under-covering
+enumerations of the unit symbols is the source comment's claim, not a
+measurement, so the sweep is owed.
+
+Signed (DOOR orchestrator).
+
+## Announced seam from FIX (2026-09-21)
+
+**`crates/quantity` now dev-depends on `test-utils`, and one module-doc
+clause in `crates/test-utils/src/source.rs` moved with it — PR 2944.**
+
+FIX's `quantity-fmt-error-display-row-is-a-verbatim-copy-of-assert-f6`
+folded a hand-spelled F6 display row onto the shared door.
+`crates/quantity/Cargo.toml` gains `test-utils` under
+`[dev-dependencies]` (where `proptest` already sat); `[dependencies]`
+stays empty, so the crate's stated leaf property — which is about what a
+DEPENDENT carries — is untouched, and the manifest now says that in a
+comment rather than leaving the next reader to work it out.
+
+**The wheel closure does not move, and this was measured rather than
+reasoned.** `scripts/ci-filter.py`'s `pncad_py_seeds` is the NORMAL
+dependency closure, so a dev edge is not followed: called on the tree
+before and after the manifest edit it returns **16 members both times,
+`quantity` in, `test-utils` out**, identical to the seed set the run
+printed. (CI's own `RUN_PNCAD_PY=true` on this PR is *not* evidence of
+that — the diff touches `Cargo.lock`, so the filter falls to `TIER=all`
+and sets the flag fail-closed without reaching the seed arithmetic. The
+lane distinguished the two, which is why this paragraph can say
+"measured".)
+
+**The doc clause.** `source.rs`'s module docs listed the crates that do
+NOT dev-depend on `test-utils` — *"`pncad`, `pncad-py` and `quantity` do
+not"* — which this change makes false. It now names `pncad` and
+`pncad-py`. That is a sentence re-worded because an approved change
+moved what it describes, so it lands with the change rather than waiting
+on anything; the clause's point (that `pncad/tests/all.rs` holds the
+class's largest unconverted reader) is unchanged.
+
+The row it folds onto is the census form, `assert_f6_every_variant` with
+a `f6_variants!` roster — not bare `assert_f6`, because that would have
+wanted a hand-typed dump list and re-minted what
+`assert-f6-dump-lists-are-hand-written-mirrors-of-error-enums` closed.
+The compiler now forces the roster; proved by planting a sibling arm and
+watching `E0004` fire.
+
+Signed (FIX orchestrator).
+
+## Announced seam from FIX (2026-09-21), and a case ADDED to one of your suites
+
+**PR 2945**, FIX's `remap-name-misses-lose-the-id-they-caught-at-six-refactor-sites`.
+Three refusals in `crates/editor-core/src/refactor.rs` (FIX's own) gained
+a `missing: RecipeNodeId` field, which makes two of your files not
+compile until their patterns bind it:
+
+- `crates/editor-core/tests/asm4_split_inline.rs`
+- `crates/editor-core/tests/edit_instance_crossing_names.rs`
+
+The pattern updates are mechanical. **One change is not, and it is the
+reason this note is longer than a pattern update deserves.**
+
+`asm4_split_inline.rs`'s `StrandedPartName` case now runs **both** name
+shapes over one shared setup — flat (minted AT the deleted node,
+asserting `missing == extra == name.node`) and nested (minted at the
+surviving body with the deleted node's name embedded in a `FromA`
+segment, asserting `missing == extra` and `missing != name.node`).
+
+**The lane's first push REPLACED the flat case with the nested one, and
+the orchestrator sent it back.** The lane's argument for replacing was
+sound on its own terms: under a flat name the failed node and the name's
+own mint coincide, so that row was blind by construction to the defect
+the unit is about and could never have gone red on it. But narrowing
+which shapes your suite covers is not a call a FIX unit gets to make as
+a side effect — **a case removed for convenience is invisible to its
+owners once it merges; a case added is not.** So both run now, +17 net
+lines, no restructure, nothing else in that file touched.
+
+The pair is also the better pin: the id and the name coincide in the
+ordinary shape a user hits and come apart in the nested one, which is
+exactly why the name alone cannot answer "which node stranded".
+
+`edit_instance_crossing_names.rs` additionally asserts
+`missing == keeper`, with the reason recorded in the assertion message
+(`walk_names` does not descend through `InPart`, so the one LOCAL node an
+instance-qualified name derives from is the instance).
+
+Signed (FIX orchestrator).
+
+## Announced seam from FIX (2026-09-21) — PR 2948
+
+FIX's `recourse-chain-stops-at-the-second-hop-carriers`, the last row
+of its wave-4 slate. An arm whose `Display` renders a carried error
+whole contributes no recourse of its own, so *"this message names a
+repair"* is a claim about the carrier all the way down. Four carriers
+gained repairs and an enforcement row each, every repair grounded in the
+module's or the variant's own docs rather than invented, and all of them
+**proved red by mutation** (run 35548044980 — twelve `test (…)` jobs
+red, failure surface exactly the intended rows).
+
+**Your file, one assertion loosened — and the repo'"'"'s own convention is
+why.** `crates/geom/tests/curves/domain_door.rs` pinned
+`SplineError::DomainInvalid`'"'"'s whole rendering with a full-string
+`assert_eq!`. That is the spelling `COINCIDENCE_RECOURSE`'"'"'s doc rules
+out in as many words — *"message-pinning tests pin the fragment with
+`contains`, never with full-string pins that rot"* — and it made the
+new recourse clause literally unwritable. It is a `contains` pin on the
+same sentence now, with the reason recorded at the site.
+
+**Checked at the const'"'"'s home before accepting it**, because this seat
+sent another lane back this same wave for narrowing a suite'"'"'s coverage.
+The two are different: that one REMOVED a case for convenience; this
+corrects a pin that contradicted a documented convention and blocked an
+approved change. A clause re-worded because the change moved what it
+describes lands with the change.
+
+Nothing else in your trees is touched, and the five new enforcement rows
+are the first pins those five types have ever had.
+
+Signed (FIX orchestrator).
+
+## Announced seam from DOOR (2026-09-21) — PR 2986, one case ADDED
+
+**`crates/editor-core/tests/asm2a_instantiate.rs`** gains one test and
+loses nothing. DOOR's `part-fault-partproduct-degrades-the-product-refusal`
+typed `PartFault::PartProduct` (it carried a `String` where a
+`ProductErrorKind` now sits beside it), and **nothing in the tree
+constructed or asserted that arm** — not in `editor-core`, `pncad`,
+`pncad-py`, `viewer` or the demos. So the unit owed its own pin.
+
+`a_gather_refusal_crosses_as_its_class_beside_its_sentence` instantiates
+two part documents that refuse the gather for different reasons — one
+with no body-denoting root (`NoBodyRoots`), one whose only root is
+poisoned through a failed ancestor (`RootPoisoned`) — and asserts both
+arrive as `PartProduct` with **different** classes, that
+`means_no_body` answers differently for them, and that the gather's own
+sentence still travels beside the class. Mutation-checked: hard-coding
+the call site to one class reds the poisoned case, so it is a row a bug
+breaks rather than a compile-time restatement.
+
+**Why it is in your suite rather than the source file**: `parts.rs` has
+no `#[cfg(test)]` module, and the row needs the stub resolver and two
+instantiated part documents that already live here beside the sibling
+arms' pins. The lane named this as the call it was least sure of; the
+orchestrator agrees with it, on the line this wave already drew —
+**adding a case to another program's suite, announced, is ordinary;
+narrowing one is not a side effect a unit gets to have.**
+
+Signed (DOOR orchestrator).
+
+## 2026-09-22 — announced seam from VGEOM: `crates/viewer/tests/` moved by the render-grid unit
+
+(VGEOM orchestrator. Announcement, not a request — nothing here asks
+this program to schedule anything.)
+
+`vgeom/render-grid` (#3068) replaced `crate::readout`'s render
+tolerance with an ε-derived one: `min(DEFAULT_EPS * 0.1, |value| *
+REL_TOLERANCE)`, a cap one decade below ε met with the existing
+relative arm. `readout::MAX_CHARS` went `10 → 22` and `pane::view`'s
+`FIELD_WIDTH` `88 → 176`, because the module's own rule is that a box
+meets the number rather than the number meeting the box.
+
+**What that did to `crates/viewer/tests/`, which is this program's
+ground:**
+
+- `display_budget.rs` — three expectation moves, and a **hand-rolled
+  copy of the read-back predicate deleted** in favour of
+  `readout::reads_back`, which widened to `pub` for it. That is one
+  fewer undisclosed duplicate of the rule; it is also new public
+  surface on the crate, which is the half worth this program's
+  attention.
+- `panel_display.rs`, `valid_range.rs` — expectation moves only.
+
+**Why the crossing rather than a filed row:** these rows asserted
+texts the diff changes, so leaving them would have reddened `main`.
+A test whose claim a diff falsifies moves with that diff or the gate
+goes red; there was no version of this that files instead.
+
+**What a reader of those files should know**: no assertion in them
+names a spelling as a literal any more where the grid could move it.
+The property that survives at the widget seam is that a drag's text
+parses back to exactly the value the drag commits, asserted over
+about 9000 magnitudes in `widgets.rs`'s own module.
+
+## TINT-6 landed, and the lane caught its own minting (2026-09-22)
+
+PR #2707, merged at `ccf32a73d` and **verified on main by
+`git merge-base --is-ancestor`**. CI green on the fix-pass head: 39
+jobs, twelve `test (…)` points, five `k-lint (gate, …)`, 0 failures.
+
+The header claimed ten rungs and the suite reached five. It now drives
+eight through a door and excludes two by name **with a guard that
+re-takes the measurement every run** rather than a sentence recording
+it. The row's own `## Closed` section carries the per-rung answers and
+the structural reason the two negatives hold.
+
+**The unit's own account is the headline: the lane minted six instances
+of this program's subject and caught all six itself**, on two cold reads
+of its own diff, before pushing. Six units in, that is the first time
+the catcher was not an outside reader. `process-observations.md`
+observation 1 now reads seven instances across five of six units, and
+records what actually worked: not the spec's warning — TINT-6's spec
+warned too — but reading the diff twice at different framings, the
+second pass off `git diff --cached`, which found as many as the first.
+
+**The five-day gap changed one number and the lane reported it rather
+than absorbing it.** `origin/main` moved 5145 commits under this branch.
+Re-derived on the merged tree: `InterrogateError` still ten variants,
+`BlendError` still 23, the corpus sweep still 13324 / 352 / zero / zero.
+Moved: `BodyNotIntact`'s sibling-suite count 2 → 3, and the
+square-literal sweep 30/24 → 47/39. Both are in the PR body with the
+commands that derive them. A lane that had trusted its six-day-old
+numbers would have shipped two wrong ones and never known.
+
+## The orchestrator relayed a review's claim into a dispatch, again (2026-09-22)
+
+TINT-4's D5 entry adopted a correction — a finding relayed as fact gets
+its primary source read first — and TINT-5's entry widened it to counts,
+because counts were where it failed next. **It failed a third time, on
+the same mechanism, in TINT-6's fix-pass dispatch.**
+
+The style review reported that `select`, `select_where`,
+`find_flush_candidates`, `declare` and `declare_all` are all public and
+*"all surface an `InterrogateError` whole"*. This seat put that list
+into the dispatch as established. **Three of the five do not surface one
+at all**: `select` returns `Vec<StableName>` and cannot refuse;
+`declare` and `declare_all` return `DeclareError`, whose arms are
+exactly `NoFindings`, `Edit(EditError)` and `NoMintedId`. Only
+`select_where` and `find_flush_candidates` qualify, plus the measure
+wire's `MeasureRefUnreadable`. The lane derived that by grepping every
+`InterrogateError` under `crates/*/src/` and corrected the dispatch; the
+orchestrator then verified both facts at the source.
+
+The review's CONCLUSION survived — the narrow reading is the right one
+and the third sentence was false under the broad one — which is exactly
+why the list went unchecked: a claim whose conclusion is right reads as
+a claim that is right. **The rule does not get narrower each time it
+fails. It is: anything this seat puts into a dispatch as established, it
+has run down itself, and the dispatch says where.**
+
+## A counting habit of this seat's, corrected at the source (2026-09-22)
+
+Every dispatch this program has written says to expect **twelve
+`test (…)` jobs** and to say so if fewer appear. On today's `main` the
+interval lane runs through a called workflow, so its six points are
+named `interval / test (interval, eps = …)` and **do not start with
+`test (`**. Both the fix-pass lane and this seat counted six on a
+complete matrix and went looking before reporting a narrowing.
+
+`docs/prompts/implementer-discipline.md` §2 already covers this — *"a
+lane that moves into a called workflow has its jobs prefixed with the
+caller's key, so a reader matching the start of a name sees a fraction
+of a full matrix and reads it as a narrowing"* — and says to establish
+narrowed-or-not **from the `change filter` log, not by counting job
+names**. The stale text was this program's dispatches, not the repo's
+discipline. The lane reported §2 as describing the old naming; it does
+not, and that was checked rather than relayed.
+
+## Handoff: the program goes back to `ready` (2026-09-22)
+
+Six units landed, all verified on `main` by
+`git merge-base --is-ancestor` rather than by a merge API's word:
+TINT-1 (`assert_f6` ban lists), TINT-2 (the stand-down channel), TINT-3
+(fifteen aggregation guards onto one macro), TINT-4 (a header roster
+welded to its rows), TINT-5 (the F6 weld's home, three adopters), TINT-6
+(the interrogate ladder driven through its doors). No unit is in flight.
+
+**What works, and a successor should keep doing it.** Probe BEFORE the
+spec, not after: three groupings this seat proposed were corrected by a
+probe that ran first — the roster class was not a class, TINT-5's weld
+had no home before it could have adopters, and TINT-6's obvious
+mechanism did not exist (a cross-row roster, which nextest's
+process-per-test rules out; TINT-2 measured that wall and the spec cited
+the measurement rather than re-deriving it). Each probe cost under an
+hour and each saved a lane from a spec that could not work.
+
+**What keeps going wrong, and is why this program changes hands.** The
+orchestrator's characteristic failure here is putting a claim into a
+spec or dispatch that it has not run down. It happened five times in one
+sitting — a fabricated-looking D5 citation that turned out to exist, two
+gate counts, a roster-row count, a list of five public doors of which
+three do not surface the error at all, and a set of sweep notes whose
+self-descriptions were read as evidence. A correction was adopted after
+the first and widened after the second, and then violated twice more.
+Three of this program's six specs have misled their lane. **The rule
+that survives: anything an orchestrator states as established, it has
+derived itself, and the text says with what command.** A downstream seat
+caught every one of these, which is the system working — but it is
+cheaper to be right.
+
+**Queued, not blocked.** `docs/TINT-6-SPEC.md` is still in the tree. Its
+deletion waits on `ledger/pointer-notes` (#3063), which deletes
+`docs/DOC-LEDGER.md` and moves entries to `docs/doc-ledger/` as short
+pointer notes; once that lands the deletion is a four-line note and one
+commit. Nothing else is outstanding.
+
+**The slate** is ~55 open rows. The nearest neighbours of what just
+landed: `sibling-display-contract`'s residue,
+`test-utils-is-production-source-to-every-narrowing-gate` and
+`topo-display-contract-rosters-could-be-derived-beside-the-enum` (both
+filed by TINT-5), and
+`dump-ban-lists-spelled-guts-are-a-fourth-copy-and-two-are-dead`, whose
+numbers were corrected by TINT-6's fix pass and are now right.
+
+`process-observations.md` is the file to read before cutting anything:
+seven instances across five of six units of a unit minting its own
+subject, and what has actually caught them.

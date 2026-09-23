@@ -47,10 +47,7 @@ use std::sync::Arc;
 use core::fmt;
 
 use geom_core::{BandError, CertifiedBounds, Decide, Tol};
-use topo::{
-    AtRestPolicy, Body, ContactRecords, PropsQuadLane, ShellClassifyError, ShellRole,
-    classify_shells,
-};
+use topo::{AtRestPolicy, Body, ContactRecords, ShellClassifyError, ShellRole, classify_shells};
 
 use crate::doc::Doc;
 use crate::eval::Evaluation;
@@ -795,6 +792,21 @@ pub enum ChecksError {
     },
 }
 
+/// **The pairing predicate's finding, in this door's vocabulary.**
+///
+/// A2a's rule is one predicate (`ident::mispaired`) and one arm per
+/// error type over it. The projection lives HERE, at the type that
+/// owns the arm, so a door that runs the predicate writes `?` or
+/// `m.into()` and no site re-spells which field goes where.
+impl From<crate::ident::Mispaired> for ChecksError {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        }
+    }
+}
+
 impl ChecksError {
     /// [`ChecksError::Product`] built from ONE subject: the class a
     /// consumer matches and the sentence a reader reads travel
@@ -870,12 +882,14 @@ impl core::error::Error for CheckRefusal {}
 ///   ([`run_checks_on`] refuses otherwise).
 /// - [`Subject::NoBodyRoots`] — no root denotes a body at all, the
 ///   reading [`product::ProductErrorKind::means_no_body`] states and
-///   this arm carries. A resident that needs a body has no
+///   this arm carries ([`Subject::refused`] routes a gather refusal
+///   of that class here). A resident that needs a body has no
 ///   subject here and contributes no finding; a resident that does not
 ///   (connectedness reads the evaluation) runs exactly as it would
 ///   otherwise.
 /// - [`Subject::Unavailable`] — there is no subject and the reason is
-///   carried. Either the gather REFUSED, or no enabled resident reads
+///   carried. Either the gather REFUSED for a cause that is not the
+///   absence above, or no enabled resident reads
 ///   a subject and none was taken
 ///   ([`ChecksConfig::needs_a_subject`]). A
 ///   subject-reading resident that is enabled and meets this arm makes
@@ -902,16 +916,32 @@ pub enum Subject<'a, T: Decide> {
 }
 
 impl<T: Decide> Subject<'_, T> {
-    /// [`Subject::Unavailable`] built from ONE refusal: `kind` is the
-    /// class a consumer matches, `reason` the gather's own sentence a
-    /// reader reads. Both come off the same error, which is the
-    /// invariant this door holds and a hand-built literal does not —
-    /// so a caller deriving its own subject from a gather that refused
-    /// goes through here rather than writing the two fields itself.
+    /// The subject a gather REFUSAL is — and which of two arms it is
+    /// is decided HERE, on [`product::ProductErrorKind::means_no_body`].
+    ///
+    /// **A gather refusal is two different facts, and this is where
+    /// they part.** The one class that predicate reads as an ABSENCE
+    /// rather than a fault becomes [`Subject::NoBodyRoots`]: a merely
+    /// empty document is checkable, and routing it to
+    /// [`Subject::Unavailable`] would make a subject-reading resident
+    /// refuse [`ChecksError::Product`] over it — the outcome that arm
+    /// exists to prevent. Every other class is a refusal and becomes
+    /// `Unavailable`. Because the routing lives here, a caller holding
+    /// a gather error hands it over whole rather than re-deriving a
+    /// classification that has one home.
+    ///
+    /// **The `Unavailable` it builds carries ONE refusal**: `kind` is
+    /// the class a consumer matches, `reason` the gather's own sentence
+    /// a reader reads, and both come off the same error — the pairing
+    /// invariant this door holds and a hand-built literal does not.
     #[must_use]
     pub fn refused(source: &product::ProductError) -> Self {
+        let kind = source.kind();
+        if kind.means_no_body() {
+            return Self::NoBodyRoots;
+        }
         Self::Unavailable {
-            kind: Some(source.kind()),
+            kind: Some(kind),
             reason: source.to_string(),
         }
     }
@@ -977,7 +1007,6 @@ pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherence
     }
     let subject = match product::product_recorded(doc, ev, tol) {
         Ok(ref gathered) => return run_checks_on(doc, ev, Subject::Product(gathered), cfg, tol),
-        Err(ref source) if source.kind().means_no_body() => Subject::NoBodyRoots,
         Err(ref source) => Subject::refused(source),
     };
     run_checks_on(doc, ev, subject, cfg, tol)
@@ -1014,12 +1043,7 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCohere
     cfg: &ChecksConfig,
     tol: Tol,
 ) -> Result<ChecksReport, ChecksError> {
-    let pairing = |found| {
-        crate::ident::mispaired(doc.id(), found).map(|m| ChecksError::EvaluationOfAnotherDocument {
-            expected: m.expected,
-            found: m.found,
-        })
-    };
+    let pairing = |found| crate::ident::mispaired(doc.id(), found).map(ChecksError::from);
     if let Some(refusal) = pairing(ev.document) {
         return Err(refusal);
     }
@@ -1055,7 +1079,7 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCohere
 /// The connectedness resident's own pass (I1(0b)) — [`run_checks`]'s
 /// body before the registry grew a second resident, moved out
 /// unchanged so each resident is independently `Off`-able.
-fn connectedness<P, T: Decide + PropsQuadLane>(
+fn connectedness<P, T: Decide + CertifiedBounds>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
@@ -1498,6 +1522,49 @@ mod tests {
         };
         assert_eq!(door, *kind);
         assert_eq!(prose, refusal.to_string());
+    }
+
+    /// INVARIANT: the subject door ROUTES the refusal it is handed.
+    /// The one class [`product::ProductErrorKind::means_no_body`]
+    /// reads as an ABSENCE — `ProductError::NoBodyRoots`, a document
+    /// that simply denotes no body — becomes [`Subject::NoBodyRoots`];
+    /// every other class becomes [`Subject::Unavailable`].
+    ///
+    /// That arm is the one refusal that must not go through the
+    /// unavailable door: a merely empty document routed there makes
+    /// every enabled subject-reading resident refuse
+    /// [`ChecksError::Product`] over a document where nothing has gone
+    /// wrong. The routing lives in the door precisely so no caller
+    /// has to remember it.
+    ///
+    /// **Which arm is which is not written down on the left.** The arm
+    /// the door picks is compared against what the CLASSIFICATION says
+    /// of the same error, so a door that stopped reading it reds here
+    /// while a re-classification moves both sides together — and the
+    /// set of classes that read as an absence is pinned where it is
+    /// stated, at `product`'s `exactly_one_arm_reads_as_no_body`.
+    #[test]
+    fn the_subject_door_routes_an_absence_away_from_the_unavailable_arm() {
+        for refusal in [
+            crate::ProductError::NoBodyRoots,
+            crate::ProductError::RootPoisoned {
+                node: RecipeNodeId(7),
+                through: RecipeNodeId(2),
+            },
+        ] {
+            let absence = refusal.kind().means_no_body();
+            let subject: Subject<'_, f64> = Subject::refused(&refusal);
+            assert_eq!(
+                matches!(subject, Subject::NoBodyRoots),
+                absence,
+                "{refusal:?}: the door's arm must follow the classification"
+            );
+            assert_eq!(
+                matches!(subject, Subject::Unavailable { .. }),
+                !absence,
+                "{refusal:?}: and the arm it is NOT is the refusing one"
+            );
+        }
     }
 
     /// INVARIANT: a subject that is absent because nothing ASKED for

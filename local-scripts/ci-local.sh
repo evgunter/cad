@@ -293,6 +293,15 @@ fi
 # halves: it prints paths another program owns and never fails.
 # HOSTED MIRROR: mirror / work tracker lint (work/ items resolve and docs/ holds no plan or log)
 # HOSTED MIRROR: mirror / work tracker territory (advisory)
+# The reach decider is tier-blind on the hosted half for a reason of its own,
+# and it is the reason every OTHER selftest there is not. Hosted, it answers
+# whether a change set reaches the checkers at all, and the selftest rows above
+# it are skipped when the answer is no; gating its own fixture on its own
+# answer would let a bug that always answered `false` skip the fixture that
+# catches it. Here there is nothing to gate — this half runs every row on every
+# tier — so what the local mirror owes is the fixture, which is a developer's
+# way to find that bug before pushing it.
+# HOSTED MIRROR: mirror / the checker selftests' own inputs (does this diff reach them?)
 tier_blind_rows() {
   local rc=0
   scripts/gates/gate-roster.sh --selftest || rc=1
@@ -317,6 +326,7 @@ tier_blind_rows() {
   python3 scripts/work.py --selftest || rc=1
   python3 scripts/work.py lint || rc=1
   python3 scripts/work.py territory --base "$BASE" || rc=1
+  python3 scripts/ci-reach.py --selftest || rc=1
   return $rc
 }
 echo
@@ -1219,8 +1229,7 @@ run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D w
 # UNCONDITIONAL HERE, GATED HOSTED: the hosted gate skips the eframe/wgpu
 # graph unless the change filter's SEEDS intersect {viewer, pncad, bvh}
 # (Ev's viewer-CI-posture ruling, 2026-08-27, in the closed GUI program's
-# log, which left the tracker with that program's directory in DOC-LEDGER
-# sweep 5 and reads at
+# log, which left the tracker with that program's directory and reads at
 # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`). This half is
 # not billed by anyone's minute — it is billed in one developer's wall
 # clock, on a run they chose to make — and it runs every point of every

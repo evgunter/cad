@@ -65,10 +65,13 @@
 #    test-utils is a dev-only leaf no shipped build can reach.
 #    This one is discharged by REACHABILITY before the four rows
 #    are reached: there is no shipped behaviour to change.
-#  - viewer frame.rs — the GUI shell's PLATFORM PROBES (#1097
+#  - viewer platform.rs — the GUI shell's PLATFORM PROBES (#1097
 #    first-light hardening): PATH + DBUS_SESSION_BUS_ADDRESS for
 #    the file-chooser-backend verdict, WSL_DISTRO_NAME/WSL_INTEROP
-#    for the WSLg X11 preference. The data flow is the REVERSE of
+#    for the WSLg X11 preference, the working directory as the file
+#    dialogs' last-resort starting place (`std::env::current_dir`,
+#    which this gate's pattern does NOT match: that read stays in
+#    platform.rs by convention, not by this gate). The data flow is the REVERSE of
 #    NURBS_PROBE's: the environment is the SUBJECT being observed,
 #    not a knob into the model — no read can change what any
 #    document evaluates to; they adapt chrome affordances (disable
@@ -86,8 +89,9 @@
 #    portal environment ambiently on every start — the probes make
 #    a dependence that already exists visible instead of adding a
 #    new kind. ONE file on purpose: every ambient read the viewer
-#    performs lives in frame.rs, so this entry is a single door,
-#    not a pattern.
+#    performs lives in platform.rs, so this entry is a single door,
+#    not a pattern — and that module exists FOR the door rather
+#    than hosting it as one region among others.
 #
 # `env!` is deliberately NOT matched: it is compile-time, baked
 # into the binary, and cannot be an ambient channel.
@@ -107,7 +111,7 @@ ALLOWLISTED_SUBJECT='the ratified environment readers, the only files that may r
 ALLOWLISTED_HOMES=(
   crates/geom-core/src/tolerance.rs
   crates/test-utils/src/fuzz.rs
-  crates/viewer/src/frame.rs
+  crates/viewer/src/platform.rs
 )
 
 gate() {

@@ -37,6 +37,31 @@ use pncad::geom_core::{Affine3, Point3, Tol, Vec3};
 use pncad::mesh::{Mesh, TessellateError, tessellate};
 use pncad::topo::Body;
 
+use crate::narrowing::Narrow;
+
+/// Millimetres per world unit, as the δ render and the δ door form it.
+///
+/// **Spelled once because those two have to agree.**
+/// [`DisplayTolerance::new`] refuses a δ whose millimetre value is not
+/// an `f64` and [`DisplayTolerance::render_mm`] forms that value; a
+/// second literal at either site would be a bound on one number
+/// guarding a conversion by another.
+///
+/// **It is not every metre-to-millimetre factor in the crate, and the
+/// inverse is not held here at all.** A field that parses millimetres
+/// commits `mm * 1.0e-3` and spells that itself, at four production
+/// sites ([`crate::pane::view`]'s δ request and its
+/// `DisplayTolerance::new` beside it, `pane::viewport`'s, and
+/// `widgets`' `frame_of`); the panel fields convert through
+/// [`crate::props::in_written`] and the unit table instead. What ties
+/// the commit factor to this one is that the two are inverses —
+/// which is the coincidence [`DisplayTolerance::new`]'s bound is
+/// argued from, and which `display_budget.rs`'s
+/// `the_door_refuses_a_delta_whose_millimetre_value_is_not_one`
+/// measures against its own literals rather than this constant, so a
+/// change here that the commit sites did not follow reds there.
+pub const MM_PER_METRE: f64 = 1.0e3;
+
 /// The chordal display tolerance δ: how far the drawn triangles may
 /// sag from the exact surfaces.
 ///
@@ -47,13 +72,30 @@ use pncad::topo::Body;
 pub struct DisplayTolerance(f64);
 
 impl DisplayTolerance {
-    /// A display tolerance, refused unless finite and strictly
-    /// positive.
+    /// A display tolerance, refused unless it is a finite, strictly
+    /// positive length whose millimetre value is a finite number too.
     ///
-    /// **What this door checks is exactly that, and no more.** It is
-    /// `mesh::tessellate`'s `InvalidChordalTolerance` condition —
+    /// **Two conditions, and they answer different questions.** The
+    /// first is `mesh::tessellate`'s `InvalidChordalTolerance` —
     /// `chordal.is_finite() && chordal > 0.0` — hoisted so a caller
-    /// meets it once at construction rather than at every call.
+    /// meets it once at construction rather than at every call. The
+    /// second is this crate's own: a δ whose millimetre value is not an
+    /// `f64` has no reading, and [`DisplayTolerance::render_mm`]
+    /// multiplies by [`MM_PER_METRE`] before any spelling is chosen, so
+    /// such a δ used to render as `inf` — not a δ this door accepts,
+    /// and infinitely far from the value. No text repairs that, because
+    /// the millimetre value does not exist; the door is the only place
+    /// the render's domain can be made total, and
+    /// [`SceneError::DisplayToleranceOverflowsMillimetres`] is what it
+    /// says instead.
+    ///
+    /// **The bound takes nothing a person could have typed.** The δ
+    /// field parses millimetres and commits `mm * 1.0e-3`
+    /// (`crate::pane::view`'s `delta_field`), so the coarsest δ it can
+    /// name is `f64::MAX * 1.0e-3` — which is exactly the coarsest δ
+    /// whose millimetre product is finite.
+    /// `the_door_refuses_a_delta_whose_millimetre_value_is_not_one`
+    /// measures that the two coincide rather than restating it.
     ///
     /// **What it does NOT foreclose**, stated because the first
     /// version of this sentence implied it did: a δ that is a valid
@@ -71,13 +113,17 @@ impl DisplayTolerance {
     /// # Errors
     ///
     /// [`SceneError::InvalidDisplayTolerance`] for a δ that is not a
-    /// finite, strictly positive length.
+    /// finite, strictly positive length;
+    /// [`SceneError::DisplayToleranceOverflowsMillimetres`] for one
+    /// that is, but whose millimetre value is not.
     pub fn new(delta: f64) -> Result<Self, SceneError> {
-        if delta.is_finite() && delta > 0.0 {
-            Ok(Self(delta))
-        } else {
-            Err(SceneError::InvalidDisplayTolerance { delta })
+        if !delta.is_finite() || delta <= 0.0 {
+            return Err(SceneError::InvalidDisplayTolerance { delta });
         }
+        if !(delta * MM_PER_METRE).is_finite() {
+            return Err(SceneError::DisplayToleranceOverflowsMillimetres { delta });
+        }
+        Ok(Self(delta))
     }
 
     /// The value, in world units.
@@ -94,24 +140,32 @@ impl DisplayTolerance {
     /// millimetre conversion the δ field's own commit path uses, and
     /// nothing else.
     ///
+    /// **The conversion is total on this type**, which is the door's
+    /// doing rather than this method's: [`DisplayTolerance::new`]
+    /// refuses a δ whose millimetre value is not an `f64`, so the
+    /// product below is finite for every δ that reaches here and
+    /// [`crate::readout::number`] never sees a value with no reading.
+    ///
     /// **No δ renders as `0.000`.** The rule refuses it without knowing
     /// anything about δ: a text reading zero is a hundred percent away
-    /// from a strictly positive value, and the render's accuracy bound
-    /// ([`crate::readout::REL_TOLERANCE`]) is five parts in ten
-    /// thousand. So the thing that used to be a second predicate here —
-    /// that the text read back as a δ [`DisplayTolerance::new`] accepts
-    /// — is implied by the first for every δ this type can hold, and
+    /// from a strictly positive value, and every arm of the render's
+    /// grid ([`crate::readout::reads_back`]) is proportional to the
+    /// value or finer. So the thing that used to be a second predicate
+    /// here — that the text read back as a δ
+    /// [`DisplayTolerance::new`] accepts — is implied by the first for
+    /// every δ this type can hold, and
     /// `no_delta_renders_as_a_number_a_delta_cannot_be` is where that
     /// implication is checked rather than restated.
     ///
-    /// **What it is not is exact.** Four significant figures is what a
-    /// ten-character bound buys, and a δ the triangle budget chose is
-    /// `constant / TRIANGLE_BUDGET` — seventeen. The other thirteen
-    /// figures are shown nowhere, which is why this render is a render
-    /// and never a commit path: the number a δ moves to is the one a
-    /// user types, never one the chrome echoed at them.
+    /// **What it is not is exact, and what it no longer is is coarse.**
+    /// The grid is capped one decade below ε, so a δ the triangle
+    /// budget chose — `constant / TRIANGLE_BUDGET`, seventeen figures —
+    /// is now shown to the figures that tell it from the next δ rather
+    /// than to four. It is still a render and never a commit path: the
+    /// number a δ moves to is the one a user types, never one the
+    /// chrome echoed at them.
     pub fn render_mm(self) -> String {
-        crate::readout::number(self.0 * 1.0e3)
+        crate::readout::number(self.0 * MM_PER_METRE)
     }
 
     /// This tolerance scaled by `factor` — the coarsen/refine step the
@@ -119,7 +173,10 @@ impl DisplayTolerance {
     ///
     /// # Errors
     ///
-    /// As [`DisplayTolerance::new`], on the product.
+    /// As [`DisplayTolerance::new`], on the product — including its
+    /// millimetre bound, so a coarsening of a δ already within a factor
+    /// of the coarsest refuses rather than producing one no reading
+    /// names.
     pub fn scaled(self, factor: f64) -> Result<Self, SceneError> {
         Self::new(self.0 * factor)
     }
@@ -132,6 +189,21 @@ pub enum SceneError {
     /// δ was not a finite, strictly positive length.
     InvalidDisplayTolerance {
         /// The offending value.
+        delta: f64,
+    },
+    /// δ was a length, but so coarse that its millimetre value is not
+    /// an `f64` — so nothing this crate could write would name it.
+    ///
+    /// Its own arm because it is a different fact from
+    /// [`SceneError::InvalidDisplayTolerance`]: this δ IS finite and
+    /// strictly positive, and `mesh::tessellate` would take it. What
+    /// refuses it is the reading rather than the tessellation — the δ a
+    /// person sees and types is in millimetres
+    /// ([`DisplayTolerance::render_mm`]), and past `f64::MAX` divided by
+    /// [`MM_PER_METRE`] there is no millimetre value to show or to type
+    /// back.
+    DisplayToleranceOverflowsMillimetres {
+        /// The offending value, in world units.
         delta: f64,
     },
     /// The document's roots did not gather into a product body: a
@@ -172,6 +244,22 @@ pub enum SceneError {
         /// How many positions the table actually holds.
         positions: usize,
     },
+    /// A tessellated corner does not narrow to the `f32` a GPU
+    /// position buffer holds ([`crate::narrowing::Narrow`]).
+    ///
+    /// **Every coordinate here is an ordinary finite `f64`** — that is
+    /// the whole of the arm. `f32::MAX` is about `3.40e38`, so a body
+    /// a few dozen orders of magnitude out tessellates cleanly, passes
+    /// every finiteness guard above, and reaches the seam as a number
+    /// whose narrowing is an infinity. Refused whole for
+    /// [`SceneError::BrokenPatchIndex`]'s reason: a solid drawn
+    /// without one of its triangles is a lie about the solid, and the
+    /// alternative is an infinity in a vertex buffer, which poisons
+    /// the shading of everything the rasterizer blends it with.
+    UndrawablePosition {
+        /// The offending corner, in world units.
+        position: [f64; 3],
+    },
 }
 
 impl core::fmt::Display for SceneError {
@@ -184,6 +272,16 @@ impl core::fmt::Display for SceneError {
             Self::InvalidDisplayTolerance { delta } => write!(
                 f,
                 "{delta} is not a finite, strictly positive display tolerance"
+            ),
+            // Scientific, and not the plain `Display` the arm above
+            // uses: every value that reaches this arm is within three
+            // decades of `f64::MAX`, so `{delta}` is three hundred
+            // digits of decimal expansion — a sentence nobody can read,
+            // about a number nobody can read.
+            Self::DisplayToleranceOverflowsMillimetres { delta } => write!(
+                f,
+                "{delta:e} is past the coarsest display tolerance this viewer can read: \
+                 its value in millimetres is not a finite number"
             ),
             Self::NoProduct(error) => write!(f, "{error}"),
             Self::NotTessellated(error) => {
@@ -205,6 +303,15 @@ impl core::fmt::Display for SceneError {
                 f,
                 "a face patch names vertex {index}, but the mesh's shared position \
                  table holds only {positions} positions"
+            ),
+            // Scientific, for `DisplayToleranceOverflowsMillimetres`'s
+            // reason: every coordinate that reaches this arm is large
+            // enough that its plain decimal expansion is unreadable.
+            Self::UndrawablePosition { position } => write!(
+                f,
+                "a tessellated corner is past the largest coordinate this viewer can \
+                 draw: [{:e}, {:e}, {:e}] does not narrow to a finite f32",
+                position[0], position[1], position[2]
             ),
         }
     }
@@ -523,7 +630,19 @@ impl SceneMesh {
                     // so a probed part is lit by where it is drawn.
                     let normal = triangle_normal(&corner_points);
                     for p in corner_points {
-                        positions.push([p.x as f32, p.y as f32, p.z as f32]);
+                        // **The display seam, and the whole scene
+                        // rides on it.** A corner the GPU cannot hold
+                        // refuses here for the reason the broken index
+                        // above refuses: a solid drawn without one of
+                        // its triangles is a lie about the solid, and
+                        // the alternative this replaces was an
+                        // infinity in a vertex buffer.
+                        let Some(position) = p.narrow() else {
+                            return Err(SceneError::UndrawablePosition {
+                                position: [p.x, p.y, p.z],
+                            });
+                        };
+                        positions.push(position);
                         normals.push(normal);
                         ids.push(id);
                         flags.push(flags_word);
@@ -856,6 +975,28 @@ pub const TRIANGLE_BUDGET: usize = 1_000_000;
 /// replaced that).
 const PROBE_FACTOR: f64 = 8.0;
 
+/// The cost a rung is placed at: `TRIANGLE_BUDGET / PROBE_FACTOR`
+/// triangles, the predicted cost of the rung [`fit_delta`] descends
+/// to.
+///
+/// Public because it is the *contract*, and [`PROBE_FACTOR`] is the
+/// ingredient it is derived from — a row wants the bound a rung is
+/// placed at, not the factor that bound is computed with, the way
+/// [`crate::camera::Camera::pitch_limit`] exposes an elevation limit
+/// and not the pole margin under it.
+///
+/// **Reading this does not make a row about placement true by
+/// construction**: what a row compares against it is a rung's MEASURED
+/// triangle count, tessellated from a real body, and a ladder that
+/// placed its probe somewhere else would exceed this bound and say so.
+/// The circular case is a row that would derive both sides of its
+/// comparison from the same number.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+pub fn placed_rung_cost() -> f64 {
+    TRIANGLE_BUDGET as f64 / PROBE_FACTOR
+}
+
 /// The δ the scale probe runs at: coarser than any body this viewer
 /// opens, so nothing subdivides and the tessellation is the body's
 /// FLOOR — the cheapest one it has at any δ, and the one whose points
@@ -866,7 +1007,24 @@ const PROBE_FACTOR: f64 = 8.0;
 /// (the count is non-increasing in δ); all that is lost is the
 /// floor's tightness, and the ladder in [`fit_delta`] walks down from
 /// wherever it starts.
-const SCALE_PROBE_DELTA: f64 = 1.0e9;
+///
+/// Public for the same reason as [`PROBE_FACTOR`]: it is the δ a row
+/// about the ladder's first rung has to run at, and a literal copy of
+/// it in a suite goes stale without the build noticing.
+pub const SCALE_PROBE_DELTA: f64 = 1.0e9;
+
+/// The display tolerance a session opens on: 0.1 mm, fine enough that
+/// a 24 mm hole reads as a circle and coarse enough to redraw
+/// instantly.
+///
+/// It lives beside the δ vocabulary rather than in the application
+/// that starts at it, because the application module is `cfg`-gated
+/// behind the `app` feature and this number is not: what a document
+/// COSTS at the opening δ is a fact about [`fit_delta`] and the
+/// budget, asserted by builds that link no toolkit. A copy of it on
+/// the far side of that gate would be a hand-synced constant whose
+/// drift the build cannot see.
+pub const INITIAL_DELTA: f64 = 1.0e-4;
 
 /// What [`fit_delta`] decided, and why — a value, so the chrome can
 /// say it and a row can assert it.
@@ -1328,7 +1486,16 @@ fn insert(
     node: Node<ProfileProgram>,
     tol: Tol,
 ) -> Result<(Doc<ProfileProgram>, RecipeNodeId), SceneDocError> {
-    let applied = apply(&doc, &DocEdit::InsertNode { node }, tol).map_err(SceneDocError::Edit)?;
+    // The scene's document has no instance and no mate, so no edit
+    // here can move a cluster's gauge: the refusing reach is never
+    // asked.
+    let applied = apply(
+        &doc,
+        &DocEdit::InsertNode { node },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .map_err(SceneDocError::Edit)?;
     let minted = applied.record.minted.ok_or(SceneDocError::NoNodeMinted)?;
     Ok((applied.doc, minted))
 }
@@ -1346,10 +1513,19 @@ fn fetch(points: &[Point3<f64>], corners: &[u32; 3]) -> Option<[Point3<f64>; 3]>
 /// the side the normal points to.
 ///
 /// A degenerate (zero-area) triangle has no normal; it gets `+Z`
-/// rather than a NaN, because a NaN in a vertex buffer poisons the
-/// shading of everything the rasterizer blends it with, while a
-/// wrong-facing sliver is invisible at the size a degenerate triangle
-/// has.
+/// ([`DEGENERATE_NORMAL`]) rather than a NaN, because a NaN in a vertex
+/// buffer poisons the shading of everything the rasterizer blends it
+/// with, while a wrong-facing sliver is invisible at the size a
+/// degenerate triangle has.
+///
+/// **A direction is the one thing at this seam that cannot overflow**,
+/// which is why it falls back where a POSITION refuses
+/// ([`SceneError::UndrawablePosition`]): `len` is at least the largest
+/// `|n[i]|`, so every component of the quotient is within `±1` and the
+/// narrowing is exact to `f32`'s precision. The door is still the door
+/// — one test, not two — and what differs is what an answerless
+/// triangle is worth, which is a shading nobody can see rather than a
+/// solid nobody can trust.
 fn triangle_normal(corners: &[Point3<f64>; 3]) -> [f32; 3] {
     let [a, b, c] = corners;
     let u = [b.x - a.x, b.y - a.y, b.z - a.z];
@@ -1360,16 +1536,18 @@ fn triangle_normal(corners: &[Point3<f64>; 3]) -> [f32; 3] {
         u[0] * v[1] - u[1] * v[0],
     ];
     let len = (n[0] * n[0] + n[1] * n[1] + n[2] * n[2]).sqrt();
-    if len > 0.0 && len.is_finite() {
-        [
-            (n[0] / len) as f32,
-            (n[1] / len) as f32,
-            (n[2] / len) as f32,
-        ]
-    } else {
-        [0.0, 0.0, 1.0]
-    }
+    (len > 0.0 && len.is_finite())
+        .then(|| [n[0] / len, n[1] / len, n[2] / len].narrow())
+        .flatten()
+        .unwrap_or(DEGENERATE_NORMAL)
 }
+
+/// What a triangle with no normal is shaded by.
+///
+/// One constant rather than a literal at each arm, because both arms
+/// of [`triangle_normal`] answer it and a second spelling of a
+/// fallback is a second fallback.
+const DEGENERATE_NORMAL: [f32; 3] = [0.0, 0.0, 1.0];
 
 /// **The ladder's own policy rows**, driven over a probe door rather
 /// than a body: what a rung costs is a property of the tessellator,
@@ -1384,10 +1562,12 @@ mod tests {
     #![allow(clippy::expect_used)]
 
     use super::{
-        DisplayTolerance, PROBE_FACTOR, Probe, ProbeStop, SCALE_PROBE_DELTA, TRIANGLE_BUDGET,
-        fit_from_probes,
+        DisplayTolerance, PROBE_FACTOR, Probe, ProbeStop, SCALE_PROBE_DELTA, SceneError, SceneMesh,
+        TRIANGLE_BUDGET, fit_from_probes,
     };
-    use pncad::mesh::TessellateError;
+    use pncad::geom_core::Point3;
+    use pncad::mesh::{FacePatch, Mesh, TessellateError};
+    use pncad::topo::FaceKey;
 
     /// A body obeying the law exactly: `triangles = constant / δ`,
     /// never below a floor it reaches at coarse δ.
@@ -1554,5 +1734,49 @@ mod tests {
             Err(TessellateError::InvalidChordalTolerance { value: d })
         });
         assert!(fitted.is_err());
+    }
+
+    /// One triangle, whose corner is where the row wants it.
+    fn one_triangle(far: f64) -> Mesh {
+        Mesh {
+            positions: vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(far, 0.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
+            ],
+            patches: vec![FacePatch {
+                face: FaceKey::default(),
+                triangles: vec![[0, 1, 2]],
+            }],
+            boundaries: Vec::new(),
+        }
+    }
+
+    /// **A corner the display seam cannot carry refuses the scene**,
+    /// through the public door and over a coordinate that is finite at
+    /// every guard above it.
+    ///
+    /// `1e39` is past `f32::MAX` (about `3.40e38`) and nowhere near
+    /// `f64`'s range, so the mesh is well formed, the patch index is in
+    /// range, and the only thing wrong with it is that the narrowing
+    /// [`SceneMesh::build`] performs would put an infinity in a vertex
+    /// buffer. The pair below is what the refusal has to be worth: the
+    /// same mesh at an ordinary coordinate builds.
+    #[test]
+    fn a_corner_past_the_display_seam_refuses_the_whole_scene() {
+        let ordinary = SceneMesh::build(&one_triangle(1.0), delta(1.0e-3))
+            .expect("an ordinary triangle is a scene");
+        assert_eq!(ordinary.stats().triangles, 1);
+
+        let far = 1.0e39_f64;
+        assert!(far.is_finite(), "the witness is a number at every guard");
+        let refusal = SceneMesh::build(&one_triangle(far), delta(1.0e-3)).err();
+        assert!(
+            matches!(
+                refusal,
+                Some(SceneError::UndrawablePosition { position }) if position == [far, 0.0, 0.0]
+            ),
+            "a corner past f32::MAX is not a scene, and the refusal names it: {refusal:?}"
+        );
     }
 }

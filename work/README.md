@@ -44,6 +44,8 @@ id: MESH-12
 kind: unit                 # program | unit | issue | ruling
 title: the saturated span refuses at the parse
 status: spec               # see the vocabularies below
+priority: P1               # P0..P4; see Priority below
+cost: H                    # E | D | H; what the row costs to do
 parent: S-MESH-slate       # optional; another item's id
 blocked_on: [D303, 1601]   # item ids, or PR/issue numbers as ints
 rides_with: D304           # optional; the row this finding travels with
@@ -67,7 +69,7 @@ in `docs/MODEL-AB-LOG.md`), `paths` (territory globs), `keep_out`
 allocates from). **No open program carries `blocks`, and none should**:
 an item's id comes from its name, not from a per-track number block.
 The block scheme belonged to the 2026-08 findings register and left the
-tree with it (`docs/DOC-LEDGER.md`, sweep 11).
+tree with it (`docs/doc-ledger/code-quality-leaves-the-tracker.md`).
 
 Unknown keys are lint errors. Add a key by adding it to the script's
 schema in the same PR that first uses it.
@@ -98,8 +100,138 @@ question only Ev answers; never work).
 Neither counts as available work: `STATUS.md` gives each its own column
 so a not-now row can never be read off the board as dispatchable, and
 neither is listed as stale for going untouched. A ruling is `open` or
-`closed`. A program is `open` or `closed`; a closed program may hold
-only closed items.
+`closed`.
+
+**status** of a program says what the TRACK is, and the fact it exists
+to carry is **whether an orchestrator is on it** — the one thing the
+row counts beside it cannot show, because a session with a full slate
+and nothing dispatched yet looks exactly like an abandoned one:
+
+- `ready` — **no orchestrator, and something to pick up**: at least
+  one row is dispatchable (`open` or `spec`, as Track size counts
+  them). This is the state a successor session scans the board for.
+- `active` — **an orchestrator holds this track.** Nothing in the tree
+  can confirm or refute that, so it is the program's own word and lint
+  takes it as given; the orchestrator sets it when it picks the track
+  up and clears it when it hands the track back.
+- `blocked` — **no orchestrator, and nothing to pick up**: every live
+  row is in flight, parked or deferred. Lint checks the half of that
+  claim the tree can see (no dispatchable row, and at least one live
+  one).
+
+**There is no `closed`, because a program that closes is deleted**
+(the closing rules below): a closed program is an ABSENT one, and a
+status saying so would only ever describe the gap between the exit
+walk being ratified and the sweep that removes the directory. A track
+in that gap is still `active` — its orchestrator is writing the walk —
+and it holds no dispatchable row, which is why nothing here requires
+one of an `active` track.
+
+**A blocked track never has an orchestrator, by construction.** An
+orchestrator that has run out of non-blocked units does not sit on the
+track waiting for its triggers to fire: it cuts the blocked rows into
+a new program (Track size's splitting rules; the closing rules'
+re-homing discipline), closes what it has finished, and leaves the new
+program `blocked` with nobody on it. Otherwise the whole track's exit
+walk and sweep wait on its slowest blocker, which can be indefinite.
+
+## Priority
+
+Every item carries a band, and so does every program. The bands (Ev,
+in chat, 2026-09-20):
+
+- **P0 — very high.** A normal verb broken on normal geometry; a live
+  wrong answer; something the GUI cannot author at all; a GUI defect
+  Ev reported as making the tool hard or impossible to use. The
+  standing goal this serves is **authoring arbitrary geometry through
+  the UI**, and most of what remains for it is kernel-side.
+- **P1 — high.** Architecture that entrenches as things are built on
+  it: two implementations of one underlying logic, a special case that
+  should be handled uniformly, and the rest of that class, which
+  mostly falls under no tidier heading than itself. Also verb breadth
+  beyond the everyday shapes, and GUI defects Ev reported as annoying
+  rather than blocking.
+- **P2 — medium-high.** Interval and error propagation — the reach
+  goal `docs/DESIGN.md` says shapes the architecture.
+- **P3 — medium.** Library usability and the north-star audit;
+  interop with other tools; tooling that prevents SILENT bugs; latent
+  unsoundness, such as a certificate a downstream crate can forge.
+- **P4 — low.** Code improvement that is not architectural; tooling
+  whose payoff is CI going red less often or the suite costing less;
+  prose, citation and naming hygiene.
+
+**A band says what to do, never when.** Dispatch order is the band
+together with what the row costs and with whether a design question is
+open on it — a cheap P4 with the fix written in its body is often
+taken ahead of a P1 that needs a ruling first, and that judgement is
+the orchestrator's. It is deliberately not a field: a stored dispatch
+order would go stale the first time a ruling landed.
+
+Two things the bands do NOT do. A guard does not inherit the band of
+what it guards: a dead assertion in the boolean suite is P3 for being
+a guard that cannot go red, not P0 for sitting on P0 ground. And a
+band is not a forecast of effort — `cost` carries that, separately,
+because the two are independent and collapsing them hides both.
+
+## Track size
+
+**A track is sized to about one orchestrator session** (Ev, in chat,
+2026-09-20). The measure is a weighted count of the rows that are
+actually dispatchable:
+
+- a row in `open` or `spec` counts; one `dispatched`, `review`,
+  `parked`, `deferred` or `closed` does not, because a row in flight
+  or ruled not-now is not a claim on the next sitting's attention;
+- it counts **1 point at cost `E`, 2.5 at `D`, 5 at `H`** — so one
+  budget of **30 points** says about 30 easy rows, about 12 design
+  rows, or about 6 hard ones, and says it for a mixed slate too, which
+  is nearly every slate;
+- a row with no `cost` is charged 2.5, so a track cannot come in under
+  budget by declining to price itself.
+
+A program may set its own `budget` with its reason in `program.md`;
+absent that it is 30. **The ceiling binds when a program opens and
+again as it grows**: a program is not opened over budget, and one that
+grows past it splits.
+
+**A track splits along its priority seam, not along another territory
+seam.** The seam that matters is the one already inside the slate: a
+fifty-row track is usually a dozen rows on the goal and thirty-eight
+behind them, and cutting it that way leaves one track a successor can
+charter and dispatch. Cutting the same slate five ways by file gives
+five tracks too thin to charter, and the territory rules above already
+say shared ground is fine. The closing rules' re-homing discipline
+applies unchanged: the rows MOVE, by `git mv`, keeping their ids.
+
+**Over budget is a report, not a lint warning.** `STATUS.md`'s
+`load` column carries every track's weight against its ceiling and
+bolds the ones over, and `work.py status` prints the same. It is
+deliberately not a warning on every `lint` run: splitting a track is a
+sitting's work and cannot be done in the PR that files its eleventh
+row, and a warning nobody can act on in the moment teaches people to
+skip warnings — the same reasoning that retired the double-claim
+warning above.
+
+## The tracker is not comprehensive
+
+**The tracker exists so work is not FORGOTTEN, not so work is
+RECORDED.** It is not an inventory of everything wrong with the tree
+and was never meant to be one, and its existence is not a reason to
+file instead of fix.
+
+So: **if you notice something small and you can fix it where you
+stand, fix it** — in the PR you are already writing, as a drive-by,
+and say so in the PR body. Do not open a file for it. A one-line
+citation that has rotted, a stale count, a comment describing code
+that moved: filing those costs a file, a header, a lint run, a review
+and a reader's attention later, to schedule work that was cheaper than
+the scheduling. Several rows on the board today are exactly this
+mistake and should have been commits.
+
+File an item when the fix is NOT yours to make where you stand:
+it needs a design question settled, it crosses into ground you are not
+working, it is too large for the PR in hand, or it would otherwise be
+lost. That is the whole test. (Ev, in chat, 2026-09-20.)
 
 ## Rules
 
@@ -112,11 +244,12 @@ only closed items.
   keeping the id, and sets `parent:` to the unit that carries it. This
   is how a finding reaches its owner. `work/code-quality/` used to be
   where one waited for a claim; it left the tracker on 2026-09-11
-  (`docs/DOC-LEDGER.md`, sweep 11) once all 110 of its live rows had
-  gone to the eleven programs opened for them, so **a finding now goes
-  straight onto the slate of the program whose ground it lands on**, and
-  `work/issues/` is the last resort it always was. A `keep_out` clause
-  saying a claimed row stays where it was is the thing to delete.
+  (`docs/doc-ledger/code-quality-leaves-the-tracker.md`) once all 110 of
+  its live rows had gone to the eleven programs opened for them, so **a
+  finding now goes straight onto the slate of the program whose ground
+  it lands on**, and `work/issues/` is the last resort it always was. A
+  `keep_out` clause saying a claimed row stays where it was is the thing
+  to delete.
 - **Ids are stable.** An item keeps its id for life; a program keeps
   its directory for as long as it is open. The rows migrated from the
   2026-08 findings register keep the ids they were cited by (`D102`,
@@ -126,8 +259,8 @@ only closed items.
   still to be done, not work that has been done, so once a program
   closes — its exit walk ratified, or Ev's ruling that it needs none —
   `program.md`, `plan.md` and `log.md` go, and so does the ratified
-  exit walk; the deletion is recorded in `docs/DOC-LEDGER.md` with the
-  SHA they are recoverable at, and that ledger entry is the program's
+  exit walk; the deletion is recorded in a note under `docs/doc-ledger/`
+  with the SHA they are recoverable at, and that note is the program's
   done-state of record. Residue is re-homed before the sweep, never
   left behind in the closed directory: to a live program whose charter
   it fits, or to a new program opened for it when the residue coheres
@@ -193,35 +326,41 @@ only closed items.
   another open program claims too** — those read differently ("owned
   by X" against "also claimed by X; a double claim, not a crossing")
   because they are different facts. It warns; it does not block.
-- **Two open programs may claim one path only if BOTH `keep_out`s name
-  the other.** An overlap written on both sides is a handoff a lane can
-  announce; an overlap written on one side or neither is a live
-  conflict, and the program that was there first is the one that cannot
-  see it. `lint` measures this at rest — every open program's globs
-  against `git ls-files` — and names each unrecorded pair with the
-  count of paths it shares.
+- **Two open programs may claim one path.** Shared ground is
+  legitimate and expected — a kernel file often has a structural
+  question on it and a numeric one, and splitting it between two
+  programs is usually worse than letting both claim it. Neither side
+  owes the other a `keep_out` clause for the overlap to be allowed
+  (Ev, in chat, 2026-09-20: *"it's ok if units have shared ground,
+  they should just be aware of each other if working at the same
+  time"*).
 
-  This is a **warning today and an error when the tree can carry one.**
-  Most pairs are unrecorded at any moment, the bulk of them the
-  `*/tests/*` family where S-TCOST's and S-TINT's territory is every
-  crate's tests by design, and one-file-one-item means no single program
-  may write the missing clauses. An error would red `main` the day it
-  landed for rows its author may not edit. **No count is stated here —
-  `work.py lint` prints the current one**, and it moves: the figure grew
-  by nine pairs in the ninety minutes between this PR opening and its
-  first merge-forward, when S-TCOST split and S-TINT took half its
-  territory.
-  The flip, and the question of whether the `*/tests/*` seam is written
-  once per program or taught to the check once, is
-  `work/meta/double-claim-lint-rule-waits-on-the-tests-seam.md`.
+  **What is owed is awareness while a lane is LIVE**, and that is a
+  per-branch question, not an at-rest one. `territory` answers it: it
+  reads a branch's diff and names every path another program claims,
+  so a lane learns at the moment it matters. The announced-seam
+  convention carries the rest — a lane touching another program's
+  ground says so in its PR, and the orchestrator posts a note on that
+  program's log. Write a `keep_out` clause when the relationship is
+  worth explaining to the next reader, which is often; do not write
+  one to satisfy a checker.
+
+  The at-rest map — which open programs share ground at all — is
+  `python3 scripts/work.py territory --overlaps`. It is a report, run
+  when you want it. It used to be a `lint` warning on every run, which
+  put two dozen warnings in front of every reader for a condition none
+  of them was expected to fix; a warning nobody can act on teaches
+  people to skip warnings, which costs more than the census is worth.
+  `work/meta/double-claim-lint-rule-waits-on-the-tests-seam.md`
+  records the ruling and what was built.
 - **No plan or log outside `work/`.** `docs/*-PLAN.md` and
   `docs/*-LOG.md` are lint errors, so a session writing to the old
   path fails loudly. (`docs/MODEL-AB-LOG.md` is an experiment log, not
   a program's, and is the one named exemption; it leaves `docs/` when
   the experiment concludes.)
 - **Specs keep their lifecycle.** `docs/<ID>-SPEC.md` binds an
-  implementer for one unit and is deleted at merge per
-  `docs/DOC-LEDGER.md`; the item file is the record that survives.
+  implementer for one unit and is deleted at merge, with a note under
+  `docs/doc-ledger/`; the item file is the record that survives.
 - **`STATUS.md` is written by CI only.** A workflow regenerates it on
   every push to main and commits it from the Actions token. Nothing
   else writes it, so no branch conflicts on it; if you want the view

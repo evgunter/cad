@@ -20,6 +20,9 @@
 //!   boundary walk, the face across a rim, and the description each
 //!   rim carries. A reader, not an evaluator, which is why it is not
 //!   [`orient`];
+//! - [`operands`] — the plain named bodies a boolean row puts
+//!   something else against: the shared boxes and the conic corpus's
+//!   rounded plate (body authoring, same routing);
 //! - [`approx`] — the `Surface::Approx` surgery vocabulary (body
 //!   authoring, so it routes to this module rather than to a suite);
 //! - [`cavity`] — the vented-cavity fixture vocabulary (body
@@ -47,7 +50,7 @@
 //! ```
 //!
 //! returns exactly the kept copies inside this crate and nothing else.
-//! Its hits and the two module lists below name the same set; a hit
+//! Its hits and the modules' own lists name the same set; a hit
 //! missing from a list, or a list entry with no hit, is the rule
 //! broken. (Copies OUTSIDE `crates/sweep` are out of the recipe's
 //! scope by construction — [`oracles`]'s list names the ones it knows
@@ -80,6 +83,11 @@ pub mod cap_rims;
 /// through the kernel's census door. A check several suites make of
 /// a body they built, so it routes beside [`orient`].
 pub mod census;
+
+/// The plain named operands — the axis-aligned boxes more than one
+/// suite builds a boolean from, and the rounded plate the conic
+/// corpus cuts against. Body authoring, so it routes here.
+pub mod operands;
 
 /// The `Surface::Approx` surgery vocabulary — the pulled-back base,
 /// the fixtures the OFF-C rows convert, and the surface + carrier +
@@ -240,6 +248,42 @@ pub fn quintic_prism() -> Body<f64> {
     .body
 }
 
+/// **The square prism**: two identical unbulged unit squares two apart,
+/// v-degree 1 — planar caps whose loops are four `Line` carriers, and
+/// four degree-1 NURBS walls, which the patch engine answers on its
+/// exact per-span arm.
+///
+/// The line-bounded control for any row about tier 3's check 6: it is
+/// [`arc_prism`] with the bulge taken out, so a row that runs both
+/// isolates the CARRIER and nothing else.
+pub fn square_prism() -> Body<f64> {
+    let sq = || quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
+    sweep::loft_body::<f64>(&[sq(), sq()], &stacked(&[0.0, 2.0], 1.0), 1, Tol::witness())
+        .expect("the square prism lofts")
+        .body
+}
+
+/// **The arc prism**: three identical [`arc_section`]s stacked one
+/// apart at v-degree 2, so every wall is a RATIONAL patch and the
+/// quotient composite answers. Each planar cap's loop carries three
+/// `Line`s and one `Circle`.
+///
+/// One copy for the crate, for [`arc_section`]'s reason: the digest
+/// suite, the S10 sense suite and `m8_3_rational_volume` each held a
+/// byte-identical spelling. The scaled and two-station variants
+/// elsewhere in this corpus are NOT folded in — each states at its own
+/// site why its shape differs.
+pub fn arc_prism() -> Body<f64> {
+    sweep::loft_body::<f64>(
+        &[arc_section(1.0), arc_section(1.0), arc_section(1.0)],
+        &stacked(&[0.0, 1.0, 2.0], 1.0),
+        2,
+        Tol::witness(),
+    )
+    .expect("the arc prism lofts")
+    .body
+}
+
 /// The tilted cylinder cut, upper part: a cylinder split by a plane at
 /// `φ = 0.3`, whose wall pieces are bounded by exact `Ellipse`
 /// carriers — the CYLINDER chart's Green form, which no loft or sweep
@@ -295,6 +339,19 @@ pub fn sup_dist(a: Point3<f64>, b: Point3<f64>) -> f64 {
         .abs()
         .max((a.y - b.y).abs())
         .max((a.z - b.z).abs())
+}
+
+/// **A margin strictly inside the run's ambiguity band** — the
+/// midpoint of `(ε, K·ε)`, which is the number a row reaches for when
+/// it wants a classification that can neither be accepted nor refused.
+///
+/// One spelling. `0.5·(1 + K)·ε` was hand-written at each site that
+/// wanted it, and a band whose edges are read off the run's tolerance
+/// deserves better than a formula re-derived per suite: a row that
+/// wrote `0.5·K·ε` by slip would sit inside the band for `K = 10` and
+/// outside it for `K = 2`, and nothing would say so.
+pub fn band_midpoint(tol: Tol) -> f64 {
+    0.5 * (1.0 + tol.k()) * tol.eps()
 }
 
 /// **The certified quadrature's rounds, counted rather than timed** —

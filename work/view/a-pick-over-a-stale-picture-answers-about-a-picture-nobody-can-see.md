@@ -2,10 +2,13 @@
 id: a-pick-over-a-stale-picture-answers-about-a-picture-nobody-can-see
 kind: issue
 title: A click over a stale picture resolves against the current index, so it selects something the screen is not showing
-status: review
+status: closed
 branch: view/stale-pick
 opened: 2026-09-15
+closed: 2026-09-15
 pr: 2662
+priority: P0
+cost: D
 ---
 
 

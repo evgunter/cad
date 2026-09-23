@@ -101,7 +101,6 @@ fn embed_step<T: Real>(step: &Step<f64>) -> Step<T> {
         Step::ContinueTo(t) => Step::ContinueTo(tgt(t)),
         Step::ArcTo(s) => Step::ArcTo(spec(s)),
         Step::TangentArcTo(t) => Step::TangentArcTo(tgt(t)),
-        Step::ArcContinue(p) => Step::ArcContinue(pt(p)),
         Step::Fillet { radius } => Step::Fillet {
             radius: T::from_f64(radius),
         },
@@ -366,14 +365,26 @@ fn no_corpus_row_escalates_at_interval() {
         };
         source.predicate.filter(|name| STORED_FORM.contains(name))
     }
-    // The relayed set is PINNED, not merely printed. Two loops in this
-    // corpus are the door reading back a fillet joint whose clearance
-    // the enclosure lane cannot classify at a tight ε — measured, and
-    // named here by index and predicate. A third relay joining them is
-    // a new fact about the door and reds this row; the exemption is a
-    // list of two, not a standing pass for eight predicate names.
+    // The relayed set is PINNED, not merely printed. Both entries are
+    // the door reading back a fillet joint whose carrier clearance the
+    // enclosure lane cannot classify at the tightest ε — a fillet arc
+    // is tangent to its two carriers BY CONSTRUCTION, so the centre
+    // separation sits exactly on `r1 ± r2` and an enclosure of it
+    // straddles the classifier's own edge. Measured, and named here by
+    // index and predicate; a relay joining or leaving this set is a
+    // new fact about the door and reds this row, so the exemption is
+    // this list and not a standing pass for eight predicate names.
+    //
+    // Row 13 is the `Radius`-arrival fused chain, the corpus's only
+    // reach to the `Carrier2` emission role; its fillet is EXTERNALLY
+    // tangent to the arrival carrier where row 1's is internally
+    // tangent to its own, which is the whole difference between the
+    // two predicate names.
     let pinned: &[(usize, &str)] = match format!("{:e}", tol().eps()).as_str() {
-        "1e-12" => &[(1, "carrier_circles_internal")],
+        "1e-12" => &[
+            (1, "carrier_circles_internal"),
+            (13, "carrier_circles_external"),
+        ],
         _ => &[],
     };
     let mut escalated: Vec<(usize, Vec<Verb>, String)> = Vec::new();

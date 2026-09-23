@@ -5,6 +5,8 @@ title: the four docs/perf-data histories are written by three kinds of emitter w
 status: open
 opened: 2026-09-11
 refs: [criterion-selftest-nightly-only, criterion-selftest-fixture-is-one-scalar-in-five-fields, 2330]
+priority: P4
+cost: E
 ---
 
 

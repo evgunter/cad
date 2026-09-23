@@ -7,9 +7,16 @@
 //! failure is a typed value the GUI renders, never a string invented
 //! at the interaction layer. So a failing row's message is
 //! `NodeError`'s own `Display`, and nothing here composes a sentence
-//! about what went wrong. The one sentence this module does write is
-//! a DOWNSTREAM row's ([`downstream_wording`]), and it says only
-//! WHERE the failure is.
+//! about what went wrong. The one sentence this module writes ABOUT A
+//! FAILURE is a downstream row's ([`downstream_wording`]), and it says
+//! only WHERE the failure is.
+//!
+//! What it does write, and what the rule above does not reach, is what
+//! a node IS: [`node_kind`]'s vocabulary spelling, [`node_number`]'s
+//! `feature 3`, and [`frame_pose`]'s statement of which frame a datum
+//! frame is. Those are readings of the node, not verdicts about a run,
+//! and they are sited here because the tree and the creation forms'
+//! pickers have to name a node the same way.
 //!
 //! Because that is the other thing this module owns: the *shape* —
 //! which rows exist, in which order, at what indentation, which of
@@ -25,12 +32,54 @@
 //! it as its own `Failed`. Read verbatim that draws four identical
 //! FAILED badges and sends the eye nowhere.
 //!
-//! The fault itself resolves that wherever it names a subject, and
-//! that subject is a mate node (`blamed_mates` is the reading). So a
-//! row whose id the fault NAMES is the cause and stays `Failed`; a row
-//! the same fault merely reached is [`RowStatus::Poisoned`] through
-//! the mate that is named — the only thing read being which node the
-//! kernel's own words point at.
+//! The fault itself resolves that wherever it names a mate
+//! (`blamed_mates` is the reading). So a mate the fault BLAMES is the
+//! cause and keeps its `Failed`; a row the same fault merely reached
+//! is [`RowStatus::Poisoned`] through the blamed mate — the only thing
+//! read being which node the kernel's own words point at.
+//!
+//! **The blamed node is the row that carries the fault's words, and
+//! it need not be the node an author edits.** This is the one
+//! statement of why; [`blamed_mates`] points here. Several arms name a
+//! node beside the mate, and three name one that the kernel's own doc
+//! for the arm calls the thing to repair, or could be read as calling
+//! so: `DanglingHead`'s `head`, `PartSelectsAnotherCopy`'s `part` and
+//! `PlacerRefused`'s `placer`. (`Under`'s pair and `SelfMate`'s
+//! instance are named as evidence about where the refusal held; the
+//! repair is the mate's.) Blame stays on the mate for all three, and
+//! what decides it is REACH — where the solve records the fault:
+//!
+//! - **Raised where the solve reads one mate's references**
+//!   (`mate::member::check_reference` and the walk): every
+//!   [`MateFault::DanglingHead`], every
+//!   [`MateFault::PartSelectsAnotherCopy`], and a
+//!   [`MateFault::PlacerRefused`] whose placer's own slot does not
+//!   evaluate. The fault is recorded against THAT MATE ONLY, so blame
+//!   decides a single row: whether the mate reads `Failed` with the
+//!   words, or `Poisoned` — a pointer away from the only row that has
+//!   them. The named node's row is whatever the evaluation says of it
+//!   on its own: `Ok` when it evaluates, `Failed` beside the mate when
+//!   it does not (a `Part` indexing past its pattern's count, a pattern
+//!   of no copies), and then both rows are loud and neither points at
+//!   the other.
+//! - **Raised while a cluster's fold derives an offset**
+//!   (`mate::member::derived_offset`): a `PlacerRefused` only. It
+//!   reaches every instance and mate of the cluster, and they point at
+//!   the mate, whose row carries the placer's refusal verbatim. A
+//!   placer on the chain above an instance the fault reached is
+//!   poisoned by the evaluation even when its own slots are broken, so
+//!   its row carries the pointer at the mate rather than the words —
+//!   the arm's doc's *"this fault is the only place that cause
+//!   appears"*. Whether that row should carry the words instead is an
+//!   open question
+//!   (`work/chrome/blamed-mates-sends-the-eye-past-the-node-the-fault-says-to-fix.md`).
+//!
+//! The kernel's docs agree for the first two arms: `DanglingHead`'s
+//! `head` *"may be perfectly live"* and its message's recourse,
+//! *"rebind it"*, is the mate's reference; `PartSelectsAnotherCopy` is
+//! refused *"rather than choosing"* between the name and the `Part`.
+//! `crates/viewer/tests/msolve3_placer_refused.rs` holds one fixture of
+//! each shape above.
 //!
 //! **[`MateFault::Band`] names none, and it is the arm that still
 //! reaches rows.** A band is the RUN's tolerance, not a decision about
@@ -73,9 +122,13 @@
 use std::collections::BTreeMap;
 
 use pncad::document::{
-    Datum, Doc, Evaluation, MateFault, Node, NodeError, NodeErrorKind, NodeResult, ProfileProgram,
-    RecipeNodeId,
+    Datum, Doc, Evaluation, Expr, MateFault, Node, NodeError, NodeErrorKind, NodeResult,
+    ProfileProgram, RecipeNodeId,
 };
+use pncad::quantity::UnitDef;
+
+use crate::frame::Tone;
+use crate::props::{in_written, render_number};
 
 /// A node's status, as the tree draws it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -124,6 +177,33 @@ impl RowStatus {
         }
     }
 
+    /// **Whether this row is one a reader may need to act on** — the
+    /// module header's *which row a failure sends the eye to*, as a
+    /// value.
+    ///
+    /// Only a node whose OWN operation refused is
+    /// [`Tone::Actionable`]. A row that was never run has nothing to
+    /// act on yet, and a poisoned row shows someone else's failure and
+    /// points at the row that owns it, so both stay
+    /// [`Tone::Advisory`] and the eye goes to the one row a reader can
+    /// do something about — a document with six rows downstream of one
+    /// broken feature has one loud row, not seven. There can be more
+    /// than one: a `MateFault::Contradictory` naming two different
+    /// mates blames both, and both are actionable ([`blamed_mates`]).
+    ///
+    /// **Total, where [`RowStatus::message`] is not**, because an `Ok`
+    /// row still has a [`badge`](RowStatus::badge) — a report, nothing
+    /// to act on. Whether a given surface DRAWS that badge is the
+    /// surface's own decision and not this axis: the Features pane
+    /// stays silent on a healthy row, and the end-to-end walk prints
+    /// every row's badge including `ok`.
+    pub fn tone(&self) -> Tone {
+        match self {
+            Self::Ok | Self::Unevaluated | Self::Poisoned { .. } => Tone::Advisory,
+            Self::Failed { .. } => Tone::Actionable,
+        }
+    }
+
     /// The line drawn under the row, when it has one: the typed
     /// payload's own words on a failing row, and on a downstream row
     /// the pointer at the row that has them.
@@ -143,6 +223,11 @@ pub struct TreeRow {
     pub id: RecipeNodeId,
     /// The node's kind, as the vocabulary spells it.
     pub kind: &'static str,
+    /// **Which one of its kind this node is**, when the node itself can
+    /// say — today a datum frame's pose ([`frame_pose`]). `None` is a
+    /// node kind that has no such sentence, not a sentence that came
+    /// out empty.
+    pub pose: Option<String>,
     /// How far the node sits below the document's sources.
     pub depth: usize,
     /// Whether this node is one of the document's product roots.
@@ -203,6 +288,150 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
     }
 }
 
+/// **How the chrome names one node inside a sentence**: its number,
+/// and what the node itself says about which one of its kind it is.
+///
+/// The one home for a picker entry's text. The number is what every
+/// refusal in this crate calls a node by, so it stays; what follows it
+/// is [`frame_pose`], which is the half that tells two frames apart.
+pub fn node_label(node: &Node<ProfileProgram>, id: RecipeNodeId) -> String {
+    match frame_pose(node) {
+        Some(pose) => format!("{} — {pose}", node_number(id)),
+        None => node_number(id),
+    }
+}
+
+/// **How the chrome names a node when there is nothing more to say**:
+/// `feature 3`.
+///
+/// One home for the phrase, because it is the word a person carries
+/// between surfaces — a combo entry, a downstream row's pointer, a
+/// property panel's heading, a refusal's subject — and a surface that
+/// spelled it
+/// `node 3` would be talking about something a reader has to
+/// translate.
+pub fn node_number(id: RecipeNodeId) -> String {
+    format!("feature {}", id.0)
+}
+
+/// **What the NODE says about a datum frame's pose** — the sentence
+/// that tells two frames a centimetre apart apart.
+///
+/// **Read off the node and off nothing else, deliberately.** A pose
+/// read from an evaluation would have nothing to say on exactly the
+/// rows a person is diagnosing: [`rows`] draws a row for every node in
+/// the document, including the [`RowStatus::Unevaluated`] ones before
+/// the first run lands and the [`RowStatus::Failed`] ones whose value
+/// does not exist. A label sourced there would need this one as its
+/// fallback anyway, which is one sentence with two spellings.
+///
+/// So a component that is not a literal is not evaluated and not
+/// guessed: the label says the origin is driven and names no number. A
+/// [`Datum::FaceFrame`] says whose face it is read off; it cannot say
+/// WHICH face, because a face's identity is its role path and
+/// `RoleSeg` has no `Display` (`crate::idpass`'s note says so in as
+/// many words).
+///
+/// `None` is a node with no such sentence — every kind but the two
+/// frames.
+pub fn frame_pose(node: &Node<ProfileProgram>) -> Option<String> {
+    match node {
+        Node::Datum(Datum::Frame { origin, u, v }) => {
+            Some(match (plane_name(u, v), written_point(origin)) {
+                (Some(plane), Some(at)) => format!("{plane} at {at}"),
+                (Some(plane), None) => format!("{plane}, origin driven"),
+                (None, Some(at)) => format!("at {at}"),
+                (None, None) => "origin driven".to_owned(),
+            })
+        }
+        Node::Datum(Datum::FaceFrame { at, .. }) => Some(format!("on {}'s face", node_number(*at))),
+        _ => None,
+    }
+}
+
+/// The two-letter name of the plane a frame's axes span, when they are
+/// the world's own and point the positive way (`xy`, `zx`, …).
+///
+/// `None` is every other pair — a driven component, an oblique frame,
+/// or an axis pointing backwards — and it is a label that says LESS
+/// rather than one that says something else: the origin still
+/// separates two frames, and a spelling for the oblique case would be
+/// a matrix, not a name.
+fn plane_name(u: &[Expr; 3], v: &[Expr; 3]) -> Option<&'static str> {
+    let (u, v) = (axis_name(u)?, axis_name(v)?);
+    match (u, v) {
+        ('x', 'y') => Some("xy"),
+        ('y', 'z') => Some("yz"),
+        ('z', 'x') => Some("zx"),
+        ('y', 'x') => Some("yx"),
+        ('z', 'y') => Some("zy"),
+        ('x', 'z') => Some("xz"),
+        // Two axes that are the SAME axis span no plane. The datum
+        // door refuses such a frame at evaluation; the label declines
+        // to name a plane for it rather than printing one.
+        _ => None,
+    }
+}
+
+/// The positive world axis a literal triple IS, exactly — `(1, 0, 0)`
+/// is `x` and `(0.999, 0, 0)` is nothing.
+///
+/// Exact, because the triple is what an author typed and the claim is
+/// that they typed the axis. A near-miss is a frame a shade off
+/// square, which is the case a person most needs the label not to
+/// paper over; evaluation normalizes it and this does not.
+fn axis_name(v: &[Expr; 3]) -> Option<char> {
+    let mut components = [0.0_f64; 3];
+    for (slot, expr) in components.iter_mut().zip(v) {
+        *slot = expr.literal_value()?;
+    }
+    match components {
+        [1.0, 0.0, 0.0] => Some('x'),
+        [0.0, 1.0, 0.0] => Some('y'),
+        [0.0, 0.0, 1.0] => Some('z'),
+        _ => None,
+    }
+}
+
+/// A literal 3-D point as the chrome writes it — the numbers in the
+/// unit they were AUTHORED in, which is the unit the property panel
+/// shows and edits the same slots in.
+///
+/// `None` as soon as one component is not a literal: a partial point
+/// with a hole in it would read as a position, and the caller says
+/// "driven" instead.
+///
+/// The unit is written once after the triple when all three share it,
+/// and against each number when they do not — a frame whose origin was
+/// typed in three notations is rare, and printing one of its units for
+/// all three would be wrong rather than terse.
+fn written_point(origin: &[Expr; 3]) -> Option<String> {
+    let mut written: Vec<(f64, UnitDef)> = Vec::with_capacity(origin.len());
+    for expr in origin {
+        let unit = expr.display_unit()?;
+        written.push((in_written(expr.literal_value()?, unit), unit));
+    }
+    let (_, first) = *written.first()?;
+    let shared = written.iter().all(|(_, unit)| *unit == first);
+    let numbers = written
+        .iter()
+        .map(|(value, unit)| {
+            let number = render_number(*value);
+            if shared {
+                number
+            } else {
+                format!("{number} {}", unit.symbol())
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+    Some(if shared {
+        format!("({numbers}) {}", first.symbol())
+    } else {
+        format!("({numbers})")
+    })
+}
+
 /// The tree's rows for a document under an evaluation.
 ///
 /// `evaluation` is optional because a session shows a tree before its
@@ -225,6 +454,7 @@ pub fn rows(doc: &Doc<ProfileProgram>, evaluation: Option<&Evaluation<f64>>) -> 
         rows.push(TreeRow {
             id,
             kind: node_kind(node),
+            pose: frame_pose(node),
             depth,
             root: roots.contains(&id),
             status: status_of(id, evaluation),
@@ -291,10 +521,13 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
 /// because both point at a row this same tree badges `Failed`, where
 /// the payload's own words are read once instead of once per row the
 /// failure reached.
+///
+/// The row pointed at is named by [`node_number`], the chrome's one
+/// spelling of a node: this sentence is chrome, drawn in the tree.
 pub fn downstream_wording(through: RecipeNodeId) -> String {
     format!(
-        "upstream failure at node {} — that row carries the cause",
-        through.0
+        "upstream failure at {} — that row carries the cause",
+        node_number(through)
     )
 }
 
@@ -329,6 +562,10 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> RowStatus {
 /// here whether it names a mate, rather than falling into a wildcard
 /// and silently drawing every reached row as downstream of nothing.
 ///
+/// Every arm that names a mate blames it, whatever else it names; why
+/// that holds for an arm naming a node an author may repair is stated
+/// once, in the module header's second section.
+///
 /// Two arms name none, and they get an arm each because they are not
 /// the same case: one reaches rows and one cannot reach any.
 fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
@@ -343,20 +580,11 @@ fn blamed_mates(fault: &MateFault) -> Vec<RecipeNodeId> {
         | MateFault::SelfMate { mate, .. }
         | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::Unleverable { mate, .. } => vec![*mate],
-        // **The arm that reaches rows and blames none.** No band, no
-        // decisions, so no mate is more at fault than any other — and
-        // the refusal is the run's, reaching every mate and every
-        // instance in the document rather than one cluster's.
+        // Names no mate and reaches EVERY row of the document — the
+        // asymmetry with the arm below is stated once, on `MateFault`.
         MateFault::Band { .. } => Vec::new(),
-        // A solve read against the wrong document blames the pairing,
-        // not a node — and it is the mispairing itself, so there is no
-        // node to name. `SolvedPoses::placement` raises it before it
-        // reads the fault map, and `eval` maps that refusal onto the
-        // instance's own `Failed`, so the fault-map route is not what
-        // keeps it off a row. **DI3 is**: the evaluation solves and
-        // evaluates the SAME document, so the pairing this arm reports
-        // never holds and the empty answer here is unreachable rather
-        // than a reading a user meets.
+        // Names no mate and reaches NO row (`MateFault`'s doc says
+        // why); the empty answer here is unreachable, not a reading.
         MateFault::PosesOfAnotherDocument { .. } => Vec::new(),
         // A contradiction is a claim about a PAIR of mates: neither is
         // the wrong one on the fault's own telling, so both read as
@@ -402,13 +630,72 @@ fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<RowStatus> 
     })
 }
 
-/// Whether any row reports a failure or a poisoning — what a chrome
-/// shows as "this document is not building".
+/// Whether any row of a tree reports a failure or a poisoning.
+///
+/// **A test oracle, not a chrome surface.** No `src/` caller reads
+/// this: what a chrome actually shows as "this document is not
+/// building" is decided per row by the Features pane's badge draw
+/// ([`crate::pane::features`]) and, for the product, by
+/// [`crate::frame::product_badge`]. Every caller is an assertion —
+/// `!has_faults(…)` is the "this evaluates clean" gate at fifteen of
+/// the twenty-two sites, across seven suites and
+/// `examples/r1_e2e.rs`. That is what a wrong answer here costs: an
+/// oracle silent about a state lets every one of those gates keep
+/// passing on documents broken in the new way.
+///
+/// **An exhaustive `match` rather than a `matches!`, and that is the
+/// point.** A subset pattern answers `false` for everything it does
+/// not name, so a fifth [`RowStatus`] would be silently not-a-fault
+/// and those gates would stay green over it. It reds HERE — at the
+/// policy the new state has to answer — rather than a schedule away
+/// from it. (Not nowhere: `pane::features`'s badge draw and its link
+/// decision, and `frame::badge_site`'s guard, are exhaustive too, so a
+/// fifth state is a compile error in four places. What none of them
+/// is, is this policy.)
+///
+/// **Every arm is this chrome's own policy, and none of it is read off
+/// the kernel.** A [`RowStatus`] is already a viewer reading of an
+/// evaluation, so there is no upstream rule to cite here the way
+/// `frame::badge_site` cites `ProductErrorKind::means_no_body`: what a
+/// chrome shows as "not building" is decided here, one state at a
+/// time.
+///
+/// - [`RowStatus::Failed`] and [`RowStatus::Poisoned`] are faults. A
+///   poisoned row's failure is someone else's, but the document it
+///   belongs to is no more building for that.
+/// - [`RowStatus::Unevaluated`] is **not** a fault, and it is stated
+///   rather than left to the complement of a pattern: an absent
+///   measurement is not a bad one, and a tree drawn before the first
+///   result would otherwise report every document as broken. That is
+///   the reading the tests pin, not recovered intent — the function
+///   is as old as the crate and its history settles nothing;
+///   `review_gui3_r2::a_document_with_no_result_yet_reads_unevaluated_and_reports_no_faults`
+///   is the reading held executably.
+/// - [`RowStatus::Ok`] is not a fault, and needs no reason beyond
+///   that: it is the state the other three are named against.
+///
+/// **A different axis from [`RowStatus::tone`]**, which is why it is a
+/// second reading and not a call to that one: `tone` asks what a
+/// reader can ACT on and leaves a poisoned row [`Tone::Advisory`],
+/// pointing at the row that owns the failure. This asks whether the
+/// document is building, and a poisoned row says it is not. Collapsing
+/// the two would make a document whose only fault is downstream report
+/// clean.
+///
+/// **And the opposite reading from [`crate::bounds::Verdict`]**, which
+/// excludes poisoning for a reason argued at its own site — *"counting
+/// it would make one failure register as many"*. Both readings are
+/// right for their question: a verdict is a SET whose size decides
+/// whether a value got worse, and a poisoned node inflates it; this is
+/// a boolean, which nothing inflates. Where they can actually differ
+/// is the one state that has a poisoned row with no failed row behind
+/// it ([`RowStatus::Poisoned`] with `message: None`) — this calls that
+/// document not building, and a verdict over it is empty. `Verdict`'s
+/// own doc names this reading back, so each site states the other.
 pub fn has_faults(rows: &[TreeRow]) -> bool {
-    rows.iter().any(|row| {
-        matches!(
-            row.status,
-            RowStatus::Failed { .. } | RowStatus::Poisoned { .. }
-        )
+    rows.iter().any(|row| match row.status {
+        RowStatus::Failed { .. } | RowStatus::Poisoned { .. } => true,
+        RowStatus::Unevaluated => false,
+        RowStatus::Ok => false,
     })
 }

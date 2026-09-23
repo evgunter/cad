@@ -177,11 +177,27 @@ fn rows() -> Rows {
 
 const ROW_COUNT: usize = 3403;
 /// FNV-1a 64 over `"{name} {bits:#018x}\n"`, the shipped suite's digest shape.
-const DIGEST: u64 = 0x9897_c316_665d_3ab0;
+///
+/// **Re-captured when the C9 ring became a newtype over the backend**
+/// (`0x9897_c316_665d_3ab0` before), for the reason the default
+/// corpus's digest gives: the ring's unconditional one-step outward
+/// pad per operation is gone and the backend's exactness witnesses
+/// stand in its place. 1 590 of these 3 403 rows moved TIGHTER and
+/// none moved looser.
+const DIGEST: u64 = 0xcd89_eded_17e2_4282;
 
 #[test]
 fn the_extended_coefficient_corpus_is_bit_identical_to_its_retired_spelling() {
     let rows = rows();
+    // The same `COEFFS_DUMP=1` hook the default corpus carries, so a
+    // re-pin can be measured row by row rather than read off a digest
+    // that names nothing.
+    if std::env::var_os("COEFFS_DUMP").is_some() {
+        for (name, bits) in &rows {
+            println!("{name} {bits:#018x}");
+        }
+        println!("rows {} digest {:#018x}", rows.len(), digest(&rows));
+    }
     assert_eq!(rows.len(), ROW_COUNT, "corpus size drifted");
     assert_eq!(digest(&rows), DIGEST, "a coefficient door's bits moved");
 }

@@ -4,178 +4,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
-use geom_core::{Band, Point3, Tol, Vec3};
-use topo::{
-    Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, FaceSurface, MefSite, MevSite,
-    declared_pair_overlap,
-};
+use geom_core::{Band, Tol};
+use topo::test_support::{CylFrame, cyl_wall_sheet};
+use topo::{Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, declared_pair_overlap};
 
 fn band() -> Band {
     let tol = Tol::witness();
     Band::linear(tol).unwrap()
-}
-
-#[derive(Clone, Copy)]
-struct CylFrame {
-    origin: Point3<f64>,
-    axis: Vec3<f64>,
-    radius: f64,
-    u_ref: Vec3<f64>,
-}
-
-impl CylFrame {
-    fn surface(&self) -> Surface<f64> {
-        Surface::Cylinder {
-            origin: self.origin,
-            axis: self.axis,
-            radius: self.radius,
-            u_ref: self.u_ref,
-        }
-    }
-    fn at(&self, u: f64, v: f64) -> Point3<f64> {
-        let w = self.axis.cross(self.u_ref);
-        self.origin + (self.u_ref * u.cos() + w * u.sin()) * self.radius + self.axis * v
-    }
-}
-
-fn frame_a() -> CylFrame {
-    CylFrame {
-        origin: Point3::origin(),
-        axis: Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::unit_x(),
-    }
-}
-
-/// Verbatim from `tests/mate5_cyl_eps_rung.rs` (the unit's own fixture
-/// builder) so the probes stand on the unit's own ground.
-fn wall_sheet(
-    body: &mut Body<f64>,
-    frame: CylFrame,
-    src_id: u64,
-    u0: f64,
-    u1: f64,
-    v0: f64,
-    v1: f64,
-) -> FaceKey {
-    let (p00, p10, p11, p01) = (
-        frame.at(u0, v0),
-        frame.at(u1, v0),
-        frame.at(u1, v1),
-        frame.at(u0, v1),
-    );
-    let seed = body.mvfs(p00).unwrap();
-    let cyl = body
-        .set_face_surface(seed.face, FaceSurface::New(frame.surface()))
-        .unwrap();
-    body.set_surface_source(cyl, topo::GeomSource::minted(src_id, 0))
-        .unwrap();
-    let rim = |body: &mut Body<f64>, v: f64, ccw: bool| {
-        let center = frame.origin + frame.axis * v;
-        let scaffold = body.mvfs(center).unwrap();
-        let plane = body
-            .set_face_surface(
-                scaffold.face,
-                FaceSurface::New(Surface::Plane {
-                    origin: center,
-                    normal: frame.axis,
-                    u_ref: frame.u_ref,
-                }),
-            )
-            .unwrap();
-        let (carrier, t0, t1) = if ccw {
-            (
-                Curve3::Circle {
-                    center,
-                    axis: frame.axis,
-                    radius: frame.radius,
-                    u_ref: frame.u_ref,
-                },
-                u0,
-                u1,
-            )
-        } else {
-            // The radial direction at u1, from the frame fields
-            // directly — the projection-based read cancels
-            // catastrophically for tilted/small frames and mints a
-            // non-structural chart image (the fix-pass port of the
-            // unit builder's own repair).
-            let w = frame.axis.cross(frame.u_ref);
-            let s = frame.u_ref * u1.cos() + w * u1.sin();
-            (
-                Curve3::Circle {
-                    center,
-                    axis: -frame.axis,
-                    radius: frame.radius,
-                    u_ref: s,
-                },
-                0.0,
-                u1 - u0,
-            )
-        };
-        EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection {
-                s1: cyl,
-                s2: plane,
-                witness: frame.at((u0 + u1) * 0.5, v),
-            },
-            carrier,
-            param_start: t0,
-            param_end: t1,
-        }
-    };
-    let bottom = rim(body, v0, true);
-    let e_b = body
-        .mev(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            p10,
-            bottom,
-            Tol::witness(),
-        )
-        .unwrap();
-    let e_r = body
-        .mev_line(
-            MevSite::Fan {
-                he1: e_b.he_minus,
-                he2: e_b.he_minus,
-            },
-            p11,
-            Tol::witness(),
-        )
-        .unwrap();
-    let top = rim(body, v1, false);
-    let e_t = body
-        .mev(
-            MevSite::Fan {
-                he1: e_r.he_minus,
-                he2: e_r.he_minus,
-            },
-            p01,
-            top,
-            Tol::witness(),
-        )
-        .unwrap();
-    let he = body
-        .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
-        .unwrap();
-    let face = body
-        .mef(
-            MefSite::Chords {
-                he1: he,
-                he2: e_b.he_plus,
-            },
-            EdgeCurveSpec::line_between(p01, p00),
-            FaceSurface::Shared(cyl),
-            Tol::witness(),
-        )
-        .unwrap()
-        .face;
-    topo::pcurves::mint_pcurves(body, Tol::witness()).unwrap();
-    face
 }
 
 /// The builder, fallible at the MINT: a tilted frame's chart images
@@ -196,7 +31,14 @@ fn try_wall_sheet(
     v1: f64,
 ) -> Option<FaceKey> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        wall_sheet(body, frame, src_id, u0, u1, v0, v1)
+        cyl_wall_sheet(
+            body,
+            frame,
+            Some(src_id),
+            (u0, u1),
+            (v0, v1),
+            Tol::witness(),
+        )
     }))
     .ok()
 }
@@ -223,17 +65,6 @@ fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
 // definitely, separably EMPTY in world space.
 // =====================================================================
 
-/// The tilted B description: same locus to within `r(1−cos θ)`, axis
-/// tilted by `θ` about ŷ through the shared origin.
-fn tilted_frame(theta: f64) -> CylFrame {
-    CylFrame {
-        origin: Point3::origin(),
-        axis: Vec3::new(theta.sin(), 0.0, theta.cos()),
-        radius: 1.0,
-        u_ref: Vec3::new(theta.cos(), 0.0, -theta.sin()),
-    }
-}
-
 #[test]
 fn probe1_tilt_lever_omits_the_radius_and_certifies_a_separated_pair() {
     // ε-RELATIVE at the fix pass (θ = 5000·ε and every length a band
@@ -242,13 +73,14 @@ fn probe1_tilt_lever_omits_the_radius_and_certifies_a_separated_pair() {
     // lottery cannot mask the row.
     let eps = Tol::witness().eps();
     let theta = 5000.0 * eps;
-    let fb = tilted_frame(theta);
+    let fb = CylFrame::tilted(1.0, theta);
     // Azimuth window [0.2, 1.4] (cos u > 0 throughout, so the tilt
     // pushes B's TRUE world z strictly DOWN); no seam crossing.
     let (u0, u1) = (0.2_f64, 1.4_f64);
     let ha = 1e5 * eps;
     let (mut body_a, mut body_b) = (Body::<f64>::new(), Body::<f64>::new());
-    let Some(fa_key) = try_wall_sheet(&mut body_a, frame_a(), 8001, u0, u1, 0.0, ha) else {
+    let Some(fa_key) = try_wall_sheet(&mut body_a, CylFrame::canonical(1.0), 8001, u0, u1, 0.0, ha)
+    else {
         println!("the fixture cannot be minted at this ε — standing down");
         return;
     };
@@ -326,8 +158,8 @@ fn probe2_band_fast_path_exactness_gate_is_f64_only() {
     // `atan2` result. Under any scalar whose `lo() != hi()` for a
     // rounded transcendental, `wrap_band`'s `xl == xh` test fails.
     // At f64 lo()==hi() always, so the gate is a no-op there.
-    let a = frame_a();
-    let b = tilted_frame(0.0);
+    let a = CylFrame::canonical(1.0);
+    let b = CylFrame::tilted(1.0, 0.0);
     let w_a = a.axis.cross(a.u_ref);
     let delta = b.u_ref.dot(w_a).atan2(b.u_ref.dot(a.u_ref));
     println!("delta (f64) = {delta:e}; f64 lo()==hi() by construction");
@@ -344,19 +176,15 @@ fn probe2_band_fast_path_exactness_gate_is_f64_only() {
 
 fn sheet(frame: CylFrame, src: u64, u0: f64, u1: f64, v0: f64, v1: f64) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
-    let f = wall_sheet(&mut body, frame, src, u0, u1, v0, v1);
+    let f = cyl_wall_sheet(
+        &mut body,
+        frame,
+        Some(src),
+        (u0, u1),
+        (v0, v1),
+        Tol::witness(),
+    );
     (body, f)
-}
-
-/// A divergent description with an ARBITRARY seam rotation `d` and the
-/// axis reversed — the fixture family the unit ships, parameterised.
-fn frame_b_at(d: f64) -> CylFrame {
-    CylFrame {
-        origin: Point3::new(0.0, 0.0, 0.25),
-        axis: -Vec3::unit_z(),
-        radius: 1.0,
-        u_ref: Vec3::new(d.cos(), d.sin(), 0.0),
-    }
 }
 
 #[test]
@@ -380,8 +208,8 @@ fn probe3_large_seam_offset_with_trims_hugging_the_seam_both_ways() {
     ];
     let mut disagreements = vec![];
     for (name, d, ((t0, t1), (s0, s1))) in cases {
-        let fb = frame_b_at(d);
-        let (a, fa) = sheet(frame_a(), 8101, t0, t1, 0.0, 1.0);
+        let fb = CylFrame::opposed(d);
+        let (a, fa) = sheet(CylFrame::canonical(1.0), 8101, t0, t1, 0.0, 1.0);
         // Same world region, expressed in B's chart:
         // θ_world = d − u_B, z_world = 0.25 − v_B.
         let (b, fbk) = sheet(fb, 8102, d - s1, d - s0, 0.25 - 0.7, 0.25 - 0.3);
@@ -421,8 +249,15 @@ fn probe3_large_seam_offset_with_trims_hugging_the_seam_both_ways() {
 #[test]
 fn probe4_declines_on_decidable_geometry_are_reachable_and_typed() {
     // The unit's own SeamBranch row generalised: spans summing past τ.
-    let (a, fa) = sheet(frame_a(), 8201, 0.0, 3.5, 0.0, 1.0);
-    let (b, fbk) = sheet(frame_b_at(0.7), 8202, 0.7 - 6.5, 0.7 - 3.3, -0.45, -0.05);
+    let (a, fa) = sheet(CylFrame::canonical(1.0), 8201, 0.0, 3.5, 0.0, 1.0);
+    let (b, fbk) = sheet(
+        CylFrame::opposed(0.7),
+        8202,
+        0.7 - 6.5,
+        0.7 - 3.3,
+        -0.45,
+        -0.05,
+    );
     println!(
         "un-windowable pair: {}",
         verdict_class(declared_pair_overlap(
@@ -435,9 +270,9 @@ fn probe4_declines_on_decidable_geometry_are_reachable_and_typed() {
         ))
     );
     // A FLUSH seat (shared rim): TouchingBoundary is claimed.
-    let (a2, fa2) = sheet(frame_a(), 8203, 0.2, 1.6, 0.0, 0.5);
+    let (a2, fa2) = sheet(CylFrame::canonical(1.0), 8203, 0.2, 1.6, 0.0, 0.5);
     let (b2, fb2) = sheet(
-        frame_b_at(0.7),
+        CylFrame::opposed(0.7),
         8204,
         0.7 - 1.3,
         0.7 - 0.5,
@@ -464,8 +299,15 @@ fn probe4_declines_on_decidable_geometry_are_reachable_and_typed() {
 
 #[test]
 fn probe5_door_one_verdict_is_ignored_at_every_variant() {
-    let (a, fa) = sheet(frame_a(), 8301, 0.2, 1.6, 0.0, 1.0);
-    let (b, fbk) = sheet(frame_b_at(0.7), 8302, 0.7 - 1.3, 0.7 - 0.5, -0.45, -0.05);
+    let (a, fa) = sheet(CylFrame::canonical(1.0), 8301, 0.2, 1.6, 0.0, 1.0);
+    let (b, fbk) = sheet(
+        CylFrame::opposed(0.7),
+        8302,
+        0.7 - 1.3,
+        0.7 - 0.5,
+        -0.45,
+        -0.05,
+    );
     // NOTE: `ContactVerdict` has only PASSING variants (Definite /
     // Bridged) — a refusal is `ContactRefusal`, a separate type — so
     // ignoring `door_one` cannot admit a pair Door 1 refused.
@@ -490,8 +332,8 @@ fn probe6_what_the_units_own_tilt_row_actually_answers() {
         ("short (unit's own A/B z 0..1e-3)", 1e-3),
         ("long (0..4)", 4.0),
     ] {
-        let (a, fa) = sheet(frame_a(), 8402, 0.2, 1.6, 0.0, ha);
-        let (b, fb) = sheet(tilted_frame(tilt), 8401, 0.2, 1.6, 0.0, ha);
+        let (a, fa) = sheet(CylFrame::canonical(1.0), 8402, 0.2, 1.6, 0.0, ha);
+        let (b, fb) = sheet(CylFrame::tilted(1.0, tilt), 8401, 0.2, 1.6, 0.0, ha);
         let r = declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band());
         println!("{label}: {r:?}");
     }
@@ -502,8 +344,8 @@ fn probe6_what_the_units_own_tilt_row_actually_answers() {
         ("tilt + thin A", 1e-4, 0.0, 1e-3, 5e-6),
         ("untilted + negative vb0", 1e-3, -5e-5, 4e-7, 0.0),
     ] {
-        let (a, fa) = sheet(frame_a(), 8403, 0.2, 1.4, 0.0, ha);
-        let (b, fb) = sheet(tilted_frame(theta), 8404, 0.2, 1.4, vb0, vb1);
+        let (a, fa) = sheet(CylFrame::canonical(1.0), 8403, 0.2, 1.4, 0.0, ha);
+        let (b, fb) = sheet(CylFrame::tilted(1.0, theta), 8404, 0.2, 1.4, vb0, vb1);
         let r = declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band());
         println!("{label}: {r:?}");
     }
@@ -515,22 +357,6 @@ fn probe6_what_the_units_own_tilt_row_actually_answers() {
 // trims are DEFINITELY separated in world space, and see what the arm
 // answers. A `PositiveArea` here is a false certification.
 // =====================================================================
-
-fn tilted_at(theta: f64, radius: f64) -> CylFrame {
-    CylFrame {
-        origin: Point3::origin(),
-        axis: Vec3::new(theta.sin(), 0.0, theta.cos()),
-        radius,
-        u_ref: Vec3::new(theta.cos(), 0.0, -theta.sin()),
-    }
-}
-
-fn frame_a_r(radius: f64) -> CylFrame {
-    CylFrame {
-        radius,
-        ..frame_a()
-    }
-}
 
 #[test]
 fn probe7_a_definitely_separated_pair_is_falsely_certified() {
@@ -545,10 +371,10 @@ fn probe7_a_definitely_separated_pair_is_falsely_certified() {
         (20.0, 1e-7, 5e-3),
         (50.0, 4e-8, 1e-2),
     ] {
-        let fb = tilted_at(theta, r);
+        let fb = CylFrame::tilted(r, theta);
         let vb1 = 0.08 * theta.sin() * r;
         let vb0 = vb1 - h;
-        let (a, fa) = sheet(frame_a_r(r), 8501, u0, u1, 0.0, h);
+        let (a, fa) = sheet(CylFrame::canonical(r), 8501, u0, u1, 0.0, h);
         let (b, fbk) = sheet(fb, 8502, u0, u1, vb0, vb1);
         // The truth, from the two chart maps.
         let mut b_zmax = f64::NEG_INFINITY;
@@ -595,10 +421,10 @@ fn probe7b_a_definitely_separated_pair_is_falsely_certified() {
         (4.0, 5e-7, 1e-3, 0.08),
         (8.0, 2.5e-7, 1e-3, 0.08),
     ] {
-        let fb = tilted_at(theta, r);
+        let fb = CylFrame::tilted(r, theta);
         let vb1 = frac * theta.sin() * r;
         let vb0 = vb1 - h;
-        let (a, fa) = sheet(frame_a_r(r), 8601, au0, au1, 0.0, h);
+        let (a, fa) = sheet(CylFrame::canonical(r), 8601, au0, au1, 0.0, h);
         let (b, fbk) = sheet(fb, 8602, bu0, bu1, vb0, vb1);
         let mut b_zmax = f64::NEG_INFINITY;
         for i in 0..=400 {
@@ -643,8 +469,8 @@ fn probe1b_transfer_axial_error_is_levered_by_the_radius_not_the_reach() {
     let tol = Tol::witness();
     let (eps, k) = (tol.eps(), tol.k());
     let tilt = 40.0 * k * eps; // the unit's own original fixture constant
-    let fb = tilted_frame(tilt);
-    let fa = frame_a();
+    let fb = CylFrame::tilted(1.0, tilt);
+    let fa = CylFrame::canonical(1.0);
     let (u, v) = (0.2_f64, 1e-3_f64); // a boundary point of the short B sheet
     let p = fb.at(u, v);
     let v_true = (p - fa.origin).dot(fa.axis);

@@ -13,9 +13,9 @@ client over the API), functional style, fail-loud.
   `plan.md`, `log.md` and one file per open item. `work/README.md` is
   the contract; orchestrators read it in full. A program is closed when
   its `docs/<NAME>-EXIT-WALK.md` is ratified; the walk is then
-  deleted with the program's tracker directory and recorded in
-  `docs/DOC-LEDGER.md`, which is its done-state of record (the walk
-  stays recoverable at the SHA the ledger names).
+  deleted with the program's tracker directory and a note added to
+  `docs/doc-ledger/`, which is its done-state of record (the walk
+  stays recoverable at the SHA the note names).
 - Design docs for finished work live as README pages beside the code
   they govern (`crates/<crate>/README.md`), present tense only, with
   their clause ids kept; DESIGN.md's companion table lists them.
@@ -105,7 +105,10 @@ Details: `memories/cad-working-style.md`, `memories/ev-profile.md`.
 ratified by sounding official or by sitting in a file whose
 companion-table row says *Ratified*, so run
 `git log -S'<the sentence>' -- <file>` and find the commit that wrote
-it. If no ratification turns up there is none — proceed, and say in the
+it. Pass `--all` and use a short phrase rather than a whole sentence:
+`-S` is literal and line-shaped, so a wrapped sentence returns nothing,
+and in a shallow checkout every file reads as added at a graft. If no
+ratification turns up there is none — proceed, and say in the
 PR body what you changed and where you looked.
 
 ## Repo notes

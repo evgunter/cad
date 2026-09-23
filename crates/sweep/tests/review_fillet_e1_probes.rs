@@ -188,7 +188,7 @@ mod certified {
     #[test]
     fn a_not_definitely_positive_bracket_refuses_with_its_low_end() {
         let t = Tol::witness();
-        let body = cube(iv(1.0), Tol::witness());
+        let body = cube(1.0, Tol::witness());
         let edges = all_edges(&body);
         let sizes = [
             iv(0.0),
@@ -218,7 +218,7 @@ mod certified {
     #[test]
     fn a_definitely_positive_bracket_passes_the_gate() {
         let t = Tol::witness();
-        let body = cube(iv(1.0), Tol::witness());
+        let body = cube(1.0, Tol::witness());
         let edges = all_edges(&body);
         let size = Interval::from_bounds(0.1 - 1e-9, 0.1 + 1e-9);
         for (door, r) in [
@@ -253,7 +253,7 @@ mod recorded {
     #[test]
     fn a_nonpositive_size_meters_nothing_before_it_refuses() {
         let t = Tol::witness();
-        let body = cube(Probe(1.0), Tol::witness());
+        let body = cube(1.0, Tol::witness());
         let edges = all_edges(&body);
         for size in [0.0, -0.1, f64::NAN] {
             for door in ["fillet", "chamfer"] {

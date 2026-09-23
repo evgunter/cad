@@ -7,6 +7,8 @@ opened: 2026-09-15
 refs: [S107, 694, 689]
 parent: PORT-DIMS-1
 pr: 2702
+priority: P3
+cost: E
 ---
 
 

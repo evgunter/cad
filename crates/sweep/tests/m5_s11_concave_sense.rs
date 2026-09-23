@@ -810,7 +810,7 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
         Ok(_) => panic!("a rung-3 NURBS operand has no boolean layer yet"),
     };
     assert!(
-        err.contains("rung-3"),
+        err.contains("is a spline (NURBS) curve"),
         "the refusal names the operand: {err}"
     );
     let door = point_in_solid(

@@ -92,6 +92,14 @@ profile = { path = "../profile", features = ["test-support"] }
 # dev-only by construction, so it reaches no shipped build of this
 # crate (that module's own docs).
 sweep = { path = "../sweep", features = ["test-support"] }
+# `test-support` ON: the MESH-6 review probe's scaffold-strut subject is
+# planted on `topo::test_support`'s cube sequence -- the §9.4.2 sequence
+# this crate used to write out a twenty-eight-call second time. A DEV
+# edge; `topo` is a normal dependency above and stays featureless there,
+# so no shipped build of this crate reaches the facade. Same shape and
+# same reason as `step-export`'s and `step-import`'s edges onto the same
+# door.
+topo = { path = "../topo", features = ["test-support"] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

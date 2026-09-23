@@ -569,7 +569,18 @@ pub fn surface_curve_residual(
     // coordinate, one exact `f64` per coordinate, applied identically
     // to the surface's and the carrier's spatial channels. The chart
     // channels are parameter-valued and carry no center.
-    let center: [f64; 3] = core::array::from_fn(|d| carrier.coords[d][0].lo());
+    //
+    // A refused coefficient has no center to give, and it says so with
+    // `NaN` — which `RingInterval::point` refuses, so the whole
+    // composition poisons. The refusal is asked by name because the
+    // ring keeps it in the decoration: reading `.lo()` off a refused
+    // coefficient would hand back an ordinary number and shift every
+    // channel by it, laundering the refusal out of the SURFACE's
+    // coefficients (the carrier's own would still carry it).
+    let center: [f64; 3] = core::array::from_fn(|d| {
+        let c = carrier.coords[d][0];
+        if c.is_poison() { f64::NAN } else { c.lo() }
+    });
 
     // Homogeneous channels on the shared breaks, the weight channel
     // carried; spatial channels center-shifted at the lift.

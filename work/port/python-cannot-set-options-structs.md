@@ -9,6 +9,8 @@ refs: [1493, 730]
 branch: port/pyopts-four-doors
 pr: 2678
 closed: 2026-09-15
+priority: P3
+cost: D
 ---
 
 ## From GitHub issue 1495

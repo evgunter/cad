@@ -4,16 +4,23 @@
 //! Why this file exists: the plate's dimensions were hand-copied into
 //! three suites, so changing `scene::plate_with_hole` would have left
 //! two of them testing a box the scene no longer has — green, and
-//! measuring nothing. `viewer::scene` now exports the plate's identity
-//! (`PLATE_EXTENT`, `PLATE_HOLE_RADIUS`) and everything here is a
-//! function of those constants, so the fixtures cannot drift from the
-//! subject.
+//! measuring nothing. `viewer::scene` exports the plate's identity
+//! (`PLATE_EXTENT`, `PLATE_HOLE_RADIUS`) and the plate fixtures here
+//! are functions of it, so they cannot drift from the subject.
 //!
-//! The two review suites (`review_gui0_r1`, `review_gui0_r2`) keep
-//! their own fixtures on purpose: a promoted review suite's value is
-//! that it is an INDEPENDENT derivation of what the unit claims
-//! (`memories/review-and-dependency-policy.md`), and pointing it at
-//! the implementation's own constants would spend exactly that.
+//! **Whether a helper here carries an oracle is a question about that
+//! helper, not about what kind of file reads it**, and it is asked one
+//! helper at a time: a blanket sentence over this module is false for
+//! whatever is added to it next. Some of what lives here plainly does
+//! carry one — the plate helpers are functions of `PLATE_EXTENT`, so a
+//! row reading one measures the scene against its own constants;
+//! `framed` IS a call to `Camera::framing`; `near` fixes the tolerance
+//! a comparison passes at. Others are spelling and nothing more. Three
+//! whose signatures do not show it say so in their own docs instead —
+//! `near`'s chosen bound, `body_volume`'s choice of WHICH document it
+//! reads, and `gallery_ring_at`'s note of the row that checks its work.
+//! A suite that keeps its own code instead of sharing says why in its
+//! own header.
 
 #![allow(dead_code)] // one instance per binary; no single consumer uses all of it
 #![allow(unreachable_pub)]
@@ -26,8 +33,21 @@
 pub mod asm;
 
 use bvh::Aabb;
+use pncad::document::{SolvedPoses, mate_reach, solve_document};
 use pncad::geom_core::Point3;
 use viewer::camera::Camera;
+
+/// **The mate solve of `doc` under `session`'s own seam** — the lever
+/// is each mated part's extent, resolved through the session's
+/// resolver the way its landed evaluation resolved it
+/// (`DocSession::eval_options`), built through the kernel's public
+/// door. `doc` is the session's landed document, or one derived from
+/// it that resolves against the same directory.
+pub fn solve(session: &DocSession, doc: &Doc<ProfileProgram>, tol: Tol) -> SolvedPoses {
+    let opts = session.eval_options();
+    let reach = mate_reach::<f64>(&opts, tol);
+    solve_document(doc, &reach, tol)
+}
 use viewer::scene::{PLATE_EXTENT, PLATE_HOLE_RADIUS};
 
 /// The spike plate's bounding box, from the scene's own dimensions.
@@ -51,6 +71,9 @@ pub fn plate_volume() -> f64 {
 }
 
 /// The default framing on the plate at `aspect`.
+///
+/// This IS a call to `Camera::framing`, so a row whose subject is that
+/// door cannot take its camera from here and still be checking it.
 pub fn framed(aspect: f64) -> Camera {
     Camera::framing(&plate_bounds(), aspect).expect("the plate frames")
 }
@@ -89,8 +112,30 @@ pub fn edited(
     edit: DocEdit<ProfileProgram>,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, Option<RecipeNodeId>) {
-    let applied = apply(doc, &edit, tol).expect("the fixture's edit applies");
+    let applied = apply(doc, &edit, tol, &pncad::document::RefusingReach)
+        .expect("the fixture's edit applies");
     (applied.doc, applied.record.minted)
+}
+
+/// **A document holding one declared parameter and nothing else** —
+/// the fixture both panel suites build their parameter rows on.
+///
+/// `label` is the document's derived name, so two fixtures in one
+/// binary cannot share an identity. No oracle: it is the spelling of
+/// `Doc::empty_derived` plus one `SetDocParam`, and what each row
+/// asserts is about the `value` it handed in.
+pub fn declared(label: &str, name: &ParamName, value: DocParam) -> Doc<ProfileProgram> {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
+    edited(
+        &doc,
+        DocEdit::SetDocParam {
+            name: name.clone(),
+            value,
+        },
+        tol,
+    )
+    .0
 }
 
 /// Insert a node, answering the new document and the minted id.
@@ -101,6 +146,27 @@ pub fn inserted(
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let (doc, minted) = edited(doc, DocEdit::InsertNode { node }, tol);
     (doc, minted.expect("an insert mints an id"))
+}
+
+/// The `&mut` spelling of `inserted`: insert a node in place and
+/// answer the minted id, for a fixture that threads one document
+/// through a sequence of edits rather than rebinding at each one.
+/// Same call and same refusal behaviour — only the caller differs.
+pub fn insert_into(
+    doc: &mut Doc<ProfileProgram>,
+    node: Node<ProfileProgram>,
+    tol: Tol,
+) -> RecipeNodeId {
+    let (applied, id) = inserted(doc, node, tol);
+    *doc = applied;
+    id
+}
+
+/// The `&mut` spelling of `edited`, for an edit whose minted id (if
+/// any) the caller does not want.
+pub fn edit_into(doc: &mut Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>, tol: Tol) {
+    let (applied, _) = edited(doc, edit, tol);
+    *doc = applied;
 }
 
 /// A sketch frame node's payload.
@@ -117,15 +183,25 @@ pub fn xy_frame() -> Node<ProfileProgram> {
     frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
 }
 
-/// A square profile node's payload on `plane`, `side` metres on a side.
-pub fn square(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
+/// An axis-aligned rectangular profile node's payload on `plane`:
+/// `w` by `h`, its lower-left corner at `origin` in the plane's own
+/// coordinates. `square` is this with two equal sides at the plane
+/// origin, and a fixture whose block sits elsewhere moves `origin`.
+pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> Node<ProfileProgram> {
+    let [x0, y0] = origin;
     Node::Profile(ProfileProgram {
         plane,
         loops: vec![
-            LoopProgram::polygon([(0.0, 0.0), (side, 0.0), (side, side), (0.0, side)])
+            LoopProgram::polygon([(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)])
                 .expect("finite corners"),
         ],
     })
+}
+
+/// A square profile node's payload on `plane`, `side` metres on a side,
+/// at the plane origin.
+pub fn square(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
+    rectangle(plane, [0.0, 0.0], side, side)
 }
 
 /// **A frame and a square drawn on it**, answering the document and the
@@ -253,7 +329,7 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
             input: extrude,
             translation: [len(0.01), len(0.0), len(0.0)],
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+            rotation_angle: ang(0.0),
         },
         tol,
     );
@@ -320,23 +396,25 @@ use pncad::document::{BooleanValue, NodeResult};
 use pncad::prelude::ValuePayload;
 use viewer::session::{DocSession, SessionOp};
 
-/// Perform one op that must commit exactly one insert, answering the
-/// id of the node it minted.
 /// Add the world xy frame through the session, answering its id — the
 /// pick every `SessionOp::AddProfile` below hands over.
+///
+/// Through the vocabulary's own numbers (`ProfilePlane::world_xy`)
+/// rather than a second spelling of them here: the add-profile form's
+/// `NewXy` choice mints that frame, so a suite that hand-wrote the
+/// components would stop testing the frame the chrome authors the
+/// moment either moved.
 pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
     insert(
         session,
         SessionOp::AddDatum {
-            datum: viewer::session::DatumSpec::Frame {
-                origin: len3([0.0; 3]),
-                u: scl3([1.0, 0.0, 0.0]),
-                v: scl3([0.0, 1.0, 0.0]),
-            },
+            datum: viewer::session::ProfilePlane::world_xy().expect("the world xy frame lowers"),
         },
     )
 }
 
+/// Perform one op that must commit exactly one insert, answering the
+/// id of the node it minted.
 pub fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -416,10 +494,9 @@ pub fn story_gallery_dir() -> Option<std::path::PathBuf> {
 
 /// A fresh directory under the OS temp root, named for the caller.
 ///
-/// One home: two suites wanted the same six lines and had copied them
-/// verbatim, which is exactly the drift this module's header exists to
-/// prevent. (A review suite keeping its own copy is the one case that
-/// argument does not cover — independence is the point there.)
+/// One home, and it stays one: a temp-directory name carries no oracle
+/// — no row can assert anything about it — so there is nothing here
+/// for a copy to derive independently, whoever wrote the suite.
 pub fn tempdir(label: &str) -> std::path::PathBuf {
     let unique = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -428,3 +505,12 @@ pub fn tempdir(label: &str) -> std::path::PathBuf {
     std::fs::create_dir_all(&dir).expect("the fixture directory is creatable");
     dir
 }
+
+// The mate-head helpers are `crate::fixture`'s, re-exported rather than
+// re-written: `tests/fixture/` is editor-core's tree, symlinked into
+// this one and mounted by this binary's root, so a second body here
+// would be a second definition of one fixture claim — and
+// `pncad::document::SitedFace` IS `editor_core::SitedFace`, the façade
+// re-exporting the kernel's type rather than wrapping it. A suite says
+// `common::head` as before.
+pub use crate::fixture::{head, head_at};

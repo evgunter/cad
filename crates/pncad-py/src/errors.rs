@@ -4,20 +4,37 @@
 //! structured error, never strings**. The items here say what that
 //! means, and no count of them is kept in this paragraph — what
 //! enumerates this file is an instrument rather than a sentence.
-//! `tests::ERRORS_MINTING_ITEMS` names every item here that spells a
-//! literal, and the check that holds its words. **An item that spells
-//! one is loud however it is written**: the reader's population is the
-//! shared lexer's answer about which bytes are literals, not a grammar
-//! of forms, so a further item reds that roster by name whatever its
-//! form, its depth, its trait or its literal's kind — and a word added
-//! to a rostered item moves that row's count. **An item that spells NO
-//! literal is the exception**, and it is the only one: a map that
-//! forwards `crate::tags`' word, or builds one from a kernel
-//! `Display`, adds nothing for the reader to see, and
-//! `the_errors_mint_census_cannot_see_a_word_that_is_not_a_literal`
-//! executes that case rather than leaving it to this paragraph. So a
+//! `tests::ERRORS_MINTING_ITEMS` names every `fn`, `const` and
+//! `static` this file declares, and what holds whatever words each
+//! puts on a Python wire. **An item is loud where that reader can see
+//! it**: the population is the file's declarations, keyed by every
+//! scope that holds them — an `impl`, a `mod`, a `trait`, a function
+//! body — so a further one reds that roster by name whether it stands
+//! at the top level or at depth, shares a line with its scope or not,
+//! carries a trait or not, and whether or not it spells a literal at
+//! all; and a word added to a rostered item moves that row's count. A
 //! word MINTED here is loud, and one minted here with nothing holding
 //! it is the finding that roster asks its author for.
+//!
+//! **What that reader cannot see, it says itself.**
+//! `tests::SCOPE_WALK_BLIND_SPOTS` is the list, entry by entry, each
+//! naming the test that executes it — a scope a macro expands to, a
+//! `mod` whose body is another file, an `impl` whose generic argument
+//! holds a brace, a block. An exclusivity claim written about this
+//! reader has been short every time one has been written, so what
+//! stands here is a pointer to a list something re-derives and not a
+//! fence.
+//!
+//! **What it does not reach is a word this file carries without
+//! declaring.** [`QuantityOpMismatch::op`] is a `&'static str` FIELD,
+//! and its twelve words are minted at call sites under `crate::py`
+//! (measured 2026-09-15) where no instrument reads them; a second such
+//! field arrives with that roster silent, and
+//! `tests::the_errors_mint_census_cannot_see_a_word_channel_that_is_not_a_declaration`
+//! executes it. This paragraph claims no completeness beyond that —
+//! an exclusivity claim written here has been short every time it has
+//! been written — so what it offers is the measured case and not a
+//! fence.
 //!
 //! The items:
 //!
@@ -729,9 +746,14 @@ impl ValidationRefusal {
     /// class's two vocabularies it joins rather than defaulting into
     /// one.
     ///
-    /// **Both words are Python-visible** — `pncad.pyi` declares
-    /// `door: str` and `reason: str` on `ValidationError` — and
-    /// neither is a TAG: `TAG_INVENTORY`'s population is the tag words
+    /// **Both words are Python-visible**: a raise writes one of them
+    /// onto the exception, so a caller reads `ValidationError.door` on
+    /// a validator refusal and `ValidationError.reason` on the
+    /// measurement one. `pncad.pyi` declares the first and not the
+    /// second, which
+    /// `tests::the_discriminant_attribute_names_are_declared_in_the_stub`
+    /// holds as a gap the stub has not closed. Neither word is a TAG:
+    /// `TAG_INVENTORY`'s population is the tag words
     /// `src/tags.rs`'s maps mint, and an attribute NAME is not one, so
     /// the inventory cannot read this map however it grows. The two
     /// tests named above are the pin instead, and the routing — which
@@ -777,6 +799,14 @@ pub enum BoundaryEdit<'a> {
     /// A placement rule spelled through the wrong constructor, worded
     /// by the document layer's own fault map.
     PlacementRule(&'a pncad::document::PlacementRuleFault),
+    /// A mate head that is not a FACE. `Node.mate` takes names as
+    /// TEXT, so this boundary is one of the three that turn data into
+    /// names, and it is the door where `FaceName::new` is called: the
+    /// kernel expresses the rule in the TYPE of a head, which a
+    /// dynamically-typed caller cannot be held to by the compiler, so
+    /// the binding holds it here and answers with the constructor's
+    /// own refusal.
+    MateHead(&'a pncad::document::NotAFaceName),
 }
 
 /// Which `#[non_exhaustive]` kernel enum at the SELECTION boundary has

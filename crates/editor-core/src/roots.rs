@@ -236,18 +236,51 @@ pub(crate) fn on_delete<P: crate::ProfilePayload>(
     doc.roots.splice(at..=at, orphans);
 }
 
-/// **Is this node a sink** — is it an input to nothing live?
+/// **Who consumes this node** — the first live node whose
+/// [`crate::Node::inputs`] hold `id`, or `None` when nothing does.
 ///
-/// One home for the predicate both maintainers above ask, so "what
-/// makes a node a root" is answered in one place: D-2's coverage plus
-/// ancestor-freedom make the root set exactly the sink set, and a
-/// maintainer that computed sink-hood its own way could drift from
-/// that identity without anything noticing.
+/// One home for "who reads this node", the question every door that
+/// cares whether a node may go asks: the root maintainers below ask
+/// it as a predicate ([`is_sink`]), [`crate::apply`]'s `DeleteNode`
+/// asks it for the witness its `DeleteWouldDangle` names, and
+/// `refactor::inline` asks it for `InstanceConsumed`'s. A door that
+/// spelled it its own way could disagree with the root set about
+/// what a live consumer is without anything noticing.
+///
+/// The walk is [`Doc::order`], so the answer is the document's FIRST
+/// consumer rather than its lowest-id one — the same choice the save
+/// validator's name pass makes, and the order the maintainers below
+/// splice in. A node is not its own consumer: the DAG is acyclic, so
+/// the guard is a statement rather than a filter.
 ///
 /// Linear in the document per call, so the recomputing maintainer is
 /// quadratic in node count. Fine at the sizes this kernel authors
 /// (the die, its largest document, is 32 nodes); an incremental
 /// consumer index is the fix if it ever is not.
-fn is_sink<P: crate::ProfilePayload>(doc: &Doc<P>, id: RecipeNodeId) -> bool {
-    !doc.nodes.values().any(|n| n.inputs().contains(&id))
+pub(crate) fn consumer<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    id: RecipeNodeId,
+) -> Option<RecipeNodeId> {
+    doc.order
+        .iter()
+        .copied()
+        .find(|&by| by != id && doc.node(by).is_some_and(|n| n.inputs().contains(&id)))
+}
+
+/// **Is this node a sink** — is it an input to nothing live?
+///
+/// [`consumer`]'s predicate half, so "what makes a node a root" is
+/// answered in one place: D-2's coverage plus ancestor-freedom make
+/// the root set exactly the sink set.
+///
+/// A sink of ANY kind is a root, and that is A10's meaning rather
+/// than a gap in it: a mate is an isolated sink under consuming
+/// edges, and a `Declare` whose last consumer a delete removed is a
+/// sink from that delete on — both are listed, and both contribute
+/// nothing to the gather, which reads only body-denoting roots. The
+/// kind question is the gather's, never this predicate's
+/// (`work/edit/an-orphaned-declare-joins-the-product-root-set`, ruled
+/// a non-issue on exactly that ground).
+pub(crate) fn is_sink<P: crate::ProfilePayload>(doc: &Doc<P>, id: RecipeNodeId) -> bool {
+    consumer(doc, id).is_none()
 }

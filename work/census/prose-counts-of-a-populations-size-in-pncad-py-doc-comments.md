@@ -4,6 +4,8 @@ kind: issue
 title: Doc comments in pncad-py count populations the code holds, and nothing re-measures them
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

@@ -360,16 +360,25 @@ fn r2_each_thin_solid_pairs_its_own_voids_twin() {
 // ---------------------------------------------------------------------
 
 /// **`move_shells_to_new_solid` will mint a solid with NO outer
-/// boundary**, and nothing downstream objects. Its five preconditions
-/// are all structural (resolve, one solid, non-empty remainder); none
-/// is about the shells forming a coherent piece of material. Moving a
+/// boundary**, and tier 3 now REFUSES it. Its five preconditions are
+/// all structural (resolve, one solid, non-empty remainder); none is
+/// about the shells forming a coherent piece of material, so moving a
 /// hollow box's VOID out on its own leaves one solid whose only shell
-/// has negative signed volume, and tier 3 passes it.
+/// has negative signed volume.
 ///
-/// The shell verb never does this — it always moves the pair — but the
-/// door is `pub` on `Body`, and its own docs claim only "tier-1
-/// preservation". Measured here so the boundary of what it guarantees
-/// is on the page.
+/// **What moved, and why the row reads the other way now.** Tier 3
+/// used to pass this body, and that was measured here as a boundary of
+/// what the door guarantees. Check 7 read the BODY's total signed
+/// volume, which for these two solids is the hollow box's `+V` plus
+/// the lone void's `−v` and stays positive. ATREST-1 made check 7's
+/// subject the SOLID, so the minted solid is now weighed on its own
+/// faces and refuses `NegativeVolume` naming it. The door's own
+/// contract is unchanged — it still claims only tier-1 preservation,
+/// and it still accepts the move — but the body it mints no longer
+/// certifies at tier 3.
+///
+/// The shell verb never does this: it always moves the pair. The door
+/// is `pub` on `Body`, which is why the boundary is worth a row.
 #[test]
 fn r2_the_new_door_mints_a_solid_with_no_outer_shell() {
     let tol = Tol::witness();
@@ -388,8 +397,11 @@ fn r2_the_new_door_mints_a_solid_with_no_outer_shell() {
     );
     assert_eq!(
         topo::validate_geometric(&body, tol),
-        Ok(()),
-        "MEASURED: tier 3 passes a solid whose only shell is a cavity"
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: minted
+        }]),
+        "check 7's subject is the solid: the minted one encloses negative volume, \
+         and the hollow box beside it is not implicated"
     );
     let roles = topo::classify_shells(&body, tol).expect("classifies");
     let minted_roles: Vec<ShellRole> = roles

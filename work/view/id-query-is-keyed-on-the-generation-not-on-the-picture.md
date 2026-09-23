@@ -2,10 +2,13 @@
 id: id-query-is-keyed-on-the-generation-not-on-the-picture
 kind: issue
 title: The id query is re-asked on a new generation, so a scene rebuilt at the same generation leaves a stale GPU answer to be compared
-status: review
+status: closed
 opened: 2026-09-15
+closed: 2026-09-14
 branch: view/id-query-key
 pr: 2622
+priority: P1
+cost: D
 ---
 
 
@@ -23,7 +26,7 @@ the scene on a display-revision change and on a focus-set change as well
 as on a new index, and both of those hold the generation still. Hiding a
 part is the plain case: the drawn ids lose the hidden part's patches,
 the ray path is handed the same `DisplayView` and answers *nothing*
-there, and `frame::disagreement` compares the ray's fresh *nothing*
+there, and `idpass::disagreement` compares the ray's fresh *nothing*
 against an `id_answer` the GPU wrote for the picture that still had the
 part in it. That is a disagreement between two pictures, reported as a
 disagreement between two picking paths — and issue #1097 §4 tells an
@@ -61,6 +64,6 @@ the pair. `ViewerApp::revision` is written in exactly two places
 `sync_scene`'s success arm), and the generation the log is handed is
 `self.picks.index()`'s — which `sync_scene` can leave newly landed over
 a rebuild it refused, since the refused arm writes `scene_fault` and
-nothing else. So the key is `frame::IdSubject { revision, generation }`,
+nothing else. So the key is `idpass::IdSubject { revision, generation }`,
 and `crates/viewer/README.md`'s *A pick id is one index's word* states
 it.

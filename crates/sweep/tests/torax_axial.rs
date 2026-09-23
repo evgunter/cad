@@ -23,19 +23,25 @@
 //!   carried-datum arm covers the off-axis one-cap shape, and the
 //!   off-axis-circle mint carries the moved rim (a plane cuts a
 //!   sphere in a circle, always). What still stands between the lune
-//!   and `shell` is the PROPS inventory — the sphere flux arm's
-//!   `props_band_coplanar` premise refuses the OPERAND's own wall
-//!   today — and that wall is pinned with its payload below;
-//! - the KLEIN ELBOW (torus wall) now refuses one door deeper than
-//!   its old `TogetherAxialCorner`: its corners solve through the
-//!   carried-datum arm, and the rim EDGE has no carrier — the moved
-//!   cap cuts the torus in a spiric QUARTIC, and the latitude mint
-//!   names the off-axis centre it will not carry. The torus half is
-//!   design-gated (the spec's PR-2 conversation), not implemented.
+//!   and `shell` is the PROPS inventory — the CAVITY's lens face,
+//!   bounded by the moved caps' off-centre sections, has no closed
+//!   form (`props_meridian_great`) — and that wall is pinned with its
+//!   payload below;
+//! - the KLEIN ELBOW (torus wall) mints its rims as well: its corners
+//!   through the carried-datum arm, and its rim EDGES through the
+//!   door's one kind-changing mint — the moved cap cuts the torus in a
+//!   spiric, and the rim is minted as the exact `Curve3::Spiric` it
+//!   is. What stands between the elbow and `shell` now is its EQUATOR
+//!   SEAMS: a disc's two profile vertices revolve into
+//!   `RevolvedPoint`-declared chart seams, and the re-author of a
+//!   declaration refuses a corner the moved cap has displaced off the
+//!   family's own sketch plane. The sectioned VESSEL (`spiric_rim`),
+//!   whose torus band has no such seam, hollows to tier 3 and stops at
+//!   the props inventory.
 //!
 //! So the partial revolve's rim was a circle-profile wall's gap at two
-//! doors; the sphere door is built, and the torus door is the spiric
-//! carrier's.
+//! doors, and both carrier doors are built; what stops each hollow
+//! now is named by its own row.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -534,32 +540,52 @@ fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
         .collect()
 }
 
-/// **The klein elbow's rim now stops one door deeper, and the boundary
-/// is the CARRIER, not the corner.**
+/// **The klein elbow's rim MINTS, and the elbow stops at its equator
+/// seams' re-author** — the row that used to pin the carrier mint's
+/// refusal, flipped, with the old door recorded and the predicted
+/// door named beside the measured one.
 ///
-/// Until VERBS-RIMCAP this row pinned `TogetherAxialCorner { surfaces:
-/// 2, what: "one profile constraint…" }`: the rim vertex meets the
-/// torus wall and ONE meridian cap, and the corner solve had no arm
-/// for a lone profile circle off the axis. The carried-datum arm now
-/// answers that corner — the old corner's profile point moved
-/// concentrically with its circle, the azimuth solved from the moved
-/// cap exactly as the wedge's is — so the corner SOLVES, and the
-/// refusal moves to the rim EDGE's carrier: the old rim is the profile
-/// circle in the cap's plane, centred `R` off the axis, and the
-/// latitude mint's own predicate says so. The payload below is the
-/// measured door at this head.
+/// **The old door, verbatim (measured at the unit's head before the
+/// mint):** `ShellError::Face { error: TogetherAxialEdge { what: "a
+/// circular edge between two charts whose centre is off the axis" } }`
+/// from `offset_axial.rs:mint_carrier`'s distinct-charts circle arm
+/// through `latitude_posture` → `centre_on_axis`, predicate
+/// `offset_axial_centre` — the latitude mint declining a circle
+/// centred `R` off the axis. Before VERBS-RIMCAP it was one door
+/// earlier still, `TogetherAxialCorner { surfaces: 2 }`.
 ///
-/// **What stands between the elbow and a hollow is the torus half's
-/// own boundary, stated rather than glossed**: the moved cap stands
-/// `t` off the axis and parallel to it, and a plane in that posture
-/// cuts a torus in a SPIRIC quartic — sampled below as the oval's own
-/// half-width against its half-height, which a circle would make
-/// equal. `Curve3` has no quartic carrier, so the sphere half's
-/// off-axis-circle mint has no torus sibling to gain here; that half
-/// is design-gated (the VERBS-RIMCAP spec's PR-2 conversation), and
-/// the klein rows stay measured-red until it is funded.
+/// **What answers now.** The moved cap stands `t` off the axis and
+/// parallel to it, and cuts the moved torus in a SPIRIC — sampled
+/// below as the oval's own half-width against its half-height, which
+/// a circle would make equal, and which is why the carrier changes
+/// KIND: the door mints `Curve3::Spiric` from the cap's normal and
+/// stand-off and the moved tube's radii, reads both endpoints back
+/// onto it and meters its midpoint against both moved surfaces (a
+/// mutant that names the other oval refuses there with a gap of
+/// `2√((R + r′cos v)² − d²)`, the two ovals' separation; one that
+/// flips the reach guard refuses at the guard). **Then the EQUATOR
+/// SEAMS refuse.** The disc's two profile vertices revolve into
+/// `Chart`-described, `RevolvedPoint`-DECLARED seams between the two
+/// torus faces, and `restate` re-authors a declaration in its own
+/// sketch plane — but the moved start cap has displaced the seam's
+/// start corner `t` off that plane, so `offset_axial_reauthor_plane`
+/// refuses `TogetherAxialEdge` on the seam. The spec predicted tier
+/// 3's check 7 (the props inventory); the prediction measured the
+/// rims' authority (`Derived`, no re-author) and not the seams'. The
+/// sectioned vessel, whose band has no such seam, does reach check 7
+/// (`spiric_rim::the_sectioned_vessel_stops_at_the_props_door`). The
+/// lune's row next door stands at the props door on its own premise
+/// (`props_meridian_great`).
+///
+/// **The latitude posture's off-axis refusal is no longer reachable
+/// from a public door**: every circle a door builds between two
+/// distinct charts is coaxial (a latitude), or a sphere-wall rim, or
+/// a torus-wall rim — and the last two have their own arms now. The
+/// survey found no fixture; the refusal's reachability is
+/// demonstrated by mutation in the unit's PR (the RIMCAP shape), and
+/// its arm stays as the honest remainder for a hand-built operand.
 #[test]
-fn torax_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
+fn torax_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
     let r = 0.275_f64;
     let elbow = {
         let profile = Profile::new(
@@ -584,18 +610,18 @@ fn torax_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
         .body
     };
     let e = topo::shell(&elbow, 0.05, tol())
-        .expect_err("the elbow's rim circle is a quartic section away from a carrier");
+        .expect_err("the equator seams' declarations cannot be re-authored off their plane");
+    println!("[torax] the elbow's next door: {e}");
     let ShellError::Face { error, .. } = e else {
         panic!("not the offset door's refusal: {e}");
     };
     let topo::ReplaceFaceError::TogetherAxialEdge { what, .. } = *error else {
-        panic!("the rim must refuse at the carrier it cannot mint: {error:?}");
+        panic!("the seam must refuse at its re-author: {error:?}");
     };
     assert_eq!(
-        what, "a circular edge between two charts whose centre is off the axis",
-        "the latitude mint names the off-axis centre"
+        what,
+        "a revolved point's moved corner stands out of the family's own sketch plane, so the same rotation does not pass through it"
     );
-    println!("[torax] the elbow rim, one door deeper: {what}");
 
     // The section that rim edge would need is not a circle.
     let (big, small) = (1.2_f64, r - 0.05);
@@ -651,12 +677,15 @@ fn torax_the_klein_elbow_rim_refuses_at_the_carrier_mint() {
 /// **Why this row is the DIRECT door and not `shell`.** The whole
 /// hollow pipeline now runs — corners, carriers, parameters, pcurves,
 /// the void door's containment — and `shell`'s LAST act, tier 3's +V
-/// invariant, refuses: the sphere flux closed form's
-/// `props_band_coplanar` premise covers only meridians on ONE great
-/// circle, and the lune's wall (the OPERAND's own wall, today, before
-/// any offset) has meridians on two. That standing wall is pinned with
-/// its payload by `torax_the_sphere_lune_next_door_is_the_props_inventory`
-/// below; this row pins what this unit built.
+/// invariant, refuses: the CAVITY's sphere face is bounded by the two
+/// moved caps' plane∩sphere sections, small circles centred off the
+/// sphere centre, which the sphere flux closed form's boundary parse
+/// classifies as meridian carriers and then refuses as not great
+/// (`props_meridian_great`) — the inventory has no lens. (The
+/// OPERAND's own wall, two meridians on two great circles, measures by
+/// the meridian pair.) That standing wall is pinned with its payload by
+/// `torax_the_sphere_lune_next_door_is_the_props_inventory` below; this
+/// row pins what this unit built.
 ///
 /// **The cavity's closed-form volume, derived here for the day the
 /// props inventory reaches it.** The cavity is the ball of radius
@@ -807,44 +836,42 @@ fn torax_the_lune_cavity_survives_a_rigid_re_pose() {
 /// **What still stands between the lune and `shell`, named with its
 /// payload — and it is the props inventory's, not this rim's.**
 ///
-/// `shell`'s last act is tier 3, whose +V invariant computes the exact
-/// B-rep volume, and the sphere flux arm's `props_band_coplanar`
-/// premise (all boundary meridians on ONE great circle, `Δu = π`)
-/// covers full-revolve bands only. A lune's wall carries meridians on
-/// two great circles, so its volume is `VolumeUncomputable` — for the
-/// OPERAND, today, before any offset is asked for: both reads below
-/// return the SAME payload, which is what places this wall upstream of
-/// the unit rather than inside it (D2 addendum row 2: valid input,
-/// lane not built — `cross.step`'s standing class). The day the sphere
-/// arm measures a lune, this row goes red and the family's acceptance
-/// moves to the hollow's closed-form wall volume, derived and parked
-/// in `torax_the_sphere_lune_rim_solves_in_closed_form`'s docs.
+/// The OPERAND measures: its wall is a rim-free band between two
+/// meridians on two great circles, which the sphere flux arm reads by
+/// the meridian pair (`props_wedge_azimuth`), so the
+/// quarter-turn lune's tier 3 passes at the ball wedge's closed form
+/// `πr³/3`. `shell` then walks the WHOLE hollow — corners, carriers,
+/// pcurves, containment — and its last act, tier 3's +V invariant,
+/// refuses on the CAVITY: the inner sphere face is bounded by the two
+/// moved caps' plane∩sphere sections, small circles centred `t` off
+/// the sphere centre along each cap normal; the boundary parse
+/// classifies each as a meridian carrier (its axis is perpendicular
+/// to the sphere axis) and refuses it as not a great circle
+/// (`props_meridian_great`). A lens between two small circles is
+/// outside the closed-form inventory (D2 addendum row 2: valid input,
+/// lane not built), so the hollow's closed-form wall volume stays
+/// parked in `torax_the_sphere_lune_rim_solves_in_closed_form`'s docs
+/// for the lane that reaches it; this row pins the door it stops at.
 #[test]
 fn torax_the_sphere_lune_next_door_is_the_props_inventory() {
-    let body = lune(0.3, core::f64::consts::FRAC_PI_2);
+    let r = 0.3;
+    let body = lune(r, core::f64::consts::FRAC_PI_2);
 
-    // The operand's own tier 3, first: the wall predates this unit.
-    let operand = topo::validate_geometric(&body, tol())
-        .expect_err("the lune's wall volume is outside the sphere flux arm's premise");
+    // The operand's own tier 3, first: the wedge arm measures its wall.
+    assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));
+    let volume = topo::mass_properties(&body, tol())
+        .expect("the lune's wall measures by its meridian pair")
+        .volume;
+    let exact = core::f64::consts::PI * r * r * r / 3.0;
     assert!(
-        matches!(
-            operand[..],
-            [topo::ValidationError::VolumeUncomputable {
-                source: topo::MassPropsError::Face {
-                    source: geom_brep::PropsError::NotIsoRectangle {
-                        what: "props_band_coplanar"
-                    },
-                    ..
-                },
-            }]
-        ),
-        "the operand refuses at the sphere flux premise, got {operand:?}"
+        (volume - exact).abs() / exact < 1e-12,
+        "the quarter-turn lune is a quarter ball: {volume:.15e} != {exact:.15e}"
     );
 
     // And shell walks the WHOLE hollow — corners, carriers, pcurves,
-    // containment — before the same premise refuses its closing gate.
+    // containment — before the cavity's lens refuses its closing gate.
     let e = topo::shell(&body, 0.05, tol())
-        .expect_err("shell's +V invariant needs the volume the flux arm cannot yet give");
+        .expect_err("shell's +V invariant needs a volume the cavity's lens face cannot give");
     println!("[torax] the lune's next door: {e}");
     let ShellError::NotValid { errors } = e else {
         panic!("the hollow must reach tier 3 and stop at the props inventory, got {e:?}");
@@ -855,13 +882,14 @@ fn torax_the_sphere_lune_next_door_is_the_props_inventory() {
             [topo::ValidationError::VolumeUncomputable {
                 source: topo::MassPropsError::Face {
                     source: geom_brep::PropsError::NotIsoRectangle {
-                        what: "props_band_coplanar"
+                        what: "props_meridian_great"
                     },
                     ..
                 },
+                ..
             }]
         ),
-        "the same premise, one body later: {errors:?}"
+        "the cavity's lens face refuses at the meridian-great fit: {errors:?}"
     );
 }
 

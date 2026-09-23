@@ -14,7 +14,12 @@
 //! file still render a payload through `Debug`, each for a stated
 //! reason: `WebStartupError::Runner` (a `JsValue` the orphan rule
 //! forecloses writing a `Display` for) and `Disagreement` (a role path,
-//! whose `RoleSeg` has none). `PreviewError::Transition` is not one of
+//! whose `RoleSeg` has none). One message door that is not a `Display`
+//! renders one too, for `Disagreement`'s reason: `frame::pick_refusal`
+//! writes the certified tie's faces with their role paths, because a
+//! sentence about two answers that cannot be told apart cannot render
+//! them as the same words (`frame_policy.rs`,
+//! `the_status_line_renders_two_tied_faces_as_two_different_phrases`). `PreviewError::Transition` is not one of
 //! them and is not covered here either: it needs a replayed chain to
 //! carry a verb at all, so its prose row sits beside the chain that
 //! produces it (`tests/path_authoring.rs`,
@@ -64,6 +69,13 @@ fn camera_error_names_the_offending_value() {
     prose(&fov, "FieldOfViewOutOfRange");
 
     prose(&CameraError::UnusableBounds.to_string(), "UnusableBounds");
+
+    // The one arm whose fact is about the SEAM rather than the
+    // camera: the algebra succeeded and the GPU cannot hold what it
+    // produced, so the sentence names the bound rather than a field.
+    let undrawable = CameraError::UndrawableProjection.to_string();
+    assert!(undrawable.contains("3.4e38"), "{undrawable}");
+    prose(&undrawable, "UndrawableProjection");
 
     let unfittable = CameraError::Unfittable {
         required: 12.5,
@@ -141,6 +153,17 @@ fn scene_error_names_the_counts_it_carries() {
     assert!(delta.contains("-1"), "{delta}");
     prose(&delta, "InvalidDisplayTolerance");
 
+    // The second δ arm, whose whole point is that it is NOT the first:
+    // the value it names is a finite, strictly positive length, and
+    // what it lacks is a millimetre reading.
+    let coarse = SceneError::DisplayToleranceOverflowsMillimetres { delta: 1.0e306 }.to_string();
+    assert!(coarse.contains("1e306"), "{coarse}");
+    assert!(
+        coarse.contains("millimetre"),
+        "the arm says what the δ lacks, not that it is not a length: {coarse}"
+    );
+    prose(&coarse, "DisplayToleranceOverflowsMillimetres");
+
     prose(&SceneError::EmptyMesh.to_string(), "EmptyMesh");
 
     let mispaired = SceneError::MispairedIds { ids: 2, patches: 3 }.to_string();
@@ -157,6 +180,20 @@ fn scene_error_names_the_counts_it_carries() {
     .to_string();
     assert!(broken.contains('9') && broken.contains('4'), "{broken}");
     prose(&broken, "BrokenPatchIndex");
+
+    // Scientific, like the δ-overflow arm above and for the same
+    // reason: a coordinate that reaches this arm is past `f32::MAX`,
+    // and the sentence has to be one a person can read.
+    let undrawable = SceneError::UndrawablePosition {
+        position: [1.0e39, 0.0, 0.0],
+    }
+    .to_string();
+    assert!(undrawable.contains("1e39"), "{undrawable}");
+    assert!(
+        !undrawable.contains("10000000"),
+        "the coordinate is spelled in exponent form: {undrawable}"
+    );
+    prose(&undrawable, "UndrawablePosition");
 }
 
 /// The tessellation arm forwards `mesh`'s own refusal: the kernel
@@ -262,7 +299,7 @@ fn pick_error_forwards_its_hit_test_arm() {
     let inner = HitTestError::NodeFailed {
         node: RecipeNodeId(4),
     };
-    let outer = PickError::HitTest(inner).to_string();
+    let outer = PickError::HitTest(inner.clone()).to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
     prose(&outer, "NodeFailed");
 }
@@ -273,7 +310,7 @@ fn edge_name_fault_forwards_its_unnamed_arm() {
     let inner = HitTestError::NodeFailed {
         node: RecipeNodeId(4),
     };
-    let outer = EdgeNameFault::Unnamed(inner).to_string();
+    let outer = EdgeNameFault::Unnamed(inner.clone()).to_string();
     assert!(outer.contains(&inner.to_string()), "{outer}");
     prose(&outer, "Unnamed");
 }

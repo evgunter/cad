@@ -142,7 +142,7 @@ pub(crate) enum SegTag {
     CornerFace,
     TrimEdge,
     FootVertex,
-    CornerArc,
+    EndArc,
     BandFace,
     BandTrim,
     BandFoot,
@@ -194,7 +194,7 @@ impl SegTag {
             Self::CornerFace => s::SegTag::CornerFace,
             Self::TrimEdge => s::SegTag::TrimEdge,
             Self::FootVertex => s::SegTag::FootVertex,
-            Self::CornerArc => s::SegTag::CornerArc,
+            Self::EndArc => s::SegTag::EndArc,
             Self::BandFace => s::SegTag::BandFace,
             Self::BandTrim => s::SegTag::BandTrim,
             Self::BandFoot => s::SegTag::BandFoot,
@@ -369,6 +369,7 @@ pub(crate) enum CurveKind {
     Line,
     Circle,
     Ellipse,
+    Spiric,
     Nurbs,
 }
 
@@ -378,6 +379,7 @@ impl CurveKind {
             Self::Line => s::CurveKind::Line,
             Self::Circle => s::CurveKind::Circle,
             Self::Ellipse => s::CurveKind::Ellipse,
+            Self::Spiric => s::CurveKind::Spiric,
             Self::Nurbs => s::CurveKind::Nurbs,
         }
     }
@@ -942,7 +944,7 @@ mod growth_tripwire {
             s::SegTag::CornerFace => SegTag::CornerFace,
             s::SegTag::TrimEdge => SegTag::TrimEdge,
             s::SegTag::FootVertex => SegTag::FootVertex,
-            s::SegTag::CornerArc => SegTag::CornerArc,
+            s::SegTag::EndArc => SegTag::EndArc,
             s::SegTag::BandFace => SegTag::BandFace,
             s::SegTag::BandTrim => SegTag::BandTrim,
             s::SegTag::BandFoot => SegTag::BandFoot,
@@ -991,6 +993,7 @@ mod growth_tripwire {
             s::CurveKind::Line => CurveKind::Line,
             s::CurveKind::Circle => CurveKind::Circle,
             s::CurveKind::Ellipse => CurveKind::Ellipse,
+            s::CurveKind::Spiric => CurveKind::Spiric,
             s::CurveKind::Nurbs => CurveKind::Nurbs,
         }
     }

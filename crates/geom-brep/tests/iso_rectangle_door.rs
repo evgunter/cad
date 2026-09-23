@@ -7,9 +7,9 @@
 //! AND through `curved_face`, so the rows state where the two agree
 //! (a rectangle passes both, a notch refuses both by `props_rim_level`,
 //! an oblique sphere section refuses both by the same incidence name)
-//! and the ONE place they part: the rimless lune, a chart rectangle
-//! the door admits and the flux lane refuses on its own `Δu = π`
-//! premise. That divergence is the door's contract, not a gap in it.
+//! and the rimless lune, a chart rectangle the door admits on the
+//! shape alone while the flux lane measures it at the width its loop
+//! bounds — two premises, one face.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::point::{p3, v3};
@@ -102,24 +102,28 @@ fn a_keyway_refuses_at_the_door_by_the_same_name_the_flux_lane_uses() {
     );
 }
 
-/// **The divergence, pinned.** A lune between two great circles a
-/// quarter turn apart is `[0, π/2] × [−π/2, π/2]` — a chart rectangle
-/// — so the door admits it; the flux lane refuses it on
-/// `props_band_coplanar`, its own `Δu = π` premise. Goes red if either
-/// side is folded onto the other.
+/// **Two homes, one lune.** A lune between two great circles a
+/// quarter turn apart is a chart rectangle in azimuth × latitude, so
+/// the door admits it; the flux lane measures it at the width the
+/// loop bounds (`props_wedge_azimuth`). The door's answer is the
+/// shape's and does not depend on which lunes the flux lane measures.
 #[test]
-fn a_rimless_lune_passes_the_door_and_fails_the_flux_lane() {
+fn a_rimless_lune_passes_the_door_and_measures() {
     let half = core::f64::consts::FRAC_PI_2;
     let lune = vec![
         great(0.0, -half, half, 0, 1),
         great(half, half, -half, 1, 0),
     ];
     assert_eq!(require_iso_rectangle(&sphere(), &lune, band()), Ok(()));
-    assert_eq!(
-        curved_face(&sphere(), &lune, true, band()).map(|_| ()),
-        Err(PropsError::NotIsoRectangle {
-            what: "props_band_coplanar"
-        })
+    // Interior-left about the outward normal: with `sense = true` this
+    // loop (northward at `u = 0`) bounds the three-quarter lune of the
+    // unit sphere.
+    let fc = curved_face(&sphere(), &lune, true, band()).expect("the flux lane measures the lune");
+    let exact = 2.0 * 3.0 * half;
+    assert!(
+        (fc.area - exact).abs() / exact < 1e-12,
+        "area {:.15e} != {exact:.15e}",
+        fc.area
     );
 }
 
@@ -335,4 +339,142 @@ fn pieces_from_distinct_edges_never_fold() {
     let mut corner = pieced(Some(1), Some(2));
     corner[2] = tmer(0.5, 0.7, V1, 2, 3, Some(9));
     refuses("corner", &corner);
+}
+
+// ---------------------------------------------------------------------
+// The sense-free residue of the flux lane's interior-side premise
+// ---------------------------------------------------------------------
+
+/// The sphere rim (a coaxial circle) at latitude `v`.
+fn srim(v: f64, u0: f64, u1: f64, a: u32, b: u32) -> LoopEdge<f64> {
+    topo::sphere_rim(1.0, v, u0, u1, a, b)
+}
+
+/// **The door takes the residue: every rim must encode the SAME
+/// material side** (`work/props/the-shape-door-could-take-the-sense-
+/// free-rim-side-residue.md`).
+///
+/// The staircase face carries a rim at `lo` and a rim at `hi`
+/// traversed the same way. Its rims contradict each other about which
+/// side the material is on, so `linear_rim_side` answers a definite ±1
+/// whose value depends on which rim the owning body's loop walk hands
+/// over first — and the door used to answer `Ok(())` for it, because
+/// every rim does sit at an extreme. `unanimous_rim_side` needs no
+/// sense bit to see the contradiction, and the door now asks it: the
+/// same `props_rim_side` name the flux lane and the material-side gate
+/// refuse it by.
+#[test]
+fn the_door_refuses_a_face_whose_rims_encode_different_sides() {
+    let (lo, hi) = (-0.3_f64, 0.5_f64);
+    let pi = core::f64::consts::PI;
+    let tau = core::f64::consts::TAU;
+    let want = || {
+        Err(PropsError::NotIsoRectangle {
+            what: "props_rim_side",
+        })
+    };
+    let stair = [
+        srim(lo, 0.0, pi, 0, 1),
+        great(pi, lo, hi, 1, 2),
+        srim(hi, pi, tau, 2, 3),
+        great(0.0, hi, lo, 3, 0),
+    ];
+    for k in 0..stair.len() {
+        let e: Vec<LoopEdge<f64>> = (0..stair.len())
+            .map(|i| stair[(i + k) % stair.len()].clone())
+            .collect();
+        assert_eq!(
+            require_iso_rectangle(&sphere(), &e, band()),
+            want(),
+            "k={k}: the door reads the contradiction whatever the anchor"
+        );
+        // The gate refused it already; the door now agrees with it.
+        assert_eq!(
+            boundary_material_sign(&sphere(), &e, band()).map(|_| ()),
+            want()
+        );
+    }
+    // The consistent zone — the same two rims traversed OPPOSITE ways —
+    // still passes: unanimity is not "refuse every two-rim face".
+    let zone = vec![srim(lo, 0.0, tau, 0, 0), srim(hi, tau, 0.0, 1, 1)];
+    assert_eq!(require_iso_rectangle(&sphere(), &zone, band()), Ok(()));
+    assert!(curved_face(&sphere(), &zone, true, band()).is_ok());
+    assert_eq!(
+        boundary_material_sign(&sphere(), &zone, band()),
+        Ok(MaterialSign::Encoded(geom_core::Sign::Positive))
+    );
+}
+
+/// **The residue does not close the door's documented divergence.**
+/// The L-shaped complement of a half-cap has ONE rim, so there is
+/// nothing for unanimity to compare: the door still admits it and the
+/// flux lane still refuses it `props_rim_interior_side`. That residue
+/// is σ's, and σ needs the face's sense bit the door does not take.
+#[test]
+fn the_one_rim_divergence_survives_the_residue() {
+    let v0 = 0.5_f64;
+    let pi = core::f64::consts::PI;
+    let complement = vec![srim(v0, pi, 0.0, 1, 0), great(0.0, v0, pi - v0, 0, 1)];
+    assert_eq!(
+        require_iso_rectangle(&sphere(), &complement, band()),
+        Ok(()),
+        "one rim states no contradiction"
+    );
+    assert_eq!(
+        curved_face(&sphere(), &complement, true, band()).map(|_| ()),
+        Err(PropsError::NotIsoRectangle {
+            what: "props_rim_interior_side"
+        })
+    );
+}
+
+/// **The residue is not band-continuous with the door's zero-extent
+/// charter, and this row is that seam measured.**
+///
+/// "A zero-extent face passes" is true at EXACTLY zero: there no rim
+/// sits at one extreme rather than the other, `rim_side` answers
+/// `DegenerateFace`, and the door admits it. Move the extent into the
+/// ambiguity band and the same question becomes undecidable rather
+/// than vacuous — `props_rim_side` escalates, typed — and only above
+/// the band does it answer again. So every linearly-levelled face
+/// whose extent lands in the band now refuses at the door that gates
+/// `mesh`'s walk, which the corpus measurement could not see because
+/// no corpus body has a band-scale extent.
+///
+/// The posture is the ratified one (escalate, never guess) and this
+/// row does not argue with it; it states the class, on a cylinder
+/// wall, with every offset taken from the run's own `Band` so it holds
+/// at each ε on the matrix.
+#[test]
+fn the_doors_zero_extent_charter_is_exactly_at_zero() {
+    let z = band().zero();
+    let wall = |dv: f64| {
+        vec![
+            rim(0.0, 0.0, 1.5, 0, 1),
+            mer(1.5, 0.0, dv, 1, 2),
+            rim(dv, 1.5, 0.0, 2, 3),
+            mer(0.0, dv, 0.0, 3, 0),
+        ]
+    };
+    for (dv, decidable) in [
+        (0.0, true),
+        (1.5 * z, false),
+        (5.0 * z, false),
+        (100.0 * z, true),
+    ] {
+        let door = require_iso_rectangle(&cylinder(), &wall(dv), band());
+        println!("  extent {dv:.3e} ({:.1} x zero): door = {door:?}", dv / z);
+        if decidable {
+            assert_eq!(door, Ok(()), "extent {dv:.3e}: the door answers");
+        } else {
+            assert!(
+                matches!(
+                    &door,
+                    Err(PropsError::Escalated { cause })
+                        if cause.predicate == Some("props_rim_side")
+                ),
+                "extent {dv:.3e}: an in-band extent has no extreme to place a rim at: {door:?}"
+            );
+        }
+    }
 }

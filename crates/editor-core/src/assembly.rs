@@ -76,8 +76,8 @@ use crate::mate::{
     ClassAdmission, ContactClass, MateSide, NO_AT_REST_RECORD_RECOURSE, class_admission,
 };
 use crate::names::interrogate::value_of;
-use crate::names::{EntityKind, Entry, NameTable, StableName};
-use crate::node::{Node, RecipeNodeId, SitedRef};
+use crate::names::{Entry, NameTable, StableName};
+use crate::node::{Node, RecipeNodeId, SitedFace};
 use crate::product::{Product, ProductError, product_recorded};
 use geom_core::Tol;
 
@@ -280,26 +280,31 @@ pub struct Assembly<T: Decide> {
 ///
 /// The gate asks two tables in order, and each arm answers one
 /// question. The PRODUCT's table first — the rows of every root,
-/// carried verbatim by the gather: an entry there that is not one
-/// face is `Ambiguous` or `NotAFace`. When the product is silent, the
-/// OPERAND's own table — the `name_table` of the node the reference
-/// is read at: silent there too is `Vanished`; a non-face entry there
-/// is `NotAFace` (what it is precedes where it is rooted); a face
-/// entry there at a node the product does not list is
+/// carried verbatim by the gather: a tie there is `Ambiguous`. When
+/// the product is silent, the OPERAND's own table — the `name_table`
+/// of the node the reference is read at: silent there too is
+/// `Vanished`, and an entry at a node the product does not list is
 /// `ReadBelowARoot`. No consumer is walked; the two tables and the
 /// root list decide.
 ///
 /// `Vanished` and `Ambiguous` are the silence and the tie every name
 /// lookup refuses with (`ResolveError` spells them for a `Declare`
-/// node's names); `NotAFace` is this gate's own word, because only a
-/// mate declaration must name a FACE. The subject here is the
-/// assembly's product table and the operand's, not a boolean
-/// operand's.
+/// node's names). The subject here is the assembly's product table
+/// and the operand's, not a boolean operand's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RefusedRef {
     /// No entity answers to the name — not in the product's table,
     /// and not in the table of the operand the mate reads it at: the
     /// name names nothing where the mate reads it.
+    ///
+    /// It is also the release answer where a table answered with a
+    /// row whose KEY is not a face under a face name. That is
+    /// `NameTable::insert`'s own rule broken rather than a document
+    /// this gate may refuse, so it is asserted in debug at the site
+    /// and answered here with the silence rather than given a
+    /// vocabulary of its own — the same shape `operand_answer`'s
+    /// third rung takes for a root row the product should have
+    /// carried.
     Vanished,
     /// The operand's own table answers to the name with a face, but
     /// the operand is not a root of the product, and a reference
@@ -317,15 +322,6 @@ pub enum RefusedRef {
     Ambiguous {
         /// How many entities the tie holds.
         width: u32,
-    },
-    /// The name resolves — in the product's table, or in the operand's
-    /// own where the product is silent — but not to a FACE. A mate's
-    /// declaration is a face-pair contact; a body, edge or vertex
-    /// reference is a different statement, refused rather than
-    /// widened, wherever it is rooted.
-    NotAFace {
-        /// What it did name.
-        kind: EntityKind,
     },
 }
 
@@ -709,9 +705,6 @@ impl core::fmt::Display for RefusedRef {
                 "{width} entities answer to it — a mate declaration names ONE face, and \
                  a tie is never broken by picking"
             ),
-            Self::NotAFace { kind } => {
-                write!(f, "it names {} {}, not a face", kind.article(), kind.noun())
-            }
         }
     }
 }
@@ -1035,8 +1028,8 @@ pub(crate) fn mint<P, T: Decide>(
         }
         minted.push(MintedDeclaration {
             mate: id,
-            a: a.name.clone(),
-            b: b.name.clone(),
+            a: (*a.name).clone(),
+            b: (*b.name).clone(),
             class: *class,
             faces: (face_a, face_b),
         });
@@ -1045,64 +1038,52 @@ pub(crate) fn mint<P, T: Decide>(
 }
 
 /// One mate reference → the product face it names, or the typed
-/// refusal. A tie is never broken by picking a side, and a non-face
-/// reference is never widened into one.
+/// refusal. A tie is never broken by picking a side.
 ///
 /// The product's table is asked first; only when it is silent is the
 /// operand's own table asked, through [`operand_answer`], so a name
 /// the product does answer to is never re-described by the operand.
 ///
-/// **Kind, then multiplicity** — [`operand_answer`]'s order, asked
-/// here over the product's own rows: a tied name whose kind is not
-/// `Face` refuses [`RefusedRef::NotAFace`], and only a tie AMONG FACES
-/// is [`RefusedRef::Ambiguous`]. What a name denotes does not depend
-/// on which table answered it, so the same edge refuses in the same
-/// word read at a root and read below one.
+/// **There is no kind question here, at either table.** A head is a
+/// [`SitedFace`], so the name this resolves denotes a face before the
+/// lookup runs, and the only multiplicity left to decide is a tie
+/// among faces ([`RefusedRef::Ambiguous`]).
 fn resolve_face<P, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     names: &NameTable,
     mate: RecipeNodeId,
     side: MateSide,
-    reference: &SitedRef,
+    reference: &SitedFace,
 ) -> Result<FaceKey, MintRefusal> {
     let name = &reference.name;
     let refuse = |why| MintRefusal::Reference {
         mate,
         side,
-        name: Box::new(name.clone()),
+        name: Box::new((**name).clone()),
         why,
     };
     let Some(entry) = names.lookup(name) else {
         return Err(refuse(operand_answer(doc, evaluation, reference)));
     };
-    // KIND BEFORE MULTIPLICITY, the order [`operand_answer`] asks in:
-    // a non-face never mints anywhere, so WHAT the name denotes
-    // precedes how many entities answer to it. The kind is the NAME's,
-    // which the table makes every candidate's kind
-    // (`NameTable::insert`, `insert_tied`), so a tie answers this as
-    // readily as a unique row does — and an edge named here and the
-    // same edge named one node below get one word for one fact.
-    if name.kind != EntityKind::Face {
-        return Err(refuse(RefusedRef::NotAFace { kind: name.kind }));
-    }
+    // THE KIND IS THE TYPE'S. A head is a `FaceName`, so "is this a
+    // face" is not a question this gate can ask at all — there is no
+    // non-face head to ask it of.
     match entry {
         Entry::Unique(ent) => {
-            // A face by the question above and the table's own rule
-            // that a row's kind is its name's; a key that is not one
-            // is that rule broken, and this door answers what the key
-            // IS rather than inventing a face. Asserted in debug and
-            // answered in release, [`operand_answer`]'s rung 4.
+            // A face by the head's type and the table's own rule that
+            // a row's kind is its name's — `NameTable::insert` and
+            // `NameTable::insert_tied` are the only doors that seat a
+            // row, and both refuse a key whose kind disagrees with the
+            // name's. A key that is not a face here is that rule
+            // broken, which is this crate's bug and not a document:
+            // asserted, and answered with the silence in release.
             debug_assert!(
                 matches!(ent.key, crate::names::EntityKey::Face(_)),
                 "the product's table holds a non-face under a face name: \
                  `NameTable::insert` admits a row only at its name's kind"
             );
-            ent.key.face().ok_or_else(|| {
-                refuse(RefusedRef::NotAFace {
-                    kind: ent.key.kind(),
-                })
-            })
+            ent.key.face().ok_or_else(|| refuse(RefusedRef::Vanished))
         }
         Entry::Tied(ents) => Err(refuse(RefusedRef::Ambiguous {
             width: u32::try_from(ents.len()).unwrap_or(u32::MAX),
@@ -1114,24 +1095,24 @@ fn resolve_face<P, T: Decide>(
 /// silent on a reference: does the OPERAND the mate reads at spell
 /// the name? Its own table is the `name_table` of `at`'s live value,
 /// read through the same door the name interrogation doors read it
-/// ([`value_of`]). One match, four answers, in this order:
+/// ([`value_of`]). One match, three answers, in this order:
 ///
 /// 1. Silent there too → [`RefusedRef::Vanished`]: the name names
 ///    nothing where the mate reads it.
-/// 2. A non-face entry, unique or tied → [`RefusedRef::NotAFace`]: a
-///    non-face never mints anywhere, so WHAT it is precedes WHERE it
-///    is rooted. The kind is the NAME's kind, which the table makes
-///    the entry's kind for every candidate (`NameTable::insert`,
-///    `insert_tied`). A root's body row lands here — see
-///    `product::carry_names` for why the product is silent on it.
-/// 3. A face entry — unique or tied — at a node the product does not
+/// 2. An entry — unique or tied — at a node the product does not
 ///    list as a root → [`RefusedRef::ReadBelowARoot`]. A tie among
 ///    faces below a root is still read below a root; the product
 ///    decides ties for its own rows.
-/// 4. A face entry at a ROOT with the product silent: `carry_names`
+/// 3. An entry at a ROOT with the product silent: `carry_names`
 ///    carries every face row of every root at the source's index, so
 ///    a hit here is its bug, not a vanished name. `Vanished` in
 ///    release, asserted in debug.
+///
+/// **There is no kind rung**, and that is the type's doing rather
+/// than an omission: a head is a [`crate::SitedFace`], so the name
+/// this asks about denotes a face and the question "is it one" has no
+/// answer to give. See `product::carry_names` for why the product is
+/// silent on a root's body row at all.
 ///
 /// An operand that is not a live value has no table to answer with,
 /// and the gate never asks it: every live node sits under some root
@@ -1144,19 +1125,15 @@ fn resolve_face<P, T: Decide>(
 fn operand_answer<P, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
-    reference: &SitedRef,
+    reference: &SitedFace,
 ) -> RefusedRef {
     let at = reference.at;
-    let kind = reference.name.kind;
     let rooted = doc.roots().contains(&at);
     let entry = value_of(evaluation, at)
         .ok()
         .and_then(|value| value.name_table.lookup(&reference.name));
     match entry {
         None => RefusedRef::Vanished,
-        Some(Entry::Unique(_) | Entry::Tied(_)) if kind != EntityKind::Face => {
-            RefusedRef::NotAFace { kind }
-        }
         Some(Entry::Unique(_) | Entry::Tied(_)) if !rooted => RefusedRef::ReadBelowARoot { at },
         Some(Entry::Unique(_) | Entry::Tied(_)) => {
             debug_assert!(
@@ -1359,7 +1336,10 @@ fn attribute(
         // a pair the records declare (in both orientations) and leaves
         // it to the confirm pass, so a declared pair never reaches it;
         // the instance-containment arm names SOLIDS, which no lookup
-        // over face keys can match.
+        // over face keys can match. `InstanceInterference` is that
+        // arm's decided verdict — two solids and a vertex, a statement
+        // about placement that no contact record makes and no mate
+        // answers for (recorded gate-skips do not exist).
         ValidationError::UndeclaredContact { .. }
         | ValidationError::StaleContactDeclaration {
             declaration:
@@ -1380,7 +1360,8 @@ fn attribute(
                 ),
             ..
         }
-        | ValidationError::CensusUndecidable { .. } => Attribution::Unattributed,
+        | ValidationError::CensusUndecidable { .. }
+        | ValidationError::InstanceInterference { .. } => Attribution::Unattributed,
         // Everything the tier-1/2/3 passes find: the body's own
         // structure and geometry. None of these is a statement about
         // a contact record, so none can be a verdict on a
@@ -1417,7 +1398,7 @@ fn attribute(
         | ValidationError::ScaffoldAtRest { .. }
         | ValidationError::LoopRoleInverted { .. }
         | ValidationError::CurvedSenseInverted { .. }
-        | ValidationError::NegativeVolume
+        | ValidationError::NegativeVolume { .. }
         | ValidationError::VolumeUncomputable { .. }
         | ValidationError::Pcurve { .. }
         | ValidationError::RingMeetsOuter { .. }
@@ -1577,7 +1558,7 @@ mod attribution {
     }
 
     /// A census refusal about a candidate face pair, declined by the
-    /// chart-region lane on a boundary it could not decide — the
+    /// chart-region predicate on a boundary it could not decide — the
     /// commonest cause, and an arbitrary one for a row about the
     /// relation.
     fn unsupported_pair(a: FaceKey, b: FaceKey) -> ValidationError {

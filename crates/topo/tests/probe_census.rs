@@ -13,24 +13,19 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use crate::common;
 
-use common::prism_z;
+use common::brick;
 use geom_core::Tol;
 use geom_core::k_stats::{self, Probe};
 use topo::{BooleanResult, subtract};
 
 fn bx(s: f64, x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> topo::Body<Probe> {
     let f = |v: f64| v * s;
-    prism_z::<Probe>(
-        &[
-            (f(x.0), f(y.0)),
-            (f(x.1), f(y.0)),
-            (f(x.1), f(y.1)),
-            (f(x.0), f(y.1)),
-        ],
-        f(z.0),
-        f(z.1),
+    brick::<Probe>(
+        (f(x.0), f(x.1)),
+        (f(y.0), f(y.1)),
+        (f(z.0), f(z.1)),
+        Tol::witness(),
     )
-    .body
 }
 
 #[test]

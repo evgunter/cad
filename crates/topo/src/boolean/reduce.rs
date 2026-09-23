@@ -230,7 +230,7 @@ pub(super) struct UnsupportedPair {
 ///   this scan still finds pairs that exact geometry would separate.
 ///   That is conservative in the correct direction — it never admits
 ///   a pair the crossing pipeline cannot handle — and the refusals
-///   built from it say "may intersect" rather than claiming a
+///   built from it say the faces "may meet" rather than claiming a
 ///   meeting the kernel has not computed.
 ///
 /// The pad is the sweep's own ([`super::boxes::sweep_pad`]), so the
@@ -418,7 +418,10 @@ fn gate_operand_edges<T: Decide>(body: &Body<T>, operand: Operand) -> Result<(),
                 geom::Curve3::Line { .. }
                 | geom::Curve3::Circle { .. }
                 | geom::Curve3::Ellipse { .. } => {}
-                geom::Curve3::Nurbs(_) => {
+                // The boolean fence: no join, section or pierce arm
+                // reads a spiric, so an operand carrying one refuses
+                // here, at the gate, as a spline does.
+                geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
                     return Err(BooleanError::CurvedEdgeUnsupported {
                         operand,
                         edge: edge_key,
@@ -541,11 +544,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
     band: Band,
 ) -> Result<(), BooleanError> {
     for (edge_key, edge) in body.edges() {
-        let face_of = |he| {
-            let parent = body.get_half_edge(he)?.parent_loop;
-            Some(body.get_loop(parent)?.face)
-        };
-        let (Some(f1), Some(f2)) = (face_of(edge.he_plus), face_of(edge.he_minus)) else {
+        let (Some(f1), Some(f2)) = (
+            body.face_of_half_edge(edge.he_plus),
+            body.face_of_half_edge(edge.he_minus),
+        ) else {
             continue;
         };
         if f1 == f2 {
@@ -1093,15 +1095,13 @@ fn curved_face_arm<T: Decide>(
     // the on-carrier claim the numeric rows then certify per
     // incidence.
     let covered = {
-        let parent = |he| {
-            x.get_half_edge(he)
-                .and_then(|h| x.get_loop(h.parent_loop))
-                .map(|l| l.face)
-        };
-        [parent(edge.he_plus), parent(edge.he_minus)]
-            .into_iter()
-            .flatten()
-            .any(|f| declared.class_of(x_is, f, x_is.other(), face).is_some())
+        [
+            x.face_of_half_edge(edge.he_plus),
+            x.face_of_half_edge(edge.he_minus),
+        ]
+        .into_iter()
+        .flatten()
+        .any(|f| declared.class_of(x_is, f, x_is.other(), face).is_some())
     };
     // NURBS walls (shape (iii)'s substrate): the SECTION arm is
     // certified since PR 7b (geom_brep::intersect::route says so),

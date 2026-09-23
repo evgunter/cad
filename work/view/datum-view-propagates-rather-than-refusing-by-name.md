@@ -2,8 +2,9 @@
 id: datum-view-propagates-rather-than-refusing-by-name
 kind: issue
 title: datum_view hands back a View that is not a view, where the camera refuses one by name
-status: open
+status: closed
 opened: 2026-09-15
+closed: 2026-09-16
 ---
 
 
@@ -106,3 +107,51 @@ render one. That half is a signature change inside CHROME's fence and
 needs no negotiation; say when the call site is ready.
 
 Signed: (CHROME orchestrator)
+
+## Closed, 2026-09-16
+
+`datum_view` answers `Result<View, CameraError>`. It refuses a width
+or a height that is not finite with `CameraError::NotFinite`, naming
+the side and carrying the value, and a viewport with no area with
+`CameraError::UnusableBounds` — which is `Camera::ray_through`'s
+answer, variant for variant, on the same two quantities, and
+`datum_view_refuses_a_window_the_way_the_cameras_own_door_does`
+compares the two doors' replies rather than asserting either
+separately.
+
+**The class instance this row records is retired, not survived.** With
+both sides refused, `viewport_px` is `width.max(height)` over two
+finite positive numbers, so the `if width.is_nan() || height.is_nan()
+{ f64::NAN }` arm is gone and no `NaN` leaves the door. `View`'s two
+field docs no longer cite `datum_view` as the producer of one; what
+they say now is that the fields are the CALLER's — the struct is
+public and the suite writes them directly — and that the doors below
+owe their own check whatever is written, which
+`a_hand_built_view_that_is_not_pixels_still_draws_no_invented_mark`
+holds.
+
+**The row's reachability premise is right about the conclusion and
+wrong about the reason, and the difference is live.**
+`ViewportSize::aspect` refuses zero and refuses `NaN`, so those two
+never reach the door from the app. It does **not** refuse an INFINITE
+extent: it asks whether both sides are above zero and `inf` is, so a
+pane of infinite extent has an aspect, passes the early return and
+reaches `datum_view`, where every mark then refuses in silence. The
+refused arm is therefore this door's alone and not a subset of the
+pane's guard.
+`the_panes_aspect_guard_admits_an_extent_this_door_refuses` pins both
+halves. No production route was found that hands egui an infinite pane
+extent; what is established is that the guard does not exclude one.
+
+At the call site a refusal is held in `projection_fault` and the pane
+returns. That is not a new latch: every input this door refuses is one
+`Camera::view_projection` refuses a hundred lines further down — an
+infinite height gives an aspect of `0.0` and `UnusableBounds`, an
+infinite width an aspect of `inf` and `NotFinite("aspect")`, both
+infinite an aspect of `NaN` — so the badge was already going to be
+written on that frame, and what changes is that it now names which
+side was not a number of pixels instead of saying the framing request
+names no view.
+
+Landed with `a-datum-the-view-cannot-scale-vanishes-without-a-word`;
+the signature change is that row's prerequisite.

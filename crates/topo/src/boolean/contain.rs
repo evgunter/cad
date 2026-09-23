@@ -336,7 +336,9 @@ pub(crate) fn loop_shape<T: Decide>(
             // cylinder). It has no exact side row here, so it is never
             // the disc class; the count decides whether the polygon
             // may stand in for it.
-            Some(geom::Curve3::Ellipse { .. } | geom::Curve3::Nurbs(_)) => {
+            Some(
+                geom::Curve3::Ellipse { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_),
+            ) => {
                 bears_arc = true;
                 one_circle = false;
             }

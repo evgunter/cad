@@ -57,6 +57,8 @@ mod cert1_r1_import_probes;
 mod cert5_r1_import_probes;
 #[path = "cert_n2r2_consumer_probes.rs"]
 mod cert_n2r2_consumer_probes;
+#[path = "coherence_channel.rs"]
+mod coherence_channel;
 #[path = "corpus_fold.rs"]
 mod corpus_fold;
 #[path = "curve_promotion_report.rs"]
@@ -69,6 +71,8 @@ mod geom_origin_import_arm;
 mod halfcap_pole;
 #[path = "inst_review_probes.rs"]
 mod inst_review_probes;
+#[path = "meridian_free_cap.rs"]
+mod meridian_free_cap;
 #[path = "mesh8r2_probes.rs"]
 mod mesh8r2_probes;
 #[path = "nurbs_import.rs"]

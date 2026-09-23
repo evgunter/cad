@@ -62,8 +62,25 @@
 //! `topo::coherence`'s `MeridianClosure` rather than here.
 //!
 //! Pole handling (chart singularities; the surface's `normal` is never
-//! sampled): a pole/apex is always an edge **endpoint** (valence 2). A
-//! pole junction between two meridians emits *two* polygon entries —
+//! sampled): a pole/apex is always an edge **endpoint** (valence 2),
+//! the endpoint of a meridian. That is a premise about the loop, and
+//! how much of it is checked, and where, is three different answers:
+//!
+//! - **a loop with no meridian at all** — a rim circle around a pole or
+//!   apex lying in the face's interior — is refused in every profile,
+//!   on its traversal kinds, by [`require_a_meridian`] before anything
+//!   below runs ([`TessellateError::MeridianFreeCurvedFace`]);
+//! - **a pole at a RIM junction** is a D2-row-5 state re-derived by the
+//!   pole-membership guard in [`loop_polygon`] (issue 896), which is a
+//!   `debug_assert` and so runs only where debug assertions do;
+//! - **a meridian that stops short of the pole** — a spur into a face
+//!   whose pole is still interior — is not checked here at all. The
+//!   walk traces the spur as a column, and the face is refused
+//!   downstream by its deviation certificate (`CertificateExceeded`, a
+//!   comparison against δ rather than a statement about the loop) at
+//!   the two δ `mesh/tests/loops_the_meridian_guard_admits.rs` tries.
+//!
+//! A pole junction between two meridians emits *two* polygon entries —
 //! one closing the incoming meridian's column, one opening the
 //! outgoing column — both mapping to the single pole mesh vertex; the
 //! collapsed side between them becomes the fan (see the curved-face
@@ -106,6 +123,7 @@
 
 use std::collections::HashMap;
 
+use geom_brep::SurfaceKind;
 use geom_core::{Point3, Vec3};
 use topo::{Body, EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey};
 
@@ -511,16 +529,13 @@ pub(crate) fn gap_is_noise(gap: f64, lever: f64, eps: Eps) -> bool {
 /// `UnsupportedCurvedDomain`; collapsed, it can BE its own bounding
 /// rectangle and be admitted. The #653 sweep cannot see this — it
 /// measures straightness and watertightness, not whether two sides
-/// were correctly distinguished. **Executed, not argued**: an
-/// obliquely cut sphere assembled through the Euler doors (the one
-/// route no certification fronts) walked to a polygon on ONE `v` and
-/// passed the spatial check; with debug assertions on, `tessellate`
-/// panicked at the S65 cross-face census (a chord segment used by no
-/// triangle); with them off it returned `Ok` on an EMPTY mesh — 12
-/// positions, two patches of 0 triangles — which `check_mesh` PASSES,
-/// having nothing to find non-manifold
-/// (`curved::tests::the_lens_walk_collapses_onto_one_rim_level_and_
-/// the_spatial_check_admits_it`, `tests/iso_rectangle_door.rs`).
+/// were correctly distinguished. The two-arc lens itself — two oblique
+/// sections and nothing else — does not get that far: its loop has no
+/// meridian, and [`require_a_meridian`] refuses it before a coordinate
+/// is assigned (`curved::tests::the_lens_walk_refuses_for_want_of_a_
+/// meridian_behind_the_shape_door`). The same two arcs beside a
+/// meridian side would still merge, and nothing in this walk would
+/// see it.
 ///
 /// **CLOSED, by the two doors in front of this walk.** The case this
 /// qualification instanced is two consecutive same-kind traversals
@@ -640,6 +655,59 @@ fn iso_side_starts(
     topo::chart_iso::iso_side_starts(&kinds, &separated)
 }
 
+/// Which iso kinds a loop's traversals carry — the one structural
+/// summary of the classified list. The walk's premise
+/// ([`require_a_meridian`]), its anchor ([`walk_anchor`]) and its
+/// rimless-band arm all read this value rather than each re-scanning
+/// the traversals.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LoopKinds {
+    /// Some traversal is a `Rim`.
+    rim: bool,
+    /// Some traversal is a `Meridian`.
+    meridian: bool,
+}
+
+impl LoopKinds {
+    fn of(travs: &[Trav]) -> Self {
+        Self {
+            rim: travs.iter().any(|t| matches!(t.kind, TravKind::Rim { .. })),
+            meridian: travs
+                .iter()
+                .any(|t| matches!(t.kind, TravKind::Meridian { .. })),
+        }
+    }
+}
+
+/// The walk's premise: the loop has at least one meridian traversal.
+/// Without one it refuses [`TessellateError::MeridianFreeCurvedFace`],
+/// whose doc is the one home of what the state is and why it is refused
+/// rather than walked.
+///
+/// The question asked is whether a meridian traversal EXISTS, on the
+/// traversal KINDS; no coordinate and no ε is read here. The kinds are
+/// `topo::chart_iso::classify_kind`'s, which splits circle carriers on
+/// `|axis · chart.axis| > 0.5` — a float — and that split is structural
+/// only because [`crate::curved`]'s shape door has certified every
+/// carrier as a rim or a meridian carrier before this walk is called.
+/// Called on a loop the door would have refused, the guard fires on a
+/// float-classified carrier
+/// (`curved::tests::the_lens_walk_refuses_for_want_of_a_meridian_behind_the_shape_door`).
+///
+/// It runs ahead of the two D2-row-5 re-derivations in
+/// [`loop_polygon`]: those presuppose a loop this walk can walk.
+fn require_a_meridian(
+    kinds: LoopKinds,
+    face: FaceKey,
+    surface: SurfaceKind,
+) -> Result<(), TessellateError> {
+    if kinds.meridian {
+        Ok(())
+    } else {
+        Err(TessellateError::MeridianFreeCurvedFace { face, surface })
+    }
+}
+
 /// Where the walk starts (index into `travs`), or `None` to leave the
 /// cycle as it is.
 ///
@@ -659,21 +727,25 @@ fn iso_side_starts(
 /// the old form did, so nothing rotates differently. Rows:
 /// `the_walk_anchors_on_a_rim_that_opens_its_row`.
 ///
-/// The `or_else` fallback (any rim at all) is for the degenerate loop
-/// whose rims form a single cyclic run with no opening — unreachable
-/// through `traversals`, since such a loop has no meridian and so no
-/// junction the run could break at, but stated rather than indexed
-/// blind.
-fn walk_anchor(travs: &[Trav], starts: &[bool]) -> Option<usize> {
-    let has_rim = travs.iter().any(|t| matches!(t.kind, TravKind::Rim { .. }));
-    if has_rim {
-        (0..travs.len())
-            .find(|&k| matches!(travs[k].kind, TravKind::Rim { .. }) && starts[k])
-            .or_else(|| {
-                travs
-                    .iter()
-                    .position(|t| matches!(t.kind, TravKind::Rim { .. }))
-            })
+/// # Precondition
+///
+/// `kinds` is [`LoopKinds::of`] these `travs`, and it has passed
+/// [`require_a_meridian`]. A loop with a rim and a meridian has a rim
+/// whose cyclic predecessor is a meridian, and a change of kind always
+/// opens a run (`topo::chart_iso::iso_side_starts`), so some rim opens
+/// its row. Finding none is D2 addendum row 4 — a kernel bug the code
+/// can observe in a branch — and is stated as one.
+fn walk_anchor(travs: &[Trav], starts: &[bool], kinds: LoopKinds) -> Option<usize> {
+    if kinds.rim {
+        let opening_rim =
+            (0..travs.len()).find(|&k| matches!(travs[k].kind, TravKind::Rim { .. }) && starts[k]);
+        let Some(anchor) = opening_rim else {
+            unreachable!(
+                "a loop with a rim and a meridian has a rim that follows a meridian, \
+                 and a change of kind opens a run"
+            )
+        };
+        Some(anchor)
     } else {
         // No rim: the walk did not rotate before #653 and still does
         // not on an unsplit loop, where `starts[0]` is already true.
@@ -744,7 +816,8 @@ fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
 /// depends on the one before:
 ///
 /// 1. [`traversals`] — one entry per boundary edge, classified `Rim`
-///    or `Meridian` with its raw constant coordinate.
+///    or `Meridian` with its raw constant coordinate — and
+///    [`require_a_meridian`] on that list, the walk's premise.
 /// 2. [`iso_side_starts`] — which traversals OPEN an iso side (#653).
 ///    Everything after this reads `starts`, not the edge list.
 /// 3. [`walk_anchor`] + `rotate_left` — put index 0 on a side that
@@ -768,33 +841,38 @@ pub(crate) fn loop_polygon(
     eps: Eps,
 ) -> Result<Vec<UvPoint>, TessellateError> {
     let mut travs = traversals(body, chart, chords, face, lk)?;
+    let kinds = LoopKinds::of(&travs);
+    let face_record = body
+        .get_face(face)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?;
+    let surface = body
+        .get_surface(face_record.surface)
+        .ok_or(TessellateError::MissingEntity {
+            what: "face surface",
+        })?;
+    require_a_meridian(kinds, face, SurfaceKind::of(surface))?;
     let m = travs.len();
     // ISO-SIDE RUNS (#653): which traversals open a side, and so take
     // a fresh constant coordinate rather than the running one.
     let mut starts = iso_side_starts(&travs, chart, positions, eps);
-    let has_rim = travs.iter().any(|t| matches!(t.kind, TravKind::Rim { .. }));
-    let anchor_at = walk_anchor(&travs, &starts);
+    let anchor_at = walk_anchor(&travs, &starts, kinds);
     if let Some(start) = anchor_at {
         travs.rotate_left(start);
         starts.rotate_left(start);
     }
     // Traversal 0 opens the walk whatever the cycle looked like: it has
-    // no predecessor to continue. (Only reachable as a `false` in the
-    // degenerate case where the whole loop is one cyclic run and no
-    // rotation could open it — then this is the pre-#653 behaviour for
-    // that one junction, which is no worse than before.)
+    // no predecessor to continue. (Only a `false` here when the whole
+    // loop is one cyclic run of meridians that no rotation could open —
+    // then this is the pre-#653 behaviour for that one junction.)
     if let Some(first) = starts.first_mut() {
         *first = true;
     }
     let closing_side = closing_side(&starts);
-    let no_rim = !has_rim;
+    let no_rim = !kinds.rim;
     // The face's S10 orientation sense (module docs, the pole-to-pole
-    // band). Read once here; consumed at exactly one site below, as a
-    // conditional negation of the loop's area vector.
-    let sense = body
-        .get_face(face)
-        .ok_or(TessellateError::MissingEntity { what: "face" })?
-        .sense;
+    // band). Consumed at exactly one site below, as a conditional
+    // negation of the loop's area vector.
+    let sense = face_record.sense;
     // JUNCTIONS ONLY: `t.ids[0]` is a topology vertex's mesh id
     // (`chords::compute_chords` takes it from `vids`), so it is a
     // DECLARED vertex; `ids[1..len - 1]` are chord subdivision points,
@@ -1463,6 +1541,50 @@ mod tests {
         );
     }
 
+    /// **The meridian premise, on kinds alone.** A loop of rims only
+    /// refuses with the face and the kind it was handed, however many
+    /// rims carry it; one meridian anywhere in the cycle admits it, and
+    /// so does a loop of meridians only (the sphere's pole-to-pole
+    /// band). It is an existence test on kinds and not a span test on
+    /// levels: the last refused fixture is two rims at two different
+    /// `v_raw`, and it refuses as the one-level loops do.
+    #[test]
+    fn a_loop_is_refused_exactly_when_no_traversal_is_a_meridian() {
+        let face = FaceKey::default();
+        let refused = Err(TessellateError::MeridianFreeCurvedFace {
+            face,
+            surface: SurfaceKind::Cone,
+        });
+        for rims_only in [
+            vec![rim(&[2, 2])],
+            vec![rim(&[2, 3]), rim(&[3, 2])],
+            vec![rim(&[2, 3]), rim(&[3, 4]), rim(&[4, 2])],
+            vec![
+                trav(TravKind::Rim { v_raw: 0.3 }, &[2, 3]),
+                trav(TravKind::Rim { v_raw: 0.7 }, &[3, 2]),
+            ],
+        ] {
+            let kinds = LoopKinds::of(&rims_only);
+            assert_eq!(
+                kinds,
+                LoopKinds {
+                    rim: true,
+                    meridian: false
+                }
+            );
+            assert_eq!(require_a_meridian(kinds, face, SurfaceKind::Cone), refused);
+        }
+        for walkable in [
+            vec![rim(&[2, 3]), meridian(&[3, 4]), rim(&[4, 2])],
+            vec![rim(&[2, 3]), rim(&[3, 4]), meridian(&[4, 2])],
+            vec![meridian(&[1, 2]), meridian(&[2, 0]), meridian(&[0, 1])],
+        ] {
+            let kinds = LoopKinds::of(&walkable);
+            assert!(kinds.meridian);
+            assert_eq!(require_a_meridian(kinds, face, SurfaceKind::Cone), Ok(()));
+        }
+    }
+
     /// **The rim-anchor row** (#653). The walk must start at a rim
     /// that OPENS its row, not merely at the first rim.
     ///
@@ -1484,7 +1606,7 @@ mod tests {
         let starts = iso_side_starts(&travs, &c, &p, Eps::exactly(1e-9));
         assert_eq!(starts, vec![false, true, true], "fixture precondition");
         assert_eq!(
-            walk_anchor(&travs, &starts),
+            walk_anchor(&travs, &starts, LoopKinds::of(&travs)),
             Some(2),
             "the first rim (index 0) continues the last one; the walk must \
              anchor on index 2, which opens the row"
@@ -1493,12 +1615,18 @@ mod tests {
         // `position(Rim)` it replaces, index for index.
         let plain = vec![meridian(&[2, 3]), rim(&[3, 4]), meridian(&[4, 2])];
         let plain_starts = iso_side_starts(&plain, &c, &p, Eps::exactly(1e-9));
-        assert_eq!(walk_anchor(&plain, &plain_starts), Some(1));
+        assert_eq!(
+            walk_anchor(&plain, &plain_starts, LoopKinds::of(&plain)),
+            Some(1)
+        );
         // Rimless: anchor on any side that opens.
         let band = vec![meridian(&[1, 2]), meridian(&[2, 0]), meridian(&[0, 3, 1])];
         let sphere = z_chart(ChartKind::Sphere { r: 1.0 });
         let band_starts = iso_side_starts(&band, &sphere, &p, Eps::exactly(1e-9));
-        assert_eq!(walk_anchor(&band, &band_starts), Some(0));
+        assert_eq!(
+            walk_anchor(&band, &band_starts, LoopKinds::of(&band)),
+            Some(0)
+        );
     }
 
     /// **The closing-side row** (#653). The closure rule and the

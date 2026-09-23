@@ -415,19 +415,27 @@ pyo3::create_exception!(
     HitTestError,
     PncadError,
     "A hit test could not answer. Carries `variant`, the stable tag of \
-     the refusing arm, plus `node`, `through`, `kind` and `body`, each \
-     present on every arm and `None` where that arm does not carry \
-     it.\n\n\
+     the refusing arm, plus `node`, `through`, `kind`, `body` and \
+     `hits`, each present on every arm and `None` where that arm does \
+     not carry it.\n\n\
      A MISS is not this. The ray hitting no offered triangle is \
      `None`, typed, and an error is never flattened into it — so \
      catching this class never means \"nothing was there\".\n\n\
      Three arms are the standing ladder, spelled exactly as \
      `ReadbackError` spells it (`node_not_evaluated`, `node_failed`, \
      `node_poisoned`): a mesh displayed for a node this evaluation did \
-     not produce cannot belong to it. The fourth, `unnamed`, is a \
-     KERNEL BUG report — the node evaluated and the entity has no name \
-     in its table — and it carries the entity's `kind` and `body`, \
-     never its arena key.\n\n\
+     not produce cannot belong to it. `unnamed` is a KERNEL BUG \
+     report — the node evaluated and the entity has no name in its \
+     table — and it carries the entity's `kind` and `body`, never its \
+     arena key.\n\n\
+     `ambiguous` is the certified tie BETWEEN FACES, and it is the \
+     one to read twice: the ray met several faces the arithmetic \
+     cannot order — a cube's shared edge, a corner, a face met \
+     edge-on in front of a transversal one — and the door names them \
+     all rather than choosing on a rule you did not ask for. `hits` \
+     is the list of `PickHit`, one per tied face, each of them TRUE \
+     and complete. Several triangles of ONE face are not this: they \
+     are one answer, with the hull of their intervals.\n\n\
      `NodePick.patch_names` answers with instances of this class IN A \
      SLOT rather than raising: one naming-emission bug must not cost a \
      consumer the names of every other patch it is drawing."
@@ -438,8 +446,9 @@ pyo3::create_exception!(
     PncadError,
     "A pick index could not be built. Carries `variant`, the stable \
      tag of the refusing arm, plus `node`, `through`, `kind`, `body`, \
-     `index_variant`, `patch`, `triangle` and `index`, each present on \
-     every arm and `None` where that arm does not carry it.\n\n\
+     `hits`, `index_variant`, `patch`, `triangle` and `index`, each \
+     present on every arm and `None` where that arm does not carry \
+     it.\n\n\
      `not_a_body` and `no_such_body` are different states and stay \
      apart: a datum, profile, declaration or mate NEVER draws, while a \
      node that draws nothing today (an annihilated boolean, an empty \

@@ -50,7 +50,7 @@ fn edit_fields(
     variant: &str,
     inner: Option<&'static str>,
     payload: &crate::edit_payload::EditPayload<'_>,
-) -> [(&'static str, Py<PyAny>); 23] {
+) -> [(&'static str, Py<PyAny>); 24] {
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
     // than replacing the kernel's refusal with a boundary one: the
@@ -125,6 +125,12 @@ fn edit_fields(
             opt(payload
                 .pin
                 .map(|p| Py::new(py, super::store::ContentPin(p)).map(Py::into_any))),
+        ),
+        (
+            "fault",
+            opt(payload
+                .fault
+                .map(|f| Py::new(py, super::mate::MateFault(f.clone())).map(Py::into_any))),
         ),
     ]
 }
@@ -529,6 +535,28 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
         ),
+        // The frame fault's own word rides on `inner_variant` the way
+        // the other nested arms' do; the entry's index is `index`, and
+        // the row's index within the entry stays in the message.
+        E::MaintenanceFrame {
+            index: at, fault, ..
+        } => (
+            word(crate::tags::frame_fault_tag(fault)),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            int(*at),
+            none(),
+            none(),
+        ),
         E::ToleranceConflict {
             process: committed,
             document: recorded,
@@ -682,6 +710,29 @@ pub(crate) fn name_from_text(text: &str) -> PyResult<pncad::prelude::StableName>
     })
 }
 
+/// Read a MATE HEAD back from text — [`name_from_text`] and then the
+/// kernel's own [`FaceName`](pncad::document::FaceName) constructor.
+///
+/// A mate declares a face-pair contact, and the kernel says so in the
+/// TYPE of a head, which is a promise the compiler keeps for a Rust
+/// caller and cannot keep for a Python one. So this is where it is
+/// kept: the constructor is called at the boundary, and its refusal is
+/// published under the boundary's own word rather than discovered at
+/// some later door.
+pub(crate) fn face_name_from_text(
+    py: Python<'_>,
+    text: &str,
+) -> PyResult<pncad::document::FaceName> {
+    let name = name_from_text(text)?;
+    pncad::document::FaceName::new(name).map_err(|refusal| {
+        boundary_edit_err(
+            py,
+            BoundaryEdit::MateHead(&refusal),
+            format!("a mate head must name a face: {refusal}"),
+        )
+    })
+}
+
 /// Read a named slot back from the word `EditError.slot` answers in.
 ///
 /// A slot is a NAME, never an index (spec D5), and the name is the
@@ -719,6 +770,18 @@ fn slot_from_text(word: &str) -> PyResult<d::SlotId> {
 }
 
 /// A recipe node's identity within a document.
+/// The seam the document's edit door resolves parts through: the
+/// same one `evaluate(doc, resolver=)` crosses, so an edit whose
+/// cluster-record maintenance mints a frame from a solve levers the
+/// mated parts' own extent — and with no resolver refuses typed rather
+/// than recording a frame nothing decided. The reach is built over it
+/// by [`d::PartReach::with_resolver`] at each door.
+pub(crate) fn seam(
+    resolver: Option<&super::store::Workspace>,
+) -> Option<std::sync::Arc<dyn d::PartResolver>> {
+    resolver.map(super::store::Workspace::resolver)
+}
+
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone, Copy)]
 pub(crate) struct NodeId(pub(crate) d::RecipeNodeId);
@@ -757,7 +820,7 @@ pub(crate) struct Doc {
     /// is held here for the same span the document it describes is —
     /// an invariant [`Doc::accept`] holds by being the only place
     /// either of the two is written.
-    pub(crate) maintenance: Vec<d::ClusterMaintenance>,
+    pub(crate) maintenance: Vec<d::Maintenance>,
 }
 
 /// The wrapper's own plumbing: the ONE place an accepted edit is taken
@@ -806,12 +869,12 @@ impl Doc {
     fn insert_node(
         &mut self,
         node: d::Node<d::ProfileProgram>,
+        resolver: Option<&super::store::Workspace>,
     ) -> Result<Option<NodeId>, d::EditError> {
-        let applied = d::apply(
-            &self.inner,
-            &d::DocEdit::InsertNode { node },
-            Tol::witness(),
-        )?;
+        let tol = Tol::witness();
+        let seam = seam(resolver);
+        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
+        let applied = d::apply(&self.inner, &d::DocEdit::InsertNode { node }, tol, &reach)?;
         if applied.record.minted.is_none() {
             return Ok(None);
         }
@@ -821,7 +884,8 @@ impl Doc {
     /// The declare doors' shared body: the kernel's own declare sugar
     /// (`pncad::select::declare_all`), whose acceptance — the new
     /// document, its record and the maintenance the insert performed
-    /// — is taken up whole through the swap point. The id comes back
+    /// (an insert strands nothing, so that is cluster acts alone) — is
+    /// taken up whole through the swap point. The id comes back
     /// beside it already checked, so the `NoMintedId` arm is the
     /// sugar's to raise; every `DeclareError` arm reaches Python
     /// through the same `declare_err`.
@@ -901,24 +965,37 @@ impl Doc {
     /// On refusal the document is unchanged and a typed `EditError` is
     /// raised.
     ///
-    /// An accepted edit may also have performed **cluster-record
-    /// maintenance** — joins, splits, gauge rewrites and drops the
-    /// mate graph's motion forced on the placement registry. That
-    /// rides the edit rather than being a second edit, so it is read
-    /// off `last_maintenance` instead of returned here: the common
-    /// case is an empty list, and widening every caller's return type
-    /// for it would be paying for mates in documents that have none.
-    fn apply(&mut self, py: Python<'_>, edit: &DocEdit) -> PyResult<Option<NodeId>> {
+    /// An accepted edit may also have performed **maintenance** — the
+    /// joins, splits, gauge rewrites and drops the mate graph's motion
+    /// forced on the placement registry, and the payload names a
+    /// delete stranded. That rides the edit rather than being a second
+    /// edit, so it is read off `last_maintenance` instead of returned
+    /// here: the common case is an empty list, and widening every
+    /// caller's return type for it would be paying for mates and
+    /// strands in documents that have neither.
+    #[pyo3(signature = (edit, *, resolver=None))]
+    fn apply(
+        &mut self,
+        py: Python<'_>,
+        edit: &DocEdit,
+        resolver: Option<&super::store::Workspace>,
+    ) -> PyResult<Option<NodeId>> {
         let tol = Tol::witness();
-        let applied = d::apply(&self.inner, &edit.inner, tol).map_err(|err| edit_err(py, &err))?;
+        let seam = seam(resolver);
+        let reach = d::PartReach::<f64>::with_resolver(seam.as_ref(), tol);
+        let applied =
+            d::apply(&self.inner, &edit.inner, tol, &reach).map_err(|err| edit_err(py, &err))?;
         Ok(self.accept(applied).minted.map(NodeId))
     }
 
-    /// The cluster-record maintenance the LAST accepted edit
-    /// performed, in the order it was performed.
+    /// The maintenance the LAST accepted edit performed, in the order
+    /// it was performed: its cluster-record acts, and the payload
+    /// names its delete stranded. The strands lead and the cluster
+    /// acts follow, which is the kernel's contract on the column — so
+    /// a caller reads an entry's `variant`, never its position.
     ///
-    /// Empty after any edit that moved no mate graph, and empty on a
-    /// fresh document — a document that has never applied an edit has
+    /// Empty after any edit that moved no mate graph and stranded no
+    /// name, and empty on a fresh document — a document that has never applied an edit has
     /// no last edit to report about. A REFUSED edit leaves this
     /// untouched, exactly as it leaves the document untouched.
     ///
@@ -943,11 +1020,11 @@ impl Doc {
     /// absorbed cluster's frame is consumed here, where a caller can
     /// read what was consumed.
     #[getter]
-    fn last_maintenance(&self) -> Vec<super::mate::ClusterMaintenance> {
+    fn last_maintenance(&self) -> Vec<super::mate::Maintenance> {
         self.maintenance
             .iter()
             .cloned()
-            .map(super::mate::ClusterMaintenance)
+            .map(super::mate::Maintenance)
             .collect()
     }
 
@@ -1060,8 +1137,14 @@ impl Doc {
 
     /// Insert a node and return its minted id — the common case,
     /// spelled without the intermediate `DocEdit`.
-    fn insert(&mut self, py: Python<'_>, node: &Node) -> PyResult<NodeId> {
-        self.insert_node(node.inner.clone())
+    #[pyo3(signature = (node, *, resolver=None))]
+    fn insert(
+        &mut self,
+        py: Python<'_>,
+        node: &Node,
+        resolver: Option<&super::store::Workspace>,
+    ) -> PyResult<NodeId> {
+        self.insert_node(node.inner.clone(), resolver)
             .map_err(|err| edit_err(py, &err))?
             .ok_or_else(|| {
                 // The SAME contract violation `declare` refuses —
@@ -1110,7 +1193,7 @@ impl Doc {
         elevation: Option<super::expr::Expr>,
     ) -> PyResult<NodeId> {
         let node = Node::sketch_frame(py, plane, elevation)?;
-        self.insert(py, &node)
+        self.insert(py, &node, None)
     }
 
     /// Declare ONE inspected finding: insert a `Declare` node with
@@ -2616,6 +2699,13 @@ impl Node {
     /// and `b` name (issue #944), so a mate can solve cleanly and
     /// still be refuted at the gate.
     ///
+    /// **A head must name a FACE, and that is refused here.** A mate
+    /// declares a face-pair contact; the kernel says so in the type of
+    /// a head, and this door calls that type's constructor, so
+    /// `a`/`b` naming an edge raises `EditError` with
+    /// `variant == "mate_head_not_a_face"` at this call rather than
+    /// reaching a document.
+    ///
     /// A dangling reference is not refused here: the solve refuses
     /// typed naming its head (`MateFault`, `mate_dangling_head`),
     /// which is the ratified dangling-reference semantics — or, where
@@ -2634,8 +2724,8 @@ impl Node {
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::Node::Mate {
-                a: d::SitedRef::new(a_at.0, name_from_text(a)?),
-                b: d::SitedRef::new(b_at.0, name_from_text(b)?),
+                a: d::SitedFace::new(a_at.0, face_name_from_text(py, a)?),
+                b: d::SitedFace::new(b_at.0, face_name_from_text(py, b)?),
                 class: class_.to_kernel(py)?,
                 alignment: alignment.0,
             },
@@ -2883,8 +2973,10 @@ impl DocParam {
     /// No `distribution`: the kernel's own notation doors carry none
     /// (`DocParam::written_length` writes `distribution: None`), and
     /// this binding does not reach past them to build the payload by
-    /// hand. A parameter that wants both is authored through
-    /// [`Self::length`] today.
+    /// hand. A parameter that wants both is declared here and then
+    /// annotated through `DocEdit.set_doc_param_distribution`,
+    /// which carries the notation forward; [`Self::length`] takes
+    /// both at once and records the canonical metre row.
     #[staticmethod]
     fn written_length(value: &super::quantity::WrittenLength) -> Self {
         Self(d::DocParam::written_length(value.0))
@@ -3136,6 +3228,36 @@ pub(crate) struct DocEdit {
     pub(crate) inner: d::DocEdit<d::ProfileProgram>,
 }
 
+/// The notations `DocEdit.set_doc_param_unit` accepts: the two typed
+/// unit objects a caller already writes quantities with.
+///
+/// A typed unit rather than a symbol STRING, for
+/// `DocParam.written_length`'s reason: a `LengthUnit` is an index into
+/// a Length row of the table, so an off-table notation cannot be spelled
+/// at all and the boundary extraction is the check. What remains for
+/// the kernel to refuse is the pairing — `mm` on an angle — which is a
+/// fact about the parameter rather than about the argument.
+///
+/// No `Scalar` arm: the dimensionless row is the only notation a
+/// scalar parameter has, so a door to write it would be a door to
+/// write what is already there.
+#[derive(FromPyObject, Clone, Copy)]
+enum DisplayUnitSpec {
+    Length(super::quantity::LengthUnit),
+    Angle(super::quantity::AngleUnit),
+}
+
+impl DisplayUnitSpec {
+    /// The table code the kernel edit carries. Total both ways: every
+    /// arm holds a table row (`UnitSym::from_def`).
+    fn sym(self) -> d::UnitSym {
+        match self {
+            Self::Length(u) => d::UnitSym::from_def(&u.0.def()),
+            Self::Angle(u) => d::UnitSym::from_def(&u.0.def()),
+        }
+    }
+}
+
 #[pymethods]
 impl DocEdit {
     /// Insert a node.
@@ -3166,9 +3288,11 @@ impl DocEdit {
     /// inferred about which of the old entries survived or moved.
     /// Dropping one member is this edit without it plus a
     /// `DocEdit.delete_node` of the orphan, one committed action. A
-    /// union's `declare` input is left as it was: a member-space pair
-    /// re-routes to the step its two members now meet at rather than
-    /// being invalidated by the rewrite.
+    /// union's `declare` input is left as it was, so a pair whose two
+    /// members are both still in the list re-routes to the step they
+    /// now meet at; a pair whose member was DROPPED has lost its site
+    /// and refuses at the next evaluation as a vanished name, rather
+    /// than being edited away silently.
     ///
     /// Every check `Doc.insert` makes of a node's inputs is remade
     /// here, of the REWRITTEN node, so this edit cannot reach a state
@@ -3217,7 +3341,7 @@ impl DocEdit {
     /// for a slot this node does not carry (naming the slot it
     /// lacks), `slot_dimension_mismatch` for an expression of the
     /// wrong dimension (carrying the required and offered pair), and
-    /// `unknown_doc_param` / `doc_param_dimension_mismatch` for a
+    /// `slot_unknown_doc_param` / `slot_doc_param_dimension` for a
     /// parameter reference the document does not answer.
     #[staticmethod]
     fn set_param(node: &NodeId, slot: &str, expr: &super::expr::Expr) -> PyResult<Self> {
@@ -3292,6 +3416,86 @@ impl DocEdit {
             inner: d::DocEdit::SetDocParamValue {
                 name: name.0.clone(),
                 value: value.0,
+            },
+        }
+    }
+
+    /// Write a new NOTATION onto an already-declared document
+    /// parameter, keeping its declaration — its dimension, its exact
+    /// value and, if it has one, its distribution.
+    ///
+    /// `set_doc_param_value`'s mirror over the other field of the same
+    /// declaration, and preferable over `set_doc_param` for the same
+    /// reason: create-or-replace makes the caller restate the whole
+    /// declaration to re-spell one unit, and whatever they leave out
+    /// — the annotation, every time — is deleted with no refusal.
+    ///
+    /// A notation change is NOT a redeclaration — `DocParam.bit_eq`
+    /// already excludes the display unit as presentation metadata.
+    ///
+    /// The unit is a `LengthUnit` or an `AngleUnit` — the same objects
+    /// `25 * mm` is written with — so an off-table notation is a
+    /// `TypeError` at the boundary rather than a refusal from the
+    /// kernel. `Scalar` parameters take no argument here: the
+    /// dimensionless row is the only notation they have.
+    ///
+    /// Refuses typed on a name the document does not declare
+    /// (`doc_param_not_declared`), on a `Count` parameter
+    /// (`doc_param_count_has_no_unit` — a count is an integer, not a
+    /// quantity) and on a unit that does not measure the declared
+    /// dimension (`doc_param_unit_mismatch`).
+    #[staticmethod]
+    fn set_doc_param_unit(name: &ParamName, unit: DisplayUnitSpec) -> Self {
+        Self {
+            inner: d::DocEdit::SetDocParamUnit {
+                name: name.0.clone(),
+                unit: unit.sym(),
+            },
+        }
+    }
+
+    /// Write an E1/E2 ANNOTATION onto an already-declared document
+    /// parameter, keeping its declaration — its dimension, its exact
+    /// value and the notation it was authored in.
+    ///
+    /// The third of the carry-forward doors, one per field of the
+    /// declaration, and preferable over `set_doc_param` for its
+    /// siblings' reason: the authoring spelling for an annotated
+    /// parameter writes the CANONICAL notation, so annotating through
+    /// create-or-replace re-spells a parameter authored in
+    /// millimetres, with no refusal and no diagnostic.
+    ///
+    /// **`None` CLEARS the annotation**, through this same door: the
+    /// field is optional and "no annotation" is a value of the
+    /// declaration, not a row removed from a map.
+    ///
+    /// Refuses typed on a name the document does not declare
+    /// (`doc_param_not_declared`), on a `Count` parameter
+    /// (`doc_param_count_has_no_distribution` — a count takes no
+    /// annotation, for the reason `DocParam.count` gives) and on a
+    /// distribution that breaks an E2 invariant
+    /// (`non_finite_doc_param`, `invalid_distribution`).
+    ///
+    /// The `Distribution`'s own dimension is NOT checked against the
+    /// parameter's here: a kernel `Distribution` is dimension-free
+    /// offsets, so this wrapper's `dim` is dropped building the
+    /// payload and nothing survives for `apply` to compare. That is
+    /// `set_doc_param_value`'s position too — it takes a typed
+    /// quantity and carries only the number — and the difference from
+    /// the `DocParam` constructors, which hold the declaration and its
+    /// annotation at once and do check. Whether the binding should
+    /// instead carry the dropped dimension and refuse at `apply` is
+    /// LIB's `doc-param-edit-doors-drop-the-python-dimension`.
+    #[staticmethod]
+    #[pyo3(signature = (name, distribution))]
+    fn set_doc_param_distribution(
+        name: &ParamName,
+        distribution: Option<&super::analysis::Distribution>,
+    ) -> Self {
+        Self {
+            inner: d::DocEdit::SetDocParamDistribution {
+                name: name.0.clone(),
+                distribution: distribution.map(|d| d.inner),
             },
         }
     }
