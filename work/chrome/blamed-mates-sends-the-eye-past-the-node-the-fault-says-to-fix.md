@@ -5,7 +5,7 @@ title: blamed_mates sends the eye to the mate where three fault arms name the no
 status: closed
 opened: 2026-09-15
 closed: 2026-09-23
-pr: PRNUM
+pr: 3100
 branch: chrome/placer-link
 priority: P1
 cost: E
