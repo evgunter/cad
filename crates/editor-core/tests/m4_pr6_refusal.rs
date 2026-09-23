@@ -345,7 +345,12 @@ fn a_replayed_edits_dimension_refusal_reaches_the_load_door() {
     let mut body: serde_json::Value = serde_json::from_str(body_text).expect("a JSON body");
     let edits = body["edits"].as_array_mut().expect("an edit list");
     assert_eq!(edits.len(), 1, "the fixture logs exactly one edit");
-    edits[0]["SetExpression"]["expr"] =
+    // `pointer_mut`, not `[..]` indexing: indexing a missing key would
+    // INSERT it, and the tamper would then refuse for the stray key
+    // rather than reach the dimension checker.
+    *edits[0]
+        .pointer_mut("/edit/SetExpression/expr")
+        .expect("the logged edit's expression slot") =
         serde_json::json!({ "Literal": { "value": 1.0, "dim": "Angle", "unit": "rad" } });
     let tampered = format!(
         "{header}\n{}",
