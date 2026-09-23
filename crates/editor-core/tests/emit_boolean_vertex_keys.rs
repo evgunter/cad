@@ -1,24 +1,35 @@
-//! **A boolean's vertices are read in the key space of the operand
-//! whose clone holds them.**
+//! **A boolean names each entity out of the operand whose key it
+//! carries, and swapping the operands swaps the sides of every name.**
 //!
 //! A boolean result's arena is A's clone with B grafted in, or ONE
-//! operand's clone when the other contributes nothing. The vertex pass
-//! names a vertex out of the table of the operand its key belongs to,
-//! and a vertex no operand table names — one the reduction minted on
-//! an edge — out of its incident edges and the reduction's contact
-//! records. Both reads have to know which operand a key belongs to;
-//! the rows below build each layout in both operand orders and pin
-//! that the two orders name the same geometry the same way, with the
-//! sides swapped.
+//! operand's clone when the other contributes nothing. The emitter reads
+//! every result key through one layout read to find the operand it
+//! belongs to; a vertex no operand table names — one the reduction
+//! minted on an edge — is named out of its incident edges and the
+//! reduction's contact records, on whichever side its key belongs to.
+//!
+//! The rows:
+//! - a nested pair in all four union/intersect orders: the surviving
+//!   operand's corners are named out of ITS table, whichever side it is;
+//! - a vertex minted on one operand's edge where the other's vertex
+//!   touches it, in a result that is one operand's clone and in an
+//!   assembly, each in both orders, pinned by name;
+//! - the operand-swap row: five fixtures, union and intersection, both
+//!   orders; every vertex and edge name of `x op y`, with `FromA` and
+//!   `FromB` exchanged and each `Seam{a, b}` read as `Seam{b, a}`, is the
+//!   name the same geometry gets in `y op x`. It is the guard on the
+//!   emitter's claim that its A and B sides follow one rule.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use std::collections::BTreeSet;
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, failure, run};
-use crate::fixture::{ename, insert, len, on_frame, point, table, vertex_of, vname};
+use crate::fixture::{ename, ends, insert, len, on_frame, point, table, vertex_of, vname};
 
 use editor_core::{
-    BooleanOp, BooleanValue, CapEnd, EntityKind, Evaluation, NameRef, Node, ProfileDoc,
-    ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, ValuePayload,
+    BooleanOp, BooleanValue, CapEnd, EntityKey, EntityKind, Entry, Evaluation, NameRef, Node,
+    ProfileDoc, ProfileVertexRef, RecipeNodeId, RoleSeg, StableName, ValuePayload,
 };
 use geom_core::Tol;
 use topo::BooleanResultKind;
@@ -30,11 +41,16 @@ fn pv(vertex: u32) -> ProfileVertexRef {
     }
 }
 
-fn union(doc: ProfileDoc, a: RecipeNodeId, b: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+fn boolean(
+    doc: ProfileDoc,
+    op: BooleanOp,
+    a: RecipeNodeId,
+    b: RecipeNodeId,
+) -> (ProfileDoc, RecipeNodeId) {
     insert(
         doc,
         Node::Boolean {
-            op: BooleanOp::Union,
+            op,
             a,
             b,
             declare: None,
@@ -42,13 +58,17 @@ fn union(doc: ProfileDoc, a: RecipeNodeId, b: RecipeNodeId) -> (ProfileDoc, Reci
     )
 }
 
+fn union(doc: ProfileDoc, a: RecipeNodeId, b: RecipeNodeId) -> (ProfileDoc, RecipeNodeId) {
+    boolean(doc, BooleanOp::Union, a, b)
+}
+
 /// The kind of result `id` evaluated to, or a panic naming what it did
 /// instead.
 fn kind_of(ev: &Evaluation<f64>, id: RecipeNodeId) -> BooleanResultKind {
     if let Some(e) = failure(ev, id) {
-        panic!("the union refused: {e}");
+        panic!("the boolean refused: {e}");
     }
-    match &ev.value(id).expect("the union evaluated").payload {
+    match &ev.value(id).expect("the boolean evaluated").payload {
         ValuePayload::Boolean(BooleanValue::Body { kind, .. }) => *kind,
         other => panic!("expected a boolean body, got {}", other.kind_name()),
     }
@@ -73,39 +93,97 @@ fn assert_at(ev: &Evaluation<f64>, id: RecipeNodeId, n: &StableName, at: [f64; 3
     assert!(d < 1e-9, "{n:?} names a vertex at {p:?}, not at {at:?}");
 }
 
-/// **A result that is B's clone names B's vertices out of B's table.**
-///
-/// `small` sits strictly inside `big`, so their union is `big` alone
-/// and the result's keys are `big`'s. Each corner is named `FromB` of
-/// `big`'s own corner name, and stands where that corner stands — a
-/// key read against A's table instead finds `small`'s corner at the
-/// same slot and publishes `FromA` of a point inside the body.
-#[test]
-fn a_result_that_is_b_names_its_vertices_out_of_b() {
-    let doc = ProfileDoc::empty_derived("emit_vertex_keys_b", Tol::witness());
+fn nested(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, big) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 2.0);
     let (doc, small) = block(doc, (0.5, 1.0), (0.5, 1.0), 0.5, 0.5);
-    let (doc, u) = union(doc, small, big);
-    let ev = run(&doc);
-    assert_eq!(kind_of(&ev, u), BooleanResultKind::OperandB);
+    (doc, big, small)
+}
 
-    let corners = [(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)];
-    for (end, z) in [(CapEnd::Start, 0.0), (CapEnd::End, 2.0)] {
-        for (i, (x, y)) in corners.into_iter().enumerate() {
-            let own = vname(big, RoleSeg::CapVertex(end, pv(i as u32)));
-            let n = vname(u, RoleSeg::FromB(NameRef::new(own)));
-            assert_at(&ev, u, &n, [x, y, z]);
-        }
+/// **The operand that survives names the result's corners, whichever
+/// side it is.**
+///
+/// `small` sits strictly inside `big`: their union is `big` and their
+/// intersection `small`, each a clone of one operand. In each of the
+/// four orders every corner of the survivor is named `From<its side>`
+/// of the survivor's own corner name, at that corner's point, and no
+/// vertex is named from the absent side. A B-clone key read against A's
+/// table instead finds the other block's corner at the same slot and
+/// publishes its name at a point where that corner is not.
+#[test]
+fn the_surviving_operand_names_the_corners_in_every_order() {
+    let doc = ProfileDoc::empty_derived("emit_vertex_keys_nested", Tol::witness());
+    let (doc, big, small) = nested(doc);
+    let cases = [
+        (
+            BooleanOp::Union,
+            small,
+            big,
+            big,
+            BooleanResultKind::OperandB,
+        ),
+        (
+            BooleanOp::Union,
+            big,
+            small,
+            big,
+            BooleanResultKind::OperandA,
+        ),
+        (
+            BooleanOp::Intersect,
+            big,
+            small,
+            small,
+            BooleanResultKind::OperandB,
+        ),
+        (
+            BooleanOp::Intersect,
+            small,
+            big,
+            small,
+            BooleanResultKind::OperandA,
+        ),
+    ];
+    let mut doc = doc;
+    let mut ids = Vec::new();
+    for (op, a, b, _, _) in cases {
+        let (d, id) = boolean(doc, op, a, b);
+        doc = d;
+        ids.push(id);
     }
-    let from_a = table(&ev, u)
-        .iter()
-        .filter(|(n, _)| n.kind == EntityKind::Vertex)
-        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::FromA(_))))
-        .count();
-    assert_eq!(
-        from_a, 0,
-        "a result with no A material named a vertex FromA"
-    );
+    let ev = run(&doc);
+    for ((op, _, _, survivor, kind), id) in cases.into_iter().zip(ids) {
+        assert_eq!(kind_of(&ev, id), kind, "{op:?}");
+        let (x, y, z, dz) = if survivor == big {
+            ((0.0, 2.0), (0.0, 2.0), 0.0, 2.0)
+        } else {
+            ((0.5, 1.0), (0.5, 1.0), 0.5, 0.5)
+        };
+        let corners = [(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)];
+        for (end, h) in [(CapEnd::Start, z), (CapEnd::End, z + dz)] {
+            for (i, (px, py)) in corners.into_iter().enumerate() {
+                let own = NameRef::new(vname(survivor, RoleSeg::CapVertex(end, pv(i as u32))));
+                let seg = if kind == BooleanResultKind::OperandA {
+                    RoleSeg::FromA(own)
+                } else {
+                    RoleSeg::FromB(own)
+                };
+                assert_at(&ev, id, &vname(id, seg), [px, py, h]);
+            }
+        }
+        let absent = table(&ev, id)
+            .iter()
+            .filter(|(n, _)| n.kind == EntityKind::Vertex)
+            .filter(|(n, _)| match n.path.first() {
+                Some(RoleSeg::FromA(_)) => kind == BooleanResultKind::OperandB,
+                Some(RoleSeg::FromB(_)) => kind == BooleanResultKind::OperandA,
+                _ => false,
+            })
+            .count();
+        assert_eq!(
+            absent, 0,
+            "{op:?}: a vertex was named from the absent operand"
+        );
+    }
 }
 
 /// An L-shaped block with a reflex vertical edge at (1, 1), and a
@@ -224,4 +302,227 @@ fn an_assembly_names_the_touch_vertex_by_its_partner_in_either_order() {
     assert_eq!(kind_of(&ev, wedge_first), BooleanResultKind::Assembly);
     let n = touch(wedge_first, ridge, corner);
     assert_at(&ev, wedge_first, &n, at);
+}
+
+/// A tip whose apex touches the top face of a block at an interior
+/// point, hanging down into the block.
+fn face_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (doc, bl) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
+    let (doc, tp) = on_frame(
+        doc,
+        [1.0, 0.8, 1.0],
+        [0.0, 0.0, -1.0],
+        [1.0, 0.0, 0.0],
+        vec![vec![(0.0, 0.0), (0.4, -0.2), (0.4, 0.2)]],
+    );
+    let (doc, tip) = insert(
+        doc,
+        Node::Extrude {
+            profile: tp,
+            distance: len(0.4),
+        },
+    );
+    (doc, bl, tip)
+}
+
+/// A tip whose apex touches a block's vertical edge from outside.
+fn edge_touch_outside(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let r = std::f64::consts::FRAC_1_SQRT_2;
+    let (doc, bl) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, tp) = on_frame(
+        doc,
+        [1.0, 1.0, 0.5],
+        [r, -r, 0.0],
+        [0.0, 0.0, 1.0],
+        vec![vec![(0.0, 0.0), (0.4, -0.2), (0.4, 0.2)]],
+    );
+    // The frame normal points into the block; a negative distance
+    // extrudes the tip away from it.
+    let (doc, tip) = insert(
+        doc,
+        Node::Extrude {
+            profile: tp,
+            distance: len(-0.5),
+        },
+    );
+    (doc, bl, tip)
+}
+
+/// A SEAMED result that also carries an unzipped touch: an L-prism
+/// whose convex corner (1, 1, 0) is touched by a tilted wedge's ridge,
+/// the wedge crossing the L's long arm elsewhere — a zip in the body,
+/// none at the touch.
+fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let (doc, lp) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 0.5),
+            (1.0, 0.5),
+            (1.0, 1.0),
+            (0.0, 1.0),
+        ]],
+    );
+    let (doc, ell) = insert(
+        doc,
+        Node::Extrude {
+            profile: lp,
+            distance: len(1.0),
+        },
+    );
+    let n = (1.0f64 + 1.0 + 0.09).sqrt();
+    let d = [1.0 / n, -1.0 / n, -0.3 / n];
+    let r = std::f64::consts::FRAC_1_SQRT_2;
+    let u = [r, r, 0.0];
+    let v = [
+        d[1] * u[2] - d[2] * u[1],
+        d[2] * u[0] - d[0] * u[2],
+        d[0] * u[1] - d[1] * u[0],
+    ];
+    let s = 0.7;
+    let o = [1.0 - s * d[0], 1.0 - s * d[1], -s * d[2]];
+    let (doc, p) = on_frame(
+        doc,
+        o,
+        u,
+        v,
+        vec![vec![(0.0, 0.0), (1.0, -1.0), (1.0, 1.0)]],
+    );
+    let (doc, wedge) = insert(
+        doc,
+        Node::Extrude {
+            profile: p,
+            distance: len(2.0),
+        },
+    );
+    (doc, ell, wedge)
+}
+
+/// A name with its node erased, optionally with its sides exchanged:
+/// `FromA` ↔ `FromB` and `Seam{a, b}` → `Seam{b, a}` at the head.
+fn spelled(n: &StableName, swap: bool) -> String {
+    let mut n = n.clone();
+    n.node = RecipeNodeId(0);
+    if swap && let Some(h) = n.path.first_mut() {
+        *h = match h.clone() {
+            RoleSeg::FromA(x) => RoleSeg::FromB(x),
+            RoleSeg::FromB(x) => RoleSeg::FromA(x),
+            RoleSeg::Seam { a, b } => RoleSeg::Seam { a: b, b: a },
+            o => o,
+        };
+    }
+    format!("{n:?}")
+}
+
+fn micro(x: f64) -> i64 {
+    (x * 1e6).round() as i64
+}
+
+/// Every vertex and edge name of `id`'s table, beside the geometry it
+/// names (a vertex's point, an edge's two end points), or `None` when
+/// the result is the empty value.
+fn named_geometry(ev: &Evaluation<f64>, id: RecipeNodeId, swap: bool) -> Option<BTreeSet<String>> {
+    if let Some(e) = failure(ev, id) {
+        panic!("the boolean refused: {e}");
+    }
+    match &ev.value(id).expect("the boolean evaluated").payload {
+        ValuePayload::Boolean(BooleanValue::Body { .. }) => {}
+        ValuePayload::Boolean(BooleanValue::Empty) => return None,
+        other => panic!("expected a boolean value, got {}", other.kind_name()),
+    }
+    let body = body_of(ev, id);
+    let at = |v| {
+        let p = point(body, v);
+        (micro(p.x), micro(p.y), micro(p.z))
+    };
+    let mut out = BTreeSet::new();
+    for (n, e) in table(ev, id).iter() {
+        let keys: Vec<EntityKey> = match e {
+            Entry::Unique(r) => vec![r.key],
+            Entry::Tied(rs) => rs.iter().map(|r| r.key).collect(),
+        };
+        for k in keys {
+            let geo = match k {
+                EntityKey::Vertex(v) => format!("{:?}", at(v)),
+                EntityKey::Edge(e) => {
+                    let mut s = ends(body, e).map(at);
+                    s.sort_unstable();
+                    format!("{s:?}")
+                }
+                _ => continue,
+            };
+            out.insert(format!("{} @ {geo}", spelled(n, swap)));
+        }
+    }
+    Some(out)
+}
+
+/// **Swapping a union's or an intersection's operands swaps the sides
+/// of every name, and changes nothing else.**
+///
+/// Union and intersection are symmetric in their operands, so `y op x`
+/// is the same body as `x op y` with A and B exchanged. Each fixture is
+/// built once and combined in both orders; the result kinds must mirror
+/// (`OperandA` ↔ `OperandB`), and every vertex and edge name of one
+/// order, sides exchanged, must name the same geometry in the other.
+/// The fixtures cover a zip, a nest, and a vertex touching an edge or a
+/// face from inside, from outside and beside a zip — the layouts where
+/// the emitter's A and B sides take different key reads.
+#[test]
+fn swapping_the_operands_swaps_the_sides_of_every_name() {
+    type Fixture = fn(ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId);
+    let fixtures: [(&str, Fixture); 5] = [
+        ("seamed_touch", seamed_touch),
+        ("nested", nested),
+        ("ell_and_tip", ell_and_tip),
+        ("face_touch", face_touch),
+        ("edge_touch_outside", edge_touch_outside),
+    ];
+    let mirror = |k: BooleanResultKind| match k {
+        BooleanResultKind::OperandA => BooleanResultKind::OperandB,
+        BooleanResultKind::OperandB => BooleanResultKind::OperandA,
+        k => k,
+    };
+    let mut compared = 0;
+    for (what, fixture) in fixtures {
+        for op in [BooleanOp::Union, BooleanOp::Intersect] {
+            let doc = ProfileDoc::empty_derived("emit_vertex_keys_swap", Tol::witness());
+            let (doc, x, y) = fixture(doc);
+            let (doc, xy) = boolean(doc, op, x, y);
+            let (doc, yx) = boolean(doc, op, y, x);
+            let ev = run(&doc);
+            let (fwd, back) = (
+                named_geometry(&ev, xy, false),
+                named_geometry(&ev, yx, true),
+            );
+            match (fwd, back) {
+                (None, None) => {}
+                (Some(fwd), Some(back)) => {
+                    assert_eq!(
+                        kind_of(&ev, yx),
+                        mirror(kind_of(&ev, xy)),
+                        "{what} {op:?}: the result kinds do not mirror"
+                    );
+                    let diff: Vec<_> = fwd.symmetric_difference(&back).collect();
+                    assert!(
+                        diff.is_empty(),
+                        "{what} {op:?}: names that do not survive the swap:\n{diff:#?}"
+                    );
+                    compared += 1;
+                }
+                (f, b) => panic!(
+                    "{what} {op:?}: one order is empty and the other is not ({}, {})",
+                    f.is_some(),
+                    b.is_some()
+                ),
+            }
+        }
+    }
+    // Every fixture yields a body under union; a row that compared
+    // nothing would pass vacuously.
+    assert!(compared >= fixtures.len(), "only {compared} pairs compared");
 }
