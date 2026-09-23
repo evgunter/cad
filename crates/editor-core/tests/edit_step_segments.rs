@@ -492,6 +492,129 @@ fn a_reversed_and_rotated_loop_names_the_walls_its_steps_bound() {
 }
 
 // ------------------------------------------------------------------
+// 2b. A loft: every section's steps name the walls they bound
+// ------------------------------------------------------------------
+
+/// A two-section loft of the same 2 × 1 rectangle, section 0 at
+/// `z = 0` authored as `first` and section 1 at `z = 1` authored as
+/// `second`.
+fn two_section_loft(
+    id: &str,
+    first: Vec<(f64, f64)>,
+    second: Vec<(f64, f64)>,
+) -> (ProfileDoc, [RecipeNodeId; 2], RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived(id, tol());
+    let (doc, s0) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![first],
+    );
+    let (doc, s1) = on_frame(
+        doc,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![second],
+    );
+    let (doc, loft) = insert(
+        doc,
+        Node::Loft {
+            profiles: vec![s0, s1],
+            v_degree: Expr::count(1),
+        },
+    );
+    (doc, [s0, s1], loft)
+}
+
+/// The shared body of the loft rows: for EACH section, every step's
+/// refs name loft walls whose boundary carries that section's own
+/// segment endpoints, placed into 3-space.
+fn assert_loft_sections_bound_their_walls(
+    id: &str,
+    first: Vec<(f64, f64)>,
+    second: Vec<(f64, f64)>,
+    want_second: Perm,
+) {
+    let (doc, sections, loft) = two_section_loft(id, first, second);
+    let ev = run(&doc);
+    let ValuePayload::Body(body) = &ev
+        .value(loft)
+        .unwrap_or_else(|| panic!("{id}: the loft evaluates: {:?}", ev.node_error(loft)))
+        .payload
+    else {
+        panic!("{id}: the loft carries a body");
+    };
+    for (si, &section) in sections.iter().enumerate() {
+        let Some(Node::Profile(program)) = doc.node(section) else {
+            panic!("{id}: section {si} is a program");
+        };
+        let ValuePayload::Profile(pv) = &ev.value(section).expect("the section evaluates").payload
+        else {
+            panic!("{id}: section {si} carries a profile");
+        };
+        let r = records(&doc, program);
+        let n = r.verts[0].len();
+        let canonical = &r.structure.canonical.loops[0];
+        let found = match (canonical.reversed, canonical.start) {
+            (true, 0) => Perm::Reversed,
+            (true, s) if 2 * s == n => Perm::Reversed,
+            (true, _) => Perm::ReversedAndRotated,
+            (false, 0) => Perm::Identity,
+            (false, _) => Perm::Rotated,
+        };
+        let want = if si == 0 { Perm::Identity } else { want_second };
+        assert_eq!(found, want, "{id}: section {si} is the {found:?} case");
+        let placement = pv.validated.plane().placement;
+        let place =
+            |p: Point2<f64>| placement.transform_point(geom_core::Point3::new(p.x, p.y, 0.0));
+        let steps = r.structure.replay[0].steps.len();
+        let per_step = edges_by_step(program, &r.structure, &pv.naming, 0, steps, id);
+        assert_partition(&per_step, 0, n, id);
+        for (step, edges) in per_step.iter().enumerate() {
+            for e in edges {
+                let face = lateral(&ev, loft, *e).unwrap_or_else(|| {
+                    panic!("{id}: section {si} step {step}'s ref {e:?} names no loft wall")
+                });
+                let pts = face_vertex_points(body, face);
+                let s = e.segment as usize;
+                for end in [r.verts[0][s].0, r.verts[0][(s + 1) % n].0] {
+                    assert!(
+                        touches(&pts, place(end), 1e-9),
+                        "{id}: section {si} step {step}'s loft wall for {e:?} does not \
+                         touch the endpoint {end:?} of the segment that step produced \
+                         (wall vertices {pts:?})"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// **The second section authored REVERSED relative to the first.**
+#[test]
+fn a_loft_section_authored_reversed_names_the_walls_its_steps_bound() {
+    assert_loft_sections_bound_their_walls(
+        "loft-anchor-reversed",
+        vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+        vec![(0.0, 0.0), (0.0, 1.0), (2.0, 1.0), (2.0, 0.0)],
+        Perm::Reversed,
+    );
+}
+
+/// **The second section authored ROTATED relative to the first.**
+#[test]
+fn a_loft_section_authored_rotated_names_the_walls_its_steps_bound() {
+    assert_loft_sections_bound_their_walls(
+        "loft-anchor-rotated",
+        vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
+        vec![(2.0, 1.0), (0.0, 1.0), (0.0, 0.0), (2.0, 0.0)],
+        Perm::Rotated,
+    );
+}
+
+// ------------------------------------------------------------------
 // 3. The attribution: read back against the step's own arguments
 // ------------------------------------------------------------------
 
