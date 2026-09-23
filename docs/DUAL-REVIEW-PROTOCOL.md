@@ -1,9 +1,9 @@
 # Dual Opus review — protocol
 
-**Version 1 (Ev, in-chat, 2026-09-23).** This file holds ONLY the
-protocol in force now; it is edited in place when the protocol changes
-and carries no history. The rows, and a dated copy of every version
-that was ever in force, live in `docs/DUAL-REVIEW-LOG.md`.
+Opened by Ev, in-chat, 2026-09-23. This file holds ONLY the protocol
+in force now; it is edited in place when the protocol changes and
+carries no history — git does. The rows live in
+`docs/DUAL-REVIEW-LOG.md`.
 
 **The question: what does a SECOND independent review buy?** The
 instrument is the one the A/B protocol's v6 dual review stream ran on
@@ -13,10 +13,13 @@ isolation and the fair-pair rule — carried over unchanged except where
 a clause existed only to compare models. This is process data, not a
 design reference: nothing here binds kernel design.
 
-**Changing the protocol** is Ev's call. The change edits this file,
-bumps the version line above, and appends a copy of the new version to
-the log in the same commit, so every row sits under the protocol that
-was in force when it was recorded.
+**Changing the protocol** is Ev's call, and is a commit that edits
+this file. Every row names the protocol it was recorded under by
+COMMIT HASH: the last commit on main that touched this file when the
+row is recorded (`git log -1 --format=%h origin/main --
+docs/DUAL-REVIEW-PROTOCOL.md`, after a fetch), so `git show
+<hash>:docs/DUAL-REVIEW-PROTOCOL.md` reads the protocol that row ran
+under.
 
 ## Rules
 

@@ -10,13 +10,11 @@ measured, not vibed. Each has two files in `docs/`, and no copy of
 either lives here, in a plan, or in a program log:
 
 - **`docs/<NAME>-PROTOCOL.md` — the protocol in force NOW**, edited in
-  place, with a version line and no history. This is the one to read
-  before dispatching.
-- **`docs/<NAME>-LOG.md` — the rows**, each naming the protocol
-  version it was recorded under, and a dated copy of every protocol
-  version as it took effect (Ev, 2026-09-23). A protocol change edits
-  the protocol file, bumps its version, and appends the copy to the
-  log in the same commit. The log is a named exemption in
+  place with no history of its own (git keeps it). This is the one to
+  read before dispatching.
+- **`docs/<NAME>-LOG.md` — the rows**, each naming the protocol it was
+  recorded under by COMMIT HASH — the last commit on main that touched
+  the protocol file (Ev, 2026-09-23). The log is a named exemption in
   `scripts/work.py`'s `LOG_EXEMPT` and `work/README.md`.
 
 Both leave `docs/` when the experiment concludes.
