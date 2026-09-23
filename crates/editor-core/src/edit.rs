@@ -1551,10 +1551,11 @@ impl core::fmt::Display for EditError {
                  {offered} — changing a parameter's kind is a redeclaration"
             ),
             Self::PathOffTree { path } => {
+                let steps: Vec<String> = path.path.iter().map(u8::to_string).collect();
                 write!(
                     f,
-                    "the expression path {:?} in node {}'s {} slot runs off the tree",
-                    path.path,
+                    "the expression path [{}] in node {}'s {} slot runs off the tree",
+                    steps.join(", "),
                     path.node.0,
                     path.slot.label()
                 )
