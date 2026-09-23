@@ -257,11 +257,15 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   shape.
 - **A closed program's directory is deleted.** `work/` tracks work
   still to be done, not work that has been done, so once a program
-  closes — its exit walk ratified, or Ev's ruling that it needs none —
-  `program.md`, `plan.md` and `log.md` go, and so does the ratified
-  exit walk; the deletion is recorded in a note under `docs/doc-ledger/`
-  with the SHA they are recoverable at, and that note is the program's
-  done-state of record. Residue is re-homed before the sweep, never
+  closes, `program.md`, `plan.md` and `log.md` go, and so does its
+  exit walk if it had one. **A walk is owed when the plan set
+  acceptance criteria** (its `## Exit criteria`): the walk is what
+  checks the finished program against them, so such a program closes
+  when its walk is ratified, or on Ev's ruling that it needs none. A
+  plan that set no criteria leaves a walk nothing to check, and its
+  program closes without one. The deletion is recorded in a note
+  under `docs/doc-ledger/` with the SHA they are recoverable at, and
+  that note is the program's done-state of record. Residue is re-homed before the sweep, never
   left behind in the closed directory: to a live program whose charter
   it fits, or to a new program opened for it when the residue coheres
   into a track of its own (a dozen items on one territory are a
@@ -368,22 +372,15 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
 
 ## Ev's channel
 
-Ev does not edit files. Anything that needs Ev — a design fork, a
-ruling, a plan ratification, a question — is a PR whose title starts
-with **`[ev]`**, and the item that asked sets `needs_ev: true`. The PR
-is not named in the item: which PR carries the question is one
-`git log` away, and the item usually exists before the PR does. Ev
-answers in the PR's comments; the agent edits the item and the docs,
-merges, and clears the flag. Whoever opens an `[ev]` PR arranges to be
-woken by comments on it — the away-channel monitor locally, a PR
-subscription on a remote box — because the answer arrives as a comment
-and a question nobody is listening to has not been asked.
-`STATUS.md` lists every open `needs_ev` oldest first, so the two views
-(the PR list filtered on `[ev]`, and the tracker) always name the same
-set.
-
-State-sync rides the unit's PR as before (item header updates, log
-entries); conversations for Ev get their own `[ev]` PR.
+Ev does not edit files. Anything that needs Ev is a PR whose title
+starts with **`[ev]`**; how to write one is "Asking Ev" in
+`CLAUDE.md`. The tracker's half: the item that asked sets
+`needs_ev: true`. The PR is not named in the item: which PR carries the
+question is one `git log` away, and the item usually exists before the
+PR does. Once Ev answers, the agent edits the item and the docs,
+merges, and clears the flag. `STATUS.md` lists every open `needs_ev`
+oldest first, so the two views (the PR list filtered on `[ev]`, and the
+tracker) always name the same set.
 
 ## The log merges by union
 

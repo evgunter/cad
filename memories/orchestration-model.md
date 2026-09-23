@@ -79,21 +79,8 @@ Ev's standing instructions for implementation work:
   both the thread subscription and the self-suppression key); to watch a
   thread your filter misses, post "(<ROLE> orchestrator) subscribing.";
   SIGN issue bodies you file.
-- **Channel to Ev**: questions go out as PRs titled `[ev] ...` (edit
-  the doc to state the question, update in place with the answer) with
-  `needs_ev: true` on the asking item in `work/` — NEVER comments on
-  merged PRs, he doesn't scan them. Watch 👍 reactions only on comments
-  you explicitly requested sign-off on. Arrange to be woken by comments
-  on every `[ev]` PR you open (the away-channel monitor locally, a PR
-  subscription on a remote box) — the answer arrives as a comment.
-  **No status scaffolding in the diff** (Ev, 2026-09-21): phrasing like
-  "proposed", "pending sign-off" or "awaits ratification" only has to be
-  taken out again before merging. The `[ev]` title, the PR body and
-  `needs_ev:` carry that status; the text carries its content.
-  A file move or other reshuffle with NO design implication is not an
-  `[ev]` question — Ev (PR 1916, 2026-09-05): "you don't need to ask me
-  about moving things around, unless it has design implications"; just
-  do it and log it.
+- **Channel to Ev**: "Asking Ev" in `CLAUDE.md`. Watch 👍 reactions
+  only on comments you explicitly requested sign-off on.
 - **A commit that touches only docs or comments on an already-green
   head merges immediately, without a fresh CI run** (Ev, 2026-08-27;
   scope corrected 2026-09-21) — including a merge commit whose conflict
