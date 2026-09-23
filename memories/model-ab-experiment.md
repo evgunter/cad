@@ -1,9 +1,19 @@
 ---
 name: model-ab-experiment
-description: The standing Opus-vs-Fable implementation experiment — docs/MODEL-AB-LOG.md is normative; this holds only what binds agents outside it
+description: The Opus-vs-Fable implementation experiment, SUSPENDED 2026-09-23 (everything on Opus, dual Opus reviews for the hard units) — docs/MODEL-AB-LOG.md is normative; this holds only what binds agents outside it
 metadata:
   type: feedback
 ---
+
+**SUSPENDED (Ev, 2026-09-23): everything runs on Opus — implementers,
+reviewers, fix passes and the orchestrator's design, specs and
+rulings. A unit that would have entered the protocol (v7's triage
+test) gets TWO independent Opus reviewers on the same frozen head,
+with the fix pass off the adjudicated union; every other unit keeps
+its single Opus review or the orchestrator's own read. No draw, no
+ordinal, no row, no blinding.** The log's suspension entry holds the
+detail (in-flight units, bands, resuming). The rules below apply only
+to a unit still finishing under the protocol, or once Ev resumes it.
 
 **The protocol, rubric, running data and readout policy live in
 `docs/MODEL-AB-LOG.md` — that document is the single normative source,

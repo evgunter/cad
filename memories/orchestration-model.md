@@ -13,9 +13,10 @@ Ev's standing instructions for implementation work:
 
 - The top-level agent is **orchestrator and (meta-)reviewer**: central
   planning and design decisions stay with it; coding and reviews are
-  delegated to subagents, which may spawn their own. Implementer and
-  reviewer model follow [[model-ab-experiment]]; design, specs and
-  rulings stay Fable.
+  delegated to subagents, which may spawn their own. Every phase —
+  implementers, reviewers, and the design, specs and rulings — runs
+  on Opus while the A/B protocol is suspended (Ev, 2026-09-23;
+  [[model-ab-experiment]]).
 - **Continue autonomously** to the next genuine branch point. High-
   confidence design PRs (dominant-argument conventions, faithful
   elaborations of a ratified plan) self-merge with their full writeups;
@@ -88,8 +89,9 @@ Ev's standing instructions for implementation work:
   the gate.
 - **State-sync records RIDE THE UNIT'S OWN PR (Ev, 2026-08-27)** — a
   unit's ledger row and log entries go on as one more commit to that
-  unit's branch, **LAST, after both reviews are delivered** (the A/B row
-  names the implementer's arm, and reviewers read `git log`). This
+  unit's branch, **LAST, after both reviews are delivered** (under the A/B
+  protocol the row names the implementer's arm, and reviewers read
+  `git log`). This
   is for STATE-SYNC only: design conversations, protocol and memory
   amendments, spec ratifications and anything asking Ev a question get
   their OWN PR — burying those in a unit's merge hides exactly what

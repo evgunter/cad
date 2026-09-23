@@ -30,9 +30,9 @@ not what it says.
 - [Agent lane operations](agent-lane-operations.md) — lane creation,
   build-slot locks, disk, liveness, death recovery, and the ways CI
   silently does not run
-- [Model A/B experiment](model-ab-experiment.md) — the standing
-  Opus-vs-Fable implementation experiment; `docs/MODEL-AB-LOG.md` is
-  normative and owns every live number
+- [Model A/B experiment](model-ab-experiment.md) — SUSPENDED
+  2026-09-23: everything runs on Opus, and units the protocol would
+  have taken get dual Opus reviews; `docs/MODEL-AB-LOG.md` is normative
 
 ## Testing, review, measurement
 
