@@ -6941,6 +6941,16 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
         }],
     },
     MintingItem {
+        owner: "DIMENSION_DOORS",
+        literals: 0,
+        held_by: &[Holder::Outside(
+            "nothing: it is a `#[doc(hidden)]` anchor whose whole content is a \
+             six-row prose table, and the count that table fixes was written \
+             three ways with two different numbers before it existed, which is \
+             `work/lib/the-dimension-door-table-is-prose-nothing-re-derives.md`",
+        )],
+    },
+    MintingItem {
         owner: "ErrorClass::class_name",
         literals: 35,
         held_by: &[Holder::Test {
