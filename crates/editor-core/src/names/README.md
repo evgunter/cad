@@ -143,13 +143,15 @@ compare would restore the cost the cache exists to remove.
 last_good: Option<Tombstone> }`, `Ambiguous { name, candidates, tie: TieWitness }`
 or `NodeGone { name, edit }`. `Diagnosis` is `PredicateFlip { predicate, from,
 to }`, `StructuralParam { node, param }`, `RecipeEdit { edit }`, `Cascade
-{ through }` (an embedded operand name vanished first) or `WitnessBifurcation`
+{ through }` (an embedded operand name vanished first), `GroupResized { node,
+was, now }` (the rows spelling the fragment's group changed in number) or `WitnessBifurcation`
 (SOLVER-DESIGN W3). Diagnosis is computable because every node evaluation
 records its verdict log (`k_stats`); `resolve/vdiff.rs` diffs two runs per
 predicate by sign population (permutation-invariant) and is shared with
 `SetTolerance`'s ε-audit. When the diff is silent the ladder is `Cascade`, then
 the qualifier-delta rung (a `PredicateFlip` recovered from `SideOf` verdicts
-stored in the names), then `Diagnosis::cause_not_in_evidence` = `RecipeEdit {
+stored in the names), then the GROUP-SIZE rung, then
+`Diagnosis::cause_not_in_evidence` = `RecipeEdit {
 NodeChanged(minting node) }`, a site rather than a claim that an edit happened —
 reached in particular when the evidence lived on a pair the boolean's BVH sweep
 pruned; results are unaffected, only diagnosis richness degrades. Between the
@@ -160,10 +162,19 @@ discriminator pairs against both contexts — the partner read at the boolean's
 operand, the per-vertex stream aggregated through this module's own
 `aggregate_side`, and the answer calibrated against the verdict the qualifier
 records — and reports the first partner whose side changed, marked
-`FlipSource::ShadowExec` so no reader mistakes it for a line of a log. It
-recovers the pruned half of the `SideOf` vanish only: a group that merely
-stops being multi-fragment has no changed side to find, and an `OrderAlong`
-rank records no partner to re-probe. `Tombstone`
+`FlipSource::ShadowExec` so no reader mistakes it for a line of a log. The
+GROUP-SIZE rung (`resolve::group_resized`, whose docs say why a fragment name
+can vanish with no flip) needs a prior run: when the last-good table at the
+minting node carried the name, and the rows spelled by its base — bare, or
+with one `Fragment` qualifier, a tie counting each candidate — number `was`
+entities there and `now ≠ was` in the current table, the diagnosis is
+`GroupResized { node, was, now }`. That is a statement about two recorded
+tables, not a claimed flip and not a claim about where the parent entity
+went. The ladder orders cause before effect: the flips, the qualifier delta
+and the doc-diff lanes name a cause, the group-size change is an effect whose
+cause the evidence does not hold, so it runs after every cause-naming rung
+and before the fallback. A collapsed fragment's undivided base, when it
+resolves, rides in the offers for either qualifier kind. `Tombstone`
 carries the last-good entry for ghost rendering; selection tools hold name plus
 tombstone, never a key. N3's offers ride beside the verbatim error in
 `ResolutionFailure::offers`. The automatic rebinding menu is empty: the only
