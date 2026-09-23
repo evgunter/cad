@@ -60,8 +60,8 @@
 //!   them. The named node's row is whatever the evaluation says of it
 //!   on its own: `Ok` when it evaluates, `Failed` beside the mate when
 //!   it does not (a `Part` indexing past its pattern's count, a pattern
-//!   of no copies), and then both rows are loud and neither points at
-//!   the other.
+//!   of no copies), and then both rows are loud and neither is
+//!   poisoned through the other.
 //! - **Raised while a cluster's fold derives an offset**
 //!   (`mate::member::derived_offset`): a `PlacerRefused` only. It
 //!   reaches every instance and mate of the cluster, and they point at
@@ -70,16 +70,19 @@
 //!   poisoned by the evaluation even when its own slots are broken, so
 //!   its row carries the pointer at the mate rather than the words —
 //!   the arm's doc's *"this fault is the only place that cause
-//!   appears"*. Whether that row should carry the words instead is an
-//!   open question
-//!   (`work/chrome/blamed-mates-sends-the-eye-past-the-node-the-fault-says-to-fix.md`).
+//!   appears"*.
 //!
-//! The kernel's docs agree for the first two arms: `DanglingHead`'s
-//! `head` *"may be perfectly live"* and its message's recourse,
-//! *"rebind it"*, is the mate's reference; `PartSelectsAnotherCopy` is
-//! refused *"rather than choosing"* between the name and the `Part`.
-//! `crates/viewer/tests/msolve3_placer_refused.rs` holds one fixture of
-//! each shape above.
+//! **So the mate's row LINKS to the node to repair where that is not
+//! the mate** ([`TreeRow::repair_at`]), on either path: blame decides
+//! which row is loud and carries the words, and the link is how a
+//! reader gets from those words to the node they name. Only
+//! `PlacerRefused` links. The kernel's docs say why the other two do
+//! not: `DanglingHead`'s `head` *"may be perfectly live"* and its
+//! message's recourse, *"rebind it"*, is the mate's reference;
+//! `PartSelectsAnotherCopy` is refused *"rather than choosing"*
+//! between the name and the `Part`. `repaired_at` is where an arm
+//! answers this. `crates/viewer/tests/msolve3_placer_refused.rs` holds
+//! one fixture of each shape above.
 //!
 //! **[`MateFault::Band`] names none, and it is the arm that still
 //! reaches rows.** A band is the RUN's tolerance, not a decision about
@@ -242,6 +245,16 @@ pub struct TreeRow {
     /// committed `Tangent` is not a green row indistinguishable from
     /// a certifiable one.
     pub note: Option<String>,
+    /// **The node a [`RowStatus::Failed`] row's words name as the one
+    /// to repair, when that is not this node** — the row a click on
+    /// [`repair_wording`] selects. Today: a mate refused with
+    /// [`MateFault::PlacerRefused`], linking to its `placer` (the
+    /// module header's second section).
+    ///
+    /// `None` on every row that is not `Failed`: a `Poisoned` row's
+    /// link is its own `through`, and an `Ok` or `Unevaluated` row has
+    /// no words to link from.
+    pub repair_at: Option<RecipeNodeId>,
 }
 
 /// The kind name of a recipe node — the node vocabulary's own
@@ -451,14 +464,20 @@ pub fn rows(doc: &Doc<ProfileProgram>, evaluation: Option<&Evaluation<f64>>) -> 
         };
         let depth = depth_of(&node.inputs(), &depths);
         depths.insert(id, depth);
+        let status = status_of(id, evaluation);
+        let repair_at = match status {
+            RowStatus::Failed { .. } => evaluation.and_then(|ev| repair_of(id, ev)),
+            RowStatus::Ok | RowStatus::Poisoned { .. } | RowStatus::Unevaluated => None,
+        };
         rows.push(TreeRow {
             id,
             kind: node_kind(node),
             pose: frame_pose(node),
             depth,
             root: roots.contains(&id),
-            status: status_of(id, evaluation),
+            status,
             note: node_note(node),
+            repair_at,
         });
     }
     rows
@@ -529,6 +548,49 @@ pub fn downstream_wording(through: RecipeNodeId) -> String {
         "upstream failure at {} — that row carries the cause",
         node_number(through)
     )
+}
+
+/// What a failed row's link to the node to repair says: that node's
+/// name, as [`node_number`] spells it — the failure's own words are
+/// the line above it, so this names only WHERE to go.
+pub fn repair_wording(at: RecipeNodeId) -> String {
+    format!("see {}", node_number(at))
+}
+
+/// The node a `Failed` row's fault names as the one to repair, when
+/// the row is the mate the fault blames and the node is another one.
+fn repair_of(id: RecipeNodeId, ev: &Evaluation<f64>) -> Option<RecipeNodeId> {
+    let NodeErrorKind::Mate(fault) = &ev.result(id)?.error()?.kind else {
+        return None;
+    };
+    repaired_at(fault).filter(|at| *at != id)
+}
+
+/// **Which node a mate refusal names as the one an author repairs,
+/// where that is not the blamed mate** — the module header's second
+/// section, one arm per fault.
+///
+/// Exhaustive, as [`blamed_mates`] is: a fault arm the kernel grows
+/// decides here whether its words send the reader to another node.
+fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
+    match fault {
+        // The kernel's own doc: "the node an author goes and fixes".
+        MateFault::PlacerRefused { placer, .. } => Some(*placer),
+        // Named beside the mate, and not the repair (module header).
+        MateFault::DanglingHead { .. } | MateFault::PartSelectsAnotherCopy { .. } => None,
+        // Name no node beside the mate, or name one only as evidence
+        // of where the refusal held.
+        MateFault::Frame { .. }
+        | MateFault::ClassNotAdmitted { .. }
+        | MateFault::TableLacks { .. }
+        | MateFault::Indeterminate { .. }
+        | MateFault::Under { .. }
+        | MateFault::SelfMate { .. }
+        | MateFault::Unleverable { .. }
+        | MateFault::Contradictory { .. }
+        | MateFault::Band { .. }
+        | MateFault::PosesOfAnotherDocument { .. } => None,
+    }
 }
 
 /// The status of a row the EVALUATION poisoned, given the nearest
