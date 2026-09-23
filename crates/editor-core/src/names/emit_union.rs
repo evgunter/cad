@@ -182,9 +182,10 @@ use super::merged::NESTED_MERGED;
 /// One fold-table name, keyed by member.
 ///
 /// Returns a name in the UNION's own space (`node` is the union's, as
-/// every fold row's already is): the head segment is
-/// [`RoleSeg::FromMember`], [`RoleSeg::Seam`], [`RoleSeg::Merged`] or
-/// [`RoleSeg::OutputBody`], followed by the `Fragment` discriminators
+/// every fold row's already is): the head is one
+/// [`RoleSeg::FromMember`], [`RoleSeg::Merged`] or
+/// [`RoleSeg::OutputBody`] segment, or a sorted run of
+/// [`RoleSeg::Seam`] lines, followed by the `Fragment` discriminators
 /// the fold accumulated, outermost step last.
 fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingError> {
     let bug = |what| NamingError::Emission { what };
@@ -193,7 +194,7 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
             "a union fold's table carries a row minted by another node",
         ));
     }
-    let Some((head, tail)) = name.path.split_first() else {
+    let Some((head, mut tail)) = name.path.split_first() else {
         return Err(bug("a union fold's table carries a name with no role"));
     };
     let mut path = match head {
@@ -208,20 +209,22 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
         // step's row: descended THROUGH, carrying its own
         // discriminators out with it.
         RoleSeg::FromA(inner) | RoleSeg::FromB(inner) => collapse(node, inner)?.path,
-        // A seam between two members. The pair emitter's `a`/`b` are
-        // the crossing entities in the two OPERANDS' tables, which are
-        // this node's space on both sides, so each is collapsed the
-        // same way every other row is. The pair is then CANONICALIZED
-        // by name order: a union is commutative, so "which side" would
-        // record only which of the two members the fold reached first,
-        // which is the position this node exists not to record.
+        // A seam, or a seam JUNCTION: the pair emitter names the
+        // vertex where k ≥ 2 seam lines meet by the sorted run of those
+        // lines' `Seam` segments, so a run of `Seam`s is ONE head — the
+        // set of lines — and each line is collapsed by [`seam_line`].
+        // The run is re-sorted afterwards: the pair emitter sorted it
+        // in the fold's space, and the collapsed lines are ordered by
+        // the member-space names, which is the order a name stable
+        // under member reordering has to use.
         RoleSeg::Seam { a, b } => {
-            let (x, y) = (collapse(node, a)?, collapse(node, b)?);
-            let (a, b) = if x <= y { (x, y) } else { (y, x) };
-            vec![RoleSeg::Seam {
-                a: NameRef::new(a),
-                b: NameRef::new(b),
-            }]
+            let mut lines = vec![seam_line(node, a, b)?];
+            while let Some((RoleSeg::Seam { a, b }, rest)) = tail.split_first() {
+                lines.push(seam_line(node, a, b)?);
+                tail = rest;
+            }
+            lines.sort_unstable();
+            lines
         }
         // An F7 merged face: its constituents are result-face names in
         // the minting node's space (N3), so they stay in this union's
@@ -284,10 +287,13 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
                 RoleSeg::Fragment(Qualifier::SideOf(partners))
             }
             RoleSeg::Fragment(q @ Qualifier::OrderAlong { .. }) => RoleSeg::Fragment(q.clone()),
-            // Only a `Fragment` follows a head segment in a boolean
-            // table; anything else in the tail is an emission bug —
-            // the six head segments above included, which are heads
-            // and not discriminators. The long half is
+            // Only a `Fragment` follows the head in a boolean table;
+            // anything else in the tail is an emission bug — the head
+            // segments above included, which are heads and not
+            // discriminators. A `Seam` reaching here is one the head
+            // arm's run did not take: it follows a `FromMember`,
+            // `Merged` or `OutputBody` head, or a `Fragment`, and the
+            // pair emitter mints neither shape. The long half is
             // [`never_in_a_boolean_table`], for the reason the head
             // match names.
             RoleSeg::OutputBody
@@ -306,12 +312,32 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
     })
 }
 
+/// One seam line between two members, in the union's space.
+///
+/// The pair emitter's `a`/`b` are the crossing entities in the two
+/// OPERANDS' tables, which are this node's space on both sides, so
+/// each is collapsed the same way every other row is. The pair is
+/// then CANONICALIZED by name order: a union is commutative, so
+/// "which side" would record only which of the two members the fold
+/// reached first, which is the position this node exists not to
+/// record.
+fn seam_line(node: RecipeNodeId, a: &StableName, b: &StableName) -> Result<RoleSeg, NamingError> {
+    let (x, y) = (collapse(node, a)?, collapse(node, b)?);
+    let (a, b) = if x <= y { (x, y) } else { (y, x) };
+    Ok(RoleSeg::Seam {
+        a: NameRef::new(a),
+        b: NameRef::new(b),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     //! The rewrite's own rows: a merged face collapses to its flat
     //! member-space set, and a NESTED merged face — a shape the pair
     //! emitter's flat mint never produces — refuses as an emission bug
-    //! instead of being flattened here.
+    //! instead of being flattened here. A seam junction's run of lines
+    //! collapses to the sorted set of its member-space lines, and a
+    //! `Seam` outside that leading run is still foreign.
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
@@ -387,6 +413,66 @@ mod tests {
         let err = collapse(union, &nested).unwrap_err();
         assert!(
             matches!(err, NamingError::Emission { what } if what == NESTED_MERGED),
+            "{err:?}"
+        );
+    }
+
+    fn vertex(node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
+        StableName {
+            kind: EntityKind::Vertex,
+            node,
+            path,
+        }
+    }
+
+    fn seam(a: StableName, b: StableName) -> RoleSeg {
+        RoleSeg::Seam {
+            a: a.into(),
+            b: b.into(),
+        }
+    }
+
+    #[test]
+    fn a_seam_junction_collapses_to_its_sorted_member_space_lines() {
+        let union = RecipeNodeId(9);
+        // Two lines of one junction, as the pair emitter spells them at
+        // a step whose B operand is member 1: each line's A side is an
+        // accumulation row (members 3 and 2, reached through the
+        // descent) and its B side is member 1's face. In the fold's
+        // space the member-3 line sorts first; in the union's it sorts
+        // second, and every line's sides swap.
+        let folded = vertex(
+            union,
+            vec![
+                seam(from_a(union, member_cap(union, 3)), member_cap(union, 1)),
+                seam(from_b(union, member_cap(union, 2)), member_cap(union, 1)),
+            ],
+        );
+        let out = collapse(union, &folded).unwrap();
+        assert_eq!(
+            out.path,
+            vec![
+                seam(member_cap(union, 1), member_cap(union, 2)),
+                seam(member_cap(union, 1), member_cap(union, 3)),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_seam_after_a_fragment_is_foreign() {
+        let union = RecipeNodeId(9);
+        let line = || seam(from_a(union, member_cap(union, 2)), member_cap(union, 1));
+        let name = vertex(
+            union,
+            vec![
+                line(),
+                RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 }),
+                line(),
+            ],
+        );
+        let err = collapse(union, &name).unwrap_err();
+        assert!(
+            matches!(err, NamingError::Emission { what } if what == FOREIGN),
             "{err:?}"
         );
     }

@@ -895,7 +895,10 @@ pub enum RoleSeg {
     },
     /// A zip-minted seam entity: the crossing of an A-operand entity
     /// and a B-operand entity (edges: face × face; vertices:
-    /// edge × face / face × edge), by their operand names.
+    /// edge × face / face × edge), by their operand names. A seam
+    /// JUNCTION — the vertex where k ≥ 2 seam lines meet and no
+    /// operand edge does — is named by the sorted run of those lines'
+    /// face × face `Seam` segments, one segment per line.
     Seam {
         /// The A-side crossing entity's name.
         a: NameRef,
@@ -1313,20 +1316,21 @@ pub(crate) use name_free_seg;
 /// (`emit_union`'s `collapse`) and rebuilds its tail. Only the
 /// negative answer is common, so only the negative answer is
 /// shared, and it is shared as an or-pattern for the reason
-/// [`name_free_seg`] is: none of the three loses its exhaustiveness,
-/// so a variant added to [`RoleSeg`] and not added here still stops
-/// every one of those builds. What changes is that "the boolean
-/// emitter does not mint this" is ONE decision at one site instead of
-/// three that can be made differently.
+/// [`name_free_seg`] is: neither match loses its exhaustiveness, so a
+/// variant added to [`RoleSeg`] and not added here still stops the
+/// build. What changes is that "the boolean emitter does not mint
+/// this" is ONE decision at one site instead of two that can be made
+/// differently.
 ///
 /// The seven it leaves out are the boolean table's own vocabulary:
 /// [`RoleSeg::OutputBody`], [`RoleSeg::FromA`], [`RoleSeg::FromB`],
 /// [`RoleSeg::FromMember`], [`RoleSeg::Seam`], [`RoleSeg::Merged`]
-/// and [`RoleSeg::Fragment`]. Each of the three sites decides those
+/// and [`RoleSeg::Fragment`]. Each of the two matches decides those
 /// for itself, because that is exactly where they differ:
 /// `FromA`/`FromB` are the fold's INTERNAL space (descended through
-/// by the rewrite, denoting nothing to the routing walk), and a
-/// `Fragment` is a tail segment rather than a head one.
+/// by the rewrite), a `Seam` heads a name alone or as a junction's
+/// run of lines, and a `Fragment` is a tail segment rather than a head
+/// one.
 macro_rules! never_in_a_boolean_table {
     () => {
         $crate::names::RoleSeg::Cap(_)
