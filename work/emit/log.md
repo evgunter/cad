@@ -241,3 +241,25 @@ Options went to Ev on 3102:
 3. refuse opposite-sense sections.
 
 The orchestrator recommends option 1. The unit carries `needs_ev`.
+
+## 2026-09-23 — GroupResized lands (PR 3115, Ev approved)
+
+The two vanish rows close together. Their premises were refuted
+rather than fixed. `OrderAlong` never needed a partner, because
+`name_frag_order_along` ranks siblings against each other. Both rows
+are one event: a fragment group that changed size while every verdict
+held.
+
+N5 gains `Diagnosis::GroupResized`, placed after every cause-naming
+rung and before the evidence-free fallback. Ev accepted the
+justification that the ladder orders cause before effect. On whether
+it needed his sign-off, Ev said an additive rung that contradicts no
+principle he asked for is fine. The Display sentence states only the
+two-table fact.
+
+Filed from the review:
+- P0 `global-flip-lanes-present-an-unrelated-flip-as-a-vanished-names-cause`,
+  measured. This predates the PR.
+- P1 `group-size-re-derives-group-membership-from-name-shape`.
+- P2 `group-resized-does-not-name-the-cutter-that-stopped-cutting`.
+- P4 `name-counts-saturate-silently-at-u32-max`.
