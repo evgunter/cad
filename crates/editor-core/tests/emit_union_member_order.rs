@@ -15,7 +15,11 @@
 //!   geometry in both orders;
 //! - that rib's four ranked seam edges, pinned by name: each chain is
 //!   ranked along `n(first) × n(second)`, the pair's outward normals in
-//!   canonical (name) order.
+//!   canonical (name) order;
+//! - the same slab and rib with a cutter across every seam edge, in all
+//!   six member orders: a seam line's pieces are a seam chain in some
+//!   orders and a later step's cut of a whole seam in others, and no
+//!   name binds a different entity in any two orders.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
@@ -167,4 +171,83 @@ fn a_unions_seam_chain_is_ranked_along_the_canonical_pair() {
             );
         }
     }
+}
+
+/// `slab_rib` and a cutter [0.7, 2.3] × [0.3, 1.7] × [0.95, 1.05] that
+/// crosses every seam edge the slab and the rib make. Depending on
+/// member order, a seam line is minted already cut (a seam chain) or
+/// minted whole and cut by a later step (a descent chain of its pieces).
+fn slab_rib_cutall(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 3]) {
+    let (doc, slab, rib) = slab_rib(doc);
+    let (doc, cutter) = block(doc, (0.7, 2.3), (0.3, 1.7), 0.95, 0.1);
+    (doc, [slab, rib, cutter])
+}
+
+/// Every name of a union's table beside the geometry it binds, keyed by
+/// name.
+fn bindings(
+    ev: &editor_core::Evaluation<f64>,
+    u: RecipeNodeId,
+) -> std::collections::BTreeMap<String, String> {
+    let mut out = std::collections::BTreeMap::new();
+    for line in named_geometry(ev, u, false).expect("a union is never empty") {
+        let (n, g) = line.rsplit_once(" @ ").expect("a name @ geometry row");
+        let prior = out.insert(n.to_string(), g.to_string());
+        assert!(prior.is_none(), "{n} binds two entities");
+    }
+    out
+}
+
+/// **No name binds different geometry in any two member orders of a
+/// three-member union whose seam lines are cut.**
+///
+/// A seam line's pieces are ranked by the seam-chain ranker in one
+/// order and by the descent-chain ranker in another; both must rank
+/// along one orientation, or one name lands on the other piece. The
+/// tables need not be identical — which step cut the line shows in a
+/// name's structure — but a name present in two orders names the same
+/// entity in both.
+#[test]
+fn no_name_rebinds_across_the_member_orders_of_a_cut_seam_union() {
+    let perms = [
+        [0, 1, 2],
+        [0, 2, 1],
+        [1, 0, 2],
+        [1, 2, 0],
+        [2, 0, 1],
+        [2, 1, 0],
+    ];
+    let tables: Vec<_> = perms
+        .iter()
+        .map(|p| {
+            let doc = ProfileDoc::empty_derived("emit_union_member_order_cut", Tol::witness());
+            let (doc, m) = slab_rib_cutall(doc);
+            let (doc, u) = insert(
+                doc,
+                Node::Union {
+                    members: p.iter().map(|&i| m[i]).collect(),
+                    declare: None,
+                },
+            );
+            let ev = run(&doc);
+            (p, bindings(&ev, u))
+        })
+        .collect();
+    let mut rebound = Vec::new();
+    for (i, (pi, a)) in tables.iter().enumerate() {
+        for (pj, b) in &tables[i + 1..] {
+            for (n, ga) in a {
+                if let Some(gb) = b.get(n)
+                    && ga != gb
+                {
+                    rebound.push(format!("{pi:?} vs {pj:?}: {n} binds {ga} vs {gb}"));
+                }
+            }
+        }
+    }
+    assert!(
+        rebound.is_empty(),
+        "{} rebinds:\n{rebound:#?}",
+        rebound.len()
+    );
 }

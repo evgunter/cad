@@ -31,10 +31,12 @@
 //! (`work/emit/name-ordered-positions-in-a-path-have-no-single-home.md`).
 //!
 //! Putting a `Seam`'s sides in name order can also rewrite a VALUE in
-//! the tail. The pair emitter ranks a seam edge along the line
-//! `n_a × n_b`, which is oriented by side. Where the canonical order
-//! swaps the sides, that line reverses, so the edge's
-//! `Fragment(OrderAlong)` rank is read from the other end. See
+//! the tail. The pair emitter ranks every chain along a seam line —
+//! the pieces of a seam minted already cut, and the pieces of a seam
+//! cut by a later step — along that seam pair's `n_a × n_b`, which is
+//! oriented by side. Where the canonical order swaps the sides, that
+//! line reverses, so the rank is read from the other end, whether it
+//! sits on the seam's own name or on a descent through it. See
 //! [`RankRule`].
 //!
 //! # How an intermediate row is told from a member's row
@@ -211,6 +213,19 @@ use super::merged::NESTED_MERGED;
 /// head's [`RankRule`] says what its own `OrderAlong` rank becomes once
 /// the pair is in canonical order, and that rank can be rewritten.
 fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingError> {
+    Ok(collapse_ruled(node, name)?.0)
+}
+
+/// [`collapse`], with the [`RankRule`] of the LINE the name's tail was
+/// ranked along. A seam edge's own rule, and a descent's inherited
+/// rule: the pair emitter ranks the pieces of a cut seam edge along
+/// that seam's pair line in minted order, exactly as it ranks a seam
+/// chain, so a descent through a seam edge carries the seam's rule out
+/// to its own `OrderAlong`.
+fn collapse_ruled(
+    node: RecipeNodeId,
+    name: &StableName,
+) -> Result<(StableName, RankRule), NamingError> {
     let bug = |what| NamingError::Emission { what };
     if name.node != node {
         return Err(bug(
@@ -232,7 +247,8 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
         // step's row: descended THROUGH, carrying its own
         // discriminators out with it.
         RoleSeg::FromA(inner) | RoleSeg::FromB(inner) => {
-            (collapse(node, inner)?.path, RankRule::Keep)
+            let (inner, rule) = collapse_ruled(node, inner)?;
+            (inner.path, rule)
         }
         // A seam: one line, collapsed by [`seam_line`], with any
         // `Fragment` tail after it.
@@ -366,11 +382,14 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
             | never_in_a_boolean_table!() => return Err(bug(FOREIGN)),
         });
     }
-    Ok(StableName {
-        kind: name.kind,
-        node,
-        path,
-    })
+    Ok((
+        StableName {
+            kind: name.kind,
+            node,
+            path,
+        },
+        ranks,
+    ))
 }
 
 /// Which way a collapsed seam pair's sides run, relative to the order
@@ -391,6 +410,9 @@ struct SeamLine {
     order: PairOrder,
     /// Both sides name EDGES (a vertex where two edges cross).
     edge_pair: bool,
+    /// The line rule of the side that names an EDGE, when exactly one
+    /// does: a seam vertex group is ranked along that edge's line.
+    edge_rule: RankRule,
 }
 
 /// What a collapsed head does to the `Fragment(OrderAlong)` rank in its
@@ -399,16 +421,18 @@ struct SeamLine {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RankRule {
     /// The rank was taken along a direction the collapse does not
-    /// change: every non-`Seam` head, a seam edge whose pair stayed in
-    /// minted order, and a seam VERTEX group whose parents are an edge
-    /// and a face. Such a group is ranked along the parent edge's own
-    /// carrier in that edge's operand body, which is the same edge
-    /// whichever side it sits on.
+    /// change: a member's or the body's row, a seam edge whose pair
+    /// stayed in minted order, a descent through a line whose own rule
+    /// is `Keep`, and a seam VERTEX group whose edge parent's line is
+    /// `Keep`. Such a group is ranked along its edge parent's line,
+    /// which is the same line whichever side the edge sits on — so the
+    /// group takes that line's rule, not its own pair's.
     Keep,
-    /// A seam EDGE whose pair canonicalization swapped. The pair emitter
-    /// ranks a seam chain along `n_a × n_b`, with the A-side face's
-    /// outward normal first. With the sides swapped that line is
-    /// negated, and the rank reads from the other end: `of − 1 − rank`.
+    /// A seam EDGE whose pair canonicalization swapped, and a descent
+    /// through one. The pair emitter ranks every chain along a seam line
+    /// along `n_a × n_b`, with the A-side face's outward normal first.
+    /// With the sides swapped that line is negated, and the rank reads
+    /// from the other end: `of − 1 − rank`.
     Reverse,
     /// A seam VERTEX group whose two parents are both edges. The pair
     /// emitter ranks it along the A side's edge, so which carrier was
@@ -429,8 +453,9 @@ impl RankRule {
     fn of_seam(kind: EntityKind, line: &SeamLine) -> Self {
         match (kind, line.order, line.edge_pair) {
             (EntityKind::Edge, PairOrder::Swapped, _) => Self::Reverse,
-            (EntityKind::Vertex, _, true) => Self::Refuse,
-            _ => Self::Keep,
+            (EntityKind::Edge, PairOrder::AsMinted, _) => Self::Keep,
+            (_, _, true) => Self::Refuse,
+            _ => line.edge_rule,
         }
     }
 
@@ -463,8 +488,13 @@ const RANK_OUTSIDE_COUNT: &str = "a seam chain's rank lies outside its count";
 /// record. Anything the pair emitter oriented by side has to follow
 /// the swap, and [`SeamLine::order`] is what reports it.
 fn seam_line(node: RecipeNodeId, a: &StableName, b: &StableName) -> Result<SeamLine, NamingError> {
-    let (x, y) = (collapse(node, a)?, collapse(node, b)?);
+    let ((x, rx), (y, ry)) = (collapse_ruled(node, a)?, collapse_ruled(node, b)?);
     let edge_pair = x.kind == EntityKind::Edge && y.kind == EntityKind::Edge;
+    let edge_rule = match (x.kind, y.kind) {
+        (EntityKind::Edge, _) => rx,
+        (_, EntityKind::Edge) => ry,
+        _ => RankRule::Keep,
+    };
     let (order, (a, b)) = if x > y {
         (PairOrder::Swapped, (y, x))
     } else {
@@ -477,6 +507,7 @@ fn seam_line(node: RecipeNodeId, a: &StableName, b: &StableName) -> Result<SeamL
         },
         order,
         edge_pair,
+        edge_rule,
     })
 }
 
@@ -758,6 +789,55 @@ mod tests {
             matches!(err, NamingError::Emission { what } if what == SIDED_VERTEX_RANK),
             "{err:?}"
         );
+    }
+
+    /// A seam EDGE between member 5's and member 2's caps, as the emitter
+    /// minted it: `swap` puts member 5 on the A side, which name order
+    /// reverses.
+    fn seam_edge(union: RecipeNodeId, swap: bool) -> StableName {
+        let line = if swap {
+            seam(through_a(member_cap(union, 5)), member_cap(union, 2))
+        } else {
+            seam(through_a(member_cap(union, 2)), member_cap(union, 5))
+        };
+        StableName {
+            kind: EntityKind::Edge,
+            node: union,
+            path: vec![line],
+        }
+    }
+
+    /// **A later step's pieces of a seam edge take the seam's rule.** The
+    /// pair emitter ranks the pieces of a cut seam along the seam's own
+    /// pair line, so where name order reverses that pair, the
+    /// descent's rank reads from the other end too.
+    #[test]
+    fn a_descent_through_a_swapped_seam_edge_reads_its_rank_from_the_other_end() {
+        let union = RecipeNodeId(9);
+        for (swap, want) in [(true, 1), (false, 0)] {
+            let piece = StableName {
+                kind: EntityKind::Edge,
+                node: union,
+                path: vec![
+                    RoleSeg::FromA(seam_edge(union, swap).into()),
+                    RoleSeg::Fragment(Qualifier::OrderAlong { rank: 0, of: 2 }),
+                ],
+            };
+            let out = collapse(union, &piece).unwrap();
+            assert_eq!(rank_of(&out), want, "swap={swap}: {out:?}");
+        }
+    }
+
+    /// **A seam vertex group ranked along a seam edge takes that edge's
+    /// rule**, not its own pair's: the group lies on the edge's line.
+    #[test]
+    fn a_seam_vertex_on_a_swapped_seam_edge_reads_its_rank_from_the_other_end() {
+        let union = RecipeNodeId(9);
+        for (swap, want) in [(true, 1), (false, 0)] {
+            let line = seam(through_a(seam_edge(union, swap)), member_cap(union, 7));
+            let out = collapse(union, &ranked(EntityKind::Vertex, union, line, 0, 2)).unwrap();
+            assert_eq!(rank_of(&out), want, "swap={swap}: {out:?}");
+        }
     }
 
     /// **A rank at or past its count refuses rather than wrapping** when

@@ -1128,15 +1128,23 @@ fn name_boolean_edges<T: Decide>(
         let inner = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(root_key)))?;
         let op_body = op.body;
         let from_tie = inner.tied;
-        let seg = root.wrap(inner.name);
+        let seg = root.wrap(inner.name.clone());
         let base = name1(EntityKind::Edge, node, seg);
         if edges.len() == 1 {
             put(t, tie, from_tie, base, ent(0, EntityKey::Edge(edges[0])))?;
             continue;
         }
-        // Sub-edge chain: order along the parent edge's own oriented
+        // Sub-edge chain: order along the parent's line. A parent that
+        // is itself a SEAM edge is ordered the way a seam chain is — along
+        // its pair's `n_a × n_b`, in the pair's minted order — because
+        // the same pieces are a seam chain in an order that cuts the line
+        // before it is minted; one line, one orientation, whichever step
+        // cut it. Any other parent is ordered along its own oriented
         // carrier (operand geometry).
-        let dir = edge_dir(op_body, root_key)?;
+        let dir = match inner.name.path.as_slice() {
+            [RoleSeg::Seam { a: sa, b: sb }, ..] => seam_root_line(op, root_key, sa, sb)?,
+            _ => edge_dir(op_body, root_key)?,
+        };
         let extents = edges
             .iter()
             .map(|&e| edge_extent(body, e, dir))
@@ -1438,8 +1446,13 @@ fn resolve_edge_carrier<T: Decide>(
         return Ok(None);
     }
     match op.table.lookup(parent) {
-        Some(Entry::Unique(e)) => match e.key {
-            EntityKey::Edge(k) => edge_dir(op.body, k).map(Some),
+        Some(Entry::Unique(e)) => match (e.key, parent.path.as_slice()) {
+            // A seam edge's line is its pair's `n_a × n_b`, the one
+            // orientation every ranker along a seam line uses.
+            (EntityKey::Edge(k), [RoleSeg::Seam { a, b }, ..]) => {
+                seam_root_line(op, k, a, b).map(Some)
+            }
+            (EntityKey::Edge(k), _) => edge_dir(op.body, k).map(Some),
             _ => Ok(None),
         },
         _ => Ok(None),
@@ -1481,6 +1494,68 @@ fn edge_dir<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<Vec3<T>, NamingErro
     };
     Ok(p(v1)? - p(v0)?)
 }
+
+/// Whether face name `n` is, or descends one step from, `x` — the test
+/// that finds which of a seam edge's two faces is its pair's `a` side.
+/// A pair emitter's face is `FromA(x)` / `FromB(x)` (plus fragment
+/// discriminators); a union's is `x` itself, or `x` followed by them;
+/// a merged face descends from `x` when one of its constituents does.
+fn face_descends_from(n: &StableName, x: &StableName) -> bool {
+    match n.path.first() {
+        Some(RoleSeg::FromA(inner) | RoleSeg::FromB(inner)) => **inner == *x,
+        Some(RoleSeg::Merged(cs)) => cs.iter().any(|c| face_descends_from(c, x)),
+        _ => n.node == x.node && n.kind == x.kind && n.path.starts_with(&x.path),
+    }
+}
+
+/// The line a chain of pieces of seam edge `root` is ranked along: the
+/// seam pair's `n_a × n_b`, with `a` and `b` read off the root's own
+/// name and matched to its two faces in the operand body. That is the
+/// direction the seam-chain ranker uses for the same line, so the two
+/// rankers agree whichever step cut the seam.
+fn seam_root_line<T: Decide>(
+    op: &OperandCtx<'_, T>,
+    root: EdgeKey,
+    a: &StableName,
+    b: &StableName,
+) -> Result<Vec3<T>, NamingError> {
+    let bug = |what| NamingError::Emission { what };
+    let edge = op
+        .body
+        .get_edge(root)
+        .ok_or_else(|| bug("seam root edge not live in its operand"))?;
+    let mut fa = None;
+    let mut fb = None;
+    for he in [Some(edge.he_plus), op.body.mate(edge.he_plus)] {
+        let he = he.ok_or_else(|| bug("seam root edge without a mate"))?;
+        let face = op
+            .body
+            .get_half_edge(he)
+            .and_then(|h| op.body.get_loop(h.parent_loop))
+            .map(|l| l.face)
+            .ok_or_else(|| bug("seam root edge half-edge off any face"))?;
+        let name = op
+            .table
+            .name_of(&ent(0, EntityKey::Face(face)))
+            .ok_or_else(|| bug("seam root edge face unnamed in its operand"))?;
+        match (face_descends_from(name, a), face_descends_from(name, b)) {
+            (true, false) if fa.is_none() => fa = Some(face),
+            (false, true) if fb.is_none() => fb = Some(face),
+            _ => return Err(bug(SEAM_ROOT_FACES)),
+        }
+    }
+    let (Some(fa), Some(fb)) = (fa, fb) else {
+        return Err(bug(SEAM_ROOT_FACES));
+    };
+    let (_, na) = face_plane(op.body, fa)?;
+    let (_, nb) = face_plane(op.body, fb)?;
+    Ok(na.cross(nb))
+}
+
+/// A seam edge's two faces in its operand do not descend one from each
+/// side of the pair its name records.
+const SEAM_ROOT_FACES: &str =
+    "a seam edge's faces do not descend one from each side of its recorded pair";
 
 /// Inserts a same-name group ranked by order-along, or tied when
 /// genuinely unordered.
