@@ -32,7 +32,8 @@ not what it says.
   silently does not run
 - [Model A/B experiment](model-ab-experiment.md) — SUSPENDED
   2026-09-23: everything runs on Opus, and units the protocol would
-  have taken get dual Opus reviews; `docs/MODEL-AB-LOG.md` is normative
+  have taken get dual Opus reviews, recorded in
+  `docs/DUAL-REVIEW-LOG.md`; `docs/MODEL-AB-LOG.md` is normative
 
 ## Testing, review, measurement
 

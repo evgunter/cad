@@ -9,7 +9,9 @@ metadata:
 reviewers, fix passes and the orchestrator's design, specs and
 rulings. A unit that would have entered the protocol (v7's triage
 test) gets TWO independent Opus reviewers on the same frozen head,
-with the fix pass off the adjudicated union; every other unit keeps
+with the fix pass off the adjudicated union, and the pair is recorded
+in `docs/DUAL-REVIEW-LOG.md` (normative for that stream; read it
+before dispatching a dual). Every other unit keeps
 its single Opus review or the orchestrator's own read. No draw, no
 ordinal, no row, no blinding.** The log's suspension entry holds the
 detail (in-flight units, bands, resuming). The rules below apply only

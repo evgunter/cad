@@ -344,7 +344,10 @@ amended:
      falsify, each also pointed at `docs/prompts/reviewer-style-lane.md`,
      own lanes, neither with access to the other's report; the fix
      pass runs off the orchestrator-adjudicated UNION of their
-     findings. Every other unit keeps v7 item 2 as written — one Opus
+     findings. **Every such pair is recorded in
+     `docs/DUAL-REVIEW-LOG.md`**, which carries this log's v6
+     concordance instrument over to measure what the second review
+     buys (Ev, same day). Every other unit keeps v7 item 2 as written — one Opus
      reviewer (style, or full where correctness is at risk), or the
      orchestrator's own read for a mechanical change.
   3. **No blinding obligations while suspended.** With no arm to hide,
