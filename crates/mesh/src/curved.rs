@@ -200,12 +200,16 @@ pub(crate) fn tessellate_curved(
         what: "curved chart",
     })?;
     let polygon = loop_polygon(body, &chart, chords, shared, fk, face.outer, tol.eps)?;
-    // A COUNT, and only a count. The loops that reach here with too few
-    // entries to be a polygon are the ones questions 3 and 4 refuse on
-    // their own terms first — a one-generator cylinder face counted two
-    // — so what is left for this line is a walk that emitted too little
-    // for a reason nothing above has a statement about, and it says so
-    // in the vocabulary of a kernel defect rather than of a body.
+    // A COUNT, and only a count. Every loop measured into this line came
+    // from a state questions 3 and 4 now refuse on their own terms first
+    // — a one-generator cylinder face counted two entries — so this is
+    // BELIEVED UNREACHABLE BY INPUT, and left as a typed refusal rather
+    // than promoted to `unreachable!`, which would want a proof this does
+    // not have. What would show the belief wrong: a loop whose every
+    // traversal is a continuation of one iso side and whose edges carry
+    // fewer than three chord ids between them, with two distinct opening
+    // edges so question 4 admits it. A construction that reaches this
+    // line is a row for it, not a reason to delete it.
     if polygon.len() < 3 {
         return Err(TessellateError::MissingEntity {
             what: "degenerate curved boundary",

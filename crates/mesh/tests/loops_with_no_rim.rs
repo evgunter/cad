@@ -13,14 +13,22 @@
 //!   bounded by one meridian circle, and a cylinder face bounded by one
 //!   generator. Neither chart has a pole for a meridian to end on;
 //!   nothing can move the column, and the loop is a single iso side.
-//! * **a junction on the axis, arrived at and left along one edge** — the
-//!   one-face sphere whose loop is a single seam walked both ways, and
-//!   the one-face cone whose loop is a single generator from the apex.
-//!   Both openings state the same edge's column, bitwise.
+//! * **one edge's openings, however many** — the one-face sphere whose
+//!   loop is a single seam walked both ways (two openings, one at each
+//!   pole) and the one-face cone whose loop is a single generator from
+//!   the apex (one opening). Every opening states that edge's column,
+//!   bitwise.
 //! * **the positive controls**, which must still mesh: the ball's two
 //!   pole-to-pole bands and the rimless lune, whose two openings stand on
 //!   two edges, and the spur-wearing cap in
 //!   `loops_the_meridian_guard_admits.rs`, whose loop carries a rim.
+//!
+//! Two members are NOT refused by the guard, and each is rowed for what
+//! answers instead: a slit bounded by two COINCIDENT edges satisfies the
+//! premise and still walks to zero width
+//! (`work/tess/two-coincident-edges-open-two-columns-that-are-one.md`),
+//! and the sphere cut along a whole great circle is taken by a door in
+//! front of the walk. The second one first:
 //!
 //! One member of the class is refused earlier and by another door: the
 //! sphere cut along a whole great circle through both poles is tier-3
@@ -43,7 +51,7 @@ use core::f64::consts::PI;
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, SurfaceKind};
 use geom_core::{Band, Point3, Tol, Vec3};
-use topo::{Body, FaceSurface, MevSite};
+use topo::{Body, FaceSurface, MefSite, MevSite};
 
 fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -102,6 +110,39 @@ fn one_seam_sphere() -> Body<f64> {
         tol,
     )
     .unwrap();
+    body
+}
+
+/// **The sphere slit bounded by two COINCIDENT edges**: the one-seam
+/// sphere's seam, plus a second edge on the same carrier between the same
+/// two pole vertices (`mef Chords`). Two edge keys, one column.
+fn sphere_slit_on_two_coincident_edges() -> Body<f64> {
+    let tol = Tol::witness();
+    let seam = meridian_from_the_pole();
+    let mut body = Body::<f64>::new();
+    let start = body.mvfs(seam.eval(0.0)).unwrap();
+    body.set_face_surface(start.face, FaceSurface::New(unit_sphere()))
+        .unwrap();
+    let m = body
+        .mev(
+            MevSite::Lone {
+                r#loop: start.r#loop,
+            },
+            seam.eval(PI),
+            EdgeCurveSpec::arc_of_circle(seam.clone(), 0.0, PI).unwrap(),
+            tol,
+        )
+        .unwrap();
+    body.mef(
+        MefSite::Chords {
+            he1: m.he_plus,
+            he2: m.he_minus,
+        },
+        EdgeCurveSpec::arc_of_circle(seam, 0.0, PI).unwrap(),
+        FaceSurface::Inherit,
+        tol,
+    )
+    .expect("the Euler door mints a second edge on the same carrier");
     body
 }
 
@@ -262,13 +303,13 @@ fn a_rim_free_loop_on_a_chart_with_no_pole_refuses_single_column() {
     }
 }
 
-/// **A junction on the axis, left along the edge it was arrived on: the
-/// one-seam sphere and the one-seam cone.** Both loops DO open two iso
-/// sides — the sphere at each pole, the cone at its apex and index 0 —
-/// and both state one edge's column at every opening, because a column is
-/// the edge carrier's mid-azimuth and the walking direction does not
-/// touch it. This is the member the row said "no rim and no pole" would
-/// not close, and the edge-identity premise is what closes it.
+/// **One edge's column, wherever the loop turns: the one-seam sphere and
+/// the one-seam cone.** The sphere opens two iso sides, one at each pole.
+/// The cone opens ONE: its apex is the start of `travs[0]`, which opens
+/// whatever the run rule says, and its far junction is off the axis and
+/// continues. Either way every opening states the same edge's column, and
+/// that is the whole reason both refuse. The sphere is the member the row
+/// said "no rim and no pole" would not close.
 #[test]
 fn a_rim_free_loop_that_turns_at_a_pole_along_its_own_edge_refuses_single_column() {
     let tol = Tol::witness();
@@ -282,6 +323,83 @@ fn a_rim_free_loop_that_turns_at_a_pole_along_its_own_edge_refuses_single_column
         );
         assert_refuses_single_column(name, &body, kind, 0.05);
     }
+}
+
+/// **The sphere slit bounded by two COINCIDENT edges**, and what answers
+/// today: the residue the guard does not close, recorded where it is
+/// reached rather than only in prose.
+///
+/// Two distinct edges on ONE great-circle carrier between the same two
+/// pole vertices (`mvfs` + `mev` + `mef Chords` with the same
+/// `arc_of_circle` twice, V2 / E2 / F2). Both poles are junctions, so both
+/// traversals open — two openings on two EDGE KEYS — and
+/// [`mesh::TessellateError::SingleColumnCurvedFace`]'s premise is
+/// satisfied. The two edges state the same column, so the walked domain
+/// still has zero width, and the answer is the hole this unit refuses
+/// everywhere else. The rung the guard is missing is one that can tell
+/// two coincident edges from two distinct ones; comparing the openings'
+/// `u_raw` bitwise would do it and would need no ε, but it is a
+/// coordinate comparison and not the loop's incidence, so it is not this
+/// guard's shape. Rowed and filed:
+/// `work/tess/two-coincident-edges-open-two-columns-that-are-one.md`.
+///
+/// The cylinder twin is NOT in this state: with no pole, both junctions
+/// are continuations, the loop opens one iso side, and the guard refuses
+/// it. The residue is the sphere's and the cone's.
+///
+/// Both profiles are pinned. The assertions-off answer is the one that
+/// matters — `Ok` with two empty patches, and `check_mesh` naming it
+/// (`NoTriangles`, since TESS-4) while `tessellate` does not run
+/// `check_mesh` in any build.
+#[test]
+fn two_coincident_edges_still_walk_to_zero_width_and_this_is_what_answers() {
+    let tol = Tol::witness();
+    let body = sphere_slit_on_two_coincident_edges();
+    assert!(
+        topo::validate_geometric(&body, tol).is_err(),
+        "a slit bounded by two coincident edges is not tier-3 valid"
+    );
+    assert_eq!(
+        doors(&body, SurfaceKind::Sphere),
+        (true, true),
+        "both doors admit, as they do for every member of this class"
+    );
+    let answered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        mesh::tessellate(&body, 0.05, tol)
+    }));
+    let said = match &answered {
+        Err(payload) => {
+            let text = payload
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| payload.downcast_ref::<&str>().map(|s| (*s).to_owned()))
+                .unwrap_or_default();
+            format!("panic: {}", text.chars().take(13).collect::<String>())
+        }
+        Ok(Err(e)) => format!("refused: {e:?}"),
+        Ok(Ok(m)) => format!(
+            "Ok: patches {:?}, check_mesh {:?}",
+            m.patches
+                .iter()
+                .map(|p| p.triangles.len())
+                .collect::<Vec<_>>(),
+            mesh::validate::check_mesh(m).map_err(|e| format!("{e:?}"))
+        ),
+    };
+    // The cross-face census is a `debug_assert`, so which of the two the
+    // caller sees is a profile setting and both are the same defect. The
+    // second arm compiles only where debug assertions are OFF, which no
+    // profile this workspace builds produces (the root `Cargo.toml` sets
+    // `debug-assertions = true` on release), so CI never runs it: its
+    // expectation was measured under
+    // `CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=false` by hand and is the half
+    // of this defect a shipping build would show — silently.
+    let want = if cfg!(debug_assertions) {
+        "panic: chord segment"
+    } else {
+        "Ok: patches [0, 0], check_mesh Err(\"NoTriangles\")"
+    };
+    assert_eq!(said, want);
 }
 
 /// **The member another door owns.** The sphere cut along a whole great

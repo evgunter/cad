@@ -124,7 +124,10 @@ What the predicate's author should know, on top of the two notes above:
    quantity it reads is the openings' edge identity — available at tier
    2/3 from the loop cycle without any geometry beyond the
    classification. It refuses exactly the loops for which a zero extent
-   is FORCED; it does not certify that an admitted loop has width.
+   is FORCED; it does not certify that an admitted loop has width — two
+   coincident edges open two columns that are one, which is
+   `work/tess/two-coincident-edges-open-two-columns-that-are-one.md` and
+   a rung above (carrier identity, not edge identity).
 4. Its ε is `iso_side_starts`' separation band and no other. A validity
    rule asked at a different band will draw the line elsewhere on a
    junction within ε of the chart axis — measured unreachable from

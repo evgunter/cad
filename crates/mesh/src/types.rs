@@ -410,9 +410,11 @@ pub enum TessellateError {
     /// ε of the chart axis breaks the run. So this guard is exact to the
     /// same resolution as the extent computation it guards, and no
     /// further — which is the most a premise check can be. On a cylinder
-    /// or a torus chart the axis lies off the surface entirely, so no
-    /// junction can be at it, the whole rim-free loop is one iso side,
-    /// and the answer there reads no band at all.
+    /// or a torus chart the axis lies off the surface entirely, so every
+    /// junction's `radial` is at least the chart's radius: `Eps::separates`
+    /// is still called there and cannot answer `false` for any ε below
+    /// that radius, the whole rim-free loop is one iso side, and the
+    /// verdict is the band's only in form.
     ///
     /// **Reachable by input, and invalid (D2 addendum row 1).** A loop
     /// of meridians on one column is a slit, not a boundary: it encloses
@@ -437,6 +439,12 @@ pub enum TessellateError {
     /// the ball's two bands. A cylinder or torus chart has no
     /// singularity for a meridian to end on, so no meridian pair bounds
     /// anything there and the face needs a RIM.
+    ///
+    /// **What it does NOT claim.** That an admitted rim-free loop has
+    /// width. Two DISTINCT edges sharing one carrier state one column
+    /// too, and such a body is reachable through the Euler doors; that
+    /// residue, and the rung above edge identity it wants, are
+    /// `work/tess/two-coincident-edges-open-two-columns-that-are-one.md`.
     ///
     /// Not [`Self::MeridianFreeCurvedFace`]: that arm is the same lane's
     /// mirror question — whether a meridian exists at all — and its

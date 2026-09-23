@@ -136,9 +136,10 @@ profile, before anything is emitted. It reads the loop's incidence and
 nothing else: no column is compared, and no width, area or triangle
 count is read. The ε in it is the iso-side rule's own separation band —
 the guard is exact to the resolution of the computation it guards, which
-is the most a premise check can be; on a cylinder or torus chart, whose
-axis lies off the surface, no junction can be at the axis and the answer
-reads no band at all.
+is the most a premise check can be. On a cylinder or torus chart, whose
+axis lies off the surface, `Eps::separates` is still called but cannot
+answer `false` for any ε below the chart's radius, so the verdict there
+is the band's only in form.
 
 **Closed by it** (rows: `crates/mesh/tests/loops_with_no_rim.rs`):
 
@@ -172,13 +173,25 @@ lanes' empty patches are
 `check_mesh`'s verdict on a mesh of nothing is
 `check-mesh-passes-the-empty-mesh`'s.
 
-**Remaining residue, stated as the sweep found it.** The guard refuses
-exactly the rim-free loops for which a zero extent is FORCED by
-incidence; it does not claim every loop it admits has width. Two
-openings on two edges with the same column would need two distinct edges
-stating one column, which is two coincident edges and not a valid body —
-argued, not proved. Instrumented instead: with every rim-free walk in
-the `mesh` suite printing its opening count and its u width, the suite
-took 237 of them, every one with exactly 2 openings and none narrower
-than 0.2 rad. No admitted rim-free loop in the corpus is degenerate.
-This row can close with the unit.
+**Remaining residue: REACHABLE, and it is not this row's any more.** The
+sweep named the blind spot — two openings on two edges stating one column
+— and argued it would need two coincident edges, which is not a valid
+body. TESS-5's reviewer built it through the Euler doors, so the argument
+was wrong: a sphere slit bounded by two coincident edges satisfies the
+guard's premise and still walks to zero width (census panic with
+assertions on, `Ok` with `patches [0, 0]` and `check_mesh
+Err(NoTriangles)` without). Filed as its own row with the missing rung
+named — carrier identity, above edge identity:
+`work/tess/two-coincident-edges-open-two-columns-that-are-one.md`, and
+rowed where it is reached in `crates/mesh/tests/loops_with_no_rim.rs`.
+
+**So: the four members above close with TESS-5; that member does not.**
+This row closes on its four, and the coincident-edge member is tracked
+next door. The corpus measurement that stood in for the argument — every
+rim-free walk in the `mesh` suite, 237 of them, all with exactly 2
+openings and none narrower than 0.2 rad — says the corpus has no
+degenerate admitted loop, which is now a weaker claim than the row next
+door and is kept only as that. It has no committed apparatus and cannot
+have one: the polygon is `pub(crate)` and no seam exposes it, so the
+measurement is a three-line `eprintln` at the rim-free arm plus
+`cargo test -p mesh --test all -- --nocapture`, re-taken by hand.
