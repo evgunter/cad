@@ -2,11 +2,12 @@
 id: split-of-a-fused-declared-union-refuses-duplicate-vertex-name
 kind: issue
 title: A split of a legal declared union refuses Naming(Duplicate): a CrossingVertex and an OnToolVertex mint one name
-status: dispatched
+status: closed
 opened: 2026-09-23
 priority: P0
 cost: D
 branch: emit/split-duplicate-vertex
+closed: 2026-09-23
 ---
 
 
@@ -56,3 +57,16 @@ was.
 ## Found by
 
 PR 3120's review (MINOR-2), filed by that PR's fix pass.
+
+## Closed — the premise was wrong
+
+Measured on 2026-09-23. The split emitter is not at fault, and no
+naming rule is missing. The `Duplicate` truthfully reports a
+degenerate Below body: two null-pair copies of one vertex. The topo
+join keeps a zero-area spur along a tangent edge. The fix moves to
+`split-section-face-keeps-a-zero-area-spur-along-a-tangent-edge`.
+
+Not reproduced: the reviewer's bridge-slab and bridge-slab2 cases.
+Their fixture source was lost with the review worktree. Their
+duplicates have the same `OnToolVertex{Below, …}` shape, so the cause
+is likely the same but unconfirmed; the new row's lane re-checks it.
