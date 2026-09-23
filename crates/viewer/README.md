@@ -1117,12 +1117,12 @@ number `readout` renders. `widgets::message`'s doc says why the space
 is there and what the floor does not cover, and states the rule for
 which texts are bounded by characters and which by their region.
 
-Its call sites are `app.rs`, `pane/features.rs`, `pane/profile.rs` and
-`pane/view.rs` — a roster this page states twice (here and in the
+Its call sites are `app.rs`, `pane/features.rs`, `pane/profile.rs`,
+`pane/properties.rs` and `pane/view.rs` — a roster this page states twice (here and in the
 module table above) and therefore does not keep by hand:
 `widgets::roster_tests::the_message_roster_is_what_the_crate_actually_calls`
 re-derives it from the crate's own source. It is **not yet** the
-creation and properties panes'
+creation pane's
 (`work/chrome/messages-in-the-creation-and-properties-panes-still-draw-past-their-row.md`).
 `widgets::message_tests` holds the measurements — that the sentence
 fills the region it is in rather than a width of its own, across three

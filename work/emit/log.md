@@ -34,3 +34,57 @@ First wave, run in parallel on separate worktrees:
 
 The two vanish classes wait for the second wave, as the plan says, so
 they are specified together.
+
+## 2026-09-23 — loft anchors: the measurement, and the fix chosen
+
+The lane stopped before implementing, as briefed. What it measured
+(red rows on `emit/loft-anchors`, `tests/edit_step_segments.rs`):
+
+- the kernel lofts a section authored reversed or rotated relative to
+  section 0, and the solid is correct. The skin reads each section's
+  canonical form, so authoring order is gone before pairing.
+- the row's premise that "the refs are per-section already" is false.
+  `name_swept_topology` mints ONE `ProfileEdgeRef` per wall, shared by
+  every section, so one anchor can be right for one section only.
+
+Both of the row's options were rejected. A refusal would reject lofts
+whose solid is right, which changes what a loft admits. Per-section refs
+in a name change D5's vocabulary and the stored selection bits. Chosen:
+the table stays anchored on section 0, and the one door generalises to
+compose `published ∘ own⁻¹`, where the published anchor comes from the
+loft's own evaluation rather than from the caller. This is an additive
+answer with a dominant argument over the other two, so it did not go to
+Ev. The lane files the twisted-loft pairing question (canonical lex-min
+start versus the author's intended correspondence) on the sweep
+program's slate.
+
+## 2026-09-23 — loft anchors goes to Ev
+
+PR 3102, reviewed and fix-passed, CI green. The reviewer's S1 finding
+decided the shape: the door's anchoring can only be read off the node
+whose table is being read. Before, a caller holding a later section's
+own naming reproduced the bug silently. That changes what DM8
+(`crates/editor-core/REFERENCES.md`, ratified at `1fd5e16eb`) says
+twice. For a later loft section, the answer is in the loft table's
+numbering, not in the section program's own. And the clause now binds
+where the caller's anchoring comes from. Because the clause is a
+ratified one, the PR is retitled `[ev]` and the row carries `needs_ev`.
+The other two first-wave PRs do not wait on it.
+
+## 2026-09-23 — the two `emit.rs` drive-bys close (PR 3099)
+
+- **`EMISSION_FRAMING`.** All six emission bugs now open with the
+  framing, which was reworded to be true of all six: "name emission
+  found a kernel bug — an invariant it relies on does not hold". The
+  old wording, "inconsistent with the result body", was false for
+  `MissingUpstream` and `Duplicate`. The display test now checks that
+  each message starts with the framing, not merely that it contains it.
+- **The walk guard.** The first version read the source file. Review
+  probed it: it failed on 4 of 7 edits that kept behaviour and passed 1
+  of 4 edits that really merged two refusals. It also hand-rolled a
+  lexer next to `test_utils::source`. It is replaced by behavioural
+  rows. topo gains `Body::with_entity_removed_for_tests`, gated on
+  `sweep-testing`. The guard drives every hop's refusal of
+  `rim_between`, `face_half_edges`, `edge_ends` and `emit_topo`'s
+  `chord_faces` through a genuinely dangling body. Folding the rim
+  walk onto `face_of_half_edge` turns it red.

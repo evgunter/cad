@@ -3,11 +3,13 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
+use pncad::document::RecipeNodeId;
 
 use crate::app::{GLYPH_ROOT, ViewerBehavior, toned};
 use crate::frame;
 use crate::session::{Selection, SessionOp};
-use crate::tree::{RowStatus, TreeRow};
+use crate::theme::Theme;
+use crate::tree::{self, RowStatus, TreeRow};
 
 /// Points of indent per level of the feature tree.
 pub(crate) const INDENT_STEP: f32 = 12.0;
@@ -70,6 +72,60 @@ pub(crate) fn row_label(ui: &mut egui::Ui, row: &TreeRow, selected: bool) -> egu
     ui.selectable_label(selected, label)
 }
 
+/// **The lines under a row that a failure writes, drawn** — and the
+/// node a click on one of them selects, when one was clicked.
+///
+/// The payload's own words where the row failed, and where it did not,
+/// the pointer at the row that has them — which is a CLICK, so "that
+/// row" is one gesture away rather than an id to hunt for. A failed
+/// row whose words name ANOTHER node to repair
+/// ([`TreeRow::repair_at`]) keeps its words as they are and gets a
+/// second line that is that click.
+///
+/// A free function over the `Ui` for the reason [`row_label`] is one.
+pub(crate) fn failure_lines(
+    ui: &mut egui::Ui,
+    row: &TreeRow,
+    theme: &Theme,
+) -> Option<RecipeNodeId> {
+    let message = row.status.message()?;
+    // Where the WORDS go, and where a line under them goes. Exhaustive
+    // on purpose: which row a status links to is decided per state.
+    let (words_to, then_to) = match &row.status {
+        RowStatus::Poisoned { through, .. } => (Some(*through), None),
+        // The words are this row's own cause; the link, when the tree
+        // drew one, is to the node those words say to repair.
+        RowStatus::Failed { .. } => (None, row.repair_at),
+        // No line to link ([`RowStatus::message`]).
+        RowStatus::Ok | RowStatus::Unevaluated => (None, None),
+    };
+    let mut clicked = None;
+    ui.horizontal(|ui| {
+        ui.add_space(message_indent(ui, row.depth));
+        // A payload's own words are a sentence, so
+        // `widgets::message`, not `ui.link`/`ui.weak`.
+        match words_to {
+            Some(to) => {
+                if crate::widgets::message_link(ui, message).clicked() {
+                    clicked = Some(to);
+                }
+            }
+            None => {
+                crate::widgets::message_toned(ui, message, theme, frame::Tone::Advisory);
+            }
+        }
+    });
+    if let Some(to) = then_to {
+        ui.horizontal(|ui| {
+            ui.add_space(message_indent(ui, row.depth));
+            if crate::widgets::message_link(ui, tree::repair_wording(to)).clicked() {
+                clicked = Some(to);
+            }
+        });
+    }
+    clicked
+}
+
 impl ViewerBehavior<'_> {
     /// The feature tree: one row per recipe node, with its status
     /// badge from the evaluation's typed result.
@@ -128,39 +184,8 @@ impl ViewerBehavior<'_> {
                 }
             }
         });
-        // The line under the row: the payload's own words where the
-        // row failed, and where it did not, the pointer at the row
-        // that has them — which is a CLICK, so "that row" is one
-        // gesture away rather than an id to hunt for.
-        if let Some(message) = row.status.message() {
-            let through = match &row.status {
-                RowStatus::Poisoned { through, .. } => Some(*through),
-                // The words are this row's own cause; there is nowhere
-                // further to go.
-                RowStatus::Failed { .. } => None,
-                // No line to link ([`RowStatus::message`]).
-                RowStatus::Ok | RowStatus::Unevaluated => None,
-            };
-            ui.horizontal(|ui| {
-                ui.add_space(message_indent(ui, row.depth));
-                // A payload's own words are a sentence, so
-                // `widgets::message`, not `ui.link`/`ui.weak`.
-                match through {
-                    Some(through) => {
-                        if crate::widgets::message_link(ui, message).clicked() {
-                            self.ops.push(SessionOp::Select(Selection::Node(through)));
-                        }
-                    }
-                    None => {
-                        crate::widgets::message_toned(
-                            ui,
-                            message,
-                            &self.theme,
-                            frame::Tone::Advisory,
-                        );
-                    }
-                }
-            });
+        if let Some(to) = failure_lines(ui, row, &self.theme) {
+            self.ops.push(SessionOp::Select(Selection::Node(to)));
         }
         // The node's standing caveat (a mate class with no at-rest
         // record) — the admission verdict, outliving the commit.
@@ -190,9 +215,11 @@ mod tests {
 
     use eframe::egui;
 
-    use super::{INDENT_MAX_DEPTH, INDENT_STEP, indent, message_indent, row_label};
+    use super::{INDENT_MAX_DEPTH, INDENT_STEP, failure_lines, indent, message_indent, row_label};
     use crate::app::GLYPH_ROOT;
-    use crate::pane::headless::{landed, painted_text};
+    use crate::pane::headless::{landed, painted_after_clicking, painted_text};
+    use crate::theme::Theme;
+    use crate::tree;
     use crate::tree::{RowStatus, TreeRow};
     use crate::widgets::message_tests::SLACK;
     use crate::widgets::{message, message_floor};
@@ -281,6 +308,7 @@ mod tests {
             root: false,
             status: RowStatus::Ok,
             note: None,
+            repair_at: None,
         }
     }
 
@@ -327,6 +355,7 @@ mod tests {
             root: true,
             status: RowStatus::Ok,
             note: None,
+            repair_at: None,
         };
         let drawn = painted_text(|ui| {
             row_label(ui, &row, false);
@@ -355,5 +384,77 @@ mod tests {
             drawn.contains(&format!("Datum frame — yz at (0, 0, 0) m {GLYPH_ROOT}")),
             "{drawn}"
         );
+    }
+
+    /// A mate row refused because its placer (`feature 3`) did not
+    /// derive, as `tree::rows` builds one: `Failed`, with the link.
+    fn placer_refused_row(repair_at: Option<RecipeNodeId>) -> TreeRow {
+        TreeRow {
+            id: RecipeNodeId(7),
+            kind: "Mate",
+            pose: None,
+            depth: 0,
+            root: false,
+            status: RowStatus::Failed {
+                message: FAILURE.to_owned(),
+            },
+            note: None,
+            repair_at,
+        }
+    }
+
+    /// **What [`failure_lines`] answers when the text `target` is
+    /// clicked**, through `pane::headless`'s one click drive.
+    fn clicking(row: &TreeRow, target: &str) -> Option<RecipeNodeId> {
+        let clicked = core::cell::Cell::new(None);
+        painted_after_clicking(target, |ui| {
+            if let Some(to) = failure_lines(ui, row, &Theme::DEFAULT) {
+                clicked.set(Some(to));
+            }
+        });
+        clicked.get()
+    }
+
+    /// **A failed row whose words name another node to repair links to
+    /// it, and the click selects that node** — the words themselves
+    /// stay this row's own and go nowhere.
+    #[test]
+    fn a_failed_rows_link_to_the_node_to_repair_selects_it() {
+        let placer = RecipeNodeId(3);
+        let row = placer_refused_row(Some(placer));
+        let link = tree::repair_wording(placer);
+        assert_eq!(link, "see feature 3", "the chrome's one spelling of a node");
+        assert_eq!(clicking(&row, &link), Some(placer));
+        assert_eq!(
+            clicking(&row, FAILURE),
+            None,
+            "the words are the cause itself"
+        );
+    }
+
+    /// And a failed row with nothing to repair elsewhere draws its
+    /// words alone.
+    #[test]
+    fn a_failed_row_with_no_node_to_repair_draws_no_link() {
+        let drawn = painted_text(|ui| {
+            failure_lines(ui, &placer_refused_row(None), &Theme::DEFAULT);
+        });
+        assert!(drawn.contains(FAILURE), "{drawn}");
+        assert!(!drawn.contains("see "), "no link line: {drawn}");
+    }
+
+    /// A poisoned row's pointer is still the click to `through`.
+    #[test]
+    fn a_poisoned_rows_pointer_selects_the_row_it_names() {
+        let through = RecipeNodeId(7);
+        let pointer = tree::downstream_wording(through);
+        let row = TreeRow {
+            status: RowStatus::Poisoned {
+                through,
+                message: Some(pointer.clone()),
+            },
+            ..placer_refused_row(None)
+        };
+        assert_eq!(clicking(&row, &pointer), Some(through));
     }
 }

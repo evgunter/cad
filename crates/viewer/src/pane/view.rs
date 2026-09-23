@@ -21,7 +21,12 @@ impl ViewerBehavior<'_> {
         // nothing here is a prediction.
         self.delta_ui(ui);
         if self.budget_delta.is_some() {
-            ui.weak("chosen for the triangle budget; δ is yours from here");
+            crate::widgets::message_toned(
+                ui,
+                "chosen for the triangle budget; δ is yours from here",
+                &self.theme,
+                frame::Tone::Advisory,
+            );
         }
         ui.label(format!("faces: {}", stats.faces));
         ui.label(format!("triangles: {}", stats.triangles));
@@ -68,7 +73,8 @@ impl ViewerBehavior<'_> {
         ui.separator();
         ui.label(format!("history: {} states", self.session.history().len()));
         match self.session.path() {
-            Some(path) => ui.label(format!("file: {}", path.display())),
+            // A path, which nothing bounds, so `widgets::message`.
+            Some(path) => crate::widgets::message(ui, format!("file: {}", path.display())),
             None => ui.weak("unsaved document"),
         };
         if let Some(status) = self.status.as_ref() {
