@@ -8,6 +8,7 @@ priority: P0
 cost: H
 branch: emit/loft-correspondence
 refs: [loft-anchors-every-section-with-section-zeros-map, loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body, 3102]
+needs_ev: true
 ---
 
 

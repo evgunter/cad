@@ -202,3 +202,28 @@ redundant. The new unit is `loft-section-correspondence-is-authored`
 carry over. `loft-anchors-every-section-with-section-zeros-map` closes
 with the unit. Carve's first-strip row stays open on carve: authored
 correspondence does not remove its sensitivity.
+
+## 2026-09-23 — the loft unit stops on the opposite-sense section
+
+The lane measured both scopes before committing.
+
+- **The global canonical-start change.** It sets `start = 0` in
+  `profile::validate`. It moves no published name for any verb, and
+  body point sets are identical. It does move arena order in 4 corpus
+  documents and an extrude volume by 1 ulp, and about 30 goldens and
+  verdict counts. It would also retire the ratified V3 clause ("lex-min
+  start"). It is outside the agreement, so it was not taken.
+- **The loft-only change.** Inside the agreement, but it leaves one
+  point open. A section authored in the opposite sense to section 0
+  pairs program step n−1−k with section 0's step k. A loft publishes
+  one ref per wall, so the ordinary door, asked with that section's
+  own naming, would name the reflected wall. The door needs the
+  published sense.
+
+Options went to Ev on 3102:
+1. one derived orientation bit per section on the loft value;
+2. canonical numbering for every verb's refs, a migration for
+   clockwise-authored profiles;
+3. refuse opposite-sense sections.
+
+The orchestrator recommends option 1. The unit carries `needs_ev`.
