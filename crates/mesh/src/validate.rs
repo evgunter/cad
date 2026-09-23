@@ -44,17 +44,13 @@ pub enum MeshError {
     ///   second is open
     ///   (`work/tess/rim-free-loop-on-a-poleless-chart-meshes-as-a-hole.md`)
     ///   and today hands a two-face torus a mesh of two empty patches.
-    /// * **The planar lane's own shape of it**, unmeasured: `planar`'s
-    ///   `classify_faces` seeds the inside-walk across the convex hull,
-    ///   and a CDT whose every hull edge has the outer face on both
-    ///   sides marks nothing inside, so the lane emits nothing and
-    ///   answers `Ok`. Reaching it wants every inserted point collinear
-    ///   in the chart, and the chart frame is derived from that same
-    ///   loop's area vector — zero for a collinear loop, which makes
-    ///   the frame non-finite and refuses at `spade`'s insert
-    ///   (`Triangulation`). So the arm is believed unreachable rather
-    ///   than measured unreachable, and it is listed because it is the
-    ///   planar shape of a class whose curved shape is live.
+    /// * **The planar lane's own shape of it**, read and not executed:
+    ///   a loop whose Newell sum is NEAR zero rather than exactly zero
+    ///   gets a finite noise normal instead of the NaN that refuses at
+    ///   `spade`'s insert, and `classify_faces` may then mark nothing
+    ///   inside and emit nothing
+    ///   (`work/tess/trimmed-and-planar-lanes-answer-ok-on-an-empty-patch.md`,
+    ///   which owns that question and the trimmed lane's beside it).
     ///
     /// It is not row 4: a validator is handed meshes of unknown
     /// provenance by contract, so it answers typed rather than panics.
