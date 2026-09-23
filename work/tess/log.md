@@ -507,3 +507,19 @@ A/B row), on disjoint files, concurrently:
   its callers read it as (the mesh of a solid), decided from a survey
   of which producers can legitimately hand it an empty mesh.
 The three rows TESS-1 filed priced (P0/D, P1/D, P4/E).
+
+## TESS-4 green, in review (2026-09-22)
+
+PR 3094 at `e10e8e6b`, full matrix green. `check_mesh`'s contract is
+the mesh of a SOLID: `MeshError::NoTriangles` and `EmptyPatch { face }`,
+decided before the edge census, D2 row 1 — because `Body::new()` is
+tier-1/2 valid ("validates vacuously") and `tessellate` on it
+legitimately produces the empty mesh. `tessellate` stays count-blind
+(TESS-1's rule is about refusals; a validator re-deriving from the
+emitted mesh is the other thing). No caller wanted `Ok` on nothing;
+`MeshError` has no exhaustive consumer. Filed on EXCH: the STL writers
+turn a zero-triangle mesh into a valid `solid` file and no shipped
+caller validates first. One style reviewer with a correctness arm
+dispatched. Undecided and named in prose only: whether
+`tessellate(&Body::new())` should answer at all — the reviewer is
+asked whether that is a deviation owing a row.
