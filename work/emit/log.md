@@ -148,6 +148,20 @@ Filed:
   P0 on this slate.
 - `contact-partner-lookup-takes-the-first-of-several-vv-rows` (P3).
 
+## 2026-09-23 — the B-arena edge chase closes (PR 3114)
+
+`union(tip, bar)` refused `SharedRim` where `union(bar, tip)` named the
+edges. The cause, measured: in a B-clone result, `chase_b` stepped
+through an always-empty `fwd_edges`. Now the edge-root chase is chosen
+by where a side's keys live (`operand_key` returns the side with its
+key space): `Direct` chases in the arena for either side, and
+`Grafted` goes through `chase_b`. Whole-table diffs changed only the
+two cells that had refused.
+
+Review measured the filed seam-chain row and found it a live silent
+rename under `Node::Union`: member order rebinds `OrderAlong` edge
+names. It is re-banded P0 and dispatched to the same lane on
+`emit/seam-chain-ranks`.
 ## 2026-09-23 — seam-junction closes (PR 3112)
 
 `emit_union::collapse` now reads a seam junction's run of `Seam` lines
