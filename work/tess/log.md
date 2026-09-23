@@ -491,3 +491,19 @@ both arms; the sweep's own allowance is CHORD's row with the measured
 numbers. Slate next: `tessellate-refuses-approx-face-without-caches`,
 `lofted-circle-sections-…`, the two rows TESS-1 filed, and
 `check-mesh-passes-the-empty-mesh`.
+
+## TESS-3 and TESS-4 dispatched (2026-09-22)
+
+Two cheap rows, middle tier (style review with a correctness arm, no
+A/B row), on disjoint files, concurrently:
+- **TESS-3** — the exact-zero row. RING-2 made the ring's `add` the
+  backend's with exactness witnesses, so `0 + 0` may now be `[0, 0]`
+  and the row's mechanism closed by someone else's change; measure
+  first, then pin the exact zero (an `== 0.0` row, not `< 1e-100`) and
+  the `split_steps` degenerate arm it decides. `nurbs_cert.rs` is
+  shared with CHORD — announced in the PR.
+- **TESS-4** — `check_mesh` on zero triangles: what the validator
+  claims (closed 2-manifold, vacuously true of nothing) against what
+  its callers read it as (the mesh of a solid), decided from a survey
+  of which producers can legitimately hand it an empty mesh.
+The three rows TESS-1 filed priced (P0/D, P1/D, P4/E).
