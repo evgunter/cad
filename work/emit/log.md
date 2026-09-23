@@ -34,3 +34,26 @@ First wave, run in parallel on separate worktrees:
 
 The two vanish classes wait for the second wave, as the plan says, so
 they are specified together.
+
+## 2026-09-23 — loft anchors: the measurement, and the fix chosen
+
+The lane stopped before implementing, as briefed. What it measured
+(red rows on `emit/loft-anchors`, `tests/edit_step_segments.rs`):
+
+- the kernel lofts a section authored reversed or rotated relative to
+  section 0, and the solid is correct. The skin reads each section's
+  canonical form, so authoring order is gone before pairing.
+- the row's premise that "the refs are per-section already" is false.
+  `name_swept_topology` mints ONE `ProfileEdgeRef` per wall, shared by
+  every section, so one anchor can be right for one section only.
+
+Both of the row's options were rejected. A refusal would reject lofts
+whose solid is right, which changes what a loft admits. Per-section refs
+in a name change D5's vocabulary and the stored selection bits. Chosen:
+the table stays anchored on section 0, and the one door generalises to
+compose `published ∘ own⁻¹`, where the published anchor comes from the
+loft's own evaluation rather than from the caller. This is an additive
+answer with a dominant argument over the other two, so it did not go to
+Ev. The lane files the twisted-loft pairing question (canonical lex-min
+start versus the author's intended correspondence) on the sweep
+program's slate.
