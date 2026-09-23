@@ -2,8 +2,10 @@
 id: sentences-in-the-view-and-profile-panes-wrap-with-no-floor
 kind: issue
 title: viewer: four sentences in the View and Profile panes are drawn by the layout's wrap, which has no floor and breaks inside a word
-status: open
+status: closed
 opened: 2026-09-22
+closed: 2026-09-23
+pr: 3101
 priority: P2
 cost: E
 refs: [messages-in-the-creation-and-properties-panes-still-draw-past-their-row]
@@ -50,3 +52,14 @@ Route each through `crate::widgets::message` / `message_toned`, or say
 at the site why it is a name. The roster row
 (`widgets::roster_tests::the_message_roster_is_what_the_crate_actually_calls`)
 already lists both files, so it does not move.
+
+## Closed
+
+Closed by PR 3101 (`chrome/properties-messages`). All four sites are
+converted, and none is argued out as a name. `view_ui`'s file line goes
+through `crate::widgets::message`, and its triangle-budget note through
+`message_toned` (Advisory). `edit_profile_ui`'s refusal goes through
+`message_toned` (Actionable, the same unresolved colour it had).
+`SHAPE_LOCKED` goes through `message_toned` (Advisory): it is two
+clauses, wider than `crate::widgets::message_floor`, so it is not a
+name. The roster row already listed both files and did not move.

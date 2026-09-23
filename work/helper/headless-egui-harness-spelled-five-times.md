@@ -58,6 +58,12 @@ re-decided per fixture — which is what went wrong in the third one and
 was caught in review. A builder taking a status and defaulting the
 rest would have made that a decision at one site.
 
+**A fourth (2026-09-23, `chrome/placer-link`, PR 3100):**
+`pane/features.rs`'s `placer_refused_row`, a `Failed` mate row with a
+`repair_at`. The same PR added the `repair_at` field, which every one of
+the four fixtures (and `tree_badges.rs`'s `row` closure) had to learn
+separately, which is the cost this half names, paid once per site.
+
 ## A second READ, and the wrong home showing (2026-09-22)
 
 The layout half of `error-and-check-text-overflows-its-region` needed
