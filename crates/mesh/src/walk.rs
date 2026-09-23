@@ -741,11 +741,7 @@ fn require_a_meridian(
 /// opens twice. `loop_polygon` forces `starts[0]`, so its caller never
 /// asks that question.
 fn one_opening_key<K: PartialEq + Copy>(keys: &[K], starts: &[bool]) -> bool {
-    let mut opened = keys
-        .iter()
-        .zip(starts)
-        .filter(|&(_, &s)| s)
-        .map(|(k, _)| k);
+    let mut opened = keys.iter().zip(starts).filter(|&(_, &s)| s).map(|(k, _)| k);
     let Some(first) = opened.next() else {
         return true;
     };

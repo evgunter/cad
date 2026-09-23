@@ -96,3 +96,43 @@ carrying the face can pass `topo`'s validation as it stands" becomes
 false and is this unit's to correct, with the rows in
 `crates/mesh/tests/meridian_free_face.rs` that assert tier 3 `Ok` on
 the cap bodies.
+
+## A second consumer, and a second predicate (TESS-5, 2026-09-22)
+
+TESS-5 added the mirror premise on the other axis:
+`mesh::TessellateError::SingleColumnCurvedFace`, raised by
+`walk::require_two_columns` when a loop has no rim and every iso side it
+opens is carried by ONE edge — so every meridian of it stands on one
+chart column and it bounds no domain. Members closed: the torus face
+bounded by one meridian circle, the one-seam sphere, the one-generator
+cylinder and the one-generator cone
+(`crates/mesh/tests/loops_with_no_rim.rs`).
+
+**The same siting argument applies, and more sharply.** This predicate
+reads `topo::chart_iso::iso_side_starts`' own answer plus the EDGE each
+opening belongs to, so it is `iso_side_starts`' immediate consumer — the
+function both reviewers named as the neighbour the meridian predicate
+should live beside. If the kinds-only predicate moves to
+`topo::chart_iso`, this one belongs in the same move, and
+`walk::require_two_columns` should cite it. `topo::coherence` already
+walks the same kinds with the same rule, so it is a candidate consumer
+too.
+
+What the predicate's author should know, on top of the two notes above:
+
+3. This one is not an existence test but an INCIDENCE test, and the
+   quantity it reads is the openings' edge identity — available at tier
+   2/3 from the loop cycle without any geometry beyond the
+   classification. It refuses exactly the loops for which a zero extent
+   is FORCED; it does not certify that an admitted loop has width.
+4. Its ε is `iso_side_starts`' separation band and no other. A validity
+   rule asked at a different band will draw the line elsewhere on a
+   junction within ε of the chart axis — measured unreachable from
+   every minting door probed (`walk::iso_side_starts`' docs carry the
+   sweep), but a tier-2/3 spelling owes the same statement.
+
+`SingleColumnCurvedFace`'s doc says "bodies carrying such a face are
+refused by tier 3 today — for a reason of tier 3's own, never for this
+one". If this unit gives tier 3 the reason, that sentence is this unit's
+to correct, and `crates/mesh/tests/loops_with_no_rim.rs` carries the
+tier-3 assertions that would move.
