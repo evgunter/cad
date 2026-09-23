@@ -431,4 +431,3 @@ spec deleted (ledger); A/B row recorded, sample #236, no tally
 candidate. Lane clone and target reclaimed. What the unit leaves: a
 meridian-free curved face refuses typed in every profile; the rest of
 ruling (N) is EXCH's and ATREST's. Next TESS unit is TESS-2, in flight.
-PROBE: union-merge test line, removed before merge
