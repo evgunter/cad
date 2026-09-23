@@ -21,11 +21,12 @@ use geom_core::Tol;
 /// the diagnosis ACCEPTANCE artifacts (this corpus + the golden
 /// digest in `m4_pr4_ci`) pin what production users actually get.
 /// Scenario A's flip-vanish row therefore exercises the AMENDED N5
-/// semantics: the disjoint run's pair space is pruned, the flip
-/// evidence is never computed, and the row diagnoses to the
-/// documented evidence-free minting-node fallback (NAMING-DESIGN N5
-/// as amended). The shadow-execution rung leaves this row where it is
-/// — `resolve::shadow_exec_flip`'s docs say why. Engine-behavior tests
+/// semantics: the disjoint run's pair space is pruned and no flip
+/// evidence is computed. The vanished name is a ranked rim-edge
+/// fragment whose group went from two fragments to one, which no flip
+/// explains — an `OrderAlong` rank has no partner to re-probe — so
+/// the row diagnoses to `GroupResized`, read off the two name tables
+/// (`resolve::group_resized`'s docs). Engine-behavior tests
 /// that are genuinely about behavior-GIVEN-verdicts stay under the
 /// idealized sweep (`m4_pr4_diff`, `m4_pr4_resolve` — see their
 /// headers); `m4_pr4_banked` pins both strategies side by side.

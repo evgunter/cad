@@ -55,19 +55,24 @@
 //! it for a line of a log. The front door N5's amended text pointed
 //! at — the recovery rung that did not exist yet — is that rung.
 //!
-//! **After the flip and doc-diff lanes come up empty**, two honest
+//! **After the flip and doc-diff lanes come up empty**, three honest
 //! rungs remain, in order: `Cascade` when an embedded operand name
-//! itself fails to resolve, and the QUALIFIER-DELTA rung
+//! itself fails to resolve; the QUALIFIER-DELTA rung
 //! ([`qualifier_delta`]): the N2 discriminator verdicts recorded in
 //! the names themselves yield a `PredicateFlip` derived from recorded
 //! data when a same-shape sibling differs by exactly one pure-sign
-//! `SideOf` entry. If that too finds nothing, the total fallback is
-//! [`Diagnosis::cause_not_in_evidence`], which carries that reading at
-//! the value rather than in prose here.
+//! `SideOf` entry; and, with a prior run, the GROUP-SIZE rung
+//! ([`group_resized`]): a fragment name whose group changed size
+//! between the two name tables is [`Diagnosis::GroupResized`] — the
+//! vanish no flip explains, because a group that stops being divided
+//! (or is divided differently) re-mints its qualifiers with every
+//! discriminator verdict intact. If that too finds nothing, the total
+//! fallback is [`Diagnosis::cause_not_in_evidence`], which carries
+//! that reading at the value rather than in prose here.
 //!
-//! The shadow rung's limits — the cancelling exchange it does not
-//! address, the collapse half it cannot, the `OrderAlong` half it has
-//! no pair for — are stated once, at [`shadow_exec_flip`].
+//! The shadow rung's one limit that no rung answers — the cancelling
+//! exchange — is stated at [`shadow_exec_flip`] and in `vdiff`'s
+//! module docs.
 
 mod hit;
 mod pick;
@@ -263,8 +268,7 @@ impl ResolveError {
 /// N5's promise is a RECORDED flip, and for every flip the engine
 /// reads out of two verdict logs that is what this says. The second
 /// arm exists because one honest case has no record to read: the
-/// realized sweep prunes candidate pairs and a collapsed fragment
-/// group re-runs none of its own probes, so a pair's population can
+/// realized sweep prunes candidate pairs, so a pair's population can
 /// be EMPTY in a run whose geometry moved underneath the name. The
 /// recovery rung re-executes that pair at diagnosis time and reports
 /// the flip it finds — a true flip of a real predicate, and one no
@@ -354,12 +358,12 @@ pub const SHADOW_EXEC_MAX_PAIRS: usize = 32;
 
 /// Why a name vanished.
 ///
-/// N5's four arms verbatim, plus two additions and one field that are
-/// NOT N5's and are marked as such wherever they are read: the
-/// reserved `WitnessBifurcation` arm (SOLVER-DESIGN W3, constructed
-/// by the M6 solver), [`Self::ShadowExecDeclined`], and
-/// [`Self::PredicateFlip`]'s `source`, which says whether the flip was
-/// read out of a log or recomputed at diagnosis time. A consumer
+/// N5's arms, including [`Self::GroupResized`], plus two additions
+/// and one field that are NOT N5's and are marked as such wherever
+/// they are read: the reserved `WitnessBifurcation` arm (SOLVER-DESIGN
+/// W3, constructed by the M6 solver), [`Self::ShadowExecDeclined`],
+/// and [`Self::PredicateFlip`]'s `source`, which says whether the flip
+/// was read out of a log or recomputed at diagnosis time. A consumer
 /// matching this enum is matching more than N5 wrote, and the
 /// difference is where a flip's provenance lives.
 #[derive(Debug, Clone, PartialEq)]
@@ -388,6 +392,37 @@ pub enum Diagnosis {
         node: RecipeNodeId,
         /// Why the rung refused.
         reason: ShadowExecRefusal,
+    },
+    /// The vanished name's fragment GROUP changed size between the
+    /// last-good run and this one, and no rung above found a flip, a
+    /// structural parameter or a recipe edit to explain it.
+    ///
+    /// A fragment name is its group's base name plus a trailing
+    /// `Fragment` qualifier, and the qualifier is minted only for a
+    /// group of two or more — `OrderAlong` writes the group's size
+    /// into the name as `of`. So a group that grows, shrinks, or stops
+    /// being divided at all re-mints or drops every qualifier in it
+    /// while no discriminator verdict need change: the side verdicts
+    /// of a collapsing `SideOf` group stay what they were, and an
+    /// `OrderAlong` group of one ranks nothing. That is not a
+    /// predicate flip and is not reported as one.
+    ///
+    /// Both counts are read off RECORDED name tables — the minting
+    /// node's table in each run, counting entities (a tied row counts
+    /// each candidate) across the base row and every
+    /// `base + Fragment(_)` row — so the arm states what the tables
+    /// say and claims no cause beyond it. `now == 0` is a table fact
+    /// too: the parent no longer descends into the node's output at
+    /// all.
+    GroupResized {
+        /// The vanished name's minting node, whose two tables were
+        /// counted.
+        node: RecipeNodeId,
+        /// The group's size in the last-good run (at least two: that
+        /// run minted the qualifier).
+        was: u32,
+        /// The group's size now; never equal to `was`.
+        now: u32,
     },
     /// A structural parameter changed on the derivation path.
     StructuralParam {
@@ -426,9 +461,12 @@ impl Diagnosis {
     /// blind spot (`vdiff` module docs) or through SWEEP PRUNING (the
     /// realized sweep records no verdicts for pruned pairs, so an
     /// interaction-boundary vanish can land here — ratified
-    /// 2026-07-29, NAMING-DESIGN N5 as amended). [`shadow_exec_flip`]
-    /// answers part of that case before this one is reached; its docs
-    /// say which part.
+    /// 2026-07-29, NAMING-DESIGN N5 as amended). Two rungs answer the
+    /// fragment-name part of that case before this one is reached:
+    /// [`shadow_exec_flip`] when a side moved, [`group_resized`] when
+    /// the fragment group changed size. A pruned vanish of a name with
+    /// no fragment qualifier — an operand corner fused away — still
+    /// lands here.
     pub(crate) fn cause_not_in_evidence(node: RecipeNodeId) -> Self {
         Self::RecipeEdit {
             edit: RecipeEditRef::NodeChanged { node },
@@ -472,6 +510,26 @@ impl core::fmt::Display for Diagnosis {
                  re-running it was refused: {reason}",
                 node.0
             ),
+            Self::GroupResized { node, was, now } => {
+                write!(
+                    f,
+                    "its fragment group at node {} went from {was} fragments to {now}",
+                    node.0
+                )?;
+                match now {
+                    0 => write!(
+                        f,
+                        " — the parent no longer descends into that node's output"
+                    )?,
+                    1 => write!(f, " — the parent is no longer divided there")?,
+                    _ => {}
+                }
+                write!(
+                    f,
+                    ", so the qualifier that named this fragment is no longer minted, \
+                     and no recorded verdict flip explains it"
+                )
+            }
             Self::StructuralParam { node, param } => write!(
                 f,
                 "a structural parameter changed on the derivation path (node {}, slot \
@@ -816,6 +874,9 @@ trait PriorCtx {
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis>;
     fn tombstone<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone>;
+    /// The group-size rung ([`group_resized`]): with-prior only, since
+    /// a size CHANGE needs a size to change from.
+    fn group_resized<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Diagnosis>;
 }
 
 struct NoPrior;
@@ -852,6 +913,14 @@ impl PriorCtx for NoPrior {
     }
 
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, _name: &StableName) -> Option<Tombstone> {
+        None
+    }
+
+    fn group_resized<T: Decide>(
+        &self,
+        _new: RunCtx<'_, T>,
+        _name: &StableName,
+    ) -> Option<Diagnosis> {
         None
     }
 }
@@ -936,6 +1005,10 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
             .map(|edit| Diagnosis::RecipeEdit { edit })
     }
 
+    fn group_resized<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Diagnosis> {
+        group_resized(self.ctx.eval, new.eval, name)
+    }
+
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone> {
         let (node, entity) = lookup_unique(self.ctx.eval, name)?;
         let table = &self.ctx.eval.value(node)?.name_table;
@@ -1012,6 +1085,15 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             Some((_, Entry::Unique(_))) => offers.push(base),
             None => {}
         }
+    } else if let Some(base) = unqualified(name)
+        // The same collapse for a side-discriminated fragment: the
+        // undivided survivor is offered for an explicit `Rebind`,
+        // never bound. There is no over-tie to widen to here — a
+        // `SideOf` tie is a row of the QUALIFIED name, which step 2
+        // already answered.
+        && matches!(lookup(new.eval, &base), Some((_, Entry::Unique(_))))
+    {
+        offers.push(base);
     }
 
     // 4. The minting node's standing decides Vanished vs
@@ -1059,8 +1141,12 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             // single-run resolve — the N2 discriminator verdicts
             // recorded IN the names themselves are still evidence.
             .or_else(|| qualifier_delta(new.eval, name))
+            // The group-size rung: the name's fragment group changed
+            // size between the two tables, which re-mints or drops
+            // every qualifier in it without any flip.
+            .or_else(|| prior.group_resized(new, name))
             // Every rung above came up empty: no verdict flip, no doc
-            // delta, no recorded qualifier delta.
+            // delta, no recorded qualifier delta, no group-size change.
             .unwrap_or_else(|| Diagnosis::cause_not_in_evidence(name.node))
     };
     let last_good = prior.tombstone(new, name);
@@ -1147,30 +1233,26 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
 /// calibrate against the record; and **no partner's verdict
 /// changed**.
 ///
-/// # The two halves of the SideOf vanish, and only one is recovered
+/// # What it answers, and what it leaves to the group-size rung
 ///
-/// The last two cases are the COLLAPSE half, and it is a limit, not a
-/// gap. A fragment group stops being multi-fragment whenever the
-/// partner walls stop CUTTING the face — the bar lands short of the
-/// far edge, or withdraws on the side it was already on — and the
-/// walls have not crossed the fragment, so every side verdict is what
-/// it was and the survivor still satisfies the vanished name's own
-/// vector. There is no flip; the rung finds none and the vanish rests
-/// on the later rungs. What this rung recovers is the half where a
-/// side MOVED: the partner crossed, the sweep pruned the pair, and
-/// the verdict that re-qualified the name was never written down.
-/// Pruning the pair and re-qualifying the name are different events,
-/// and only the second is a flip.
+/// The last two cases are a COLLAPSE: a fragment group stops being
+/// multi-fragment whenever the partner walls stop CUTTING the face —
+/// the bar lands short of the far edge, or withdraws on the side it
+/// was already on — and the walls have not crossed the fragment, so
+/// every side verdict is what it was and the survivor still satisfies
+/// the vanished name's own vector. There is no flip, and this rung
+/// finds none. What it answers is the case where a side MOVED: the
+/// partner crossed, the sweep pruned the pair, and the verdict that
+/// re-qualified the name was never written down. Pruning the pair and
+/// re-qualifying the name are different events, and only the second
+/// is a flip. The collapse is answered further down the ladder, by
+/// [`group_resized`], as the group-size change it is.
 ///
-/// The `OrderAlong` half of the same issue is not recovered either,
-/// for a different reason: `Qualifier::OrderAlong { rank, of }`
-/// records an ordinal and a group size and NO partner, so the pair it
-/// was ranked against cannot be read back out of the name — and the
-/// pruned run has no sibling left to rank against, a single-member
-/// group running zero `name_frag_order_along` pairs. Recovering it
-/// needs the naming vocabulary to carry the partner, which is the
-/// names lane's design surface. This is the one statement of that
-/// limit; the sites that need it point here.
+/// An `OrderAlong` fragment never reaches this rung's probes: its
+/// qualifier ranks the group's members against EACH OTHER, so there
+/// is no partner to re-probe, and a group of one runs no pair at all.
+/// Its vanish is a group-size change too, and [`group_resized`]
+/// answers it.
 ///
 /// # The trigger is node-granular, which is a narrowing
 ///
@@ -1246,8 +1328,8 @@ fn shadow_exec_flip<T: Decide, U: Decide>(
             verdict_sign(recorded),
         ) else {
             // `Mixed` on a side: definite probes both ways is not one
-            // sign, and this is where the COLLAPSE half lands — the
-            // survivor is still cut by the wall, so it has no side.
+            // sign, and this is where a collapse lands — the survivor
+            // is still cut by the wall, so it has no side.
             continue;
         };
         // THE CALIBRATION, and the D9 replay statement at the pair.
@@ -1421,6 +1503,97 @@ fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option
         }
     }
     None
+}
+
+/// The GROUP-SIZE rung ([`Diagnosis::GroupResized`]): the vanished
+/// name's fragment group, counted in the minting node's table in the
+/// last-good run and in this one, changed size.
+///
+/// # Why it is a rung and not a flip
+///
+/// A fragment qualifier exists only while its group has two or more
+/// members, and `OrderAlong` spells the group's size into the name.
+/// So a fragment name vanishes whenever its group changes size, and
+/// that event need not flip any discriminator: a `SideOf` group that
+/// stops being divided keeps every side verdict it had (the walls
+/// still stand where they stood relative to the survivor), and an
+/// `OrderAlong` group ranks its members against EACH OTHER, so a group
+/// of one runs no pair at all and there is nothing to re-execute. The
+/// shadow-exec rung therefore correctly finds nothing on these
+/// vanishes, and this rung states the fact that remains: the size
+/// moved, `was` to `now`.
+///
+/// # What is counted
+///
+/// The group is the name without its trailing `Fragment` segment (the
+/// BASE), and its members are the entities of the base row and of
+/// every `base + Fragment(_)` row of the same kind at the same node —
+/// a tied row counting each of its candidates, since a tie is several
+/// members sharing one name. Both tables are the MINTING node's own
+/// (`name.node`), not the first carrying node, because the group is
+/// what that node's emission divided.
+///
+/// # When it answers, and when it declines
+///
+/// It answers only when the last-good minting table CARRIED the name —
+/// a name the prior run never minted did not vanish by its group
+/// changing — and that group had two or more members, and the current
+/// count differs. `now == 0` is answered: the parent no longer
+/// descends into the node's output, which is a table fact like any
+/// other count. It declines, to the evidence-free fallback, when the
+/// name has no trailing `Fragment` segment, when either run has no
+/// value at the minting node, and when the size did NOT change — a
+/// group that re-qualified at the same size (a `SideOf` partner set
+/// that changed, a multi-entry verdict delta) is a different event,
+/// and this rung has nothing to say about it.
+///
+/// It sits LAST, after the recorded flips, the shadow-exec rung, the
+/// doc-diff lanes and the qualifier delta, because every one of those
+/// names a finer thing — a predicate or an edit — and this one names
+/// only the effect at the name layer. It converts would-be fallbacks
+/// and nothing else. Diagnosis-time only; two table scans; nothing
+/// reaches any log.
+fn group_resized<U: Decide, T: Decide>(
+    prior: &Evaluation<U>,
+    new: &Evaluation<T>,
+    name: &StableName,
+) -> Option<Diagnosis> {
+    if !matches!(name.path.last(), Some(RoleSeg::Fragment(_))) {
+        return None;
+    }
+    let mut base = name.clone();
+    base.path.pop();
+    let prior_table = &prior.value(name.node)?.name_table;
+    prior_table.lookup(name)?;
+    let was = group_size(prior_table, &base);
+    let now = group_size(&new.value(name.node)?.name_table, &base);
+    (was >= 2 && was != now).then_some(Diagnosis::GroupResized {
+        node: name.node,
+        was,
+        now,
+    })
+}
+
+/// How many entities one table names by `base` or by `base` plus one
+/// trailing `Fragment` qualifier ([`group_resized`]'s count).
+fn group_size(table: &crate::names::NameTable, base: &StableName) -> u32 {
+    let members: usize = table
+        .iter()
+        .filter(|(row, _)| {
+            row.kind == base.kind
+                && row.node == base.node
+                && (row.path == base.path
+                    || matches!(
+                        row.path.split_last(),
+                        Some((RoleSeg::Fragment(_), head)) if head == base.path.as_slice()
+                    ))
+        })
+        .map(|(_, entry)| match entry {
+            Entry::Unique(_) => 1,
+            Entry::Tied(candidates) => candidates.len(),
+        })
+        .sum();
+    u32::try_from(members).unwrap_or(u32::MAX)
 }
 
 /// The (from, to) sign pair iff `new` differs from `old` by exactly

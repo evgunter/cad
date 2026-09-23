@@ -1258,6 +1258,45 @@ fn the_shadow_exec_refusal_states_which_wall_it_hit() {
     );
 }
 
+/// The group-size diagnosis states both counts and what they mean at
+/// each end — a group that stopped being divided and a parent that no
+/// longer descends read differently — and never names itself.
+#[test]
+fn a_resized_group_states_both_counts_and_claims_no_flip() {
+    assert_f6(
+        &Diagnosis::GroupResized {
+            node: RecipeNodeId(8),
+            was: 2,
+            now: 1,
+        },
+        &[
+            "fragment group at node 8",
+            "from 2 fragments to 1",
+            "no longer divided",
+            "no recorded verdict flip explains it",
+        ],
+        &["GroupResized"],
+    );
+    assert_f6(
+        &Diagnosis::GroupResized {
+            node: RecipeNodeId(8),
+            was: 3,
+            now: 0,
+        },
+        &["from 3 fragments to 0", "no longer descends"],
+        &["GroupResized", "no longer divided"],
+    );
+    assert_f6(
+        &Diagnosis::GroupResized {
+            node: RecipeNodeId(8),
+            was: 2,
+            now: 3,
+        },
+        &["from 2 fragments to 3", "no longer minted"],
+        &["GroupResized", "no longer divided", "no longer descends"],
+    );
+}
+
 /// Refusals that name a stable name FORWARD its `Display` rather than
 /// re-spelling the kind-plus-minting-node phrase. The expectation is
 /// built from the impl, so a copy that stops tracking it fails here —
