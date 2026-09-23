@@ -4,7 +4,7 @@ kind: issue
 title: SharedRim(Several) — a chord over a fragmented merged face — is the commonest naming refusal a legal declared union reaches
 status: open
 opened: 2026-09-23
-priority: P1
+priority: P0
 cost: H
 ---
 
@@ -52,7 +52,9 @@ edge.
 
 A declared union of ordinary blocks is refused in about one order in
 five of the probe's cells, with a typed refusal that says the rule is
-missing. The refusal is honest, but the verb does not work. A rule
+missing. The refusal is honest, but the verb does not work, and a
+normal verb broken on normal geometry is P0 whatever the refusal says
+(the precedent is `b-arena-edges-skip-the-split-lineage-chase`). A rule
 probably exists: the chord's own endpoints lie on exactly one of the
 shared edges. Choosing by position is geometry, though, not
 combinatorics, so the rule is a design question rather than a patch.

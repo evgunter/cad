@@ -1876,6 +1876,7 @@ test_utils::f6_variants! {
         FragmentLineage,
         SeamVertexParentage,
         SharedRim,
+        MergedChord,
         Band,
         Escalated,
     ];
@@ -1965,6 +1966,13 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 found: RimShare::Several,
             },
             vec!["operand node 23", "more than one edge"],
+        ),
+        (
+            NamingError::MergedChord {
+                edge,
+                rim: Some((RecipeNodeId(29), edge)),
+            },
+            vec!["merged faces", "operand node 29", "does not lie within"],
         ),
         (
             NamingError::Band(BandError::Empty {

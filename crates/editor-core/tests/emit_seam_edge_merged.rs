@@ -64,20 +64,36 @@ fn document(rest: &[Bx]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     (doc, ids)
 }
 
-/// **`[b, c, a]` fuses, and the chord is `a`'s top/far-wall rim edge,
-/// ranked along it.** On main it refused `Emission("seam edge between
-/// two merged faces (unsupported)")`.
+/// **The chord is `a`'s top/far-wall rim edge, ranked along it**, in
+/// `[b, c, a]` and `[c, b, a]` — each order pinned by name and by the
+/// span the name answers to, so two orders wrong the same way cannot
+/// agree their way past it. On main both refused `Emission("seam edge
+/// between two merged faces (unsupported)")`.
 #[test]
 fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
     let (doc, ids) = document(&[CORNER]);
     let (a, b, c) = (ids[0], ids[1], ids[2]);
-    let (docx, union, _) = declared_union(doc, &[b, c, a], flush_pairs((a, a), (b, b)));
-    let ev = run(&docx);
-    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    for order in [[b, c, a], [c, b, a]] {
+        let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs((a, a), (b, b)));
+        let ev = run(&docx);
+        assert!(
+            failure(&ev, union).is_none(),
+            "{order:?}: {:?}",
+            failure(&ev, union)
+        );
+        assert_rim_pieces(&ev, union, a, &order);
+    }
+}
 
-    // `a`'s rim between its top cap and its y = 1 wall, in two pieces:
-    // x = 0.0..0.3 and x = 0.4..0.5 (the rest of it is inside `b`'s
-    // merged faces or `c`).
+/// `a`'s rim between its top cap and its y = 1 wall publishes as two
+/// `OrderAlong` pieces, x = 0.0..0.3 and x = 0.4..0.5 at y = z = 1 (the
+/// rest of it is inside `b`'s merged faces or `c`).
+fn assert_rim_pieces(
+    ev: &editor_core::Evaluation<f64>,
+    union: RecipeNodeId,
+    a: RecipeNodeId,
+    order: &[RecipeNodeId],
+) {
     let rim = StableName {
         kind: EntityKind::Edge,
         node: a,
@@ -95,8 +111,8 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
             .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }));
         n
     };
-    let t = table(&ev, union);
-    let body = body_of(&ev, union);
+    let t = table(ev, union);
+    let body = body_of(ev, union);
     let span = |n: &StableName| {
         let e = edge_of(t, "the rim piece", n);
         let edge = body.get_edge(e).unwrap();
@@ -105,7 +121,7 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
             let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
             assert!(
                 (p.y - 1.0).abs() < 1e-12 && (p.z - 1.0).abs() < 1e-12,
-                "{p:?}"
+                "{order:?}: {p:?}"
             );
             p.x
         };
@@ -118,19 +134,19 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
         |(p, q): (f64, f64), (r, s): (f64, f64)| (p - r).abs() < 1e-12 && (q - s).abs() < 1e-12;
     assert!(
         near(spans[0], (0.0, 0.3)) && near(spans[1], (0.4, 0.5)),
-        "the two pieces of a's rim, got {spans:?}"
+        "{order:?}: the two pieces of a's rim, got {spans:?}"
     );
 }
 
-/// **No order of the row's documents refuses the merged-chord
-/// `Emission`.** Orders that refuse for reasons of their own —
-/// `SharedRim` (a fragmented merged face,
+/// **No order of the row's documents refuses with an `Emission`.**
+/// Orders that refuse for reasons of their own — `SharedRim` (a
+/// fragmented merged face,
 /// `work/emit/shared-rim-several-is-a-missing-rule-legal-declared-unions-reach.md`),
-/// a declaration that no longer resolves — are other rows' subjects;
-/// none of them is an `Emission` of any kind. The two orders of the
-/// corner document that fused only now name every entity identically.
+/// a declaration that no longer resolves — are other rows' subjects,
+/// and what is asserted of them is that none of them reads as a kernel
+/// bug.
 #[test]
-fn no_order_of_the_rows_documents_refuses_the_merged_chord() {
+fn no_order_of_the_rows_documents_refuses_with_an_emission() {
     for (label, rest) in [
         ("corner", vec![CORNER]),
         ("two slabs", vec![slab(0.3, 0.4), slab(1.2, 1.3)]),
@@ -152,21 +168,4 @@ fn no_order_of_the_rows_documents_refuses_the_merged_chord() {
             }
         }
     }
-
-    let (doc, ids) = document(&[CORNER]);
-    let (a, b, c) = (ids[0], ids[1], ids[2]);
-    let names = |order: &[RecipeNodeId]| {
-        let (docx, union, _) = declared_union(doc.clone(), order, flush_pairs((a, a), (b, b)));
-        let ev = run(&docx);
-        assert!(
-            failure(&ev, union).is_none(),
-            "{order:?}: {:?}",
-            failure(&ev, union)
-        );
-        table(&ev, union)
-            .iter()
-            .map(|(n, _)| n.clone())
-            .collect::<std::collections::BTreeSet<_>>()
-    };
-    assert_eq!(names(&[b, c, a]), names(&[c, b, a]));
 }

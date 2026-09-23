@@ -34,8 +34,8 @@ use crate::node::RecipeNodeId;
 /// 3. An ambient tolerance no discriminator can be built from:
 ///    [`Self::Band`], whose own doc draws the line the two below
 ///    stand on — *nothing about the result body is wrong here*.
-/// 4. A MISSING RULE: [`Self::SeamVertexParentage`] and
-///    [`Self::SharedRim`], reached from recipes nothing is wrong with,
+/// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
+///    [`Self::SharedRim`] and [`Self::MergedChord`], reached from recipes nothing is wrong with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
 ///    because telling an author to file a kernel bug over their own
@@ -215,6 +215,26 @@ pub enum NamingError {
         /// What the walk found instead of one edge.
         found: RimShare,
     },
+    /// A boolean's chord between two MERGED faces that no rule names.
+    ///
+    /// Each merged face has a constituent on both sides, so the faces
+    /// do not say which side the chord belongs to. The rule that exists
+    /// reads the chord through to the side its own key descends to and
+    /// names it as the rim that side's two constituents share — when
+    /// the chord lies within that rim, which is checked geometrically
+    /// (`emit_topo`'s `chord_on_rim`). This is the refusal for the two
+    /// cases outside it: a chord with no key side (a zip-listed edge,
+    /// which the join minted), and a chord that does not lie within the
+    /// rim it was read through to. Neither says the body is wrong; what
+    /// is missing is a rule for the chord.
+    MergedChord {
+        /// The result-body edge.
+        edge: EdgeKey,
+        /// The rim the read-through offered, as the operand node and
+        /// the edge in that operand's body — `None` when there was no
+        /// side to read through to.
+        rim: Option<(RecipeNodeId, EdgeKey)>,
+    },
     /// The N2 classification band could not be built from the ambient
     /// tolerance, so no discriminator below it can be decided.
     ///
@@ -354,6 +374,21 @@ impl core::fmt::Display for NamingError {
                 "{UNRULED_FRAMING}: faces {face:?} and {other:?} of operand node {}'s body \
                  share {found} where a seam chord's rim, derived from adjacency alone, needs \
                  exactly one",
+                node.0
+            ),
+            Self::MergedChord { edge, rim: None } => write!(
+                f,
+                "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces and is \
+                 the join's own edge, so neither face nor key says which operand's rim it is"
+            ),
+            Self::MergedChord {
+                edge,
+                rim: Some((node, rim)),
+            } => write!(
+                f,
+                "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces, and \
+                 does not lie within the rim {rim:?} of operand node {}'s body its key reads \
+                 through to",
                 node.0
             ),
             Self::Band(error) => write!(
@@ -1444,6 +1479,13 @@ mod display_tests {
                 vec![face0.as_str(), face1.as_str(), "23", "more than one edge"],
             ),
             (
+                NamingError::MergedChord {
+                    edge: two_edges().0,
+                    rim: Some((RecipeNodeId(29), two_edges().1)),
+                },
+                vec!["merged faces", "29", "does not lie within"],
+            ),
+            (
                 // The band's subject is the pair of thresholds that
                 // could not separate: which end of the axis the ambient
                 // tolerance landed on is what tells the reader whether
@@ -1476,9 +1518,9 @@ mod display_tests {
                 | NamingError::Emission { .. }
                 | NamingError::SplitLineage(_)
                 | NamingError::FragmentLineage { .. } => Some(EMISSION_FRAMING),
-                NamingError::SeamVertexParentage { .. } | NamingError::SharedRim { .. } => {
-                    Some(UNRULED_FRAMING)
-                }
+                NamingError::SeamVertexParentage { .. }
+                | NamingError::SharedRim { .. }
+                | NamingError::MergedChord { .. } => Some(UNRULED_FRAMING),
                 NamingError::Band(_) | NamingError::Escalated { .. } => None,
             }
         };
@@ -1493,7 +1535,8 @@ mod display_tests {
                 NamingError::FragmentLineage { .. } => 6,
                 NamingError::SeamVertexParentage { .. } => 7,
                 NamingError::SharedRim { .. } => 8,
-                NamingError::Band(_) => 9,
+                NamingError::MergedChord { .. } => 9,
+                NamingError::Band(_) => 10,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
