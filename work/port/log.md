@@ -757,12 +757,27 @@ always present, and the migration doors that existed only to read
 pre-rows logs — `persist::load_with`, `Doc::replay_with`, and
 `replay_entry`'s `migrate` argument — are removed, with their re-exports.
 A bare-shaped file now refuses `Unreadable` with the regenerate recourse.
-`MaintenanceUnrecorded` stays: it is still the honest refusal for an
-entry that claims no rows its edit needed, and its recourse no longer
-points at a door that is gone. `load` returns the log as saved rather
-than as re-derived.
+`load` returns the log as saved rather than as re-derived.
 
 Two fixtures regenerated (`tests/golden/golden.cad` by its bless path,
 `tests/corpus/tour/die_composed_tour.pncad` by `demo-tour die-corpus`),
-both verified to change only the entry wrapping. The four `bool13` goldens
-are frozen older-build bytes asserted to refuse, and are untouched.
+both verified to change only the entry wrapping. The nineteen `bool13`
+goldens are frozen older-build bytes asserted to refuse (v1–v4 at the
+header, the rest inside the snapshot before the log is reached), and are
+untouched.
+
+The full review (triggers 1 and 2) falsified two claims, both minor, and
+both closed here rather than filed. An empty entry did not mean "no
+maintenance": `Maintain::Never` still derived `Join` and `Drop` rows from
+the documents alone, `save` never compared an entry's rows with its
+replay's, and so once `load` stopped re-deriving, `Loaded::edits` and the
+viewer's `History::replayed` gave two answers for a mate insert logged
+bare. Now replay performs exactly an entry's rows — a non-empty list
+verbatim, an empty one refused `MaintenanceUnrecorded` if its edit
+performs any — so the log has one answer and the viewer commits the entry
+itself. That also made the refusal's stated reason true; it had said
+"the save door always writes the rows", which `save` never enforced. One
+hand-edited corpus row (`msolve10`, a contradictory rider logged bare)
+now records its join. The review's S8, MSOLVE-9's spec prescribing an
+untagged `MateFrame` on this retired precedent, is filed on MSOLVE's
+slate (`msolve-9-spec-prescribes-an-untagged-wire`).

@@ -1139,14 +1139,16 @@ fn a6_a_recorded_row_whose_frame_is_a_mirror_refuses_at_load() {
 /// **A log entry that claims no maintenance its edit performed refuses
 /// typed at load, and the bare pre-rows shape is not a format.**
 ///
-/// Replay never solves, and the save door writes every row `apply`
-/// returned, so an entry whose `maintenance` is empty while its edit
-/// moved a gauge was not written by the save door. It refuses
-/// `MaintenanceUnrecorded` rather than being solved around. A log in the
-/// bare shape — each entry the edit itself, as files from before the
-/// rows existed carried — is not read at all: it refuses `Unreadable`,
-/// with the regenerate recourse, instead of loading as a log of entries
-/// that performed nothing.
+/// Replay performs exactly an entry's rows, so an entry whose
+/// `maintenance` is empty while its edit performs any refuses
+/// `MaintenanceUnrecorded` — both kinds: a row that needs a solved
+/// frame (the delete's, which moves a gauge), because replay never
+/// solves; and a row replay could derive from the documents alone (the
+/// mate insert's `Join`), because re-deriving it would give the log two
+/// answers to what the edit did. A log in the bare shape — each entry
+/// the edit itself, as files from before the rows existed carried — is
+/// not read at all: it refuses `Unreadable` at the entry's first key,
+/// instead of loading as a log of entries that performed nothing.
 #[test]
 fn a6_a_log_entry_that_drops_its_rows_refuses_at_load_and_the_bare_shape_is_not_a_format() {
     let (doc, [_a, b], mate, opts, mut log) = seated("msolve6-a6-dropped-rows");
@@ -1173,6 +1175,31 @@ fn a6_a_log_entry_that_drops_its_rows_refuses_at_load_and_the_bare_shape_is_not_
         )
     };
 
+    // The mate insert's join emptied: a row the documents alone would
+    // derive, and still refused rather than re-derived.
+    let join = 2;
+    assert!(
+        matches!(
+            log[join].maintenance.as_slice(),
+            [ClusterMaintenance::Join { absorbed, .. }] if *absorbed == b
+        ),
+        "the mate insert joined b's cluster: {:?}",
+        log[join].maintenance
+    );
+    let mut joined = value.clone();
+    joined["edits"][join]["maintenance"] = serde_json::json!([]);
+    let err = editor_core::load(&reemit(&joined), Tol::witness()).expect_err("a join with no rows");
+    assert!(
+        matches!(
+            &err,
+            editor_core::PersistError::EditReplay {
+                index: i,
+                error: editor_core::EditError::MaintenanceUnrecorded { gauge }
+            } if *i == join && *gauge == b
+        ),
+        "{err:?}"
+    );
+
     // The delete's rows emptied, shape intact.
     let mut dropped = value.clone();
     dropped["edits"][index]["maintenance"] = serde_json::json!([]);
@@ -1190,22 +1217,29 @@ fn a6_a_log_entry_that_drops_its_rows_refuses_at_load_and_the_bare_shape_is_not_
     );
 
     // Every entry replaced by its bare edit: the shape files from before
-    // the rows carried. Not a format this build reads.
+    // the rows carried. Not a format this build reads — refused at the
+    // first entry's edit tag, read as a field `LoggedEdit` does not have.
     let mut bare = value.clone();
     for entry in bare["edits"].as_array_mut().expect("an edit log") {
-        *entry = entry["edit"].clone();
+        let edit = entry
+            .get("edit")
+            .cloned()
+            .expect("every saved entry carries its edit");
+        *entry = edit;
     }
     let bare = reemit(&bare);
     assert!(
         !bare.contains("\"maintenance\""),
         "the tamper removed every row list"
     );
+    let err = editor_core::load(&bare, Tol::witness()).expect_err("a bare entry");
     assert!(
         matches!(
-            editor_core::load(&bare, Tol::witness()),
-            Err(editor_core::PersistError::Unreadable { .. })
+            &err,
+            editor_core::PersistError::Unreadable { detail, .. }
+                if detail.contains("unknown field `InsertNode`")
         ),
-        "a bare entry is not a log entry"
+        "a bare entry is not a log entry: {err:?}"
     );
 
     // And the file as written loads with no store in hand.
@@ -1218,7 +1252,11 @@ fn a6_a_log_entry_that_drops_its_rows_refuses_at_load_and_the_bare_shape_is_not_
 /// list — the viewer's suite reaches the editor-core corpus through a
 /// symlink, which is not a second corpus) — the four the row names,
 /// and it asserts that is what it walked — loads with no store in
-/// hand and re-saves byte for byte.
+/// hand and re-saves byte for byte. The re-save is structural rather
+/// than lucky: `load` returns each entry as parsed, and replay performs
+/// exactly an entry's rows — a non-empty list re-applied verbatim, an
+/// empty one refused if its edit performs any — so the log that comes
+/// back is both the one the file holds and the one its replay did.
 #[test]
 fn c5_every_checked_in_document_loads_with_no_store_and_re_saves_identically() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

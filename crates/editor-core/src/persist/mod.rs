@@ -131,7 +131,7 @@ pub(crate) mod wire;
 
 use geom_core::tolerance::{Tolerance, ToleranceError};
 
-use crate::edit::{Applied, EditError, EditRecord, LoggedEdit, apply_logged};
+use crate::edit::{EditError, EditRecord, LoggedEdit, apply_logged};
 use crate::ident::DocumentId;
 use crate::program::{ProfileDoc, ProfileProgram};
 use geom_core::Tol;
@@ -518,11 +518,8 @@ pub fn load(text: &str, tol: Tol) -> Result<Loaded, PersistError> {
     for (index, entry) in body.edits.iter().enumerate() {
         let applied = apply_logged(&doc, entry, tol)
             .map_err(|error| PersistError::EditReplay { index, error })?;
-        let Applied {
-            doc: next, record, ..
-        } = applied;
-        doc = next;
-        records.push(record);
+        doc = applied.doc;
+        records.push(applied.record);
     }
     reconcile_epsilon(doc.epsilon())?;
     Ok(Loaded {

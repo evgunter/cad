@@ -747,12 +747,17 @@ pub enum EditError {
         fault: Option<Box<crate::mate::MateFault>>,
     },
     /// Replay of a logged edit that recorded no maintenance rows,
-    /// where the maintenance needed a solved frame (a gauge that moved
-    /// on a mated document). Replay never solves, and every save writes
-    /// the rows `apply` returned, so a log in this state was not written
-    /// by the save door: it is refused rather than solved around.
+    /// where the edit performs cluster maintenance. Replay performs
+    /// exactly an entry's rows ([`LoggedEdit`]) and never solves: a row
+    /// that needs a frame has nothing to mint it from, and a row it
+    /// could derive from the documents alone (a `Join`, a `Drop`) is
+    /// refused rather than re-derived, so the entry and its replay
+    /// never disagree. `persist::save` verifies its log
+    /// through this same replay, so no file it wrote refuses here.
     MaintenanceUnrecorded {
-        /// The gauge whose frame the log does not carry.
+        /// The gauge the unrecorded act moves: the absorbed cluster's
+        /// for a join, the new gauge for a split or rewrite, the dropped
+        /// one for a drop.
         gauge: RecipeNodeId,
     },
     /// `SetParam` aimed at a STRUCTURAL slot — structural edits go
@@ -1718,9 +1723,9 @@ impl core::fmt::Display for EditError {
             }
             Self::MaintenanceUnrecorded { gauge } => write!(
                 f,
-                "the logged edit moves gauge {} and carries no maintenance rows; replay never \
-                 solves and the save door always writes them, so this log was not written by \
-                 it — regenerate the file from its source recipe",
+                "the logged edit carries no maintenance rows but moves gauge {}; a log entry \
+                 records every cluster row `apply` returned for its edit, and replay neither \
+                 solves nor re-derives them",
                 gauge.0
             ),
         }
@@ -2505,19 +2510,26 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
 /// **A logged edit and the maintenance it performed** — one entry of
 /// a document's edit log, on the wire and in a history.
 ///
-/// `maintenance` is what [`apply`] returned for the edit
-/// ([`Applied::maintenance`]): the A11 cluster-record rows the mate
-/// graph's motion forced on the placement registry, frames included.
-/// Replay ([`apply_logged`], [`Doc::replay`], `persist::load`)
-/// re-applies these rows and never solves, so the log carries what
-/// was decided (D9) and replay stays a function of the log alone.
+/// `maintenance` is the cluster half of what [`apply`] returned for
+/// the edit ([`Applied::cluster_rows`]): the A11 cluster-record rows
+/// the mate graph's motion forced on the placement registry, frames
+/// included. Replay ([`apply_logged`], [`Doc::replay`],
+/// `persist::load`) re-applies these rows and never solves, so the log
+/// carries what was decided (D9) and replay stays a function of the log
+/// alone. Replay performs EXACTLY an entry's rows: a non-empty list is
+/// re-applied verbatim, and an empty one whose edit would perform any
+/// refuses ([`EditError::MaintenanceUnrecorded`]) rather than having
+/// them re-derived — so the log has one answer to "what did this edit
+/// do", and the entry is it.
 ///
-/// On the wire an entry is always `{ "edit": …, "maintenance": […] }`,
-/// both fields present, `maintenance` empty for an edit that performed
-/// none. One shape, so reading an entry never tries one layout and
-/// falls back to another — the property `persist::refusal`'s
-/// first-refusal-wins premise rests on — and an empty list and an
-/// absent field are not two spellings of one fact.
+/// On the wire an entry is `{ "edit": …, "maintenance": […] }`, both
+/// fields present, `maintenance` empty for an edit that performed
+/// none, and nothing is tried and then abandoned while reading one: an
+/// empty list and an absent field are not two spellings of one fact.
+/// (serde's derived visitor also reads the positional array
+/// `[<edit>, [<row>…]]`, the same hatch `persist`'s module docs
+/// disclose for the file body; it is a second spelling of the one
+/// shape, branched on by its first token, not a fallback.)
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct LoggedEdit<P> {
@@ -2528,7 +2540,11 @@ pub struct LoggedEdit<P> {
 }
 
 impl<P> LoggedEdit<P> {
-    /// An entry with no rows: an edit that performed no maintenance.
+    /// An entry with no rows: a claim that the edit performs no
+    /// cluster maintenance, which replay holds it to
+    /// ([`EditError::MaintenanceUnrecorded`]). An edit that inserts or
+    /// removes a mate, or deletes a mated instance, needs its rows
+    /// (`LoggedEdit { edit, maintenance: applied.cluster_rows() }`).
     pub fn bare(edit: DocEdit<P>) -> Self {
         Self {
             edit,
@@ -2536,7 +2552,7 @@ impl<P> LoggedEdit<P> {
         }
     }
 
-    /// Every edit as a bare entry.
+    /// Every edit as a [`Self::bare`] entry.
     pub fn bare_all(edits: &[DocEdit<P>]) -> Vec<Self>
     where
         P: Clone,
@@ -2553,10 +2569,9 @@ impl<P> From<DocEdit<P>> for LoggedEdit<P> {
 
 /// **Replay one logged edit**: the edit through every door [`apply`]
 /// has, then the RECORDED maintenance rows applied to the registry —
-/// no solve, no reach, no store. An entry with no rows runs the
-/// structural half of the maintenance (joins, drops, gauges that
-/// stayed) and refuses [`EditError::MaintenanceUnrecorded`] where a
-/// row would have needed a solved frame.
+/// no solve, no reach, no store. An entry with no rows claims the edit
+/// performs no cluster maintenance, and refuses
+/// [`EditError::MaintenanceUnrecorded`] if it performs any.
 ///
 /// # Errors
 ///
@@ -2566,10 +2581,10 @@ pub fn apply_logged<P: Clone + crate::ProfilePayload>(
     entry: &LoggedEdit<P>,
     tol: Tol,
 ) -> Result<Applied<P>, EditError> {
-    // An entry with no rows claims the edit performed no maintenance.
-    // `Never` holds it to that: an edit that turns out to need a solved
-    // frame refuses rather than replaying as if it had none, which an
-    // empty `Recorded` would do silently. So the branch is here, once.
+    // An entry with no rows claims the edit performs no cluster
+    // maintenance. `Never` holds it to that — any row the replay would
+    // perform refuses — where an empty `Recorded` would replay the edit
+    // as if it had none, silently. So the branch is here, once.
     let how = if entry.maintenance.is_empty() {
         Maintain::Never
     } else {
@@ -3337,9 +3352,9 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
     ///
     /// # Errors
     ///
-    /// [`apply_logged`]'s: an entry with no rows whose edit moved a
-    /// gauge refuses [`EditError::MaintenanceUnrecorded`] — the log
-    /// claims no maintenance the edit in fact performed.
+    /// [`apply_logged`]'s: an entry with no rows whose edit performs
+    /// cluster maintenance refuses [`EditError::MaintenanceUnrecorded`]
+    /// — the log claims no maintenance the edit in fact performed.
     pub fn replay(
         id: crate::DocumentId,
         log: &[LoggedEdit<P>],

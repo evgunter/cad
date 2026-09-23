@@ -1800,7 +1800,8 @@ fn a_lever_refusal_names_the_instance_and_why() {
 /// a refused maintenance solve carries the prior solve's own sentence
 /// (or says the solve recorded nothing for the gauge — the typed
 /// report of a state its invariants exclude), and an unrecorded row
-/// says the log was not written by the save door, and to regenerate it.
+/// says the entry carries none and that an entry records every row its
+/// edit performs.
 #[test]
 fn the_maintenance_refusals_name_the_gauge_and_the_recourse() {
     let gauge = RecipeNodeId(3);
@@ -1825,7 +1826,11 @@ fn the_maintenance_refusals_name_the_gauge_and_the_recourse() {
     );
     assert_f6(
         &EditError::MaintenanceUnrecorded { gauge },
-        &["gauge 3", "no maintenance rows", "not written by", "regenerate the file"],
+        &[
+            "gauge 3",
+            "no maintenance rows",
+            "records every cluster row",
+        ],
         &["MaintenanceUnrecorded"],
     );
     assert_f6(

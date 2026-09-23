@@ -165,15 +165,12 @@ impl History {
         for (index, entry) in edits.iter().enumerate() {
             // Replay re-applies the rows the log recorded; it never
             // solves, so no store is in hand here and none is needed.
+            // Replay performs exactly an entry's rows (`apply_logged`
+            // refuses an empty entry whose edit would perform any), so
+            // the entry itself is what the history commits.
             let applied = apply_logged(history.doc(), entry, tol)
                 .map_err(|error| ReplayError::Refused { index, error })?;
-            history.commit(
-                LoggedEdit {
-                    edit: entry.edit.clone(),
-                    maintenance: applied.cluster_rows(),
-                },
-                applied.doc,
-            );
+            history.commit(entry.clone(), applied.doc);
         }
         Ok(history)
     }
