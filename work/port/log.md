@@ -738,3 +738,31 @@ tracking the channel is coherent rather than merely tidy.
 lockfile is **regenerated** — a deliberate act — and not on an ordinary
 build. Recorded in the gate's header and beside the declaration itself,
 because the repository recorded it nowhere.
+
+## The edit log has one wire shape; the pre-rows migration is gone (2026-09-23)
+
+Surfaced by PORT-DIMS-1 (#2702) and decided by Ev in chat. #2702's
+refusal slot rests on nothing on `editor-core`'s wire asking serde to try
+one shape and fall back to another, and the gate that holds that
+(`scripts/gates/persist-no-backtracking.sh`, on #2702's branch) fired on
+`LoggedEdit`'s `#[serde(untagged)]`, which main added while the branch
+sat. The two shapes existed for compactness and so that *"a log from
+before rows were recorded reads as a log of bare entries"*. Ev: backward
+compatibility with older logs is a red flag, and worry about churn or a
+format change is never allowed to prevent a change to a better final
+state.
+
+So `LoggedEdit` is a derived `{edit, maintenance}` with both fields
+always present, and the migration doors that existed only to read
+pre-rows logs — `persist::load_with`, `Doc::replay_with`, and
+`replay_entry`'s `migrate` argument — are removed, with their re-exports.
+A bare-shaped file now refuses `Unreadable` with the regenerate recourse.
+`MaintenanceUnrecorded` stays: it is still the honest refusal for an
+entry that claims no rows its edit needed, and its recourse no longer
+points at a door that is gone. `load` returns the log as saved rather
+than as re-derived.
+
+Two fixtures regenerated (`tests/golden/golden.cad` by its bless path,
+`tests/corpus/tour/die_composed_tour.pncad` by `demo-tour die-corpus`),
+both verified to change only the entry wrapping. The four `bool13` goldens
+are frozen older-build bytes asserted to refuse, and are untouched.

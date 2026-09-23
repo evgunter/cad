@@ -748,9 +748,9 @@ pub enum EditError {
     },
     /// Replay of a logged edit that recorded no maintenance rows,
     /// where the maintenance needed a solved frame (a gauge that moved
-    /// on a mated document). Replay never solves; a log from before
-    /// the rows were recorded is migrated through
-    /// [`Doc::replay_with`] (or `persist::load_with`) and re-saved.
+    /// on a mated document). Replay never solves, and every save writes
+    /// the rows `apply` returned, so a log in this state was not written
+    /// by the save door: it is refused rather than solved around.
     MaintenanceUnrecorded {
         /// The gauge whose frame the log does not carry.
         gauge: RecipeNodeId,
@@ -1719,8 +1719,8 @@ impl core::fmt::Display for EditError {
             Self::MaintenanceUnrecorded { gauge } => write!(
                 f,
                 "the logged edit moves gauge {} and carries no maintenance rows; replay never \
-                 solves, so the log predates the rows — migrate it (replay with a reach) and \
-                 re-save",
+                 solves and the save door always writes them, so this log was not written by \
+                 it — regenerate the file from its source recipe",
                 gauge.0
             ),
         }
@@ -2512,10 +2512,14 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
 /// re-applies these rows and never solves, so the log carries what
 /// was decided (D9) and replay stays a function of the log alone.
 ///
-/// On the wire an entry with no rows — the common case — is the bare
-/// edit, so it costs nothing beyond the edit itself and a log from
-/// before rows were recorded reads as a log of bare entries.
-#[derive(Debug, Clone, PartialEq)]
+/// On the wire an entry is always `{ "edit": …, "maintenance": […] }`,
+/// both fields present, `maintenance` empty for an edit that performed
+/// none. One shape, so reading an entry never tries one layout and
+/// falls back to another — the property `persist::refusal`'s
+/// first-refusal-wins premise rests on — and an empty list and an
+/// absent field are not two spellings of one fact.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LoggedEdit<P> {
     /// The edit.
     pub edit: DocEdit<P>,
@@ -2524,8 +2528,7 @@ pub struct LoggedEdit<P> {
 }
 
 impl<P> LoggedEdit<P> {
-    /// An entry with no rows: an edit that performed no maintenance,
-    /// or one logged before rows were recorded.
+    /// An entry with no rows: an edit that performed no maintenance.
     pub fn bare(edit: DocEdit<P>) -> Self {
         Self {
             edit,
@@ -2548,49 +2551,6 @@ impl<P> From<DocEdit<P>> for LoggedEdit<P> {
     }
 }
 
-impl<P: serde::Serialize> serde::Serialize for LoggedEdit<P> {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        #[derive(serde::Serialize)]
-        struct WithRows<'a, P> {
-            edit: &'a DocEdit<P>,
-            maintenance: &'a [crate::mate::ClusterMaintenance],
-        }
-        if self.maintenance.is_empty() {
-            self.edit.serialize(serializer)
-        } else {
-            WithRows {
-                edit: &self.edit,
-                maintenance: &self.maintenance,
-            }
-            .serialize(serializer)
-        }
-    }
-}
-
-impl<'de, P: serde::Deserialize<'de>> serde::Deserialize<'de> for LoggedEdit<P> {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        // Every wire type refuses a field it does not know
-        // (`persist`'s module docs: a stale reader must not silently
-        // drop data), the entry-with-rows shape included.
-        #[derive(serde::Deserialize)]
-        #[serde(deny_unknown_fields)]
-        struct WithRows<P> {
-            edit: DocEdit<P>,
-            maintenance: Vec<crate::mate::ClusterMaintenance>,
-        }
-        #[derive(serde::Deserialize)]
-        #[serde(untagged)]
-        enum Wire<P> {
-            WithRows(WithRows<P>),
-            Bare(DocEdit<P>),
-        }
-        Ok(match Wire::deserialize(deserializer)? {
-            Wire::WithRows(WithRows { edit, maintenance }) => Self { edit, maintenance },
-            Wire::Bare(edit) => Self::bare(edit),
-        })
-    }
-}
-
 /// **Replay one logged edit**: the edit through every door [`apply`]
 /// has, then the RECORDED maintenance rows applied to the registry —
 /// no solve, no reach, no store. An entry with no rows runs the
@@ -2606,41 +2566,16 @@ pub fn apply_logged<P: Clone + crate::ProfilePayload>(
     entry: &LoggedEdit<P>,
     tol: Tol,
 ) -> Result<Applied<P>, EditError> {
-    // An entry with no rows is one that performed no maintenance OR
-    // one logged before rows were recorded; the two are told apart by
-    // whether a row turns out to need a frame, which is `Never`'s
-    // refusal. An empty `Recorded` would claim the first and hide the
-    // second, so the branch is here, once.
+    // An entry with no rows claims the edit performed no maintenance.
+    // `Never` holds it to that: an edit that turns out to need a solved
+    // frame refuses rather than replaying as if it had none, which an
+    // empty `Recorded` would do silently. So the branch is here, once.
     let how = if entry.maintenance.is_empty() {
         Maintain::Never
     } else {
         Maintain::Recorded(&entry.maintenance)
     };
     apply_maintaining(doc, &entry.edit, tol, how)
-}
-
-/// **Replay one log entry** — the one step every replay loop takes
-/// ([`Doc::replay`], [`Doc::replay_with`], `persist::load`,
-/// `persist::save`'s verification pass, the viewer's history). With
-/// `migrate` absent it is [`apply_logged`]: the recorded rows, no
-/// solve. With `migrate` present, an entry that recorded no rows goes
-/// through the live door ([`apply`]) instead and comes back with the
-/// rows it performed — the migration of a log from before rows were
-/// recorded; an entry with rows replays from them either way.
-///
-/// # Errors
-///
-/// [`apply_logged`]'s, or [`apply`]'s on a migrated entry.
-pub fn replay_entry<P: Clone + crate::ProfilePayload>(
-    doc: &Doc<P>,
-    entry: &LoggedEdit<P>,
-    tol: Tol,
-    migrate: Option<&dyn MateReach>,
-) -> Result<Applied<P>, EditError> {
-    match migrate {
-        Some(reach) if entry.maintenance.is_empty() => apply(doc, &entry.edit, tol, reach),
-        _ => apply_logged(doc, entry, tol),
-    }
 }
 
 /// [`apply`] with the maintenance's source chosen by the door
@@ -3403,8 +3338,8 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
     /// # Errors
     ///
     /// [`apply_logged`]'s: an entry with no rows whose edit moved a
-    /// gauge refuses [`EditError::MaintenanceUnrecorded`] — a log from
-    /// before rows were recorded, which [`Doc::replay_with`] migrates.
+    /// gauge refuses [`EditError::MaintenanceUnrecorded`] — the log
+    /// claims no maintenance the edit in fact performed.
     pub fn replay(
         id: crate::DocumentId,
         log: &[LoggedEdit<P>],
@@ -3412,38 +3347,9 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
     ) -> Result<Doc<P>, EditError> {
         let mut doc = Doc::empty(id, tol);
         for entry in log {
-            doc = replay_entry(&doc, entry, tol, None)?.doc;
+            doc = apply_logged(&doc, entry, tol)?.doc;
         }
         Ok(doc)
-    }
-
-    /// **The migration door**: [`Doc::replay`] for a log whose entries
-    /// may predate the maintenance rows. An entry with rows replays
-    /// from them; an entry with none is applied through `reach` (the
-    /// live door) and its rows are derived and RECORDED, so the log
-    /// returned beside the document replays without a store from then
-    /// on. Re-save it.
-    ///
-    /// # Errors
-    ///
-    /// [`apply`]'s and [`apply_logged`]'s.
-    pub fn replay_with(
-        id: crate::DocumentId,
-        log: &[LoggedEdit<P>],
-        tol: Tol,
-        reach: &dyn MateReach,
-    ) -> Result<(Doc<P>, Vec<LoggedEdit<P>>), EditError> {
-        let mut doc = Doc::empty(id, tol);
-        let mut migrated = Vec::with_capacity(log.len());
-        for entry in log {
-            let applied = replay_entry(&doc, entry, tol, Some(reach))?;
-            migrated.push(LoggedEdit {
-                edit: entry.edit.clone(),
-                maintenance: applied.cluster_rows(),
-            });
-            doc = applied.doc;
-        }
-        Ok((doc, migrated))
     }
 }
 

@@ -41,7 +41,7 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Doc, EditError, LoggedEdit, ProfileProgram, replay_entry};
+use pncad::document::{Doc, EditError, LoggedEdit, ProfileProgram, apply_logged};
 use pncad::geom_core::Tol;
 
 /// An entry's identity in the history arena.
@@ -165,7 +165,7 @@ impl History {
         for (index, entry) in edits.iter().enumerate() {
             // Replay re-applies the rows the log recorded; it never
             // solves, so no store is in hand here and none is needed.
-            let applied = replay_entry(history.doc(), entry, tol, None)
+            let applied = apply_logged(history.doc(), entry, tol)
                 .map_err(|error| ReplayError::Refused { index, error })?;
             history.commit(
                 LoggedEdit {

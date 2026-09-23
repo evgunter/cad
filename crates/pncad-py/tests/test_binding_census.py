@@ -2146,14 +2146,11 @@ NOT_BOUND = {
     "EditRecord": SHAPE,
     # Python's document keeps no edit log: `Doc.save` writes an empty
     # log and `load` replays below the wrapper, so the logged entry
-    # (an edit with the cluster-maintenance rows it performed), the
-    # replay door that re-applies those rows, and the migration door
-    # that re-derives them for a log from before they were recorded
-    # have no Python shape to bind.
+    # (an edit with the cluster-maintenance rows it performed) and the
+    # replay door that re-applies those rows have no Python shape to
+    # bind.
     "LoggedEdit": SHAPE,
     "apply_logged": SHAPE,
-    "replay_entry": SHAPE,
-    "load_with": SHAPE,
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
     # `Evaluation.canceled`, bound at LIB-B-CANCEL.
