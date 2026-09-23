@@ -48,9 +48,13 @@ pub enum MeshError {
     ///   `classify_faces` seeds the inside-walk across the convex hull,
     ///   and a CDT whose every hull edge has the outer face on both
     ///   sides marks nothing inside, so the lane emits nothing and
-    ///   answers `Ok`. The frame-degenerate loops that would reach it
-    ///   refuse earlier as `Triangulation`; no body in this tree is
-    ///   known to get there.
+    ///   answers `Ok`. Reaching it wants every inserted point collinear
+    ///   in the chart, and the chart frame is derived from that same
+    ///   loop's area vector — zero for a collinear loop, which makes
+    ///   the frame non-finite and refuses at `spade`'s insert
+    ///   (`Triangulation`). So the arm is believed unreachable rather
+    ///   than measured unreachable, and it is listed because it is the
+    ///   planar shape of a class whose curved shape is live.
     ///
     /// It is not row 4: a validator is handed meshes of unknown
     /// provenance by contract, so it answers typed rather than panics.
