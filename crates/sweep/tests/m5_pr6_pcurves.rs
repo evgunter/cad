@@ -510,14 +510,13 @@ fn a_seam_closed_tube_split_is_typed_either_way() {
             // configuration; a panic or a silently wrong body is not.
             // `split`'s signature is what makes the refusal typed, so
             // what is left to check at runtime is that it reaches a
-            // human as prose: every arm of `SplitError` names the split
-            // — three through their own stage (`split_reduce`, `split
-            // join`, `split finish`), one through the door's name —
-            // and none of them renders a payload's `Debug`.
+            // human as prose, and none of them renders a payload's
+            // `Debug`. The door is named once, by the layer that
+            // raised the split, so this arm names no stage.
             let msg = format!("{e}");
             assert!(
-                msg.contains("split"),
-                "the refusal must name its door: {msg}"
+                !msg.contains("split_reduce") && !msg.contains("split join"),
+                "no stage prefix: {msg}"
             );
             assert!(!msg.contains('{'), "Debug guts leaked: {msg}");
         }

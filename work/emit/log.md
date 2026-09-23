@@ -301,3 +301,23 @@ chain along the edge's own direction. `collapse` flattens both to one
 spelling. Filed P0 as `union-seam-edge-ranks-follow-which-step-split-the-seam`.
 It goes to the same lane next, aimed at one orientation rule for both
 rankers.
+
+## 2026-09-23 — merged-face chords close (PR 3120)
+
+A seam edge whose two crossing faces were both merged faces refused as
+`Emission`, a kernel bug, on legal declared unions of blocks. Measured
+cause: the edge was never a crossing. It was a piece of one member's
+rim edge that a slab had split, lying between two merged faces. The
+merged-face read-through needed a partner face that did not exist.
+
+The key now says which side to look at. A certified geometric check,
+`chord_on_rim` under predicate `name_chord_on_rim`, decides whether
+the chord is that side's rim piece; if it is not, it refuses typed as
+a missing rule. Whole-table diffs over 924 cells: 0 fused names moved,
+82 of 89 former `Emission` refusals now fuse, and none remain.
+
+Filed from the unit and its reviews:
+- P0 `shared-rim-several-is-a-missing-rule-legal-declared-unions-reach`,
+  re-banded: the commonest refusal on legal unions.
+- P0 `split-of-a-fused-declared-union-refuses-duplicate-vertex-name`.
+- P4 `opside-unit-respells-topo-operand`.

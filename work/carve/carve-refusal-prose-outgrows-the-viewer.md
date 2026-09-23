@@ -2,7 +2,8 @@
 id: carve-refusal-prose-outgrows-the-viewer
 kind: issue
 title: sweep: the loft, revolve, tube and blend refusals over 50 words (Ev's concision request)
-status: open
+status: closed
+closed: 2026-09-23
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
 ---
@@ -41,3 +42,24 @@ viewer — most reach it through `NodeErrorKind`'s forwarding arms
 (feature tree fault line, status line) or through the checks window —
 and a `Display` written outside `impl Display` (a helper returning a
 `String`) is not seen.
+
+## Closed (2026-09-23)
+
+All four arms were rewritten at the source by the CHROME concision
+pass: `LoftError::ReversedStacking` (79 rendered words before, 51
+after), `RevolveError::MultipleAxisRuns` (75 → 44),
+`TubeError::WallGapCollapsed` (71 → 38) and `BlendError::NonpositiveSize`
+(62 → 23). The same pass rewrote the rest of `ExtrudeError`,
+`RevolveError`, `TubeError`, `SkinError`, `LoftError` and `BlendError`
+(its recourse sentences shortened with every phrase the followability
+suites pin kept), and moved the routed blend escalations onto the
+payload view.
+
+`editor-core/tests/refusal_concision_chains.rs`
+`every_node_refusal_renders_within_the_budget` now renders every arm
+listed above the way the feature tree draws it and holds it to the
+75-word budget, with no stage prefix and no arena key outside the
+kernel-bug arms it names. The rewrite and its census are in the
+`chrome/concision-chains` PR and in
+`work/chrome/error-and-check-text-overflows-its-region.md`,
+section "The remaining chains".

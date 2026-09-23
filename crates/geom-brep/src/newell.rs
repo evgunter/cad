@@ -102,17 +102,19 @@ impl core::fmt::Display for NewellError {
             Self::TooFewVertices { got } => {
                 write!(
                     f,
-                    "newell: {got} vertices cannot determine a plane (need ≥ 3)"
+                    "{got} vertices cannot determine a plane (a loop needs 3)"
                 )
             }
             Self::NotPlanar { vertex } => write!(
                 f,
-                "newell: vertex {vertex} lies definitely off the fitted plane — the loop \
-                 is not planar at tolerance (D4)"
+                "vertex {vertex} lies definitely off the loop's plane, so the loop is not \
+                 planar at tolerance"
             ),
-            Self::Escalated { vertex, cause } => {
-                write!(f, "newell: residual at vertex {vertex} escalated: {cause}")
-            }
+            Self::Escalated { vertex, cause } => write!(
+                f,
+                "whether vertex {vertex} lies on the loop's plane is too close to call: \
+                 {cause}"
+            ),
         }
     }
 }

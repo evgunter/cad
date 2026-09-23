@@ -10,12 +10,13 @@ use std::sync::Arc;
 
 use geom::Surface;
 use geom_brep::OutwardNormal;
-use geom_core::{Decide, Point3, Vec3};
+use geom_core::k_stats::decide;
+use geom_core::{Decide, Margin, Point3, Sign, Vec3};
 use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
 use super::defer::{TieRows, Upstream, put, upstream_name};
-use super::discriminate::{Extent, band, order_along, side_of_face};
+use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along, side_of_face};
 use super::emit::{
     Incidence, NamingError, Rim, edge_ends, ent, face_half_edges, name1, rim_between,
 };
@@ -538,6 +539,14 @@ impl<K: Copy> OpSide<K> {
         }
     }
 
+    /// The other side, carrying the same key.
+    fn other(self) -> Self {
+        match self {
+            OpSide::A(k) => OpSide::B(k),
+            OpSide::B(k) => OpSide::A(k),
+        }
+    }
+
     /// The `FromA` / `FromB` segment wrapping a name read on this side.
     fn wrap(self, inner: NameRef) -> RoleSeg {
         match self {
@@ -881,40 +890,42 @@ fn name_boolean_edges<T: Decide>(
     }
     // A face's descent for CHORD purposes: a plain face descends as
     // itself; a MERGED face (M4 PR 5, N3 live) reads through to its
-    // unique constituent on the side the partner needs — the seam's
-    // mint-time operand identity survives the glue. Ambiguity (both
-    // faces merged, or several same-side constituents) refuses typed.
-    let chord_descent = |f: FaceKey,
-                         want_opposite_of: Option<OpSide<FaceKey>>|
-     -> Result<OpSide<FaceKey>, NamingError> {
+    // unique constituent on side `want` — the seam's mint-time operand
+    // identity survives the glue. Several same-side constituents
+    // refuse.
+    let chord_descent = |f: FaceKey, want: OpSide<()>| -> Result<OpSide<FaceKey>, NamingError> {
         let Some(ds) = merged_descents.get(&f) else {
             return descend_face(f);
         };
-        let pick = |want_a: bool| -> Result<OpSide<FaceKey>, NamingError> {
-            // Constituent fragments of ONE operand face share a
-            // descent — dedup before the uniqueness demand.
-            let mut hits: Vec<OpSide<FaceKey>> = ds
-                .iter()
-                .filter(|d| matches!(d, OpSide::A(_)) == want_a)
-                .copied()
-                .collect();
-            hits.sort_unstable();
-            hits.dedup();
-            match hits.as_slice() {
-                [] => Err(bug("merged face lacks the needed operand-side constituent")),
-                [one] => Ok(*one),
-                _ => Err(bug(
-                    "merged face has several same-side constituents at a seam edge",
-                )),
-            }
-        };
-        match want_opposite_of {
-            Some(OpSide::A(_)) => pick(false),
-            Some(OpSide::B(_)) => pick(true),
-            None => Err(bug("seam edge between two merged faces (unsupported)")),
+        // Constituent fragments of ONE operand face share a
+        // descent — dedup before the uniqueness demand.
+        let mut hits: Vec<OpSide<FaceKey>> =
+            ds.iter().filter(|d| d.with(()) == want).copied().collect();
+        hits.sort_unstable();
+        hits.dedup();
+        match hits.as_slice() {
+            [] => Err(bug("merged face lacks the needed operand-side constituent")),
+            [one] => Ok(*one),
+            _ => Err(bug(
+                "merged face has several same-side constituents at a seam edge",
+            )),
         }
     };
-    let chord_kind = |e: EdgeKey| -> Result<ChordKind, NamingError> {
+    // **A chord between two MERGED faces.** Each face has a constituent
+    // on both sides, so neither face says which side to read through
+    // to. `own` is the side the chord's own key descends to, and the
+    // chord is read through to THAT side's two constituents and named
+    // as the rim they share — but the key is only where to look, not
+    // why the answer holds: the join mints keys on both sides, and a
+    // B-clone result keys every chord as B's. What makes the answer
+    // right is geometric. Two planar constituents of one operand meet
+    // along their shared rim's LINE, so a chord lying on both lies on
+    // that line; it is that rim's piece exactly when it also lies
+    // WITHIN the rim. [`chord_on_rim`] checks both before the name is
+    // given, and a chord that fails it — or one with no key side, a
+    // zip-listed edge — refuses as the missing rule it is
+    // (`NamingError::MergedChordOffRim`, `NamingError::MergedChord`).
+    let chord_kind = |e: EdgeKey, own: Option<OpSide<()>>| -> Result<ChordKind, NamingError> {
         let faces = inc
             .edge_faces
             .get(&e)
@@ -928,16 +939,40 @@ fn name_boolean_edges<T: Decide>(
             (false, false) => (descend_face(faces[0])?, descend_face(faces[1])?),
             (true, false) => {
                 let d1 = descend_face(faces[1])?;
-                (chord_descent(faces[0], Some(d1))?, d1)
+                (chord_descent(faces[0], d1.with(()).other())?, d1)
             }
             (false, true) => {
                 let d0 = descend_face(faces[0])?;
-                (d0, chord_descent(faces[1], Some(d0))?)
+                (d0, chord_descent(faces[1], d0.with(()).other())?)
             }
-            (true, true) => (
-                chord_descent(faces[0], None)?,
-                chord_descent(faces[1], None)?,
-            ),
+            (true, true) => {
+                let Some(side) = own else {
+                    return Err(NamingError::MergedChord { edge: e });
+                };
+                let (d0, d1) = (
+                    chord_descent(faces[0], side)?,
+                    chord_descent(faces[1], side)?,
+                );
+                let (op, f0) = d0.of(a, b);
+                let (_, f1) = d1.of(a, b);
+                return match rim_between(op.body, f0, f1)? {
+                    Rim::One(rim) if chord_on_rim(body, e, op.body, rim, bnd)? => Ok(match side {
+                        OpSide::A(()) => ChordKind::SameA(rim),
+                        OpSide::B(()) => ChordKind::SameB(rim),
+                    }),
+                    Rim::One(rim) => Err(NamingError::MergedChordOffRim {
+                        edge: e,
+                        node: op.node,
+                        rim,
+                    }),
+                    Rim::NotOne(found) => Err(NamingError::SharedRim {
+                        node: op.node,
+                        face: f0,
+                        other: f1,
+                        found,
+                    }),
+                };
+            }
         };
         Ok(match (d0, d1) {
             (OpSide::A(_), OpSide::B(_)) => {
@@ -977,7 +1012,9 @@ fn name_boolean_edges<T: Decide>(
         })
     };
     let seam_pair = |e: EdgeKey| -> Result<(Upstream, Upstream), NamingError> {
-        match chord_kind(e)? {
+        // A zip-listed seam edge is the join's own, so it has no side
+        // to read a both-merged pair through to.
+        match chord_kind(e, None)? {
             ChordKind::Cross(fa, fb) => Ok((fa, fb)),
             _ => Err(bug("seam edge between same-operand faces")),
         }
@@ -1073,7 +1110,9 @@ fn name_boolean_edges<T: Decide>(
         if resolves {
             groups.entry(root).or_default().push(e);
         } else {
-            match chord_kind(e)? {
+            // Where a both-merged chord reads through to, checked
+            // geometrically there (`chord_kind`).
+            match chord_kind(e, Some(root.with(())))? {
                 ChordKind::Cross(fa, fb) => {
                     add_seam(fa, fb, e);
                 }
@@ -1469,6 +1508,49 @@ fn edge_extent<T: Decide>(
     })
 }
 
+/// Whether result edge `chord` lies on operand edge `rim` of
+/// `op_body`: both of its ends on the rim's line and between the rim's
+/// ends. Three margins per end, each a length and each decided through
+/// [`CHORD_ON_RIM`]: the distance off the line (must be `Zero`), and
+/// the signed distances past each rim end along it (must not be
+/// `Negative`). An in-band margin escalates typed.
+fn chord_on_rim<T: Decide>(
+    body: &Body<T>,
+    chord: EdgeKey,
+    op_body: &Body<T>,
+    rim: EdgeKey,
+    bnd: geom_core::Band,
+) -> Result<bool, NamingError> {
+    let bug = |what| NamingError::Emission { what };
+    let point = |b: &Body<T>, v: VertexKey| -> Result<Point3<T>, NamingError> {
+        b.get_vertex(v)
+            .and_then(|vd| b.get_point(vd.point))
+            .copied()
+            .ok_or_else(|| bug("chord_on_rim: vertex without point"))
+    };
+    let (r0, r1) = edge_ends(op_body, rim)?;
+    let (q0, q1) = (point(op_body, r0)?, point(op_body, r1)?);
+    let d = q1 - q0;
+    let len = d.norm();
+    let sign = |m: Margin<T>| {
+        decide(CHORD_ON_RIM, m, bnd).map_err(|source| NamingError::Escalated {
+            predicate: CHORD_ON_RIM,
+            source,
+        })
+    };
+    let (c0, c1) = edge_ends(body, chord)?;
+    for v in [c0, c1] {
+        let p = point(body, v)?;
+        let off = sign(Margin::over_lever((p - q0).cross(d).norm(), len))?;
+        let past0 = sign(Margin::over_lever((p - q0).dot(d), len))?;
+        let past1 = sign(Margin::over_lever((q1 - p).dot(d), len))?;
+        if off != Sign::Zero || past0 == Sign::Negative || past1 == Sign::Negative {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 /// The oriented direction of an operand edge (he_plus start → end).
 fn edge_dir<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<Vec3<T>, NamingError> {
     let bug = |what| NamingError::Emission { what };
@@ -1641,6 +1723,62 @@ mod tests {
     use crate::node::RecipeNodeId;
     use geom_core::Tol;
     use profile::RawLoop;
+
+    /// A body holding one straight edge from `p` to `q`, and that edge.
+    fn segment(p: [f64; 3], q: [f64; 3]) -> (Body<f64>, EdgeKey) {
+        let mut body = Body::<f64>::new();
+        let born = body
+            .mvfs(Point3::new(p[0], p[1], p[2]))
+            .expect("mvfs births a lone vertex");
+        let edge = body
+            .mev_line(
+                topo::MevSite::Lone {
+                    r#loop: born.r#loop,
+                },
+                Point3::new(q[0], q[1], q[2]),
+                Tol::witness(),
+            )
+            .expect("mev on an empty loop grows it by one edge")
+            .edge;
+        (body, edge)
+    }
+
+    /// `chord_on_rim` for a chord `p`–`q` against the rim (0,0,0)–(1,0,0).
+    fn on_unit_rim(p: [f64; 3], q: [f64; 3]) -> bool {
+        let (rim_body, rim) = segment([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+        let (chord_body, chord) = segment(p, q);
+        chord_on_rim(
+            &chord_body,
+            chord,
+            &rim_body,
+            rim,
+            band(Tol::witness()).unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn a_chord_within_its_rim_is_on_it_ends_included() {
+        assert!(on_unit_rim([0.2, 0.0, 0.0], [0.6, 0.0, 0.0]));
+        assert!(on_unit_rim([0.0, 0.0, 0.0], [0.5, 0.0, 0.0]));
+        assert!(on_unit_rim([0.5, 0.0, 0.0], [1.0, 0.0, 0.0]));
+        assert!(on_unit_rim([1.0, 0.0, 0.0], [0.0, 0.0, 0.0]));
+    }
+
+    #[test]
+    fn a_chord_off_its_rims_line_is_not_on_it() {
+        // Within the rim's span along it, so only the off-line margin
+        // can refuse.
+        assert!(!on_unit_rim([0.2, 0.1, 0.0], [0.6, 0.1, 0.0]));
+        assert!(!on_unit_rim([0.2, 0.0, 0.0], [0.6, 0.0, 0.1]));
+    }
+
+    #[test]
+    fn a_chord_past_either_end_of_its_rim_is_not_on_it() {
+        // On the rim's line, so only the past-an-end margins can refuse.
+        assert!(!on_unit_rim([-0.2, 0.0, 0.0], [0.5, 0.0, 0.0]));
+        assert!(!on_unit_rim([0.5, 0.0, 0.0], [1.3, 0.0, 0.0]));
+    }
 
     /// **The result-body stand-in every row here descends from**: a
     /// unit-cube extrusion, whose table names a top, a bottom and four
