@@ -121,3 +121,29 @@ The orchestrator's picks on the proposal's open questions:
 - the `cutters_gone` enrichment becomes a follow-up row.
 
 Ev can overturn any of these on the PR.
+
+## 2026-09-23 — the B-side rescue arm closes (PR 3103)
+
+The arm had a real subject, and its own key read was correct. The
+subject never reached it because the sibling read `operand_identity`
+treated "not a graft destination" as "an A key". In the `(Absent,
+Direct)` layout, where the result is B's clone, it looked B-arena keys
+up in A's table. That was a live SILENT WRONG NAME on main. Every
+union or intersection whose result is B's clone named B's vertices
+from A's table where slot keys collided (`big ∩ small` named small's 8
+corners `FromA(big …)`), and refused `Emission` where they did not.
+
+Now there is one layout read (`operand_key`) and one side type
+(`OpSide<K>`), shared by the face, edge and vertex passes. Before,
+there were three hand-written copies and three enums. An
+operand-swap symmetry row, over 5 fixtures × {∪, ∩} × both orders,
+guards symmetry. Absolute rows (nested corners, split reflex edge,
+assembly touch) pin which side a name belongs to. A corrupt-body
+`Emission` in `resolve_edge_carrier` is no longer swallowed into a
+tie.
+
+Filed:
+- `b-arena-edges-skip-the-split-lineage-chase` (P0, measured): an
+  order-dependent `SharedRim` refusal on a legal union. It is the next
+  P0 on this slate.
+- `contact-partner-lookup-takes-the-first-of-several-vv-rows` (P3).
