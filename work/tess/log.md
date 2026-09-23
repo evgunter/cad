@@ -546,3 +546,20 @@ sitting; the slate's P0 remainder: `rim-free-loop-on-a-poleless-chart-
 meshes-as-a-hole` (D), `tessellate-refuses-approx-face-without-caches`
 (D), `lofted-circle-sections-…` (H), `one-element-grid-axes-drop-
 schedule` (H), `rim-chords-…` (H, MESH-9 parked on it).
+
+## TESS-5 dispatched; a survey on the Approx-face row (2026-09-22)
+
+- **TESS-5** — the zero-WIDTH twin of TESS-1: a loop of meridians only
+  on a chart with no pole (cylinder, torus; the cone's generators end
+  at the apex, measured by the lane) walks to a zero-width polygon and
+  meshes as a hole. The row says TESS-1's fact does not transfer and
+  the unit has to find the statement; the brief asks for the structural
+  fact first, measured across the chart kinds, and refuses on it —
+  never on a width or a count. Middle tier unless the fact turns out
+  to be a door PROPS owns, in which case it is announced. Reviewer
+  probes from TESS-1's dual (`loops_the_meridian_guard_admits.rs`) are
+  the starting fixtures.
+- **Survey lane on `tessellate-refuses-approx-face-without-caches`**
+  (P0/D): the fork is a pcurve-cache mint for straight carriers on an
+  `Approx` chart versus a tessellation arm that reads the description;
+  measure what each costs and who else reads the cache before a spec.
