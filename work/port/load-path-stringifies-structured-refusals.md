@@ -2,7 +2,7 @@
 id: load-path-stringifies-structured-refusals
 kind: issue
 title: The load path stringifies structured kernel refusals, contradicting the bindings' never-strings contract
-status: review
+status: closed
 opened: 2026-08-20
 github: 694
 refs: [561, 689, S107]
@@ -10,6 +10,7 @@ parent: PORT-DIMS-1
 pr: 2702
 priority: P1
 cost: D
+closed: 2026-09-23
 ---
 
 ## From GitHub issue 694

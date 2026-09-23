@@ -1023,3 +1023,16 @@ hand-edited corpus row (`msolve10`, a contradictory rider logged bare)
 now records its join. The review's S8, MSOLVE-9's spec prescribing an
 untagged `MateFrame` on this retired precedent, is filed on MSOLVE's
 slate (`msolve-9-spec-prescribes-an-untagged-wire`).
+
+## PORT-DIMS-1 closes; the program is ready again (2026-09-23)
+
+PR 2702 merges with PORT-DIMS-1 and both of its rows
+(`load-path-stringifies-structured-refusals`,
+`python-dimensionerror-names-the-quantity-check-not-the-dimension-check`)
+closed. It landed after PR 3123, which removed the `untagged` read its
+backtracking gate refused; merging main forward also needed the gate's
+`plane_ref` allowlist to match the full path `program.rs` spells, and
+`m4_pr6_refusal`'s tamper to reach the expression through the entry's
+`edit` — by `pointer_mut`, so a vanished slot fails the test instead of
+`[..]` inserting it. The orchestrator releases the program: `status:
+ready`, with the remaining open rows dispatchable.

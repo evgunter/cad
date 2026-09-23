@@ -2,13 +2,14 @@
 id: python-dimensionerror-names-the-quantity-check-not-the-dimension-check
 kind: issue
 title: Python's DimensionError names the quantity-operator check while the real dimension checker surfaces as LiteralError and PersistError
-status: review
+status: closed
 opened: 2026-09-15
 refs: [S107, 694, 689]
 parent: PORT-DIMS-1
 pr: 2702
 priority: P3
 cost: E
+closed: 2026-09-23
 ---
 
 
