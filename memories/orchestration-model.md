@@ -35,7 +35,7 @@ Ev's standing instructions for implementation work:
     would be hard to change later, gets two independent Opus reviewers
     on the same frozen head, with the fix pass off the adjudicated
     union. The pair is an experiment row ([[experiments]]), so its
-    method is `docs/DUAL-REVIEW-LOG.md`'s.
+    method is `docs/DUAL-REVIEW-PROTOCOL.md`'s.
 - **Continue autonomously** to the next genuine branch point. High-
   confidence design PRs (dominant-argument conventions, faithful
   elaborations of a ratified plan) self-merge with their full writeups;

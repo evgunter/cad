@@ -1,36 +1,24 @@
-# Dual Opus review — reviewer concordance log
+# Dual Opus review — protocol
 
-**This is process data (an experiment log), not a design
-reference** — nothing here binds kernel design; it moves out of
-`docs/` when the experiment concludes.
+**Version 1 (Ev, in-chat, 2026-09-23).** This file holds ONLY the
+protocol in force now; it is edited in place when the protocol changes
+and carries no history. The rows, and a dated copy of every version
+that was ever in force, live in `docs/DUAL-REVIEW-LOG.md`.
 
-Standing experiment (Ev, in-chat, 2026-09-23), opened the day the
-model A/B protocol was suspended (`docs/MODEL-AB-LOG.md`, the
-suspension entry). **The protocol in force lives in
-`docs/DUAL-REVIEW-PROTOCOL.md`** — read that, not the copies here.
-This log holds the rows, and below them a dated copy of every protocol
-version at the moment it took effect, so each row can be read against
-the protocol it was recorded under (a row names its version).
+**The question: what does a SECOND independent review buy?** The
+instrument is the one the A/B protocol's v6 dual review stream ran on
+(`docs/MODEL-AB-LOG.md`) — the correspondence coding, the
+pre-registered adjudication instrument, blinded adjudication, lane
+isolation and the fair-pair rule — carried over unchanged except where
+a clause existed only to compare models. This is process data, not a
+design reference: nothing here binds kernel design.
 
-## Rows
+**Changing the protocol** is Ev's call. The change edits this file,
+bumps the version line above, and appends a copy of the new version to
+the log in the same commit, so every row sits under the protocol that
+was in force when it was recorded.
 
-Columns: **v** (the protocol version in force at merge); **unit** (program, PR); **class** (difficulty S/M/L and task
-class, logged at spec time) and the **triage reason**; **head** (the
-frozen commit); **R1** and **R2** (verdict, MAJ/MIN/NOTE, one line of
-prose per MAJOR, tokens, wall-clock); **correspondence** (bilateral
-headline; unilateral findings R1→ and R2→; severity divergence);
-**tally** (candidates, with the 6(a)–(e) disposition of each);
-**fair** (yes, or the relaxation / interruption that excludes it);
-**fix pass** (size, and who executed it).
-
-| # | date | v | unit | class · triage reason | head | R1 | R2 | correspondence | tally | fair | fix pass |
-|---|------|---|------|-----------------------|------|----|----|----------------|-------|------|----------|
-
-**Tally: 0 of 8. Fair pairs toward twelve: 0.**
-
-## Protocol copies
-
-### Version 1 (Ev, in-chat, 2026-09-23) — copy as it took effect
+## Rules
 
 1. **Population.** Every unit the review tiers
    (`memories/orchestration-model.md`) send to a DUAL review enters
@@ -125,7 +113,7 @@ headline; unilateral findings R1→ and R2→; severity divergence);
     both reviewers missed bound what a second review can buy from
     above.
 
-### Seams
+## Seams
 
 - **Not comparable with the A/B log's duals.** Those were cross-model
   (or fable/fable) pairs over a different population; this stream is

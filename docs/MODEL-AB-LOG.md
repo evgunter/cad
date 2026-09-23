@@ -389,7 +389,8 @@ amended:
      pass runs off the orchestrator-adjudicated UNION of their
      findings (the tiers themselves now live in
      `memories/orchestration-model.md`). **Every such pair is recorded in
-     `docs/DUAL-REVIEW-LOG.md`**, which carries this log's v6
+     `docs/DUAL-REVIEW-LOG.md`** under `docs/DUAL-REVIEW-PROTOCOL.md`,
+     which carries this log's v6
      concordance instrument over to measure what the second review
      buys (Ev, same day). Every other unit keeps v7 item 2 as written — one Opus
      reviewer (style, or full where correctness is at risk), or the
