@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-21
 priority: P4
 cost: E
-refs: [opoutcome-superseded-has-no-production-reader]
 ---
 
 ## What
