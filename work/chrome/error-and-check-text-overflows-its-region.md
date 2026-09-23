@@ -5,10 +5,10 @@ title: viewer: the CONCISION half — error messages should be shorter, and most
 status: closed
 closed: 2026-09-23
 opened: 2026-09-17
-pr: 3088
+pr: 3108
 priority: P0
 cost: E
-refs: [3058]
+refs: [3058, 3088]
 ---
 
 **Ev reported this** (in chat, 2026-09-17). There are two halves.
