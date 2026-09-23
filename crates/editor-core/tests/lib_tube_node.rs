@@ -595,10 +595,10 @@ fn the_shared_refusals_are_reachable_from_both_kinds() {
             tube_refusal(s, z).unwrap_or_else(|| panic!("{what} must refuse through Node::Tube"));
         let hm = tube_refusal(h, z)
             .unwrap_or_else(|| panic!("{what} must refuse through Node::HollowTube"));
-        // A shared arm names the hollow tube from neither kind: the
-        // kernel refuses to guess which caller it was, and the recipe
-        // layer must not invent an answer either.
-        assert!(!sm.contains("hollow tube"), "{what} (solid): {sm}");
+        // A shared arm reads the SAME from both kinds, word for word:
+        // the kernel refuses to guess which caller it was, and the
+        // recipe layer must not invent an answer either.
+        assert_eq!(sm, hm, "{what}: a shared arm reads alike from both kinds");
         assert!(
             !hm.contains("hollow tube"),
             "{what} is reachable through both doors, so its message must not claim \

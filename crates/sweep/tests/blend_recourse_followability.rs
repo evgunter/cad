@@ -383,27 +383,27 @@ fn the_corner_recourse_names_a_fully_requested_uniform_corner_that_builds() {
 }
 
 /// **`FILLET3_ASSEMBLY_RECOURSE` — the refusal it rides carries it, and
-/// every door it names is executed.** Four of them, since the closed
-/// clause gained its "one face carries every arc" half.
+/// every door it names is executed.** Four of them: the open clause and
+/// three readings of the closed clause's "whole latitude rim".
 ///
 /// The refusal: an OPEN chain whose supports are not plane–plane (the
 /// edge between a wedge wall and the sphere zone of a PARTIAL revolve),
 /// which has no built termination — the sentence's own open-chain
 /// clause, so it is true at the site that carries it.
 ///
-/// The sentence names four requests that carve, and each is built here:
-/// open plane–plane links ending at fully-requested trivalent corners
-/// (the cube whole), a closed circular plane–sphere rim (the dome's
-/// equator), the "either material side" half via a CONCAVE closed rim
-/// (the waisted revolve's waist, whose band adds material), and the
-/// "one face carries every arc" half via the REPAIRED lantern's neck
-/// (`merge_coplanar_faces` fuses each pole cap's two half-disks into
-/// one face, as every boolean consumer must, leaving both arcs on ONE
-/// plane face with trivalent crossings).
+/// The sentence names requests that carve, and each is built here:
+/// one-link open plane–plane chains ending at fully requested
+/// trivalent corners of one convexity (the cube whole), a whole
+/// latitude rim (the dome's equator), the same on a CONCAVE rim (the
+/// waisted revolve's waist, whose band adds material — a whole rim
+/// carves at either material side), and a whole rim whose arcs all lie
+/// on ONE face (the REPAIRED lantern's neck: `merge_coplanar_faces`
+/// fuses each pole cap's two half-disks into one face, as every boolean
+/// consumer must, leaving both arcs on ONE plane face with trivalent
+/// crossings).
 ///
-/// What is NOT pinned: the open-chain clause says "on either material
-/// side", and the concave side would need an all-plane concave
-/// trivalent corner, which no fixture here builds.
+/// What is NOT pinned: "of one convexity" admits an all-concave
+/// plane–plane corner, which no fixture here builds.
 #[test]
 fn the_assembly_recourse_names_four_doors_that_all_carve() {
     // A PARTIAL revolve of the dome profile: its wedge walls are planes
@@ -441,8 +441,8 @@ fn the_assembly_recourse_names_four_doors_that_all_carve() {
     // several other `UnsupportedChain` arms also satisfy.
     assert!(
         matches!(&err, BlendError::UnsupportedChain { detail, .. }
-            if *detail == "an open chain's supports are neither plane–plane nor a ruled cylinder \
-                 pair, the only terminations built"),
+            if *detail == "an open chain's supports are neither a plane–plane nor a ruled \
+                 cylinder pair"),
         "an open chain whose supports are neither plane–plane nor ruled has no built \
          termination: {err:?}"
     );

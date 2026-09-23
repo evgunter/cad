@@ -358,8 +358,8 @@ impl core::fmt::Display for NamingError {
             ),
             Self::Band(error) => write!(
                 f,
-                "the N2 classification band could not be built from the ambient tolerance, so \
-                 no discriminator below it can be decided: {error}"
+                "the naming band could not be built from the ambient tolerance, so no \
+                 name can be decided: {error}"
             ),
             Self::Escalated { predicate, source } => write!(
                 f,

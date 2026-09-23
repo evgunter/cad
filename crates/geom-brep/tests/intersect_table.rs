@@ -250,7 +250,7 @@ fn plane_cylinder_parallel_trio() {
     };
     let msg = err.to_string();
     assert_eq!(msg.matches(geom_core::COINCIDENCE_RECOURSE).count(), 1);
-    assert!(msg.contains("ill-conditioned operand pair"), "{msg}");
+    assert!(msg.contains("ill-conditioned at this tolerance"), "{msg}");
 }
 
 #[test]
@@ -486,12 +486,20 @@ fn parallel_equal_cylinders_trio() {
     .unwrap_err();
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
     // Coaxial equal-radius: the coincident-surface refusal, carrying
-    // the shared recourse exactly once.
+    // one recourse, and not the shared one: its one renderer is the
+    // chord join (split and Boolean), which takes no declaration, so
+    // "declare the coincidence" would name a lever the reader lacks.
     let err = cylinder_cylinder_section(&c1, &mk(0.0), RadiusEvidence::Declared, 1.0, band())
         .unwrap_err();
     assert!(matches!(err, SectionError::CoincidentSurfaces), "{err:?}");
     let msg = err.to_string();
-    assert_eq!(msg.matches(geom_core::COINCIDENCE_RECOURSE).count(), 1);
+    assert_eq!(
+        msg.matches("Recourse: move the geometry, or lower the tolerance")
+            .count(),
+        1,
+        "{msg}"
+    );
+    assert!(!msg.contains("declare"), "{msg}");
 }
 
 // ---------------------------------------------------------------------

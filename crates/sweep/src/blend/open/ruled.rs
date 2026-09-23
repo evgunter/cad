@@ -176,8 +176,8 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
             if !fd.rings.is_empty() {
                 return Err(unbuilt_chain(
                     edge,
-                    "a ruled band's support face carries a ring, which a curved support's carve \
-             does not carry through",
+                    "a ruled band's support face carries a ring, which its curved support cannot \
+             carry through",
                 ));
             }
             if loop_of_half(body, half) != Some(fd.outer) {
@@ -209,8 +209,8 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
             if opens.iter().any(|o| o.edge() == rim_a || o.edge() == rim_b) {
                 return Err(unbuilt_chain(
                     edge,
-                    "a ruled band's cap rim is itself requested; a cap whose rim edges are \
-                     blended too is not implemented",
+                    "a ruled band's cap rim is itself requested, and blending it too is not \
+             implemented",
                 ));
             }
             // The cap plane, from the STORED surface — the battery's

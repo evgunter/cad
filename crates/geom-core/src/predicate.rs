@@ -296,25 +296,22 @@ impl fmt::Display for BandError {
         match self {
             Self::InvalidValue { field, value } => write!(
                 f,
-                "invalid band: {} = {value:e} (must be finite and > 0) — a derived band takes \
-                 zero from the run's tolerance ε and escalate from K·ε, so \
-                 lower whichever of the two is not finite and positive; a band built directly \
-                 wants finite positive thresholds at the call site",
+                "the band's {} threshold is {value:e}, and must be finite and positive. \
+                 Recourse: set a finite, positive tolerance, from which a derived band \
+                 takes both thresholds; a band built directly wants finite, positive ones",
                 field.name()
             ),
             Self::InvalidLeverArm { value } => write!(
                 f,
-                "invalid band: lever arm = {value:e} (must be finite and > 0) — name the lever \
-                 arm the decision actually turns on (the local radius of relative curvature, \
-                 the face extent, or the session-box extent), or classify a linear margin \
-                 instead"
+                "the band's lever arm is {value:e}, and must be finite and positive. \
+                 Recourse: name the lever arm the decision turns on (a radius of curvature \
+                 or an extent), or classify a linear margin instead"
             ),
             Self::Empty { zero, escalate } => write!(
                 f,
-                "invalid band: zero = {zero:e} must be strictly below escalate = {escalate:e} \
-                 (the ambiguity band is a nonempty open interval) — raise escalate above zero; \
-                 a band derived from the run's tolerance does this with its ambiguity \
-                 multiplier K > 1"
+                "the band's zero threshold {zero:e} is not below its escalate threshold \
+                 {escalate:e}, so the band is empty. Recourse: raise escalate above zero; a \
+                 band derived from the tolerance does, with its multiplier K > 1"
             ),
         }
     }
@@ -989,6 +986,14 @@ pub struct Indeterminate {
 pub const COINCIDENCE_RECOURSE: &str =
     "declare the coincidence, move the geometry, or lower the tolerance";
 
+/// The one recourse for a quantity the floating-point format cannot
+/// hold — a length that overflows the norm or underflows to zero while
+/// its direction is good. No tolerance reaches it, so it never rides
+/// with [`COINCIDENCE_RECOURSE`]; every site that refuses on the
+/// format's range composes this fragment, and message-pinning tests pin
+/// it with `contains`.
+pub const RANGE_RECOURSE: &str = "scale the geometry into the session's range";
+
 /// The one answer a refusal gives when the table that routes its
 /// recourse by predicate name does not carry the name that escalated:
 /// it NAMES the hole. Never a category asserted over the unknown name,
@@ -1358,24 +1363,21 @@ mod tests {
     fn band_error_display() {
         assert_eq!(
             Band::new(-1e-9, 1e-8).unwrap_err().to_string(),
-            "invalid band: zero = -1e-9 (must be finite and > 0) — a derived band takes zero \
-             from the run's tolerance ε and escalate from K·ε, so lower whichever of the two is \
-             not finite and positive; a band built directly wants finite positive thresholds \
-             at the call site"
+            "the band's zero threshold is -1e-9, and must be finite and positive. Recourse: \
+             set a finite, positive tolerance, from which a derived band takes both \
+             thresholds; a band built directly wants finite, positive ones"
         );
         assert_eq!(
             Band::new(1e-9, f64::INFINITY).unwrap_err().to_string(),
-            "invalid band: escalate = inf (must be finite and > 0) — a derived band takes zero \
-             from the run's tolerance ε and escalate from K·ε, so lower whichever of the two is \
-             not finite and positive; a band built directly wants finite positive thresholds \
-             at the call site"
+            "the band's escalate threshold is inf, and must be finite and positive. Recourse: \
+             set a finite, positive tolerance, from which a derived band takes both \
+             thresholds; a band built directly wants finite, positive ones"
         );
         assert_eq!(
             Band::new(1e-8, 1e-9).unwrap_err().to_string(),
-            "invalid band: zero = 1e-8 must be strictly below escalate = 1e-9 \
-             (the ambiguity band is a nonempty open interval) — raise escalate above zero; \
-             a band derived from the run's tolerance does this with its ambiguity \
-             multiplier K > 1"
+            "the band's zero threshold 1e-8 is not below its escalate threshold 1e-9, so the \
+             band is empty. Recourse: raise escalate above zero; a band derived from the \
+             tolerance does, with its multiplier K > 1"
         );
         // The lever-arm variant (an invalid arm returns before the global
         // tolerance is read, so this stays pure).
@@ -1383,9 +1385,9 @@ mod tests {
             Band::angular_at(Tol::witness(), f64::NEG_INFINITY)
                 .unwrap_err()
                 .to_string(),
-            "invalid band: lever arm = -inf (must be finite and > 0) — name the lever arm the \
-             decision actually turns on (the local radius of relative curvature, the face \
-             extent, or the session-box extent), or classify a linear margin instead"
+            "the band's lever arm is -inf, and must be finite and positive. Recourse: name \
+             the lever arm the decision turns on (a radius of curvature or an extent), or \
+             classify a linear margin instead"
         );
     }
 

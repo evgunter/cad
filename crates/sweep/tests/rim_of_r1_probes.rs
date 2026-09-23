@@ -240,8 +240,8 @@ fn the_refusals_own_text_names_the_door_and_following_it_carves() {
     };
     let text = refusal.error.to_string();
     assert!(
-        text.contains("`topo::query::rim_of` on any one of its arcs"),
-        "the refusal names the door: {text}"
+        text.contains("request the rim whole, every arc the seam split it into"),
+        "the refusal names the request that carves: {text}"
     );
     let rim = topo::query::rim_of(&source, seed).expect("the refusing arc names its rim");
     assert_eq!(rim.len(), 2);

@@ -611,12 +611,12 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 f,
                 "the rim of an open face is not a shape the shell op can build: {what}"
             ),
-            Self::Lift { face, error } => write!(
+            Self::Lift { error, .. } => write!(
                 f,
-                "lifting the rim back onto designated face {face:?} refused: {error}"
+                "lifting the rim back onto a designated open face refused: {error}"
             ),
-            Self::Face { face, error } => {
-                write!(f, "offsetting face {face:?} inward refused: {error}")
+            Self::Face { error, .. } => {
+                write!(f, "offsetting a face inward refused: {error}")
             }
             Self::OpenFaceStale { .. } => {
                 write!(f, "a designated open face does not resolve in the body")
@@ -638,8 +638,9 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
             ),
             Self::OpenFaceRingUnsupported { kind, .. } => write!(
                 f,
-                "a designated open face lies on a {kind:?}, and its rim would be a curved face \
-                 with a ring loop, which the shell op cannot build yet"
+                "a designated open face lies on a {}, and its rim would be a curved face with \
+                 a ring loop, which the shell op cannot build yet. There is no way through yet",
+                kind.name()
             ),
             Self::Insert { error } => write!(f, "inserting the cavity refused: {error}"),
             Self::Rim { face, error } => {

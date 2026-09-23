@@ -1725,9 +1725,8 @@ fn is_seam_vertex<T: Decide>(body: &Body<T>, edges: &[EdgeKey]) -> bool {
 /// mid-curve taxonomy reserves, not corner configurations, so they
 /// carry the run-out vocabulary and the corner recourse's "general
 /// run-outs" clause.
-pub const RULED_END_NOT_TRANSVERSE: &str = "a ruled band's edge ends at a face that is not a plane perpendicular to its ruling; \
-     the transverse cut-off is the only ruled termination built, and the oblique or \
-     curved-face run-out is not implemented";
+pub const RULED_END_NOT_TRANSVERSE: &str =
+    "a ruled band's edge ends at a face that is not a plane perpendicular to its ruling";
 
 /// **`fillet3_cap_transverse`** — does a ruled link's end face lie
 /// perpendicular to the band's ruling, so the band can be cut off in

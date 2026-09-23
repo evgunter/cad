@@ -33,8 +33,29 @@ through the checks window's `CheckEvidence::Unsupported`, where the
 key names nothing the person holding the mouse can find. The file sat
 inside hunks two open PRs were reworking (#3049, #2861), so the pass
 left them; `editor-core/tests/refusal_concision_chains.rs` lists the
-two rows in `KERNEL_KEYED` with a comment pointing here, and taking
-them out of that list is the check that this is done.
+two rows (`Shell/Roles`, `Check/Unsupported`) in `KERNEL_KEYED` with a
+comment pointing here, and taking them out of that list is the check
+that this is done.
+
+**Stage prefixes in the same two, and in the certifier (CHROME
+concision fix pass, 2026-09-23).** The feature tree's guard now reads a
+stage prefix by its SHAPE (one or two lowercase words and a colon,
+`test_utils::refusal::stage_prefixes`) rather than from a list, and it
+found three on screen in files open PRs are reworking:
+
+- `shell classification:` on every `ShellClassifyError` arm
+  (`crates/topo/src/props.rs:1809-1818`), reached as above;
+- `mass properties:` on every `MassPropsError` arm
+  (`crates/topo/src/props.rs:218-240`), reached through
+  `ShellClassifyError::Props` in the checks window;
+- `certification:` on every `CertifyError` arm
+  (`crates/geom-brep/src/certify.rs:389-488`), reached through
+  `NodeErrorKind::Transform(TransformError::Certify)`.
+
+`props.rs` is in #3049 and #2861, `certify.rs` in #2861. The guard's
+`FILED` list admits exactly these labels on exactly the rows named
+(`Shell/Roles`, `Check/Unsupported`, `Transform/Certify`); removing
+those entries is the check that this is done.
 
 `work.py territory` names no owner for `topo/src/pcurves.rs` or
 `geom-brep/src/certify.rs`. `topo::BooleanError` (also unowned) was

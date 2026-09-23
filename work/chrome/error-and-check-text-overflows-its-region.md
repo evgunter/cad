@@ -2,8 +2,7 @@
 id: error-and-check-text-overflows-its-region
 kind: issue
 title: viewer: the CONCISION half — error messages should be shorter, and most of the text is the kernel's typed refusals (Ev's request; the layout half landed in 3058)
-status: closed
-closed: 2026-09-23
+status: open
 opened: 2026-09-17
 pr: 3108
 priority: P0
@@ -251,9 +250,8 @@ viewer draws it:
   in the chain file: every `CheckEvidence` arm, with the separation
   arm over every containment refusal it can forward — 23 rows.
 
-The feature-tree row also refuses a stage prefix from a named list
-(`split_reduce`, `tube door`, `pcurve minting`, `(D4)`, …) and an arena
-key outside the kernel-bug arms it names (`KERNEL_KEYED`).
+The rows are also held to the rest of the standard's shape (see the
+fix pass below for how).
 
 **Census, before and after** (the same rows run over main's text and
 over this branch's):
@@ -314,6 +312,64 @@ the summary fallback for, and it is filed with its measurement on the
 edit program's slate as
 `work/edit/part-root-failure-nests-a-whole-refusal-past-the-budget.md`.
 
-**The row closes.** Every chain the viewer draws is now held to the
-budget by a test, and what is not is filed on its owner with its
-measured list.
+## The fix pass (PR #3108 review, 2026-09-23)
+
+**The shape is checked structurally.** `test_utils::refusal`
+(`crates/test-utils/src/refusal.rs`) is the one statement of what a
+refusal on screen must look like, checked on the rendered sentence:
+the 75-word budget; no stage prefix, read by its SHAPE (a clause of one
+or two lowercase words ending in a colon) rather than from a list of
+the prefixes a rewrite removed; no `Debug` struct (`Ident { field:`);
+no arena key outside the kernel-bug rows named by exact id
+(`KERNEL_KEYED`); and one recourse marker (`Recourse:` or "There is no
+way through"). All three chain tests call it. The checks window's rows
+are namespaced `Check/…` so an id cannot collide with a node row's.
+
+**What it found that the list could not see**, on rows already
+rendered: `invalid band:` (every `BandError`, 17 rows), `internal:`
+(three `NodeErrorKind` arms), `guided validation:` /
+`guided elaboration:`, `fit:` and `knot algebra:` (under `Skin`),
+`parameter width:` (three `EditError` arms), a `Debug` struct in
+`EditError::PathOffTree`, and `section:` (under the split join). Each
+is rewritten at its source. It also found, in files open PRs are
+reworking, `replace_face_offset:` (under `Shell/Face`, `Shell/Lift`),
+`shell classification:` and `mass properties:` (`topo/src/props.rs`),
+`certification:` (`geom-brep/src/certify.rs`) and the clearance
+engine's `Debug` payload (`editor-core/src/measure.rs`). Those are
+filed, each admitted by exact row id and exact label in the chain
+test's `FILED` / `FILED_DEBUG` lists with the row that owns it:
+`work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md`,
+`work/props/props-refusal-prose-outgrows-the-viewer.md` and
+`work/issues/unowned-refusal-prose-outgrows-the-viewer.md`.
+
+**Every blend raise-site detail is rendered.**
+`every_blend_detail_renders_within_the_budget` reads the detail of
+every `unbuilt_chain`, `unbuilt_run_out`, `unbuilt_geometry` and
+`not_intact` call in `sweep/src/blend` from source (a literal, or a
+`const` resolved in the same tree) and renders each through the
+feature tree's chain under both verbs: 181 sites, 362 rows, longest
+74. It went red on one detail the representative row did not reach
+(76 words), shortened at its site.
+
+**A pair's corner list states one recourse.**
+`PathError::NoCornerOfPair` renders every refusing corner; each corner
+used to carry its own "Recourse:", so two swallowed carriers rendered
+two recourses and 81 words. The corners now state facts and the pair
+states one recourse after them (`CornerReason::recourse`); the worst
+two-corner case renders 73.
+
+**Census after the fix pass:** feature tree 360 rows, longest 74;
+edit refusals 99, longest 72; checks window 23, longest 71; blend
+details 362, longest 74.
+
+## What remains open
+
+The row stays open on one residue without an owner: the stage
+prefixes and arena keys in `topo/src/props.rs` (`ShellClassifyError`,
+`MassPropsError`) and the stage prefix in `geom-brep/src/certify.rs`
+(`CertifyError`), which `work.py territory` assigns to no program and
+which open PRs #2861 and #3049 are reworking. They are filed on the
+unowned row. The row closes when that residue lands or a program
+takes it; the chain test's `FILED` and `KERNEL_KEYED` entries naming
+`Shell/Roles`, `Check/Unsupported` and `Transform/Certify` are what
+say it has.

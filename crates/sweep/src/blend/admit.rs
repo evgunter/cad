@@ -100,8 +100,7 @@ impl<'a, T: Real> AdmittedOpen<'a, T> {
         if !(link.arm.is_plane_plane() || link.arm.is_ruled()) {
             return Err(unbuilt_chain(
                 link.edge,
-                "an open chain's supports are neither plane–plane nor a ruled cylinder pair, \
-             the only terminations built",
+                "an open chain's supports are neither a plane–plane nor a ruled cylinder pair",
             ));
         }
         // No convexity clause, and no verb: neither band asks for
@@ -458,8 +457,7 @@ impl<T: Decide> RequestedBoundary<T> {
             if !opens.iter().any(|o| o.edge() == h.edge) {
                 return Err(unbuilt_run_out(
                     EntityId::Edge(h.edge),
-                    "a support face's boundary carries an edge the request does not \
-                     cover; run-outs at such corners are not implemented",
+                    "a support face's boundary carries an edge the request does not cover",
                 ));
             }
             let Some((_, faces, feet)) = corners
@@ -468,8 +466,7 @@ impl<T: Decide> RequestedBoundary<T> {
             else {
                 return Err(unbuilt_run_out(
                     EntityId::Vertex(h.start),
-                    "a support face's boundary vertex is not a fully-requested corner of \
-                     this face; run-outs at such corners are not implemented",
+                    "a support face's boundary vertex is not a fully requested corner of this face",
                 ));
             };
             // `contains` above passed, so the slot is present; keyed

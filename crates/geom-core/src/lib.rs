@@ -39,7 +39,8 @@ pub use linalg::{
 };
 pub use predicate::{
     Band, BandError, BandField, COINCIDENCE_RECOURSE, DEFAULT_K, Decide, Indeterminate,
-    IndeterminatePayload, InfSpeed, Margin, MarginDiag, MissingRecourse, Sign, SupSpeed,
+    IndeterminatePayload, InfSpeed, Margin, MarginDiag, MissingRecourse, RANGE_RECOURSE, Sign,
+    SupSpeed,
 };
 pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Enclosure, Real, Witness, is_finite_length,

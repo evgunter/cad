@@ -532,15 +532,17 @@ impl fmt::Display for RevolveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Band(e) => write!(f, "{e}"),
-            Self::NonFiniteAxis => f.write_str(
+            Self::NonFiniteAxis => write!(
+                f,
                 "the revolve axis direction has no finite length (a component overflows \
-                 the norm or is not a number). Recourse: scale the geometry into the \
-                 session's range",
+                 the norm or is not a number). Recourse: {}",
+                geom_core::RANGE_RECOURSE
             ),
-            Self::UnderflowedAxis => f.write_str(
+            Self::UnderflowedAxis => write!(
+                f,
                 "the revolve axis direction's length underflowed out of the format: it \
-                 measures zero while still naming a direction. Recourse: scale the \
-                 geometry into the session's range",
+                 measures zero while still naming a direction. Recourse: {}",
+                geom_core::RANGE_RECOURSE
             ),
             Self::DegenerateAxis => write!(
                 f,
@@ -829,9 +831,6 @@ mod tests {
             "{msg}"
         );
         assert!(msg.contains("no finite length"), "{msg}");
-        assert!(
-            msg.contains("scale the geometry into the session's range"),
-            "{msg}"
-        );
+        assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
     }
 }

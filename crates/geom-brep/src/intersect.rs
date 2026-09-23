@@ -544,60 +544,54 @@ impl From<EllipseInvalid> for SectionError {
 impl core::fmt::Display for SectionError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::WrongLane { expected } => {
-                write!(
-                    f,
-                    "section: wrong dispatch lane — this arm classifies {expected} (caller bug)"
-                )
-            }
+            Self::WrongLane { expected } => write!(
+                f,
+                "the section was dispatched to the arm for {expected}, not this pair's \
+                 (a kernel bug)"
+            ),
             // The Indeterminate Display carries the shared two-tolerance
             // recourse (S6) exactly once.
             Self::Escalated(diag) => write!(
                 f,
-                "section: configuration trilean escalated — an ill-conditioned \
-                 operand pair at this tolerance: {diag}"
+                "the two surfaces' configuration is ill-conditioned at this tolerance: {diag}"
             ),
-            Self::RoutesToGeneralRung { pair, why } => {
-                write!(f, "section: {pair}: {why}")
-            }
+            Self::RoutesToGeneralRung { pair, why } => write!(f, "the {pair} section: {why}"),
             Self::RadiusDeclarationContradicted => write!(
                 f,
-                "section: the declared equal-radius coincidence is contradicted by the \
-                 geometry (|r1 - r2| definitely nonzero) — declarations are verified at \
-                 use, never trusted"
+                "the declared equal radii are contradicted by the geometry (the radii \
+                 definitely differ); a declaration is verified at use, never trusted"
             ),
             Self::CoaxialDeclarationContradicted => write!(
                 f,
-                "section: the declared coaxiality is contradicted by the geometry (the \
-                 sphere's centre is definitely off the cylinder's axis) — declarations \
-                 are verified at use, never trusted"
+                "the declared coaxiality is contradicted by the geometry (the sphere's \
+                 centre is definitely off the cylinder's axis); a declaration is verified \
+                 at use, never trusted"
             ),
-            Self::DegenerateOperand { what } => write!(
-                f,
-                "section: {what} — the arm asks each clause of its operands' convention \
-                 its own question rather than reading a relation between them"
-            ),
+            Self::DegenerateOperand { what } => {
+                write!(f, "a section operand is degenerate: {what}")
+            }
             Self::BeyondOperandExtent { what } => write!(
                 f,
-                "section: {what} — a locus outside the extent the call metered against \
-                 is not this rung's to mint: its absolute position error scales with \
-                 the locus, not with the operands, so the arm's exactness claim does \
-                 not reach it. Re-ask with an extent that covers the locus"
+                "{what}, outside the extent the section was sized for, where its closed \
+                 form is not exact. Recourse: size the section to an extent that covers \
+                 the curve"
             ),
+            // No "declare": the one caller that renders this arm is the
+            // chord join (split and Boolean), which takes no declaration
+            // at this site; the Boolean's own frame maps it away.
             Self::CoincidentSurfaces => write!(
                 f,
-                "section: the surfaces are coincident (coaxial equal-radius cylinders) — \
-                 a same-surface locus is not an intersection; {}",
-                geom_core::COINCIDENCE_RECOURSE
+                "the surfaces are coincident (coaxial equal-radius cylinders), so they \
+                 share a surface rather than meet along a curve. Recourse: move the \
+                 geometry, or lower the tolerance"
             ),
             Self::DegenerateTorus => write!(
                 f,
-                "section: the torus operand is not a ring (R − r is not definitely \
-                 positive — a spindle/horn configuration): its meridian circles meet \
-                 or cross on the axis and no closed-form section is classified; \
-                 validated bodies uphold R > r > 0 at construction and at rest"
+                "the torus is not a ring (its minor radius is not definitely below its \
+                 major one), so no closed-form section is classified; a validated body \
+                 has a ring torus, so this one is corrupt"
             ),
-            Self::Carrier(e) => write!(f, "section: {e}"),
+            Self::Carrier(e) => write!(f, "the section's curve refused: {e}"),
         }
     }
 }

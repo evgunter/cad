@@ -24,8 +24,6 @@ use editor_core::{
 };
 use viewer::session::Refusal;
 
-const BUDGET: usize = 75;
-
 fn shown(e: EditError) -> String {
     Refusal::Edit(Box::new(e)).to_string()
 }
@@ -713,26 +711,23 @@ fn forwarded_edit_refusals() -> Vec<(String, EditError)> {
     rows
 }
 
-/// **Every edit refusal the status line draws fits the budget.** Each
-/// `EditError` arm, and each forwarding arm over what it forwards,
-/// rendered through [`Refusal::Edit`] and counted.
+/// **Every edit refusal the status line draws meets the standard.**
+/// Each `EditError` arm, and each forwarding arm over what it forwards,
+/// rendered through [`Refusal::Edit`] and held to
+/// [`test_utils::refusal::problems`]: the budget, no stage prefix, no
+/// `Debug` struct, no arena key.
 #[test]
 fn every_edit_refusal_renders_within_the_budget() {
-    let mut over = Vec::new();
+    let mut problems = Vec::new();
     let rows = edit_refusals()
         .into_iter()
         .map(|(arm, e)| (arm.to_owned(), e))
         .chain(forwarded_edit_refusals());
     for (arm, e) in rows {
         let text = shown(e);
-        let words = text.split_whitespace().count();
-        eprintln!("MEASURE {words} Edit/{arm}: {text}");
-        if words > BUDGET {
-            over.push(arm);
-        }
+        let name = format!("Edit/{arm}");
+        eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
+        problems.extend(test_utils::refusal::problems(&name, &text, &[], false));
     }
-    assert!(
-        over.is_empty(),
-        "the edit arms over {BUDGET} words: {over:?}"
-    );
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }

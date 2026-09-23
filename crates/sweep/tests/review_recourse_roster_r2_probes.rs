@@ -141,12 +141,12 @@ fn the_validator_door_appends_a_site_note_and_routes_nothing() {
     assert!(!text.contains(NOTE), "{text}");
 }
 
-/// **The tube door's table routes a door name, never a recourse.**
+/// **The tube's table routes which tube it names, never a recourse.**
 ///
-/// The three wall names read `tube_along_arc_hollow`; every other
-/// name, and a nameless escalation, reads `tube door` — the honest
-/// answer for a predicate both tube doors can reach — and every one of
-/// them renders the shared recourse whole, with no gap sentence.
+/// The three wall names read "the hollow tube"; every other name, and
+/// a nameless escalation, reads "the tube" — the honest answer for a
+/// predicate both tube doors can reach — and every one of them renders
+/// the shared recourse whole, with no gap sentence.
 #[test]
 fn the_tube_door_routes_a_door_name_and_never_a_recourse() {
     for (name, door) in [

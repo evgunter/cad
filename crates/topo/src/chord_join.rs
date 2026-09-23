@@ -328,33 +328,53 @@ impl From<PointInLoopError> for SplitJoinError {
     }
 }
 
+/// The recourse the section join's escalations carry. The join runs
+/// under a split, which takes no declarations, and under a Boolean,
+/// which does; the one lever true at both is the geometry (or the
+/// tolerance), so "declare the coincidence" is left to the Boolean's
+/// own refusals.
+const JOIN_RECOURSE: &str = "move the geometry, or lower the tolerance";
+
 impl core::fmt::Display for SplitJoinError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::OrderEscalated { diag } => {
-                write!(
-                    f,
-                    "the order of two section points is too close to call: {diag}"
-                )
-            }
-            Self::Escalated { diag, .. } => {
-                write!(
-                    f,
-                    "where the section runs across a face is too close to call: {diag}"
-                )
-            }
+            Self::OrderEscalated { diag } => write!(
+                f,
+                "the order of two section points is too close to call ({}). Recourse: \
+                 {JOIN_RECOURSE}",
+                diag.payload()
+            ),
+            Self::Escalated { diag, .. } => write!(
+                f,
+                "where a section runs across a face is too close to call ({}). Recourse: \
+                 {JOIN_RECOURSE}",
+                diag.payload()
+            ),
             Self::DegenerateSection { .. } => write!(
                 f,
-                "the split's section is degenerate: it bounds zero area (a one-sided \
-                 tangency), so one side has no real material. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                "a section is degenerate: it bounds zero area (a one-sided tangency), so \
+                 one side has no real material. Recourse: {JOIN_RECOURSE}"
             ),
-            Self::RingHoming(e) => write!(f, "re-homing a hole loop refused: {e}"),
+            Self::RingHoming(e) => match e {
+                crate::splitting::PointInLoopError::Escalated { diag, .. } => write!(
+                    f,
+                    "which piece a hole loop falls in is too close to call ({}). Recourse: \
+                     {JOIN_RECOURSE}",
+                    diag.payload()
+                ),
+                crate::splitting::PointInLoopError::RayExhausted { .. } => write!(
+                    f,
+                    "every test ray grazed a hole loop, so which piece holds it is \
+                     ill-conditioned at this tolerance. Recourse: {JOIN_RECOURSE}"
+                ),
+                crate::splitting::PointInLoopError::CorruptLoop { .. } => {
+                    write!(f, "re-homing a hole loop refused: {e}")
+                }
+            },
             Self::RingHomingAmbiguous { .. } => write!(
                 f,
                 "a hole loop sits on the divided face's outer boundary, so which piece \
-                 holds it cannot be decided. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 holds it cannot be decided. Recourse: {JOIN_RECOURSE}"
             ),
             Self::UnpairedLooseEnds { count } => write!(
                 f,
@@ -384,10 +404,9 @@ impl core::fmt::Display for SplitJoinError {
                 if case.is_containment_verdict() {
                     write!(
                         f,
-                        " ('split_arc_window', band ({:e}, {:e})). Recourse: {}",
+                        " ('split_arc_window', band ({:e}, {:e})). Recourse: {JOIN_RECOURSE}",
                         band.zero(),
                         band.escalate(),
-                        geom_core::COINCIDENCE_RECOURSE
                     )?;
                 }
                 Ok(())
@@ -2516,22 +2535,15 @@ mod tests {
         assert_eq!(diag.predicate, Some("split_arc_window"));
 
         for msg in [definite.to_string(), escalated.to_string()] {
-            assert_eq!(
-                msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-                1,
-                "{msg}"
-            );
+            assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
+            assert!(!msg.contains("declare"), "{msg}");
             assert!(msg.contains("split_arc_window"), "{msg}");
             assert!(msg.contains("1e-9") && msg.contains("1e-8"), "{msg}");
         }
         // The sub-case that classified nothing must NOT carry the
         // recourse — there is no ill-conditioned margin behind it.
         let no_run = spec_with(&[]).unwrap_err().to_string();
-        assert_eq!(
-            no_run.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            0,
-            "{no_run}"
-        );
+        assert_eq!(no_run.matches(JOIN_RECOURSE).count(), 0, "{no_run}");
     }
 
     /// Seam-placement independence, at the unit: the whole construction
@@ -2557,16 +2569,14 @@ mod tests {
     /// S6 (two-tolerance, D4 ¶1 addendum): the split-join pair —
     /// exactly-zero section area (`DegenerateSection`) and in-band
     /// (`Escalated`) — is one user situation; both arms carry the
-    /// shared recourse fragment.
+    /// join's one recourse ([`JOIN_RECOURSE`]), which offers no
+    /// declaration because the join takes none.
     #[test]
     fn section_area_pair_carries_the_shared_recourse() {
         let face = FaceKey::default();
         let msg = SplitJoinError::DegenerateSection { face }.to_string();
-        assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            1,
-            "{msg}"
-        );
+        assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
+        assert!(!msg.contains("declare"), "{msg}");
 
         let msg = SplitJoinError::Escalated {
             face,
@@ -2577,11 +2587,8 @@ mod tests {
             },
         }
         .to_string();
-        assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            1,
-            "{msg}"
-        );
+        assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
+        assert!(!msg.contains("declare"), "{msg}");
     }
 
     /// **The anti-re-fork row for the arc-side rule.** Each of the

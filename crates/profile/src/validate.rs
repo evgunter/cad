@@ -1035,7 +1035,7 @@ impl fmt::Display for ProfileError {
                 }
                 Ok(())
             }
-            Self::Structure(r) => write!(f, "guided validation: {r}"),
+            Self::Structure(r) => write!(f, "{r}"),
         }
     }
 }

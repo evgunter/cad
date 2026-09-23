@@ -117,8 +117,7 @@ impl core::fmt::Display for PointInLoopError {
             Self::RayExhausted { .. } => write!(
                 f,
                 "every test ray grazed the loop, so containment is ill-conditioned at \
-                 this tolerance. Recourse: {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 this tolerance"
             ),
             Self::CorruptLoop { r#loop } => {
                 write!(f, "loop {loop:?} is not walkable")

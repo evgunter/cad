@@ -1605,14 +1605,15 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "a direction the Boolean measures where the solids meet has no finite \
                  length \u{2014} its components overflow, or one of them is not a \
-                 number. Recourse: scale the geometry into the session's range"
+                 number. Recourse: {}",
+                geom_core::RANGE_RECOURSE
             ),
             Self::UnderflowedSectorChord { .. } => write!(
                 f,
                 "a direction the Boolean measures where the solids meet is too small \
                  for its length to be represented, so it measures exactly zero; no \
-                 tolerance reaches this. Recourse: scale the geometry into the \
-                 session's range"
+                 tolerance reaches this. Recourse: {}",
+                geom_core::RANGE_RECOURSE
             ),
             Self::Escalated { diag } => write!(
                 f,
@@ -2654,10 +2655,7 @@ mod tests {
         }
         .to_string();
         assert!(msg.contains("has no finite length"), "{msg}");
-        assert!(
-            msg.contains("scale the geometry into the session's range"),
-            "{msg}"
-        );
+        assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
         assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 0, "{msg}");
         assert!(!msg.contains("zero length"), "{msg}");
         assert_eq!(

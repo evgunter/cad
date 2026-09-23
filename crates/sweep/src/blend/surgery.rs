@@ -614,8 +614,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
         if here != incident {
             return Err(unbuilt_run_out(
                 EntityId::Vertex(v),
-                "a chain terminates at a trivalent vertex whose three edges are not all \
-                 requested; run-outs at such corners are not implemented",
+                "a chain ends at a trivalent corner whose three edges are not all requested",
             ));
         }
         corners.push(corner_plan(source, links, radius, kind)?);
@@ -905,8 +904,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
         if !link.arm.is_coaxial_torus() {
             return Err(unbuilt_chain(
                 link.edge,
-                "a closed chain's blend is not a torus (the torus band is the only \
-                 closed blend built)",
+                "a closed chain's blend is not a torus, the only closed blend built",
             ));
         }
     }
@@ -1058,8 +1056,8 @@ fn resolve_rim<'a, T: Decide + Bounds>(
         if on_boundary != [link.edge] {
             return Err(unbuilt_chain(
                 link.edge,
-                "a curved support does not carry exactly its own rim arc (the \
-                 half-cap discipline the band replacement needs)",
+                "a curved support does not carry exactly its own rim arc, as the band \
+             replacement needs",
             ));
         }
     }
@@ -1174,8 +1172,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     if ka == kb {
         return Err(unbuilt_chain(
             link0.edge,
-            "a closed rim's two supports are ONE surface, so the band has no two sides \
-             to rest on",
+            "a closed rim's two supports are ONE surface, so the band has no two sides",
         ));
     }
     for link in chain.links() {
@@ -1251,8 +1248,8 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
         if carried != [link.edge] {
             return Err(unbuilt_chain(
                 link.edge,
-                "a seam-split rim's support does not carry exactly its own rim arc \
-                 (the half-band discipline the band replacement needs)",
+                "a seam-split rim's support does not carry exactly its own rim arc, as the band \
+             needs",
             ));
         }
         Ok(())
@@ -1384,7 +1381,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
             return Err(unbuilt_chain(
                 link.edge,
                 "a seam-split rim's vertex carries more than two arcs and one seam meridian per \
-             side (revolution walls only)",
+             side",
             ));
         }
         let (mut host_seam, mut mate_seam) = (None, None);
@@ -1405,8 +1402,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
             if sp != sm {
                 return Err(unbuilt_chain(
                     link.edge,
-                    "an extra edge at a rim vertex is not a seam meridian, so the rim is not smooth \
-             through it",
+                    "a rim vertex's extra edge is not a seam meridian, so the rim is not smooth",
                 ));
             }
             let slot = if sp == host_surface {
@@ -1520,8 +1516,8 @@ fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), BlendErro
             if annulus(a) != annulus(b) {
                 return Err(unbuilt_chain(
                     b.chain.first().edge,
-                    "a ladder rim and an annulus rim share a support face; blend them in \
-             SEQUENTIAL calls (the second on the first's result)",
+                    "a ladder rim and an annulus rim share a support face; blend them in SEQUENTIAL \
+             calls",
                 ));
             }
         }
@@ -1610,8 +1606,7 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
     if host_surface == mate_surface {
         return Err(unbuilt_chain(
             rim.chain.first().edge,
-            "a rim's two supports carry ONE surface, so its seams cannot be told apart; \
-             blend the rims in SEQUENTIAL calls",
+            "a rim's supports are ONE surface; blend the rims in SEQUENTIAL calls",
         ));
     }
     let chain_edges: Vec<EdgeKey> = rim.chain.links().map(|l| l.edge).collect();
@@ -1654,23 +1649,23 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
             } else {
                 return Err(unbuilt_chain(
                     rim.chain.first().edge,
-                    "an earlier band left a non-seam edge at a rim crossing; blend the rims in \
-             SEQUENTIAL calls",
+                    "an earlier band left a non-seam edge at a rim crossing; blend in SEQUENTIAL \
+             calls",
                 ));
             };
             if slot.replace(e).is_some() {
                 return Err(unbuilt_chain(
                     rim.chain.first().edge,
-                    "an earlier band left two seam meridians in ONE support at a rim crossing; \
-             blend the rims in SEQUENTIAL calls",
+                    "an earlier band left two seam meridians in ONE support; blend in SEQUENTIAL \
+             calls",
                 ));
             }
         }
         let Some(mate) = mate_seam else {
             return Err(unbuilt_chain(
                 rim.chain.first().edge,
-                "an earlier band consumed a seam meridian at a rim crossing; blend the rims \
-             in SEQUENTIAL calls",
+                "an earlier band consumed a seam meridian at a rim crossing; blend in \
+             SEQUENTIAL calls",
             ));
         };
         // A hostless crossing has no host seam to find, and finding one
@@ -1683,8 +1678,8 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
             (HostFoot::Seam(_), None) | (HostFoot::Strut, Some(_)) => {
                 return Err(unbuilt_chain(
                     rim.chain.first().edge,
-                    "an earlier band consumed a seam meridian at a rim crossing; blend the rims \
-             in SEQUENTIAL calls",
+                    "an earlier band consumed a seam meridian at a rim crossing; blend in \
+             SEQUENTIAL calls",
                 ));
             }
         };
@@ -1753,7 +1748,7 @@ fn resolve_annulus<T: Decide + Bounds>(
         return Err(unbuilt_chain(
             link0.edge,
             "a one-edge rim's vertex carries more than the rim and its supports' seam \
-             meridians (revolution walls only)",
+             meridians",
         ));
     }
     Ok(RimShape::Annulus(AnnulusRim {
@@ -1810,7 +1805,7 @@ fn wall_seam<T: Decide>(
         return Err(unbuilt_chain(
             rim,
             "a one-edge rim's support is not a revolution wall (no doubly-traversed seam \
-             meridian at the rim vertex)",
+             meridian)",
         ));
     };
     Ok(seam)
@@ -1873,8 +1868,8 @@ fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T
         let Curve3::Circle { center, radius, .. } = *c.carrier() else {
             return Err(unbuilt_geometry(
                 EntityId::Edge(edge),
-                "a ring edge's carrier is not a circle — the exact ring-clearance \
-                 check covers circle rings only",
+                "a ring edge's carrier is not a circle, the only ring the clearance check \
+             covers",
             ));
         };
         // Key equality is not available across arcs of one rim (each
@@ -2352,8 +2347,8 @@ fn rim_carrier<T: Decide>(
     let Curve3::Circle { axis, u_ref, .. } = *c.carrier() else {
         return Err(unbuilt_geometry(
             EntityId::Edge(e),
-            "a rim edge's carrier is not a circle; the band inherits the rim's \
-             circular frame and no other stored shape is built",
+            "a rim edge's carrier is not a circle, the only rim carrier the band is built \
+             for",
         ));
     };
     let (t0, t1) = c.params();
@@ -2502,8 +2497,7 @@ pub(super) fn seam_split_param<T: Decide + Bounds>(
     if matches!(sc.carrier(), Curve3::Circle { .. }) && (T::tau() - (st1 - st0)).lo() <= 0.0 {
         return Err(unbuilt_geometry(
             EntityId::Edge(seam),
-            "a split edge's stored window is not under one period, so the split parameter \
-             would alias by a turn",
+            "a split edge's stored window is not under one period",
         ));
     }
     // Anchored at the CARRIER'S SEAM, not at the stored window — the
@@ -2738,8 +2732,7 @@ fn rim_phase<T: Decide + Bounds>(
         let [m] = meridians[..] else {
             return Err(unbuilt_chain(
                 e,
-                "a rim vertex does not drop exactly one meridian into the cap, as the band \
-             replacement needs",
+                "a rim vertex does not drop exactly one meridian into the cap",
             ));
         };
         // The split target: the sphere trim circle at this vertex's
@@ -2857,8 +2850,7 @@ fn rim_phase<T: Decide + Bounds>(
         {
             return Err(unbuilt_chain(
                 e,
-                "a half-cap's rim arc is not flanked by meridian split points, as the band \
-             replacement needs",
+                "the rim arc on one half of the cap is not flanked by meridian split points",
             ));
         }
         let (p1, p2) = (

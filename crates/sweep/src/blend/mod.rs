@@ -568,24 +568,28 @@ pub const FILLET3_RADIUS_RECOURSE: &str =
 /// surgery's description pass). The margin the rule meters is
 /// `|κ_rel|·arm²/2` with `arm = min(curvature arm of either surface,
 /// the edge's extent)`, so the blend radius levers it three ways, and
-/// the sentence names all three because a recourse must be true at
+/// the sentence names every branch because a recourse must be true at
 /// every site its tag can fire (README A3-2): on a plane support the
 /// arm is `r` and the margin `r/2`, growing with the radius; on a
-/// support of curvature radius `R` curving the band's own way it is
-/// `(1 − r/R)·r/2`, which peaks at `r = R/2` — and every ratio the
-/// clearance screen admits on a cylinder sits PAST that peak, so there
-/// only a smaller radius raises it; on a slim corner arc the arm is
-/// the arc's extent `r·θ`, the margin `≈ θ²·r/2`, and a smaller radius
-/// drops it under ε, where the rule stores the conventional
-/// description and the body builds. Measured, one row per site kind:
+/// support curving AWAY from the band (the sum branch) it is
+/// `(1 + r/R)·r/2`, which also grows with `r` and has no peak; on a
+/// support of curvature radius `R` curving the band's own way (the
+/// difference branch) it is `(1 − r/R)·r/2`, which peaks at `r = R/2`
+/// — and every ratio the clearance screen admits on a cylinder sits
+/// PAST that peak, so there only a smaller radius raises it; on a slim
+/// corner arc the arm is the arc's extent `r·θ`, the margin
+/// `≈ θ²·r/2`, and a smaller radius drops it under ε, where the rule
+/// stores the conventional description and the body builds — so the
+/// sentence says "builds conventionally" there, never "raises it".
+/// Measured, one row per site kind:
 /// `contact_edge_must_carry::the_contact_recourse_is_followable_at_each_site_kind`,
 /// `review_contact_edge_must_carry_r2_probes::r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it`,
 /// `review_contact_edge_must_carry_r1_probes::r1_a_sphere_supported_rim_in_the_octave_refuses_typed_at_the_annulus_door`.
 /// Ball language kept: only a fillet mints a tangential contact.
-pub const FILLET3_CONTACT_RECOURSE: &str = "change the fillet radius \u{2014} larger on a plane support; on a curved one the \
-     margin peaks at half its curvature radius, and past that peak only a smaller radius \
-     raises it, as on a slim corner arc \u{2014} or blend a larger feature, or lower the \
-     tolerance";
+pub const FILLET3_CONTACT_RECOURSE: &str = "change the fillet radius: larger on a plane support or one curving away from the \
+     band; smaller on one curving the band's own way, where the margin is past its peak, \
+     or on a slim corner arc, which then builds conventionally; or blend a larger \
+     feature, or lower the tolerance";
 /// The recourse for a support face whose survival the clearance screen
 /// cannot certify. Both verbs meter clearance (each on its own
 /// setbacks), so the sentence names the blend size, which is the
@@ -655,11 +659,12 @@ pub const FILLET3_CONVEXITY_RECOURSE: &str =
 /// names the corner configurations that DO carve, and then the run-out
 /// front door that does not exist yet.
 ///
-/// Both clauses are true of either verb: the fully-requested UNIFORM
-/// trivalent corner carves on both material sides (the rolling ball's
-/// octant rests inside the material or in the void with its ball; the
-/// flat patch never had a side), so the sentence conditions on the
-/// configuration and not on the verb.
+/// Its configuration clause ("of one convexity") is true of either
+/// verb and at either material side: the fully requested UNIFORM
+/// trivalent corner carves wherever the material lies (the rolling
+/// ball's octant rests inside the material or in the void with its
+/// ball; the flat patch never had a side), so the sentence conditions
+/// on the configuration and not on the verb or the side.
 ///
 /// **What it DOES condition on is that every terminating corner is
 /// wholly requested**, which its sibling
@@ -697,9 +702,9 @@ pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates only in
 /// `review_blend1_r2_probes::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`,
 /// which asserts the sentence and the whole-rim CARVE together, convex
 /// and concave, so neither half can drift alone.
-pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole (`topo::query::rim_of` on any one of its arcs hands you \
-     every arc) rather than stopping at the seam, a chart artifact; a fillet carves it as \
-     one band on either material side (a chamfer has no closed-chain band)";
+pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole, every arc the seam split it into, rather than stopping at \
+     the seam, a chart artifact; a fillet carves it as one band on either material side \
+     (a chamfer has no closed-chain band)";
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
 /// refusals: what remains outside is junction carry-through and rims
@@ -747,10 +752,10 @@ pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole (`topo::qu
 /// A merged flat top that is an ANNULUS carves through this clause:
 /// `ring_clearance_forms::the_bosss_top_outer_rim_carves_on_a_ringed_host`.
 /// `blend_recourse_followability` follows the clause to a carve.
-pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend single-link open chains ending at fully requested plane\u{2013}plane corners \
-     or at TRANSVERSE CAPS on a cylinder's ruling. For a fillet, a circular rim between \
-     coaxial surfaces of revolution (a latitude rim) carves too, as arcs or one face's \
-     whole outer cycle, its rings clear of the band's setback";
+pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend one-link open chains ending at fully requested trivalent plane\u{2013}plane \
+     corners of one convexity or at TRANSVERSE CAPS on a cylinder's ruling. For a fillet, \
+     a whole latitude rim between coaxial surfaces of revolution carves too, its rings \
+     clear of the band's setback; junction carry-through and run-outs are not implemented";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less
 /// bodies are a separate door.
@@ -1394,19 +1399,30 @@ impl fmt::Display for BlendError {
                 // A routed name carries its own recourse, so the payload
                 // view renders without the shared coincidence tail: a
                 // blend decision is not a coincidence the caller declared.
-                write!(
-                    f,
-                    "escalated at {site}: {}. Recourse: {recourse}",
-                    source.payload()
-                )
+                // A POISONED reading is the one exception with a lever
+                // of its own: the geometry did not produce it, the
+                // inputs did, so that lever leads.
+                match source.margin {
+                    geom_core::MarginDiag::Invalid => write!(
+                        f,
+                        "escalated at {site}: {}. Recourse: check the operation's inputs \
+                         upstream, then {recourse}",
+                        source.payload()
+                    ),
+                    _ => write!(
+                        f,
+                        "escalated at {site}: {}. Recourse: {recourse}",
+                        source.payload()
+                    ),
+                }
             }
             Self::RepeatedEdge { .. } => write!(
                 f,
-                "the request names one edge twice — request each edge once"
+                "the request names one edge twice. Recourse: request each edge once"
             ),
             Self::NonpositiveSize { size } => write!(
                 f,
-                "the band size {size} m is not definitely positive — supply a \
+                "the band size {size} m is not definitely positive. Recourse: supply a \
                  positive radius or setback"
             ),
             Self::UnsupportedBody { solids, shells } => write!(
@@ -1425,8 +1441,8 @@ impl fmt::Display for BlendError {
             }
             Self::BodyNotIntact { at, detail } => write!(
                 f,
-                "{detail} — {at} did not resolve: the body is not intact there, and \
-                 no recourse applies"
+                "{detail} — {at} did not resolve, so the body is not intact there. There \
+                 is no way through"
             ),
             Self::SurgeryInvariant { at, detail } => write!(
                 f,

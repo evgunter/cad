@@ -1899,7 +1899,8 @@ impl core::fmt::Display for NodeErrorKind {
             }
             Self::ProfileAnchor { loop_ } => write!(
                 f,
-                "internal: canonical loop {loop_} failed to match back to a program loop"
+                "profile loop {loop_} did not match back to a loop of the program, which is \
+                 a kernel bug"
             ),
             Self::Mate(fault) => write!(f, "the mate solve refused: {fault}"),
             Self::CrossingUnverified {
@@ -1996,16 +1997,15 @@ impl core::fmt::Display for NodeErrorKind {
             }
             Self::UnderflowedDirection { role } => write!(
                 f,
-                "the {role} underflowed to zero length — its components \
-                 are too small for their squares to be represented, so it \
-                 has a direction but no measurable length; scale the \
-                 geometry into the session's range"
+                "the {role} underflowed to zero length, though it still names a \
+                 direction. Recourse: {}",
+                geom_core::RANGE_RECOURSE
             ),
             Self::NonFiniteDirection { role } => write!(
                 f,
-                "the {role} has no finite length — its components \
-                 overflow the norm, or one of them is not a number; scale \
-                 the geometry into the session's range"
+                "the {role} has no finite length (a component overflows the norm or is \
+                 not a number). Recourse: {}",
+                geom_core::RANGE_RECOURSE
             ),
             Self::Band(e) => write!(
                 f,
@@ -2014,7 +2014,8 @@ impl core::fmt::Display for NodeErrorKind {
             Self::MissingSlot { slot } => {
                 write!(
                     f,
-                    "internal: the wiring expected slot {slot:?}, which is absent"
+                    "the node's wiring expected its {slot:?} input, which is absent (a kernel \
+                     bug)"
                 )
             }
             // The sentence is single-homed at the run doors' own
@@ -2030,7 +2031,7 @@ impl core::fmt::Display for NodeErrorKind {
                     verb: *verb,
                     given: *given,
                 };
-                write!(f, "internal: {refusal}")
+                write!(f, "{refusal} (a kernel bug)")
             }
             Self::Escalated { predicate, source } => write!(
                 f,

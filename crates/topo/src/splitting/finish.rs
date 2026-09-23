@@ -191,8 +191,9 @@ impl core::fmt::Display for SplitFinishError {
             ),
             Self::DegenerateSide { side, .. } => write!(
                 f,
-                "a piece on the {} side of the plane has no real material (only section \
-                 faces). Recourse: move the split plane off that sliver",
+                "the piece on the {} side of the plane bounds no volume (the residue of a \
+                 one-sided tangency: only section faces). Recourse: move the split plane \
+                 off the tangency",
                 match side {
                     super::PlaneSide::Below => "below",
                     super::PlaneSide::On => "on",
@@ -213,7 +214,10 @@ impl core::fmt::Display for SplitFinishError {
             Self::Band(e) => write!(f, "{e}"),
             Self::DescribeEscalated { diag, .. } => write!(
                 f,
-                "the angle between two faces along the cut is too close to call: {diag}"
+                "the angle between two faces along the cut is too close to call ({}). \
+                 Recourse: {}",
+                diag.payload(),
+                super::SPLIT_COINCIDENCE_RECOURSE
             ),
         }
     }

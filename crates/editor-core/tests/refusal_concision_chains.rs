@@ -23,12 +23,6 @@
 
 use editor_core::{NodeError, NodeErrorKind, RecipeNodeId};
 
-/// The words a refusal the viewer shows may take, counted on the
-/// rendered sentence. The one statement of the number is
-/// `refusal_concision`'s; this is the same number, for the chains that
-/// test does not render.
-pub(crate) const BUDGET: usize = 75;
-
 /// A `NodeErrorKind` as the feature tree's fault line draws it.
 pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
     NodeError {
@@ -38,31 +32,6 @@ pub(crate) fn as_the_viewer_shows_it(kind: NodeErrorKind) -> String {
     }
     .to_string()
 }
-
-/// The stage prefixes the concision pass removed from these chains: a
-/// pipeline stage's name in front of a sentence is developer detail.
-const STAGE_PREFIXES: &[&str] = &[
-    "split_reduce",
-    "split join:",
-    "split finish:",
-    "split: ",
-    "tube door",
-    "tube_along_arc_hollow:",
-    "transform: ",
-    "newell:",
-    "pcurve minting",
-    "read-back:",
-    "interrogate:",
-    "void insertion:",
-    "point_in_loop:",
-    "shell: ",
-    "skin: ",
-    "loft: ",
-    "parameter box:",
-    "parameter seed:",
-    "param-source attachment:",
-    "(D4)",
-];
 
 /// The rows that may name an arena key: each reports a corrupt body, a
 /// kernel invariant or a kernel finding, where the key is what the bug
@@ -101,8 +70,6 @@ const KERNEL_KEYED: &[&str] = &[
     "Naming/SharedRim",
     "FaceFrameReadback/Dangling",
     "Shell/Partition",
-    "Shell/Face",
-    "Shell/Lift",
     "Shell/Insert",
     "Shell/Rim",
     "Shell/Corrupt",
@@ -111,31 +78,69 @@ const KERNEL_KEYED: &[&str] = &[
     // their shell and face by key; both sit in `topo/src/props.rs`,
     // which open PRs are reworking, and are filed rather than edited.
     "Shell/Roles",
-    "Unsupported",
+    "Check/Unsupported",
 ];
 
-/// The rows over budget, carrying a stage prefix, or naming an arena
-/// key outside [`KERNEL_KEYED`], among `rows`.
+/// The clause labels a refusal legitimately opens with that read, by
+/// shape, like a stage prefix: one or two lowercase words and a colon.
+/// A label here is English the person reads, not a pipeline stage.
+pub(crate) const ALLOWED_LABELS: &[&str] = &[
+    // The checks window's finding labels (`check separation: …`): the
+    // check the person ran, named as the menu names it.
+    "check separation",
+    "check connectedness",
+    "check chart-coherence",
+];
+
+/// The rows whose stage prefix sits in a file an open PR is reworking,
+/// each with the one prefix it may still carry. An exact row id and an
+/// exact label: a new prefix on the same row, or the same prefix on
+/// another row, is still red. Each is filed with its owner, named here.
+pub(crate) const FILED: &[(&str, &str)] = &[
+    // `topo/src/replace_face.rs` (#2861), SHELL's:
+    // work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md
+    ("Shell/Face", "replace_face_offset"),
+    ("Shell/Lift", "replace_face_offset"),
+    // `topo/src/props.rs` (#2861, #3049), unowned:
+    // work/issues/unowned-refusal-prose-outgrows-the-viewer.md
+    ("Shell/Roles", "shell classification"),
+    ("Check/Unsupported", "shell classification"),
+    ("Check/Unsupported", "mass properties"),
+    // `geom-brep/src/certify.rs` (#2861), unowned: the same row.
+    ("Transform/Certify", "certification"),
+];
+
+/// The rows that render a `Debug` struct from a file an open PR is
+/// reworking, by exact row id, each filed with its owner.
+pub(crate) const FILED_DEBUG: &[&str] = &[
+    // `editor-core/src/measure.rs` (#2702) renders the clearance
+    // engine's refusal class through `Debug`, PROPS's:
+    // work/props/props-refusal-prose-outgrows-the-viewer.md
+    "MeasureClearanceRefused",
+];
+
+/// Every way the rows among `rows` fall short of the standard:
+/// [`test_utils::refusal::problems`] on each, with the labels
+/// [`ALLOWED_LABELS`] and [`FILED`] admit, the `Debug` rows [`FILED_DEBUG`]
+/// admits, and the keys
+/// [`KERNEL_KEYED`] admits.
 pub(crate) fn over_budget(rows: &[(String, String)]) -> Vec<String> {
     let mut problems = Vec::new();
     for (name, text) in rows {
-        let words = text.split_whitespace().count();
-        eprintln!("MEASURE {words} {name}: {text}");
-        if words > BUDGET {
-            problems.push(format!(
-                "{name} renders {words} words, over {BUDGET}: {text}"
-            ));
-        }
-        for prefix in STAGE_PREFIXES {
-            if text.contains(prefix) {
-                problems.push(format!(
-                    "{name} carries the stage prefix {prefix:?}: {text}"
-                ));
-            }
-        }
-        if text.contains("Key(") && !KERNEL_KEYED.contains(&name.as_str()) {
-            problems.push(format!("{name} dumps an arena key: {text}"));
-        }
+        eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
+        let mut allowed = ALLOWED_LABELS.to_vec();
+        allowed.extend(FILED.iter().filter(|(row, _)| row == name).map(|(_, l)| *l));
+        let debug_filed = format!("{name} renders a Debug struct");
+        problems.extend(
+            test_utils::refusal::problems(
+                name,
+                text,
+                &allowed,
+                KERNEL_KEYED.contains(&name.as_str()),
+            )
+            .into_iter()
+            .filter(|p| !(FILED_DEBUG.contains(&name.as_str()) && p.starts_with(&debug_filed))),
+        );
     }
     problems
 }
@@ -1075,8 +1080,11 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "UnsupportedChain",
             E::UnsupportedChain {
                 edge,
-                detail: "a curved support does not carry exactly its own rim arc (the half-cap discipline \
-                         the band replacement needs)",
+                // One detail, as the feature tree draws it; every detail
+                // the blend module raises is rendered by
+                // `every_blend_detail_renders_within_the_budget`.
+                detail: "a curved support does not carry exactly its own rim arc, as the band \
+                         replacement needs",
             },
         ),
         (
@@ -1455,6 +1463,84 @@ fn profile_replay() -> Vec<(String, NodeErrorKind)> {
                         reason: CornerReason::NoTangentCircle(
                             NoCornerReason::OffsetCarriersDisjoint,
                         ),
+                    },
+                ],
+            },
+        ),
+        (
+            "NoCornerOfPair(two swallows, bounded)",
+            P::NoCornerOfPair {
+                radius: 0.312_345_678,
+                corners: vec![
+                    CornerRefusal {
+                        at: Point2::new(-1.234_567, 0.987_654),
+                        reason: CornerReason::EnclosesLegCarrier {
+                            side: Some(FilletLeg::Incoming),
+                            carrier_radius: 0.123_456_789,
+                            offset_radius: -0.176_543_21,
+                            largest_tangent_radius: Some(0.151_234_567),
+                        },
+                    },
+                    CornerRefusal {
+                        at: Point2::new(1.234_567, -0.987_654),
+                        reason: CornerReason::EnclosesLegCarrier {
+                            side: None,
+                            carrier_radius: 0.123_456_789,
+                            offset_radius: -0.176_543_21,
+                            largest_tangent_radius: Some(0.141_234_567),
+                        },
+                    },
+                ],
+            },
+        ),
+        (
+            "NoCornerOfPair(two swallows, unbounded)",
+            P::NoCornerOfPair {
+                radius: 0.312_345_678,
+                corners: vec![
+                    CornerRefusal {
+                        at: Point2::new(-1.234_567, 0.987_654),
+                        reason: CornerReason::EnclosesLegCarrier {
+                            side: Some(FilletLeg::Outgoing),
+                            carrier_radius: 0.123_456_789,
+                            offset_radius: -0.176_543_21,
+                            largest_tangent_radius: None,
+                        },
+                    },
+                    CornerRefusal {
+                        at: Point2::new(1.234_567, -0.987_654),
+                        reason: CornerReason::EnclosesLegCarrier {
+                            side: Some(FilletLeg::Incoming),
+                            carrier_radius: 0.123_456_789,
+                            offset_radius: -0.176_543_21,
+                            largest_tangent_radius: None,
+                        },
+                    },
+                ],
+            },
+        ),
+        (
+            "NoCornerOfPair(swallow and anchor)",
+            P::NoCornerOfPair {
+                radius: 0.312_345_678,
+                corners: vec![
+                    CornerRefusal {
+                        at: Point2::new(1.234_567, -0.987_654),
+                        reason: CornerReason::EnclosesLegCarrier {
+                            side: None,
+                            carrier_radius: 0.123_456_789,
+                            offset_radius: -0.176_543_21,
+                            largest_tangent_radius: Some(0.151_234_567),
+                        },
+                    },
+                    CornerRefusal {
+                        at: Point2::new(-1.234_567, 0.987_654),
+                        reason: CornerReason::AnchorOutsideTrimmedExtent {
+                            side: FilletLeg::Outgoing,
+                            carrier: FilletLegCarrier::Line,
+                            setback: 0.412_345_678,
+                            available: 0.301_234_567,
+                        },
                     },
                 ],
             },
@@ -2195,7 +2281,10 @@ fn shell() -> Vec<(String, NodeErrorKind)> {
     use payloads::*;
     use topo::{EntityId, FaceKey, ReplaceFaceError, ShellError as S, ShellKey, SolidKey};
     let (face, other, shell) = (FaceKey::default(), FaceKey::default(), ShellKey::default());
-    let replace = || Box::new(ReplaceFaceError::<f64>::StaleFace { face });
+    // `Corrupt`, the one `ReplaceFaceError` arm that names no key: the
+    // wrapper's own sentence names none either, so a key on this row
+    // would be the wrapper's.
+    let replace = || Box::new(ReplaceFaceError::<f64>::Corrupt);
     [
         (
             "Band",
@@ -2401,7 +2490,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
 fn every_check_finding_renders_within_the_budget() {
     let rows: Vec<(String, String)> = check_findings()
         .into_iter()
-        .map(|(name, finding)| (name, finding.to_string()))
+        .map(|(name, finding)| (format!("Check/{name}"), finding.to_string()))
         .collect();
     let problems = over_budget(&rows);
     assert!(problems.is_empty(), "{}", problems.join("\n"));
@@ -2614,4 +2703,181 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         ));
     }
     rows
+}
+
+/// **Every detail a blend refusal is raised with fits its chain.** The
+/// `UnsupportedChain`, `UnsupportedRunOut`, `UnsupportedGeometry` and
+/// `BodyNotIntact` arms each render a raise site's `detail` in front of
+/// their recourse, and the rows above render one representative detail
+/// apiece. So this reads every detail the blend module raises those arms
+/// with — the second argument of each `unbuilt_chain`,
+/// `unbuilt_run_out`, `unbuilt_geometry` and `not_intact` call in
+/// `sweep/src/blend`, a literal or a `const` resolved in the same tree —
+/// and renders each through the feature tree's chain, under both verbs.
+/// A raise site added later is read the day it is written.
+#[test]
+fn every_blend_detail_renders_within_the_budget() {
+    use sweep::blend::{BlendError as E, BlendKind};
+    use topo::{EdgeKey, EntityId, FaceKey};
+    let details = blend_details();
+    let mut rows = Vec::new();
+    for (helper, site, detail) in &details {
+        let detail: &'static str = Box::leak(detail.clone().into_boxed_str());
+        let at = EntityId::Face(FaceKey::default());
+        let error = || match *helper {
+            "unbuilt_chain" => E::UnsupportedChain {
+                edge: EdgeKey::default(),
+                detail,
+            },
+            "unbuilt_run_out" => E::UnsupportedRunOut { at, detail },
+            "unbuilt_geometry" => E::UnsupportedGeometry { at, detail },
+            "not_intact" => E::BodyNotIntact { at, detail },
+            other => panic!("no arm for {other}"),
+        };
+        for verb in [BlendKind::Fillet, BlendKind::Chamfer] {
+            rows.push((
+                format!("Blend/{helper}@{site}"),
+                as_the_viewer_shows_it(NodeErrorKind::Blend {
+                    verb,
+                    error: error(),
+                }),
+            ));
+        }
+    }
+    // A reader that found nothing would pass vacuously.
+    for helper in [
+        "unbuilt_chain",
+        "unbuilt_run_out",
+        "unbuilt_geometry",
+        "not_intact",
+    ] {
+        assert!(
+            details.iter().any(|(h, _, _)| *h == helper),
+            "no `{helper}` detail was read from sweep/src/blend"
+        );
+    }
+    let keyed: Vec<(String, String)> = rows
+        .into_iter()
+        .map(|(n, t)| {
+            // `BodyNotIntact` names the entity that did not resolve: a
+            // corrupt body, whose report needs the key.
+            let n = if n.starts_with("Blend/not_intact@") {
+                "Blend/BodyNotIntact".to_owned() + &n["Blend/not_intact".len()..]
+            } else {
+                n
+            };
+            (n, t)
+        })
+        .collect();
+    let problems: Vec<String> = keyed
+        .iter()
+        .flat_map(|(name, text)| {
+            eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
+            test_utils::refusal::problems(
+                name,
+                text,
+                ALLOWED_LABELS,
+                name.starts_with("Blend/BodyNotIntact@"),
+            )
+        })
+        .collect();
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
+}
+
+/// Every `(helper, file:line, detail)` the blend module raises a
+/// detail-carrying refusal with, read from its source.
+fn blend_details() -> Vec<(&'static str, String, String)> {
+    use test_utils::source::{
+        balanced_end, boundary_before, code_and_literals, code_only, crate_dir, line, rust_sources,
+        top_level_split,
+    };
+    let dir = crate_dir(env!("CARGO_MANIFEST_DIR")).join("../sweep/src/blend");
+    // Each file in two views, blanked in place so their bytes line up:
+    // the code alone, where every bracket and comma is real, locates a
+    // call and its arguments; the code with its literals reads them.
+    let files: Vec<(std::path::PathBuf, String, String)> = rust_sources(&dir)
+        .into_iter()
+        .map(|p| {
+            let text = std::fs::read_to_string(&p).expect("a blend source reads");
+            let code = test_utils::source::blanked(code_only, "a blend source", &text);
+            let view = test_utils::source::blanked(code_and_literals, "a blend source", &text);
+            (p, code, view)
+        })
+        .collect();
+    let constant = |name: &str| -> String {
+        let decl = format!("const {name}: &str =");
+        let found: Vec<String> = files
+            .iter()
+            .flat_map(|(_, code, view)| {
+                test_utils::source::initializers(code, &decl)
+                    .into_iter()
+                    .map(|r| view[r].to_owned())
+            })
+            .collect();
+        assert!(
+            found.len() == 1,
+            "`{name}` is declared {} times, not once",
+            found.len()
+        );
+        decode(&found[0])
+    };
+    let mut out = Vec::new();
+    for (path, code, view) in &files {
+        for helper in [
+            "unbuilt_chain",
+            "unbuilt_run_out",
+            "unbuilt_geometry",
+            "not_intact",
+        ] {
+            let call = format!("{helper}(");
+            for (at, _) in code.match_indices(&call) {
+                // A call, not the definition.
+                if code[..at].ends_with("fn ") || !boundary_before(code, at) {
+                    continue;
+                }
+                let open = at + helper.len();
+                let close = balanced_end(code, open).expect("the call closes");
+                let parts = top_level_split(&code[open + 1..close], ',');
+                let detail = parts[1].start + open + 1..parts[1].end + open + 1;
+                let arg = view[detail].trim();
+                let site = format!(
+                    "{}:{}",
+                    path.file_name().unwrap().to_string_lossy(),
+                    line(code, at)
+                );
+                let detail = if arg.starts_with('"') {
+                    decode(arg)
+                } else {
+                    constant(arg)
+                };
+                out.push((helper, site, detail));
+            }
+        }
+    }
+    out
+}
+
+/// A plain Rust string literal's value: `\`-newline continuations and
+/// `\"` decoded, anything else refused rather than guessed.
+fn decode(literal: &str) -> String {
+    let inner = test_utils::source::plain_string_literal(literal)
+        .unwrap_or_else(|| panic!("not a plain string literal: {literal}"));
+    let mut out = String::new();
+    let mut chars = inner.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('\n') => {
+                while chars.peek().is_some_and(|c| c.is_whitespace()) {
+                    chars.next();
+                }
+            }
+            Some('"') => out.push('"'),
+            other => panic!("an escape this reader does not decode: \\{other:?} in {literal}"),
+        }
+    }
+    out
 }

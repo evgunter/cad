@@ -456,9 +456,17 @@ fn curved_face_refuses() {
         ) => {
             assert_eq!(face, cube.seed.face);
             let msg = e.to_string();
+            // The operand gate refuses a torus face ANYWHERE in the
+            // body, before the plane is read: the sentence must not
+            // claim the plane crosses it, nor offer a plane placement
+            // as the way through.
             assert!(
-                msg.contains("a torus face") && msg.contains("not supported yet"),
+                msg.contains("the body has a torus face") && msg.contains("no way through"),
                 "{msg}"
+            );
+            assert!(
+                !msg.contains("cross") && !msg.contains("Recourse"),
+                "the gate's refusal claims a crossing or a plane recourse: {msg}"
             );
         }
         other => panic!("expected CurvedBooleanUnsupported(Torus), got {other:?}"),
@@ -575,10 +583,7 @@ fn non_finite_sector_chord_names_the_cause_and_no_tolerance_recourse() {
     .to_string();
     assert!(!msg.contains("split_reduce"), "no stage prefix: {msg}");
     assert!(msg.contains("has no finite length"), "{msg}");
-    assert!(
-        msg.contains("scale the geometry into the session's range"),
-        "{msg}"
-    );
+    assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
     assert!(!msg.contains("zero length"), "{msg}");
     // The coincidence recourse is what a band refusal offers; this is
     // not one, and offering it would name a lever that cannot move.

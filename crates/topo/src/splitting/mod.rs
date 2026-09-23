@@ -329,29 +329,50 @@ impl From<EulerOpError> for SplitReduceError {
     }
 }
 
+/// The recourse a split's escalations carry. A split takes no
+/// declarations (`split`'s signature), so the shared
+/// [`geom_core::COINCIDENCE_RECOURSE`]'s "declare the coincidence" is
+/// not a lever here; the split plane is.
+pub(crate) const SPLIT_COINCIDENCE_RECOURSE: &str =
+    "move the split plane or the geometry, or lower the tolerance";
+
 impl core::fmt::Display for SplitReduceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use geom_core::RANGE_RECOURSE;
         match self {
             Self::Band(e) => write!(f, "{e}"),
+            // Raised by the operand gate for ANY face of such a kind in
+            // the body, before the plane is consulted, so no placement
+            // of the plane is a way through. The gate also reports a
+            // face whose surface does not resolve under the spline
+            // kind, which is why that arm names both.
             Self::CurvedBooleanUnsupported { kind, .. } => write!(
                 f,
-                "the split plane crosses a {} face, and cutting that kind of face with a \
-                 plane is not supported yet. Recourse: place the split plane so it misses \
-                 that face",
+                "the body has {}, and the split cannot cut a body with such a face \
+                 yet. There is no way through yet",
                 match kind {
-                    geom_brep::SurfaceKind::Nurbs => "spline (NURBS)",
-                    geom_brep::SurfaceKind::Approx => "approximated spline",
-                    other => other.name(),
+                    geom_brep::SurfaceKind::Nurbs => {
+                        "a spline (NURBS) face, or a face whose surface does not resolve"
+                    }
+                    geom_brep::SurfaceKind::Approx => "an approximated spline face",
+                    geom_brep::SurfaceKind::Cone => "a cone face",
+                    geom_brep::SurfaceKind::Sphere => "a sphere face",
+                    geom_brep::SurfaceKind::Torus => "a torus face",
+                    geom_brep::SurfaceKind::Plane => "a plane face",
+                    geom_brep::SurfaceKind::Cylinder => "a cylinder face",
                 }
             ),
             Self::CurvedEdgeUnsupported { .. } => write!(
                 f,
-                "the body has an edge on a spline (NURBS) curve, which the split cannot \
-                 take yet; there is no way through yet"
+                "the body has an edge on a spline (NURBS) or spiric curve, which the split \
+                 cannot take yet. There is no way through yet"
             ),
-            Self::CrossingEscalated { diag, .. } => {
-                write!(f, "the split plane grazes the end of a curved edge: {diag}")
-            }
+            Self::CrossingEscalated { diag, .. } => write!(
+                f,
+                "the split plane grazes the end of a curved edge ({}). Recourse: \
+                 {SPLIT_COINCIDENCE_RECOURSE}",
+                diag.payload()
+            ),
             Self::TangencyUnsupported { .. } => write!(
                 f,
                 "the split plane is tangent to a curved face at a vertex, and a tangent \
@@ -362,27 +383,27 @@ impl core::fmt::Display for SplitReduceError {
                 "the body carries null-edge scaffolding at {edge:?}: a mid-surgery body, \
                  not one a split can take"
             ),
-            Self::SliverVertex { diag, .. } => {
-                write!(
-                    f,
-                    "a vertex lies within tolerance of the split plane: {diag}"
-                )
-            }
+            Self::SliverVertex { diag, .. } => write!(
+                f,
+                "a vertex lies within tolerance of the split plane ({}). Recourse: \
+                 {SPLIT_COINCIDENCE_RECOURSE}",
+                diag.payload()
+            ),
             Self::SliverSector { diag, .. } => write!(
                 f,
                 "which side of the split plane a face leaves a vertex on is too close to \
-                 call: {diag}"
+                 call ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
+                diag.payload()
             ),
             Self::NonFiniteSectorChord { .. } => write!(
                 f,
-                "a chord at a vertex has no finite length \u{2014} a component overflows \
-                 the norm or is not a number. Recourse: scale the geometry into the \
-                 session's range"
+                "a chord at a vertex has no finite length (a component overflows the norm \
+                 or is not a number). Recourse: {RANGE_RECOURSE}"
             ),
             Self::UnderflowedSectorChord { .. } => write!(
                 f,
                 "a chord at a vertex has a length that underflows to zero. Recourse: \
-                 scale the geometry into the session's range"
+                 {RANGE_RECOURSE}"
             ),
             Self::ConsecutiveOnSectors { vertex } => write!(
                 f,

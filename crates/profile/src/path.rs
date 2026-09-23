@@ -692,14 +692,14 @@ pub struct CornerRefusal<T: Real> {
 impl<T: Real> core::fmt::Display for CornerRefusal<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // A derived ordinate that lands on negative zero renders as
-        // "-0" here — "at the corner near (0, -0)" on a corner on the
+        // "-0" here — "at corner (0, -0)" on a corner on the
         // x axis. That is issue 1282's class (the Display float
         // rendering, which `num` owns) and not this site's to repair:
         // the sign is the arithmetic's, the payload keeps it exactly,
         // and a repair belongs at `num` where every arm gets it.
         write!(
             f,
-            "at the corner near ({x}, {y}): {reason}",
+            "at corner ({x}, {y}): {reason}",
             x = num(&self.at.x),
             y = num(&self.at.y),
             reason = self.reason
@@ -730,35 +730,38 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
                     "every tangent circle of that radius touches a side past this corner"
                 ),
             },
+            // The carrier rides the payload; the sentence names the
+            // anchor and the two lengths that decide it. The recourse is
+            // the pair's, stated once after every corner
+            // ([`CornerReason::recourse`]).
             Self::AnchorOutsideTrimmedExtent {
                 side,
-                carrier,
                 setback,
                 available,
+                ..
             } => write!(
                 f,
-                "the fillet trim would eat the {side}'s anchor on its {carrier} carrier \
-                 (setback {setback} m, {available} m available); reduce the radius or move \
-                 the anchor",
+                "the fillet trim would eat the {side}'s anchor (setback {setback} m, \
+                 {available} m available)",
                 setback = num(setback),
                 available = num(available)
             ),
+            // The offset radius rho that decides the swallow rides the
+            // payload; the sentence names the carrier's own radius.
             Self::EnclosesLegCarrier {
                 side,
                 carrier_radius,
-                offset_radius,
                 largest_tangent_radius,
+                ..
             } => {
                 let whose = match side {
-                    Some(side) => &format!("the {side} side's carrier"),
-                    None => "both sides' carriers",
+                    Some(side) => &format!("the {side}'s carrier"),
+                    None => "both legs' carriers",
                 };
                 write!(
                     f,
-                    "a fillet of that radius would SWALLOW {whose} (radius \
-                     {carrier_radius} m; offset radius rho = {offset_radius} m)",
+                    "the fillet would SWALLOW {whose} (radius {carrier_radius} m)",
                     carrier_radius = num(carrier_radius),
-                    offset_radius = num(offset_radius)
                 )?;
                 match largest_tangent_radius {
                     // The endorsable number: a circle of this radius IS
@@ -767,22 +770,43 @@ impl<T: Real> core::fmt::Display for CornerReason<T> {
                     // own words when they do.
                     Some(bound) => write!(
                         f,
-                        ". Recourse: the largest circle tangent to both carriers here has \
-                         radius {bound} m, so use a radius below that (a short anchored leg \
-                         can need less)",
+                        "; the largest circle tangent to both has radius {bound} m",
                         bound = num(bound)
                     ),
                     // Nothing endorsable at this site: the class bound is
-                    // necessary and not sufficient, and naming a radius
-                    // below it would be a promise this gate cannot keep.
+                    // necessary and not sufficient, so the sentence states
+                    // only what it rules OUT — every radius from the
+                    // carrier's own up swallows it — and names no radius
+                    // below it, which would be a promise this gate cannot
+                    // keep.
                     None => write!(
                         f,
-                        ". Recourse: use a radius below {carrier_radius} m, though these \
-                         carriers may admit no fillet at this corner at all",
+                        "; no radius from {carrier_radius} m up fits",
                         carrier_radius = num(carrier_radius)
                     ),
                 }
             }
+        }
+    }
+}
+
+impl<T: Real> CornerReason<T> {
+    /// What to change about a request this corner refused, or `None`
+    /// where the corner names no lever (it lies outside the anchors'
+    /// window, which no radius moves). A carrier pair's refusal lists
+    /// every corner and states ONE recourse after them all: the widest
+    /// of its corners', so a list of two reads as one message with one
+    /// recourse rather than two.
+    #[must_use]
+    pub fn recourse(&self) -> Option<&'static str> {
+        match self {
+            Self::AnchorOutsideTrimmedExtent { .. } => Some("reduce the radius or move the anchor"),
+            Self::EnclosesLegCarrier { .. }
+            | Self::NoTangentCircle(NoCornerReason::OffsetCarriersDisjoint) => {
+                Some("reduce the radius")
+            }
+            Self::NoTangentCircle(NoCornerReason::NoCornerSideCandidate)
+            | Self::OutsideAnchors(_) => None,
         }
     }
 }
@@ -1667,7 +1691,19 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 for corner in corners {
                     write!(f, "; {corner}")?;
                 }
-                Ok(())
+                // One recourse for the pair: moving the anchor is the
+                // wider menu, and it is offered whenever any corner's
+                // anchor refused.
+                let recourses: Vec<&str> =
+                    corners.iter().filter_map(|c| c.reason.recourse()).collect();
+                let recourse = recourses
+                    .iter()
+                    .find(|r| r.contains("anchor"))
+                    .or(recourses.first());
+                match recourse {
+                    Some(r) => write!(f, ". Recourse: {r}"),
+                    None => Ok(()),
+                }
             }
             Self::FilletOffsetLeverTooShort {
                 side,
@@ -1781,20 +1817,21 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 f,
                 "a direction derived from ({dx}, {dy}) has no finite length (a component \
                  overflows the norm or is not a number). Recourse: only the ratio of the \
-                 components is read, so divide them through by a common factor, or, if they \
-                 come from authored geometry, scale that geometry into the session's range",
+                 components is read, so divide them through by a common factor; if they \
+                 come from authored geometry, {RANGE_RECOURSE}",
                 dx = num(dx),
-                dy = num(dy)
+                dy = num(dy),
+                RANGE_RECOURSE = geom_core::RANGE_RECOURSE
             ),
             Self::UnderflowedDirection { dx, dy } => write!(
                 f,
                 "a direction derived from ({dx}, {dy}) has a length that underflowed out of \
                  the format, though the direction is good. Recourse: only the ratio of the \
-                 components is read, so multiply them through by a common factor, or, if \
-                 they come from authored geometry, scale that geometry into the session's \
-                 range",
+                 components is read, so multiply them through by a common factor; if they \
+                 come from authored geometry, {RANGE_RECOURSE}",
                 dx = num(dx),
-                dy = num(dy)
+                dy = num(dy),
+                RANGE_RECOURSE = geom_core::RANGE_RECOURSE
             ),
             Self::ArcViaCollinear { offset } => write!(
                 f,
@@ -1832,9 +1869,8 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             Self::FarEndAnchorWithoutFillet => write!(
                 f,
                 "the far-end-anchor form ends an ARRIVAL side at its own anchor, and no \
-                 fillet is open here: the entry authors its first side with .at(p), and the \
-                 seam is authored at the back by the verb that targets Start \
-                 (PATHS-DESIGN §2's entry rule)"
+                 fillet is open here. Recourse: author the entry's first side with .at(p), \
+                 and the seam with the verb that targets Start"
             ),
             // A recourse is routed by the escalated predicate's NAME.
             // A name in two layers gets the EARLIER layer's sentence, so
@@ -1965,17 +2001,17 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                     },
                 }
             }
-            Self::Band(e) => write!(f, "path tolerance band: {e}"),
-            Self::Structure(r) => write!(f, "guided elaboration: {r}"),
+            Self::Band(e) => write!(f, "the path's tolerance could not form a band: {e}"),
+            Self::Structure(r) => write!(f, "{r}"),
             Self::UnderdeterminedLeg { site } => write!(
                 f,
-                "elaborator backstop UnderdeterminedLeg at {site}: expected unreachable from \
-                 the typed surface — a reachable case is a design finding (PATHS-DESIGN §5)"
+                "the sketch leg at {site} is underdetermined, which the authoring surface \
+                 should rule out (a kernel bug)"
             ),
             Self::OverdeterminedJunction { site } => write!(
                 f,
-                "elaborator backstop OverdeterminedJunction at {site}: expected unreachable \
-                 from the typed surface — a reachable case is a design finding (PATHS-DESIGN §5)"
+                "the sketch junction at {site} is overdetermined, which the authoring \
+                 surface should rule out (a kernel bug)"
             ),
         }
     }
@@ -4801,10 +4837,7 @@ mod tests {
             "{s}"
         );
         assert!(s.contains("divide them through by a common factor"), "{s}");
-        assert!(
-            s.contains("scale that geometry into the session's range"),
-            "{s}"
-        );
+        assert!(s.contains(geom_core::RANGE_RECOURSE), "{s}");
         assert!(!s.contains("scaling them up costs nothing"), "{s}");
         assert_eq!(
             PathError::NonFiniteDirection {
@@ -4889,10 +4922,7 @@ mod tests {
             s.contains("multiply them through by a common factor"),
             "{s}"
         );
-        assert!(
-            s.contains("scale that geometry into the session's range"),
-            "{s}"
-        );
+        assert!(s.contains(geom_core::RANGE_RECOURSE), "{s}");
         assert!(!s.contains("within tolerance of zero"), "{s}");
         assert!(!s.contains("no finite length"), "{s}");
         // The component the format lost is RENDERED, never the zero it
@@ -5046,8 +5076,8 @@ mod tests {
             "circular (carrier radius 0.008 m, angular margin 0.0035 rad)"
         );
 
-        // And through the sentence that interpolates it, where the
-        // neighbouring scalars are shortened already.
+        // And through the corner sentence, whose setback and available
+        // length are subtractions too and render shortened the same way.
         let s = CornerRefusal {
             at: Point2::new(0.25_f64, 0.5_f64),
             reason: CornerReason::AnchorOutsideTrimmedExtent {
@@ -5058,13 +5088,7 @@ mod tests {
             },
         }
         .to_string();
-        assert!(
-            s.contains(
-                "circular (carrier radius 0.008 m, angular margin 0.0035 rad) carrier \
-                 (setback 0.008 m, 0.0035 m available)"
-            ),
-            "{s}"
-        );
+        assert!(s.contains("(setback 0.008 m, 0.0035 m available)"), "{s}");
         assert!(!s.contains("0.008000000000000002"), "{s}");
         assert!(!s.contains("0.0034999999999999996"), "{s}");
 

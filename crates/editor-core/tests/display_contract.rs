@@ -472,7 +472,7 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 zero: 5e-324,
                 escalate: 5e-324,
             }),
-            vec!["ambiguity band", "ambient tolerance", "strictly below"],
+            vec!["ambiguity band", "ambient tolerance", "not below"],
         ),
     ];
     assert_f6_every_variant(&cases, &SELECT_REFUSAL, &also_banned);
@@ -1971,7 +1971,7 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 zero: 5e-324,
                 escalate: 5e-324,
             }),
-            vec!["classification band", "5e-324"],
+            vec!["naming band", "5e-324"],
         ),
         (
             NamingError::Escalated {
