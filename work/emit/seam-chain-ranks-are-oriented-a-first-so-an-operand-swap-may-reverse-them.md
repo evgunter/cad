@@ -2,11 +2,13 @@
 id: seam-chain-ranks-are-oriented-a-first-so-an-operand-swap-may-reverse-them
 kind: issue
 title: Seam-edge chains are ranked along an A-first direction, and the union's Seam canonicalization keeps those ranks, so reordering a union's members silently rebinds OrderAlong names
-status: dispatched
+status: closed
 opened: 2026-09-23
 priority: P0
 cost: E
 branch: emit/seam-chain-ranks
+closed: 2026-09-23
+pr: 3121
 ---
 
 

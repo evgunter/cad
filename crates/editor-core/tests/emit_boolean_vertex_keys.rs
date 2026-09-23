@@ -96,7 +96,7 @@ fn assert_at(ev: &Evaluation<f64>, id: RecipeNodeId, n: &StableName, at: [f64; 3
     assert!(d < 1e-9, "{n:?} names a vertex at {p:?}, not at {at:?}");
 }
 
-fn nested(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn nested(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, big) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 2.0);
     let (doc, small) = block(doc, (0.5, 1.0), (0.5, 1.0), 0.5, 0.5);
     (doc, big, small)
@@ -192,7 +192,7 @@ fn the_surviving_operand_names_the_corners_in_every_order() {
 /// An L-shaped block with a reflex vertical edge at (1, 1), and a
 /// triangular prism inside it whose apex touches that edge at
 /// (1, 1, 0.5) and nowhere else.
-fn ell_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn ell_and_tip(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let r = std::f64::consts::FRAC_1_SQRT_2;
     let (doc, lp) = on_frame(
         doc,
@@ -309,7 +309,7 @@ fn an_assembly_names_the_touch_vertex_by_its_partner_in_either_order() {
 
 /// A tip whose apex touches the top face of a block at an interior
 /// point, hanging down into the block.
-fn face_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn face_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, bl) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, tp) = on_frame(
         doc,
@@ -329,7 +329,7 @@ fn face_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 }
 
 /// A tip whose apex touches a block's vertical edge from outside.
-fn edge_touch_outside(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn edge_touch_outside(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let r = std::f64::consts::FRAC_1_SQRT_2;
     let (doc, bl) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, tp) = on_frame(
@@ -355,7 +355,7 @@ fn edge_touch_outside(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
 /// whose convex corner (1, 1, 0) is touched by a tilted wedge's ridge,
 /// the wedge crossing the L's long arm elsewhere — a zip in the body,
 /// none at the touch.
-fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+pub(crate) fn seamed_touch(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, lp) = on_frame(
         doc,
         [0.0, 0.0, 0.0],
@@ -549,12 +549,16 @@ fn micro(x: f64) -> i64 {
 /// Every name of `id`'s table, beside the geometry it names (a
 /// vertex's point, an edge's two end points, a face's boundary vertex
 /// points, the body), or `None` when the result is the empty value.
-fn named_geometry(ev: &Evaluation<f64>, id: RecipeNodeId, swap: bool) -> Option<BTreeSet<String>> {
+pub(crate) fn named_geometry(
+    ev: &Evaluation<f64>,
+    id: RecipeNodeId,
+    swap: bool,
+) -> Option<BTreeSet<String>> {
     if let Some(e) = failure(ev, id) {
         panic!("the boolean refused: {e}");
     }
     match &ev.value(id).expect("the boolean evaluated").payload {
-        ValuePayload::Boolean(BooleanValue::Body { .. }) => {}
+        ValuePayload::Boolean(BooleanValue::Body { .. }) | ValuePayload::Body(_) => {}
         ValuePayload::Boolean(BooleanValue::Empty) => return None,
         other => panic!("expected a boolean value, got {}", other.kind_name()),
     }
