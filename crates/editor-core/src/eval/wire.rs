@@ -109,6 +109,9 @@ pub(crate) struct OpOut<T: Decide> {
     /// channel's bookkeeping half, in the same arena and filled at the
     /// same one op.
     pub carried: Arc<crate::assembly::CarriedDeclarations>,
+    /// A loft's section anchors ([`NodeValue::section_anchors`](super::NodeValue::section_anchors));
+    /// `None` for every other op.
+    pub section_anchors: Option<Arc<anchor::SectionAnchors>>,
 }
 
 impl<T: Decide> OpOut<T> {
@@ -120,6 +123,7 @@ impl<T: Decide> OpOut<T> {
             names,
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
+            section_anchors: None,
         }
     }
 }
@@ -486,6 +490,7 @@ where
         names: table,
         contacts: Arc::clone(&part.contacts),
         carried: Arc::new(carried),
+        section_anchors: None,
     })
 }
 
@@ -5034,23 +5039,12 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
     let v_degree = need_count(vals, SlotId::VDegree)?;
     let mut sections = Vec::with_capacity(profiles.len());
     let mut places = Vec::with_capacity(profiles.len());
-    let mut first_naming = ProfileNaming::default();
-    for (i, pid) in profiles.iter().enumerate() {
+    let mut namings = Vec::with_capacity(profiles.len());
+    for pid in profiles {
         let (chain, place, naming) = section_of::<T>(doc, results, *pid, lane, tol)?;
         sections.push(chain);
         places.push(place);
-        if i == 0 {
-            // The loft emitter's profile refs are canonical (loop,
-            // segment) indices of the SECTION combinatorics; sections
-            // must correspond, so the FIRST section's anchor is the
-            // rewrite for the emitted table. PINNED LIMITATION
-            // (reported; review NOTE): a later section authored
-            // rotated/reversed relative to section 0 anchors to
-            // section 0's map, not its own — acceptable while the
-            // kernel requires corresponding sections; revisit if loft
-            // ever accepts per-section reparametrization.
-            first_naming = naming;
-        }
+        namings.push(naming);
     }
     // The geometry/profile doors keep their historical node-error
     // shapes (the §2 compatibility contract predates the builder);
@@ -5062,13 +5056,28 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
         })?;
     // Eager N4 emission from the builder's own maps, BEFORE the
     // structural handoff is dropped (the extrude idiom).
+    //
+    // The emitter mints ONE ref per wall: canonical (loop, segment),
+    // shared by every section because the skin pairs canonical segment
+    // k of each section into one wall. One anchor therefore publishes
+    // the table — section 0's — and every section's own anchor rides
+    // the value beside it, so a section's program ref reaches the
+    // table through its canonical position (`anchor::Anchoring`).
+    let mut namings = namings.into_iter();
+    let first = namings
+        .next()
+        .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
+            what: "a loft that built has no section to publish its names through",
+        }))?;
     let table = names::name_loft(id, &built).map_err(NodeErrorKind::Naming)?;
-    let table = anchored(table, &first_naming)?;
+    let table = anchored(table, &first)?;
     stamp_minted(&mut built.body, id);
-    Ok(OpOut::plain(
-        ValuePayload::Body(Arc::new(built.body)),
-        table,
-    ))
+    let mut out = OpOut::plain(ValuePayload::Body(Arc::new(built.body)), table);
+    out.section_anchors = Some(Arc::new(anchor::SectionAnchors::new(
+        first,
+        namings.collect(),
+    )));
+    Ok(out)
 }
 
 /// The Sweep node: ONE honest arm.

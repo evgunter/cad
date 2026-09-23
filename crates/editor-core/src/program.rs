@@ -39,7 +39,7 @@ use profile::{ArcSweep, Step, Target};
 use serde::{Deserialize, Serialize};
 
 use crate::doc::ParamName;
-use crate::eval::ProfileNaming;
+use crate::eval::{Anchoring, LoopAnchor, ProfileNaming};
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, UnitSym, eval};
 use crate::names::ProfileEdgeRef;
 use crate::node::{RecipeNodeId, SlotId, StepArg};
@@ -622,15 +622,19 @@ struct CheckedRecords<'p, 'r> {
     replay: &'r profile::ReplayStructure,
     /// How many segments the loop has.
     segments: usize,
+    /// The loop's own anchor: program segment → canonical position.
+    own: LoopAnchor,
+    /// The anchor the answer's table published that canonical loop
+    /// through: canonical position → published ref.
+    published: LoopAnchor,
 }
 
 impl CheckedRecords<'_, '_> {
-    /// The published ref naming segment `segment` of this loop.
-    ///
-    /// The segment index passes through: the permutation the
-    /// evaluation applied is the one the anchor rewrite undoes, and
-    /// [`ProfileProgram::checked_records`] has already asserted the
-    /// two records describe that one permutation.
+    /// The published ref naming program segment `segment` of this
+    /// loop: its canonical position under the loop's own anchor, then
+    /// that position under the published anchor. Where the two anchors
+    /// are one — a profile's own sweep — the composition is the
+    /// identity and the segment passes through.
     ///
     /// The BOUND is the caller's, because the two callers hold
     /// different facts and owe the reader different sentences: a span
@@ -638,15 +642,16 @@ impl CheckedRecords<'_, '_> {
     /// the arm that reads it. Both check before they get here, so a
     /// segment past the end is a caller that forgot — the assertion
     /// below, not a refusal this function invents a payload for.
-    fn edge_of(&self, loop_: u32, segment: usize) -> ProfileEdgeRef {
+    fn edge_of(&self, segment: usize) -> ProfileEdgeRef {
         debug_assert!(
             segment < self.segments,
             "an unchecked segment reached `edge_of`: {segment} of {}",
             self.segments
         );
+        let k = self.own.canonical_segment(program_index(segment));
         ProfileEdgeRef {
-            loop_index: loop_,
-            segment: program_index(segment),
+            loop_index: self.published.program_loop,
+            segment: self.published.segment(k),
         }
     }
 
@@ -682,15 +687,11 @@ impl CheckedRecords<'_, '_> {
     /// # Errors
     ///
     /// [`CheckedRecords::span_of`]'s.
-    fn edges_of_step(
-        &self,
-        loop_: u32,
-        step: u32,
-    ) -> Result<Vec<ProfileEdgeRef>, StepSegmentsError> {
+    fn edges_of_step(&self, step: u32) -> Result<Vec<ProfileEdgeRef>, StepSegmentsError> {
         Ok(self
             .span_of(step)?
             .iter()
-            .map(|s| self.edge_of(loop_, s))
+            .map(|s| self.edge_of(s))
             .collect())
     }
 }
@@ -1667,9 +1668,11 @@ impl ProfileProgram {
     /// program (`eval::anchor`, `LoopAnchor`): for a program loop, the
     /// published [`ProfileEdgeRef`] names the segment the program's step
     /// order authored, precisely so a parameter edit cannot renumber it.
-    /// So the two permutations — the one canonicalization applied and
-    /// the one the rewrite undoes — compose to the identity, and the
-    /// segments a step produced ARE the refs its walls carry.
+    /// So, for a table published through the profile's own anchor, the
+    /// two permutations — the one canonicalization applied and the one
+    /// the rewrite undoes — compose to the identity, and the segments a
+    /// step produced ARE the refs its walls carry (a loft's later
+    /// sections are the other case: the section below).
     ///
     /// That is a statement about two records, so it is checked rather
     /// than assumed — DM8 rules that the permutation is CHECKED here
@@ -1683,8 +1686,8 @@ impl ProfileProgram {
     /// One evaluation produces both records, so two derivations of one
     /// permutation that disagree are the evaluation contradicting
     /// itself — a kernel bug, and kernel bugs panic (DM8). The one
-    /// cost is a caller that hands this door a `structure` and a
-    /// `naming` from two DIFFERENT evaluations: that mispairing panics
+    /// cost is a caller that hands this door a `structure` and an
+    /// anchoring from two DIFFERENT evaluations: that mispairing panics
     /// where it could have refused. It is a caller bug, no façade
     /// caller can make it today, and it disappears by construction
     /// once the structure record rides on the evaluation's own value
@@ -1694,22 +1697,24 @@ impl ProfileProgram {
     /// Not persisted, and not a cache: it is rebuilt from the records
     /// beside the geometry they describe.
     ///
-    /// # The LOFT limitation the published anchoring carries
+    /// # Which table the answer is for
     ///
-    /// "Program-anchored" is a claim about the table the emitter's refs
-    /// were rewritten through, and a loft has only ONE:
-    /// `eval::wire::wire_loft` anchors the whole emitted table on the
-    /// FIRST section's `LoopAnchor`, because the loft emitter's refs
-    /// are canonical indices of the section combinatorics and the
-    /// sections must correspond. So for a loft this door's answer is
-    /// program-anchored for SECTION 0 and section-0-anchored for every
-    /// other section: a later section authored rotated or reversed
-    /// relative to section 0 is named by section 0's permutation, not
-    /// its own, and a consumer asking about one of ITS steps is off by
-    /// that permutation. The limitation is pinned in
-    /// `work/wire/loft-anchors-every-section-with-section-zeros-map.md`;
-    /// nothing here can repair it, because the refs the names carry are
-    /// the ones the rewrite published.
+    /// `anchoring` names it ([`Anchoring`]). A profile's own sweep
+    /// publishes through the profile's own anchor, and a
+    /// `&ProfileNaming` converts to exactly that: the canonical →
+    /// program rewrite and its inverse compose to the identity and the
+    /// program segment IS the published ref. A loft publishes ONE table
+    /// for all of its sections, through section 0's anchor, and
+    /// [`crate::eval::SectionAnchors::section`] reads section `i`'s
+    /// anchoring off the loft's own value: the program segment is taken
+    /// to its canonical position through the section's own anchor and
+    /// published through the table's. The skin pairs canonical segment
+    /// `k` of every section into one wall, so that is the wall — and,
+    /// on the loft's first and last sections, the `Start`/`End` rim —
+    /// the step's segment bounds.
+    ///
+    /// The two-record check reads the OWN anchor: it is the one this
+    /// profile's evaluation produced beside `structure`.
     ///
     /// # Errors
     ///
@@ -1721,15 +1726,15 @@ impl ProfileProgram {
     ///
     /// If the two records describe different permutations of the loop
     /// (the section above).
-    pub fn profile_edges_of(
+    pub fn profile_edges_of<'a>(
         &self,
         structure: &profile::ProfileStructure,
-        naming: &ProfileNaming,
+        anchoring: impl Into<Anchoring<'a>>,
         loop_: u32,
         step: u32,
     ) -> Result<Vec<ProfileEdgeRef>, StepSegmentsError> {
-        self.checked_records(structure, naming, loop_)?
-            .edges_of_step(loop_, step)
+        self.checked_records(structure, anchoring.into(), loop_)?
+            .edges_of_step(step)
     }
 
     /// **The records one loop's answers are read from, checked against
@@ -1754,7 +1759,7 @@ impl ProfileProgram {
     fn checked_records<'p, 'r>(
         &'p self,
         structure: &'r profile::ProfileStructure,
-        naming: &ProfileNaming,
+        anchoring: Anchoring<'_>,
         loop_: u32,
     ) -> Result<CheckedRecords<'p, 'r>, StepSegmentsError> {
         let li = loop_ as usize;
@@ -1784,10 +1789,20 @@ impl ProfileProgram {
                 recorded: replay.steps.len(),
             });
         }
-        let anchor = naming
+        let (canonical_loop, anchor) = anchoring
+            .own()
             .loops
             .iter()
-            .find(|a| a.program_loop == loop_)
+            .enumerate()
+            .find(|(_, a)| a.program_loop == loop_)
+            .ok_or(StepSegmentsError::NoAnchor { loop_ })?;
+        // The published table's anchor for the SAME canonical loop: the
+        // skin pairs canonical loop `l` of every section, so that is the
+        // loop whose walls this one's segments bound.
+        let published = anchoring
+            .published()
+            .loops
+            .get(canonical_loop)
             .ok_or(StepSegmentsError::NoAnchor { loop_ })?;
 
         // The two records must be ONE permutation. `start` counts on
@@ -1826,10 +1841,23 @@ impl ProfileProgram {
             anchor.offset,
             anchor.len
         );
+        // Every section of a loft presents the same vertex count per
+        // canonical loop — the skin refuses otherwise — so a published
+        // anchor of another length is an anchoring read off some other
+        // evaluation, which `Anchoring`'s constructors do not mint.
+        assert_eq!(
+            published.len, anchor.len,
+            "loop {loop_}'s own anchor and the anchor its table was published \
+             through describe loops of different lengths — the two are one \
+             evaluation's records of one loft or of one profile, so the kernel \
+             has contradicted itself"
+        );
         Ok(CheckedRecords {
             program,
             replay,
             segments: n,
+            own: *anchor,
+            published: *published,
         })
     }
 
@@ -1894,7 +1922,7 @@ impl ProfileProgram {
         naming: &ProfileNaming,
         loop_: u32,
     ) -> Result<Vec<(ProfileEdgeRef, &Expr)>, StepSegmentsError> {
-        let checked = self.checked_records(structure, naming, loop_)?;
+        let checked = self.checked_records(structure, naming.into(), loop_)?;
         // The carrier forms answer per LOOP: one step, one radius,
         // every edge of it an arc of that radius. A per-segment
         // address for a per-loop fact is what this arm exists to not
@@ -1916,7 +1944,7 @@ impl ProfileProgram {
                 });
             }
             return Ok(checked
-                .edges_of_step(loop_, 0)?
+                .edges_of_step(0)?
                 .into_iter()
                 .map(|e| (e, radius))
                 .collect());
@@ -1937,7 +1965,7 @@ impl ProfileProgram {
                     segments: checked.segments,
                 });
             }
-            out.push((checked.edge_of(loop_, emission.segment), expr));
+            out.push((checked.edge_of(emission.segment), expr));
         }
         Ok(out)
     }

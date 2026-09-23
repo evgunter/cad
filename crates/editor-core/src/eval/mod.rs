@@ -34,7 +34,7 @@ pub(crate) use wire::{
     need_vec3, stepped_rule_map, transform_map, unit as unit_direction,
 };
 
-pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue};
+pub use anchor::{Anchoring, LoopAnchor, ProfileNaming, ProfileValue, SectionAnchors};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::{DirectionRefusal, FramePlacement};
 
@@ -257,6 +257,19 @@ pub struct NodeValue<T: Decide> {
     /// descendant map. Rides the value, so memo reuse transfers mate
     /// identity with the geometry it is keyed into.
     pub carried: Arc<crate::assembly::CarriedDeclarations>,
+    /// **A LOFT's section anchors** ([`SectionAnchors`]): every
+    /// section's own naming anchor and the one [`NodeValue::name_table`]
+    /// was published through, so a consumer holding one section's slot
+    /// reaches the loft's walls through
+    /// [`crate::ProfileProgram::profile_edges_of`] with
+    /// [`SectionAnchors::section`] and never re-derives which anchor the
+    /// table was written with.
+    ///
+    /// `None` means the node is NOT A LOFT, and only that. Rides the
+    /// value, so memo reuse transfers it with the table it describes:
+    /// it is a pure function of the sections' programs, which the
+    /// content key fixes.
+    pub section_anchors: Option<Arc<SectionAnchors>>,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its
     /// content key (a profile's f64 precompute: the plane read, the
@@ -3490,6 +3503,7 @@ where
                 name_table: out.names,
                 contacts: out.contacts,
                 carried: out.carried,
+                section_anchors: out.section_anchors,
                 verdicts: Arc::new(recorded.verdicts),
                 escalations,
                 witness: WitnessSlot {},

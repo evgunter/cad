@@ -366,8 +366,12 @@ records is the evaluation contradicting itself and asserts. The door
 refuses typed where a record is absent or of the wrong shape rather
 than guessing. It is derived from the structure record the geometry
 came from, so it cannot disagree with the geometry, and it is not
-persisted. For a loft the published anchoring is section 0's
-(`work/wire/loft-anchors-every-section-with-section-zeros-map`).
+persisted. For a loft the published anchoring is section 0's, and the
+loft's value carries every section's own anchor beside it
+(`SectionAnchors`), so a later section's step reaches the loft's walls
+through its canonical position — its own anchor inverted, section 0's
+applied — which is the wall the skin built from canonical segment `k`
+of every section.
 
 - **Why not the viewer.** A second derivation from both endpoints can
   disagree with the first.

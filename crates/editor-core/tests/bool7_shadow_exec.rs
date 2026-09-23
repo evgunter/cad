@@ -433,6 +433,7 @@ fn one_node_eval(
             verdicts: Arc::new(log),
             escalations: Arc::new(vec![]),
             placement: None,
+            section_anchors: None,
             witness: WitnessSlot::default(),
             content_key: ContentKey(0),
             naming_key: NamingKey(0),

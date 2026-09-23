@@ -545,6 +545,7 @@ fn one_node_eval(
             verdicts: Arc::new(vec![]),
             escalations: Arc::new(vec![]),
             placement: None,
+            section_anchors: None,
             witness: editor_core::eval::WitnessSlot::default(),
             content_key: editor_core::ContentKey(0),
             naming_key: editor_core::NamingKey(0),

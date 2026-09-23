@@ -76,6 +76,109 @@ impl LoopAnchor {
             (self.offset + k) % n
         }
     }
+
+    /// Program segment `s` → canonical segment: the inverse of
+    /// [`LoopAnchor::segment`]. The reversed map is its own inverse
+    /// shape (`k ↦ offset − k − 1` mod n), the forward one subtracts
+    /// the offset.
+    pub fn canonical_segment(&self, s: u32) -> u32 {
+        let n = self.len;
+        if self.reversed {
+            (self.offset + 2 * n - (s % n) - 1) % n
+        } else {
+            (s % n + n - self.offset % n) % n
+        }
+    }
+}
+
+/// **How one profile's refs reach a published name table**: the
+/// profile's OWN anchor, which says where each of its program segments
+/// sits canonically, and the anchor the table's canonical refs were
+/// PUBLISHED through.
+///
+/// A profile's own sweep publishes through the profile's own anchor,
+/// so the two are one and a program ref reaches the table unchanged —
+/// that is `From<&ProfileNaming>`. A loft publishes one table for all
+/// of its sections, through one of their anchors
+/// ([`SectionAnchors`]), and a section's program ref reaches that
+/// table through its canonical position: canonical loop `l`, segment
+/// `k` of every section is the one wall the skin built for them.
+///
+/// Neither half is settable from outside: the published half is read
+/// off the evaluation that published it, so a caller cannot pair a
+/// section with an anchor its table was not written through.
+#[derive(Debug, Clone, Copy)]
+pub struct Anchoring<'a> {
+    own: &'a ProfileNaming,
+    published: &'a ProfileNaming,
+}
+
+impl<'a> Anchoring<'a> {
+    /// The profile's own anchor — the one the evaluation's structure
+    /// record is checked against.
+    pub fn own(&self) -> &'a ProfileNaming {
+        self.own
+    }
+
+    /// The anchor the table's refs were published through.
+    pub fn published(&self) -> &'a ProfileNaming {
+        self.published
+    }
+}
+
+impl<'a> From<&'a ProfileNaming> for Anchoring<'a> {
+    /// A profile consumed by a node that publishes through the
+    /// profile's own anchor (extrude, revolve, the profile-operand
+    /// sweeps).
+    fn from(naming: &'a ProfileNaming) -> Self {
+        Self {
+            own: naming,
+            published: naming,
+        }
+    }
+}
+
+/// **A loft's section anchors**: every section's own
+/// [`ProfileNaming`], in section order, and the one the loft's name
+/// table was published through — section 0's.
+///
+/// The loft's emitter mints ONE ref per wall — a canonical
+/// `(loop, segment)` shared by every section, because the skin pairs
+/// canonical segment `k` of each section into one wall — so one anchor
+/// publishes the table, and a section authored rotated or reversed
+/// relative to section 0 reaches it through [`SectionAnchors::section`].
+/// Carried on the loft's value ([`crate::eval::NodeValue::section_anchors`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SectionAnchors {
+    /// Section 0's anchor — the published one.
+    first: ProfileNaming,
+    /// Sections 1.., in section order.
+    rest: Vec<ProfileNaming>,
+}
+
+impl SectionAnchors {
+    /// The anchors of a loft's sections, publishing through `first`'s.
+    pub(crate) fn new(first: ProfileNaming, rest: Vec<ProfileNaming>) -> Self {
+        Self { first, rest }
+    }
+
+    /// The anchor the loft's table was published through.
+    pub fn published(&self) -> &ProfileNaming {
+        &self.first
+    }
+
+    /// Section `i`'s anchoring into the loft's table, `None` past the
+    /// last section.
+    pub fn section(&self, i: usize) -> Option<Anchoring<'_>> {
+        let own = match i {
+            0 => &self.first,
+            _ => self.rest.get(i - 1)?,
+        };
+        Some(Anchoring {
+            own,
+            published: &self.first,
+        })
+    }
 }
 
 /// The per-profile naming anchor: one [`LoopAnchor`] per CANONICAL
