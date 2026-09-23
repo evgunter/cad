@@ -127,7 +127,7 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, Maintenance, apply,
-    apply_logged, cascade_delete_order, replay_entry,
+    apply_logged, cascade_delete_order,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,
@@ -183,7 +183,7 @@ pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
     Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
-    load, load_with, save,
+    load, save,
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use placement::{AxisRefusal, Frame, FrameFault};
