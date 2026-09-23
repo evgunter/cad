@@ -16,7 +16,7 @@ use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
 use super::defer::{TieRows, Upstream, put, upstream_name};
-use super::discriminate::{Extent, band, order_along, side_of_face};
+use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along, side_of_face};
 use super::emit::{
     Incidence, NamingError, Rim, edge_ends, ent, face_half_edges, name1, rim_between,
 };
@@ -1508,10 +1508,6 @@ fn edge_extent<T: Decide>(
     })
 }
 
-/// The oriented direction of an operand edge (he_plus start → end).
-/// The predicate [`chord_on_rim`] decides by, written once.
-const CHORD_ON_RIM: &str = "name_chord_on_rim";
-
 /// Whether result edge `chord` lies on operand edge `rim` of
 /// `op_body`: both of its ends on the rim's line and between the rim's
 /// ends. Three margins per end, each a length and each decided through
@@ -1555,6 +1551,7 @@ fn chord_on_rim<T: Decide>(
     Ok(true)
 }
 
+/// The oriented direction of an operand edge (he_plus start → end).
 fn edge_dir<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<Vec3<T>, NamingError> {
     let bug = |what| NamingError::Emission { what };
     let (v0, v1) = edge_ends(body, e)?;
@@ -1726,6 +1723,62 @@ mod tests {
     use crate::node::RecipeNodeId;
     use geom_core::Tol;
     use profile::RawLoop;
+
+    /// A body holding one straight edge from `p` to `q`, and that edge.
+    fn segment(p: [f64; 3], q: [f64; 3]) -> (Body<f64>, EdgeKey) {
+        let mut body = Body::<f64>::new();
+        let born = body
+            .mvfs(Point3::new(p[0], p[1], p[2]))
+            .expect("mvfs births a lone vertex");
+        let edge = body
+            .mev_line(
+                topo::MevSite::Lone {
+                    r#loop: born.r#loop,
+                },
+                Point3::new(q[0], q[1], q[2]),
+                Tol::witness(),
+            )
+            .expect("mev on an empty loop grows it by one edge")
+            .edge;
+        (body, edge)
+    }
+
+    /// `chord_on_rim` for a chord `p`–`q` against the rim (0,0,0)–(1,0,0).
+    fn on_unit_rim(p: [f64; 3], q: [f64; 3]) -> bool {
+        let (rim_body, rim) = segment([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]);
+        let (chord_body, chord) = segment(p, q);
+        chord_on_rim(
+            &chord_body,
+            chord,
+            &rim_body,
+            rim,
+            band(Tol::witness()).unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn a_chord_within_its_rim_is_on_it_ends_included() {
+        assert!(on_unit_rim([0.2, 0.0, 0.0], [0.6, 0.0, 0.0]));
+        assert!(on_unit_rim([0.0, 0.0, 0.0], [0.5, 0.0, 0.0]));
+        assert!(on_unit_rim([0.5, 0.0, 0.0], [1.0, 0.0, 0.0]));
+        assert!(on_unit_rim([1.0, 0.0, 0.0], [0.0, 0.0, 0.0]));
+    }
+
+    #[test]
+    fn a_chord_off_its_rims_line_is_not_on_it() {
+        // Within the rim's span along it, so only the off-line margin
+        // can refuse.
+        assert!(!on_unit_rim([0.2, 0.1, 0.0], [0.6, 0.1, 0.0]));
+        assert!(!on_unit_rim([0.2, 0.0, 0.0], [0.6, 0.0, 0.1]));
+    }
+
+    #[test]
+    fn a_chord_past_either_end_of_its_rim_is_not_on_it() {
+        // On the rim's line, so only the past-an-end margins can refuse.
+        assert!(!on_unit_rim([-0.2, 0.0, 0.0], [0.5, 0.0, 0.0]));
+        assert!(!on_unit_rim([0.5, 0.0, 0.0], [1.3, 0.0, 0.0]));
+    }
 
     /// **The result-body stand-in every row here descends from**: a
     /// unit-cube extrusion, whose table names a top, a bottom and four

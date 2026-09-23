@@ -7,9 +7,9 @@
 //! then joins, a piece of that rim edge sits between the merged top
 //! cap and the merged y-wall. Its key is `a`'s own, but its split
 //! lineage died before the graft, so it is named from its faces — and
-//! both faces are merged, each with a constituent on both sides. The
-//! key says which side: the piece reads through to `a`'s top cap and
-//! `a`'s y-wall, and is the rim they share.
+//! both faces are merged, each with a constituent on both sides. It is
+//! read through to its key's side — `a`'s top cap and `a`'s y-wall —
+//! and named as the rim they share, because it lies within that rim.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
@@ -67,12 +67,14 @@ fn document(rest: &[Bx]) -> (ProfileDoc, Vec<RecipeNodeId>) {
 /// **The chord is `a`'s top/far-wall rim edge, ranked along it**, in
 /// `[b, c, a]` and `[c, b, a]` — each order pinned by name and by the
 /// span the name answers to, so two orders wrong the same way cannot
-/// agree their way past it. On main both refused `Emission("seam edge
-/// between two merged faces (unsupported)")`.
+/// agree their way past it — and the two orders publish one name set,
+/// which covers every other entity of the body. On main both refused
+/// `Emission("seam edge between two merged faces (unsupported)")`.
 #[test]
 fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
     let (doc, ids) = document(&[CORNER]);
     let (a, b, c) = (ids[0], ids[1], ids[2]);
+    let mut name_sets = Vec::new();
     for order in [[b, c, a], [c, b, a]] {
         let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs((a, a), (b, b)));
         let ev = run(&docx);
@@ -82,7 +84,17 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
             failure(&ev, union)
         );
         assert_rim_pieces(&ev, union, a, &order);
+        name_sets.push(
+            table(&ev, union)
+                .iter()
+                .map(|(n, _)| n.clone())
+                .collect::<std::collections::BTreeSet<_>>(),
+        );
     }
+    assert_eq!(
+        name_sets[0], name_sets[1],
+        "[b, c, a] and [c, b, a] name the body differently"
+    );
 }
 
 /// `a`'s rim between its top cap and its y = 1 wall publishes as two
