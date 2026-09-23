@@ -454,6 +454,24 @@ impl Swept {
             _ => panic!("the profile node's value carries a profile"),
         }
     }
+
+    /// The anchoring the extrude's name table was published through
+    /// for the profile, read off the extrude's own value — what a
+    /// profile door is asked with when its answer is read in that table.
+    ///
+    /// # Panics
+    ///
+    /// If the extrude did not evaluate, or carries no anchoring for the
+    /// profile.
+    pub fn anchoring(&self) -> editor_core::eval::Anchoring<'_> {
+        self.ev
+            .value(self.ext)
+            .expect("the fixture extrude evaluates")
+            .section_anchors
+            .as_deref()
+            .and_then(|a| a.of(self.profile))
+            .expect("the extrude carries the anchoring of the profile it consumed")
+    }
 }
 
 /// The world xy frame as a node — origin at the world origin, sketch

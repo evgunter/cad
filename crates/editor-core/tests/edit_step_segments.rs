@@ -57,9 +57,7 @@ use crate::fixture;
 use editor_core::{
     CancelToken, CapEnd, EntityKey, Entry, EvalOptions, Evaluation, Expr, LoopProgram, Node,
     ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, RoleSeg, StepSegmentsError, ValuePayload,
-    eval::{Anchoring, ProfileNaming},
-    evaluate,
+    RecipeNodeId, RoleSeg, StepSegmentsError, ValuePayload, eval::Anchoring, evaluate,
 };
 use fixture::{insert, len, on_frame, tol};
 use geom_core::Point2;
@@ -137,16 +135,60 @@ struct Records {
     verts: Vec<Vec<(Point2<f64>, f64)>>,
 }
 
+/// The anchoring `consumer`'s name table was published through for its
+/// operand `profile` — read off the consumer's own value, the one way
+/// a caller holds one.
+fn anchoring_of(
+    ev: &Evaluation<f64>,
+    consumer: RecipeNodeId,
+    profile: RecipeNodeId,
+) -> Anchoring<'_> {
+    ev.value(consumer)
+        .unwrap_or_else(|| {
+            panic!(
+                "the consumer {consumer:?} evaluates: {:?}",
+                ev.node_error(consumer)
+            )
+        })
+        .section_anchors
+        .as_deref()
+        .unwrap_or_else(|| {
+            panic!("{consumer:?} is a profile-operand verb, so it carries section anchors")
+        })
+        .of(profile)
+        .unwrap_or_else(|| panic!("{consumer:?} consumed {profile:?}"))
+}
+
+/// Every (consumer, operand profile) pair of a document whose consumer
+/// EVALUATED — read off the RECIPE, so a consumer whose value dropped
+/// its section anchors is still counted, and the walks below that
+/// answer through `anchoring_of` cannot skip it in silence.
+fn consumed_profiles(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Vec<(RecipeNodeId, RecipeNodeId)> {
+    let mut out = Vec::new();
+    for &id in &ev.order {
+        if ev.value(id).is_none() {
+            continue;
+        }
+        let operands: Vec<RecipeNodeId> = match doc.node(id) {
+            Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => vec![*profile],
+            Some(Node::Loft { profiles, .. }) => profiles.clone(),
+            _ => continue,
+        };
+        out.extend(operands.into_iter().map(|p| (id, p)));
+    }
+    out
+}
+
 /// The door's answer for every step of one loop, in program order.
 ///
 /// **Answers only.** The partition is [`assert_partition`]'s claim, and
 /// the two are separate so that a row can say which of them it is
 /// making: four rows share this walk, and a helper that asserted as
 /// well as answered would have made all four the same check.
-fn edges_by_step<'a>(
+fn edges_by_step(
     program: &ProfileProgram,
     structure: &ProfileStructure,
-    anchoring: impl Into<Anchoring<'a>> + Copy,
+    anchoring: Anchoring<'_>,
     loop_: u32,
     steps: usize,
     what: &str,
@@ -186,21 +228,50 @@ fn assert_partition(per_step: &[Vec<ProfileEdgeRef>], loop_: u32, segments: usiz
     );
 }
 
+/// [`assert_partition`] in the numbering the answer is published in.
+/// Where the table was published through the profile's own anchor the
+/// refs are its program segments, in program order; where it was not —
+/// a later loft section — they are the published loop's segments in
+/// whatever order that numbering puts them, so the cover is checked
+/// as a set.
+fn assert_partition_of(
+    per_step: &[Vec<ProfileEdgeRef>],
+    anchoring: Anchoring<'_>,
+    li: usize,
+    segments: usize,
+    what: &str,
+) {
+    if anchoring.own() == anchoring.published() {
+        assert_partition(per_step, li as u32, segments, what);
+        return;
+    }
+    let canonical = anchoring
+        .own()
+        .loops
+        .iter()
+        .position(|a| a.program_loop as usize == li)
+        .expect("the section's anchor names every program loop");
+    let published = anchoring.published().loops[canonical].program_loop;
+    let mut flat: Vec<ProfileEdgeRef> = per_step.iter().flatten().copied().collect();
+    flat.sort_by_key(|e| e.segment);
+    assert_partition(&[flat], published, segments, what);
+}
+
 /// A step out of range, and a loop out of range, refuse rather than
 /// answering.
 fn assert_refuses_off_the_program(
     program: &ProfileProgram,
     structure: &ProfileStructure,
-    naming: &ProfileNaming,
+    anchoring: Anchoring<'_>,
     loops: usize,
     steps: usize,
 ) {
     assert_eq!(
-        program.profile_edges_of(structure, naming, 0, steps as u32),
+        program.profile_edges_of(structure, anchoring, 0, steps as u32),
         Err(StepSegmentsError::NoSuchStep { steps })
     );
     assert_eq!(
-        program.profile_edges_of(structure, naming, loops as u32, 0),
+        program.profile_edges_of(structure, anchoring, loops as u32, 0),
         Err(StepSegmentsError::NoSuchLoop { loops })
     );
 }
@@ -248,62 +319,63 @@ fn touches(pts: &[geom_core::Point3<f64>], p: geom_core::Point3<f64>, eps: f64) 
 /// is a check that the door minted a ref for every segment of every
 /// loop of every document the corpus has, without refusing.
 ///
+/// The door is asked the way a caller asks it: about a profile, for
+/// the table of a node that CONSUMED it, with the anchoring read off
+/// that node. So the walk is over (consumer, operand) pairs, and a
+/// profile no verb consumed has no table to be answered for.
+///
 /// The walk holds itself honest against a count that MOVES WITH THE
-/// CORPUS rather than a literal: every profile node the corpus
-/// evaluates is counted as the walk passes it, and the row asserts that
-/// every one of them was answered. A filter that stopped matching drops
-/// the answered count without dropping the node count, and a corpus
-/// that grew or shrank moves both together.
+/// CORPUS rather than a literal: every evaluated consumer's operands
+/// are counted off the RECIPE (`consumed_profiles`), and the row
+/// asserts that every one of them was answered. A consumer whose value
+/// stopped carrying its anchors panics in `anchoring_of`, a filter that
+/// stopped matching drops the answered count without dropping the
+/// operand count, and a corpus that grew or shrank moves both together.
 #[test]
 fn every_corpus_step_is_answered_and_the_answers_partition_the_loop() {
     let mut answered = 0_usize;
     let mut loops_seen = 0_usize;
-    let mut profile_nodes = 0_usize;
-    let mut answered_nodes = 0_usize;
+    let mut operands = 0_usize;
+    let mut answered_operands = 0_usize;
     let documents = corpus::documents();
     for d in &documents {
         let ev = run(&d.doc);
-        for &id in &ev.order {
-            let Some(Node::Profile(program)) = d.doc.node(id) else {
+        for (consumer, profile) in consumed_profiles(&d.doc, &ev) {
+            operands += 1;
+            let Some(Node::Profile(program)) = d.doc.node(profile) else {
                 continue;
             };
-            profile_nodes += 1;
-            let Some(value) = ev.value(id) else { continue };
-            let ValuePayload::Profile(pv) = &value.payload else {
-                continue;
-            };
-            answered_nodes += 1;
+            let anchoring = anchoring_of(&ev, consumer, profile);
+            answered_operands += 1;
             let r = records(&d.doc, program);
             for (li, loop_verts) in r.verts.iter().enumerate() {
                 let steps = r.structure.replay[li].steps.len();
                 let per_step =
-                    edges_by_step(program, &r.structure, &pv.naming, li as u32, steps, d.name);
-                assert_partition(&per_step, li as u32, loop_verts.len(), d.name);
+                    edges_by_step(program, &r.structure, anchoring, li as u32, steps, d.name);
+                assert_partition_of(&per_step, anchoring, li, loop_verts.len(), d.name);
                 answered += per_step.len();
                 loops_seen += 1;
             }
             assert_refuses_off_the_program(
                 program,
                 &r.structure,
-                &pv.naming,
+                anchoring,
                 program.loops.len(),
                 r.structure.replay[0].steps.len(),
             );
         }
     }
     assert_eq!(
-        answered_nodes, profile_nodes,
-        "the corpus has {profile_nodes} profile nodes and the walk answered \
-         {answered_nodes} — a profile node that evaluates to something else, or \
-         not at all, is not a node this row may skip in silence"
+        answered_operands, operands,
+        "the corpus's evaluated verbs consume {operands} profiles and the walk \
+         answered {answered_operands} — an operand that is not a profile program \
+         is not one this row may skip in silence"
     );
     // Every profile node has at least one loop and every loop at least
     // an entry verb and a close, so these move with the corpus too.
     assert!(
-        profile_nodes >= documents.len()
-            && loops_seen >= profile_nodes
-            && answered >= 2 * loops_seen,
-        "the corpus walk reached {profile_nodes} profile nodes, {loops_seen} loops \
+        operands >= documents.len() && loops_seen >= operands && answered >= 2 * loops_seen,
+        "the corpus walk reached {operands} consumed profiles, {loops_seen} loops \
          and {answered} steps over {} documents — too few to be the corpus, so the \
          filter above stopped matching",
         documents.len()
@@ -380,6 +452,7 @@ fn assert_steps_bound_their_walls(id: &str, points: Vec<(f64, f64)>, want: Perm)
         panic!("{id}: the profile node carries a profile");
     };
     let r = records(&doc, program);
+    let anchoring = anchoring_of(&ev, ext, profile);
     let n = r.verts[0].len();
 
     let canonical = &r.structure.canonical.loops[0];
@@ -404,7 +477,7 @@ fn assert_steps_bound_their_walls(id: &str, points: Vec<(f64, f64)>, want: Perm)
     let place = |p: Point2<f64>| placement.transform_point(geom_core::Point3::new(p.x, p.y, 0.0));
 
     let steps = r.structure.replay[0].steps.len();
-    let per_step = edges_by_step(program, &r.structure, &pv.naming, 0, steps, id);
+    let per_step = edges_by_step(program, &r.structure, anchoring, 0, steps, id);
     assert_partition(&per_step, 0, n, id);
     let mut walls = BTreeSet::new();
     for (step, edges) in per_step.iter().enumerate() {
@@ -539,14 +612,25 @@ fn loft_of(
     (doc, ids, loft)
 }
 
-/// Which permutation canonicalization applied to loop 0 of `r`.
+/// Which permutation canonicalization applied to loop 0 of `r` — the
+/// case it actually has. A reversal at a start that is its own mirror
+/// (`2 * start == n`) is refused rather than classified: the loft rows
+/// author none, and a fixture that became one would be reported as a
+/// case it only resembles.
 fn perm_of(r: &Records) -> Perm {
     let n = r.verts[0].len();
     let canonical = &r.structure.canonical.loops[0];
     match (canonical.reversed, canonical.start) {
         (true, 0) => Perm::Reversed,
-        (true, s) if 2 * s == n => Perm::Reversed,
-        (true, _) => Perm::ReversedAndRotated,
+        (true, s) => {
+            assert_ne!(
+                2 * s,
+                n,
+                "the fixture is reversed at start {s} of {n}, its own mirror — \
+                 neither the reversed nor the reversed-and-rotated case alone"
+            );
+            Perm::ReversedAndRotated
+        }
         (false, 0) => Perm::Identity,
         (false, _) => Perm::Rotated,
     }
@@ -738,6 +822,236 @@ fn a_three_section_loft_names_the_walls_every_section_bounds() {
         "loft-anchor-three",
         &[loft_identity(), loft_reversed(), loft_rotated()],
     );
+}
+
+/// [`loft_of`] with every section's loops given whole — outer and
+/// holes, in the order the section authors them.
+fn loft_of_loops(
+    id: &str,
+    sections: &[Vec<Vec<(f64, f64)>>],
+) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
+    let mut doc = ProfileDoc::empty_derived(id, tol());
+    let mut ids = Vec::new();
+    for (i, loops) in sections.iter().enumerate() {
+        let (d, s) = on_frame(
+            doc,
+            [0.0, 0.0, i as f64],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            loops.clone(),
+        );
+        doc = d;
+        ids.push(s);
+    }
+    let (doc, loft) = insert(
+        doc,
+        Node::Loft {
+            profiles: ids.clone(),
+            v_degree: Expr::count(1),
+        },
+    );
+    (doc, ids, loft)
+}
+
+/// Every section, every PROGRAM loop, every step: the named wall
+/// carries the segment's endpoints (first/last exactly, middle in
+/// plan), and the first/last sections' rims end there.
+fn assert_every_loop_of_every_section_bounds_its_walls(
+    id: &str,
+    sections: &[Vec<Vec<(f64, f64)>>],
+) {
+    let (doc, ids, loft) = loft_of_loops(id, sections);
+    let ev = run(&doc);
+    let value = ev
+        .value(loft)
+        .unwrap_or_else(|| panic!("{id}: loft: {:?}", ev.node_error(loft)));
+    let ValuePayload::Body(body) = &value.payload else {
+        panic!()
+    };
+    let anchors = value.section_anchors.as_ref().expect("anchors");
+    let last = ids.len() - 1;
+    let mut all_walls = BTreeSet::new();
+    for (si, &section) in ids.iter().enumerate() {
+        let Some(Node::Profile(program)) = doc.node(section) else {
+            panic!()
+        };
+        let ValuePayload::Profile(pv) = &ev.value(section).unwrap().payload else {
+            panic!()
+        };
+        let r = records(&doc, program);
+        let anchoring = anchors.section(si).unwrap();
+        let placement = pv.validated.plane().placement;
+        let place =
+            |p: Point2<f64>| placement.transform_point(geom_core::Point3::new(p.x, p.y, 0.0));
+        let mut walls = BTreeSet::new();
+        for li in 0..r.verts.len() {
+            let n = r.verts[li].len();
+            let steps = r.structure.replay[li].steps.len();
+            let per_step = edges_by_step(program, &r.structure, anchoring, li as u32, steps, id);
+            for (step, edges) in per_step.iter().enumerate() {
+                let span = r.structure.replay[li].steps[step];
+                for (e, s) in edges.iter().zip(span.iter()) {
+                    let face = lateral(&ev, loft, *e).unwrap_or_else(|| {
+                        panic!("{id}: s{si} l{li} step {step}: {e:?} names no wall")
+                    });
+                    walls.insert(face);
+                    let pts = face_vertex_points(body, face);
+                    let ends = [r.verts[li][s].0, r.verts[li][(s + 1) % n].0];
+                    for end in ends {
+                        let p = place(end);
+                        let ok = if si == 0 || si == last {
+                            touches(&pts, p, 1e-9)
+                        } else {
+                            pts.iter()
+                                .any(|q| (q.x - p.x).abs() <= 1e-9 && (q.y - p.y).abs() <= 1e-9)
+                        };
+                        assert!(
+                            ok,
+                            "{id}: s{si} l{li} step {step} {e:?}: wall lacks {end:?} ({pts:?})"
+                        );
+                    }
+                    let cap = match si {
+                        0 => Some(CapEnd::Start),
+                        i if i == last => Some(CapEnd::End),
+                        _ => None,
+                    };
+                    if let Some(cap) = cap {
+                        let edge = rim(&ev, loft, cap, *e).expect("rim");
+                        let [a, b] = fixture::ends(body, edge);
+                        let got = [fixture::point(body, a), fixture::point(body, b)];
+                        for end in ends {
+                            assert!(
+                                touches(&got, place(end), 1e-9),
+                                "{id}: s{si} l{li} {cap:?} rim {e:?} lacks {end:?}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        let total: usize = r.verts.iter().map(Vec::len).sum();
+        assert_eq!(walls.len(), total, "{id}: s{si} names every wall once");
+        all_walls.extend(walls);
+    }
+    let total: usize = sections[0].iter().map(Vec::len).sum();
+    assert_eq!(all_walls.len(), total);
+}
+
+fn outer_ccw() -> Vec<(f64, f64)> {
+    vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
+}
+fn outer_rot() -> Vec<(f64, f64)> {
+    vec![(4.0, 4.0), (0.0, 4.0), (0.0, 0.0), (4.0, 0.0)]
+}
+fn outer_rev_rot() -> Vec<(f64, f64)> {
+    vec![(4.0, 4.0), (4.0, 0.0), (0.0, 0.0), (0.0, 4.0)]
+}
+fn tri_ccw() -> Vec<(f64, f64)> {
+    vec![(1.0, 1.0), (3.0, 1.0), (2.0, 3.0)]
+}
+fn tri_cw_rot() -> Vec<(f64, f64)> {
+    vec![(2.0, 3.0), (3.0, 1.0), (1.0, 1.0)]
+}
+fn tri_ccw_rot() -> Vec<(f64, f64)> {
+    vec![(3.0, 1.0), (2.0, 3.0), (1.0, 1.0)]
+}
+
+/// A hole (3 segments beside the outer's 4), and a later section that
+/// authors the HOLE FIRST, so its program loop numbering differs from
+/// section 0's.
+#[test]
+fn loft_with_a_hole_authored_first_in_a_later_section() {
+    assert_every_loop_of_every_section_bounds_its_walls(
+        "loft-anchor-hole",
+        &[
+            vec![outer_ccw(), tri_ccw()],
+            vec![tri_cw_rot(), outer_rev_rot()],
+        ],
+    );
+}
+
+/// Section 0 itself is NOT the identity (hole first, both loops
+/// permuted), so the published half of the composition is exercised
+/// as a non-identity map, on a three-section loft.
+#[test]
+fn loft_whose_first_section_is_not_the_identity() {
+    assert_every_loop_of_every_section_bounds_its_walls(
+        "loft-anchor-s0-perm",
+        &[
+            vec![tri_ccw_rot(), outer_rev_rot()],
+            vec![outer_ccw(), tri_ccw()],
+            vec![outer_rot(), tri_cw_rot()],
+        ],
+    );
+}
+
+/// Memo: re-authoring section 1 (same geometry) re-derives the anchors.
+#[test]
+fn section_anchors_are_rederived_when_a_section_is_reauthored() {
+    let (a, ids, loft) = loft_of_loops("loft-anchor-memo", &[vec![outer_ccw()], vec![outer_ccw()]]);
+    let (b, ids_b, loft_b) = loft_of_loops(
+        "loft-anchor-memo",
+        &[vec![outer_ccw()], vec![outer_rev_rot()]],
+    );
+    assert_eq!((ids.clone(), loft), (ids_b, loft_b));
+    let ea = run(&a);
+    let again = evaluate::<f64>(
+        &a,
+        Some(&ea),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol(),
+    );
+    assert!(again.reused > 0, "control: an unchanged doc reuses");
+    let eb = evaluate::<f64>(
+        &b,
+        Some(&ea),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol(),
+    );
+    let ValuePayload::Profile(pv) = &eb.value(ids[1]).unwrap().payload else {
+        panic!()
+    };
+    let ValuePayload::Profile(pa) = &ea.value(ids[1]).unwrap().payload else {
+        panic!()
+    };
+    assert_ne!(
+        pa.naming, pv.naming,
+        "the fixture changes section 1's anchor"
+    );
+    let anchors = eb.value(loft).unwrap().section_anchors.clone().unwrap();
+    assert_eq!(
+        anchors.section(1).unwrap().own(),
+        &pv.naming,
+        "stale section anchors after re-authoring"
+    );
+    assert_ne!(
+        eb.value(loft).unwrap().content_key,
+        ea.value(loft).unwrap().content_key,
+        "loft content key moved"
+    );
+}
+
+/// `canonical_segment` inverts `segment` for every anchor shape and n.
+#[test]
+fn canonical_segment_inverts_segment_everywhere() {
+    for n in 1..=9u32 {
+        for offset in 0..n {
+            for reversed in [false, true] {
+                let a = editor_core::eval::LoopAnchor {
+                    program_loop: 0,
+                    offset,
+                    reversed,
+                    len: n,
+                };
+                for k in 0..n {
+                    assert_eq!(a.canonical_segment(a.segment(k)), k, "{a:?} k={k}");
+                    assert_eq!(a.segment(a.canonical_segment(k)), k, "{a:?} s={k}");
+                }
+            }
+        }
+    }
 }
 
 // ------------------------------------------------------------------
@@ -964,20 +1278,25 @@ fn every_corpus_step_is_answered_against_its_own_authored_geometry() {
     let mut tally = Tally::default();
     for d in corpus::documents() {
         let ev = run(&d.doc);
-        for &id in &ev.order {
-            let Some(Node::Profile(program)) = d.doc.node(id) else {
+        for (consumer, profile) in consumed_profiles(&d.doc, &ev) {
+            let Some(Node::Profile(program)) = d.doc.node(profile) else {
                 continue;
             };
-            let Some(value) = ev.value(id) else { continue };
-            let ValuePayload::Profile(pv) = &value.payload else {
+            let anchoring = anchoring_of(&ev, consumer, profile);
+            // The reading is in THIS program's segment numbering, which
+            // is the published one exactly where the table was published
+            // through this profile's own anchor. A later loft section's
+            // answer is in section 0's numbering, and §2b reads it
+            // against the walls instead.
+            if anchoring.own() != anchoring.published() {
                 continue;
-            };
+            }
             let r = records(&d.doc, program);
             for (li, loop_verts) in r.verts.iter().enumerate() {
                 let per_step = edges_by_step(
                     program,
                     &r.structure,
-                    &pv.naming,
+                    anchoring,
                     li as u32,
                     r.steps[li].len(),
                     d.name,
@@ -1013,7 +1332,7 @@ fn every_corpus_step_is_answered_against_its_own_authored_geometry() {
 /// Adopted from the `stepmap-rv` review probe.
 #[test]
 fn a_line_to_step_is_answered_with_the_segment_that_ends_where_it_says() {
-    let (doc, profile, _) = prism(
+    let (doc, profile, ext) = prism(
         "step-segments-attribution",
         vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
     );
@@ -1021,10 +1340,11 @@ fn a_line_to_step_is_answered_with_the_segment_that_ends_where_it_says() {
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("the profile node is a program");
     };
-    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+    let ValuePayload::Profile(_) = &ev.value(profile).expect("evaluates").payload else {
         panic!("carries a profile");
     };
     let r = records(&doc, program);
+    let anchoring = anchoring_of(&ev, ext, profile);
     let n = r.verts[0].len();
     let mut checked = 0_usize;
     for (j, step) in r.steps[0].iter().enumerate() {
@@ -1032,7 +1352,7 @@ fn a_line_to_step_is_answered_with_the_segment_that_ends_where_it_says() {
             continue;
         };
         let edges = program
-            .profile_edges_of(&r.structure, &pv.naming, 0, j as u32)
+            .profile_edges_of(&r.structure, anchoring, 0, j as u32)
             .expect("the door answers");
         assert_eq!(
             edges.len(),
@@ -1069,12 +1389,12 @@ fn a_line_to_step_is_answered_with_the_segment_that_ends_where_it_says() {
 /// reader of the panic needs in order to tell which of the two lied.
 #[test]
 #[should_panic(expected = "the evaluation's two records of loop 0's permutation \
-     disagree: canonicalization recorded reversed=false start=0 over 4 segments, \
-     the naming anchor recorded reversed=true offset=0 over 4 vertices. One \
+     disagree: canonicalization recorded reversed=true start=0 over 4 segments, \
+     the naming anchor recorded reversed=false offset=0 over 4 vertices. One \
      evaluation produces both, so they describe one permutation or the kernel \
      has contradicted itself")]
 fn two_records_describing_different_loops_assert() {
-    let (doc, profile, _) = prism(
+    let (doc, profile, ext) = prism(
         "step-segments-refusal",
         vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
     );
@@ -1082,41 +1402,77 @@ fn two_records_describing_different_loops_assert() {
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("the profile node is a program");
     };
-    let structure = records(&doc, program).structure;
-    let value = ev.value(profile).expect("evaluates");
-    let ValuePayload::Profile(pv) = &value.payload else {
-        panic!("carries a profile");
-    };
-    // An anchor for the same loop, reversed the other way: the two
-    // records now describe different permutations of one loop, which
-    // one evaluation cannot have produced.
-    let mut naming = pv.naming.clone();
-    naming.loops[0].reversed = !naming.loops[0].reversed;
-    let _ = program.profile_edges_of(&structure, &naming, 0, 0);
+    let mut structure = records(&doc, program).structure;
+    // A canonical record for the same loop, reversed the other way: the
+    // two records now describe different permutations of one loop,
+    // which one evaluation cannot have produced. (The anchoring is the
+    // evaluation's own and cannot be doctored from outside the crate;
+    // the record handed in beside it can.)
+    let canonical = &mut structure.canonical.loops[0];
+    canonical.reversed = !canonical.reversed;
+    let _ = program.profile_edges_of(&structure, anchoring_of(&ev, ext, profile), 0, 0);
 }
 
-/// **A naming that does not mention the loop at all refuses typed.**
+/// A document with two extruded profiles: a one-loop rectangle and a
+/// two-loop frame (a square with a square hole). The rows that ask one
+/// profile's program about another's anchoring are the mispairings a
+/// caller can still make — program and record are arguments, only the
+/// anchoring is read off the evaluation.
+fn one_and_two_loops(id: &str) -> (ProfileDoc, [(RecipeNodeId, RecipeNodeId); 2]) {
+    let doc = ProfileDoc::empty_derived(id, tol());
+    let (doc, one) = on_frame(
+        doc,
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]],
+    );
+    let (doc, ext_one) = insert(
+        doc,
+        Node::Extrude {
+            profile: one,
+            distance: len(1.0),
+        },
+    );
+    let (doc, two) = on_frame(
+        doc,
+        [0.0, 0.0, 5.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![
+            fixture::square(0.0, 0.0, 2.0),
+            fixture::square(0.0, 0.0, 1.0),
+        ],
+    );
+    let (doc, ext_two) = insert(
+        doc,
+        Node::Extrude {
+            profile: two,
+            distance: len(1.0),
+        },
+    );
+    (doc, [(one, ext_one), (two, ext_two)])
+}
+
+/// **An anchoring that does not mention the loop at all refuses typed.**
 ///
 /// The sibling of the row above, and the reason the two are separate:
-/// an ABSENT anchor is a record the caller did not supply, not two
-/// records of one evaluation contradicting each other, so the door
-/// answers the caller rather than panicking.
+/// an ABSENT anchor is a caller asking about a program the node it read
+/// the anchoring from did not consume — here, the two-loop profile's
+/// hole, against the one-loop profile's extrude — not two records of
+/// one evaluation contradicting each other, so the door answers the
+/// caller rather than panicking.
 #[test]
-fn a_naming_without_this_loop_refuses_rather_than_asserting() {
-    let (doc, profile, _) = prism(
-        "step-segments-no-anchor",
-        vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
-    );
+fn an_anchoring_without_this_loop_refuses_rather_than_asserting() {
+    let (doc, [(one, ext_one), (two, _)]) = one_and_two_loops("step-segments-no-anchor");
     let ev = run(&doc);
-    let Some(Node::Profile(program)) = doc.node(profile) else {
+    let Some(Node::Profile(program)) = doc.node(two) else {
         panic!("the profile node is a program");
     };
     let structure = records(&doc, program).structure;
-    ev.value(profile).expect("evaluates");
-    let empty = ProfileNaming::default();
     assert_eq!(
-        program.profile_edges_of(&structure, &empty, 0, 0),
-        Err(StepSegmentsError::NoAnchor { loop_: 0 })
+        program.profile_edges_of(&structure, anchoring_of(&ev, ext_one, one), 1, 0),
+        Err(StepSegmentsError::NoAnchor { loop_: 1 })
     );
 }
 
@@ -1131,7 +1487,7 @@ fn a_naming_without_this_loop_refuses_rather_than_asserting() {
 /// before the door mints refs for segments the loop does not have.
 #[test]
 fn a_record_that_is_not_this_programs_refuses_rather_than_naming_segments() {
-    let (doc, profile, _) = prism(
+    let (doc, profile, ext) = prism(
         "step-segments-foreign-record",
         vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)],
     );
@@ -1139,10 +1495,11 @@ fn a_record_that_is_not_this_programs_refuses_rather_than_naming_segments() {
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("the profile node is a program");
     };
-    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+    let ValuePayload::Profile(_) = &ev.value(profile).expect("evaluates").payload else {
         panic!("carries a profile");
     };
     let r = records(&doc, program);
+    let anchoring = anchoring_of(&ev, ext, profile);
     let n = r.verts[0].len();
 
     // A record that reaches no loop at all.
@@ -1151,7 +1508,7 @@ fn a_record_that_is_not_this_programs_refuses_rather_than_naming_segments() {
         canonical: CanonicalStructure { loops: Vec::new() },
     };
     assert_eq!(
-        program.profile_edges_of(&empty, &pv.naming, 0, 0),
+        program.profile_edges_of(&empty, anchoring, 0, 0),
         Err(StepSegmentsError::NoRecord { loop_: 0 })
     );
 
@@ -1161,7 +1518,7 @@ fn a_record_that_is_not_this_programs_refuses_rather_than_naming_segments() {
     let mut short = r.structure.clone();
     short.replay[0].steps.pop();
     assert_eq!(
-        program.profile_edges_of(&short, &pv.naming, 0, 0),
+        program.profile_edges_of(&short, anchoring, 0, 0),
         Err(StepSegmentsError::RecordShape {
             loop_: 0,
             authored,
@@ -1176,7 +1533,7 @@ fn a_record_that_is_not_this_programs_refuses_rather_than_naming_segments() {
     let last = off.replay[0].steps.len() - 1;
     off.replay[0].steps[last] = profile::StepSpan::new(0, n + 1);
     assert_eq!(
-        program.profile_edges_of(&off, &pv.naming, 0, last as u32),
+        program.profile_edges_of(&off, anchoring, 0, last as u32),
         Err(StepSegmentsError::SpanOffTheLoop {
             step: last as u32,
             end: n + 1,
@@ -1288,10 +1645,11 @@ fn assert_arcs_are_answered(id: &str, side: profile::ArcSide, radii: &[f64], wan
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("{id}: the profile node is a program");
     };
-    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+    let ValuePayload::Profile(_) = &ev.value(profile).expect("evaluates").payload else {
         panic!("{id}: the profile node carries a profile");
     };
     let r = records(&doc, program);
+    let anchoring = anchoring_of(&ev, ext, profile);
     assert_eq!(
         r.structure.canonical.loops[0].reversed,
         want_reversed,
@@ -1303,7 +1661,7 @@ fn assert_arcs_are_answered(id: &str, side: profile::ArcSide, radii: &[f64], wan
         }
     );
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, anchoring, 0)
         .unwrap_or_else(|e| panic!("{id}: the door answers: {e}"));
     assert_eq!(
         answer.len(),
@@ -1405,16 +1763,24 @@ fn a_carrier_loop_is_answered_at_every_edge() {
             }],
         }),
     );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
     let ev = run(&doc);
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("the profile node is a program");
     };
-    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+    let ValuePayload::Profile(_) = &ev.value(profile).expect("evaluates").payload else {
         panic!("carries a profile");
     };
     let r = records(&doc, program);
+    let anchoring = anchoring_of(&ev, ext, profile);
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, anchoring, 0)
         .expect("the door answers");
     let segments: Vec<u32> = answer.iter().map(|(e, _)| e.segment).collect();
     assert_eq!(
@@ -1558,6 +1924,7 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         panic!("carries a profile");
     };
     let r = records(&doc, program);
+    let anchoring = anchoring_of(&ev, ext, profile);
     assert!(
         r.structure.replay[0].steps[4].is_empty(),
         "the fixture's fillet is the binder shape this row is about: it emitted \
@@ -1565,7 +1932,7 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         r.structure.replay[0].steps[4]
     );
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, anchoring, 0)
         .expect("the door answers");
     let [(edge, expr)] = answer[..] else {
         panic!("one radius, one arc, one pair — got {answer:?}");
@@ -1668,8 +2035,9 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
         panic!("carries a profile");
     };
     let r = records(&doc, program);
+    let anchoring = anchoring_of(&ev, ext, profile);
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, anchoring, 0)
         .expect("the door answers");
     let [(edge, expr)] = answer[..] else {
         panic!("one of the step's two arcs was drawn by a radius — got {answer:?}");
@@ -1729,17 +2097,18 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
 /// profile with no radii.
 #[test]
 fn the_per_edge_door_refuses_where_the_map_does() {
-    let (doc, profile, _, _) = arc_prism("segment-radii-refusal", profile::ArcSide::Left, &[1.0]);
+    let (doc, profile, ext, _) = arc_prism("segment-radii-refusal", profile::ArcSide::Left, &[1.0]);
     let ev = run(&doc);
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("the profile node is a program");
     };
-    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+    let ValuePayload::Profile(_) = &ev.value(profile).expect("evaluates").payload else {
         panic!("carries a profile");
     };
     let r = records(&doc, program);
+    let anchoring = anchoring_of(&ev, ext, profile);
     assert_eq!(
-        program.segment_radii(&r.structure, &pv.naming, 1),
+        program.segment_radii(&r.structure, anchoring, 1),
         Err(StepSegmentsError::NoSuchLoop { loops: 1 })
     );
     let empty = ProfileStructure {
@@ -1747,23 +2116,32 @@ fn the_per_edge_door_refuses_where_the_map_does() {
         canonical: CanonicalStructure { loops: Vec::new() },
     };
     assert_eq!(
-        program.segment_radii(&empty, &pv.naming, 0),
+        program.segment_radii(&empty, anchoring, 0),
         Err(StepSegmentsError::NoRecord { loop_: 0 })
     );
     let mut short = r.structure.clone();
     let authored = short.replay[0].steps.len();
     short.replay[0].steps.pop();
     assert_eq!(
-        program.segment_radii(&short, &pv.naming, 0),
+        program.segment_radii(&short, anchoring, 0),
         Err(StepSegmentsError::RecordShape {
             loop_: 0,
             authored,
             recorded: authored - 1,
         })
     );
+    // An anchoring read off a node that did not consume this program's
+    // second loop: the two-loop profile's hole, against the one-loop
+    // profile's extrude.
+    let (doc, [(one, ext_one), (two, _)]) = one_and_two_loops("segment-radii-no-anchor");
+    let ev = run(&doc);
+    let Some(Node::Profile(program)) = doc.node(two) else {
+        panic!("the profile node is a program");
+    };
+    let structure = records(&doc, program).structure;
     assert_eq!(
-        program.segment_radii(&r.structure, &ProfileNaming::default(), 0),
-        Err(StepSegmentsError::NoAnchor { loop_: 0 })
+        program.segment_radii(&structure, anchoring_of(&ev, ext_one, one), 1),
+        Err(StepSegmentsError::NoAnchor { loop_: 1 })
     );
 }
 
@@ -1787,16 +2165,17 @@ fn the_per_edge_door_refuses_where_the_map_does() {
 /// was still in it.
 #[test]
 fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
-    let (doc, profile, _, _) =
+    let (doc, profile, ext, _) =
         arc_prism("segment-radii-bad-emission", profile::ArcSide::Left, &[1.0]);
     let ev = run(&doc);
     let Some(Node::Profile(program)) = doc.node(profile) else {
         panic!("the profile node is a program");
     };
-    let ValuePayload::Profile(pv) = &ev.value(profile).expect("evaluates").payload else {
+    let ValuePayload::Profile(_) = &ev.value(profile).expect("evaluates").payload else {
         panic!("carries a profile");
     };
     let r = records(&doc, program);
+    let anchoring = anchoring_of(&ev, ext, profile);
     let n = r.verts[0].len();
     assert_eq!(
         r.structure.replay[0].radii.len(),
@@ -1809,7 +2188,7 @@ fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
     off.replay[0].radii[0].segment = n;
     let step = off.replay[0].radii[0].step as u32;
     assert_eq!(
-        program.segment_radii(&off, &pv.naming, 0),
+        program.segment_radii(&off, anchoring, 0),
         Err(StepSegmentsError::EmissionOffTheLoop {
             step,
             arg: editor_core::StepArg::CarrierRadius,
@@ -1821,7 +2200,7 @@ fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
     );
     assert_eq!(
         program
-            .segment_radii(&off, &pv.naming, 0)
+            .segment_radii(&off, anchoring, 0)
             .expect_err("it refuses")
             .to_string(),
         format!(
@@ -1835,7 +2214,7 @@ fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
     let mut role = r.structure.clone();
     role.replay[0].radii[0].role = profile::RadiusRole::Carrier2;
     assert_eq!(
-        program.segment_radii(&role, &pv.naming, 0),
+        program.segment_radii(&role, anchoring, 0),
         Err(StepSegmentsError::RadiusNotAnArgument {
             step,
             arg: editor_core::StepArg::CarrierRadius2,
@@ -1843,7 +2222,7 @@ fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
     );
     assert_eq!(
         program
-            .segment_radii(&role, &pv.naming, 0)
+            .segment_radii(&role, anchoring, 0)
             .expect_err("it refuses")
             .to_string(),
         format!(
@@ -1860,7 +2239,7 @@ fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
     let past = gone.replay[0].steps.len();
     gone.replay[0].radii[0].step = past;
     assert_eq!(
-        program.segment_radii(&gone, &pv.naming, 0),
+        program.segment_radii(&gone, anchoring, 0),
         Err(StepSegmentsError::RadiusNotAnArgument {
             step: past as u32,
             arg: editor_core::StepArg::CarrierRadius,
@@ -1954,13 +2333,14 @@ fn assert_rotated_arcs_are_answered(id: &str, side: profile::ArcSide, want_rever
         panic!("{id}: carries a profile");
     };
     let r = records(&doc, program);
+    let anchoring = anchoring_of(&ev, ext, profile);
     let c = &r.structure.canonical.loops[0];
     assert_eq!(c.reversed, want_reversed, "{id}: the winding case");
     assert_ne!(c.start, 0, "{id}: the fixture is written to be ROTATED too");
     let a = &pv.naming.loops[0];
     assert_ne!(a.offset, 0, "{id}: the anchor hop is a rotation too");
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, anchoring, 0)
         .unwrap_or_else(|e| panic!("{id}: the door answers: {e}"));
     assert_eq!(answer.len(), 2, "{id}: two arc steps, two answers");
     let radii = [1.0, 0.25];
@@ -2339,13 +2719,14 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
         panic!("carries a profile");
     };
     let r = records(&doc, program);
+    let anchoring = anchoring_of(&ev, ext, profile);
     assert!(
         r.structure.replay[0].steps[1].is_empty(),
         "the fused step is the binder shape this row is about: it emitted {}",
         r.structure.replay[0].steps[1]
     );
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, anchoring, 0)
         .expect("the door answers");
     let [(edge, expr)] = answer[..] else {
         panic!("the step's one radius drew one arc — got {answer:?}");
@@ -2439,13 +2820,14 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
         panic!("carries a profile");
     };
     let r = records(&doc, program);
+    let anchoring = anchoring_of(&ev, ext, profile);
     assert!(
         r.structure.replay[0].steps[4].is_empty(),
         "the fused step emitted {} — the `Radius` arrival's binders emit its arcs",
         r.structure.replay[0].steps[4]
     );
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, anchoring, 0)
         .expect("the door answers");
     assert_eq!(answer.len(), 3, "three radii, three arcs — got {answer:?}");
     for ((edge, expr), want) in answer.iter().zip([2.0, 0.25, 3.0]) {
@@ -2522,6 +2904,7 @@ fn assert_rotated_fillet_is_answered(id: &str, s: f64, want_reversed: bool) {
     let (row, radius) = rotated_fillet_prism(id, s);
     let program = row.program();
     let pv = row.profile_value();
+    let anchoring = row.anchoring();
     let r = records(&row.doc, program);
     let c = &r.structure.canonical.loops[0];
     assert_eq!(c.reversed, want_reversed, "{id}: the winding case");
@@ -2533,7 +2916,7 @@ fn assert_rotated_fillet_is_answered(id: &str, s: f64, want_reversed: bool) {
         "{id}: the binder emitted nothing"
     );
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, anchoring, 0)
         .unwrap_or_else(|e| panic!("{id}: the door answers: {e}"));
     let [(edge, expr)] = answer[..] else {
         panic!("{id}: one binder, one arc, one pair — got {answer:?}");
@@ -2614,13 +2997,14 @@ fn a_reversed_and_rotated_via_closes_fillet_arc_reaches_its_wall() {
     let row = fixture::wall_row("via-rot-rev", vec![chain]);
     let program = row.program();
     let pv = row.profile_value();
+    let anchoring = row.anchoring();
     let r = records(&row.doc, program);
     let c = &r.structure.canonical.loops[0];
     assert!(c.reversed, "the mirrored chain is clockwise");
     assert_ne!(c.start, 0, "and rotated");
     assert_ne!(pv.naming.loops[0].offset, 0);
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, anchoring, 0)
         .expect("the door answers");
     let [(edge, expr)] = answer[..] else {
         panic!("one radius — got {answer:?}");
@@ -2683,6 +3067,7 @@ fn an_exact_fit_closing_fillet_arc_reaches_its_wall() {
     let row = fixture::wall_row("exact-fit", vec![chain]);
     let program = row.program();
     let pv = row.profile_value();
+    let anchoring = row.anchoring();
     let r = records(&row.doc, program);
     assert_eq!(
         r.verts[0].len(),
@@ -2697,7 +3082,7 @@ fn an_exact_fit_closing_fillet_arc_reaches_its_wall() {
         .collect();
     assert_eq!(rec, vec![(3, profile::RadiusRole::Fillet, 2)]);
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, anchoring, 0)
         .expect("the door answers");
     let [(edge, expr)] = answer[..] else {
         panic!("one radius — got {answer:?}");
@@ -2754,10 +3139,10 @@ fn a_fillet_arcs_two_radii_each_reach_their_own_wall() {
     );
     let row = fixture::wall_row("fillet-arc-radius", vec![chain]);
     let program = row.program();
-    let pv = row.profile_value();
+    let anchoring = row.anchoring();
     let r = records(&row.doc, program);
     let answer = program
-        .segment_radii(&r.structure, &pv.naming, 0)
+        .segment_radii(&r.structure, anchoring, 0)
         .expect("the door answers");
     assert_eq!(answer.len(), 2, "two radii, two arcs — got {answer:?}");
     for (edge, expr) in &answer {
@@ -2803,13 +3188,13 @@ fn a_carrier_loops_record_is_checked_at_the_same_doors_a_chains_is() {
         }],
     );
     let program = row.program();
-    let pv = row.profile_value();
+    let anchoring = row.anchoring();
     let structure = records(&row.doc, program).structure;
     let segments = structure.canonical.loops[0].segments.len();
     assert_eq!(segments, 4, "the split loop has four segments");
     assert_eq!(
         program
-            .segment_radii(&structure, &pv.naming, 0)
+            .segment_radii(&structure, anchoring, 0)
             .expect("the door answers")
             .len(),
         segments,
@@ -2827,14 +3212,12 @@ fn a_carrier_loops_record_is_checked_at_the_same_doors_a_chains_is() {
         segments,
     });
     assert_eq!(
-        program.profile_edges_of(&short, &pv.naming, 0, 0),
+        program.profile_edges_of(&short, anchoring, 0, 0),
         want.map(|()| Vec::new()),
         "the per-step door refuses a span off the loop"
     );
     assert_eq!(
-        program
-            .segment_radii(&short, &pv.naming, 0)
-            .map(|v| v.len()),
+        program.segment_radii(&short, anchoring, 0).map(|v| v.len()),
         want.map(|()| 0),
         "and so does the per-edge radius door, through the same walk"
     );
@@ -2848,7 +3231,7 @@ fn a_carrier_loops_record_is_checked_at_the_same_doors_a_chains_is() {
         segment: 0,
     });
     assert_eq!(
-        program.segment_radii(&emitting, &pv.naming, 0),
+        program.segment_radii(&emitting, anchoring, 0),
         Err(StepSegmentsError::CarrierRecordsEmissions {
             loop_: 0,
             emissions: 1,

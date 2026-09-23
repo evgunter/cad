@@ -356,10 +356,14 @@ span and its per-radius emission (fields of `crates/profile`'s
 `ReplayStructure`, beside its fillet decisions) give the answer — the
 span for a step, the emission for a radius, since the step a radius is
 authored on is not always the step its arc is credited to — in the
-program's own step order —
-the numbering the published names carry, since `eval/anchor.rs`
-renumbers every emitted ref canonical → program before the name table
-is published — and canonicalization's `reversed` and `start` on
+numbering the published names carry. `eval/anchor.rs` renumbers every
+emitted ref canonical → program before the name table is published,
+through the anchor of the profile the table is published through: the
+program's own step order for an extrude's or a revolve's profile and
+for a loft's section 0, section 0's for a loft's later section (below).
+The door is asked with the anchoring read off the node whose table is
+read (`SectionAnchors`, on that node's value), so the numbering it
+answers in is that table's. Canonicalization's `reversed` and `start` on
 `LoopCanonical` are checked against the naming anchor's record of the
 same permutation, never applied. A disagreement between those two
 records is the evaluation contradicting itself and asserts. The door
@@ -367,8 +371,8 @@ refuses typed where a record is absent or of the wrong shape rather
 than guessing. It is derived from the structure record the geometry
 came from, so it cannot disagree with the geometry, and it is not
 persisted. For a loft the published anchoring is section 0's, and the
-loft's value carries every section's own anchor beside it
-(`SectionAnchors`), so a later section's step reaches the loft's walls
+loft's value carries every section's own anchor beside it, so a later
+section's step reaches the loft's walls
 through its canonical position — its own anchor inverted, section 0's
 applied — which is the wall the skin built from canonical segment `k`
 of every section.

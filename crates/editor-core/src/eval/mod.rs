@@ -257,18 +257,20 @@ pub struct NodeValue<T: Decide> {
     /// descendant map. Rides the value, so memo reuse transfers mate
     /// identity with the geometry it is keyed into.
     pub carried: Arc<crate::assembly::CarriedDeclarations>,
-    /// **A LOFT's section anchors** ([`SectionAnchors`]): every
-    /// section's own naming anchor and the one [`NodeValue::name_table`]
-    /// was published through, so a consumer holding one section's slot
-    /// reaches the loft's walls through
+    /// **A profile-operand verb's section anchors** ([`SectionAnchors`]):
+    /// the own naming anchor of every profile the node consumed — an
+    /// extrude's or a revolve's one, a loft's sections — and the one
+    /// [`NodeValue::name_table`] was published through. A consumer
+    /// holding a profile slot reaches THIS node's walls through
     /// [`crate::ProfileProgram::profile_edges_of`] with
-    /// [`SectionAnchors::section`] and never re-derives which anchor the
-    /// table was written with.
+    /// [`SectionAnchors::of`], and it is the only way to: the door
+    /// takes an anchoring read off the node whose table is read, never
+    /// one assembled from a profile's own value.
     ///
-    /// `None` means the node is NOT A LOFT, and only that. Rides the
-    /// value, so memo reuse transfers it with the table it describes:
-    /// it is a pure function of the sections' programs, which the
-    /// content key fixes.
+    /// `None` means the node is NOT A PROFILE-OPERAND VERB, and only
+    /// that. Rides the value, so memo reuse transfers it with the table
+    /// it describes: it is a pure function of the operand programs,
+    /// which the content key fixes.
     pub section_anchors: Option<Arc<SectionAnchors>>,
     /// The node's verdict log (M4 PR 4, N5): every definite predicate
     /// decision made evaluating the node — those made before its

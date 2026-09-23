@@ -33,6 +33,7 @@
 use profile::{Profile, ProfileLoop, ValidatedProfile};
 
 use crate::names::{Entry, NameTable, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName};
+use crate::node::RecipeNodeId;
 
 /// One canonical loop's anchor: how canonical indices map back to the
 /// program's authored order.
@@ -96,17 +97,20 @@ impl LoopAnchor {
 /// sits canonically, and the anchor the table's canonical refs were
 /// PUBLISHED through.
 ///
-/// A profile's own sweep publishes through the profile's own anchor,
-/// so the two are one and a program ref reaches the table unchanged —
-/// that is `From<&ProfileNaming>`. A loft publishes one table for all
-/// of its sections, through one of their anchors
-/// ([`SectionAnchors`]), and a section's program ref reaches that
-/// table through its canonical position: canonical loop `l`, segment
-/// `k` of every section is the one wall the skin built for them.
+/// An extrude, a revolve and a profile-operand sweep publish through
+/// their one profile's own anchor, so the two are one and a program ref
+/// reaches the table unchanged. A loft publishes one table for all of
+/// its sections, through section 0's anchor, and a section's program
+/// ref reaches that table through its canonical position: canonical
+/// loop `l`, segment `k` of every section is the one wall the skin
+/// built for them.
 ///
-/// Neither half is settable from outside: the published half is read
-/// off the evaluation that published it, so a caller cannot pair a
-/// section with an anchor its table was not written through.
+/// **It is read off the node whose table is being read**
+/// ([`SectionAnchors`], on that node's value) and nothing outside this
+/// crate builds one, so a caller cannot pair a profile with an anchor
+/// the table it is reading was not written through — the pairing that
+/// would answer a later loft section in the wrong numbering and
+/// compile.
 #[derive(Debug, Clone, Copy)]
 pub struct Anchoring<'a> {
     own: &'a ProfileNaming,
@@ -114,6 +118,17 @@ pub struct Anchoring<'a> {
 }
 
 impl<'a> Anchoring<'a> {
+    /// A profile's own anchor as both halves: the numbering of a table
+    /// published through that profile's anchor. Crate-internal — a
+    /// caller reading a table reads the anchoring off that table's
+    /// node instead ([`SectionAnchors::of`]).
+    pub(crate) fn own_table(naming: &'a ProfileNaming) -> Self {
+        Self {
+            own: naming,
+            published: naming,
+        }
+    }
+
     /// The profile's own anchor — the one the evaluation's structure
     /// record is checked against.
     pub fn own(&self) -> &'a ProfileNaming {
@@ -126,58 +141,64 @@ impl<'a> Anchoring<'a> {
     }
 }
 
-impl<'a> From<&'a ProfileNaming> for Anchoring<'a> {
-    /// A profile consumed by a node that publishes through the
-    /// profile's own anchor (extrude, revolve, the profile-operand
-    /// sweeps).
-    fn from(naming: &'a ProfileNaming) -> Self {
-        Self {
-            own: naming,
-            published: naming,
-        }
-    }
-}
-
-/// **A loft's section anchors**: every section's own
-/// [`ProfileNaming`], in section order, and the one the loft's name
-/// table was published through — section 0's.
+/// **The anchoring of every profile a profile-operand verb consumed**
+/// — an extrude's, a revolve's or a sweep's one profile, a loft's
+/// sections in section order — and the anchor the node's name table
+/// was published through: the first profile's.
 ///
-/// The loft's emitter mints ONE ref per wall — a canonical
+/// A loft's emitter mints ONE ref per wall — a canonical
 /// `(loop, segment)` shared by every section, because the skin pairs
 /// canonical segment `k` of each section into one wall — so one anchor
 /// publishes the table, and a section authored rotated or reversed
-/// relative to section 0 reaches it through [`SectionAnchors::section`].
-/// Carried on the loft's value ([`crate::eval::NodeValue::section_anchors`]).
+/// relative to section 0 reaches it through [`SectionAnchors::of`].
+/// Carried on the verb's value
+/// ([`crate::eval::NodeValue::section_anchors`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SectionAnchors {
-    /// Section 0's anchor — the published one.
-    first: ProfileNaming,
-    /// Sections 1.., in section order.
-    rest: Vec<ProfileNaming>,
+    /// The first profile and its anchor — the published one.
+    first: (RecipeNodeId, ProfileNaming),
+    /// Every later section, in section order.
+    rest: Vec<(RecipeNodeId, ProfileNaming)>,
 }
 
 impl SectionAnchors {
-    /// The anchors of a loft's sections, publishing through `first`'s.
-    pub(crate) fn new(first: ProfileNaming, rest: Vec<ProfileNaming>) -> Self {
+    /// The anchors of a verb's profiles, publishing through `first`'s.
+    pub(crate) fn new(
+        first: (RecipeNodeId, ProfileNaming),
+        rest: Vec<(RecipeNodeId, ProfileNaming)>,
+    ) -> Self {
         Self { first, rest }
     }
 
-    /// The anchor the loft's table was published through.
+    /// The anchor the node's table was published through.
     pub fn published(&self) -> &ProfileNaming {
-        &self.first
+        &self.first.1
     }
 
-    /// Section `i`'s anchoring into the loft's table, `None` past the
-    /// last section.
+    /// Section `i`'s anchoring into the node's table, `None` past the
+    /// last section. A one-profile verb has the one section, `0`.
     pub fn section(&self, i: usize) -> Option<Anchoring<'_>> {
         let own = match i {
-            0 => &self.first,
-            _ => self.rest.get(i - 1)?,
+            0 => &self.first.1,
+            _ => &self.rest.get(i - 1)?.1,
         };
         Some(Anchoring {
             own,
-            published: &self.first,
+            published: &self.first.1,
         })
+    }
+
+    /// The anchoring of the operand profile `profile` into the node's
+    /// table — the first section it is, `None` where the node did not
+    /// consume it.
+    pub fn of(&self, profile: RecipeNodeId) -> Option<Anchoring<'_>> {
+        std::iter::once(&self.first)
+            .chain(&self.rest)
+            .find(|(id, _)| *id == profile)
+            .map(|(_, own)| Anchoring {
+                own,
+                published: &self.first.1,
+            })
     }
 }
 
@@ -321,25 +342,18 @@ pub(crate) fn derive_naming(
             let bits = |p: &geom_core::Point2<f64>| (p.x.to_bits(), p.y.to_bits());
             for offset in 0..n {
                 for reversed in [false, true] {
-                    // Vertex map (canonical k → program index).
-                    let vmap = |k: usize| {
-                        if reversed {
-                            (offset + n - k) % n
-                        } else {
-                            (offset + k) % n
-                        }
+                    // The candidate anchor's own maps: canonical vertex
+                    // k → program vertex, and canonical segment k
+                    // (canonical vertex k → k+1) → the program segment
+                    // it is, traversed backward when reversed.
+                    let candidate = LoopAnchor {
+                        program_loop: pi as u32,
+                        offset: offset as u32,
+                        reversed,
+                        len: n as u32,
                     };
-                    // Segment map: canonical segment k starts at
-                    // canonical vertex k; forward it is program
-                    // segment (offset+k), reversed it is program
-                    // segment (offset−k−1) traversed BACKWARD.
-                    let smap = |k: usize| {
-                        if reversed {
-                            (offset + 2 * n - k - 1) % n
-                        } else {
-                            (offset + k) % n
-                        }
-                    };
+                    let vmap = |k: usize| candidate.vertex(k as u32) as usize;
+                    let smap = |k: usize| candidate.segment(k as u32) as usize;
                     let positions_ok =
                         (0..n).all(|k| bits(&cv[k].pos()) == bits(&pv[vmap(k)].pos()));
                     if !positions_ok {
@@ -366,12 +380,7 @@ pub(crate) fn derive_naming(
                     if mapped != prog_joints {
                         continue;
                     }
-                    found = Some(LoopAnchor {
-                        program_loop: pi as u32,
-                        offset: offset as u32,
-                        reversed,
-                        len: n as u32,
-                    });
+                    found = Some(candidate);
                     break 'progs;
                 }
             }

@@ -109,7 +109,8 @@ pub(crate) struct OpOut<T: Decide> {
     /// channel's bookkeeping half, in the same arena and filled at the
     /// same one op.
     pub carried: Arc<crate::assembly::CarriedDeclarations>,
-    /// A loft's section anchors ([`NodeValue::section_anchors`](super::NodeValue::section_anchors));
+    /// A profile-operand verb's section anchors
+    /// ([`NodeValue::section_anchors`](super::NodeValue::section_anchors));
     /// `None` for every other op.
     pub section_anchors: Option<Arc<anchor::SectionAnchors>>,
 }
@@ -1735,7 +1736,11 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
         .iter()
         .map(|anchor| {
             let by_program_segment = program
-                .segment_radii(&pre.structure, &pre.naming, anchor.program_loop)
+                .segment_radii(
+                    &pre.structure,
+                    anchor::Anchoring::own_table(&pre.naming),
+                    anchor.program_loop,
+                )
                 .unwrap_or_else(|e| {
                     unreachable!(
                         "this profile's structure record and its naming anchor were \
@@ -1877,7 +1882,15 @@ fn wire_swept<
         &out.walls,
     )
     .map_err(NodeErrorKind::ParamSourceAttach)?;
-    Ok(OpOut::plain(ValuePayload::Body(Arc::new(body)), table))
+    let mut out = OpOut::plain(ValuePayload::Body(Arc::new(body)), table);
+    // The table was published through the one profile's own anchor;
+    // the anchoring rides the value so a reader of THIS table reads it
+    // from here, as a loft's reader does.
+    out.section_anchors = Some(Arc::new(anchor::SectionAnchors::new(
+        (profile, vp.naming.clone()),
+        Vec::new(),
+    )));
+    Ok(out)
 }
 
 /// **Extrudes a profile along its sketch normal** — the distance slot
@@ -5044,7 +5057,7 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
         let (chain, place, naming) = section_of::<T>(doc, results, *pid, lane, tol)?;
         sections.push(chain);
         places.push(place);
-        namings.push(naming);
+        namings.push((*pid, naming));
     }
     // The geometry/profile doors keep their historical node-error
     // shapes (the §2 compatibility contract predates the builder);
@@ -5064,13 +5077,15 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
     // the value beside it, so a section's program ref reaches the
     // table through its canonical position (`anchor::Anchoring`).
     let mut namings = namings.into_iter();
+    // `loft_body` refused fewer than two sections at its geometry door
+    // (`SkinError::TooFewSections`, before anything was built), so a
+    // loft that built has a section 0: a kernel invariant, not an input
+    // a document can reach (D9's D2 addendum).
     let first = namings
         .next()
-        .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
-            what: "a loft that built has no section to publish its names through",
-        }))?;
+        .unwrap_or_else(|| unreachable!("a loft that built has at least two sections"));
     let table = names::name_loft(id, &built).map_err(NodeErrorKind::Naming)?;
-    let table = anchored(table, &first)?;
+    let table = anchored(table, &first.1)?;
     stamp_minted(&mut built.body, id);
     let mut out = OpOut::plain(ValuePayload::Body(Arc::new(built.body)), table);
     out.section_anchors = Some(Arc::new(anchor::SectionAnchors::new(
