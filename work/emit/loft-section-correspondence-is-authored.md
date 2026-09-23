@@ -74,4 +74,7 @@ authored start. Today it counts from the lex-min start. Consequences:
   corpus show this: only lofts whose lex-min starts disagreed move.
 - DM8 (`crates/editor-core/REFERENCES.md`) and `loft_geometry`'s
   contract doc state the authored correspondence.
-- It lands as an `[ev]` PR, because it changes what the loft builds.
+- It lands as an ordinary PR. Ev (3102's thread): an `[ev]` PR is owed
+  only if the change meaningfully deviates from what was ratified above.
+  Moving published names for non-loft verbs, or a name-bit migration,
+  would be such a deviation.
