@@ -707,3 +707,53 @@ now say the pass measures a stale row on a COMPLETE face and point at
 that row; `set_edge_curve` stays `Neither`, with the argument in its
 own docs and a row in `crates/topo/tests/loop_reparenting_pcurve_rows.rs`
 characterising the silence. Signed (TOPO, the set_face_surface lane).
+## The run doors' posture seam (2026-09-14): two prose paragraphs, two table notes, no function
+
+TOPO's `topo/mef-kef-runs-carry-or-drop-rows` gives `Body::mef`'s
+chord surgery and `Body::kef`'s unsplice the loop doors' answer one
+level down: the RUN of half-edges each moves between two faces' loops
+keeps its rows across one chart (`Body::same_chart`) and loses them
+across two, through a run-level twin of the loop door
+(`Body::drop_run_rows_on_chart_change`, in TOPO's `euler_ring.rs`; the
+loop door now delegates to it). `pcurves::loop_rows` is read and not
+edited: the run is what each op's plan phase already holds, so no
+`run_rows` walk was needed in TRIM's file. What moved in
+`crates/topo/src/pcurves.rs`:
+
+- the module docs' `Neither` paragraph, which said `mef`'s run and
+  `kef`'s remnant are "left saying the old face's chart" and cited the
+  TOPO row, now says each door disposes of the run's rows and what
+  keeps the two in the `Neither` bucket (`mef` mints two rowless
+  halves; `kef` kills two whose rows outlive their keys);
+- the `Posture::Neither` variant doc's "two entries here are known to
+  leave rows in that blind spot" sentence, re-stated the same way;
+- `staleness_posture::DECLARED`'s `mef` and `kef` notes say what each
+  does with the moved run. Both entries STAY `Neither`: the minting
+  operators' posture is Ev's question on the open `[ev]` PR and this
+  unit does not decide it.
+
+One finding filed on this slate while placing `kef`'s killed halves:
+`pcurves-docs-claim-a-recycled-slot-can-read-another-half-edges-row`
+(the stale-row consequence's recycled-slot arm is one `SecondaryMap`'s
+version check forecloses). Signed (TOPO, the mef/kef run lane).
+
+## The run doors' posture seam, fix pass (2026-09-24): `mef` and `kef` read `Transfers`
+
+The dual on `topo/mef-kef-runs-carry-or-drop-rows` (PR 2603) found
+`Posture::Neither`'s definition — "leaves the map exactly as it found
+it" — false for two doors that now drop rows whose chart moved, and
+`Transfers` literally describing them. So in `crates/topo/src/pcurves.rs`:
+`mef`, `mef_chord` and `kef` move to the `Transfers` section of
+`staleness_posture::DECLARED`, in a section of their own; the
+`Transfers` variant doc names the run beside the loop, and says the
+bucket is silent about rows a door never HELD (a minted half arrives
+rowless — the minting posture, decided elsewhere, not by the entry);
+the `Neither` variant doc loses its "dispose of those rows themselves
+now" history; the header's per-door paragraph on the two doors is a
+one-sentence pointer at `DECLARED` rather than a restatement of it
+(`the-pcurves-module-header-restates-the-posture-table-below-it` is
+the class and this does not grow it). The run door
+`Body::drop_run_rows_on_chart_change` is gone: one predicate-free
+primitive `Body::drop_rows` sits under every decision site, and the
+header's two references to the doors follow it. Signed (TOPO, the
+mef/kef fix pass).

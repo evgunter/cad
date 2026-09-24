@@ -41,6 +41,31 @@ pass refused them, one `PcurveMintError::Certify` per row. The drop is
 the right answer — the body no longer HOLDS a row about another
 surface — and what it costs is the reading, every time.
 
+**The two run doors, measured the same way** (TOPO's
+`mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`,
+PR 2603, at its fix-pass head; same suite, same band). `Body::mef`'s
+chord surgery and `Body::kef`'s unsplice move a RUN of half-edges
+between two faces' loops and drop the run's rows across a chart
+change, so a rowless CURVED destination reads as never minted here
+too. The rows are
+`mef_onto_a_rowless_curved_chart_drops_the_runs_rows_and_the_pass_goes_quiet`
+and
+`kef_into_a_rowless_curved_face_drops_the_remnants_rows_and_the_pass_goes_quiet`:
+
+| door | destination | before the drop | after |
+|---|---|---|---|
+| `mef`, run `[a→b, b→c]` onto `New(other cylinder)` | the new face, `(2, 1)` → `(0, 3)` | two `MissingCache` (one minted half per face) | one `MissingCache` — the OLD face's minted half; the new face is skipped |
+| `kef`, remnant of three rows into the back on `New(other cylinder)` | `(3, 5)` → `(0, 8)` | five `MissingCache` (the back's own unminted halves) | `[]` |
+
+Both are the loud-to-silent trade in this row's first table, one
+level down: before the drop the arriving rows made the destination a
+half-minted face the pass reports; after it the destination stores
+nothing and the pass says nothing. A destination that keeps rows of
+its own is not in this class — `kef` into a MINTED face on another
+chart reads `(3, 3)` and three `MissingCache`, loud, because the
+survivor's own rows keep the face in the pass's window
+(`kef_into_a_minted_face_on_another_chart_keeps_the_survivors_own_rows`).
+
 **Why it is this program's.** The doors are TOPO's and are now honest:
 they leave no row stated in a chart its face is not on. What is left
 is a question about the PASS — that its silence has two meanings and a

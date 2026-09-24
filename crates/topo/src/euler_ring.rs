@@ -1015,12 +1015,12 @@ impl<T: Decide> Body<T> {
         Ok(())
     }
 
-    /// The pcurve limb of the loop-re-parenting doors: drops every
-    /// stored row of `r#loop` when the loop's new face is on a
-    /// different CHART from its old one.
-    /// [`Body::drop_face_rows`] is the same answer for a face
-    /// re-charted in place, where one chart decision covers every loop
-    /// the face has.
+    /// The loop-re-parenting doors' chart decision, and the walk it
+    /// governs: drops every stored row of `r#loop` when the loop's
+    /// new face is on a different CHART from its old one, and touches
+    /// nothing when it is not. [`Body::drop_face_rows`] is the same
+    /// answer for a face re-charted in place, where one chart decision
+    /// covers every loop the face has.
     ///
     /// A pcurve row is a curve stated in a FACE's chart, keyed on a
     /// half-edge ([`crate::pcurves`]). Re-parenting a loop changes
@@ -1028,44 +1028,14 @@ impl<T: Decide> Body<T> {
     /// a door that moves a loop owes the map one of two answers, and
     /// the chart decides which. Same chart: every row still says what
     /// it said, and the door carries them all untouched. A different
-    /// chart: none of them does, and the door drops them.
-    ///
-    /// **Which charts count as one** is [`Body::same_chart`]'s
-    /// question, and its answer is the merge door's two hard rungs
-    /// (`merge_faces`): one surface key, or two keys the body records
-    /// as one description. Two keys holding an equal surface that the
-    /// body has no record tying together read as a chart change and
-    /// their rows go — a re-mint, never a wrong row, and the
-    /// conservative direction of an identity channel that can be
-    /// absent but never wrong.
-    ///
-    /// **Why dropping rather than re-stating.** An image on another
-    /// chart is DERIVED, not restated — unlike
-    /// [`Body::split_edge`]'s restriction of one image to a
-    /// sub-interval of its own carrier — and every derivation door in
-    /// [`crate::pcurves`] carries the `PcurveFittedLane` bound, which
-    /// these `Decide` doors do not have and cannot take without
-    /// rippling it through every caller. Dropping is the honest
-    /// remainder: absence is never a claim, and a caller that wants
-    /// the target face's rows runs [`crate::pcurves::mint_pcurves`].
-    ///
-    /// **What the drop costs, and its scope.** Where the target face
-    /// carries rows of its own, the drop leaves it INCOMPLETE and
-    /// tier 3 reports that (`MissingCache` per rowless half-edge).
-    /// Where it does not — a target whose whole boundary is the moved
-    /// loop, or one that was never minted — the face reads as one the
-    /// minting pass has not run on, and that pass says nothing about
-    /// such a face by design. So EVERY rowless CURVED target, through
-    /// every door here, trades a loud reading for a silent one: before
-    /// the drop those rows were re-certified against the target's
-    /// chart and refused (`PcurveMintError::Certify` per row), and
-    /// after it there is nothing to refuse. The trade is not one
-    /// direction of one door; it is the whole rowless-curved-target
-    /// class, and what buys it is that the body no longer HOLDS the
-    /// wrong row for `props`, the tessellator or `chart_boundary` to
-    /// read. That the pass cannot tell a never-minted face from one a
-    /// door emptied is
-    /// `work/trim/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
+    /// chart: none of them does, and the door drops them —
+    /// [`Body::drop_rows`] states why dropping and what it costs;
+    /// [`Body::same_chart`] states which charts count as one. The
+    /// decision is taken here once, for the three doors that move a
+    /// whole loop ([`Body::kfmrh`], [`Body::mfkrh`],
+    /// [`Body::ring_move`]); the two doors that move a RUN of one
+    /// ([`Body::mef`]'s chord surgery, [`Body::kef`]'s unsplice) take
+    /// it at their own sites, over the run their plan phase holds.
     ///
     /// **What it drops is what the validator would read.** The rows
     /// removed are exactly the rows the face's own walk attributes to
@@ -1092,7 +1062,48 @@ impl<T: Decide> Body<T> {
         let crate::pcurves::LoopRows::Cycle(cycle) = crate::pcurves::loop_rows(self, r#loop) else {
             return;
         };
-        for half_edge in cycle {
+        self.drop_rows(cycle);
+    }
+
+    /// Removes the stored pcurve row of every half-edge in
+    /// `half_edges`, deriving nothing. This is the one removal every
+    /// door that changes the chart a row is stated in calls once
+    /// [`Body::same_chart`] has said the chart changed; the decision
+    /// is each door's, taken once at its own site, and this takes none.
+    ///
+    /// **Why dropping rather than re-stating.** An image on another
+    /// chart is DERIVED, not restated — unlike
+    /// [`Body::split_edge`]'s restriction of one image to a
+    /// sub-interval of its own carrier — and every derivation door in
+    /// [`crate::pcurves`] carries the `PcurveFittedLane` bound, which
+    /// the `Decide` doors that call this do not have and cannot take
+    /// without rippling it through every caller. Dropping is the
+    /// honest remainder: absence is never a claim, and a caller that
+    /// wants the target face's rows runs
+    /// [`crate::pcurves::mint_pcurves`].
+    ///
+    /// **What the drop costs, and its scope.** Where the target face
+    /// carries rows of its own, the drop leaves it INCOMPLETE and
+    /// tier 3 reports that (`MissingCache` per rowless half-edge).
+    /// Where it does not — a target whose whole boundary is the moved
+    /// loop or run, or one that was never minted — the face reads as
+    /// one the minting pass has not run on, and that pass says nothing
+    /// about such a face by design. So EVERY rowless CURVED target,
+    /// through every door that calls this, trades a loud reading for
+    /// a silent one: before the drop those rows were re-certified
+    /// against the target's chart and refused
+    /// (`PcurveMintError::Certify` per row), and after it there is
+    /// nothing to refuse. The trade is not one direction of one door;
+    /// it is the whole rowless-curved-target class, and what buys it
+    /// is that the body no longer HOLDS the wrong row for `props`, the
+    /// tessellator or `chart_boundary` to read. That the pass cannot
+    /// tell a never-minted face from one a door emptied is
+    /// `work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
+    ///
+    /// A key with no row is a no-op, so a caller hands over every key
+    /// it moved and none of them has to be checked first.
+    pub(crate) fn drop_rows(&mut self, half_edges: impl IntoIterator<Item = HalfEdgeKey>) {
+        for half_edge in half_edges {
             self.pcurves.remove(half_edge);
         }
     }
@@ -1114,8 +1125,9 @@ impl<T: Decide> Body<T> {
     /// ONE pair of keys for all of its rows, and its setter compares
     /// them where both still resolve — before any orphan sweep can
     /// take the old key out of the arena. So this door takes no keys
-    /// and reads no surface: it is the drop itself, and the sentence
-    /// that decided it lives with the two keys.
+    /// and reads no surface: it is the face's walk handed to
+    /// [`Body::drop_rows`], and the sentence that decided it lives
+    /// with the two keys.
     ///
     /// The face's rows are its loops' rows — the outer loop and every
     /// ring — and the walk that says which those are is
@@ -1137,9 +1149,7 @@ impl<T: Decide> Body<T> {
             )
         };
         let loops = crate::pcurves::stored_rows(self, face_data).loops;
-        for half_edge in loops.into_iter().flatten().flatten() {
-            self.pcurves.remove(half_edge);
-        }
+        self.drop_rows(loops.into_iter().flatten().flatten());
     }
 
     /// Do these two surface keys name one CHART — the thing a pcurve
@@ -1166,7 +1176,7 @@ impl<T: Decide> Body<T> {
     /// equal means reading the surfaces' scalars structurally, which
     /// needs `geom_core::Bounds` — a bound these `Decide` doors do not
     /// carry
-    /// (`work/topo/two-provenance-free-keys-holding-one-surface-read-as-two-charts`).
+    /// (`work/origin/two-provenance-free-keys-holding-one-surface-read-as-two-charts`).
     /// Answering `false` there costs a re-mint; answering `true`
     /// wrongly would keep a row about another surface, so absent
     /// evidence this is the safe way to be wrong.

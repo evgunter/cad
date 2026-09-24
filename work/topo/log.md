@@ -1836,3 +1836,29 @@ builds at a time after the merge of main; the dual above holds both).
 
 One row re-homed: `census-witness-string-repeats-the-subject` moves to
 ATREST with `validate.rs`, the file it decides (logged there).
+
+## The run doors merged: PR 2603 closes `mef-and-kef-move-half-edge-runs-…` (2026-09-24)
+
+The fix-pass head `8de0718b4` is green on the full matrix (run
+35952065552; the filter reads `CONFIG_SOURCE=lane:unsampled
+eps:unsampled klint:unsampled` at tier closure, and `gate ok` is
+green). Every adjudicated item was taken and none was refuted.
+- `kef` decides the chart in its plan phase, so the ordering the
+  first head argued in prose no longer exists. Both reviewers' pins
+  are rows now, and each mutant reds exactly its row.
+- One predicate-free removal, `drop_rows`, sits under one `same_chart`
+  per decision site. The first head's double evaluation on the loop
+  path is gone.
+- `mef`/`kef` are `Transfers`.
+- The PCERT evidence is filed, and the multi-fault refusal change is
+  disclosed with a lib row.
+- Four rows filed: TOPO's `sense`/`same_chart` seam, ORIGIN's
+  unchecked `set_surface_source`, META's rotting tracker paths, and
+  TRIM's recycled-slot doc claim.
+
+The ordinal-2713 row rides as this PR's last commit. The pair has no
+unilateral MAJOR: the first review rated the two unpinned invariants
+MAJOR and the second MINOR, so they are bilateral. The implementer
+lane lost its tokens and wall time twice over, and they are recorded
+as missing data. Slot 1 is concluded. PR 2594 lands second and folds
+its face door onto `drop_rows` in its merge-forward.
