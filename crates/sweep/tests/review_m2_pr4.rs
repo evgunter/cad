@@ -19,7 +19,7 @@ use profile::RawLoop;
 use geom::Surface;
 use geom_brep::{EdgeDescription, newell_plane};
 use geom_core::Tol;
-use geom_core::{Band, Point2, Point3, Real, Vec3};
+use geom_core::{Band, OrthoFrame, Point2, Point3, Real, Vec3};
 use profile::{LoopRole, Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
 use topo::readback::{EulerCounts, euler_counts};
@@ -1191,11 +1191,7 @@ fn survives_error_paths_extended() {
     );
     // NaN placement: 2-D validation cannot see it; the geometry gate
     // refuses at the first certification, typed, body discarded.
-    let bad_plane = SketchPlane::from_frame(
-        Point3::new(f64::NAN, 0.0, 0.0),
-        Vec3::unit_x(),
-        Vec3::unit_y(),
-    );
+    let bad_plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(f64::NAN, 0.0, 0.0)));
     let vp_bad = Profile::new(bad_plane, vec![l_loop()])
         .validate(Tol::witness())
         .expect("validation is 2-D; the poisoned placement passes through");

@@ -84,7 +84,7 @@ fn r2_a_coincidence_at_the_nominal_is_registered_and_discharged_over_the_box() {
         // `x.register_equal(x*x)` is refused Cyclic (the unit pins that);
         // the OTHER direction is accepted, and it is the direction a
         // constructor naturally writes (derived quantity ≡ held one).
-        let reg = sq.register_equal(x);
+        let reg = sq.register_equal(x, Tol::witness());
         let decided = sign_of(sq - x);
         (reg, decided)
     });
@@ -113,14 +113,14 @@ fn r2_a_coincidence_at_the_nominal_is_registered_and_discharged_over_the_box() {
 fn r2_the_interval_witness_lets_a_geometric_lie_through_over_a_wide_box() {
     let narrow = shipped(|| {
         let x = p("x", 1.0, 1.01);
-        (x + lit(0.5)).register_equal(x)
+        (x + lit(0.5)).register_equal(x, Tol::witness())
     })
     .0;
     assert_eq!(narrow, SymRegistration::Contradicted, "narrow box: refused");
     let ((wide, decided), counts) = shipped(|| {
         let x = p("x", 0.0, 1.0);
         let y = p("y", -1.0, 1.0);
-        let reg = (x + lit(0.5)).register_equal(x);
+        let reg = (x + lit(0.5)).register_equal(x, Tol::witness());
         let decided = sign_of((x - (x + lit(0.5))) * y);
         (reg, decided)
     });
@@ -150,7 +150,10 @@ fn r2_the_interval_witness_lets_a_geometric_lie_through_over_a_wide_box() {
 fn r2_the_numeric_shield_does_not_reach_a_dependency_widened_lie() {
     let (decided, counts) = shipped(|| {
         let x = p("x", 0.0, 1.0);
-        assert_eq!((x + lit(0.5)).register_equal(x), SymRegistration::Recorded);
+        assert_eq!(
+            (x + lit(0.5)).register_equal(x, Tol::witness()),
+            SymRegistration::Recorded
+        );
         sign_of(x - (x + lit(0.5)))
     });
     assert_eq!(
@@ -222,7 +225,7 @@ fn r2_the_rim_identity_holds_at_the_semicircle_the_major_arc_and_a_clockwise_tur
             );
             let b = p("b", blo, bhi);
             let (norm, radius, [vx, vy], _) = sagitta(ax, ay, bx, by, b);
-            let reg = norm.register_equal(radius);
+            let reg = norm.register_equal(radius, Tol::witness());
             let scale = radius / norm - lit(1.0);
             (reg, [sign_of(vx * scale), sign_of(vy * scale)])
         });

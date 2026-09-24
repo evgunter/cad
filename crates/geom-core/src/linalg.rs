@@ -82,6 +82,16 @@
 //! the predicate funnel, so the totality contract above is unchanged
 //! for everything else in this layer.
 //!
+//! Two types here carry a decided fact. The [`UnitVec3`] witness is a
+//! direction whose length decided positive under a band and was then
+//! normalized; it is minted by its normalizing constructor, by exact
+//! negation and by [`frame`]'s deciding ladders. The [`OrthoFrame`]
+//! witness is an origin and a right-handed orthonormal triple, minted
+//! by the Gram–Schmidt and aim ladders that decide its axes and by the
+//! exact world frames; it converts into an [`Affine3`], which stays the
+//! general affine map. Each type's own docs say what its fact means at
+//! every scalar and which doors take it.
+//!
 //! The [`lsq`] submodule (M5 PR 4) is the one variable-size resident:
 //! `f64`-only structure machinery for the fitting systems (C6's f64
 //! lane), `Vec`-based with shapes validated at entry so every internal
@@ -92,13 +102,17 @@ mod affine;
 pub mod frame;
 pub mod lsq;
 mod mat;
+mod ortho_frame;
 mod point;
 pub mod svd;
+mod unit_vec;
 mod vec;
 
 pub use affine::Affine3;
 pub use frame::{FrameError, FrameInput, FrameVector};
 pub use mat::Mat3;
+pub use ortho_frame::{OrthoAxis, OrthoFrame, OrthoFrameError};
 pub use point::{Point2, Point3};
 pub use svd::{Svd, Svd2x3, Svd3x4};
+pub use unit_vec::{UnitVec3, UnitVec3Error, decide_unit_direction};
 pub use vec::{Vec2, Vec3};

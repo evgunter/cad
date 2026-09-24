@@ -4,6 +4,8 @@ kind: issue
 title: Does the 10 GB Actions cache budget hold a WRITE-ONCE hash-keyed entry long enough to be worth writing?
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 

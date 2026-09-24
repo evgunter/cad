@@ -10,7 +10,7 @@
 
 use crate::common;
 
-use common::{census, fixture};
+use common::{arena_census, fixture};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
@@ -115,7 +115,7 @@ fn probe_refit_seam_refuses_typed() {
                 PLANT < eps,
                 "MISADOPTION: refit seam displaced {PLANT:e} m — past ε_in {eps:e} — \
                  imported as a solid (census {:?})",
-                census(&body)
+                arena_census(&body)
             );
             topo::validate_geometric(&body, Tol::witness())
                 .expect("a seam adopted inside ε_in leaves a body that is valid at rest");
@@ -136,7 +136,7 @@ fn probe_all_unit_weight_rational_instance_imports_identically() {
     assert_ne!(text, orig, "wall #87 rewritten as complex instance");
     let body = solid(&text, "all-unit-weight complex instance");
     let base = solid(&orig, "committed fixture");
-    assert_eq!(census(&body), census(&base), "census unchanged");
+    assert_eq!(arena_census(&body), arena_census(&base), "census unchanged");
     assert_eq!(topo::validate(&body), Ok(()), "t1");
     assert_eq!(topo::validate_closed(&body), Ok(()), "t2");
     assert_eq!(
@@ -224,7 +224,7 @@ fn probe_arc_loft_weights_snapped_to_one_refuses() {
             let t3 = topo::validate_geometric(&body, Tol::witness());
             panic!(
                 "LAUNDERED: weight-snapped rational wall imported; t3 = {t3:?}, census {:?}",
-                census(&body)
+                arena_census(&body)
             );
         }
         Ok(other) => panic!("unexpected disposition: {other:?}"),
@@ -445,7 +445,11 @@ fn probe_rim_same_sense_flip_is_honest() {
         Ok(StepImport::Solid { body, .. }) => {
             // If accepted, it must be the SAME body (flag interpretive).
             let base = solid(&orig, "committed fixture");
-            assert_eq!(census(&body), census(&base), "census must match");
+            assert_eq!(
+                arena_census(&body),
+                arena_census(&base),
+                "census must match"
+            );
             assert_eq!(topo::validate(&body), Ok(()), "t1");
             assert_eq!(topo::validate_closed(&body), Ok(()), "t2");
             assert_eq!(
@@ -531,11 +535,53 @@ fn probe_reexport_promotion_divergence() {
         (4, 2),
         "re-export: the two promoted walls state their planes"
     );
-    // The promoted one-cycle fixed point.
-    let body2 = solid(&out, "first re-export");
+    // The promoted fixed point. At an ambient band coarser than the
+    // committed fixture's declared 1e-9, the re-import reads OUR
+    // re-export header's ε_in and D7 additionally promotes the two
+    // straight ruling seam carriers to LINE (`roundtrip.rs`'s
+    // `fixed_point` row carries the corpus-wide re-pin and the
+    // spline-record retirement count); the byte fixed point then
+    // starts one cycle later.
+    let StepImport::Solid {
+        body: body2,
+        curve_promotions,
+        ..
+    } = import(&out).expect("the first re-export re-imports")
+    else {
+        panic!("the first re-export must re-import as a solid");
+    };
+    let line_promos = curve_promotions
+        .iter()
+        .filter(|p| p.kind == step_import::PromotedCurveKind::Line)
+        .count();
+    // ANCHORED, so the branch below cannot float: loft_prism's two
+    // straight seams carry the measured map fold
+    // 1.2644054553268222e-7, so the count is a pinned function of the
+    // ambient band, never read back from the import it checks.
+    let expected_line_promos = if Tol::witness().get().eps >= 1.264_405_455_326_822_2e-7 {
+        2
+    } else {
+        0
+    };
+    assert_eq!(
+        line_promos, expected_line_promos,
+        "the re-import's Line promotions are loft_prism's own straight seams"
+    );
     let out2 =
         step_export::step_string(&body2, &options, Tol::witness()).expect("second re-export");
-    assert_eq!(out, out2, "fixed point from the first re-export on");
+    if line_promos == 0 {
+        assert_eq!(out, out2, "fixed point from the first re-export on");
+    } else {
+        assert_eq!(
+            count(&out2, "= LINE("),
+            count(&out, "= LINE(") + line_promos,
+            "the second divergence is exactly the promoted seam carriers, as LINE"
+        );
+        let body3 = solid(&out2, "second re-export");
+        let out3 =
+            step_export::step_string(&body3, &options, Tol::witness()).expect("third re-export");
+        assert_eq!(out2, out3, "fixed point from the second re-export on");
+    }
 }
 
 /// V2 determinism: two imports of the same file produce identical

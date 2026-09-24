@@ -164,12 +164,13 @@
 //! is mostly constant — `chart` is `nurbs` on every one of them and
 //! the trim box is the whole unit square on every one, so **five of
 //! the seven entries discriminate nothing there and the live pair is
-//! `nu`/`nv` alone**. Five plus that pair is the whole list of seven.
-//! Corpus-wide `chart` does discriminate — it is the one entry that
-//! separates a sized row from an unsized one, since [`parse`] admits
-//! the sizing block only under the charts that owe it — but a reader
-//! sizing up the hole should size up `(nu, nv)`. The same test
-//! pins those statements, deriving the split column by column from
+//! `nu`/`nv` alone**. Corpus-wide every entry separates a sized row
+//! from an unsized one — `identity` reads the six numeric columns as
+//! `Reading::Absent` off the sized lane — and `chart` is where that
+//! separation is ANNOUNCED, being entry zero, which is the argument
+//! [`IDENTITY_COLUMNS`]' own doc makes. A reader sizing up the hole
+//! should still size up `(nu, nv)`. The same test names both lists in
+//! full, deriving the split column by column from
 //! [`identity_readings`] rather than spot-checking members of it.
 //! Closing it needs a face identity in a column of the sweep's own,
 //! which is `tess_meter`'s half of the contract.
@@ -233,6 +234,43 @@
 //! Rules 3, 4
 //! and 5 say the same thing one level up: a comparison that stopped
 //! HAPPENING — or never started — is not growth of any size.
+//!
+//! **Every column of `EXPECTED_HEADER` is read at that boundary.**
+//! What becomes of each one after that is four different things, and
+//! the difference is what a reader of a green gate needs:
+//!
+//! * **Compared by a rule** — `scene`/`face` (the join), `chart` and
+//!   the identity block (rule 4), `triangles` (rule 1), `grid_cells`
+//!   and `span_opt_cells` (rule 2, through `Row::recoverable`), and
+//!   whether the sized block is present at all. This list is what the
+//!   gate CLAIMS.
+//! * **Reaching a reader, compared against nothing** — `delta` and
+//!   `worst_dev` (the report's `total` factor), `patch_cells` and
+//!   `opt_cells` (the cell totals the CLI prints), and the indicator
+//!   block (the constraint-activity line). Each is printed on the run
+//!   that reads it and held against no other run, so a movement in one
+//!   is folded into the baseline by the next re-cut with nothing
+//!   comparing the two cuts.
+//! * **Admitted and dropped** — the certified bound (`BOUND_COLUMNS`)
+//!   and the analysis-cell count (`CELLS`). `parse` refuses what they
+//!   may not say and keeps no value, because nothing downstream has
+//!   one to read. `dev_samples` is admitted and kept for one
+//!   statement only — which of `worst_dev`'s two `NaN`s this row
+//!   carries — and is read by nothing after that.
+//! * **Admitted, stored, and read by nothing** — `worst_cert`. It is
+//!   policed at the boundary and lands on `Nurbs`, and no rule and no
+//!   report looks at it again. This is the one bucket where the gate
+//!   holds a reading it never uses.
+//!
+//! `name` is in none of the four: `parse` stores it on `Row`, nothing
+//! admits it — an opaque token has no in-band value to refuse — and no
+//! rule reads it. It is `worst_cert`'s shape with the admission
+//! removed as well.
+//!
+//! **None of this is a threshold waiting to be written.** A certified
+//! bound is geometry and this meter never gates on geometry; what the
+//! last three buckets lack is a comparison ACROSS cuts, which is a
+//! report and not a rule.
 //!
 //! **A SCHEMA move is not a measurement at all**, and is refused
 //! before any column is read as one. Three constants pin the shape of
@@ -506,25 +544,36 @@ impl Row {
 /// it is the point**: a loud harness failure naming the column is the
 /// outcome to prefer if the geometric argument ever turns out to have
 /// a case in it.
+///
+/// **One variant per POLICY, never one per column or per block**, and
+/// the quantity's name rides as data on the variants that need it.
+/// Three variants once spelled `finite and non-negative` in three
+/// places — a certificate, a constraint-activity count and a certified
+/// sup — and nothing in the crate could tell them apart: every table
+/// entry could be permuted among the three with the whole suite still
+/// green, since they differed only in the noun their message used. A
+/// table whose entries are interchangeable states no policy. The noun
+/// is what varies per column, so the noun is the argument and the
+/// predicate is the variant; what remains distinguishable is what is
+/// genuinely different — the floor at one, the floor at zero, the open
+/// bound, the admitted `NaN`, and no bound at all.
 #[derive(Clone, Copy, Debug)]
 enum Admissible {
     /// A grid cell count: finite, at least one.
     CellCount,
-    /// A tessellation target: finite, above zero.
-    Target,
-    /// A certificate: finite and non-negative (zero is a face whose
-    /// triangles are exact).
-    Certificate,
+    /// The named quantity, finite and ABOVE zero.
+    Positive(&'static str),
+    /// The named quantity, finite and NON-NEGATIVE — zero is a
+    /// reading in every column that carries this, and which reading it
+    /// is differs by column: a certificate of zero is a face whose
+    /// triangles are exact, an indicator of zero is an inactive
+    /// constraint, and a certified sup of zero is a ruled direction
+    /// that constrains nothing. Each table entry says which.
+    NonNegative(&'static str),
     /// A sampled deviation: finite and non-negative, or `NaN` — which
     /// is settled against `dev_samples` after this pass, since only
     /// one of its two meanings is a reading.
     OptionalDeviation,
-    /// A constraint-activity count: finite, non-negative (zero is an
-    /// inactive constraint, which is a reading).
-    Count,
-    /// A realized lattice aspect: finite and above zero (every band
-    /// has nonempty extents over counts floored at one).
-    Aspect,
     /// A trim-box edge in parameter space: finite, and nothing more —
     /// the box's own non-degeneracy (`u0 < u1`, `v0 < v1`) is a
     /// relation this per-column table cannot state, so [`parse`]
@@ -545,27 +594,26 @@ impl Admissible {
     fn admits(self, v: f64) -> bool {
         match self {
             Self::CellCount => v.is_finite() && v >= 1.0,
-            Self::Target => v.is_finite() && v > 0.0,
-            Self::Certificate => v.is_finite() && v >= 0.0,
+            Self::Positive(_) => v.is_finite() && v > 0.0,
+            Self::NonNegative(_) => v.is_finite() && v >= 0.0,
             Self::OptionalDeviation => v.is_nan() || (v.is_finite() && v >= 0.0),
-            Self::Count => v.is_finite() && v >= 0.0,
-            Self::Aspect => v.is_finite() && v > 0.0,
             Self::Extent => v.is_finite(),
         }
     }
 
-    /// What this column may say, for the harness message.
-    fn expects(self) -> &'static str {
+    /// What this column may say, for the harness message: the
+    /// quantity first, then the policy. Composed rather than spelled
+    /// out per variant, so two variants sharing a policy cannot end up
+    /// wording it differently.
+    fn expects(self) -> String {
         match self {
-            Self::CellCount => "a cell count, finite and at least one",
-            Self::Target => "a tessellation target, finite and above zero",
-            Self::Certificate => "a certificate, finite and non-negative",
+            Self::CellCount => "a cell count, finite and at least one".into(),
+            Self::Positive(what) => format!("{what}, finite and above zero"),
+            Self::NonNegative(what) => format!("{what}, finite and non-negative"),
             Self::OptionalDeviation => {
-                "a deviation, finite and non-negative, or NaN for an unresampled sweep"
+                "a deviation, finite and non-negative, or NaN for an unresampled sweep".into()
             }
-            Self::Count => "a constraint-activity count, finite and non-negative",
-            Self::Aspect => "a realized aspect, finite and above zero",
-            Self::Extent => "a trim-box edge, finite",
+            Self::Extent => "a trim-box edge, finite".into(),
         }
     }
 }
@@ -609,6 +657,82 @@ const IDENTITY_MEASURES: [(&str, Admissible); 6] = [
     ("nv", Admissible::CellCount),
 ];
 
+/// Where the certified-bound block starts in [`EXPECTED_HEADER`] —
+/// the first column after the identity block.
+const BOUND_FIRST: usize = 12;
+
+/// The certified bound the lane's sizing read, in
+/// [`EXPECTED_HEADER`]'s order: the whole-patch Hessian sups and the
+/// two first-fundamental-form sups the aspect cap samples.
+///
+/// **No rule in this crate reads any of them, and they are policed
+/// anyway.** What decides that is not whether a value is read but
+/// whether a reading is made of it: the all-or-none partition over the
+/// measured columns already reads these six as PRESENT, and refuses a
+/// row for their absence, so the boundary is already making a
+/// statement about them — and `muu` reads `sup ‖S_uu‖` or it reads
+/// nothing. Left unpoliced, the value beside that presence is whatever
+/// the file happened to say, and a row carrying `muu=banana` parsed
+/// clean and reached the verdict. The check belongs here because here
+/// is the one place a reading of this file is made
+/// (`tools/README.md`'s `CC1`); the value is dropped after it is
+/// admitted, because storing a number no rule reads is the other half
+/// of this row's defect and not a cure for it.
+///
+/// **The policy, and the guarantee that reaches all five.** Each is a
+/// sup of a norm, so each is non-negative, and the producer refuses a
+/// face whose bound is not finite in ANY of the five —
+/// `mesh::nurbs_cert`'s `nurbs_cell_grid` returns
+/// `UnsupportedNurbsFace` for an unbounded or poisoned hull before a
+/// row can be written. The sign half is asserted outright for the
+/// three Hessian sups, in `tess_meter::split_scan`, and holds for
+/// `mu1`/`mv1` by construction: `nurbs_cert` folds them with `max`
+/// from a zero seed.
+///
+/// **Zero is a reading in all five, which is what fixes the open end.**
+/// A ruled direction's `sup ‖S_uu‖` is zero and `tess_meter` reads it
+/// as a certified-flat bound that constrains nothing; `mu1 = 0` or
+/// `mv1 = 0` is a 3-D-degenerate direction, which `nurbs_cert`'s
+/// aspect cap handles as a decided fallback rather than refusing.
+/// Refusing zero here would refuse both.
+///
+/// The table is written out per column rather than as a range, so a
+/// column that arrives between `nv` and `cells` cannot be absorbed
+/// into a count.
+const BOUND_COLUMNS: [(&str, Admissible); 5] = [
+    ("muu", Admissible::NonNegative(SUP)),
+    ("muv", Admissible::NonNegative(SUP)),
+    ("mvv", Admissible::NonNegative(SUP)),
+    ("mu1", Admissible::NonNegative(SUP)),
+    ("mv1", Admissible::NonNegative(SUP)),
+];
+
+/// What every entry of [`BOUND_COLUMNS`] measures, for the harness
+/// message. Named once: five columns under one policy, each spelling
+/// its own noun, are five chances to word one quantity differently.
+const SUP: &str = "a certified sup of a norm";
+
+/// Where the analysis-cell count sits in [`EXPECTED_HEADER`] — between
+/// the certified bound and the sizing block, and in neither.
+///
+/// A COUNT and not a measurement, so it takes the `usize` read for
+/// [`DEV_SAMPLES`]' reason rather than an [`Admissible`] entry: the
+/// producer writes `m.cells.len()`.
+///
+/// **Zero is not refused, and the warrant is narrower than "zero
+/// happens".** No producer path that leaves that `Vec` empty has been
+/// found, and the committed baseline's smallest `cells` is one — so
+/// this is not an admission written around an observed state. It is
+/// written around what the row can be held to: every argument for
+/// refusing zero runs through the producer's code, either the
+/// assembly that fills the `Vec` or `span_opt_cells`' accumulator
+/// summing over the same cells, and neither is a fact about this row.
+/// `tools/README.md`'s `CC4` is why a boundary may not lean on
+/// either, and `CC5` is the cost of getting it wrong — a refusal here
+/// fires on the instrument's own subject, on both halves of a gate
+/// whose fresh file is cut from a tree this crate cannot see.
+const CELLS: usize = 17;
+
 /// Where the sizing block starts in [`EXPECTED_HEADER`].
 const SIZING_FIRST: usize = 18;
 
@@ -623,7 +747,8 @@ const SIZING_COLUMNS: [(&str, Admissible); 6] = [
     ("patch_cells", Admissible::CellCount),
     ("opt_cells", Admissible::CellCount),
     ("span_opt_cells", Admissible::CellCount),
-    ("worst_cert", Admissible::Certificate),
+    // Zero is a face whose triangles are exact.
+    ("worst_cert", Admissible::NonNegative("a certificate")),
     ("worst_dev", Admissible::OptionalDeviation),
 ];
 
@@ -679,11 +804,18 @@ const INDICATOR_FIRST: usize = 25;
 /// `cap_bands` and `snap_bands` also count SUBSETS of `bands`, which
 /// is a relation no entry of this table can state; [`parse`] checks
 /// the containment beside it (`tools/README.md`'s `CC3`).
+/// What the two indicator subsets measure, for the harness message
+/// ([`SUP`]'s reason).
+const INDICATOR: &str = "a constraint-activity count";
+
 const INDICATOR_COLUMNS: [(&str, Admissible); 4] = [
     ("bands", Admissible::CellCount),
-    ("cap_bands", Admissible::Count),
-    ("snap_bands", Admissible::Count),
-    ("realized_aspect", Admissible::Aspect),
+    // Zero is an inactive constraint, which is a reading.
+    ("cap_bands", Admissible::NonNegative(INDICATOR)),
+    ("snap_bands", Admissible::NonNegative(INDICATOR)),
+    // Above zero: every band has nonempty extents over counts
+    // floored at one.
+    ("realized_aspect", Admissible::Positive("a realized aspect")),
 ];
 
 /// A malformed input row: the lint could not run, which is not a
@@ -988,6 +1120,15 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 ident[k] = admit(IDENTITY_FIRST + k, name, *kind)?;
             }
             let [u0, u1, v0, v1, nu, nv] = ident;
+            // The certified bound and the analysis-cell count, read in
+            // the header's order with the blocks around them and
+            // DROPPED: no rule reads either, and what the boundary owes
+            // them is a refusal, not a value ([`BOUND_COLUMNS`],
+            // [`CELLS`]).
+            for (k, (name, kind)) in BOUND_COLUMNS.iter().enumerate() {
+                admit(BOUND_FIRST + k, name, *kind)?;
+            }
+            idx(CELLS, "cells")?;
             let mut read = [0.0f64; SIZING_COLUMNS.len()];
             for (k, (name, kind)) in SIZING_COLUMNS.iter().enumerate() {
                 read[k] = admit(SIZING_FIRST + k, name, *kind)?;
@@ -1212,7 +1353,11 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
             face,
             name: f[NAME].to_string(),
             chart: f[CHART].to_string(),
-            delta: admit(DELTA, "delta", Admissible::Target)?,
+            delta: admit(
+                DELTA,
+                "delta",
+                Admissible::Positive("a tessellation target"),
+            )?,
             triangles: idx(TRIANGLES, "triangles")?,
             nurbs,
         });
@@ -2229,11 +2374,28 @@ mod tests {
             assert_eq!(cols[IDENTITY_FIRST + k], *name, "identity column {k}");
         }
         assert_eq!(
-            cols[IDENTITY_FIRST + IDENTITY_MEASURES.len()],
-            "muu",
-            "the identity block ends too late"
+            IDENTITY_FIRST + IDENTITY_MEASURES.len(),
+            BOUND_FIRST,
+            "a column arrived between the identity block and the certified bound"
         );
-        assert_eq!(cols[SIZING_FIRST - 1], "cells", "the block starts too late");
+        // The certified bound, bracketed the same way and for a
+        // sharper reason: no rule reads any of these, so a column
+        // sliding under the wrong entry here moves nothing a
+        // comparison would notice. The bracket IS the notice.
+        for (k, (name, _)) in BOUND_COLUMNS.iter().enumerate() {
+            assert_eq!(cols[BOUND_FIRST + k], *name, "bound column {k}");
+        }
+        assert_eq!(
+            CELLS,
+            BOUND_FIRST + BOUND_COLUMNS.len(),
+            "a column arrived between the certified bound and the cell count"
+        );
+        assert_eq!(cols[CELLS], "cells", "the analysis-cell count moved");
+        assert_eq!(
+            SIZING_FIRST,
+            CELLS + 1,
+            "a column arrived between the cell count and the sizing block"
+        );
         for (k, (name, _)) in SIZING_COLUMNS.iter().enumerate() {
             assert_eq!(cols[SIZING_FIRST + k], *name, "column {k}");
         }
@@ -2265,6 +2427,173 @@ mod tests {
             cols.len(),
             INDICATOR_FIRST + INDICATOR_COLUMNS.len(),
             "the indicator block ends before the header does"
+        );
+    }
+
+    /// Every column [`EXPECTED_HEADER`] declares is claimed by exactly
+    /// one site — no overlap, and no gap — and every claim says
+    /// whether the site makes a READING of the value or only carries
+    /// it.
+    ///
+    /// **The gap is what this test is for.** A block bracketed on both
+    /// sides says its neighbour is where it expects it to be, which is
+    /// exactly as true with a run of columns between two blocks that
+    /// no table matches and no index reads: such a run is present on
+    /// every row, is refused when it is ABSENT, and can say anything
+    /// at all when it is there. The bracket assertions cannot see
+    /// that; a cover of the header can.
+    ///
+    /// **The second half is why a claim is not a check, and it names
+    /// the column where the two come apart.** The per-block admission
+    /// tests run values through [`parse`] and are the evidence that a
+    /// claimed column is really read — for every column but `name`,
+    /// which is claimed here, stored on [`Row`], admitted by nothing
+    /// and read by no rule. So `name` is carried, not read, and this
+    /// test records that rather than letting the cover read as a
+    /// completeness claim it cannot make. What it lacks is a rule that
+    /// reads it, which is not this table's to supply.
+    ///
+    /// The carried set is asserted, not merely spelled: a SECOND
+    /// column joining `name` fails here, and so does `name` being
+    /// dropped from the claims.
+    #[test]
+    fn every_header_column_is_claimed_by_exactly_one_site() {
+        /// A claim's kind: whether the claiming site refuses what the
+        /// column may not say, or only moves the token.
+        #[derive(PartialEq)]
+        enum Claim {
+            Read,
+            Carried,
+        }
+        let cols: Vec<&str> = EXPECTED_HEADER.split(',').collect();
+        let mut by: Vec<Option<(&str, Claim)>> = (0..cols.len()).map(|_| None).collect();
+        let mut claim = |col: usize, site: &'static str, kind: Claim| {
+            assert!(
+                by[col].is_none(),
+                "column {:?} is claimed by both {} and {site}",
+                cols[col],
+                by[col].as_ref().map_or("", |(s, _)| s)
+            );
+            by[col] = Some((site, kind));
+        };
+        for (col, site, kind) in [
+            (0, "scene", Claim::Read),
+            (1, "face", Claim::Read),
+            (NAME, "NAME", Claim::Carried),
+            (CHART, "CHART", Claim::Read),
+            (DELTA, "DELTA", Claim::Read),
+            (TRIANGLES, "TRIANGLES", Claim::Read),
+            (CELLS, "CELLS", Claim::Read),
+            (DEV_SAMPLES, "DEV_SAMPLES", Claim::Read),
+        ] {
+            claim(col, site, kind);
+        }
+        for k in 0..IDENTITY_MEASURES.len() {
+            claim(IDENTITY_FIRST + k, "IDENTITY_MEASURES", Claim::Read);
+        }
+        for k in 0..BOUND_COLUMNS.len() {
+            claim(BOUND_FIRST + k, "BOUND_COLUMNS", Claim::Read);
+        }
+        for k in 0..SIZING_COLUMNS.len() {
+            claim(SIZING_FIRST + k, "SIZING_COLUMNS", Claim::Read);
+        }
+        for k in 0..INDICATOR_COLUMNS.len() {
+            claim(INDICATOR_FIRST + k, "INDICATOR_COLUMNS", Claim::Read);
+        }
+        let mut carried = Vec::new();
+        for (col, claimed) in by.iter().enumerate() {
+            match claimed {
+                None => panic!(
+                    "column {:?} is claimed by no site in `parse`: it reaches the gate \
+                     carrying whatever the file says",
+                    cols[col]
+                ),
+                Some((_, Claim::Carried)) => carried.push(cols[col]),
+                Some((_, Claim::Read)) => {}
+            }
+        }
+        assert_eq!(
+            carried,
+            ["name"],
+            "the columns `parse` carries without reading: a new one needs an admission, \
+             or this list needs the argument for why it has none"
+        );
+    }
+
+    /// The certified bound's policing, in the same shape as the other
+    /// blocks': written out, not derived from the table it checks.
+    ///
+    /// One policy across all five, which is why the rows are
+    /// identical; the array's width is the guard against the next
+    /// column.
+    #[test]
+    fn every_certified_bound_column_refuses_the_values_that_reach_no_reader() {
+        // The other blocks' ladders carry `5e-1` and this one does
+        // not: there it separates a count floored at one from any
+        // merely positive policy, and this block has no floor to
+        // separate. A probe every row of the table agrees on is
+        // documentation, not a test.
+        const BAD: [&str; 4] = ["0e0", "-1e0", "inf", "NaN"];
+        // Zero is a reading — a ruled direction certifies flat — and a
+        // sup of a norm is neither negative nor non-finite.
+        const ADMITTED: [(&str, [bool; 4]); BOUND_COLUMNS.len()] = [
+            ("muu", [true, false, false, false]),
+            ("muv", [true, false, false, false]),
+            ("mvv", [true, false, false, false]),
+            ("mu1", [true, false, false, false]),
+            ("mv1", [true, false, false, false]),
+        ];
+        for (k, (name, admitted)) in ADMITTED.iter().enumerate() {
+            assert_eq!(*name, BOUND_COLUMNS[k].0, "column {k} of the table");
+            for (b, bad) in BAD.iter().enumerate() {
+                // THE REFUSAL HAS TO BE THIS ONE. Every value here
+                // moves a column the row also checks in other ways,
+                // and a refusal from the trim box or the lane pairing
+                // would pass an `is_ok()` test while saying nothing
+                // about this table — which this file has already seen
+                // once, at `a_degenerate_trim_box_is_harness_breakage`.
+                match parse(&with_field(&scene(100, 2.5e1), BOUND_FIRST + k, bad)) {
+                    Ok(_) => assert!(admitted[b], "{name} = {bad}: admitted"),
+                    Err(e) => {
+                        assert!(!admitted[b], "{name} = {bad}: refused — {}", e.text);
+                        assert!(
+                            e.text.starts_with(&format!("{name}: ")),
+                            "{name} = {bad}: refused by something else — {}",
+                            e.text
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// A column no rule reads can carry something that is not a number
+    /// at all, and every rule downstream is indifferent to it — so the
+    /// boundary is the only place that can say so.
+    #[test]
+    fn a_certified_sup_that_is_not_a_number_is_harness_breakage() {
+        let e = parse(&with_field(&scene(100, 2.5e1), BOUND_FIRST, "banana")).unwrap_err();
+        assert!(e.text.starts_with("muu: "), "{}", e.text);
+    }
+
+    /// The analysis-cell count is read as a COUNT: the producer writes
+    /// the length of a `Vec`, so anything that is not a `usize` is
+    /// drift.
+    ///
+    /// **Zero is admitted, and the assertion is here rather than the
+    /// refusal.** That length can be zero, so the file can carry a
+    /// zero honestly; refusing it would be this table refusing what
+    /// the instrument exists to measure.
+    #[test]
+    fn the_analysis_cell_count_is_read_as_a_count() {
+        for bad in ["banana", "-1", "1.5", "5e-1", "inf", "NaN"] {
+            let e = parse(&with_field(&scene(100, 2.5e1), CELLS, bad)).unwrap_err();
+            assert!(e.text.starts_with("cells: "), "{bad}: {}", e.text);
+        }
+        assert!(
+            parse(&with_field(&scene(100, 2.5e1), CELLS, "0")).is_ok(),
+            "a face whose per-cell bound reported no analysis cells is a state the \
+             producer can write"
         );
     }
 
@@ -2653,8 +2982,12 @@ mod tests {
     ///
     /// EQUALITY is a reading — the schedule already is the cheapest
     /// split — so the refusal is the relation and not a strict
-    /// inequality beside it. Six of the 64 sized rows of the
-    /// committed baseline sit exactly there.
+    /// inequality beside it. Some of the committed baseline's sized
+    /// rows sit exactly there, and how many is a reading of that file
+    /// rather than a number to write down here:
+    /// `the_committed_baseline_meets_the_split_bound_on_this_many_rows`,
+    /// in `tools/tess-lint/tests/baseline_census.rs`, counts them and
+    /// reds when one arrives or leaves.
     #[test]
     fn the_cheapest_split_never_costs_more_than_the_schedule() {
         const OPT: usize = SIZING_FIRST + 2;

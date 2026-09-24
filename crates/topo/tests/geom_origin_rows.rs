@@ -17,14 +17,14 @@
 
 use crate::common;
 
-use common::prism_z;
+use common::brick;
 use geom_core::{Affine3, Tol, Vec3};
 use topo::{Body, GeomOrigin, GeomSource, graft_disjoint, transform_rigid};
 
-const SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
-
-fn brick() -> Body<f64> {
-    prism_z::<f64>(&SQUARE, 0.0, 1.0).body
+/// The unit cube — the one body every row here runs on, since what
+/// these rows read is the origin channel and never the shape.
+fn unit_brick() -> Body<f64> {
+    brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness())
 }
 
 fn aside() -> Affine3<f64> {
@@ -117,7 +117,7 @@ fn stamp_surfaces(b: &mut Body<f64>, node: u64) {
 /// unseen.
 fn mixed() -> Body<f64> {
     let tol = Tol::witness();
-    let mut adopted = brick();
+    let mut adopted = unit_brick();
     adopted.mark_imported();
     stamp_surfaces(&mut adopted, 9001);
     let mut b = transform_rigid(&adopted, &aside(), tol).unwrap();
@@ -143,7 +143,7 @@ fn arms_are_mixed(b: &Body<f64>) {
 /// the reader `unreachable!`, so what this row reads is a written mark.
 #[test]
 fn a_hand_built_body_reads_kernel_direct() {
-    let b = brick();
+    let b = unit_brick();
     assert!(!origins(&b).is_empty());
     assert!(
         origins(&b).iter().all(|o| o == "KernelDirect"),
@@ -162,8 +162,8 @@ fn a_hand_built_body_reads_kernel_direct() {
 #[test]
 fn a_cleared_body_and_a_hand_built_one_are_no_longer_one_answer() {
     let tol = Tol::witness();
-    let hand = brick();
-    let mut stamped = brick();
+    let hand = unit_brick();
+    let mut stamped = unit_brick();
     stamp_all(&mut stamped, 9001);
     // No `compose_placed` follows: this is exactly the lost re-stamp.
     let placed = transform_rigid(&stamped, &aside(), tol).unwrap();
@@ -195,7 +195,7 @@ fn a_cleared_body_and_a_hand_built_one_are_no_longer_one_answer() {
 #[test]
 fn the_restamp_discharges_every_cleared_mark() {
     let tol = Tol::witness();
-    let mut adopted = brick();
+    let mut adopted = unit_brick();
     adopted.mark_imported();
     stamp_surfaces(&mut adopted, 9001);
     let before = sources(&adopted);
@@ -280,7 +280,7 @@ fn revert_twice_leaves_both_channels_identical() {
 /// [`mixed`] existed, spelled on the arm with no source to flip.
 #[test]
 fn revert_preserves_a_non_recipe_origin() {
-    let mut b = brick();
+    let mut b = unit_brick();
     b.mark_imported();
     let once = b.revert().unwrap();
     for (k, _) in once.surfaces() {
@@ -301,7 +301,7 @@ fn revert_preserves_a_non_recipe_origin() {
 #[test]
 fn a_second_transform_and_a_revert_keep_the_cleared_mark() {
     let tol = Tol::witness();
-    let mut stamped = brick();
+    let mut stamped = unit_brick();
     let k = stamped.surfaces().map(|(k, _)| k).next().unwrap();
     stamped
         .set_surface_source(k, GeomSource::minted(1, 0))
@@ -320,7 +320,7 @@ fn a_second_transform_and_a_revert_keep_the_cleared_mark() {
 #[test]
 fn clearing_marks_only_the_descriptions_that_held_a_source() {
     let tol = Tol::witness();
-    let mut b = brick();
+    let mut b = unit_brick();
     b.mark_imported();
     assert!(origins(&b).iter().all(|o| o == "Imported"));
     let placed = transform_rigid(&b, &aside(), tol).unwrap();
@@ -332,7 +332,7 @@ fn clearing_marks_only_the_descriptions_that_held_a_source() {
 
     // And a body where only SOME descriptions carry a source: the
     // clear marks those and leaves the rest alone.
-    let mut mixed = brick();
+    let mut mixed = unit_brick();
     let first = mixed.surfaces().map(|(k, _)| k).next().unwrap();
     mixed
         .set_surface_source(first, GeomSource::minted(5, 0))
@@ -393,7 +393,7 @@ fn mark_imported_leaves_the_cleared_and_recipe_arms_alone() {
 #[test]
 fn stamping_an_imported_body_erases_the_import_fact() {
     let tol = Tol::witness();
-    let mut b = brick();
+    let mut b = unit_brick();
     b.mark_imported();
     let k = b.surfaces().map(|(k, _)| k).next().unwrap();
     b.set_surface_source(k, GeomSource::minted(1, 0)).unwrap();
@@ -409,9 +409,9 @@ fn stamping_an_imported_body_erases_the_import_fact() {
 #[test]
 fn an_origin_rides_the_graft_and_the_destination_keeps_its_own() {
     let tol = Tol::witness();
-    let mut dst = brick();
+    let mut dst = unit_brick();
     let native: Vec<_> = dst.surfaces().map(|(k, _)| k).collect();
-    let mut src = prism_z::<f64>(&SQUARE, 0.0, 1.0).body;
+    let mut src = unit_brick();
     src.mark_imported();
     let src = transform_rigid(&src, &aside(), tol).unwrap();
     graft_disjoint(&mut dst, &src, tol).unwrap();
@@ -436,10 +436,10 @@ fn an_origin_rides_the_graft_and_the_destination_keeps_its_own() {
 #[test]
 fn a_graft_carries_the_point_and_curve_origins_too() {
     let tol = Tol::witness();
-    let mut dst = brick();
+    let mut dst = unit_brick();
     let native_p: Vec<_> = dst.points().map(|(k, _)| k).collect();
     let native_c: Vec<_> = dst.curves().map(|(k, _)| k).collect();
-    let mut src = brick();
+    let mut src = unit_brick();
     src.mark_imported();
     let src = transform_rigid(&src, &aside(), tol).unwrap();
     graft_disjoint(&mut dst, &src, tol).unwrap();

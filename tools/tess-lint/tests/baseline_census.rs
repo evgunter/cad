@@ -13,14 +13,52 @@
 //! stale — the cure this tree's own CI comment states for the rule
 //! roster next door.
 //!
-//! **That rule is the standard here, not a description of the tree.**
-//! `lib.rs`'s module docs meet it, for the face-identity count they
-//! used to transcribe. `docs/TESS-BUDGET.md` does not: it still
-//! carries four of the sizing figures asserted below in present-tense
-//! prose, and neither census can edit it. The row is
-//! `work/meter/baseline-sizing-census-second-copy`, and it is not the
-//! only site — this file's own sizing section transcribes the same
-//! four, which that row covers too.
+//! **That rule is the standard here, and the tree meets it for these
+//! two censuses.** `lib.rs`'s module docs point here for the
+//! face-identity count and for the split bound's equality reading,
+//! both of which they used to transcribe. `docs/TESS-BUDGET.md`
+//! carries no CURRENT figure from either census: what it says about
+//! the committed file today is one command and one test, and the
+//! absolutes still in it are labelled at their own sites as readings
+//! of the pre-fix tree or of one named past cut — dated records,
+//! which the doctrine above exempts because the date is what makes
+//! them records.
+//!
+//! **Neither census can edit that document, and that is the residue
+//! this leaves.** A re-cut reds the assertions below and leaves the
+//! labelled comparisons standing; they stay TRUE, because each names
+//! the cut it reads, but nothing re-takes them and nothing needs to.
+//! What a re-cut must not produce is a new unlabelled absolute — and
+//! no test can see one arrive.
+//!
+//! **Where a site cites a test by NAME, the name is guarded rather
+//! than trusted — and the guard is not uniform, which is said rather
+//! than implied.** `the_sites_that_cite_this_census_cite_names_it_has`
+//! below names each cited test as a path expression, so a RENAME is a
+//! compile error in this file wherever the citation lives; that arm
+//! covers every site. The second arm asserts that the citing text
+//! still spells the name, and it reaches `docs/TESS-BUDGET.md` alone.
+//!
+//! **What the second arm does not reach, named because an unguarded
+//! citation nobody has listed is a different thing from one nobody
+//! knew about.** Two `tools/tess-lint` sites —
+//! `src/lib.rs`'s doc on the split bound and
+//! `tests/report_columns_pin.rs`'s module docs — cite a test here by
+//! name, and reading either would make this file a site that reads
+//! Rust source as text, which `crates/test-utils`' reader census
+//! ledgers and which this dependency-free cargo root could only do
+//! with a hand-rolled reader. Both carry the FILE path beside the
+//! name, and a dead path greps distinctively. Tracker rows under
+//! `work/instr/` and `work/meta/` cite them too, and those are
+//! excluded on a different ground: a tracker row is a dated record
+//! that gets DELETED with its program, so wiring one in would red
+//! this file on an ordinary tracker edit and again the day the
+//! program closes. Neither exclusion is an accident and neither is
+//! free — a citation at any of those sites can drift off a name with
+//! nothing reddening, and only the rename arm reaches them.
+//!
+//! A path citation greps distinctively when it dies; a test name
+//! resolves forever while rotting, so it gets what guard there is.
 //!
 //! **No figure is asserted twice, and the split is which function
 //! asserts what.** The corpus counts — rows, sized rows, the scenes
@@ -100,7 +138,8 @@
 //! record of anything, which is the same one-home doctrine this
 //! paragraph is about, applied to the pointer rather than the count.
 //!
-//! The cure for the three live copies is the one-home rule above.
+//! The cure the three took is the one-home rule above: each points
+//! here rather than carrying a count of its own.
 //!
 //! ## What an undetected swap COSTS, and which half is a theorem
 //!
@@ -169,16 +208,23 @@
 //!
 //! ## What it is for
 //!
-//! **A re-cut alarm, and the citation it guards is still live.**
-//! `docs/TESS-BUDGET.md` carries `grid_cells`, `patch_cells`,
-//! `opt_cells` and `span_opt_cells` — every one of them asserted
-//! below — in present-tense prose. So this census does the job a
-//! pointer cannot: go RED when a re-cut moves the tour's mesh or its
-//! sizing, so the move is read rather than folded in silently. **What
-//! it cannot do is finish the job.** A re-cut reds here and leaves
-//! those sentences standing, wrong, until somebody reads them; the
-//! alarm is the prompt to go and read them, not a guarantee they were
-//! read.
+//! **A re-cut alarm, and the reason every other site can point rather
+//! than transcribe.** `docs/TESS-BUDGET.md` carries no current figure
+//! from this census: it cites the command and the tests, and the
+//! absolutes left in its prose are labelled with the cut each one
+//! reads. That is only available because the figures are asserted
+//! somewhere — a pointer needs a home to point at, and this is the
+//! home. So the census goes RED when a re-cut moves the tour's mesh
+//! or its sizing, and the move is read rather than folded in
+//! silently.
+//!
+//! **What it still cannot do is finish the job**, and the residue
+//! changed shape rather than going away. A re-cut reds here and
+//! leaves the document's LABELLED passages standing. Those stay TRUE,
+//! because each names the cut it reads — but nothing re-reads them,
+//! and nothing sees a new UNLABELLED absolute arrive. That second
+//! half is stated at the head of this file and carries its own row,
+//! `work/instr/no-guard-reds-on-an-unlabelled-figure-in-the-budget-doc`.
 //!
 //! It does not fire on everything a re-cut can move.
 //! `docs/TESS-BUDGET.md`'s "Re-cutting the baseline" says what the two
@@ -195,60 +241,94 @@
 //! * the columns that describe a SHIPPED SCHEDULE moved by the factors
 //!   TESS-SPAN and TESS-SPLIT were built to move them — the tour's
 //!   grid went from a whole-patch AM-GM product to a per-knot-span
-//!   cell grid at the aspect-capped cell minimizer. That is 154,129 to
-//!   46,019, **3.35x**, on the grid the lane actually builds. The
-//!   whole-patch column moved 390,100 to 110,811, **3.52x**, and that
-//!   one is a different point selection rather than a smaller grid
-//!   (the document's decoder table says why);
+//!   cell grid at the aspect-capped cell minimizer, which is the grid
+//!   the lane actually builds. The whole-patch column moved too, and
+//!   that one is a different point selection rather than a smaller
+//!   grid (the document's decoder table says why);
 //! * the columns that are pure OPTIMA over the certified ellipse —
-//!   `opt_cells` and `span_opt_cells` — are schedule-independent, and
-//!   they sit within 2.2% and 0.7% of the pre-fix figures because the
-//!   sized faces are the same 64 faces. Both gaps are wider than they
-//!   were, by the amount the split scan's own resolution moved when
-//!   `tess_meter::SPLIT_SCAN_SAMPLES` was raised: a finer scan finds
-//!   cheaper splits, so an optimum column falls without a face moving.
+//!   `opt_cells` and `span_opt_cells` — are schedule-independent, so
+//!   over ONE corpus they move only by what the certificates and the
+//!   meter's own split-scan resolution do: a finer scan finds cheaper
+//!   splits, so an optimum column falls without a face moving.
 //!
-//! **What that separates is a change of SIZING RULE from everything
+//! **What that separated was a change of SIZING RULE from everything
 //! else, and no more than that.** Corpus growth, certificate changes
 //! and the meter's own resolution all move the optima too, so two
-//! columns still within a few percent says the faces and their bounds
-//! are still the block's. It does not by itself
-//! say which sizing rule changed: a re-cut taken after a schedule
+//! columns within a few percent said the faces and their bounds were
+//! still the block's. It did not by itself say which sizing rule
+//! changed: a re-cut taken after a schedule
 //! change and the schedule change landing are one event. The dated
 //! record settles that — `docs/MODEL-AB-LOG.md`'s TESS-SPLIT row reads
 //! *"tour NURBS cells 163,182 -> 46,102"*, and 46,102 is what the
 //! committed file carried from that cut on.
 //!
-//! Everything the corpus has grown by since is analytic, so it adds
-//! rows and triangles and no cells. **Cells have moved anyway, once**:
-//! `grid_cells` read 46,102 from TESS-SPLIT's cut through six re-cuts
-//! until CERT-10's (`a4eb03ae`) moved four faces' certified bounds and
-//! 83 cells with them — `lily/lily_sepal_a` faces 3 and 7 and the two
+//! **The numeric form of that argument is a comparison between two
+//! NAMED cuts, it lives in `docs/TESS-BUDGET.md` under "The finding",
+//! and it is frozen there rather than restated here.** Its second
+//! operand is the baseline at one cut in 2026-09, which the document
+//! names along with the commit its rows were committed at — a
+//! `# tess-budget-cut:` line names the tree the sweep READ, not a
+//! tree holding the rows it produced, so the two differ and a
+//! re-summer needs both. What the committed file reads NOW is
+//! asserted below and nowhere else.
+//!
+//! **Past tense throughout, because the premise has expired.** The
+//! optima half rested on the sized rows still being the block's 64
+//! faces, and the corpus has grown past that — the sized-row count is
+//! asserted below. So the gap between the two optima columns and the
+//! block's now carries corpus growth as well as the certificates and
+//! the meter's resolution, and re-taking the comparison against
+//! today's columns would separate nothing. It is pinned to its cut
+//! and is not re-taken.
+//!
+//! **A re-cut can also be a CERTIFICATE change, which is the third
+//! thing, and the first instance is the one worth naming.** Through
+//! the run of re-cuts after TESS-SPLIT's the corpus grew only
+//! analytically — rows and triangles and no cells — so `grid_cells`
+//! held at 46,102 until CERT-10's re-cut moved four faces' certified
+//! bounds and 83 cells with them, to 46,019. `a4eb03ae` is the commit
+//! carrying the moved rows, so both figures sum off it and its
+//! parent. The four faces:
+//! `lily/lily_sepal_a` faces 3 and 7 and the two
 //! `twisted_duct_shadow_*` face 4s. Neither growth nor a schedule
-//! change; a certificate change, which is the third thing a re-cut
-//! can be.
+//! change. **That is a dated record of one event and not a
+//! description of the cuts since** — the tour has since grown SIZED
+//! faces, so growth moves cells too now, and the column has moved on
+//! several cuts. What it reads on the committed file is asserted
+//! below.
 //!
 //! **The fourth thing moves the OPTIMA and nothing else, and it is not
 //! a reading about geometry at all**: the meter's own split scan. Its
 //! resolution sets how close `opt_cells` and `span_opt_cells` get to
 //! the cheapest grid the same certificates admit, so raising
 //! `tess_meter::SPLIT_SCAN_SAMPLES` lowers both columns over a corpus
-//! that did not move — 94,154 to 93,066 and 44,446 to 44,162 over the
-//! whole sweep, with `grid_cells`, `patch_cells` and every triangle
-//! count identical. A re-cut whose only movers are those two columns
-//! is that event and is never a schedule regression.
+//! that did not move. **On the re-cut that did it — a dated record of
+//! one event, and the four figures are those two cuts', not this
+//! file's —** 94,154 to 93,066 and 44,446 to 44,162 over the whole
+//! sweep, with `grid_cells` (46,019), `patch_cells` (110,811) and
+//! every triangle count identical on both sides. That is cut
+//! `aba2625f8f84` to cut `3f55f361b22e`, whose rows were committed at
+//! `83479438d` and `715977e6a` — sum off those two, not off the cut
+//! SHAs, for the reason given above. A re-cut whose only movers are
+//! those two columns is that event and is never a schedule
+//! regression.
 //!
-//! **"Only movers" is a condition this census cannot check, and the
-//! re-cut that produced the figures above did not meet it.** Nine
-//! columns moved on it, not two: `muv`, `mvv`, `mu1`, `mv1`,
-//! `worst_cert`, `worst_dev` and `realized_aspect` moved on 8-16 rows
+//! **"Only movers" is a condition this census cannot check, and that
+//! re-cut did not meet it.** Nine columns moved on it, not two:
+//! `muv`, `mvv`, `mu1`, `mv1`, `worst_cert`, `worst_dev` and
+//! `realized_aspect` moved on 8-16 rows
 //! each, four days of `crates/` drift folded in by the same cut. This
 //! census reads totals — triangles, the four cell columns and the two
 //! factors — so all seven are invisible to it, and so is any future
-//! set like them. `work/meter/tess-lint-ungated-columns-fold-silently`
-//! is the row for that, and until it lands the fourth category is a
-//! thing a reader has to verify by diffing the file, not a thing this
-//! census can certify.
+//! set like them. **The row that would have closed this
+//! (`tess-lint-ungated-columns-fold-silently`) has landed and did not
+//! close it**, which is the thing to read carefully: what landed is
+//! `parse` REFUSING what those columns may not say, and what this
+//! census needs is a COMPARISON of them across two cuts, which does
+//! not exist. `work/instr/tess-lint-re-cut-folds-uncompared-columns`
+//! is the row for that. Until it lands the fourth category is a thing
+//! a reader has to verify by diffing the file, not a thing this census
+//! can certify.
 //!
 //! ## The retired vocabulary, which is what actually mis-reads
 //!
@@ -488,10 +568,18 @@ fn the_committed_baseline_carries_this_many_indistinguishable_pairs() {
 /// `nu`/`nv` alone.
 ///
 /// The split is DERIVED, column by column, from
-/// [`tess_lint::identity_readings`] rather than spot-checked: the
-/// constant set and the discriminating set are both named in full and
-/// must partition [`IDENTITY_COLUMNS`], so a column that changes side
-/// and an eighth column both land here rather than going uncounted.
+/// [`tess_lint::identity_readings`] rather than spot-checked, and both
+/// sets are named in full, so a column that changes side and an eighth
+/// column land here rather than going uncounted.
+///
+/// **The discriminating list is undiscriminating against a change in
+/// the DATA, and it is said rather than hidden**: over a non-empty
+/// corpus every column has at least one reading, so the two filters
+/// partition [`IDENTITY_COLUMNS`] whatever the rows say, and once the
+/// constant list is pinned the discriminating one is the rest of that
+/// list in order. No re-cut of the baseline can red it alone. What it
+/// still catches is a SOURCE edit — an eighth column, or a column
+/// leaving — which lands on one list or the other and reds that one.
 #[test]
 fn five_of_the_seven_identity_entries_discriminate_nothing_among_the_sized_rows() {
     let rows = parse(BASELINE).expect("the committed baseline parses");
@@ -536,14 +624,6 @@ fn five_of_the_seven_identity_entries_discriminate_nothing_among_the_sized_rows(
         "the identity entries that do the separating among the sized \
          rows; readings per column {distinct:?}"
     );
-    // The arithmetic the prose states, so the prose cannot drift from
-    // it: five constant plus the live pair is the whole list.
-    assert_eq!(
-        constant.len() + discriminating.len(),
-        IDENTITY_COLUMNS.len(),
-        "every identity entry is either constant or discriminating"
-    );
-
     // What the two constant halves ARE, which is why they are
     // constant.  `chart` is the trivial member: `parse` admits the
     // sizing block only under the charts that owe it, so every sized
@@ -746,8 +826,8 @@ fn an_undetected_swap_costs_the_gate_nothing_on_the_committed_baseline() {
     );
 }
 
-/// What the `name` column contributes to these pairs, which today is
-/// nothing.
+/// What the `name` column contributes to these pairs: on one scene,
+/// the separation `C15` needs; everywhere else, nothing.
 ///
 /// The join-relevant claim, and it is deliberately NOT "no sized row
 /// carries a name": a named row changes nothing until the name tells
@@ -804,12 +884,12 @@ fn the_name_column_separates_pairs_in_exactly_this_scene() {
     );
 }
 
-/// Why reading the `name` column discharges nothing today: the rows it
-/// covers and the rows the defect lives in do not intersect.
+/// How far the `name` column's coverage reaches into the rows the
+/// per-face join defect lives on: the scenes carrying BOTH.
 ///
 /// Only a scene whose body arrived from an evaluated document can hand
-/// `tess_meter::face_rows` a name table; on this corpus no scene
-/// carrying a sized row is one of them. That is a READING of a
+/// `tess_meter::face_rows` a name table, and the two sets were
+/// disjoint until one scene became both. That is a READING of a
 /// committed artefact, so it belongs here and not in prose — the same
 /// reason every other quantity in this file does.
 ///
@@ -890,9 +970,9 @@ fn the_committed_baseline_sizes_this_much() {
     // `the_committed_baseline_carries_this_many_indistinguishable_pairs`
     // above and is deliberately not restated here; the report prints
     // its two percentages from that pair against this one.
-    assert_eq!(t.triangles, 360_730, "triangles over the whole sweep");
+    assert_eq!(t.triangles, 362_154, "triangles over the whole sweep");
     assert_eq!(
-        t.nurbs_triangles, 259_678,
+        t.nurbs_triangles, 261_106,
         "triangles the Hessian-sized faces carry"
     );
 
@@ -902,14 +982,14 @@ fn the_committed_baseline_sizes_this_much() {
     // retired schedule's own (`NurbsColumns::nu` says so); the other
     // two are the optima the same certificates still admit
     // (whole-patch bound / per cell).
-    assert_eq!(t.grid_cells, 87_481.0, "grid cells the lane built");
-    assert_eq!(t.patch_cells, 147_957.0, "the whole-patch counterfactual");
+    assert_eq!(t.grid_cells, 88_036.0, "grid cells the lane built");
+    assert_eq!(t.patch_cells, 147_960.0, "the whole-patch counterfactual");
     assert_eq!(
-        t.opt_cells, 126_705.0,
+        t.opt_cells, 127_966.0,
         "cheapest split under the whole-patch bound"
     );
     assert_eq!(
-        t.span_opt_cells, 75_954.0,
+        t.span_opt_cells, 76_599.0,
         "per-cell sizing at the cheapest split in each cell"
     );
 
@@ -917,11 +997,139 @@ fn the_committed_baseline_sizes_this_much() {
     let held = t.span_held().expect("the sweep has Hessian-sized faces");
     let recoverable = t.recoverable().expect("the sweep has Hessian-sized faces");
     assert!(
-        (held - 1.6913).abs() < 5e-4,
+        (held - 1.6807).abs() < 5e-4,
         "the held span gain, patch_cells / grid_cells; got {held}"
     );
     assert!(
-        (recoverable - 1.1518).abs() < 5e-4,
+        (recoverable - 1.1493).abs() < 5e-4,
         "slack still recoverable, grid_cells / span_opt_cells; got {recoverable}"
     );
+}
+
+/// How many sized rows sit exactly ON the bound
+/// [`tess_lint::parse`] refuses below — `opt_cells > patch_cells`.
+///
+/// `tess_meter::best_split_scan` seeds its running minimum with the
+/// whole-patch schedule, so equality is a READING and not an error:
+/// the schedule already is the cheapest split on that face. `lib.rs`'s
+/// doc on `the_cheapest_split_never_costs_more_than_the_schedule`
+/// argues from how many rows are there, and this is where that count
+/// is taken — it is a reading of the committed file, so it is asserted
+/// rather than written down.
+///
+/// **What it discriminates, and what it does not.** It is over the
+/// sized rows, whose count is the face-identity census's and is not
+/// restated here, so this asserts the numerator alone. What it adds
+/// over the four cell sums is the case they cannot see: a face moving
+/// ONTO or OFF the bound changes `opt_cells` by its distance from
+/// `patch_cells`, which is zero at the crossing, so a crossing in
+/// isolation reds here and nowhere else. **No real re-cut is that
+/// isolated** — every one so far moved several rows at once and moved
+/// the sums too, so in practice this reds alongside them rather than
+/// alone. The claim is about what the assertion COVERS, not a
+/// prediction about re-cuts.
+#[test]
+fn the_committed_baseline_meets_the_split_bound_on_this_many_rows() {
+    let rows = parse(BASELINE).expect("the committed baseline parses");
+    let at_bound: Vec<String> = rows
+        .iter()
+        .filter(|r| r.is_sized())
+        .filter(|r| {
+            let n = r.nurbs.expect("filtered to sized rows");
+            n.opt_cells == n.patch_cells
+        })
+        .map(|r| format!("{} face {}", r.scene, r.face))
+        .collect();
+    assert_eq!(
+        at_bound.len(),
+        6,
+        "sized rows whose whole-patch schedule already is the cheapest split. \
+         A row arriving or leaving is a face whose bound or divisions moved; \
+         read which, then re-pin: {at_bound:#?}"
+    );
+}
+
+/// The tests cited elsewhere BY NAME, and the two unequal arms that
+/// guard those names.
+///
+/// **A path citation fails loudly and a name citation does not.** A
+/// dead path greps distinctively and a reader looking for the file
+/// finds nothing; a renamed test leaves its citing file resolving
+/// perfectly, with only the name token rotting, and nothing anywhere
+/// reds. So each name is written twice below:
+///
+/// * as a PATH EXPRESSION in [`Citation::test`], which stops
+///   compiling the moment the test is renamed. **This arm covers
+///   every citation there is**, wherever it lives, because it does not
+///   look at the citing site at all.
+/// * as the string in [`Citation::prose`], asserted still present in
+///   the citing text. **This arm reaches `docs/TESS-BUDGET.md`
+///   alone**, so `prose` is EMPTY on any entry cited only from
+///   somewhere it cannot read, and that is a real gap rather than a
+///   formality.
+///
+/// The module docs name what `prose` cannot reach and why — two
+/// `tools/tess-lint` Rust sites, which this file must not read as
+/// text, and the tracker rows, which are deleted with their program.
+///
+/// **What neither arm checks** is that a citation still says
+/// something TRUE about the test it names, or that a citation added
+/// tomorrow was added to this list. They guard the name, which is the
+/// half that rots silently.
+#[test]
+fn the_sites_that_cite_this_census_cite_names_it_has() {
+    const BUDGET_DOC: &str = include_str!("../../../docs/TESS-BUDGET.md");
+
+    struct Citation {
+        /// The test itself, named as a path expression. Writing it is
+        /// the whole of the rename arm.
+        test: fn(),
+        /// The same name as text, for the prose arm to look for.
+        name: &'static str,
+        /// The citing prose this file is able to read, `(path, text)`.
+        /// EMPTY means every citation of this test is somewhere the
+        /// prose arm cannot reach — see this test's docs.
+        prose: &'static [(&'static str, &'static str)],
+    }
+
+    let cited = [
+        Citation {
+            test: the_committed_baseline_sizes_this_much,
+            name: "the_committed_baseline_sizes_this_much",
+            prose: &[("docs/TESS-BUDGET.md", BUDGET_DOC)],
+        },
+        Citation {
+            test: no_scene_carrying_a_sized_row_carries_a_name,
+            name: "no_scene_carrying_a_sized_row_carries_a_name",
+            prose: &[("docs/TESS-BUDGET.md", BUDGET_DOC)],
+        },
+        Citation {
+            test: the_name_column_separates_pairs_in_exactly_this_scene,
+            name: "the_name_column_separates_pairs_in_exactly_this_scene",
+            prose: &[("docs/TESS-BUDGET.md", BUDGET_DOC)],
+        },
+        Citation {
+            test: the_committed_baseline_meets_the_split_bound_on_this_many_rows,
+            name: "the_committed_baseline_meets_the_split_bound_on_this_many_rows",
+            // Cited only from `src/lib.rs`, which the prose arm
+            // cannot read. The rename arm above still covers it.
+            prose: &[],
+        },
+    ];
+
+    for c in cited {
+        // The rename arm is already discharged: it is the path
+        // expression in each literal above, which the compiler
+        // resolved or did not. This read exists only so `test` is not
+        // a field nothing reads.
+        let _: fn() = c.test;
+        for (path, text) in c.prose {
+            assert!(
+                text.contains(c.name),
+                "{path} no longer spells `{}`. Either the citation moved off the \
+                 name or the name moved: re-point the site, or fix this list",
+                c.name
+            );
+        }
+    }
 }

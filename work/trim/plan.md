@@ -35,34 +35,25 @@ CURVED feeds this program. So the extractor is the opener, the
 props/tess lane measures behind it, and the loft-seam compare and the
 clearance-window description run independently.
 
-## Order
+## Order (re-cut 2026-09-20)
 
-1. `interior-iso-curve-de-boor-extractor` — DELIVERED #2095
-   (2026-09-07): the P-2 body mints and validates at rest. The
-   `an_interior_column_still_refuses` pin was NOT the row to flip (an
-   arc-class row); it stays.
-2. `general-pcurve-face-props-and-tess-refuse` — lift the six
-   `QuadratureUnsupported`/tessellation refusals for non-rectangular
-   chart trim regions; L; measured against the whole body 1 lets
-   mint. RE-CUT by TRIM-1's measurement: on the P-2 fixture the
-   tessellation lane stops at `patch_bound::Degree1Crease` first, so
-   the spec starts from a chart the crease gate admits (degree ≥ 2) or
-   takes that gate as its first door. `mesh/trimmed.rs`, `mesh/chords.rs` and `topo/props.rs` are
-   S-MESH's and Track M's ground: announced seams.
-3. `clearance-window-tightening-needs-chart-boundary` — PR-1 (the
-   description, `topo` only) DELIVERED #1911 (2026-09-07); PR-2 (the
-   `clearance.rs` seam) is next, after the seam is announced to SHELL
-   and M10 on the away channel; the consumer re-charts every plane and
-   reads the METRED hull (spec §Amendments).
-4. `loft-seam-carrier-exact-knot-compare` (S-CERT's file today; D→H)
-   — a tolerance-structural compare with a soundness story, or an
-   exact skin-fit reproduction of the chart's boundary row. Its file is
-   S-CERT's: dispatched by announced seam or after S-CERT's exit.
-5. `unify-edge-descriptions-on-pcurves` (S-CERT's file today) — check
-   its state against the ledger's PCURVE row before scheduling.
-6. Riders on the four Track Q files, landing with whichever unit opens
-   their file: `D36`, `S394`, `S83`, `D305`,
-   `fitted-magnitude-nan-schedule-parameter`.
+TRIM-1, TRIM-2 (both PRs) and TRIM-3 (both PRs) are DELIVERED and
+their specs ledgered; the former order and the residue lists are
+recoverable in this file's history at the cut commit. On Ev's in-chat
+direction the chart-side residue (31 items) moved to **CHART**
+(`work/chart/`), opened in the same commit, and the chord-count
+arithmetic class to TESS's slate. What remains here:
+
+1. `boundary-iso-doors-panic-before-they-can-refuse` — E: the two
+   doors refuse typed on a corrupt net and their `# Errors` contract
+   says what they do; block TRIM-B2 slot 2 (FABLE by the draw) if the
+   orchestrator triages it INTO the protocol, else opus/opus outside
+   it per v7 — the call at dispatch (its logic is not tricky; the
+   default is outside).
+2. `pcurve-p2-spec-says-edge-nurbs-throws-the-image-away` — closes
+   with the walk: `docs/PCURVE-P2-SPEC.md` is superseded by the three
+   delivered specs and deleted per the ledger, the item's finding
+   recorded in the ledger entry.
 
 ## Review posture
 
@@ -70,5 +61,8 @@ Full v6 dual with Fable specs.
 
 ## Exit shape
 
-`docs/PCURVE-P2-SPEC.md` is either landed and deleted per the ledger
-or superseded by a spec here; the walk convention applies.
+The P-2 body mints, validates, measures and tessellates at rest
+(TRIM-1, TRIM-2); the clearance window reads the chart boundary
+(TRIM-3); `boundary_iso_u/_v` refuse instead of panic;
+`docs/PCURVE-P2-SPEC.md` is deleted per the ledger as superseded; the
+walk convention applies.

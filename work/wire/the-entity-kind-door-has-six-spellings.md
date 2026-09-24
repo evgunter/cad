@@ -148,12 +148,21 @@ pattern was right — `rg 'EntityKey::' crates/editor-core/src/` returns
 all three — and the first pass stopped early.
 
 - **`eval/mod.rs`'s `DeclareUnsupportedPair`**, built in
-  `route_declarations` in `eval/wire.rs` itself, from `(n1.kind,
-  n2.kind)` — the AUTHORED name's kind, thirty lines after both names
-  resolved to keys. Safe today only by `NameTable::insert_ref`'s
-  invariant. **Not converted**: it tests a PAIR, and `entity`'s
-  single-key shape does not fit it. Filed as
-  `work/wire/the-declared-pair-refusal-reads-the-authored-kind.md`.
+  `resolve_declarations` in `eval/wire.rs` itself (this row said
+  `route_declarations`, one function above; corrected), from
+  `(n1.kind, n2.kind)`. **Not converted**: it tests a PAIR, and
+  `entity`'s single-key shape does not fit it. **Settled since**, by
+  PR 2681: the refusal is now raised BEFORE either name is resolved,
+  because a pair the vocabulary has no step for is unsupported however
+  many entities answer to either name — so no key exists at the moment
+  the word is needed and the authored kind is the decided answer, not
+  a residue. The row that carried it,
+  `work/wire/the-declared-pair-refusal-reads-the-authored-kind.md`,
+  closes with that PR. What it leaves for THIS row is a new instance
+  of its own subject: `names::interrogate`'s `kind_mismatch` now takes
+  an `EntityKind` a caller can write, which
+  `work/wire/the-designation-road-resolves-before-it-asks-the-kind.md`
+  explains and proposes to unify.
 - **`clearance.rs`'s `SelectionRefusal::NotAFace { name }`** — same
   road as the converted `Selected::faces`, names no found kind, and
   conflates a wrong kind with a wrong body. SHELL's ground; filed as

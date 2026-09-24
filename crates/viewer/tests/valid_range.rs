@@ -130,6 +130,47 @@ fn a_bound_too_fine_for_four_decimals_is_still_said() {
     );
 }
 
+/// **A bound the NOTATION cannot name is said as that, never as an
+/// infinity.**
+///
+/// Writing a canonical bound in millimetres multiplies it up by a
+/// thousand, so from `f64::MAX * MILLI` up there is no millimetre
+/// value — and `inf mm` in this sentence is a bracket claiming the
+/// search reached infinity, which is the one overclaim
+/// `Bounds::wording`'s whole doc comment exists to refuse. The value
+/// is a perfectly ordinary `f64`; it is the pair of it and `mm` that
+/// names nothing.
+///
+/// **The pair, because neither half says anything alone.** The second
+/// bound is one decade below the overflow and has to come back as a
+/// number with its symbol, so a `wording` that refused on magnitude —
+/// or that stopped writing bounds in units at all — fails here.
+#[test]
+fn a_bound_with_no_millimetre_value_is_not_worded_as_infinity() {
+    let reading = Bounds {
+        origin: 1.0e304,
+        low: Bound::Edge {
+            valid: 1.0e304,
+            invalid: 1.0e303,
+        },
+        high: Bound::Open { probed: 1.0e306 },
+        samples: 9,
+    };
+    let words = reading.wording(props::rendering_unit(Dimension::Length, Some(MM.def())));
+    assert!(
+        !words.contains("inf"),
+        "a bound with no millimetre value was spelled as one: {words}"
+    );
+    assert!(
+        words.contains("no mm reading"),
+        "and the sentence has to say which notation could not name it: {words}"
+    );
+    assert!(
+        words.contains("9.999999999999999e306 mm"),
+        "the bound a decade below the overflow is an ordinary number: {words}"
+    );
+}
+
 /// **The value the field has now is valid by construction**, so a
 /// direction with no room at all still answers — with a bracket that
 /// starts at the origin rather than with a panic or an empty range.
@@ -397,12 +438,25 @@ fn probing_an_expression_driven_slot_refuses_with_the_affordance() {
 /// canonical metre, so the search spends its budget on the decades the
 /// part lives in.
 ///
-/// Both assertions are ones a metre seed CANNOT satisfy rather than
-/// ones it merely satisfies less well: the upward reach is twelve
-/// doublings of the seed, so a metre seed answers thousands of metres
-/// where a millimetre seed answers a couple; and the downward bracket
-/// closes to about a thousandth of the seed, so a metre seed cannot
-/// narrow past a millimetre.
+/// **The two halves do not assert the same thing and the second is
+/// not about the seed.** The reach is: a metre seed reaches a
+/// thousand times further, and the assertion below is one it cannot
+/// satisfy. The bracket is NOT, and saying it was would be a story.
+/// What the bracket half tests is the REFINEMENT's closure; what
+/// carries the seed there is the `let else`, because a ladder that
+/// steps over the floor reports [`Bound::Open`] and the row dies
+/// there saying so.
+///
+/// **How thin the floor is depends on ε, so nothing here may assume
+/// it is a point.** A negative thickness builds at every ε, so the
+/// failing region is bounded above by a thickness the tolerance
+/// decides: at the default ε and at `1e-12` only the exact value `0`
+/// fails, while at `1e-6` everything below about `1e-5` does. Both
+/// are the same rule — an extrusion the tolerance cannot tell from
+/// zero — and the row is written to hold under either, which is why
+/// it asserts a halving COUNT and not a width. The finding that a
+/// negative distance builds at all is
+/// `work/chrome/a-negative-extrude-distance-probes-as-valid.md`.
 #[test]
 fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
     let tol = Tol::witness();
@@ -436,24 +490,61 @@ fn a_millimetre_parameter_is_probed_at_millimetre_scale() {
     assert_eq!(result.origin, 0.008);
 
     // Upward: a thicker plate never fails, so the search reaches its
-    // ceiling. Twelve doublings of one millimetre is about two metres;
-    // twelve doublings of one METRE would be about two kilometres.
+    // ceiling, which is `BoundsProbe::furthest_reach` of the seed it
+    // stepped by — read from the probe rather than restated, so the
+    // reach constant can move without reddening this.
+    //
+    // ONE WRITTEN MILLIMETRE is this row's own statement of the seed
+    // it expects, and is deliberately not imported from the session's
+    // `probe_seed`: the rule that a field steps by one of the unit it
+    // was WRITTEN in is the thing under test here, so reading it from
+    // the code under test would make the row agree by construction
+    // (the argument `tests/edge_pick.rs` makes for spelling its own
+    // occlusion band). What the row may not restate is the probe's
+    // own arithmetic, and it no longer does.
     assert!(
-        result.high.limit() < 10.0,
+        result.high.limit()
+            <= result.origin + BoundsProbe::furthest_reach(props::from_written(1.0, MM.def())),
         "a millimetre-seeded reach stops metres out, not kilometres: {:?}",
         result.high
     );
-    // Downward: a zero-height extrude is refused, so there is a floor,
-    // and the bracket around it closes to about a thousandth of the
-    // seed. A metre seed brackets [0, 1 m] and cannot refine below
-    // about a millimetre.
+    // Downward: the plate fails at a vanishing thickness — at the
+    // exact value 0, and at whatever thin band above it the tolerance
+    // cannot tell from 0 — so the failing region is narrow and a
+    // direction brackets it only by landing a doubling inside it. A
+    // millimetre ladder does, because the floor is 8 seeds out and 8
+    // is a power of two. A ladder that steps over the band finds
+    // nothing below and reports `Open`, which is what this `let else`
+    // is for.
     let Bound::Edge { valid, invalid } = result.low else {
-        panic!("a vanishing plate fails, so there is a floor: {result:?}");
+        panic!(
+            "the failing region here is a vanishing thickness, so the low side brackets only \
+             when a doubling lands inside it; a seed whose ladder steps over it reaches past \
+             the floor and reports Open: {result:?}"
+        );
     };
     assert!(invalid < valid, "a bracket straddles: {invalid}..{valid}");
+    // The refinement ENTERED the bracket the reach left it: the last
+    // doubling that was valid and the first that was not, which
+    // around a floor one origin out is `origin/2` wide. The claim is
+    // that it then spent every halving it has on that bracket, and a
+    // refinement that stopped early is what makes it false.
+    //
+    // Stated as a COUNT of halvings rather than as a width compared
+    // to an ideal one, because the pair is reported in ABSOLUTE
+    // field values: `Bound::Edge` carries `origin ±
+    // offset`, so the difference of its two ends inherits the ULP of
+    // the ORIGIN (~1.7e-18 here) and not of the bracket (~8.5e-22).
+    // Against a reconstructed ideal width that dust decides the
+    // comparison outright, and which way it falls depends on where
+    // the floor sits, which ε moves. A halving is a factor of two, so
+    // the nearest wrong answer is a whole one away and no amount of
+    // dust reaches it.
+    let halvings = (result.origin / 2.0 / (valid - invalid)).log2();
     assert!(
-        valid - invalid < 1.0e-4,
-        "a millimetre-seeded bracket closes far finer than a metre seed could: \
-         {invalid}..{valid}"
+        halvings >= f64::from(BoundsProbe::MAX_REFINES) - 0.5,
+        "the refinement spent {halvings:.2} halvings on the bracket it entered, not the \
+         {refines} it has: {invalid}..{valid}",
+        refines = BoundsProbe::MAX_REFINES
     );
 }

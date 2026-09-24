@@ -201,10 +201,7 @@ impl Convexity {
     /// there as `-signed(..)`, the one negation the fold keeps.
     #[must_use]
     pub fn signed<T: Real>(self, radius: T) -> T {
-        match self {
-            Self::Convex => radius,
-            Self::Concave => -radius,
-        }
+        sided(self.blend_sense(), radius)
     }
 
     /// **The same fold as a SIDE.** A support's stored sense bit says
@@ -220,6 +217,16 @@ impl Convexity {
     pub fn ball_side(self, sense: bool) -> bool {
         sense == self.blend_sense()
     }
+}
+
+/// **The conditional negation every `R ∓ r` selector spells**: `x`
+/// where `side` holds, `−x` where it does not — exact in every
+/// backend. [`Convexity::signed`] is this on the chain's verdict, and
+/// the sheet arms spell it on the ball side [`Convexity::ball_side`]
+/// derives from that verdict, so the one home is beside the bit's
+/// provenance rather than inside either consumer.
+pub(super) fn sided<T: Real>(side: bool, x: T) -> T {
+    if side { x } else { -x }
 }
 
 /// The request the battery judges: a body, the edges to blend, and
@@ -431,14 +438,15 @@ fn esc(site: BlendSite, source: Indeterminate) -> BlendError {
     BlendError::Escalated { site, source }
 }
 
-/// A face's outward normal at `p`: the chart normal folded through
-/// the STORED sense bit (`Face::sense_sign`) — never a sampled or
-/// re-derived orientation (S10 category A).
+/// A face's outward normal at `p`: the implicit gradient folded
+/// through the STORED sense bit (`Face::sense`) at its one home,
+/// [`geom_brep::implicit_outward_normal`] — never a sampled or
+/// re-derived orientation (S10 category A). Unwrapped here because
+/// both consumers read it as geometry (a dot, a mean).
 fn outward<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>) -> Option<Vec3<T>> {
     let f = body.get_face(face)?;
     let s = body.get_surface(f.surface)?;
-    let g = geom_brep::implicit_gradient(s, p);
-    Some(g.normalize() * f.sense_sign::<T>())
+    Some(geom_brep::implicit_outward_normal(s, f.sense, p).vec())
 }
 
 /// The face on a half-edge's side.
@@ -907,8 +915,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let (carrier, t0, t1) = carrier_of(body, edge).ok_or_else(broken)?;
     let extent = extent_of(&carrier, t0, t1);
     let mid = mid_param(t0, t1);
-    let p = carrier.eval(mid);
-    let tau = carrier.deriv(mid);
+    let (p, tau) = carrier.ders1(mid);
     let n_a = outward(body, face_a, p).ok_or_else(broken)?;
     let n_b = outward(body, face_b, p).ok_or_else(broken)?;
     // Predicate 5 first at the link level: the arm's side depends on
@@ -974,8 +981,8 @@ pub fn arm_roster() -> &'static str {
 
 /// The refusal a pair takes when its supports ARE an arm's kinds but do
 /// not share the axis (or the ruling) that arm's spine is derived from.
-pub(super) const NOT_COAXIAL: &str = "a curved support pair whose two supports do not share one axis of revolution (nor one \
-     ruling); its spine is neither a line nor a circle";
+pub(super) const NOT_COAXIAL: &str =
+    "a curved support pair whose supports do not share one axis of revolution or one ruling";
 
 /// **`fillet3_support_coaxiality`** — do a curved pair's two supports
 /// really share the axis (or the ruling) its arm's spine is derived
@@ -1718,9 +1725,8 @@ fn is_seam_vertex<T: Decide>(body: &Body<T>, edges: &[EdgeKey]) -> bool {
 /// mid-curve taxonomy reserves, not corner configurations, so they
 /// carry the run-out vocabulary and the corner recourse's "general
 /// run-outs" clause.
-pub const RULED_END_NOT_TRANSVERSE: &str = "a ruled band's edge ends at a face that is not a plane perpendicular to its ruling; \
-     the transverse cut-off is the only ruled termination built, and the oblique or \
-     curved-face run-out is not implemented";
+pub const RULED_END_NOT_TRANSVERSE: &str =
+    "a ruled band's edge ends at a face that is not a plane perpendicular to its ruling";
 
 /// **`fillet3_cap_transverse`** — does a ruled link's end face lie
 /// perpendicular to the band's ruling, so the band can be cut off in

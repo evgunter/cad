@@ -53,10 +53,11 @@ use crate::revolve_common;
 
 use crate::common::approx::band;
 use geom_core::{Point3, Tol, Vec3};
+use profile::ProfileLoop;
 use profile::RawLoop;
-use profile::{Profile, ProfileLoop, SketchPlane};
 use revolve_common::*;
-use sweep::{Extrusion, Revolution, extrude, revolve};
+use sweep::test_support::brick;
+use sweep::{Revolution, revolve};
 use topo::{Body, BooleanError, PointInSolidError, SolidContainment, point_in_solid};
 
 /// The `revolve_cone` acceptance's profile: the right triangle
@@ -101,17 +102,6 @@ fn quarter_cone() -> Body<f64> {
     )
     .unwrap()
     .body
-}
-
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
-    let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(z.1 - z.0), Tol::witness())
-        .unwrap()
-        .body
 }
 
 /// **The fixture scale these bodies are built at.** Every body in this
@@ -459,7 +449,7 @@ fn the_azimuth_window_selects_the_swept_quadrant() {
 #[test]
 fn a_disjoint_union_with_a_cone_face_now_assembles() {
     let a = quarter_cone();
-    let b = brick((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0));
+    let b = brick((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0), Tol::witness());
     let out = match topo::union(&a, &b, Tol::witness()) {
         Ok(out) => out,
         Err(BooleanError::Containment(e)) => panic!(
@@ -513,7 +503,7 @@ fn the_kind_refusal_no_longer_names_the_cone() {
         kind: geom_brep::SurfaceKind::Nurbs,
     }
     .to_string();
-    assert!(msg.contains("HEALTHY"), "{msg}");
+    assert!(msg.contains("The solid itself is fine"), "{msg}");
     assert!(!msg.contains("corrupt"), "{msg}");
     assert!(
         !msg.contains("cone"),
@@ -533,7 +523,7 @@ fn the_kind_refusal_no_longer_names_the_cone() {
         face: body.faces().next().unwrap().0,
     }
     .to_string();
-    assert!(msg.contains("HEALTHY"), "{msg}");
+    assert!(msg.contains("The solid itself is fine"), "{msg}");
     assert!(msg.contains("Recourse"), "{msg}");
     assert!(
         msg.contains("apex"),

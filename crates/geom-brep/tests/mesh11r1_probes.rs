@@ -156,7 +156,7 @@ fn r1_the_multi_wrap_span_splits_the_two_doors() {
         )
     };
     let shape = require_iso_rectangle(&sphere(), &pair, band());
-    let fc = curved_face(&sphere(), &pair, 1.0, band()).map(|_| ());
+    let fc = curved_face(&sphere(), &pair, true, band()).map(|_| ());
     let branch = require_one_chart_branch(&sphere(), &pair, band());
     println!("R1 multi-wrap: shape={shape:?} flux={fc:?} branch={branch:?}");
     assert!(winding(&shape), "the shape door: {shape:?}");

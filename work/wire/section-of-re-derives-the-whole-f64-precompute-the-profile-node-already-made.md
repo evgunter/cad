@@ -5,6 +5,8 @@ title: wire::section_of redoes a section profile's entire f64 precompute (resolv
 status: open
 opened: 2026-09-12
 refs: [2435]
+priority: P1
+cost: H
 ---
 
 
@@ -64,3 +66,30 @@ re-derivation through a **kernel crate's** own functions (a face pose, a
 frame normal recomputed off a body); a duplicated derivation two calls
 down where no call site spells the idiom; and anything outside
 `editor-core`, which was checked only for readers of `Evaluation`.
+
+## Three consumers now wait on it (EDIT, 2026-09-16, PR 2759)
+
+Evidence added rather than a second row opened: this row's subject —
+`ProfilePre` not being on `NodeValue` — is now what blocks a built
+door, not only what makes `section_of` expensive.
+
+`ProfileProgram::profile_edges_of` (DM8,
+`crates/editor-core/src/program.rs`) takes a
+`profile::ProfileStructure` and an `eval::ProfileNaming` and answers
+which `ProfileEdgeRef`s one authored step became. `ProfileValue`
+carries the naming; the structure is on `ProfilePre`, which is
+`pub(crate)`. So:
+
+- the door **has no caller outside its own tests**, and its acceptance
+  rows must REBUILD the structure through the public replay doors and
+  pair the rebuild with the evaluation's real naming — a third copy of
+  the walk this row is about, in
+  `crates/editor-core/tests/edit_step_segments.rs`;
+- `work/view/focus-marking-is-per-node-not-per-segment` (VIEW) cannot
+  consume the door from the viewer;
+- `work/lib/python-has-no-step-to-profile-edge-door` (LIB) cannot bind
+  it from Python.
+
+None of the three is a reason to decide this row's PP1/PP2 question one
+way rather than the other — they are three more readers of whatever it
+decides.

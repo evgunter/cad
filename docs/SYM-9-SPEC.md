@@ -133,3 +133,70 @@ fix pass on the implementer's lane; delta by R1; the row lands at merge.
 Status `review` on `work/sym/SYM-9.md` when the PR opens; the
 orchestrator closes the unit and deletes this spec at merge; the ring
 row closes on the ladder or on Phase 1's "neither recovers" report.
+
+## A1 — the 2026-09-22 amendment: DECIDE-3 landed, block DECIDE-B1 slot 1
+
+Written by the orchestrator at dispatch; binding with the spec above,
+and where the two differ this section wins.
+
+**Block and tree.** SYM-9 is block **DECIDE-B1 slot 1** (the pre-draw
+fields above stand — H / NUMERIC; the draw on `decide/b1-block`: byte
+248 ⇒ fable at slot 2, so this slot's arm is **OPUS**); protocol v7 IN
+(it changes what the door answers on a refusal); the full v6 dual. The
+unit lives on DECIDE's slate (`work/decide/SYM-9.md`); the item it
+answers is SYM's (`work/sym/coefficient-ring-width-is-not-monotone-in-reach`).
+**DECIDE-3 (rule G, the two certified reads, A0's constant fold) is on
+`props/sign-hull` (#3039 at `cd14d4fd9`), not on `main`**, and the
+retry this unit builds is over the atoms rule G re-keys — so the branch
+`sym/9-retry-ladder` is cut from `props/sign-hull`'s head, the PR
+targets `props/sign-hull`, and no further `main` is merged into it (the
+SYM-12/DECIDE-3 seam at `manifest.rs` is the `props/sign-hull` merge's
+own measurement, `work/sym/the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`,
+and not this unit's). The six documents' numbers this unit measures
+against are DECIDE-3's on that branch: plate 811/0/140/462, link
+541/0/96/465, bracket 1104/7/144/766, pad 890/6/150/907, slab 490/255,
+and R1's boss as its rows on that branch pin it.
+
+**Phase 1 gains a table that already exists, and a shape.** The
+kept-atom retry (b) has a MEASURED instance:
+`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`
+— on R2's link, rule G costs `carrier_on_surface_2` sixteen theorems
+(`[98, 0, 0, 10]` → `[82, 0, 6, 20]`, pinned on both sides by
+`decide_3_split_rows_interval`): TEN to rule A's companion rewrite
+`|X|² = X²` opening the square of an `abs` node the document wrote (an
+expansion that does not cancel where the closed atom did), SIX to
+`sqrt(R²) = |R|` closed by the registrant's axiom. That row's remedy
+record is where this unit starts: the provenance restriction measured
+and REJECTED (recovers ten of sixteen, costs the document forty — after
+rule G a `sqrt(R²)` and a document's `abs(R)` are one atom, so the
+restriction narrows by traversal order); a size guard on the rewrite
+recorded and ruled out as narrowness; the residual the registrant
+closes still owed a render under both dial sets with its two atom keys
+read off. So Phase 1's item 2 measures, beside "with rule A off", the
+retry shapes **"with the companion rewrite off"** and **"with rule G's
+magnitude door off"** on every refused decision of the six documents,
+and the link's sixteen are the first row of its table. The row CLOSES
+on a retry that recovers them without costing the document (the
+predicate's both-sides pin then moves UP and is re-baselined and said),
+or stays open with the measurement that says no retry does.
+
+**The decision read's cost**
+(`work/decide/decision-read-triples-the-plate-pin-suites-wall-time`,
+P2) rides only as far as Phase 1's cost table: if the read dominates
+the retry ladder's cost on any document, Phase 2 takes that row's
+first cheap answer (the enclosability pre-pass, which changes what
+nothing decides) and re-baselines the suites' wall times; otherwise the
+row stays where it is.
+
+**Ratified since the spec, not re-litigated:** rule G's canonical form
+and the two certified reads (DECIDE-3, on `props/sign-hull`); rule F's
+negative arm and the leaf's NEED (SYM-12, SYM-13, on `main`) — not in
+this tree, and nothing here anticipates them.
+
+**Ev's standing words for this session, carried:** never skip a change
+that would make the code better because it requires re-baselining — a
+pinned split that moves UP under a retry is re-baselined and said,
+never held against the retry; the code that goes in is clean; every
+causal sentence in the PR body, the rows and the headers names the
+execution that shows it, and a retraction greps the CLAIM's vocabulary
+across every file of the unit, not the sentence remembered.

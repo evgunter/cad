@@ -5,6 +5,8 @@ title: the sphere flux arm's coplanar premise leaves lune-family bodies outside 
 status: open
 opened: 2026-09-03
 refs: [1674]
+priority: P0
+cost: H
 ---
 
 ## Measured (VERBS-RIMCAP PR-1, at its head)
@@ -63,3 +65,14 @@ funded as its own props unit.
 "put them wherever you see fit"): the flip is a props unit on
 `geom-brep/src/props/*` — S-CERT's ground until PROPS inherits it — and
 PROPS holds its items from opening exactly as CURVED held S-MATE's.
+
+## Re-scoped at BOOL-5's merge (PR 2748, 2026-09-16)
+
+Part 1 — the rimless face with NON-coplanar meridians (the natural
+wedge, issue 542) — is closed by BOOL-5: `sphere()`'s rimless branch
+now measures the wedge through `props_wedge_azimuth` with the
+structural arc rule, and the coplanar branch refuses the slit typed
+through `props_band_opposite`. What stays open here is the rest of the
+lune family the measurements above name (the operand lune's wall and
+the lune cavity's wall as they are authored — re-measure each against
+the head that carries BOOL-5 and strike the ones that now certify).

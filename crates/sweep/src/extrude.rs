@@ -273,28 +273,30 @@ pub enum ExtrudeError {
 impl fmt::Display for ExtrudeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Band(e) => write!(f, "extrude could not form a band: {e}"),
+            Self::Band(e) => write!(f, "{e}"),
             Self::DegenerateExtrusion => write!(
                 f,
-                "extrusion vector/distance has no definite normal component: in-plane or \
-                 sliver-thin extrusion — {} (D4)",
+                "the extrusion has no definite length across the sketch plane (it is \
+                 in-plane or sliver-thin). Recourse: {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
             Self::ObliqueExtrusion => f.write_str(
-                "extrusion vector has a definite in-plane component: oblique extrusion is \
-                 not supported (arc segments would sweep elliptic cylinders)",
+                "the extrusion leans definitely off the sketch plane's normal, and an \
+                 oblique extrusion is not supported (arcs would sweep elliptic cylinders). \
+                 Recourse: extrude along the plane's normal",
             ),
-            Self::ExtrusionEscalated { source } => {
-                write!(f, "extrusion-vector classification escalated: {source}")
-            }
+            Self::ExtrusionEscalated { source } => write!(
+                f,
+                "whether the extrusion leaves the sketch plane is too close to call: {source}"
+            ),
             Self::CosurfaceEscalated {
                 loop_index,
                 vertex_index,
                 source,
             } => write!(
                 f,
-                "cosurface sharing at loop {loop_index} vertex {vertex_index} escalated: \
-                 {source}"
+                "whether the walls meeting at loop {loop_index} vertex {vertex_index} share \
+                 one surface is too close to call: {source}"
             ),
             Self::SliverJoin {
                 loop_index,
@@ -302,8 +304,8 @@ impl fmt::Display for ExtrudeError {
                 source,
             } => write!(
                 f,
-                "sliver dihedral at loop {loop_index} vertex {vertex_index}: the join is \
-                 neither a definite corner nor definitely smooth: {source}"
+                "the wall join at loop {loop_index} vertex {vertex_index} is neither a \
+                 definite corner nor definitely smooth: {source}"
             ),
             Self::SliverRim {
                 loop_index,
@@ -311,19 +313,19 @@ impl fmt::Display for ExtrudeError {
                 source,
             } => write!(
                 f,
-                "sliver dihedral at loop {loop_index} segment {segment_index}'s cap-wall rim: \
-                 the rim is neither a definite corner nor definitely smooth: {source}"
+                "the rim where loop {loop_index} segment {segment_index}'s wall meets a cap \
+                 is neither a definite corner nor definitely smooth: {source}"
             ),
-            Self::CapPlane { source } => write!(f, "cap plane: {source}"),
+            Self::CapPlane { source } => write!(f, "a cap is not planar: {source}"),
             Self::SidePlane {
                 loop_index,
                 segment_index,
                 source,
             } => write!(
                 f,
-                "side plane at loop {loop_index} segment {segment_index}: {source}"
+                "the wall of loop {loop_index} segment {segment_index} is not planar: {source}"
             ),
-            Self::Op { source } => write!(f, "extrude operator step failed: {source}"),
+            Self::Op { source } => write!(f, "an Euler operation refused: {source}"),
         }
     }
 }
@@ -562,7 +564,7 @@ pub fn extrude<T: Decide>(
             r#loop: seed.r#loop,
         },
         qs[1 % n],
-        placed_segment_spec(&outer[0], place, normal, qs[0], qs[1 % n]),
+        placed_segment_spec(&outer[0], place, normal, qs[0], qs[1 % n], tol),
         tol,
     )?;
     hes.push(first.he_plus);
@@ -574,7 +576,7 @@ pub fn extrude<T: Decide>(
                 he2: prev.he_minus,
             },
             qs[j],
-            placed_segment_spec(&outer[j - 1], place, normal, qs[j - 1], qs[j]),
+            placed_segment_spec(&outer[j - 1], place, normal, qs[j - 1], qs[j], tol),
             tol,
         )?;
         hes.push(m.he_plus);
@@ -599,7 +601,7 @@ pub fn extrude<T: Decide>(
             he1: prev.he_minus,
             he2: first.he_plus,
         },
-        placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], qs[0]),
+        placed_segment_spec(&outer[n - 1], place, normal, qs[n - 1], qs[0], tol),
         FaceSurface::New(bottom_plane),
         tol,
     )?;
@@ -632,7 +634,7 @@ pub fn extrude<T: Decide>(
         let first = body.mev(
             MevSite::Lone { r#loop: ring },
             hq[1 % m],
-            placed_segment_spec(&segs[0], place, normal, hq[0], hq[1 % m]),
+            placed_segment_spec(&segs[0], place, normal, hq[0], hq[1 % m], tol),
             tol,
         )?;
         hole_hes.push(first.he_plus);
@@ -644,7 +646,7 @@ pub fn extrude<T: Decide>(
                     he2: prev.he_minus,
                 },
                 hq[j],
-                placed_segment_spec(&segs[j - 1], place, normal, hq[j - 1], hq[j]),
+                placed_segment_spec(&segs[j - 1], place, normal, hq[j - 1], hq[j], tol),
                 tol,
             )?;
             hole_hes.push(mv.he_plus);
@@ -657,7 +659,7 @@ pub fn extrude<T: Decide>(
                 he1: prev.he_minus,
                 he2: first.he_plus,
             },
-            placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], hq[0]),
+            placed_segment_spec(&segs[m - 1], place, normal, hq[m - 1], hq[0], tol),
             FaceSurface::Shared(bottom_surface),
             tol,
         )?;
@@ -835,7 +837,7 @@ fn sweep_loop<T: Decide>(
             (false, None) => struts[j].he_minus,
         };
         let surface = side_surface(
-            body, loop_index, segs, &pair, &faces, j, qs, place, normal, w, band,
+            body, loop_index, segs, &pair, &faces, j, qs, place, normal, w, band, tol,
         )?;
         let top_q_from = qs[j] + w;
         let top_q_to = qs[(j + 1) % n] + w;
@@ -844,7 +846,7 @@ fn sweep_loop<T: Decide>(
                 he1: struts[j].he_minus,
                 he2,
             },
-            placed_segment_spec(&segs[j], top_place, normal, top_q_from, top_q_to),
+            placed_segment_spec(&segs[j], top_place, normal, top_q_from, top_q_to, tol),
             surface,
             tol,
         )?;
@@ -1076,6 +1078,7 @@ fn side_surface<T: Decide>(
     normal: Vec3<T>,
     w: Vec3<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<FaceSurface<T>, ExtrudeError> {
     let n = segs.len();
     if j > 0 {
@@ -1126,7 +1129,7 @@ fn side_surface<T: Decide>(
             // at the same guarantee and through the same helper: this
             // wall's `u_ref` is built from the same lamina vertex and
             // the same extruded center (`swept::register_rim_identity`).
-            crate::swept::register_rim_identity(rim, radius);
+            crate::swept::register_rim_identity(rim, radius, tol);
             Ok(FaceSurface::New(Surface::Cylinder {
                 origin: c_world,
                 axis: turn_axis(turn, normal),

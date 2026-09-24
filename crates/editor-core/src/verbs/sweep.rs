@@ -44,8 +44,8 @@
 //! adds a third of the same shape: match this family's arm, call this
 //! family's emitter, destructure the bundle, export the walls, refuse
 //! every other arm by name. What differs is the last two steps only —
-//! `Extruded::side_faces` is already the per-loop wall list, while
-//! `Revolved::walls` is per canonical SEGMENT and optional. The shared
+//! `Extruded::side_faces` mints one wall per canonical segment, while
+//! `Revolved::walls` is per canonical segment and OPTIONAL. The shared
 //! part is not extractable while the record arm, the bundle type and
 //! the emitter are all per family: a generic body would take three
 //! function pointers and a match it cannot write, which is the
@@ -71,15 +71,21 @@ use crate::node::RecipeNodeId;
 /// attached through — the wall swept from a profile edge is the entity
 /// that stores that edge's radius — and because reading them out of a
 /// family's own bundle is exactly what [`ProfileVerb::read`] is for.
-/// They are grouped by loop and not flattened: which loop a wall came
-/// from is what says which of the profile's radii it carries.
+/// They keep BOTH of the record's indices, loop and canonical segment:
+/// which profile edge a wall was swept from is what says which of the
+/// profile's radii it carries, and a chain loop's radii differ per
+/// edge.
 pub(crate) struct SweptOut<T: Decide> {
     /// The swept body, moved out of the record.
     pub(crate) body: Body<T>,
     /// The names, emitted before the record was taken apart.
     pub(crate) table: Arc<NameTable>,
-    /// The wall faces, per canonical profile loop.
-    pub(crate) walls: Vec<Vec<FaceKey>>,
+    /// The wall faces, per canonical profile loop and then per
+    /// canonical segment of that loop. `None` is a POSITION and not a
+    /// hole to close: a segment that minted no wall (a revolve's
+    /// on-axis edge) still occupies its index, which is what keeps the
+    /// list alignable with a per-segment token list.
+    pub(crate) walls: Vec<Vec<Option<FaceKey>>>,
 }
 
 /// A profile verb's record reader: this node's id, the record the run
@@ -167,24 +173,21 @@ fn read_extrude<T: Decide>(
     Ok(SweptOut {
         body,
         table,
-        walls: side_faces,
+        // One wall per canonical segment, every one of them minted:
+        // an extruded segment always sweeps a face.
+        walls: side_faces
+            .into_iter()
+            .map(|loop_| loop_.into_iter().map(Some).collect())
+            .collect(),
     })
 }
 
 /// The revolve's reader. Its walls are per canonical segment and
-/// OPTIONAL — an on-axis segment sweeps no wall at all — so the absent
-/// ones are dropped rather than represented: a flow attaches to faces,
-/// and a segment that minted none has none to attach to.
-///
-/// **The flatten DESTROYS the segment index**, and that is the door to
-/// widen the day a per-segment source is declared. Today every wall of
-/// a loop carries that loop's one radius, so which segment a wall came
-/// from is not a question the attach asks; a chain loop's per-step arc
-/// radii are per segment, and honouring them means keeping the
-/// `Option` positions here — an absent wall is a position, not a hole
-/// to close — so that a token list indexed by canonical segment lines
-/// up with them. `LoopProgram::carrier_radius` carries the rest of
-/// that obligation, the content key's half included.
+/// OPTIONAL — an on-axis segment sweeps no wall at all — and both the
+/// index and the `None` are kept: the attach is per profile edge, so a
+/// segment that minted no wall has to stay a position in the list
+/// rather than shifting every later segment's wall onto the wrong
+/// edge.
 fn read_revolve<T: Decide>(
     id: RecipeNodeId,
     record: VerbRecord<T>,
@@ -193,10 +196,6 @@ fn read_revolve<T: Decide>(
     let built = super::read_record(record, revolve_record, foreign_record)?;
     let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
     let Revolved { body, walls, .. } = built;
-    let walls = walls
-        .into_iter()
-        .map(|loop_| loop_.into_iter().flatten().collect())
-        .collect();
     Ok(SweptOut { body, table, walls })
 }
 

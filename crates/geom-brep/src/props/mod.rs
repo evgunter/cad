@@ -75,7 +75,16 @@
 //! minted from `θ = 4·atan|bulge|` or the sweep angle at construction,
 //! the sanctioned re-inspection), stored circle centers/axes/radii,
 //! and carrier endpoint evaluations — never from endpoint `atan2`
-//! chart inversion (the wedge-unwrap trap, M2 PR 6's blocker). The
+//! chart inversion (the wedge-unwrap trap, M2 PR 6's blocker: two
+//! endpoint inversions differenced lose the winding and sit on a
+//! branch cut wherever an arc is anchored at the seam or a pole). The
+//! one `atan2` in the module is not an inversion and is the stated
+//! exception: `curved::sphere_wedge_azimuth` takes the polar angle of
+//! one meridian's departure direction in the frame the other meridian
+//! and the face's interior direction span, and its cut — the two
+//! meridians on one great circle — is the pair `props_band_coplanar`
+//! has just decided definitely not present; its doc argues the
+//! interval case and the interval twin pins it. The
 //! boundary is structurally verified to be the M2 iso-parameter
 //! inventory: each carrier's kind, its rim/meridian role, and its
 //! **incidence on the surface** (rim centers on the axis with parallel
@@ -91,7 +100,43 @@
 //!
 //! **The rectangle itself is ONE named predicate** —
 //! `curved::require_rims_at_extremes` (`props_rim_level`): *every rim
-//! sits at one of the face's two extreme `v`-levels*. The total
+//! sits at one of the face's two extreme `v`-levels*.
+//!
+//! On the sphere it is one of TWO, and the second is about the same
+//! `[lo, hi]` from the other side: *every rim's interior side points
+//! INTO the extent*, `curved::require_rim_interior_sides`
+//! (`props_rim_interior_side`). A level says a latitude the boundary
+//! touches and never says which side of it the material is on, so the
+//! two faces a rim separates fold the same levels; what tells them
+//! apart is the rim's own traversal under the face's sense bit
+//! (`curved::rim_interior_side`). Where the levels are silent
+//! altogether — a rim-only polar cap — that traversal supplies the
+//! missing extreme instead of refusing the face
+//! (`curved::sphere_rim_only_pole_level`). Both live on the sphere arm
+//! because that is where the extent can be silent AND where the sense
+//! bit is what settles it: a rim of a ball bounds the cap under one
+//! bit and the ball minus the cap under the other.
+//!
+//! **The cone's rim-only face has a missing extreme too, and it needs
+//! no bit** (`curved::cone_apex_level`): a cone is bounded on the apex
+//! side only, so `0` is the single candidate, and the fold sits in the
+//! shared parse where all three doors read it. What it does require is
+//! the sphere's premise transposed — every rim's traversal agreeing,
+//! which is unanimity of σ without σ, since σ is `d_u_sign` under one
+//! bit. A cylinder is unbounded along its axis both ways and has no
+//! candidate at all, so its rim-only face stays extent-less.
+//!
+//! **The SHAPE DOOR cannot ask the second, and asks its sense-free
+//! residue instead.** σ reads the face's sense bit and
+//! [`require_iso_rectangle`] is handed a surface and a loop, with no
+//! face, so that it answers a question about the boundary alone. What
+//! needs no bit is that every rim encodes the SAME side
+//! (`curved::unanimous_rim_side`), and the door takes that. The
+//! divergence it leaves is one rim: issue 1598's L-shaped complement
+//! has nothing for unanimity to compare — `Ok(())` from the door,
+//! `NotIsoRectangle { what: "props_rim_interior_side" }`
+//! from the flux lane, on one face. The door's own docs say what a
+//! consumer that needs the stronger premise reads instead. The total
 //! `u`-measure `w(v)` changes only where a rim is (between rim levels
 //! the boundary is meridians, which move no `u`-endpoint), so the rule
 //! establishes `w ≡ Δu`. Before S58 the property was re-derived per
@@ -107,10 +152,11 @@
 //!   exemption**, so "every curved kind" is not the claim: the
 //!   **rimless sphere band**, which carries no rim, so the predicate
 //!   is vacuous on it rather than satisfied by it. What that arm does
-//!   establish (its meridians all lie on ONE great circle, which is
-//!   where `Δu = π` comes from; its `v`-extent, from the fold that
-//!   carries each arc's span-derived pole extremes) is stated at
-//!   `curved::sphere`, at the arm.
+//!   establish (its meridians all lie on ONE great circle that the loop
+//!   runs once, which is where `Δu = π` comes from — or on two, the
+//!   wedge, whose `Δu` is the azimuth between them on the face's side;
+//!   its `v`-extent, from the fold that carries each arc's span-derived
+//!   pole extremes) is stated at `curved::sphere`, at the arm.
 //! * **[`boundary_material_sign`] runs it too, on ALL FOUR arms**,
 //!   because every one of them reaches a side derivation that rests
 //!   on this premise. It was listed here as a second exemption, on the
@@ -147,10 +193,14 @@
 //!   the per-kind boundary classification and `props_rim_level`, and
 //!   nothing integrated on top — for a consumer whose lane rests on
 //!   the premise without wanting a volume (`mesh`'s swept-rectangle
-//!   walk cites it before walking a face). It ADMITS the rimless
-//!   sphere band the flux lane refuses on `props_band_coplanar`:
-//!   `Δu = π` is the closed form's premise, not the shape's, and the
-//!   door says so at its definition.
+//!   walk cites it before walking a face). It ADMITS every rimless
+//!   sphere band, and the flux lane measures the two it has a lune
+//!   for — the coplanar two-band face (`props_band_coplanar`,
+//!   `Δu = π`) and the wedge (`props_wedge_azimuth`, the azimuth
+//!   between the two meridian half-planes on the face's side) — while
+//!   refusing a rimless boundary that states neither; the premises
+//!   are the closed form's, not the shape's, and the door says so at
+//!   its definition.
 //! * `w ≡ Δu` is **one** of the two premises `area = r·Δu·(hi − lo)`
 //!   needs. The other is that `(lo, hi)` is the face's true
 //!   `v`-extent, and **this predicate does not establish it** — each
@@ -273,6 +323,17 @@ impl<T: SpanLocate> LoopEdge<T> {
     pub(crate) fn tag_at_t0(&self) -> u32 {
         if self.forward { self.start } else { self.end }
     }
+
+    /// The carrier points at the edge's TRAVERSAL ends, in traversal
+    /// order — `(p0, p1)` forward, swapped otherwise, the geometric
+    /// twin of the `(start, end)` tag pair.
+    pub(crate) fn traversal_ends(&self) -> (Point3<T>, Point3<T>) {
+        if self.forward {
+            (self.p0(), self.p1())
+        } else {
+            (self.p1(), self.p0())
+        }
+    }
 }
 
 /// The identity of the original edge a boundary edge is a piece of —
@@ -314,7 +375,14 @@ pub struct FaceContribution<T: Real> {
 /// escalated. Never a silent fallback.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PropsError {
-    /// A carrier or surface is the unimplemented `Nurbs` placeholder.
+    /// A carrier or surface this closed-form inventory has no arm for
+    /// and never will in this lane: the `Nurbs` placeholder, and a
+    /// `Curve3::Spiric` boundary edge on a plane (the oval's area is an
+    /// elliptic integral) or on a cylinder, cone or sphere (a spiric
+    /// lies on none). The spiric's frontier is the props quadrature
+    /// lane for a spiric-bounded face — the spiric unit's props PR;
+    /// the variant carries no `what`, so the frontier is named here
+    /// and at each raising site.
     Unimplemented,
     /// The boundary shape is outside the M2 iso-rectangle inventory,
     /// a stored-data consistency residual is definitely nonzero, or a
@@ -523,7 +591,8 @@ impl std::error::Error for PropsError {}
 /// reference (Mäntylä's far-from-origin conditioning remedy).
 ///
 /// **Sense-invariant by derivation** (M5 S10). This function takes no
-/// `sense_sign` and deliberately must not: `A⃗` is a boundary integral
+/// sense at all — not the bit its curved sibling takes — and
+/// deliberately must not: `A⃗` is a boundary integral
 /// in the face's STORED traversal order, and the interior-left rule
 /// already points it along the *outward* normal, whichever side that
 /// is. A planar face's entire flux is `origin·A⃗` (the anchored term

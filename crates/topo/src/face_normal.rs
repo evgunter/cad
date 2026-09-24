@@ -1,80 +1,106 @@
-//! The **one door** for a face's outward normal — planar or curved:
-//! the single place the `sense` bit is folded into a chart normal.
+//! The **door** for a face's outward normal — planar or curved: where
+//! this crate's PLANAR consumers fold the `sense` bit INTO a chart
+//! normal, and the gate its point-dependent curved consumers pass.
+//! Handing the bit onward is the other legitimate answer and is not a
+//! second fold — a `geom_brep` door that mints the outward normal from
+//! gradients of its own takes the bit and leaves nothing here to fold,
+//! and the shared [`crate::sector_face`] walk names the constructor
+//! itself for its curved arms.
 //!
-//! Two doors, one flip: [`face_outward_normal`] answers for a PLANE,
-//! where the normal does not depend on where you stand, and
+//! Three doors, one flip. By key: [`face_outward_normal`] answers for
+//! a PLANE, where the normal does not depend on where you stand, and
 //! [`face_outward_normal_at`] answers at a POINT, which is what a
 //! curved carrier requires and what the plane arm returns unchanged.
+//! By value, for a caller that has already resolved the face and must
+//! not discard a failed lookup: [`plane_outward_normal`] takes the
+//! [`Face`] and its plane's chart normal. Every one of them spells the
+//! fold through [`OutwardNormal::from_chart`], the type's only
+//! constructor, and this file is the only one under `topo/src` that
+//! names it in a file that ALSO destructures a plane pattern — that
+//! conjunction, not the constructor's name alone, is what the guard
+//! row below reads.
+//!
+//! **Two curved readings, and they differ.** [`face_outward_normal_at`]
+//! is a GATE: it certifies `p` onto the chart (`‖∇F‖ − 1` in band) and
+//! folds the RAW gradient it has just certified unit-magnitude. The
+//! by-value curved fold is [`geom_brep::implicit_outward_normal`],
+//! which normalizes and gates nothing — its callers (the contact
+//! verifier, the dihedral's material pairing, a blend battery's
+//! supports) certify the point themselves. The two can differ in the
+//! last ulps on the same input, so neither substitutes for the other:
+//! a caller that wants the gate takes the key; a caller handed a
+//! carrier and the bit takes the `geom_brep` door.
 //!
 //! # Why one door, and why here
 //!
-//! Since S10 a face's outward normal is its surface's chart normal
-//! times [`Face::sense_sign`](crate::entity::Face::sense_sign) — the
-//! chart is the only place orientation was ever encoded, so on a
+//! A face's outward normal is its surface's chart normal where
+//! [`Face::sense`] is `true` and the negation where it is `false` —
+//! the chart is the only place orientation is encoded, so on a
 //! `sense: false` face the stored normal points INTO the material and
 //! every consumer reading a material direction off it answers
-//! backwards. One flip, in one function, is what keeps two flips from
-//! drifting apart.
+//! backwards. One flip, in one place, is what keeps two flips from
+//! drifting apart, and the bit never leaves this crate as a `±1`:
+//! there is no scalar sign accessor on [`Face`], so a consumer that
+//! wants an outward normal comes here, names the constructor itself
+//! from outside this crate, or hands the bit to a `geom_brep` door
+//! that mints one from gradients of its own. What holds that in place
+//! mechanically is two rows in this file's tests, each naming what it
+//! cannot see: `the_planar_sense_flip_lives_in_one_place` (no other
+//! `topo/src` file re-forks the planar fold) and
+//! `no_source_file_folds_the_bit_by_hand` (no `crates/*/src` file
+//! negates a value under the bit by hand, the sanctioned scalar
+//! negations named).
 //!
-//! The door used to live in `boolean::reduce`, whose invariant named
-//! its five consumers — the boolean's `plane_of`, the reduction sweep,
-//! the pierce lane, the REST lane, and `sector_face`. When
-//! `sector_face` became [`crate::sector_face`], shared with the
-//! splitting lane, that consumer moved OUT of `boolean/` and the door
-//! could no longer be the one door from inside it: a crate-root module
-//! importing from `boolean/` would be the same wrong-way edge, pointed
-//! the other way. So the door moved to the crate root and
-//! `boolean::reduce` re-exports it — the boolean's four remaining
-//! consumers are unchanged, and the shared walk uses the same flip
-//! rather than a second one. **Consumers here are lanes, not call
-//! sites**: three of the four reach the door through
-//! `boolean::reduce::face_plane` (`recl`'s `plane_of`, the reduction
-//! sweep, the REST lane) and only the pierce lane (`vtxfac`) calls it
-//! directly, so counting `face_outward_normal` call sites gives two
-//! and does not falsify the four.
+//! The door sits at the crate root because its consumers are in two
+//! lanes: the boolean's planar consumers reach it through
+//! `boolean::reduce::face_plane` (which re-exports it) and the pierce
+//! lane directly, while the shared [`crate::sector_face`] walk serves
+//! the splitting lane too — a module under `boolean/` could not be the
+//! one door for both without a wrong-way edge.
 //!
-//! **"One door" is true of these consumers, not of the workspace.**
-//! Other outward normals are still built by hand-multiplying a chart
-//! normal by [`Face::sense_sign`](crate::entity::Face::sense_sign),
-//! and this module is where they belong when they are consolidated —
-//! work that is owed and not scheduled here. **Where they are is
-//! computed, not recited**: the guard
-//! test below walks `topo/src`, counts every occurrence of that method
-//! in code, and fails on one its dispositioned table does not carry.
-//! The count is of the whole tree this crate can see; the rest of the
-//! workspace is D6's scope and is not enumerated here.
-//!
-//! **A better home exists and is not reachable from this lane.** The
-//! function is a `Body` query, exactly like `Body::mate` or
+//! **A better home exists and is not reachable from this lane.**
+//! The function is a `Body` query, exactly like `Body::mate` or
 //! `Body::loop_cycle`, and belongs as an inherent method on
 //! [`Body`]. That is `body.rs`, outside the scope
 //! this module was created under; it is recorded on issue #695 with
 //! the rest of the placement questions.
 
 use geom_brep::OutwardNormal;
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign};
+use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
-use crate::entity::FaceKey;
+use crate::entity::{Face, FaceKey};
 use crate::validate::decide;
+
+/// A resolved planar face's OUTWARD normal from its plane's chart
+/// normal — the by-value door, for a caller that has already matched
+/// the face's surface as a plane and holds the [`Face`] itself.
+///
+/// INVARIANT: the bit comes from the face handed in — a type fact —
+/// and `chart_normal` is that face's plane normal, which nothing here
+/// checks: the caller's arm has just destructured it, and the
+/// enforcement is the caller's. Bit-identical to
+/// [`face_outward_normal`] on the same face.
+pub(crate) fn plane_outward_normal<T: Real>(
+    face: &Face,
+    chart_normal: Vec3<T>,
+) -> OutwardNormal<T> {
+    OutwardNormal::from_chart(chart_normal, face.sense)
+}
 
 /// A planar face's OUTWARD normal — the chart normal with the face's
 /// `sense` folded in, minted as an [`OutwardNormal`] so no consumer
-/// can multiply again.
+/// can multiply again. The keyed door, and the one a consumer outside
+/// this crate holding a body and a face key takes (a blend's planar
+/// supports); the module docs list the in-crate callers.
 ///
-/// INVARIANT: this is where the planar lane's sense flip lives, and
-/// the module docs list who goes through it. `None` for a non-planar
-/// face (the caller falls through to its own curved arms, or has
-/// none).
-pub(crate) fn face_outward_normal<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Option<OutwardNormal<T>> {
+/// `None` for a non-planar face (the caller falls through to its own
+/// curved arms, or has none), and for a face or surface key that no
+/// longer resolves.
+pub fn face_outward_normal<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<OutwardNormal<T>> {
     let f = body.get_face(face)?;
     match body.get_surface(f.surface) {
-        Some(geom::Surface::Plane { normal, .. }) => {
-            Some(OutwardNormal::from_chart(*normal, f.sense))
-        }
+        Some(geom::Surface::Plane { normal, .. }) => Some(plane_outward_normal(f, *normal)),
         _ => None,
     }
 }
@@ -147,9 +173,7 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
         return Ok(None);
     };
     match surface {
-        geom::Surface::Plane { normal, .. } => {
-            Ok(Some(OutwardNormal::from_chart(*normal, f.sense)))
-        }
+        geom::Surface::Plane { normal, .. } => Ok(Some(plane_outward_normal(f, *normal))),
         geom::Surface::Cylinder { .. } | geom::Surface::Sphere { .. } => {
             let arm = geom_brep::curvature_lever_arm(surface, p);
             let grad = geom_brep::implicit_gradient(surface, p);
@@ -206,6 +230,16 @@ mod tests {
         for sense in [true, false] {
             body.set_face_sense(face, sense).unwrap();
             let flat = face_outward_normal(&body, face).unwrap();
+            // The flip itself, on the planar door: the chart normal
+            // where the bit is set, its negation where it is not.
+            let expected = if sense { normal } else { -normal };
+            assert!(
+                flat.vec().x.to_bits() == expected.x.to_bits()
+                    && flat.vec().y.to_bits() == expected.y.to_bits()
+                    && flat.vec().z.to_bits() == expected.z.to_bits(),
+                "sense {sense}: the planar door answered {:?}, not {expected:?}",
+                flat.vec()
+            );
             // Deliberately far off the plane: the planar arm must not
             // have grown a dependence on the point.
             for p in [Point3::new(0.0, 0.0, 3.0), Point3::new(7.0, -2.0, -11.0)] {
@@ -302,24 +336,32 @@ mod tests {
     /// door, and no file under `topo/src` other than that one may both
     /// destructure a plane surface pattern for its normal and mint an
     /// [`OutwardNormal`] from a chart — which is what a second flip
-    /// looks like textually. (The pattern is spelled ONLY in the check
-    /// itself: writing it in this comment made the guard's home its own
-    /// first counter-example.)
+    /// looks like textually. The row reads each file's CODE view
+    /// (comments and literals blanked), so it sees mints and not
+    /// mentions: a doc comment may name the constructor, which is what
+    /// the door's design asks of its callers. (The pattern is spelled
+    /// ONLY in the check itself, and in code: writing it in this
+    /// comment once made the guard's home its own first
+    /// counter-example.)
     ///
-    /// **What it cannot match** — four shapes, said plainly:
+    /// **What it cannot match** — five shapes, said plainly:
     ///
     /// 1. **A flip written without `from_chart`** — a chart normal
-    ///    multiplied by the face's own `±1` and reaching a material
-    ///    verdict. This row does not see those; the inventory row
-    ///    below does, and names each one.
+    ///    negated under `if !face.sense` by hand and reaching a
+    ///    material verdict. This row does not see those;
+    ///    `no_source_file_folds_the_bit_by_hand` below is the row that
+    ///    does, tree-wide, with its own blind spots.
     /// 2. **A flip in another crate.** The walk is scoped to
-    ///    `topo/src`.
+    ///    `topo/src`; the sibling row walks `crates/*/src`.
     /// 3. **A caller that takes the door's answer and negates it.**
     ///    [`OutwardNormal`] is a wrapper, not a capability: `.vec()` is
     ///    public and a consumer can multiply what comes back.
     /// 4. **A file that reads the plane normal through a helper** —
     ///    `face_plane(..).normal` — and flips that. No plane-surface
     ///    pattern appears, so the textual pair never matches.
+    /// 5. **A mint inside a `macro_rules!` body or assembled from a
+    ///    string literal.** The code view blanks literals and does not
+    ///    expand macros.
     #[test]
     fn the_planar_sense_flip_lives_in_one_place() {
         let home = crate::source_walk::src_root().join("face_normal.rs");
@@ -333,150 +375,164 @@ mod tests {
                 continue;
             }
             let text = std::fs::read_to_string(path).expect("a readable source file");
+            let code = test_utils::source::code_only(&text);
             assert!(
-                !(text.contains("Surface::Plane {") && text.contains("from_chart")),
+                !(code.contains("Surface::Plane {") && code.contains("from_chart")),
                 "{} mints an OutwardNormal from a plane's chart normal — the planar \
                  sense flip has been re-forked out of face_normal.rs, which must hold \
                  the only one. Call `face_outward_normal` instead.",
                 path.display()
             );
         }
-        let here = std::fs::read_to_string(&home).expect("the home module is readable");
+        let here = test_utils::source::code_only(
+            &std::fs::read_to_string(&home).expect("the home module is readable"),
+        );
         assert!(
             here.contains("Surface::Plane {") && here.contains("from_chart"),
             "the door no longer mints the flip, so this row guards nothing"
         );
     }
 
-    /// **The hand-multiply inventory**, written as a gate rather than
-    /// as a sentence, because a sentence was what drifted. Every
-    /// **occurrence** of [`Face::sense_sign`](crate::entity::Face::sense_sign)
-    /// in the CODE of `topo/src` (comments and literal bodies removed
-    /// by `test_utils::source::code_only`) is counted per file and
-    /// pinned below with its disposition, so a new hand-multiply
-    /// cannot land without either going through the door or being
-    /// argued for in the table:
-    ///
-    /// - `entity.rs` — the definition itself.
-    /// - `boolean/solid_contain.rs` — `face_plane` and `face_geo`, two
-    ///   plane arms whose consumers are ray-parity walks and therefore
-    ///   blind to the sign; they thread it to keep the doors' stated
-    ///   contract (an OUTWARD normal) honest for the next consumer.
-    /// - `boolean/join.rs` — `ring_run_ccw`, which picks an island's
-    ///   new outer boundary and needs exactly one of its two signs
-    ///   threaded.
-    /// - `boolean/rest.rs` — `face_carrier`, the curved generalization
-    ///   of the door; it binds the `±1` to a local before multiplying,
-    ///   which is the form a textual `* ….sense_sign` sweep misses.
-    /// - `boolean/mod.rs` — the shared-rim routing's two face senses,
-    ///   handed to `boolean::rim_wedge` and through it to the same two
-    ///   `geom_brep` entry points check 4's material arm uses. It
-    ///   cannot take the door for that arm's reason and one more of
-    ///   its own: the question is a PAIR of material sides at a point
-    ///   on a shared rim, over kinds [`face_outward_normal_at`]
-    ///   answers `None` for (torus above all), and the operands are
-    ///   two different bodies, so there is no single body the door
-    ///   could be asked about.
-    /// - `merge_faces.rs` — two sense-tuple reads in the coplanarity
-    ///   gate and the survivor's plane hand-multiply.
-    /// - `props.rs` — the `±1` handed to `curved_face`'s closed form.
-    ///   Not a normal multiply, and the only read whose consumer is a
-    ///   curved carrier.
-    /// - `census.rs` — two, the crossing rung's side test
-    ///   (`ee_cross_backed`): the declared pair's two `±1`s handed to
-    ///   `geom_brep::classify_material_pairing`, exactly as check 4's
-    ///   material arm below hands them — the same lemma, read at a
-    ///   boundary crossing between bodies rather than edge-locally
-    ///   within one. It cannot take the door for check 4's reason:
-    ///   the question is the PAIR of material sides at one point on a
-    ///   shared carrier, and the sign belongs beside the gradient the
-    ///   sense algebra computes.
-    /// - `validate.rs` — three, all in tier 3. Check 6's outward
-    ///   normal, where the sense bit is read as a claim to be
-    ///   falsified rather than honored; and check 4's material arm,
-    ///   which hands the plus and minus faces' `±1` to
-    ///   `geom_brep::classify_material_pairing` and
-    ///   `geom_brep::material_kappa_rel`. The arm cannot take the
-    ///   door: its question is the PAIR of material sides at a point
-    ///   on a shared carrier, over every kind with an implicit form
-    ///   (cone and torus tangencies included, which
-    ///   [`face_outward_normal_at`] answers `None` for), and the
-    ///   normals it needs are the gradients the wedge classifier
-    ///   already computes — routing them back out and in would fold
-    ///   the sign in one crate and the gradient in another. The `±1`
-    ///   is threaded as a scalar, which is what
-    ///   `contact_verify`'s tangency arm does with the same lemma.
-    /// - `face_normal.rs` — **zero**: the door takes the sense BIT
-    ///   through [`OutwardNormal::from_chart`], never the `±1`. That
-    ///   is why the walk below reads the method name out of `concat!`
-    ///   — spelled whole, this file would be its own first hit.
-    ///
-    /// **The pin is per FILE, and that is wider than the invariant.**
-    /// Moving a read from one file to another changes nothing about
-    /// the sense flip and still reds this row; so does adding a second
-    /// occurrence to a line that already has one. The narrower pin — a
-    /// total plus the dispositions — would red for fewer wrong
-    /// reasons, and the per-file shape is chosen because *which* file
-    /// carries a read is the only thing that makes the disposition
-    /// list above checkable. The cost is a tripwire over all of
-    /// `topo/src` in a tree several lanes are editing at once.
-    ///
-    /// **What this cannot match**, and it is a work order rather than
-    /// a discharge:
-    ///
-    /// 1. A flip written through a helper that already returns an
-    ///    outward normal — `face_plane(..).normal` multiplied again.
-    /// 2. A [`crate::entity::Face::sense`] bool read and branched on
-    ///    without the `±1` (`step-export`'s `same_sense` bit is such a
-    ///    consumer, and a legitimate one).
-    /// 3. An identifier a macro assembles, which no textual walk sees.
-    /// 4. **Every crate but this one.** The walk is `topo/src` because
-    ///    that is the tree this crate can see. **It is deliberately
-    ///    not enumerated here**: a roster of other crates is exactly
-    ///    the artifact this row replaced, and reciting one beside a
-    ///    computed inventory would mint the same defect one level out.
-    ///    The out-of-crate readers are recited once, in
-    ///    [`crate::boolean::reduce`]'s `face_plane`, which says that it
-    ///    recites them.
-    #[test]
-    fn every_hand_multiply_of_the_face_sign_is_inventoried() {
-        const PINNED: [(&str, usize); 10] = [
-            ("boolean/join.rs", 1),
-            ("boolean/mod.rs", 1),
-            ("boolean/rest.rs", 1),
-            ("boolean/solid_contain.rs", 2),
-            ("census.rs", 2),
-            ("entity.rs", 1),
-            ("face_normal.rs", 0),
-            ("merge_faces.rs", 3),
-            ("props.rs", 1),
-            ("validate.rs", 3),
-        ];
-        let needle = concat!("sense", "_sign");
-        let root = crate::source_walk::src_root();
-        let mut found: Vec<(String, usize)> = Vec::new();
-        for path in crate::source_walk::crate_sources() {
-            let text = std::fs::read_to_string(&path).expect("a readable source file");
-            let reads = test_utils::source::code_only(&text).matches(needle).count();
-            let rel = path
-                .strip_prefix(&root)
-                .expect("a walked file lies under topo/src")
-                .to_string_lossy()
-                .replace('\\', "/");
-            if reads > 0 || PINNED.iter().any(|(pinned, _)| *pinned == rel) {
-                found.push((rel, reads));
+    /// The hand folds of a face's bit in one source file's CODE view:
+    /// for every `if … <ident containing "sense"> … { A } else { -A }`
+    /// (and the reversed `{ -A } else { A }`), the negated `A`. The
+    /// view has comments and string literals blanked and its whitespace
+    /// collapsed, so a comment cannot hit and a rustfmt line break
+    /// cannot hide an arm.
+    fn hand_folds_of_sense(code: &str) -> Vec<String> {
+        let view = code.split_whitespace().collect::<Vec<_>>().join(" ");
+        let is_ident = |c: char| c.is_alphanumeric() || c == '_';
+        let mut out = Vec::new();
+        let mut from = 0;
+        while let Some(at) = view[from..].find("} else {") {
+            let close = from + at;
+            from = close + "} else {".len();
+            let Some(open) = view[..close].rfind('{') else {
+                continue;
+            };
+            let a = view[open + 1..close].trim();
+            let Some(end) = view[from..].find('}') else {
+                continue;
+            };
+            let b = view[from..from + end].trim();
+            if a.is_empty() || b.is_empty() || a.contains(';') || b.contains(';') {
+                continue;
+            }
+            let negation = b == format!("-{a}") || a == format!("-{b}");
+            if !negation {
+                continue;
+            }
+            // The condition: from the nearest `if` back to the arm.
+            let Some(if_at) = view[..open].rfind("if ") else {
+                continue;
+            };
+            let cond = &view[if_at + 3..open];
+            let conditioned_on_sense = cond
+                .split(|c: char| !is_ident(c))
+                .any(|word| word.contains("sense"));
+            if conditioned_on_sense {
+                out.push(a.trim_start_matches('-').to_string());
             }
         }
-        found.sort();
-        let pinned: Vec<(String, usize)> = PINNED
-            .iter()
-            .map(|(path, reads)| ((*path).to_string(), *reads))
-            .collect();
-        assert_eq!(
-            found, pinned,
-            "the inventory of hand-multiplies moved: an occurrence of the face's own ±1 was \
-             added, removed or relocated. Route it through `face_outward_normal` if it wants \
-             an outward normal; otherwise add it to this table with its disposition (D6)."
+        out
+    }
+
+    /// **The tree-wide absence pin for the class D6 names**: a value
+    /// negated by hand under a face's `sense` bit — a chart normal, an
+    /// axis, a `±1` — in any file under `crates/*/src`. The type
+    /// system retires the literal `sense_sign` accessor; it cannot see
+    /// `if f.sense { *normal } else { -*normal }`, and `Face::sense`
+    /// is `pub`, so this row is what covers the shape the compiler
+    /// does not. Its expected hit set is the SANCTIONED scalar
+    /// negations — the spelling D6 §0 prescribes for a genuinely
+    /// signed scalar, which is textually the same shape — each named
+    /// with what it negates, so a new hit is either a vector fold that
+    /// belongs at a door or a scalar that is added here in the open
+    /// with its reason. The vector class's expected count is zero.
+    ///
+    /// Exempt: the constructor's own home (`geom-brep/src/enters.rs`)
+    /// and this file (the planar door's flip row spells the
+    /// expectation by hand on purpose).
+    ///
+    /// **What it cannot match**: a bit renamed at a boundary before it
+    /// is folded (`side`, `inside`, `reversed` — the blend arms' `sided`
+    /// is keyed on `side`); a fold spelled as a `copysign`, a multiply
+    /// by a `±1` local minted elsewhere, a `match` on the bool, or an
+    /// arm whose expression contains a `;` or a brace; a fold in
+    /// `crates/*/tests`, `demos/`, `tools/` or `benches/`, which the
+    /// walk does not enter; a macro body. The walk is over the source
+    /// tree at test time, so a crate outside `crates/` is not seen.
+    #[test]
+    fn no_source_file_folds_the_bit_by_hand() {
+        let root = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR"));
+        let exempt = [
+            "crates/geom-brep/src/enters.rs",
+            "crates/topo/src/face_normal.rs",
+        ];
+        // Each a genuinely signed SCALAR, negated at its point of use
+        // as D6 spells it: a jet curvature measured along the plus
+        // face's outward normal, a loop's chart-frame area, an offset
+        // distance into the material.
+        let sanctioned: Vec<(String, String)> = [
+            ("crates/geom-brep/src/dihedral.rs", "kappa_rel"),
+            ("crates/mesh/src/walk.rs", "area"),
+            ("crates/topo/src/shell.rs", "thickness"),
+        ]
+        .into_iter()
+        .map(|(f, a)| (f.to_string(), a.to_string()))
+        .collect();
+        let mut hits = Vec::new();
+        let mut walked = 0usize;
+        for entry in std::fs::read_dir(root.join("crates")).expect("crates/ is readable") {
+            let src = entry.expect("a readable entry").path().join("src");
+            if !src.is_dir() {
+                continue;
+            }
+            for path in test_utils::source::rust_sources(&src) {
+                let rel = path
+                    .strip_prefix(&root)
+                    .expect("under the repository root")
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                if exempt.contains(&rel.as_str()) {
+                    continue;
+                }
+                walked += 1;
+                let text = std::fs::read_to_string(&path).expect("a readable source file");
+                let code = test_utils::source::code_only(&text);
+                for negated in hand_folds_of_sense(&code) {
+                    hits.push((rel.clone(), negated));
+                }
+            }
+        }
+        assert!(
+            walked > 100,
+            "the walk saw {walked} files — it is not reading crates/*/src"
         );
+        hits.sort();
+        assert_eq!(
+            hits, sanctioned,
+            "a value is negated by hand under a face's sense bit outside the sanctioned \
+             scalar negations. A NORMAL folds through `OutwardNormal::from_chart` or a \
+             `face_normal` door; a genuinely signed scalar is named in this row's list \
+             with what it negates."
+        );
+    }
+
+    /// The scanner's own reach, pinned so the row above cannot go
+    /// green by matching nothing: the two shapes it exists for, in
+    /// both orders and across a line break, and the two it must not
+    /// read — a negation keyed on something other than the bit, and a
+    /// pair that is not a negation.
+    #[test]
+    fn the_hand_fold_scanner_sees_both_shapes_and_nothing_else() {
+        let seen = hand_folds_of_sense(
+            "let n = if f.sense { *normal } else { -*normal };\n\
+             let s = if sense_plus {\n    T::one()\n} else {\n    -T::one()\n};\n\
+             let r = if !data.sense { -axis } else { axis };\n\
+             let k = if inside { rim - s } else { -(rim - s) };\n\
+             let m = if pose.sense { a } else { b };",
+        );
+        assert_eq!(seen, vec!["*normal", "T::one()", "axis"]);
     }
 }

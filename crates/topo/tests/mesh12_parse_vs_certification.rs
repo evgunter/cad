@@ -144,7 +144,7 @@ fn mev_certification_and_the_parse_agree_rung_by_rung() {
             LoopEdge::hand_built(meridian(), t0, t1, true, 0, 1),
             LoopEdge::hand_built(meridian(), t1, t0 + 4.0 * PI, true, 1, 0),
         ];
-        let flux = parse_disp(&curved_face(&sphere(), &edges, 1.0, bd));
+        let flux = parse_disp(&curved_face(&sphere(), &edges, true, bd));
         let door = parse_disp(&require_one_chart_branch(&sphere(), &edges, bd));
         let door_agrees = match (&cert, &door) {
             (Disp::Admit, Disp::Other(s)) => s.contains("NotOneChartBranch"),

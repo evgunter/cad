@@ -4,6 +4,8 @@ kind: issue
 title: the source-scanning censuses hand-parse Rust and fail loud, so an ordinary-but-unusual signature reds another program's test with a byte offset for a message
 status: open
 opened: 2026-09-04
+priority: P3
+cost: D
 ---
 
 
@@ -129,3 +131,107 @@ cannot tell a call from a declaration, a definition, a doc comment or a
 string. That is a second grammar with the same failure mode, and it
 suggests the row's subject is source-text counting as such rather than
 any particular parser's gaps.
+
+## Re-derived (2026-09-15, lane C)
+
+**VERDICT: PARTIAL** — disposition 2 (fence the grammar) has largely
+been done and the original parser bug is fixed and hoisted; disposition 1
+(make the panic name the rule) is **not** done, and the live instance is
+**still armed**.
+
+### The original bug: fixed, and fixed in the right place
+
+`crates/geom-core/tests/bounds_census.rs` no longer carries its own
+`angle_end` reading. Its `fn angle_end` is a one-line wrapper whose doc
+says so — *"**The reading is [`test_utils::source::angle_end`]'s**, not a
+copy of it: … a copy of a lexer's postcondition at a call site is how
+this tree grew its readers in the first place."* The shared
+`pub fn angle_end` in `crates/test-utils/src/source.rs` reads the
+terminator at bracket depth zero and states the repair as its own
+invariant: *"**The item's body opens at the first `{` or `;` OUTSIDE
+every square and round bracket.** A fixed-size array in a generic
+argument — `<Item = [Expr; 2]>` — carries a `;` that ends no item, and
+reading it as a terminator closes the list early."* So the exact
+signature that tripped this row — `impl IntoIterator<Item = [Expr; 2]>`
+— parses today.
+
+`crates/geom-core/tests/flagged_census.rs`'s `fn skip_turbofish` is still
+there, still angle-depth-only, and still does not carry that bug — the
+lane's negative result stands.
+
+### Disposition 2: mostly done, and worth crediting
+
+Both scanners now fence their grammar in writing, which is what this
+disposition asked for:
+
+- `bounds_census.rs`'s `angle_end` doc states the asymmetry AND the
+  silent half: *"**That asymmetry is only half of the exposure, and the
+  other half is silent.** … A list closed at the WRONG `>` … answers a
+  list that is too SHORT, and a short list still parses, so the census
+  would undercount with no signal at all."*
+- `source.rs`'s `angle_end` states the same residue at the home
+  (*"**The residue, stated:** a genuine `>` comparison inside a const
+  generic argument still closes the list early"*), and its `item_body`
+  states what it cannot check (*"What this cannot check is that `from` IS
+  a head"*).
+- The second instance's reader, `gathers_in` in
+  `crates/editor-core/tests/docm5_subject.rs`, now carries a *"WHAT THIS
+  CANNOT SEE, stated because a count that hides its blind spots is not a
+  receipt"* paragraph.
+
+### Disposition 1: NOT done — the message is byte-for-byte the one filed
+
+```
+"a generic parameter list at byte {open} does not close before its item's body: {:.120}"
+```
+
+That is the panic in `bounds_census.rs`'s `angle_end` today. It still
+leads with a byte offset and still says nothing of the form *"this census
+hand-parses signatures and could not read yours; the census is likely
+wrong, not your code"*. The row's own assessment — *"(1) is almost free
+and closes most of the cost"* — is unacted on, and it is the half that
+addresses the actual harm (a lane under CI-red pressure editing a parser
+it does not own).
+
+### The live instance: still armed, with one arm disarmed
+
+`crates/editor-core/tests/docm5_subject.rs`'s `fn gathers_in` still
+counts lines matching `" product("` (alongside `"product_recorded("` and
+`"product_named("`), and `the_registry_gathers_once_and_the_door_under_it_never_does`'s assertion
+is still `assert_eq!(gathers_in(include_str!("../src/checks.rs")), 1)`.
+
+**What changed**: it reads through `test_utils::source::code_only` now
+rather than raw text with a hand-rolled `//`-prefix filter, so two of the
+four confusions the row lists are gone — a doc comment and a string
+literal can no longer answer for a call. `crates/editor-core/src/checks.rs`
+proves it: the file has two `product`-shaped hits, one of which
+(`/// … [`crate::product()`] …`) is a doc comment that the view blanks,
+leaving the count at 1 from `product::product_recorded(` alone.
+
+**What did not change**: the scan still cannot tell a **call** from a
+**declaration**. A method or free `fn product(` in `checks.rs` still
+matches `" product("` in the code view and still raises the count. So the
+exact tripwire that cost FIX's `checks-product-refusal-degrades-to-string`
+lane a rename is live, and the row's closing observation — that this is a
+second grammar (a call grammar) with the same failure mode — stands.
+
+### The class, re-counted
+
+Three source-text scanners with this failure mode at this base, not two:
+`bounds_census.rs` (declaration grammar, fail-loud, bug fixed),
+`flagged_census.rs` (declaration grammar, fail-loud, no bug), and
+`docm5_subject.rs`'s `gathers_in` (call grammar, fail-**wrong** rather
+than fail-loud — it accuses correct code instead of refusing to read it).
+The third is the worse failure mode and is the one still armed.
+
+**Blind spot of this re-derivation**: the scanner census was reached from
+the three sites the row names plus the `reader_census.rs` ledger; a
+source-text counter in a file dispositioned `Shared` that neither the row
+nor the ledger's comment column flags would not have surfaced.
+
+**Recommendation (orchestrator's call).** Keep open, narrowed:
+disposition 2 is substantially discharged, so what is left is (1) — three
+panic/assert messages that should name the rule — plus the `gathers_in`
+call-vs-declaration confusion, which is a scanner change rather than a
+message change. `crates/editor-core/tests/` and `crates/geom-core/tests/`
+are both on this slate's glob, so nothing here needs routing.

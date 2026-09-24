@@ -95,7 +95,6 @@ impl Rgba8 {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum AttrKind {
     /// Display color.
     Color,
@@ -123,7 +122,6 @@ impl AttrKind {
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum Attr {
     /// Display color.
     Color(Rgba8),

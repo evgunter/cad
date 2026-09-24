@@ -9,8 +9,8 @@
 //! emitted geometry of the notched body must be exactly as honest as
 //! before: watertight, manifold, consistently wound, positive signed
 //! volume converging on the analytic 3.0 (and the hole plate on
-//! 16 − π). If any consumer secretly multiplied a shoelace by
-//! `sense_sign`, the reversed walls would emit inward triangles and
+//! 16 − π). If any consumer secretly folded the sense into a
+//! shoelace, the reversed walls would emit inward triangles and
 //! `check_mesh` would refuse the mixed-sense body here.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

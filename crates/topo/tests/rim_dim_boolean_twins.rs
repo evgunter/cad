@@ -66,7 +66,7 @@ use crate::common;
 
 use std::collections::BTreeMap;
 
-use common::prism_z;
+use common::brick;
 use geom_core::Sign;
 use geom_core::Tol;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
@@ -98,17 +98,12 @@ fn box_at<F: Fn(f64) -> f64>(
     y: (f64, f64),
     z: (f64, f64),
 ) -> topo::Body<Probe> {
-    prism_z::<Probe>(
-        &[
-            (s(x.0), s(y.0)),
-            (s(x.1), s(y.0)),
-            (s(x.1), s(y.1)),
-            (s(x.0), s(y.1)),
-        ],
-        s(z.0),
-        s(z.1),
+    brick::<Probe>(
+        (s(x.0), s(x.1)),
+        (s(y.0), s(y.1)),
+        (s(z.0), s(z.1)),
+        Tol::witness(),
     )
-    .body
 }
 
 /// Runs both boolean configurations at `scale`, returning the fired

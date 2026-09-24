@@ -31,6 +31,7 @@ fn doc_with(params: &[(&str, DocParam)]) -> ProfileDoc {
                 value: value.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .expect("a valid parameter sets")
         .doc;
@@ -175,7 +176,7 @@ fn a_broken_distribution_in_the_edit_log_refuses_at_save() {
         name: ParamName::new("s"),
         value: annotated(1.0, Distribution::Normal { sigma: -1.0 }),
     };
-    match save(&doc, &[bad], Tol::witness()) {
+    match save(&doc, &[editor_core::LoggedEdit::bare(bad)], Tol::witness()) {
         Err(PersistError::EditReplay { index, error }) => {
             assert_eq!(index, 0);
             assert_eq!(
@@ -202,6 +203,7 @@ fn the_edit_door_refuses_each_broken_invariant() {
                 value: annotated(1.0, d),
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
         .map(|_| ())
     };
@@ -234,8 +236,9 @@ fn the_edit_door_refuses_each_broken_invariant() {
         }),
         Err(EditError::NonFiniteDocParam {
             name: ParamName::new("p"),
+            field: editor_core::DocParamField::Offset(DistributionField::Sigma),
         }),
-        "a non-finite offset joins the non-finite class, not the shape class"
+        "a non-finite offset joins the non-finite class, not the shape class, and names itself"
     );
     assert_eq!(
         set(Distribution::Band {
@@ -244,6 +247,7 @@ fn the_edit_door_refuses_each_broken_invariant() {
         }),
         Err(EditError::NonFiniteDocParam {
             name: ParamName::new("p"),
+            field: editor_core::DocParamField::Offset(DistributionField::Lo),
         })
     );
     assert!(
@@ -289,6 +293,7 @@ fn a_doubly_corrupt_param_names_the_same_fault_at_both_doors() {
                 value: broken.clone(),
             },
             Tol::witness(),
+            &editor_core::RefusingReach
         )
         .map(|_| ()),
         Err(EditError::InvalidDistribution {
@@ -364,31 +369,41 @@ fn a_non_finite_offset_names_which_offset_it_was() {
             name: ParamName::new("p"),
             value: annotated(1.0, dist),
         };
-        match save(&doc, &[edit], Tol::witness()) {
+        match save(&doc, &[editor_core::LoggedEdit::bare(edit)], Tol::witness()) {
             Err(PersistError::NonFinite {
                 site: NonFiniteSite::Edit { index: 0, inner },
             }) => match *inner {
                 NonFiniteSite::DocParam { ref name, field } => {
                     assert_eq!(name.0, "p");
-                    assert_eq!(field, Some(expected), "the site names the offending offset");
+                    assert_eq!(
+                        field,
+                        editor_core::DocParamField::Offset(expected),
+                        "the site names the offending offset"
+                    );
                 }
                 ref other => panic!("expected a doc-param site, got {other:?}"),
             },
             other => panic!("expected a non-finite refusal for {dist:?}, got {other:?}"),
         }
     }
-    // The NOMINAL's own non-finiteness is the same class with no field
-    // to name — the distinction the option carries.
+    // The NOMINAL's own non-finiteness is the same class, and the
+    // field names it rather than standing for it by absence.
     let edit = DocEdit::SetDocParam {
         name: ParamName::new("p"),
         value: DocParam::continuous(Dimension::Length, f64::NAN),
     };
-    match save(&doc, &[edit], Tol::witness()) {
+    match save(&doc, &[editor_core::LoggedEdit::bare(edit)], Tol::witness()) {
         Err(PersistError::NonFinite {
             site: NonFiniteSite::Edit { inner, .. },
         }) => assert!(
-            matches!(*inner, NonFiniteSite::DocParam { field: None, .. }),
-            "a broken nominal names no distribution field"
+            matches!(
+                *inner,
+                NonFiniteSite::DocParam {
+                    field: editor_core::DocParamField::Nominal,
+                    ..
+                }
+            ),
+            "a broken nominal names the nominal"
         ),
         other => panic!("expected a non-finite refusal, got {other:?}"),
     }

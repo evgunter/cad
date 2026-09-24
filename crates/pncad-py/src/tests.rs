@@ -18,14 +18,19 @@ use crate::tags::{
 };
 use pncad::document::Dimension;
 use pncad::tolerance::Tol;
-use pncad::topo::{FaceKey, VertexKey};
-use std::collections::BTreeMap;
+use pncad::topo::{FaceKey, SolidKey, VertexKey};
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 // The shared Rust-source lexer: `src/tags.rs` is READ by the tag-table
-// guard below, and this is the tree's one answer to "is this text code,
-// prose or a literal". `crates/test-utils/tests/reader_census.rs`
+// guard below, and a synthetic fixture beside it is read by the
+// guard's own guard. This is the tree's one answer to "is this text
+// code, prose or a literal"; `crates/test-utils/tests/reader_census.rs`
 // carries the line that says so.
-use test_utils::source::{balanced_end, code_and_literals, code_only};
+use test_utils::source::{
+    ItemBody, balanced_end, boundary_after, boundary_before, code_and_literals, code_only,
+    comments_only, ident, impl_head, item_body, line_start, plain_string_literal, skip_ws,
+    type_base,
+};
 
 #[test]
 fn dimension_tags_are_stable() {
@@ -65,6 +70,33 @@ fn canonical_units_match_the_gq5_ratification() {
     assert_eq!(canonical_unit(Dimension::Scalar), None);
 }
 
+/// **The two dimension alphabets are one list in two cases.**
+///
+/// `Measurement.dimension` answers the capitalized spelling and every
+/// other door answers the lower-case one, so two Python attributes
+/// with the same name carry two spellings of one four-word list. That
+/// is allowed and is not free: the day one list gains a word or
+/// renames one, the other has to move with it, and nothing but this
+/// says so.
+///
+/// Over the kernel's own [`Dimension::ALL`], so a dimension added to
+/// the lattice is pinned without an edit here.
+#[test]
+fn the_two_dimension_alphabets_are_one_list_in_two_cases() {
+    use crate::errors::measurement_dimension_tag;
+
+    for dim in Dimension::ALL {
+        let mut capitalized = dimension_tag(dim).to_owned();
+        capitalized[..1].make_ascii_uppercase();
+        assert_eq!(
+            measurement_dimension_tag(dim),
+            capitalized,
+            "the measurement spelling of a dimension is no longer the FFI tag \
+             capitalized"
+        );
+    }
+}
+
 #[test]
 fn a_quantity_operator_mismatch_carries_structure_not_prose() {
     let err = QuantityOpMismatch::new("+", Dimension::Length, Dimension::Angle);
@@ -85,8 +117,8 @@ fn error_classes_name_the_python_hierarchy() {
     fn expected(class: ErrorClass) -> &'static str {
         match class {
             ErrorClass::Edit => "EditError",
-            ErrorClass::Evaluation => "EvaluationError",
-            ErrorClass::Validation => "ValidationError",
+            ErrorClass::Evaluation(_) => "EvaluationError",
+            ErrorClass::Validation(_) => "ValidationError",
             ErrorClass::Dimension => "DimensionError",
             ErrorClass::FmtQuantity => "FmtQuantityError",
             ErrorClass::Literal => "LiteralError",
@@ -123,8 +155,11 @@ fn error_classes_name_the_python_hierarchy() {
     }
     for class in [
         ErrorClass::Edit,
-        ErrorClass::Evaluation,
-        ErrorClass::Validation,
+        // The two classes with a payload: the word is the same for
+        // every reason, and `eval_reason_tag` and
+        // `validation_refusal_tag` are what pin the reasons themselves.
+        ErrorClass::Evaluation(crate::errors::EvalReason::NodeFailed),
+        ErrorClass::Validation(crate::errors::ValidationRefusal::Validate),
         ErrorClass::Dimension,
         ErrorClass::FmtQuantity,
         ErrorClass::Literal,
@@ -496,6 +531,25 @@ fn picking_refusal_tags_are_stable() {
         "node_poisoned"
     );
 
+    // DI3's pairing refusal, under the word the gather, the checks and
+    // the name-level edit door already answer with: one fact, one tag,
+    // whichever door a caller meets it at.
+    assert_eq!(
+        hit_test_error_tag(&H::EvaluationOfAnotherDocument {
+            expected: pncad::document::DocumentId::derive("tag-expected"),
+            found: pncad::document::DocumentId::derive("tag-found"),
+        }),
+        "evaluation_of_another_document"
+    );
+
+    // The certified tie between faces, under the word the name-level
+    // interrogation already answers with for "this denotes more than
+    // one thing".
+    assert_eq!(
+        hit_test_error_tag(&H::Ambiguous { hits: Vec::new() }),
+        "ambiguous"
+    );
+
     // The pick door's own two arms: "never draws" and "draws nothing
     // today" are different states and keep different tags.
     assert_eq!(node_pick_error_tag(&N::NotABody { node }), "not_a_body");
@@ -515,7 +569,7 @@ fn picking_refusal_tags_are_stable() {
         },
     ] {
         assert_eq!(
-            node_pick_error_tag(&N::Standing(standing)),
+            node_pick_error_tag(&N::Standing(standing.clone())),
             hit_test_error_tag(&standing)
         );
     }
@@ -598,7 +652,7 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
 /// The arm table, executable and TOTAL: all thirteen arms are built
 /// here and every field each carries is read.
 /// `crate::mate_payload::mate_payload` is the projection
-/// `MateFault`'s thirty-one Python attributes are read off, and this
+/// `MateFault`'s Python attributes are read off, and this
 /// pin says what each arm puts on the wire: the exact set it CARRIES,
 /// in publication order, with the rest `None`.
 ///
@@ -614,11 +668,12 @@ fn every_pick_arm_projects_the_index_numbers_it_carries() {
 fn every_mate_fault_arm_projects_the_payload_it_carries() {
     use crate::mate_payload::mate_payload;
     use pncad::document::{
-        DocumentId, LeverRefusal, MateFault as F, MateSide, NodeErrorKind, NodeRefusal,
-        RecipeNodeId, Subgroup,
+        Clash, DocumentId, Lever, LeverRefusal, MateFault as F, MateSide, NodeErrorKind,
+        NodeRefusal, RecipeNodeId, Subgroup,
     };
     use pncad::geom_core::{
         Band, BandError, BandField, FrameError, FrameInput, FrameVector, Indeterminate, MarginDiag,
+        UnitVec3,
     };
 
     let id = RecipeNodeId;
@@ -808,22 +863,25 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     carries(
         &F::Unleverable {
             mate: id(1),
-            refusal: LeverRefusal::DatumTooSmall {
-                extent: 1.0e-9,
-                floor: 1.0e-6,
+            refusal: LeverRefusal::PartUnresolved {
+                instance: id(0),
+                fault: pncad::document::PartFault::NoResolver,
             },
         },
-        &["mate", "inner_variant", "extent", "floor"],
+        &["mate", "instance", "inner_variant"],
     );
-    // A levered clash carries both halves of the lever beside it;
-    // one measured without a lever carries neither.
+    // A levered clash carries both halves of the lever beside it —
+    // the tilt for an authored roll, the residual for a pure number
+    // — and one measured without a lever carries none of the three.
     carries(
         &F::Contradictory {
             held: id(1),
             added: id(1),
             predicate: "mate_clocking_redundant",
-            clash: 0.5,
-            lever: Some((0.25, 2.0)),
+            clash: Clash::Levered(Lever::Roll {
+                radians: 0.25,
+                arm: 2.0,
+            }),
         },
         &[
             "held",
@@ -833,6 +891,36 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             "lever_tilt",
             "lever_arm",
         ],
+    );
+    carries(
+        &F::Contradictory {
+            held: id(1),
+            added: id(2),
+            predicate: "mate_member_axis_fixed",
+            clash: Clash::Levered(Lever::Residual {
+                value: 0.25,
+                arm: 2.0,
+            }),
+        },
+        &[
+            "held",
+            "added",
+            "predicate",
+            "clash",
+            "lever_residual",
+            "lever_arm",
+        ],
+    );
+    // A length measured outright carries the clash and no lever; the
+    // structural refusal measures nothing and carries no clash.
+    carries(
+        &F::Contradictory {
+            held: id(1),
+            added: id(2),
+            predicate: "mate_member_translation_zero",
+            clash: Clash::Length { metres: 0.01 },
+        },
+        &["held", "added", "predicate", "clash"],
     );
     carries(
         &F::TableLacks {
@@ -846,10 +934,9 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             held: id(1),
             added: id(2),
             predicate: "mate_member_empty",
-            clash: 0.25,
-            lever: None,
+            clash: Clash::Structural,
         },
-        &["held", "added", "predicate", "clash"],
+        &["held", "added", "predicate"],
     );
     carries(
         &F::Under {
@@ -857,7 +944,12 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
             parent: id(2),
             child: id(3),
             residual: Subgroup::Planar {
-                normal: pncad::authoring::v3(0.0, 0.0, 1.0),
+                normal: UnitVec3::new(
+                    pncad::authoring::v3(0.0, 0.0, 1.0),
+                    "pncad_py_test_normal",
+                    Band::new(1e-9, 1e-8).expect("a band"),
+                )
+                .expect("a unit normal"),
             },
         },
         &["mate", "parent", "child", "residual"],
@@ -955,15 +1047,14 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     );
     let unleverable = F::Unleverable {
         mate: id(1),
-        refusal: LeverRefusal::DatumTooSmall {
-            extent: 1.0e-9,
-            floor: 1.0e-6,
+        refusal: LeverRefusal::PartUnresolved {
+            instance: id(0),
+            fault: pncad::document::PartFault::NoResolver,
         },
     };
     let payload = mate_payload(&unleverable);
-    assert_eq!(payload.inner_variant, Some("datum_too_small"));
-    assert_eq!(payload.extent, Some(1.0e-9));
-    assert_eq!(payload.floor, Some(1.0e-6));
+    assert_eq!(payload.inner_variant, Some("part_unresolved"));
+    assert_eq!(payload.instance, Some(id(0)));
 
     // The classifier's numbers are the ones the band and the margin
     // held, on the frame door's own names.
@@ -983,13 +1074,17 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
     // **`clash` IS the product of the lever's two halves.** The
     // kernel computes the deviation at the raising site and stores
     // it; the two halves ride beside it, and a caller multiplying
-    // them gets the number it was handed.
+    // them gets the number it was handed. A roll sets the tilt and a
+    // residual the residual; the other half is `None`, and which is
+    // set is how the kind crosses.
     let levered = F::Contradictory {
         held: id(1),
         added: id(1),
         predicate: "mate_clocking_redundant",
-        clash: 0.25 * 2.0,
-        lever: Some((0.25, 2.0)),
+        clash: Clash::Levered(Lever::Roll {
+            radians: 0.25,
+            arm: 2.0,
+        }),
     };
     let payload = mate_payload(&levered);
     let (tilt, arm) = (
@@ -999,18 +1094,44 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
         payload.lever_arm.expect("and its arm"),
     );
     assert_eq!(payload.clash, Some(tilt * arm));
-    // A margin measured without a lever carries neither half — the
-    // pair is `None` rather than a pair of zeroes claiming a lever
-    // nothing measured.
-    let unlevered = F::Contradictory {
+    assert_eq!(payload.lever_residual, None);
+    let levered = F::Contradictory {
+        held: id(1),
+        added: id(2),
+        predicate: "mate_rotation_two_axis_reachable",
+        clash: Clash::Levered(Lever::Residual {
+            value: 0.75,
+            arm: 3.0,
+        }),
+    };
+    let payload = mate_payload(&levered);
+    let (residual, arm) = (
+        payload
+            .lever_residual
+            .expect("a residual clash carries its pure number"),
+        payload.lever_arm.expect("and its arm"),
+    );
+    assert_eq!(payload.clash, Some(residual * arm));
+    assert_eq!(payload.lever_tilt, None);
+    // The structural refusal measures nothing: no clash and none of
+    // the three halves — `None` rather than zeroes claiming a
+    // measurement nothing made.
+    let structural = F::Contradictory {
         held: id(1),
         added: id(2),
         predicate: "mate_member_empty",
-        clash: f64::NAN,
-        lever: None,
+        clash: Clash::Structural,
     };
-    let payload = mate_payload(&unlevered);
-    assert_eq!((payload.lever_tilt, payload.lever_arm), (None, None));
+    let payload = mate_payload(&structural);
+    assert_eq!(
+        (
+            payload.clash,
+            payload.lever_tilt,
+            payload.lever_residual,
+            payload.lever_arm
+        ),
+        (None, None, None, None)
+    );
 }
 
 /// LIB-B-CANCEL: the evaluation door joins the standing ladder, and
@@ -1022,34 +1143,31 @@ fn every_mate_fault_arm_projects_the_payload_it_carries() {
 /// `HitTestError` report. Those two reach the word through a `match`
 /// on a kernel arm; the evaluation door cannot, because
 /// `Evaluation::result` answers a bare `None` and the reason tag is
-/// this crate's own. So the word is a CONST and this is the pin that
-/// keeps the copy honest.
+/// this crate's own — [`crate::errors::EvalReason`], mapped by
+/// [`crate::tags::eval_reason_tag`]. Three maps, one word between
+/// them, and this is the pin that keeps them saying it.
 ///
 /// It runs in BOTH directions on purpose: renaming the kernel arms'
-/// tag fails here, and so does editing the const away from them. That
-/// is the property `picking_refusal_tags_are_stable` protects for the
-/// pick, one door further out.
+/// tag fails here, and so does editing this door's arm away from
+/// them. That is the property `picking_refusal_tags_are_stable`
+/// protects for the pick, one door further out.
 #[test]
 fn the_evaluation_door_speaks_the_standing_ladder() {
-    use crate::tags::{NODE_NOT_EVALUATED, hit_test_error_tag, interrogate_error_tag};
+    use crate::errors::EvalReason;
+    use crate::tags::{eval_reason_tag, hit_test_error_tag, interrogate_error_tag};
     use pncad::document::RecipeNodeId;
     use pncad::select::{HitTestError as H, InterrogateError as I};
 
     let node = RecipeNodeId(0);
-    assert_eq!(
-        NODE_NOT_EVALUATED,
-        hit_test_error_tag(&H::NodeNotEvaluated { node })
-    );
-    assert_eq!(
-        NODE_NOT_EVALUATED,
-        interrogate_error_tag(&I::NodeNotEvaluated { node })
-    );
+    let rung = eval_reason_tag(EvalReason::NodeNotEvaluated);
+    assert_eq!(rung, hit_test_error_tag(&H::NodeNotEvaluated { node }));
+    assert_eq!(rung, interrogate_error_tag(&I::NodeNotEvaluated { node }));
 
     // And it is NOT the other no-entry fact. "The document has no such
     // node" and "this run never reached it" are two states the door
     // kept collapsed while only one of them could arise, and the whole
     // of what B-CANCEL changed at this door is that both now can.
-    assert_ne!(NODE_NOT_EVALUATED, "unknown_node");
+    assert_ne!(rung, eval_reason_tag(EvalReason::UnknownNode));
 }
 
 /// LIB-B-RESOLVE: the three resolution states, pinned word by word —
@@ -1119,7 +1237,13 @@ fn resolution_status_tags_are_stable() {
     let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
 
     let insert = |doc: &ProfileDoc, node: Node<ProfileProgram>| {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the node inserts");
+        let applied = apply(
+            doc,
+            &DocEdit::InsertNode { node },
+            tol,
+            &pncad::document::RefusingReach,
+        )
+        .expect("the node inserts");
         let id = applied.record.minted.expect("an inserted id");
         (applied.doc, id)
     };
@@ -1173,9 +1297,14 @@ fn resolution_status_tags_are_stable() {
 
     // FAILED: the minting node is gone from the document, so the name
     // is stranded and the repair is an explicit rebind.
-    let pruned = apply(&doc, &DocEdit::DeleteNode { id: extrude }, tol)
-        .expect("the leaf deletes")
-        .doc;
+    let pruned = apply(
+        &doc,
+        &DocEdit::DeleteNode { id: extrude },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the leaf deletes")
+    .doc;
     let after = run(&pruned, &live);
     let verdict = resolve(
         RunCtx {
@@ -1539,6 +1668,7 @@ fn expression_evaluation_tags_are_stable() {
                 value: param,
             },
             tol,
+            &pncad::document::RefusingReach,
         )
         .expect("a parameter declaration applies")
         .doc
@@ -1655,6 +1785,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusa
             }),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the frame inserts");
     let plane = framed.record.minted.expect("a frame id");
@@ -1667,6 +1798,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusa
             }),
         },
         tol,
+        &pncad::document::RefusingReach,
     )
     .expect("the profile inserts");
     let text = save(&applied.doc, &[], tol).expect("the document saves");
@@ -1957,8 +2089,8 @@ fn inner_arm_tags_are_stable() {
         ("revolve", Some("degenerate_axis"))
     );
     assert_eq!(
-        pair(&NodeErrorKind::Tube(Box::new(TubeError::NonUnitAxis))),
-        ("tube", Some("non_unit_axis"))
+        pair(&NodeErrorKind::Tube(Box::new(TubeError::DegenerateWindow))),
+        ("tube", Some("degenerate_window"))
     );
     assert_eq!(
         pair(&NodeErrorKind::Extrude(ExtrudeError::ObliqueExtrusion)),
@@ -2031,8 +2163,8 @@ fn inner_arm_tags_are_stable() {
 #[test]
 fn a_carried_frame_direction_refusal_keeps_the_frames_own_tag() {
     use crate::tags::{node_error_tag, node_inner_kind_tag};
-    use pncad::document::{DirectionRefusal, NodeErrorKind, RecipeNodeId, UnitVec3Error};
-    use pncad::geom_core::{Band, Indeterminate, MarginDiag};
+    use pncad::document::{DirectionRefusal, NodeErrorKind, RecipeNodeId};
+    use pncad::geom_core::{Band, Indeterminate, MarginDiag, UnitVec3Error};
 
     let band = Band::new(1.0e-9, 1.0e-6).expect("a valid band");
     let carried = |error| NodeErrorKind::FrameDirection {
@@ -2171,7 +2303,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use crate::edit_payload::edit_payload;
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocParamValue,
-        EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
+        DocumentId, EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
         RecipeNodeId, RootFault, SlotId,
     };
     use pncad::prelude::StableName;
@@ -2205,6 +2337,18 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::EmptyPlacementList { node: id(1) }, &["node"]);
     carries(&E::NonFinitePlacement { node: id(1) }, &["node"]);
     carries(&E::NonFiniteAlignment { node: id(1) }, &["node"]);
+    // The door's per-mate admission carries the solve's fault WHOLE
+    // beside the mate: the one payload that crosses as a value.
+    carries(
+        &E::MateRefused {
+            node: id(1),
+            fault: Box::new(pncad::document::MateFault::TableLacks {
+                mate: id(1),
+                what: "a clocking rider on a planar rest",
+            }),
+        },
+        &["node", "fault"],
+    );
     carries(&E::UpdateOnNonInstance { node: id(1) }, &["node"]);
     carries(&E::UnresolvedInput { input: id(2) }, &["input"]);
     carries(
@@ -2298,14 +2442,14 @@ fn every_edit_arm_projects_the_payload_it_carries() {
 
     // ---- document parameters ----
     carries(
-        &E::UnknownPayloadParam {
+        &E::PayloadUnknownDocParam {
             name: param(),
             node: id(1),
         },
         &["node", "param"],
     );
     carries(
-        &E::PayloadParamDimensionMismatch {
+        &E::PayloadDocParamDimension {
             name: param(),
             node: id(1),
             declared: Dimension::Length,
@@ -2314,7 +2458,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "param", "expected", "found"],
     );
     carries(
-        &E::UnknownDocParam {
+        &E::SlotUnknownDocParam {
             name: param(),
             node: id(1),
             slot: SlotId::Count,
@@ -2322,7 +2466,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &["node", "slot", "param"],
     );
     carries(
-        &E::DocParamDimensionMismatch {
+        &E::SlotDocParamDimension {
             name: param(),
             node: id(1),
             slot: SlotId::Count,
@@ -2335,8 +2479,20 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         &E::ContinuousParamCannotBeCount { name: param() },
         &["param"],
     );
-    carries(&E::DocParamNotDeclared { name: param() }, &["param"]);
-    carries(&E::NonFiniteDocParam { name: param() }, &["param"]);
+    carries(
+        &E::DocParamNotDeclared {
+            name: param(),
+            door: pncad::document::CarryForwardDoor::Value,
+        },
+        &["param"],
+    );
+    carries(
+        &E::NonFiniteDocParam {
+            name: param(),
+            field: pncad::document::DocParamField::Nominal,
+        },
+        &["param"],
+    );
     carries(
         &E::DocParamValueKindMismatch {
             name: param(),
@@ -2361,6 +2517,12 @@ fn every_edit_arm_projects_the_payload_it_carries() {
             again: 3,
         },
         &["node", "first", "again"],
+    );
+    // The sorted designation's fault reports ONE position, so it
+    // carries `first` and not `again`.
+    carries(
+        &E::SelectionNotCanonical { node: id(1), at: 2 },
+        &["node", "first"],
     );
     // `found` on a short list is a COUNT and takes the `count`
     // attribute, so it never lands where a dimension word would.
@@ -2501,9 +2663,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(
         &E::ProfileProgramRefused {
             node: id(1),
-            refusal: pncad::document::ProgramRefusal::Validate(
+            refusal: Box::new(pncad::document::ProgramRefusal::Validate(
                 pncad::profile::ProfileError::EmptyProfile,
-            ),
+            )),
         },
         &["node"],
     );
@@ -2540,6 +2702,16 @@ fn every_edit_arm_projects_the_payload_it_carries() {
         .expect_err("a zero axis has no definite direction");
     carries(&E::from(axis), &[]);
     carries(&E::EmptyWitnessBulk, &[]);
+    // Two DOCUMENTS, which no attribute of this record carries — the
+    // `ProductError` arm's precedent one door over: the message states
+    // both ids.
+    carries(
+        &E::EvaluationOfAnotherDocument {
+            expected: DocumentId::derive("edited"),
+            found: DocumentId::derive("handed"),
+        },
+        &[],
+    );
 }
 
 /// The workspace tags `Doc()` publishes. `randomness_unavailable` is
@@ -2675,6 +2847,7 @@ fn import_report_row_tags_are_stable() {
         promoted_curve_kind_tag(&PromotedCurveKind::Circle),
         "circle"
     );
+    assert_eq!(promoted_curve_kind_tag(&PromotedCurveKind::Line), "line");
 }
 
 #[test]
@@ -2762,8 +2935,10 @@ fn the_prose_rule_separates_a_display_from_a_debug_dump() {
     assert!(!reads_as_prose(&format!("{entropy:?}")));
 
     // The second fingerprint: a fieldless variant renders as one bare
-    // word, which no sentence is.
+    // word, which no sentence is — underscored variant names included,
+    // which is the one character the predicate's alphabet spells.
     assert!(!reads_as_prose("SeamRetrimsArcFirstSide"));
+    assert!(!reads_as_prose("Seam_Retrims_Arc_First_Side"));
     // And the shapes prose legitimately carries: a quoted user string
     // (`Debug` on a `&str`, which the id doors use for its escaping),
     // and a sentence that opens on a capital.
@@ -2812,9 +2987,9 @@ fn a_blend_escalation_reads_as_prose_at_every_site() {
              rather than raising: {text}"
         );
         assert!(
-            text.contains("escalated at the "),
-            "the site names itself after the preposition the sentence supplies: \
-             {text}"
+            text.starts_with("escalated at ") && !text.contains("Key("),
+            "the site names itself after the preposition the sentence supplies, \
+             and no arena key: {text}"
         );
     }
 }
@@ -3321,11 +3496,14 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
         Some("edge_face_pierce")
     );
 
-    // The one fieldless arm, and the shape of every arm that carries
-    // no payload at all: the variant alone, five `None`s beside it,
+    // An arm whose payload projects to no word at all, and the shape
+    // every such arm takes: the variant alone, five `None`s beside it,
     // so `getattr` never raises on a finding a caller did not expect.
+    // Check 7's subject is a solid, and a solid key is not a word.
     assert_eq!(
-        project(&ValidationError::NegativeVolume),
+        project(&ValidationError::NegativeVolume {
+            solid: SolidKey::default(),
+        }),
         Finding {
             variant: "negative_volume",
             subject_kind: None,
@@ -3397,7 +3575,13 @@ fn every_stale_declaration_arm_projects_the_payload_it_carries() {
     // the contradiction arm is the OTHER direction of the same
     // certification diff and carries a declaration that IS witnessed,
     // by counter-evidence.
-    assert_eq!(project(&ValidationError::NegativeVolume).stale_kind, None);
+    assert_eq!(
+        project(&ValidationError::NegativeVolume {
+            solid: SolidKey::default(),
+        })
+        .stale_kind,
+        None
+    );
 }
 
 /// **Every `RingContact` arm's word, built and read.**
@@ -3527,6 +3711,353 @@ fn every_slot_word_reads_back_to_the_slot_it_names() {
     }
 }
 
+/// **`ValidationRefusal::ALL` is the enum, and the inventory is what
+/// says so.**
+///
+/// The roster exists so the class's attribute set can be derived from
+/// the enum rather than restated, which is worth nothing if the roster
+/// can fall behind the enum. Nothing in Rust enumerates a plain enum's
+/// variants, so this borrows the instrument that already reads the
+/// tree: [`TAG_INVENTORY`]'s `validation_refusal_tag` row is compared
+/// against `src/tags.rs` by
+/// [`the_whole_tag_table_matches_its_committed_inventory`], so a sixth
+/// refusal is an arm in that map (a compile error until it is
+/// written), then a word in the inventory (a red row until it is
+/// named), and then a member of the roster — a red row HERE until it
+/// joins.
+///
+/// What it cannot see: a refusal added to the enum and to the map with
+/// the inventory row updated in the same change and the roster left
+/// alone would red here and nowhere else, which is the point; a
+/// refusal added to the enum alone does not compile.
+#[test]
+fn validation_refusals_are_the_roster_the_inventory_reads() {
+    let entry = TAG_INVENTORY
+        .iter()
+        .find(|entry| entry.function == "validation_refusal_tag")
+        .expect("the inventory carries the validation class's vocabulary");
+    let mut from_roster: Vec<&str> = crate::errors::ValidationRefusal::ALL
+        .iter()
+        .map(|refusal| crate::tags::validation_refusal_tag(*refusal))
+        .collect();
+    from_roster.sort_unstable();
+    assert_eq!(
+        from_roster, entry.values,
+        "`ValidationRefusal::ALL` and the map's inventoried words have drifted \
+         apart — the roster is missing a refusal the enum has, or names one it \
+         does not"
+    );
+}
+
+/// **The `ValidationError` class mints onto exactly two attributes.**
+///
+/// [`crate::errors::ValidationRefusal::ATTRIBUTES`] is what
+/// `crate::py::typed_err` asserts a raise site did not spell, so it has
+/// to be the whole image of `attribute()` — a third attribute missing
+/// from it would be a Python-visible word a raise site could still pass
+/// unnoticed, which is the gap the set replaced a single word to close.
+/// Both directions, so a stale member cannot sit there either.
+#[test]
+fn the_validation_class_mints_exactly_these_attributes() {
+    use crate::errors::ValidationRefusal;
+    let written: BTreeSet<&str> = ValidationRefusal::ALL
+        .iter()
+        .map(|refusal| refusal.attribute())
+        .collect();
+    assert_eq!(
+        written.into_iter().collect::<Vec<_>>(),
+        ValidationRefusal::ATTRIBUTES,
+        "the attributes the refusals actually write are not the set the raise \
+         door is asserted against"
+    );
+}
+
+/// **Which attribute each validation refusal's word lands on**,
+/// committed.
+///
+/// `attribute()` is the one thing deciding whether a refusal's word
+/// reaches Python as `ValidationError.door` or as
+/// `ValidationError.reason`, and moving a variant between its arms
+/// changes a published contract while every other guard on this page
+/// stays green: the word is still minted from the map, still
+/// inventoried, still spelled once. Two of the five are held from the
+/// Python side (`tests/test_validate.py` reads `door` on
+/// `validate_pseudomanifold` and `reason` on `mass_properties_failed`)
+/// and three are reachable from no Python test, because a body the
+/// kernel produces passes the first three rungs. So the routing is
+/// pinned here instead, for all five.
+///
+/// **This pins; it does not close.** A sixth refusal routed to the
+/// wrong attribute is caught by the row it has to add here, not by the
+/// compiler.
+const VALIDATION_ROUTING: &[(crate::errors::ValidationRefusal, &str, &str)] = &[
+    (
+        crate::errors::ValidationRefusal::Validate,
+        "door",
+        "validate",
+    ),
+    (
+        crate::errors::ValidationRefusal::Closed,
+        "door",
+        "validate_closed",
+    ),
+    (
+        crate::errors::ValidationRefusal::Geometric,
+        "door",
+        "validate_geometric",
+    ),
+    (
+        crate::errors::ValidationRefusal::Pseudomanifold,
+        "door",
+        "validate_pseudomanifold",
+    ),
+    (
+        crate::errors::ValidationRefusal::MassProperties,
+        "reason",
+        "mass_properties_failed",
+    ),
+];
+
+/// Every refusal writes the attribute and the word [`VALIDATION_ROUTING`]
+/// commits it to, and the table names no refusal the enum does not.
+#[test]
+fn every_validation_refusal_writes_the_attribute_it_is_committed_to() {
+    use crate::errors::ValidationRefusal;
+    for refusal in ValidationRefusal::ALL {
+        let (_, attribute, word) = VALIDATION_ROUTING
+            .iter()
+            .find(|(committed, _, _)| committed == refusal)
+            .unwrap_or_else(|| panic!("{refusal:?} has no committed routing"));
+        assert_eq!(
+            refusal.attribute(),
+            *attribute,
+            "{refusal:?} writes a different Python attribute than the one \
+             committed for it"
+        );
+        assert_eq!(
+            crate::tags::validation_refusal_tag(*refusal),
+            *word,
+            "{refusal:?}'s word is not the one committed for it"
+        );
+    }
+    assert_eq!(
+        VALIDATION_ROUTING.len(),
+        ValidationRefusal::ALL.len(),
+        "the committed routing names a refusal the enum does not have"
+    );
+}
+
+/// **Two layers spell one entity the same way.**
+///
+/// [`crate::tags::entity_kind_tag`] is total over what a document
+/// NAME can denote; [`crate::tags::entity_id_tag`] is total over what
+/// the arena can hold. They are two vocabularies and neither
+/// contains the other — but where both speak of one entity, a caller
+/// resolving a name and a caller reading a census subject are reading
+/// one concept, and learning two spellings for it would be a fact
+/// about this crate rather than about the model.
+///
+/// The three shared words are pinned by CONSTRUCTION, which pins the
+/// mapping and not just the vocabulary; the fourth is pinned as a
+/// divergence, because `body` is a document node and `solid` is an
+/// arena lump, and the day a kind is added to either side this row
+/// asks whether the other gained one too.
+#[test]
+fn the_entity_kind_and_entity_id_maps_agree_where_both_speak() {
+    use crate::tags::{entity_id_tag, entity_kind_tag};
+    use pncad::select::EntityKind;
+    use pncad::topo::{EdgeKey, EntityId};
+
+    for (kind, entity) in [
+        (EntityKind::Face, EntityId::Face(FaceKey::default())),
+        (EntityKind::Edge, EntityId::Edge(EdgeKey::default())),
+        (EntityKind::Vertex, EntityId::Vertex(VertexKey::default())),
+    ] {
+        assert_eq!(
+            entity_kind_tag(kind),
+            entity_id_tag(&entity),
+            "the name layer and the arena layer have drifted apart on one entity"
+        );
+    }
+
+    // Derived from the committed rows rather than from a roster
+    // written here: whatever the two maps mint, `body` is the only
+    // word the kind side speaks that the arena side does not.
+    let kinds = TAG_INVENTORY
+        .iter()
+        .find(|entry| entry.function == "entity_kind_tag")
+        .expect("the inventory carries the entity-kind alphabet");
+    let ids = TAG_INVENTORY
+        .iter()
+        .find(|entry| entry.function == "entity_id_tag")
+        .expect("the inventory carries the entity-id alphabet");
+    let unshared: Vec<&str> = kinds
+        .values
+        .iter()
+        .copied()
+        .filter(|word| !ids.values.contains(word))
+        .collect();
+    assert_eq!(
+        unshared,
+        ["body"],
+        "the two entity alphabets diverge somewhere new — a document `body` is not \
+         an arena `solid`, and any other difference is a spelling to settle"
+    );
+}
+
+/// **Two doors spell one param-table fault the same way.**
+///
+/// The kernel names the eight param-ref refusal arms under one
+/// convention, stated once on `editor_core::EditError` and guarded
+/// there; this is that convention's image on the wire. A caller that
+/// branches on `EditError.variant` and one that branches on the
+/// snapshot door's `variant` are reading ONE fault at ONE address, so
+/// learning two words for it would be a fact about this crate rather
+/// than about the kernel.
+///
+/// Pinned by CONSTRUCTION, so it pins the MAPPING and not just the
+/// vocabulary: each of the four (address, fact) pairs is built at both
+/// doors and the two words compared. A door that re-mints a word of
+/// its own reds here by name. The four entries `SHARED_TAG_WORDS`
+/// carries are the population half of the same fact; this row is why
+/// they are one concept rather than a coincidence.
+#[test]
+fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
+    use crate::tags::{edit_error_tag, snapshot_error_tag};
+    use pncad::document::{Dimension, EditError, ParamName, RecipeNodeId, SlotId, SnapshotError};
+
+    let node = RecipeNodeId(5);
+    let name = || ParamName::new("width");
+
+    let pairs: [(&str, &str, EditError, SnapshotError); 4] = [
+        (
+            "slot",
+            "unknown",
+            EditError::SlotUnknownDocParam {
+                name: name(),
+                node,
+                slot: SlotId::Radius,
+            },
+            SnapshotError::SlotUnknownDocParam {
+                node,
+                slot: SlotId::Radius,
+                name: name(),
+            },
+        ),
+        (
+            "slot",
+            "dimension",
+            EditError::SlotDocParamDimension {
+                name: name(),
+                node,
+                slot: SlotId::Radius,
+                declared: Dimension::Length,
+                referenced: Dimension::Angle,
+            },
+            SnapshotError::SlotDocParamDimension {
+                node,
+                slot: SlotId::Radius,
+                name: name(),
+                declared: Dimension::Length,
+                referenced: Dimension::Angle,
+            },
+        ),
+        (
+            "payload",
+            "unknown",
+            EditError::PayloadUnknownDocParam { name: name(), node },
+            SnapshotError::PayloadUnknownDocParam { node, name: name() },
+        ),
+        (
+            "payload",
+            "dimension",
+            EditError::PayloadDocParamDimension {
+                name: name(),
+                node,
+                declared: Dimension::Length,
+                referenced: Dimension::Angle,
+            },
+            SnapshotError::PayloadDocParamDimension {
+                node,
+                name: name(),
+                declared: Dimension::Length,
+                referenced: Dimension::Angle,
+            },
+        ),
+    ];
+
+    for (address, fact, edit, snapshot) in &pairs {
+        assert_eq!(
+            edit_error_tag(edit),
+            snapshot_error_tag(snapshot),
+            "the edit and load doors have drifted apart on the {fact} fact at the {address} \
+             address"
+        );
+    }
+
+    // The words themselves, against the `{address} x {fact}` product
+    // written once: the pairing above stays true if BOTH maps drift
+    // together, and this is what catches that.
+    let mut spoken: Vec<&str> = pairs
+        .iter()
+        .map(|(_, _, edit, _)| edit_error_tag(edit))
+        .collect();
+    let mut convention: Vec<String> = ["slot", "payload"]
+        .into_iter()
+        .flat_map(|address| {
+            ["unknown_doc_param", "doc_param_dimension"]
+                .into_iter()
+                .map(move |fact| format!("{address}_{fact}"))
+        })
+        .collect();
+    spoken.sort_unstable();
+    convention.sort_unstable();
+    assert_eq!(
+        spoken, convention,
+        "the four param-ref words have left the address-then-fact convention on the wire"
+    );
+}
+
+/// **The class table's `no_at_rest_record` arm predicts the mint
+/// door's refusal in the mint door's own word.**
+///
+/// `ClassAdmission::NoAtRestRecord` exists to answer, before a tool
+/// commits an edit, the question `MintRefusal::NoAtRestRecord`
+/// answers after one — the kernel says so at the arm itself. So a
+/// caller that asks ahead and then reads that refusal is reading one
+/// fact, and it stays one fact only while the two maps agree word for
+/// word. That is what this row holds.
+///
+/// **What it does not hold, stated so the row is not read wider than
+/// it is.** The prediction is the arm's, not the table's: the mint
+/// door (`editor_core::assembly::mint`) refuses through
+/// a wildcard `other =>`, so `ClassAdmission::NotAdmitted` ALSO
+/// reaches the caller as `MintRefusal::NoAtRestRecord` — under a word
+/// the table did not answer. A tool matching the answer it got
+/// against the refusal it later sees is right here, silent on `mints`
+/// (which refuses nothing) and wrong on `not_admitted`. Whether that
+/// wildcard should split is a kernel question, not one this crate can
+/// pin.
+#[test]
+fn the_class_table_predicts_the_mint_refusal_in_its_own_words() {
+    use crate::tags::{class_admission_tag, mint_refusal_tag};
+    use pncad::document::{ClassAdmission, MintRefusal, RecipeNodeId};
+    use pncad::topo::ContactClass;
+
+    assert_eq!(
+        class_admission_tag(&ClassAdmission::NoAtRestRecord {
+            why: "the table's own reason"
+        }),
+        mint_refusal_tag(&MintRefusal::NoAtRestRecord {
+            mate: RecipeNodeId(0),
+            class: ContactClass::Tangent,
+            why: "the table's own reason",
+        }),
+        "the class table and the mint door have drifted apart on the refusal one \
+         exists to predict"
+    );
+}
+
 /// One row of [`TAG_INVENTORY`]: a tag function in `src/tags.rs`, and
 /// the exact vocabulary it can put on the wire.
 struct TagEntry {
@@ -3567,9 +4098,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "at_rest",
             "carried_mint_refusal",
-            "mate_reference_refused",
-            "no_at_rest_record",
             "uncertified",
+            "unminted_mates",
         ],
         delegates: &["product_error_tag"],
     },
@@ -3683,6 +4213,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "boundary_edit_tag",
+        values: &["mate_head_not_a_face", "name_serialize"],
+        delegates: &["declare_error_tag", "placement_rule_fault_tag"],
+    },
+    TagEntry {
         function: "census_contact_tag",
         values: &[
             "conformal_patch",
@@ -3727,11 +4262,28 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "class_admission_tag",
+        values: &["mints", "no_at_rest_record", "not_admitted"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "coherence_condition_tag",
         values: &[
             "meridian_closure",
             "meridian_continuation",
             "rim_continuation",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "corner_reason_tag",
+        values: &[
+            "anchor_outside_trimmed_extent",
+            "behind_arrival_anchor",
+            "behind_incoming_ray",
+            "encloses_leg_carrier",
+            "no_corner_side_candidate",
+            "offset_carriers_disjoint",
         ],
         delegates: &[],
     },
@@ -3772,16 +4324,22 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "declare_names_missing_node",
             "delete_would_dangle",
             "dimension",
-            "doc_param_dimension_mismatch",
+            "doc_param_count_has_no_distribution",
+            "doc_param_count_has_no_unit",
             "doc_param_not_declared",
+            "doc_param_unit_mismatch",
             "doc_param_value_kind_mismatch",
             "duplicate_input",
             "duplicate_witness_entry",
             "empty_placement_list",
             "empty_witness_bulk",
+            "evaluation_of_another_document",
             "improper_placement",
             "invalid_distribution",
             "invalid_tolerance",
+            "maintenance_refused",
+            "maintenance_unrecorded",
+            "mate_refused",
             "measure_malformed",
             "meta_non_finite",
             "meta_not_set",
@@ -3792,7 +4350,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_placement",
             "not_structural_slot",
             "path_off_tree",
-            "payload_param_dimension_mismatch",
+            "payload_doc_param_dimension",
+            "payload_unknown_doc_param",
             "pin_unchanged",
             "placement_axis",
             "placement_on_non_instance",
@@ -3807,13 +4366,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "rebind_target_missing_node",
             "rebind_unknown_name",
             "repeated_designation",
+            "selection_not_canonical",
             "set_members_on_non_list",
             "slot_dimension_mismatch",
+            "slot_doc_param_dimension",
+            "slot_unknown_doc_param",
             "structural_slot_needs_structural_edit",
             "too_few_members",
-            "unknown_doc_param",
             "unknown_node",
-            "unknown_payload_param",
             "unknown_slot",
             "unresolved_input",
             "update_on_non_instance",
@@ -3825,9 +4385,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "edit_inner_variant_tag",
         values: &[],
+        // `mate_fault_tag` twice: the maintenance's refusal and the
+        // per-mate admission's each forward the solve's fault whole.
         delegates: &[
             "distribution_fault_tag",
             "expr_dimension_error_tag",
+            "mate_fault_tag",
+            "mate_fault_tag",
             "measure_node_fault_tag",
             "meta_version_error_tag",
             "node_error_tag",
@@ -3848,6 +4412,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "entity_kind_tag",
+        values: &["body", "edge", "face", "vertex"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "eval_error_tag",
         values: &[
             "continuous_expr_in_count_eval",
@@ -3857,6 +4426,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "non_finite_result",
             "param_dimension_mismatch",
             "unknown_param",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "eval_reason_tag",
+        values: &[
+            "empty_boolean",
+            "node_failed",
+            "node_not_evaluated",
+            "poisoned",
+            "unknown_node",
+            "wrong_kind",
         ],
         delegates: &[],
     },
@@ -3930,8 +4511,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "frame_fault_tag",
+        values: &["improper", "non_finite"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "hit_test_error_tag",
         values: &[
+            "ambiguous",
+            "evaluation_of_another_document",
             "node_failed",
             "node_not_evaluated",
             "node_poisoned",
@@ -3957,6 +4545,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &["resolve_fault_tag"],
     },
     TagEntry {
+        function: "interface_crossing_tag",
+        values: &["mate"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "interrogate_error_tag",
         values: &[
             "ambiguous",
@@ -3973,7 +4566,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "lever_refusal_tag",
-        values: &["datum_too_small"],
+        values: &[
+            "face_unbounded",
+            "malformed_body",
+            "no_extent",
+            "no_finite_bound",
+            "not_an_instance",
+            "part_unresolved",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -3993,13 +4593,25 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "maintenance_tag",
+        values: &[
+            "drop",
+            "gauge_rewrite",
+            "join",
+            "orphaned_declare",
+            "split",
+            "strand",
+            "stranded_appearance",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "mate_fault_tag",
         values: &[
             "mate_band",
             "mate_class_not_admitted",
             "mate_contradictory",
             "mate_dangling_head",
-            "mate_datum_too_small_to_lever",
             "mate_frame_degenerate",
             "mate_indeterminate",
             "mate_part_selects_another_copy",
@@ -4008,7 +4620,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_self",
             "mate_table_lacks",
             "mate_under",
+            "mate_unleverable",
         ],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "mate_primitive_tag",
+        values: &["clocking", "coaxial", "frame_coincidence", "planar_rest"],
         delegates: &[],
     },
     TagEntry {
@@ -4042,17 +4660,25 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "mint_refusal_tag",
+        values: &["mate_reference_refused", "no_at_rest_record"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "naming_error_tag",
         values: &[
             "duplicate",
             "emission",
             "escalated",
             "fragment_lineage_cycle",
+            "merged_chord",
+            "merged_chord_off_rim",
             "missing_upstream",
+            "seam_vertex_parentage",
             "split_lineage_cycle",
             "unnamed",
         ],
-        delegates: &["band_error_tag"],
+        delegates: &["band_error_tag", "rim_share_tag"],
     },
     TagEntry {
         function: "node_error_tag",
@@ -4067,8 +4693,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "chamfer_selection_resolve",
             "crossing_unverified",
             "curved_solid_frontier",
-            "declare_both_operands",
             "declare_resolve",
+            "declare_site_not_an_operand",
             "declare_unsupported_pair",
             "degenerate_direction",
             "derived_frame_section",
@@ -4120,9 +4746,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "tolerance_conflict",
             "transform",
             "tube",
+            "undeclarable_contact",
             "undeclared_contact",
             "underflowed_direction",
-            "union_declare_step",
             "unschedulable_cycle",
             "verb_arity",
             "witness_bifurcation",
@@ -4187,6 +4813,19 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "ortho_frame_error_tag",
+        values: &[
+            "degenerate_u_axis",
+            "degenerate_v_axis",
+            "escalated",
+            "non_finite_u_axis",
+            "non_finite_v_axis",
+            "underflowed_u_axis",
+            "underflowed_v_axis",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "param_attach_error_tag",
         values: &["field_not_on_kind", "stale_key"],
         delegates: &[],
@@ -4228,8 +4867,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "path_error_tag",
         values: &[
             "arc_center_not_equidistant",
-            "arc_continue_needs_arc_carrier",
-            "arc_continue_off_carrier",
             "arc_leg_on_open_fillet",
             "arc_via_collinear",
             "band",
@@ -4265,18 +4902,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
-        function: "corner_reason_tag",
-        values: &[
-            "anchor_outside_trimmed_extent",
-            "behind_arrival_anchor",
-            "behind_incoming_ray",
-            "encloses_leg_carrier",
-            "no_corner_side_candidate",
-            "offset_carriers_disjoint",
-        ],
-        delegates: &[],
-    },
-    TagEntry {
         function: "persist_error_tag",
         values: &[
             "display_unit",
@@ -4284,6 +4909,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "edit_replay",
             "header_id",
             "id_mismatch",
+            "maintenance_frame",
             "non_finite",
             "parse",
             "profile_program",
@@ -4345,7 +4971,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "program_fault_tag",
-        values: &["lattice", "slot_dimension"],
+        values: &["lattice"],
         delegates: &[],
     },
     TagEntry {
@@ -4355,7 +4981,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "promoted_curve_kind_tag",
-        values: &["circle"],
+        values: &["circle", "line"],
         delegates: &[],
     },
     TagEntry {
@@ -4375,17 +5001,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "recorded_program_error_tag",
-        values: &["carrier_in_chain", "subdivision_count"],
+        values: &[
+            "carrier_in_chain",
+            "notation_before_any_step",
+            "notation_off_program",
+            "subdivision_count",
+        ],
         delegates: &["expr_dimension_error_tag"],
     },
     TagEntry {
         function: "refused_ref_tag",
-        values: &[
-            "ref_ambiguous",
-            "ref_not_a_face",
-            "ref_read_below_a_root",
-            "ref_vanished",
-        ],
+        values: &["ref_ambiguous", "ref_read_below_a_root", "ref_vanished"],
         delegates: &[],
     },
     TagEntry {
@@ -4443,6 +5069,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "rim_share_tag",
+        values: &["shared_rim_not_adjacent", "shared_rim_several"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "ring_contact_tag",
         values: &["edge_along_edge", "vertex_on_edge", "vertex_vertex"],
         delegates: &[],
@@ -4471,10 +5102,9 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "not_a_length",
             "pair_in_band",
             "tied_disagrees",
-            "unclassified",
             "unreadable",
         ],
-        delegates: &["band_error_tag"],
+        delegates: &["band_error_tag", "unmirrored_select_tag"],
     },
     TagEntry {
         function: "shell_classify_error_tag",
@@ -4577,8 +5207,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "snapshot_error_tag",
         values: &[
             "assertion_bound",
-            "blend_selection_not_canonical",
-            "count_continuous",
+            "assertion_target",
             "dangling_input",
             "declare_input",
             "epsilon_invalid",
@@ -4589,10 +5218,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "measure_refs",
             "metadata_unversioned",
             "order_mismatch",
-            "placement_frame",
+            "payload_doc_param_dimension",
+            "payload_unknown_doc_param",
+            "placement_improper",
+            "placement_non_finite",
             "placement_not_gauge",
             "placement_rule",
             "placement_site",
+            "slot_dimension",
+            "slot_doc_param_dimension",
+            "slot_unknown_doc_param",
+            "witness_on_missing_node",
             "witness_site",
         ],
         delegates: &["root_fault_tag"],
@@ -4671,8 +5307,30 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "stl_refusal_tag",
+        values: &["not_utf8"],
+        delegates: &[
+            "binary_header_error_tag",
+            "solid_name_error_tag",
+            "stl_error_tag",
+        ],
+    },
+    TagEntry {
         function: "structure_refusal_tag",
         values: &["flipped", "indeterminate"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "subgroup_tag",
+        values: &[
+            "cylindrical",
+            "empty",
+            "planar",
+            "prismatic",
+            "revolute",
+            "se3",
+            "trivial",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -4681,11 +5339,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "certificate_exceeded",
             "empty_loop",
             "invalid_chordal_tolerance",
+            "meridian_free_curved_face",
             "missing_entity",
             "null_scaffold_edge",
             "resolution_overflow",
             "ring_on_curved_face",
             "self_touching_trim_loop",
+            "single_column_curved_face",
             "tolerance_band_unformable",
             "triangulation",
             "unsupported_curve",
@@ -4718,10 +5378,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "degenerate_window",
             "escalated",
-            "frame_not_orthogonal",
             "full_range_window",
-            "non_unit_axis",
-            "non_unit_u_ref",
             "nonpositive_wall",
             "revolve",
             "wall_exceeds_radius",
@@ -4732,6 +5389,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "unexaminable_tag",
         values: &["corrupt", "non_iso_carrier", "null_scaffold_edge"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "unmirrored_select_tag",
+        // Twice on purpose: one word for two arms, and the multiset is
+        // what says the two are held equal here rather than by prose.
+        values: &["unclassified", "unclassified"],
         delegates: &[],
     },
     TagEntry {
@@ -4768,6 +5432,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "empty_loop_vertex_with_emanating",
             "half_edge_multiply_claimed",
             "half_edge_unclaimed",
+            "instance_interference",
             "lamina_wedge",
             "leaked_null_face_record",
             "leaked_provenance",
@@ -4819,6 +5484,17 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "validation_refusal_tag",
+        values: &[
+            "mass_properties_failed",
+            "validate",
+            "validate_closed",
+            "validate_geometric",
+            "validate_pseudomanifold",
+        ],
+        delegates: &[],
+    },
+    TagEntry {
         function: "workspace_error_tag",
         values: &[
             "duplicate_id",
@@ -4838,22 +5514,181 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
 ];
 
+/// **Every word that two tag maps both mint, and how many mint it.**
+///
+/// `src/tags.rs`'s header claims a tag word is scoped to the map that
+/// mints it — a coincidence between two maps is not a collision, and
+/// pinning every such pair would pin accidents. That claim was
+/// decided over seven WORDS and asserted over the file; this is the
+/// file, measured — the roster below IS the count, which is why no
+/// number is written into this sentence: the population grows
+/// whenever a map does, and a prose count of it has gone stale twice.
+///
+/// The row does not say which of the entries below are one concept and
+/// which are coincidence — all but twelve are unread, and `work/census/`'s
+/// `sixty-one-tag-words-are-minted-by-two-or-more-maps-and-seven-are-read`
+/// is where that question lives. What it does is make the population
+/// OBSERVED: a word that starts colliding, or stops, or picks up a
+/// third map, arrives as a failure naming itself instead of as
+/// silence under a rule nobody re-derived.
+///
+/// Derived from [`TAG_INVENTORY`] rather than from the source, so it
+/// inherits that table's own guard and cannot drift from `tags.rs`
+/// without `the_whole_tag_table_matches_its_committed_inventory`
+/// reding first. Its own hand-written half is the roster below, and
+/// the guard on THAT is this row's two directions: an entry no longer
+/// shared fails exactly as a new sharing does.
+const SHARED_TAG_WORDS: &[(&str, usize)] = &[
+    ("ambiguous", 3),
+    ("approx_lane_unsupported", 2),
+    ("assertion_dimension", 2),
+    ("assertion_target", 2),
+    ("band", 16),
+    ("cap_plane", 3),
+    ("certify", 2),
+    ("contact_contradicted", 2),
+    ("corrupt", 3),
+    ("cosurface_escalated", 2),
+    ("dangling_geometry", 2),
+    ("dimension", 2),
+    ("edge", 2),
+    ("empty", 2),
+    ("empty_boolean", 2),
+    ("empty_placement_list", 2),
+    ("escalated", 11),
+    ("euler", 2),
+    ("evaluation_of_another_document", 4),
+    ("face", 3),
+    ("improper_placement", 2),
+    ("indeterminate", 2),
+    ("instance", 2),
+    ("io", 2),
+    ("join", 3),
+    ("measure_malformed", 2),
+    ("no_at_rest_record", 2),
+    ("no_such_body", 2),
+    ("node_failed", 4),
+    ("node_not_evaluated", 3),
+    ("node_poisoned", 2),
+    ("non_finite", 5),
+    ("non_finite_direction", 2),
+    ("non_finite_placement", 2),
+    ("not_a_body", 2),
+    ("not_an_instance", 2),
+    ("null_scaffold_edge", 2),
+    ("op", 3),
+    ("part_unresolved", 2),
+    // ONE concept, and pinned as one: the param-ref convention
+    // `editor_core::EditError`'s enum doc states. That the two maps
+    // agree word for word is held by
+    // `the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words`;
+    // these four rows say only that the sharing is deliberate.
+    ("payload_doc_param_dimension", 2),
+    ("payload_unknown_doc_param", 2),
+    ("pcurve", 5),
+    ("pcurves", 3),
+    ("placement_rule_mismatch", 2),
+    ("poisoned", 2),
+    ("profile", 2),
+    ("revolve", 2),
+    ("shell", 2),
+    ("skin", 2),
+    ("sliver_join", 2),
+    ("sliver_rim", 2),
+    // The slot-addressed half of the four above, same pin.
+    ("slot_doc_param_dimension", 2),
+    ("slot_unknown_doc_param", 2),
+    ("split", 2),
+    ("structure", 3),
+    ("tolerance_conflict", 2),
+    ("transition", 2),
+    ("undeclared_contact", 2),
+    ("underflowed_direction", 2),
+    ("unknown_node", 5),
+    ("unknown_param", 4),
+    ("unnamed", 2),
+    ("unreadable", 2),
+    ("validate", 2),
+    ("vertex", 2),
+    ("vertex_on_edge", 2),
+    ("vertex_on_face", 2),
+    ("vertex_vertex", 3),
+    ("wrong_kind", 2),
+];
+
+#[test]
+fn every_word_two_tag_maps_share_is_on_the_committed_roster() {
+    let mut minters: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for entry in TAG_INVENTORY {
+        for value in entry.values {
+            minters.entry(value).or_default().insert(entry.function);
+        }
+    }
+    let shared: Vec<(&str, usize)> = minters
+        .iter()
+        .filter(|(_, functions)| functions.len() > 1)
+        .map(|(word, functions)| (*word, functions.len()))
+        .collect();
+    let pinned: Vec<(&str, usize)> = SHARED_TAG_WORDS.to_vec();
+    if shared != pinned {
+        let detail: Vec<String> = minters
+            .iter()
+            .filter(|(_, functions)| functions.len() > 1)
+            .map(|(word, functions)| {
+                format!(
+                    "{word} ({}): {}",
+                    functions.len(),
+                    functions.iter().copied().collect::<Vec<_>>().join(", ")
+                )
+            })
+            .collect();
+        panic!(
+            "the set of tag words minted by two or more maps has moved.\n\n\
+             A word two maps share is either ONE FACT the two must keep \
+             spelling the same way — which owes a pin in this file — or a \
+             coincidence between two unrelated vocabularies, which owes \
+             nothing but a decision that it is one. Decide which, then \
+             update SHARED_TAG_WORDS from the list below.\n\n  {}",
+            detail.join("\n  ")
+        );
+    }
+}
+
 /// The committed inventory of `src/tags.rs`'s `pub const` tag words —
 /// the tags that are not behind a `match` at all.
 ///
-/// One entry today. It exists because the evaluation door has no
-/// kernel arm to match on and spelled the standing ladder's first rung
-/// by hand; `the_evaluation_door_speaks_the_standing_ladder` pins the
-/// COPY against the two doors that do match, and this row pins the
-/// word itself, so the three cannot drift together in silence.
-const TAG_CONSTS: &[(&str, &str)] = &[("NODE_NOT_EVALUATED", "node_not_evaluated")];
+/// **One row, and what a row here means is weaker than a map's.** A
+/// word behind an exhaustive `match` is reached by naming a variant,
+/// so a raise site cannot spell a new one and a kernel arm that
+/// arrives without a word stops the build. A `pub const` gives neither:
+/// it pins the TEXT where this guard reads it, and the next raise site
+/// can still write a literal.
+///
+/// So the form is the fallback for a word that has no enum to hang
+/// off. [`crate::tags::STEP_IMPORT_WIREFRAME`] is one: it names an arm
+/// of the STEP importer's SUCCESS enum that the import door does not
+/// adopt, while every other word on that attribute is the kernel
+/// refusal's — `step_import_error_tag` is the sole other source of
+/// `StepImportError.variant` — so there is no type the class could
+/// carry that would not be a second spelling of the kernel's arm
+/// list. That
+/// door's growth is walled by the compiler instead — the enum is not
+/// `#[non_exhaustive]` and the door matches it exhaustively.
+const TAG_CONSTS: &[(&str, &str)] = &[("STEP_IMPORT_WIREFRAME", "wireframe")];
 
-/// Everything [`read_tag_table`] recognised in `src/tags.rs`.
+/// Everything [`read_tag_table`] recognised in the source it read.
 struct TagTable {
     /// Function name -> (its own literals, sorted; its delegates, sorted).
     functions: BTreeMap<String, (Vec<String>, Vec<String>)>,
     /// `pub const` name -> its literal.
     constants: BTreeMap<String, String>,
+    /// Which arm shapes the reader dispatched on, and which top-level
+    /// forms it matched — the reader reporting on ITSELF, which is
+    /// what [`the_tag_table_reader_recognises_every_form_it_claims`]
+    /// compares against the two rosters.
+    shapes: BTreeSet<ArmShape>,
+    /// Which top-level forms were matched.
+    forms: BTreeSet<TopForm>,
 }
 
 /// The contents of the string literal at `at`, and the offset one past
@@ -4882,6 +5717,84 @@ fn string_literal<'a>(text: &'a str, code: &str, at: usize) -> Option<(&'a str, 
     Some((value, at + literal.len()))
 }
 
+/// One shape of match-arm body [`Cursor::parse_arm_body`] recognises.
+///
+/// **The reader dispatches on this enum rather than on a chain of
+/// `if`s over the text, and that is what ties the fixture in
+/// [`the_tag_table_reader_recognises_every_form_it_claims`] to the
+/// reader.** Three steps close the loop: recognition is
+/// [`Self::matches`], an exhaustive `match`, so a seventh form needs
+/// a seventh variant; the classifier walks [`Self::ALL`], so a
+/// variant left out of that list is never returned and its form is
+/// refused as unreadable the first time anything spells it; and the
+/// fixture test asserts that every shape in `ALL` was dispatched on,
+/// so a variant added to the list reds until the fixture holds an
+/// instance. A form the reader can read is therefore a form that test
+/// has seen.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+enum ArmShape {
+    /// A bare string literal: the word itself.
+    Literal,
+    /// A nested `match`, whose own arms are read in turn.
+    NestedMatch,
+    /// A `{ ... }` block around one of the others.
+    Block,
+    /// A bare `None`, which contributes no word.
+    NoneArm,
+    /// A `Some(..)` wrapper around one of the others.
+    SomeArm,
+    /// A call to another tag function, whose words are that
+    /// function's.
+    Delegation,
+}
+
+impl ArmShape {
+    /// Every shape, **in the order they are tested** — this list IS
+    /// the classifier's loop, so a shape left out of it is not
+    /// recognised at all rather than recognised and unwatched.
+    ///
+    /// The order is load-bearing in one place: `None` and `Some(..)`
+    /// come before [`Self::Delegation`], which would otherwise read
+    /// the wrapper as the called map and skip what it wraps.
+    const ALL: &'static [Self] = &[
+        Self::Literal,
+        Self::NestedMatch,
+        Self::Block,
+        Self::NoneArm,
+        Self::SomeArm,
+        Self::Delegation,
+    ];
+
+    /// Whether an arm body starting `rest` is this shape. Decides
+    /// nothing else: recognition is separated from parsing so that
+    /// the first half is a list the compiler holds.
+    fn matches(self, rest: &str) -> bool {
+        match self {
+            Self::Literal => rest.starts_with('"'),
+            Self::NestedMatch => rest
+                .strip_prefix("match")
+                .is_some_and(|after| after.starts_with(|c: char| c.is_whitespace())),
+            Self::Block => rest.starts_with('{'),
+            Self::NoneArm => rest.strip_prefix("None").is_some_and(|after| {
+                !after.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_')
+            }),
+            Self::SomeArm => rest.starts_with("Some("),
+            Self::Delegation => {
+                let name = delegation_name(rest);
+                !name.is_empty() && rest[name.len()..].trim_start().starts_with('(')
+            }
+        }
+    }
+}
+
+/// The identifier a delegation arm opens with — empty where the arm
+/// does not open with one.
+fn delegation_name(rest: &str) -> String {
+    rest.chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+        .collect()
+}
+
 /// A cursor over ONE tag function's body, in the two views the shared
 /// lexer supplies.
 ///
@@ -4903,6 +5816,9 @@ struct Cursor<'a> {
     end: usize,
     /// The function the body belongs to — messages name it.
     what: &'a str,
+    /// Every arm shape this cursor has dispatched on, for
+    /// [`the_tag_table_reader_recognises_every_form_it_claims`].
+    shapes: BTreeSet<ArmShape>,
 }
 
 impl<'a> Cursor<'a> {
@@ -5034,6 +5950,31 @@ impl<'a> Cursor<'a> {
         }
     }
 
+    /// Which of [`ArmShape`]'s forms the arm body at the cursor is —
+    /// decided without consuming anything, so that recognition and
+    /// parsing are two steps and the first one is enumerable.
+    ///
+    /// Anything else — a `format!`, an `if`, a `const` reference, a
+    /// method chain — fails here by name rather than being skipped,
+    /// because a tag arrived at by a route this reader cannot follow
+    /// is a tag the inventory silently stops covering.
+    fn arm_shape(&self) -> ArmShape {
+        let rest = self.rest();
+        ArmShape::ALL
+            .iter()
+            .copied()
+            .find(|shape| shape.matches(rest))
+            .unwrap_or_else(|| {
+                panic!(
+                    "tags.rs: in `{}`, I do not understand this match arm's body: {:?}. \
+                     Teach this reader in the same diff — a shape it cannot follow is a \
+                     tag value the inventory stops covering, silently.",
+                    self.what,
+                    rest.chars().take(60).collect::<String>()
+                )
+            })
+    }
+
     /// Parse the RIGHT of one arm's `=>`.
     ///
     /// Exactly six shapes are recognised, which is the enumerating
@@ -5041,11 +5982,10 @@ impl<'a> Cursor<'a> {
     /// `match`, a `{ ... }` block around one of those, a call to
     /// another tag function, and — for the maps that answer
     /// `Option<&'static str>` — a bare `None` or a `Some(..)` around
-    /// one of the others. Anything else — a `format!`, a `if`, a
-    /// `const` reference, a method chain — fails here by name rather
-    /// than being skipped, because a tag arrived at by a route this
-    /// reader cannot follow is a tag the inventory silently stops
-    /// covering.
+    /// one of the others. They are [`ArmShape`]'s variants, and the
+    /// dispatch below is a `match` over that enum rather than a chain
+    /// of tests, so the six are a list the compiler holds rather than
+    /// one this comment holds.
     ///
     /// `None` contributes NOTHING: an arm that projects no word is a
     /// decision the reader records by the absence of a value, exactly
@@ -5054,93 +5994,236 @@ impl<'a> Cursor<'a> {
     /// inventory.
     fn parse_arm_body(&mut self, values: &mut Vec<String>, delegates: &mut Vec<String>) {
         self.skip_ws();
-        let rest = self.rest();
-        if rest.starts_with('"') {
-            let value = self.take_string();
-            assert!(
-                !value.is_empty()
-                    && value
-                        .bytes()
-                        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_'),
-                "tags.rs: in `{}`, the tag {value:?} is not lower snake case — \
-                 every tag in this file is, and a reader that accepted \
-                 anything would be guessing",
-                self.what
-            );
-            values.push(value.to_owned());
-            return;
+        let shape = self.arm_shape();
+        self.shapes.insert(shape);
+        match shape {
+            ArmShape::Literal => {
+                let value = self.take_string();
+                assert!(
+                    !value.is_empty()
+                        && value
+                            .bytes()
+                            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_'),
+                    "tags.rs: in `{}`, the tag {value:?} is not lower snake case — \
+                     every tag in this file is, and a reader that accepted \
+                     anything would be guessing",
+                    self.what
+                );
+                values.push(value.to_owned());
+            }
+            ArmShape::NestedMatch => self.parse_match(values, delegates),
+            ArmShape::Block => {
+                self.expect("{");
+                self.parse_arm_body(values, delegates);
+                self.expect("}");
+            }
+            ArmShape::NoneArm => self.expect("None"),
+            ArmShape::SomeArm => {
+                self.expect("Some");
+                self.expect("(");
+                self.parse_arm_body(values, delegates);
+                self.expect(")");
+            }
+            ArmShape::Delegation => {
+                let name = delegation_name(self.rest());
+                self.at += name.len();
+                self.skip_ws();
+                let open = self.at;
+                let close = balanced_end(self.code, open).unwrap_or_else(|| {
+                    panic!("tags.rs: in `{}`, a call that never closes", self.what)
+                });
+                assert!(
+                    !self.text[open..=close].contains('"'),
+                    "tags.rs: in `{}`, a string literal inside a delegation's \
+                     arguments — I do not understand this",
+                    self.what
+                );
+                self.at = close + 1;
+                delegates.push(name);
+            }
         }
-        if let Some(after) = rest.strip_prefix("match")
-            && after.starts_with(|c: char| c.is_whitespace())
-        {
-            self.parse_match(values, delegates);
-            return;
-        }
-        if rest.starts_with('{') {
-            self.expect("{");
-            self.parse_arm_body(values, delegates);
-            self.expect("}");
-            return;
-        }
-        // `None` and `Some(..)`, in that order: `Some` must be tested
-        // before the delegation shape below, which would otherwise
-        // read the wrapper as the called map and skip what it wraps.
-        if let Some(after) = rest.strip_prefix("None")
-            && !after.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_')
-        {
-            self.expect("None");
-            return;
-        }
-        if rest.starts_with("Some(") {
-            self.expect("Some");
-            self.expect("(");
-            self.parse_arm_body(values, delegates);
-            self.expect(")");
-            return;
-        }
-        let name: String = rest
-            .chars()
-            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-            .collect();
-        if !name.is_empty() && rest[name.len()..].trim_start().starts_with('(') {
-            self.at += name.len();
-            self.skip_ws();
-            let open = self.at;
-            let close = balanced_end(self.code, open)
-                .unwrap_or_else(|| panic!("tags.rs: in `{}`, a call that never closes", self.what));
-            assert!(
-                !self.text[open..=close].contains('"'),
-                "tags.rs: in `{}`, a string literal inside a delegation's \
-                 arguments — I do not understand this",
-                self.what
-            );
-            self.at = close + 1;
-            delegates.push(name);
-            return;
-        }
-        panic!(
-            "tags.rs: in `{}`, I do not understand this match arm's body: {:?}. \
-             Teach this reader in the same diff — a shape it cannot follow is a \
-             tag value the inventory stops covering, silently.",
-            self.what,
-            rest.chars().take(60).collect::<String>()
-        );
     }
 }
 
-/// One tag function's body, read into (values, delegates).
+/// **The tag-table reader's own guard.**
+///
+/// [`read_tag_table`] is a source-text reader, and a reader that stops
+/// recognising a form does not fail — it reports agreement over the
+/// set it can still see. Every other check on this page exercises it
+/// against `src/tags.rs`, which covers only the forms that file
+/// happens to hold, and holds a single instance of some: one
+/// `pub const` tag word ([`TAG_CONSTS`]), and no
+/// `Option<&'static str>` map with a bare `None` arm sits where an
+/// eye would notice it going unread.
+///
+/// So this drives the reader over a source written to hold ONE of
+/// every top-level form and arm shape its header claims, and pins what
+/// each contributes. A branch that stops matching reds here by name
+/// rather than going quiet.
+///
+/// **The roster below is not a hand census of the reader's branches,
+/// and that is the whole point of [`ArmShape`] and [`TopForm`].** The
+/// reader classifies before it parses, over those two enums, and each
+/// enum's `ALL` IS its classifier's loop. So a form the reader can
+/// read is a variant in `ALL` — a variant outside it is never
+/// returned and its form is refused as unreadable — and every variant
+/// in `ALL` must be exercised here or the assertions at the end of
+/// this test red by name. A seventh form added to the reader without
+/// an instance in the fixture below cannot be green — which is a
+/// property of the dispatch shape and not of anyone remembering to
+/// extend a list.
+#[test]
+fn the_tag_table_reader_recognises_every_form_it_claims() {
+    // Not `src/tags.rs`: the subject is the reader, and a fixture it
+    // cannot drift away from is the only way to assert a form the real
+    // file does not currently spell.
+    let source = r#"//! A module header.
+
+// A line comment, and a blank line above it.
+use crate::errors::EvalReason;
+use pncad::document::{
+    EvalError,
+};
+
+/// A doc comment carrying a "quoted" word the reader must not read.
+pub fn first_tag(reason: EvalReason) -> &'static str {
+    match reason {
+        EvalReason::UnknownNode => "unknown_node",
+        // A delegation inside a block and a bare one, so the two are
+        // told apart rather than conflated; and two bracketed
+        // patterns, which is what drives the pattern skipper's
+        // balanced-bracket branch.
+        EvalReason::WrongKind => { second_tag(reason) }
+        EvalReason::NodeFailed(_) => third_tag(reason),
+        EvalReason::Poisoned { through: _ } => "poisoned",
+        EvalReason::EmptyBoolean => match reason.parts() {
+            [_, ..] => "empty_boolean",
+            [] => "no_parts",
+        },
+    }
+}
+
+pub fn second_tag(reason: EvalReason) -> &'static str {
+    match reason {
+        _ => "second",
+    }
+}
+
+pub fn third_tag(reason: EvalReason) -> &'static str {
+    match reason {
+        _ => "third",
+    }
+}
+
+pub fn maybe_tag(reason: EvalReason) -> Option<&'static str> {
+    match reason {
+        EvalReason::Poisoned => None,
+        _ => Some("maybe"),
+    }
+}
+
+pub const SAMPLE_WORD: &str = "sample_word";
+"#;
+    let table = read_tag_table(source);
+
+    let names: Vec<&str> = table.functions.keys().map(String::as_str).collect();
+    assert_eq!(names, ["first_tag", "maybe_tag", "second_tag", "third_tag"]);
+
+    let (values, delegates) = &table.functions["first_tag"];
+    // Sorted, so the literal, the nested `match`'s two words and the
+    // two delegations all land where the inventory compares them —
+    // and the doc comment's quoted word does NOT.
+    assert_eq!(
+        values,
+        &["empty_boolean", "no_parts", "poisoned", "unknown_node"]
+    );
+    assert_eq!(delegates, &["second_tag", "third_tag"]);
+
+    // The delegates' own words, which is the half a name-only
+    // assertion leaves open: a reader that stopped collecting from a
+    // wildcard-only `match` would still report both functions.
+    assert_eq!(table.functions["second_tag"].0, ["second"]);
+    assert_eq!(table.functions["third_tag"].0, ["third"]);
+
+    // `None` contributes nothing; `Some` is the wrapper, not a
+    // delegation, so what it wraps is what reaches the inventory.
+    let (values, delegates) = &table.functions["maybe_tag"];
+    assert_eq!(values, &["maybe"]);
+    assert!(delegates.is_empty());
+
+    // The `pub const` form, over the fixture's own instance: the
+    // subject here is the reader, and `src/tags.rs`'s single const
+    // would make this branch's coverage a fact about that file.
+    assert_eq!(
+        table.constants,
+        BTreeMap::from([("SAMPLE_WORD".to_owned(), "sample_word".to_owned())])
+    );
+
+    // And the reader's report on ITSELF: every shape and every form it
+    // can dispatch on was dispatched on above. This is the assertion
+    // that makes the fixture a census rather than a sample — a form
+    // added to the reader reds here until the source above holds one.
+    assert_eq!(
+        table.shapes.iter().copied().collect::<Vec<_>>(),
+        ArmShape::ALL,
+        "the fixture no longer exercises every arm shape the reader dispatches on"
+    );
+    assert_eq!(
+        table.forms.iter().copied().collect::<Vec<_>>(),
+        TopForm::ALL,
+        "the fixture no longer exercises every top-level form the reader matches"
+    );
+}
+
+/// The pattern skipper's refusal, which no well-formed source reaches.
+///
+/// [`Cursor::skip_pattern`] panics on a bracket that closes before its
+/// arm's `=>`, and the fixture above cannot hold an instance: a source
+/// that provokes it is not a source the rest of the reader can read.
+/// So it gets its own two-line source, and the branch is exercised
+/// rather than asserted about.
+#[test]
+#[should_panic(expected = "a match arm closed before its `=>`")]
+fn the_tag_table_reader_refuses_a_pattern_that_closes_before_its_arrow() {
+    read_tag_table(
+        "pub fn broken_tag(reason: EvalReason) -> &'static str {\n    \
+         match reason {\n        ) => \"never\",\n    }\n}\n",
+    );
+}
+
+/// **A `pub const fn` map in this file is refused, and says why.**
+///
+/// `src/tags.rs` holds no `const` map today, so nothing else drives
+/// this rung — and the form is not hypothetical: every map in
+/// `src/errors.rs` has it, which is what makes "move the map here"
+/// wrong as stated wherever that is proposed. `TopForm::Const` matches
+/// on `pub const `, a PREFIX of `pub const fn `, so without the
+/// refusal above the line is read as a malformed `&str` const and the
+/// message names the wrong thing.
+#[test]
+#[should_panic(expected = "a `pub const fn` tag map")]
+fn the_tag_table_reader_refuses_a_const_fn_map() {
+    read_tag_table(
+        "pub const fn dimension_tag(dim: Dimension) -> &'static str {\n    \
+         match dim {\n        Dimension::Length => \"length\",\n    }\n}\n",
+    );
+}
+
+/// One tag function's body, read into (values, delegates) — and the
+/// arm shapes the reader dispatched on getting there.
 fn parse_tag_body(
     name: &str,
     text: &str,
     code: &str,
     body: std::ops::Range<usize>,
-) -> (Vec<String>, Vec<String>) {
+) -> ((Vec<String>, Vec<String>), BTreeSet<ArmShape>) {
     let mut cursor = Cursor {
         text,
         code,
         at: body.start,
         end: body.end,
         what: name,
+        shapes: BTreeSet::new(),
     };
     // The `use ... as R;` shorthands some functions open with.
     loop {
@@ -5165,7 +6248,110 @@ fn parse_tag_body(
     );
     values.sort();
     delegates.sort();
-    (values, delegates)
+    ((values, delegates), cursor.shapes)
+}
+
+/// One top-level form [`read_tag_table`] recognises.
+///
+/// [`ArmShape`]'s argument one level out, and the same device: the
+/// reader classifies a line into this enum first and dispatches on it
+/// second, so a seventh top-level form cannot be read without a
+/// seventh variant, and
+/// [`the_tag_table_reader_recognises_every_form_it_claims`] requires
+/// the fixture to hold an instance of each.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
+enum TopForm {
+    /// A blank line, or one that is nothing but comment — one case,
+    /// because the shared lexer has already blanked the second.
+    BlankOrComment,
+    /// A one-line `use` item.
+    UseItem,
+    /// A `use` item that opens a `{` block, closed by `};`.
+    UseBlock,
+    /// A tag map: `pub fn NAME(..) -> &'static str {`.
+    TagFn,
+    /// A partial tag map: `pub fn NAME(..) -> Option<&'static str> {`.
+    OptionTagFn,
+    /// A `pub const NAME: &str = "..";` tag word.
+    Const,
+}
+
+impl TopForm {
+    /// Every form, **in the order they are tested** — this list IS
+    /// the classifier's loop, exactly as [`ArmShape::ALL`] is, so a
+    /// form left out of it is not recognised at all.
+    const ALL: &'static [Self] = &[
+        Self::BlankOrComment,
+        Self::UseItem,
+        Self::UseBlock,
+        Self::TagFn,
+        Self::OptionTagFn,
+        Self::Const,
+    ];
+
+    /// Whether a top-level line (in the CODE view, so comments are
+    /// already blank) is this form, and what follows its keyword.
+    fn matches(self, code_line: &str) -> Option<&str> {
+        let after = |keyword: &str| code_line.strip_prefix(keyword);
+        match self {
+            Self::BlankOrComment => code_line.trim().is_empty().then_some(""),
+            Self::UseItem => after("use ").filter(|rest| rest.ends_with(';')),
+            Self::UseBlock => after("use ").filter(|rest| rest.ends_with('{')),
+            Self::TagFn => after("pub fn ").filter(|rest| rest.ends_with(") -> &'static str {")),
+            Self::OptionTagFn => {
+                after("pub fn ").filter(|rest| rest.ends_with(") -> Option<&'static str> {"))
+            }
+            // `pub const ` is a prefix of `pub const fn `, and the two
+            // are different forms rather than a well-formed one and a
+            // malformed one. Refusing the second here sends it to the
+            // ladder below, which says what it is.
+            Self::Const => after("pub const ").filter(|rest| !rest.starts_with("fn ")),
+        }
+    }
+}
+
+/// Which [`TopForm`] a top-level line is, and what follows its
+/// keyword — decided in one place, so the loop below dispatches on an
+/// enum rather than on a second chain of prefixes.
+///
+/// Fails loud on anything else, which is the enumerating claim: a
+/// construct this reader cannot place stops the table being read past
+/// it rather than being skipped.
+fn top_form<'a>(code_line: &'a str, line: &str, number: usize) -> (TopForm, &'a str) {
+    if let Some((form, rest)) = TopForm::ALL
+        .iter()
+        .find_map(|&form| form.matches(code_line).map(|rest| (form, rest)))
+    {
+        return (form, rest);
+    }
+    // A line that opens with a keyword this reader knows and then does
+    // something it does not: the diagnostic ladder, so the refusal
+    // names the part that was not understood rather than the line.
+    assert!(
+        !code_line.starts_with("use "),
+        "tags.rs:{number}: a `use` item that neither ends in `;` nor \
+         opens a block — I do not understand this: {line}"
+    );
+    assert!(
+        !code_line.starts_with("pub fn "),
+        "tags.rs:{number}: a `pub fn` in the tag module whose signature is \
+         neither `(..) -> &'static str {{` nor \
+         `(..) -> Option<&'static str> {{` on one line — I do not \
+         understand this, and cannot say what it puts on the wire: {line}"
+    );
+    assert!(
+        !code_line.starts_with("pub const fn "),
+        "tags.rs:{number}: a `pub const fn` tag map. This reader's two function \
+         forms strip `pub fn `, so a `const` one is a form it has never been \
+         taught — every map in `src/errors.rs` has this shape, which is why \
+         moving one here verbatim does not work. Teach this reader in the same \
+         diff that adds the construct: {line}"
+    );
+    panic!(
+        "tags.rs:{number}: I do not understand this top-level line, so the tag \
+         table cannot be enumerated past it. Teach this reader in the same diff \
+         that adds the construct: {line}"
+    );
 }
 
 /// **Read `src/tags.rs` and enumerate its tag table.**
@@ -5209,20 +6395,21 @@ fn read_tag_table(source: &str) -> TagTable {
         .collect();
     let mut functions: BTreeMap<String, (Vec<String>, Vec<String>)> = BTreeMap::new();
     let mut constants: BTreeMap<String, String> = BTreeMap::new();
+    let mut shapes: BTreeSet<ArmShape> = BTreeSet::new();
+    let mut forms: BTreeSet<TopForm> = BTreeSet::new();
     let mut i = 0;
     while i < lines.len() {
         // Matched on the code view; REPORTED as the file spells it.
         let line = lines[i];
         let code_line = code_lines[i];
         let number = i + 1;
-        // A blank line and a line that is nothing but comment are one
-        // case here, because the lexer has already blanked the second.
-        if code_line.trim().is_empty() {
-            i += 1;
-            continue;
-        }
-        if let Some(rest) = code_line.strip_prefix("use ") {
-            if rest.ends_with('{') {
+        let (form, rest) = top_form(code_line, line, number);
+        forms.insert(form);
+        match form {
+            TopForm::BlankOrComment | TopForm::UseItem => {
+                i += 1;
+            }
+            TopForm::UseBlock => {
                 i += 1;
                 while i < lines.len() && code_lines[i] != "};" {
                     i += 1;
@@ -5232,91 +6419,73 @@ fn read_tag_table(source: &str) -> TagTable {
                     "tags.rs:{number}: a `use` block that never closes with `}};` — \
                      I do not understand this file"
                 );
-            } else {
+                i += 1;
+            }
+            TopForm::TagFn | TopForm::OptionTagFn => {
+                let (name, _) = rest.split_once('(').unwrap_or_else(|| {
+                    panic!("tags.rs:{number}: a `pub fn` with no argument list: {line}")
+                });
                 assert!(
-                    rest.ends_with(';'),
-                    "tags.rs:{number}: a `use` item that neither ends in `;` nor \
-                     opens a block — I do not understand this: {line}"
+                    !name.is_empty()
+                        && name
+                            .bytes()
+                            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_'),
+                    "tags.rs:{number}: {name:?} is not a lower snake-case name: {line}"
                 );
+                let mut j = i + 1;
+                while j < lines.len() && code_lines[j] != "}" {
+                    j += 1;
+                }
+                assert!(
+                    j < lines.len(),
+                    "tags.rs:{number}: `{name}` has no closing `}}` in column 0 — \
+                     I do not understand where its body ends"
+                );
+                let body = starts[i + 1]..starts[j];
+                let (read, arm_shapes) = parse_tag_body(name, &text, &code, body);
+                shapes.extend(arm_shapes);
+                let previous = functions.insert(name.to_owned(), read);
+                assert!(
+                    previous.is_none(),
+                    "tags.rs:{number}: `{name}` is defined twice"
+                );
+                i = j + 1;
             }
-            i += 1;
-            continue;
-        }
-        if let Some(rest) = code_line.strip_prefix("pub fn ") {
-            let (name, tail) = rest.split_once('(').unwrap_or_else(|| {
-                panic!("tags.rs:{number}: a `pub fn` with no argument list: {line}")
-            });
-            assert!(
-                tail.ends_with(") -> &'static str {")
-                    || tail.ends_with(") -> Option<&'static str> {"),
-                "tags.rs:{number}: a `pub fn` in the tag module whose signature is \
-                 neither `(..) -> &'static str {{` nor \
-                 `(..) -> Option<&'static str> {{` on one line — I do not \
-                 understand this, and cannot say what it puts on the wire: {line}"
-            );
-            assert!(
-                !name.is_empty()
-                    && name
-                        .bytes()
-                        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_'),
-                "tags.rs:{number}: {name:?} is not a lower snake-case name: {line}"
-            );
-            let mut j = i + 1;
-            while j < lines.len() && code_lines[j] != "}" {
-                j += 1;
-            }
-            assert!(
-                j < lines.len(),
-                "tags.rs:{number}: `{name}` has no closing `}}` in column 0 — \
-                 I do not understand where its body ends"
-            );
-            let body = starts[i + 1]..starts[j];
-            let previous =
-                functions.insert(name.to_owned(), parse_tag_body(name, &text, &code, body));
-            assert!(
-                previous.is_none(),
-                "tags.rs:{number}: `{name}` is defined twice"
-            );
-            i = j + 1;
-            continue;
-        }
-        if let Some(rest) = code_line.strip_prefix("pub const ") {
-            let (name, tail) = rest.split_once(": &str = ").unwrap_or_else(|| {
-                panic!(
-                    "tags.rs:{number}: a `pub const` in the tag module that is not a \
-                     `&str` — I do not understand this: {line}"
-                )
-            });
-            // The value is blanked in the code view, so it is located
-            // by the structure around it and read from `text`.
-            let at = starts[i] + code_line.len() - tail.len();
-            let end_of_line = starts[i] + code_line.len();
-            let value = string_literal(&text, &code, at)
-                .filter(|&(_, after)| text[after..end_of_line].trim() == ";")
-                .map(|(value, _)| value)
-                .unwrap_or_else(|| {
+            TopForm::Const => {
+                let (name, tail) = rest.split_once(": &str = ").unwrap_or_else(|| {
                     panic!(
-                        "tags.rs:{number}: a `&str` const whose value is not a bare \
-                         literal — I do not understand this: {line}"
+                        "tags.rs:{number}: a `pub const` in the tag module that is not a \
+                         `&str` — I do not understand this: {line}"
                     )
                 });
-            let previous = constants.insert(name.to_owned(), value.to_owned());
-            assert!(
-                previous.is_none(),
-                "tags.rs:{number}: `{name}` is defined twice"
-            );
-            i += 1;
-            continue;
+                // The value is blanked in the code view, so it is
+                // located by the structure around it and read from
+                // `text`.
+                let at = starts[i] + code_line.len() - tail.len();
+                let end_of_line = starts[i] + code_line.len();
+                let value = string_literal(&text, &code, at)
+                    .filter(|&(_, after)| text[after..end_of_line].trim() == ";")
+                    .map(|(value, _)| value)
+                    .unwrap_or_else(|| {
+                        panic!(
+                            "tags.rs:{number}: a `&str` const whose value is not a bare \
+                             literal — I do not understand this: {line}"
+                        )
+                    });
+                let previous = constants.insert(name.to_owned(), value.to_owned());
+                assert!(
+                    previous.is_none(),
+                    "tags.rs:{number}: `{name}` is defined twice"
+                );
+                i += 1;
+            }
         }
-        panic!(
-            "tags.rs:{number}: I do not understand this top-level line, so the tag \
-             table cannot be enumerated past it. Teach this reader in the same diff \
-             that adds the construct: {line}"
-        );
     }
     TagTable {
         functions,
         constants,
+        shapes,
+        forms,
     }
 }
 
@@ -5390,15 +6559,47 @@ fn read_tag_table(source: &str) -> TagTable {
 /// `select_refusal_tags_are_stable`), so nothing on this page pins
 /// them. `work/lib/` carries that as its own row.
 ///
-/// **A second family is outside it too**: the `reason` words minted as
-/// bare literals in `py/value.rs` rather than as a tag function here —
-/// `"wrong_kind"` (five sites), `"empty_boolean"`, `"unknown_node"`,
-/// `"poisoned"`, `"node_failed"` and `"mass_properties_failed"` — which
-/// cross as an exception's `reason` attribute and so are as
-/// Python-visible as anything in `tags.rs`. `pncad.pyi` documents the
-/// first three and `node_failed`/`poisoned`; `"mass_properties_failed"`
-/// is pinned nowhere in the tree. This inventory reads `src/tags.rs`
-/// and nothing else, so none of them is covered by it.
+/// **The `reason` and `door` words are a second family, and no raise
+/// site under `src/py/` MINTS one any more.** Such an attribute is as
+/// Python-visible as a `variant`, and the words used to be spelled at
+/// construction sites where an inventory reading `src/tags.rs` alone
+/// could not see them. Minting is the claim and it is narrower than
+/// "no such word is written there": `crate::py::measure` writes
+/// `door`, `verb` and `scalar` from a kernel value's own `&str`
+/// fields, which this crate does not choose and no inventory reads —
+/// `work/census/`'s `DimensionError.op` row carries that population,
+/// the `door` literal in `editor-core` included. Two classes now CARRY their discriminant, which
+/// is the strongest of the arrangements below because it makes the
+/// word unspellable rather than merely spelled elsewhere: no raise of
+/// [`crate::errors::ErrorClass::Evaluation`] or
+/// [`crate::errors::ErrorClass::Validation`] — in this crate or in a
+/// file that does not exist yet — can be written without naming a
+/// variant, and `crate::py::raise_typed` mints the word from the map.
+///
+/// **The other doors are closed one rung lower, and the difference is
+/// worth reading.** `crate::py::doc`'s boundary raise takes a
+/// [`crate::errors::BoundaryEdit`] and `crate::py::mesh`'s export raise
+/// a [`crate::errors::StlRefusal`], so no CALL SITE of either can spell
+/// a word — but `EditError.variant` and `StlError.variant` also carry
+/// the kernel refusals' own words, so the class cannot carry a type
+/// without the binding restating a kernel enum's arm list, and a fresh
+/// raise of either class could still pass a `variant` of its own.
+/// [`crate::tags::unmirrored_select_tag`] is lower again: it makes the
+/// query door's wildcard and the contact-class crossing one word in one
+/// place, and stops there.
+///
+/// **And one word is pinned by text alone**, which is the weakest
+/// arrangement and is marked as such where it lives:
+/// [`crate::tags::STEP_IMPORT_WIREFRAME`], in [`TAG_CONSTS`].
+///
+/// **What a sweep shape can and cannot see** is the standing lesson
+/// here rather than any of those words. A sweep for a literal beside a
+/// `reason`/`variant` key found three of the nine; the same words
+/// minted in tuple position, passed as a `&'static str` argument, or
+/// returned from a getter are the same class and were invisible to it.
+/// `work/census/` carries what is measured and unfixed — including
+/// `DimensionError.op`, whose twelve words still reach Python from
+/// literals at call sites of two `&'static str` parameters.
 #[test]
 fn the_whole_tag_table_matches_its_committed_inventory() {
     // `crate_dir`, not the baked path alone: a nextest ARCHIVE replayed
@@ -5430,10 +6631,24 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
          it is matching almost nothing, so this guard was about to pass \
          vacuously"
     );
-    assert!(
-        !table.constants.is_empty(),
-        "the reader found no `pub const` tag word, and there is at least \
-         one (`NODE_NOT_EVALUATED`)"
+    // No floor on `constants`, and it is not wanted: a floor exists to
+    // catch a reader that matched almost nothing over a population too
+    // big to enumerate, and `TAG_CONSTS` IS the enumeration — every
+    // const is named there, so the loop below reports a missing one by
+    // name rather than as a count that drifted.
+
+    // The order [`TAG_INVENTORY`]'s own doc states, CHECKED rather
+    // than restated. It is not a Python-visible fact and nothing below
+    // depends on it — the comparison is keyed by name — but a table
+    // this long is read by scrolling, and three entries had drifted out
+    // of place before this ran. A stated invariant with no check is the
+    // shape this whole page exists to close.
+    let ordered: Vec<&str> = TAG_INVENTORY.iter().map(|entry| entry.function).collect();
+    let mut by_name = ordered.clone();
+    by_name.sort_unstable();
+    assert_eq!(
+        ordered, by_name,
+        "TAG_INVENTORY is not in the order its doc claims — by function name"
     );
 
     let mut pinned: BTreeMap<&str, &TagEntry> = BTreeMap::new();
@@ -5525,6 +6740,2324 @@ fn the_whole_tag_table_matches_its_committed_inventory() {
          same commit, and check `pncad.pyi` and `tests/*.py` for callers of \
          every word that moved.\n\n  {}",
         complaints.join("\n  ")
+    );
+}
+
+/// **One item `src/errors.rs` declares**, and the check that holds
+/// whatever words it puts on a Python wire.
+struct MintingItem {
+    /// The item, qualified by the `impl` block that holds it where it
+    /// has one: `Type::name`, or `<Type as Trait>::name`.
+    owner: &'static str,
+    /// How many literals it spells, character literals included.
+    /// Zero for an item that spells none — a map forwarding another
+    /// file's word, a constructor taking a word from its caller, a
+    /// roster of variants — which is a row here like any other,
+    /// because what this census watches is ARRIVALS.
+    literals: usize,
+    /// What holds those WORDS. This roster holds the item's
+    /// EXISTENCE; values are each row's own pin, named here so that a
+    /// row cannot be added without someone answering the question.
+    held_by: &'static [Holder],
+}
+
+/// What holds one item's WORDS — the answer to the question a row
+/// cannot be added without answering.
+///
+/// A column of prose is a claim nothing re-derives: a renamed test
+/// leaves it pointing at nothing and the census stays green, because
+/// the census is about the item's EXISTENCE and not about what holds
+/// its words. Naming the holders as data rather than as a sentence is
+/// what lets [`every_test_this_census_names_is_one_this_file_declares`]
+/// go and look.
+enum Holder {
+    /// A test in this file, by name, and what it holds. The name is
+    /// re-derived against this file's own source; nothing re-derives
+    /// `holds`, which is a description and not a fact about the tree.
+    ///
+    /// The name is the ONE spelling. Carrying the test item beside it
+    /// — `fn()` in this same array — would pin the rename at compile
+    /// time and would be a second spelling of the same thing held
+    /// equal to the first by nothing, which is the defect this
+    /// program exists to close.
+    Test {
+        /// The `#[test] fn`'s name, as this file declares it.
+        name: &'static str,
+        /// What that test holds about this item's words.
+        holds: &'static str,
+    },
+    /// A holder outside Rust — `pncad.pyi`, the Python suite. Nothing
+    /// here re-derives it, and saying so is the point: a row whose
+    /// holders are all `Outside` is a row no Rust check covers.
+    Outside(&'static str),
+}
+
+/// **The committed roster of everything `src/errors.rs` declares** —
+/// the file's arrival alarm.
+///
+/// `src/tags.rs` is safe to add to because `TAG_INVENTORY` reads it:
+/// a new map there is *"a new set of public Python words that no
+/// inventory has looked at"* the moment it lands. This file had no
+/// equivalent, and the cost was measured rather than predicted — a
+/// further `-> &'static str` map arrived here unpinned, in a diff that
+/// left the tracker row predicting it untouched.
+///
+/// **Which bytes are literals is the shared lexer's answer, not a
+/// grammar of this reader's own, and that is the whole design.** Every
+/// previous instrument over this crate's vocabulary was keyed on a
+/// FORM — a top-level `pub fn`, a literal beside a key, a lowercase
+/// word — and each went blind to the arrival that did not wear it:
+/// this file's `-> &'static str` maps include inherent methods inside
+/// `impl` blocks, which a top-level-keyed reader does not walk, and
+/// every one of them is a `pub const fn`, which the tag reader's
+/// `pub fn ` forms do not admit. [`read_minting_items`] asks
+/// [`test_utils::source`] which bytes of the file are literals, so
+/// there is no form a LITERAL can arrive in that this reader was not
+/// taught.
+///
+/// **The population is a grammar, and saying otherwise was the last
+/// short claim written here.** Which bytes are literals is the shared
+/// lexer's answer; which item spells them is this reader's, and the
+/// walk that answers it reads `fn`, `const` and `static` at the
+/// keyword rather than at a line start, under an allow-list of what
+/// may precede an item. Line-start keying is what that sentence used
+/// to hide: `impl Subject { pub const ALL: &[u8] = &[]; }` read as no
+/// item at all, and the same shape under a rostered row above it
+/// inflated that row and cancelled to silence. What the walk can and
+/// cannot read is [`SCOPE_WALK_BLIND_SPOTS`] and the tests it names,
+/// not this paragraph.
+///
+/// **The rows are the file's DECLARATIONS and the literals are what
+/// each one contributes.** Keying the roster on the literals instead
+/// left an item spelling none outside the alarm entirely, which is an
+/// arrival alarm blind to an arrival: three items here spell no
+/// literal (`EvalReason::ATTRIBUTES`, `QuantityOpMismatch::new`,
+/// `ValidationRefusal::ALL`), and the first of them is Python-visible
+/// vocabulary — an attribute NAME. A map forwarding `crate::tags`'
+/// word is the same shape and
+/// `the_errors_mint_census_reds_by_name_on_a_map_that_spells_no_literal`
+/// executes it.
+///
+/// **The key is `(self type, trait, item name)`, which is the sibling
+/// census's key** — `crates/test-utils/tests/hand_written_impl_census.rs`
+/// keys on `(path, trait, self type)` and says at the site why the
+/// trait is in it. Written as Rust writes it, `<Type as Trait>::name`.
+/// A key without the trait made `impl fmt::Debug for QuantityOpMismatch`
+/// beside the existing `impl fmt::Display` a collision, and hard-stopped
+/// the census on correct code with an instruction — qualify them apart —
+/// that Rust gives no way to follow.
+///
+/// **What this roster does NOT do**, said here because a roster reads
+/// as completeness: it is an ARRIVAL alarm, not a word inventory. The
+/// `literals` count moves when a word is added to or dropped from a
+/// rostered item, so growth is loud; a word RENAMED in place, or
+/// swapped for another inside one item, leaves the count alone and is
+/// the `held_by` column's business.
+///
+/// **Its population is the file's `fn`, `const` and `static`
+/// declarations, and what is outside that is a word channel that is
+/// not one of them.** `QuantityOpMismatch::op` is a struct FIELD: a
+/// `&'static str` this file carries and does not spell, reaching
+/// Python as `DimensionError.op` and interpolated into that class's
+/// message. **Twelve words arrive that way today** (measured
+/// 2026-09-15 over every literal passed to the two `&'static str` door
+/// parameters under `src/py/`), every one minted at a call site and
+/// read by no instrument —
+/// `work/census/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`
+/// is that row, and it is not this one. A SECOND such field arrives
+/// with this census silent, which
+/// `the_errors_mint_census_cannot_see_a_word_channel_that_is_not_a_declaration`
+/// executes rather than asserts. Widening this reader to name a field
+/// would see the channel and still not see the words, which are in
+/// another file.
+///
+/// **Why this census is in this file, weighed.** Against: this
+/// program's other two instruments —
+/// `crates/test-utils/tests/hand_written_impl_census.rs` and
+/// `deny_unknown_fields_census.rs` — are each their own file, and this
+/// one lands deep inside a `mod tests` whose size is an open row on
+/// the same slate, which each unit that touches it has grown. That row
+/// carries the measurement, with the command that re-derives it and
+/// the SHA it was taken at; a copy of the number here would be a
+/// second spelling of a count, which is this program's own subject.
+/// For: the subject is
+/// ONE sibling module of this crate, read through `crate_dir` like
+/// `TAG_INVENTORY` above it reads `src/tags.rs`, and the `held_by`
+/// column names tests that live here — a census in `test-utils` would
+/// cite eleven tests it cannot reach and would be a second place to look
+/// for "what holds a word in this crate". The `TAG_INVENTORY`
+/// precedent decided it. **What it costs is real and is not paid
+/// here**: `work/census/pncad-py-tests-rs-…` carries both sides, and
+/// the growth, for whoever splits it.
+///
+/// **Where this reader's parts live, and why each is where it is.**
+/// Four operations here are not this census's: reading an `impl` head
+/// ([`test_utils::source::impl_head`]), taking a type's bare name
+/// ([`type_base`]), lexing an identifier ([`ident`]) and finding a
+/// line's start ([`line_start`]). Each had a second implementation in
+/// this file or a sibling census by a different algorithm, and a core
+/// hosted inside one of its consumers is the drift this program exists
+/// for — so all four moved to `crates/test-utils/src/source.rs`, which
+/// is where this crate's other readers already ask what a byte is.
+///
+/// **Three more are lexer operations and are still hosted here**, and
+/// that is disclosed rather than argued away: [`balanced_open`] is
+/// [`balanced_end`]'s inverse, [`strip_modifier`] is
+/// [`boundary_before`]'s predicate at the other end of a word, and
+/// [`item_start`] answers a question the sibling census has and
+/// answers less well. They stay because `crates/test-utils/*` is
+/// another program's territory and widening its grammar is a filed row
+/// rather than one taken here —
+/// `work/census/the-mint-reader-hosts-three-lexer-operations-of-its-own.md`.
+///
+/// What is about THIS census and nothing else is the
+/// `(self type, trait, item name)` key, the attribution of a literal
+/// to the item whose head is nearest above it, and the roster below.
+///
+/// Sorted by owner, and the test below checks that rather than
+/// restating it.
+const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
+    MintingItem {
+        owner: "<QuantityOpMismatch as Display>::fmt",
+        literals: 1,
+        held_by: &[Holder::Test {
+            name: "a_quantity_operator_mismatch_carries_structure_not_prose",
+            holds: "the rendered message",
+        }],
+    },
+    MintingItem {
+        owner: "ErrorClass::class_name",
+        literals: 35,
+        held_by: &[Holder::Test {
+            name: "error_classes_name_the_python_hierarchy",
+            holds: "the 35 class names, against a SECOND exhaustive match, so a new \
+                    class stops the build",
+        }],
+    },
+    MintingItem {
+        owner: "EvalReason::ATTRIBUTE",
+        literals: 1,
+        held_by: &[
+            Holder::Test {
+                name: "the_discriminant_attribute_names_are_declared_in_the_stub",
+                holds: "the word against `pncad.pyi`'s `EvaluationError` declaration",
+            },
+            Holder::Outside("the Python suite, which reads `EvaluationError.reason`"),
+        ],
+    },
+    MintingItem {
+        owner: "EvalReason::ATTRIBUTES",
+        literals: 0,
+        held_by: &[Holder::Test {
+            name: "the_discriminant_attribute_names_are_declared_in_the_stub",
+            holds: "the one word it carries — `ATTRIBUTE`'s, spelled once and \
+                    derived here",
+        }],
+    },
+    MintingItem {
+        owner: "QuantityOpMismatch::new",
+        literals: 0,
+        held_by: &[Holder::Outside(
+            "nothing: its `op` parameter's twelve words are minted at call sites \
+             under `src/py/` and no instrument reads them, which is \
+             `work/census/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`",
+        )],
+    },
+    MintingItem {
+        owner: "ValidationRefusal::ALL",
+        literals: 0,
+        held_by: &[Holder::Test {
+            name: "validation_refusals_are_the_roster_the_inventory_reads",
+            holds: "the roster against `crate::tags::validation_refusal_tag`'s words \
+                    as `TAG_INVENTORY` reads them, so a sixth refusal reds",
+        }],
+    },
+    MintingItem {
+        owner: "ValidationRefusal::ATTRIBUTES",
+        literals: 2,
+        held_by: &[
+            Holder::Test {
+                name: "the_validation_class_mints_exactly_these_attributes",
+                holds: "the set, equal to the image of `attribute` over `ALL` in both \
+                        directions",
+            },
+            Holder::Test {
+                name: "the_discriminant_attribute_names_are_declared_in_the_stub",
+                holds: "`door` against `pncad.pyi`'s `ValidationError` declaration, and \
+                        `reason` as a gap that stub has not closed",
+            },
+        ],
+    },
+    MintingItem {
+        owner: "ValidationRefusal::attribute",
+        literals: 2,
+        held_by: &[
+            Holder::Test {
+                name: "the_validation_class_mints_exactly_these_attributes",
+                holds: "the words",
+            },
+            Holder::Test {
+                name: "every_validation_refusal_writes_the_attribute_it_is_committed_to",
+                holds: "which refusal writes which",
+            },
+        ],
+    },
+    MintingItem {
+        owner: "canonical_unit",
+        literals: 2,
+        held_by: &[Holder::Test {
+            name: "canonical_units_match_the_gq5_ratification",
+            holds: "both units",
+        }],
+    },
+    MintingItem {
+        owner: "dimension_tag",
+        literals: 4,
+        held_by: &[
+            Holder::Test {
+                name: "dimension_tags_are_stable",
+                holds: "the four words",
+            },
+            Holder::Test {
+                name: "dimension_tags_match_the_kernel_prose",
+                holds: "them against the kernel's own rendering, over `Dimension::ALL`",
+            },
+        ],
+    },
+    MintingItem {
+        owner: "is_bare_camel_token",
+        literals: 1,
+        held_by: &[Holder::Test {
+            name: "the_prose_rule_separates_a_display_from_a_debug_dump",
+            holds: "the predicate over an underscored bare token — and nothing here \
+                    reaches Python, a `char` being an alphabet rather than a word",
+        }],
+    },
+    MintingItem {
+        owner: "measurement_dimension_tag",
+        literals: 4,
+        held_by: &[Holder::Test {
+            name: "the_two_dimension_alphabets_are_one_list_in_two_cases",
+            holds: "the four words as the capitalised spelling of `dimension_tag`'s, \
+                    over `Dimension::ALL`",
+        }],
+    },
+    MintingItem {
+        owner: "reads_as_prose",
+        literals: 1,
+        held_by: &[Holder::Test {
+            name: "the_prose_rule_separates_a_display_from_a_debug_dump",
+            holds: "the predicate over both fingerprints",
+        }],
+    },
+];
+
+/// Every item `source` declares, with the literals it spells.
+///
+/// **Which bytes are literals is [`test_utils::source`]'s answer, not
+/// this function's**, taken from three of its views at once: `code`
+/// blanks comments and literals, `comments` keeps comments alone, and
+/// `text` keeps literals alone, so a byte blank in the first two and
+/// not the third is inside a literal. No grammar of this reader's
+/// decides which bytes are a word. What is left is the POPULATION and
+/// the ATTRIBUTION — which items there are and which of them spells a
+/// given literal — and both are this reader's own walk over
+/// [`DECLARATION_KEYWORDS`] and [`SCOPE_KEYWORDS`], which is where it
+/// can be wrong. Two of its known wrong answers are refused rather
+/// than reported: a literal it cannot place at all, and a literal in
+/// an attribute whose item it cannot name. The rest are
+/// [`SCOPE_WALK_BLIND_SPOTS`].
+///
+/// **Every literal counts, character literals included.** A `char` puts
+/// no word on a Python wire and is not vocabulary; it is counted anyway
+/// because the population is the file's literals and an item is only in
+/// this census if it has one. Dropping them dropped the ITEM that
+/// spelled nothing else — a `pub const fn sep(self) -> char` spliced
+/// onto this file arrived with the roster silent — and made a `char`
+/// added to a rostered item free. A character literal is carried as the
+/// token AS WRITTEN, `'_'` rather than `_`, so a row's list cannot read
+/// as a word it is not.
+///
+/// Fails loud on what it cannot place: a literal above every
+/// declaration, a literal in an attribute on an item this reader does
+/// not name, a literal form it cannot lex, a scope whose body does not
+/// close, an attribute whose `[` does not close, two items that would
+/// answer to one qualified name.
+fn read_minting_items(source: &str) -> BTreeMap<String, Vec<String>> {
+    let text = code_and_literals(source);
+    let code = code_only(source);
+    let comments = comments_only(source);
+    let scopes = scope_spans(&code);
+    let decls = declaration_heads(&code);
+    // Every item the file declares, literal or not. The population is
+    // the DECLARATIONS and the literals are what each one contributes:
+    // keying the map on the literals instead would leave an item that
+    // spells none out of the census entirely, and an arrival alarm
+    // that cannot see an arrival which happens to spell no word is
+    // not an arrival alarm.
+    let mut found: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for &(start, ref name) in &decls.heads {
+        let owner = qualified(&scopes, start, name);
+        assert!(
+            found.insert(owner.clone(), Vec::new()).is_none(),
+            "errors.rs: two items answer to `{owner}` — this reader keys on the item \
+             name qualified by every scope that holds it, trait and all, so two \
+             spellings of one key merge into one roster row silently. **Rust permits \
+             such a pair**: two `#[cfg]`-selected items of one path are one item after \
+             configuration, and this reader has no configuration — so this is either a \
+             reader that has mis-read one of them, or a file this reader cannot census \
+             until it is taught to tell the two apart. Whichever it is, it is not \
+             something the author can qualify away."
+        );
+    }
+    let bytes = text.as_bytes();
+    let blanked = code.as_bytes();
+    let prose = comments.as_bytes();
+    let mut at = 0usize;
+    while at < bytes.len() {
+        // Blank in the code view, blank in the comment view, and NOT
+        // blank in the one that keeps literals: inside a literal.
+        // Three views rather than two, because a comment adjoining a
+        // literal is blank in the same two the literal is, and a walk
+        // that cannot tell them apart reads across the boundary.
+        if blanked[at] != b' ' || prose[at] != b' ' || bytes[at] == b' ' {
+            at += 1;
+            continue;
+        }
+        let mut end = at;
+        while end < bytes.len() && blanked[end] == b' ' && prose[end] == b' ' {
+            end += 1;
+        }
+        let raw = text[at..end].trim_end();
+        let value = if let Some(word) = plain_string_literal(raw) {
+            word.to_owned()
+        } else if raw.starts_with('\'') || raw.starts_with("b'") {
+            // A character literal, carried as written — see the doc.
+            raw.to_owned()
+        } else {
+            // A raw string, a byte string, a C string, a multi-line
+            // literal this walk saw one line of: a form it cannot read
+            // is a form a word could arrive in unseen.
+            panic!(
+                "errors.rs:{}: a literal form I do not understand, so I cannot say \
+                 what it puts on the wire: {raw:?}",
+                test_utils::source::line(&text, at)
+            );
+        };
+        found
+            .entry(minting_owner(&text, &scopes, &decls, at))
+            .or_default()
+            .push(value);
+        at += raw.len();
+    }
+    for literals in found.values_mut() {
+        literals.sort();
+    }
+    found
+}
+
+/// One thing [`scope_spans`] cannot see, the probe that executes it,
+/// and what that probe does not reach.
+///
+/// **Prose here was a claim nothing re-derived**, in a file whose
+/// subject is exactly that. The entry for `impl` in type position
+/// named a test that has never existed under the spelling it used —
+/// the real one reads `recognises` where the entry read `reads` — and
+/// the doc gate is green over a name in prose, link or no link,
+/// because rustdoc does not build a `cfg(test)` module at all. A name
+/// in this column is looked up in this file's own source instead.
+struct BlindSpot {
+    /// What the walk does not see, or sees wrongly.
+    cannot_see: &'static str,
+    /// The `#[test] fn` that executes it, re-derived against this
+    /// file's own source. An entry with no probe is a claim, and a
+    /// claim is what this column exists to refuse.
+    probe: &'static str,
+    /// What that probe does not reach. A probe inherits the fence of
+    /// whoever wrote it, and this column is where that fence is
+    /// written down.
+    unreached: &'static str,
+}
+
+/// **What [`scope_spans`] cannot see, each with its probe and that
+/// probe's own blind spot.**
+///
+/// Stated before the walk was changed rather than after, which is the
+/// order this program's standing finding 2 asks for: the list, then
+/// the probe against each entry, then the probe's own fence. It claims
+/// no completeness — four such lists have been written about this
+/// reader and every one was short.
+const SCOPE_WALK_BLIND_SPOTS: &[BlindSpot] = &[
+    BlindSpot {
+        cannot_see: "a scope a macro expands to: a `macro_rules!` body spelling `impl` \
+                     is text this walk reads out of its expansion context, and one that \
+                     pastes the keyword together spells nothing for it to read",
+        probe: "the_errors_mint_reader_reads_a_macro_body_as_text_and_says_so",
+        unreached: "a derive or attribute macro, whose output no text in this file \
+                    spells — no probe written here can reach it, and this census is \
+                    silent on every item such a macro mints",
+    },
+    BlindSpot {
+        cannot_see: "a `mod name;` whose body is another file: those items are outside \
+                     this reader's population entirely",
+        probe: "the_errors_mint_reader_does_not_read_a_file_module_as_a_scope",
+        unreached: "it shows the walk does not MISATTRIBUTE the rest of the file into \
+                    that module, and says nothing whatever about the words in the other \
+                    file",
+    },
+    BlindSpot {
+        cannot_see: "a keyword standing in a TYPE — `-> impl Display`, an `impl Trait` \
+                     argument, a `fn(u8)` pointer, a `const` generic parameter, the \
+                     `static` of every `&'static` lifetime. `item_start` refuses these, \
+                     and the half that ends in a `;` is refused twice over by \
+                     `ItemBody::Declaration`",
+        probe: "the_errors_mint_reader_recognises_what_it_claims",
+        unreached: "the fixture is read by the same walk it is checking, so a defect in \
+                    `boundary_before`/`item_body` would pass both together. The check \
+                    that is differently shaped is the roster itself — thirteen rows over \
+                    the real `src/errors.rs`, a behavioural pin that moves if this walk \
+                    starts or stops seeing a scope",
+    },
+    BlindSpot {
+        cannot_see: "the prefix is the SYNTACTIC nesting and not the type's defining \
+                     path: `mod a { impl crate::Taxonomy { … } }` keys under \
+                     `a::Taxonomy`, and a top-level `impl Taxonomy` under `Taxonomy`, \
+                     for one type",
+        probe: "the_errors_mint_reader_keys_a_nested_impl_by_where_it_is_written",
+        unreached: "it records what this reader answers, not that the answer is the one \
+                    a future author expects; it is a disclosed property and not a repair",
+    },
+    BlindSpot {
+        cannot_see: "an `impl` whose generic argument holds a brace — `impl Holds<{ N }> \
+                     for Subject` — loses its body to that brace and stops being a \
+                     scope, so its items are keyed bare",
+        probe: "the_errors_mint_reader_loses_an_impl_whose_generic_argument_holds_a_brace",
+        unreached: "it pins the wrong answer as the answer. The repair is in `item_body`, \
+                    which is `test_utils::source`'s and shared with the sibling census \
+                    that reads it the same way, so it is a filed row rather than a \
+                    widening taken here",
+    },
+    BlindSpot {
+        cannot_see: "a BLOCK is a scope in Rust and is not one here: two blocks in one \
+                     function may each declare a `const` of the same name, and this \
+                     reader keys both under the function. So may two `#[cfg]`-selected \
+                     `mod`s of one path — one item after configuration, two to a reader \
+                     that has none",
+        probe: "the_errors_mint_reader_refuses_two_items_that_answer_to_one_name",
+        unreached: "the refusal is a hard stop, so the case is not censused but \
+                     abandoned: a file holding such a pair gets no roster at all until \
+                     this walk is taught to tell the two apart",
+    },
+];
+
+/// Every `impl`, `mod`, `trait` and `fn` block in the file: the
+/// prefix a name declared inside it is qualified by, and the byte
+/// range its body spans.
+///
+/// **The scan is free and the guard is the sibling census's**, not a
+/// line-start rule of this reader's own.
+/// `crates/test-utils/tests/hand_written_impl_census.rs` walks
+/// `code[from..].find("impl")` over the blanked view and admits a hit
+/// only where [`boundary_before`] and [`boundary_after`] make it a
+/// keyword; [`item_body`] then says whether a body follows. An `impl`
+/// inside a `mod` or a function body is ordinary Rust that a
+/// line-start rule does not see, and its methods then answer to bare
+/// names — loud, because a bare name is not on the roster, but loud
+/// under an item that does not exist by that name.
+///
+/// **`mod` is in the walk because the qualifier is a PATH.** A scope
+/// that contributes no prefix is a scope two types of the same bare
+/// name can collide under, and the collision is the one direction this
+/// census cannot be loud in — two names merging into one roster row.
+/// With the module in the key, `named` below is refusing a name Rust
+/// itself refuses, which is what its message claims.
+///
+/// **The key carries the TRAIT, and that is the sibling census's key
+/// rather than this reader's invention.** That census keys on
+/// `(path, trait, self type)` and says why: a key naming less than the
+/// impl covers impls it was never written about. Here the third
+/// element is the item name instead of the file, and dropping the
+/// trait had the same cost in a sharper form — `impl fmt::Debug for
+/// QuantityOpMismatch` beside the existing `impl fmt::Display` puts
+/// two `fmt`s under one key, and ordinary correct Rust then hard-stops
+/// the census on a demand no author can satisfy, because two trait
+/// `fmt`s cannot be qualified apart. `<Type as Trait>::name` is Rust's
+/// own spelling for the distinction and is what the roster carries; a
+/// module prefix is written BEFORE it (`nested::<Type as Trait>::name`)
+/// rather than inside the angle brackets, which is not how Rust spells
+/// that path.
+///
+/// **A rendered string and not a tuple, weighed.** The key's job is to
+/// be unique, and it is not quite: two `#[cfg]`-selected items of one
+/// path, or two blocks in one function, answer to one string, which
+/// [`read_minting_items`] refuses rather than merges. A tuple key
+/// rendered only for messages would not carry that distinction either
+/// — neither pair differs in any component a tuple would hold, the
+/// `cfg` and the block being the distinguishing thing and no part of
+/// the path. What it would cost is the roster:
+/// [`ERRORS_MINTING_ITEMS`]'s `owner` is one committed string per row,
+/// sorted and compared by it, and a tuple would make every row a
+/// nested literal for no gain in what the census can tell apart.
+///
+/// **What this walk cannot see is [`SCOPE_WALK_BLIND_SPOTS`]**, which
+/// is data rather than prose for the reason the `held_by` column is:
+/// every entry names the probe that executes it, and
+/// [`every_test_this_census_names_is_one_this_file_declares`] looks
+/// each one up in this file's source. A list like this one has claimed
+/// exclusivity and been short four times in this program, so it claims
+/// none — these are the ones that have been run, and the walk is a
+/// text walk, so there are others.
+fn scope_spans(code: &str) -> Vec<(String, std::ops::Range<usize>)> {
+    let mut spans = Vec::new();
+    for keyword in SCOPE_KEYWORDS {
+        let mut from = 0usize;
+        while let Some(off) = code[from..].find(keyword) {
+            let at = from + off;
+            from = at + keyword.len();
+            if !boundary_before(code, at)
+                || !boundary_after(code, at + keyword.len())
+                || item_start(code, at).is_none()
+            {
+                continue;
+            }
+            let body = match item_body(code, at) {
+                ItemBody::Body(body) => body,
+                // `impl Trait` in type position, `mod name;` and a
+                // trait method with no default all end at a `;`, and
+                // none of them opens a scope this file holds items in.
+                ItemBody::Declaration(_) => continue,
+                ItemBody::Unterminated => panic!(
+                    "errors.rs:{}: an `{keyword}` whose body neither opens nor closes — \
+                     I do not understand where its items end",
+                    test_utils::source::line(code, at)
+                ),
+            };
+            spans.push((scope_qualifier(code, keyword, at, body.start), body));
+        }
+    }
+    spans
+}
+
+/// The prefix a name declared directly inside one scope is written
+/// under: a module's own name, or an `impl`'s subject and trait.
+fn scope_qualifier(code: &str, keyword: &str, at: usize, body_start: usize) -> String {
+    if keyword != "impl" {
+        let name = ident(code, skip_ws(code, at + keyword.len()));
+        assert!(
+            !name.is_empty(),
+            "errors.rs:{}: a `{keyword}` whose name I cannot read",
+            test_utils::source::line(code, at)
+        );
+        return name.to_owned();
+    }
+    let head = impl_head(code, at, body_start).unwrap_or_else(|| {
+        panic!(
+            "errors.rs:{}: an `impl` head I cannot read — its generic list does \
+             not close before its body",
+            test_utils::source::line(code, at)
+        )
+    });
+    let subject = type_base(&head.self_type);
+    head.trait_path.map_or_else(
+        || subject.to_owned(),
+        |named| format!("<{subject} as {}>", trait_key(&named)),
+    )
+}
+
+/// The keywords that open a scope a declaration can be written
+/// inside, and whose name the declaration is qualified by.
+///
+/// `fn` is one of them, and its absence was a phantom: a `const`
+/// declared in a method's body answered to the ENCLOSING IMPL's name,
+/// so `impl A { fn m() { const W … } }` beside `impl B { … }` put a
+/// `W` under `A` that `A` does not declare and read `A::m` as
+/// spelling nothing. Two free functions each holding a `const` of the
+/// same name are ordinary Rust and collided outright.
+const SCOPE_KEYWORDS: [&str; 4] = ["impl", "mod", "trait", "fn"];
+
+/// The keywords that declare an item this census attributes literals
+/// to, in the order their arms are read.
+const DECLARATION_KEYWORDS: [&str; 3] = ["fn", "const", "static"];
+
+/// What may be written between an item's attributes and its keyword.
+///
+/// `const` is here for `const fn`, whose head this reader takes at the
+/// `fn` — so that the body is a scope like any other `fn`'s. The
+/// `const` arm of [`declaration_name`] hands `const fn` on for exactly
+/// that reason, and the two together give one head per item rather
+/// than two.
+const ITEM_MODIFIERS: [&str; 5] = ["pub", "unsafe", "async", "extern", "const"];
+
+/// Where the item whose keyword is at `at` begins — its first
+/// modifier, or `at` itself — and `None` where that keyword opens no
+/// item at all.
+///
+/// `impl` is a type-position keyword — `-> impl Display`, an
+/// `impl Trait` argument — and the body [`item_body`] answers for one
+/// of those is the enclosing FUNCTION's, so a walk that took it would
+/// qualify that function's whole contents under the trait's name.
+/// [`ItemBody::Declaration`] catches only the half that ends in a `;`.
+/// `fn` stands in a type too (`fn(u8) -> u8`), `const` stands in a
+/// generic parameter list (`impl<const N: usize>`) and in a `const {}`
+/// block, and `static` is the tail of every `&'static` lifetime in the
+/// file.
+///
+/// **An allow-list of what may precede an item, not a deny-list of
+/// type positions.** A deny-list of the places these keywords can
+/// stand is a blind-spot list, and a blind-spot list written about
+/// this reader has been short every time one has been written. What
+/// may sit between one item and the next is whitespace — a comment is
+/// whitespace in the code view — and [`ITEM_MODIFIERS`], with a
+/// visibility's optional `(…)`. `default` is specialization's and
+/// modifies none of these keywords, so it is not in the list. What may
+/// sit before that is the end of another item (`}` or `;`), the
+/// opening of the scope holding it (`{`), the close of an attribute
+/// (`]`), or the start of the file.
+///
+/// **A modifier is stripped as a WHOLE token.** `head.strip_suffix`
+/// alone reads the `pub` of `mypub` as a visibility, and what follows
+/// is then a declaration this reader invents; the identifier boundary
+/// is what keeps the allow-list from admitting a word it was not
+/// written about.
+///
+/// **A wrong answer here is loud in one direction only, and that is
+/// the safe one.** Rejecting a real item costs its declarations their
+/// qualifier or drops them, and a bare name is not on the roster, so
+/// each reports NEW. Accepting a type position is the quiet direction,
+/// which is why the list admits rather than excludes.
+fn item_start(code: &str, at: usize) -> Option<usize> {
+    let mut head = code[..at].trim_end();
+    let mut begin = at;
+    loop {
+        let Some(last) = head.as_bytes().last() else {
+            return Some(begin);
+        };
+        if *last == b')'
+            && let Some(open) = balanced_open(head)
+            && let before = head[..open].trim_end()
+            && let Some(cut) = strip_modifier(before, "pub")
+        {
+            begin = before.len() - "pub".len();
+            head = cut;
+            continue;
+        }
+        let Some((cut, word)) = ITEM_MODIFIERS
+            .into_iter()
+            .find_map(|word| strip_modifier(head, word).map(|cut| (cut, word)))
+        else {
+            return matches!(last, b'}' | b';' | b'{' | b']').then_some(begin);
+        };
+        begin = head.len() - word.len();
+        head = cut;
+    }
+}
+
+/// `text` with a trailing `word` removed, where that `word` is a whole
+/// identifier — `None` where it is the tail of a longer one.
+fn strip_modifier<'a>(text: &'a str, word: &str) -> Option<&'a str> {
+    let cut = text.strip_suffix(word)?;
+    cut.chars()
+        .next_back()
+        .is_none_or(|c| !c.is_alphanumeric() && c != '_')
+        .then(|| cut.trim_end())
+}
+
+/// The offset of the `(` that opens the round bracket `text` ends
+/// with, or `None` where it does not close.
+///
+/// `text` is a [`code_only`] view, so every bracket is a real bracket
+/// — the same precondition [`balanced_end`] states, read the other way
+/// round.
+fn balanced_open(text: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    for (at, byte) in text.bytes().enumerate().rev() {
+        match byte {
+            b')' => depth += 1,
+            b'(' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(at);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// A trait spelling as a key: its path qualification dropped, its
+/// generic arguments KEPT.
+///
+/// The path is noise — `fmt::Display` and `core::fmt::Display` are one
+/// trait. The arguments are not: `PartialEq<Other>` and `PartialEq`
+/// are two impls a type may carry at once, and a key that conflated
+/// them would collide on exactly the case the trait was put in it for.
+fn trait_key(path: &str) -> String {
+    let (base, args) = path.split_once('<').map_or((path, ""), |(b, a)| (b, a));
+    let base = base.rsplit("::").next().unwrap_or(base).trim();
+    if args.is_empty() {
+        base.to_owned()
+    } else {
+        format!("{base}<{args}")
+    }
+}
+
+/// Every `fn`, `const` and `static` the file declares: the byte offset
+/// its head starts at, and its name.
+///
+/// **`const` is two items in one keyword** — `const NAME:` declares
+/// one and `const fn NAME(` modifies another — and reading the second
+/// as the first is how a `pub const fn` map goes unread, which is
+/// exactly the shape the tag reader's `pub fn ` forms miss. So the
+/// keyword decides nothing on its own; what follows it does.
+///
+/// **A declaration's head starts at its first ATTRIBUTE, not at its
+/// `fn` line**, and that is the difference between a loud census and a
+/// silent one. Attribution is by the nearest declaration at or above a
+/// literal, and an outer attribute sits ABOVE the item it decorates —
+/// so `#[deprecated(note = "word")]` written over one item was read as
+/// a literal of the item before it. That is not merely the wrong row:
+/// it INFLATES the row above by one and, paired with a deletion in the
+/// same item, cancels to no complaint at all. Absorbing the attribute
+/// run into the head below puts the literal on the item that carries
+/// it, where the count moves the way an arrival does.
+fn declaration_heads(code: &str) -> Declarations {
+    let attributes = attribute_spans(code);
+    let mut absorbed = vec![false; attributes.len()];
+    let mut found: Vec<(usize, String)> = Vec::new();
+    for keyword in DECLARATION_KEYWORDS {
+        let mut from = 0usize;
+        while let Some(off) = code[from..].find(keyword) {
+            let at = from + off;
+            from = at + keyword.len();
+            if boundary_before(code, at)
+                && boundary_after(code, at + keyword.len())
+                && let Some(begin) = item_start(code, at)
+                && let Some(name) = declaration_name(code, keyword, at)
+            {
+                found.push((begin, name));
+            }
+        }
+    }
+    // File order, because attribution is by the nearest head at or
+    // above a literal and the scan above is per keyword.
+    found.sort_by_key(|head| head.0);
+    let heads: Vec<(usize, String)> = found
+        .into_iter()
+        .map(|(begin, name)| (head_start(code, &attributes, &mut absorbed, begin), name))
+        .collect();
+    let stray = attributes
+        .into_iter()
+        .zip(absorbed)
+        .filter_map(|(span, taken)| (!taken).then_some(span))
+        .collect();
+    Declarations {
+        heads,
+        stray_attributes: stray,
+    }
+}
+
+/// What [`declaration_heads`] found: the items literals are attributed
+/// to, and the outer attributes that decorate none of them.
+struct Declarations {
+    /// Each declaration's head start and its name, in file order.
+    heads: Vec<(usize, String)>,
+    /// Outer attributes this reader could not attach to a declaration
+    /// it knows — one on a `struct`, an `enum` or a field. A literal
+    /// inside one belongs to the decorated item and NOT to the
+    /// declaration above it, and since this reader cannot name that
+    /// item it refuses rather than attributing the literal wrongly.
+    stray_attributes: Vec<std::ops::Range<usize>>,
+}
+
+/// Every OUTER attribute in the file, as the byte range from the `#`
+/// to its closing `]`.
+///
+/// `#![…]` is excluded: an inner attribute decorates the module it is
+/// written in, not any item below it, so the literal in one is above
+/// every declaration — which [`minting_owner`] refuses rather than
+/// attributing.
+fn attribute_spans(code: &str) -> Vec<std::ops::Range<usize>> {
+    let mut spans = Vec::new();
+    let mut from = 0usize;
+    while let Some(off) = code[from..].find("#[") {
+        let start = from + off;
+        let close = balanced_end(code, start + 1).unwrap_or_else(|| {
+            panic!(
+                "errors.rs:{}: an attribute whose `[` does not close — I do not \
+                 understand where it ends",
+                test_utils::source::line(code, start)
+            )
+        });
+        spans.push(start..close + 1);
+        from = close + 1;
+    }
+    spans
+}
+
+/// Where a declaration's head begins: the start of the line of the
+/// first attribute in the unbroken run above it, or the declaration's
+/// own line start where there is none.
+///
+/// A doc comment between an attribute and its item does not break the
+/// run: `code` is a [`code_only`] view, in which a comment is
+/// whitespace.
+fn head_start(
+    code: &str,
+    attributes: &[std::ops::Range<usize>],
+    absorbed: &mut [bool],
+    mut start: usize,
+) -> usize {
+    while let Some(index) = attributes
+        .iter()
+        .rposition(|span| span.end <= start && code[span.end..start].trim().is_empty())
+    {
+        absorbed[index] = true;
+        start = line_start(code, attributes[index].start);
+    }
+    start
+}
+
+/// The name the declaration keyword at `at` declares, or `None` where
+/// it declares nothing this reader attributes literals to.
+///
+/// **`const` is two items in one keyword** — `const NAME:` declares
+/// one and `const fn NAME(` modifies another. The second is handed on
+/// rather than read here: its head is the `fn`, which is also where
+/// [`scope_spans`] takes its body from, and reading it twice would put
+/// two heads on one item and hard-stop the census on a name it had
+/// itself doubled.
+///
+/// The lexing is [`test_utils::source::ident`]'s, shared with
+/// `deny_unknown_fields_census.rs`: this file had written the
+/// plain-alphanumeric half of it without the raw-identifier arm, which
+/// is the same reader one keyword away from reading `r#fn` as `r`. An
+/// empty answer is `None`, so `fn (` is not read as declaring
+/// something unnamed.
+fn declaration_name(code: &str, keyword: &str, at: usize) -> Option<String> {
+    let mut cursor = skip_ws(code, at + keyword.len());
+    match keyword {
+        "const" if ident(code, cursor) == "fn" => return None,
+        "static" if ident(code, cursor) == "mut" => {
+            cursor = skip_ws(code, cursor + "mut".len());
+        }
+        _ => {}
+    }
+    let name = ident(code, cursor);
+    (!name.is_empty()).then(|| name.to_owned())
+}
+
+/// A declaration's name written under EVERY scope whose body holds
+/// it, outermost first — `Type::name`, `<Type as Trait>::name`,
+/// `module::Type::name`.
+///
+/// Every enclosing scope and not just the innermost: a prefix dropped
+/// is two items that can answer to one key, and merging two rows into
+/// one is the direction this census has no way to be loud in.
+/// Enclosure nests, so the containing scope is the one that starts
+/// first.
+fn qualified(scopes: &[(String, std::ops::Range<usize>)], at: usize, name: &str) -> String {
+    let mut enclosing: Vec<&(String, std::ops::Range<usize>)> = scopes
+        .iter()
+        .filter(|(_, body)| body.contains(&at))
+        .collect();
+    enclosing.sort_by_key(|(_, body)| body.start);
+    let mut out = String::new();
+    for (qualifier, _) in enclosing {
+        out.push_str(qualifier);
+        out.push_str("::");
+    }
+    out.push_str(name);
+    out
+}
+
+/// Which item spells the literal at `at` — the nearest declaration
+/// head at or above it, qualified.
+///
+/// Fails loud rather than inventing an owner. A literal with no
+/// declaration above it is in a construct this reader has not been
+/// taught, and attributing it to nothing would drop it from the census
+/// silently. A literal inside an attribute on an item this reader does
+/// not name is the SHARPER case: the nearest declaration above it is
+/// the item BEFORE the one the attribute decorates, so attributing it
+/// there would inflate that row by one — and a deletion in the same
+/// item cancels the inflation to no complaint at all.
+fn minting_owner(
+    text: &str,
+    scopes: &[(String, std::ops::Range<usize>)],
+    decls: &Declarations,
+    at: usize,
+) -> String {
+    assert!(
+        !decls.stray_attributes.iter().any(|span| span.contains(&at)),
+        "errors.rs:{}: a literal in an attribute on an item I cannot name — a \
+         `struct`, an `enum`, a variant or a field. It belongs to the item the \
+         attribute decorates, and charging it to the declaration above would move \
+         THAT row's count instead. Teach this reader the item in the same diff.",
+        test_utils::source::line(text, at)
+    );
+    let (start, name) = decls
+        .heads
+        .iter()
+        .rev()
+        .find(|&&(start, _)| start <= at)
+        .unwrap_or_else(|| {
+            panic!(
+                "errors.rs:{}: a string literal above every declaration in the file — \
+                 I cannot say which item spells it",
+                test_utils::source::line(text, at)
+            )
+        });
+    qualified(scopes, *start, name)
+}
+
+/// Where [`ERRORS_MINTING_ITEMS`] and the file disagree.
+///
+/// A function rather than a block inside the test, so that the WHOLE
+/// instrument — the comparison as well as the reader — is what the
+/// guard below drives over fixtures. A guard that re-implements the
+/// comparison it checks is asserting about a second copy.
+fn minting_complaints(found: &BTreeMap<String, Vec<String>>) -> Vec<String> {
+    let mut complaints = Vec::new();
+    let mut pinned: BTreeMap<&str, &MintingItem> = BTreeMap::new();
+    for item in ERRORS_MINTING_ITEMS {
+        assert!(
+            pinned.insert(item.owner, item).is_none(),
+            "ERRORS_MINTING_ITEMS names `{}` twice",
+            item.owner
+        );
+    }
+    for (owner, literals) in found {
+        match pinned.get(owner.as_str()) {
+            None if literals.is_empty() => complaints.push(format!(
+                "NEW item `{owner}`, which no roster has looked at. It spells no \
+                 literal, so nothing here says whether it puts a word on a Python \
+                 wire — a map forwarding `crate::tags`' word does not, and a \
+                 `&'static str` this file hands on does. Add a row to \
+                 ERRORS_MINTING_ITEMS naming what holds its words, and if nothing \
+                 does, that is the finding."
+            )),
+            None => complaints.push(format!(
+                "NEW item `{owner}` spells {} literal(s) — {literals:?} — that no \
+                 roster has looked at. If any of them reaches Python, it is public \
+                 vocabulary with no pin; add a row to ERRORS_MINTING_ITEMS naming what \
+                 holds the words, and if nothing does, that is the finding.",
+                literals.len()
+            )),
+            Some(item) if item.literals != literals.len() => complaints.push(format!(
+                "`{owner}` spells {} literal(s) — {literals:?} — and \
+                 ERRORS_MINTING_ITEMS says {}. A word added here is Python-visible \
+                 vocabulary; check it against {} and move the count.",
+                literals.len(),
+                item.literals,
+                held_by_prose(item)
+            )),
+            Some(_) => {}
+        }
+    }
+    for item in ERRORS_MINTING_ITEMS {
+        if !found.contains_key(item.owner) {
+            complaints.push(format!(
+                "ERRORS_MINTING_ITEMS names `{}`, and the reader did not find it. \
+                 Either it is gone — drop the row — or the reader stopped seeing it, \
+                 which is this guard going blind and is the serious case.",
+                item.owner
+            ));
+        }
+    }
+    complaints
+}
+
+/// One item's holders as a sentence, so a complaint about a moved
+/// count tells its reader where the words it is about are held.
+fn held_by_prose(item: &MintingItem) -> String {
+    item.held_by
+        .iter()
+        .map(|holder| match holder {
+            Holder::Test { name, holds } => format!("`{name}`, which holds {holds}"),
+            Holder::Outside(what) => (*what).to_owned(),
+        })
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+/// This crate's own `src/errors.rs` — the census's subject, and what
+/// the guards below drive it over with an arrival spliced on.
+///
+/// `crate_dir`, not the baked path alone: a nextest ARCHIVE replayed on
+/// another runner has no such directory, and this crate's own source is
+/// what the census opens.
+fn errors_source() -> String {
+    let path = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("errors.rs");
+    std::fs::read_to_string(&path).expect("this crate's own src/errors.rs")
+}
+
+/// **Nothing enumerated `src/errors.rs`, and a fifth Python-visible
+/// map arrived here unpinned while the tracker row predicting it sat
+/// untouched in the same diff.** This is the arrival alarm that row
+/// asked for.
+///
+/// The roster IS the enumeration, so there is no floor: every item is
+/// named, and a reader that came back with nothing reports every row
+/// missing BY NAME rather than a count that drifted.
+#[test]
+fn errors_rs_spells_literals_in_exactly_these_items() {
+    let ordered: Vec<&str> = ERRORS_MINTING_ITEMS.iter().map(|item| item.owner).collect();
+    let mut by_name = ordered.clone();
+    by_name.sort_unstable();
+    assert_eq!(
+        ordered, by_name,
+        "ERRORS_MINTING_ITEMS is not in the order its doc claims — by owner"
+    );
+
+    let complaints = minting_complaints(&read_minting_items(&errors_source()));
+    assert!(
+        complaints.is_empty(),
+        "src/errors.rs and ERRORS_MINTING_ITEMS disagree. Every literal in that \
+         file is a candidate for Python-visible vocabulary, and the roster is what \
+         says one has arrived.\n\n  {}",
+        complaints.join("\n  ")
+    );
+}
+
+/// **The mint reader's own guard.**
+///
+/// [`read_minting_items`] is a source-text reader, and a reader that
+/// stops recognising a form does not fail — it reports agreement over
+/// the set it can still see. The census above exercises it against
+/// `src/errors.rs`, which holds one of some forms and none of others:
+/// no generic `impl`, no `static`, no restricted visibility, no
+/// literal in an attribute, one character literal, no second trait
+/// impl for a type that already has one, no `mod`, no `trait`, no
+/// declaration sharing a line with its scope, no declaration inside a
+/// function body, no `impl` at indentation and no `impl` in type
+/// position.
+///
+/// So this drives it over a source written to hold one of each and
+/// pins what every item contributes. The expectation is spelled out
+/// whole rather than derived, because a fixture is the one place in
+/// this file where a hand-written list is the subject rather than the
+/// defect: it is what the reader is measured AGAINST.
+///
+/// **Five of these rows are the reader's key and its alphabet, and
+/// all of them were arrived at by running it.** `Taxonomy` carries two
+/// `fmt`s — `Display` and `Debug` — which is ordinary correct Rust and
+/// which a key without the trait in it cannot tell apart; they answer
+/// to `<Taxonomy as Display>::fmt` and `<Taxonomy as Debug>::fmt`. It
+/// carries two `eq`s as well, `PartialEq` and `PartialEq<Other>`,
+/// which is the case [`trait_key`] keeps the trait's ARGUMENTS for:
+/// dropping them puts both under `<Taxonomy as PartialEq>::eq` and
+/// hard-stops the census on correct code. That argument was written
+/// down and pinned by nothing until these two rows.
+/// `SEP` carries `'/'`, a character literal, counted as a literal and
+/// carried as written. And `after_the_attribute` carries the
+/// `#[deprecated]` literal ABOVE it, because an outer attribute is
+/// part of the head of the item it decorates and not a literal of the
+/// item before it. `foreign` carries `"C"`, its own ABI string: an ABI
+/// is a literal like any other and this census counts literals, not
+/// vocabulary, so a row's count is what the file spells and the
+/// `held_by` column is where a word is said to reach Python or not.
+///
+/// **Eight more rows are [`scope_spans`]'s own**, and they are here
+/// because the roster over `src/errors.rs` cannot reach them — that
+/// file has no `mod`, no `trait`, and every `impl` in it starts a
+/// line. `nested::Taxonomy::in_a_module` and `plain::IN_PLAIN` are an
+/// `impl` at indentation and a module prefix in the key;
+/// `<Taxonomy as Sealed>::MARK` is an `unsafe impl`, and the module
+/// above it a `pub(crate)` one, which are two of the modifiers
+/// [`item_start`] admits. `returns_impl::INSIDE` sits in the body of a
+/// `fn` returning `impl Display`, so a walk reading that `impl` as an
+/// item head would take the FUNCTION's body for the trait's scope and
+/// answer `Display::INSIDE`.
+///
+/// The last four are what a line-start walk could not read at all.
+/// `OneLine::ALL` shares its line with the `impl` that holds it, which
+/// a reader keyed on the first token of a LINE answered `{}` to — and
+/// answered by inflating the row above, where a deletion in the same
+/// item cancels it to silence. `Declared::DECLARED_WORD` and
+/// `Declared::declared` are a `trait`'s, which was no scope at all and
+/// put both under bare names. `holder::HELD` is a `const` in a
+/// `const fn`'s body: the head of that function is its `fn` and not
+/// its `const`, which is what keeps one item from being read as two,
+/// and its body is a scope, which is what keeps `HELD` off the
+/// enclosing one.
+#[test]
+fn the_errors_mint_reader_recognises_what_it_claims() {
+    let source = r#"//! A module header with a "quoted" word the reader must not read.
+
+use pncad::document::Dimension;
+
+/// A doc comment whose "quoted" word is prose, not vocabulary.
+pub const fn top_level_map(d: Dimension) -> &'static str {
+    match d {
+        Dimension::Length => "length",
+        Dimension::Angle => "angle",
+    }
+}
+
+pub const TOP_WORD: &str = "top";
+
+pub const SEP: char = '/';
+
+pub static TOP_STATIC: &str = "static_word";
+
+pub(crate) fn restricted() -> &'static str {
+    "restricted"
+}
+
+pub unsafe extern "C" fn foreign() -> &'static str {
+    "foreign"
+}
+
+impl Taxonomy {
+    pub const ATTRIBUTE: &'static str = "attribute";
+
+    pub const fn inherent(self) -> &'static str {
+        match self {
+            Self::One => "one",
+            Self::Two => "two",
+        }
+    }
+}
+
+impl fmt::Display for Taxonomy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "the display word")
+    }
+}
+
+impl fmt::Debug for Taxonomy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "the debug word")
+    }
+}
+
+impl PartialEq for Taxonomy {
+    fn eq(&self, other: &Self) -> bool {
+        self.word("same") == other.word("same")
+    }
+}
+
+impl PartialEq<Other> for Taxonomy {
+    fn eq(&self, other: &Other) -> bool {
+        self.word("other") == other.word("other")
+    }
+}
+
+impl<'a> Borrowed<'a> {
+    fn borrowed(&self) -> &'static str {
+        "borrowed"
+    }
+}
+
+impl<const N: usize> Fixed<N> {
+    fn fixed() -> &'static str {
+        "fixed"
+    }
+}
+
+unsafe impl Sealed for Taxonomy {
+    const MARK: &'static str = "marked";
+}
+
+pub(crate) mod nested {
+    impl super::Taxonomy {
+        pub const fn in_a_module() -> &'static str {
+            "nested"
+        }
+    }
+}
+
+pub mod plain {
+    pub const IN_PLAIN: &str = "plain";
+}
+
+pub trait Declared {
+    const DECLARED_WORD: &'static str = "declared";
+    fn declared(&self) -> impl fmt::Display;
+}
+
+impl OneLine { pub const ALL: &str = "one line"; }
+
+pub const fn holder() -> &'static str {
+    const HELD: &str = "held";
+    HELD
+}
+
+pub fn returns_impl() -> impl fmt::Display {
+    const INSIDE: &str = "inside";
+    INSIDE
+}
+
+#[deprecated(note = "an attribute literal")]
+/// A doc comment between the attribute and its item does not break the
+/// run: over the code view it is whitespace.
+#[must_use]
+pub fn after_the_attribute() -> &'static str {
+    "after"
+}
+"#;
+    let found = read_minting_items(source);
+    let expected: Vec<(&str, Vec<&str>)> = vec![
+        ("<Taxonomy as Debug>::fmt", vec!["the debug word"]),
+        ("<Taxonomy as Display>::fmt", vec!["the display word"]),
+        ("<Taxonomy as PartialEq<Other>>::eq", vec!["other", "other"]),
+        ("<Taxonomy as PartialEq>::eq", vec!["same", "same"]),
+        ("<Taxonomy as Sealed>::MARK", vec!["marked"]),
+        ("Borrowed::borrowed", vec!["borrowed"]),
+        ("Declared::DECLARED_WORD", vec!["declared"]),
+        ("Declared::declared", vec![]),
+        ("Fixed::fixed", vec!["fixed"]),
+        ("OneLine::ALL", vec!["one line"]),
+        ("SEP", vec!["'/'"]),
+        ("TOP_STATIC", vec!["static_word"]),
+        ("TOP_WORD", vec!["top"]),
+        ("Taxonomy::ATTRIBUTE", vec!["attribute"]),
+        ("Taxonomy::inherent", vec!["one", "two"]),
+        ("after_the_attribute", vec!["after", "an attribute literal"]),
+        ("foreign", vec!["C", "foreign"]),
+        ("holder", vec![]),
+        ("holder::HELD", vec!["held"]),
+        ("nested::Taxonomy::in_a_module", vec!["nested"]),
+        ("plain::IN_PLAIN", vec!["plain"]),
+        ("restricted", vec!["restricted"]),
+        ("returns_impl", vec![]),
+        ("returns_impl::INSIDE", vec!["inside"]),
+        ("top_level_map", vec!["angle", "length"]),
+    ];
+    let read: Vec<(&str, Vec<&str>)> = found
+        .iter()
+        .map(|(owner, literals)| {
+            (
+                owner.as_str(),
+                literals.iter().map(String::as_str).collect::<Vec<_>>(),
+            )
+        })
+        .collect();
+    assert_eq!(read, expected, "the mint reader read the fixture wrongly");
+}
+
+/// **What makes this census go blind, executed — over both halves of
+/// the instrument.**
+///
+/// A reader that matched nothing must not report agreement, and
+/// neither must a comparison that lost its missing-row loop. The two
+/// fail separately, so one source cannot drive both:
+/// [`read_minting_items`] answers empty over an empty source whether it
+/// is sound or broken, which leaves the reader untouched by that case.
+///
+/// So this drives the pair over an empty source AND over a legible
+/// file holding none of the roster's items. Over both, every row
+/// reports missing BY NAME — the property that keeps a pinned count
+/// from passing vacuously over a population that went missing — and
+/// over the second the reader's own answer is named too, which a
+/// reader that came back with nothing cannot do.
+#[test]
+fn the_errors_mint_census_reds_when_the_file_goes_quiet() {
+    let elsewhere = "pub const fn elsewhere() -> &'static str {\n    \"word\"\n}\n";
+    for (what, source) in [
+        ("an empty source", ""),
+        ("a file this roster is not about", elsewhere),
+    ] {
+        let complaints = minting_complaints(&read_minting_items(source));
+        for item in ERRORS_MINTING_ITEMS {
+            let named = format!("names `{}`", item.owner);
+            assert!(
+                complaints.iter().any(|c| c.contains(&named)),
+                "{what} left `{}` unreported: {complaints:?}",
+                item.owner
+            );
+        }
+    }
+    let complaints = minting_complaints(&read_minting_items(elsewhere));
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("NEW item `elsewhere`")),
+        "the reader's own answer went unnamed, so this guard drives only the \
+         comparison: {complaints:?}"
+    );
+}
+
+/// **The arrival this census exists for, executed against the real
+/// file.**
+///
+/// A sixth map, in the position the census is weakest against — an
+/// inherent method inside an `impl` block, which is where both of the
+/// file's unseen maps already live and which a top-level-keyed reader
+/// does not walk. It reds by name.
+#[test]
+fn the_errors_mint_census_reds_on_a_map_arriving_inside_an_impl() {
+    let arrival = format!(
+        "{}\nimpl ValidationRefusal {{\n    pub const fn sixth_map(self) -> &'static str \
+         {{\n        match self {{\n            Self::MassProperties => \"sixth\",\n      \
+         _ => \"other\",\n        }}\n    }}\n}}\n",
+        errors_source()
+    );
+    let complaints = minting_complaints(&read_minting_items(&arrival));
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("NEW item `ValidationRefusal::sixth_map`")),
+        "a sixth map inside an `impl` did not red by name: {complaints:?}"
+    );
+}
+
+/// **A map arriving inside a `mod` arrives under its QUALIFIED name.**
+///
+/// The walk that finds scopes is free, so an `impl` at indentation is
+/// an `impl`; the module is in the key, so the name the complaint
+/// prints is one a reader can go and find. A bare `seventh` was what a
+/// line-start walk reported — loud, but naming an item that does not
+/// exist by that name, which sends its reader looking for the wrong
+/// thing.
+#[test]
+fn the_errors_mint_reader_keys_a_nested_impl_by_where_it_is_written() {
+    let arrival = format!(
+        "{}\nmod nested {{\n    impl crate::errors::ValidationRefusal {{\n        pub \
+         const fn seventh(self) -> &'static str {{\n            \"seventh\"\n        \
+         }}\n    }}\n}}\n",
+        errors_source()
+    );
+    let complaints = minting_complaints(&read_minting_items(&arrival));
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("NEW item `nested::ValidationRefusal::seventh`")),
+        "a map inside a `mod` did not red under its qualified name: {complaints:?}"
+    );
+    assert!(
+        !complaints.iter().any(|c| c.contains("NEW item `seventh`")),
+        "the qualifier was lost as well as carried: {complaints:?}"
+    );
+}
+
+/// This file's own source — what the roster's `held_by` names are
+/// re-derived against.
+///
+/// `crate_dir` for [`errors_source`]'s reason: a nextest ARCHIVE
+/// replayed on another runner has no such directory.
+fn tests_source() -> String {
+    let path = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
+        .join("src")
+        .join("tests.rs");
+    std::fs::read_to_string(&path).expect("this crate's own src/tests.rs")
+}
+
+/// Whether `code` declares a `#[test] fn` called `name`.
+///
+/// **A `fn` is not a test, and the column says test.** This asked only
+/// whether some `fn` of that name existed, so a row naming
+/// `scope_spans` — a reader in this file, not a check of anything —
+/// passed green while claiming a test held its words. The `#[test]`
+/// above the declaration is what makes the answer the one the column
+/// is about.
+///
+/// A free scan, guarded at both ends. [`ident`] decides the name, so
+/// `fn nameish` is not `fn name`; [`boundary_before`] and
+/// [`boundary_after`] decide the keyword, and neither is optional — a
+/// hit inside a longer word puts the scan mid-identifier, where
+/// `fnx name` answered yes to `name`. `code` is a [`code_only`] view,
+/// which is what keeps a name written in a comment or a literal from
+/// answering yes.
+///
+/// **What this cannot tell apart:** a `#[test] fn` in a
+/// `macro_rules!` body reads as a declaration, and a test declared in
+/// another module of this crate reads as absent. Both are wrong
+/// answers a row could earn; neither is reachable from a `#[test] fn`
+/// in this file, which is what every row names.
+fn declares_test(code: &str, name: &str) -> bool {
+    let attributes = attribute_spans(code);
+    let mut from = 0usize;
+    while let Some(off) = code[from..].find("fn") {
+        let at = from + off;
+        from = at + "fn".len();
+        if boundary_before(code, at)
+            && boundary_after(code, at + "fn".len())
+            && ident(code, skip_ws(code, at + "fn".len())) == name
+            && let Some(begin) = item_start(code, at)
+            && attribute_run(code, &attributes, begin).any(|span| code[span] == *"#[test]")
+        {
+            return true;
+        }
+    }
+    false
+}
+
+/// The unbroken run of outer attributes written above the item
+/// starting at `begin`, innermost first.
+///
+/// A doc comment between two of them does not break the run: `code` is
+/// a [`code_only`] view, in which a comment is whitespace. This is
+/// [`head_start`]'s walk without its absorption bookkeeping, which is
+/// what that walk is for and this one is not.
+fn attribute_run<'a>(
+    code: &'a str,
+    attributes: &'a [std::ops::Range<usize>],
+    begin: usize,
+) -> impl Iterator<Item = std::ops::Range<usize>> + 'a {
+    let mut start = begin;
+    std::iter::from_fn(move || {
+        let index = attributes
+            .iter()
+            .rposition(|span| span.end <= start && code[span.end..start].trim().is_empty())?;
+        start = line_start(code, attributes[index].start);
+        Some(attributes[index].clone())
+    })
+}
+
+/// **The test lookup's own guard**, over text written for it rather
+/// than over this file.
+///
+/// [`declares_test`] is read by every row of two committed lists, and
+/// a lookup that answered yes to everything would leave both asserting
+/// nothing. The rows that answer no are the ones the lookup got wrong
+/// or could: `fnprobe()` runs the keyword into the name and is
+/// [`boundary_after`]'s row, `pubfn probe()` runs it into a modifier
+/// the item walk strips and is [`boundary_before`]'s, and a `fn` with
+/// no `#[test]` over it is not a hypothetical — it is what let a
+/// roster row name a reader and pass.
+#[test]
+fn the_test_lookup_recognises_what_it_claims() {
+    for (what, code, expected) in [
+        ("a test", "#[test]\nfn probe() {}\n", true),
+        (
+            "a test under a second attribute",
+            "#[test]\n#[should_panic]\nfn probe() {}\n",
+            true,
+        ),
+        ("a plain function", "fn probe() {}\n", false),
+        (
+            "a keyword run into its name",
+            "#[test]\nfnprobe() {}\n",
+            false,
+        ),
+        (
+            "a keyword run into a modifier",
+            "#[test]\npubfn probe() {}\n",
+            false,
+        ),
+        (
+            "a test of another name",
+            "#[test]\nfn probeish() {}\n",
+            false,
+        ),
+    ] {
+        assert_eq!(
+            declares_test(code, "probe"),
+            expected,
+            "{what} was read as {}a test",
+            if expected { "not " } else { "" }
+        );
+    }
+}
+
+/// **Every test name this census writes down, re-derived.**
+///
+/// The census holds an item's EXISTENCE and says so; what holds its
+/// WORDS is the column, and a column of prose is a claim nothing
+/// checks — a renamed test leaves it pointing at nothing and every
+/// row here stays green, because a name is not a literal and no
+/// reader in this file was looking at it.
+///
+/// So every [`Holder::Test`] is looked up in this file's own source,
+/// and so is every [`BlindSpot`]'s probe. The lookup is differently
+/// shaped from the lists it checks: they are committed data, and this
+/// reads the file's text for a declaration.
+///
+/// **The blind-spot list is here because a name in prose is invisible
+/// to it.** This reads [`code_only`], in which a doc comment is
+/// whitespace, so a test cited in a sentence can never be looked up —
+/// and the unit that turned the `held_by` column from prose into data
+/// then named a test three screens away, in a doc comment, under a
+/// spelling this file does not declare.
+///
+/// **The two directions this does not close**, disclosed rather than
+/// claimed away. A row whose holders are all [`Holder::Outside`]
+/// names no Rust check and is not made to — that is the statement
+/// `Outside` exists to make. And `holds` is a description: nothing
+/// re-derives that the named test holds what the row says it holds,
+/// only that the test is there.
+#[test]
+fn every_test_this_census_names_is_one_this_file_declares() {
+    let code = code_only(&tests_source());
+    // The reader must be finding tests at all, must not be finding
+    // them in a name this file does not declare, and must not answer
+    // for a `fn` that is no test: a lookup that answered yes to
+    // everything, or no to everything, would leave every row below
+    // asserting nothing, and one that answered for any `fn` is how a
+    // row naming a READER passed while claiming a check.
+    assert!(
+        declares_test(&code, "errors_rs_spells_literals_in_exactly_these_items"),
+        "the lookup found no `errors_rs_spells_literals_in_exactly_these_items` in this \
+         file, so nothing below is about this census"
+    );
+    assert!(
+        !declares_test(&code, "a_test_that_nobody_wrote"),
+        "the lookup answers yes to a name this file does not declare"
+    );
+    assert!(
+        !declares_test(&code, "read_minting_items"),
+        "the lookup answers yes for `read_minting_items`, which is a reader and not a \
+         test — so every row below could name one and still pass"
+    );
+    for spot in SCOPE_WALK_BLIND_SPOTS {
+        assert!(
+            declares_test(&code, spot.probe),
+            "the scope walk's blind-spot list says `{}` is executed by `{}`, and this \
+             file declares no such test. An entry whose probe is gone is a disclosure \
+             with nothing behind it.",
+            spot.cannot_see,
+            spot.probe
+        );
+        assert!(
+            !spot.unreached.is_empty(),
+            "the scope walk's blind-spot list carries `{}` with nothing said about what \
+             its probe does NOT reach. A probe inherits the fence of whoever wrote it, \
+             and that fence is what this column is.",
+            spot.probe
+        );
+    }
+    for item in ERRORS_MINTING_ITEMS {
+        assert!(
+            !item.held_by.is_empty(),
+            "ERRORS_MINTING_ITEMS names `{}` and says nothing holds its words. Name \
+             what does, or name what does not as `Outside` — a row cannot be added \
+             without answering it.",
+            item.owner
+        );
+        for holder in item.held_by {
+            let Holder::Test { name, .. } = holder else {
+                continue;
+            };
+            assert!(
+                declares_test(&code, name),
+                "ERRORS_MINTING_ITEMS says `{}`'s words are held by `{name}`, and this \
+                 file declares no such test. Either it was renamed — move the name here \
+                 in the same diff — or it is gone and those words are held by nothing.",
+                item.owner
+            );
+        }
+    }
+}
+
+/// Which classes carry a discriminant this crate mints, the Python
+/// attribute names it writes, and the ones `pncad.pyi` does NOT
+/// declare.
+///
+/// **The third column is the population's known gap, and a gap is a
+/// filed row or it is a suppression.** `ValidationError` is raised
+/// with `reason` on its one measurement refusal and with `door` on its
+/// four validator refusals, and the stub declares only the second — so
+/// the class's Python contract is short by a word. A reason left out
+/// of this column would read as agreement; listed here, the stub
+/// gaining the declaration reds this test.
+///
+/// **What it costs to ADD to this column, which is the half the
+/// argument above is silent about.** Removing an entry is loud: the
+/// test reds until the stub really does declare the word. Adding one
+/// flipped a red to green with a one-line edit, and the only
+/// constraint was that the name be one this crate mints — so the
+/// repair for `pncad.pyi` losing a declaration was indistinguishable
+/// from the disclosure of a real gap. Each entry therefore names the
+/// tracker row that schedules it, and
+/// [`the_discriminant_attribute_names_are_declared_in_the_stub`] goes
+/// and looks for that row under `work/`. A suppression now costs a
+/// filed row, which is what `work/README.md` asks of every disclosure:
+/// *"disclosing a residue is not scheduling it"*.
+///
+/// **How a reader knows the two rows are all of them.** They are the
+/// two `ErrorClass` variants that carry a discriminant, which is the
+/// set `crate::py::typed_err` mints from. A third would be a third
+/// `ATTRIBUTES` const in `src/errors.rs`, and [`ERRORS_MINTING_ITEMS`]
+/// reds on one BY NAME whether or not it spells a literal —
+/// `the_errors_mint_census_reds_by_name_on_a_map_that_spells_no_literal`
+/// executes exactly that shape. So the arrival is loud one file over,
+/// and this roster is hand-written for what no file states: which
+/// Python CLASS each const's words are written onto.
+const DISCRIMINANT_ATTRIBUTE_STUBS: &[DiscriminantStub] = &[
+    DiscriminantStub {
+        class: "EvaluationError",
+        minted: crate::errors::EvalReason::ATTRIBUTES,
+        undeclared: &[],
+    },
+    DiscriminantStub {
+        class: "ValidationError",
+        minted: crate::errors::ValidationRefusal::ATTRIBUTES,
+        undeclared: &[(
+            "reason",
+            "validation-error-reason-is-raised-and-the-stub-declares-only-door",
+        )],
+    },
+];
+
+/// One class's row in [`DISCRIMINANT_ATTRIBUTE_STUBS`].
+struct DiscriminantStub {
+    /// The Python class a raise writes these attributes onto.
+    class: &'static str,
+    /// The attribute names this crate mints onto it, read from the
+    /// crate's own const rather than spelled again here.
+    minted: &'static [&'static str],
+    /// The known gaps: each an attribute name `pncad.pyi` does not
+    /// declare, with the tracker row that schedules closing it.
+    undeclared: &'static [(&'static str, &'static str)],
+}
+
+/// Whether `work/` holds a tracker row with this id, on any program's
+/// slate.
+///
+/// Any slate, because a row outlives the program that filed it: a
+/// finding goes onto the slate of the program whose ground it lands
+/// on, and moves when that program closes. What this asks is whether
+/// the row EXISTS, which is the difference between a disclosure and a
+/// suppression.
+fn tracker_row_exists(id: &str) -> bool {
+    let work = test_utils::source::repo_root(env!("CARGO_MANIFEST_DIR")).join("work");
+    let file = format!("{id}.md");
+    std::fs::read_dir(&work)
+        .expect("the tracker directory")
+        .filter_map(Result::ok)
+        .any(|slate| slate.path().join(&file).is_file())
+}
+
+/// The instance attributes `pncad.pyi` declares in one class's body.
+///
+/// `tests/test_stubs.py` states this stub's convention and depends on
+/// it: a `Final` annotation, with or without arguments, is a
+/// class-level constant, and a bare `name: type` is an instance
+/// attribute — which is how every refusal payload on every
+/// `PncadError` subclass is declared. This reads the second.
+///
+/// **The two readers of that one convention are held equal by
+/// nothing, and they had already drifted.** `stub_class_names` there
+/// admits `Final` and `Final[…]`; this admitted only the second, so
+/// `x: Final` was a class attribute in Python and an instance
+/// attribute here. No line in `pncad.pyi` spells it today
+/// (`rg ': Final$' crates/pncad-py/pncad.pyi` is empty, 2026-09-15),
+/// so the divergence was latent and the fixture below now holds one.
+/// That is the instance closed and not the class:
+/// `work/census/one-stub-convention-has-two-readers-in-two-languages.md`
+/// carries the pair. This check stays in Rust because its other half
+/// is `crate::errors::EvalReason::ATTRIBUTES` — a Rust const read as a
+/// const, which a Python copy would have to re-spell, and re-spelling
+/// a word is the defect this census exists to find.
+///
+/// Docstrings are skipped by triple-quote parity and not by
+/// indentation, because a line inside one is arbitrary prose and this
+/// stub's prose names attributes constantly.
+fn stub_instance_attributes(stub: &str, class: &str) -> BTreeSet<String> {
+    let mut found = BTreeSet::new();
+    let mut inside = false;
+    let mut in_doc = false;
+    for line in stub.lines() {
+        if line.matches("\"\"\"").count() % 2 == 1 {
+            in_doc = !in_doc;
+            continue;
+        }
+        if in_doc {
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("class ") {
+            inside = ident(rest, 0) == class;
+            continue;
+        }
+        let Some(body) = line.strip_prefix("    ") else {
+            continue;
+        };
+        let name = ident(body, 0);
+        if !inside || name.is_empty() || !body[name.len()..].starts_with(": ") {
+            continue;
+        }
+        let annotation = body[name.len() + ": ".len()..].trim_end();
+        if annotation != "Final" && !annotation.starts_with("Final[") {
+            found.insert(name.to_owned());
+        }
+    }
+    found
+}
+
+/// **The stub reader's own guard.**
+///
+/// [`stub_instance_attributes`] is a text reader over a file whose
+/// PROSE names attributes constantly — `pncad.pyi`'s class docstrings
+/// are where this surface argues its vocabulary — so a reader that
+/// stopped skipping docstrings would report attributes the stub never
+/// declares, and one that stopped finding class bodies would report
+/// none and agree with everything.
+///
+/// The real stub happens to hold no annotation-shaped line inside a
+/// docstring on either class the roster reads, so nothing there drives
+/// the skip. This does: one of each form, and the expectation is one
+/// name.
+///
+/// `Bare: Final` is the form the two readers of this convention
+/// disagreed on. It is a class-level constant in `test_stubs.py` and
+/// was an instance attribute here, so the row that carries it pins
+/// which of the two answers this file gives.
+#[test]
+fn the_stub_attribute_reader_recognises_what_it_claims() {
+    let stub = "class Other:\n    \
+                elsewhere: str\n\n\
+                class Subject(Base):\n    \
+                \"\"\"Prose about this class.\n\n    \
+                reason: a sentence about an attribute, not a declaration of one.\n    \
+                \"\"\"\n\n    \
+                door: str\n    \
+                Host: Final[Kind]\n    \
+                Bare: Final\n    \
+                def method(self) -> None: ...\n\n\
+                class After:\n    \
+                after: str\n";
+    assert_eq!(
+        stub_instance_attributes(stub, "Subject")
+            .into_iter()
+            .collect::<Vec<_>>(),
+        vec!["door".to_owned()],
+        "the stub reader read the fixture wrongly"
+    );
+}
+
+/// **The words this crate writes onto a Python attribute NAME, held
+/// against the stub that declares that attribute.**
+///
+/// `EvalReason::ATTRIBUTE` is one of the thirteen items in
+/// [`ERRORS_MINTING_ITEMS`] and was the one whose column said *no Rust
+/// check names this word*: the word is an attribute name, not a tag,
+/// so `TAG_INVENTORY`'s population cannot reach it however it grows,
+/// and renaming it moved a Python contract with nothing in Rust
+/// noticing. This is that check. It is not a second spelling of the
+/// word — it reads the const and goes looking for it.
+#[test]
+fn the_discriminant_attribute_names_are_declared_in_the_stub() {
+    let stub = std::fs::read_to_string(
+        test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("pncad.pyi"),
+    )
+    .expect("this crate's own pncad.pyi");
+    for row in DISCRIMINANT_ATTRIBUTE_STUBS {
+        let (class, minted, undeclared) = (row.class, row.minted, row.undeclared);
+        let declared = stub_instance_attributes(&stub, class);
+        assert!(
+            !declared.is_empty(),
+            "read no instance attribute at all out of `{class}` — this reader has \
+             stopped seeing the stub's class bodies, and every row below would agree \
+             with it"
+        );
+        for name in minted {
+            if let Some((_, filed)) = undeclared.iter().find(|(gap, _)| gap == name) {
+                assert!(
+                    !declared.contains(*name),
+                    "`{class}.{name}` is declared in `pncad.pyi` now. Drop it from \
+                     DISCRIMINANT_ATTRIBUTE_STUBS's third column and close \
+                     `{filed}`, which carries the gap."
+                );
+                assert!(
+                    tracker_row_exists(filed),
+                    "`{class}.{name}` is suppressed here on the ground that `{filed}` \
+                     carries the gap, and no such row is filed under `work/`. A \
+                     suppression with no row behind it is this column growing silently \
+                     — file it in the same diff, or let the check red."
+                );
+            } else {
+                assert!(
+                    declared.contains(*name),
+                    "this crate writes `{name}` onto `{class}`, and `pncad.pyi` does \
+                     not declare it. A Python caller reading the stub cannot discover \
+                     an attribute a raise sets."
+                );
+            }
+        }
+        for (name, _) in undeclared {
+            assert!(
+                minted.contains(name),
+                "`{class}`'s undeclared column names `{name}`, which this crate does \
+                 not write onto it"
+            );
+        }
+    }
+}
+
+/// **A `mod` whose body is another file opens no scope here**, and the
+/// items after it are not written under its name.
+///
+/// `mod other;` and `mod other { … }` are the same three characters to
+/// a text walk. Taking the first for the second would put every
+/// remaining item in the file under a module it is not in, and since a
+/// module prefix is part of the key, every one of those items would
+/// report NEW under a name that does not exist.
+#[test]
+fn the_errors_mint_reader_does_not_read_a_file_module_as_a_scope() {
+    let found = read_minting_items("mod other;\n\npub const WORD: &str = \"word\";\n");
+    assert_eq!(
+        found.keys().map(String::as_str).collect::<Vec<_>>(),
+        vec!["WORD"],
+        "a file module was read as a scope"
+    );
+}
+
+/// **A keyword inside a longer word opens no scope and declares
+/// nothing**, executed over each of the three guards that say so.
+///
+/// The walk finds its keywords with `str::find`, which is a substring
+/// search: `module_guard!` holds `mod`, `pubmod!` holds `mod` after a
+/// word the allow-list admits, and `unsafepub` ends in one. A macro
+/// invocation with a brace body is ordinary Rust and the first two are
+/// what it looks like to a substring search.
+///
+/// Each row below fails differently with its guard removed, which is
+/// why there are five. On the scope walk: [`boundary_after`] is the
+/// only refusal of `module_guard!` — [`item_start`] is TRUE there, the
+/// `{` of the preceding item being what precedes it — and without it
+/// the items inside answer to `ule_guard::…`; [`boundary_before`] is
+/// the only refusal of `pubmod!`, whose `pub` the allow-list strips to
+/// nothing; and [`strip_modifier`]'s identifier boundary is the only
+/// refusal of `unsafepub`, which strips to `unsafe` and then to
+/// nothing. On the declaration walk the same two guards answer for
+/// declarations: a field named `constant` opens with `const` and,
+/// without [`boundary_after`], declares an item called `ant` — an
+/// ordinary field name and the reachable one of the pair. The last
+/// row is a macro's token tree, where `pubfn later` is two identifier
+/// tokens: without [`boundary_before`] the allow-list strips the `pub`
+/// and declares `later`. Both are names no roster carries, so both are
+/// loud — under items that do not exist.
+///
+/// **`boundary_before` on the declaration walk needs that token tree,
+/// and that is worth saying.** On every ordinary declaration the other
+/// two guards already refuse the same text, so the row that drives it
+/// is the one shape a text walk cannot rule out — a macro body, which
+/// this file reads as text and says so two tests down.
+///
+/// **The third row is not valid Rust and is here anyway.** `pub` and
+/// `unsafe` are keywords, so no valid program writes one as the tail
+/// of an identifier next to another keyword — and this is a text walk,
+/// handed macro bodies and half-written files, whose allow-list has to
+/// refuse a word it was not written about rather than rely on its
+/// input being a compiling program. Its literal lands on the row above
+/// it, which is that refusal's visible cost and is why the row above
+/// it is there.
+#[test]
+fn the_errors_mint_reader_refuses_a_keyword_inside_a_longer_word() {
+    for (what, source, expected) in [
+        (
+            "a macro invocation with a brace body",
+            "pub const FIRST: &str = \"first\";\n\nmodule_guard! {\n    pub const W: &str \
+             = \"w\";\n}\n",
+            vec![("FIRST", vec!["first"]), ("W", vec!["w"])],
+        ),
+        (
+            "a macro whose name ends in a scope keyword",
+            "pubmod! {\n    pub const W: &str = \"w\";\n}\n",
+            vec![("W", vec!["w"])],
+        ),
+        (
+            "a modifier that is the tail of a longer word",
+            "pub const FIRST: &str = \"first\";\nunsafepub const W: &str = \"w\";\n",
+            vec![("FIRST", vec!["first", "w"])],
+        ),
+        (
+            "a field whose name opens with a declaration keyword",
+            "struct S {\n    constant: u8,\n}\n\npub const W: &str = \"w\";\n",
+            vec![("W", vec!["w"])],
+        ),
+        (
+            "a token tree holding a modifier glued to a keyword",
+            "pub const FIRST: &str = \"first\";\n\nsoup! {\n    pubfn later\n}\n",
+            vec![("FIRST", vec!["first"])],
+        ),
+    ] {
+        let found = read_minting_items(source);
+        let read: Vec<(&str, Vec<&str>)> = found
+            .iter()
+            .map(|(owner, literals)| {
+                (
+                    owner.as_str(),
+                    literals.iter().map(String::as_str).collect::<Vec<_>>(),
+                )
+            })
+            .collect();
+        assert_eq!(read, expected, "{what} was read as an item");
+    }
+}
+
+/// **A function body is a scope**, and two functions each holding a
+/// `const` of one name are two rows rather than a hard stop.
+///
+/// `fn a() { const W … }` beside `fn b() { const W … }` is ordinary
+/// Rust, and a walk whose scopes were `impl` and `mod` alone keyed
+/// both under `W` and stopped the census on a demand no author can
+/// satisfy. The same shape one level in is worse than loud: a `const`
+/// in a method's body answered to the enclosing IMPL, so `A::m`'s word
+/// was carried by a phantom `A::W` and `A::m` itself read as spelling
+/// nothing.
+#[test]
+fn the_errors_mint_reader_keys_a_local_declaration_by_the_function_that_holds_it() {
+    let found = read_minting_items(
+        "fn a() {\n    const W: &str = \"a\";\n}\n\nfn b() {\n    const W: &str = \
+         \"b\";\n}\n\nimpl Subject {\n    fn m() {\n        const W: &str = \
+         \"m\";\n    }\n}\n",
+    );
+    assert_eq!(
+        found
+            .iter()
+            .map(|(owner, literals)| (owner.as_str(), literals.len()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("Subject::m", 0),
+            ("Subject::m::W", 1),
+            ("a", 0),
+            ("a::W", 1),
+            ("b", 0),
+            ("b::W", 1),
+        ],
+        "a local declaration was not keyed by the function holding it"
+    );
+}
+
+/// **A `trait` body is a scope**, and the items in one answer to the
+/// trait's name.
+///
+/// The walk's scopes were `impl` and `mod`, and a `trait` is neither:
+/// an associated `const` or a defaulted method landed under its bare
+/// name, which is the complaint that names an item that does not exist
+/// by that name. It also collided outright with a free item of the
+/// same name, which is ordinary Rust — a free `fn canonical_unit`
+/// beside a `trait Door { fn canonical_unit(); }` is two items and was
+/// one key.
+#[test]
+fn the_errors_mint_reader_keys_a_trait_item_by_its_trait() {
+    let found = read_minting_items(
+        "pub fn canonical_unit() -> &'static str {\n    \"free\"\n}\n\npub trait Door \
+         {\n    const DOOR: &'static str = \"door\";\n    fn canonical_unit() -> \
+         &'static str;\n}\n",
+    );
+    assert_eq!(
+        found
+            .iter()
+            .map(|(owner, literals)| (owner.as_str(), literals.len()))
+            .collect::<Vec<_>>(),
+        vec![
+            ("Door::DOOR", 1),
+            ("Door::canonical_unit", 0),
+            ("canonical_unit", 1),
+        ],
+        "a trait item was not keyed by its trait"
+    );
+}
+
+/// **An `impl` whose generic argument holds a brace loses its body**,
+/// disclosed and executed rather than repaired.
+///
+/// [`item_body`] takes the first `{` after the keyword for the start
+/// of the body, and `impl Holds<{ N }> for Subject` spells one inside
+/// its generic argument — so the census reads the const-generic
+/// argument as the block and every item of the real body falls outside
+/// every scope. The items are then keyed bare, which is loud (a bare
+/// name is on no roster) under a name that does not exist.
+///
+/// It is not repaired here because [`item_body`] is
+/// [`test_utils::source`]'s and shared: teaching it where an `impl`
+/// head ends is a widening of that module's grammar, which is a filed
+/// row (`work/census/item-body-takes-a-const-generic-brace-for-an-item-body.md`)
+/// and not this census's to take. The sibling census
+/// `crates/test-utils/tests/hand_written_impl_census.rs` reads the
+/// same helper the same way and carries the same exposure.
+///
+/// **A comparison in the argument is not what does it.**
+/// [`test_utils::source::angle_end`] discloses a `>` closing a generic
+/// list early, and `impl Holds<{ 1 > 0 }> for Subject` was written
+/// down here as an instance of that residue. It is not: the braced
+/// form answers the same with no comparison in it at all, and the
+/// unbraced form that residue is about — a bare `1 > 0` as a const
+/// generic argument — is not something Rust accepts.
+#[test]
+fn the_errors_mint_reader_loses_an_impl_whose_generic_argument_holds_a_brace() {
+    for argument in ["{ N }", "{ 1 > 0 }"] {
+        let found = read_minting_items(&format!(
+            "impl Holds<{argument}> for Subject {{\n    const W: &str = \"w\";\n}}\n"
+        ));
+        assert_eq!(
+            found.keys().map(String::as_str).collect::<Vec<_>>(),
+            vec!["W"],
+            "the `impl` head `Holds<{argument}>` was read as a scope after all — this \
+             disclosure is stale and the entry beside it should say so"
+        );
+    }
+}
+
+/// **A body that never closes is a refusal**, not a scope running to
+/// the end of the file.
+#[test]
+#[should_panic(expected = "whose body neither opens nor closes")]
+fn the_errors_mint_reader_refuses_an_impl_whose_body_does_not_close() {
+    read_minting_items("impl Subject {\n    pub const W: &str = \"w\";\n");
+}
+
+/// **An attribute whose `[` never closes is a refusal**, for
+/// [`attribute_spans`]'s reason: an attribute run is absorbed into the
+/// head of the item below it, and a run whose end this reader cannot
+/// find would take an arbitrary amount of the file with it.
+#[test]
+#[should_panic(expected = "an attribute whose `[` does not close")]
+fn the_errors_mint_reader_refuses_an_attribute_that_does_not_close() {
+    read_minting_items("#[cfg(\npub const W: &str = \"w\";\n");
+}
+
+/// **Two items answering to one key is a hard stop, and the code that
+/// causes it can be correct.**
+///
+/// A `#[cfg(test)] mod pick` beside a `#[cfg(not(test))] mod pick` is
+/// ordinary Rust — one item after configuration, two to a reader that
+/// has none — and this census keys on the path. It refuses, because
+/// the alternative is merging two rows into one and that is the one
+/// direction this census cannot be loud in. What the refusal must not
+/// do is tell its reader to qualify them apart, which is what it said
+/// while its premise was that Rust rejects the pair.
+#[test]
+#[should_panic(expected = "it is not something the author can qualify away")]
+fn the_errors_mint_reader_refuses_two_items_that_answer_to_one_name() {
+    read_minting_items(
+        "#[cfg(test)]\nmod pick {\n    pub const W: &str = \"a\";\n}\n\n\
+         #[cfg(not(test))]\nmod pick {\n    pub const W: &str = \"b\";\n}\n",
+    );
+}
+
+/// **A macro body is text, and this reader reads it once**, at the
+/// definition — not once per expansion, and not at the scope the
+/// expansion lands in.
+///
+/// That is the honest description of what a text walk can say about a
+/// macro, and it is a disclosure rather than a repair: an item minted
+/// twice is rostered once, and an item minted at a call site in
+/// another module is rostered under the module the DEFINITION sits in.
+/// What no test here can reach is a macro that pastes the keyword
+/// together, or a proc macro, whose output this file spells nowhere.
+#[test]
+fn the_errors_mint_reader_reads_a_macro_body_as_text_and_says_so() {
+    let found = read_minting_items(
+        "macro_rules! mint {\n    () => {\n        impl Taxonomy {\n            pub const \
+         fn from_macro() -> &'static str {\n                \"from_macro\"\n            \
+         }\n        }\n    };\n}\n\nmint!();\nmint!();\n",
+    );
+    assert_eq!(
+        found
+            .iter()
+            .map(|(owner, literals)| (owner.as_str(), literals.len()))
+            .collect::<Vec<_>>(),
+        vec![("Taxonomy::from_macro", 1)],
+        "the macro body was not read once at its definition"
+    );
+}
+
+/// **A map that forwards another file's word is an arrival like any
+/// other**, executed against the real file.
+///
+/// It spells no literal, and while the census's population was its
+/// LITERALS such a map added nothing for the reader to see and landed
+/// silent. The population is the file's DECLARATIONS now and the
+/// literals are what each one contributes, so the item reds by name
+/// and its author is asked the question the roster exists to ask.
+#[test]
+fn the_errors_mint_census_reds_by_name_on_a_map_that_spells_no_literal() {
+    let arrival = format!(
+        "{}\nimpl ValidationRefusal {{\n    pub const fn forwarded(self) -> &'static str \
+         {{\n        crate::tags::validation_refusal_tag(self)\n    }}\n}}\n",
+        errors_source()
+    );
+    let complaints = minting_complaints(&read_minting_items(&arrival));
+    let named: Vec<&String> = complaints
+        .iter()
+        .filter(|c| c.contains("NEW item `ValidationRefusal::forwarded`"))
+        .collect();
+    assert_eq!(
+        named.len(),
+        1,
+        "a map forwarding another file's word did not red by name: {complaints:?}"
+    );
+    // The arm, and not just the name. Both NEW arms print the owner,
+    // so a test asserting on the name alone passes with the tailored
+    // one unreachable — and that arm is the whole user-facing payload
+    // of reading a zero-literal item at all: it is what tells the
+    // author that nothing here can say whether the item puts a word
+    // on a wire, which is the question this row exists to ask.
+    assert!(
+        named[0].contains("It spells no literal, so nothing here says whether it puts a word"),
+        "the zero-literal complaint was the generic arm, which reports a count rather \
+         than asking the question: {:?}",
+        named[0]
+    );
+}
+
+/// **What this census cannot see, executed: a word channel that is
+/// not a declaration.**
+///
+/// The population is every `fn`, `const` and `static` the file
+/// declares. A struct FIELD is none of those, and
+/// `QuantityOpMismatch::op` is one — a `&'static str` this file
+/// carries and does not spell, reaching Python as `DimensionError.op`
+/// and interpolated into the class's message. Twelve words arrive that
+/// way today, every one of them minted at a call site under `src/py/`
+/// and read by no instrument
+/// (`work/census/dimension-error-op-carries-twelve-words-minted-at-call-sites.md`,
+/// measured 2026-09-15). A SECOND such field would arrive with this
+/// census silent, and that is what this executes.
+///
+/// Widening the reader to name a field is not the repair it looks
+/// like: the words are not in this file, so seeing the channel would
+/// not see them, and what holds them is a question about `src/py/`.
+#[test]
+fn the_errors_mint_census_cannot_see_a_word_channel_that_is_not_a_declaration() {
+    let arrival = errors_source().replace(
+        "    pub op: &'static str,",
+        "    pub op: &'static str,\n    /// A second word this file carries and does \
+         not spell.\n    pub unit: &'static str,",
+    );
+    assert_ne!(arrival, errors_source(), "the field splice did not land");
+    // Equal AND empty. Equality alone passes over two equal non-empty
+    // sides, which is what this reads as whenever the census above is
+    // red for some unrelated reason — a guard that goes quiet exactly
+    // when the thing it guards is already broken.
+    let baseline = minting_complaints(&read_minting_items(&errors_source()));
+    assert!(
+        baseline.is_empty(),
+        "this file disagrees with its roster already, so nothing here is about the \
+         spliced field: {baseline:?}"
+    );
+    assert_eq!(
+        minting_complaints(&read_minting_items(&arrival)),
+        baseline,
+        "the blind spot this test records has closed — say so and delete it"
+    );
+}
+
+/// A literal this reader cannot attribute stops the census rather than
+/// being dropped from it.
+#[test]
+#[should_panic(expected = "a string literal above every declaration")]
+fn the_errors_mint_reader_refuses_a_literal_it_cannot_attribute() {
+    read_minting_items("#![doc = \"above every declaration\"]\n");
+}
+
+/// A literal form this reader does not lex stops the census too: it
+/// cannot say what such a form puts on the wire, and skipping it is
+/// how a word arrives unseen.
+#[test]
+#[should_panic(expected = "a literal form I do not understand")]
+fn the_errors_mint_reader_refuses_a_literal_form_it_cannot_read() {
+    read_minting_items("pub fn f() -> &'static str {\n    r\"raw\"\n}\n");
+}
+
+/// Two items under one qualified name would merge into one roster row
+/// — the compensating blindness a census keyed by name has to refuse.
+///
+/// The key carries the trait, so a type's `Display::fmt` and its
+/// `Debug::fmt` are two keys and not this case; what is left is a name
+/// Rust itself rejects, which means the reader has mis-read one of the
+/// two items rather than the file holding both.
+#[test]
+#[should_panic(expected = "two items answer to `Refusal::word`")]
+fn the_errors_mint_reader_refuses_two_items_under_one_name() {
+    read_minting_items(
+        "impl Refusal {\n    fn word() -> &'static str {\n        \"one\"\n    }\n}\n\
+         impl Refusal {\n    fn word() -> &'static str {\n        \"two\"\n    }\n}\n",
+    );
+}
+
+/// **A second trait impl for a type that already has one is not a
+/// collision**, which is the whole of why the trait is in the key.
+///
+/// `impl fmt::Debug for QuantityOpMismatch` beside the existing
+/// `impl fmt::Display` is ordinary, correct, rustfmt-stable Rust. Under
+/// a key of `SelfType::fn_name` it hard-stopped this census on a demand
+/// its author could not satisfy — two trait `fmt`s cannot be qualified
+/// apart in Rust. It arrives by name now, like any other arrival.
+#[test]
+fn the_errors_mint_census_reds_by_name_on_a_second_trait_impl() {
+    let arrival = format!(
+        "{}\nimpl fmt::Debug for QuantityOpMismatch {{\n    fn fmt(&self, f: &mut \
+         fmt::Formatter<'_>) -> fmt::Result {{\n        write!(f, \"a debug word\")\n    \
+         }}\n}}\n",
+        errors_source()
+    );
+    let complaints = minting_complaints(&read_minting_items(&arrival));
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("NEW item `<QuantityOpMismatch as Debug>::fmt`")),
+        "a second trait impl for a type that already has one did not red by name: \
+         {complaints:?}"
+    );
+}
+
+/// **An item spelling only a CHARACTER literal is an arrival too.**
+///
+/// A `char` puts no word on a Python wire, and a reader that read it
+/// and dropped it dropped the ITEM with it: this splice — a whole new
+/// `pub const fn` on a rostered type — left the census silent. The
+/// population is the file's literals, so a character literal counts
+/// toward its item's tally and the item appears.
+#[test]
+fn the_errors_mint_census_reds_by_name_on_an_item_spelling_only_a_char() {
+    let arrival = format!(
+        "{}\nimpl ValidationRefusal {{\n    pub const fn sep(self) -> char {{\n        \
+         '/'\n    }}\n}}\n",
+        errors_source()
+    );
+    let complaints = minting_complaints(&read_minting_items(&arrival));
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("NEW item `ValidationRefusal::sep`")),
+        "an item spelling only a character literal did not red by name: {complaints:?}"
+    );
+}
+
+/// **A literal in an attribute belongs to the item below it**, and the
+/// census is loud about it even when a deletion would have cancelled
+/// the count.
+///
+/// Attribution is by the nearest declaration head, and an outer
+/// attribute sits above its item — so `#[deprecated(note = "…")]`
+/// written over one item was charged to the item BEFORE it. That
+/// inflates a rostered row rather than inventing an unrostered name,
+/// which is the quiet direction: drop a word from that same row in the
+/// same diff and the two cancel to no complaint. Both moves at once,
+/// executed.
+#[test]
+fn the_errors_mint_census_reds_on_an_attribute_literal_that_would_cancel() {
+    let arrival = errors_source()
+        .replace(
+            "pub const ATTRIBUTES: &'static [&'static str] = &[\"door\", \"reason\"];",
+            "pub const ATTRIBUTES: &'static [&'static str] = &[\"door\"];",
+        )
+        .replace(
+            "    pub const fn attribute(self) -> &'static str {",
+            "    #[deprecated(note = \"probe_word\")]\n    pub const fn attribute(self) \
+             -> &'static str {",
+        );
+    let complaints = minting_complaints(&read_minting_items(&arrival));
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("`ValidationRefusal::ATTRIBUTES` spells 1")),
+        "the deletion from ATTRIBUTES went unreported: {complaints:?}"
+    );
+    assert!(
+        complaints
+            .iter()
+            .any(|c| c.contains("`ValidationRefusal::attribute` spells 3")),
+        "the attribute literal was not charged to the item it decorates: {complaints:?}"
+    );
+}
+
+/// A literal in an attribute on an item this reader cannot name stops
+/// the census rather than moving the count of the declaration above it.
+#[test]
+#[should_panic(expected = "a literal in an attribute on an item I cannot name")]
+fn the_errors_mint_reader_refuses_an_attribute_on_an_item_it_cannot_name() {
+    read_minting_items(
+        "pub fn f() -> &'static str {\n    \"word\"\n}\n\n\
+         #[serde(rename = \"renamed\")]\nstruct Payload {\n    field: u8,\n}\n",
     );
 }
 
@@ -5728,8 +9261,13 @@ mod product_memo_rows {
         doc: d::ProfileDoc,
         node: d::Node<d::ProfileProgram>,
     ) -> (d::ProfileDoc, d::RecipeNodeId) {
-        let applied = d::apply(&doc, &d::DocEdit::InsertNode { node }, Tol::witness())
-            .expect("the edit is accepted");
+        let applied = d::apply(
+            &doc,
+            &d::DocEdit::InsertNode { node },
+            Tol::witness(),
+            &pncad::document::RefusingReach,
+        )
+        .expect("the edit is accepted");
         let minted = applied.record.minted.expect("an insert mints an id");
         (applied.doc, minted)
     }

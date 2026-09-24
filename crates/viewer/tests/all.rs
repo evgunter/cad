@@ -98,6 +98,8 @@ mod error_display;
 mod eval_seam;
 #[path = "focus_highlight.rs"]
 mod focus_highlight;
+#[path = "frame_labels.rs"]
+mod frame_labels;
 #[path = "frame_policy.rs"]
 mod frame_policy;
 #[path = "gesture_table.rs"]
@@ -112,6 +114,7 @@ mod instance_authoring;
 mod landing_gathers;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
+
 #[path = "msolve3_placer_refused.rs"]
 mod msolve3_placer_refused;
 #[path = "msolve4_blame_rows.rs"]
@@ -124,10 +127,20 @@ mod panel_display;
 mod panel_edits;
 #[path = "path_authoring.rs"]
 mod path_authoring;
+#[path = "pick3_acceptance.rs"]
+mod pick3_acceptance;
 #[path = "pick_windows.rs"]
 mod pick_windows;
 #[path = "prefs.rs"]
 mod prefs;
+#[path = "profile_draw.rs"]
+mod profile_draw;
+#[path = "profile_edit.rs"]
+mod profile_edit;
+#[path = "profile_edit_order.rs"]
+mod profile_edit_order;
+#[path = "refusal_concision_edits.rs"]
+mod refusal_concision_edits;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]
@@ -146,6 +159,13 @@ mod review_gui4_r1;
 mod review_gui4_r2;
 #[path = "review_m10_1_r1.rs"]
 mod review_m10_1_r1;
+#[path = "review_pick_r2.rs"]
+mod review_pick_r2;
+#[path = "rv_matehead_probes.rs"]
+mod rv_matehead_probes;
+
+#[path = "review_pick2_r1.rs"]
+mod review_pick2_r1;
 #[path = "scene_build.rs"]
 mod scene_build;
 #[path = "select_pick.rs"]
@@ -167,11 +187,4 @@ mod undo_tree;
 #[path = "valid_range.rs"]
 mod valid_range;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();

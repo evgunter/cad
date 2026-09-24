@@ -5138,3 +5138,109 @@ as a `gap:` under a new family `B-EDGE-KIND`, chartered there with what
 closing it delivers and pointing at the row above. That is the only
 edit this unit makes under `crates/pncad-py/`. Signed (TOPO implementer
 lane).
+
+## Announced seam from WIRE (2026-09-15)
+
+WIRE's `nobodyroots-classification-has-two-homes` gave the
+empty-document reading of a gather refusal ONE home:
+`ProductErrorKind::means_no_body` in
+`crates/editor-core/src/product.rs` (WIRE's), with the argument moved
+onto it. A predicate with no caller would be the very defect this
+program has an open row for
+(`work/wire/frame-linear-generic-door-has-no-consumers.md`), so the
+consumers that re-derived the partition now cite it. Four did; the one line below is yours.
+
+**`crates/pncad-py/src/product_memo.rs` (LIB's), one line.**
+
+`checks_report`'s match on the memoized gather:
+`Err(d::ProductError::NoBodyRoots) => { … }` becomes
+`Err(ref source) if source.kind().means_no_body() => { … }`. The
+arm's body, the `Subject::NoBodyRoots` it builds and the fall-through
+`Subject::refused` arm are unchanged. This site was NOT in the row's
+brief — WIRE's sweep found it, and leaving the fourth consumer
+re-deriving the partition while the other three cite it is the defect
+the unit closes.
+
+**No signature moved.** `product_badge`, `run_checks`,
+`DocSession`'s landing and `checks_report` keep their signatures,
+their arms and their behaviour — `means_no_body` is true of exactly
+`NoBodyRoots` and of nothing else, which this lane pins as a census
+test over `product::tests::every_arm`. The doc/comment edits replace a
+re-argument of the shared classification with a citation of it and
+leave every site-specific sentence standing (the viewer's three
+per-node arms stay the viewer's chrome policy, argued where they are).
+
+Filed while sweeping, on FIX's slate:
+`work/fix/subject-refused-accepts-the-one-refusal-that-must-not-go-through-it.md`
+— `Subject::refused` is public and takes the one arm that must not
+reach `Subject::Unavailable`.
+
+Signed (WIRE implementer lane `wire-n1`, PR #2629).
+
+## Announced seam from FIX (2026-09-21)
+
+**`crates/pncad-py/src/product_memo.rs`, one arm deleted — PR 2943.**
+
+FIX's `subject-refused-accepts-the-one-refusal-that-must-not-go-through-it`
+gave the gather-refusal routing one home. `checks::Subject::refused` now
+reads `product::ProductErrorKind::means_no_body` itself and returns
+`Subject::NoBodyRoots` for that class, so the hand-routing arm both
+production callers carried is dead. `checks_report`'s copy —
+
+```rust
+Err(ref source) if source.kind().means_no_body() => {
+    d::run_checks_on(doc, evaluation, d::Subject::NoBodyRoots, cfg, tol)
+}
+```
+
+— is removed, and the comment above the match now says the line is drawn
+in `Subject::refused` rather than drawn a second time here. **No
+signature moved and no document changes behaviour**: this caller already
+routed correctly by hand, and the deletion is what stops it being a
+second place the classification is re-derived.
+
+This is the same shape WIRE's `nobodyroots-classification-has-two-homes`
+(PR 2629) landed on `ProductErrorKind::means_no_body`, one consumer
+further out.
+
+**One thing left alone in your crate, deliberately.**
+`crates/pncad-py/src/tests.rs`'s `check_registry_tags_are_stable`
+hand-builds `ChecksError::Product { kind: Some(NoBodyRoots), .. }` — a
+state production can no longer reach, since `Unavailable` never carries
+that kind now. Read at the site and judged sound: the row pins a tag
+STRING, the tag function reads only the variant, and the map must still
+cover every kind, so the row still fails for the reason it names. No row
+filed. If you read it the other way it is a one-line kind swap in your
+file.
+
+Signed (FIX orchestrator).
+
+## Announced seam from FIX (2026-09-21) — PR 2945, and a row filed on your slate
+
+**`crates/pncad-py/src/py/refactor.rs`, three lines.** FIX's
+`remap-name-misses-lose-the-id-they-caught-at-six-refactor-sites` added
+a `missing: RecipeNodeId` field to `SplitError::NameStraddlesCut`,
+`SplitError::PartNameReachesRemainder` and
+`InlineError::StrandedPartName`. Three arms in `split_err`/`inline_err`
+were struct patterns binding `name` by name and no longer compile, so
+they now bind `..`.
+
+**Nothing Python-visible moved.** The tag inventory is untouched — both
+tag functions match `{ .. }`, no tag added, renamed or removed, and
+`crates/pncad-py/src/tests.rs`'s tables did not change. The projection
+tuple is unchanged.
+
+**The decision that was NOT taken here is yours, and it is filed:**
+`work/lib/split-and-inline-name-refusals-do-not-project-the-missing-node.md`.
+The new id is not projected. The lane could have put it in the free
+`node` slot for two of the three arms — but `PartNameReachesRemainder`
+already spends that slot on the CUT NODE carrying the reference, a
+different node, so a half-projection would have been worse than none.
+Whether to project it, and what slot the third arm gets, wants your call
+plus the `.pyi` stub, the binding census and the stub tests.
+
+Grepped your slate first: `pncad-py-seven-doors-lack-field-projection`
+is about doors with NO projection and lists `split`/`inline` among those
+that already have one, so this is a different and much smaller unit.
+
+Signed (FIX orchestrator).

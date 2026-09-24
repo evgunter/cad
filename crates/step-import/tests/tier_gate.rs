@@ -268,21 +268,22 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     (NIST09, 1e-6, "file", Pass(1, 1, 158, 454, 300)),
     (NIST09, 1e-12, "file", Refused(ENDPOINT_START_MAPPED_CURVE)),
     // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
-    // The AMBIENT sweep only, at this file's own ε_in: three cells, all
-    // at the ladder's `#389` gap.
+    // The AMBIENT sweep only, at this file's own ε_in: three cells,
+    // all at the pcurve MINT on the l-bracket wall's ARC rim.
     //
-    // They used to be the RATIONAL FLUX STALL at the two fine bands and
-    // the convergence predicate's ESCALATION at the coarse one — the
-    // gate refusing this file's rational cylinder wall for missing the
-    // reporting target `1024·ε`, or declining to call a width that
-    // landed ~1% under it. Both were the gate chasing a PRECISION.
-    // Tier 3's check 7 reads a SIGN, and this file's volume enclosure
-    // excludes zero at round 0 at every band, so the gate is finished
-    // before either is reached and the import goes on to meet the
-    // `#389` ladder gap both of them masked (filed:
-    // `work/exch/step-import-degree-one-line-promotion.md`, which
-    // names this edge). The gap is unchanged; what moved is the things
-    // in front of it.
+    // They used to be the RATIONAL FLUX STALL at the two fine bands
+    // and the convergence predicate's ESCALATION at the coarse one —
+    // both the at-rest gate chasing a PRECISION, finished since
+    // Tier 3's check 7 reads a SIGN (this file's volume enclosure
+    // excludes zero at round 0 at every band) — and then the ladder's
+    // `#389` gap those had masked. That gap is RETIRED (#388):
+    // degree-1 carriers promote to `Curve3::Line` and the promoted
+    // slit holds its wall's boundary-column candidate in either
+    // traversal order (`r1_dm1_probe`'s tripwire and l-bracket
+    // witness). What every band meets now is the frontier past it:
+    // wall `#382` states four u spans while its rim circles are
+    // three-arc rationals, and the imported-chart arc-rim
+    // construction refuses the mint (`MapResidual`).
     //
     // It was nine cells until the 2026-08-13 test-time audit — the six
     // dropped ones were the `1e-6` and `1e-12` ε_in tags, and they all
@@ -293,9 +294,9 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     // promoted). That measurement is now RECORDED here rather than
     // re-executed every run; see [`eps_in_rows_for`] for what the
     // three imports it cost were buying and what was given up.
-    (DM1, 1e-9, "file", Refused(LADDER_NO_DESCRIPTION)),
-    (DM1, 1e-6, "file", Refused(LADDER_NO_DESCRIPTION)),
-    (DM1, 1e-12, "file", Refused(LADDER_NO_DESCRIPTION)),
+    (DM1, 1e-9, "file", Refused(ARC_RIM_MAP_RESIDUAL)),
+    (DM1, 1e-6, "file", Refused(ARC_RIM_MAP_RESIDUAL)),
+    (DM1, 1e-12, "file", Refused(ARC_RIM_MAP_RESIDUAL)),
     // -- tests/fixtures/poleguard/*.step (issue 896) ------------------
     // The AMBIENT sweep only, at the files' own ε_in (they state
     // themselves to full double precision). The near-pole feature is
@@ -347,24 +348,26 @@ const TANGENT_SECOND_ORDER_ZERO: &str = "tangent_second_order) is exactly zero a
 /// declines to decide, by name. **No cell reaches it any more** — the
 /// gate stops on a definite SIGN before the round whose width lands in
 /// the predicate's ambiguity band. Kept, not deleted, for the reason
-/// the gap constant below was kept and then needed: an escalation is a
+/// the gap constant was kept and then needed: an escalation is a
 /// real outcome of this lane and would become reachable again the
 /// moment anything at the gate moves.
 #[allow(dead_code)]
 const QUAD_CONVERGED_ESCALATED: &str = "predicate 'props_quad_converged' indeterminate";
-/// dm1's `#389` polyline gap: the D7 ladder's own refusal on a
-/// two-point degree-1 `QUASI_UNIFORM_CURVE` polyline that stays NURBS
-/// and is offered ZERO candidates. A GAP, not a refusal — nothing in
-/// the ladder reaches a degree-1 open carrier — and filed as
-/// `work/exch/step-import-degree-one-line-promotion.md`. Named
-/// specifically so the gate's preamble (which a tier-1/2 regression
-/// would also match) cannot stand in.
-///
-/// It was the coarse band's first refusal, then nothing reached it for
-/// as long as the at-rest gate refused this file ahead of it, and it
-/// is now every band's cell. Kept through the interval where no cell
-/// reached it, which is why it is here to be used.
-const LADDER_NO_DESCRIPTION: &str = "edge #389: no intensional description certifies";
+// dm1's `#389` polyline gap ("edge #389: no intensional description
+// certifies", with an empty attempt list) is RETIRED, by execution and
+// not by unreachability: degree-1 carriers promote to `Curve3::Line`
+// (#388) and a promoted slit holds its wall's boundary-column
+// candidate in either traversal order —
+// `r1_dm1_probe::the_l_bracket_alone_adopts_its_reversed_slit` imports
+// the component that carries `#389` and gets past every polyline edge.
+/// dm1's cell, every band: past the retired gap, the pcurve MINT on
+/// the l-bracket wall's ARC rim refuses — wall `#382` states four u
+/// spans while its rim circles are three-arc rationals, so the
+/// imported-chart arc-rim construction's image misses its chart by
+/// more than the band (`MapResidual`, the typed mint residual). Named
+/// specifically so a refusal that drifted to a different door cannot
+/// stand in.
+const ARC_RIM_MAP_RESIDUAL: &str = "MapResidual";
 const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 
 /// The S58 iso-rectangle predicate, by name: *every rim sits at one of
@@ -396,7 +399,7 @@ const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gat
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 73] = [
+const CORPUS: [(&str, Disposition); 75] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
@@ -552,6 +555,24 @@ const CORPUS: [(&str, Disposition); 73] = [
     // 900× outside that band and pin the adoption bar there instead).
     ("tests/fixtures/poleguard/poleband_eps12.step", EpsSensitive),
     ("tests/fixtures/poleguard/polefrustum.step", EpsSensitive),
+    // -- tests/fixtures/rim-only-cap/ ---------------------------------
+    // A sphere cap stated as one rim circle and its base disc: the pole
+    // is interior to the sphere face and no meridian or pole vertex is
+    // stated. Both statements of the rim — one closed circle edge, two
+    // half arcs — are adopted as written and pass the gate; what the
+    // mesh lane answers for the sphere face is `meridian_free_cap.rs`'s
+    // row. BOTH CENSUSES MOVE BY DESIGN when import learns to re-mint
+    // this face in the seamed form
+    // (`work/exch/import-normalizes-the-rim-only-cap.md`): more faces,
+    // edges and vertices here is that unit working, not a regression.
+    (
+        "tests/fixtures/rim-only-cap/rimonly1.step",
+        Pass(1, 1, 2, 1, 1),
+    ),
+    (
+        "tests/fixtures/rim-only-cap/rimonly2.step",
+        Pass(1, 1, 2, 2, 2),
+    ),
     // #653's import route: one D-prism, stated four ways. The two
     // `split_*` files state the cylindrical face's vertical boundary as
     // two collinear `EDGE_CURVE`s, which is what every exporter emits
@@ -656,11 +677,10 @@ const CORPUS: [(&str, Disposition); 73] = [
         //
         // **ε-SENSITIVE since #327**, and the sweep is the reason to
         // know it: at the two FINE ambient bands the frontier is the
-        // rational-flux stall above, but at ambient 1e-6 the ladder
-        // stops earlier, on edge `#389`. Retiring #685 is what made
-        // #389 reachable at all — it had been masked behind #685 at
-        // every band — so the coarse cell is a PRE-EXISTING gap newly
-        // exposed, not a movement of anything #327 built. Three cells
+        // rational-flux stall above, but at ambient 1e-6 the frontier
+        // is the aggregate gate's convergence-ambiguity escalation
+        // (the `#389` ladder gap this cell once exposed is retired —
+        // #388's reversed wall-column candidate). Three cells
         // in `EPS_ROWS`, one per ambient band. This was the FIRST file
         // the ε_in sweep stopped running (the 2026-08-13 audit); since
         // 2026-08-22 that is the corpus-wide default and the exemption
@@ -1079,10 +1099,12 @@ fn the_refusal_carries_the_kernels_verdicts() {
         *solid, None,
         "a one-solid file's subject is the assembled body itself"
     );
-    assert_eq!(
-        errors.as_slice(),
-        [topo::ValidationError::NegativeVolume],
-        "the verdicts are the kernel's own, unfiltered and unrephrased"
+    assert!(
+        matches!(
+            errors.as_slice(),
+            [topo::ValidationError::NegativeVolume { .. }]
+        ),
+        "the verdicts are the kernel's own, unfiltered and unrephrased: {errors:?}"
     );
     let msg = e.to_string();
     for want in [

@@ -39,5 +39,8 @@ geom-core = { path = "../../crates/geom-core" }
 # trait's docs carry the argument); dev-only, so no shipped build of
 # this crate reaches it.
 profile = { path = "../../crates/profile", features = ["test-support"] }
-sweep = { path = "../../crates/sweep" }
+# `test-support` ON for the corpus `loft_prism` this suite's rows are
+# measured on, which the kernel's own suites share from the same door;
+# dev-only, so no shipped build of this crate reaches it.
+sweep = { path = "../../crates/sweep", features = ["test-support"] }
 test-utils = { path = "../../crates/test-utils" }

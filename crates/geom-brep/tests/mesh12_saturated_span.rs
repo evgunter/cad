@@ -114,7 +114,7 @@ fn is_winding_escalation<V: core::fmt::Debug>(r: &Result<V, PropsError>) -> bool
 /// premise.
 #[test]
 fn the_flux_lane_refuses_a_span_past_the_winding_bound() {
-    let r = curved_face(&sphere::<f64>(), &pair::<f64>(0.0, 3.0 * PI), 1.0, band());
+    let r = curved_face(&sphere::<f64>(), &pair::<f64>(0.0, 3.0 * PI), true, band());
     assert!(is_winding_refusal(&r), "{r:?}");
 }
 
@@ -158,7 +158,7 @@ fn every_saturated_span_of_the_review_sweep_refuses() {
         }
         n += 1;
         let edges = saturated::<f64>(delta);
-        let fc = curved_face(&sphere::<f64>(), &edges, 1.0, bd);
+        let fc = curved_face(&sphere::<f64>(), &edges, true, bd);
         let door = require_one_chart_branch(&sphere::<f64>(), &edges, bd);
         assert!(is_winding_refusal(&fc), "δ = {delta}: flux lane {fc:?}");
         assert!(
@@ -191,7 +191,7 @@ fn a_reversed_span_refuses_at_every_consumer() {
         great_raw(PI / 2.0, TAU, 1, 0),
     ];
     for (label, edges) in [("[3π, 0]", &multi_wrap), ("[π/2, 0]", &short)] {
-        let fc = curved_face(&sphere::<f64>(), edges, 1.0, bd);
+        let fc = curved_face(&sphere::<f64>(), edges, true, bd);
         assert!(is_forward_refusal(&fc), "{label}: flux lane {fc:?}");
         let ms = boundary_material_sign(&sphere::<f64>(), edges, bd);
         assert!(is_forward_refusal(&ms), "{label}: material sign {ms:?}");
@@ -230,7 +230,7 @@ fn the_span_decide_admits_and_refuses_at_certifications_band() {
     let admitted = [0.0, 0.5 * bd.zero() / RS, 0.99 * bd.zero() / RS];
     for eta in admitted {
         let edges = pair::<f64>(t0, TAU + eta);
-        let fc = curved_face(&sphere::<f64>(), &edges, 1.0, bd)
+        let fc = curved_face(&sphere::<f64>(), &edges, true, bd)
             .unwrap_or_else(|e| panic!("τ + {eta:e}: the flux lane must answer: {e:?}"));
         let rel = (fc.area - exact).abs() / exact;
         assert!(rel < 1e-12, "τ + {eta:e}: area {:e} != {exact:e}", fc.area);
@@ -258,7 +258,7 @@ fn the_span_decide_admits_and_refuses_at_certifications_band() {
     let mid = 0.5 * (bd.zero() + bd.escalate()) / RS;
     for eta in [1.01 * bd.zero() / RS, mid, 0.99 * bd.escalate() / RS] {
         let edges = pair::<f64>(t0, TAU + eta);
-        let fc = curved_face(&sphere::<f64>(), &edges, 1.0, bd);
+        let fc = curved_face(&sphere::<f64>(), &edges, true, bd);
         let door = require_one_chart_branch(&sphere::<f64>(), &edges, bd);
         assert!(is_winding_escalation(&fc), "τ + {eta:e}: flux lane {fc:?}");
         assert!(
@@ -268,7 +268,7 @@ fn the_span_decide_admits_and_refuses_at_certifications_band() {
     }
     for eta in [1.01 * bd.escalate() / RS, 20.0 * bd.escalate() / RS] {
         let edges = pair::<f64>(t0, TAU + eta);
-        let fc = curved_face(&sphere::<f64>(), &edges, 1.0, bd);
+        let fc = curved_face(&sphere::<f64>(), &edges, true, bd);
         let door = require_one_chart_branch(&sphere::<f64>(), &edges, bd);
         assert!(is_winding_refusal(&fc), "τ + {eta:e}: flux lane {fc:?}");
         assert!(
@@ -305,7 +305,7 @@ fn a_full_period_rim_is_not_a_meridian_span() {
         great(PI, PI / 2.0, 0.3, 1, 0),
     ];
     assert_eq!(require_iso_rectangle(&sphere::<f64>(), &cap, bd), Ok(()));
-    let fc = curved_face(&sphere::<f64>(), &cap, 1.0, bd).unwrap_or_else(|e| panic!("{e:?}"));
+    let fc = curved_face(&sphere::<f64>(), &cap, true, bd).unwrap_or_else(|e| panic!("{e:?}"));
     let exact = TAU * RS * RS * (1.0 - 0.3f64.sin());
     let rel = (fc.area - exact).abs() / exact;
     assert!(rel < 1e-12, "cap area {:e} != {exact:e}", fc.area);
@@ -384,7 +384,7 @@ fn ladder_against_certification<T: Decide>() {
                 first.clone()
             };
             let got = [
-                disp(&curved_face(&sphere::<T>(), &edges, f(1.0), bd)),
+                disp(&curved_face(&sphere::<T>(), &edges, true, bd)),
                 disp(&boundary_material_sign(&sphere::<T>(), &edges, bd)),
                 disp(&require_iso_rectangle(&sphere::<T>(), &edges, bd)),
                 disp(&require_one_chart_branch(&sphere::<T>(), &edges, bd)),
@@ -486,7 +486,7 @@ fn an_admitted_spans_fold_is_the_same_with_and_without_the_clamp() {
                 eta / z
             );
             let edges = pair::<f64>(t0, TAU + eta);
-            let fc = curved_face(&sphere::<f64>(), &edges, 1.0, bd)
+            let fc = curved_face(&sphere::<f64>(), &edges, true, bd)
                 .unwrap_or_else(|e| panic!("eta/z={:.2} pole@{label}: {e:?}", eta / z));
             let rel = (fc.area - exact).abs() / exact;
             assert!(
@@ -515,12 +515,7 @@ fn the_span_decide_holds_at_the_interval_scalar() {
     use geom_core::Interval;
     let bd = band();
     let three_pi = pair::<Interval>(0.0, 3.0 * PI);
-    let fc = curved_face(
-        &sphere::<Interval>(),
-        &three_pi,
-        Interval::from_f64(1.0),
-        bd,
-    );
+    let fc = curved_face(&sphere::<Interval>(), &three_pi, true, bd);
     assert!(is_winding_refusal(&fc), "{fc:?}");
     let ms = boundary_material_sign(&sphere::<Interval>(), &three_pi, bd);
     assert!(is_winding_refusal(&ms), "{ms:?}");
@@ -531,7 +526,7 @@ fn the_span_decide_holds_at_the_interval_scalar() {
 
     let inside = pair::<Interval>(0.3, TAU + 0.5 * bd.zero() / RS);
     assert!(
-        curved_face(&sphere::<Interval>(), &inside, Interval::from_f64(1.0), bd).is_ok(),
+        curved_face(&sphere::<Interval>(), &inside, true, bd).is_ok(),
         "a span inside the coincidence band above τ is answered at interval"
     );
     assert_eq!(
@@ -540,6 +535,6 @@ fn the_span_decide_holds_at_the_interval_scalar() {
     );
 
     let mid = pair::<Interval>(0.3, TAU + 0.5 * (bd.zero() + bd.escalate()) / RS);
-    let fc = curved_face(&sphere::<Interval>(), &mid, Interval::from_f64(1.0), bd);
+    let fc = curved_face(&sphere::<Interval>(), &mid, true, bd);
     assert!(is_winding_escalation(&fc), "{fc:?}");
 }

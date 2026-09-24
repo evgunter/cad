@@ -129,7 +129,9 @@ fn reverted_drum_cavity_re_certifies_edge_for_edge_and_tier_3_reports_only_the_c
     );
     assert_eq!(
         topo::validate_geometric(&reverted, tol()),
-        Err(vec![ValidationError::NegativeVolume]),
+        Err(vec![ValidationError::NegativeVolume {
+            solid: reverted.solids().next().expect("one solid").0
+        }]),
         "a reverted body bounds the complement and nothing else fails"
     );
 }

@@ -163,7 +163,7 @@ seg_tags! {
     CornerFace,
     TrimEdge,
     FootVertex,
-    CornerArc,
+    EndArc,
     BandFace,
     BandTrim,
     BandFoot,
@@ -255,7 +255,7 @@ impl SegTag {
             RoleSeg::CornerFace(..) => Self::CornerFace,
             RoleSeg::TrimEdge { .. } => Self::TrimEdge,
             RoleSeg::FootVertex { .. } => Self::FootVertex,
-            RoleSeg::CornerArc { .. } => Self::CornerArc,
+            RoleSeg::EndArc { .. } => Self::EndArc,
             RoleSeg::BandFace(..) => Self::BandFace,
             RoleSeg::BandTrim { .. } => Self::BandTrim,
             RoleSeg::BandFoot(..) => Self::BandFoot,
@@ -306,7 +306,7 @@ impl SegTag {
             | Self::CornerFace
             | Self::TrimEdge
             | Self::FootVertex
-            | Self::CornerArc
+            | Self::EndArc
             | Self::BandFace
             | Self::BandTrim
             | Self::BandFoot
@@ -358,7 +358,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::CornerFace(_)
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
-        | RoleSeg::CornerArc { .. }
+        | RoleSeg::EndArc { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandFoot(_)
         | RoleSeg::BandCross(_)
@@ -415,7 +415,7 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         RoleSeg::Seam { a, b } => vec![a, b],
         RoleSeg::TrimEdge { edge, support } => vec![edge, support],
         RoleSeg::FootVertex { vertex, support } => vec![vertex, support],
-        RoleSeg::CornerArc { vertex, edge } => vec![vertex, edge],
+        RoleSeg::EndArc { vertex, edge } => vec![vertex, edge],
         RoleSeg::Merged(set) | RoleSeg::BandFace(set) => set.iter().collect(),
         // A verdict qualifier, not a role argument (see the doc note).
         RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. }) => Vec::new(),

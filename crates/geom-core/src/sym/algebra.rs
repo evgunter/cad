@@ -37,7 +37,7 @@
 //! can only add a discharge; the un-reduced form is kept wherever the
 //! cap or the budget stops a reduction.
 
-use super::form::{Form, Mono, Poly, within};
+use super::form::{Form, Mono, Poly, exp_of, within};
 use super::rational::Rat;
 use super::{AtomInfo, IndetMap, SymBudget, SymOp, SymRules, indet_atom};
 
@@ -122,13 +122,13 @@ fn poly_subst_square(poly: &Poly, id: u128, repl: &Form, budget: SymBudget) -> O
     if repl.poisoned {
         return Some(Form::poison());
     }
-    let half = |m: &Mono| m.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e / 2);
+    let half = |m: &Mono| exp_of(m, id) / 2;
     let h = poly.monos().map(half).max().unwrap_or(0);
     let nums = powers(&repl.num, h, budget)?;
     let dens = powers(&repl.den, h, budget)?;
     let mut acc = Poly::zero();
     for (mono, coeff) in poly.terms() {
-        let e = mono.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e);
+        let e = exp_of(mono, id);
         let rest: Mono = mono
             .iter()
             .filter(|(i, _)| *i != id || e % 2 == 1)
@@ -233,7 +233,7 @@ mod tests {
             AtomInfo {
                 op: SymOp::Sqrt,
                 payload: 0,
-                args: [Some(std::rc::Rc::new(Form::poly(x.clone()))), None],
+                args: [Some(std::sync::Arc::new(Form::poly(x.clone()))), None],
             },
         );
         let resid = Poly::term(vec![(atom, 2)], Rat::new(1, 1, 0).unwrap());

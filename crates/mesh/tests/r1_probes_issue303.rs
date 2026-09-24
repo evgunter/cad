@@ -7,29 +7,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tol, Vec3};
+use geom_core::{OrthoFrame, Point2, Point3, Tol};
 use mesh::validate::{check_mesh, signed_volume};
 use mesh::{FacePatch, Mesh, tessellate};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::test_support::{corners, prism_on};
 use sweep::{Extrusion, extrude};
-use topo::Body;
-
-fn prism_on(plane: SketchPlane<f64>, poly: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = ProfileLoop::polygon(poly.iter().map(|&(x, y)| Point2::new(x, y)));
-    let vp = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .expect("profile validation");
-    extrude(&vp, Extrusion::Distance(h), Tol::witness())
-        .expect("extrude")
-        .body
-}
 
 fn plane_at(offset: f64) -> SketchPlane<f64> {
-    SketchPlane::from_frame(
-        Point3::new(offset, offset, offset),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-    )
+    SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(offset, offset, offset)))
 }
 
 /// The OLD spelling: world-origin-anchored fold (pre-fix behavior).
@@ -54,8 +40,9 @@ fn origin_fold(m: &Mesh) -> f64 {
 fn hand_mesh(positions: Vec<Point3<f64>>, triangles: Vec<[u32; 3]>) -> Mesh {
     let body = prism_on(
         SketchPlane::xy(),
-        &[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+        corners(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]),
         1.0,
+        Tol::witness(),
     );
     let fk = body.faces().next().unwrap().0;
     Mesh {
@@ -102,7 +89,12 @@ fn r1_open_mesh_answer_changed() {
 fn r1_dyadic_box_hides_defect() {
     let poly = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
     let mesh_at = |plane| {
-        let m = tessellate(&prism_on(plane, &poly, 1.0), 1e-2, Tol::witness()).expect("tessellate");
+        let m = tessellate(
+            &prism_on(plane, corners(&poly), 1.0, Tol::witness()),
+            1e-2,
+            Tol::witness(),
+        )
+        .expect("tessellate");
         assert_eq!(check_mesh(&m), Ok(()));
         m
     };
@@ -169,6 +161,9 @@ fn r1_e2e_l_prism_near_far() {
         (0.0, 2.0),
     ];
     let read = |plane, label: &str| -> Option<f64> {
+        // Not [`prism_on`]: this row's subject is the TYPED refusal, and a
+        // fixture that panics on one cannot report it. The construction is
+        // that door's, spelled out because the `Result` is the measurement.
         let lp = ProfileLoop::polygon(poly.iter().map(|&(x, y)| Point2::new(x, y)));
         let vp = match Profile::new(plane, vec![lp]).validate(Tol::witness()) {
             Ok(v) => v,
@@ -205,7 +200,9 @@ fn r1_e2e_l_prism_near_far() {
         }
     }
     // At 2e7 the DOOR refuses typed (cap-plane newell residual at
-    // ulp(2e7) scale) — a consumer there sees a refusal, not a number.
+    // ulp(2e7) scale) — a consumer there sees a refusal, not a number. Not
+    // [`prism_on`] for the same reason as above: the refusal is the
+    // measurement, and a panicking fixture cannot hand one back.
     let e = extrude(
         &Profile::new(
             plane_at(2.0e7),

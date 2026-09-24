@@ -462,14 +462,13 @@ fn the_balls_two_bands_each_answer_for_their_own_half() {
 /// interior and its own boundary, where before the whole body was
 /// refused as a partial sphere face.
 ///
-/// The EXTERIOR is a different question and it stops one door further
+/// The EXTERIOR is a different question, answered one door further
 /// on, for a reason that has nothing to do with the chart: a ray from
 /// outside a quarter ball can miss the body entirely, and the verdict
-/// is then the at-infinity side, read off the body's signed volume —
-/// which the closed-form props lane will not certify for a rimless
-/// band whose meridians lie on two different great circles. That
-/// refusal is pinned here in its honest form, naming the volume rather
-/// than reporting a healthy body as broken.
+/// is then the at-infinity side, read off the body's signed volume,
+/// which the closed-form props lane gives a rimless band whose
+/// meridians lie on two different great circles (the wedge arm). The
+/// verdict is pinned here as `Out`.
 #[test]
 fn the_solid_door_answers_inside_a_trimmed_sphere_body() {
     let body = lune(Revolution::Partial(core::f64::consts::FRAC_PI_2));
@@ -485,15 +484,13 @@ fn the_solid_door_answers_inside_a_trimmed_sphere_body() {
         SolidContainment::OnBoundary,
         "on the sphere face"
     );
-    let err = point_in_solid(&body, at(ch, OUT_AZ, 1.0, 0.5), b, t)
-        .expect_err("the at-infinity side needs a volume props will not certify");
-    assert!(
-        matches!(err, PointInSolidError::VolumeUncertified),
-        "{err:?}"
+    // The at-infinity side is read off the body's signed volume, which
+    // the props lane certifies for the lune (the wedge arm).
+    assert_eq!(
+        point_in_solid(&body, at(ch, OUT_AZ, 1.0, 0.5), b, t).unwrap(),
+        SolidContainment::Out,
+        "outside the swept quarter, at the ball's radius"
     );
-    let msg = err.to_string();
-    assert!(msg.contains("HEALTHY"), "{msg}");
-    assert!(msg.contains("hardcodes"), "{msg}");
 }
 
 /// A trimmed sphere face with a RIM is the other half of the class, and
@@ -553,11 +550,9 @@ fn the_refusal_names_the_class_it_needs() {
     }
     .to_string();
     for want in [
-        "latitude rim",
-        "meridian great circle",
-        "POLE strictly inside",
-        "azimuth jumps by",
-        "Recourse",
+        "sphere face",
+        "Recourse: bound the sphere face with latitude circles and meridians that meet at \
+         the poles",
     ] {
         assert!(msg.contains(want), "missing {want:?}: {msg}");
     }
@@ -658,7 +653,13 @@ fn a_meridian_edge_with_a_pole_strictly_inside_refuses_at_both_doors() {
         matches!(err, PointInSolidError::PartialSphereFace { .. }),
         "{err:?}"
     );
-    assert!(err.to_string().contains("POLE strictly inside"), "{err}");
+    // The variant does not carry WHICH remainder it met, so the
+    // sentence cannot name the pole; its recourse is the one that
+    // repairs this face.
+    assert!(
+        err.to_string().contains("meridians that meet at the poles"),
+        "{err}"
+    );
 }
 
 /// **The §7 non-iso-bounded refusal, planted**, with its two-tolerance
@@ -828,7 +829,8 @@ fn a_ringed_sphere_face_refuses_at_both_doors() {
         matches!(err, PointInSolidError::PartialSphereFace { .. }),
         "{err:?}"
     );
-    assert!(err.to_string().contains("ring"), "{err}");
+    // A ringed face is repaired by keeping it whole.
+    assert!(err.to_string().contains("keep it whole"), "{err}");
 }
 
 /// The body's one flat disc face — the revolve's cap, whose plane's

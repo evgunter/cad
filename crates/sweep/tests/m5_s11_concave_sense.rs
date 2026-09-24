@@ -1,6 +1,7 @@
 //! M5 S11 acceptance: constructors mint the honest orientation bit.
 //!
-//! S10 made a face's outward normal `sense_sign · chart_normal` and
+//! S10 made a face's outward normal the chart normal negated where
+//! `sense` is `false`, and
 //! proved the consumers read the bit; S11 makes the CONSTRUCTORS write
 //! it honestly. A swept wall whose material lies against its surface's
 //! chart normal — extrude's concave arc walls and their hole-loop kin,
@@ -61,7 +62,7 @@ use common::orient::{
 };
 use geom::Surface;
 use geom_core::Tol;
-use geom_core::{Affine3, Point3, Vec3};
+use geom_core::{Affine3, OrthoFrame, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::test_support::swept_elbow_lofted;
@@ -796,11 +797,7 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
         p2(1.1, 1.35),
         p2(0.9, 1.35),
     ]);
-    let plane = SketchPlane::from_frame(
-        Point3::new(0.0, 0.0, 0.3),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, 0.3)));
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -813,7 +810,7 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
         Ok(_) => panic!("a rung-3 NURBS operand has no boolean layer yet"),
     };
     assert!(
-        err.contains("rung-3"),
+        err.contains("is a spline (NURBS) curve"),
         "the refusal names the operand: {err}"
     );
     let door = point_in_solid(

@@ -46,6 +46,7 @@
 
 use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, SketchSegment};
+use geom_core::sym::SymRegistration;
 use geom_core::{
     Affine3, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec2, Vec3,
 };
@@ -325,6 +326,52 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
     }
 }
 
+/// **What a registrant does with the door's typed answer**, in one
+/// place for both of this file's registrants: the refusal arm decides
+/// whether handling it may also ASSERT on it.
+///
+/// - [`SymRegistration::Contradicted`] is a PROOF and is loud. It is
+///   the EXACT witness's answer — [`geom_core::Interval`]'s two
+///   certified enclosures disjoint over the leaf's box — so no scale
+///   makes it the arithmetic giving up: either `what` is not what the
+///   registrant built, or an upstream enclosure does not contain its
+///   real. Both are defects and both belong loud. **Live in RELEASE
+///   too**: this workspace ships `debug-assertions = true` in the
+///   release profile, so a `Contradicted` aborts every profile rather
+///   than being counted.
+/// - [`SymRegistration::Disputed`] is bound and never asserted on: an
+///   INEXACT witness could not tell a lie from a theorem of the reals
+///   it lost at this scale. The arm's own doc carries that argument and
+///   the torus that measures it.
+/// - Every other arm is a record, a no-op, or "nothing to record here",
+///   and none of them is a defect.
+///
+/// The match is EXHAUSTIVE by hand — no wildcard — because this PR's
+/// own subject is an arm that a wildcard would have swallowed.
+fn handle_registration(answer: SymRegistration, what: &'static str) {
+    match answer {
+        SymRegistration::Contradicted => debug_assert!(
+            !matches!(answer, SymRegistration::Contradicted),
+            "the EXACT witness separated {what}: either this builder's theorem is false \
+             for the configuration it was handed, or an upstream enclosure does not \
+             contain its real"
+        ),
+        // Refused by an inexact witness. Counted in the session's
+        // receipt (`SymCounts::registrations_refused`), never asserted.
+        SymRegistration::Disputed
+        // Recorded, or already there, or witnessed with nowhere to put
+        // it, or a value channel that cannot witness at all.
+        | SymRegistration::Recorded
+        | SymRegistration::Already
+        | SymRegistration::Witnessed
+        | SymRegistration::Unwitnessed
+        // A registrant may not alias a node into its own expression;
+        // neither of this file's does, and the door refuses it if one
+        // ever tries. Counted like any refusal.
+        | SymRegistration::Cyclic => {}
+    }
+}
+
 /// **The swept arc's rim identity, registered** (M10-9; ERROR-DESIGN
 /// E12's "kept in reserve — discharge by provenance", taken): the
 /// distance from an arc's endpoint to its center IS its radius, and
@@ -348,7 +395,11 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
 /// so the world distance is the sketch distance and the radius crosses
 /// unchanged; where a caller's placement is NOT rigid the door's own
 /// witness refuses the registration typed rather than believing this
-/// paragraph ([`geom_core::sym::SymRegistration::Contradicted`]).
+/// paragraph — [`geom_core::sym::SymRegistration::Disputed`] at an
+/// inexact witness (`f64`, `Probe`), and at
+/// [`geom_core::Interval`] the exact witness's
+/// [`geom_core::sym::SymRegistration::Contradicted`], which
+/// `handle_registration` turns into an assertion.
 ///
 /// **Why the tier cannot prove it for itself, measured.** The squared
 /// identity is a plain-form theorem wherever the coefficient ring can
@@ -356,8 +407,8 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
 /// discharged against an `abs` — rule C's shape, which folds on no
 /// document at the shipped 256-bit ring and needs ~640 bits and up at
 /// a leaf cost of minutes (`geom_core::sym`'s module docs,
-/// M10's closed `plate-rim-residual-needs-the-wide-coefficient-ring`,
-/// `docs/DOC-LEDGER.md` sweep 13). The ring width is a COST wall, and
+/// M10's closed `plate-rim-residual-needs-the-wide-coefficient-ring`).
+/// The ring width is a COST wall, and
 /// this door is the recourse E12 named for exactly that case.
 ///
 /// **What it touches: nothing.** `rim.norm()` is the node
@@ -368,26 +419,18 @@ pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
 /// `v / ‖v‖` at every lane. The rejected cheaper spelling is
 /// `v / radius`, which would buy the same cancellation by changing the
 /// `f64` lane's bits.
-pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T) {
-    // THE TYPED ANSWER IS HANDLED, and handling it is not asserting on
-    // it. A `Contradicted` means the lane scalar separated `‖q − c‖`
-    // from `r`; the registration is then REFUSED — nothing is recorded,
-    // every decision that would have rested on it stays numeric, and
-    // inside a session the refusal is counted
-    // (`SymCounts::registrations_refused`, which the drive's receipt
-    // reports). That is the whole of what a registrant owes.
-    //
-    // **And it is deliberately not a `debug_assert!`.** The proof above
-    // is a theorem of the REALS; a constructor can be handed a
-    // configuration at the edge of `f64` representability where it is
-    // not a theorem of the floats, and refusing to register there is
-    // correct rather than a defect. Measured, not supposed: an
-    // adversarial probe that sweeps a torus's minor radius to 1e18 with
-    // wall widths below one ULP reaches exactly that
-    // (`work/sym/the-span-identity-is-not-a-theorem-of-the-floats`), and
-    // an assertion there turns a door that correctly REFUSES into a
-    // panic.
-    let _refused_registrations_are_counted_not_asserted = rim.norm().register_equal(radius);
+///
+/// `tol` is the run's ε, which the door's inexact witnesses compare at
+/// ([`geom_core::Real::register_equal`]). It ARRIVES from the caller —
+/// every registrant on this path is reached from a builder that already
+/// holds one, and kernel library code may not mint a tolerance witness.
+pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T, tol: Tol) {
+    // The typed answer is handled by arm (`handle_registration`, which
+    // carries why each arm is treated as it is).
+    handle_registration(
+        rim.norm().register_equal(radius, tol),
+        "the swept arc's ‖q − c‖ from its stored radius",
+    );
 }
 
 /// **The swept arc's SPAN identity, registered** (M10-9 amendment A1;
@@ -416,8 +459,7 @@ pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T) {
 /// with the rim identity registered and this one not, the residual
 /// `carrier_endpoint_end` is what bounds the two-hole plate, its
 /// rendered form carrying `cos(4·atan(1·abs(1)))` verbatim
-/// (M10's closed `plate-ceiling-is-now-the-arc-span-identity`,
-/// `docs/DOC-LEDGER.md` sweep 13).
+/// (M10's closed `plate-ceiling-is-now-the-arc-span-identity`).
 ///
 /// **What it touches: nothing.** `carrier.eval(param_end)` is
 /// evaluated here and thrown away; node ids are content hashes, so the
@@ -426,7 +468,15 @@ pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T) {
 /// from it. Registered PER COMPONENT because that is what the consumer
 /// asks: `carrier.eval(t1).distance(end)` is the `sqrt` of a sum of
 /// squares, zero as a form exactly when each component's difference is.
-pub(crate) fn register_span_identity<T: Real>(carrier: &Curve3<T>, param_end: T, q_to: Point3<T>) {
+///
+/// `tol` is the run's ε, handed down as at the rim
+/// (`register_rim_identity` carries the argument).
+pub(crate) fn register_span_identity<T: Real>(
+    carrier: &Curve3<T>,
+    param_end: T,
+    q_to: Point3<T>,
+    tol: Tol,
+) {
     let Curve3::Circle {
         center,
         axis,
@@ -439,11 +489,13 @@ pub(crate) fn register_span_identity<T: Real>(carrier: &Curve3<T>, param_end: T,
         return;
     };
     let p = Curve3::circle_at(center, axis, radius, u_ref, param_end);
-    // Per component, each answer handled — and, as at the rim, handled
-    // is not asserted on (`register_rim_identity` carries the
-    // argument and the measurement).
+    // Per component, each answer handled by the same arm table as the
+    // rim's (`handle_registration`).
     for (built, held) in [(p.x, q_to.x), (p.y, q_to.y), (p.z, q_to.z)] {
-        let _refused_registrations_are_counted_not_asserted = built.register_equal(held);
+        handle_registration(
+            built.register_equal(held, tol),
+            "carrier.eval(param_end) from the segment's far vertex",
+        );
     }
 }
 
@@ -454,13 +506,17 @@ pub(crate) fn register_span_identity<T: Real>(carrier: &Curve3<T>, param_end: T,
 ///
 /// `place` and `normal` are the placement the segment is lowered
 /// through and its plane normal — the sketch placement for a base
-/// lamina, the translated or rotated one for the swept copy.
+/// lamina, the translated or rotated one for the swept copy. `tol` is
+/// the run's ε, carried through to the two identities the arc arm
+/// states (`register_rim_identity`, `register_span_identity`) and used
+/// for nothing else here.
 pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     seg: &S,
     place: Affine3<T>,
     normal: Vec3<T>,
     q_from: Point3<T>,
     q_to: Point3<T>,
+    tol: Tol,
 ) -> EdgeCurveSpec<T> {
     let description = EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
         segment: sketch_segment(seg),
@@ -487,7 +543,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
             // (`register_rim_identity` carries the proof). Bound out of
             // the expression below rather than spelled twice: one
             // subtraction, one node, one set of bits.
-            register_rim_identity(rim, radius);
+            register_rim_identity(rim, radius, tol);
             let carrier = Curve3::Circle {
                 center: c_world,
                 axis: turn_axis(turn, normal),
@@ -501,7 +557,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
             // registrant states them about the very nodes the spec
             // carries — which is the whole of the same-object
             // condition.
-            register_span_identity(&carrier, param_end, q_to);
+            register_span_identity(&carrier, param_end, q_to, tol);
             EdgeCurveSpec {
                 description,
                 carrier,

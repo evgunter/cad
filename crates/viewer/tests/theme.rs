@@ -13,7 +13,93 @@
 //! under shading, never the raw tint, because the raw tint is not
 //! what any eye receives.
 
-use viewer::theme::{Mark, Safety, Theme, from_linear, linear};
+// Panicking is a test's failure mechanism (workspace lint note).
+#![allow(clippy::expect_used)]
+
+use viewer::theme::{Mark, MixFraction, Safety, Theme, from_linear, linear};
+
+/// No mix at all, and the whole of it — the two endpoints the rows
+/// below build marks at.
+///
+/// Through the public door, because that is the door a caller has:
+/// the literal constructor these two stand in for is `theme.rs`'s own
+/// and private to it.
+fn fraction(value: f32) -> MixFraction {
+    MixFraction::new(value).expect("an endpoint of [0, 1] is a mix fraction")
+}
+
+/// **The weights a shader mixes with cannot be built out of anything
+/// else.**
+///
+/// `Mark::strength` and `Theme::ambient` are written into uniform
+/// lanes by `viewer::gpu` and consumed by WGSL arithmetic that cannot
+/// refuse: a `mix` weight that is not a number spreads over the whole
+/// colour, and the sRGB encode after it has no guarantee about one
+/// either. The type is where that is stopped, so this is the row that
+/// says the type stops it.
+///
+/// **A refusal row alone would say nothing here.** `MixFraction::new`
+/// returning `None` for everything passes it, and a door that refuses
+/// every palette is the same defect as one that refuses none — which
+/// is why `every_weight_in_range_is_a_mix_fraction` is half of this
+/// pair rather than a second opinion. Nor would a difference
+/// assertion do the work: a `NaN` differs from every value including
+/// itself, so `assert_ne!` against one is answered by the broken
+/// door's own output.
+#[test]
+fn nothing_outside_the_unit_interval_is_a_mix_fraction() {
+    for refused in [
+        f32::NAN,
+        -f32::NAN,
+        f32::INFINITY,
+        f32::NEG_INFINITY,
+        -0.000_001,
+        -1.0,
+        1.000_001,
+        2.0,
+        f32::MAX,
+        f32::MIN,
+    ] {
+        assert_eq!(
+            MixFraction::new(refused),
+            None,
+            "{refused} is not a fraction of a mix and the door admitted it",
+        );
+    }
+}
+
+/// **And every weight a palette could legitimately state is
+/// answered** — the other half of the pair above.
+///
+/// The endpoints, the subnormal either side of zero and one, and
+/// every weight the registry itself states: a door that refused any
+/// of these would take a shipped palette out of the build, which is
+/// the failure a refusal-only row cannot see.
+#[test]
+fn every_weight_in_range_is_a_mix_fraction() {
+    let mut accepted: Vec<f32> = vec![
+        0.0,
+        -0.0,
+        f32::MIN_POSITIVE,
+        0.5,
+        1.0,
+        1.0 - f32::EPSILON,
+        f32::EPSILON,
+    ];
+    for theme in Theme::ALL {
+        accepted.push(theme.ambient.get());
+        for (_, mark) in theme.marks() {
+            accepted.push(mark.strength.get());
+        }
+    }
+    for value in accepted {
+        assert_eq!(
+            MixFraction::new(value).map(MixFraction::get),
+            Some(value),
+            "{value} is a fraction of a mix and the door refused it",
+        );
+    }
+}
 
 /// A theme's name is how `--theme` and a preferences file will reach
 /// it, so two themes sharing one is a theme nobody can select.
@@ -53,26 +139,35 @@ fn default_is_registered() {
     );
 }
 
-/// Strengths and the ambient term are mix fractions. Checked once
-/// over the registry rather than at each use: `Mark::strength` is
-/// documented as `[0, 1]`, and a value outside it reaches the shader
-/// as a `mix` that overshoots — a colour brighter than either input,
-/// with nothing to report it.
+/// Strengths and the ambient term are mix fractions.
+///
+/// **The BACKSTOP for the registry's own door, which is the only part
+/// of [`MixFraction`]'s bound that nothing else holds.** Every
+/// fraction a caller outside `theme.rs` can build comes through
+/// `MixFraction::new` and is refused there, with its own two rows
+/// above. The registry's twelve strengths and three ambients are
+/// written as literals through a private `const fn` whose `assert!`
+/// the compiler evaluates, so a bad one fails the build — and
+/// **nothing reds if that `assert!` is deleted**: measured, 18 of 18
+/// rows here stay green. This row is what turns the combined edit —
+/// the assertion removed *and* a bad literal written — back into a
+/// failure. It says nothing about the assertion on its own, and
+/// nothing about the palettes' prose, which it does not read.
 #[test]
 fn mix_fractions_are_in_range() {
     for theme in Theme::ALL {
         assert!(
-            (0.0..=1.0).contains(&theme.ambient),
+            (0.0..=1.0).contains(&theme.ambient.get()),
             "{}: ambient {} outside [0, 1]",
             theme.name,
-            theme.ambient,
+            theme.ambient.get(),
         );
         for (which, mark) in theme.marks() {
             assert!(
-                (0.0..=1.0).contains(&mark.strength),
+                (0.0..=1.0).contains(&mark.strength.get()),
                 "{}: {which} strength {} outside [0, 1]",
                 theme.name,
-                mark.strength,
+                mark.strength.get(),
             );
         }
     }
@@ -92,7 +187,7 @@ fn srgb_linear_round_trip_is_exact() {
         let color = editor_core::appearance::Rgba8::opaque(code, code, code);
         assert_eq!(
             from_linear(linear(color)),
-            color,
+            Some(color),
             "code {code} did not survive the round trip",
         );
     }
@@ -110,21 +205,21 @@ fn a_mark_at_its_endpoints_is_body_or_tint() {
         for (which, mark) in theme.marks() {
             let none = Mark {
                 tint: mark.tint,
-                strength: 0.0,
+                strength: fraction(0.0),
             };
             assert_eq!(
                 none.over(theme.body),
-                theme.body,
+                Some(theme.body),
                 "{}: {which} at strength 0 moved the body colour",
                 theme.name,
             );
             let full = Mark {
                 tint: mark.tint,
-                strength: 1.0,
+                strength: fraction(1.0),
             };
             assert_eq!(
                 full.over(theme.body),
-                mark.tint,
+                Some(mark.tint),
                 "{}: {which} at strength 1 did not reach its tint",
                 theme.name,
             );
@@ -144,7 +239,7 @@ fn every_mark_is_visible_against_its_body() {
         for (which, mark) in theme.marks() {
             assert_ne!(
                 mark.over(theme.body),
-                theme.body,
+                Some(theme.body),
                 "{}: {which} composites to the body colour and marks nothing",
                 theme.name,
             );
@@ -174,6 +269,30 @@ fn a_themes_ground_stays_off_its_own_swatches() {
             worst >= cvd::MIN_SEPARATION,
             "{}: the ground is only {worst:.4} from {at}, under the {:.4} bar — a \
              silhouette there is invisible",
+            theme.name,
+            cvd::MIN_SEPARATION,
+        );
+    }
+}
+
+/// **A committed profile is told from the grid it lies on and from the
+/// preview drawn over it, by colour, in every palette and under every
+/// dichromacy the suite simulates.**
+///
+/// Width already separates a profile from the grid (`crate::gpu`'s
+/// lane styles), and draw order keeps the grid off it; this is the
+/// colour half, which is what says WHICH of the two lines a thick one
+/// is. Held for every palette rather than only the one that claims
+/// colourblind safety, because the separation is what the lanes were
+/// introduced for and a profile that reads as the grid, or as its own
+/// preview, is the defect whichever palette it happens in.
+#[test]
+fn a_profile_is_told_from_the_grid_and_the_preview() {
+    for theme in Theme::ALL {
+        let (worst, at) = cvd::worst_profile_separation(theme);
+        assert!(
+            worst >= cvd::MIN_SEPARATION,
+            "{}: the profile colour is only {worst:.4} from {at}, under the {:.4} bar",
             theme.name,
             cvd::MIN_SEPARATION,
         );
@@ -292,9 +411,10 @@ fn a_claimed_theme_has_as_much_shading_range_as_the_light_neutral_one() {
 /// property that holds is checkable here, where a number copied out
 /// of a paper is only a second thing to get wrong.
 mod cvd {
+    use editor_core::appearance::Rgba8;
     use perceive_color::Color;
     use perceive_cvd::{CvdType, Severity, simulate};
-    use viewer::theme::{Safety, Theme, linear};
+    use viewer::theme::{DATUM_OPACITY, Safety, Theme, linear};
 
     /// How far apart two swatches must stay, in OKLab.
     ///
@@ -372,22 +492,49 @@ mod cvd {
     /// whole palette scaled toward black — where separations are
     /// smallest and a claim fails first.
     /// **What the GROUND is measured against**: every swatch, plus
-    /// the construction colour.
+    /// the two line colours.
     ///
-    /// `Theme::datum` is not a mark — it shades with nothing and
-    /// tints nothing — so it is absent from [`swatches`] and from the
-    /// marks check. It is still DRAWN IN THE VIEWPORT, though, which
-    /// is the whole of what the ground check is about: a datum the
-    /// colour of the surround is a datum nobody can see. It is
-    /// measured unshaded, once, because a line is not lit.
+    /// `Theme::datum` and `Theme::profile` are not marks — they shade
+    /// with nothing and tint nothing — so they are absent from
+    /// [`swatches`] and from the marks check. They are still DRAWN IN
+    /// THE VIEWPORT, though, which is the whole of what the ground
+    /// check is about: a line the colour of the surround is a line
+    /// nobody can see. Each is measured unshaded, once, because a line
+    /// is not lit.
+    ///
+    /// **The datum is measured as it is SEEN**: blended onto the ground
+    /// at `DATUM_OPACITY`, which is how the edge pass draws it. Its
+    /// full colour would certify a separation half of which the
+    /// picture never shows.
     pub(super) fn against_ground(theme: &Theme, shade: f64) -> Vec<(&'static str, Color)> {
         let mut out = swatches(theme, shade);
-        let [r, g, b] = linear(theme.datum);
-        out.push((
-            "datum",
-            Color::new(f64::from(r), f64::from(g), f64::from(b)),
-        ));
+        for (label, line) in [
+            ("datum", seen_over(theme.datum, DATUM_OPACITY, theme.ground)),
+            ("profile", theme.profile),
+        ] {
+            let [r, g, b] = linear(line);
+            out.push((label, Color::new(f64::from(r), f64::from(g), f64::from(b))));
+        }
         out
+    }
+
+    /// `line` drawn at `opacity` over `under`, blended per channel in
+    /// the display encoding — where the edge pass blends on the
+    /// gamma-space framebuffer the viewer runs on. An `*Srgb` surface
+    /// blends in linear light instead (`theme::DATUM_OPACITY` states
+    /// the difference); this measures the arm the viewer takes.
+    fn seen_over(line: Rgba8, opacity: f32, under: Rgba8) -> Rgba8 {
+        let mix = |l: u8, u: u8| {
+            let blended = f32::from(l) * opacity + f32::from(u) * (1.0 - opacity);
+            // In [0, 255] for an opacity in [0, 1]; the clamp is the
+            // cast's range, not a correction.
+            blended.round().clamp(0.0, 255.0) as u8
+        };
+        Rgba8::opaque(
+            mix(line.r, under.r),
+            mix(line.g, under.g),
+            mix(line.b, under.b),
+        )
     }
 
     fn swatches(theme: &Theme, shade: f64) -> Vec<(&'static str, Color)> {
@@ -400,8 +547,35 @@ mod cvd {
         };
         let mut out = vec![("body", scale(linear(theme.body)))];
         for (label, mark) in theme.marks() {
-            out.push((label, scale(linear(mark.over(theme.body)))));
+            // **A mark that does not composite is not measured as
+            // black.** `Mark::over` carries `from_linear`'s refusal
+            // up, and this walk is where a palette's safety CLAIM is
+            // checked: taking `None` as a colour would put pure black
+            // into every distance below, which is the most legible
+            // answer there is and would certify the palette on a
+            // value nothing computed. `MixFraction` is what makes the
+            // arm unreachable from here; this is the row that
+            // measures rather than assumes it.
+            let composited = mark.over(theme.body);
+            assert!(
+                composited.is_some(),
+                "{}: {label} does not composite",
+                theme.name,
+            );
+            out.extend(composited.map(|c| (label, scale(linear(c)))));
         }
+        // **A short list would still measure.** `extend` over an
+        // `Option` drops rather than refusing, so if the row above is
+        // ever relaxed the separation below would be taken over fewer
+        // swatches and pass for having less to compare. The length is
+        // the structural half of that guard; the row above names which
+        // mark, which a length cannot.
+        assert_eq!(
+            out.len(),
+            theme.marks().len() + 1,
+            "{}: the swatch walk lost a mark",
+            theme.name,
+        );
         out
     }
 
@@ -411,6 +585,51 @@ mod cvd {
     /// claimed themes — but the ground check runs over the whole
     /// registry, and holding an unclaimed palette to a dichromatic
     /// bar would be measuring a promise it never made.
+    /// The closest a theme's committed-profile colour comes to the two
+    /// line colours it is drawn beside, under EVERY vision type in
+    /// [`KINDS`] whatever the palette claims: the datum grid, as seen —
+    /// blended at `DATUM_OPACITY` over the ground and over the fully lit
+    /// body — and the preview, the probe mark over the body, drawn
+    /// unshaded as the edge pass draws it.
+    pub(super) fn worst_profile_separation(theme: &Theme) -> (f64, String) {
+        let color = |c: Rgba8| {
+            let [r, g, b] = linear(c);
+            Color::new(f64::from(r), f64::from(g), f64::from(b))
+        };
+        let profile = color(theme.profile);
+        // `swatches`' reason for asserting rather than defaulting: a
+        // mark that does not composite measured as black would pass
+        // every distance on a value nothing computed.
+        let composited = theme.probe.over(theme.body);
+        assert!(
+            composited.is_some(),
+            "{}: the probe mark does not composite",
+            theme.name
+        );
+        let preview = composited.unwrap_or(theme.body);
+        let neighbours = [
+            (
+                "the datum grid over the ground",
+                color(seen_over(theme.datum, DATUM_OPACITY, theme.ground)),
+            ),
+            (
+                "the datum grid over the body",
+                color(seen_over(theme.datum, DATUM_OPACITY, theme.body)),
+            ),
+            ("the preview", color(preview)),
+        ];
+        let mut worst = (f64::INFINITY, String::new());
+        for (name, neighbour) in neighbours {
+            for kind in KINDS {
+                let d = distance(seen(profile, kind), seen(neighbour, kind));
+                if d < worst.0 {
+                    worst = (d, format!("{name} under {}", name_of(kind)));
+                }
+            }
+        }
+        worst
+    }
+
     fn kinds_of(theme: &Theme) -> &'static [Option<CvdType>] {
         match theme.safety {
             Safety::ColorblindSafe => &KINDS,
@@ -438,7 +657,7 @@ mod cvd {
                 f64::from(body[2]) * shade,
             ))[0]
         };
-        at(1.0) - at(f64::from(theme.ambient))
+        at(1.0) - at(f64::from(theme.ambient.get()))
     }
 
     /// The closest a theme's GROUND comes to any of its swatches,
@@ -446,7 +665,7 @@ mod cvd {
     pub(super) fn worst_against_ground(theme: &Theme) -> (f64, String) {
         let [r, g, b] = linear(theme.ground);
         let ground = Color::new(f64::from(r), f64::from(g), f64::from(b));
-        let ambient = f64::from(theme.ambient);
+        let ambient = f64::from(theme.ambient.get());
         let shades = [ambient, ambient + (1.0 - ambient) * 0.5, 1.0];
         let mut worst = (f64::INFINITY, String::new());
         for shade in shades {
@@ -468,7 +687,7 @@ mod cvd {
     /// The closest any two of a theme's swatches come, over every
     /// vision type and across the shading range, with the pair named.
     pub(super) fn worst_separation(theme: &Theme) -> (f64, String) {
-        let ambient = f64::from(theme.ambient);
+        let ambient = f64::from(theme.ambient.get());
         // The shading term's floor, midpoint and ceiling. Three
         // levels rather than a sweep: the term is linear in
         // `lambert`, so the interior holds no surprise the ends miss.
@@ -580,5 +799,71 @@ mod cvd {
                  ({rg:.4}) — the axis this palette is built on",
             );
         }
+    }
+}
+
+/// **A channel that is not a number is not a channel of anything.**
+///
+/// `f32::clamp` returns `self` when `self` is a `NaN` — a clamp cannot
+/// order the one value that has no order — and `NaN as u8` is `0`, so
+/// a poisoned channel used to arrive as a legitimate pure black. The
+/// composited colour is what [`cvd`] measures a palette's safety from,
+/// and pure black is the far end of every distance it takes: a channel
+/// that could not be computed read as the most legible answer there is.
+///
+/// What this row holds is the DISTINCTION, and it is held against
+/// **every** answer the encode gives rather than against black alone.
+/// Comparing with the floor only leaves the refusal free to be undone
+/// into any other legitimate value — `unwrap_or(255)` in place of the
+/// `?` passes a floor-only row and is the same defect at the other end
+/// of the ramp. So each channel is checked against the floor, the cap
+/// and an ordinary value between them, **substituted into that same
+/// channel**: the poisoned answer for lane `i` has to differ from the
+/// answer for every real light level in lane `i`, not from some other
+/// lane's colour. Each lane in turn, because the encode runs per
+/// channel.
+#[test]
+fn a_channel_that_is_not_a_number_is_not_a_channel() {
+    for lane in 0..3 {
+        let at = |level: f32| {
+            let mut channels = [0.0_f32; 3];
+            channels[lane] = level;
+            from_linear(channels)
+        };
+        let legitimate = [at(0.0), at(1.0), at(0.25)];
+        let poisoned = at(f32::NAN);
+        assert!(
+            !legitimate.contains(&poisoned),
+            "channel {lane} that is not a number answered {poisoned:?}, \
+             which is an answer a real channel gives",
+        );
+    }
+}
+
+/// The three legitimate answers per channel are three different
+/// answers, which is what makes the row above a test of anything: an
+/// encode that answered one colour for every level would satisfy a
+/// difference check against a set whose members had collapsed.
+///
+/// All three pairs, not two of them — a set of three has three pairs,
+/// and checking the two adjacent ones leaves `floor == cap` unread.
+#[test]
+fn the_legitimate_channel_answers_are_distinct() {
+    for lane in 0..3 {
+        let at = |level: f32| {
+            let mut channels = [0.0_f32; 3];
+            channels[lane] = level;
+            from_linear(channels)
+        };
+        let (floor, cap, ordinary) = (at(0.0), at(1.0), at(0.25));
+        assert_ne!(
+            floor, ordinary,
+            "channel {lane}: the floor and an ordinary level"
+        );
+        assert_ne!(
+            ordinary, cap,
+            "channel {lane}: an ordinary level and the cap"
+        );
+        assert_ne!(floor, cap, "channel {lane}: the floor and the cap");
     }
 }

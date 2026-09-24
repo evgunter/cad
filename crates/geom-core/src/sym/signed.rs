@@ -40,7 +40,7 @@
 
 use core::f64::consts::PI;
 
-use super::form::{Form, Mono, Poly};
+use super::form::{Form, Mono, Poly, exp_of};
 use super::rational::Rat;
 use super::{INDET_PI, IndetMap, SymBudget, SymOp};
 use crate::ring_interval::RingInterval;
@@ -51,10 +51,6 @@ use crate::ring_interval::RingInterval;
 const ROOT_TERMS: usize = 64;
 
 /// The exponent of `id` in `m` (zero where absent).
-fn exp_of(m: &Mono, id: u128) -> u32 {
-    m.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e)
-}
-
 /// A graded-lexicographic comparison: total degree first, then the
 /// exponent vector over `ids` — a monomial order, which the
 /// leading-term recurrence below needs (the map's own `Vec` order is

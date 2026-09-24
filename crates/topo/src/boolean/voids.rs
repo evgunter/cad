@@ -172,30 +172,30 @@ impl core::fmt::Display for VoidInsertError {
         match self {
             Self::MissingEvidence { shell } => write!(
                 f,
-                "void insertion: cavity shell {shell:?} carries no containment \
+                "cavity shell {shell:?} carries no containment \
                  certificate — the door never derives containment; the caller \
                  must certify every cavity shell strictly inside the target"
             ),
             Self::NotStrictlyContained { shell } => write!(
                 f,
-                "void insertion: cavity shell {shell:?}'s certificate is not a \
+                "cavity shell {shell:?}'s certificate is not a \
                  strict-inside claim — a cavity boundary must be strictly \
                  contained in the target's material"
             ),
             Self::ForeignShell { shell } => write!(
                 f,
-                "void insertion: evidence names shell {shell:?}, which the \
+                "evidence names shell {shell:?}, which the \
                  cavity body does not hold (caller desync)"
             ),
             Self::DuplicateEvidence { shell } => write!(
                 f,
-                "void insertion: evidence certifies shell {shell:?} twice — the door \
+                "evidence certifies shell {shell:?} twice — the door \
                  never resolves conflicting certificates by list order (caller desync)"
             ),
-            Self::Revert(e) => write!(f, "void insertion: cavity revert failed: {e:?}"),
-            Self::Corrupt { what } => write!(f, "void insertion: {what}"),
+            Self::Revert(e) => write!(f, "cavity revert failed: {e:?}"),
+            Self::Corrupt { what } => write!(f, "{what}"),
             Self::Recertify(e) => {
-                write!(f, "void insertion: graft re-certification refused: {e}")
+                write!(f, "graft re-certification refused: {e}")
             }
         }
     }

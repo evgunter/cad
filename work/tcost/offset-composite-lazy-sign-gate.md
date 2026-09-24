@@ -4,6 +4,8 @@ kind: unit
 title: offset_fit's composite forms X and Y on every cell, including the cells the sign witness refuses first
 status: open
 opened: 2026-09-03
+priority: P4
+cost: E
 ---
 
 

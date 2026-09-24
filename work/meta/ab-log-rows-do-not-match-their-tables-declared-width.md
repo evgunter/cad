@@ -4,6 +4,8 @@ kind: issue
 title: 32 A/B log rows carry fewer or more cells than the 14-column table they sit in, so a positional reader drops them or mis-assigns their columns
 status: open
 opened: 2026-09-11
+priority: P3
+cost: E
 ---
 
 
@@ -70,3 +72,26 @@ and separator, as the PERF block does.
 The cheap tripwire, if one is wanted: the same census as a check, erroring on a
 body row whose width is not its table's. It belongs with the log's format, which
 is this program's.
+
+## Four of the 32 fixed at source (PROPS orchestrator, 2026-09-15)
+
+The four 9-cell rows in this finding's list that are PROPS's own —
+`PROPS-1`, `Span`, `k-stats`, `coeffs` — now carry 14 cells, so
+`blind_extract.py` stops dropping them and the program's whole A/B
+contribution becomes visible to the analysis. Nothing was rewritten:
+each row's oversized review cell split at the seams its own prose
+already had, `Silent deviations:` opening the silent-deviations cell
+and `Fix pass` opening the fix-pass-size cell, with the idiom, tests
+and docs cells filled from the `idiom N / test N / doc N` figures
+stated inside each arm's parenthesis (recorded as `R1 x / R2 y`, the
+shape the other dual rows use). The review, battery, tokens and
+wall-clock cells are byte-identical to what they were. The new
+`mignitude` row (ordinal 2404) was written 14-wide to begin with.
+
+That leaves **28** rows in the finding, none of them PROPS's. The
+remaining 9-cell group is QA's eight; the 6-cell group is SHELL's
+eight; the 15- and 16-cell groups are M10's, CERT's, SEAT's, K's and
+DOCM's. Each is its own program's to fix at source the same way, and
+the mechanical part is the same four seams every time — which is
+probably worth saying once in the protocol section rather than eight
+times in eight programs' logs.

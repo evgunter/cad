@@ -125,7 +125,7 @@ themselves are in them.
   `work/chrome/parameter-row-field-has-no-text-door.md`.
 - The drag tick has three homes and a `Count` field has two live
   answers (the panel's `1.0` against the pattern form's `0.1`):
-  `work/chrome/drag-tick-has-three-homes.md`.
+  `work/forms/drag-tick-has-three-homes.md`.
 - Three doc-comment merge scars found reading `app.rs` end to end, none
   of them this unit's: `work/chrome/app-rs-doc-comment-merge-scars.md`.
 - The `#[cfg]`-gated loud-skip marker is now an eight-copy hand-written

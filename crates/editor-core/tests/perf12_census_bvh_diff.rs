@@ -46,8 +46,10 @@ use editor_core::{
 };
 use fixture::{Recorder, band, frame, len, xy_frame};
 use geom_core::Tol;
+use sweep::test_support::{PRISM_SQUARE, PRISM_TRAPEZOID};
 use topo::{
-    CensusStrategy, CensusTrace, EntityId, PlantedDegradation, census_traces, census_traces_planted,
+    CensusStrategy, CensusTrace, EntityId, PlantedDegradation, RegionLane, census_traces,
+    census_traces_planted,
 };
 
 /// One strategy's run: the error vector rendered, and the trace.
@@ -67,7 +69,14 @@ fn run(name: &str, doc: &ProfileDoc, strategy: CensusStrategy) -> Run {
     );
     let product = product_recorded(doc, &ev, tol)
         .unwrap_or_else(|e| panic!("{name}: the product gathers: {e:?}"));
-    let (errors, trace) = census_traces(&product.body, &product.contacts, band(), strategy);
+    let (errors, trace) = census_traces(
+        &product.body,
+        &product.contacts,
+        band(),
+        tol,
+        Some(RegionLane::certified()),
+        strategy,
+    );
     Run {
         errors: errors.iter().map(|e| format!("{e:?}")).collect(),
         trace,
@@ -192,11 +201,9 @@ fn loft_with_brick() -> ProfileDoc {
             loops: vec![LoopProgram::polygon(pts).unwrap()],
         }))
     };
-    let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let bottom = section(&mut r, 0.0, square);
-    let middle = section(&mut r, 1.0, trapezoid);
-    let top = section(&mut r, 2.0, square);
+    let bottom = section(&mut r, 0.0, PRISM_SQUARE);
+    let middle = section(&mut r, 1.0, PRISM_TRAPEZOID);
+    let top = section(&mut r, 2.0, PRISM_SQUARE);
     r.insert(Node::Loft {
         profiles: vec![bottom, middle, top],
         v_degree: Expr::count(2),
@@ -316,6 +323,7 @@ fn heatsink_at(fins: i64) -> ProfileDoc {
             value: DocParam::Count { value: fins },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the fin count is a document parameter")
     .doc
@@ -339,6 +347,8 @@ fn planted_degradation_is_caught() {
         &product.body,
         &product.contacts,
         band(),
+        tol,
+        Some(RegionLane::certified()),
         CensusStrategy::Idealized,
     );
     let &(_, EntityId::Face(face)) = ideal
@@ -353,6 +363,8 @@ fn planted_degradation_is_caught() {
         &product.body,
         &product.contacts,
         band(),
+        tol,
+        Some(RegionLane::certified()),
         CensusStrategy::Realized,
         PlantedDegradation { face },
     );

@@ -87,7 +87,7 @@ fn assert_every_face_outward(body: &Body<f64>) {
         let Some(Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
             panic!("face {fk:?}: every face of these fixtures is a plane");
         };
-        let outward = if f.sense { *normal } else { -*normal };
+        let outward = geom_brep::OutwardNormal::from_chart(*normal, f.sense).vec();
         // Any point of the face's plane serves as the witness; the
         // plane's own origin is one.
         let d = outward.dot(*origin - interior);

@@ -57,11 +57,11 @@
 //!   underflow, the reads are in range by construction, and there is no
 //!   pairing to check and no refusal to answer. The two mints are
 //!   [`NurbsCurve3::span`] and [`NurbsCurve3::span_at`], both `&self`.
-//! - **Full evaluators** (`eval`/`deriv`/`deriv2`): span selection via
-//!   the sealed [`SpanLocate`] seam (per-instantiation semantics
-//!   documented in `geom_core::spline::locate`), then the core per
-//!   overlapped span, hulled channel-independently for interval-natured
-//!   scalars.
+//! - **Full evaluators** (`eval`/`deriv`/`deriv2`, and the jets `ders1`
+//!   and `ders`): span selection via the sealed [`SpanLocate`] seam
+//!   (per-instantiation semantics documented in
+//!   `geom_core::spline::locate`), then the core per overlapped span,
+//!   hulled channel-independently for interval-natured scalars.
 //!
 //! # What does not typecheck
 //!
@@ -206,9 +206,16 @@ macro_rules! nurbs_curve {
         /// (itself address-equal on its vector): a window is a proof
         /// about *that* control net, and a curve is not [`Eq`] — its
         /// knots and weights are `f64`.
+        ///
+        /// **This walk and the `Debug` beside it destructure `Self`
+        /// exhaustively**, so a field added to the declaration is an
+        /// E0027 unbound-pattern error rather than a value silently
+        /// outside equality and outside the dump.
         impl<T: Real> PartialEq for $Window<'_, T> {
             fn eq(&self, other: &Self) -> bool {
-                core::ptr::eq(self.curve, other.curve) && self.span == other.span
+                let Self { curve, span } = self;
+                let Self { curve: other_curve, span: other_span } = other;
+                core::ptr::eq(*curve, *other_curve) && span == other_span
             }
         }
 
@@ -220,9 +227,10 @@ macro_rules! nurbs_curve {
         /// one cost a borrow-carrying token can impose by accident.
         impl<T: Real> core::fmt::Debug for $Window<'_, T> {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                let Self { curve, span } = self;
                 f.debug_struct(stringify!($Window))
-                    .field("curve", &core::ptr::from_ref(self.curve))
-                    .field("span", &self.span)
+                    .field("curve", &core::ptr::from_ref(*curve))
+                    .field("span", span)
                     .finish()
             }
         }
@@ -437,12 +445,17 @@ macro_rules! nurbs_curve {
                         Some(m) => m.min(v),
                     });
                     // `w′`'s SIGNED hull, from the ring-rounded
-                    // coefficients (`!(a >= b)` so a poisoned
-                    // coefficient poisons the hull rather than being
-                    // skipped by a false comparison).
+                    // coefficients. The refusal is asked by name: the
+                    // ring keeps it in the decoration, so a
+                    // coefficient that may not certify carries
+                    // ordinary endpoints and would widen the hull by a
+                    // number instead of collapsing the whole bound.
                     let Some(q) = dw.get(i) else {
                         return poison;
                     };
+                    if q.is_poison() {
+                        return poison;
+                    }
                     #[allow(clippy::neg_cmp_op_on_partial_ord)]
                     if !(q.lo() >= wp_lo) {
                         wp_lo = q.lo();
@@ -570,20 +583,17 @@ macro_rules! nurbs_curve {
 
             /// Construction from parts whose invariants are ALREADY
             /// established — the door a structural map takes instead
-            /// of [`Self::new`], and the one place that says why
-            /// `new`'s check is redundant for it.
+            /// of [`Self::new`].
             ///
             /// The invariants are load-bearing for indexing (module
-            /// docs), so skipping the check needs an argument, and it
-            /// is this: `knots` and `weights` are a validated curve's
-            /// own, carried verbatim, and `control` is that curve's net
-            /// mapped POINTWISE — a map over a `Vec` cannot change its
-            /// length — so `control.len()` still equals
-            /// `knots.control_count()`, `weights.len()` still equals
-            /// `control.len()`, and every weight is still the positive
-            /// finite value `new` admitted. The `debug_assert` re-derives
-            /// the count agreement that argument rests on (D2 addendum
-            /// row 5: a bug detectable only by re-derivation).
+            /// docs), so skipping the check needs an argument. That
+            /// argument has ONE home for the whole crate,
+            /// `crate::scalar_lift`'s module docs: what a structural
+            /// map is, why no shape of it changes a count or a weight
+            /// value, and which part of it the `debug_assert` below
+            /// cannot check. `knots` and `weights` here are a
+            /// validated curve's own and `control` is that curve's net
+            /// under such a map.
             fn from_validated_parts(
                 knots: KnotVector,
                 control: Vec<$Point<T>>,
@@ -591,7 +601,7 @@ macro_rules! nurbs_curve {
             ) -> Self {
                 debug_assert!(
                     control.len() == knots.control_count() && weights.len() == control.len(),
-                    "from_validated_parts: a pointwise map changed a count \
+                    "from_validated_parts: a structural map changed a count \
                      (control {}, knots want {}, weights {})",
                     control.len(),
                     knots.control_count(),
@@ -619,6 +629,33 @@ macro_rules! nurbs_curve {
                     self.control.iter().map(|p| p.map(&f)).collect(),
                     self.weights.clone(),
                 )
+            }
+
+            /// The same curve on another parameter domain: the knots
+            /// re-expressed on `[lo, hi]` by [`KnotVector::on_domain`]
+            /// (ends exact, interior affine), the control net and the
+            /// weights carried over verbatim. Construction goes through
+            /// [`Self::from_validated_parts`], which states why no
+            /// re-validation is run.
+            ///
+            /// A reparameterization, not a change of locus: the result
+            /// at `lo + (hi − lo)·s` is this curve at `a + (b − a)·s`,
+            /// to the rounding of the knot map. The domain's own
+            /// validity is the knot door's question, and its `Result`
+            /// is that door's and nothing else.
+            ///
+            /// # Errors
+            ///
+            /// [`KnotVector::on_domain`]'s: the domain is not a finite
+            /// increasing interval, or a rounding collapse tripped a
+            /// clamp clause.
+            pub fn on_domain(&self, lo: f64, hi: f64) -> Result<Self, SplineError> {
+                let knots = self.knots.on_domain(lo, hi)?;
+                Ok(Self::from_validated_parts(
+                    knots,
+                    self.control.clone(),
+                    self.weights.clone(),
+                ))
             }
 
             /// The same curve with every control point carried
@@ -676,8 +713,8 @@ macro_rules! nurbs_curve {
             }
 
             /// The one primitive constructor, behind [`Self::span`] and
-            /// [`Self::span_at`] and the located-span walk in
-            /// [`Self::eval`]. It is private because it is the single
+            /// [`Self::span_at`] and the located-span walk behind the
+            /// full evaluators. It is private because it is the single
             /// place where a span and a curve are put together, and
             /// every caller draws the span from `self.knots`.
             fn window_of<'a>(&'a self, span: Span<'a>) -> $Window<'a, T> {
@@ -872,7 +909,11 @@ macro_rules! nurbs_curve {
             /// A **certified lower bound** on `‖C′(t)‖` over the whole
             /// domain, in meters per parameter unit — the "meter" a
             /// parameter-space margin must be multiplied by to become a
-            /// length (D4 ¶1).
+            /// length (D4 ¶1). It is an
+            /// [`InfSpeed`](geom_core::InfSpeed) by signature: the
+            /// bound direction is what every consumer relies on (a
+            /// span this meter proves forward IS forward in metres),
+            /// and under-stating is what makes that sound.
             ///
             /// This is the rung-3 analogue of the conic lane's
             /// conservative meters (`Circle` ⇒ radius, `Ellipse` ⇒ the
@@ -1030,16 +1071,16 @@ macro_rules! nurbs_curve {
             /// discriminates assembly structure, never geometry: the
             /// geometric decision (is the bound positive?) stays with
             /// the caller's trilean.
-            pub fn speed_lower_bound(&self) -> T {
+            pub fn speed_lower_bound(&self) -> geom_core::InfSpeed<T> {
                 let poison = T::from_f64(f64::NAN);
                 // Rational ⇒ the convexity argument does not hold
                 // directly; the quotient-rule arm takes over.
                 if self.weights.iter().any(|w| *w != 1.0) {
-                    return self.rational_speed_lower_bound();
+                    return geom_core::InfSpeed::new(self.rational_speed_lower_bound());
                 }
                 let p = self.knots.degree();
                 if p == 0 || self.control.len() < 2 {
-                    return poison;
+                    return geom_core::InfSpeed::new(poison);
                 }
                 let knots = self.knots.knots();
                 // Derivative coefficients, once for the curve:
@@ -1050,15 +1091,15 @@ macro_rules! nurbs_curve {
                 let mut coeffs = Vec::with_capacity(self.control.len() - 1);
                 for i in 0..(self.control.len() - 1) {
                     let (Some(a), Some(b)) = (self.control.get(i), self.control.get(i + 1)) else {
-                        return poison;
+                        return geom_core::InfSpeed::new(poison);
                     };
                     let (Some(&lo), Some(&hi)) = (knots.get(i + 1), knots.get(i + p + 1)) else {
-                        return poison;
+                        return geom_core::InfSpeed::new(poison);
                     };
                     let du = hi - lo;
                     #[allow(clippy::neg_cmp_op_on_partial_ord)]
                     if !(du > 0.0) {
-                        return poison;
+                        return geom_core::InfSpeed::new(poison);
                     }
                     #[allow(clippy::cast_precision_loss)]
                     let scale = T::from_f64(p as f64) / T::from_f64(du);
@@ -1068,7 +1109,7 @@ macro_rules! nurbs_curve {
                 // original arm, verbatim — same direction, same fold
                 // order, bit-identical where it was defined). ----
                 let (Some(first), Some(last)) = (self.control.first(), self.control.last()) else {
-                    return poison;
+                    return geom_core::InfSpeed::new(poison);
                 };
                 let global = {
                     let chord = *last - *first;
@@ -1113,10 +1154,10 @@ macro_rules! nurbs_curve {
                         // (doc: "Poison", the stated asymmetry with
                         // chord-collapse abstention).
                         if span >= self.control.len() {
-                            return poison;
+                            return geom_core::InfSpeed::new(poison);
                         }
                         let Some(active) = coeffs.get(lo_i..span) else {
-                            return poison;
+                            return geom_core::InfSpeed::new(poison);
                         };
                         // The span's own control chord, as unit
                         // direction; collapse ⇒ 0/0 ⇒ this span
@@ -1126,7 +1167,7 @@ macro_rules! nurbs_curve {
                         let (Some(a), Some(b)) =
                             (self.control.get(lo_i), self.control.get(span))
                         else {
-                            return poison;
+                            return geom_core::InfSpeed::new(poison);
                         };
                         let chord = *b - *a;
                         let d = chord / chord.norm();
@@ -1141,12 +1182,12 @@ macro_rules! nurbs_curve {
                     acc.unwrap_or(poison)
                 };
                 // ---- The join (doc: "The join"). ----
-                match (global.is_poison(), perspan.is_poison()) {
+                geom_core::InfSpeed::new(match (global.is_poison(), perspan.is_poison()) {
                     (true, true) => poison,
                     (true, false) => perspan,
                     (false, true) => global,
                     (false, false) => global.max(perspan),
-                }
+                })
             }
 
             /// The **rational arm** of [`Self::speed_lower_bound`]: a
@@ -1401,77 +1442,126 @@ macro_rules! nurbs_curve {
         }
 
         impl<T: SpanLocate> $Curve<T> {
-            /// The point at `t` — span selection through the sealed
-            /// [`SpanLocate`] seam (per-instantiation semantics in
-            /// `geom_core::spline::locate`), the generic core per
-            /// overlapped span, channel-independent hulls across spans
-            /// for interval-natured scalars.
-            pub fn eval(&self, t: T) -> $Point<T> {
+            /// The located-span walk every full evaluator IS: span
+            /// selection through the sealed [`SpanLocate`] seam
+            /// (per-instantiation semantics in
+            /// `geom_core::spline::locate`), `door` on the first
+            /// overlapped span, then for every further overlapped span
+            /// `hull` of the running answer with `door` on that span —
+            /// channel-independent hulls across spans for
+            /// interval-natured scalars, a single call for the point
+            /// scalars, whose locator names one span. One body, so the
+            /// four doors below differ only in the per-span door they
+            /// hand in and the per-channel hull of its answer.
+            ///
+            /// Empty spans (interior multiplicity) are skipped:
+            /// `find_span` assigns every parameter — a repeated knot
+            /// value included — to the nonempty span starting at it,
+            /// which this loop's range always covers, so nothing is
+            /// discarded (containment preserved); an empty span itself
+            /// would only contribute poison (zero basis denominators).
+            /// The emptiness check and the span's validation are the
+            /// same operation.
+            fn located_walk<R>(
+                &self,
+                t: T,
+                door: impl Fn($Window<'_, T>, T) -> R,
+                hull: impl Fn(R, R) -> R,
+            ) -> R {
                 let spans = t.locate_spans(&self.knots);
                 // `spans.first` arrives already validated — the locator
                 // is where span validity originates, so there is
                 // nothing to re-check and no `expect` here.
-                let mut acc = self.window_of(spans.first).eval_in_span(t);
+                let mut acc = door(self.window_of(spans.first), t);
                 for s in (spans.first.index() + 1)..=spans.last.index() {
-                    // Skip empty spans (interior multiplicity):
-                    // find_span assigns every parameter — a repeated
-                    // knot value included — to the nonempty span
-                    // starting at it, which this loop's range always
-                    // covers, so nothing is discarded (containment
-                    // preserved); an empty span itself would only
-                    // contribute poison (zero basis denominators).
-                    // The emptiness check and the span's validation are
-                    // now the same operation.
                     let Some(span) = self.knots.span(s) else { continue };
-                    let q = self.window_of(span).eval_in_span(t);
-                    acc = $Point::new($(acc.$c.enclosure_hull(q.$c)),+);
+                    acc = hull(acc, door(self.window_of(span), t));
                 }
                 acc
             }
 
-            /// The first derivative at `t` (span selection as
-            /// [`Self::eval`]; the `Dual` kink convention at knots is
-            /// the seam's — the derivative of the program as evaluated).
+            /// The per-channel enclosure hull of two point answers.
+            fn hull_point(acc: $Point<T>, q: $Point<T>) -> $Point<T> {
+                $Point::new($(acc.$c.enclosure_hull(q.$c)),+)
+            }
+
+            /// The per-channel enclosure hull of two vector answers.
+            fn hull_vector(acc: $Vector<T>, q: $Vector<T>) -> $Vector<T> {
+                $Vector::new($(acc.$c.enclosure_hull(q.$c)),+)
+            }
+
+            /// The point at `t` — the located-span walk over the
+            /// window's `eval_in_span`.
+            pub fn eval(&self, t: T) -> $Point<T> {
+                self.located_walk(t, |w, t| w.eval_in_span(t), Self::hull_point)
+            }
+
+            /// The first derivative at `t` — the located-span walk over
+            /// the window's `deriv_in_span`; the `Dual` kink convention
+            /// at knots is the seam's — the derivative of the program
+            /// as evaluated.
             pub fn deriv(&self, t: T) -> $Vector<T> {
-                let spans = t.locate_spans(&self.knots);
-                // `spans.first` arrives already validated — the locator
-                // is where span validity originates, so there is
-                // nothing to re-check and no `expect` here.
-                let mut acc = self.window_of(spans.first).deriv_in_span(t);
-                for s in (spans.first.index() + 1)..=spans.last.index() {
-                    // Empty-span skip: see `eval`'s note.
-                    // The emptiness check and the span's validation are
-                    // now the same operation.
-                    let Some(span) = self.knots.span(s) else { continue };
-                    let q = self.window_of(span).deriv_in_span(t);
-                    acc = $Vector::new($(acc.$c.enclosure_hull(q.$c)),+);
-                }
-                acc
+                self.located_walk(t, |w, t| w.deriv_in_span(t), Self::hull_vector)
+            }
+
+            /// Point and first derivative at `t` from ONE span
+            /// selection and one order-1 basis pass per overlapped span
+            /// — the order-1 sibling of [`Self::ders`], for a consumer
+            /// that wants a point and a tangent and would otherwise run
+            /// [`Self::eval`] and [`Self::deriv`] as two located walks.
+            /// The macro mints this door on `NurbsCurve2` too.
+            ///
+            /// Both halves are what their own evaluators answer, bit
+            /// for bit, and the two halves rest on different grounds.
+            /// The derivative IS `deriv_in_span`'s per span by
+            /// construction (`deriv_in_span` is this door's derivative
+            /// half, projected). The point is `eval_in_span`'s because
+            /// `ders_basis_funs`'s order-0 row is `basis_funs`'s
+            /// recursion (`geom_core::spline::basis`) — a second
+            /// spelling of one recursion, pinned by rows rather than by
+            /// construction — and `rational_corrections` at order 0 is
+            /// `eval_in_span`'s division. Across overlapped spans the
+            /// walk is the one every door runs, so each half's hull
+            /// folds the same range in the same order as `eval` and
+            /// `deriv` fold theirs.
+            ///
+            /// At `Dual` each half carries its own derivative channel,
+            /// the derivative of the program as evaluated (the seam's
+            /// kink convention at knots, as [`Self::deriv`]). At
+            /// `Interval` the point box and the tangent box are hulled
+            /// independently across the overlapped spans: each is its
+            /// own evaluator's enclosure, and the pair is not a coupled
+            /// jet (no box is a function of the other).
+            ///
+            /// The return is the tuple `ders1_in_span` and `ders` return
+            /// — every consumer destructures it on the spot, and a named
+            /// jet type would be a third spelling beside two tuples.
+            pub fn ders1(&self, t: T) -> ($Point<T>, $Vector<T>) {
+                self.located_walk(
+                    t,
+                    |w, t| w.ders1_in_span(t),
+                    |(p, d1), (q, q1)| (Self::hull_point(p, q), Self::hull_vector(d1, q1)),
+                )
             }
 
             /// Point, first and second derivative at `t` — the jet a
             /// consumer that wants more than one of them computes ONCE
-            /// (span selection as [`Self::eval`]; each component hulled
-            /// channel-independently across the overlapped spans, so
-            /// every component is exactly what its own evaluator
-            /// answers).
+            /// (the located-span walk over the window's `ders_in_span`;
+            /// each component hulled channel-independently across the
+            /// overlapped spans, so every component is exactly what
+            /// its own evaluator answers).
             pub fn ders(&self, t: T) -> ($Point<T>, $Vector<T>, $Vector<T>) {
-                let spans = t.locate_spans(&self.knots);
-                // `spans.first` arrives already validated — the locator
-                // is where span validity originates, so there is
-                // nothing to re-check and no `expect` here.
-                let (mut p, mut d1, mut d2) = self.window_of(spans.first).ders_in_span(t);
-                for s in (spans.first.index() + 1)..=spans.last.index() {
-                    // Empty-span skip: see `eval`'s note.
-                    // The emptiness check and the span's validation are
-                    // now the same operation.
-                    let Some(span) = self.knots.span(s) else { continue };
-                    let (q, q1, q2) = self.window_of(span).ders_in_span(t);
-                    p = $Point::new($(p.$c.enclosure_hull(q.$c)),+);
-                    d1 = $Vector::new($(d1.$c.enclosure_hull(q1.$c)),+);
-                    d2 = $Vector::new($(d2.$c.enclosure_hull(q2.$c)),+);
-                }
-                (p, d1, d2)
+                self.located_walk(
+                    t,
+                    |w, t| w.ders_in_span(t),
+                    |(p, d1, d2), (q, q1, q2)| {
+                        (
+                            Self::hull_point(p, q),
+                            Self::hull_vector(d1, q1),
+                            Self::hull_vector(d2, q2),
+                        )
+                    },
+                )
             }
 
             /// The second derivative at `t` (contract as

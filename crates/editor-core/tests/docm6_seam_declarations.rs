@@ -21,77 +21,29 @@
 //!   name; an inner mate that could not be minted refuses the outer
 //!   gate before anything else this document has to say.
 //!
-//! **The store/eval scaffolding below (`StubStore`, `opts`, `run`,
-//! `block_part`, `in_part`, `mate_node`) is a fifth copy** of the
-//! shape the four mate suites carry (`mate6_gather_mints.rs`,
-//! `mate6r1_shared.rs`, `mate6r2_probes.rs`, `mate1_member_vocab.rs`),
-//! disclosed rather than shared: each copy pins its own fixture
-//! geometry, and the suites' `in_part` spellings have already diverged
-//! once by a node index. Sharing them is a test-support unit of its
-//! own, not this one's.
+//! The store and the two part-face spellings come from
+//! `fixture::resolver`, which every assembly suite instantiates
+//! through; what stays here is this suite's own geometry and its
+//! `wrap`, the one rung a name climbs per seam.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, CapEnd, ContactClass,
-    DocEdit, DocRef, DocumentId, EntityKey, EntityKind, Entry, EvalOptions, Evaluation, Frame,
-    MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId, Relation, ResolveFailure,
-    ResolveFault, RoleSeg, SitedRef, StableName, assemble, content_pin, evaluate, product_recorded,
+    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CapEnd, CarriedRefusal,
+    ContactClass, DocEdit, DocRef, DocumentId, EntityKey, EntityKind, Entry, Frame, MateFrame,
+    MatePrimitive, Node, ProfileDoc, RecipeNodeId, Relation, RoleSeg, StableName, assemble,
+    product_recorded,
 };
-use fixture::{insert, len, on_frame, step};
+use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::{insert, len, on_frame, run, step};
 use geom_core::Tol;
 
-// ---- store / eval plumbing (the mate suites' shape) ----
-
-#[derive(Debug, Default, Clone)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl editor_core::PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        if content_pin(doc, Tol::witness()).expect("the pin computes") != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
-
-fn opts(store: StubStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
+// ---- This suite's own documents, over the shared store ----
 
 /// A block part: `w` × `d` footprint, extruded `h`. Three nodes — the
 /// sketch frame, the profile, the extrude — so the body's names carry
-/// node 2.
+/// `PART_BODY`, which the store checks on the way in.
 fn block_part(label: &str, w: f64, d: f64, h: f64) -> ProfileDoc {
     let (doc, profile) = on_frame(
         ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
@@ -114,8 +66,6 @@ fn cube_part(label: &str) -> ProfileDoc {
     block_part(label, 1.0, 1.0, 1.0)
 }
 
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
-
 /// `inner` seen through the instance `node` placed it at — one rung of
 /// the route a name climbs at each seam.
 fn wrap(node: RecipeNodeId, inner: StableName) -> StableName {
@@ -124,19 +74,6 @@ fn wrap(node: RecipeNodeId, inner: StableName) -> StableName {
         node,
         path: vec![RoleSeg::InPart { of: inner.into() }],
     }
-}
-
-/// A face of `instance`'s part product, named through the instance
-/// qualifier (A12's reading-edge head).
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    wrap(
-        instance,
-        StableName {
-            kind: EntityKind::Face,
-            node: PART_BODY,
-            path: vec![RoleSeg::Cap(cap)],
-        },
-    )
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
@@ -154,8 +91,8 @@ fn mate_node(
     a_frame: MateFrame,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class,
         alignment: Alignment {
             a: a_frame,
@@ -185,7 +122,7 @@ fn place(doc: ProfileDoc, node: RecipeNodeId, at: [f64; 3]) -> ProfileDoc {
 /// direction, so the census DECLINES the pair. A tilted `axis` is an
 /// ANGULAR contradiction.
 fn stand(
-    store: &mut StubStore,
+    store: &mut PartStore,
     label: &str,
     class: ContactClass,
     seat: [f64; 3],
@@ -210,7 +147,7 @@ fn stand(
 
 /// A resting stand: the ordinary carried declaration.
 fn resting(
-    store: &mut StubStore,
+    store: &mut PartStore,
     label: &str,
 ) -> (DocRef, DocumentId, Vec<RecipeNodeId>, RecipeNodeId) {
     stand(
@@ -224,7 +161,7 @@ fn resting(
 
 /// A part whose only mate is a `Tangent` — a class that solves and
 /// mints NO record at rest, so the part refuses its own gate.
-fn broken_part(store: &mut StubStore, label: &str) -> (DocRef, DocumentId, RecipeNodeId) {
+fn broken_part(store: &mut PartStore, label: &str) -> (DocRef, DocumentId, RecipeNodeId) {
     let (r, id, _, mate) = stand(
         store,
         label,
@@ -333,11 +270,11 @@ fn rows(
 /// product by the graft's own map, and the name table is the oracle.
 #[test]
 fn every_carried_row_is_keyed_to_what_its_own_names_resolve_to() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let (inner_ref, inner_id, _, inner_mate) = resting(&mut store, "docm6-a1-stand");
     let (outer, instances) = row_of("docm6-a1-row", inner_ref, 3, 4.0);
 
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let gathered = product_recorded(&outer, &ev, Tol::witness()).expect("the row gathers");
 
     assert_eq!(
@@ -375,7 +312,7 @@ fn every_carried_row_is_keyed_to_what_its_own_names_resolve_to() {
 /// through — and `via` is the path below `through`, nearest first.
 #[test]
 fn a_four_level_assembly_carries_every_row_with_its_route() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
 
     // S1: a cube resting on a slab.
     let slab = store.insert(block_part("docm6-deep-slab", 2.0, 2.0, 0.5), Tol::witness());
@@ -426,7 +363,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     let outer = place(outer, o_m2, [0.0, 100.0, 0.0]);
     let outer_id = outer.id();
 
-    let ev = run(&outer, &opts(store.clone()));
+    let ev = run(&outer, &with_resolver(store.clone()));
     let gathered = product_recorded(&outer, &ev, Tol::witness()).expect("the outer gathers");
     let per_mid = |om: RecipeNodeId| {
         vec![
@@ -450,7 +387,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
     let outer_ref = store.insert(outer, Tol::witness());
     let top = ProfileDoc::empty(DocumentId::derive("docm6-deep-top"), Tol::witness());
     let (top, t) = insert(top, Node::instantiate_part(outer_ref));
-    let ev = run(&top, &opts(store));
+    let ev = run(&top, &with_resolver(store));
     let gathered = product_recorded(&top, &ev, Tol::witness()).expect("the top gathers");
     let mut expected = Vec::new();
     for om in [o_m1, o_m2] {
@@ -471,7 +408,7 @@ fn a_four_level_assembly_carries_every_row_with_its_route() {
 /// nobody.
 #[test]
 fn a_refuted_carried_declaration_names_its_mate_and_route() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     // Seat 0.5: the two cubes interpenetrate, so the declared rest is
     // definite counter-evidence.
     let (inner_ref, inner_id, _, inner_mate) = stand(
@@ -483,7 +420,7 @@ fn a_refuted_carried_declaration_names_its_mate_and_route() {
     );
     let (outer, instances) = row_of("docm6-a2-row", inner_ref, 1, 4.0);
 
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     assert!(
         matches!(&result, Err(AssemblyError::AtRest { .. })),
@@ -526,7 +463,7 @@ fn a_refuted_carried_declaration_names_its_mate_and_route() {
 /// is the outer document catching up to it.
 #[test]
 fn a_carried_decline_reaches_the_frontier_arm_under_its_own_name() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let (inner_ref, inner_id, _, inner_mate) = stand(
         &mut store,
         "docm6-decline-stand",
@@ -534,15 +471,19 @@ fn a_carried_decline_reaches_the_frontier_arm_under_its_own_name() {
         [1.0, 0.0, 1.0],
         [0.0, 0.0, 1.0],
     );
-    let inner = store.docs[&inner_id].clone();
-    let inner_result = assemble(&inner, &run(&inner, &opts(store.clone())), Tol::witness());
+    let inner = store.doc(inner_id);
+    let inner_result = assemble(
+        &inner,
+        &run(&inner, &with_resolver(store.clone())),
+        Tol::witness(),
+    );
     assert!(
         matches!(&inner_result, Err(AssemblyError::Uncertified { .. })),
         "the inner document alone is the frontier: {inner_result:?}"
     );
 
     let (outer, instances) = row_of("docm6-decline-row", inner_ref, 1, 4.0);
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     assert!(
         matches!(&result, Err(AssemblyError::Uncertified { .. })),
@@ -575,7 +516,7 @@ fn a_carried_decline_reaches_the_frontier_arm_under_its_own_name() {
 /// says so here rather than hiding behind a sibling.
 #[test]
 fn unattributed_is_only_a_finding_no_declaration_answers_for() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let (penetrating, ..) = stand(
         &mut store,
         "docm6-a3-pen",
@@ -605,7 +546,7 @@ fn unattributed_is_only_a_finding_no_declaration_answers_for() {
         (row_of("docm6-a3-touching", gapped, 2, 1.0), true),
     ];
     for ((doc, _), undeclared_expected) in &fixtures {
-        let ev = run(doc, &opts(store.clone()));
+        let ev = run(doc, &with_resolver(store.clone()));
         let result = assemble(doc, &ev, Tol::witness());
         let findings = findings_of(&result);
         assert!(!findings.is_empty(), "{doc:?} refuses: {result:?}");
@@ -646,9 +587,10 @@ fn unattributed_is_only_a_finding_no_declaration_answers_for() {
 /// mate is between two members of the document that authored it, and
 /// instantiating that document places all of it through one node). So
 /// an outer mate naming those same two faces names two faces of one
-/// instance, and A11's solve door refuses it `SelfMate` before any
-/// record is minted. Two different instances are two different
-/// aggregate face pairs, so no other spelling reaches it either.
+/// instance, and the edit door refuses it with A11's own `SelfMate`
+/// before it enters the document, let alone before any record is
+/// minted. Two different instances are two different aggregate face
+/// pairs, so no other spelling reaches it either.
 ///
 /// The day `SelfMate` admits something — or a second declaring node
 /// kind mints into `Product::minted` — this row goes red and the
@@ -656,7 +598,7 @@ fn unattributed_is_only_a_finding_no_declaration_answers_for() {
 /// written down, not a behaviour a fixture can distinguish.
 #[test]
 fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let (inner_ref, inner_id, inner_instances, _) = stand(
         &mut store,
         "docm6-precedence-stand",
@@ -668,28 +610,33 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
     let (doc, instance) = insert(doc, Node::instantiate_part(inner_ref));
     // The SAME two faces the inner mate declared, named from out here:
     // the stand's own two cube caps, each seen through this instance.
-    let (doc, outer_mate) = insert(
-        doc,
-        mate_node(
-            wrap(instance, in_part(inner_instances[0], CapEnd::End)),
-            wrap(instance, in_part(inner_instances[1], CapEnd::Start)),
-            ContactClass::Rest,
-            frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
-        ),
-    );
-
-    let ev = run(&doc, &opts(store));
-    let failure = ev
-        .node_error(outer_mate)
-        .expect("the outer mate does not evaluate");
+    let err = doc
+        .apply(
+            &DocEdit::InsertNode {
+                node: mate_node(
+                    wrap(instance, in_part(inner_instances[0], CapEnd::End)),
+                    wrap(instance, in_part(inner_instances[1], CapEnd::Start)),
+                    ContactClass::Rest,
+                    frame([0.0, 0.0, 0.5], [0.0, 0.0, 1.0]),
+                ),
+            },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect_err("the outer mate never enters the document");
     assert!(
-        format!("{:?}", failure.kind).contains("SelfMate"),
-        "both references are members of one instance: {:?}",
-        failure.kind
+        matches!(
+            &err,
+            editor_core::EditError::MateRefused { fault, .. }
+                if matches!(**fault, editor_core::MateFault::SelfMate { instance: i, .. } if i == instance)
+        ),
+        "both references are members of one instance: {err:?}"
     );
-    // And the document does not gather at all, so no product holds two
-    // rows for one pair.
-    assert!(product_recorded(&doc, &ev, Tol::witness()).is_err());
+    // So the product holds exactly the carried rows, and no second
+    // declaration for the pair: the document gathers as it did
+    // without the attempt.
+    let ev = run(&doc, &with_resolver(store));
+    assert!(product_recorded(&doc, &ev, Tol::witness()).is_ok());
     assert_ne!(inner_id, doc.id());
 }
 
@@ -700,22 +647,26 @@ fn an_outer_mate_cannot_name_a_pair_inside_one_instance() {
 /// document alone refuses exactly as it did before.
 #[test]
 fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let (inner_ref, inner_id, inner_mate) = broken_part(&mut store, "docm6-a4-stand");
     let (outer, instances) = row_of("docm6-a4-row", inner_ref, 1, 4.0);
 
     // The inner document alone: unchanged, its own class refusal.
-    let inner = store.docs[&inner_id].clone();
-    let inner_ev = run(&inner, &opts(store.clone()));
+    let inner = store.doc(inner_id);
+    let inner_ev = run(&inner, &with_resolver(store.clone()));
     assert!(matches!(
         assemble(&inner, &inner_ev, Tol::witness()),
-        Err(AssemblyError::NoAtRestRecord { mate, .. }) if mate == inner_mate
+        Err(AssemblyError::Mint { refusals })
+            if matches!(refusals.as_slice(), [r] if r.mate() == inner_mate)
     ));
 
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
-    let Err(AssemblyError::CarriedMintRefusal { route, refusal }) = &result else {
+    let Err(AssemblyError::CarriedMintRefusal { refusals }) = &result else {
         panic!("an inner part with an unverified contact is not at rest: {result:?}");
+    };
+    let [CarriedRefusal { route, refusal }] = refusals.as_slice() else {
+        panic!("one broken part, so one carried row: {refusals:?}");
     };
     assert_eq!(
         (route.through, route.of, route.via.len()),
@@ -738,7 +689,7 @@ fn an_inner_mint_refusal_refuses_the_outer_gate_naming_document_and_mate() {
 /// it show those arms are live rather than absent.
 #[test]
 fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let (broken, broken_id, _) = broken_part(&mut store, "docm6-order-broken");
     let (good, ..) = resting(&mut store, "docm6-order-good");
 
@@ -764,7 +715,7 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     // (a) The at-rest gate alone: good parts, no mate of this
     // document's own — the undeclared contact is what refuses.
     let (doc, _) = build("docm6-order-atrest", good);
-    let ev = run(&doc, &opts(store.clone()));
+    let ev = run(&doc, &with_resolver(store.clone()));
     assert!(matches!(
         assemble(&doc, &ev, Tol::witness()),
         Err(AssemblyError::AtRest { .. })
@@ -773,21 +724,22 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
     // (b) Add this document's own unminted mate: it preempts the gate.
     let (doc, ids) = build("docm6-order-own", good);
     let (doc, own_mate) = with_own_mate(doc, &ids);
-    let ev = run(&doc, &opts(store.clone()));
+    let ev = run(&doc, &with_resolver(store.clone()));
     assert!(matches!(
         assemble(&doc, &ev, Tol::witness()),
-        Err(AssemblyError::NoAtRestRecord { mate, .. }) if mate == own_mate
+        Err(AssemblyError::Mint { refusals })
+            if matches!(refusals.as_slice(), [r] if r.mate() == own_mate)
     ));
 
     // (c) The same document over a BROKEN part: the carried refusal
     // preempts both, because the file to open is the inner one.
     let (doc, ids) = build("docm6-order-carried", broken);
     let (doc, _) = with_own_mate(doc, &ids);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     assert!(
-        matches!(&result, Err(AssemblyError::CarriedMintRefusal { route, .. })
-            if route.of == broken_id),
+        matches!(&result, Err(AssemblyError::CarriedMintRefusal { refusals })
+            if !refusals.is_empty() && refusals.iter().all(|r| r.route.of == broken_id)),
         "inner mint health is read first: {result:?}"
     );
 }
@@ -795,16 +747,19 @@ fn the_carried_refusal_precedes_the_own_unminted_head_and_the_at_rest_gate() {
 /// A4: two levels down, the refusal names the whole route.
 #[test]
 fn a_refusal_two_levels_down_names_its_route() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let (broken, broken_id, broken_mate) = broken_part(&mut store, "docm6-route-stand");
     let (mid, mid_instances) = row_of("docm6-route-mid", broken, 1, 4.0);
     let mid_ref = store.insert(mid, Tol::witness());
     let (outer, outer_instances) = row_of("docm6-route-outer", mid_ref, 1, 12.0);
 
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
-    let Err(AssemblyError::CarriedMintRefusal { route, refusal }) = &result else {
+    let Err(AssemblyError::CarriedMintRefusal { refusals }) = &result else {
         panic!("the refusal reaches the outermost gate: {result:?}");
+    };
+    let [CarriedRefusal { route, refusal }] = refusals.as_slice() else {
+        panic!("one broken part, so one carried row: {refusals:?}");
     };
     assert_eq!(
         (
@@ -822,14 +777,16 @@ fn a_refusal_two_levels_down_names_its_route() {
     );
 }
 
-/// **Which carried refusal is raised**: the HEAD in gather order, and
-/// only the head — the same rule the own `unminted` head follows, and
-/// the same follow-up would widen both.
+/// **Which carried refusals are raised**: EVERY one, in gather order
+/// — the same rule this document's own `unminted` list follows. An
+/// author whose assembly holds two broken parts has two files to open,
+/// and learning about the second only after repairing the first makes
+/// the gate's answer a function of how many evaluations they ran.
 #[test]
-fn the_head_carried_refusal_in_gather_order_is_the_one_raised() {
-    let mut store = StubStore::default();
+fn every_carried_refusal_is_raised_in_gather_order() {
+    let mut store = PartStore::default();
     let (first, first_id, first_mate) = broken_part(&mut store, "docm6-head-first");
-    let (second, second_id, _) = broken_part(&mut store, "docm6-head-second");
+    let (second, second_id, second_mate) = broken_part(&mut store, "docm6-head-second");
     assert_ne!(first_id, second_id);
 
     let doc = ProfileDoc::empty(DocumentId::derive("docm6-head-row"), Tol::witness());
@@ -837,7 +794,7 @@ fn the_head_carried_refusal_in_gather_order_is_the_one_raised() {
     let (doc, b) = insert(doc, Node::instantiate_part(second));
     let doc = place(doc, b, [20.0, 0.0, 0.0]);
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
     assert_eq!(
         gathered
@@ -849,13 +806,21 @@ fn the_head_carried_refusal_in_gather_order_is_the_one_raised() {
         "both rows are carried, in gather order"
     );
     let result = assemble(&doc, &ev, Tol::witness());
-    let Err(AssemblyError::CarriedMintRefusal { route, refusal }) = &result else {
+    let Err(AssemblyError::CarriedMintRefusal { refusals }) = &result else {
         panic!("the gate refuses: {result:?}");
     };
     assert_eq!(
-        (route.through, route.of, refusal.mate()),
-        (a, first_id, first_mate),
-        "the head, not the second"
+        refusals
+            .iter()
+            .map(|r| (r.route.through, r.route.of, r.refusal.mate()))
+            .collect::<Vec<_>>(),
+        vec![(a, first_id, first_mate), (b, second_id, second_mate)],
+        "both rows, in gather order — not the head alone"
+    );
+    let rendered = result.unwrap_err().to_string();
+    assert!(
+        rendered.contains(&first_id.to_string()) && rendered.contains(&second_id.to_string()),
+        "and both documents are named in the one message: {rendered:?}"
     );
 }
 
@@ -866,7 +831,7 @@ fn the_head_carried_refusal_in_gather_order_is_the_one_raised() {
 /// this row is what a reader can run.)
 #[test]
 fn the_gate_has_no_success_arm_over_a_carried_mint_refusal() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let (broken, ..) = broken_part(&mut store, "docm6-advisory-stand");
     let (good, ..) = resting(&mut store, "docm6-advisory-good");
 
@@ -876,7 +841,7 @@ fn the_gate_has_no_success_arm_over_a_carried_mint_refusal() {
     let (doc, second) = insert(doc, Node::instantiate_part(broken));
     let doc = place(doc, second, [20.0, 0.0, 0.0]);
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the row gathers");
     assert_eq!(gathered.carried.len(), 1, "the good stand's declaration");
     assert_eq!(
@@ -908,7 +873,7 @@ fn the_gate_has_no_success_arm_over_a_carried_mint_refusal() {
 #[test]
 fn no_carried_declaration_can_reach_a_boolean_operand() {
     for (label, seat) in [("pen", 0.5), ("rest", 1.0), ("gap", 1.5)] {
-        let mut store = StubStore::default();
+        let mut store = PartStore::default();
         let (inner_ref, ..) = stand(
             &mut store,
             &format!("docm6-bool-{label}"),
@@ -936,7 +901,7 @@ fn no_carried_declaration_can_reach_a_boolean_operand() {
                 declare: None,
             },
         );
-        let ev = run(&doc, &opts(store));
+        let ev = run(&doc, &with_resolver(store));
         let failure = ev
             .node_error(union)
             .expect("the boolean does not evaluate over a two-solid instance");
@@ -952,10 +917,10 @@ fn no_carried_declaration_can_reach_a_boolean_operand() {
 /// which inner mates its verdict answered for.
 #[test]
 fn a_certified_assembly_names_the_carried_mates_it_certified_over() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let (inner_ref, inner_id, _, inner_mate) = resting(&mut store, "docm6-ok-stand");
     let (outer, instances) = row_of("docm6-ok-row", inner_ref, 2, 4.0);
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let assembly = assemble(&outer, &ev, Tol::witness()).expect("the row certifies");
     assert!(assembly.minted.is_empty(), "this document has no mates");
     assert_eq!(

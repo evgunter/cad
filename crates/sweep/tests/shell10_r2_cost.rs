@@ -8,12 +8,13 @@
 
 use std::time::Instant;
 
-use geom_core::Vec3;
+use geom_core::{Tol, Vec3};
+use sweep::test_support::block;
 use topo::SolidKey;
 
 use crate::common::approx::band;
 use crate::shell8_common::{beside, cap, charts_of, tol};
-use crate::verbs_shell::{boxy, hollow_box, outer_and_void, vessel};
+use crate::verbs_shell::{hollow_box, outer_and_void, vessel};
 
 fn median_ms(label: &str, mut f: impl FnMut()) {
     for _ in 0..20 {
@@ -44,7 +45,11 @@ fn moves_of(body: &topo::Body<f64>, solid: SolidKey, d: f64) -> Vec<topo::ChartM
 #[test]
 #[ignore = "a timing row; run explicitly in release"]
 fn r2_cost_rows() {
-    let pair = beside(&boxy(2.0, 3.0, 4.0), &vessel(1.0, 2.0), 10.0);
+    let pair = beside(
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &vessel(1.0, 2.0),
+        10.0,
+    );
     median_ms("shell_open, box beside vessel, sealed", || {
         topo::shell_open(&pair, 0.05, &[], tol()).unwrap();
     });
@@ -71,9 +76,13 @@ fn r2_cost_rows() {
         });
     }
     for n in [1usize, 2, 4, 8] {
-        let mut body = boxy(2.0, 3.0, 4.0);
+        let mut body = block(2.0, 3.0, 4.0, Tol::witness());
         for i in 1..n {
-            body = beside(&body, &boxy(2.0, 3.0, 4.0), 10.0 * i as f64);
+            body = beside(
+                &body,
+                &block(2.0, 3.0, 4.0, Tol::witness()),
+                10.0 * i as f64,
+            );
         }
         let first = body.solids().next().unwrap().0;
         let moves = moves_of(&body, first, -0.05);

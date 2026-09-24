@@ -28,19 +28,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
 use crate::corpus;
 use crate::fixture;
 
 use corpus::{body_of, eval, failures};
 use editor_core::param_source;
 use editor_core::{
-    CancelToken, Dimension, DocEdit, DocParam, DocRef, DocumentId, EvalOptions, Evaluation, Expr,
-    Node, ParamName, PartResolver, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, SlotId,
-    content_pin, evaluate,
+    CancelToken, Dimension, DocEdit, DocParam, DocumentId, EvalOptions, Evaluation, Expr, Node,
+    ParamName, ProfileDoc, RecipeNodeId, SlotId, evaluate,
 };
+use fixture::resolver::{PartStore, with_resolver};
 use fixture::{
     ang, axis_in_plane, insert, len, on_frame, on_frame_keeping, prism_edges, square, step,
 };
@@ -548,38 +545,6 @@ fn a_closed_chain_fillet_declares_its_torus_minor_radius() {
 // Scope: the token names a parameter OF A DOCUMENT.
 // ---------------------------------------------------------------------
 
-/// An in-memory part store, verifying the pin exactly as a document
-/// store does.
-#[derive(Debug, Default)]
-struct Store {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl Store {
-    fn insert(&mut self, doc: ProfileDoc) -> DocRef {
-        let pin = content_pin(&doc, Tol::witness()).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl PartResolver for Store {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let doc = self.docs.get(&doc_ref.id).ok_or_else(|| ResolveFailure {
-            fault: ResolveFault::Unresolved,
-            message: "no such document".to_string(),
-        })?;
-        if content_pin(doc, Tol::witness()).ok() != Some(doc_ref.pin) {
-            return Err(ResolveFailure {
-                fault: ResolveFault::PinMismatch,
-                message: "the pin does not hold".to_string(),
-            });
-        }
-        Ok(doc.clone())
-    }
-}
-
 /// A document of its own identity declaring `r = value`, with one
 /// filleted cube under `r`.
 fn own_document(label: &str, value: f64) -> (ProfileDoc, RecipeNodeId) {
@@ -611,12 +576,9 @@ fn own_document(label: &str, value: f64) -> (ProfileDoc, RecipeNodeId) {
 #[test]
 fn two_documents_r_are_two_parameters() {
     let (part, _) = own_document("seat6-scope-part", R);
-    let mut store = Store::default();
-    let doc_ref = store.insert(part);
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(part, Tol::witness());
+    let opts = with_resolver(store);
     let (host, host_blend) = own_document("seat6-scope-host", 2.0 * R);
     let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
     let ev: Evaluation<f64> = evaluate(&host, None, &CancelToken::new(), &opts, Tol::witness());
@@ -642,12 +604,9 @@ fn two_documents_r_are_two_parameters() {
 #[test]
 fn two_instances_of_one_part_declare() {
     let (part, _) = own_document("seat6-scope-twice", R);
-    let mut store = Store::default();
-    let doc_ref = store.insert(part);
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(part, Tol::witness());
+    let opts = with_resolver(store);
     let host = ProfileDoc::empty(DocumentId::derive("seat6-scope-twice-host"), Tol::witness());
     let (host, first) = insert(host, Node::instantiate_part(doc_ref));
     let (host, second) = insert(host, Node::instantiate_part(doc_ref));

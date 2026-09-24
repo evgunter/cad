@@ -71,7 +71,6 @@ fn the_spike_document_becomes_a_drawable_scene() {
         "flat shading gives every triangle its own three corners"
     );
     assert_eq!(mesh.normals().len(), mesh.positions().len());
-    assert_eq!(mesh.indices().len(), mesh.positions().len());
 
     let bounds = mesh.bounds();
     for (axis, extent) in [

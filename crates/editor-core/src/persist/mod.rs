@@ -22,10 +22,28 @@
 //! vocabulary this build has since grown (a new node arm, a new
 //! optional field) never names it, so it loads — additive growth
 //! invalidates nothing. A NEWER document carrying a field this build
-//! lacks refuses (every wire type is `deny_unknown_fields`): a stale
-//! reader must not silently drop data. A BREAKING change — a field
-//! made required, a spelling retired — refuses naming the field. The
-//! recourse is the one sentence it always was, and it is also on
+//! lacks refuses **where the wire type owning the field carries
+//! `deny_unknown_fields`**: a stale reader must not silently drop
+//! data. The precondition is the ATTRIBUTE and not the field — a
+//! declaration with a named field and no attribute takes the stray key
+//! and drops it — and this format does not carry the attribute
+//! everywhere its own rule needs one. `MatePrimitive`'s `PlanarRest`
+//! is the known hole
+//! (`work/msolve/mate-primitive-accepts-a-stray-field-the-module-docs-say-refuses.md`
+//! is that instance;
+//! `work/census/census-sees-an-inert-attribute-but-not-a-missing-one.md`
+//! is the class, and holds the question of what would detect the next
+//! one — a tracker path deleted at its program's close is recoverable
+//! in git history),
+//! so the rule above is what this format means by a stale reader and
+//! not a property its types enforce everywhere it is asserted. Where a
+//! declaration has no named field ANYWHERE the attribute is inert: a
+//! unit or tuple-variant enum refuses an unknown VARIANT
+//! unconditionally, with it or without it. A BREAKING change — a field
+//! made required, a spelling retired — refuses naming the field or the
+//! variant, and owes the attribute nothing: a field this build
+//! requires and does not find refuses under its own name. The recourse
+//! is the one sentence it always was, and it is also on
 //! [`PersistError::HeaderId`], because a document from before the
 //! `id:` line is a file this build cannot read too.
 //!
@@ -39,7 +57,7 @@
 //! A save is TEXT: an `id: <32 lowercase hex>` header line naming the
 //! document's identity (ASM-1 D-6 — the workspace scan reads it
 //! without parsing the body), then a JSON body
-//! `{ "snapshot": <Doc>, "edits": [<DocEdit>…] }` — the full document
+//! `{ "snapshot": <Doc>, "edits": [<LoggedEdit>…] }` — the full document
 //! snapshot plus the edit log since that snapshot. (One known hatch,
 //! pinned rather than closed: serde's derived struct visitor also
 //! accepts the two fields POSITIONALLY, so a body spelled
@@ -109,11 +127,11 @@ pub mod hexbytes;
 pub(crate) mod kernel_wire;
 pub(crate) mod pairs;
 pub(crate) mod strict;
-mod wire;
+pub(crate) mod wire;
 
 use geom_core::tolerance::{Tolerance, ToleranceError};
 
-use crate::edit::{Applied, DocEdit, EditError, EditRecord, apply};
+use crate::edit::{EditError, EditRecord, LoggedEdit, apply_logged};
 use crate::ident::DocumentId;
 use crate::program::{ProfileDoc, ProfileProgram};
 use geom_core::Tol;
@@ -127,19 +145,30 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 struct FileBody {
     /// The full document snapshot.
     snapshot: ProfileDoc,
-    /// The recorded edits since the snapshot, replayed on load.
-    edits: Vec<DocEdit<ProfileProgram>>,
+    /// The recorded edits since the snapshot, each with the
+    /// maintenance rows it performed, replayed on load.
+    edits: Vec<LoggedEdit<ProfileProgram>>,
 }
 
 /// A loaded document: the parsed snapshot, the parsed edit log, and
-/// the REPLAYED result (snapshot + edits through [`apply`]'s doors —
+/// the REPLAYED result (snapshot + edits through [`crate::edit::apply`]'s doors —
 /// the document's current state).
+///
+/// There is no column for the maintenance the replayed edits
+/// performed, by the load boundary: the loaded document IS the state,
+/// and each edit's [`crate::Applied::maintenance`] was that edit's
+/// report to the caller who applied it, its effect already in the
+/// document (a rewritten registry; a stranded name the next evaluation
+/// reports typed). [`Doc::replay`](crate::Doc::replay) draws the same
+/// line, and DM7's round-trip row is the evidence the discard loses
+/// nothing.
 #[derive(Debug)]
 pub struct Loaded {
     /// The snapshot as saved.
     pub snapshot: ProfileDoc,
-    /// The edit log as saved.
-    pub edits: Vec<DocEdit<ProfileProgram>>,
+    /// The edit log as saved: every entry carrying the rows it
+    /// performed.
+    pub edits: Vec<LoggedEdit<ProfileProgram>>,
     /// The current document: snapshot with every edit replayed.
     pub doc: ProfileDoc,
     /// The replay's edit records (minted ids etc.), one per edit.
@@ -260,8 +289,11 @@ pub enum PersistError {
     /// grown since does NOT land here — it loads; an OLDER document
     /// missing a field since made required lands here naming it; a
     /// NEWER document carrying a field this build lacks lands here
-    /// naming it (`deny_unknown_fields` — a stale reader must not
-    /// silently drop data). The recourse is [`REGENERATE_RECOURSE`].
+    /// naming it **where the owning wire type carries
+    /// `deny_unknown_fields`**, and is silently dropped where it does
+    /// not — the module docs state the rule, the hole in it and the
+    /// row that tracks the hole. The recourse is
+    /// [`REGENERATE_RECOURSE`].
     Unreadable {
         /// Line within the body (serde_json's 1-based position).
         line: usize,
@@ -275,15 +307,38 @@ pub enum PersistError {
     /// load, or an in-memory one at save (which would have written an
     /// unloadable file; shared-validator check).
     Snapshot(SnapshotError),
-    /// An edit in the log refused through the [`apply`] door — on
+    /// An edit in the log refused through the [`crate::edit::apply`] door — on
     /// LOAD replay, or at SAVE by the symmetric log-verification pass
     /// (a log that cannot replay would make an unloadable file; save
-    /// refuses first).
+    /// refuses first). A logged mate insert the solve's per-mate
+    /// admission refuses on the datum alone refuses here as
+    /// [`EditError::MateRefused`], naming the entry; a rider on a
+    /// coincidence, which the recording door decided over the parts'
+    /// reach, is not re-decided (`Maintain::reach` states the rule).
+    /// The SNAPSHOT is a state, not an edit: its walk asks only that a
+    /// mate's alignment be finite, and a mate it holds that the solve
+    /// refuses is the solve's at evaluation.
     EditReplay {
         /// The refusing edit's index in the log.
         index: usize,
         /// The typed refusal.
         error: EditError,
+    },
+    /// A recorded maintenance row carries a frame that is not a
+    /// placement — non-finite, or improper (a mirror). The rows are
+    /// re-applied at replay without passing the `SetPlacement` door,
+    /// so the shared validator holds them to that door's rule
+    /// ([`crate::Frame::admission_fault`]): save refuses before a
+    /// byte is written, and a hand-edited file refuses at LOAD with
+    /// the same diagnostics rather than loading the frame into the
+    /// registry.
+    MaintenanceFrame {
+        /// The entry's index in the log.
+        index: usize,
+        /// The row's index within the entry's maintenance.
+        row: usize,
+        /// What the frame fails.
+        fault: crate::placement::FrameFault,
     },
     /// The document's recorded ε conflicts with the ε this process
     /// already committed (D4: one process = one ε; refuse loudly).
@@ -318,7 +373,7 @@ impl core::fmt::Display for PersistError {
                 node.0
             ),
             Self::Distribution { name, fault } => {
-                write!(f, "persist: document parameter {:?}: {fault}", name.0)
+                write!(f, "persist: document parameter {name}: {fault}")
             }
             Self::DisplayUnit {
                 name,
@@ -326,9 +381,8 @@ impl core::fmt::Display for PersistError {
                 declared,
             } => write!(
                 f,
-                "persist: document parameter {:?} is declared {declared:?} but its display \
-                 unit measures {unit:?}",
-                name.0
+                "persist: document parameter {name} is declared {declared} but its display \
+                 unit measures {unit}"
             ),
             Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),
             Self::HeaderId { found } => {
@@ -361,6 +415,13 @@ impl core::fmt::Display for PersistError {
             Self::EditReplay { index, error } => {
                 write!(f, "persist: edit {index} refused on replay: {error}")
             }
+            // The frame rule's ONE prose, forwarded into this door's
+            // subject the way the snapshot's placement arms forward it.
+            Self::MaintenanceFrame { index, row, fault } => write!(
+                f,
+                "persist: edit {index}'s maintenance row {row} records a frame that {fault}, so \
+                 it is not a placement"
+            ),
             Self::ToleranceConflict { process, document } => write!(
                 f,
                 "persist: document ε {document:e} conflicts with the process ε {process:e} \
@@ -390,17 +451,19 @@ impl core::error::Error for PersistError {}
 /// fails.
 pub fn save(
     snapshot: &ProfileDoc,
-    edits: &[DocEdit<ProfileProgram>],
+    edits: &[LoggedEdit<ProfileProgram>],
     tol: Tol,
 ) -> Result<String, PersistError> {
     check::validate_document(snapshot, edits, tol)?;
     // Save/load symmetry for the LOG: load replays the edits through
     // apply's doors, so a log that refuses there must refuse HERE —
     // never a file that saves clean and cannot load. (Pure and
-    // document-scale cheap; the replayed value is discarded.)
+    // document-scale cheap; the replayed value is discarded.) The
+    // replay is the logged one — recorded rows, no solve — so a log
+    // that would need a store to load refuses at save too.
     let mut replay = snapshot.clone();
-    for (index, edit) in edits.iter().enumerate() {
-        replay = apply(&replay, edit, tol)
+    for (index, entry) in edits.iter().enumerate() {
+        replay = apply_logged(&replay, entry, tol)
             .map_err(|error| PersistError::EditReplay { index, error })?
             .doc;
     }
@@ -418,7 +481,7 @@ pub fn save(
 #[derive(serde::Serialize)]
 struct SerBody<'a> {
     snapshot: &'a ProfileDoc,
-    edits: &'a [DocEdit<ProfileProgram>],
+    edits: &'a [LoggedEdit<ProfileProgram>],
 }
 
 /// Parses, validates, replays, and ε-reconciles a saved document. See
@@ -452,12 +515,11 @@ pub fn load(text: &str, tol: Tol) -> Result<Loaded, PersistError> {
     // replayed state, never trusted bytes.
     let mut doc = body.snapshot.clone();
     let mut records = Vec::with_capacity(body.edits.len());
-    for (index, edit) in body.edits.iter().enumerate() {
-        let Applied {
-            doc: next, record, ..
-        } = apply(&doc, edit, tol).map_err(|error| PersistError::EditReplay { index, error })?;
-        doc = next;
-        records.push(record);
+    for (index, entry) in body.edits.iter().enumerate() {
+        let applied = apply_logged(&doc, entry, tol)
+            .map_err(|error| PersistError::EditReplay { index, error })?;
+        doc = applied.doc;
+        records.push(applied.record);
     }
     reconcile_epsilon(doc.epsilon())?;
     Ok(Loaded {

@@ -2800,8 +2800,7 @@ mod tests {
     fn fused_two_shell_body() -> (Body<f64>, MvfsCreated, MvfsCreated) {
         let (mut body, seed, _seg, _split) = ops_pillow();
         let other = body.mvfs(p(9.0)).unwrap();
-        let f1_shell = body.get_face(seed.face).unwrap().shell;
-        let first_solid = body.get_shell(f1_shell).unwrap().solid;
+        let first_solid = body.solid_of_face(seed.face).unwrap();
         body.get_shell_mut(other.shell).unwrap().solid = first_solid;
         body.get_solid_mut(first_solid)
             .unwrap()

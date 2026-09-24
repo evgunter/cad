@@ -2,9 +2,13 @@
 id: msrv-floor-is-declared-and-never-compiled
 kind: issue
 title: Cargo.toml's rust-version is a floor nothing verifies and nothing ever compiles at
-status: open
+status: review
 opened: 2026-09-11
 refs: [seal-oracle-toolchain-read-first-match, 2327]
+branch: port/msrv-floor-equality-gate
+pr: 2676
+priority: P3
+cost: E
 ---
 
 Filed in `work/issues/` because no program obviously owns it: the subject is
@@ -42,6 +46,67 @@ Three honest answers:
 
 Cheap either way; it is the decision that is the work, and it is a decision
 about what this repo promises rather than about CI.
+
+## Answered (Ev, in-chat, 2026-09-15)
+
+Asked which of the three readings holds, Ev answered with a fourth that
+subsumes them: **a check that the two strings are equal, and call it a
+day.** That is answer (2) — the declaration is documentation of the pin
+— made mechanical instead of maintained by hand, and it is a better
+answer than (3) for a reason worth writing down:
+
+**Pinned equal, the floor stops being untested.** The row's complaint is
+that no job ever compiles at the declared MSRV. If the gate holds
+`rust-version == channel`, then the channel *is* the floor, and every
+hosted job, every local gate row and `local-scripts/ci-local.sh` already
+compile at it — on every run, at every lane and eps point. The promise
+`rust-version` makes to a consumer becomes exactly the promise CI
+already proves, with no new build row and no nightly. Reading (1)'s
+"owes a row that builds on it" is satisfied by the rows that exist.
+
+**What it costs, stated so the deletion is deliberate when it comes.**
+The gate forbids the floor from ever lagging the channel. The day this
+repository wants to say *"we build with 1.99 and still support 1.97"* —
+which is a real thing to want once Q9 lands and something is published —
+the gate is wrong and has to be deleted, and at that moment the original
+question comes back with a consumer attached to it. That is the right
+time to answer it and the wrong time to be surprised, so the gate's
+header says this and names Q9.
+
+## The unit
+
+**Shape: a `scripts/gates/` row, not a Rust `#[test]`.** Ev said "unit
+test"; this is the repo's spelling of the same instrument, and the
+substitution is disclosed here rather than made silently:
+
+- The subject is two TOML manifests at the workspace root, not any
+  crate's behaviour — a Rust test would need an arbitrary crate to host
+  it and would have to walk up out of `CARGO_MANIFEST_DIR` to find its
+  own subject.
+- `scripts/gates/` is where checks over the tree already live, each with
+  a `--selftest`, a real call in `.github/workflows/ci.yml` and a place
+  in the directory loop `local-scripts/ci-local.sh` runs.
+  `scripts/gates/gate-roster.sh` proves every gate in the directory is
+  wired into both halves, so a gate cannot be silently dropped — a Rust
+  test has no equivalent roster.
+- A manifest edit is in the change set the per-PR gate runs on, which is
+  where `docs/prompts/implementer-discipline.md` says a guard belongs.
+  The gate therefore fires on the PR that moves the channel, which is
+  the only moment it has anything to say.
+
+Parse the TOML rather than grepping it, for the reason
+`scripts/gates/kernel-serde-free.sh`'s header gives at length: a value
+has more spellings than a regex has patience, and `rust-version` is
+already one of the dotted-key fields that header names.
+
+If Ev wants a Rust test instead, say so and it moves; nothing else in
+the row changes.
+
+**Announce to:** `Cargo.toml` and `rust-toolchain.toml` are CIW's and
+META's between them (`work/port/program.md`'s `keep_out`), and
+`scripts/gates/` plus `.github/workflows/ci.yml` are CIW's. Either may
+take this row; it is a small one and belongs to whoever is already in
+those files.
 
 ## Re-homed to PORT (2026-09-11, the cut in `docs/WORK-TRACKS-2026-09.md` addendum 3)
 

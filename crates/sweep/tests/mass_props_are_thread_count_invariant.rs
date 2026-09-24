@@ -18,7 +18,8 @@
 //! the walk is serial, and both widths are read against it. Same
 //! instrument as `reporting_door_bit_digest`, and cut the same way: a
 //! row cut on this branch would record what this branch does, which is
-//! the thing under test.
+//! the thing under test. The one case where a lane re-cuts here
+//! anyway, and what licenses it, is at `expected`.
 //!
 //! **What the recorded channels here can and cannot see.** The verdict
 //! channel is full — every `props_quad_*` and check-7 decision the
@@ -48,13 +49,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::{
-    arc_section, bulged_extrusion, channels, on_pool, quad, quintic_prism, stacked, strip_section,
+    arc_section, bulged_extrusion, channels, on_pool, quintic_prism, stacked, strip_section,
     tilted_cut_upper,
 };
 use geom_core::k_stats::Bracket;
 use geom_core::sym::{SymBudget, SymCounts, with_session};
 use geom_core::{Sym, Tol};
 use sweep::loft_body;
+use sweep::test_support::loft_prism;
 use topo::Body;
 
 /// A three-station arc loft at scale `s` — rational walls, so every
@@ -88,27 +90,6 @@ fn strip_loft(s: f64, delta: f64) -> Body<f64> {
     .body
 }
 
-/// `loft_prism`, rebuilt from the corpus document's own sections
-/// (`editor-core/tests/corpus/loft_prism.rs`: squares at z = 0 and
-/// z = 2, a trapezoid at z = 1, v-degree 2). Polyline sections, so the
-/// walls are described splines on the quadrature lane — and it is the
-/// body the finding measured (`work/perf/mass-properties-are-serial-per-face.md`:
-/// 157 ms). A corpus DOCUMENT cannot come here: `editor-core` sits
-/// above this crate.
-fn loft_prism() -> Body<f64> {
-    let sq = quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
-    let d = 0.375;
-    let tr = quad([(-1.0 - d, -1.0), (1.0 + d, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
-    loft_body::<f64>(
-        &[sq.clone(), tr, sq],
-        &stacked(&[0.0, 1.0, 2.0], 1.0),
-        2,
-        Tol::witness(),
-    )
-    .expect("the prism lofts")
-    .body
-}
-
 /// The roster: the reporting-door digest's three lanes that this walk
 /// can reach from here (`quintic_prism` — composite rounds;
 /// `tilted_cut_upper` — the cylinder chart's Green form, which no loft
@@ -123,7 +104,15 @@ fn roster() -> Vec<(String, Body<f64>)> {
         ("quintic_prism".to_string(), quintic_prism()),
         ("tilted_cut_upper".to_string(), tilted_cut_upper()),
         ("bulged_extrusion".to_string(), bulged_extrusion()),
-        ("loft_prism".to_string(), loft_prism()),
+        // `loft_prism` is in this roster because it is the body the
+        // finding measured
+        // (`work/perf/mass-properties-are-serial-per-face.md`: 157 ms)
+        // — polyline sections, so its walls are described splines on
+        // the quadrature lane, which is the lane the per-face serialism
+        // is about. A corpus DOCUMENT cannot stand in for it here:
+        // `editor-core` sits above this crate, so the kernel-side
+        // fixture is the only reachable spelling.
+        ("loft_prism".to_string(), loft_prism(Tol::witness())),
     ];
     out.extend(
         [1.0e11, 1.0e9]
@@ -263,6 +252,27 @@ fn digest() -> String {
 /// The committed digest for each ε row the matrix gates. Cut on the
 /// MERGE BASE (see the module docs); an ε with no entry prints its
 /// block and fails, which is how a new row gets cut.
+///
+/// **When a lane may re-cut here instead, and what licenses it.** The
+/// merge-base rule exists to stop a branch recording its own
+/// regression as the baseline — not to make a pinned number a
+/// contract. A branch re-cuts on itself exactly when its own change is
+/// what moved the table AND the new reading is the right answer, with
+/// the cause named at the cut: `work/scalar/H5.md` ruling 2 (a
+/// certified bound that gets tighter re-baselines like any other move)
+/// and `memories/output-stability-as-justification.md`. Anything else
+/// — a move the branch cannot explain, or one in the wrong direction —
+/// is a finding, and the table stays where it is.
+///
+/// **Re-cut at all three ε when the C9 ring became a newtype over
+/// `interval-transcendentals`' `DInterval`.** That is the other repair
+/// the assertion below names: the ring padded one representable step
+/// outward on every operation and the backend pads only where the
+/// operation is inexact, so four rows' pads shrank and none grew
+/// (`loft_prism`'s volume lands on exactly `9`), and the sym-session
+/// decision counts are untouched. Every verdict hash in the block is
+/// unchanged — nothing certified that refused, or refused that
+/// certified — and the pads are the whole of what moved, downward.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
@@ -318,7 +328,7 @@ fn the_roster_records_the_props_lanes_own_verdicts() {
         "the committed digest records no verdict on any body — it is a table of empty channels"
     );
     let bracket = Bracket::open();
-    let _ = topo::mass_properties(&loft_prism(), Tol::witness());
+    let _ = topo::mass_properties(&loft_prism(Tol::witness()), Tol::witness());
     let log = bracket.finish();
     let quad = log
         .verdicts

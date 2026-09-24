@@ -72,26 +72,36 @@ fn say(args: std::fmt::Arguments<'_>) {
 /// because the tempting wrong move is a real one: a fired lint is
 /// evidence about the MARGIN DISTRIBUTION, and geometry nudged until
 /// the lint goes quiet destroys exactly that evidence.
-fn discipline(total_flags: usize) -> String {
-    format!(
-        "\nk-lint: GATE FAILED — the margin distribution changed: {total_flags} margin(s) \
-         crowd a decision\nboundary that the committed baseline says should be empty.\n\
-         \n\
-         If the flagged margins are REAL, INTENDED geometry, do NOT change the geometry\n\
-         to silence this lint. A fired lint is evidence ABOUT THE MARGIN DISTRIBUTION\n\
-         — possibly that the threshold or the baseline is stale — not a geometry defect.\n\
-         \n\
-         Recourse, in order:\n\
-         \x20 1. Re-derive the baseline and the thresholds per the snapshot-contract\n\
-         \x20    runbook: docs/K-REPORT.md, \"M7 addendum (2026-08-07): the large-K\n\
-         \x20    lint's floor refresh\", which re-derives BASELINE_FLOOR_MARGIN, the\n\
-         \x20    percentile choice and the eps-coupled ratio against a fresh sweep.\n\
-         \x20 2. If re-derivation is not warranted, demote this row to advisory with a\n\
-         \x20    recorded justification (ci.yml + local-scripts/ci-local.sh together — the\n\
-         \x20    hosted and local rows must not drift).\n\
-         \n\
-         Changing geometry to get under a lint threshold is the one forbidden move.\n"
-    )
+///
+/// **Two conditions can fail a run and they want different words.**
+/// `total_flags` is margins crowding a boundary. `unruled` is rows
+/// recorded for a name `k_lint::EPS_COUPLED_UNRULED` rules off rule
+/// (4) BECAUSE it had none — a ruling's premise expiring, whose
+/// recourse is to rule again rather than to re-derive a floor that did
+/// not move. A message that led with the first while only the second
+/// held would send the reader to the wrong runbook, which is the
+/// failure this whole list exists to stop.
+fn discipline(total_flags: usize, unruled: &[(&'static str, usize)]) -> String {
+    let mut out = String::from("\nk-lint: GATE FAILED — ");
+    if total_flags > 0 {
+        out.push_str(&format!(
+            "the margin distribution changed: {total_flags} margin(s) crowd a decision\n             boundary that the committed baseline says should be empty.\n"
+        ));
+    } else {
+        out.push_str(
+            "a ruling's premise expired: an eps-coupled name kept OFF rule (4)\n             because it had no distribution has recorded rows here.\n",
+        );
+    }
+    for (name, count) in unruled {
+        out.push_str(&format!(
+            "\n             {name}: {count} row(s). It is eps-coupled and deliberately OFF the rule (4)\n             roster (docs/K-REPORT.md, \"Maintenance: this roster is a RECORD\"), on the\n             record that no sweep had ever recorded one. That is no longer true, so the\n             question the ruling left open is now live: cut rule (4)'s floor over this\n             family and roster it, or re-state why the metre rules are right for it.\n             Re-deriving BASELINE_FLOOR_MARGIN is NOT the recourse here — it did not\n             move. Reason on record: {}\n",
+            k_lint::eps_coupled_excuse(name).unwrap_or_default()
+        ));
+    }
+    out.push_str(
+        "\n         If the flagged margins are REAL, INTENDED geometry, do NOT change the geometry\n         to silence this lint. A fired lint is evidence ABOUT THE MARGIN DISTRIBUTION\n         — possibly that the threshold or the baseline is stale — not a geometry defect.\n         \n         Recourse, in order:\n         \x20 1. Re-derive the baseline and the thresholds per the snapshot-contract\n         \x20    runbook: docs/K-REPORT.md, \"M7 addendum (2026-08-07): the large-K\n         \x20    lint's floor refresh\", which re-derives BASELINE_FLOOR_MARGIN, the\n         \x20    percentile choice and the eps-coupled ratio against a fresh sweep.\n         \x20 2. If re-derivation is not warranted, demote this row to advisory with a\n         \x20    recorded justification (ci.yml + local-scripts/ci-local.sh together — the\n         \x20    hosted and local rows must not drift).\n         \n         Changing geometry to get under a lint threshold is the one forbidden move.\n",
+    );
+    out
 }
 
 fn main() {
@@ -120,6 +130,10 @@ fn main() {
     // decisions would otherwise read as "0 flagged" with no hint that
     // most of its rows never met a threshold at all.
     let mut total_scanned = 0usize;
+    // Every EPS_COUPLED_UNRULED name seen across the inputs, with its
+    // row count summed — the gate's second failing condition and the
+    // subject of the failure message's own paragraph.
+    let mut unruled_total: Vec<(&'static str, usize)> = Vec::new();
     let mut total_symbolic = 0usize;
     let mut total_gated = 0usize;
     let mut total_registered = 0usize;
@@ -194,6 +208,29 @@ fn main() {
                  decade above the escalation band; the floor is the calibrated statement"
             ));
         }
+        // Never a silent ruling either: an eps-coupled name kept OFF
+        // the roster is kept off because it has no distribution to cut
+        // rule (4)'s floor from (lib.rs, `EPS_COUPLED_UNRULED`). A row
+        // here is that premise expiring, and the reader needs it
+        // BEFORE the flags below, whose recourse is the wrong one for
+        // this family.
+        for (name, count) in &scan.unruled {
+            match unruled_total.iter_mut().find(|(n, _)| n == name) {
+                Some((_, n)) => *n += count,
+                None => unruled_total.push((name, *count)),
+            }
+            say(format_args!(
+                "  note: {name} carries {count} row(s) here and is eps-coupled but \
+                 deliberately OFF the rule (4) roster. Its rows are judged by rules (2) \
+                 and (3), so any flag on them below points at the baseline floor and its \
+                 recourse does NOT apply: the open question is rule (4)'s floor for this \
+                 family, which no committed era has a draw for. Rule it — see \
+                 docs/K-REPORT.md, \"Maintenance: this roster is a RECORD\" — rather than \
+                 re-deriving BASELINE_FLOOR_MARGIN, which did not move. Reason on record: \
+                 {}",
+                k_lint::eps_coupled_excuse(name).unwrap_or_default()
+            ));
+        }
         // Print every flag, but cap the per-file dump so a systematic
         // regression cannot drown the job log; the summary count above
         // is always complete.
@@ -229,30 +266,53 @@ fn main() {
         per_rule[2],
         per_rule[3]
     ));
-    // WHICH flags decide the exit. Rule 1 always does; rules 2 and 3
-    // do unless this caller demoted them, and the demotion is stated
+    // WHICH findings decide the exit. Rule 1 always does; rules 2 and
+    // 3 do unless this caller demoted them, and the demotion is stated
     // in the output rather than inferred from a green.
-    let gating = if gate_rule_1_only {
+    //
+    // An EPS_COUPLED_UNRULED row rides with rules 2 and 3, not with
+    // rule 1. It is a statement about the DISTRIBUTION — a family
+    // ruled off rule (4) for having none has one — which is what
+    // recourse 2's demotion is for, and rule 1 is the E6 trigger and
+    // is about a single undecided margin. The E6 driver row runs
+    // demoted for exactly this reason: its population crowds
+    // thresholds by construction, and a name appearing there is the
+    // same kind of advisory reading as the flags it already carries.
+    let (gating_flags, gating_unruled) = if gate_rule_1_only {
         say(format_args!(
-            "k-lint: --gate-rule-1-only — rules 2 and 3 are ADVISORY for this caller \
-             (docs/K-REPORT.md recourse 2; the justification is at the calling step). \
-             Rule 1 is NOT demotable: it is the trigger E6 names."
+            "k-lint: --gate-rule-1-only — rules 2 and 3 and any EPS_COUPLED_UNRULED row \
+             are ADVISORY for this caller (docs/K-REPORT.md recourse 2; the justification \
+             is at the calling step). Rule 1 is NOT demotable: it is the trigger E6 names."
         ));
-        per_rule[1]
+        (per_rule[1], &[][..])
     } else {
-        total_flags
+        (total_flags, &unruled_total[..])
     };
+    let gating = gating_flags + gating_unruled.iter().map(|(_, n)| n).sum::<usize>();
     if gating > 0 {
         // stderr, and stderr only: this verdict must survive a closed
         // or redirected stdout — it is the reason the row is red.
-        eprint!("{}", discipline(gating));
+        eprint!("{}", discipline(gating_flags, gating_unruled));
         std::process::exit(EXIT_FINDINGS);
+    }
+    // Demoted, and something to say: BOTH advisory conditions get a
+    // line, because a reader who sees only the flag count cannot tell
+    // that a ruling also expired here.
+    for (name, count) in &unruled_total {
+        say(format_args!(
+            "k-lint: {count} advisory row(s) of {name}, which is eps-coupled and ruled OFF \
+             rule (4) on the record that no sweep had recorded one — that record is now \
+             stale and the ruling is live (docs/K-REPORT.md)"
+        ));
     }
     if total_flags > 0 {
         say(format_args!(
             "k-lint: {total_flags} advisory flag(s), none of them rule 1 — the population \
              crowds thresholds but every margin was DECIDED"
         ));
+        return;
+    }
+    if !unruled_total.is_empty() {
         return;
     }
     say(format_args!(

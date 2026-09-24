@@ -1,10 +1,12 @@
 ---
 id: the-pair-verbs-declared-merge-is-asymmetric-in-its-operands
-kind: issue
-title: "A declared merge is asymmetric in the pair verb's operands: which member's rims fragment follows the A/B assignment"
+kind: ruling
+title: A declared merge is asymmetric in the pair verb's operands: which member's rims fragment follows the A/B assignment
 status: open
 opened: 2026-09-06
-refs: [2028, 2028]
+refs: [2028, does-n3-retire-loudly-generalise-to-the-folds-other-compositions]
+priority: P0
+cost: D
 ---
 
 
@@ -79,3 +81,68 @@ claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
 
 (At DOCM's exit sweep, `refs` names the PRs `DOCM-7` stood for: `DOCM-7` = #2028 — the unit rows left the tracker with `work/docm/`; `docs/DOC-LEDGER.md` sweep 14.)
+
+## Read against the tree (2026-09-15) — live, re-kinded `ruling`, and one citation has rotted
+
+Read by the WIRE orchestrator before dispatch. The asymmetry is still
+asserted:
+`crates/editor-core/tests/docm7_union_declare.rs`,
+`a_declared_pair_routes_by_member_id_and_survives_a_reorder`. `role.rs`
+still carries the corrected `FromMember` paragraph.
+
+**Re-kinded from `issue` to `ruling`.** The row's own `Where it stands`
+says *"for Ev"*, and the tree agrees it cannot be a lane's call: the
+symmetric answer moves `Fragment` rows in every existing declared-merge
+document — goldens and corpus — which is a ratified-behaviour change, not
+a refactor. Filed as an issue it read as dispatchable work on the board.
+
+**Citation rot, and it sharpens the row rather than weakening it.** The
+row sends a reader to `docs/DOCM-REFERENCES-DESIGN.md`, DM4's bullet.
+**That file no longer exists**: DOCM's exit replaced it with
+`crates/editor-core/REFERENCES.md` (`docs/DOC-LEDGER.md`, present tense,
+DM1–DM6 kept). DM4's sentence is there — *"the order is the list's, and
+the list is data"* — and `docs/DESIGN.md`'s companion table lists that
+page as **Ratified**. So the sentence this row asks about now sits in a
+ratified design page, which under CLAUDE.md is Ev's to change: the rot
+moved the citation from a deleted spec into the exact document class that
+makes this a ruling.
+
+The other site the row excused, `docs/DOCM-7-SPEC.md:107`, is gone with
+the spec as predicted.
+
+## NOT settled by the 2026-09-15 ruling — and this row is now the only ruling on WIRE's slate
+
+`does-n3-retire-loudly-generalise-to-the-folds-other-compositions` was
+ruled by Ev on PR 2677: a composition that breaks *one name denotes one
+entity* **refuses**, and **offers** where a **unique best** offer exists.
+That answered the other four compositions this program had open. **It
+does not reach this one, and the reason is worth stating so nobody
+applies it here by analogy.**
+
+The rule governs a **reference whose entity went away** — its protected
+value, in Ev's words, is that N3's rejected alternative was *"not even
+refusing, just silently taking the merged descendant"*, i.e. **never
+silently re-point a name**.
+
+Nothing here is re-pointed. No name vanishes, nothing resolves to the
+wrong entity, and no refusal is owed: two member orders produce **two
+valid documents** whose names differ, because the merged face keeps
+operand A's carrier and the `Fragment(OrderAlong)` rows sit on A's rims.
+The volume, the face/edge/vertex counts and the set of `Merged` rows are
+identical either way. There is no reference to refuse and nothing to
+offer, so the rule has no purchase.
+
+**The question this row asks is therefore still open and still Ev's**:
+should the pair verb's merge be **symmetric** — the surviving carrier and
+the fragmented rims picked by a canonical rule over the two names, the
+way `collapse` already canonicalizes a `Seam`'s two sides — or is a
+boolean's names the operands' and the order the author's, with DM4 saying
+so?
+
+What it costs is unchanged and is why it is not a lane's call: the
+symmetric answer **moves `Fragment` rows in every existing
+declared-merge document**, goldens and corpus. And DM4's sentence now
+lives in `crates/editor-core/REFERENCES.md`, which `docs/DESIGN.md`'s
+companion table lists as **Ratified** — so the answer amends ratified
+text either way, by changing what it decides or by adding what it does
+not currently say (that the ORDER shows in the names).

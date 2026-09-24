@@ -170,31 +170,14 @@ fn a_positive_size_under_epsilon_reads_a_false_fact_at_both_doors_today() {
 #[cfg(feature = "interval")]
 mod certified {
     use super::{all_edges, same_f64};
-    use geom_core::{Bounds, Interval, Point2, Real, Tol};
-    use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+    use geom_core::{Bounds, Interval, Real, Tol};
     use sweep::blend::BlendError;
     use sweep::blend::build::fillet_edges;
     use sweep::chamfer::chamfer_edges;
-    use sweep::{Extrusion, extrude};
-    use topo::Body;
+    use sweep::test_support::cube;
 
     fn iv(x: f64) -> Interval {
         Interval::from_f64(x)
-    }
-
-    fn cube() -> Body<Interval> {
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
-            Point2::new(iv(0.0), iv(0.0)),
-            Point2::new(iv(1.0), iv(0.0)),
-            Point2::new(iv(1.0), iv(1.0)),
-            Point2::new(iv(0.0), iv(1.0)),
-        ]);
-        let profile = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(Tol::witness())
-            .expect("a square validates");
-        extrude(&profile, Extrusion::Distance(iv(1.0)), Tol::witness())
-            .expect("the cube extrudes")
-            .body
     }
 
     /// **Zero, negative, poisoned and STRADDLING brackets all refuse at
@@ -205,7 +188,7 @@ mod certified {
     #[test]
     fn a_not_definitely_positive_bracket_refuses_with_its_low_end() {
         let t = Tol::witness();
-        let body = cube();
+        let body = cube(1.0, Tol::witness());
         let edges = all_edges(&body);
         let sizes = [
             iv(0.0),
@@ -235,7 +218,7 @@ mod certified {
     #[test]
     fn a_definitely_positive_bracket_passes_the_gate() {
         let t = Tol::witness();
-        let body = cube();
+        let body = cube(1.0, Tol::witness());
         let edges = all_edges(&body);
         let size = Interval::from_bounds(0.1 - 1e-9, 0.1 + 1e-9);
         for (door, r) in [
@@ -256,29 +239,12 @@ mod certified {
 #[cfg(feature = "probe")]
 mod recorded {
     use super::all_edges;
+    use geom_core::Tol;
     use geom_core::k_stats::{self, Probe};
-    use geom_core::{Point2, Tol};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
     use sweep::blend::BlendError;
     use sweep::blend::build::fillet_edges;
     use sweep::chamfer::chamfer_edges;
-    use sweep::{Extrusion, extrude};
-    use topo::Body;
-
-    fn cube() -> Body<Probe> {
-        let lp: ProfileLoop<Probe> = ProfileLoop::new(
-            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-                .into_iter()
-                .map(|(x, y)| ProfileVertex::new(Point2::new(Probe(x), Probe(y)), Probe(0.0)))
-                .collect(),
-        );
-        let profile = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(Tol::witness())
-            .expect("a square validates");
-        extrude(&profile, Extrusion::Distance(Probe(1.0)), Tol::witness())
-            .expect("the cube extrudes")
-            .body
-    }
+    use sweep::test_support::cube;
 
     /// **A nonpositive size is refused before any predicate fires.** The
     /// sink is empty after the refusal at both doors; the positive
@@ -287,7 +253,7 @@ mod recorded {
     #[test]
     fn a_nonpositive_size_meters_nothing_before_it_refuses() {
         let t = Tol::witness();
-        let body = cube();
+        let body = cube(1.0, Tol::witness());
         let edges = all_edges(&body);
         for size in [0.0, -0.1, f64::NAN] {
             for door in ["fillet", "chamfer"] {

@@ -5,6 +5,8 @@ title: set_face_surface swaps a face onto a chart that mints nothing and leaves 
 status: review
 opened: 2026-09-14
 refs: [loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart, mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows, attach-postconditions-validate-the-whole-body-and-panic]
+priority: P0
+cost: D
 pr: 2594
 branch: topo/set-face-surface-drops-rows-on-chart-change
 ---

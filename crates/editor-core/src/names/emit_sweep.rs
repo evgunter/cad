@@ -12,7 +12,7 @@ use geom_core::Decide;
 use sweep::Extruded;
 use topo::{Body, EdgeKey, VertexKey};
 
-use super::emit::{NamingError, edge_ends, ent, name1, unique_shared_edge};
+use super::emit::{NamingError, Rim, RimShare, edge_ends, ent, name1, rim_between};
 use super::role::{CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, RoleSeg};
 use super::table::{EntityKey, NameTable};
 use crate::node::RecipeNodeId;
@@ -29,6 +29,33 @@ use crate::node::RecipeNodeId;
 const UNRESOLVED: NamingError = NamingError::Emission {
     what: "revolve meridian vertex unresolved: rim and meridian are not incident",
 };
+
+/// The typed refusal when a wall and a cap do not share exactly one
+/// edge, carrying WHICH way they failed to.
+///
+/// The same shape as [`UNRESOLVED`] and the same word for the same
+/// reason. **The premise, stated exactly**: this emitter builds
+/// nothing — `sweep` does — and [`name_swept_topology`] takes the body
+/// and the key lists as independent parameters with nothing in the
+/// signature tying them. What makes the refusal a bug report is that
+/// every caller passes a body and a bundle from ONE mint, which is true
+/// by call-site inspection and not by any type here. Under that
+/// premise a swept wall meets each cap along one rim by construction,
+/// so any other cardinality means the body and the bundle disagree.
+///
+/// A named function, not a `map_err` closure: the cardinality is the
+/// one thing the caller could drop, and this consumes it to pick the
+/// sentence.
+/// `work/wire/names-flush-and-select-discard-a-refusal-with-map-err-underscore.md`
+/// (PR 2378) is the closed row that shape belongs to.
+fn cap_rim_contradicted(found: RimShare) -> NamingError {
+    NamingError::Emission {
+        what: match found {
+            RimShare::NotAdjacent => "swept cap rim: a wall and a cap share no edge",
+            RimShare::Several => "swept cap rim: a wall and a cap share more than one edge",
+        },
+    }
+}
 
 /// Truncating-safe index cast (loop/segment counts are far below
 /// `u32::MAX`; a table this large is unrepresentable upstream).
@@ -107,7 +134,10 @@ fn name_swept_topology<T: Decide>(
                 ent(0, EntityKey::Face(wall)),
             )?;
             for (end, cap) in [(CapEnd::End, end_cap), (CapEnd::Start, start_cap)] {
-                let rim = unique_shared_edge(body, wall, cap)?;
+                let rim = match rim_between(body, wall, cap)? {
+                    Rim::One(e) => e,
+                    Rim::NotOne(found) => return Err(cap_rim_contradicted(found)),
+                };
                 t.insert(
                     name1(EntityKind::Edge, node, RoleSeg::RimEdge(end, pe)),
                     ent(0, EntityKey::Edge(rim)),
@@ -132,7 +162,10 @@ fn name_swept_topology<T: Decide>(
             let (s0, s1) = edge_ends(body, strut)?;
             for (end, cap) in [(CapEnd::End, end_cap), (CapEnd::Start, start_cap)] {
                 let wall = side_faces[l][j];
-                let rim = unique_shared_edge(body, wall, cap)?;
+                let rim = match rim_between(body, wall, cap)? {
+                    Rim::One(e) => e,
+                    Rim::NotOne(found) => return Err(cap_rim_contradicted(found)),
+                };
                 let (r0, r1) = edge_ends(body, rim)?;
                 let vtx = common_vertex((s0, s1), (r0, r1)).ok_or(NamingError::Emission {
                     what: "extrude cap vertex: strut and rim share no endpoint",

@@ -85,6 +85,10 @@ mod issue896_pole_guard;
 mod issue897_s65_cost;
 #[path = "k_funnel_composition.rs"]
 mod k_funnel_composition;
+#[path = "loops_the_meridian_guard_admits.rs"]
+mod loops_the_meridian_guard_admits;
+#[path = "loops_with_no_rim.rs"]
+mod loops_with_no_rim;
 #[path = "m5_pr11_trimmed.rs"]
 mod m5_pr11_trimmed;
 #[path = "m5_s10_face_sense.rs"]
@@ -93,6 +97,8 @@ mod m5_s10_face_sense;
 mod m5_s11_concave_sense;
 #[path = "m7_nurbs_trimmed.rs"]
 mod m7_nurbs_trimmed;
+#[path = "meridian_free_face.rs"]
+mod meridian_free_face;
 #[path = "mesh10r1_digest.rs"]
 mod mesh10r1_digest;
 #[path = "mesh10r1_probes.rs"]
@@ -166,14 +172,7 @@ mod revolves;
 #[path = "wedge.rs"]
 mod wedge;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();
 
 /// **The ε inventory — `sizing::SizingTols`'s ledger written as a gate rather
 /// than as a sentence.**
@@ -250,7 +249,7 @@ fn every_suite_file_is_aggregated() {
 ///   3 + 1 + 5 = 9 carriers; 1 + 3 + 1 + 0 = 5 reads.
 ///
 ///   The band that `topo::coherence` reads is NOT on this inventory
-///   and cannot be: it is that crate's own `f64`, not an [`Eps`], and
+///   and cannot be: it is that crate's own `f64`, not an `Eps`, and
 ///   this row walks `crates/mesh/src` alone. The two spellings are
 ///   held together by `walk::tests::the_two_spellings_of_the_band_
 ///   agree` instead.
@@ -484,3 +483,5 @@ fn the_eps_inventory_is_pinned() {
 }
 #[path = "r2_mesh7_probes.rs"]
 mod r2_mesh7_probes;
+#[path = "r2_sense_e2e.rs"]
+mod r2_sense_e2e;

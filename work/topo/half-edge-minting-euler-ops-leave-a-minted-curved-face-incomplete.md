@@ -5,6 +5,8 @@ title: mev, mef and mekr mint half-edges into a cached curved face and no pcurve
 status: open
 opened: 2026-09-13
 refs: [validate-pcurves-never-recertifies-a-face-it-finds-incomplete]
+priority: P0
+cost: H
 ---
 
 

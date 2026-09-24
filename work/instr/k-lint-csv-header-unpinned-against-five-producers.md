@@ -5,6 +5,8 @@ title: k-lint's EXPECTED_HEADER is hand-copied at five producer sites with no pi
 status: open
 opened: 2026-09-07
 refs: [2115, 1642]
+priority: P4
+cost: E
 ---
 
 

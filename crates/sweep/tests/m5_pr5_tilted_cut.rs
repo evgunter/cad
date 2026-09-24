@@ -797,7 +797,14 @@ fn near_graze_escalates_typed() {
     let err = split(&body, &plane, Tol::witness()).unwrap_err();
     let msg = format!("{err}");
     assert!(msg.contains("split_conic_belly_graze"), "{msg}");
-    assert_eq!(msg.matches(geom_core::COINCIDENCE_RECOURSE).count(), 1);
+    // One recourse, the split's own: a split takes no declaration.
+    assert_eq!(
+        msg.matches(&format!("Recourse: {}", geom_core::SPLIT_PLANE_RECOURSE)[..])
+            .count(),
+        1,
+        "{msg}"
+    );
+    assert!(!msg.contains("declare"), "{msg}");
 }
 
 /// The exact graze (plane through the rim apexes): the double root
@@ -819,7 +826,13 @@ fn exact_graze_refuses_typed() {
         ),
         Err(e) => {
             let msg = format!("{e}");
-            assert!(msg.contains("split"), "typed refusal expected: {msg}");
+            assert!(
+                matches!(
+                    e,
+                    topo::SplitError::Join(topo::SplitJoinError::DegenerateSection { .. })
+                ) && msg.contains("one-sided tangency"),
+                "the graze refuses as the degenerate section it is: {msg}"
+            );
         }
     }
 }

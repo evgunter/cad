@@ -549,16 +549,17 @@ Six ways a name escapes the old pattern, all live today:
    just named, and the reason they are also a separate way of
    escaping the pattern. Since SEAT-DN one function decides
    direction length for the whole workspace
-   (`topo::query::decide_unit_direction`: finiteness, then underflow,
+   (`geom_core::decide_unit_direction`: finiteness, then underflow,
    then the sign of the norm, then normalize or refuse) and it takes
    the funnel site
    as a `&'static str` PARAMETER, because the layer that owns a value
    is the layer whose telemetry names its length decision. So
-   `decide(` at that site names a variable: `datum_unit_norm` is
-   passed by `UnitVec3::new` a few dozen lines below for a datum's
-   normal or axis direction, and `eval_direction_norm` by
-   `editor-core`'s `unit()`, a crate away, for the directions the
-   evaluation layer owns (a transform's rotation axis, a pattern's
+   `decide(` at that site names a variable: `datum_unit_norm` (the
+   name `topo` owns) is passed to `geom_core::UnitVec3::new` by
+   `editor-core`'s `datum_unit` — the datum arms of `wire_datum` —
+   for a datum's normal or axis direction, and `eval_direction_norm`
+   by `editor-core`'s `unit()`, in the same file, for the directions
+   the evaluation layer owns (a transform's rotation axis, a pattern's
    direction, and the mate solve's re-derivation of both from the
    recipe). Two names, one body — Ev's ratified answer to the
    direction-family question, executed by SEAT-DN. The consequence
@@ -576,7 +577,11 @@ Six ways a name escapes the old pattern, all live today:
    roster at all (see "Maintenance: this roster is a RECORD" below).
    That is this document's standing hole made one route wider, not a
    new one: a third caller of the shared body owes an entry here, by
-   hand, exactly as a new `decide("literal")` site does.
+   hand, exactly as a new `decide("literal")` site does. **And the
+   reach of that route is every `geom-core` dependent** — the body
+   and the witness live in `geom-core` now, so a crate below `topo`
+   (`geom`, `geom-brep`, `sweep`, `profile`) can mint a name this way
+   as readily as one above it; it used to be `topo`'s dependents only.
 5. **A struct field or a local table.** `ray_parity::ParityRows` (the
    one carrier this document already listed), `swept.rs`'s
    `CosurfaceNames`, and `transform.rs:129`'s seven-element
@@ -694,6 +699,120 @@ Adding a name carrier without recording it here still silently drops
 its rows from the roster; that is now a disclosed cost rather than an
 undetected one.
 
+**Ruling (2026-09-16): `props_quad_last_round` is ε-coupled and stays
+OFF rule (4)'s roster.** It is the one name the roster pin's ADDED
+direction turned up (`tools/k-lint/tests/predicate_roster.rs`'s
+`every_target_len_mint_is_rostered_or_excused`), and it is genuinely
+ε-coupled: `props/quad.rs`'s budget exit mints
+`Margin::of(target_len - last_round_len)` against
+`QUAD_TARGET_LEN_FACTOR·ε`, the same spelling the rostered family uses.
+The ruling is recorded in `k_lint::EPS_COUPLED_UNRULED` — a name, a
+reason, and a list the CLI reads — rather than as a roster omission.
+
+**The ground is that there are no draws, and it is measured.** Rule
+(4)'s floor is the P0 of 108 draws of `props_quad_converged`'s
+`|m|/ε`, with 8.9% of headroom and no structural lower bound
+(`EPS_COUPLED_FLOOR_RATIO`). Putting a name under it that contributed
+none of those draws is a distribution ruling made with no
+distribution. That is the whole argument; the two paragraphs below say
+what the measurement is and what it is not.
+
+*"No draw" is not "swept and found empty", which is what an earlier
+reading of this had wrong.* Every committed era predates the mint: the
+newest, `m7-eps-*`, was swept 2026-08-07, and the kernel first minted
+`props_quad_last_round` on 2026-09-03. No committed row could have
+named it, so the absence in those files is not evidence of anything.
+
+*The structural reason, which is what the measurement actually rests
+on.* The mint is reached only from the two patch lanes, and only after
+round 0 fails to certify — `cylinder_cut_face_rounds` has no budget
+exit at all, and in the committed era the shapes that fail to certify
+at round 0 are in the lane WITHOUT the mint. So the zero is a property
+of which lanes this corpus exercises, not a sample size. The counts
+below are the run's scale, not its coverage: the informative numbers
+would be faces entering a patch lane and faces failing round 0, and
+the sweep reports neither.
+
+With that said, the reading: `scripts/k_probe_sweep.sh` at `89c8766`
+(2026-09-16, dev profile, the script's own `feats_for` — the
+configuration the M11 addendum names) records **zero
+`props_quad_last_round` rows in all three of its legs**, the gated
+corpus+demo files (1 263 818 / 1 263 826 / 1 263 838 samples, 277
+names), the M2 dump and the E6 driver dump, at every ε row.
+`props_quad_converged` recorded 92 / 104 / 116 over the same run.
+
+*What the asymmetry between the two families IS, and what it is not.*
+It is **not** that one is bounded and the other is not. Rule (4)'s own
+committed population is two-sided: `props_quad_converged` carries 24
+negative draws at the 1e-9 row and 48 at 1e-12, reaching
+`|m| = 1.83e-4` — about `1.8e8·ε` — and the P0 the floor is cut from
+(164.674 at demo/tiltedcut, 1e-9) is itself a negative row. Both
+families record a signed headroom with an unbounded refusal side, and
+rule (4) is already a lower-tail threshold on `|m|` over one. What
+differs is the SAMPLE: `props_quad_converged` is asked once per round
+and records the round that stopped, while `props_quad_last_round` is
+asked once per FACE and records a lower bound on a round that never
+ran. Whether those two lower tails are the same shape is exactly the
+question no draw has been taken on.
+
+*What keeps the ruling honest — two rows, and one of them is the gate.*
+The claim is "this family has no distribution", so something must red
+the day it has one:
+
+1. **The name, in the gate itself.** A row recorded for an
+   `EPS_COUPLED_UNRULED` name is a FINDING in `tools/k-lint`, counted
+   per file, printed ahead of the flags and failing the run in its own
+   voice — one that names this ruling and says explicitly that
+   re-deriving `BASELINE_FLOOR_MARGIN` is not the recourse. It rides
+   with rules (2) and (3) on the demotable side, so the E6 driver
+   row's recorded demotion covers it, and it prints there rather than
+   going quiet. **This is the guard that does not depend on a row's
+   sign or size**, and the reason it has to exist is below.
+2. **The committed era.**
+   `the_unruled_eps_coupled_names_have_no_draw_in_the_era_the_floor_is_cut_from`
+   reds if the era `EPS_COUPLED_FLOOR_RATIO` is cut from ever carries
+   a row of an unruled name. Vacuous today for the dating reason
+   above; its point is that the era moves in the same file that
+   re-cuts the floor, so that commit has to answer rather than re-cut
+   over a population that quietly acquired the excused family.
+
+   Beside them, not as a guard but as a statement of how loud the
+   metre rules additionally are:
+   `an_unruled_eps_coupled_margins_positive_side_is_loud_under_rule_3_at_the_tight_rows`
+   derives from the kernel's own `QUAD_TARGET_LEN_FACTOR` that a
+   POSITIVE row's whole range lies below `BASELINE_FLOOR_MARGIN` at
+   1e-9 and 1e-12, so every one of those flags under rule (3) there.
+
+**Why (1) is needed and a printed note would not have been.** The
+metre rules see nothing on the refusal side: a large negative margin
+is decisive and passes both. And a refusal does not surface elsewhere
+either — `crates/topo/src/props.rs`'s `sign_certified` says *"A face
+that refuses on BUDGET is different — it has an enclosure, and the sum
+keeps it — so the refusal rides on the certificate, and whether it is
+REPORTED is the caller's decision, taken by `last_word`"*, and
+`last_word` is asked exactly when `settle` never accepted. When
+`settle` accepts the sign off the enclosure the budget refusal is
+never reported and the run is a success, so definite-negative
+`props_quad_last_round` readings can accumulate on a wholly green
+suite. A note in a green log does not catch that; a gate does.
+
+**What a green `k-lint` row does and does not say about this.** `ci.yml`
+lints exactly `target/k-fresh/k-eps-{1e-6,1e-9,1e-12}.csv` with every
+rule gating, so a green there is a claim about the GATED FILES: no
+unruled row of any kind, and no positive one that rule (3) would have
+caught. It is not a claim about the sweep's other two dumps — the M2
+corpus dump is read by nothing, and the E6 driver dump is linted under
+`--gate-rule-1-only`, where both a rule-3 flag and an unruled row
+print and stay green.
+
+**What would change this ruling** is a corpus whose faces reach a patch
+lane and fail to certify at round 0. Building one is not a sweep away:
+it means authoring geometry whose round-0 flux width exceeds `1024·ε`
+into the Band 4 corpus, which moves the gate's subject matter — a
+geometry conversation, of the same kind `scripts/k_probe_sweep.sh`
+declines when it keeps the M2 corpus beside the linted CSV rather than
+inside it.
+
 **Roster addition (TRIM-3): the chart-boundary outside test.** Six
 names, in the crate scan's blind spot #4 — four of them are a
 `ray_parity::ParityRows` value, the carrier this document already
@@ -716,6 +835,43 @@ than the other five and should not be read against them. They pool with nothing:
 population, which is exactly why the shared parity walk takes its row
 names from the caller.
 
+**Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
+name, carried by a bare literal at its `decide` site (blind spot #1 of
+the crate scan — the same carrier shape `chart_bound_gap` has):
+
+| name | carrier |
+|---|---|
+| `props_trim_piece_monotone` | a bare literal at `geom_brep::props::quad::piece_monotone`'s `classify_len` call |
+
+Its dimension and disposition are `docs/predicate-dimension-audit.md`'s
+`props/quad.rs (piece_monotone)` row: a chart-parameter span levered by
+the chart's own metric rate along the chord, hence metres like the rest
+of the `props_quad_*` family. It is asked **once per trim piece per
+round**, so on a face that takes several rounds its population is the
+largest in the family by an order.
+
+**Its margin carries the ROUND's lever, and reading the population
+without that is reading the wrong quantity.** An earlier draft of this
+entry said the margin was "set by the image's control polygon, not by
+the chart's extent"; the v6 dual measured that false from both sides.
+The span is the REFINED block's least advance, so it halves with every
+uniform cut and every bisection and it scales with the face: the same
+smooth arc certifies at every round on a 10 µm face, refuses at round 4
+on a 1 µm face, and refuses at every round on a 0.1 µm face. So the row
+pools with nothing — not with `props_quad_converged`'s ladder, whose
+lever is the enclosure width, and not across faces of different size or
+runs that reached different rounds. A `k-lint` reading of it has to key
+on the round as well as the ε.
+
+**It emits nothing on today's corpus.** The trimmed lane is reached only
+by a face whose loop carries a `Pcurve::General` image, and on this head
+that is minted at exactly one site (`nurbs_iso_derive`'s `Intersection`
+arm on an interior column) which no corpus body exercises — TRIM-2's own
+fixture is a test-built body. So a `k_probe_sweep.sh` CSV taken at this
+merge carries no `props_trim_piece_monotone` row, exactly as the
+`chart_bound_*` names do below: the roster's code half reaches it and
+its behavioural half does not.
+
 **They emit nothing on today's corpus, and that is a fact to read, not
 a hole.** `chart_boundary` has no shipped caller until the clearance
 seam lands, so a `k_probe_sweep.sh` CSV taken at this merge carries no
@@ -723,6 +879,85 @@ seam lands, so a `k_probe_sweep.sh` CSV taken at this merge carries no
 behavioural half does not, which is the second blind spot this section
 names, in its live form. The first sweep after the consumer lands is
 what reads their distribution.
+
+**Roster change (FRAME-WITNESS): two tube frame names RETIRE, and the
+new frame mint carries the caller's name.** `sweep`'s tube door used to
+decide its own frame — `tube_frame_unit` (the axis's and the reference
+direction's length against 1, `Margin::levered` on `major + minor`) and
+`tube_frame_orthogonal` (their dot product on the same lever). Both are
+gone: the door takes a `geom_core::OrthoFrame`, whose axes were decided
+at whichever mint built it, so the two names are no longer emitted by
+anything and drop out of the roster. Neither was ever recorded here —
+both were bare literals at their `decide` sites — so this paragraph is
+the record of their retirement rather than a deletion from a table.
+
+What replaces them is not a name of the kernel's: `OrthoFrame`'s mints
+take the funnel site as a PARAMETER, exactly as `decide_unit_direction`
+does and for the same reason (the name belongs to the layer that owns
+the value). The names that reach the funnel through them today:
+
+| name | carrier | reaches the sweep's corpus? |
+|---|---|---|
+| `datum_unit_norm` | `topo`'s const, passed by `editor-core`'s `frame_axes` | yes — every authored and face frame |
+| `eval_direction_norm` | `editor-core`'s const, passed by `tube_args` | yes — every recipe tube's reference radial |
+| `frame_point_at_roll_offset`, `frame_path_start_reference_z`, `frame_path_start_reference_x` | `geom-core`'s ladders, same names | as before, at a slightly SMALLER count — see below |
+| `tour_frame_axis` | `demos/tour/src/scalar.rs`, a const the TOUR owns | **yes** — the demo-scenes leg of `scripts/k_probe_sweep.sh` runs the scenes that mint it |
+| `fixture_frame_axis` | `crates/sweep/src/test_support.rs`, a const the fixtures own | only if a rostered probe module builds a fixture plane off the world axes; none does today |
+| `sketch_plane_frame_norm` | `crates/pncad-py/src/py/doc.rs`, the binding's own | no — the binding is not in the sweep's roster |
+| `mate_axes_parallel` | `crates/editor-core/src/mate/coset.rs`'s `parallel`, a name the mate solve already recorded by a bare `decide` | as before — the mate solve is not in the sweep's roster; see the MSOLVE-8 paragraph below |
+| `mate_coset_inverse` | `crates/editor-core/src/mate/solve.rs`'s `invert`, the solve's own | no — the mate solve is not in the sweep's roster |
+| `fixture_mate_axis` | `crates/editor-core/tests/fixture/mod.rs`, a const the mate suites own | no — a test-owned name, as `fixture_frame_axis` |
+| `pncad_py_test_normal` | `crates/pncad-py/src/tests.rs`, the bindings' own arm table | no — a test-owned name |
+
+**Roster change (MSOLVE-8, 2026-09-20): one mate-solve name RESPELLED,
+one added, two test-owned.** `mate_axes_parallel` was a bare `decide`
+on `Margin::levered(‖u × v‖, arm)`; it is now the `UnitVec3::new` mint
+of the levered vector `(u × v) · arm`, so the margin it records is that
+vector's norm — the same quantity to within two ulps, and the one
+decision the non-parallel verdict's line is minted by (a second
+decision of the same number at a mint was spelled a rounding apart and
+could land in the band where the first did not). A re-baseline of a
+decided margin by at most two ulps at every site that decides it, with
+no threshold moved; the mate suites at three ε rows are the evidence no
+verdict moved on a shipped document. `mate_coset_inverse` is new: the
+solve re-mints a direction it transports by a rotation, a length one
+within rounding, so its samples sit at `1` and never in the band on a
+document the doors build. Neither name reaches `scripts/k_probe_sweep.sh`'s
+corpus, because the mate solve is not in it; that gap is the one
+`work/instr/frame-mint-funnel-names-outside-every-sweep-corpus.md`
+records for the binding, and the two mate names are added to it there.
+The two test-owned names follow `fixture_frame_axis`: a const the
+suite owns, reaching no corpus by construction. The aim decision
+`frame_point_at_aim` is recorded twice per mate by a solve — once per
+side — as before; the mate frame's axis is read off the ladder's
+witness rather than decided again.
+
+`tour_frame_axis` is a demo minting a roster name because the type's
+decision-free mints are the three cyclic world frames and the tour's
+planes are not all among them; that friction is filed at
+`work/props/exact-frame-mints-cover-three-of-the-world-frames.md`, with
+the two shapes a fix could take. The two names the sweep's corpus does
+NOT reach — `sketch_plane_frame_norm`, which is production code, and
+`fixture_frame_axis` — are filed at
+`work/instr/frame-mint-funnel-names-outside-every-sweep-corpus.md`.
+
+**The three ladder names keep their names and lose a few samples.**
+The aiming ladders' roll offset used to be classified by a bare
+`decide`, which recorded a sample for every offset it was handed. It
+now goes through `UnitVec3::new`, whose two format gates refuse BEFORE
+the funnel (that door's own K-consequence paragraph), so an offset
+whose length is not finite, or underflowed out of the format, no
+longer contributes. Reachable only for a tangent within about 1e-170
+of ±ẑ, so the expected effect on any shipped corpus is zero samples;
+it is recorded because "unchanged" is true of the names and not quite
+of the counts.
+
+**None of this is a threshold move.** A retired name removes samples; a
+new one adds them under its own name; no margin's arithmetic changed
+anywhere — the tube's frame decides were `Zero`-passing gates, not
+comparands anything else reads. The first `k-lint` sweep after the
+merge is what reads the new distribution, as the maintenance note above
+says for every roster change.
 
 **Why no per-predicate margin data in this snapshot.** The recording
 mechanism is the `Probe` scalar: per-predicate CSVs require running a
@@ -1537,9 +1772,9 @@ the committed snapshot, which still says 233 because it still contains
 the six old names.
 
 **And SEAT-DV adds one: 232 at a sweep cut immediately after it.**
-`datum_unit_norm` is the length decision inside `topo::query`'s
-`UnitVec3::new`, which is where a datum's normal or axis direction is
-now normalized. It does not REPLACE `eval_direction_norm`, which keeps
+`datum_unit_norm` is the length decision `editor-core`'s `datum_unit`
+passes to `geom_core::UnitVec3::new`, which is where a datum's normal
+or axis direction is normalized. It does not REPLACE `eval_direction_norm`, which keeps
 the directions the evaluation layer owns (a transform's rotation axis,
 a linear pattern's direction) — so this is one name in, none out. The
 population it takes is small and it moves rather than grows: the datum
@@ -1577,7 +1812,7 @@ one triple under two names by road is a property of the roads, not a
 defect of either site.
 
 What SEAT-DN did collapse is the BODY: both names are now passed as a
-parameter to `topo::query::decide_unit_direction`, the workspace's only
+parameter to `geom_core::decide_unit_direction`, the workspace's only
 decide/normalize/refuse for a 3-D direction length. The census
 consequence is nil (same names, same margins, same order, same
 outcomes); the roster consequence is that neither name is a literal at

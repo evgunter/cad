@@ -73,8 +73,14 @@ fn drive(weights: &[f64], eps: f64) -> Result<geom_brep::props::quad::FaceCutBou
 /// row stands down by name through `test_utils::vacuity::stood_down`.
 /// Both halves of that are deliberate — the baseline moves so a
 /// legitimately refusing band cannot red a claim that is not about
-/// postures, and the stand-down is loud so a band that quietly stopped
-/// asserting ε-invariance is visible in the battery log.
+/// postures, and the stand-down names what went unasserted rather than
+/// returning in silence. **Naming it is not the same as being heard**:
+/// the line is a `println!` from a row that passes, which every gating
+/// job discards (`test_utils::vacuity`'s module docs), so a band that
+/// quietly stopped asserting ε-invariance is visible to a local reader
+/// and to nobody on the gate. Making it visible there would mean
+/// flooring the number of ε rows that must certify, which is the
+/// posture this row declines to take.
 #[test]
 fn r2_dome_gauge_silence_and_area_bit_invariance() {
     let unit = [1.0; 9];

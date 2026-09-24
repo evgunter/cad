@@ -1,10 +1,10 @@
-//! A request's identity across the two seams: a monotone counter and
+//! A request's identity across the three seams: a monotone counter and
 //! nothing else.
 //!
 //! **This module depends on nothing** — not the kernel, not another
 //! module of this crate — and that is the whole reason it is a module
-//! rather than a type inside one. [`Generation`] is what both seams
-//! key their answers by and what the session, the frame policies, the
+//! rather than a type inside one. [`Generation`] is what every seam
+//! keys its answers by and what the session, the frame policies, the
 //! pick index and the app all compare; sited inside either seam it
 //! makes every one of those readers import a seam to name a counter,
 //! and it made `evalseam` and `pickcache` import each other
@@ -14,7 +14,7 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 /// A request's identity: a monotone counter minted by the session on
-/// every submit, and compared by both seams.
+/// every submit, and compared by every seam.
 ///
 /// Distinct from the shipped evaluation `Epoch`, which identifies the
 /// RUN. This identifies the REQUEST, and the session mints a fresh one

@@ -14,7 +14,8 @@
 //! counterclockwise viewed from outside, equivalently **every face has
 //! an outward normal** — the one pointing away from the solid's
 //! material, which the loop winding is tied to. That normal is
-//! `Face::sense_sign() * chart_normal(u, v)` (DESIGN "face orientation
+//! `chart_normal(u, v)` where `Face::sense` is `true` and its negation
+//! where it is `false` (DESIGN "face orientation
 //! sense", ratified M5 S10): the surface's stored chart normal is the
 //! outward normal only where `Face::sense` is `true`. (TOG 1986
 //! §2/§6.1 states the same interior-left convention, which is why the
@@ -103,9 +104,9 @@ impl<T: Real> OutwardNormal<T> {
     /// The ONLY constructor: naming the sense is the whole obligation,
     /// so it is a parameter rather than a caller's remembered multiply.
     /// It takes the **bit**, not a `T` sign, because S10's flip is
-    /// selected by a boolean and is never a numeric decision
-    /// (`Face::sense_sign`'s own contract — the scalar backends order
-    /// intervals, not signs). A `T` parameter would admit `1.0` on a
+    /// selected by a boolean and is never a numeric decision (the
+    /// scalar backends order intervals, not signs). A `T` parameter
+    /// would admit `1.0` on a
     /// reversed face, or a dot product, or an `Interval` that is not
     /// ±1 at all; the bit admits exactly two words at the call site.
     #[must_use]
@@ -199,16 +200,7 @@ pub fn enters_material<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, Indeterminate> {
-    match decide("enters_material_arm", Margin::of(arm), band)? {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => {
-            return Err(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
-                band,
-                predicate: Some("enters_material_arm"),
-            });
-        }
-    }
+    decide_positive("enters_material_arm", Margin::of(arm), band)?;
     let margin = Margin::levered(dir.normalize().dot(outward_normal.vec()), arm);
     Ok(match decide("enters_material", margin, band)? {
         Sign::Negative => EntersMaterial::Enters,
@@ -260,16 +252,7 @@ pub fn enters_material_order2<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<EntersMaterial, Indeterminate> {
-    match decide("tangent_sector_order2_arm", Margin::of(arm), band)? {
-        Sign::Positive => {}
-        Sign::Zero | Sign::Negative => {
-            return Err(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
-                band,
-                predicate: Some("tangent_sector_order2_arm"),
-            });
-        }
-    }
+    decide_positive("tangent_sector_order2_arm", Margin::of(arm), band)?;
     let margin = Margin::sagitta(deriv2.dot(reference_normal.vec()) / speed_sq, arm);
     Ok(match decide("tangent_sector_order2", margin, band)? {
         Sign::Negative => EntersMaterial::Enters,
@@ -286,6 +269,19 @@ fn decide<T: Decide>(
     band: Band,
 ) -> Result<Sign, Indeterminate> {
     geom_core::k_stats::decide(name, margin, band)
+}
+
+/// The collapsed-arm gate through the same funnel
+/// ([`geom_core::k_stats::decide_positive`]): the lever arm this file's
+/// sector predicates meter against must classify definitely positive,
+/// and a definite `Zero` escalates as the funnel's own indeterminacy
+/// rather than one minted here.
+fn decide_positive<T: Decide>(
+    name: &'static str,
+    margin: Margin<T>,
+    band: Band,
+) -> Result<(), Indeterminate> {
+    geom_core::k_stats::decide_positive(name, margin, band)
 }
 
 #[cfg(test)]

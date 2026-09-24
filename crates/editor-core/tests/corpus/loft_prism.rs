@@ -35,6 +35,7 @@
 //! is asserted against the certified enclosure.
 
 use editor_core::{DocEdit, Expr, LoopProgram, Node, ProfileProgram, RecipeNodeId, SlotId};
+use sweep::test_support::{PRISM_SQUARE, PRISM_TRAPEZOID};
 
 use super::super::fixture::frame;
 use super::{CorpusDoc, Recorder};
@@ -56,11 +57,9 @@ fn section(r: &mut Recorder, z: f64, pts: [(f64, f64); 4]) -> RecipeNodeId {
 /// The loft-prism corpus document.
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
-    let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let bottom = section(&mut r, 0.0, square);
-    let middle = section(&mut r, 1.0, trapezoid);
-    let top = section(&mut r, 2.0, square);
+    let bottom = section(&mut r, 0.0, PRISM_SQUARE);
+    let middle = section(&mut r, 1.0, PRISM_TRAPEZOID);
+    let top = section(&mut r, 2.0, PRISM_SQUARE);
     let loft = r.insert(Node::Loft {
         profiles: vec![bottom, middle, top],
         v_degree: Expr::count(2),

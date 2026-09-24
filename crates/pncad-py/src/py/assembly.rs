@@ -38,7 +38,9 @@ use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::{assembly_error_tag, attribution_tag, product_error_tag, refused_ref_tag};
+use crate::tags::{
+    assembly_error_tag, attribution_tag, mint_refusal_tag, product_error_tag, refused_ref_tag,
+};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
@@ -155,13 +157,7 @@ pub(crate) fn product(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyR
 /// A mispaired `(doc, evaluation)` as the gather's own refusal — the
 /// one the memo path cannot inherit from a gather it does not reach.
 fn mispaired_product(py: Python<'_>, m: d::Mispaired) -> PyErr {
-    product_err(
-        py,
-        &d::ProductError::EvaluationOfAnotherDocument {
-            expected: m.expected,
-            found: m.found,
-        },
-    )
+    product_err(py, &m.into())
 }
 
 /// The product, with the stable names its entities answer to —
@@ -207,10 +203,12 @@ pub(crate) fn product_named(
 ///
 /// Payload attributes present on every arm, `None` where inapplicable:
 /// `at` (the operand a reference is read at when it is spelled there
-/// but the operand is not a product root), `width` (how many entities
-/// a tie holds) and `kind` (what a non-face reference did name).
+/// but the operand is not a product root) and `width` (how many
+/// entities a tie holds). There is no `kind`: a mate head is a face
+/// by its type, so no refusal here reports what a head named
+/// instead.
 ///
-/// Each of the three is an exhaustive match with no wildcard, so a
+/// Each accessor is an exhaustive match with no wildcard, so a
 /// refusal arm added kernel-side is a compile error here rather than
 /// a reference every accessor silently answers `None` about.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
@@ -220,7 +218,7 @@ pub(crate) struct RefusedRef(d::RefusedRef);
 #[pymethods]
 impl RefusedRef {
     /// The stable tag: `ref_vanished`, `ref_read_below_a_root`,
-    /// `ref_ambiguous`, `ref_not_a_face`.
+    /// `ref_ambiguous`.
     #[getter]
     fn variant(&self) -> &'static str {
         refused_ref_tag(&self.0)
@@ -234,9 +232,7 @@ impl RefusedRef {
     fn at(&self) -> Option<NodeId> {
         match self.0 {
             d::RefusedRef::ReadBelowARoot { at } => Some(NodeId(at)),
-            d::RefusedRef::Vanished
-            | d::RefusedRef::Ambiguous { .. }
-            | d::RefusedRef::NotAFace { .. } => None,
+            d::RefusedRef::Vanished | d::RefusedRef::Ambiguous { .. } => None,
         }
     }
 
@@ -246,21 +242,7 @@ impl RefusedRef {
     fn width(&self) -> Option<u32> {
         match self.0 {
             d::RefusedRef::Ambiguous { width } => Some(width),
-            d::RefusedRef::Vanished
-            | d::RefusedRef::ReadBelowARoot { .. }
-            | d::RefusedRef::NotAFace { .. } => None,
-        }
-    }
-
-    /// What the reference did name, when it resolved to something
-    /// that is not a face: `"face"`, `"edge"`, `"vertex"`, `"body"`.
-    #[getter]
-    fn kind(&self) -> Option<&'static str> {
-        match self.0 {
-            d::RefusedRef::NotAFace { kind } => Some(entity_kind_tag(kind)),
-            d::RefusedRef::Vanished
-            | d::RefusedRef::ReadBelowARoot { .. }
-            | d::RefusedRef::Ambiguous { .. } => None,
+            d::RefusedRef::Vanished | d::RefusedRef::ReadBelowARoot { .. } => None,
         }
     }
 
@@ -270,18 +252,6 @@ impl RefusedRef {
 
     fn __repr__(&self) -> String {
         format!("RefusedRef({:?})", self.variant())
-    }
-}
-
-/// The stable tag for an entity kind. Exhaustive over the kernel
-/// enum, so a kind added there stops this build.
-fn entity_kind_tag(kind: pncad::prelude::EntityKind) -> &'static str {
-    use pncad::prelude::EntityKind as K;
-    match kind {
-        K::Face => "face",
-        K::Edge => "edge",
-        K::Vertex => "vertex",
-        K::Body => "body",
     }
 }
 
@@ -442,6 +412,147 @@ impl AtRestFinding {
     }
 }
 
+/// One mate whose declaration the gather could not mint: which mate,
+/// and why — a reference that named no product face (`why`), or a
+/// class that carries no kernel record at rest (`class_`).
+///
+/// A row of `AssemblyError.refusals`, which is the WHOLE list the
+/// gather recorded: a document with two broken mates answers with two
+/// rows, so an author repairs both from one evaluation.
+///
+/// `variant` is the stable tag, and the other three are the arms'
+/// payloads — present on the arm that carries them, `None` on the
+/// other, so `getattr` never raises.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct MintRefusal(d::MintRefusal);
+
+#[pymethods]
+impl MintRefusal {
+    /// The stable tag: `mate_reference_refused`, `no_at_rest_record`.
+    #[getter]
+    fn variant(&self) -> &'static str {
+        mint_refusal_tag(&self.0)
+    }
+
+    /// The mate that did not mint. Both arms carry one.
+    #[getter]
+    fn mate(&self) -> NodeId {
+        NodeId(self.0.mate())
+    }
+
+    /// Which side of the mate the refused reference is on, for a
+    /// reference refusal.
+    #[getter]
+    fn side(&self) -> Option<MateSide> {
+        match &self.0 {
+            d::MintRefusal::Reference { side, .. } => Some(MateSide::from_kernel(*side)),
+            d::MintRefusal::NoAtRestRecord { .. } => None,
+        }
+    }
+
+    /// The reference that named no product face, as its stable name.
+    #[getter]
+    fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
+        match &self.0 {
+            d::MintRefusal::Reference { name, .. } => name_text(py, name).map(Some),
+            d::MintRefusal::NoAtRestRecord { .. } => Ok(None),
+        }
+    }
+
+    /// Why the reference did not resolve.
+    ///
+    /// `None` on the `no_at_rest_record` arm, which has a reason of a
+    /// different KIND: not a refused reference but the class's own
+    /// entry in the admission table. That reason is not re-minted
+    /// here, because the table is where it is sourced and
+    /// `class_admission(refusal.class_).why` is the same string the
+    /// message carries. One home, asked by the door that owns it.
+    #[getter]
+    fn why(&self) -> Option<RefusedRef> {
+        match &self.0 {
+            d::MintRefusal::Reference { why, .. } => Some(RefusedRef(why.clone())),
+            d::MintRefusal::NoAtRestRecord { .. } => None,
+        }
+    }
+
+    /// The class that carries no kernel record at rest.
+    #[getter]
+    fn class_(&self, py: Python<'_>) -> PyResult<Option<super::flush::ContactClass>> {
+        match &self.0 {
+            d::MintRefusal::NoAtRestRecord { class, .. } => {
+                super::flush::contact_class(py, *class).map(Some)
+            }
+            d::MintRefusal::Reference { .. } => Ok(None),
+        }
+    }
+
+    /// The refusal in the library's own words, its own recourse
+    /// included.
+    fn __str__(&self) -> String {
+        self.0.to_string()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "MintRefusal({:?}, mate={})",
+            self.variant(),
+            self.0.mate().0
+        )
+    }
+}
+
+/// One mate a document BELOW this one could not mint, with the route
+/// this document reached it by.
+///
+/// The mate is a node of `of`, not of the document that was gathered
+/// — the same rule every foreign-mate row follows — so `of` is the
+/// file to open and `via` the instances in between, nearest first.
+#[pyclass(frozen, module = "pncad", skip_from_py_object)]
+#[derive(Clone)]
+pub(crate) struct CarriedRefusal(d::CarriedRefusal);
+
+#[pymethods]
+impl CarriedRefusal {
+    /// The inner document's own refusal, its `mate` a node of `of`.
+    #[getter]
+    fn refusal(&self) -> MintRefusal {
+        MintRefusal(self.0.refusal.clone())
+    }
+
+    /// The instantiating node OF THIS DOCUMENT the row came through.
+    #[getter]
+    fn through(&self) -> NodeId {
+        NodeId(self.0.route.through)
+    }
+
+    /// The document whose mate did not mint, as opaque id text.
+    #[getter]
+    fn of(&self, py: Python<'_>) -> Py<PyAny> {
+        route_fields(py, &self.0.route).0
+    }
+
+    /// The instances this document reached it through, nearest first.
+    #[getter]
+    fn via(&self, py: Python<'_>) -> Py<PyAny> {
+        route_fields(py, &self.0.route).1
+    }
+
+    /// The row in the library's own words: which document, what it
+    /// could not mint, and the repair.
+    fn __str__(&self) -> String {
+        self.0.to_string()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "CarriedRefusal(mate={}, of={})",
+            self.0.refusal.mate().0,
+            self.0.route.of
+        )
+    }
+}
+
 /// A validated assembly: the gathered body, its product names, and one
 /// minted declaration per solved mate.
 ///
@@ -542,45 +653,23 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
     // still raises on THIS class — the door they called was the gate.
     let none = || py.None();
     let obj = |v: PyResult<Py<PyAny>>| v.unwrap_or_else(|_| py.None());
-    let (mate, side, name, why, class_, findings) = match err {
-        // The carried arm carries a FOREIGN mate, so it carries the
-        // route with it: `of` is the document to open and `via` the
-        // instances this document reached it through. `mate` is that
-        // document's node, documented as such — a bare id with no
-        // document is not something a caller can look up, and the
-        // route is what makes it one.
-        E::CarriedMintRefusal { route, refusal } => {
-            let (of, via) = route_fields(py, route);
-            return typed_err(
-                py,
-                ErrorClass::Assembly,
-                err.to_string(),
-                &[
-                    (
-                        "variant",
-                        PyString::new(py, assembly_error_tag(err))
-                            .unbind()
-                            .into_any(),
-                    ),
-                    ("node", none()),
-                    (
-                        "through",
-                        obj(Py::new(py, NodeId(route.through)).map(|v| v.into_any())),
-                    ),
-                    ("of", of),
-                    ("via", via),
-                    ("name", none()),
-                    (
-                        "mate",
-                        obj(Py::new(py, NodeId(refusal.mate())).map(|v| v.into_any())),
-                    ),
-                    ("side", none()),
-                    ("why", none()),
-                    ("class_", none()),
-                    ("findings", none()),
-                ],
-            );
-        }
+    let (refusals, findings) = match err {
+        // The carried arm carries FOREIGN mates, so every row carries
+        // its own route: `of` is the document to open and `via` the
+        // instances this document reached it through, and the row's
+        // `mate` is that document's node — a bare id with no document
+        // is not something a caller can look up, and the route is what
+        // makes it one. The gate's own `of`/`via`/`through` stay
+        // `None`, because a list of rows has no single route.
+        E::CarriedMintRefusal { refusals } => (
+            obj(refusals
+                .iter()
+                .map(|r| CarriedRefusal(r.clone()))
+                .collect::<Vec<_>>()
+                .into_pyobject(py)
+                .map(|v| v.unbind().into_any())),
+            none(),
+        ),
         E::Product(inner) => {
             let (node, through, name) = product_fields(py, inner);
             // The gather's payload rides under the gather's own
@@ -603,41 +692,21 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
                     ("of", none()),
                     ("via", none()),
                     ("name", name),
-                    ("mate", none()),
-                    ("side", none()),
-                    ("why", none()),
-                    ("class_", none()),
+                    ("refusals", none()),
                     ("findings", none()),
                 ],
             );
         }
-        E::Reference {
-            mate,
-            side,
-            name,
-            why,
-        } => (
-            obj(Py::new(py, NodeId(*mate)).map(|v| v.into_any())),
-            obj(Py::new(py, MateSide::from_kernel(*side)).map(|v| v.into_any())),
-            obj(name_text(py, name).map(|s| PyString::new(py, &s).unbind().into_any())),
-            obj(Py::new(py, RefusedRef(why.clone())).map(|v| v.into_any())),
-            none(),
-            none(),
-        ),
-        E::NoAtRestRecord { mate, class, .. } => (
-            obj(Py::new(py, NodeId(*mate)).map(|v| v.into_any())),
-            none(),
-            none(),
-            none(),
-            obj(super::flush::contact_class(py, *class)
-                .and_then(|c| Py::new(py, c).map(|v| v.into_any()))),
+        E::Mint { refusals } => (
+            obj(refusals
+                .iter()
+                .map(|r| MintRefusal(r.clone()))
+                .collect::<Vec<_>>()
+                .into_pyobject(py)
+                .map(|v| v.unbind().into_any())),
             none(),
         ),
         E::AtRest { findings } | E::Uncertified { findings, .. } => (
-            none(),
-            none(),
-            none(),
-            none(),
             none(),
             obj(findings
                 .iter()
@@ -662,11 +731,8 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
             ("through", none()),
             ("of", none()),
             ("via", none()),
-            ("name", name),
-            ("mate", mate),
-            ("side", side),
-            ("why", why),
-            ("class_", class_),
+            ("name", none()),
+            ("refusals", refusals),
             ("findings", findings),
         ],
     )
@@ -708,22 +774,20 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
 ///   cross-instance pair whose two descriptions share no structural
 ///   chart ends here whatever its geometry.
 ///
-/// The remaining arms refuse before any verdict: `mate_reference_
-/// refused` (a mate named no product face — `why` says which way),
-/// `no_at_rest_record` (the class mints nothing at rest; ask
-/// `class_admission` BEFORE authoring), and the gather's own tags.
+/// The remaining arms refuse before any verdict: `unminted_mates`
+/// (this document's own mates that did not mint), `carried_mint_
+/// refusal` (the same for mates of documents below it), and the
+/// gather's own tags. Both mint arms answer with `refusals` — EVERY
+/// mate that did not mint, in document order, each row carrying its
+/// own word: `mate_reference_refused` (the mate named no product face
+/// — `why` says which way) or `no_at_rest_record` (the class mints
+/// nothing at rest; ask `class_admission` BEFORE authoring).
 #[pyfunction]
 pub(crate) fn assemble(py: Python<'_>, doc: &Doc, evaluation: &Evaluation) -> PyResult<Assembly> {
     let tol = Tol::witness();
-    evaluation.paired_with(doc).map_err(|m| {
-        assembly_err(
-            py,
-            &d::AssemblyError::Product(Box::new(d::ProductError::EvaluationOfAnotherDocument {
-                expected: m.expected,
-                found: m.found,
-            })),
-        )
-    })?;
+    evaluation
+        .paired_with(doc)
+        .map_err(|m| assembly_err(py, &d::AssemblyError::Product(Box::new(m.into()))))?;
     let assembly = evaluation
         .gathered(|memo, doc, ev| crate::product_memo::assembly(memo, doc, ev, tol))
         .map_err(|err| assembly_err(py, &err))?;
@@ -758,6 +822,8 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Attribution>()?;
     m.add_class::<AtRestFinding>()?;
     m.add_class::<RefusedRef>()?;
+    m.add_class::<MintRefusal>()?;
+    m.add_class::<CarriedRefusal>()?;
     m.add_function(wrap_pyfunction!(product, m)?)?;
     m.add_function(wrap_pyfunction!(product_named, m)?)?;
     m.add_function(wrap_pyfunction!(assemble, m)?)?;
