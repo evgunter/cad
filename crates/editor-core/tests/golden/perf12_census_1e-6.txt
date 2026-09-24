@@ -292,6 +292,10 @@ census: Ok
 solids=1 faces=4 edges=8 vertices=4
 assemble: Ok
 census: Ok
+## reshaped_rod
+solids=1 faces=10 edges=24 vertices=16
+assemble: Ok
+census: Ok
 ## heat_sink@10
 solids=11 faces=91 edges=192 vertices=128
 assemble: Err(AtRest)
