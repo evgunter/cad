@@ -2166,9 +2166,7 @@ impl<T: Decide> QuadLane<T> {
 #[allow(clippy::type_complexity)]
 pub struct ShellDoor<T: Decide> {
     /// [`ShellDoor::open`]'s body — `crate::shell_open`, and nothing
-    /// else can be written here: the pointer is pinned by
-    /// `at_rest_policy_tests::certifying_arms_are_the_doors`, which
-    /// `fn_addr_eq`s each certifying arm's door against that function.
+    /// else can be written here (`wiring_rows` pins the pointer).
     open: fn(&Body<T>, T, &[FaceKey], Tol) -> Result<Shelled<T>, ShellError<T>>,
 }
 
@@ -2209,32 +2207,59 @@ impl<T: Decide> ShellDoor<T> {
 
 // SHELL-TOLERANCE-CHAIN END.
 
-/// **The door's WIRING** — the rows that say which free function
-/// [`QuadLane::certified`] holds, rather than what it answered.
+/// **The doors' WIRING** — the rows that say which free function
+/// [`QuadLane::certified`] and [`ShellDoor::certified`] hold, rather
+/// than what they answered.
 ///
 /// A row that compares outputs cannot see a door re-pointed at a
-/// quadrature that agrees on the fixture in front of it; these rows
+/// routine that agrees on the fixture in front of it; these rows
 /// compare the stored function pointer instead, so a re-point is a
 /// failure no matter what it computes. Function-pointer identity is
 /// what `std::ptr::fn_addr_eq` compares and is not a language guarantee
 /// (identical bodies may be merged), which costs nothing here: a false
 /// PASS would need the re-pointed routine to be instruction-identical
-/// to `quad_lane::cut_face`.
+/// to the one it replaced.
+///
+/// Each door has one helper, instantiated once per certifying scalar.
+/// `certified_enclosure_impl_census` counts those instantiations
+/// against the `CertifiedEnclosure` impls in the tree, both directions,
+/// and counts the tree's door values against its roster of helpers.
 #[cfg(test)]
 mod wiring_rows {
-    use super::{QuadLane, quad_lane};
+    use super::{AtRestPolicy, QuadLane, ShellDoor, quad_lane};
 
-    fn holds_the_certified_quadrature<T: super::Decide + geom_core::CertifiedBounds>() -> bool {
-        std::ptr::fn_addr_eq(
+    /// `Ok(())` when the quadrature door holds `quad_lane::cut_face`;
+    /// otherwise the name of the field that moved.
+    fn holds_the_certified_quadrature<T: super::Decide + geom_core::CertifiedBounds>()
+    -> Result<(), &'static str> {
+        if !std::ptr::fn_addr_eq(
             QuadLane::<T>::certified().cut_face,
             quad_lane::cut_face::<T> as fn(_, _, _, _, _, _) -> _,
-        )
+        ) {
+            return Err("cut_face is not `quad_lane::cut_face`");
+        }
+        Ok(())
+    }
+
+    /// `Ok(())` when the shell door holds `shell_open`; otherwise the
+    /// name of the field that moved.
+    fn holds_the_certified_shell_door<
+        T: super::Decide + geom_core::CertifiedBounds + AtRestPolicy,
+    >() -> Result<(), &'static str> {
+        if !std::ptr::fn_addr_eq(
+            ShellDoor::<T>::certified().open,
+            crate::shell::shell_open::<T> as fn(_, _, _, _) -> _,
+        ) {
+            return Err("open is not `shell_open`");
+        }
+        Ok(())
     }
 
     #[test]
     fn f64_is_wired_to_the_certified_quadrature() {
-        assert!(
+        assert_eq!(
             holds_the_certified_quadrature::<f64>(),
+            Ok(()),
             "`QuadLane::<f64>::certified()` holds something other than `quad_lane::cut_face`"
         );
     }
@@ -2243,8 +2268,9 @@ mod wiring_rows {
     /// pointer, instantiated at `Sym<f64>`.
     #[test]
     fn sym_over_f64_is_wired_to_the_certified_quadrature() {
-        assert!(
+        assert_eq!(
             holds_the_certified_quadrature::<geom_core::Sym<f64>>(),
+            Ok(()),
             "`QuadLane::<Sym<f64>>::certified()` holds something other than `quad_lane::cut_face`"
         );
     }
@@ -2252,8 +2278,9 @@ mod wiring_rows {
     #[cfg(feature = "probe")]
     #[test]
     fn probe_is_wired_to_the_certified_quadrature() {
-        assert!(
+        assert_eq!(
             holds_the_certified_quadrature::<geom_core::Probe>(),
+            Ok(()),
             "`QuadLane::<Probe>::certified()` holds something other than `quad_lane::cut_face`"
         );
     }
@@ -2261,9 +2288,50 @@ mod wiring_rows {
     #[cfg(feature = "interval")]
     #[test]
     fn interval_is_wired_to_the_certified_quadrature() {
-        assert!(
+        assert_eq!(
             holds_the_certified_quadrature::<geom_core::interval::Interval>(),
+            Ok(()),
             "`QuadLane::<Interval>::certified()` holds something other than `quad_lane::cut_face`"
+        );
+    }
+
+    #[test]
+    fn f64_is_wired_to_the_certified_shell_door() {
+        assert_eq!(
+            holds_the_certified_shell_door::<f64>(),
+            Ok(()),
+            "`ShellDoor::<f64>::certified()` holds something other than `shell_open`"
+        );
+    }
+
+    /// The symbolic tier holds the base scalar's door: the same
+    /// pointer, instantiated at `Sym<f64>`.
+    #[test]
+    fn sym_over_f64_is_wired_to_the_certified_shell_door() {
+        assert_eq!(
+            holds_the_certified_shell_door::<geom_core::Sym<f64>>(),
+            Ok(()),
+            "`ShellDoor::<Sym<f64>>::certified()` holds something other than `shell_open`"
+        );
+    }
+
+    #[cfg(feature = "probe")]
+    #[test]
+    fn probe_is_wired_to_the_certified_shell_door() {
+        assert_eq!(
+            holds_the_certified_shell_door::<geom_core::Probe>(),
+            Ok(()),
+            "`ShellDoor::<Probe>::certified()` holds something other than `shell_open`"
+        );
+    }
+
+    #[cfg(feature = "interval")]
+    #[test]
+    fn interval_is_wired_to_the_certified_shell_door() {
+        assert_eq!(
+            holds_the_certified_shell_door::<geom_core::interval::Interval>(),
+            Ok(()),
+            "`ShellDoor::<Interval>::certified()` holds something other than `shell_open`"
         );
     }
 }
@@ -2591,8 +2659,10 @@ mod at_rest_policy_tests {
     //! pair is asserted equal to its door on a body the door refuses,
     //! so `Ok(Validated)`-without-validating cannot survive these rows.
     //! The shell door is the one arm that is not a gate on that
-    //! subject: it is a VALUE, so its row is a pointer comparison
-    //! against `shell_open` rather than an output on a refusal.
+    //! subject: it is a VALUE, so what these rows pin is the arm's
+    //! answer — `ShellDoor::certified()` at a certifying scalar, `None`
+    //! at a dual — and which function that value holds is
+    //! `wiring_rows`' pin, per scalar, beside the quadrature door's.
 
     use super::{AtRestOutcome, AtRestPolicy};
     use crate::body::Body;
@@ -2633,21 +2703,14 @@ mod at_rest_policy_tests {
             "gate_at_rest_declared must be validate_pseudomanifold verbatim at a certifying \
              scalar"
         );
-        // The shell door is a VALUE, so what can go wrong is which
-        // function it holds; a row comparing outputs cannot see a door
-        // re-pointed at a hollowing that agrees on the fixture in
-        // front of it, and this compares the stored pointer instead
-        // (`wiring_rows`' reason, and its caveat: `fn_addr_eq` is not
-        // a language guarantee, which costs nothing because a false
-        // PASS would need the re-pointed routine to be
-        // instruction-identical to `shell_open`).
+        // The arm's `Some` is the door's one constructor and not a
+        // value spelled beside it: this module can write the private
+        // field, so a literal here would hold whatever it names and
+        // `wiring_rows`, which pins `certified()`, would not see it.
         let door = T::shell_door().expect("a certifying scalar holds the shell door");
         assert!(
-            std::ptr::fn_addr_eq(
-                door.open,
-                crate::shell::shell_open::<T> as fn(_, _, _, _) -> _
-            ),
-            "the shell door must hold shell_open at a certifying scalar"
+            std::ptr::fn_addr_eq(door.open, super::ShellDoor::<T>::certified().open),
+            "the certifying arm hands out something other than `ShellDoor::certified()`"
         );
     }
 

@@ -575,7 +575,8 @@ impl<T: Decide> RegionLane<T> {
 /// PASS would need the re-pointed routine to be instruction-identical
 /// to the door it replaced. `certified_enclosure_impl_census` counts
 /// the scalars instantiated here against the `CertifiedEnclosure`
-/// impls in the tree, both directions.
+/// impls in the tree, both directions, and counts the tree's door
+/// values against its roster of helpers.
 #[cfg(test)]
 mod wiring_rows {
     use super::{RegionLane, chart_region_overlap, declared_pair_overlap};
