@@ -475,6 +475,32 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
         ),
+        // The refusal crosses as a WORD plus the reader's position, not
+        // as prose: `inner_variant` is the dimension check that failed,
+        // from the same map the expression text door's `kind` uses. No
+        // `detail` — there is nothing here that needs a sentence to be
+        // branchable, which is the whole point of the arm.
+        E::Dimension {
+            line: l,
+            column: c,
+            error,
+        } => (
+            word(crate::tags::expr_dimension_error_tag(error)),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            none(),
+            int(*l),
+            int(*c),
+            none(),
+            none(),
+            none(),
+        ),
         E::Snapshot(inner) => (
             word(crate::tags::snapshot_error_tag(inner)),
             none(),

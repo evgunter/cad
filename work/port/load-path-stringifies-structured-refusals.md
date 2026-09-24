@@ -2,12 +2,15 @@
 id: load-path-stringifies-structured-refusals
 kind: issue
 title: The load path stringifies structured kernel refusals, contradicting the bindings' never-strings contract
-status: open
+status: closed
 opened: 2026-08-20
 github: 694
 refs: [561, 689, S107]
+parent: PORT-DIMS-1
+pr: 2702
 priority: P1
 cost: D
+closed: 2026-09-23
 ---
 
 ## From GitHub issue 694
@@ -77,3 +80,41 @@ Moved from `work/docm/` to `work/port/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): the contract broken is the bindings' never-strings contract at a crate boundary, PORT's charter (LIB may take it). Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+
+## Resolved (PORT-DIMS-1, 2026-09-15) — and two of this body's facts were stale
+
+The load door now refuses `PersistError::Dimension { line, column,
+error }`, carrying the document layer's own `DimensionError` whole. In
+Python that is `PersistError` with `variant == "dimension"` and the
+failing check's own tag as `inner_variant`, minted from the same
+`expr_dimension_error_tag` map the expression text door draws
+`ParseError.kind` from.
+
+**Two statements above were false at the tree this closed against**, and
+they are kept rather than edited because they are what the row said:
+
+- *"surfaces in Python as `PersistError` with `variant="parse"`"*, and
+  the four reproduction lines that say `variant "parse"`. It was
+  `unreadable`. PR 1553 replaced the schema door with a routing by
+  `serde_json::error::Category` — `Data` to `Unreadable` with the
+  regenerate recourse, `Syntax`/`Eof` to `Parse` — and a rebuild
+  refusal is `Data`. The reproduction that closed this row records the
+  before as `unreadable` and the after as `dimension`. The `parse`
+  spelling had been copied onward into five doc comments, the binding
+  census and `docs/PORT-DIMS-1-SPEC.md`'s "what the row gets right, and
+  I confirmed" list; all are corrected.
+- *"`Debug`-formatted into the message"*. PR 2482 had already changed
+  `{e:?}` to `{e}`, which was a real improvement and not the defect —
+  the defect was that a structured refusal became a `String` at all.
+
+**And the first sweep's `pncad-py` half named instances that were gone**
+(`py/value.rs`, `py/flush.rs` — every surviving `{:?}` there is inside a
+`__repr__`). Its `persist/` half was exact: thirteen `Error::custom`
+calls, and the PR disposes of all thirteen. Two were this defect, both
+fixed — the `Expr` door this row names and the `MeasureExpr` door it
+does not, which refuses the same way for the measurement sublanguage.
+
+**The second sweep — the reachability question — is answered in the
+PR**, and it turned up one row outside this fence:
+`work/edit/load-door-is-the-construction-door-for-expressions-and-not-for-profile-programs.md`.

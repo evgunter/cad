@@ -1312,6 +1312,17 @@ jobs:
         run: |
           scripts/gates/kernel-serde-free.sh --selftest
           scripts/gates/kernel-serde-free.sh
+      # `persist::refusal` carries a typed refusal out of a
+      # `Deserialize` impl beside serde's own error, and adopts it only
+      # when the parse failed as `Data`. That is sound while the first
+      # refusal recorded is the one that decided the parse — false the
+      # day anything on the wire asks serde to try an arm and fall
+      # back. The gate's header lists the five spellings and the one
+      # allowlisted `deserialize_with`.
+      - name: persist wire does not backtrack
+        run: |
+          scripts/gates/persist-no-backtracking.sh --selftest
+          scripts/gates/persist-no-backtracking.sh
       # `rust-version` is a floor a consumer's compiler must clear and
       # `channel` is the compiler this workspace builds with. Held
       # equal, the channel IS the floor, so every job in this workflow
