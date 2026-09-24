@@ -470,3 +470,15 @@ local at each site, because each site's discriminator would answer it
 trivially. The change is behaviour-preserving: the corpus name
 digests, the 304-cell probe and a reviewer-built ≥2-survivor
 placed-union tie are identical to main.
+
+## 2026-09-24 — three small rows close (PR 3175)
+
+- Naming counts narrow to u32 through one helper, `names::emit::to_u32`,
+  and refuse typed rather than saturating. The resolve rung declines.
+- `OpSide<()>` gives way to `topo::Operand` and its existing `other()`.
+- The seam-vertex pass reads every contact vv row. Agreeing rows name
+  the vertex; distinct names refuse `SeamVertexPartners`. No suite or
+  probe reaches two rows, measured over 3,747 vertices.
+
+Filed: `naming-index-casts-saturate-silently-at-u32-max` (P4), widened
+at review to the 14 truncating `as u32` casts in `editor-core`.
