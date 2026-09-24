@@ -41,6 +41,8 @@ pub(crate) mod headless {
 
     use eframe::egui;
 
+    use crate::widgets::message_tests::SLACK;
+
     /// Everything one pass of `draw` painted, joined by newlines.
     pub(crate) fn painted_text(draw: impl FnOnce(&mut egui::Ui)) -> String {
         painted(draw).join("\n")
@@ -168,16 +170,115 @@ pub(crate) mod headless {
     /// and `TexturesDelta` panics on drop until one does — a detail
     /// of epaint that no caller should have to remember.
     pub(crate) fn landed(draw: impl FnOnce(&mut egui::Ui)) -> Vec<Landed> {
-        let ctx = egui::Context::default();
         let mut draw = Some(draw);
-        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+        landed_after(1, |ui| {
             if let Some(draw) = draw.take() {
                 draw(ui);
             }
-        });
-        let out = landed_in(&output.shapes);
-        output.textures_delta.clear();
+        })
+    }
+
+    /// [`landed`] over the LAST of `passes` frames of `draw` on one
+    /// context — for a container whose first frame paints nothing,
+    /// which is what an `egui::Window` does on the frame it first
+    /// appears (an invisible sizing pass).
+    pub(crate) fn landed_after(passes: usize, mut draw: impl FnMut(&mut egui::Ui)) -> Vec<Landed> {
+        let ctx = egui::Context::default();
+        let mut out = Vec::new();
+        for _ in 0..passes {
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ui| draw(ui));
+            out = landed_in(&output.shapes);
+            output.textures_delta.clear();
+        }
         out
+    }
+
+    /// **One frame of `draw` in a pane `width` points wide**: the
+    /// pane's rect, and everything painted in it — the region a
+    /// pane's `layout_tests` measure a sentence against.
+    ///
+    /// Panics when `width` is at or under
+    /// `crate::widgets::message_floor`, where a row would read the
+    /// floor rather than the region.
+    pub(crate) fn drawn_in(
+        width: f32,
+        draw: impl FnOnce(&mut egui::Ui),
+    ) -> (egui::Rect, Vec<Landed>) {
+        let region = core::cell::Cell::new(egui::Rect::NOTHING);
+        let painted = landed(|ui| {
+            ui.allocate_ui(egui::vec2(width, 800.0), |ui| {
+                region.set(ui.max_rect());
+                let floor = crate::widgets::message_floor(ui);
+                assert!(
+                    width > floor,
+                    "a {width}-point pane is at or under the {floor}-point floor, \
+                     so this row would read the floor rather than the region"
+                );
+                draw(ui);
+            });
+        });
+        (region.get(), painted)
+    }
+
+    /// The entry in `painted` whose text is `text`.
+    ///
+    /// Panics when nothing painted it.
+    pub(crate) fn find<'a>(painted: &'a [Landed], text: &str) -> &'a Landed {
+        painted
+            .iter()
+            .find(|landed| landed.text == text)
+            .unwrap_or_else(|| panic!("`{text}` was never painted"))
+    }
+
+    /// Every row of `landed` inside `region`'s right-hand edge.
+    pub(crate) fn assert_inside(region: egui::Rect, landed: &Landed) {
+        for row in &landed.rows {
+            assert!(
+                row.right() <= region.right() + SLACK,
+                "`{}` ends {} points past a {}-point pane (rows {:?})",
+                landed.text,
+                row.right() - region.right(),
+                region.width(),
+                landed.rows
+            );
+        }
+    }
+
+    /// [`assert_inside`], and every row starting at the pane's left
+    /// edge: a line of its own, with nothing beside it.
+    pub(crate) fn assert_own_lines(region: egui::Rect, landed: &Landed) {
+        assert_inside(region, landed);
+        for row in &landed.rows {
+            assert!(
+                (row.left() - region.left()).abs() <= SLACK,
+                "`{}` has a row starting {} points into the pane rather than \
+                 at its edge (rows {:?})",
+                landed.text,
+                row.left() - region.left(),
+                landed.rows
+            );
+        }
+    }
+
+    /// `below` starts under the last row of `above`.
+    pub(crate) fn assert_under(above: &Landed, below: &Landed) {
+        let bottom = above
+            .rows
+            .iter()
+            .map(egui::Rect::bottom)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let top = below
+            .rows
+            .iter()
+            .map(egui::Rect::top)
+            .fold(f32::INFINITY, f32::min);
+        assert!(
+            top >= bottom - SLACK,
+            "`{}` starts above the bottom of `{}` — beside it, not under it \
+             ({top} against {bottom})",
+            below.text,
+            above.text
+        );
     }
 
     /// Every string one pass of `draw` PAINTED, in paint order.
