@@ -62,7 +62,7 @@
 //! the cosine test with a trivially-zero residual that `distance`
 //! refuses.
 
-use geom_core::{Bounds, CertifiedBounds, Point3, Real};
+use geom_core::{Bounds, CertifiedBounds, Point3, Readable, Real};
 
 use crate::projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN, mid,
@@ -141,8 +141,8 @@ impl core::fmt::Display for SurfaceProjectionInconclusive {
             "surface projection inconclusive after {} iterations at \
              (u, v) = ({}, {}) (orthogonality {:e}/{:e}, distance {:e})",
             self.iterations,
-            self.last_u,
-            self.last_v,
+            Readable(self.last_u),
+            Readable(self.last_v),
             self.last_orthogonality_u,
             self.last_orthogonality_v,
             self.last_distance

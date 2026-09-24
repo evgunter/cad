@@ -81,7 +81,8 @@ impl core::fmt::Display for LsqError {
         match self {
             LsqError::LsqDegenerate { pivot_index, pivot } => write!(
                 f,
-                "lsq: degenerate system (pivot {pivot_index} = {pivot} under the fixed elimination order)"
+                "lsq: degenerate system (pivot {pivot_index} = {} under the fixed elimination order)",
+                crate::readable::Readable(*pivot)
             ),
             LsqError::RowLengthMismatch { row, len, expected } => {
                 write!(f, "lsq: row {row} has length {len}, expected {expected}")
