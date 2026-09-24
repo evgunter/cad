@@ -4,7 +4,7 @@
 *agreed* are settled unless new evidence overturns them; items in
 [Open questions](#open-questions) are under discussion and get promoted
 here once ratified. The history behind a decision lives in the PR it
-names, in `docs/DOC-LEDGER.md` and in git — not here.
+names and in git — not here.
 
 ## Companion documents
 
@@ -13,8 +13,8 @@ Companions whose programs have closed live as README pages beside the
 code they govern and keep their clause ids: a citation such as
 `CURVED-DESIGN C3` or `ASSEMBLY-DESIGN A6` resolves to that clause in
 the row whose scope names the family. The design conversations those
-pages condense, and every deleted `docs/` file, are recorded in
-`docs/DOC-LEDGER.md`. Live work is never listed here: `work/STATUS.md`
+pages condense, and every deleted `docs/` file, have a note in
+`docs/doc-ledger/`. Live work is never listed here: `work/STATUS.md`
 is the board and `work/README.md` its contract.
 
 | Document | Status | Scope |
@@ -31,7 +31,7 @@ is the board and `work/README.md` its contract.
 | `crates/sweep/README.md` | Ratified (#992) | ARMS-3, ARMS3-DESIGN A3-1…A3-3: the sphere×sphere fillet arm, the valence-4 seam vertex that is not a corner, what a run-out IS; the blend-vocabulary clauses V1–V4 |
 | `crates/profile/README.md` | Ratified (V1–V8; enclosing tangency #1210) | Profiles as programs (PROFILES-V2-DESIGN V1–V8); the enclosing (ρ < 0) fillet tangency is permanently unreachable and a radius demanding it refuses typed (ENCLOSING-TANGENCY-DESIGN) |
 | `crates/viewer/GUI-DESIGN.md` | Ratified; GUI v1 shipped | GUI architecture G1–G5, GQ1–GQ7: the three-layer split, egui as toolkit, what v1 ships. `crates/viewer/README.md` beside it is the implementation record, which the program maintains itself |
-| `docs/ERROR-DESIGN.md` | Ratified (#110); M10 closed 2026-09-13 | Error propagation E1–E12: duals, stackups, the subdivision driver, trichotomy. M10 built it and its exit walk is `docs/DOC-LEDGER.md` sweep 13; the analysis lane is PROPS' and E12's symbolic tier continues as SYM |
+| `docs/ERROR-DESIGN.md` | Ratified (#110); M10 closed 2026-09-13 | Error propagation E1–E12: duals, stackups, the subdivision driver, trichotomy. M10 built it and closed 2026-09-13; the analysis lane is PROPS' and E12's symbolic tier continues as SYM |
 | `docs/DUAL-DESIGN.md` | Ratified (#1146) | The Dual contract DL1–DL6: a Dual is tangent transport and never certifies; ContentBits feeds both channels; the delegation rule; poison-vs-widen in certified lanes |
 | `docs/PATHS-DESIGN.md` | Ratified (#124) | The PartialPath authoring algebra |
 | `docs/LIBRARY-DESIGN.md` | Ratified (#229); program open | Usable-as-a-library L1–L8: façade, Python bindings via the document layer, v2-fronted PATHS, the authoring-ergonomics unit ladder |
@@ -1015,7 +1015,7 @@ Each layer depends only on the layers below it.
 |---|---|
 | `test-utils` | The shared test scaffolding several suites would otherwise each hand-roll: the fuzz/property harness (seed + effort dial), the `Display`-contract predicate, the anti-vacuity floor and its tightness companion, the shared Rust lexer, and the header-roster weld. A dev-dependency with ZERO dependencies — a leaf below every crate, which is what lets the excluded `interval-transcendentals` workspace depend on it too |
 | `geom-core` | The `Real` scalar trait (`f64`, `Interval`, `Dual<T>`, `Sym`), points/vectors/transforms (hand-rolled, fixed-dim), the predicate vocabulary (`Decide`, `Margin<T>`, `MarginDiag`), `Tolerance`, root finding, spline hulls |
-| `interval-transcendentals` | The `interval` feature's backend beneath `geom-core`: proven per-function libm error pads, MPFR-differential-certified. A separate workspace root on purpose (root `Cargo.toml`'s `exclude`), so its gmp-backed oracle never enters the kernel's graph |
+| `interval-transcendentals` | The interval scalar's backend beneath `geom-core`: proven per-function libm error pads, MPFR-differential-certified. A separate workspace root on purpose (root `Cargo.toml`'s `exclude`), so its gmp-backed oracle never enters the kernel's graph |
 | `bvh` | Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide. Below the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom` |
 | `geom` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection. Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
 | `geom-brep` | The B-rep geometry layer: D2's `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, certified mass properties, offset surfaces |
@@ -1051,8 +1051,8 @@ precursor of the error-propagation feature.
 
 ## Roadmap
 
-Milestones M0–M9 are complete; each exit walk is recorded in
-`docs/DOC-LEDGER.md`. M0 scalar trait/arenas/harness; M1 topology +
+Milestones M0–M9 are complete; each exit walk has a note in
+`docs/doc-ledger/`. M0 scalar trait/arenas/harness; M1 topology +
 Euler operators; M2 analytic geometry, extrude/revolve, tessellation,
 STL; M3 analytic intersections, booleans, mass properties; M4 the
 parametric layer, naming, STEP export; M5 NURBS depth, SSI,
@@ -1077,7 +1077,7 @@ Standing outcomes that still bind:
 Open work is the tracker's (`work/STATUS.md`); the programs it lists
 that execute ratified design here are PROPS and SYM between them
 (error propagation, `docs/ERROR-DESIGN.md` — M10 built E1–E12 and
-closed on 2026-09-13, `docs/DOC-LEDGER.md` sweep 13, leaving the
+closed on 2026-09-13, leaving the
 analysis lane to PROPS and E12's symbolic identity tier to SYM; the
 sketch solver was NOT in M10's slate and re-opens as its own design
 pass when constraint-driven sketches have a consumer), LIB
@@ -1305,11 +1305,12 @@ Cross-milestone commitments; each binds at the layer named.
 
 - Evaluation code (evaluators, derivatives, transforms, measurements)
   is generic over a `Real` trait we define. Instantiations: `f64`,
-  `Interval` (the in-house `interval-transcendentals` backend, behind
-  the `interval` feature), `Dual<T>` (one in-house generic type;
-  `num-dual` is a dev-only oracle because its std-backed
-  transcendentals cannot satisfy the value-channel bit-identity
-  contract), and `Sym`.
+  `Interval` (the in-house `interval-transcendentals` backend; the
+  `interval` feature gates the kernel's lane-trait impls at it and the
+  interval test files, not the type, which compiles in every build),
+  `Dual<T>` (one in-house generic type; `num-dual` is a dev-only oracle
+  because its std-backed transcendentals cannot satisfy the
+  value-channel bit-identity contract), and `Sym`.
 - Every topology-determining branch goes through a *named predicate
   function* returning a trilean sign plus margin, generic over `T`. No
   raw `<` on control-flow paths.

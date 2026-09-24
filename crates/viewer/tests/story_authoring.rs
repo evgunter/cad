@@ -47,7 +47,8 @@ use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use viewer::props::SlotValue;
 use viewer::session::{
-    DatumSpec, DocSession, NodeKindWanted, PatternRuleSpec, ProfileShape, Refusal, SessionOp,
+    DatumSpec, DocSession, NodeKindWanted, PatternRuleSpec, ProfilePlane, ProfileShape, Refusal,
+    SessionOp,
 };
 use viewer::tree::RowStatus;
 
@@ -158,7 +159,7 @@ fn circle_at(session: &mut DocSession, radius: f64, z: f64) -> RecipeNodeId {
     insert(
         session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius,
@@ -187,7 +188,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let plinth_profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: PLINTH_SIDE,
                 height: PLINTH_SIDE,
@@ -314,7 +315,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let drum_profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: DRUM_S,
                 height: DRUM_S,
@@ -352,7 +353,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let cutter_profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: CUT_W,
                 height: CUT_T,
@@ -432,7 +433,7 @@ fn a_chess_rook_is_authored_probed_branched_and_reopened() {
     let block_profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: MERLON_S,
                 height: MERLON_S,

@@ -4,6 +4,8 @@ kind: issue
 title: The inline Expr::literal class runs past crates/viewer into sixty-three files
 status: open
 opened: 2026-09-20
+priority: P4
+cost: H
 ---
 
 
@@ -41,8 +43,8 @@ owed.
   `frame_policy.rs`, written across four lines — so the shape exists
   in this tree and this census certainly undercounts), a site using
   `.ok()`, `?` or a match instead of `.expect`, and
-  `Expr::literal_with_unit`, which is a different door and has its own
-  row (`viewer-tests-spell-one-millimetre-extrude-literal-six-times`).
+  `Expr::literal_with_unit`, which is a different door (its
+  `crates/viewer/tests/` members are folded onto `common::len_mm`).
   It is a FILE count, not a site count, and the two are not
   interchangeable.
 - **Raised by**: the S-DUP lane closing the four viewer-suite door

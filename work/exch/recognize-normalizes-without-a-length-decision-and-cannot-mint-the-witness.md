@@ -4,6 +4,8 @@ kind: issue
 title: step-import recognize.rs normalizes a plane normal with no length decision and plus_zero's it, so it cannot mint the unit witness — the bare Vec3::orthonormal_basis stays for it
 status: open
 opened: 2026-09-15
+priority: P1
+cost: D
 ---
 
 ## Where this came from

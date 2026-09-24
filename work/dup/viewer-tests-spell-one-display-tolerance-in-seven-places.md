@@ -4,6 +4,8 @@ kind: issue
 title: One display tolerance value written out in seven places in crates/viewer/tests
 status: closed
 opened: 2026-09-20
+priority: P4
+cost: E
 closed: 2026-09-20
 branch: dup/viewer-shared-doors
 pr: 2929
@@ -74,7 +76,7 @@ said it could not see, *"any other value shared by two suites"*:
 | value | sites | disposition |
 | --- | --- | --- |
 | 2.0e-4 | 7 in 6 files | folded → `common::plate_delta` |
-| **2.0e-3** | **6 in 6 files** | four folded → `common::corpus_delta` (`index_memo`, `pick3_acceptance`, `review_pick2_r1`, `review_pick_r2` — the corpus pick suites, and `index_memo`'s own prose gives the shared reason: the corpus holds million-triangle documents at the application's δ). The other two are `review_gui2_r1`'s `ring_delta` and `review_gui2_r2`'s `coarse`, one value for one fixture in two promoted review suites, **left** and filed as `viewer-gui2-suites-spell-the-gallery-ring-delta-twice` |
+| **2.0e-3** | **6 in 6 files** | four folded → `common::corpus_delta` (`index_memo`, `pick3_acceptance`, `review_pick2_r1`, `review_pick_r2` — the corpus pick suites, and `index_memo`'s own prose gives the shared reason: the corpus holds million-triangle documents at the application's δ). The other two are `review_gui2_r1`'s `ring_delta` and `review_gui2_r2`'s `coarse`, one value for one fixture in two promoted review suites: first **left** and filed, then **folded** in the merge pass onto `common::ring_delta`, since it is two sites, carries no oracle, and was small enough to be a commit rather than a row. The parent's *kept* verdict on `coarse` was about it against its neighbour `delta()`, and still holds: that pair stays two values |
 | 1.0e-3 | **9** — `common/asm.rs`, `pick_windows`, `review_gui2_r2` ×2, `frame_policy` ×3, `examples/r1_gallery_probe.rs` ×2 | **left**: different fixtures at different scales, not one value with one meaning. `frame_policy`'s three are `FittedDelta` operands, not a δ a suite indexes at |
 | 1.0e-6 | 2, both `frame_policy` `FittedDelta` operands | **left**, same reason |
 | 1.0e-4 | 2 — `review_gui0_r2` and `src/gpu.rs` | **left**: one test site and one shipped site |
@@ -141,3 +143,18 @@ They were written out here as well, and in PR #2929, and within that one
 commit the three copies drifted: one of them said two suites were
 unprobed that the control's own table shows red. That row records what
 that cost; this row points at it.
+
+### After merging main
+
+- **`fd5620e84` deleted two of the folded sites.** It removed
+  `frame_policy`'s dying-worker block whole, and two
+  `common::plate_delta()` calls this PR had written went with it.
+  `plate_delta`'s callers are still the same six suites; its site count
+  inside `frame_policy` is lower by those two. The divergent control
+  was taken before the merge, and its per-suite figures in the S-TINT
+  row are for that tree.
+- **`crates/viewer/src/marks.rs` gained a `2.0e-4`**, in a `#[cfg(test)]`
+  module that cannot reach `tests/common`. Left; see the pick-index row.
+- Re-taken on the merged tree, `git grep -n
+  'DisplayTolerance::new(2\.0e-[34])' -- '*.rs'` returns the three
+  `common` doors and `marks.rs`'s one, and nothing else.

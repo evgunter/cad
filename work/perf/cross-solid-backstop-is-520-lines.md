@@ -4,6 +4,8 @@ kind: issue
 title: sweep_cross_solid_backstop is ~520 lines of closures, nested types and two arms inside a 4500-line census.rs
 status: open
 opened: 2026-09-13
+priority: P4
+cost: D
 ---
 
 

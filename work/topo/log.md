@@ -1690,3 +1690,43 @@ re-describe); 4 the mint-at-site target with the closed-form split
 tried first. The three ruled kernel answers are units on this slate,
 listed in the plan for the next cut; `attach-postconditions-…` is
 closed. The PR subscription is released.
+
+## Rows arriving from FIX, 2026-09-20
+
+Ev ruled in chat on 2026-09-20 that **FIX carries no design decisions**:
+*"can you kick all the design decisions back to the track they actually
+belong to, leaving fix design-free?"* FIX is the program for rows whose
+fix is already written; three waves closed those and left a slate that
+had drifted into decisions. Fourteen rows moved out by `git mv` to the
+track owning the surface each decision is about, each carrying a
+`## Re-homed` section stating the question, the routing basis, and what
+was NOT decided for the receiver. Routing was taken from
+`python3 scripts/work.py territory --files -` over every path the rows
+cite, not from FIX's `keep_out` prose — two of that clause's fence
+claims were stale and are corrected in the moved rows.
+
+**One row: `census-witness-string-repeats-the-subject`.** Two
+`ValidationError` arms document `witness` as *"a debug rendering of the
+witnessing position/site"* and render it after the preposition *at*; two
+sites fill that locative slot with a repeat of the subject the same
+sentence already named, so the message renders the pair twice and supplies
+no position at all.
+
+It lands on TOPO because the decision is about `ValidationError`'s shape,
+declared and documented in `crates/topo/src/validate.rs`, which territory
+says is yours: `witness` is `String`, not `Option<String>`, so *"this arm
+has no position"* has no spelling — either the field becomes optional or
+the arms carry a typed locus.
+
+**The two defective sites are REACH's, and FIX's fence prose about them
+was stale.** Both are in `crates/topo/src/census.rs`, which
+`work/fix/program.md` called CURVED's; territory says **reach**, and
+CURVED's `paths` no longer name the file. The site at `census.rs:1677`
+also has no position available to supply — its evidence is
+`ChartOverlap::PositiveArea`, a region verdict the chart-region predicate
+returns without a point — so supplying one reaches CHART, which owns
+`crates/topo/src/chart_region.rs`. Not a correctness gap: both variants
+carry the pair typed, so a consumer resolves from the field and never
+parses the prose. What it costs is the locus.
+
+Signed (FIX orchestrator).

@@ -687,9 +687,8 @@ impl core::fmt::Display for StructureRefusal {
         match &self.kind {
             StructureRefusalKind::Indeterminate(source) => write!(
                 f,
-                "{} cannot be re-verified at this scalar: {source} — the elaboration's \
-                 structure stands unconfirmed, so nothing is assumed about it; \
-                 narrow the parameter box and try again",
+                "{} cannot be re-verified at this scalar: {source}. The structure stays \
+                 unconfirmed; narrow the parameter box and try again",
                 self.decision
             ),
             StructureRefusalKind::Flipped { recorded, found } => write!(

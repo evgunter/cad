@@ -15,7 +15,7 @@
 //! subject; a fixture read from the same constants as the expectation
 //! would track it silently. What carries no oracle is shared:
 //! `common::{ang, xy_frame, rectangle, inserted, len, scl,
-//! gallery_ring_at, index_of, down_from}`. The slabs' own dimensions,
+//! gallery_ring_at, index_of, down_from, ring_delta}`. The slabs' own dimensions,
 //! the height the rays start above them and the world positions aimed
 //! at them stay here, where the expectation is written.
 //!
@@ -48,6 +48,7 @@ use pncad::select::{Ray, Resolution};
 use viewer::camera::Camera;
 use viewer::evalseam::{EvalDone, EvalRequest, EvalService, InlineEvaluator};
 use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
+use viewer::narrowing::Narrow;
 use viewer::pickindex::{IdMap, PatchId, PickIndex, PictureKey};
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, FaceSelection, Hovered, Selection, SessionOp};
@@ -133,12 +134,6 @@ fn pattern_of(count: i64) -> (Doc<ProfileProgram>, RecipeNodeId) {
 
 fn landed_index(session: &DocSession) -> PickIndex {
     common::index_of(session, delta())
-}
-
-/// A δ coarse enough that the gallery ring tessellates cheaply — the
-/// e2e row's subject is the selection walk, not the facet count.
-fn coarse() -> DisplayTolerance {
-    DisplayTolerance::new(2.0e-3).expect("a positive delta")
 }
 
 fn evaluation(session: &DocSession) -> &Evaluation<f64> {
@@ -448,19 +443,24 @@ fn the_sampled_pixel_is_one_pixel_wide_and_correctly_oriented() {
     };
     let aspect = pane.aspect().expect("a positive aspect");
     let camera = camera_on(&box_of([0.0, 0.0, 0.0], [0.06, 0.04, 0.008]), aspect);
-    let matrix = camera.view_projection(aspect).expect("defined");
-    let vp = matrix.map(|column| column.map(|v| v as f32));
+    let vp = camera.view_projection_f32(aspect).expect("defined");
     let centre = [pane.width_px * 0.5, pane.height_px * 0.5];
+    // `ViewportSize::ndc_of` is the one home for the pixel-to-NDC
+    // flip, and the seam is the one home for the narrowing: this row
+    // spelled both itself, which is two of the four spellings that
+    // door's own doc names.
     let ndc = |c: [f64; 2]| {
-        [
-            (2.0 * c[0] / pane.width_px - 1.0) as f32,
-            (1.0 - 2.0 * c[1] / pane.height_px) as f32,
-        ]
+        pane.ndc_of(c)
+            .expect("a positive area")
+            .narrow()
+            .expect("an ordinary cursor")
     };
     let sampled = cursor_projection(
         &vp,
         ndc(centre),
-        [pane.width_px as f32, pane.height_px as f32],
+        [pane.width_px, pane.height_px]
+            .narrow()
+            .expect("a viewport of ordinary size"),
     );
     // A world point on the ray through a cursor `n` pixels to the
     // right of the sampled one must land at target-x ≈ `n` — one at
@@ -470,7 +470,8 @@ fn the_sampled_pixel_is_one_pixel_wide_and_correctly_oriented() {
             .ray_through([centre[0] + dx, centre[1] + dy], pane)
             .expect("un-projects");
         let p = ray.origin + ray.dir * 0.2;
-        let v = [p.x as f32, p.y as f32, p.z as f32, 1.0];
+        let [px, py, pz] = p.narrow().expect("a point the seam draws");
+        let v = [px, py, pz, 1.0];
         let mut out = [0.0f32; 4];
         for (row, slot) in out.iter_mut().enumerate() {
             *slot = sampled[0][row] * v[0]
@@ -1364,7 +1365,7 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
     let outcome = session.perform(SessionOp::Open(file.clone()));
     assert!(outcome.refusal.is_none(), "the gallery opens: {outcome:?}");
     session.pump();
-    let index = common::index_of(&session, coarse());
+    let index = common::index_of(&session, common::ring_delta());
     println!(
         "E2E opened: {} tree rows, {} drawn parts, {} ids",
         session.tree_rows().len(),
@@ -1475,11 +1476,11 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
     //    and a rebuilt one describes the new generation.
     let generation = session.landed_generation().expect("a generation");
     assert!(
-        !index.current_for(Some(PictureKey::of(generation, coarse()))),
+        !index.current_for(Some(PictureKey::of(generation, common::ring_delta()))),
         "the pre-edit index is stale after two evaluations"
     );
-    let rebuilt = common::index_of(&session, coarse());
-    assert!(rebuilt.current_for(Some(PictureKey::of(generation, coarse()))));
+    let rebuilt = common::index_of(&session, common::ring_delta());
+    assert!(rebuilt.current_for(Some(PictureKey::of(generation, common::ring_delta()))));
     let _ = std::fs::remove_dir_all(&dir);
 }
 

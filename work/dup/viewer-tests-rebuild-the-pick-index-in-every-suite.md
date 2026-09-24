@@ -4,6 +4,8 @@ kind: issue
 title: Fourteen private spellings of one PickIndex build in crates/viewer/tests
 status: closed
 opened: 2026-09-20
+priority: P4
+cost: E
 closed: 2026-09-20
 branch: dup/viewer-shared-doors
 pr: 2929
@@ -166,3 +168,27 @@ copies of a δ literal. The lane's own instrument returned them and the
 first hit list did not disposition them. An example cannot reach
 `tests/common`, so the shared fold is unavailable, but the in-file one
 is not: both now call a private `probe_index` in that file.
+
+### After merging main
+
+Two things main moved, both found by reading its diff rather than by
+the merge:
+
+- **`edge_pick.rs` gained a new caller** of the `index_of` wrapper this
+  PR deleted. The merge was textually clean and the build failed — a
+  semantic conflict git could not see. Now `plate_index`.
+- **`crates/viewer/src/marks.rs` gained a sixteenth member**, a
+  `#[cfg(test)]` helper `plate()` that builds the index longhand at a
+  private `2.0e-4` δ. Like `viewport.rs`'s it cannot reach `tests/common`
+  and is left. Its doc cited *"`tests/edge_pick.rs`'s reading"* for the
+  δ, which this PR moved into `tests/common`'s `plate_delta`, so the
+  citation is re-pointed here, not filed. The sentence it cites
+  for — *"fine enough that the plate's hole is a ring of facets"* — is
+  the claim the S-TINT row measured unasserted in `tests/`; whether
+  `marks`' own row holds it has not been measured, so it is left as
+  written.
+
+Re-taken on the merged tree: `git grep -n 'PickIndex::build(' --
+'*.rs'` returns the home, `examples/r1_gallery_probe.rs`'s one in-file
+door, and the two `src/` test-module members. The class in
+`crates/viewer/tests/` is the home alone.

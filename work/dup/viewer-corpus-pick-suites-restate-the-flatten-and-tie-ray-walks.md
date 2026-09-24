@@ -4,6 +4,8 @@ kind: issue
 title: flatten, tie_rays_for and the answers walk are restated across four corpus pick suites
 status: open
 opened: 2026-09-20
+priority: P4
+cost: D
 ---
 
 

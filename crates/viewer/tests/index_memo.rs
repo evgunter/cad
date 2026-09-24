@@ -1141,11 +1141,8 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     let index =
         common::index_at(&session, common::corpus_delta()).expect("the bumped ring indexes");
     let corner = Point3::new(0.3628905537491952, 0.0, 0.07218341914596763);
-    let reach = 1.48;
-    let ray = Ray {
-        origin: Point3::new(corner.x, corner.y - reach, corner.z),
-        dir: Vec3::new(0.0, 1.0, 0.0),
-    };
+    let reach = REACH;
+    let ray = aimed_along_y(corner, 1.0);
     let same = |p: &Point3<f64>, q: &Point3<f64>| {
         (p.x.to_bits(), p.y.to_bits(), p.z.to_bits())
             == (q.x.to_bits(), q.y.to_bits(), q.z.to_bits())
@@ -1271,11 +1268,8 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     let index =
         common::index_at(&session, common::corpus_delta()).expect("the bumped ring indexes");
     let vertex = Point3::new(0.245_196_320_100_807_58, 0.0, 0.048_772_580_504_032_18);
-    let reach = 1.48;
-    let ray = Ray {
-        origin: Point3::new(vertex.x, vertex.y + reach, vertex.z),
-        dir: Vec3::new(0.0, -1.0, 0.0),
-    };
+    let reach = REACH;
+    let ray = aimed_along_y(vertex, -1.0);
     assert!(
         index.parts().iter().any(|part| {
             part.mesh().positions.iter().any(|p| {
@@ -1445,11 +1439,8 @@ fn a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both() {
         0.384_323_569_889_266_14,
         -1.952_075_113_318_894_5,
     );
-    let reach = 1.48;
-    let ray = Ray {
-        origin: Point3::new(vertex.x, vertex.y - reach, vertex.z),
-        dir: Vec3::new(0.0, 1.0, 0.0),
-    };
+    let reach = REACH;
+    let ray = aimed_along_y(vertex, 1.0);
     assert!(
         index.parts().iter().any(|part| {
             part.mesh().positions.iter().any(|p| {
@@ -1546,6 +1537,21 @@ const TUBE_ARC_WIDE_CANDIDATE_T: f64 = 1.475_904_852_772_309_5;
 /// it. Re-derive with
 /// `cargo test -p viewer --test all -- index_memo::a_wide_but --nocapture`.
 const RING_WIDE_CANDIDATE_CONDITIONING: f64 = 7.19e-16;
+
+/// The standoff the aimed-point rows fire from. It is an INPUT, and
+/// [`RING_CORNER_T`] below is an ANSWER a row expects back; they are
+/// kept apart so that a row comparing the two is still comparing
+/// something.
+const REACH: f64 = 1.48;
+
+/// A ray along `sense` y (`1.0` or `-1.0`) whose target `p` lies
+/// [`REACH`] along it.
+fn aimed_along_y(p: Point3<f64>, sense: f64) -> Ray {
+    Ray {
+        origin: Point3::new(p.x, p.y - sense * REACH, p.z),
+        dir: Vec3::new(0.0, sense, 0.0),
+    }
+}
 
 /// The ring probe's answer: the chord point's parameter as the
 /// winning triangle's exact test rounds it. Re-derive from the

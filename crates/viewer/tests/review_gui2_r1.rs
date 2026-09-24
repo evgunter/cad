@@ -10,7 +10,7 @@
 //! resolution is. A fixture whose dimensions came from the same place
 //! the aim did would move with it, and nothing here could see it move.
 //! What carries no oracle is shared: `common::{xy_frame, rectangle,
-//! inserted, len, scl, gallery_ring_at, index_of, down_from}`. The
+//! inserted, len, scl, gallery_ring_at, index_of, down_from, ring_delta}`. The
 //! blocks' own dimensions, the height the rays start above them and
 //! the cursor positions aimed at them stay here, where the aim is
 //! written.
@@ -47,6 +47,7 @@ use pncad::select::{Ray, Resolution, RunCtx, resolve};
 use test_utils::fuzz;
 use viewer::camera::Camera;
 use viewer::input::{InputMap, PointerButton, ViewportEvent, ViewportSize};
+use viewer::narrowing::Narrow;
 use viewer::pickindex::{IdMap, PickIndex, PictureKey};
 use viewer::props::SlotValue;
 use viewer::scene::DisplayTolerance;
@@ -191,8 +192,7 @@ fn cursor_projection_is_exactly_a_shift_and_scale_in_ndc() {
         )
         .expect("a finite camera");
         let aspect = rng.range(0.4, 3.0);
-        let matrix = camera.view_projection(aspect).expect("defined");
-        let vp32 = matrix.map(|c| c.map(|v| v as f32));
+        let vp32 = camera.view_projection_f32(aspect).expect("defined");
         let point = Point3::new(
             rng.range(-0.8, 0.8),
             rng.range(-0.8, 0.8),
@@ -201,13 +201,15 @@ fn cursor_projection_is_exactly_a_shift_and_scale_in_ndc() {
         if camera.project(point, aspect).expect("defined").is_none() {
             continue; // behind the eye: not this row's subject
         }
-        let cursor = [rng.range(-1.0, 1.0) as f32, rng.range(-1.0, 1.0) as f32];
-        let size = [
-            rng.range(64.0, 4000.0) as f32,
-            rng.range(64.0, 4000.0) as f32,
-        ];
+        let cursor = [rng.range(-1.0, 1.0), rng.range(-1.0, 1.0)]
+            .narrow()
+            .expect("a cursor inside the device cube");
+        let size = [rng.range(64.0, 4000.0), rng.range(64.0, 4000.0)]
+            .narrow()
+            .expect("a viewport of ordinary size");
         let shifted = cursor_projection(&vp32, cursor, size);
-        let v = [point.x as f32, point.y as f32, point.z as f32, 1.0f32];
+        let [px, py, pz] = point.narrow().expect("a point the seam draws");
+        let v = [px, py, pz, 1.0f32];
         let apply = |m: &[[f32; 4]; 4]| {
             let mut out = [0.0f32; 4];
             for (row, slot) in out.iter_mut().enumerate() {
@@ -496,7 +498,7 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     // this row tessellates it twice; picking semantics do not depend
     // on the facet count (`memories/test-suite-cost.md` — keep the
     // per-run cost where the claim needs it).
-    let ring_delta = DisplayTolerance::new(2.0e-3).expect("a positive delta");
+    let ring_delta = common::ring_delta();
     let loaded =
         pncad::document::load(&common::gallery_ring_at(tol), tol).expect("the gallery ring loads");
     let mut session = DocSession::inline(loaded.snapshot, tol);

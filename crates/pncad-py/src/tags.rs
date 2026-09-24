@@ -591,6 +591,9 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         // A mate's alignment is authored geometry, so the non-finite
         // refusal is the placement one's sibling and tags beside it.
         EditError::NonFiniteAlignment { .. } => "non_finite_alignment",
+        // The solve's own per-mate admission, met at the door: the
+        // word is the door's, the fault's word rides `inner_variant`.
+        EditError::MateRefused { .. } => "mate_refused",
         EditError::MaintenanceRefused { .. } => "maintenance_refused",
         EditError::MaintenanceUnrecorded { .. } => "maintenance_unrecorded",
     }
@@ -1127,6 +1130,10 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
             fault: Some(fault), ..
         } => Some(mate_fault_tag(fault)),
         EditError::MaintenanceRefused { fault: None, .. } => None,
+        // The admission's refusal IS the solve's fault about the mate,
+        // so its word is the fault's — the recourse a caller branches
+        // on is the mate fault's own.
+        EditError::MateRefused { fault, .. } => Some(mate_fault_tag(fault)),
         EditError::MaintenanceUnrecorded { .. } => None,
         EditError::Roots(_) => None,
         EditError::UnknownNode { .. } => None,
@@ -1535,10 +1542,12 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::Emission { .. } => "emission",
         NamingError::SplitLineage(_) => "split_lineage_cycle",
         NamingError::FragmentLineage { .. } => "fragment_lineage_cycle",
-        // The two MISSING-RULE arms, tagged apart from "emission": a
-        // caller branching on this word is deciding whether to report a
-        // kernel bug, and these two are not one.
+        // The MISSING-RULE arms, tagged apart from "emission": a caller
+        // branching on this word is deciding whether to report a kernel
+        // bug, and these are not one.
         NamingError::SeamVertexParentage { .. } => "seam_vertex_parentage",
+        NamingError::MergedChord { .. } => "merged_chord",
+        NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
@@ -2090,6 +2099,8 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
         TessellateError::UnsupportedCurvedDomain { .. } => "unsupported_curved_domain",
         TessellateError::UnsupportedCurvedShape { .. } => "unsupported_curved_shape",
+        TessellateError::MeridianFreeCurvedFace { .. } => "meridian_free_curved_face",
+        TessellateError::SingleColumnCurvedFace { .. } => "single_column_curved_face",
         TessellateError::Band { .. } => "tolerance_band_unformable",
     }
 }
@@ -2706,7 +2717,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::LaminaWedge { .. } => "lamina_wedge",
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
-        ValidationError::NegativeVolume => "negative_volume",
+        ValidationError::NegativeVolume { .. } => "negative_volume",
         ValidationError::VolumeUncomputable { .. } => "volume_uncomputable",
         ValidationError::Pcurve { .. } => "pcurve",
         ValidationError::RingMeetsOuter { .. } => "ring_meets_outer",

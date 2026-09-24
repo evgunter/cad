@@ -27,13 +27,19 @@ use pncad::geom_core::Tol;
 use pncad::profile::{
     ArcData, ArcMode, ReplayErrorKind, SketchPlane, Step, Target, TargetKind, TipState, Verb,
 };
-use viewer::session::{DocSession, ProfileShape, Refusal, SessionOp};
+use viewer::session::{DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
 use viewer::sketch::{self, Notation, PreviewError, admits_at, preview};
 
 /// The flattening tolerance the rows read at — a tenth of a
 /// millimetre, fine enough that a circle's points land on it to well
 /// inside the assertions below.
 const CHORD: f64 = 1.0e-4;
+
+/// A display tolerance coarse enough that an arc of ordinary size
+/// sags less than it over its whole sweep, so `arc_points` answers the
+/// one-segment floor. One row needs that arm and nothing else here
+/// does; it is a δ the caller chooses, not a property of the geometry.
+const COARSE_CHORD: f64 = 1.0e-1;
 
 /// A session over a throwaway document.
 fn session(tol: Tol) -> DocSession {
@@ -89,7 +95,7 @@ fn a_line_chain_previews_and_authors_the_same_square() {
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&square(side))],
         },
     );
@@ -215,7 +221,7 @@ fn an_illegal_walk_refuses_at_the_preview_and_at_the_door() {
     let mut session = session(tol);
     let plane = common::xy_frame_in(&mut session);
     let out = session.perform(SessionOp::AddProfile {
-        plane,
+        plane: ProfilePlane::Existing(plane),
         loops: vec![shape(&template)],
     });
     assert!(
@@ -278,7 +284,7 @@ fn an_unclosed_chain_draws_its_authored_legs_and_still_refuses_at_the_door() {
     let mut session = session(tol);
     let plane = common::xy_frame_in(&mut session);
     let out = session.perform(SessionOp::AddProfile {
-        plane,
+        plane: ProfilePlane::Existing(plane),
         loops: vec![shape(&template)],
     });
     assert!(
@@ -357,7 +363,7 @@ fn an_invalid_profile_is_drawn_with_its_refusal_beside_it() {
     let mut session = session(tol);
     let plane = common::xy_frame_in(&mut session);
     let out = session.perform(SessionOp::AddProfile {
-        plane,
+        plane: ProfilePlane::Existing(plane),
         loops: overlapping.iter().map(shape).collect(),
     });
     assert!(out.refusal.is_some(), "the door refuses what it drew");
@@ -540,7 +546,7 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
     insert(
         &mut session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Path { steps })],
         },
     );
@@ -777,4 +783,253 @@ fn an_undrawable_arcs_refusal_says_which_vertex_and_why() {
     assert!(sentence.contains("loop 2"), "{sentence}");
     assert!(sentence.contains("vertex 7"), "{sentence}");
     assert!(sentence.contains("not a number"), "{sentence}");
+}
+
+/// **A vertex the replay put past the top of the exponent range
+/// refuses, and no arc is involved anywhere.**
+///
+/// Every literal here is a finite number and the chain has no bulge
+/// at all: `At` at `1e308`, a direction, and a leg of `1e308` along
+/// it, whose far end is the sum of the two. `replay` accepts it and
+/// hands back a loop whose second vertex is at `inf`.
+///
+/// That is the population the arc guards cannot reach — they are
+/// under a `bulge == 0.0` `continue`, so a polygon passes all of them
+/// without ever being asked — and what the flattener used to do with
+/// it was emit the point and report success. The vertex the refusal
+/// names is the one whose own position is not a place, which is `1`
+/// and not the `0` both arc rows name.
+#[test]
+fn a_vertex_past_the_exponent_range_refuses_at_the_preview() {
+    let tol = Tol::witness();
+    let template = ProfileShape::Path {
+        steps: vec![
+            Step::At(pt(1.0e308, 0.0)),
+            Step::Toward { dx: 1.0, dy: 0.0 },
+            Step::Line(1.0e308),
+            Step::LineTo(Target::Point(pt(0.0, 1.0e307))),
+            Step::LineTo(Target::Start),
+        ],
+    };
+    let refusal = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect_err("a vertex that is not a place has no drawable loop around it");
+    assert!(
+        matches!(
+            refusal,
+            PreviewError::Unflattenable {
+                loop_: 0,
+                vertex: 1
+            }
+        ),
+        "{refusal}",
+    );
+}
+
+/// **An arc whose frame is finite and whose far side is not refuses
+/// too — a third arm, and the one a frame check cannot see.**
+///
+/// The two rows above refuse on the frame: a radius that is not a
+/// number, a centre that is not a point. Here all four frame values
+/// are ordinary — radius about `5.05e307`, centre about
+/// `(1.29e308, 0)`, a finite sweep and start — and the arc is major
+/// enough to carry its own far side past the top of the range, so
+/// nine of the 256 points it draws are at `inf`.
+///
+/// A guard on the frame is therefore not a guard on the points, which
+/// is what makes this the population rather than a fourth instance:
+/// the question is asked where a coordinate is MINTED.
+#[test]
+fn an_arcs_far_side_past_the_range_refuses_though_its_frame_is_finite() {
+    let tol = Tol::witness();
+    let template = ProfileShape::Path {
+        steps: vec![
+            Step::At(pt(8.0e307, -1.0e307)),
+            Step::ArcTo(ArcData::Bulge {
+                target: Target::Point(pt(8.0e307, 1.0e307)),
+                b: 10.0,
+            }),
+            Step::LineTo(Target::Point(pt(0.0, 0.0))),
+            Step::LineTo(Target::Start),
+        ],
+    };
+    let refusal = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect_err("an arc whose far side is not a place has no drawable shape");
+    assert!(
+        matches!(
+            refusal,
+            PreviewError::Unflattenable {
+                loop_: 0,
+                vertex: 0
+            }
+        ),
+        "{refusal}",
+    );
+}
+
+/// **A leg whose separation overflows gets no heading, and the legs
+/// beside it still get theirs.**
+///
+/// `sketch::heading` answers `Option<[f64; 2]>`, so the type says a
+/// unit vector or none. The loop here is drawn — every vertex is an
+/// ordinary finite number, and `preview` hands back all three — but
+/// the diagonal's `dx` and `dy` are each `1.4e308`, and their `hypot`
+/// is the one value in this arithmetic that overflows. An infinite
+/// length is greater than zero, so the old guard let it through and
+/// each component divided by it came back `0.0`.
+///
+/// Both halves are asserted, because neither says anything alone: a
+/// float-valued door that answered its refusal for everything would
+/// pass the first, and one that answered a vector for everything
+/// would pass the second. The vertex that overflows is the ONLY one
+/// that refuses, and the other two answer vectors of length one.
+#[test]
+fn a_leg_whose_separation_overflows_gets_no_heading() {
+    let tol = Tol::witness();
+    let template = ProfileShape::Path {
+        steps: vec![
+            Step::At(pt(-7.0e307, -7.0e307)),
+            Step::LineTo(Target::Point(pt(7.0e307, 7.0e307))),
+            Step::LineTo(Target::Point(pt(0.0, 7.0e307))),
+            Step::LineTo(Target::Start),
+        ],
+    };
+    let drawn = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect("a loop of finite vertices draws");
+    let polyline = &drawn.loops[0];
+    let points = &polyline.points;
+    assert_eq!(points.len(), 3, "{points:?}");
+    assert_eq!(
+        sketch::heading(points, 0, polyline.closed),
+        None,
+        "a separation of 1.4e308 in each axis answered a heading",
+    );
+    for at in [1, 2] {
+        let [dx, dy] = sketch::heading(points, at, polyline.closed)
+            .unwrap_or_else(|| panic!("vertex {at} of a drawn loop has a heading"));
+        let length = dx.hypot(dy);
+        assert!(
+            (length - 1.0).abs() < 1.0e-12,
+            "vertex {at} answered [{dx}, {dy}], of length {length}",
+        );
+    }
+}
+
+/// **A vertex whose Y is past the range refuses, and its X is an
+/// ordinary number** — which is the only row here that separates the
+/// two coordinates.
+///
+/// `drawable` asks both, and every other fixture in this file carries
+/// its non-finite value in `x`: the vertex row's `inf` is `(inf, 0)`
+/// and the arc row's first bad point is `[inf, -4.6e306]`, so
+/// weakening the predicate to `point[0].is_finite()` alone leaves the
+/// whole viewer suite green. Measured, not supposed: 637 rows passed
+/// under exactly that mutation. This is the row that reds it.
+#[test]
+fn a_vertexs_second_coordinate_is_asked_the_question_too() {
+    let tol = Tol::witness();
+    let template = ProfileShape::Path {
+        steps: vec![
+            Step::At(pt(0.0, 1.0e308)),
+            Step::Toward { dx: 0.0, dy: 1.0 },
+            Step::Line(1.0e308),
+            Step::LineTo(Target::Point(pt(1.0e307, 0.0))),
+            Step::LineTo(Target::Start),
+        ],
+    };
+    let refusal = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        CHORD,
+    )
+    .expect_err("a vertex whose ordinate is not a number has no drawable loop around it");
+    assert!(
+        matches!(
+            refusal,
+            PreviewError::Unflattenable {
+                loop_: 0,
+                vertex: 1
+            }
+        ),
+        "{refusal}",
+    );
+}
+
+/// **The arc FRAME's own question is load-bearing, and only a
+/// one-segment arc shows it.**
+///
+/// Every other undrawable arc here is caught twice over: the frame
+/// refuses it, and the points it would have minted are not numbers
+/// either, so deleting the frame's `drawable(centre)` leaves the
+/// refusal and its ordinal unchanged and no row moves. Measured — the
+/// whole file stayed green under that deletion.
+///
+/// The arm that separates them is `arc_points` answering **one**. A
+/// millimetre-scale arc far from the origin — two vertices a
+/// millimetre apart at `1.6e308`, bulge `0.5` — has radius
+/// `6.25e-4` and a sagitta of `2.5e-4`, so at a COARSE display
+/// tolerance it genuinely needs no subdivision and the interior-point
+/// loop never runs. Its `start` is `atan2` of a finite ordinate over
+/// `-inf`, which is `-π` and perfectly finite. The centre is
+/// `[inf, 5e-4]`, and nothing but the frame check asks. Without it the
+/// arc is drawn as a straight chord — a leg the author did not write,
+/// which is what this module refuses by name.
+///
+/// **The one-segment answer is bought with the CHORD and not with the
+/// geometry**, which is why this row passes its own tolerance rather
+/// than the file's. An earlier draft shrank the arc to a micron
+/// instead, and the eps = 1e-6 row of the matrix refused its junction
+/// at replay two steps before the flattener ever saw it: the turn
+/// margin was `3.75e-7 m`, which at that tolerance is tangency. A
+/// fixture whose scale is near an eps row's is a fixture about that
+/// row. `chord` is the caller's own δ — `pane::viewport` passes the
+/// display budget's — so asking for a coarse one is the ordinary
+/// thing, and it leaves the geometry three orders of magnitude clear
+/// of the coarsest eps the matrix runs.
+#[test]
+fn a_one_segment_arc_about_a_centre_that_is_not_a_point_refuses() {
+    let tol = Tol::witness();
+    let template = ProfileShape::Path {
+        steps: vec![
+            Step::At(pt(1.6e308, 0.0)),
+            Step::ArcTo(ArcData::Bulge {
+                target: Target::Point(pt(1.6e308, 1.0e-3)),
+                b: 0.5,
+            }),
+            Step::LineTo(Target::Point(pt(1.0e307, 5.0e-4))),
+            Step::LineTo(Target::Start),
+        ],
+    };
+    let refusal = preview(
+        SketchPlane::xy(),
+        core::slice::from_ref(&template),
+        tol,
+        COARSE_CHORD,
+    )
+    .expect_err("an arc that draws no interior point still has a centre to be asked about");
+    assert!(
+        matches!(
+            refusal,
+            PreviewError::Unflattenable {
+                loop_: 0,
+                vertex: 0
+            }
+        ),
+        "{refusal}",
+    );
 }

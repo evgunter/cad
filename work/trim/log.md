@@ -643,3 +643,19 @@ ack (TESS paused; Ev, in-chat). TRIM-B2 slot 2 (FABLE by the draw)
 is the next TRIM dispatch: `boundary-iso-doors-panic-before-they-can-refuse`
 (E) or `loft-seam-carrier-exact-knot-compare` if S-CERT's file is
 free — chosen at dispatch.
+
+## The cut (2026-09-20)
+
+Ev, in-chat (see CURVED's log for the words): TRIM keeps what closes
+this session — `boundary-iso-doors-panic-before-they-can-refuse` and
+the P-2 spec's deletion at the walk — and **CHART** (`work/chart/`,
+band 6200–6299) opens with the chart-side residue, 31 items from here
+plus CURVED's three SSI drive-bys; the chord-count arithmetic class
+moves to TESS's slate as its item names TESS the owner (a line on
+TESS's log). Program and plan re-cut; the former order and residue
+lists are in this plan's history. **Protocol v7 note**: TRIM-2 PR-2
+(S / NUMERIC) was dispatched into the v6 dual on 2026-09-19, the day
+v7 was recorded and before this orchestrator read it — under v7 it
+would have run opus/opus outside the protocol; its row T2T is a
+seam-day row and any readout spanning 2026-09-19 treats it per the
+entry's item 4. The remaining E unit runs outside the protocol.

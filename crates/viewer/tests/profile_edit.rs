@@ -24,7 +24,7 @@ use pncad::document::{
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{ArcData, ArcMode, Step, Target, TargetKind, Verb};
-use viewer::session::{DocSession, ProfileShape, Refusal, SessionOp};
+use viewer::session::{DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
 use viewer::sketch::{self, HeldRefusal, Notation, Restructure};
 
 /// A session over a throwaway document.
@@ -160,7 +160,13 @@ fn with_profile(loops: &[ProfileShape], notation: Notation) -> (DocSession, Reci
         .iter()
         .map(|loop_| sketch::loop_program(loop_, notation).expect("a finite template"))
         .collect();
-    let profile = insert(&mut session, SessionOp::AddProfile { plane, loops });
+    let profile = insert(
+        &mut session,
+        SessionOp::AddProfile {
+            plane: ProfilePlane::Existing(plane),
+            loops,
+        },
+    );
     (session, profile)
 }
 
@@ -627,7 +633,8 @@ fn numbers_loaded_from_a_program_since_replaced_refuse_stale() {
             step: 2,
             arg: StepArg::TargetY,
         },
-        value: viewer::props::SlotValue::of(Dimension::Length, 0.02),
+        value: viewer::props::SlotValue::of(Dimension::Length, 0.02)
+            .expect("a finite length is a value"),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let between = session.committed_doc().clone();

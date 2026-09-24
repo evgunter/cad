@@ -4,6 +4,8 @@ kind: issue
 title: The PR 17 promotion attribution survives in seven headers and only half of it is what Ev asked for
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 

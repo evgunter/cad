@@ -322,7 +322,7 @@ use crate::entity::{
 use crate::euler::EulerOpError;
 use crate::face_normal::plane_outward_normal;
 use crate::pcurves::{PcurveMintError, mint_pcurves};
-use crate::props::{PropsQuadLane, ShellRole};
+use crate::props::ShellRole;
 use crate::replace_face::ReplaceFaceError;
 use crate::validate::{ValidationError, validate_geometric};
 
@@ -561,122 +561,107 @@ pub enum ShellError<T: Real> {
 impl<T: Real> core::fmt::Display for ShellError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Band { error } => {
-                write!(f, "shell could not form a band: {error}")
-            }
+            Self::Band { error } => write!(f, "{error}"),
             Self::Thickness { thickness } => write!(
                 f,
-                "shell: the wall thickness ({thickness:?} m) is not certifiably positive, so \
-                 there is no thin solid to build"
+                "the wall thickness ({thickness:?} m) is not certifiably positive. Recourse: \
+                 supply a positive thickness"
             ),
             Self::NoSolid => write!(
                 f,
-                "shell: the operand carries no solid, so there is no material to thicken"
+                "the body carries no solid, so there is no material to thicken"
             ),
             Self::Roles { error } => write!(
                 f,
-                "shell: the operand's shells could not be told into one outer boundary and its \
+                "the body's shells could not be sorted into one outer boundary and its \
                  voids: {error}"
             ),
-            Self::OperandOuterShells { solid, outer } => write!(
+            Self::OperandOuterShells { outer, .. } => write!(
                 f,
-                "shell: the operand's {solid:?} classifies to {outer} outer shells, not one — \
-                 not a shape this verb thickens"
+                "a solid of the body has {outer} outer shells, not one, which the shell op \
+                 cannot thicken"
             ),
             Self::Partition { shell, error } => write!(
                 f,
-                "shell: the thin solid around operand void {shell:?} could not be partitioned \
-                 out (kernel bug): {error}"
+                "the thin solid around void {shell:?} could not be partitioned out (kernel \
+                 bug): {error}"
             ),
-            Self::WallClearance {
-                face,
-                other,
-                gap,
-                needed,
-            } => write!(
+            Self::WallClearance { gap, needed, .. } => write!(
                 f,
-                "shell: {face:?} and {other:?} face each other across {gap:?} m of material and \
-                 the two walls need {needed:?} m — their inward offsets cross, so the cavity \
-                 would self-intersect"
+                "two faces face each other across {gap:?} m of material and the two walls \
+                 need {needed:?} m, so the cavity would self-intersect. Recourse: use a \
+                 thinner wall"
             ),
-            Self::ChartSpansSolids { face, other } => write!(
+            Self::ChartSpansSolids { .. } => write!(
                 f,
-                "shell: chart faces {face:?} and {other:?} lie on different solids — a chart \
-                 moves as one and its door is its solid's, so it cannot span two"
+                "two faces on one chart lie on different solids, so the chart cannot move \
+                 as one"
             ),
-            Self::ChartSenseMixed { face, other } => write!(
+            Self::ChartSenseMixed { .. } => write!(
                 f,
-                "shell: {face:?} and {other:?} share a chart but not an orientation, so \
-                 \"inward\" is not one direction for it"
+                "two faces share a chart but not an orientation, so \"inward\" is not one \
+                 direction for it"
             ),
-            Self::OpenFaceChartPartial { face, other } => write!(
+            Self::OpenFaceChartPartial { .. } => write!(
                 f,
-                "shell: {face:?} was designated open but {other:?} shares its chart and was not \
-                 — the rim surgery lifts a chart as one, so a partial designation has no \
-                 coherent lift"
+                "a face was designated open but another face on its chart was not, and a \
+                 chart opens as one. Recourse: designate every face of that chart, or none"
             ),
-            Self::OpenFaceRimNotExpressible { face, what } => write!(
+            Self::OpenFaceRimNotExpressible { what, .. } => write!(
                 f,
-                "shell: the rim for {face:?} is not expressible as this surgery's output shape \
-                 (one region per face, an outer loop plus disjoint rings): {what}. Nothing is \
-                 built"
+                "the rim of an open face is not a shape the shell op can build: {what}"
             ),
-            Self::Lift { face, error } => write!(
+            Self::Lift { error, .. } => write!(
                 f,
-                "shell: the rim's outward lift for {face:?} refused (this is the step that puts \
-                 the cavity counterpart back on the designated face's surface — not the inward \
-                 offset, and not the containment evidence): {error}"
+                "lifting the rim back onto a designated open face refused: {error}"
             ),
-            Self::Face { face, error } => write!(
+            Self::Face { error, .. } => {
+                write!(f, "offsetting a face inward refused: {error}")
+            }
+            Self::OpenFaceStale { .. } => {
+                write!(f, "a designated open face does not resolve in the body")
+            }
+            Self::OpenFaceRepeated { .. } => write!(
                 f,
-                "shell: {face:?}'s inward offset refused, which is both the validity gate and \
-                 the containment evidence: {error}"
+                "a face was designated open twice. Recourse: designate each face once"
             ),
-            Self::OpenFaceStale { face } => {
+            Self::OpenFacesExhaustShell { .. } => write!(
+                f,
+                "every face of a shell was designated open, leaving nothing to carry a wall. \
+                 Recourse: leave at least one face closed"
+            ),
+            Self::OpenFacesDisconnect { components, .. } => write!(
+                f,
+                "removing the designated faces splits a shell's boundary into {components} \
+                 pieces, which would not make one thin solid. Recourse: designate faces whose \
+                 removal leaves one connected boundary"
+            ),
+            Self::OpenFaceRingUnsupported { kind, .. } => write!(
+                f,
+                "a designated open face lies on a {}, and its rim would be a curved face with \
+                 a ring loop, which the shell op cannot build yet. There is no way through yet",
+                kind.name()
+            ),
+            Self::Insert { error } => write!(f, "inserting the cavity refused: {error}"),
+            Self::Rim { face, error } => {
+                write!(f, "the rim surgery on face {face:?} refused: {error}")
+            }
+            Self::Escalated { source } => {
                 write!(
                     f,
-                    "shell: the designated open face {face:?} does not resolve"
+                    "a classification of the shell is too close to call: {source}"
                 )
             }
-            Self::OpenFaceRepeated { face } => {
-                write!(f, "shell: {face:?} was designated open twice")
+            Self::Corrupt { key } => {
+                write!(f, "{key:?} stopped resolving mid-construction (kernel bug)")
             }
-            Self::OpenFacesExhaustShell { shell } => write!(
-                f,
-                "shell: every face of {shell:?} was designated open — nothing would be left to \
-                 carry a wall thickness, so there is no rim to mint"
-            ),
-            Self::OpenFacesDisconnect { shell, components } => write!(
-                f,
-                "shell: removing the designated faces leaves {shell:?}'s boundary in \
-                 {components} components — the rims would bound separate pieces rather than one \
-                 thin solid"
-            ),
-            Self::OpenFaceRingUnsupported { face, kind } => write!(
-                f,
-                "shell: the designated face {face:?} carries a {kind:?}, and its rim would be a \
-                 curved face with a ring loop — a shape the closed-form property inventory has \
-                 no reading for, so nothing is built"
-            ),
-            Self::Insert { error } => {
-                write!(f, "shell: the void-insertion door refused: {error}")
-            }
-            Self::Rim { face, error } => {
-                write!(f, "shell: the rim surgery on {face:?} refused: {error}")
-            }
-            Self::Escalated { source } => write!(f, "shell escalated: {source}"),
-            Self::Corrupt { key } => write!(
-                f,
-                "shell: {key:?} stopped resolving mid-construction (kernel bug)"
-            ),
             Self::Pcurve { source } => write!(
                 f,
-                "shell: the closing pcurve mint refused on the assembled thin solid, which \
-                 every earlier gate accepted (kernel finding): {source}"
+                "the finished thin solid could not be parametrized (kernel finding): {source}"
             ),
             Self::NotValid { errors } => write!(
                 f,
-                "shell: the assembled thin solid is not valid ({} errors); it is discarded",
+                "the assembled thin solid is not valid ({} errors) and is discarded",
                 errors.len()
             ),
         }
@@ -941,7 +926,7 @@ pub struct ShellRetired {
 /// rights cannot form the call — there is no arm and no refusal — and
 /// the recourse is not a weaker shell but the ordinary one, built at a
 /// certifying scalar.
-pub fn shell<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
+pub fn shell<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
     body: &Body<T>,
     thickness: T,
     tol: Tol,
@@ -964,7 +949,7 @@ pub fn shell<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
 /// must resolve, be named once, leave a nonempty and connected
 /// remainder) and the rim surgery's own refusal.
 /// The certification bound is [`shell`]'s, for [`shell`]'s reason.
-pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
+pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy>(
     body: &Body<T>,
     thickness: T,
     open_faces: &[FaceKey],
@@ -1520,7 +1505,7 @@ pub fn shell_open<T: Decide + PropsQuadLane + geom_core::CertifiedBounds>(
         // structurally: the void-ceiling row asserts the designated
         // void face DIES, and the pairing row reads each thin solid's
         // twin through the record
-        // (`work/topo/check-9-nesting-is-line-bounded-only.md`).
+        // (`work/atrest/check-9-nesting-is-line-bounded-only.md`).
         let (host, guest) = match side {
             RimShell::Void => (counterpart, mouth),
             RimShell::Outer => (mouth, counterpart),

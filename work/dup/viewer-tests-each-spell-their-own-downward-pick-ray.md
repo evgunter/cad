@@ -4,6 +4,8 @@ kind: issue
 title: Eight private spellings of the axis-aligned pick ray in crates/viewer/tests
 status: closed
 opened: 2026-09-20
+priority: P4
+cost: E
 closed: 2026-09-20
 branch: dup/viewer-shared-doors
 pr: 2929
@@ -93,8 +95,15 @@ x = −1 at the plate's mid-depth and mid-thickness. Folded in-file to
 `at_the_wall()`, which made a seventh spelling of a HORIZONTAL
 axis-aligned pick ray visible across six files; filed as
 `viewer-tests-each-spell-their-own-horizontal-pick-ray`.
-`index_memo`'s three longhand aimed-vertex rays are filed as
-`viewer-index-memo-aims-three-rays-at-one-vertex-longhand`.
+`index_memo`'s three longhand aimed-vertex rays were filed as a row
+and then folded in this PR's merge pass instead — they were small and in
+a file already open, which is what main's *"the tracker is not
+comprehensive"* says is a commit, not a row. They now call a file-local
+`aimed_along_y` from a `REACH` standoff constant. The file already held
+a fourth spelling of 1.48, `RING_CORNER_T`, and it was deliberately NOT
+merged with the standoff: it is the measured answer a row expects BACK,
+the standoff is the input, and one constant for both would turn *"the
+answer equals the expected value"* into *"the answer equals the input"*.
 
 The row's OTHER stated blind spot — *"any ray in another crate's
 suites"* — was published as a caveat in the first pass while four

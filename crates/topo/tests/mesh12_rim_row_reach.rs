@@ -32,15 +32,17 @@
 //! import-door reach is nil by construction rather than by absence of
 //! a file.
 //!
-//! **Through the Euler doors the shape is a rim-only cap**, which the
-//! shape door admits, the flux lane refuses (`props_face_extent` in
-//! the band), and `mesh::tessellate` does not mesh: the walk emits no
-//! triangles for a loop with no meridian and the issue-897 cross-face
-//! census panics (orchestrator-filed issue 1615, on every ε row and at
-//! `Δv = 0` too — the panic is the rim-only loop's, not the gap's). So
-//! the finding these rows pin is real and is consumed by nothing that
-//! meshes or measures; the body below is the fixture issue 1615 can
-//! lift.
+//! **Through the Euler doors the shape is a rim-only cap**: a sphere
+//! face whose one loop is two rim arcs and no meridian. With the gap
+//! inside the band, the shape door and the flux lane answer on the same
+//! undecidable gap (the shape door on `props_rim_side`, the flux lane
+//! on `props_rim_only_extent`); at `Δv = 0` the door admits the face
+//! and the flux lane measures it — the two caps sum to the sphere's
+//! closed forms. `mesh::tessellate` refuses it typed either way: in the
+//! band on the shape door's escalation (`UnsupportedCurvedShape`), and
+//! at `Δv = 0` as `MeridianFreeCurvedFace`, the walk's own refusal of a
+//! loop with no meridian. So the finding these rows pin is real and is
+//! consumed by a measure at `Δv = 0` and by no mesh.
 //!
 //! Offsets are derived from the run's own ε: this file is on CI's
 //! `eps ∈ {default, 1e-6, 1e-12}` matrix.
@@ -238,11 +240,11 @@ fn the_remint_admits_no_gap_the_examination_reports() {
 }
 
 /// **Nothing that meshes or measures consumes the discarded
-/// coordinate**, and the two doors and the flux lane each answer the
-/// rim-only cap on their own terms. The shape door and the branch door
-/// ADMIT it — a rim row is at its own extreme by definition and
-/// contains no pole in any span — and the flux lane's answer turns on
-/// the GAP, which is the coordinate this unit's row is about:
+/// coordinate**, and the branch door, the shape door and the flux lane
+/// each answer the rim-only cap on their own terms. The BRANCH door
+/// admits it either way — no span contains a pole, which is a question
+/// about arcs and not about the gap — while the other two turn on the
+/// GAP, which is the coordinate this unit's row is about:
 ///
 /// * **`Δv = 0`** — the two arcs state ONE rim circle, so the body is a
 ///   sphere split by one rim into two caps, and each face MEASURES.
@@ -250,17 +252,24 @@ fn the_remint_admits_no_gap_the_examination_reports() {
 ///   extreme is the pole the rims' shared traversal points at
 ///   (`props_rim_interior_side`'s σ; issue 1250, PROPS
 ///   sphere-pole-side). The two caps sum to `4πR³/3`, which is what
-///   `topo/tests/props_sphere_cap_door.rs` weighs directly.
+///   `topo/tests/props_sphere_cap_door.rs` weighs directly. The shape
+///   door admits it: with `lo == hi` no rim sits at an extreme rather
+///   than the other, so its rim-side companion has nothing to compare
+///   and extent is not a shape question.
 /// * **`R·Δv` inside the ambiguity band** — the levels carry an extent
 ///   that is neither definitely zero nor definitely positive, so
 ///   whether this is a cap whose pole should be folded in or a zone of
-///   sub-band height is exactly what cannot be decided:
-///   `props_rim_only_extent` escalates, typed, before any pole is
-///   pushed. That escalation is the row, and it is the same margin at
-///   the same lever `props_face_extent` would have read one step
-///   later.
+///   sub-band height is exactly what cannot be decided. **Both** the
+///   shape door and the flux lane say so, one predicate apart: the
+///   door's rim-side unanimity asks which extreme each rim sits at and
+///   escalates `props_rim_side` typed, and the flux lane escalates
+///   `props_rim_only_extent` typed before any pole is pushed. One
+///   undecidable gap read at one lever under three names — the third
+///   being `props_face_extent`, which would have read it one step
+///   later still.
 ///
-/// What the walk does with the admitted face is issue 1615's.
+/// What `mesh::tessellate` answers for the same two bodies is the next
+/// row.
 #[test]
 fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
     let tol = Tol::witness();
@@ -272,10 +281,18 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
             let surface = body.get_surface(face.surface).unwrap();
             let (outer, _) = topo::props::loop_edges(&body, face.outer).unwrap();
             assert_eq!(outer.len(), 2, "a rim-only loop: two arcs, no meridian");
-            assert_eq!(require_iso_rectangle(surface, &outer, band), Ok(()));
             assert_eq!(require_one_chart_branch(surface, &outer, band), Ok(()));
+            let door = require_iso_rectangle(surface, &outer, band);
             let flux = curved_face(surface, &outer, face.sense, band);
             if in_band {
+                assert!(
+                    matches!(
+                        &door,
+                        Err(PropsError::Escalated { cause })
+                            if cause.predicate == Some("props_rim_side")
+                    ),
+                    "the gap is undecidable at the door too: {door:?}"
+                );
                 assert!(
                     matches!(
                         &flux,
@@ -285,6 +302,7 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
                     "{flux:?}"
                 );
             } else {
+                assert_eq!(door, Ok(()));
                 caps.push(flux.unwrap_or_else(|e| panic!("a rim-only cap measures: {e:?}")));
             }
         }
@@ -303,5 +321,47 @@ fn the_shape_door_admits_the_rim_only_cap_and_the_flux_lane_reads_the_gap() {
     assert!(
         (flux - 2.0 * tau * RS.powi(3)).abs() < 1e-12 * flux,
         "and their fluxes to 3V = 4πR³: {flux}"
+    );
+}
+
+/// **The mesh lane refuses the rim-only cap typed, at zero gap and in
+/// the band, by two different doors.** Both faces of the body are
+/// rim-only sphere caps, so `tessellate` answers for the first in arena
+/// order.
+///
+/// * **`Δv = 0`** — both doors in front of the walk admit the face, and
+///   the walk refuses it on its traversal kinds:
+///   `MeridianFreeCurvedFace`.
+/// * **`R·Δv = 1.5ε`** — the shape door escalates `props_rim_side`
+///   (the row above), and that escalation is what `tessellate` answers,
+///   as `UnsupportedCurvedShape`; the walk is never reached.
+#[test]
+fn the_mesh_lane_refuses_the_rim_only_cap_typed_at_zero_gap_and_in_the_band() {
+    let tol = Tol::witness();
+    let first_face = |body: &Body<f64>| {
+        let (first, _) = body.faces().next().expect("the body has two faces");
+        first
+    };
+
+    let one_rim = two_level_rim_cap(0.0).unwrap();
+    assert_eq!(
+        mesh::tessellate(&one_rim, 1e-4, tol).map(|_| ()),
+        Err(mesh::TessellateError::MeridianFreeCurvedFace {
+            face: first_face(&one_rim),
+            surface: geom_brep::SurfaceKind::Sphere,
+        }),
+    );
+
+    let in_band = two_level_rim_cap(1.5 * tol.eps() / RS).unwrap();
+    let answered = mesh::tessellate(&in_band, 1e-4, tol).map(|_| ());
+    assert!(
+        matches!(
+            &answered,
+            Err(mesh::TessellateError::UnsupportedCurvedShape {
+                face,
+                source: PropsError::Escalated { cause },
+            }) if *face == first_face(&in_band) && cause.predicate == Some("props_rim_side")
+        ),
+        "{answered:?}"
     );
 }

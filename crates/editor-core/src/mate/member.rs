@@ -526,8 +526,8 @@ pub(super) fn check_reference<P: crate::ProfilePayload>(
 /// names depending on which road reaches it — same body, same
 /// refusal shape, different name in the K census. That split is
 /// RATIFIED, not tolerated, and the argument is SEAT-DN's, not this
-/// module's: `docs/DOC-LEDGER.md`'s `work/seat/
-/// direction-normalization-two-doors-one-home` entry and the
+/// module's: SEAT's closed
+/// `direction-normalization-two-doors-one-home` and the
 /// `decide_unit_direction` seat it closed on.
 ///
 /// `env` is the solve's one nominal environment — what it is and why
@@ -730,7 +730,7 @@ fn axis_datum<P>(
                 pattern,
                 NodeErrorKind::WrongOperand {
                     input: axis,
-                    expected: "datum axis",
+                    expected: crate::eval::phrase::DATUM_AXIS,
                     found,
                 },
             ))),

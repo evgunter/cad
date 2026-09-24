@@ -611,3 +611,68 @@ without the string compare; the aim-count row at two per mate. Spec
 into the ledger at the unit head. Closes the three items; two rows
 filed here. Next: MSOLVE-9 waits on Ev's word on PR 2895; MSOLVE-10
 (the static clocking refusal at `AddMate`) specs next.
+
+## MSOLVE-10 MERGED (2026-09-20, PR 2913)
+
+The insert door asks the solve's own per-mate admission
+(`admit_mate`) and refuses `EditError::MateRefused` with the solve's
+fault unaltered; the table's static gaps have one home
+(`mate::table_gap`, the fence widened by that one pub fn); one
+per-reference prefix (`check_references`) for the solve's first loop
+and the door; the lever a named `LeverArm`; `Maintain::reach` states
+the two replay rules once; `DocEdit::writes_a_mates_datum` pins that
+the mate insert is the one edit writing a datum. Reviews on
+`7534c8854` (style six MAJOR, the correctness arm's probes run by the
+orchestrator after the arm hung: door equals solve to the bit, the
+reach asked once per part, the band's edges agreeing); the fix pass
+landed in one push plus the census disposition of `table_gap` and a
+merge of main after PR 2895 conflicted `ASSEMBLY.md`. Orchestrator
+spot-check on the diff: the five rulings as ruled; one residue (a
+copied gap string as a fallback) fixed in the census push. Principle
+settled and written into A11 rule 1 as an elaboration: the doors
+decide edits, the solve decides states. Spec into the ledger at the
+unit head. Closes `mate-clocking-has-no-gui-path` (both halves
+recorded); files `mate-band-fault-unreachable-on-a-mate`. Next:
+MSOLVE-9 dispatches from main; the exit walk's rows 10–11 close.
+
+
+## Announced seam from DOOR (2026-09-21) — PR 2984
+
+**`crates/editor-core/src/mate/member.rs`, one line.** DOOR's
+`the-third-datum-axis-phrase-lives-in-mate-member`: `axis_datum`'s
+`expected:` was the literal `"datum axis"` and is now
+`crate::eval::phrase::DATUM_AXIS`, the const composed at compile time
+from the family word so the phrase and the `found:` word beside it
+cannot drift. WIRE retired its two copies onto it earlier; **this was
+the third and last in the tree**, re-derived as a measurement rather
+than inherited from the row.
+
+**No refusal text moves.** The const expands to exactly `"datum axis"`,
+verified through `concat!(family_word!(datum), " axis")` before the
+change landed, so every assertion on that sentence stays green by
+construction — including your `msolve3_placer_refused` rows.
+
+**One thing to know about your unit tests in that module.** Four of
+`member.rs`'s eight rows build their expectation from the const while
+the source held a literal, so they were discriminating the gap between
+the two — proved by mutation: drifting the literal turned exactly those
+four red. **That gap is now closed, so those four no longer discriminate
+the phrase's value**; both sides are the same const. This is correct and
+is the point of one home, but it means the only things in the tree still
+pinning the user-visible sentence are two literals in
+`crates/editor-core/tests/` (`lib_tube_node.rs`'s `expected: "datum
+axis"` pattern and `msolve3_placer_refused.rs`'s `contains` check).
+**Those must stay literals** — a test naming the const could never catch
+a change to the const's expansion. The `phrase` module's rule is about
+construction sites and does not reach test assertions.
+
+`found:` is untouched and was already right — it comes from
+`crate::eval::node_value_kind`. The row explicitly fenced off the
+`node_operand`/`axis_datum` refactor, and the lane did not widen into
+it; the residue is filed on WIRE's slate as
+`node-operand-has-one-consumer-where-axis-datum-is-the-same-door`, where
+it records that the two doors **disagree about the seat** —
+`node_operand` drops what `node_value_kind` answers with, `axis_datum`
+carries it per MSOLVE-7. Worth your read, since half of it is your file.
+
+Signed (DOOR orchestrator).

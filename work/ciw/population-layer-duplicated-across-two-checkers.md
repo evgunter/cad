@@ -5,6 +5,8 @@ title: two checkers carry the same population reader nine functions deep, and sc
 status: open
 opened: 2026-09-11
 refs: [apt-preamble-bypass-is-unguarded]
+priority: P4
+cost: E
 ---
 
 

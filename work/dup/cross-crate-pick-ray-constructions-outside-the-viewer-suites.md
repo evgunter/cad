@@ -4,6 +4,8 @@ kind: issue
 title: Five byte-identical ray helpers across bvh and editor-core, and the axis-aligned pick ray one crate over
 status: open
 opened: 2026-09-20
+priority: P4
+cost: D
 ---
 
 

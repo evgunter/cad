@@ -379,3 +379,46 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
         );
     }
 }
+
+/// **A declaration authored in millimetres comes back in
+/// millimetres.** The notation rides on the declaration, so it is
+/// persisted state and not a view setting — the create door mints it
+/// (`props::doc_param`) and the file carries it.
+#[test]
+fn a_parameter_declared_in_millimetres_round_trips_as_millimetres() {
+    let tol = Tol::witness();
+    let name = pncad::document::ParamName::new("base_r");
+    let mut session = DocSession::inline(
+        pncad::document::Doc::<pncad::document::ProfileProgram>::empty_derived(
+            "auth2-round-trip",
+            tol,
+        ),
+        tol,
+    );
+    let outcome = session.perform(SessionOp::CreateParam {
+        name: name.clone(),
+        value: viewer::props::doc_param(
+            pncad::document::Dimension::Length,
+            SlotValue::Continuous(0.05),
+            Some(pncad::prelude::MM.def()),
+        ),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+
+    let dir = common::tempdir("auth2-param-notation");
+    let file = dir.join("param.pncad");
+    assert!(
+        session
+            .perform(SessionOp::Save(file.clone()))
+            .refusal
+            .is_none()
+    );
+    let reopened = docio::open(&file, tol).expect("the saved document opens");
+    let row = viewer::props::param_rows(reopened.doc())
+        .into_iter()
+        .find(|row| row.name == name)
+        .expect("the parameter survived the round trip");
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
+    assert_eq!(row.value, SlotValue::Continuous(0.05));
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}

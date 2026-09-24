@@ -4,6 +4,8 @@ kind: issue
 title: Six viewer suites index at a display tolerance no row can see move, measured over 5000x
 status: open
 opened: 2026-09-20
+priority: P3
+cost: D
 ---
 
 
@@ -79,6 +81,22 @@ opened: 2026-09-20
     so no control run so far has shown that site executes, which is a
     weaker statement than the one above and a different thing to
     check.
+
+### A second instance: `common::ring_delta`
+
+Folded in the merge pass from the GUI-2 suites' two spellings of the
+gallery ring's δ. On the merged tree (baseline **685 / 0 / 1
+ignored**):
+
+| plant in `common::ring_delta` | direction | total |
+| --- | --- | --- |
+| ×25, 2×10⁻³ → 5×10⁻² | **coarsen** | 685 / 0 |
+| body → `panic!` | **the divergent control** | 683 / 2 — `review_gui2_r1` 1, `review_gui2_r2` 1 |
+
+Same state as `plate_delta`: called by both suites, and nothing either
+suite asserts can see it move 25×. It is a cost choice by its own
+doc, so this is the expected result, and it is recorded because it is
+the same kind of fact, not because it needs a separate fix.
 
 ### How that sentence got written, which is this program's own subject
 

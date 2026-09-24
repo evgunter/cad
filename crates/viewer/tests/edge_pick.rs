@@ -787,6 +787,122 @@ fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
     assert!(overlay.is_empty(), "a vanished edge lights nothing");
 }
 
+// --- the pixel measure ------------------------------------------------
+
+/// **A viewport no pixel distance can be measured in picks no edge,
+/// and refuses nothing about the cursor.**
+///
+/// The edge rule measures PIXELS, and a pixel distance is arithmetic
+/// over numbers `ViewportSize` scales: `viewer::pickindex`'s
+/// `segment_distance_px` squares a pixel separation, which overflows
+/// past about `1.34e154`, and the quotient that follows is `inf/inf`.
+/// So the walk can be handed a projection that is not a measurement
+/// **with every input to the door finite** — no cursor, placement or
+/// mesh position has to be a `NaN`, and the two routes that would
+/// need one are closed upstream anyway (`Camera::ray_through` refuses
+/// a cursor that is not a number, and `Camera::project` answers
+/// `None` for a position that is not).
+///
+/// Before the admission at `best_segment`, such a segment took
+/// neither side of `distance > EDGE_PICK_RADIUS_PX`, was installed as
+/// the best, held its boundary against every later candidate, and
+/// handed its `NaN` pixel to the occlusion probe — so the door
+/// refused with `the camera's cursor x is NaN`, **naming the caller's
+/// cursor for a pixel the walk had computed**.
+///
+/// The rows are a pair, because neither half says anything alone. The
+/// scales are one picture in different pixel units: the aspect is
+/// `pane()`'s at every one of them, so the camera, the projection and
+/// the NDC are identical and the only thing that changes is the size
+/// of the number the measure is taken in.
+///
+/// **What this does NOT claim.** `ViewportSize` is unbounded above and
+/// is a door-level input; no screen is 1e155 pixels across and no
+/// user-reachable producer of one was found.
+#[test]
+fn a_viewport_no_pixel_distance_can_be_measured_in_picks_no_edge() {
+    let tol = Tol::witness();
+    let (session, extrude) = plate_session(tol);
+    let index = plate_index(&session);
+    let eval = eval_of(&session);
+    let aspect = pane().aspect().expect("a positive aspect");
+    let camera = common::framed(aspect);
+    let (rim, points) = hole_rim(&index, extrude);
+    let at = (points.len() - 1) / 2;
+    let wide = |scale: f64| ViewportSize {
+        width_px: 1.28 * scale,
+        height_px: 0.72 * scale,
+    };
+    // The cursor is DERIVED at each scale — the midpoint of the two
+    // pixels the drawn segment's own endpoints land on, so it is ON
+    // the chord the walk measures against whatever the viewport
+    // measures in. (The projection of the 3-D midpoint is not: the
+    // perspective divide puts it off the chord by a fraction of the
+    // chord, and a fraction of `1e100` pixels is not within a
+    // six-pixel radius. The row would then be measuring the fixture.)
+    let cursor_in = |viewport: ViewportSize| {
+        let pixel = |point: Point3<f64>| {
+            let ndc = camera
+                .project(point, viewport.aspect().expect("a positive aspect"))
+                .expect("the projection is defined")
+                .expect("a framed point is in front of the eye");
+            viewport
+                .cursor_of([ndc[0], ndc[1]])
+                .expect("a viewport with area names a pixel")
+        };
+        let (a, b) = (pixel(points[at]), pixel(points[at + 1]));
+        [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5]
+    };
+
+    // Measurable: the answer is the rim, at a distance that is one.
+    for scale in [1.0e2_f64, 1.0e100, 1.0e150] {
+        let viewport = wide(scale);
+        let pick = index
+            .edge_at_for(
+                eval,
+                &camera,
+                viewport,
+                cursor_in(viewport),
+                &DisplayView::none(),
+            )
+            .expect("a finite cursor names a ray whatever the viewport measures in")
+            .unwrap_or_else(|| {
+                panic!("the cursor is the rim segment's own midpoint, at {scale:e} across")
+            });
+        assert_eq!(
+            pick.id(),
+            rim,
+            "the same picture answers the same edge at {scale:e} pixels across"
+        );
+        assert!(
+            pick.distance_px.is_finite() && pick.distance_px <= EDGE_PICK_RADIUS_PX,
+            "the pick carries a measurement, not {} at {scale:e}",
+            pick.distance_px
+        );
+    }
+
+    // Past the measure: nothing is picked, and nothing is refused
+    // about the cursor the caller passed.
+    for scale in [1.0e160_f64, 1.0e200] {
+        let viewport = wide(scale);
+        let answer = index
+            .edge_at_for(
+                eval,
+                &camera,
+                viewport,
+                cursor_in(viewport),
+                &DisplayView::none(),
+            )
+            .expect("a pixel the walk could not measure is not the caller's cursor");
+        assert!(
+            answer.as_ref().is_none_or(
+                |pick| pick.distance_px.is_finite() && pick.distance_px <= EDGE_PICK_RADIUS_PX
+            ),
+            "whatever is answered at {scale:e} is within the radius by construction"
+        );
+    }
+}
+
 // --- the display view ------------------------------------------------
 
 /// **The pick obeys the picture.** A hidden root is out of the pick

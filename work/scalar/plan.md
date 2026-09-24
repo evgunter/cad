@@ -75,6 +75,36 @@ angular arms and limb-3 guard, TOPO's opposite-orientation class, BOOL's
 sketch-plane affine, INSTR's funnel-name corpus gap, BLEND's
 `perp_unit` axis, PROPS' rod residual).
 
+## The H5 units (2026-09-21, from the second sitting's rulings)
+
+Nine units in two chains, from `H5`'s `## RATIFIED`. The ring chain
+and the no-trait chain are independent until N1 (the props doors read
+the ring), so they interleave; each is announced to PROPS (every one
+reaches `crates/geom-core/src/*` or `crates/topo/src/props.rs`) and to
+the programs named. Full v6 dual on every unit; Fable specs on RING-2
+(it changes certified bounds) and on RING-3.
+
+| unit | what | class | ground | certified bounds move? |
+| --- | --- | --- | --- | --- |
+| LANE-0 | the offset-fit hook: `recertify_approx`/`approx_offset_surface`/`remap_certificate` become one `Option<OffsetFitLane>` argument on `tier3_local_checks_marked`, `mint_offset`, `map_approx`; the `Some` is read at ONE per-scalar seam, `AtRestPolicy::offset_fit_lane` (DL3's policy home), and the doors between it and the passes carry `AtRestPolicy` as a bound | E | TOPO (`validate.rs`), SHELL (`replace_face.rs`, `transform.rs`), unowned `topo/src/props.rs`, TRIM (`pcurve_cache.rs`), WIRE (`eval/wire.rs`), `crates/verbs` | no |
+| RING-0 | the two differentials: `ring_interval_differential.rs` asserts `poison ⇔ dec < Def` per op and prints the disagreement classes; a scratch newtype-over-`DInterval` run whose red rows name every dependent site (RING-2's dry run; nothing of it merges but the assertion) | M | TCOST/TINT (`crates/geom-core/tests/*`) | no |
+| RING-1 | `geom_core::interval` compiles unconditionally; `interval-transcendentals` a normal dependency; the feature keeps gating only the instantiation until RING-3; `ring_interval.rs:11-13` and Q1's phrase re-worded | E | PROPS (`crates/geom-core/src/*`, `Cargo.toml`); CIW announced; GUARD (`test-features-dev-only.sh`) | no |
+| RING-2 | `RingInterval` = newtype over `DInterval`, poison = `dec < Def`, surface kept as inherent methods; every certificate re-pinned with the cause named; INSTR's `tess-budget-data` re-taken | **H** | PROPS (`ring_interval.rs`, `props/*`, `offset_fit.rs`, `patch_bound.rs`, `spline/*`, `geom/src/*`), TRIM (`pcurve_cache.rs`), MESH (`chords.rs`, `nurbs_cert.rs`), SHELL (`offset_meters.rs`), INSTR, the unowned `topo/src/props.rs` and `ssi/*`; TCOST/TINT for the 36 test files | **yes** — Fable spec |
+| RING-3 | the newtype dissolves into `Interval` file by file; the `interval` feature dropped (62 cfg sites, 111 test files, the 14 interval CI rows folded into the default rows); `Enclosure`, its blanket impl and DL4's gate line deleted; C9, Q1, DL4 re-worded (Ev's text — the PR waits for Ev) | M | the same files; CIW (`ci.yml`); GUARD (`bounds-allowlist.sh`); Ev | no (bit-preserving) |
+| LANE-1 | `PropsQuadLane` deleted: `mass_properties`/`classify_shells*` at `Decide + CertifiedBounds` naming `quad_lane::cut_face`, `mass_properties_closed_form` public, the `_structural` twins take the hook's `None`; `datum_lo` → `Bounds::lo`; the identity test deleted | M | TOPO, unowned `props.rs`, LIB (`pncad-py`, prelude), demos, TINT | no |
+| LANE-2 | `ChartRegionLane` → `Option<RegionLane>` on `census_and_certify` … `pair_region_verified`; the certified twins supply the door | M | CURVED (`census.rs`), TOPO, unowned `chart_region.rs` | no |
+| LANE-3 | `ShellLane` folded into `AtRestPolicy`; DL3's wording moves (a re-wording, not a decision) | E | WIRE, PROPS | no |
+| LANE-4 | `PcurveFittedLane` → `FittedLane` hook on ~57 signatures in five crates plus `EvalScalar::fitted_lane`; `lane_name` → argument; `certify_at_dual` row rewritten | **H** | TRIM, BOOL/PIN, BLEND, SHELL, WIRE, TINT, S-TINT | no |
+
+Order: LANE-0 and RING-0 first (both dispatchable now; LANE-0 and RING-1
+are block SCALAR-B4's slots 1 and 2 — their pre-draw class was recorded
+as `H5`'s plan class H before the byte, and the cut came out lower; the
+block record says so), then RING-1 → RING-2 → RING-3, LANE-1 → LANE-2 →
+LANE-3, LANE-4 last (it collides with every open lane on the booleans,
+blend and wire ground). The editor-core six (`Lane`, `MinClearanceLane`,
+`SectionScalar`, `AxisScalar`, `SeedScalar`, `ChartCoherenceLane`) are a
+census row on WIRE's and PROPS' slates, not SCALAR units.
+
 ## Order
 
 **What is next (2026-09-15).** Two items remain and they are not the
@@ -87,7 +117,10 @@ same kind of work:
   branch-side until those land. Its ground is `crates/geom/src/curves/*`
   (PROPS) and seven production sites across TOPO, BLEND and CERT ground;
   announce before dispatch.
-- `H5` is gated on the **second `[ev]` sitting**: `RingInterval` vs an
+- `H5`'s second `[ev]` sitting (PR 2701) is answered; its units are
+  cut in §The H5 units below and run in that order. The paragraph
+  that follows is the pre-sitting record.
+- `H5` was gated on the **second `[ev]` sitting**: `RingInterval` vs an
   always-on `Interval` (S1, with the decoration-channel obstacle the
   steelman found), the `Dual` question (S2 / M10), the lane-trait
   collapse (S3 / S44's open half) and `Enclosure`'s fate (S55). The

@@ -5,6 +5,8 @@ title: The New document button's disabled reason is a literal beside a comment c
 status: open
 opened: 2026-09-11
 refs: [a-disabled-control-says-why-in-four-shapes]
+priority: P3
+cost: E
 ---
 
 

@@ -45,16 +45,18 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 // is never computed (NAMING-DESIGN N5 as amended). All other rows
 // unchanged (cascade → Cascade, structural-param, node-gone,
 // ambiguous).
-// NOT MOVED by the shadow-execution rung: this row is the OrderAlong
-// half, which `resolve::shadow_exec_flip`'s docs record as
-// unrecoverable and say why. The rung's own row for the recovered
-// (SideOf) half is in `bool7_shadow_exec`.
 // RE-PINNED for the sketch-frame node: a profile's plane is a document
 // node, so every corpus scenario gained one and the ids inside the
 // diagnosed names shifted. The five row SHAPES are unchanged and were
 // re-read before this pin moved (flip-vanish → RecipeEdit/NodeChanged,
 // cascade → Cascade, structural-param, node-gone, ambiguous).
-const DIAGNOSIS_DIGEST: u64 = 0xf745_47d1_c387_f440;
+// RE-PINNED for the group-size rung (N5): exactly ONE row changed
+// shape — "flip-vanish", a ranked rim-edge fragment whose group went
+// from two fragments to one, now diagnoses GroupResized { node, was:
+// 2, now: 1 } instead of the evidence-free fallback. The other four
+// row shapes were re-read and are unchanged (cascade → Cascade,
+// structural-param, node-gone, ambiguous).
+const DIAGNOSIS_DIGEST: u64 = 0xf735_449b_3e36_841b;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

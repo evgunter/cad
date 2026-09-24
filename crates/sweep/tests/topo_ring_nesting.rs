@@ -237,7 +237,7 @@ fn a_plate_with_one_rounded_end_still_refuses_its_inversion() {
 /// two semicircle endpoints has zero area — so the arm says nothing
 /// rather than refusing a valid body. `boolean::contain`'s `disc_side`
 /// decides that class exactly and reaching it from tier 3 is the
-/// widening `work/topo/check-9-nesting-is-line-bounded-only.md` holds.
+/// widening `work/atrest/check-9-nesting-is-line-bounded-only.md` holds.
 #[test]
 fn a_disc_outer_loop_is_the_gates_residue() {
     let body = plate(&[&circle(0.0, 0.0, 2.0), &circle(0.0, 0.0, 0.5)], 0.3);

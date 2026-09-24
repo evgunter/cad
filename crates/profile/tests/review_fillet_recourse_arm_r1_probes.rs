@@ -42,7 +42,7 @@ fn escalates_under(err: &PathError<f64>, what: &str) -> &'static str {
 fn reads_its_own_sentence(err: &PathError<f64>, sentence: &str, what: &str) {
     let shown = err.to_string();
     assert!(
-        shown.starts_with("resolving the fillet at this corner"),
+        shown.starts_with("the fillet at this corner is undecided"),
         "{what}: must name the site.\n  got: {shown}"
     );
     assert!(

@@ -31,6 +31,7 @@ use pncad::select::{HitTestError, Ray, Resolution};
 use viewer::camera::Camera;
 use viewer::display::DisplayView;
 use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
+use viewer::narrowing::Narrow;
 use viewer::pickindex::{IdMap, PatchId, PickIndex, PictureKey};
 use viewer::props::SlotValue;
 use viewer::scene::{self, PLATE_EXTENT};
@@ -374,17 +375,18 @@ fn the_id_passs_transform_samples_the_pixel_the_ray_was_cast_through() {
         .expect("no refusal")
         .expect("the cursor is aimed at a point on the plate");
 
-    let matrix = camera
-        .view_projection(aspect)
+    let vp = camera
+        .view_projection_f32(aspect)
         .expect("the projection is defined");
-    let vp = matrix.map(|column| column.map(|v| v as f32));
-    let ndc_at = viewport.ndc_of(cursor).expect("a positive area");
-    let ndc = [ndc_at[0] as f32, ndc_at[1] as f32];
-    let sampled = cursor_projection(
-        &vp,
-        ndc,
-        [viewport.width_px as f32, viewport.height_px as f32],
-    );
+    let extent = [viewport.width_px, viewport.height_px]
+        .narrow()
+        .expect("a viewport of ordinary size");
+    let ndc = viewport
+        .ndc_of(cursor)
+        .expect("a positive area")
+        .narrow()
+        .expect("an ordinary cursor");
+    let sampled = cursor_projection(&vp, ndc, extent);
     let clip = mul_point(&sampled, hit.point);
     assert!(clip[3] > 0.0, "the hit is in front of the eye");
     // Within half a target pixel of the centre: the target is one
@@ -409,11 +411,8 @@ fn the_id_passs_transform_samples_the_pixel_the_ray_was_cast_through() {
     for (step_px, want) in [([1.0, 0.0], [-2.0, 0.0]), ([0.0, 1.0], [0.0, 2.0])] {
         let moved = [cursor[0] + step_px[0], cursor[1] + step_px[1]];
         let ndc_moved = viewport.ndc_of(moved).expect("a positive area");
-        let shifted = cursor_projection(
-            &vp,
-            [ndc_moved[0] as f32, ndc_moved[1] as f32],
-            [viewport.width_px as f32, viewport.height_px as f32],
-        );
+        let shifted =
+            cursor_projection(&vp, ndc_moved.narrow().expect("an ordinary cursor"), extent);
         let at = mul_point(&shifted, hit.point);
         assert!(at[3] > 0.0);
         let got = [at[0] / at[3], at[1] / at[3]];
@@ -427,7 +426,8 @@ fn the_id_passs_transform_samples_the_pixel_the_ray_was_cast_through() {
 
 /// A column-major matrix applied to a world point.
 fn mul_point(m: &[[f32; 4]; 4], p: Point3<f64>) -> [f32; 4] {
-    let v = [p.x as f32, p.y as f32, p.z as f32, 1.0];
+    let [x, y, z] = p.narrow().expect("a point the seam draws");
+    let v = [x, y, z, 1.0];
     let mut out = [0.0f32; 4];
     for (row, slot) in out.iter_mut().enumerate() {
         *slot = m[0][row] * v[0] + m[1][row] * v[1] + m[2][row] * v[2] + m[3][row] * v[3];

@@ -5,6 +5,8 @@ title: The half-edge → loop → face walk is spelled once per file across topo
 status: open
 opened: 2026-09-19
 refs: [blend-spells-the-half-edge-to-face-walk-five-times, the-half-edge-to-face-walk-is-spelled-per-test-file, names-emit-keeps-an-unguarded-two-refusal-walk, chords-spells-the-half-edge-to-face-walk-twice, step-lanes-spell-the-half-edge-to-face-walk, demos-tour-spells-the-half-edge-to-face-walk-three-times, solid-of-face-has-eleven-hand-written-walks-outside-it]
+priority: P4
+cost: E
 ---
 
 
@@ -287,7 +289,7 @@ the `topo/tests` undercount and the `demos/tour` twin pair.
 | `editor-core/tests` | 3 | tint (with tcost) | same row |
 | `step-export/tests`, `step-import/tests` | 2 | tint (with tcost) | same row |
 | `sweep/src` + `sweep/examples` | 4 + 3 | carve | `work/carve/blend-spells-the-half-edge-to-face-walk-five-times.md` |
-| `editor-core/src` | 3 | wire | `work/wire/names-emit-keeps-an-unguarded-two-refusal-walk.md` |
+| `editor-core/src` | 3 | emit | `work/emit/names-emit-keeps-an-unguarded-two-refusal-walk.md` |
 | `mesh/src` | 2 | tess | `work/tess/chords-spells-the-half-edge-to-face-walk-twice.md` |
 | `step-import/src`, `step-export/examples` | 4 | exch | `work/exch/step-lanes-spell-the-half-edge-to-face-walk.md` |
 | `demos/tour` | 3 | nobody | `work/issues/demos-tour-spells-the-half-edge-to-face-walk-three-times.md` |

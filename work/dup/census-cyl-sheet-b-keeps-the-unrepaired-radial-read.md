@@ -4,6 +4,8 @@ kind: issue
 title: cyl_sheet_b's descending rim still projects for its radial direction, the read its siblings were repaired away from
 status: open
 opened: 2026-09-19
+priority: P3
+cost: E
 ---
 
 

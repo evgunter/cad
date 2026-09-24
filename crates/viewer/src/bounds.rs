@@ -111,7 +111,7 @@
 //!
 //! Nothing in `crates/viewer` asks for one on a user's behalf yet —
 //! the affordance is
-//! `work/chrome/certify-affordance-on-the-bounds-panel.md`, and
+//! `work/offer/certify-affordance-on-the-bounds-panel.md`, and
 //! `crates/viewer/tests/docm9_range_vs_probe.rs` (the `interval`
 //! feature) is where the two answers are measured against each other.
 //!
@@ -154,6 +154,14 @@ use pncad::quantity::UnitDef;
 /// consequence of an ancestor's failure, so counting it would make one
 /// failure register as many and make the verdict depend on how deep the
 /// recipe happens to be below the break.
+///
+/// **[`crate::tree::has_faults`] counts a poisoned row, and answers a
+/// different question**: whether the document is building at all — a
+/// boolean, which nothing inflates — where this is a SET whose size
+/// decides whether a value got worse. They disagree about whether
+/// anything is wrong only on a poisoned row whose chain ends at no
+/// failure, which that reading calls not building and over which this
+/// verdict is empty.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Verdict(BTreeSet<RecipeNodeId>);
 
@@ -274,21 +282,46 @@ impl Bounds {
     /// says what the value is to within its own stated accuracy and no
     /// more, in as many characters as that takes.
     ///
+    /// **The written number is the panel's own divide**
+    /// ([`crate::props::shown_in`]), not a second one: a range reading
+    /// and a panel field showing the same canonical value in the same
+    /// unit are the same number by construction, and a change to how a
+    /// written value is derived from a canonical one reaches both.
+    ///
     /// **A bound may be zero or negative, and the render is right about
     /// both.** The rule is that a text reads back as the value, not that
     /// it is non-zero: a bound that IS zero reads `0`, and a sign is not
-    /// a distance ([`crate::readout::REL_TOLERANCE`] is relative to the
-    /// magnitude). This is what stops the rule being
+    /// a distance ([`crate::readout::reads_back`] measures how far a
+    /// text reads FROM the value). This is what stops the rule being
     /// [`crate::scene::DisplayTolerance::render_mm`] with the δ taken
     /// out — δ is strictly positive and a probed field is not.
+    ///
+    /// **And a bound may be one the NOTATION cannot name**, which is
+    /// the one thing this sentence must not spell `inf`. Writing a
+    /// canonical value in millimetres multiplies it up by a thousand,
+    /// so a bound above `f64::MAX * MILLI` has no millimetre value and
+    /// `inf mm` would read as a search that reached infinity — the
+    /// overclaim this whole doc comment exists to refuse, at the one
+    /// end where nothing the probe did is wrong. The conversion is
+    /// asked rather than performed
+    /// ([`crate::props::shown_text`], over [`crate::props::written`]),
+    /// which is also why the divide is no longer written out here.
+    /// The `map_or` this line used to open with was a third
+    /// hand-written spelling of [`crate::props::shown_in`] — the one
+    /// that door's own doc warns about — and the door that renders it
+    /// is the same door with the render attached, so there is one home
+    /// for `canonical / factor` and one for what to say when it has no
+    /// answer.
+    ///
+    /// **This render owns no bound on the value itself, and no door
+    /// upstream of it does either.** A probed bound is where the
+    /// doubling search reached from the field's own value, and the
+    /// chrome's `f64` fields carry no `.range()`, so the origin is
+    /// whatever a user typed. There is nothing here to narrow; what
+    /// there is, is a value that has no reading in the unit asked for,
+    /// and saying so is the whole of the repair.
     pub fn wording(self, unit: Option<UnitDef>) -> String {
-        let show = |value: f64| {
-            let written = crate::readout::number(unit.map_or(value, |u| value / u.factor()));
-            match unit {
-                Some(unit) => format!("{written} {}", unit.symbol()),
-                None => written,
-            }
-        };
+        let show = |value: f64| crate::props::shown_text(unit, value);
         match (self.low, self.high) {
             (Bound::Open { probed: low }, Bound::Open { probed: high }) => format!(
                 "nothing new fails anywhere from {} to {} — as far as {} samples looked",

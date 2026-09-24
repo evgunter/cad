@@ -117,6 +117,27 @@ pub fn edited(
     (applied.doc, applied.record.minted)
 }
 
+/// **A document holding one declared parameter and nothing else** —
+/// the fixture both panel suites build their parameter rows on.
+///
+/// `label` is the document's derived name, so two fixtures in one
+/// binary cannot share an identity. No oracle: it is the spelling of
+/// `Doc::empty_derived` plus one `SetDocParam`, and what each row
+/// asserts is about the `value` it handed in.
+pub fn declared(label: &str, name: &ParamName, value: DocParam) -> Doc<ProfileProgram> {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
+    edited(
+        &doc,
+        DocEdit::SetDocParam {
+            name: name.clone(),
+            value,
+        },
+        tol,
+    )
+    .0
+}
+
 /// Insert a node, answering the new document and the minted id.
 pub fn inserted(
     doc: &Doc<ProfileProgram>,
@@ -206,6 +227,14 @@ pub fn band() -> pncad::geom_core::Band {
 /// A length literal.
 pub fn len(metres: f64) -> Expr {
     Expr::literal(metres, Dimension::Length).expect("a finite length")
+}
+
+/// A length literal that remembers it was WRITTEN in millimetres —
+/// `len` lowers canonically and carries no notation, which is what a
+/// row about the unit a literal keeps cannot use.
+pub fn len_mm(metres: f64) -> Expr {
+    Expr::literal_with_unit(metres, Dimension::Length, pncad::prelude::MM.def())
+        .expect("a finite length")
 }
 
 /// A dimensionless literal.
@@ -377,15 +406,17 @@ use viewer::session::{DocSession, SessionOp};
 
 /// Add the world xy frame through the session, answering its id — the
 /// pick every `SessionOp::AddProfile` below hands over.
+///
+/// Through the vocabulary's own numbers (`ProfilePlane::world_xy`)
+/// rather than a second spelling of them here: the add-profile form's
+/// `NewXy` choice mints that frame, so a suite that hand-wrote the
+/// components would stop testing the frame the chrome authors the
+/// moment either moved.
 pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
     insert(
         session,
         SessionOp::AddDatum {
-            datum: viewer::session::DatumSpec::Frame {
-                origin: len3([0.0; 3]),
-                u: scl3([1.0, 0.0, 0.0]),
-                v: scl3([0.0, 1.0, 0.0]),
-            },
+            datum: viewer::session::ProfilePlane::world_xy().expect("the world xy frame lowers"),
         },
     )
 }
@@ -524,6 +555,13 @@ pub fn plate_delta() -> DisplayTolerance {
 /// application's own δ is large enough that a suite walking all of
 /// them pays for every facet.
 pub fn corpus_delta() -> DisplayTolerance {
+    DisplayTolerance::new(2.0e-3).expect("a positive delta")
+}
+
+/// The display tolerance the GUI-2 suites index the gallery ring at,
+/// 2*10^-3 m — a cost choice: those rows are about the selection walk,
+/// not the facet count.
+pub fn ring_delta() -> DisplayTolerance {
     DisplayTolerance::new(2.0e-3).expect("a positive delta")
 }
 

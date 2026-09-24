@@ -4,6 +4,8 @@ kind: issue
 title: Six test fixtures hand-spell the knot rescale with computed ends instead of the on_domain door
 status: open
 opened: 2026-09-12
+priority: P3
+cost: E
 ---
 
 ## Finding

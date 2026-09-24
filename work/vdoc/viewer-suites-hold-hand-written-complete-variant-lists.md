@@ -4,6 +4,8 @@ kind: issue
 title: the viewer suites hold hand-written complete variant lists nothing forces
 status: open
 opened: 2026-09-06
+priority: P4
+cost: E
 ---
 
 

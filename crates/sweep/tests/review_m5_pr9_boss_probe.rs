@@ -341,13 +341,12 @@ fn a_boss_overhanging_the_plate_edge_hits_the_curved_pierce_frontier() {
         .unwrap()
         .body;
     match topo::union(&plate(), &boss_over, Tol::witness()) {
+        // This fixture reaches `CurvedSectorSideUnsupported` today, so
+        // no text is asserted here; the pierce refusal's sentence is
+        // pinned where it executes, by
+        // `verbs_germarms_r1_probes::r1_the_grazing_red_refuses_on_a_line_carrier`.
         Err(e @ topo::BooleanError::CurvedPierceUnsupported { .. }) => {
-            let msg = format!("{e}");
-            eprintln!("PIERCE FRONTIER: {msg}");
-            assert!(
-                msg.contains("zero") && msg.contains("escalate"),
-                "the frontier arm must quote both tolerances: {msg}"
-            );
+            eprintln!("PIERCE FRONTIER: {e}");
         }
         Err(other) => eprintln!("PIERCE: refused via a different typed arm: {other}"),
         Ok(out) => {

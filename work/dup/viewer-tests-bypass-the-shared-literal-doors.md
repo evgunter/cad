@@ -4,6 +4,8 @@ kind: issue
 title: Thirty inline Expr::literal spellings in crates/viewer/tests beside the common::len/scl/ang doors
 status: closed
 opened: 2026-09-20
+priority: P4
+cost: E
 closed: 2026-09-20
 branch: dup/viewer-shared-doors
 pr: 2929
@@ -57,9 +59,21 @@ charter. Any of the five may claim it by `git mv`.
 
 The row's instrument was a regex for `Expr::literal(<no comma>,
 Dimension::X)` over `crates/viewer/tests/*.rs`. Re-run as
-`git grep -n 'Expr::literal'` over **every tracked file, no path
-argument**, then a read of each hit and a second, multi-line pass
-(`git grep -A2 'Expr::literal($'`):
+`git grep -n 'Expr::literal' -- crates/viewer/tests/`, then a read of
+each hit and a second, multi-line pass (`git grep -A2
+'Expr::literal($'`).
+
+**That command carried a path argument, and this section first said it
+did not.** The claim *"every tracked file, no path argument"* was false
+of the command that produced the count below — it was scoped to the
+class's home tree. The cross-crate row that ran next excluded
+`crates/viewer/` as a whole, so `crates/viewer/src/` fell between the
+two and neither looked at it. It holds **14 `.expect`-shaped members,
+all inside `#[cfg(test)]` modules** (12 at the merge base, 2 more
+added on main since), which cannot reach `tests/common`; filed as
+`viewer-src-test-modules-restate-the-literal-doors`. A scope sentence
+reads as completeness whatever the command under it did, which is
+method item 3 failing in the prose rather than in the grep.
 
 **31 sites in 16 files, not 30 in 15.** The extra is
 `frame_policy.rs`'s `rotation_angle`, written path-qualified across
@@ -86,8 +100,10 @@ four sites folded and `docm9`'s two did not.
 **The blind spot the row named — `Expr::literal_with_unit` — run as a
 second instrument.** Six byte-identical sites of one unit-carrying
 extrude distance in two files, which `common::len` cannot serve because
-it lowers canonically and carries no notation. Filed as
-`viewer-tests-spell-one-millimetre-extrude-literal-six-times`. The
+it lowers canonically and carries no notation. Filed first, then folded in the merge pass onto a new
+`common::len_mm`, the notation-keeping sibling of `len`: all six were
+byte-identical down to the `.expect` string, so the door's shape was
+not a design question and the fix was smaller than the row. The
 other named blind spot, a value expression containing a comma, has no
 hits: every `Expr::literal` in the crate takes a comma-free value.
 
@@ -115,3 +131,29 @@ a ±1 difference between two runs of one plant is noise. The parent
 unit's `len(m) → m + 1.0` read 534 / 92 on a tree with fewer `len` call
 sites than this one; 535 / 91 here is the same measurement, not a
 smaller one.
+
+### After merging main
+
+Main landed seven new members of this class after the merge base, in
+files this PR's merge touched: **four** in `docm1_face_frame.rs`
+(AUTH-1 and AUTH-3, all `Expr::literal(_, Dimension::Angle)`), beside
+the one this unit had folded there, and **three** in the new suite
+`frame_labels.rs`. All seven are folded onto `common::{len, ang}`,
+because the door is in the same binary and the fix was smaller than a
+row. Re-taken on the merged tree, `git grep -n 'Expr::literal(' --
+crates/viewer/tests/` returns only the home, the three `NAN` refusal
+probes (`combine_ops`, `creation_ops` and a new one in `panel_edits`),
+`docm9`'s two, and `index_memo`'s `.ok()?`, none of which is a member.
+
+**And the merge pass nearly left a member behind in a file it had
+open.** It minted `common::len_mm` for the six `8 mm` sites and folded
+`frame_labels.rs`'s three plain `Expr::literal` sites onto `len` /
+`ang` — and left **three longhand copies of `len_mm`'s own
+construction** in that same file, `literal_with_unit(_, Length,
+MM.def()).expect(..)` at other values. Found on the re-read the log
+names as the strongest single instruction (*"re-read every file you
+touched, for the class you are closing"*), not by any census the pass
+had run: the `len_mm` census was keyed on the VALUE `0.008`, and these
+are `0.0` and `0.010`. A census keyed on a value misses the same
+construction at any other value — which is item 2, *grep the
+construction, not the name*, one level down. All three folded.
