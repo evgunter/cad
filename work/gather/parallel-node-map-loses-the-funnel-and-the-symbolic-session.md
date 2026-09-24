@@ -1,11 +1,13 @@
 ---
 id: parallel-node-map-loses-the-funnel-and-the-symbolic-session
-kind: issue
+kind: unit
 title: the evaluator's parallel node map loses the K-funnel's recordings and the symbolic session
-status: open
+status: review
 opened: 2026-09-12
 priority: P1
 cost: H
+branch: gather/parallel-node-map
+pr: 3145
 ---
 
 
