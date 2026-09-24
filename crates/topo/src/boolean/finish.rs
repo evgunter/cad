@@ -223,10 +223,9 @@ fn select_solid<T: Decide>(
 ) -> Result<Vec<ShellKey>, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let shells: Vec<ShellKey> = body
-        .get_solid(solid)
+        .shells_of_solid(solid)
         .ok_or_else(|| desync("operand solid no longer resolves"))?
-        .shells
-        .clone();
+        .to_vec();
     let mut all = Vec::new();
     for shell in shells {
         all.extend(body.movefac(shell)?);

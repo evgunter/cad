@@ -1913,7 +1913,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             input: extruded_b,
             translation: [common::len(0.1), common::len(0.0), common::len(0.0)],
             rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+            rotation_angle: common::ang(0.0),
         },
         tol,
     );
@@ -1924,7 +1924,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             input: body,
             translation: [common::len(0.01), common::len(0.002), common::len(0.002)],
             rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+            rotation_angle: common::ang(0.0),
         },
         tol,
     );
@@ -1995,7 +1995,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             Node::Revolve {
                 profile: ring,
                 axis: sketch_axis,
-                angle: Expr::literal(core::f64::consts::TAU, Dimension::Angle).expect("finite"),
+                angle: common::ang(core::f64::consts::TAU),
             },
         ),
         (
@@ -2028,7 +2028,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 input: body,
                 translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
                 rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+                rotation_angle: common::ang(0.0),
             },
         ),
         (
@@ -2112,7 +2112,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 input: candidate,
                 translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
                 rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+                rotation_angle: common::ang(0.0),
             },
             tol,
         );
