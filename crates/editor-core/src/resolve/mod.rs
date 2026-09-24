@@ -1634,32 +1634,45 @@ fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option
 /// The group is the one the minting node's emitter FORMED, read from
 /// the record it keeps beside its name table
 /// ([`crate::names::FragmentGroups`]) under the name's BASE
-/// ([`fragment_base`]): the entities that descend from the group's
-/// parent, however each is spelled. A member passing through undivided
-/// under its upstream name counts, and so does an N3 `Merged` face the
-/// parent survives in. Both records are the MINTING node's own
-/// (`name.node`), because the group is what that node's emission
-/// divided. Two TIED parents share one base and form one group each,
-/// and the tie lane gives their members' rows one set of names; each
-/// group is counted on its own, so `was` and `now` are one parent's
-/// group, never the tie's sum. `now == 0` says the parent has no
-/// descendant at that node.
+/// ([`fragment_base`]): the entities of that node's output that descend
+/// from the group's parent, however each is spelled. A member passing
+/// through undivided under its upstream name counts, and so does an N3
+/// `Merged` face the parent survives in. At a UNION the output is the
+/// published body, so a group a fold step formed counts what the later
+/// steps left of it: a member a later step swallows counts 0, and one
+/// it divides counts each piece. Both records are the MINTING node's
+/// own (`name.node`), because the group is what that node's emission
+/// divided.
+///
+/// Two TIED parents share one base. Where the emitter groups by parent
+/// ENTITY — a face or an edge by the operand entity it descends from,
+/// a split face by its face and side — each forms its own group, the
+/// tie lane gives their members' rows one set of names, and each group
+/// is counted on its own: `was` and `now` are one parent's group, never
+/// the tie's sum. Where it groups by parent NAMES — a seam edge or seam
+/// vertex by its two faces' names — tied parents' pieces land in one
+/// group, no one parent's count is on record, and the rung declines.
+///
+/// `now == 0` says no entity of the node's output is in that group:
+/// none descends from the parent there, or — for a split, whose group
+/// is a face AND a side — none on that side.
 ///
 /// # When it answers, and when it declines
 ///
 /// It answers when the last-good minting table CARRIED the name — a
 /// name the prior run never minted did not vanish by its group
-/// changing — and the current count differs. The prior record then
-/// holds the name's group, of two or more. It declines, to the
+/// changing — and the current count differs. It declines, to the
 /// evidence-free fallback, when the name has no fragment tail, when
 /// either run has no value at the minting node, when the prior record
-/// holds no group under the base, when the groups a tie shares a base
+/// holds no group under the base, when a group under the base was
+/// formed by tied parents' names or the groups a tie shares a base
 /// among are not all one size (there is then no one parent's count to
-/// state), when a union's record cannot be read in its published space,
-/// when either count does not fit the diagnosis's `u32` (a saturated
-/// size could make two different groups read as one), and when the
-/// size did NOT change: a group that re-qualified at the same size is
-/// a different event, about which the records say nothing.
+/// state), when a union's record cannot be read in its published space
+/// or two of one fold step's bases publish as one, when either count
+/// does not fit the diagnosis's `u32` (a saturated size could make two
+/// different groups read as one), and when the size did NOT change: a
+/// group that re-qualified at the same size is a different event, about
+/// which the records say nothing.
 ///
 /// # Why it sits last: cause before effect
 ///

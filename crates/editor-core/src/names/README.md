@@ -186,10 +186,13 @@ fragment's parent into held `was` entities there and holds `now ≠ was` in the
 current run, the diagnosis is `GroupResized { node, was, now }`. The group is
 the one the emitter formed, read from the record it keeps beside the table
 (`names::FragmentGroups`, not persisted), not re-derived from the names: it
-counts every entity descended from the parent however it is spelled — an
-undivided pass-through, an N3 `Merged` survivor — and two tied parents that
-share a base are two groups, each counted on its own. That is a statement
-about two recorded groups, not a claimed flip. The ladder orders cause before effect: the flips, the qualifier delta,
+counts every entity of the node's output descended from the parent however
+it is spelled — an undivided pass-through, an N3 `Merged` survivor, and at a
+union what the later fold steps left of a step's group. Two tied parents that
+share a base are two groups, each counted on its own, where the emitter groups
+by parent entity; where it groups by parent names (the seam lanes) their
+pieces share one group and the rung declines. That is a statement about two
+recorded groups, not a claimed flip. The ladder orders cause before effect: the flips, the qualifier delta,
 the doc-diff lanes and `Upstream` name a cause, the group-size change is an
 effect whose cause the evidence does not hold, so it runs after every cause-naming rung
 and before the fallback. A collapsed fragment's undivided base, when it

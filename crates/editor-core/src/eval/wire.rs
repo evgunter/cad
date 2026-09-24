@@ -3153,7 +3153,7 @@ fn wire_split<
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
-    Ok(OpOut::plain(ValuePayload::Split { above, below }, emitted.table).grouped(emitted.groups))
+    Ok(OpOut::plain(ValuePayload::Split { above, below }, emitted.table).grouped(Arc::new(names::FragmentGroups::minted(emitted.groups))))
 }
 
 /// **The projection node** (DM3): ONE body out of a split's or a
@@ -3350,7 +3350,7 @@ fn wire_boolean<
                 }),
                 emitted.table,
             )
-            .grouped(emitted.groups))
+            .grouped(Arc::new(names::FragmentGroups::minted(emitted.groups))))
         }
     }
 }

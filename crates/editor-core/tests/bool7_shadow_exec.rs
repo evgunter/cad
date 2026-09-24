@@ -1012,13 +1012,7 @@ fn group_diagnosis(
     (prior, prior_groups): Run,
     (now, now_groups): Run,
 ) -> editor_core::ResolutionFailure {
-    let record = |groups: Vec<(StableName, usize)>| {
-        let mut r = FragmentGroups::new();
-        for (base, size) in groups {
-            r.record_size(base, size);
-        }
-        r
-    };
+    let record = FragmentGroups::from_sizes;
     let table = |rows: Vec<(StableName, usize)>| {
         let mut t = NameTable::new();
         let mut next = 0u32;
@@ -1335,8 +1329,7 @@ fn without_a_prior_run_there_is_no_size_to_change_from() {
     for (i, inner) in h.inner.iter().enumerate() {
         t.insert(inner.clone(), body_ent(1000 + i as u32)).unwrap();
     }
-    let mut groups = FragmentGroups::new();
-    groups.record_size(h.base.clone(), 1);
+    let groups = FragmentGroups::from_sizes([(h.base.clone(), 1)]);
     let ev = one_node_eval(h.doc.id(), h.node, t, vec![], groups);
     let res = editor_core::resolve(
         RunCtx {

@@ -4241,9 +4241,10 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   Python surface holds no `NodeMap`, and the names a split or an
 ///   inline carries reach it already rewritten.
 ///   `FragmentGroups` beside them too: the fragment-group record a node
-///   value carries for the diagnosis ladder, read by `resolve` and
-///   answered to a consumer as `Diagnosis::GroupResized`'s two counts,
-///   never as the record.
+///   value carries for the diagnosis ladder. A consumer can hold one
+///   (`NodeValue::fragment_groups`) and make an empty one, and can read
+///   nothing from it; what it records reaches a consumer as
+///   `Diagnosis::GroupResized`'s two counts.
 ///
 ///   **`eval`, `eval_count` and `EvalError` used to be in this family
 ///   and were wrong to be.** They are not machinery behind

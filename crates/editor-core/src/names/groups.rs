@@ -14,57 +14,120 @@
 //! tie lane merges their members' rows; and a member can be spelled
 //! without the base at all, as when a split no longer divides a face
 //! and passes it through under its upstream name. So the emitter
-//! records each group it formed — its base and how many entities it
-//! holds — and the diagnosis ladder's group-size rung
-//! (`resolve::group_resized`) reads that record rather than counting
-//! spellings. One membership rule, the emitter's, with two readers:
-//! the qualifier the emitter mints, and the count the rung reports.
+//! records each group it formed ([`GroupRecord`]) — its base, its
+//! members' names, and the operand row it descends from — and the
+//! diagnosis ladder's group-size rung (`resolve::group_resized`) reads
+//! that record ([`FragmentGroups`]) rather than counting spellings. One
+//! membership rule, the emitter's, with two readers: the qualifier the
+//! emitter mints, and the count the rung reports.
 //!
 //! The record is diagnosis-time evidence about one run. It rides the
 //! node's value like the verdict log does, and like the verdict log it
 //! is never persisted and never part of a name: no name, no table and
 //! no digest changes with it.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use super::role::{NameRef, RoleSeg, StableName};
+use super::role::{NameRef, StableName};
 use crate::node::RecipeNodeId;
+
+/// Where a group's members descend from, as the emitter that formed it
+/// knows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Parent {
+    /// The A operand's row of this name: every member descends from
+    /// that one operand entity. The union's fold reads it — each step's
+    /// A operand is the previous step's accumulation — to follow a
+    /// group from the step that formed it to the published body
+    /// ([`FragmentGroups::folded`]).
+    AOperand(NameRef),
+    /// Anything else: a B-operand entity, a seam the op itself formed,
+    /// a split's target face. No later fold step carries it by row.
+    Elsewhere,
+}
 
 /// One group the emitter formed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Group {
-    /// How many entities of the node's output descend from the group's
-    /// parent.
-    size: usize,
-    /// The names its members were published under, in the minting
-    /// step's space. Read only to follow a union's fold
-    /// ([`FragmentGroups::folded`]); a tie's members share names, so a
-    /// name may repeat.
+    /// The names its members were published under, one per entity: a
+    /// tie's members share a name, so a name may repeat.
     members: Vec<NameRef>,
+    /// Where they descend from.
+    parent: Parent,
+    /// Whether the emitter formed this group from SEVERAL tied parents
+    /// at once. Its seam lanes key a group by the two parents' NAMES,
+    /// and tied parents share names, so their pieces land in one group
+    /// and no one parent's count is on record.
+    tie_summed: bool,
 }
 
-/// The groups one node's emission formed, keyed by base name
-/// (module docs).
+/// The groups one emission formed, keyed by base name. Built by the
+/// emitter that formed them and read through [`FragmentGroups`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct FragmentGroups(Record);
+pub(crate) struct GroupRecord(BTreeMap<StableName, Vec<Group>>);
+
+impl GroupRecord {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    /// Records one group of one parent: its `base`, the names its
+    /// `members` were minted under (one per entity), and where they
+    /// descend from.
+    pub(crate) fn record(&mut self, base: &StableName, members: Vec<NameRef>, parent: Parent) {
+        self.push(base, members, parent, false);
+    }
+
+    /// Records a group the emitter formed by parent NAMES, so that
+    /// tied parents' pieces share it (see [`Group::tie_summed`]).
+    /// `tied` says whether any parent was tied.
+    pub(crate) fn record_by_name(&mut self, base: &StableName, members: Vec<NameRef>, tied: bool) {
+        self.push(base, members, Parent::Elsewhere, tied);
+    }
+
+    fn push(&mut self, base: &StableName, members: Vec<NameRef>, parent: Parent, tie_summed: bool) {
+        self.0.entry(base.clone()).or_default().push(Group {
+            members,
+            parent,
+            tie_summed,
+        });
+    }
+
+    /// Each group's own size, `None` if a tie summed any of them.
+    fn sizes(&self, base: &StableName) -> Option<Vec<usize>> {
+        let Some(groups) = self.0.get(base) else {
+            return Some(Vec::new());
+        };
+        if groups.iter().any(|g| g.tie_summed) {
+            return None;
+        }
+        Some(groups.iter().map(|g| g.members.len()).collect())
+    }
+}
+
+/// The groups a node's emission formed, as the diagnosis ladder reads
+/// them (module docs). A consumer holds one on every node value and
+/// can make an empty one; what it records reaches a consumer through
+/// `Diagnosis::GroupResized`'s two counts, not through this type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FragmentGroups(Read);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Record {
-    /// One emission's groups. A base holds one group per parent: two
-    /// when two tied parents share it.
-    Minted(BTreeMap<StableName, Vec<Group>>),
-    /// A union's fold: each step's own groups, in fold-space names,
-    /// under the union's id ([`FragmentGroups::folded`]).
+enum Read {
+    /// One emission's record.
+    Minted(Arc<GroupRecord>),
+    /// A union's fold: each step's record, in fold-space names, under
+    /// the union's id ([`FragmentGroups::folded`]).
     Folded {
         node: RecipeNodeId,
-        steps: Vec<Arc<FragmentGroups>>,
+        steps: Vec<Arc<GroupRecord>>,
     },
 }
 
-impl Default for Record {
+impl Default for FragmentGroups {
     fn default() -> Self {
-        Self::Minted(BTreeMap::new())
+        Self(Read::Minted(Arc::default()))
     }
 }
 
@@ -75,30 +138,23 @@ impl FragmentGroups {
         Self::default()
     }
 
-    /// Records one group of `size` entities whose base is `base`. For a
-    /// caller that assembles a record by hand (the resolve suites); an
-    /// emitter records through [`FragmentGroups::record`], which also
-    /// keeps the members' names.
-    pub fn record_size(&mut self, base: StableName, size: usize) {
-        self.push(base, size, Vec::new());
+    /// One emission's record.
+    pub(crate) fn minted(record: Arc<GroupRecord>) -> Self {
+        Self(Read::Minted(record))
     }
 
-    /// Records one group the emitter formed: its `base`, and the names
-    /// its `members` were minted under, one per entity.
-    pub(crate) fn record(&mut self, base: &StableName, members: Vec<NameRef>) {
-        let size = members.len();
-        self.push(base.clone(), size, members);
-    }
-
-    fn push(&mut self, base: StableName, size: usize, members: Vec<NameRef>) {
-        match &mut self.0 {
-            Record::Minted(groups) => groups
-                .entry(base)
-                .or_default()
-                .push(Group { size, members }),
-            // A fold's record is assembled whole; nothing is added to it.
-            Record::Folded { .. } => {}
+    /// A record of one group per `(base, size)`, each of one parent, as
+    /// an emitter that formed exactly those groups would leave it: for
+    /// the resolve suites, which build a run by hand.
+    #[cfg(any(test, feature = "test-support"))]
+    #[must_use]
+    pub fn from_sizes(groups: impl IntoIterator<Item = (StableName, usize)>) -> Self {
+        let mut r = GroupRecord::new();
+        for (base, size) in groups {
+            let members = (0..size).map(|_| NameRef::new(base.clone())).collect();
+            r.record(&base, members, Parent::Elsewhere);
         }
+        Self::minted(Arc::new(r))
     }
 
     /// A union's record: the groups each fold step formed, in order.
@@ -111,33 +167,104 @@ impl FragmentGroups {
     /// the diagnosis ladder, and a fold-space name the collapse refuses
     /// is the ladder's to decline over, never the evaluation's to fail
     /// on.
-    pub(crate) fn folded(node: RecipeNodeId, steps: Vec<Arc<FragmentGroups>>) -> Self {
-        Self(Record::Folded { node, steps })
+    pub(crate) fn folded(node: RecipeNodeId, steps: Vec<Arc<GroupRecord>>) -> Self {
+        Self(Read::Folded { node, steps })
     }
 
-    /// The size of every group spelled from `base`, one per group (two
-    /// tied parents give two), empty when no group is. `None` when a
-    /// union's record cannot be read in its published space.
-    #[must_use]
-    pub fn sizes(&self, base: &StableName) -> Option<Vec<usize>> {
+    /// How many entities of the node's output descend from each group
+    /// spelled from `base`, one count per group (two tied parents give
+    /// two), empty when no group is. `None` when no one parent's count
+    /// is on record: a group tied parents share, or a union's record
+    /// that cannot be read in its published space.
+    pub(crate) fn sizes(&self, base: &StableName) -> Option<Vec<usize>> {
         match &self.0 {
-            Record::Minted(groups) => Some(
-                groups
-                    .get(base)
-                    .map(|gs| gs.iter().map(|g| g.size).collect())
-                    .unwrap_or_default(),
-            ),
-            Record::Folded { node, steps } => folded_sizes(*node, steps, base),
+            Read::Minted(r) => r.sizes(base),
+            Read::Folded { node, steps } => folded_sizes(*node, steps, base),
         }
     }
+}
 
-    /// One emission's groups, or none for a fold.
-    fn minted(&self) -> Option<&BTreeMap<StableName, Vec<Group>>> {
-        match &self.0 {
-            Record::Minted(groups) => Some(groups),
-            Record::Folded { .. } => None,
+/// [`FragmentGroups::sizes`] over a union's fold.
+///
+/// A group a step formed counts the entities of the PUBLISHED body that
+/// descend from it. The last step's groups are the published body's, so
+/// each counts its members. An earlier step's group counts what the
+/// following steps made of its members: a member row is carried into
+/// the next step by that step's groups whose [`Parent::AOperand`] is
+/// that row (every entity of the accumulation is the next step's A
+/// operand), and it counts the entities those groups count in turn. A
+/// member the next step swallows is carried by no group and counts 0;
+/// a member the next step divides counts each piece. The walk matches
+/// member rows to the recorded parent rows by name, which is the key
+/// the emitter itself descended by: nothing re-spells a base.
+///
+/// A published base can be spelled by more than one step: a step that
+/// leaves an entity whole spells a group of one, and a later step that
+/// divides it spells the group of its pieces under the same collapsed
+/// base. Both count the same published entities, so the latest step
+/// that spells the base answers. Two groups of ONE step whose different
+/// bases collapse to the same published base are two answers with no
+/// rule between them, and the fold declines.
+fn folded_sizes(
+    node: RecipeNodeId,
+    steps: &[Arc<GroupRecord>],
+    base: &StableName,
+) -> Option<Vec<usize>> {
+    let counts = descendant_counts(steps);
+    for (k, step) in steps.iter().enumerate().rev() {
+        let mut hit: Option<&StableName> = None;
+        for b in step.0.keys() {
+            if super::emit_union::collapse_name(node, b).ok()? != *base {
+                continue;
+            }
+            if hit.is_some() {
+                return None;
+            }
+            hit = Some(b);
+        }
+        if let Some(b) = hit {
+            let groups = &step.0[b];
+            if groups.iter().any(|g| g.tie_summed) {
+                return None;
+            }
+            return Some(counts[k][b].clone());
         }
     }
+    Some(Vec::new())
+}
+
+/// For every step, every group's count of published descendants
+/// ([`folded_sizes`]), in the record's own order.
+fn descendant_counts(steps: &[Arc<GroupRecord>]) -> Vec<BTreeMap<&StableName, Vec<usize>>> {
+    let mut out: Vec<BTreeMap<&StableName, Vec<usize>>> = vec![BTreeMap::new(); steps.len()];
+    // What the step after `k` makes of each of its A-operand rows.
+    let mut carried: BTreeMap<&NameRef, usize> = BTreeMap::new();
+    for (k, step) in steps.iter().enumerate().rev() {
+        let last = k + 1 == steps.len();
+        for (b, groups) in &step.0 {
+            let counts = groups
+                .iter()
+                .map(|g| {
+                    if last {
+                        g.members.len()
+                    } else {
+                        let rows: BTreeSet<&NameRef> = g.members.iter().collect();
+                        rows.iter().map(|r| carried.get(r).copied().unwrap_or(0)).sum()
+                    }
+                })
+                .collect();
+            out[k].insert(b, counts);
+        }
+        carried = BTreeMap::new();
+        for (b, groups) in &step.0 {
+            for (g, n) in groups.iter().zip(&out[k][b]) {
+                if let Parent::AOperand(row) = &g.parent {
+                    *carried.entry(row).or_default() += n;
+                }
+            }
+        }
+    }
+    out
 }
 
 /// What a group-forming emitter hands back: the name table, and the
@@ -147,80 +274,14 @@ pub(crate) struct Emitted {
     /// The node's names.
     pub(crate) table: Arc<super::NameTable>,
     /// The groups those names were minted from.
-    pub(crate) groups: Arc<FragmentGroups>,
+    pub(crate) groups: Arc<GroupRecord>,
 }
 
 impl Emitted {
-    pub(crate) fn new(table: super::NameTable, groups: FragmentGroups) -> Self {
+    pub(crate) fn new(table: super::NameTable, groups: GroupRecord) -> Self {
         Self {
             table: Arc::new(table),
             groups: Arc::new(groups),
         }
     }
-}
-
-/// [`FragmentGroups::sizes`] over a union's fold.
-///
-/// A group a step formed LIVES if some entity of the published body
-/// descends from it: one of its members is carried into the next
-/// step, by a group of that step whose base is `FromA(member)` (every
-/// entity of the accumulation is the next step's A operand) and which
-/// lives in turn; every group of the last step lives. A step that
-/// swallows a group's members whole ends it, so a group of the prior
-/// fold whose entity a later member consumed counts 0, not what the
-/// step that formed it counted.
-///
-/// A published base can be spelled by more than one step: a step
-/// that leaves an entity whole spells a group of one, and a later step
-/// that divides it spells the group of its pieces under the same
-/// collapsed base. The LATEST living one is the group the published
-/// names discriminate.
-fn folded_sizes(
-    node: RecipeNodeId,
-    steps: &[Arc<FragmentGroups>],
-    base: &StableName,
-) -> Option<Vec<usize>> {
-    let minted: Vec<&BTreeMap<StableName, Vec<Group>>> =
-        steps.iter().map(|s| s.minted()).collect::<Option<_>>()?;
-    // Living groups, per step, walking back from the last step.
-    let mut alive: Vec<BTreeMap<&StableName, Vec<bool>>> = vec![BTreeMap::new(); minted.len()];
-    for k in (0..minted.len()).rev() {
-        for (b, groups) in minted[k] {
-            let lives = groups
-                .iter()
-                .map(|g| {
-                    k + 1 == minted.len()
-                        || g.members.iter().any(|m| {
-                            let carried = StableName {
-                                kind: m.kind,
-                                node,
-                                path: vec![RoleSeg::FromA(m.clone())],
-                            };
-                            alive[k + 1]
-                                .get(&carried)
-                                .is_some_and(|next| next.iter().any(|&l| l))
-                        })
-                })
-                .collect();
-            alive[k].insert(b, lives);
-        }
-    }
-    let mut found: Vec<usize> = Vec::new();
-    for (k, groups) in minted.iter().enumerate() {
-        for (b, gs) in *groups {
-            let living: Vec<usize> = gs
-                .iter()
-                .zip(&alive[k][b])
-                .filter(|&(_, &l)| l)
-                .map(|(g, _)| g.size)
-                .collect();
-            if living.is_empty() {
-                continue;
-            }
-            if super::emit_union::collapse_name(node, b).ok()? == *base {
-                found = living;
-            }
-        }
-    }
-    Some(found)
 }

@@ -118,8 +118,12 @@ fn vanished(
 /// them whole. The emitter formed one group per tied face, two members
 /// each, and one member each after the slide: 2 → 1. The spelling
 /// counts the tie lane's merged rows, one group of four: 4 → 2.
-#[test]
-fn two_tied_parents_each_cut_in_two_are_two_groups_of_two() {
+/// The tie fixture: a 4×4×4 block minus a U-shaped cutter whose two
+/// prongs cross one wall — the cutter's caps leave two congruent prong
+/// faces each, an N2 tie — cut again by a bar across both prongs,
+/// behind a `Transform`. Answers (doc, the first cut, the bar's
+/// transform, the second cut).
+fn tied_prongs_cut() -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("group-membership-tie", Tol::witness());
     let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
     let (doc, u) = prism(
@@ -165,6 +169,12 @@ fn two_tied_parents_each_cut_in_two_are_two_groups_of_two() {
             declare: None,
         },
     );
+    (doc, sub, tr, cut)
+}
+
+#[test]
+fn two_tied_parents_each_cut_in_two_are_two_groups_of_two() {
+    let (doc, _, tr, cut) = tied_prongs_cut();
     let ev1 = run(&doc, None);
     let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::Z), 3.2);
     let ev2 = run(&doc2, Some(&ev1));
@@ -366,6 +376,93 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
                     now: 1,
                 },
                 "{order:?}: {n:?}"
+            );
+        }
+    }
+}
+
+/// **A seam group tied parents share has no one parent's count.**
+///
+/// The seam lanes group a seam edge by its two faces' NAMES, so the bar
+/// crossing the two tied prong faces makes one group of the pieces of
+/// both. The record marks it, and the rung declines for its vanished
+/// fragments rather than state the tie's sum as a group's size.
+#[test]
+fn a_seam_group_tied_parents_share_is_not_counted() {
+    let (doc, sub, tr, cut) = tied_prongs_cut();
+    let ev1 = run(&doc, None);
+    let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::Z), 3.2);
+    let ev2 = silent(run(&doc2, Some(&ev1)));
+    let ev1 = silent(ev1);
+    // A seam whose A face is one of the first cut's TIED rows.
+    let tied = &ev1.value(sub).expect("the first cut evaluates").name_table;
+    let rows = vanished((&doc, &ev2), (&doc, &ev1), cut, |n, _| match n.path.first() {
+        Some(RoleSeg::Seam { a, .. }) => matches!(tied.lookup(a), Some(Entry::Tied(_))),
+        _ => false,
+    });
+    assert!(
+        !rows.is_empty(),
+        "no tied seam fragment vanished, so the row pins nothing"
+    );
+    for (n, d) in rows {
+        assert!(
+            !matches!(d, Diagnosis::GroupResized { .. }),
+            "{n:?}: a tie-summed seam group was counted: {d:?}"
+        );
+    }
+}
+
+/// **A union counts what its later fold steps left of a group.**
+///
+/// The bar divides the plate's top into two at the first fold step,
+/// and the block C, united at the next, swallows one of the two pieces
+/// — so the published body holds ONE entity of that group, in both
+/// runs, before and after the bar slides. Its rim edges the same. A
+/// count taken where the group was formed would say 2 → 1; the
+/// published body says 1 → 1, and the rung declines. Both layouts: C
+/// over the far piece, and C over the near one.
+#[test]
+fn a_union_group_a_later_step_partly_swallows_counts_what_is_published() {
+    for (label, c) in [
+        ("far", ((1.7, 4.0), (-1.5, 4.5), 0.3, 1.4)),
+        ("near", ((-1.0, 1.3), (-1.5, 4.5), 0.3, 1.4)),
+    ] {
+        let doc = ProfileDoc::empty_derived("group-membership-swallow", Tol::witness());
+        let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+        let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+        let (doc, tr) = insert(
+            doc,
+            Node::Transform {
+                input: bar,
+                translation: [len(0.0), len(0.0), len(0.0)],
+                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+                rotation_angle: ang(0.0),
+            },
+        );
+        let (doc, cblock) = block(doc, c.0, c.1, c.2, c.3);
+        let (doc, u) = insert(
+            doc,
+            Node::Union {
+                members: vec![plate, tr, cblock],
+                declare: None,
+            },
+        );
+        let ev1 = run(&doc, None);
+        let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::Y), 2.5);
+        let ev2 = silent(run(&doc2, Some(&ev1)));
+        let ev1 = silent(ev1);
+        // The plate's own entities: its top's fragments and its rim.
+        let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, _| {
+            matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == plate)
+        });
+        assert!(
+            !rows.is_empty(),
+            "{label}: no fragment vanished, so the row pins nothing"
+        );
+        for (n, d) in rows {
+            assert!(
+                !matches!(d, Diagnosis::GroupResized { was: 2, now: 1, .. }),
+                "{label}: {n:?} counted at the step that formed it: {d:?}"
             );
         }
     }

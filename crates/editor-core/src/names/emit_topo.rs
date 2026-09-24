@@ -20,7 +20,7 @@ use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along, side_of_face}
 use super::emit::{
     Incidence, NamingError, Rim, edge_ends, ent, face_half_edges, name1, rim_between,
 };
-use super::groups::{Emitted, FragmentGroups};
+use super::groups::{Emitted, GroupRecord, Parent};
 use super::merged::{self, NESTED_MERGED};
 use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
 use super::seam_pair;
@@ -183,7 +183,7 @@ pub(crate) fn name_split<T: Decide>(
 ) -> Result<Emitted, NamingError> {
     let b = band(tol)?;
     let mut t = NameTable::new();
-    let mut rec = FragmentGroups::new();
+    let mut rec = GroupRecord::new();
     let frag_rows: BTreeMap<FaceKey, FaceKey> = naming.face_fragments.iter().copied().collect();
     let section_keys: BTreeSet<FaceKey> = naming.sections.iter().map(|&(f, _)| f).collect();
     let mut sides: Vec<Side<'_, T>> = Vec::new();
@@ -560,6 +560,16 @@ impl<K: Copy> OpSide<K> {
             OpSide::B(_) => RoleSeg::FromB(inner),
         }
     }
+
+    /// Where a group whose base [`OpSide::wrap`]s `inner` descends from,
+    /// for the group record (`names::groups`): the A operand's row
+    /// `inner`, or somewhere no later fold step carries by row.
+    fn parent(self, inner: &NameRef) -> Parent {
+        match self {
+            OpSide::A(_) => Parent::AOperand(inner.clone()),
+            OpSide::B(_) => Parent::Elsewhere,
+        }
+    }
 }
 
 /// Where an operand-space key returned by [`operand_key`] lives.
@@ -612,7 +622,7 @@ pub(crate) fn name_boolean<T: Decide>(
     let bnd = band(tol)?;
     let bug = |what| NamingError::Emission { what };
     let mut t = NameTable::new();
-    let mut rec = FragmentGroups::new();
+    let mut rec = GroupRecord::new();
     t.insert(
         name1(EntityKind::Body, node, RoleSeg::OutputBody),
         ent(0, EntityKey::Body),
@@ -738,6 +748,7 @@ pub(crate) fn name_boolean<T: Decide>(
     for (d, members) in groups {
         let root_name = operand_face_name(d)?;
         let from_tie = root_name.tied;
+        let parent = d.parent(&root_name.name);
         let base = name1(EntityKind::Face, node, d.wrap(root_name.name));
         let mut names = merged_into.remove(&d).unwrap_or_default();
         match members.as_slice() {
@@ -767,7 +778,7 @@ pub(crate) fn name_boolean<T: Decide>(
                 bnd,
             )?),
         }
-        rec.record(&base, names);
+        rec.record(&base, names, parent);
     }
     tie.flush(&mut t)?;
 
@@ -891,7 +902,7 @@ fn name_boolean_edges<T: Decide>(
     node: RecipeNodeId,
     t: &mut NameTable,
     tie: &mut TieRows,
-    rec: &mut FragmentGroups,
+    rec: &mut GroupRecord,
     body: &Body<T>,
     naming: &topo::BooleanNaming,
     a: &OperandCtx<'_, T>,
@@ -1162,7 +1173,7 @@ fn name_boolean_edges<T: Decide>(
         let base = name1(EntityKind::Edge, node, RoleSeg::Seam { a: fa, b: fb });
         if edges.len() == 1 {
             let name = NameRef::new(base.clone());
-            rec.record(&base, vec![name.clone()]);
+            rec.record_by_name(&base, vec![name.clone()], from_tie);
             put(t, tie, from_tie, name, ent(0, EntityKey::Edge(edges[0])))?;
             continue;
         }
@@ -1198,18 +1209,19 @@ fn name_boolean_edges<T: Decide>(
         let names = insert_ranked_or_tied(t, tie, from_tie, &base, &edges, &extents, bnd, |&e| {
             ent(0, EntityKey::Edge(e))
         })?;
-        rec.record(&base, names);
+        rec.record_by_name(&base, names, from_tie);
     }
     for (root, edges) in groups {
         let (op, root_key) = root.of(a, b);
         let inner = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(root_key)))?;
         let op_body = op.body;
         let from_tie = inner.tied;
+        let parent = root.parent(&inner.name);
         let seg = root.wrap(inner.name.clone());
         let base = name1(EntityKind::Edge, node, seg);
         if edges.len() == 1 {
             let name = NameRef::new(base.clone());
-            rec.record(&base, vec![name.clone()]);
+            rec.record(&base, vec![name.clone()], parent);
             put(t, tie, from_tie, name, ent(0, EntityKey::Edge(edges[0])))?;
             continue;
         }
@@ -1231,7 +1243,7 @@ fn name_boolean_edges<T: Decide>(
         let names = insert_ranked_or_tied(t, tie, from_tie, &base, &edges, &extents, bnd, |&e| {
             ent(0, EntityKey::Edge(e))
         })?;
-        rec.record(&base, names);
+        rec.record(&base, names, parent);
     }
     Ok(())
 }
@@ -1245,7 +1257,7 @@ fn name_boolean_vertices<T: Decide>(
     node: RecipeNodeId,
     t: &mut NameTable,
     tie: &mut TieRows,
-    rec: &mut FragmentGroups,
+    rec: &mut GroupRecord,
     body: &Body<T>,
     naming: &topo::BooleanNaming,
     inv_vertices: &BTreeMap<VertexKey, VertexKey>,
@@ -1275,10 +1287,18 @@ fn name_boolean_vertices<T: Decide>(
     };
     // The operand identity of one result-arena vertex key, if its
     // operand's table names it.
-    let operand_identity = |k: VertexKey| -> Result<Option<(StableName, bool)>, NamingError> {
-        let (side, _) = operand_key(naming, inv_vertices, k)?;
-        Ok(named_in(side)?.map(|u| (name1(EntityKind::Vertex, node, side.wrap(u.name)), u.tied)))
-    };
+    let operand_identity =
+        |k: VertexKey| -> Result<Option<(StableName, bool, Parent)>, NamingError> {
+            let (side, _) = operand_key(naming, inv_vertices, k)?;
+            Ok(named_in(side)?.map(|u| {
+                let parent = side.parent(&u.name);
+                (
+                    name1(EntityKind::Vertex, node, side.wrap(u.name)),
+                    u.tied,
+                    parent,
+                )
+            }))
+        };
     // Candidate seam-vertex names, grouped for multiplicity: the key
     // is the (A, B) parent pair, the value (descends-from-a-tie,
     // vertices).
@@ -1299,10 +1319,10 @@ fn name_boolean_vertices<T: Decide>(
                 }
             }
         }
-        if let Some((name, from_tie)) = identity {
+        if let Some((name, from_tie, parent)) = identity {
             // A vertex carried through whole: a group of one.
             let name = NameRef::new(name);
-            rec.record(&name, vec![name.clone()]);
+            rec.record(&name, vec![name.clone()], parent);
             put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
             continue;
         }
@@ -1497,7 +1517,7 @@ fn name_boolean_vertices<T: Decide>(
         );
         if verts.len() == 1 {
             let name = NameRef::new(base.clone());
-            rec.record(&base, vec![name.clone()]);
+            rec.record_by_name(&base, vec![name.clone()], from_tie);
             put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(verts[0])))?;
             continue;
         }
@@ -1509,7 +1529,7 @@ fn name_boolean_vertices<T: Decide>(
         };
         let Some(dir) = carrier else {
             let name = NameRef::new(base.clone());
-            rec.record(&base, verts.iter().map(|_| name.clone()).collect());
+            rec.record_by_name(&base, verts.iter().map(|_| name.clone()).collect(), from_tie);
             let ents = verts
                 .iter()
                 .map(|&v| ent(0, EntityKey::Vertex(v)))
@@ -1532,7 +1552,7 @@ fn name_boolean_vertices<T: Decide>(
         let names = insert_ranked_or_tied(t, tie, from_tie, &base, &verts, &extents, bnd, |&v| {
             ent(0, EntityKey::Vertex(v))
         })?;
-        rec.record(&base, names);
+        rec.record_by_name(&base, names, from_tie);
     }
     Ok(())
 }
@@ -1772,7 +1792,7 @@ fn name_split_faces<T: Decide>(
     node: RecipeNodeId,
     t: &mut NameTable,
     tie: &mut TieRows,
-    rec: &mut FragmentGroups,
+    rec: &mut GroupRecord,
     sides: &[Side<'_, T>],
     frag_rows: &BTreeMap<FaceKey, FaceKey>,
     section_keys: &BTreeSet<FaceKey>,
@@ -1803,15 +1823,9 @@ fn name_split_faces<T: Decide>(
                 // upstream name rather than the group's base.
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Face(f)))?;
                 rec.record(
-                    &name1(
-                        EntityKind::Face,
-                        node,
-                        RoleSeg::SplitFragment {
-                            side: s.half,
-                            parent: up.name.clone(),
-                        },
-                    ),
+                    &split_base(node, s.half, up.name.clone()),
                     vec![up.name.clone()],
+                    Parent::Elsewhere,
                 );
                 put(t, tie, up.tied, up.name, ent(s.ix, EntityKey::Face(f)))?;
             } else {
@@ -1825,16 +1839,11 @@ fn name_split_faces<T: Decide>(
     for ((root, _), members) in groups {
         let parent = upstream_name(target_table, target_node, ent(0, EntityKey::Face(root)))?;
         let from_tie = parent.tied;
-        let half = members[0].1;
-        let base = RoleSeg::SplitFragment {
-            side: half,
-            parent: parent.name,
-        };
-        let base_name = name1(EntityKind::Face, node, base.clone());
+        let base_name = split_base(node, members[0].1, parent.name);
         if members.len() == 1 {
             let (ix, _, f) = members[0];
             let name = NameRef::new(base_name.clone());
-            rec.record(&base_name, vec![name.clone()]);
+            rec.record(&base_name, vec![name.clone()], Parent::Elsewhere);
             put(t, tie, from_tie, name, ent(ix, EntityKey::Face(f)))?;
             continue;
         }
@@ -1870,9 +1879,16 @@ fn name_split_faces<T: Decide>(
             b,
             |&(ix, _, f)| ent(ix, EntityKey::Face(f)),
         )?;
-        rec.record(&base_name, names);
+        rec.record(&base_name, names, Parent::Elsewhere);
     }
     Ok(())
+}
+
+/// The base of a split's (face, side) group: the face `parent` on the
+/// `side` half. One spelling for the group the split divides and for
+/// the face it passes through whole.
+fn split_base(node: RecipeNodeId, side: SplitHalf, parent: NameRef) -> StableName {
+    name1(EntityKind::Face, node, RoleSeg::SplitFragment { side, parent })
 }
 
 #[cfg(test)]
