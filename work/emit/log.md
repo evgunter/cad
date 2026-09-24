@@ -413,6 +413,38 @@ Filed:
   rewritten and re-banded P3: `split` runs no validation tier on its
   own outputs.
 
+## 2026-09-24 — loft correspondence closes (PR 3147)
+
+Ev's two rulings on 3102 are implemented:
+
+- A profile loop's canonical start is its authored vertex 0, with
+  orientation normalized. V3's lex-min start is retired and survives
+  only as the containment representative.
+- Every verb publishes profile refs in canonical numbering, so the door
+  answers any loft section through the section's own anchor.
+
+Consequences:
+
+- The +30° twisted loft builds the author's solid.
+- The tour lily's blades lose the twist lex-min gave them: one leaf
+  drops from 43,738 to 21,390 triangles.
+- 12 of the corpus's 1,612 names migrate, in `plate_param`.
+- About 30 goldens and counts are re-baselined. Each is listed in the
+  PR with its cause; review verified the four riskiest.
+- The fix pass swept stale "program-anchored" and "exact-order band"
+  prose.
+- New rows that go red under a lex-min start.
+- `replay_naming`, so a SetProgram over an old program that replays
+  but does not validate keeps its names.
+- The now-dead offset knob is removed.
+
+`loft-anchors-every-section-with-section-zeros-map` closes with it,
+superseded.
+
+Filed:
+- P3 `a-lofts-names-follow-only-its-first-sections-reshaping`.
+- `a-param-jump-that-swaps-the-outer-loop-renumbers-names-unreported`,
+  re-banded P0 at merge because it is a silent rebind.
 ## 2026-09-24 — SharedRim(Several) is held for its rebind sibling
 
 PR 3167 names a chord over a rim that exists in several collinear
@@ -427,3 +459,14 @@ The project is fail-loud, so 3167 does not land alone. The P0
 `union-rim-piece-ranks-follow-fold-order-so-rim-names-rebind` is
 stacked on it and dispatched to the same lane. The two land together
 once the probe corpus shows 0 rebinds.
+
+## 2026-09-24 — the narrowing rule has its doors (PR 3169)
+
+`name_placed_union` now narrows through `defer::narrow_into`. The
+"several ⇒ tied" minting decision, spelled at six sites plus a
+SectionEdge third form, now goes through one door,
+`defer::mint_candidates`. "A lone member keeps the base name" stays
+local at each site, because each site's discriminator would answer it
+trivially. The change is behaviour-preserving: the corpus name
+digests, the 304-cell probe and a reviewer-built ≥2-survivor
+placed-union tie are identical to main.

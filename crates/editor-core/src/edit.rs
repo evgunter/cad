@@ -2574,9 +2574,12 @@ fn already_retired(loop_: u32, index: u32) -> bool {
 /// dropped for every name on it — the record says which arm of the
 /// transition table ran, and a different arm did not draw "the same
 /// segments, elsewhere". A loop no new loop continues maps none of its
-/// segments. Segments are PROGRAM-order indices on both sides (the
-/// names hold them so, DM8, and the spans are recorded so), and no
-/// canonical permutation enters.
+/// segments. The map is built in PROGRAM-order indices on both sides,
+/// which is how the spans are recorded; the names hold CANONICAL
+/// indices (DM8: authored start, orientation normalized), so a locator
+/// is read into the old program's order through the old program's
+/// naming anchor, mapped, and spelled back through the new program's
+/// ([`SegmentMap::edge`], [`SegmentMap::vertex`]).
 ///
 /// A vertex maps as the segment ARRIVING at it: vertex `v` is the end
 /// of segment `v - 1` (mod the loop's length), so it lands at the end
@@ -2605,6 +2608,16 @@ struct SegmentMap {
     continued: Vec<Option<u32>>,
     /// Per NEW loop, its segment count — a vertex wraps modulo it.
     new_len: Vec<u32>,
+    /// The old program's naming anchor, per CANONICAL loop: canonical
+    /// locator → program order. Read off the old program's validation
+    /// where it validates, and off its replay alone where it does not
+    /// (`eval::anchor::replay_naming`). A loop whose anchor cannot be
+    /// read is `None` and every name on it strands; empty where the
+    /// canonical loop order itself cannot be read.
+    old_naming: Vec<Option<crate::eval::LoopAnchor>>,
+    /// The new program's naming anchor: program order → the canonical
+    /// locator a name is spelled in.
+    new_naming: crate::eval::ProfileNaming,
 }
 
 /// One locator's image under a [`SegmentMap`].
@@ -2638,11 +2651,19 @@ impl SegmentMap {
     /// [`ProgramRefusal::Record`] where the new program's checked
     /// record refuses a span.
     fn build(
-        old: Option<&[CheckedRecords<'_, '_>]>,
+        old: Option<(
+            &[CheckedRecords<'_, '_>],
+            Vec<Option<crate::eval::LoopAnchor>>,
+        )>,
         old_loops: usize,
-        new: &[CheckedRecords<'_, '_>],
+        new: (&[CheckedRecords<'_, '_>], crate::eval::ProfileNaming),
         provenance: &[LoopProvenance],
     ) -> Result<Self, ProgramRefusal> {
+        let (new, new_naming) = new;
+        let (old, old_naming) = match old {
+            Some((records, naming)) => (Some(records), naming),
+            None => (None, Vec::new()),
+        };
         use crate::program::program_index as ix;
         let new_len: Vec<u32> = new.iter().map(|r| ix(r.segments())).collect();
         let mut continued: Vec<Option<u32>> = vec![None; old_loops];
@@ -2658,6 +2679,8 @@ impl SegmentMap {
                 old: Vec::new(),
                 continued,
                 new_len,
+                old_naming,
+                new_naming,
             });
         };
         let mut map: Vec<Vec<Option<(u32, u32)>>> =
@@ -2698,6 +2721,8 @@ impl SegmentMap {
             old: map,
             continued,
             new_len,
+            old_naming,
+            new_naming,
         })
     }
 
@@ -2719,7 +2744,49 @@ impl SegmentMap {
         }
     }
 
-    /// The image of an edge locator; `None` where it is already
+    /// Old canonical loop `l` → the old program loop it is, and its
+    /// anchor; `None` where the old naming cannot read that loop or has
+    /// no such loop.
+    fn old_anchor(&self, l: u32) -> Option<crate::eval::LoopAnchor> {
+        self.old_naming.get(l as usize).copied().flatten()
+    }
+
+    /// New program loop `li` → its canonical position and anchor. Every
+    /// new program loop is some canonical loop — the anchor was derived
+    /// from this program's own validation.
+    fn new_anchor(&self, li: u32) -> (u32, crate::eval::LoopAnchor) {
+        use crate::program::program_index as ix;
+        let Some((cl, a)) = self
+            .new_naming
+            .loops
+            .iter()
+            .enumerate()
+            .find(|(_, a)| a.program_loop == li)
+        else {
+            unreachable!(
+                "the new program's naming anchor was derived from its own validation, \
+                 which assigns every program loop a canonical loop"
+            )
+        };
+        (ix(cl), *a)
+    }
+
+    /// The retired coordinate of a CANONICAL locator `(l, index)` of
+    /// the old program: filed on the canonical loop that continues its
+    /// program loop, or on loop `RETIRED_FLOOR + l` where nothing does
+    /// or the old naming cannot be read. Distinct per old coordinate.
+    fn retired_canonical(&self, l: u32, index: u32) -> (u32, u32) {
+        match self
+            .old_anchor(l)
+            .map(|a| self.retired(a.program_loop, index))
+        {
+            Some((li, at)) if li < RETIRED_FLOOR => (self.new_anchor(li).0, at),
+            _ => (RETIRED_FLOOR + l, index),
+        }
+    }
+
+    /// The image of an edge locator — canonical in, canonical out, the
+    /// map read in program order between; `None` where it is already
     /// retired and this edit has nothing to say about it.
     fn edge(&self, e: ProfileEdgeRef) -> Option<Image<ProfileEdgeRef>> {
         if already_retired(e.loop_index, e.segment) {
@@ -2729,36 +2796,63 @@ impl SegmentMap {
             loop_index,
             segment,
         };
-        Some(match self.kept(e.loop_index, e.segment) {
-            Some(to) => Image::Kept(at(to)),
-            None => Image::Retired(at(self.retired(e.loop_index, e.segment))),
-        })
+        let retired = || {
+            Some(Image::Retired(at(
+                self.retired_canonical(e.loop_index, e.segment)
+            )))
+        };
+        let Some(a) = self.old_anchor(e.loop_index) else {
+            return retired();
+        };
+        if e.segment >= a.len {
+            return retired();
+        }
+        match self.kept(a.program_loop, a.segment(e.segment)) {
+            Some((li, s)) => {
+                let (cl, na) = self.new_anchor(li);
+                Some(Image::Kept(at((cl, na.canonical_segment(s)))))
+            }
+            None => retired(),
+        }
     }
 
     /// The image of a vertex locator, carried by the segment arriving
-    /// at it; `None` where it is already retired.
+    /// at it IN PROGRAM ORDER — canonical in, canonical out; `None`
+    /// where it is already retired.
     fn vertex(&self, v: ProfileVertexRef) -> Option<Image<ProfileVertexRef>> {
         use crate::program::program_index as ix;
         if already_retired(v.loop_index, v.vertex) {
             return None;
         }
         let at = |(loop_index, vertex)| ProfileVertexRef { loop_index, vertex };
-        let retired = || Some(Image::Retired(at(self.retired(v.loop_index, v.vertex))));
-        let Some(n_old) = self.old.get(v.loop_index as usize).map(Vec::len) else {
+        let retired = || {
+            Some(Image::Retired(at(
+                self.retired_canonical(v.loop_index, v.vertex)
+            )))
+        };
+        let Some(a) = self.old_anchor(v.loop_index) else {
+            return retired();
+        };
+        let Some(n_old) = self.old.get(a.program_loop as usize).map(Vec::len) else {
             return retired();
         };
         if n_old == 0 || v.vertex as usize >= n_old {
             return retired();
         }
-        let arriving = (v.vertex as usize + n_old - 1) % n_old;
-        let Some((loop_index, segment)) = self.kept(v.loop_index, ix(arriving)) else {
+        let program_vertex = a.vertex(v.vertex) as usize;
+        let arriving = (program_vertex + n_old - 1) % n_old;
+        let Some((loop_index, segment)) = self.kept(a.program_loop, ix(arriving)) else {
             return retired();
         };
         let n_new = self.new_len.get(loop_index as usize).copied().unwrap_or(0);
         if n_new == 0 {
             return retired();
         }
-        Some(Image::Kept(at((loop_index, (segment + 1) % n_new))))
+        let (cl, na) = self.new_anchor(loop_index);
+        Some(Image::Kept(at((
+            cl,
+            na.canonical_vertex((segment + 1) % n_new),
+        ))))
     }
 }
 
@@ -3805,14 +3899,47 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // whose record the checked door refuses, has no readable
             // spans, so nothing can be mapped and every name on it
             // strands — reported, never guessed.
+            //
+            // The names hold CANONICAL locators, so each side's naming
+            // anchor is derived here from its own replayed loops — the
+            // derivation the evaluation makes where the program
+            // validates. An old program that replays and does not
+            // validate still published its names under an evaluation
+            // that did, and the canonical form keeps the authored start,
+            // so its anchor is only each loop's canonical position and
+            // sense: read off the replay alone
+            // (`eval::anchor::replay_naming`), stranding only the loops
+            // whose sense or order that cannot decide.
             let old_replayed = payload.replay_records(&env, tol).ok();
-            let old_checked = old_replayed
-                .as_ref()
-                .and_then(|(loops, records)| checked_replay(old_loops, loops, records).ok());
+            let old_checked = old_replayed.as_ref().and_then(|(loops, records)| {
+                let checked = checked_replay(old_loops, loops, records).ok()?;
+                let naming = match crate::eval::naming_of(loops, tol) {
+                    Some(n) => n.loops.into_iter().map(Some).collect(),
+                    None => crate::eval::replay_naming(loops).unwrap_or_default(),
+                };
+                Some((checked, naming))
+            });
+            let Some(new_naming) = crate::eval::naming_of(&new_loops, tol) else {
+                unreachable!(
+                    "the new program validated at this door a moment ago, and its naming \
+                     anchor is an exact reindexing of those same loops"
+                )
+            };
+            // The replay-only reading is the validated one wherever both
+            // exist — checked on every program this door admits, so the
+            // rule the old side falls back to cannot drift from the one
+            // it stands in for.
+            debug_assert_eq!(
+                crate::eval::replay_naming(&new_loops),
+                Some(new_naming.loops.iter().copied().map(Some).collect()),
+                "the replay-only naming anchor disagrees with the validated one"
+            );
             let map = SegmentMap::build(
-                old_checked.as_deref(),
+                old_checked
+                    .as_ref()
+                    .map(|(checked, naming)| (checked.as_slice(), naming.clone())),
                 old_loops.len(),
-                &new_checked,
+                (&new_checked, new_naming),
                 provenance,
             )
             .map_err(refused)?;

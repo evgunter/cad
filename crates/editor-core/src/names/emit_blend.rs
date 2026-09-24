@@ -56,8 +56,9 @@
 //! row, and a name built from any tied upstream is deferred into
 //! [`super::defer::TieRows`] rather than inserted one member at a
 //! time. That is what a tie needs: its members all carry the SAME
-//! name, so the flush hands the whole candidate list to `insert_tied`
-//! at once, and `Duplicate` keeps meaning what it says — the
+//! name, so the flush hands the whole candidate list to
+//! [`super::defer::narrow_into`] at once, and `Duplicate` keeps
+//! meaning what it says — the
 //! no-silent-aliasing bug, never a legitimate N2 tie.
 //!
 //! A role that wraps SEVERAL upstream names is tie-descended when ANY
