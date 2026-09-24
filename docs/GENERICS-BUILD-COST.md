@@ -611,9 +611,8 @@ runner restored:
 
 The six test rows each way, same three runs (job-minutes, summed over the
 six legs): default 4.7 / 10.7 / 5.1, interval 28.7 / 38.7 / 31.7. The
-interval rows run the WHOLE suite at the certified scalar and hold the
-run's critical path (the ε = 1e-12 leg); the default rows are the part a
-run stops paying.
+interval rows run the WHOLE suite at the certified scalar; the default
+rows are the part a run stops paying.
 
 The gate reads the three-run aggregate — +31 % job wall, +36 % archive
 step — which is inside the ratified ~+36 % and under +50 %; one of the
@@ -644,9 +643,27 @@ is the spec's one local pair and nothing reads it.
 interval lane's build, lint and test rows were already the superset of the
 default lane's, and their content now runs under the default rows' names
 (`build + archive`, `clippy`, `test (eps = …, n/2)`), while the default
-rows' separate f64-only runs are gone. A code-tier run saves roughly the
-default lane's build, clippy and six test legs; its critical path does not
-move, because the ε = 1e-12 leg that held it is the same leg.
+rows' separate f64-only runs are gone.
+
+What a code-tier run costs after it, read on run 35979996296 (head
+`bafb21a81f`, every job green): **136.8 job-minutes**, against 133.2 /
+148.0 / 137.6 on the three runs of the table above. Its render lane's tour
+step was served from the tour-output cache (the same inputs had been walked
+on run 35978891191 minutes earlier, 7.6 job-minutes); uncached it is about
+143.8. So the fold's saving — the default lane's build, clippy and six test
+legs — is roughly spent again, not banked: the certified code now compiles
+into every build, the release tour builds included. The tessellation-budget
+sweep step reads 116 s on base run 35947793407 and 217 s here, of which
+203 s is the release build (`pncad` and `demo-tour` the long units) and
+13 s the walk; the render lane's `demo tour` step reads 116 s at the base
+and 191 s on 35978891191, its build included and not split out. Neither
+walk narrates the certified cells: they
+run in `demo-tour certified`, which only `demos tour suite` invokes.
+
+The critical path is `k-lint (gate, release-default)`, which needs only
+the change filter: 29.5 min on base run 35947793407 and 26.7 min here
+(its `demos tour suite` step 1569 s), against `build + archive` plus the
+slowest test leg at 9.0 + 15.2 = 24.2 min. The fold did not move it.
 
 ---
 
