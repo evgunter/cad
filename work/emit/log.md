@@ -527,6 +527,32 @@ Filed:
 - P1 `the-viewer-drops-every-dm7-rename-report`
 - P2 `the-value-edit-numbering-check-costs-a-replay-per-swept-profile`
 
+## 2026-09-24 — a parent's held names rebind silently across a pin update (PR 3187)
+
+Measured, and the row stays P0. A part inserts a leg before its
+wall 1. The part's own door reports the rebind for names the part
+holds. A parent that painted `InPart { part wall 1 }` then moves its
+pin: `UpdateReference` reports nothing, and the held spelling now
+denotes the leg. The new row `asm_parent_held_names` pins that
+behaviour.
+
+The fix needs new persisted state. Nothing connects an old pin to a
+new one at `UpdateReference`:
+- rename rows are not logged;
+- the store keeps one snapshot per id;
+- two snapshots cannot say whether a leg was inserted or a wall was
+  replaced.
+
+The fix would be a per-version rename ledger that `UpdateReference`
+carries as data. The PR lists every carrier that holds a name across
+a document boundary.
+
+The loud interim (strand every held name at every pin move) is not
+landed: it would break every mate on every update. The row is
+`needs_ev`, together with
+`a-value-edits-last-published-numbering-is-not-recipe-state`, whose
+option A is the per-document half of the same ledger. Both go to Ev
+as one question.
 ## 2026-09-24 — the group-size rung reads the emitter's groups (PR 3184)
 
 `GroupResized` used to count a group by how its members' names were

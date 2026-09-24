@@ -40,7 +40,10 @@
 //! (`editor_core::clearance`). Its consumer vocabulary is a selection
 //! and a certified leaf, and the answer a document-layer consumer wants
 //! from it comes through the `min_clearance` MEASURE, which is document
-//! state and is carried by [`crate::document`].
+//! state and is carried by [`crate::document`] — together with the
+//! engine's refusal vocabulary (`ClearanceRefusal` and its payloads),
+//! because that is what the measure refuses with. The engine's doors
+//! are not.
 
 // `ParamBoxError` and `SeedError` are what `document::NodeErrorKind`'s
 // `ParamBox` and `Seed` arms hold: a payload type a consumer can match

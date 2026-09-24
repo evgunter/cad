@@ -57,3 +57,21 @@ so the rewrite was filed here rather than made; the feature tree's
 guard (`crates/editor-core/tests/refusal_concision_chains.rs`) finds a
 `Debug` struct by its shape and admits it on exactly that row
 (`FILED_DEBUG`), and removing the entry is the check that this is done.
+
+The render has since moved, unchanged (PORT, `port/min-clearance-typed`):
+`MinClearanceRefusal` is gone, `NodeErrorKind::MeasureClearanceRefused`
+carries `clearance::ClearanceRefusal` itself, and the sentence is spelled in
+`NodeErrorKind`'s `Display` arm (`crates/editor-core/src/eval/mod.rs`) from
+`ClearanceRefusal::name()` and `ClearanceRefusal::payload()`. The `Debug`
+half is `payload()`'s. Of the four arms this carrier's producer
+(`clearance::min_separation`) refuses with, `EmptyScope` and
+`NoAdmittedPair` render no payload, and `Unsupported` and `PoisonEnclosure`
+render their faces as `FaceKey` `Debug` (`FaceKey(3v1)`) — the reachable
+half of this defect. The arms that do not reach this door render no prose
+either: `Budget` renders `{k:?}` (the `Depth { max_cell_depth: 20 }` above),
+`NotADistance` the bound's hex bits, `NothingCertified`
+`refused_leaves=N`. The fix now reads the typed arm rather than a string.
+`refusal_concision_chains`' row is an `Unsupported` refusal, admitted by
+`FILED_DEBUG` for its arena key; `crates/pncad-py/src/tests.rs`'s
+`the_fourth_verbs_two_refusals_are_stable` pins prose only on the two
+payload-free arms.
