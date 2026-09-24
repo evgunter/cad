@@ -9,18 +9,21 @@
 //! must be refused by name, on that face and that loop, because a row
 //! whose honest half alone is green cannot see the arm switched off.
 //!
-//! Where the arm is silent the pair asserts the silence in BOTH
-//! directions: that is check 9's stated residue, and a residue nothing
-//! measures is a claim. The outer-loop classes this file reaches
-//! through the doors are all decided — no arc, and one circle; the
-//! silent classes are measured crate-side, in
+//! The outer-loop classes the arm decides — no arc, and one circle —
+//! are measured by such pairs. The classes it is silent on (arcs over
+//! three or more vertices, and arcs over fewer that are not one
+//! circle) are measured here too, as a pair whose honest body
+//! validates and whose inversion, with the silent class as its outer
+//! loop, draws no check-9 word at all: that is check 9's stated
+//! residue, and a residue nothing measures is a claim. The
+//! `ArcParity` gate is also asserted crate-side, in
 //! `validate::tests::an_arc_bearing_outer_loop_is_the_gates_residue`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, FaceKey, FaceSurface, LoopKey, ValidationError};
+use topo::{Body, FaceKey, FaceSurface, LoopBoundary, LoopKey, MevSite, ValidationError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -237,9 +240,9 @@ fn a_plate_with_one_rounded_end_still_refuses_its_inversion() {
 fn an_annular_face_is_decided() {
     let body = plate(&[&circle(0.0, 0.0, 2.0), &circle(0.0, 0.0, 0.5)], 0.3);
     nested_then_inverted("annulus face: both loops discs", &body);
-    // An off-centre hole: its vertices sit at different radii of the
-    // outer disc, so the margin read is not the same one at every
-    // query.
+    // An off-centre hole: the two circles do not share a centre, so
+    // the inversion's radial margin is taken about the hole's centre,
+    // not about the origin its ring (the large circle) is centred on.
     let body = plate(&[&circle(0.0, 0.0, 2.0), &circle(1.2, 0.3, 0.4)], 0.3);
     nested_then_inverted("annulus face, eccentric hole", &body);
     // A polygonal outer loop with a round hole: the honest face is the
@@ -248,6 +251,115 @@ fn an_annular_face_is_decided() {
     // outside it.
     let body = plate(&[&rect(-2.0, -2.0, 2.0, 2.0), &circle(0.0, 0.0, 0.5)], 0.3);
     nested_then_inverted("round hole in a square plate", &body);
+    // The converse: a disc outer loop holding a POLYGONAL ring. The
+    // honest face is decided through the disc; its inversion's outer
+    // loop is the square.
+    let body = plate(&[&circle(0.0, 0.0, 2.0), &rect(-0.5, -0.5, 0.5, 0.5)], 0.3);
+    nested_then_inverted("square hole in a round plate", &body);
+}
+
+/// A lone-vertex ring — `kemr`'s mint — planted on `face` at the
+/// in-plane point `(x, y)`: a strut grown from the face's outer loop,
+/// then its edge killed, both through public Euler doors.
+fn plant_lone_vertex(body: &Body<f64>, face: FaceKey, x: f64, y: f64) -> (Body<f64>, LoopKey) {
+    let mut out = body.clone();
+    let outer = out.get_face(face).unwrap().outer;
+    let LoopBoundary::Cycle { first } = out.get_loop(outer).unwrap().boundary else {
+        panic!("the outer loop is a cycle")
+    };
+    let start = out.get_half_edge(first).unwrap().start;
+    let z = out
+        .get_point(out.get_vertex(start).unwrap().point)
+        .unwrap()
+        .z;
+    let strut = out
+        .mev_line(
+            MevSite::Fan {
+                he1: first,
+                he2: first,
+            },
+            geom_core::Point3::new(x, y, z),
+            tol(),
+        )
+        .expect("the strut");
+    let ring = out
+        .kemr(strut.he_plus, strut.he_minus)
+        .expect("the lone vertex")
+        .ring;
+    (out, ring)
+}
+
+/// **A lone-vertex ring on a disc outer loop is decided on its one
+/// point**, in all three outcomes the radial decide has: inside is
+/// silent, outside is refused naming the ring, and a vertex whose
+/// radial margin lands between the band's coincidence and escalation
+/// thresholds is reported UNDECIDED rather than read as nested. The
+/// last is reachable only through a lone vertex: on a cycle ring the
+/// contact arms decide the same radial gap first and report the pair
+/// as meeting or escalated before the nesting arm runs.
+#[test]
+fn a_lone_vertex_ring_on_a_disc_outer_loop() {
+    let body = plate(&[&circle(0.0, 0.0, 2.0), &circle(0.0, 0.0, 0.5)], 0.3);
+    let (face, _, _) = first_ringed(&body);
+    let (inside, _) = plant_lone_vertex(&body, face, 1.2, 0.4);
+    let words = check_9_words(&inside);
+    assert!(words.is_empty(), "a lone vertex inside: {words:?}");
+    let (outside, ring) = plant_lone_vertex(&body, face, 3.0, 0.4);
+    let words = check_9_words(&outside);
+    assert!(
+        words.iter().any(|w| w.contains("RingOutsideOuter")
+            && w.contains(&format!("{face:?}"))
+            && w.contains(&format!("{ring:?}"))),
+        "a lone vertex outside must be refused by name; got {words:?}"
+    );
+    // Inside the circle by the geometric mean of the band's two
+    // thresholds (ε and K·ε), which is strictly between them for any
+    // K > 1 at every ε row.
+    let margin = tol().eps() * tol().k().sqrt();
+    let (in_band, ring) = plant_lone_vertex(&body, face, 0.0, 2.0 - margin);
+    let words = check_9_words(&in_band);
+    assert!(
+        words.iter().any(|w| w.contains("RingNestingUndecided")
+            && w.contains(&format!("{face:?}"))
+            && w.contains(&format!("{ring:?}"))),
+        "an in-band lone vertex must be reported undecided; got {words:?}"
+    );
+}
+
+/// **The two classes the arm is silent on stay silent, in both
+/// directions.** A rectangular plate carrying a hole whose loop bears
+/// arcs and is not one circle: the honest body is decided (its outer
+/// loop is the rectangle) and validates; its inversion's outer loop is
+/// the hole, whose region no exact instrument expresses, so the ring
+/// lying outside it draws no check-9 word. A half-disc (an arc and its
+/// chord, two vertices) is `NoWalk`; a slot (two semicircular ends of
+/// two different circles, four vertices) is `ArcParity`. What closes
+/// both is `work/atrest/check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk`.
+#[test]
+fn the_silent_classes_are_silent_in_both_directions() {
+    let half_disc = vec![(-1.0, 0.0, 0.0), (1.0, 0.0, 1.0)];
+    let slot = vec![
+        (-0.5, -0.2, 0.0),
+        (0.5, -0.2, 1.0),
+        (0.5, 0.2, 0.0),
+        (-0.5, 0.2, 1.0),
+    ];
+    for (name, hole) in [("NoWalk: half-disc", half_disc), ("ArcParity: slot", slot)] {
+        let body = plate(&[&rect(-2.0, -2.0, 2.0, 2.0), &hole], 0.3);
+        let words = check_9_words(&body);
+        assert!(words.is_empty(), "[{name}] honest: {words:?}");
+        assert_eq!(
+            topo::validate_geometric(&body, tol()),
+            Ok(()),
+            "[{name}] the honest body validates"
+        );
+        let (inverted, _, _) = invert_the_glue(&body);
+        let words = check_9_words(&inverted);
+        assert!(
+            words.is_empty(),
+            "[{name}] the arm's residue: the inversion must draw no check-9 word; got {words:?}"
+        );
+    }
 }
 
 /// **Every shelled vessel of revolution carries an annular rim, and it
@@ -306,7 +418,8 @@ fn a_shelled_vessel_of_revolution_certifies_and_its_inverted_rim_does_not() {
 /// **`revert` does not move the finding.** It reverses every cycle and
 /// flips every sense; the chart normal reaches the containment walk
 /// unmultiplied by the face's sense, and that walk's verdict is
-/// invariant under the normal's sign. The WITNESS may move — the walk
+/// invariant under the normal's sign — and the disc class's radial
+/// decide reads no orientation at all. The WITNESS may move — the walk
 /// stops at the first vertex in cycle order that reads outside, and
 /// reversing the cycle changes which that is — so the comparison here
 /// is by variant, as `RingOutsideOuter`'s own doc says it must be.
@@ -327,6 +440,10 @@ fn revert_does_not_move_the_verdict() {
                 1.0,
             ),
         ),
+        (
+            "annulus: the disc class",
+            plate(&[&circle(0.0, 0.0, 2.0), &circle(0.4, -0.3, 0.5)], 0.3),
+        ),
     ] {
         let (inverted, _, _) = invert_the_glue(&body);
         for (tag, body) in [("honest", body.clone()), ("inverted", inverted)] {
@@ -337,6 +454,11 @@ fn revert_does_not_move_the_verdict() {
                     .collect()
             };
             let reverted = body.revert().expect("the body reverts");
+            assert_eq!(
+                variants(&body).is_empty(),
+                tag == "honest",
+                "[{name}/{tag}] the honest body is silent and its inversion refused"
+            );
             assert_eq!(
                 variants(&body),
                 variants(&reverted),
