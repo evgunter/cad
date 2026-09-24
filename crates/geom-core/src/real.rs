@@ -1306,14 +1306,18 @@ pub mod bounds_allowlist {
     //! **What it owes "brackets never decide", stated at the substance and
     //! not at the grep.** ONE `lo` call appears in `validate.rs`, and it is
     //! disclosed here rather than left to be discovered: check 1's
-    //! [`Bounds::lo`](super::Bounds::lo) of a torus's tube radius, the
-    //! representability read. The certified half's own bracket read is
-    //! `props`' certified quadrature, already ratified at the `props.rs`
-    //! seam; this one compares a STORED DATUM's lower bound with zero — a
-    //! tube radius that is zero, negative or poison does not describe a small
-    //! torus, it fails to describe one — so the read is about whether the
-    //! datum is a number at all and not about where geometry lies, and the
-    //! value never crosses into a certificate. It takes no `k_stats` name and
+    //! [`Bounds::lo`](super::Bounds::lo) of each representability margin an
+    //! analytic surface's conventions state (`geom`'s
+    //! `Surface::representability_margins` — a cylinder's, sphere's or
+    //! torus tube's radius, and a cone half-angle's distance from each end
+    //! of `(0, π/2)`), the representability read. The certified half's own
+    //! bracket read is `props`' certified quadrature, already ratified at
+    //! the `props.rs` seam; this one compares a STORED DATUM's margin inside
+    //! its convention with zero — a radius that is zero, negative or poison
+    //! does not describe a small cylinder, sphere or torus, it fails to
+    //! describe one — so the read is about whether the datum lies inside
+    //! the convention its variant states and not about where geometry lies,
+    //! and the value never crosses into a certificate. It takes no `k_stats` name and
     //! no band precisely because it meters nothing — the chamfer's
     //! `NonpositiveSize` precedent — and the geometric question beside it
     //! (`R - r`) does go through `decide`. `S88`'s named blind spot (a

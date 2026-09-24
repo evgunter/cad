@@ -330,6 +330,270 @@ fn the_net_state_ladder_decides_check_1s_verdict() {
     }
 }
 
+/// The check-1 datum verdicts a body draws, in report order.
+fn datum_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
+    errs.iter()
+        .filter(|e| {
+            matches!(
+                e,
+                ValidationError::PoisonedSurfaceDatum { .. }
+                    | ValidationError::UnrepresentableSurfaceDatum { .. }
+            )
+        })
+        .cloned()
+        .collect()
+}
+
+fn cylinder(radius: f64) -> Surface<f64> {
+    Surface::Cylinder {
+        origin: pt(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        radius,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+fn sphere(radius: f64) -> Surface<f64> {
+    Surface::Sphere {
+        center: pt(0.0, 0.0, 0.0),
+        radius,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+fn cone(half_angle: f64) -> Surface<f64> {
+    Surface::Cone {
+        apex: pt(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        half_angle,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+fn torus(major_radius: f64, minor_radius: f64) -> Surface<f64> {
+    Surface::Torus {
+        center: pt(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        major_radius,
+        minor_radius,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
+    Surface::Plane {
+        origin,
+        normal,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+/// **Check 1 names an analytic surface's datum when it describes no
+/// locus**, on the tier-3-clean pillow with one face's surface swapped:
+/// the datum verdict is the FIRST finding the body draws — check 1 runs
+/// before the checks that read the surface for other questions — and it
+/// names the face, the kind and the datum.
+///
+/// Two halves. A datum that is not a number (NaN or `±∞`), or a plane
+/// normal that is the zero vector, is `PoisonedSurfaceDatum`; a finite
+/// datum outside its variant's convention is
+/// `UnrepresentableSurfaceDatum`. The first six rungs are the
+/// measurement the carried row took before check 1 read any analytic
+/// datum, when every one of them was refused only by checks 3–5's
+/// escalations.
+#[test]
+fn check_1_names_the_analytic_datum_that_describes_no_locus() {
+    use geom::SurfaceDatum as D;
+    use geom_brep::SurfaceKind as K;
+    enum Verdict {
+        Poisoned,
+        Unrepresentable,
+    }
+    let tol = Tol::witness();
+    let o = pt(0.0, 0.0, 0.0);
+    let cases: Vec<(&str, Surface<f64>, K, D, Verdict)> = vec![
+        (
+            "plane, NaN origin",
+            plane(pt(f64::NAN, 0.0, 0.0), Vec3::unit_z()),
+            K::Plane,
+            D::Origin,
+            Verdict::Poisoned,
+        ),
+        (
+            "plane, zero normal",
+            plane(o, Vec3::new(0.0, 0.0, 0.0)),
+            K::Plane,
+            D::Normal,
+            Verdict::Poisoned,
+        ),
+        (
+            "plane, NaN normal",
+            plane(o, Vec3::new(f64::NAN, f64::NAN, f64::NAN)),
+            K::Plane,
+            D::Normal,
+            Verdict::Poisoned,
+        ),
+        (
+            "cylinder, NaN radius",
+            cylinder(f64::NAN),
+            K::Cylinder,
+            D::Radius,
+            Verdict::Poisoned,
+        ),
+        (
+            "sphere, zero radius",
+            sphere(0.0),
+            K::Sphere,
+            D::Radius,
+            Verdict::Unrepresentable,
+        ),
+        (
+            "cone, NaN half-angle",
+            cone(f64::NAN),
+            K::Cone,
+            D::HalfAngle,
+            Verdict::Poisoned,
+        ),
+        (
+            "plane, infinite origin",
+            plane(pt(0.0, f64::INFINITY, 0.0), Vec3::unit_z()),
+            K::Plane,
+            D::Origin,
+            Verdict::Poisoned,
+        ),
+        (
+            "plane, NaN u_ref",
+            Surface::Plane {
+                origin: o,
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::new(f64::NAN, 0.0, 0.0),
+            },
+            K::Plane,
+            D::URef,
+            Verdict::Poisoned,
+        ),
+        (
+            "cylinder, negative radius",
+            cylinder(-1.0),
+            K::Cylinder,
+            D::Radius,
+            Verdict::Unrepresentable,
+        ),
+        (
+            "cylinder, infinite radius",
+            cylinder(f64::INFINITY),
+            K::Cylinder,
+            D::Radius,
+            Verdict::Poisoned,
+        ),
+        (
+            "sphere, negative radius",
+            sphere(-2.0),
+            K::Sphere,
+            D::Radius,
+            Verdict::Unrepresentable,
+        ),
+        (
+            "cone, zero half-angle",
+            cone(0.0),
+            K::Cone,
+            D::HalfAngle,
+            Verdict::Unrepresentable,
+        ),
+        (
+            "cone, half-angle pi/2",
+            cone(core::f64::consts::FRAC_PI_2),
+            K::Cone,
+            D::HalfAngle,
+            Verdict::Unrepresentable,
+        ),
+        (
+            "cone, half-angle past pi/2",
+            cone(2.0),
+            K::Cone,
+            D::HalfAngle,
+            Verdict::Unrepresentable,
+        ),
+        (
+            "torus, zero tube",
+            torus(2.0, 0.0),
+            K::Torus,
+            D::MinorRadius,
+            Verdict::Unrepresentable,
+        ),
+        (
+            "torus, NaN tube",
+            torus(2.0, f64::NAN),
+            K::Torus,
+            D::MinorRadius,
+            Verdict::Poisoned,
+        ),
+        (
+            "torus, infinite major radius",
+            torus(f64::INFINITY, 0.5),
+            K::Torus,
+            D::MajorRadius,
+            Verdict::Poisoned,
+        ),
+    ];
+    for (name, surface, kind, datum, verdict) in cases {
+        let (errs, face) = pillow_on(surface, tol);
+        let expected = match verdict {
+            Verdict::Poisoned => ValidationError::PoisonedSurfaceDatum { face, kind, datum },
+            Verdict::Unrepresentable => {
+                ValidationError::UnrepresentableSurfaceDatum { face, kind, datum }
+            }
+        };
+        assert_eq!(
+            errs.first(),
+            Some(&expected),
+            "{name}: check 1's datum verdict is the first finding: {errs:?}",
+        );
+        assert_eq!(
+            datum_verdicts(&errs),
+            vec![expected],
+            "{name}: one datum verdict, on the swapped face: {errs:?}",
+        );
+    }
+}
+
+/// The control, and the boundary on the inside: surfaces whose every
+/// datum is a number inside its convention draw no datum verdict,
+/// whatever else the swap costs the body — a cone just inside either
+/// end of `(0, π/2)` and a plane whose normal underflows its length
+/// without being zero included.
+#[test]
+fn datums_inside_their_conventions_draw_no_datum_verdict() {
+    let tol = Tol::witness();
+    let cases: Vec<(&str, Surface<f64>)> = vec![
+        ("unit cylinder", cylinder(1.0)),
+        ("unit sphere", sphere(1.0)),
+        ("cone at pi/4", cone(core::f64::consts::FRAC_PI_4)),
+        ("cone just above 0", cone(1e-9)),
+        (
+            "cone just below pi/2",
+            cone(core::f64::consts::FRAC_PI_2 - 1e-9),
+        ),
+        ("ring torus", torus(2.0, 0.5)),
+        (
+            "plane, normal underflowed but not zero",
+            plane(pt(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e-200)),
+        ),
+    ];
+    for (name, surface) in cases {
+        let (mut body, split) = coplanar_pillow(tol);
+        body.set_face_surface(split.face, FaceSurface::New(surface))
+            .unwrap();
+        let errs = validate_geometric(&body, tol).err().unwrap_or_default();
+        assert_eq!(
+            datum_verdicts(&errs),
+            vec![],
+            "{name}: a datum inside its convention earns no verdict: {errs:?}",
+        );
+    }
+}
+
 #[test]
 fn wrong_cache_at_rest_is_rejected_by_tier3() {
     let tol = Tol::witness();

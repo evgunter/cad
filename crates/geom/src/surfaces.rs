@@ -709,6 +709,34 @@ mod tests {
         Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0)
     }
 
+    /// The cone's two margins place each end of `(0, π/2)` exactly: the
+    /// datum AT an end has a margin of zero (not a small positive one),
+    /// and a datum a step inside has two positive margins. A bound
+    /// written as `π − α` or `α − π/2` reds here.
+    #[test]
+    fn cone_margins_vanish_exactly_at_each_end_of_the_convention() {
+        let cone = |half_angle: f64| Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            half_angle,
+            u_ref: Vec3::unit_x(),
+        };
+        let margins = |a: f64| -> Vec<f64> {
+            cone(a)
+                .representability_margins()
+                .into_iter()
+                .map(|(datum, m)| {
+                    assert_eq!(datum, SurfaceDatum::HalfAngle);
+                    m
+                })
+                .collect()
+        };
+        assert_eq!(margins(0.0), vec![0.0, FRAC_PI_2]);
+        assert_eq!(margins(FRAC_PI_2), vec![FRAC_PI_2, 0.0]);
+        assert!(margins(FRAC_PI_6).iter().all(|m| *m > 0.0));
+        assert!(margins(2.0)[1] < 0.0);
+    }
+
     fn t_uref() -> Vec3<f64> {
         Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0)
     }
