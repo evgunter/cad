@@ -1524,3 +1524,20 @@ for Ev; step/job-name qualifiers left (cache keys, mirror markers).
 Fix pass dispatched on Opus ~08:45Z (`ring4-fix-pass.md`). The
 reviewer ran its mutations without a classifier refusal (contrast
 RING-3's R2).
+
+## RING-3 fix pass green; waiting on Ev (2026-09-24)
+
+Fix pass (Opus, 395,515 tokens, 141 min harness): nine items, all
+taken, none refuted; head `32a0a34c6c`, run 35982519765 green, full
+matrix. The census walks door-callers ∪ the base's 26 holders (with an
+existence row); `ssi/certify.rs`'s chart tube refuses a refused span
+hull (a false certification now refuses; no corpus row moved); the
+`hull` consumer row and the `nurbs.rs` white-box pin; C2 re-worded
+naming-only for Ev. Not anticipated: main's own red on `geom`'s
+`f5_insert_refine_elevate…` fuzz at a fresh seed (bit-identical on
+main), fixed in the row by a tolerance scaled by the closest knot gap
+(measured bound ×17 headroom; precedent in the same row, 2026-08) with
+the kernel conditioning filed on NURBS — put to Ev on the PR as
+separable. The DR row is drafted (`ring3-dual-row.md`) and held until
+merge so it rides last after any main merge. Ready-for-sign-off
+comment posted on #3153; `needs_ev` stands.
