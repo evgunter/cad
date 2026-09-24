@@ -942,65 +942,132 @@ fn the_public_sense_door_inversion_of_an_arc_loft_is_refused_at_its_caps() {
     assert_eq!(role_inversions(&errs), planar_arm_reaches(&square));
 }
 
-/// PROBE (temporary): the reviewer's C-shape.
+/// The C-shape: a counterclockwise region bounded by ONE convex 350°
+/// arc of radius 1 (from 1∠5° to 1∠355°), a radial line in to
+/// 0.9∠355°, a clockwise polyline through 0.9∠270°, 0.9∠180°, 0.9∠90°
+/// to 0.9∠5°, and a radial line out. Twice its true area is +2.87, but
+/// its vertex polygon winds CLOCKWISE (−3.41), and so does the polygon
+/// of its vertices plus the arc's apex (−3.06): a convex arc makes the
+/// inscribed polygon smaller than the region, and a big one flips it.
+fn c_shape(dx: f64) -> Vec<ProfileLoop<f64>> {
+    let d = |deg: f64, r: f64| p2(dx + r * deg.to_radians().cos(), r * deg.to_radians().sin());
+    vec![ProfileLoop::new(vec![
+        ProfileVertex::new(d(5.0, 1.0), 87.5f64.to_radians().tan()),
+        ProfileVertex::new(d(355.0, 1.0), 0.0),
+        ProfileVertex::new(d(355.0, 0.9), 0.0),
+        ProfileVertex::new(d(270.0, 0.9), 0.0),
+        ProfileVertex::new(d(180.0, 0.9), 0.0),
+        ProfileVertex::new(d(90.0, 0.9), 0.0),
+        ProfileVertex::new(d(5.0, 0.9), 0.0),
+    ])]
+}
+
+/// The planar faces of `body` as `(face, outer loop, stored plane
+/// origin z, stored plane normal z)`.
+fn planar_caps(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey, f64, f64)> {
+    body.faces()
+        .filter_map(|(k, f)| match body.get_surface(f.surface) {
+            Some(Surface::Plane { origin, normal, .. }) => Some((k, f.outer, origin.z, normal.z)),
+            _ => None,
+        })
+        .filter(|&(_, l, _, _)| {
+            loop_carriers(body, l)
+                .iter()
+                .any(|c| matches!(c, geom::Curve3::Circle { .. }))
+        })
+        .collect()
+}
+
+/// **MEASURED PRODUCER DEFECT: `extrude` and `loft_body` mint the
+/// C-shape's caps inside out, and check 6 refuses them at rest.** Both
+/// verbs orient a cap's plane by Newell over the profile's vertices
+/// plus one apex per arc (`sweep`'s `cap_points`), which on the C-shape
+/// winds against the region. The minted body's bottom cap (z = 0)
+/// carries a `+z` plane normal and its top cap (z = 1) a `−z` one, both
+/// with `sense: true` — each cap's outward normal points INTO the
+/// material. Before check 6 reached arc-bearing loops tier 3 certified
+/// this body; now it refuses exactly the two caps.
+///
+/// Filed as
+/// `work/carve/sweep-cap-plane-winds-against-a-convex-arc-region.md`.
+///
+/// **How it goes red.** The day the verbs orient the cap by the
+/// region's arc-exact winding, the normal assertions fail and the row
+/// is re-cut to "the C-shape certifies". An arm that stopped reaching
+/// arc-bearing loops leaves the body `Ok` and `expect_err` fails. The
+/// runtime values are the stored plane normals and the error vectors.
 #[test]
-fn probe_c_shape_cap_orientation() {
+fn a_convex_arc_c_shape_cap_is_minted_inside_out_and_check_6_refuses_it() {
     let tol = Tol::witness();
-    let d = |deg: f64, r: f64| p2(r * deg.to_radians().cos(), r * deg.to_radians().sin());
-    let section = || {
-        vec![ProfileLoop::new(vec![
-            ProfileVertex::new(d(5.0, 1.0), 87.5f64.to_radians().tan()),
-            ProfileVertex::new(d(355.0, 1.0), 0.0),
-            ProfileVertex::new(d(355.0, 0.9), 0.0),
-            ProfileVertex::new(d(270.0, 0.9), 0.0),
-            ProfileVertex::new(d(180.0, 0.9), 0.0),
-            ProfileVertex::new(d(90.0, 0.9), 0.0),
-            ProfileVertex::new(d(5.0, 0.9), 0.0),
-        ])]
-    };
-    let mut report = String::new();
-    let caps = |body: &Body<f64>| -> String {
-        body.faces()
-            .filter_map(|(k, f)| match body.get_surface(f.surface) {
-                Some(Surface::Plane { origin, normal, .. }) => Some(format!(
-                    "{k:?} z0={:.3} nz={:.3} sense={}",
-                    origin.z, normal.z, f.sense
-                )),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-            .join("; ")
-    };
-    match Profile::new(SketchPlane::xy(), section()).validate(tol) {
-        Err(e) => report += &format!("PROFILE REFUSES: {e:?}\n"),
-        Ok(vp) => {
-            report += "profile ok\n";
-            match extrude(&vp, Extrusion::Distance(1.0), tol) {
-                Err(e) => report += &format!("EXTRUDE REFUSES: {e:?}\n"),
-                Ok(x) => {
-                    report += &format!(
-                        "extrude ok: caps [{}]; validate: {:?}\n",
-                        caps(&x.body),
-                        topo::validate_geometric(&x.body, tol)
-                    );
-                }
-            }
-        }
-    }
-    match sweep::loft_body::<f64>(
-        &[section(), section()],
+    let prof = Profile::new(SketchPlane::xy(), c_shape(0.0))
+        .validate(tol)
+        .expect("the C-shape is a valid counterclockwise profile");
+    let extruded = extrude(&prof, Extrusion::Distance(1.0), tol)
+        .expect("extrude builds the C-shape")
+        .body;
+    let lofted = sweep::loft_body::<f64>(
+        &[c_shape(0.0), c_shape(0.0)],
         &crate::common::stacked(&[0.0, 1.0], 1.0),
         1,
         tol,
-    ) {
-        Err(e) => report += &format!("LOFT REFUSES: {e:?}\n"),
-        Ok(l) => {
-            report += &format!(
-                "loft ok: caps [{}]; validate: {:?}\n",
-                caps(&l.body),
-                topo::validate_geometric(&l.body, tol)
+    )
+    .expect("loft builds the C-shape")
+    .body;
+    for (verb, body) in [("extrude", extruded), ("loft", lofted)] {
+        let caps = planar_caps(&body);
+        assert_eq!(caps.len(), 2, "{verb}: two arc-bearing caps");
+        for &(face, _, z, nz) in &caps {
+            let sense = body.get_face(face).expect("live").sense;
+            let outward_z = if sense { nz } else { -nz };
+            assert!(
+                (z < 0.5 && outward_z > 0.0) || (z > 0.5 && outward_z < 0.0),
+                "MEASURED PRODUCER DEFECT: {verb}'s cap at z = {z} has outward normal \
+                 z-component {outward_z}, into the material; if this now points out, the \
+                 verb is fixed — re-cut this row to the body certifying"
             );
         }
+        let errs =
+            topo::validate_geometric(&body, tol).expect_err("check 6 refuses the inside-out caps");
+        let mut want: Vec<(FaceKey, topo::LoopKey)> =
+            caps.iter().map(|&(f, l, _, _)| (f, l)).collect();
+        want.sort();
+        assert_eq!(
+            role_inversions(&errs),
+            want,
+            "{verb}: exactly the two caps refuse"
+        );
     }
+}
+
+/// PROBE (temporary): the C-shape through a partial revolve.
+#[test]
+fn probe_c_shape_partial_revolve() {
+    let tol = Tol::witness();
+    let r = revolve(
+        &validated(c_shape(3.0)),
+        axis_y(),
+        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol,
+    );
+    let report = match r {
+        Err(e) => format!("REVOLVE REFUSES: {e:?}"),
+        Ok(x) => {
+            let caps: Vec<String> = x
+                .body
+                .faces()
+                .filter_map(|(k, f)| match x.body.get_surface(f.surface) {
+                    Some(Surface::Plane { origin, normal, .. }) => {
+                        Some(format!("{k:?} o={origin:?} n={normal:?} sense={}", f.sense))
+                    }
+                    _ => None,
+                })
+                .collect();
+            format!(
+                "revolve ok: planes [{}]; validate: {:?}",
+                caps.join("; "),
+                topo::validate_geometric(&x.body, tol)
+            )
+        }
+    };
     panic!("PROBE REPORT\n{report}");
 }
