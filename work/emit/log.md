@@ -427,3 +427,14 @@ The project is fail-loud, so 3167 does not land alone. The P0
 `union-rim-piece-ranks-follow-fold-order-so-rim-names-rebind` is
 stacked on it and dispatched to the same lane. The two land together
 once the probe corpus shows 0 rebinds.
+
+## 2026-09-24 — the narrowing rule has its doors (PR 3169)
+
+`name_placed_union` now narrows through `defer::narrow_into`. The
+"several ⇒ tied" minting decision, spelled at six sites plus a
+SectionEdge third form, now goes through one door,
+`defer::mint_candidates`. "A lone member keeps the base name" stays
+local at each site, because each site's discriminator would answer it
+trivially. The change is behaviour-preserving: the corpus name
+digests, the 304-cell probe and a reviewer-built ≥2-survivor
+placed-union tie are identical to main.
