@@ -227,14 +227,15 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
         .map(|e| format!("{e}"))
         .unwrap();
     assert!(
-        msg.contains(
-            "its two faces meet tangentially and their surfaces determine where the edge runs"
+        msg.starts_with(
+            "an edge where two faces meet tangentially is stored as a sketch curve, though \
+             their surfaces determine it."
         ),
         "{msg}"
     );
     assert!(
         msg.ends_with(
-            "Recourse: describe it as the TangentIntersection of its two faces' surfaces"
+            "There is no way through: this is a kernel defect or a damaged file; report it"
         ),
         "{msg}"
     );

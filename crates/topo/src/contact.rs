@@ -147,8 +147,7 @@ pub(crate) fn contradiction_reason(diag: &Indeterminate) -> &'static str {
             "the two faces face the same way, so neither rests against the other"
         }
         Some("contact_tangent_opposed") => {
-            "the two faces face the same way along the edge, so they cannot touch from \
-             opposite sides"
+            "the two faces face the same way along the edge, so neither touches the other"
         }
         Some("contact_tangent_independent") => "the faces cross at the edge rather than touch",
         Some("contact_tangent_parallel") => "the faces are not tangent along the edge",

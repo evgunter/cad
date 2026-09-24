@@ -3415,17 +3415,17 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
         );
     }
 
-    // The payload survives the rewording: an arena key still names
-    // each entity, so the prose is a diagnosis a caller can act on
-    // rather than a sentence that dropped its subject.
+    // The prose names what touched and where, in words — the keys
+    // ride in the typed payload a caller resolves against — and ends
+    // on the recourse.
     let message = census.to_string();
     assert!(
-        message.contains("vertex") && message.contains("(0.0, 0.0, 0.0)"),
+        message.contains("a vertex lying on a face at (0.0, 0.0, 0.0)"),
         "the finding still names its entities and its witness: {message}"
     );
     assert!(
-        message.contains("never blessed from discovery"),
-        "the undeclared-contact recourse is the actionable half"
+        message.ends_with("Recourse: declare the contact, or move the geometry"),
+        "the undeclared-contact recourse is the actionable half: {message}"
     );
 }
 

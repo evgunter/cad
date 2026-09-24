@@ -1188,7 +1188,7 @@ pub(crate) const CARRIER_COMPARISON_WITNESS: &str = "across the whole of both fa
 /// key (the record, which carries the key, is the caller's own). It
 /// reads after "contradicted" in [`ValidationError::ContactContradicted`]'s
 /// `Display`.
-pub(crate) const CURVE_RECORD_WITNESS: &str = "along the edge the record names";
+pub(crate) const CURVE_RECORD_WITNESS: &str = "along the declared edge";
 
 /// An impossible sign from a nonnegative margin — surfaced as the
 /// invalid-margin escalation (poison posture; never silent).
@@ -4590,17 +4590,13 @@ mod tests {
     // ================= The `None` path, observed =================
 
     /// The sentence [`ValidationError::CensusLaneUnsupported`] renders
-    /// for `pair`, so the `None` rows below pin the `Display` and not
-    /// only the variant.
-    fn lane_unsupported_sentence(pair: (FaceKey, FaceKey)) -> String {
-        format!(
-            "tier-3′ census: {} was not examined, because this structural check holds no \
-             certified chart-overlap lane at any scalar; it refuses the pair rather than skip \
-             it, and says nothing about the geometry. Recourse: run the certified check, \
-             validate_pseudomanifold, at a certifying scalar",
-            CensusSubject::FacePair(pair.0, pair.1)
-        )
-    }
+    /// — for any pair, since it names none — so the `None` rows below
+    /// pin the `Display` and not only the variant.
+    const LANE_UNSUPPORTED_SENTENCE: &str = "tier-3′ census: a pair of faces was not examined, \
+         because this structural check holds no certified chart-overlap lane at any scalar; \
+         nothing was decided about the geometry. Recourse: run the certified check \
+         (validate_pseudomanifold, or validate_pseudomanifold_certificate for a certificate) \
+         at a certifying scalar";
 
     /// The one [`ValidationError::CensusLaneUnsupported`] in `errors`,
     /// with its subject and `Display` pinned to `pair`.
@@ -4620,7 +4616,7 @@ mod tests {
                 subject: CensusSubject::FacePair(pair.0, pair.1),
             }
         );
-        assert_eq!(lane[0].to_string(), lane_unsupported_sentence(pair));
+        assert_eq!(lane[0].to_string(), LANE_UNSUPPORTED_SENTENCE);
     }
 
     /// **The `None` path at the conformal face-pair arm, observed.** The

@@ -2387,8 +2387,7 @@ impl fmt::Display for ValidationError {
                 steer,
             } => write!(
                 f,
-                "tier-3′ census: the declared {} contact between two faces is contradicted \
-                 {witness}: {}. {}{}",
+                "tier-3′ census: the declared {} contact is contradicted {witness}: {}. {}{}",
                 declaration.class.name(),
                 crate::contact::contradiction_reason(margin),
                 crate::contact::CONTRADICTION_RECOURSE,

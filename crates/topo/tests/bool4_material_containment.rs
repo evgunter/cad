@@ -300,13 +300,12 @@ fn the_embedded_cube_is_a_decided_interference() {
     // The Display is the kernel's own sentence, not a struct dump.
     let text = finding.to_string();
     assert!(text.contains("interference fit"), "{text}");
-    assert!(text.contains("material contains vertex"), "{text}");
     assert!(
-        text.contains("no declaration can admit an overlap"),
+        text.contains("two instances overlap: a corner of one lies inside the other"),
         "{text}"
     );
     assert!(
-        text.ends_with("Recourse: move the instances apart, or combine them with a Boolean op"),
+        text.ends_with("Recourse: move the instances apart"),
         "{text}"
     );
     assert!(!text.contains("InstanceInterference {"), "{text}");
