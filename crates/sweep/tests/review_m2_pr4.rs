@@ -368,7 +368,7 @@ fn survives_two_arc_hole_hand_traced_cycles() {
 #[test]
 fn survives_hole_near_outer_canonical_start() {
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
-    // Hole lex-min vertex at (0.006, 0.011): bridge chord ~0.0125 m,
+    // Hole start vertex (its authored −x point) at (0.006, 0.011): bridge chord ~0.0125 m,
     // clearance to the outer edges 0.006 m — all definite at every CI ε.
     let hole = circle_loop(0.011, 0.011, 0.005);
     let t = extrude(
@@ -552,7 +552,7 @@ fn survives_sliver_join_reports_canonical_index_both_directions() {
         p2(0.0, 1.0),
     ]);
     let vp = validated(vec![lp]);
-    // Canonical start is (0,0) (lex-min), CCW as written: the shallow
+    // Canonical start is (0,0) (the authored one), CCW as written: the shallow
     // corner is canonical vertex 1.
     assert_eq!(vp.loops()[0].vertices()[1].pos().x, 1.0);
     for d in [1.0e-3, -1.0e-3] {
