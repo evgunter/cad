@@ -280,3 +280,5 @@ mod lane2_r2_probes;
 
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
+#[path = "split_tangent_spur.rs"]
+mod split_tangent_spur;

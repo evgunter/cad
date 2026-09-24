@@ -20,17 +20,17 @@
 //! (2), and at `Interval` — the scalar this suite is about — it refuses
 //! below `Def`. **That threshold is `Interval`'s spelling of the refusal,
 //! not the whole of it**: the door refuses on each type's own poison, which
-//! at `f64` and at `RingInterval` is read off the value rather than off a
+//! at `f64` and at `Interval` is read off the value rather than off a
 //! decoration. `certified_door.rs` sweeps all four implementors against
 //! that one postcondition; these rows pin both halves here, and pin that
-//! the C9-ring crossing this crate can reach — `spline::hull`'s, through
+//! the crossing into certification arithmetic this crate can reach — `spline::hull`'s, through
 //! [`hull::domain_hull`] — follows the second door rather than the first,
 //! which is the actual defect S41 found: it read the bracket, so a `Trv`
-//! enclosure crossed into `RingInterval` as a healthy bound.
+//! enclosure crossed into `Interval` as a healthy bound.
 //!
 //! **What these rows do NOT pin, named exactly, because a roster with a
 //! count in it is what the finding was about.**
-//! `RingInterval::from_certified` is reached from four other places in
+//! `Interval::from_certified` is reached from four other places in
 //! `crates/*/src`, every one of them inside a crate that depends on this
 //! one, so no test here can call them:
 //!
@@ -53,7 +53,7 @@
 
 use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag};
 use geom_core::spline::KnotVector;
-use geom_core::{Bounds, CertifiedEnclosure, Interval, Real, RingInterval};
+use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};
 
 /// A domain violation with finite endpoints: `sqrt([−1, 4])` clamps to
 /// `[0, 2]` and records the violation only in the decoration.
@@ -155,16 +155,16 @@ fn the_certified_door_refuses_a_violated_decoration() {
     assert_eq!(2.5_f64.certified_bracket(), Some((2.5, 2.5)));
     assert!(f64::NAN.certified_bracket().is_none());
     assert_eq!(
-        RingInterval::from_bounds(-1.0, 1.0).certified_bracket(),
+        Interval::from_bounds(-1.0, 1.0).certified_bracket(),
         Some((-1.0, 1.0))
     );
-    assert!(RingInterval::poison().certified_bracket().is_none());
+    assert!(Interval::poison().certified_bracket().is_none());
 }
 
 /// The C9 hull bound over a two-coefficient degree-1 spline whose first
 /// coefficient is `c` — the shortest path from an evaluation scalar into
-/// `RingInterval` through a public door.
-fn hull_bound(c: Interval) -> RingInterval {
+/// `Interval` through a public door.
+fn hull_bound(c: Interval) -> Interval {
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     kv.with_coeffs(&[c, Interval::from_f64(1.0)])
         .unwrap()
@@ -181,7 +181,7 @@ fn the_hull_bound_refuses_exactly_where_the_decoration_degrades() {
         let c = Interval::from_bounds(a, 4.0).sqrt();
         let bound = hull_bound(c);
         assert_eq!(
-            bound.is_poison(),
+            !bound.is_certified(),
             !c.is_certified(),
             "sqrt([{a}, 4]) is {} but its hull bound is {bound:?}",
             if c.is_certified() {
@@ -218,7 +218,7 @@ fn the_crossing_follows_the_certified_door_not_the_bracket() {
 
     let bound = hull_bound(x);
     assert!(
-        bound.is_poison(),
+        !bound.is_certified(),
         "the hull crossing reproduced the BRACKET answer {bracket_answer:?} \
          as {bound:?} — it is reading `Bounds`, not `CertifiedEnclosure`. \
          The crossing's bound must require the certified door."

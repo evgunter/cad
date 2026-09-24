@@ -22,8 +22,9 @@
 
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
+use geom_core::Bounds;
 use geom_core::spline::KnotVector;
-use geom_core::{RingInterval, Tol};
+use geom_core::{Interval, Tol};
 
 use crate::shared::patch::{face_posture, oracle_patch};
 use crate::shared::ring::pt;
@@ -49,7 +50,7 @@ fn drive(
     name: &str,
     ku: &KnotVector,
     kv: &KnotVector,
-    control: &[[RingInterval; 3]],
+    control: &[[Interval; 3]],
     weights: &[f64],
     perimeter: f64,
     eps: f64,
@@ -130,7 +131,7 @@ const TWO_THIRDS: f64 = 2.0 / 3.0;
 /// (nothing dyadic) — off-grid interior knots in BOTH directions.
 /// Weights vary in u only, so the patch satisfies the exact arm's
 /// hypothesis as stated.
-fn wall() -> (KnotVector, KnotVector, Vec<[RingInterval; 3]>, Vec<f64>) {
+fn wall() -> (KnotVector, KnotVector, Vec<[Interval; 3]>, Vec<f64>) {
     let ku = KnotVector::clamped(
         vec![
             0.0, 0.0, 0.0, THIRD, THIRD, TWO_THIRDS, TWO_THIRDS, 1.0, 1.0, 1.0,
@@ -291,7 +292,7 @@ fn refusal_width_does_not_scale_with_offgrid_knot_count() {
     // refusal's `width_len` payload, which is the number it compares,
     // and it drives an EXPLICIT rectangle rather than the knot
     // vectors' domain.
-    let width = |name: &str, kv: &KnotVector, control: &[[RingInterval; 3]], weights: &[f64]| {
+    let width = |name: &str, kv: &KnotVector, control: &[[Interval; 3]], weights: &[f64]| {
         let out = nurbs_patch_face::<f64>(
             &ku,
             kv,

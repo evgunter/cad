@@ -167,12 +167,9 @@ const ROSTERS: [Roster; 4] = [
 const NOT_A_DOOR: [(&str, &str); 0] = [];
 
 /// The impls that are not door scalars, each with the reason no wiring
-/// row is owed. An entry here is an exemption and has to earn it.
-const NOT_A_DOOR_SCALAR: [(&str, &str); 1] = [(
-    "RingInterval",
-    "a bracket currency (the ring the certified reads hand back), not a scalar: it \
-     implements no `Decide`, so no door forms at it",
-)];
+/// row is owed. An entry here is an exemption and has to earn it; every
+/// `CertifiedEnclosure` implementor in the tree is a door scalar today.
+const NOT_A_DOOR_SCALAR: [(&str, &str); 0] = [];
 
 /// Where a door constructor's `impl` says the door is formed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

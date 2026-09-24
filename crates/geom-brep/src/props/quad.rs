@@ -23,9 +23,9 @@
 //! contribution is `σ·∫ u(t)·v'(t) dt` over the stored carrier
 //! interval.
 //!
-//! # The integrand substrate is the C9 ring
+//! # The integrand substrate is certification arithmetic
 //!
-//! Every enclosure here is [`RingInterval`] arithmetic — no
+//! Every enclosure here is [`Interval`] arithmetic — no
 //! transcendental is ever *evaluated* on the certified path. The two
 //! integrand families:
 //!
@@ -148,7 +148,8 @@
 //! the closed-form lanes do (f64 rounding of closed forms is the
 //! documented slack there, unchanged).
 
-use geom_core::ring_interval::RingInterval;
+use geom_core::Bounds;
+use geom_core::interval::Interval;
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{KnotVector, Span};
@@ -297,9 +298,9 @@ impl RoundOutcome {
 #[derive(Clone, Copy, Debug)]
 pub struct FaceCutBounds {
     /// Enclosure of `∮ p·n dA` (n outward; volume = Σ flux/3).
-    pub flux: RingInterval,
+    pub flux: Interval,
     /// Enclosure of the unsigned face area.
-    pub area: RingInterval,
+    pub area: Interval,
 }
 
 /// One harmonic chart channel `c₀ + c_a·cos t + c_b·sin t + c_l·t`
@@ -307,13 +308,13 @@ pub struct FaceCutBounds {
 #[derive(Clone, Copy, Debug)]
 pub struct HarmChan {
     /// The constant coefficient.
-    pub c0: RingInterval,
+    pub c0: Interval,
     /// The `cos t` coefficient.
-    pub ca: RingInterval,
+    pub ca: Interval,
     /// The `sin t` coefficient.
-    pub cb: RingInterval,
+    pub cb: Interval,
     /// The linear-in-`t` coefficient.
-    pub cl: RingInterval,
+    pub cl: Interval,
 }
 
 /// One trim-loop edge of the quadrature lane, fully bracketed by the
@@ -325,17 +326,17 @@ pub struct TrimEdgeQ {
     /// The height channel `v(t)`.
     pub v: HarmChan,
     /// Bracket of the certified interval start.
-    pub t0: RingInterval,
+    pub t0: Interval,
     /// Bracket of the certified interval end.
-    pub t1: RingInterval,
+    pub t1: Interval,
     /// Loop traversal direction (`he_plus`-forward or reversed).
     pub forward: bool,
     /// Enclosure of `(cos t₀, sin t₀)` (module docs: algebraic, from
     /// the carrier frame and the endpoint vertex point, ε-padded).
-    pub trig0: (RingInterval, RingInterval),
+    pub trig0: (Interval, Interval),
     /// The pcurve certificate envelope (metres through the map) — the
     /// map-residual honesty pad's per-edge input.
-    pub env: RingInterval,
+    pub env: Interval,
 }
 
 // ---------------------------------------------------------------------
@@ -343,39 +344,39 @@ pub struct TrimEdgeQ {
 // ---------------------------------------------------------------------
 
 /// Shorthand: a point bracket.
-fn pt(x: f64) -> RingInterval {
-    RingInterval::point(x)
+fn pt(x: f64) -> Interval {
+    Interval::point(x)
 }
 
 /// Enclosure of `cos s` for an EXACT step `s`, |s| ≤ 1.5, by the
 /// degree-8 alternating-series pair
 /// `1 − s²/2 + s⁴/24 − s⁶/720 ≤ cos s ≤ … + s⁸/40320` (truncations of
 /// an alternating series with decreasing terms — decreasing needs
-/// s² ≤ 56, ample here; both ends formed in the ring so their own
+/// s² ≤ 56, ample here; both ends formed in certification arithmetic so their own
 /// rounding is outward). Poison outside the domain.
 /// **Safe by construction, and that is why the re-mint below needs no
 /// refusal**: every operand is `pt` of a finite `f64` and every
 /// divisor is a nonzero exact point, so no step can leave a domain
 /// and `lo`/`hi` are certified brackets whose endpoints mean what
 /// they say. The same argument covers [`sin_step`].
-fn cos_step(s: f64) -> RingInterval {
+fn cos_step(s: f64) -> Interval {
     if s.is_nan() || s.abs() > 1.5 {
-        return RingInterval::poison();
+        return Interval::poison();
     }
     let s2 = pt(s).sqr();
     let s4 = s2.sqr();
     let lo = pt(1.0) - s2 / pt(2.0) + s4 / pt(24.0) - s4 * s2 / pt(720.0);
     let hi = lo + s4.sqr() / pt(40_320.0);
-    RingInterval::from_bounds(lo.lo(), hi.hi()).clamped_to(-1.0, 1.0)
+    Interval::from_bounds(lo.lo(), hi.hi()).clamped_to(-1.0, 1.0)
 }
 
 /// Enclosure of `sin s` for an EXACT step `s`, |s| ≤ 1.5: the degree-9
 /// alternating-series pair `s − s³/6 + s⁵/120 − s⁷/5040 ≤ sin s ≤
 /// … + s⁹/362880` for s ≥ 0 (decreasing terms need s² ≤ 72), mirrored
 /// by oddness for s < 0.
-fn sin_step(s: f64) -> RingInterval {
+fn sin_step(s: f64) -> Interval {
     if s.is_nan() || s.abs() > 1.5 {
-        return RingInterval::poison();
+        return Interval::poison();
     }
     let a = s.abs();
     let a1 = pt(a);
@@ -385,11 +386,11 @@ fn sin_step(s: f64) -> RingInterval {
     let a7 = a5 * a2;
     let lo = a1 - a3 / pt(6.0) + a5 / pt(120.0) - a7 / pt(5040.0);
     let hi = lo + a7 * a2 / pt(362_880.0);
-    let unit = RingInterval::from_bounds(lo.lo(), hi.hi()).clamped_to(-1.0, 1.0);
+    let unit = Interval::from_bounds(lo.lo(), hi.hi()).clamped_to(-1.0, 1.0);
     if s >= 0.0 {
         unit
     } else {
-        RingInterval::from_bounds(-unit.hi(), -unit.lo())
+        Interval::from_bounds(-unit.hi(), -unit.lo())
     }
 }
 
@@ -397,31 +398,26 @@ fn sin_step(s: f64) -> RingInterval {
 /// enclosures are given. Intersecting with [−1, 1] after every
 /// compose keeps the propagated brackets from drifting past the
 /// circle (sound: the true values lie in both).
-fn rotate(
-    c: RingInterval,
-    s: RingInterval,
-    ch: RingInterval,
-    sh: RingInterval,
-) -> (RingInterval, RingInterval) {
-    let clamp = |x: RingInterval| x.clamped_to(-1.0, 1.0);
+fn rotate(c: Interval, s: Interval, ch: Interval, sh: Interval) -> (Interval, Interval) {
+    let clamp = |x: Interval| x.clamped_to(-1.0, 1.0);
     (clamp(c * ch - s * sh), clamp(s * ch + c * sh))
 }
 
 /// `(cos, sin)` at exact offset `off` from a base enclosure:
 /// argument-halved series + double-angle squaring. `off` is halved
 /// (exactly — powers of two) until ≤ 0.05, the series pair bounds that
-/// seed (truncation below the ring's own ulp there), and the rotation
+/// seed (truncation below interval arithmetic's own ulp there), and the rotation
 /// is rebuilt by `k` double-angle steps `(c, s) → (c² − s², 2cs)` —
 /// the width amplification is 2^k on a ~1e-16 seed (≈ 1e-14 for a
 /// full-period offset), NOT the exponential-in-|off| compounding a
 /// step-march would suffer. The composed rotation is applied to the
 /// base exactly once.
-fn trig_at(base: (RingInterval, RingInterval), off: f64) -> (RingInterval, RingInterval) {
+fn trig_at(base: (Interval, Interval), off: f64) -> (Interval, Interval) {
     if off == 0.0 {
         return base;
     }
     if !off.is_finite() {
-        return (RingInterval::poison(), RingInterval::poison());
+        return (Interval::poison(), Interval::poison());
     }
     let mut seed = off;
     let mut k = 0u32;
@@ -430,7 +426,7 @@ fn trig_at(base: (RingInterval, RingInterval), off: f64) -> (RingInterval, RingI
         k += 1;
     }
     let (mut c, mut s) = (cos_step(seed), sin_step(seed));
-    let clamp = |x: RingInterval| x.clamped_to(-1.0, 1.0);
+    let clamp = |x: Interval| x.clamped_to(-1.0, 1.0);
     for _ in 0..k {
         // Double angle; `sqr` keeps the squares tight (the
         // interval-square rule).
@@ -446,26 +442,26 @@ fn trig_at(base: (RingInterval, RingInterval), off: f64) -> (RingInterval, RingI
 /// base enclosure, `d ≥ 0`: rotate to `off`, then widen by the
 /// interval rotation `cos ∈ [1 − d²/2, 1]`, `sin ∈ [0, d]` (sound for
 /// d ≤ π; larger spans fall back to the whole circle).
-fn trig_over(base: (RingInterval, RingInterval), off: f64, d: f64) -> (RingInterval, RingInterval) {
+fn trig_over(base: (Interval, Interval), off: f64, d: f64) -> (Interval, Interval) {
     if d.is_nan() || d < 0.0 || !off.is_finite() {
-        return (RingInterval::poison(), RingInterval::poison());
+        return (Interval::poison(), Interval::poison());
     }
     if d > 3.0 {
-        let full = RingInterval::from_bounds(-1.0, 1.0);
+        let full = Interval::from_bounds(-1.0, 1.0);
         return (full, full);
     }
     let at = trig_at(base, off);
     // The `.max`/`.min` below are NOT the poison-swallowing shape
-    // `RingInterval::clamped_to` exists for: `d` is a finite nonnegative
-    // f64 by the guard above, so this ring arithmetic cannot produce
+    // `Interval::clamped_to` exists for: `d` is a finite nonnegative
+    // f64 by the guard above, so this certification arithmetic cannot produce
     // poison and there is no NaN for `f64::max` to absorb. `base` is the
     // operand that can be poison, and it reaches only `trig_at`/`rotate`,
     // which clamp through `clamped_to`.
     let ch = {
         let lo = (pt(1.0) - pt(d).sqr() / pt(2.0)).lo().max(-1.0);
-        RingInterval::from_bounds(lo, 1.0)
+        Interval::from_bounds(lo, 1.0)
     };
-    let sh = RingInterval::from_bounds(0.0, d.min(1.0));
+    let sh = Interval::from_bounds(0.0, d.min(1.0));
     rotate(at.0, at.1, ch, sh)
 }
 
@@ -481,13 +477,13 @@ impl HarmChan {
             c0: self.cl,
             ca: self.cb,
             cb: -self.ca,
-            cl: RingInterval::zero(),
+            cl: Interval::zero(),
         }
     }
 
     /// Enclosure of the channel over trig enclosures `(c, s)` and a
     /// `t` bracket (fixed association order, D9).
-    fn eval(self, c: RingInterval, s: RingInterval, t: RingInterval) -> RingInterval {
+    fn eval(self, c: Interval, s: Interval, t: Interval) -> Interval {
         self.c0 + self.ca * c + self.cb * s + self.cl * t
     }
 }
@@ -499,11 +495,11 @@ impl HarmChan {
 /// `σ·∫_{a}^{b} u(t)·v'(t) dt` for one harmonic edge at `pieces`
 /// resolution, plus the edge's two honesty pads (endpoint-bracket and
 /// map-residual — the latter needs `radius` for the metric length).
-fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: RingInterval) -> RingInterval {
+fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: Interval) -> Interval {
     let (a, b) = (mid(e.t0), mid(e.t1));
     let span = b - a;
     if !(span.is_finite() && span >= 0.0) || pieces == 0 {
-        return RingInterval::poison();
+        return Interval::poison();
     }
     let du = e.u.deriv();
     let dv = e.v.deriv();
@@ -511,7 +507,7 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: RingInterval) ->
     let ddu = du.deriv();
     let ddv = dv.deriv();
     let dddv = ddv.deriv();
-    let mut total = RingInterval::zero();
+    let mut total = Interval::zero();
     #[allow(clippy::cast_precision_loss)]
     let h = span / pieces as f64;
     let h3_24 = pt(h) * pt(h).sqr() / pt(24.0);
@@ -526,14 +522,14 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: RingInterval) ->
     // arithmetic and are not the `clamped_to` hazard.
     let h2 = h * 0.5;
     let spread_c = if h2 <= 1.5 {
-        RingInterval::from_bounds((pt(1.0) - pt(h2).sqr() / pt(2.0)).lo().max(-1.0), 1.0)
+        Interval::from_bounds((pt(1.0) - pt(h2).sqr() / pt(2.0)).lo().max(-1.0), 1.0)
     } else {
-        RingInterval::from_bounds(-1.0, 1.0)
+        Interval::from_bounds(-1.0, 1.0)
     };
     let spread_s = if h2 <= 1.5 {
-        RingInterval::from_bounds(-h2.min(1.0), h2.min(1.0))
+        Interval::from_bounds(-h2.min(1.0), h2.min(1.0))
     } else {
-        RingInterval::from_bounds(-1.0, 1.0)
+        Interval::from_bounds(-1.0, 1.0)
     };
     for i in 0..pieces {
         #[allow(clippy::cast_precision_loss)]
@@ -544,7 +540,7 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: RingInterval) ->
         let fm = e.u.eval(cm, sm, pt(m)) * dv.eval(cm, sm, pt(m));
         // f'' hull over the piece (midpoint spread by ± h/2).
         let (cr, sr) = rotate(cm, sm, spread_c, spread_s);
-        let tr = RingInterval::from_bounds(p, p + h);
+        let tr = Interval::from_bounds(p, p + h);
         let f2 = ddu.eval(cr, sr, tr) * dv.eval(cr, sr, tr)
             + pt(2.0) * du.eval(cr, sr, tr) * ddv.eval(cr, sr, tr)
             + e.u.eval(cr, sr, tr) * dddv.eval(cr, sr, tr);
@@ -553,25 +549,25 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: RingInterval) ->
     // Endpoint-bracket pad: |f| near the ends times the t-bracket
     // widths (module docs).
     let (c_all, s_all) = trig_over(e.trig0, 0.0, span);
-    let t_all = RingInterval::from_bounds(a, b);
+    let t_all = Interval::from_bounds(a, b);
     let f_mag = (e.u.eval(c_all, s_all, t_all) * dv.eval(c_all, s_all, t_all)).mag();
     let wt = e.t0.width() + e.t1.width();
     let pad = f_mag * wt;
-    let total = total + RingInterval::from_bounds(-pad, pad);
+    let total = total + Interval::from_bounds(-pad, pad);
     // Map-residual pad: metric length ≤ (r·mag(u') + mag(v'))·span,
     // UV-area defect ≤ length·env/r (module docs).
     let uv_pad = (pt(edge_metric_length(e, radius)) * e.env / radius).mag();
-    let total = total + RingInterval::from_bounds(-uv_pad, uv_pad);
+    let total = total + Interval::from_bounds(-uv_pad, uv_pad);
     if e.forward { total } else { -total }
 }
 
 /// A certified upper bound on the edge's METRIC length (metres):
 /// `∫ √(r²u'² + v'²) dt ≤ (r·sup|u'| + sup|v'|)·span`.
-fn edge_metric_length(e: &TrimEdgeQ, radius: RingInterval) -> f64 {
+fn edge_metric_length(e: &TrimEdgeQ, radius: Interval) -> f64 {
     let (a, b) = (mid(e.t0), mid(e.t1));
     let span = b - a;
     let (c_all, s_all) = trig_over(e.trig0, 0.0, span);
-    let t_all = RingInterval::from_bounds(a, b);
+    let t_all = Interval::from_bounds(a, b);
     let du = e.u.deriv();
     let dv = e.v.deriv();
     ((radius * du.eval(c_all, s_all, t_all).abs_enclosure()
@@ -583,27 +579,27 @@ fn edge_metric_length(e: &TrimEdgeQ, radius: RingInterval) -> f64 {
 /// One side of an enclosure, **keeping the refusal**: `NaN` whenever
 /// the enclosure may not certify.
 ///
-/// The ring carries its refusal in the decoration, so a refused
+/// Interval arithmetic carries its refusal in the decoration, so a refused
 /// bracket's endpoints are ordinary numbers and a bare `.lo()`/`.hi()`
 /// hands a consumer a plausible bound with nothing behind it. `NaN` is
 /// what every consumer on these paths already reads as "no bound" —
 /// the `is_finite` tests, the margin classifiers, the gauges and the
 /// knot-collapse windows all refuse on it — so this is the one door
 /// that turns the decoration back into the value those readers expect.
-fn lo_or_refuse(x: RingInterval) -> f64 {
-    if x.is_poison() { f64::NAN } else { x.lo() }
+fn lo_or_refuse(x: Interval) -> f64 {
+    if !x.is_certified() { f64::NAN } else { x.lo() }
 }
 
 /// [`lo_or_refuse`] for the upper end.
-fn hi_or_refuse(x: RingInterval) -> f64 {
-    if x.is_poison() { f64::NAN } else { x.hi() }
+fn hi_or_refuse(x: Interval) -> f64 {
+    if !x.is_certified() { f64::NAN } else { x.hi() }
 }
 
 /// Midpoint of a bracket (structure selection for integration limits;
 /// the bracket's width is repaid by the endpoint pad). A refused
 /// bracket has no midpoint, and says so.
-fn mid(x: RingInterval) -> f64 {
-    if x.is_poison() {
+fn mid(x: Interval) -> f64 {
+    if !x.is_certified() {
         return f64::NAN;
     }
     (x.lo() + x.hi()) * 0.5
@@ -611,12 +607,12 @@ fn mid(x: RingInterval) -> f64 {
 
 /// Interval absolute value: `|x|` as an enclosure.
 trait AbsEnclosure {
-    fn abs_enclosure(self) -> RingInterval;
+    fn abs_enclosure(self) -> Interval;
 }
 
-impl AbsEnclosure for RingInterval {
-    fn abs_enclosure(self) -> RingInterval {
-        if self.is_poison() {
+impl AbsEnclosure for Interval {
+    fn abs_enclosure(self) -> Interval {
+        if !self.is_certified() {
             return self;
         }
         if self.lo() >= 0.0 {
@@ -624,7 +620,7 @@ impl AbsEnclosure for RingInterval {
         } else if self.hi() <= 0.0 {
             -self
         } else {
-            RingInterval::from_bounds(0.0, self.mag())
+            Interval::from_bounds(0.0, self.mag())
         }
     }
 }
@@ -696,7 +692,7 @@ fn classify_len<T: Decide>(
 /// metering decision (module docs) and would have to be re-measured
 /// and re-ratified as one — the defect fixed here is the *unguarded
 /// division*, and only that.
-fn mean_boundary_displacement(flux: RingInterval, area: RingInterval) -> Result<f64, PropsError> {
+fn mean_boundary_displacement(flux: Interval, area: Interval) -> Result<f64, PropsError> {
     displacement_len(flux.width(), area)
 }
 
@@ -708,7 +704,7 @@ fn mean_boundary_displacement(flux: RingInterval, area: RingInterval) -> Result<
 /// # Errors
 ///
 /// As [`mean_boundary_displacement`].
-fn displacement_len(width: f64, area: RingInterval) -> Result<f64, PropsError> {
+fn displacement_len(width: f64, area: Interval) -> Result<f64, PropsError> {
     // Bit-for-bit the pre-guard expression: `(lo + hi)·0.5`, times 3.
     let denom = 3.0 * mid(area);
     // A refused enclosure has no midpoint, so it lands here rather
@@ -790,8 +786,8 @@ fn round_exit(
 /// or the typed [`PropsError::QuadratureBudget`] refusal when the
 /// enclosure will not tighten to target within the round budget.
 pub fn cylinder_cut_face<T: Decide>(
-    radius: RingInterval,
-    o_dot_va: RingInterval,
+    radius: Interval,
+    o_dot_va: Interval,
     edges: &[TrimEdgeQ],
     eps: f64,
     band: Band,
@@ -815,8 +811,8 @@ pub fn cylinder_cut_face<T: Decide>(
 /// short of the schedule's end reports as
 /// [`RoundOutcome::Open`]'s `refusal` instead.
 pub fn cylinder_cut_face_rounds<T: Decide>(
-    radius: RingInterval,
-    o_dot_va: RingInterval,
+    radius: Interval,
+    o_dot_va: Interval,
     edges: &[TrimEdgeQ],
     eps: f64,
     band: Band,
@@ -832,7 +828,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
     let mut pieces = QUAD_INIT_PIECES << first;
     for round in first..=QUAD_MAX_ROUNDS {
         // Signed UV area at this resolution: A_s = ∮ u dv.
-        let mut a_s = RingInterval::zero();
+        let mut a_s = Interval::zero();
         for e in edges {
             a_s = a_s + harmonic_edge_integral(e, pieces, radius);
         }
@@ -884,12 +880,12 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
 
 /// Interval de Boor: a nonrational scalar B-spline evaluated at an
 /// exact parameter with ring-bracketed coefficients — the thin `f(m)`
-/// the composite rule needs on spline channels. Pure ring arithmetic
+/// the composite rule needs on spline channels. Pure certification arithmetic
 /// (knots are `f64` structure; every knot difference is formed in the
 /// ring so its rounding is outward, matching `deriv_coeff`).
-fn bspline_eval_ring(kv: &KnotVector, coeffs: &[RingInterval], t: f64) -> RingInterval {
+fn bspline_eval_ring(kv: &KnotVector, coeffs: &[Interval], t: f64) -> Interval {
     if coeffs.len() != kv.control_count() || !t.is_finite() {
-        return RingInterval::poison();
+        return Interval::poison();
     }
     let p = kv.degree();
     let u = kv.knots();
@@ -899,7 +895,7 @@ fn bspline_eval_ring(kv: &KnotVector, coeffs: &[RingInterval], t: f64) -> RingIn
     // in-range-ness is the `Span` invariant, so indexing `coeffs`
     // needs only the length check above.
     let first = kv.span_at(t).first_control();
-    let mut d: Vec<RingInterval> = (0..=p).map(|j| coeffs[first + j]).collect();
+    let mut d: Vec<Interval> = (0..=p).map(|j| coeffs[first + j]).collect();
     for r in 1..=p {
         for j in (r..=p).rev() {
             let i = first + j;
@@ -916,12 +912,12 @@ fn bspline_eval_ring(kv: &KnotVector, coeffs: &[RingInterval], t: f64) -> RingIn
 /// (conservative to span granularity). Poison when the mint refuses
 /// the pair — a count the ladder's own structure never produces, kept
 /// as the answer a bound gives for structure it cannot license.
-fn range_hull(kv: &KnotVector, coeffs: &[RingInterval], lo: f64, hi: f64) -> RingInterval {
+fn range_hull(kv: &KnotVector, coeffs: &[Interval], lo: f64, hi: f64) -> Interval {
     let Some(pair) = kv.with_coeffs(coeffs) else {
-        return RingInterval::poison();
+        return Interval::poison();
     };
     let (s0, s1) = kv.span_range(lo, hi);
-    let mut acc = RingInterval::poison();
+    let mut acc = Interval::poison();
     let mut seeded = false;
     for index in s0.index()..=s1.index() {
         // Emptiness check and window construction are one step.
@@ -929,11 +925,7 @@ fn range_hull(kv: &KnotVector, coeffs: &[RingInterval], lo: f64, hi: f64) -> Rin
             continue;
         };
         let h = win.hull();
-        acc = if seeded {
-            RingInterval::hull(acc, h)
-        } else {
-            h
-        };
+        acc = if seeded { Interval::hull(acc, h) } else { h };
         seeded = true;
     }
     acc
@@ -954,7 +946,7 @@ fn range_hull(kv: &KnotVector, coeffs: &[RingInterval], lo: f64, hi: f64) -> Rin
 struct DerivLadder {
     /// (kv if materialisable, coefficient brackets) per order 1..=3;
     /// `None` when the level is an in-span zero.
-    levels: [Option<(Option<KnotVector>, Vec<RingInterval>)>; 3],
+    levels: [Option<(Option<KnotVector>, Vec<Interval>)>; 3],
 }
 
 /// Materialise the derivative knot vector (degree ≥ 2 parents only —
@@ -968,8 +960,8 @@ fn deriv_kv(kv: &KnotVector) -> Option<KnotVector> {
 }
 
 impl DerivLadder {
-    fn build(kv: &KnotVector, coeffs: &[RingInterval]) -> Self {
-        let mut levels: [Option<(Option<KnotVector>, Vec<RingInterval>)>; 3] = [None, None, None];
+    fn build(kv: &KnotVector, coeffs: &[Interval]) -> Self {
+        let mut levels: [Option<(Option<KnotVector>, Vec<Interval>)>; 3] = [None, None, None];
         let mut cur_kv = Some(kv.clone());
         let mut cur_coeffs = coeffs.to_vec();
         for level in levels.iter_mut() {
@@ -988,22 +980,18 @@ impl DerivLadder {
 
     /// Hull of the `order`-th derivative over `[lo, hi]`, assuming the
     /// piece is knot-free (module docs). `order` ∈ 1..=3.
-    fn hull(&self, order: usize, lo: f64, hi: f64) -> RingInterval {
+    fn hull(&self, order: usize, lo: f64, hi: f64) -> Interval {
         match &self.levels[order - 1] {
             // In-span polynomial zero (degree exhausted).
-            None => RingInterval::zero(),
+            None => Interval::zero(),
             Some((Some(kv), q)) => range_hull(kv, q, lo, hi),
             // Coefficients exist but their kv does not (piecewise
             // constants): the whole-domain coefficient hull is a sound
             // range bound for any sub-interval.
             Some((None, q)) => {
-                let mut acc = RingInterval::poison();
+                let mut acc = Interval::poison();
                 for (n, c) in q.iter().enumerate() {
-                    acc = if n == 0 {
-                        *c
-                    } else {
-                        RingInterval::hull(acc, *c)
-                    };
+                    acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
                 }
                 acc
             }
@@ -1035,13 +1023,13 @@ impl DerivLadder {
 /// degenerate degree/knot structure.
 pub fn bspline_green_integral(
     kv: &KnotVector,
-    u_coeffs: &[RingInterval],
-    v_coeffs: &[RingInterval],
+    u_coeffs: &[Interval],
+    v_coeffs: &[Interval],
     weights: &[f64],
     a: f64,
     b: f64,
     pieces: usize,
-) -> Result<RingInterval, PropsError> {
+) -> Result<Interval, PropsError> {
     if weights.iter().any(|w| *w != 1.0) {
         return Err(PropsError::QuadratureUnsupported {
             what: "rational pcurve channels (weights != 1) — a rational derivative is not \
@@ -1070,7 +1058,7 @@ pub fn bspline_green_integral(
             .filter(|k| *k > d0 && *k < d1)
             .collect()
     };
-    let mut total = RingInterval::zero();
+    let mut total = Interval::zero();
     #[allow(clippy::cast_precision_loss)]
     let h = span / pieces as f64;
     let h3_24 = pt(h) * pt(h).sqr() / pt(24.0);
@@ -1157,7 +1145,7 @@ const AREA_GAUGE_REL_CEILING: f64 = 1.0e3;
 const QUAD2_REFINE_SPANS: usize = 16;
 
 /// A ring-bracketed 3-vector (a control point, an enclosure).
-pub type RVec3 = [RingInterval; 3];
+pub type RVec3 = [Interval; 3];
 
 fn rv_cross(a: RVec3, b: RVec3) -> RVec3 {
     [
@@ -1167,33 +1155,33 @@ fn rv_cross(a: RVec3, b: RVec3) -> RVec3 {
     ]
 }
 
-fn rv_dot(a: RVec3, b: RVec3) -> RingInterval {
+fn rv_dot(a: RVec3, b: RVec3) -> Interval {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
 /// Sound enclosure of `√x` for a nonnegative-by-construction `x`
 /// (component squares summed): correctly rounded `f64` sqrt widened
 /// one ulp outward; a spurious negative low (impossible here — inputs
-/// go through [`RingInterval::sqr`]) clamps to zero, the safe
+/// go through [`Interval::sqr`]) clamps to zero, the safe
 /// direction for a magnitude.
-fn sqrt_enclosure(x: RingInterval) -> RingInterval {
+fn sqrt_enclosure(x: Interval) -> Interval {
     // The early-out is what makes the `.max(0.0)` clamps below safe: past
     // it the endpoints are non-NaN, so no `f64::max` can absorb poison
     // into a plausible magnitude. Callers do pass poisonable sums.
-    if x.is_poison() {
+    if !x.is_certified() {
         return x;
     }
     let lo = x.lo().max(0.0).sqrt();
     let hi = x.hi().max(0.0).sqrt();
-    RingInterval::from_bounds(lo.next_down().max(0.0), hi.next_up())
+    Interval::from_bounds(lo.next_down().max(0.0), hi.next_up())
 }
 
 /// Widens both ends by a nonnegative pad (the honesty-pad fold).
-fn widen(x: RingInterval, pad: f64) -> RingInterval {
-    if x.is_poison() {
+fn widen(x: Interval, pad: f64) -> Interval {
+    if !x.is_certified() {
         return x;
     }
-    RingInterval::from_bounds(x.lo() - pad, x.hi() + pad)
+    Interval::from_bounds(x.lo() - pad, x.hi() + pad)
 }
 
 /// How a tensor direction collapses: a thin evaluation, a thin
@@ -1211,7 +1199,7 @@ enum Collapse<'a> {
         /// breakpoints).
         mid: f64,
         /// The enclosed evaluation parameter.
-        t: &'a RingInterval,
+        t: &'a Interval,
     },
     Over(f64, f64),
 }
@@ -1263,12 +1251,12 @@ fn raw_span(knots: &[f64], degree: usize, count: usize, t: f64) -> usize {
 }
 
 /// In-span de Boor on a raw knot slice (the [`Dir::Raw`] evaluator).
-fn raw_eval(knots: &[f64], degree: usize, coeffs: &[RingInterval], t: f64) -> RingInterval {
+fn raw_eval(knots: &[f64], degree: usize, coeffs: &[Interval], t: f64) -> Interval {
     if coeffs.len() < degree + 1 || knots.len() < coeffs.len() + degree + 1 || !t.is_finite() {
-        return RingInterval::poison();
+        return Interval::poison();
     }
     let span = raw_span(knots, degree, coeffs.len(), t);
-    let mut d: Vec<RingInterval> = (0..=degree).map(|j| coeffs[span - degree + j]).collect();
+    let mut d: Vec<Interval> = (0..=degree).map(|j| coeffs[span - degree + j]).collect();
     for r in 1..=degree {
         for j in (r..=degree).rev() {
             let i = span - degree + j;
@@ -1283,32 +1271,22 @@ fn raw_eval(knots: &[f64], degree: usize, coeffs: &[RingInterval], t: f64) -> Ri
 /// Hull of a [`Dir::Raw`] spline over `[lo, hi]`: the local control
 /// blocks of every touched span (the same convexity fact
 /// [`range_hull`] uses).
-fn raw_range_hull(
-    knots: &[f64],
-    degree: usize,
-    coeffs: &[RingInterval],
-    lo: f64,
-    hi: f64,
-) -> RingInterval {
+fn raw_range_hull(knots: &[f64], degree: usize, coeffs: &[Interval], lo: f64, hi: f64) -> Interval {
     if coeffs.len() < degree + 1 {
-        return RingInterval::poison();
+        return Interval::poison();
     }
     let (s0, s1) = (
         raw_span(knots, degree, coeffs.len(), lo),
         raw_span(knots, degree, coeffs.len(), hi),
     );
-    let mut acc = RingInterval::poison();
+    let mut acc = Interval::poison();
     let mut seeded = false;
     for span in s0..=s1 {
         for j in 0..=degree {
             let Some(c) = coeffs.get(span - degree + j) else {
                 continue;
             };
-            acc = if seeded {
-                RingInterval::hull(acc, *c)
-            } else {
-                *c
-            };
+            acc = if seeded { Interval::hull(acc, *c) } else { *c };
             seeded = true;
         }
     }
@@ -1316,7 +1294,7 @@ fn raw_range_hull(
 }
 
 /// Derivative coefficients on a raw knot slice.
-fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[RingInterval]) -> Vec<RingInterval> {
+fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[Interval]) -> Vec<Interval> {
     if degree == 0 || coeffs.len() < 2 {
         return Vec::new();
     }
@@ -1325,7 +1303,7 @@ fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[RingInterval]) -> Vec<RingI
     (0..coeffs.len() - 1)
         .map(|i| {
             let (Some(&a), Some(&b)) = (knots.get(i + degree + 1), knots.get(i + 1)) else {
-                return RingInterval::poison();
+                return Interval::poison();
             };
             // `knots[i+1] == knots[i+degree+1]` marks a DEGENERATE
             // (empty) span — the derivative has no coefficient there
@@ -1334,7 +1312,7 @@ fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[RingInterval]) -> Vec<RingI
             // hulled; zero is the safe filler (enlarging a hull can
             // never make a containment claim false).
             if a == b {
-                return RingInterval::zero();
+                return Interval::zero();
             }
             p * (coeffs[i + 1] - coeffs[i]) / (pt(a) - pt(b))
         })
@@ -1343,7 +1321,7 @@ fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[RingInterval]) -> Vec<RingI
 
 /// One direction's coefficient-differentiation step: the map from a
 /// line of the grid to the same line of its derivative grid.
-type DerivTake = Box<dyn Fn(&[RingInterval]) -> Vec<RingInterval>>;
+type DerivTake = Box<dyn Fn(&[Interval]) -> Vec<Interval>>;
 
 impl Dir {
     /// The per-span-constant coefficient index for a point.
@@ -1361,14 +1339,10 @@ impl Dir {
 /// fixed by the caller and `t` carried as a bracket) — sound for any
 /// `t`, exact-in-kind for the Newton–Cotes nodes, which lie in the
 /// span's closure.
-fn bspline_eval_ring_in_span(
-    coeffs: &[RingInterval],
-    span: Span<'_>,
-    t: RingInterval,
-) -> RingInterval {
+fn bspline_eval_ring_in_span(coeffs: &[Interval], span: Span<'_>, t: Interval) -> Interval {
     let kv = span.knots();
     if coeffs.len() != kv.control_count() {
-        return RingInterval::poison();
+        return Interval::poison();
     }
     let p = kv.degree();
     let u = kv.knots();
@@ -1377,7 +1351,7 @@ fn bspline_eval_ring_in_span(
     // the one borrow, so the length check against `coeffs` is the only
     // structure left to verify.
     let first = span.first_control();
-    let mut d: Vec<RingInterval> = (0..=p).map(|j| coeffs[first + j]).collect();
+    let mut d: Vec<Interval> = (0..=p).map(|j| coeffs[first + j]).collect();
     for r in 1..=p {
         for j in (r..=p).rev() {
             let i = first + j;
@@ -1423,7 +1397,7 @@ impl PatchGrid {
                 TensorNet::from_fn(nu, nv, |i, j| {
                     control
                         .get(i * nv + j)
-                        .map_or_else(RingInterval::poison, |c| c[k])
+                        .map_or_else(Interval::poison, |c| c[k])
                 })
             }),
         }
@@ -1458,7 +1432,7 @@ impl PatchGrid {
                 let kv = kv.clone();
                 (
                     Self::deriv_dir(&kv),
-                    Box::new(move |c: &[RingInterval]| kv.difference_coeffs(c)),
+                    Box::new(move |c: &[Interval]| kv.difference_coeffs(c)),
                 )
             }
             // A `Raw` direction differentiates too — its own
@@ -1477,7 +1451,7 @@ impl PatchGrid {
                 };
                 (
                     next,
-                    Box::new(move |c: &[RingInterval]| raw_deriv(&knots, degree, c)),
+                    Box::new(move |c: &[Interval]| raw_deriv(&knots, degree, c)),
                 )
             }
             Dir::Const { .. } => return None,
@@ -1508,7 +1482,7 @@ impl PatchGrid {
                 let kv = kv.clone();
                 (
                     Self::deriv_dir(&kv),
-                    Box::new(move |c: &[RingInterval]| kv.difference_coeffs(c)),
+                    Box::new(move |c: &[Interval]| kv.difference_coeffs(c)),
                 )
             }
             Dir::Raw { knots, degree } => {
@@ -1524,7 +1498,7 @@ impl PatchGrid {
                 };
                 (
                     next,
-                    Box::new(move |c: &[RingInterval]| raw_deriv(&knots, degree, c)),
+                    Box::new(move |c: &[Interval]| raw_deriv(&knots, degree, c)),
                 )
             }
             Dir::Const { .. } => return None,
@@ -1541,7 +1515,7 @@ impl PatchGrid {
     }
 
     /// One direction's collapse of a coefficient slice.
-    fn collapse_1d(dir: &Dir, coeffs: &[RingInterval], op: Collapse<'_>) -> RingInterval {
+    fn collapse_1d(dir: &Dir, coeffs: &[Interval], op: Collapse<'_>) -> Interval {
         match (dir, op) {
             (Dir::Kv(kv), Collapse::At(t)) => bspline_eval_ring(kv, coeffs, t),
             (Dir::Kv(kv), Collapse::AtSpan { mid, t }) => {
@@ -1553,12 +1527,12 @@ impl PatchGrid {
                 // The node lies in the closure of `mid`'s span; the
                 // span polynomial is what the rule integrates.
                 let span = raw_span(knots, *degree, coeffs.len(), mid);
-                let mut d: Vec<RingInterval> = (0..=*degree)
+                let mut d: Vec<Interval> = (0..=*degree)
                     .map(|j| {
                         coeffs
                             .get(span.saturating_sub(*degree) + j)
                             .copied()
-                            .unwrap_or_else(RingInterval::poison)
+                            .unwrap_or_else(Interval::poison)
                     })
                     .collect();
                 for r in 1..=*degree {
@@ -1566,7 +1540,7 @@ impl PatchGrid {
                         let i = span - *degree + j;
                         let (Some(&ka), Some(&kb)) = (knots.get(i + *degree + 1 - r), knots.get(i))
                         else {
-                            return RingInterval::poison();
+                            return Interval::poison();
                         };
                         let alpha = (*t - pt(kb)) / (pt(ka) - pt(kb));
                         d[j] = (pt(1.0) - alpha) * d[j - 1] + alpha * d[j];
@@ -1588,7 +1562,7 @@ impl PatchGrid {
                 let b = Dir::const_index(knots, hi, coeffs.len());
                 let mut acc = coeffs[a];
                 for c in &coeffs[a..=b.max(a)] {
-                    acc = RingInterval::hull(acc, *c);
+                    acc = Interval::hull(acc, *c);
                 }
                 acc
             }
@@ -1596,8 +1570,8 @@ impl PatchGrid {
     }
 
     /// Collapses one channel: v first (per u-row), then u.
-    fn channel(&self, k: usize, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
-        let rows: Vec<RingInterval> = (0..self.nu)
+    fn channel(&self, k: usize, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
+        let rows: Vec<Interval> = (0..self.nu)
             .map(|i| Self::collapse_1d(&self.dv, self.ch[k].row(i), v))
             .collect();
         Self::collapse_1d(&self.du, &rows, u)
@@ -1608,12 +1582,12 @@ impl PatchGrid {
     ///
     /// Mathematically identical to [`PatchGrid::channel`]'s v-then-u
     /// order (a tensor collapse commutes); the association differs, so
-    /// the ring rounding does — which is why only the rational lane,
+    /// the outward rounding does — which is why only the rational lane,
     /// whose numbers are its own, uses it. Its point is that every
     /// cell in one column of the composite grid shares the SAME u
     /// collapse, so hoisting it out of the inner loop turns a
     /// per-cell `nu`-fold de Boor into a per-column one.
-    fn slice_u(&self, u: Collapse<'_>) -> [Vec<RingInterval>; 3] {
+    fn slice_u(&self, u: Collapse<'_>) -> [Vec<Interval>; 3] {
         core::array::from_fn(|k| {
             (0..self.nv)
                 .map(|j| Self::collapse_1d(&self.du, &self.ch[k].column(j), u))
@@ -1622,7 +1596,7 @@ impl PatchGrid {
     }
 
     /// The v collapse of a [`PatchGrid::slice_u`] result.
-    fn at_v(&self, sl: &[Vec<RingInterval>; 3], v: Collapse<'_>) -> RVec3 {
+    fn at_v(&self, sl: &[Vec<Interval>; 3], v: Collapse<'_>) -> RVec3 {
         [
             Self::collapse_1d(&self.dv, &sl[0], v),
             Self::collapse_1d(&self.dv, &sl[1], v),
@@ -1644,11 +1618,7 @@ impl PatchGrid {
 fn grid_vec(g: Option<&PatchGrid>, u: Collapse<'_>, v: Collapse<'_>) -> RVec3 {
     match g {
         Some(g) => g.vec(u, v),
-        None => [
-            RingInterval::zero(),
-            RingInterval::zero(),
-            RingInterval::zero(),
-        ],
+        None => [Interval::zero(), Interval::zero(), Interval::zero()],
     }
 }
 
@@ -1657,11 +1627,11 @@ fn grid_vec(g: Option<&PatchGrid>, u: Collapse<'_>, v: Collapse<'_>) -> RVec3 {
 /// bracketed outward — no Gaussian trust anywhere: the rule's
 /// algebraic exactness for polynomials of degree ≤ m (m odd; m + 1
 /// for even m) is a theorem, the nodes are rational, and the
-/// enclosure carries only the ring divisions' rounding. `None` when
+/// enclosure carries only interval arithmetic divisions' rounding. `None` when
 /// `m` is outside the supported window (the fraction arithmetic's
 /// `i128` headroom, m ≤ 12 — callers fall back to the composite
 /// rule).
-fn newton_cotes_weights(m: usize) -> Option<Vec<RingInterval>> {
+fn newton_cotes_weights(m: usize) -> Option<Vec<Interval>> {
     if m == 0 || m > 12 {
         return None;
     }
@@ -1749,7 +1719,7 @@ fn clipped_spans(kv: &KnotVector, lo: f64, hi: f64) -> Vec<(f64, f64, f64)> {
 /// knot-span rectangle the integrand `f = S·(S_u×S_v)` is one
 /// polynomial of degree ≤ 3p−1 per direction, so the tensor closed
 /// Newton–Cotes rule of order `3p` integrates it EXACTLY — the whole
-/// enclosure width is the nodes' and weights' ring rounding. `None`
+/// enclosure width is the nodes' and weights' outward rounding. `None`
 /// when the rule order leaves the supported window (degree > 4 per
 /// direction), in which case the caller runs the composite rounds.
 fn patch_flux_exact(
@@ -1759,32 +1729,32 @@ fn patch_flux_exact(
     kv_u: &KnotVector,
     kv_v: &KnotVector,
     rect: (f64, f64, f64, f64),
-) -> Option<RingInterval> {
+) -> Option<Interval> {
     let (u0, u1, v0, v1) = rect;
     let (mu, mv) = (3 * kv_u.degree(), 3 * kv_v.degree());
     let (wu, wv) = (newton_cotes_weights(mu)?, newton_cotes_weights(mv)?);
-    let mut flux = RingInterval::zero();
+    let mut flux = Interval::zero();
     for &(au, bu, mid_u) in &clipped_spans(kv_u, u0, u1) {
         let su_scale = pt(bu) - pt(au);
         // Node enclosures for this span, u direction.
         #[allow(clippy::cast_precision_loss)]
-        let nodes_u: Vec<RingInterval> = (0..=mu)
+        let nodes_u: Vec<Interval> = (0..=mu)
             .map(|j| pt(au) + su_scale * (pt(j as f64) / pt(mu as f64)))
             .collect();
         for &(av, bv, mid_v) in &clipped_spans(kv_v, v0, v1) {
             let sv_scale = pt(bv) - pt(av);
             #[allow(clippy::cast_precision_loss)]
-            let nodes_v: Vec<RingInterval> = (0..=mv)
+            let nodes_v: Vec<Interval> = (0..=mv)
                 .map(|j| pt(av) + sv_scale * (pt(j as f64) / pt(mv as f64)))
                 .collect();
             let scale = su_scale * sv_scale;
-            let mut acc = RingInterval::zero();
+            let mut acc = Interval::zero();
             for (nu_i, wu_i) in nodes_u.iter().zip(&wu) {
                 let cu = Collapse::AtSpan {
                     mid: mid_u,
                     t: nu_i,
                 };
-                let mut row = RingInterval::zero();
+                let mut row = Interval::zero();
                 for (nv_j, wv_j) in nodes_v.iter().zip(&wv) {
                     let cv = Collapse::AtSpan {
                         mid: mid_v,
@@ -1857,7 +1827,7 @@ impl Ladder {
     /// `N = A·(A_u×A_v)` — the flux integrand's NUMERATOR
     /// ([`rational_patch_face`] docs derive why the quotient's other
     /// triple products vanish).
-    fn num(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+    fn num(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         rv_dot(
             self.a.vec(u, v),
             rv_cross(
@@ -1870,7 +1840,7 @@ impl Ladder {
     /// `N_uu = A_u·(A_uu×A_v) + A·(A_uuu×A_v) + 2·A·(A_uu×A_uv) +
     /// A·(A_u×A_uuv)` — the integral lane's `f_uu`, verbatim, on the
     /// homogeneous net.
-    fn num_uu(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+    fn num_uu(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         let a = self.a.vec(u, v);
         let au = grid_vec(self.au.as_ref(), u, v);
         let av = grid_vec(self.av.as_ref(), u, v);
@@ -1884,7 +1854,7 @@ impl Ladder {
 
     /// `N_vv = A_v·(A_u×A_vv) + A·(A_uvv×A_v) + 2·A·(A_uv×A_vv) +
     /// A·(A_u×A_vvv)`.
-    fn num_vv(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+    fn num_vv(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         let a = self.a.vec(u, v);
         let au = grid_vec(self.au.as_ref(), u, v);
         let av = grid_vec(self.av.as_ref(), u, v);
@@ -1898,7 +1868,7 @@ impl Ladder {
 
     /// `N_u = A·(A_uu×A_v) + A·(A_u×A_uv)` (the `A_u·(A_u×A_v)` term
     /// vanishes identically).
-    fn num_u(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+    fn num_u(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         let a = self.a.vec(u, v);
         rv_dot(
             a,
@@ -1916,7 +1886,7 @@ impl Ladder {
     }
 
     /// `N_v = A·(A_uv×A_v) + A·(A_u×A_vv)`.
-    fn num_v(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+    fn num_v(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         let a = self.a.vec(u, v);
         rv_dot(
             a,
@@ -1961,22 +1931,22 @@ impl Ladder {
     }
 
     /// The scalar (weight-net) channel reads.
-    fn chan(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+    fn chan(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         self.a.channel(0, u, v)
     }
-    fn chan_u(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+    fn chan_u(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         grid_vec(self.au.as_ref(), u, v)[0]
     }
-    fn chan_v(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+    fn chan_v(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         grid_vec(self.av.as_ref(), u, v)[0]
     }
-    fn chan_uu(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+    fn chan_uu(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         grid_vec(self.auu.as_ref(), u, v)[0]
     }
-    fn chan_vv(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+    fn chan_vv(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         grid_vec(self.avv.as_ref(), u, v)[0]
     }
-    fn chan_uv(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
+    fn chan_uv(&self, u: Collapse<'_>, v: Collapse<'_>) -> Interval {
         grid_vec(self.auv.as_ref(), u, v)[0]
     }
 
@@ -2026,10 +1996,10 @@ impl Ladder {
 /// (`A`, `A_u`, `A_v`) plus the weight channel — [`PatchGrid::slice_u`]
 /// for why this exists.
 struct FluxSlice {
-    a: [Vec<RingInterval>; 3],
-    au: Option<[Vec<RingInterval>; 3]>,
-    av: Option<[Vec<RingInterval>; 3]>,
-    w: [Vec<RingInterval>; 3],
+    a: [Vec<Interval>; 3],
+    au: Option<[Vec<Interval>; 3]>,
+    av: Option<[Vec<Interval>; 3]>,
+    w: [Vec<Interval>; 3],
 }
 
 impl Ladder {
@@ -2046,12 +2016,8 @@ impl Ladder {
 
     /// `N/w³` from a slice, at one v collapse — the composite rule's
     /// per-cell integrand.
-    fn integrand_at(&self, w: &Self, sl: &FluxSlice, v: Collapse<'_>) -> RingInterval {
-        let zero = [
-            RingInterval::zero(),
-            RingInterval::zero(),
-            RingInterval::zero(),
-        ];
+    fn integrand_at(&self, w: &Self, sl: &FluxSlice, v: Collapse<'_>) -> Interval {
+        let zero = [Interval::zero(), Interval::zero(), Interval::zero()];
         let a = self.a.at_v(&sl.a, v);
         let au = match (self.au.as_ref(), sl.au.as_ref()) {
             (Some(g), Some(s)) => g.at_v(s, v),
@@ -2067,12 +2033,8 @@ impl Ladder {
     /// `A·(A_u×A_v)` from a slice, at one v collapse — the flux
     /// numerator alone, for the arm that divides by `w³` once per
     /// column instead of once per node.
-    fn numerator_at(&self, sl: &FluxSlice, v: Collapse<'_>) -> RingInterval {
-        let zero = [
-            RingInterval::zero(),
-            RingInterval::zero(),
-            RingInterval::zero(),
-        ];
+    fn numerator_at(&self, sl: &FluxSlice, v: Collapse<'_>) -> Interval {
+        let zero = [Interval::zero(), Interval::zero(), Interval::zero()];
         let a = self.a.at_v(&sl.a, v);
         let au = match (self.au.as_ref(), sl.au.as_ref()) {
             (Some(g), Some(s)) => g.at_v(s, v),
@@ -2093,7 +2055,7 @@ impl Ladder {
     /// `N = A·(A_u×A_v)` has v-degree `q + q + (q−1)`, so the
     /// order-`3q` rule integrates it with no truncation error at all;
     /// what the returned enclosure carries is the nodes' and weights'
-    /// ring rounding and the de Boor recurrence's own widening.
+    /// outward rounding and the de Boor recurrence's own widening.
     ///
     /// **The subdivision is per span and not per cell**, and that is
     /// load-bearing rather than tidy. One `Collapse::AtSpan` read
@@ -2110,13 +2072,13 @@ impl Ladder {
         kv: &KnotVector,
         vlo: f64,
         vhi: f64,
-        nc: &[RingInterval],
-    ) -> RingInterval {
+        nc: &[Interval],
+    ) -> Interval {
         let m = nc.len() - 1;
-        let mut total = RingInterval::zero();
+        let mut total = Interval::zero();
         for (a, b, mid) in clipped_spans(kv, vlo, vhi) {
             let scale = pt(b) - pt(a);
-            let mut acc = RingInterval::zero();
+            let mut acc = Interval::zero();
             for (j, wj) in nc.iter().enumerate() {
                 #[allow(clippy::cast_precision_loss)]
                 let t = pt(a) + scale * (pt(j as f64) / pt(m as f64));
@@ -2129,12 +2091,8 @@ impl Ladder {
 }
 
 /// Ascending-index fold of scaled 3-vector terms (D9).
-fn fold_terms(terms: &[(RingInterval, RVec3)]) -> RVec3 {
-    let mut acc = [
-        RingInterval::zero(),
-        RingInterval::zero(),
-        RingInterval::zero(),
-    ];
+fn fold_terms(terms: &[(Interval, RVec3)]) -> RVec3 {
+    let mut acc = [Interval::zero(), Interval::zero(), Interval::zero()];
     for (c, v) in terms {
         for k in 0..3 {
             acc[k] = acc[k] + *c * v[k];
@@ -2159,7 +2117,7 @@ fn rv_add(a: RVec3, b: RVec3) -> RVec3 {
 /// A curve is at least as long as any polygon inscribed in it, and
 /// ADDING a vertex can only lengthen that polygon (triangle
 /// inequality) — so the bound is sound at any schedule and monotone
-/// in refinement. Every difference and root is formed in the ring, so
+/// in refinement. Every difference and root is formed in certification arithmetic, so
 /// `lo()` is outward-rounded and the bound survives its own
 /// arithmetic.
 ///
@@ -2206,7 +2164,7 @@ fn rv_add(a: RVec3, b: RVec3) -> RVec3 {
 /// boundary; the departure is the caller's certified
 /// `boundary_defect`.
 ///
-/// **The result is clamped at zero.** The ring sum's lower endpoint
+/// **The result is clamped at zero.** Interval arithmetic sum's lower endpoint
 /// rounds outward, so a face whose chords are all sub-ulp returns a
 /// small NEGATIVE number (measured: −3.16e-322 on a 1e-12 face at
 /// offset 1e6). Zero is an equally valid, weaker certified lower
@@ -2248,7 +2206,7 @@ pub fn boundary_chord_perimeter_lo(
     for &v in cv[1..].iter().rev() {
         pts.push(eval(u0, v));
     }
-    let mut p = RingInterval::zero();
+    let mut p = Interval::zero();
     for i in 0..pts.len() {
         let (a, b) = (pts[i], pts[(i + 1) % pts.len()]);
         let d = [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -2289,7 +2247,7 @@ pub fn boundary_chord_perimeter_lo(
 ///
 /// A width is an area and the perimeter a length, so the ratio is
 /// dimensionless and a body remodelled at another scale reads the
-/// same gauge — down to the point where the ring's own rounding
+/// same gauge — down to the point where interval arithmetic's own rounding
 /// stops being scale-free. Below that, a sub-ulp face's chords
 /// vanish, `perimeter_lo` clamps to zero and the face exits to the
 /// relative arm. So: scale-free over the range where the enclosure
@@ -2364,7 +2322,7 @@ pub fn boundary_chord_perimeter_lo(
 ///   perimeter is what backstops that, and where a caller supplies a
 ///   number that is neither (issue 1368) the gauge is running on the
 ///   chord bound alone.
-fn area_gauge_ok(area: RingInterval, perimeter_lo: f64) -> bool {
+fn area_gauge_ok(area: Interval, perimeter_lo: f64) -> bool {
     let width = area.width();
     // A certified return whose width is not a number is the clearest
     // form of the bug this tripwire is for — and so is a poisoned
@@ -2452,7 +2410,7 @@ fn area_gauge_denominator(perimeter_lo: f64, perimeter_caller: f64) -> f64 {
 /// and a message that described only the perimeter arm reported
 /// "perimeter is at least 0 — displacement inf" whenever the RELATIVE
 /// arm was the one that decided.
-fn area_gauge_failure_message(area: RingInterval, denominator: f64) -> String {
+fn area_gauge_failure_message(area: Interval, denominator: f64) -> String {
     let width = area.width();
     let head = "the certified area bracket is wider than the A2 tripwire allows. The area rule \
                 is O(h) and wide by design, but not by this much: at a CERTIFIED return a width \
@@ -2492,11 +2450,7 @@ fn area_gauge_failure_message(area: RingInterval, denominator: f64) -> String {
 /// away, and the perimeter arrives as a thunk for the same reason.
 /// The message is built only on failure.
 #[inline]
-fn debug_assert_area_gauge(
-    area: RingInterval,
-    perimeter_caller: f64,
-    perimeter_lo: &dyn Fn() -> f64,
-) {
+fn debug_assert_area_gauge(area: Interval, perimeter_caller: f64, perimeter_lo: &dyn Fn() -> f64) {
     if cfg!(debug_assertions) {
         let denominator = area_gauge_denominator(perimeter_lo(), perimeter_caller);
         debug_assert!(
@@ -2527,7 +2481,7 @@ struct AreaBox {
 struct AreaCell {
     /// `g(midpoint)` — thin, and the reason this rule beats the hull
     /// rule by orders.
-    g_mid: RingInterval,
+    g_mid: Interval,
     /// An upper bound on `sup_cell |∂_u g|`.
     g_u: f64,
     /// An upper bound on `sup_cell |∂_v g|`.
@@ -2540,7 +2494,7 @@ struct AreaCell {
     /// bracket across zero; the padded midpoint is orders tighter
     /// wherever the derivative hulls are sane. Neither is a fallback
     /// for the other.
-    g_hull: RingInterval,
+    g_hull: Interval,
 }
 
 /// **The area rule both patch lanes use**: a fixed-resolution composite
@@ -2584,11 +2538,11 @@ fn area_midpoint_taylor<E>(
     boundary_defect: f64,
     knots: (&[f64], &[f64]),
     mut cell: impl FnMut(AreaBox) -> Result<AreaCell, E>,
-) -> Result<RingInterval, E> {
+) -> Result<Interval, E> {
     let (u0, u1, v0, v1) = rect;
     let cuts_u = knot_aligned_cuts(u0, u1, n, knots.0);
     let cuts_v = knot_aligned_cuts(v0, v1, n, knots.1);
-    let mut acc = RingInterval::zero();
+    let mut acc = Interval::zero();
     for iu in 0..cuts_u.len() - 1 {
         let (c_ulo, c_uhi) = (cuts_u[iu], cuts_u[iu + 1]);
         let hu = c_uhi - c_ulo;
@@ -2654,11 +2608,7 @@ fn refine_dir(
     nv: usize,
     along_u: bool,
 ) -> Option<(KnotVector, Vec<RVec3>, usize)> {
-    let poison = [
-        RingInterval::poison(),
-        RingInterval::poison(),
-        RingInterval::poison(),
-    ];
+    let poison = [Interval::poison(), Interval::poison(), Interval::poison()];
     let count = kv.control_count();
     if count == 0 || nv == 0 {
         return None;
@@ -2744,15 +2694,15 @@ fn refine_net(
 ///
 /// (differentiate `N·w⁻³` twice; the `w_d²` terms combine as
 /// `−6 + 18 = 12`). Fixed evaluation order (D9); `w_d²` goes through
-/// [`RingInterval::sqr`], never `x*x`.
+/// [`Interval::sqr`], never `x*x`.
 fn quotient_second(
-    n: RingInterval,
-    n_d: RingInterval,
-    n_dd: RingInterval,
-    w: RingInterval,
-    w_d: RingInterval,
-    w_dd: RingInterval,
-) -> RingInterval {
+    n: Interval,
+    n_d: Interval,
+    n_dd: Interval,
+    w: Interval,
+    w_d: Interval,
+    w_dd: Interval,
+) -> Interval {
     n_dd / w.powi(3) - pt(6.0) * n_d * w_d / w.powi(4) - pt(3.0) * n * w_dd / w.powi(4)
         + pt(12.0) * n * w_d.sqr() / w.powi(5)
 }
@@ -2902,13 +2852,13 @@ fn v_pieces(exact_v: bool, pieces: usize) -> usize {
 /// The u Taylor remainder's cell factor `h_u³·h_v/24` (module docs),
 /// one spelling for both patch loops; [`block_cell_sums`]' `h·h²` is
 /// its f64 counterpart, split per axis.
-fn remainder_cell_u(hu: RingInterval, hv: RingInterval) -> RingInterval {
+fn remainder_cell_u(hu: Interval, hv: Interval) -> Interval {
     hu * hu.sqr() * hv / pt(24.0)
 }
 
 /// The v Taylor remainder's cell factor `h_u·h_v³/24`
 /// ([`remainder_cell_u`]'s twin).
-fn remainder_cell_v(hu: RingInterval, hv: RingInterval) -> RingInterval {
+fn remainder_cell_v(hu: Interval, hv: Interval) -> Interval {
     hu * hv * hv.sqr() / pt(24.0)
 }
 
@@ -3000,7 +2950,7 @@ fn block_cell_sums(cuts: &[f64], edges: &[f64]) -> Vec<(f64, f64)> {
 fn last_round_width_lo(
     cuts: (&[f64], &[f64]),
     edges: (&[f64], &[f64]),
-    hulls: impl Fn(usize, usize) -> (RingInterval, Option<RingInterval>),
+    hulls: impl Fn(usize, usize) -> (Interval, Option<Interval>),
     pad: f64,
 ) -> f64 {
     let su = block_cell_sums(cuts.0, edges.0);
@@ -3081,7 +3031,7 @@ fn last_round_refuses<T: Decide>(last_round_len: f64, target_len: f64, band: Ban
 /// ([`Ladder::num_uu`]) — the rational extension is a division, not a
 /// new geometry. Weights are `f64` structure and strictly positive
 /// (checked exactly, C6), so `w`'s control hull excludes zero on every
-/// cell and the ring division is defined; a hull that does not is
+/// cell and interval arithmetic division is defined; a hull that does not is
 /// poison, and poison refuses typed rather than answering wide.
 ///
 /// # The rule, the remainder, and why there is no exact lane
@@ -3265,7 +3215,7 @@ fn rational_patch_face<T: Decide>(
     for (c, w) in control.iter().zip(weights) {
         let rw = pt(*w);
         a_net.push([rw * c[0], rw * c[1], rw * c[2]]);
-        w_net.push([rw, RingInterval::zero(), RingInterval::zero()]);
+        w_net.push([rw, Interval::zero(), Interval::zero()]);
     }
     // Certified refinement FIRST (fn docs): every hull below is a
     // control-net fact, and only the net can tighten them.
@@ -3324,7 +3274,7 @@ fn rational_patch_face<T: Decide>(
     let edges_u = knot_aligned_cuts(u0, u1, QUAD2_HULL_BLOCKS, &knots_u);
     let edges_v = knot_aligned_cuts(v0, v1, QUAD2_HULL_BLOCKS, &knots_v);
     let (nbu, nbv) = (edges_u.len() - 1, edges_v.len() - 1);
-    let mut blocks: Vec<(RingInterval, RingInterval)> = Vec::with_capacity(nbu * nbv);
+    let mut blocks: Vec<(Interval, Interval)> = Vec::with_capacity(nbu * nbv);
     for bu in 0..nbu {
         let (b_ulo, b_uhi) = (edges_u[bu], edges_u[bu + 1]);
         for bv in 0..nbv {
@@ -3380,9 +3330,8 @@ fn rational_patch_face<T: Decide>(
             let (w3, w4) = (wh_lo.powi(3), wh_lo.powi(4));
             let ch = a.cross_num(&w, over.0, over.1);
             let c_hi = norm_hi(ch);
-            let pad_d = |dc: RVec3, wd: RingInterval| -> f64 {
-                norm_hi(dc) / w3 + 3.0 * c_hi * wd.mag() / w4
-            };
+            let pad_d =
+                |dc: RVec3, wd: Interval| -> f64 { norm_hi(dc) / w3 + 3.0 * c_hi * wd.mag() / w4 };
             Ok(AreaCell {
                 g_mid,
                 g_u: pad_d(a.cross_num_u(&w, over.0, over.1), w.chan_u(over.0, over.1)),
@@ -3444,7 +3393,7 @@ fn rational_patch_face<T: Decide>(
     // The hulls a cell in block `(bu, bv)` reads: its `f_uu` hull, and
     // its `f_vv` hull unless the exact-v arm carries no v remainder.
     // One home for the round loop and the last-round bound.
-    let block_hulls = |bu: usize, bv: usize| -> (RingInterval, Option<RingInterval>) {
+    let block_hulls = |bu: usize, bv: usize| -> (Interval, Option<Interval>) {
         let (b_uu, b_vv) = blocks[bu * nbv + bv];
         (b_uu, if nc_v.is_some() { None } else { Some(b_vv) })
     };
@@ -3455,7 +3404,7 @@ fn rational_patch_face<T: Decide>(
         boundary_defect * p_bound,
     );
     for round in first..=QUAD2_RATIONAL_MAX_ROUNDS {
-        let mut flux = RingInterval::zero();
+        let mut flux = Interval::zero();
         let cuts_u = knot_aligned_cuts(u0, u1, pieces, &knots_u);
         let cuts_v = knot_aligned_cuts(v0, v1, v_pieces(nc_v.is_some(), pieces), &knots_v);
         let mut bu = 0usize;
@@ -3504,7 +3453,7 @@ fn rational_patch_face<T: Decide>(
             }
         }
         let flux = widen(flux, boundary_defect * p_bound);
-        if flux.is_poison() || area.is_poison() {
+        if !flux.is_certified() || !area.is_certified() {
             return Err(PropsError::QuadratureUnsupported {
                 what: "a rational patch enclosure poisoned (a weight hull straddling \
                        zero, or a non-finite net) — refusing rather than answering wide",
@@ -3819,7 +3768,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     };
 
     // ---- The exact per-span lane first (fn docs): one tensor
-    // Newton–Cotes pass whose enclosure width is ring rounding only.
+    // Newton–Cotes pass whose enclosure width is outward rounding only.
     // The composite rounds below are the fallback for degrees outside
     // the rule window (> 4 per direction). ----
     if let Some(exact) =
@@ -3876,7 +3825,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
         boundary_defect * p_bound,
     );
     for round in first..=QUAD2_MAX_ROUNDS {
-        let mut flux = RingInterval::zero();
+        let mut flux = Interval::zero();
         // Knot-aligned cells, for the reason [`knot_aligned_cuts`]
         // gives: this lane reaches the composite only where the exact
         // rule cannot run, and a cell holding an interior knot has no
@@ -3993,7 +3942,7 @@ const TRIM_MONOTONE_DEPTH: usize = 4;
 const TRIM_AREA_PIECES: usize = QUAD2_AREA_PIECES;
 
 /// A chart-space point bracket (`(u, v)`).
-type RPt2 = (RingInterval, RingInterval);
+type RPt2 = (Interval, Interval);
 
 /// The bracketed control net of one trim edge's **`General` chart
 /// image**, on the carrier's own parameter.
@@ -4041,7 +3990,7 @@ pub struct TrimChord {
     /// chart's metric rate). A lane that took a caller's perimeter is
     /// `work/props/quad-face-extent-trusts-caller-perimeter.md` (#1368,
     /// open), and this one does not open a second instance of it.
-    pub env: RingInterval,
+    pub env: Interval,
 }
 
 /// Midpoint of a bracket pair — the chord polygon's vertex.
@@ -4132,7 +4081,7 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
         }
     }
     let plans = geom_core::spline::algebra::refine_plan(kv, &img.weights, &add).ok()?;
-    let poison = (RingInterval::poison(), RingInterval::poison());
+    let poison = (Interval::poison(), Interval::poison());
     // [`ring_lerp`]'s association, two channels instead of three: the
     // rounding of the ARITHMETIC lands outward in the brackets, which
     // is what makes a refined bracket an enclosure. It is written out
@@ -4161,10 +4110,10 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
     // the endpoint, the box, the variation, the monotone row — reads
     // it through these brackets, so widening them here is the whole
     // repair.
-    let (mut du, mut dv) = (RingInterval::zero(), RingInterval::zero());
+    let (mut du, mut dv) = (Interval::zero(), Interval::zero());
     for q in &img.control {
-        du = RingInterval::hull(du, q.0);
-        dv = RingInterval::hull(dv, q.1);
+        du = Interval::hull(du, q.0);
+        dv = Interval::hull(dv, q.1);
     }
     #[allow(clippy::cast_precision_loss)]
     // NO ROW CAN SEE THIS TERM at `f64`: it is `k·diam·2⁻⁵²` against
@@ -4187,12 +4136,12 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
 
 /// The axis-aligned chart box of a bracketed control block — the
 /// convex-hull property, read per axis.
-fn block_box(block: &[RPt2]) -> (RingInterval, RingInterval) {
+fn block_box(block: &[RPt2]) -> (Interval, Interval) {
     let mut bu = block[0].0;
     let mut bv = block[0].1;
     for q in &block[1..] {
-        bu = RingInterval::hull(bu, q.0);
-        bv = RingInterval::hull(bv, q.1);
+        bu = Interval::hull(bu, q.0);
+        bv = Interval::hull(bv, q.1);
     }
     (bu, bv)
 }
@@ -4203,8 +4152,8 @@ fn block_box(block: &[RPt2]) -> (RingInterval, RingInterval) {
 /// direction answers `0`, which is the refusing direction wherever
 /// this is read.
 fn norm_lo(v: RVec3) -> f64 {
-    let comp = |x: RingInterval| -> f64 {
-        if x.is_poison() {
+    let comp = |x: Interval| -> f64 {
+        if !x.is_certified() {
             return 0.0;
         }
         if x.lo() > 0.0 {
@@ -4231,7 +4180,7 @@ struct TrimCell {
     /// The axis-aligned chart hull of the piece's control polygon —
     /// where `sup|f|` and `sup g` are read. `None` for an exact chord
     /// (an iso image, or a degree-1 block, which IS its chord).
-    hull: Option<(RingInterval, RingInterval)>,
+    hull: Option<(Interval, Interval)>,
     /// The chart area of the lune, `0` for an exact chord.
     ///
     /// **The box is the chord's own frame's, not the axes'.** The lune
@@ -4288,10 +4237,10 @@ fn lune_area(block: &[RPt2], a: (f64, f64), b: (f64, f64)) -> f64 {
         return bu.width() * bv.width();
     }
     let (du, dv) = (pt(cu / len), pt(cv / len));
-    let project = |k: fn(RPt2, RingInterval, RingInterval) -> RingInterval| -> f64 {
+    let project = |k: fn(RPt2, Interval, Interval) -> Interval| -> f64 {
         let mut acc = k(block[0], du, dv);
         for q in &block[1..] {
-            acc = RingInterval::hull(acc, k(*q, du, dv));
+            acc = Interval::hull(acc, k(*q, du, dv));
         }
         acc.width()
     };
@@ -4453,9 +4402,8 @@ fn trim_cells<T: Decide>(
         // enlarges a hull that already contains the arc (so the
         // convex-hull fact survives) while giving the closure check one
         // bracket per vertex instead of two readings of it.
-        let hull2 = |x: RPt2, y: RPt2| -> RPt2 {
-            (RingInterval::hull(x.0, y.0), RingInterval::hull(x.1, y.1))
-        };
+        let hull2 =
+            |x: RPt2, y: RPt2| -> RPt2 { (Interval::hull(x.0, y.0), Interval::hull(x.1, y.1)) };
         if let Some(first) = blocks.first_mut() {
             first[0] = hull2(first[0], c.a);
         }
@@ -4547,7 +4495,7 @@ fn flux_at(
     sv: Option<&PatchGrid>,
     cu: Collapse<'_>,
     cv: Collapse<'_>,
-) -> RingInterval {
+) -> Interval {
     rv_dot(
         s.vec(cu, cv),
         rv_cross(grid_vec(su, cu, cv), grid_vec(sv, cu, cv)),
@@ -4560,7 +4508,7 @@ fn area_at(
     sv: Option<&PatchGrid>,
     cu: Collapse<'_>,
     cv: Collapse<'_>,
-) -> RingInterval {
+) -> Interval {
     let c = rv_cross(grid_vec(su, cu, cv), grid_vec(sv, cu, cv));
     sqrt_enclosure(c[0].sqr() + c[1].sqr() + c[2].sqr())
 }
@@ -4585,7 +4533,7 @@ fn area_cell(
     svv: Option<&PatchGrid>,
     u: Collapse<'_>,
     v: Collapse<'_>,
-) -> (RingInterval, f64, f64) {
+) -> (Interval, f64, f64) {
     let h_su = grid_vec(su, u, v);
     let h_sv = grid_vec(sv, u, v);
     let c = rv_cross(h_su, h_sv);
@@ -4699,12 +4647,12 @@ fn chord_polygon_flux(
     kv_u: &KnotVector,
     kv_v: &KnotVector,
     cells: &[TrimCell],
-    wu: &[RingInterval],
-    wv: &[RingInterval],
-) -> (RingInterval, f64) {
+    wu: &[Interval],
+    wv: &[Interval],
+) -> (Interval, f64) {
     let (mu, mv) = (wu.len() - 1, wv.len() - 1);
     let vbreaks = breakpoints(kv_v);
-    let mut total = RingInterval::zero();
+    let mut total = Interval::zero();
     let mut sliver = 0.0f64;
     for c in cells {
         let ((ua, va), (ub, vb)) = (c.a, c.b);
@@ -4714,8 +4662,8 @@ fn chord_polygon_flux(
         let (cuts, sl) = chord_cuts(kv_u, kv_v, c.a, c.b);
         sliver += sl;
         let slope = (pt(vb) - pt(va)) / (pt(ub) - pt(ua));
-        let ell = |u: RingInterval| -> RingInterval { pt(va) + (u - pt(ua)) * slope };
-        let mut chord = RingInterval::zero();
+        let ell = |u: Interval| -> Interval { pt(va) + (u - pt(ua)) * slope };
+        let mut chord = Interval::zero();
         for w in cuts.windows(2) {
             let (p, q) = (w[0], w[1]);
             let mid_u = p.midpoint(q);
@@ -4729,7 +4677,7 @@ fn chord_polygon_flux(
                 .filter(|b| b[1] > b[0] && b[1] <= vk)
                 .map(|b| (b[0], b[1], b[0].midpoint(b[1])))
                 .collect();
-            let mut acc = RingInterval::zero();
+            let mut acc = Interval::zero();
             for (j, wu_j) in wu.iter().enumerate() {
                 #[allow(clippy::cast_precision_loss)]
                 let u_j = pt(p) + scale_u * (pt(j as f64) / pt(mu as f64));
@@ -4737,10 +4685,10 @@ fn chord_polygon_flux(
                     mid: mid_u,
                     t: &u_j,
                 };
-                let mut inner = RingInterval::zero();
-                let mut leg = |lo: RingInterval, hi: RingInterval, locator: f64| {
+                let mut inner = Interval::zero();
+                let mut leg = |lo: Interval, hi: Interval, locator: f64| {
                     let sc = hi - lo;
-                    let mut row = RingInterval::zero();
+                    let mut row = Interval::zero();
                     for (k, wv_k) in wv.iter().enumerate() {
                         #[allow(clippy::cast_precision_loss)]
                         let v_k = lo + sc * (pt(k as f64) / pt(mv as f64));
@@ -4813,11 +4761,11 @@ fn chord_polygon_area(
     kv_u: &KnotVector,
     kv_v: &KnotVector,
     cells: &[TrimCell],
-) -> RingInterval {
+) -> Interval {
     let ku = breakpoints(kv_u);
     let kvb = breakpoints(kv_v);
     let v0 = kvb[0];
-    let mut total = RingInterval::zero();
+    let mut total = Interval::zero();
     for c in cells {
         let ((ua, va), (ub, vb)) = (c.a, c.b);
         if ua == ub {
@@ -4826,7 +4774,7 @@ fn chord_polygon_area(
         let (lo, hi) = (ua.min(ub), ua.max(ub));
         let slope = (vb - va) / (ub - ua);
         let ell = |u: f64| va + (u - ua) * slope;
-        let mut chord = RingInterval::zero();
+        let mut chord = Interval::zero();
         for w in knot_aligned_cuts(lo, hi, TRIM_AREA_PIECES, &ku).windows(2) {
             let (p, q) = (w[0], w[1]);
             let hu = q - p;
@@ -4840,7 +4788,7 @@ fn chord_polygon_area(
             // bound or to mis-read: the `(q − p)` factor below turns
             // this column into the rectangle `[p,q] × [v₀, ℓ(u_m)]`,
             // and the cell rule pads that rectangle directly.
-            let mut col = RingInterval::zero();
+            let mut col = Interval::zero();
             for wc in knot_aligned_cuts(ilo, ihi, TRIM_AREA_PIECES, &kvb).windows(2) {
                 let (c0, c1) = (wc[0], wc[1]);
                 let hv = c1 - c0;
@@ -4893,14 +4841,14 @@ fn chord_polygon_area(
 /// every chord endpoint bracket and every stored image net. An OUTER
 /// enclosure of the trim region, so a hull over it contains every
 /// cell's own.
-fn trim_box(chords: &[TrimChord]) -> (RingInterval, RingInterval) {
-    let mut bu = RingInterval::poison();
-    let mut bv = RingInterval::poison();
+fn trim_box(chords: &[TrimChord]) -> (Interval, Interval) {
+    let mut bu = Interval::poison();
+    let mut bv = Interval::poison();
     let mut seeded = false;
     let mut take = |p: RPt2| {
         if seeded {
-            bu = RingInterval::hull(bu, p.0);
-            bv = RingInterval::hull(bv, p.1);
+            bu = Interval::hull(bu, p.0);
+            bv = Interval::hull(bv, p.1);
         } else {
             bu = p.0;
             bv = p.1;
@@ -5058,7 +5006,7 @@ pub fn trimmed_patch_face_rounds<T: Decide>(
     // 16×16 pass PER CHORD and the chord count doubles every round, so
     // "one more call" at the last round is two orders of magnitude of
     // work, not one call's worth.
-    let mut area_at_first: Option<RingInterval> = None;
+    let mut area_at_first: Option<Interval> = None;
     for round in first..=TRIM_MAX_ROUNDS {
         let cells = trim_cells::<T>(chords, pieces, su.as_ref(), sv.as_ref(), band)?;
         if cells.len() < 3 {
@@ -5425,7 +5373,7 @@ mod tests {
         let edges = [rim, seam_up, top, seam_down];
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let eps = Tol::witness().get().eps;
-        let out = cylinder_cut_face::<f64>(pt(1.0), RingInterval::zero(), &edges, eps, band)
+        let out = cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &edges, eps, band)
             .expect("the band face converges");
         let exact = 2.0 * tau; // ∮ u dv = 4π
         assert!(
@@ -5479,7 +5427,7 @@ mod tests {
     /// bracket.
     #[test]
     fn hopeless_endpoint_brackets_refuse_at_the_budget() {
-        let wide = RingInterval::from_bounds(-1.0, 1.0);
+        let wide = Interval::from_bounds(-1.0, 1.0);
         let e = TrimEdgeQ {
             u: chan(0.0, 0.0, 0.0, 1.0),
             v: chan(2.0, 1.0, 0.0, 0.0),
@@ -5491,7 +5439,7 @@ mod tests {
         };
         let band = geom_core::Band::linear(Tol::witness()).unwrap();
         let eps = Tol::witness().get().eps;
-        match cylinder_cut_face::<f64>(pt(1.0), RingInterval::zero(), &[e], eps, band) {
+        match cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &[e], eps, band) {
             Err(PropsError::QuadratureBudget { .. }) => {}
             other => panic!("expected the typed budget refusal, got {other:?}"),
         }
@@ -5849,7 +5797,7 @@ mod tests {
         );
         // Anti-vacuity, ε-KEYED rather than waived. The INTEGRAL rows
         // ride the exact per-span Newton–Cotes lane, whose width is
-        // ring rounding only — ε-independent, so they must certify on
+        // outward rounding only — ε-independent, so they must certify on
         // EVERY row of the matrix. The RATIONAL rows ride the O(h²)
         // composite against an ε-coupled target, so they certify at the
         // corpus ε and coarser and refuse typed below it; that boundary
@@ -5968,8 +5916,8 @@ mod tests {
             let e = TrimEdgeQ {
                 u,
                 v,
-                t0: RingInterval::from_bounds(mid0 - w * 0.5, mid0 + w * 0.5),
-                t1: RingInterval::from_bounds(mid1 - w * 0.5, mid1 + w * 0.5),
+                t0: Interval::from_bounds(mid0 - w * 0.5, mid0 + w * 0.5),
+                t1: Interval::from_bounds(mid1 - w * 0.5, mid1 + w * 0.5),
                 forward: true,
                 trig0: (pt(t0_true.cos()), pt(t0_true.sin())),
                 env: pt(0.0),
@@ -6116,7 +6064,7 @@ mod tests {
             // while the sliver's ring-arithmetic floor sits above it)
             // the TYPED budget refusal is the correct answer — never a
             // silently wide bracket, never a silent skip.
-            match cylinder_cut_face::<f64>(pt(1.0), RingInterval::zero(), &edges, eps, band) {
+            match cylinder_cut_face::<f64>(pt(1.0), Interval::zero(), &edges, eps, band) {
                 Ok(out) => {
                     assert!(
                         out.flux.lo() <= truth && truth <= out.flux.hi(),
@@ -6261,7 +6209,7 @@ mod tests {
         .expect("the rectangle certificate answers its own fixture")
     }
 
-    fn overlaps(a: RingInterval, b: RingInterval) -> bool {
+    fn overlaps(a: Interval, b: Interval) -> bool {
         a.lo() <= b.hi() && b.lo() <= a.hi()
     }
 
@@ -6293,7 +6241,7 @@ mod tests {
         }
     }
 
-    fn encloses(x: RingInterval, truth: f64, label: &str) {
+    fn encloses(x: Interval, truth: f64, label: &str) {
         assert!(
             x.lo() <= truth && truth <= x.hi(),
             "{label}: the closed form {truth} escapes the certified enclosure {x:?}"
@@ -6326,7 +6274,7 @@ mod tests {
         encloses(b.flux, c * 0.5, "Q1 flux");
         encloses(b.area, 0.5, "Q1 area");
         // The chord polygon is integrated EXACTLY and a degree-1 image
-        // IS its chord, so the only width here is ring rounding — the
+        // IS its chord, so the only width here is outward rounding — the
         // target is four decades above it at every ε the matrix draws.
         let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
         assert!(
@@ -6693,8 +6641,8 @@ mod tests {
                 iso((1.0, 1.0), (0.0, 1.0)),
                 iso((0.0, 1.0), (0.0, 0.0)),
             ];
-            let mut sum_a = RingInterval::zero();
-            let mut sum_f = RingInterval::zero();
+            let mut sum_a = Interval::zero();
+            let mut sum_f = Interval::zero();
             for (label, chords) in [("first", &first), ("second", &second)] {
                 let out = trimmed(&ku, &kvv, &control, &w, chords, RoundWindow::SCHEDULE)
                     .unwrap_or_else(|e| {
@@ -6779,7 +6727,7 @@ mod tests {
     /// numbers were the arithmetic's rounding and not the rule's error:
     /// that mutant is refinement-invariant too — its answer is wrong by
     /// `1.95e-6` at BOTH rounds — so the old gate was separating an
-    /// exact zero from one ulp of luck. The C9 ring pads only where an
+    /// exact zero from one ulp of luck. Certification arithmetic pads only where an
     /// operation is inexact now, so an enclosure is no longer symmetric
     /// about the round-to-nearest value and its midpoint carries that
     /// asymmetry: the shipped order reads two ulps apart (`1.11e-16` on
@@ -6841,7 +6789,7 @@ mod tests {
             r0.flux,
             r2.flux
         );
-        // …and it is exact to ring rounding, not merely consistent: a
+        // …and it is exact to outward rounding, not merely consistent: a
         // composite short of the degree would agree only to its own
         // error. **Short of the degree, not short of the order**: a
         // closed Newton–Cotes rule on an EVEN interval count is exact
@@ -6853,7 +6801,7 @@ mod tests {
         // every parity.
         assert!(
             r0.flux.width() < 1e-9 * r0.flux.mag().max(1.0),
-            "Q9: the exact lane's width is the nodes' and weights' ring rounding, got {:e}",
+            "Q9: the exact lane's width is the nodes' and weights' outward rounding, got {:e}",
             r0.flux.width()
         );
     }
@@ -6876,8 +6824,8 @@ mod tests {
         let d = 1.0e-4;
         let (ku, kvv, control, w) = flat_chart(c);
         let fat = (
-            RingInterval::from_bounds(1.0 - 2.0 * d, 1.0),
-            RingInterval::from_bounds(1.0, 1.0 + 2.0 * d),
+            Interval::from_bounds(1.0 - 2.0 * d, 1.0),
+            Interval::from_bounds(1.0, 1.0 + 2.0 * d),
         );
         let mut g = general(&[(1.0, 1.0), (0.0, 0.0)], 0.0);
         g.a = fat;
@@ -6945,9 +6893,9 @@ mod tests {
         // exactly and the lane PAYS the gap rather than refusing it.
         let d = 1.0e-3;
         let mut rim = iso((1.0, 0.0), (1.0, 1.0));
-        rim.b = (RingInterval::from_bounds(1.0 - d, 1.0), pt(1.0));
+        rim.b = (Interval::from_bounds(1.0 - d, 1.0), pt(1.0));
         let mut g = general(&[(1.0 - d, 1.0), (0.0, 0.0)], 0.0);
-        g.a = (RingInterval::from_bounds(1.0 - 2.0 * d, 1.0 - d), pt(1.0));
+        g.a = (Interval::from_bounds(1.0 - 2.0 * d, 1.0 - d), pt(1.0));
         g.piece.as_mut().unwrap().control[0] = g.a;
         let closed = vec![iso((0.0, 0.0), (1.0, 0.0)), rim, g];
         let b = bounds_of(
@@ -7008,7 +6956,7 @@ mod tests {
     /// function states in capitals: a dropped knot cut leaves the
     /// sub-chord straddling a knot by the guard's own width, the
     /// Newton–Cotes exactness argument fails on it, and no term pays.
-    /// The guard's width is the same order as the ring rounding the
+    /// The guard's width is the same order as the outward rounding the
     /// lane calls its whole enclosure.
     ///
     /// The fixture puts the chart's `u` knot four ulps of the chord's
