@@ -321,7 +321,15 @@ the diagnosis and the repair. A reshaping has one more thing to say, which a del
 never has: a name on a step it KEPT is rewritten in place to the
 coordinates the segment sits at now and reported `Rebound { from, to
 }`, so a moved name is visible in the accepted edit and never silently
-re-denotes (`crates/profile/README.md` V2).
+re-denotes (`crates/profile/README.md` V2). The same holds for an edit
+that moves the numbering a name is spelled in rather than its referent:
+a value edit (`SetParam`, `SetExpression`, `SetStructuralParam`,
+`SetDocParam`, `SetDocParamValue`) that changes which loop of a profile
+is outer or which way a loop runs is a reshaping with every step kept.
+The names spelled in that profile's numbering are rewritten and reported
+`Rebound` through the same map, and where either side's numbering cannot
+be read they are reported stranded, as a reshaping reports a program
+whose spans cannot be read (`reanchor_report` in `edit.rs`).
 
 The report covers every reference the document holds under N5
 semantics, not only the node payloads: an appearance attachment is
