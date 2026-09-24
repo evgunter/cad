@@ -660,6 +660,53 @@ would have run opus/opus outside the protocol; its row T2T is a
 seam-day row and any readout spanning 2026-09-19 treats it per the
 entry's item 4. The remaining E unit runs outside the protocol.
 
+## The surface setter's posture seam (2026-09-14): one table row, two prose paragraphs
+
+TOPO's `topo/set-face-surface-drops-rows-on-chart-change` gives
+`Body::set_face_surface` the loop doors' answer: a swap onto a chart
+the face's rows were not stated in drops them, a swap onto the same
+chart carries them all. What that moves in TRIM's
+`crates/topo/src/pcurves.rs` is the declaration, not the pass — no
+function there is added or changed:
+
+- `staleness_posture::DECLARED`'s `set_face_surface` row moves from
+  `Neither` to `Transfers`, with a note saying what the door does; its
+  old note cited the issue this unit closes, so the citation goes with
+  it. `set_edge_curve` stays `Neither` and its note says WHY it is not
+  the same case — measured, not asserted: a carrier swap moves neither
+  a row's key nor its chart, and pass 2 re-derives every row's
+  agreement from the edge's current carrier, so a staled row is
+  refused per half-edge (the row
+  `an_edge_carrier_swap_leaves_rows_the_pcurve_pass_refuses_loud` in
+  `crates/topo/tests/loop_reparenting_pcurve_rows.rs` reads the two
+  refusals).
+- The module docs' transfer-posture paragraph and the `Transfers`
+  variant's doc name the setter beside the three loop doors.
+
+The pass's own silence on an emptied face is unchanged and is TRIM's
+row: evidence from this unit's measurements is added to
+`work/trim/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
+Signed (TOPO, the set_face_surface lane).
+
+## The module header's length is a row now (2026-09-14)
+
+PR 2594's fix pass, on R1's style finding: `crates/topo/src/pcurves.rs`
+opens with 264 doc lines that restate, per door class, what
+`staleness_posture::DECLARED` states below as a table with a mechanical
+reader. Filed as
+`work/trim/the-pcurves-module-header-restates-the-posture-table-below-it`.
+
+The same pass corrected two sentences in this file that PR 2594 had
+added: `set_edge_curve`'s posture note and the module paragraph beside
+it claimed a staled row is refused "wherever the row exists at all".
+It is not — `validate_pcurves` skips its re-certification on any face
+it finds incomplete
+(`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`),
+so a half-minted face swallows exactly those refusals. Both sentences
+now say the pass measures a stale row on a COMPLETE face and point at
+that row; `set_edge_curve` stays `Neither`, with the argument in its
+own docs and a row in `crates/topo/tests/loop_reparenting_pcurve_rows.rs`
+characterising the silence. Signed (TOPO, the set_face_surface lane).
 ## The run doors' posture seam (2026-09-14): two prose paragraphs, two table notes, no function
 
 TOPO's `topo/mef-kef-runs-carry-or-drop-rows` gives `Body::mef`'s
