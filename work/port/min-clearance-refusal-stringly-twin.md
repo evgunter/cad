@@ -2,10 +2,11 @@
 id: min-clearance-refusal-stringly-twin
 kind: issue
 title: MinClearanceRefusal ferries (class, String) instead of the ClearanceRefusal it mirrors
-status: open
+status: review
 opened: 2026-09-03
 priority: P1
 cost: E
+pr: 3188
 ---
 
 
