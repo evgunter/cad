@@ -1004,7 +1004,7 @@ fn sibling(h: &Hand, v: SideVerdict) -> StableName {
 /// so no Cascade.
 /// One run for [`group_diagnosis`]: its rows `(name, entities)` and
 /// its recorded groups `(base, size)`.
-type Run = (Vec<(StableName, usize)>, Vec<(StableName, u32)>);
+type Run = (Vec<(StableName, usize)>, Vec<(StableName, usize)>);
 
 fn group_diagnosis(
     h: &Hand,
@@ -1012,7 +1012,7 @@ fn group_diagnosis(
     (prior, prior_groups): Run,
     (now, now_groups): Run,
 ) -> editor_core::ResolutionFailure {
-    let record = |groups: Vec<(StableName, u32)>| {
+    let record = |groups: Vec<(StableName, usize)>| {
         let mut r = FragmentGroups::new();
         for (base, size) in groups {
             r.record_size(base, size);
@@ -1087,7 +1087,7 @@ fn fallback(h: &Hand) -> Diagnosis {
 
 /// One group of `size` under `h`'s base: the record an emitter that
 /// divided the one parent into those rows keeps.
-fn one_group(h: &Hand, size: u32) -> Vec<(StableName, u32)> {
+fn one_group(h: &Hand, size: usize) -> Vec<(StableName, usize)> {
     vec![(h.base.clone(), size)]
 }
 

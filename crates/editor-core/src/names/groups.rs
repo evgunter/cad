@@ -36,7 +36,7 @@ use crate::node::RecipeNodeId;
 struct Group {
     /// How many entities of the node's output descend from the group's
     /// parent.
-    size: u32,
+    size: usize,
     /// The names its members were published under, in the minting
     /// step's space. Read only to follow a union's fold
     /// ([`FragmentGroups::folded`]); a tie's members share names, so a
@@ -79,18 +79,18 @@ impl FragmentGroups {
     /// caller that assembles a record by hand (the resolve suites); an
     /// emitter records through [`FragmentGroups::record`], which also
     /// keeps the members' names.
-    pub fn record_size(&mut self, base: StableName, size: u32) {
+    pub fn record_size(&mut self, base: StableName, size: usize) {
         self.push(base, size, Vec::new());
     }
 
     /// Records one group the emitter formed: its `base`, and the names
     /// its `members` were minted under, one per entity.
     pub(crate) fn record(&mut self, base: &StableName, members: Vec<NameRef>) {
-        let size = u32::try_from(members.len()).unwrap_or(u32::MAX);
+        let size = members.len();
         self.push(base.clone(), size, members);
     }
 
-    fn push(&mut self, base: StableName, size: u32, members: Vec<NameRef>) {
+    fn push(&mut self, base: StableName, size: usize, members: Vec<NameRef>) {
         match &mut self.0 {
             Record::Minted(groups) => groups
                 .entry(base)
@@ -119,7 +119,7 @@ impl FragmentGroups {
     /// tied parents give two), empty when no group is. `None` when a
     /// union's record cannot be read in its published space.
     #[must_use]
-    pub fn sizes(&self, base: &StableName) -> Option<Vec<u32>> {
+    pub fn sizes(&self, base: &StableName) -> Option<Vec<usize>> {
         match &self.0 {
             Record::Minted(groups) => Some(
                 groups
@@ -179,7 +179,7 @@ fn folded_sizes(
     node: RecipeNodeId,
     steps: &[Arc<FragmentGroups>],
     base: &StableName,
-) -> Option<Vec<u32>> {
+) -> Option<Vec<usize>> {
     let minted: Vec<&BTreeMap<StableName, Vec<Group>>> =
         steps.iter().map(|s| s.minted()).collect::<Option<_>>()?;
     // Living groups, per step, walking back from the last step.
@@ -205,10 +205,10 @@ fn folded_sizes(
             alive[k].insert(b, lives);
         }
     }
-    let mut found: Vec<u32> = Vec::new();
+    let mut found: Vec<usize> = Vec::new();
     for (k, groups) in minted.iter().enumerate() {
         for (b, gs) in *groups {
-            let living: Vec<u32> = gs
+            let living: Vec<usize> = gs
                 .iter()
                 .zip(&alive[k][b])
                 .filter(|&(_, &l)| l)

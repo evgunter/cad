@@ -1101,9 +1101,8 @@ fn the_gallery_ring_indexes_the_same_through_the_seam_across_edits() {
 /// After the gallery ring's bump, the tie-break row aims a ray along
 /// +y at a chord point of the tube. The ray lies in the plane of a
 /// triangle of the face it does NOT cross there: Möller–Trumbore's
-/// determinant for that triangle is rounding noise (~2e-19), and its
-/// its quotient `t = e2·q / det` cancels to `1.476`, 0.004 BELOW the
-/// corner, while its `u` and `v` are exactly `0`: in exact arithmetic
+/// determinant for that triangle is rounding noise, and its quotient
+/// `t = e2·q / det` cancels to `1.5`, 0.02 BEYOND the corner, while its `u` and `v` are exactly `0`: in exact arithmetic
 /// over the mesh's rounded corners the ray passes through that
 /// triangle's own corner `a` — the chord point — and its true `t` is
 /// `1.480`. The exact test now takes `t` from the hit point
@@ -1140,7 +1139,7 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     session.pump();
     let index =
         common::index_at(&session, common::corpus_delta()).expect("the bumped ring indexes");
-    let corner = Point3::new(0.3628905537491952, 0.0, 0.07218341914596763);
+    let corner = Point3::new(0.22558061449274294, 0.0, 0.0448707740637096);
     let reach = REACH;
     let ray = aimed_along_y(corner, 1.0);
     let same = |p: &Point3<f64>, q: &Point3<f64>| {

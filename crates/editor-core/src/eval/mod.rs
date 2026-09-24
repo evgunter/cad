@@ -35,6 +35,7 @@ pub(crate) use wire::{
 };
 
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue};
+pub(crate) use anchor::{naming_of, replay_naming};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::{DirectionRefusal, FramePlacement};
 
@@ -347,7 +348,7 @@ pub enum ValuePayload<T: Decide> {
     Datum(DatumValue<T>),
     /// A validated profile (D3: replayed from the node's program
     /// through the driver, then the profile crate's validation door),
-    /// its program-anchor naming map, and the radius expression each
+    /// its naming anchor, and the radius expression each
     /// of its edges is authored at ([`ProfileValue`]).
     Profile(Arc<ProfileValue<T>>),
     /// A single body: every one-body op (extrude, revolve, the tubes,
@@ -1028,7 +1029,7 @@ pub enum NodeErrorKind {
         /// The consumed decision, when the wall was the record.
         structure: Option<profile::StructureRefusal>,
     },
-    /// The program-anchor derivation failed to match a canonical loop
+    /// The naming-anchor derivation failed to match a canonical loop
     /// back to a program loop — an internal invariant break
     /// (validate's canonical form is an exact reindexing of its
     /// input), surfaced typed rather than panicking.

@@ -1251,7 +1251,9 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             // The group-size rung (`group_resized`'s docs).
             .or_else(|| prior.group_resized(new, name))
             // Every rung above came up empty: no verdict flip, no doc
-            // delta, no recorded qualifier delta, no group-size change.
+            // delta, no recorded qualifier delta, and no group-size
+            // change the rung could state (unchanged, or too large to
+            // count).
             .unwrap_or_else(|| Diagnosis::cause_not_in_evidence(name.node))
     };
     let last_good = prior.tombstone(new, name);
@@ -1654,9 +1656,10 @@ fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option
 /// holds no group under the base, when the groups a tie shares a base
 /// among are not all one size (there is then no one parent's count to
 /// state), when a union's record cannot be read in its published space,
-/// and when the size did NOT change: a group that re-qualified at the
-/// same size is a different event, about which the records say
-/// nothing.
+/// when either count does not fit the diagnosis's `u32` (a saturated
+/// size could make two different groups read as one), and when the
+/// size did NOT change: a group that re-qualified at the same size is
+/// a different event, about which the records say nothing.
 ///
 /// # Why it sits last: cause before effect
 ///
@@ -1693,12 +1696,18 @@ fn group_resized<U: Decide, T: Decide>(
 
 /// One parent's group size under `base` in one run's record
 /// ([`group_resized`]'s count): `0` when no group is recorded there,
-/// `None` when the groups sharing the base (a tie's) differ in size or
-/// the record cannot be read.
+/// `None` when the groups sharing the base (a tie's) differ in size,
+/// when the record cannot be read, or when the size does not fit the
+/// diagnosis's `u32` — the rung declines rather than report a
+/// saturated size two different groups would share.
 fn group_size(groups: &crate::names::FragmentGroups, base: &StableName) -> Option<u32> {
     match groups.sizes(base)?.as_slice() {
         [] => Some(0),
-        [one, rest @ ..] => rest.iter().all(|s| s == one).then_some(*one),
+        [one, rest @ ..] => rest
+            .iter()
+            .all(|s| s == one)
+            .then(|| u32::try_from(*one).ok())
+            .flatten(),
     }
 }
 
