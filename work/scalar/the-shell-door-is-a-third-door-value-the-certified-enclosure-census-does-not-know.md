@@ -84,12 +84,16 @@ and `holds_the_certified_shell_door` (new, in `props.rs`'s
 answers). The census's `ROSTERS` names all four with where each is
 formed (`CertifyingScalars`, or `F64Only` with its reason), and a new
 row enumerates the door VALUES in `crates/*/src` — every inherent
-zero-parameter `Self` constructor bounded on the right, concrete at
-`f64`, or named `certified`/`fit` — and reds on one with no roster
-entry. Its blind spot is stated in the census header.
+zero-parameter constructor returning `Self` (bare, or in an `Option`
+or a `Result`) bounded on the right, concrete at `f64`, or named
+`certified`/`fit` — and reds on one with no roster entry and no
+`NOT_A_DOOR` exemption, and on an `impl` head it cannot read. A third
+row requires each helper to hand every fn-pointer field of its door
+to `fn_addr_eq`. Its blind spot is stated in the census header.
 
 **What LANE-4 still owes:** the fifth door (`PcurveFittedLane` →
-`FittedLane<T>`) lands in this shape — its helper and one row per
-scalar it is formed at, beside its fields, and its `ROSTERS` entry.
+`FittedLane<T>`) lands in this shape — its helper comparing all three
+of its fields and one row per scalar it is formed at, beside its
+fields, and its `ROSTERS` entry.
 The census reds until it does, provided its constructor is one the
 reader sees.
