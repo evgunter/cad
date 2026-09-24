@@ -53,7 +53,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use test_utils::source::{
-    ItemBody, ImplHead, angle_end, balanced_end, code_only, ident, impl_head, item_body, line,
+    ImplHead, ItemBody, angle_end, balanced_end, code_only, ident, impl_head, item_body, line,
     repo_root, rust_sources, skip_ws, type_base, word_at,
 };
 
@@ -260,11 +260,13 @@ fn doors_in(file: &str, code: &str) -> Vec<Door> {
         }
         let self_base = type_base(&block.head.self_type);
         let header = &code[block.at..block.body.start];
-        let bounded = ["CertifiedBounds", "CertifiedEnclosure"].iter().any(|right| {
-            header
-                .match_indices(right)
-                .any(|(i, _)| word_at(header, i, right))
-        });
+        let bounded = ["CertifiedBounds", "CertifiedEnclosure"]
+            .iter()
+            .any(|right| {
+                header
+                    .match_indices(right)
+                    .any(|(i, _)| word_at(header, i, right))
+            });
         let concrete_f64 = block
             .head
             .self_type
@@ -466,11 +468,7 @@ fn every_certifying_scalar_has_a_wiring_row_and_every_row_a_scalar() {
              nowhere in the tree — the exemption is stale"
         );
     }
-    let door_scalars: BTreeSet<Row> = impls
-        .difference(&exempt)
-        .cloned()
-        .map(Row::At)
-        .collect();
+    let door_scalars: BTreeSet<Row> = impls.difference(&exempt).cloned().map(Row::At).collect();
     let mut failures = Vec::new();
     for roster in &ROSTERS {
         let (rows, definition) = rows(roster.file, &code_of(roster.file), roster.helper);
