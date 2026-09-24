@@ -51,8 +51,15 @@ pub(crate) const MIN_PART_INSTANCE: i64 = 0;
 /// roots rule (a new node takes its inputs' place), and a person who
 /// wants the other bodies kept projects each one, which is what the
 /// duplicate tool does for a pattern of two.
+///
+/// **It names the feature tree, because that is the only place left.**
+/// Once the split or pattern has left the picture, a viewport click
+/// meets the PROJECTION's body, and the projection tool seats the drawn
+/// body ([`crate::session::Selection::seat_node`]) — which is not a
+/// split or a pattern. Re-reaching the source from the viewport is
+/// `work/forms/a-projected-split-is-unreachable-from-the-viewport`.
 pub(crate) const PROJECTION_HIDES_THE_REST: &str = "only the selected body stays drawn: the split or pattern it is read out of leaves the \
-     picture — project each body you want to keep";
+     picture — to project another of its bodies, pick it again in the feature tree";
 
 /// **The part form's selector rows**: which of the two selections is
 /// being authored, the one field or radio row that selection needs,
@@ -113,8 +120,9 @@ pub(crate) fn part_selector_rows(
 pub(crate) fn duplicate_note() -> String {
     let [x, y, z] = STEP_DIRECTION.map(render_number);
     format!(
-        "the copy lands along ({x}, {y}, {z}), one body-width plus {}% clear of the original, \
-         measured off the body on screen; every slot is editable afterwards",
+        "the copy lands along ({x}, {y}, {z}), clear of the original by at least {}% of the \
+         body's width — more for a body thin that way — measured off the body as it now is; \
+         every slot is editable afterwards",
         render_number(DUPLICATE_GAP * 100.0),
     )
 }
@@ -1551,18 +1559,18 @@ mod tests {
     /// numbers the step rule actually uses.
     ///
     /// Held to the landed node from the other side by
-    /// `combine_ops::a_duplicate_lands_where_the_note_says`, which
+    /// `combine_ops::a_duplicate_keeps_the_notes_promise`, which
     /// asserts the committed pattern's spacing against the same rule.
     #[test]
     fn the_duplicate_note_says_how_the_step_is_chosen() {
         let note = duplicate_note();
         assert!(note.contains("(1, 0, 0)"), "along world +x: {note}");
         assert!(
-            note.contains("25% clear"),
-            "a quarter of the body's width: {note}"
+            note.contains("at least 25% of the body's width"),
+            "a quarter of the body's width, as a floor: {note}"
         );
         assert!(
-            note.contains("measured off the body"),
+            note.contains("measured off the body as it now is"),
             "and that the step is the body's, not a fixed length: {note}"
         );
         assert!(
@@ -1585,6 +1593,10 @@ mod tests {
             assert!(
                 drawn.contains("only the selected body stays drawn"),
                 "{choice:?}: {drawn}"
+            );
+            assert!(
+                drawn.contains("pick it again in the feature tree"),
+                "and where the rest can still be reached from: {drawn}"
             );
         }
     }

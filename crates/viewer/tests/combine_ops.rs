@@ -3087,13 +3087,18 @@ fn a_duplicate_lands_clear_of_its_original() {
     );
 }
 
-/// **The step the duplicate lands is the one the note promises**,
-/// against the body's closed form: box `A`'s width along +x, inflated
-/// by twice the measuring chord (the tessellation's conservative
-/// bound — the box's floor mesh is its eight corners, so its diagonal
-/// is exact), and then [`DUPLICATE_GAP`] of it clear.
+/// **The step keeps the note's promise** — clear of the original by
+/// AT LEAST [`DUPLICATE_GAP`] of the body's width — and it is the
+/// rule's exact number against box `A`'s closed form: its width along
+/// +x, inflated by twice the measuring chord plus the kernel ε (the
+/// tessellation's conservative bound — the box's floor mesh is its
+/// eight corners, so its diagonal is exact), then the gap on top.
+///
+/// And for a plate THIN along the step, where the inflation is large
+/// against the width: the promise is a floor, so the step may exceed
+/// a quarter-width by a lot, and must never fall short of it.
 #[test]
-fn a_duplicate_lands_where_the_note_says() {
+fn a_duplicate_keeps_the_notes_promise() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = boxed(&mut session, A);
@@ -3102,9 +3107,13 @@ fn a_duplicate_lands_where_the_note_says() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let diagonal = (A[0] * A[0] + A[1] * A[1] + A[2] * A[2]).sqrt();
     let chord = diagonal * MEASURE_CHORD;
-    let want = (A[0] + 2.0 * chord) * (1.0 + DUPLICATE_GAP);
+    let want = (A[0] + 2.0 * (chord + tol.eps())) * (1.0 + DUPLICATE_GAP);
     let got = spacing_of(&session, outcome.minted[0]);
     assert!(near(got, want), "spacing {got} vs the rule's {want}");
+    assert!(
+        got >= A[0] * (1.0 + DUPLICATE_GAP),
+        "at least a quarter-width clear"
+    );
     let Some(Node::Pattern {
         kind: PatternKind::Linear { direction, .. },
         ..
@@ -3119,6 +3128,24 @@ fn a_duplicate_lands_where_the_note_says() {
     assert_eq!(
         direction, STEP_DIRECTION,
         "along the one stepping direction"
+    );
+
+    // A 1 × 100 × 100 mm plate, thin along +x.
+    let plate = [0.001, 0.1, 0.1];
+    let mut session = self::session(tol);
+    let body = boxed(&mut session, plate);
+    session.pump();
+    let outcome = session.perform(SessionOp::Duplicate { input: body });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let got = spacing_of(&session, outcome.minted[0]);
+    assert!(
+        got >= plate[0] * (1.0 + DUPLICATE_GAP),
+        "the floor holds on a thin body: {got}"
+    );
+    assert_eq!(
+        separation_findings(&mut session),
+        0,
+        "and the plates do not meet"
     );
 }
 
@@ -3208,4 +3235,76 @@ fn the_part_tool_seats_a_split_picked_in_the_viewport() {
     let _ = tools.feed(session.committed_doc(), &[SessionOp::Select(picked)]);
     let tool = tools.part().expect("open");
     assert_eq!((tool.split(), tool.pattern()), (Some(split), None));
+}
+
+/// **A duplicate is not measured off a stale picture.** A box turned
+/// 90° about y, so its extrude distance is its width along +x, lands;
+/// then the distance grows tenfold and — before that edit lands — the
+/// box is duplicated. The landed evaluation still holds the OLD body,
+/// so a step read off it would be the old width and the copy would
+/// land inside the grown original. The door refuses instead, typed.
+#[test]
+fn a_duplicate_is_not_measured_off_a_picture_older_than_the_document() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let plane = common::xy_frame_in(&mut session);
+    let profile = insert(
+        &mut session,
+        SessionOp::AddProfile {
+            plane: ProfilePlane::Existing(plane),
+            loops: vec![shape(&ProfileShape::Rectangle {
+                width: 0.01,
+                height: 0.02,
+            })],
+        },
+    );
+    let extrude = insert(
+        &mut session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: len(0.01),
+        },
+    );
+    let turned = insert(
+        &mut session,
+        SessionOp::AddTransform {
+            input: extrude,
+            translation: len3([0.0; 3]),
+            rotation_axis: scl3([0.0, 1.0, 0.0]),
+            rotation_angle: ang(core::f64::consts::FRAC_PI_2),
+        },
+    );
+    session.pump();
+    let grown = session.perform(SessionOp::SetSlot {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: viewer::props::SlotValue::Continuous(0.1),
+    });
+    assert!(grown.refusal.is_none(), "{:?}", grown.refusal);
+    assert!(
+        session.busy(),
+        "the premise: the picture is older than the document"
+    );
+    let before = session.committed_doc().clone();
+    let out = session.perform(SessionOp::Duplicate { input: turned });
+    assert!(
+        matches!(out.refusal, Some(Refusal::Duplicate(DuplicateFault::Stale))),
+        "{:?}",
+        out.refusal
+    );
+    assert!(session.committed_doc().bit_eq(&before), "nothing committed");
+    // And once the edit lands, the same gesture measures the grown body
+    // and clears it.
+    session.pump();
+    let out = session.perform(SessionOp::Duplicate { input: turned });
+    assert!(out.refusal.is_none(), "{:?}", out.refusal);
+    assert!(
+        spacing_of(&session, out.minted[0]) > 0.1,
+        "the step clears the grown width"
+    );
+    assert_eq!(
+        separation_findings(&mut session),
+        0,
+        "and the copies do not meet"
+    );
 }

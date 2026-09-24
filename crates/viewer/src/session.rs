@@ -69,7 +69,7 @@ use pncad::select::{Resolution, RunCtx, resolve};
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
-use crate::combine::{self, PatternOutputChoice};
+use crate::combine::{self, DuplicateFault, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver};
 use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
@@ -2340,9 +2340,18 @@ impl DocSession {
             return OpOutcome::refused(refusal);
         }
         // The kind gate above is the document's; this is the VALUE's —
-        // one body, with a width to clear — read off the picture the
-        // person picked from.
-        let step = match combine::duplicate_step(self.landed_pair(), input, self.tol) {
+        // one body, with a width to clear — and the value must be the
+        // CURRENT document's. `busy` is the authority on that: it is
+        // the session's own comparison of the landed generation against
+        // the committed one, so an edit or a document replacement that
+        // has not landed yet is refused here rather than measured off
+        // the value it replaced.
+        let step = match self.landed_pair() {
+            None => Err(DuplicateFault::NotLanded),
+            Some(_) if self.busy() => Err(DuplicateFault::Stale),
+            Some((_, eval)) => combine::duplicate_step(eval, input, self.tol),
+        };
+        let step = match step {
             Ok(step) => step,
             Err(fault) => return OpOutcome::refused(Refusal::Duplicate(fault)),
         };

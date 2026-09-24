@@ -761,9 +761,10 @@ pub enum SessionOp {
     /// **The step is measured, not fixed**
     /// ([`crate::combine::duplicate_step`]): along
     /// [`crate::combine::STEP_DIRECTION`], far enough that the copy
-    /// clears the original by [`crate::combine::DUPLICATE_GAP`] of the
-    /// body's own width. It is read off the LANDED value, so this door
-    /// refuses ([`Refusal::Duplicate`]) before anything has landed,
+    /// clears the original by at least [`crate::combine::DUPLICATE_GAP`]
+    /// of the body's own width. It is read off the LANDED value of the
+    /// CURRENT document, so this door refuses ([`Refusal::Duplicate`])
+    /// before anything has landed, while an edit has not landed yet,
     /// and for an input whose value is several bodies — which the body
     /// seat's node-kind gate admits for a transform of a pattern, and
     /// which a pattern of two would index in place, adding nothing.

@@ -565,7 +565,8 @@ impl PartTool {
 /// copy away, so a form asking where the copy should go first would be
 /// the pattern form again under another name. Where the copy lands is
 /// [`duplicate_step`]'s rule — along [`STEP_DIRECTION`], clear of the
-/// original by [`DUPLICATE_GAP`] of its own width — and both numbers
+/// original by at least [`DUPLICATE_GAP`] of its own width — and both
+/// numbers
 /// land in ordinary slots of the pattern node the gesture authors,
 /// editable in the property panel the moment the edit lands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -632,9 +633,11 @@ impl DuplicateTool {
 /// the body ([`duplicate_step`]).
 pub const STEP_DIRECTION: [f64; 3] = [1.0, 0.0, 0.0];
 
-/// **How much clear space a duplicate leaves**, as a fraction of the
-/// body's own width along [`STEP_DIRECTION`]: the copy's near side
-/// lands this far past the original's far side.
+/// **How much clear space a duplicate leaves AT LEAST**, as a fraction
+/// of the body's own width along [`STEP_DIRECTION`]: the copy's near
+/// side lands at least this far past the original's far side, and
+/// further for a body thin along the step ([`duplicate_step`] says
+/// why).
 ///
 /// A fraction rather than a length, so the gap scales with the part —
 /// a millimetre gap beside a metre-long beam is invisible, and beside
@@ -645,9 +648,12 @@ pub const DUPLICATE_GAP: f64 = 0.25;
 /// FLOOR-mesh extent (`crate::scene::SCALE_PROBE_DELTA`'s mesh).
 ///
 /// Fine enough that the conservative inflation it costs — twice the
-/// chord, on the width — stays well under [`DUPLICATE_GAP`]; coarse
-/// enough that measuring a body is one cheap tessellation rather than
-/// a picture's worth.
+/// chord, on the width — stays well under [`DUPLICATE_GAP`] for a body
+/// about as wide along the step as it is across; coarse enough that
+/// measuring a body is one cheap tessellation rather than a picture's
+/// worth. For a body thin along the step the inflation is NOT small
+/// against the width, and the copy lands further off than the gap
+/// alone would put it ([`duplicate_step`]).
 ///
 /// Public for [`crate::scene::SCALE_PROBE_DELTA`]'s reason: a row that
 /// asserts a landed step against a body's closed form has to run the
@@ -661,8 +667,16 @@ pub const MEASURE_CHORD: f64 = 1.0 / 64.0;
 pub enum DuplicateFault {
     /// Nothing has landed, so there is no body to measure yet.
     NotLanded,
-    /// The landed evaluation holds no value for the input — it failed,
-    /// or it is newer than the picture.
+    /// The picture on screen answers an OLDER document than the one
+    /// the duplicate would be committed to — an edit has not landed
+    /// yet ([`crate::session::DocSession::busy`]). The landed value of
+    /// an edited node is its value BEFORE the edit, so a step measured
+    /// off it could be the old width, and after a document replacement
+    /// the same id may name a different node altogether (issue #1384).
+    Stale,
+    /// The picture on screen — which answers the current document —
+    /// holds no value for the input: its evaluation failed, or was
+    /// poisoned by a failure upstream.
     NoValue {
         /// The node picked.
         input: RecipeNodeId,
@@ -701,9 +715,13 @@ impl core::fmt::Display for DuplicateFault {
                 "the document has not evaluated yet, so there is no body to measure a copy's \
                  step off",
             ),
+            Self::Stale => f.write_str(
+                "the picture is older than the document — wait for the latest edit to evaluate, \
+                 so the copy's step is measured off the body as it now is",
+            ),
             Self::NoValue { input } => write!(
                 f,
-                "feature {} has no value in the picture on screen, so there is no body to copy",
+                "feature {} did not evaluate, so there is no body to copy",
                 input.0
             ),
             Self::NotOneBody { input } => write!(
@@ -729,30 +747,47 @@ impl core::fmt::Display for DuplicateFault {
 impl core::error::Error for DuplicateFault {}
 
 /// **Where a duplicate's copy lands**: the step, in metres along
-/// [`STEP_DIRECTION`], that puts the copy's near side
+/// [`STEP_DIRECTION`], that puts the copy's near side AT LEAST
 /// [`DUPLICATE_GAP`] of the body's width past the original's far side —
 /// so the two never touch, whatever the body's size.
 ///
-/// **Read off the LANDED value**, which is what a person picking a
-/// body in the viewport is looking at, and the evaluator's own answer
-/// to whether that value is one body.
+/// **Read off `eval`, which the caller must hand in CURRENT** — an
+/// evaluation of the document the duplicate will be committed to. The
+/// session door refuses [`DuplicateFault::NotLanded`] and
+/// [`DuplicateFault::Stale`] before calling this; a stale evaluation
+/// would hand back an edited node's OLD value, and nothing here could
+/// tell.
 ///
 /// **Conservative, and why.** The width is measured on a tessellation
-/// at chord δ, whose points lie on the exact surfaces and which is
-/// within δ of them everywhere (`pncad::mesh::tessellate`'s contract),
-/// so the true width is at most the mesh's plus 2δ; the step adds that
-/// before the gap. δ is [`MEASURE_CHORD`] of the body's floor-mesh
-/// extent, which sets the scale without knowing it in advance.
+/// at chord δ. The step needs every point of the exact surfaces to lie
+/// within a known distance of the mesh, and `pncad::mesh`'s crate docs
+/// state the promise the other way round — each triangle within δ of
+/// the surface — with an honest bound of δ + ε (+ rounding), ε being
+/// the kernel tolerance its boundary vertices sit within. The direction
+/// this needs holds too, and rests on the same facts: the mesh vertices
+/// lie on the surfaces (within ε), and each face kind's certificate
+/// bounds the gap between the surface and the linear interpolant
+/// through them over the triangle's own parameter cell, which runs both
+/// ways, while the cells cover the face. So the true width is at most
+/// the mesh's plus 2(δ + ε), and the step adds that before the gap;
+/// rounding is left to the gap, which exceeds it by many orders.
+///
+/// **So the gap is a floor, not the step's exact share.** δ is
+/// [`MEASURE_CHORD`] of the body's floor-mesh DIAGONAL, which sets the
+/// scale before any width is known; for a body thin along
+/// [`STEP_DIRECTION`] the 2(δ + ε) margin can be several times the
+/// width, and the copy lands further away than a quarter-width. Never
+/// nearer.
 ///
 /// # Errors
 ///
-/// Every [`DuplicateFault`].
+/// [`DuplicateFault::NoValue`], [`DuplicateFault::NotOneBody`],
+/// [`DuplicateFault::Unmeasured`], [`DuplicateFault::NoExtent`].
 pub fn duplicate_step(
-    landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
+    eval: &Evaluation<f64>,
     input: RecipeNodeId,
     tol: Tol,
 ) -> Result<f64, DuplicateFault> {
-    let (_, eval) = landed.ok_or(DuplicateFault::NotLanded)?;
     let value = eval.value(input).ok_or(DuplicateFault::NoValue { input })?;
     let body = one_body(&value.payload).ok_or(DuplicateFault::NotOneBody { input })?;
     let measured = |chord: f64| {
@@ -773,7 +808,7 @@ pub fn duplicate_step(
     let width = width_along(&mesh.positions, STEP_DIRECTION)
         .filter(|w| w.is_finite() && *w > 0.0)
         .ok_or(DuplicateFault::NoExtent { input })?;
-    Ok((width + 2.0 * chord) * (1.0 + DUPLICATE_GAP))
+    Ok((width + 2.0 * (chord + tol.eps())) * (1.0 + DUPLICATE_GAP))
 }
 
 /// How far `points` spread along `direction` (normalized here): the
