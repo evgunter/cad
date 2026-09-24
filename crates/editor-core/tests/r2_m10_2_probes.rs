@@ -1395,7 +1395,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
     let d0 = push(
         &d0,
         &DocEdit::SetDocParam {
-            name: ParamName::new("s"),
+            name: ParamName::literal("s"),
             value: DocParam::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
@@ -1409,7 +1409,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
     let vs = vertices(&ev, b);
     let expr = MeasureExpr::div(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(ParamName::new("s"), Dimension::Scalar)),
+        MeasureExpr::value(Expr::param(ParamName::literal("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar is a Length");
     let (d2, id) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);
@@ -1423,7 +1423,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
                 profile: RecipeNodeId(1),
                 distance: Expr::div(
                     Expr::literal(13.0, Dimension::Length).unwrap(),
-                    Expr::param(ParamName::new("s"), Dimension::Scalar),
+                    Expr::param(ParamName::literal("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
             },
@@ -1462,7 +1462,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     let d0 = push(
         &d0,
         &DocEdit::SetDocParam {
-            name: ParamName::new("s"),
+            name: ParamName::literal("s"),
             value: DocParam::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
@@ -1476,7 +1476,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
     let vs = vertices(&ev, b);
     let expr = MeasureExpr::div(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-        MeasureExpr::value(Expr::param(ParamName::new("s"), Dimension::Scalar)),
+        MeasureExpr::value(Expr::param(ParamName::literal("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
     let (d2, measure) = with_measure(&d1, expr, vec![vs[0].clone(), vs[7].clone()]);

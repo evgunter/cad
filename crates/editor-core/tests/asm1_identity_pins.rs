@@ -47,7 +47,7 @@ fn exemplar(
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
+            name: ParamName::literal("depth"),
             value: DocParam::continuous(Dimension::Length, 0.75),
         },
     );
@@ -77,7 +77,7 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
     let (a, _) = step(
         base.clone(),
         DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
+            name: ParamName::literal("depth"),
             value: DocParam::continuous(Dimension::Length, 0.9),
         },
     );
@@ -85,14 +85,14 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
     let (b, _) = step(
         base,
         DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
+            name: ParamName::literal("depth"),
             value: DocParam::continuous(Dimension::Length, 0.1),
         },
     );
     let (b, _) = step(
         b,
         DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
+            name: ParamName::literal("depth"),
             value: DocParam::continuous(Dimension::Length, 0.9),
         },
     );
@@ -104,11 +104,11 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
     // edit logs over one origin; both load-replay to the same pin.
     let (origin, _, _) = exemplar("asm1-row2");
     let log_a = vec![DocEdit::SetDocParam {
-        name: ParamName::new("depth"),
+        name: ParamName::literal("depth"),
         value: DocParam::continuous(Dimension::Length, 0.9),
     }];
     let mut log_b = vec![DocEdit::SetDocParam {
-        name: ParamName::new("depth"),
+        name: ParamName::literal("depth"),
         value: DocParam::continuous(Dimension::Length, 0.1),
     }];
     log_b.extend(log_a.clone());
@@ -161,7 +161,7 @@ fn row2_undone_edit_pin_unchanged() {
     let (edited, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
+            name: ParamName::literal("depth"),
             value: DocParam::continuous(Dimension::Length, 0.9),
         },
     );
@@ -173,7 +173,7 @@ fn row2_undone_edit_pin_unchanged() {
     let (undone, _) = step(
         edited,
         DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
+            name: ParamName::literal("depth"),
             value: DocParam::continuous(Dimension::Length, 0.75),
         },
     );
@@ -219,7 +219,7 @@ fn row4_param_edit_moves_pin() {
     let (edited, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("depth"),
+            name: ParamName::literal("depth"),
             value: DocParam::continuous(Dimension::Length, 0.8),
         },
     );

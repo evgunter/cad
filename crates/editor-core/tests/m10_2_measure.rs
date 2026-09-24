@@ -94,7 +94,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new(HOLE_R),
+            name: ParamName::literal(HOLE_R),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.2,
@@ -143,7 +143,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                     plane: xy,
                     loops: vec![LoopProgram::Circle {
                         centre: [len(cx), len(0.0)],
-                        radius: Expr::param(ParamName::new(HOLE_R), Dimension::Length),
+                        radius: Expr::param(ParamName::literal(HOLE_R), Dimension::Length),
                     }],
                 }),
             },
@@ -362,7 +362,7 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let (doc, _, holes) = plate();
     let walls = hole_walls(&eval(&doc), holes);
     assert_eq!(walls.len(), 2, "two holes, one wall reference each");
-    let r = || MeasureExpr::value(Expr::param(ParamName::new(HOLE_R), Dimension::Length));
+    let r = || MeasureExpr::value(Expr::param(ParamName::literal(HOLE_R), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(r(), r()).expect("Length + Length"),
@@ -422,7 +422,7 @@ fn the_two_hole_plate_web_measures_and_its_assertion_flips() {
     let doc = push(
         &doc,
         &DocEdit::SetDocParamValue {
-            name: ParamName::new(HOLE_R),
+            name: ParamName::literal(HOLE_R),
             value: DocParamValue::Continuous(0.29999),
         },
     );
@@ -451,7 +451,7 @@ fn the_two_hole_plate_web_measures_and_its_assertion_flips() {
 fn a_violated_assertion_changes_no_downstream_outcome() {
     let (with_assertion, measure, assertion) = plate_with_web();
     let violating = DocEdit::SetDocParamValue {
-        name: ParamName::new(HOLE_R),
+        name: ParamName::literal(HOLE_R),
         value: DocParamValue::Continuous(0.29999),
     };
     let with_assertion = push(&with_assertion, &violating);
@@ -730,7 +730,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("s"),
+            name: ParamName::literal("s"),
             value: DocParam::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
@@ -742,7 +742,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
     // 13 m / s, with s bound to zero.
     let over_zero = MeasureExpr::div(
         MeasureExpr::value(Expr::literal(13.0, Dimension::Length).expect("finite")),
-        MeasureExpr::value(Expr::param(ParamName::new("s"), Dimension::Scalar)),
+        MeasureExpr::value(Expr::param(ParamName::literal("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
     doc = push(
@@ -790,7 +790,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("s"),
+            name: ParamName::literal("s"),
             value: DocParam::Continuous {
                 dim: Dimension::Scalar,
                 value: 0.0,
@@ -819,7 +819,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
                 profile: disc,
                 distance: Expr::div(
                     Expr::literal(13.0, Dimension::Length).expect("finite"),
-                    Expr::param(ParamName::new("s"), Dimension::Scalar),
+                    Expr::param(ParamName::literal("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
             },

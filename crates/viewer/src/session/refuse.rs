@@ -484,7 +484,7 @@ impl Refusal {
         let over = if params.is_empty() {
             "an expression".to_owned()
         } else {
-            let names: Vec<&str> = params.iter().map(|p| p.0.as_str()).collect();
+            let names: Vec<&str> = params.iter().map(ParamName::as_str).collect();
             format!("an expression over {}", names.join(", "))
         };
         match current {
@@ -510,14 +510,14 @@ impl Refusal {
     pub fn exists_wording(name: &ParamName, dimension: Dimension) -> String {
         format!(
             "parameter {} already exists ({dimension}) — edit it instead?",
-            name.0
+            name.as_str()
         )
     }
 
     /// The create-offer sentence, and its one home — shown over the
     /// add-parameter form when an expression refused on this name.
     pub fn offer_wording(name: &ParamName) -> String {
-        format!("create parameter {}?", name.0)
+        format!("create parameter {}?", name.as_str())
     }
 }
 
@@ -544,7 +544,7 @@ impl core::fmt::Display for Refusal {
                 write!(
                     f,
                     "no document parameter named {} — {UNDECLARED_PARAM_RECOURSE}",
-                    name.0
+                    name.as_str()
                 )
             }
             Self::ParamNotANumber { name } => {
@@ -552,7 +552,7 @@ impl core::fmt::Display for Refusal {
                     f,
                     "parameter {} holds a number, not an expression — write a number, with a \
                      unit if you want one (50 mm)",
-                    name.0
+                    name.as_str()
                 )
             }
             Self::ParamExists { name, dimension } => {

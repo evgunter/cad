@@ -133,7 +133,7 @@ struct Authored {
 
 fn depth_param() -> TEdit {
     TEdit::SetDocParam {
-        name: ParamName::new("pip_depth"),
+        name: ParamName::literal("pip_depth"),
         value: DocParam::continuous(Dimension::Length, 0.002),
     }
 }
@@ -177,7 +177,7 @@ fn author_theirs() -> Authored {
         TEdit::InsertNode {
             node: Node::Extrude {
                 profile: pip_p.unwrap(),
-                distance: Expr::param(ParamName::new("pip_depth"), Dimension::Length),
+                distance: Expr::param(ParamName::literal("pip_depth"), Dimension::Length),
             },
         },
     );
@@ -235,7 +235,7 @@ fn author_mine() -> Authored {
         TEdit::InsertNode {
             node: Node::Extrude {
                 profile: pip_p.unwrap(),
-                distance: Expr::param(ParamName::new("pip_depth"), Dimension::Length),
+                distance: Expr::param(ParamName::literal("pip_depth"), Dimension::Length),
             },
         },
     );

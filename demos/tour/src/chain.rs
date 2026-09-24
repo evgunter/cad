@@ -293,8 +293,8 @@ pub fn pin_axis<T: pncad::geom_core::Real>(body: &Body<T>) -> (T, T) {
 /// The parameter name of joint `k` (`k` is 1-based, joint 1 at the
 /// base). One spelling, read by the document, the sheet and the
 /// certified table alike.
-pub fn joint_name(k: usize) -> String {
-    format!("joint_{k}")
+pub fn joint_name(k: usize) -> ParamName {
+    ParamName::new(format!("joint_{k}")).expect("joint_<k> is one identifier")
 }
 
 fn len(v: f64) -> Expr {
@@ -312,11 +312,17 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
     applied.record.minted.expect("an insert mints an id")
 }
 
-fn declare(doc: &mut ProfileDoc, n: &str, value: f64, distribution: Distribution, tol: Tol) {
+fn declare(
+    doc: &mut ProfileDoc,
+    name: ParamName,
+    value: f64,
+    distribution: Distribution,
+    tol: Tol,
+) {
     let applied = apply(
         doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new(n),
+            name,
             value: DocParam::continuous_with(Dimension::Angle, value, distribution),
         },
         tol,
@@ -362,7 +368,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
     for k in 1..=links {
         declare(
             &mut doc,
-            &joint_name(k),
+            joint_name(k),
             0.0,
             Distribution::Normal { sigma: joint_sigma },
             tol,
@@ -445,7 +451,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
                     input: node,
                     translation: [len(step), len(0.0), len(0.0)],
                     rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                    rotation_angle: Expr::param(ParamName::new(joint_name(j)), Dimension::Angle),
+                    rotation_angle: Expr::param(joint_name(j), Dimension::Angle),
                 },
                 tol,
             );

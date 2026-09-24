@@ -280,7 +280,7 @@ pub fn shape(template: &ProfileShape) -> LoopProgram {
 
 /// The name of the parametric fixture's driving parameter.
 pub fn thickness_param() -> ParamName {
-    ParamName::new("thickness")
+    ParamName::literal("thickness")
 }
 
 /// A document whose extrude distance is DRIVEN by a document

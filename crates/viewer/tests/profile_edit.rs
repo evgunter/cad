@@ -370,7 +370,7 @@ fn a_driven_argument_refuses_to_load() {
     }];
     let (mut session, profile) = with_profile(&loops, Notation::CANONICAL);
     let out = session.perform(SessionOp::CreateParam {
-        name: ParamName::new("side"),
+        name: ParamName::literal("side"),
         value: DocParam::continuous(Dimension::Length, 0.01),
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);

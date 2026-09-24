@@ -293,7 +293,7 @@ fn product_of(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> (Body<f64>, N
 /// SEATING face is its top cap and its datum face is the origin plane.
 fn prism_part(
     label: &str,
-    params: &[(&str, f64)],
+    params: &[(&'static str, f64)],
     plan: (&str, &str),
     length: &str,
     tol: Tol,
@@ -301,7 +301,7 @@ fn prism_part(
     let mut doc = ProfileDoc::empty(DocumentId::derive(label), tol);
     let mut scope: BTreeMap<ParamName, Dimension> = BTreeMap::new();
     for &(name, value) in params {
-        let name = ParamName::new(name);
+        let name = ParamName::literal(name);
         edit(
             &mut doc,
             &DocEdit::SetDocParam {
@@ -1313,7 +1313,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     edit(
         &mut thicker,
         &DocEdit::SetDocParamValue {
-            name: ParamName::new("thickness"),
+            name: ParamName::literal("thickness"),
             value: DocParamValue::Continuous(SHELF_THICKNESS * 1.5),
         },
         tol,
@@ -1414,7 +1414,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     edit(
         &mut shorter,
         &DocEdit::SetDocParamValue {
-            name: ParamName::new("height"),
+            name: ParamName::literal("height"),
             value: DocParamValue::Continuous(POST_HEIGHT - 0.04),
         },
         tol,
@@ -1517,7 +1517,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     edit(
         &mut shorter,
         &DocEdit::SetDocParamValue {
-            name: ParamName::new("height"),
+            name: ParamName::literal("height"),
             value: DocParamValue::Continuous(POST_HEIGHT),
         },
         tol,
@@ -1527,7 +1527,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     edit(
         &mut thicker,
         &DocEdit::SetDocParamValue {
-            name: ParamName::new("thickness"),
+            name: ParamName::literal("thickness"),
             value: DocParamValue::Continuous(SHELF_THICKNESS),
         },
         tol,

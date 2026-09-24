@@ -40,11 +40,11 @@ use geom_core::{Dual64, Tol};
 
 use fixture::{Recorder, fname, len, wall};
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::literal(n)
 }
 
-fn param(n: &str) -> Expr {
+fn param(n: &'static str) -> Expr {
     Expr::param(name(n), Dimension::Length)
 }
 
@@ -57,7 +57,7 @@ fn continuous(value: f64) -> DocParam {
     }
 }
 
-fn opts(seed: Option<&str>, lift: ProfileLift) -> EvalOptions {
+fn opts(seed: Option<&'static str>, lift: ProfileLift) -> EvalOptions {
     EvalOptions {
         seed: seed.map(name),
         profile_lift: lift,
@@ -312,7 +312,7 @@ fn the_seed_is_exactly_one_and_zero_by_construction() {
     let doc = two_param_web();
     let env = seed_env::<Dual64, _>(&doc, doc.param_env::<Dual64>(), &name("hole_r"))
         .expect("hole_r is continuous");
-    let binding = |n: &str| match env.bindings[&name(n)] {
+    let binding = |n: &'static str| match env.bindings[&name(n)] {
         ParamValue::Continuous { value, .. } => value,
         ParamValue::Count(_) => panic!("{n} is continuous"),
     };

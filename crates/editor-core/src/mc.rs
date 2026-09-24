@@ -409,7 +409,7 @@ pub fn monte_carlo(
             let Ok(offset) = sample_offset(name, dist, rng.unit()) else {
                 unreachable!(
                     "every law was proved sampleable before the run, yet {} refused",
-                    name.0
+                    name.as_str()
                 )
             };
             if let Some(p) = analyzed.get(name)

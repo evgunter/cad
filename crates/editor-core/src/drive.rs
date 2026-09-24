@@ -1920,7 +1920,7 @@ pub(crate) fn render_box(b: &ParamBox) -> String {
         let _ = write!(
             s,
             "{}=[{:016x},{:016x}] ",
-            name.0,
+            name.as_str(),
             lo.to_bits(),
             hi.to_bits()
         );
@@ -1993,7 +1993,7 @@ fn render_mass(m: &Result<f64, MeasureUnavailable>) -> String {
     match m {
         Ok(v) => format!("{:016x}", v.to_bits()),
         Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
-            format!("refused band:{}", param.0)
+            format!("refused band:{}", param.as_str())
         }
     }
 }

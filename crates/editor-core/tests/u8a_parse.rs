@@ -159,14 +159,14 @@ fn precedence_and_child_order_match_the_ast_descend_indices() {
 #[test]
 fn params_resolve_against_the_callers_table() {
     let mut params = no_params();
-    params.insert(ParamName::new("width"), Dimension::Length);
-    params.insert(ParamName::new("n"), Dimension::Count);
-    params.insert(ParamName::new("mm"), Dimension::Scalar);
+    params.insert(ParamName::literal("width"), Dimension::Length);
+    params.insert(ParamName::literal("n"), Dimension::Count);
+    params.insert(ParamName::literal("mm"), Dimension::Scalar);
     let e = parse_expr("width + 25 mm", &params).unwrap();
     assert_eq!(e.dim(), Dimension::Length);
     let mut refs = Vec::new();
     e.param_refs(&mut refs);
-    assert_eq!(refs, vec![(ParamName::new("width"), Dimension::Length)]);
+    assert_eq!(refs, vec![(ParamName::literal("width"), Dimension::Length)]);
     assert_eq!(parse_expr("n", &params).unwrap().dim(), Dimension::Count);
     // A param may share a unit's name: position disambiguates (an
     // ident is a unit only DIRECTLY after a number).
@@ -485,8 +485,8 @@ proptest! {
             .prop_flat_map(|dim| arb_text_of(dim, 3).prop_map(move |src| (dim, src))),
     ) {
         let mut params = BTreeMap::new();
-        params.insert(ParamName::new("S"), Dimension::Scalar);
-        params.insert(ParamName::new("N"), Dimension::Count);
+        params.insert(ParamName::literal("S"), Dimension::Scalar);
+        params.insert(ParamName::literal("N"), Dimension::Count);
         let e = parse_expr(&src, &params).expect(&src);
         prop_assert_eq!(e.dim(), dim, "{}", &src);
     }
@@ -507,7 +507,7 @@ fn rt_params() -> BTreeMap<ParamName, Dimension> {
         ("n", Dimension::Count),
     ]
     .into_iter()
-    .map(|(name, dim)| (ParamName::new(name), dim))
+    .map(|(name, dim)| (ParamName::literal(name), dim))
     .collect()
 }
 
@@ -724,8 +724,8 @@ proptest! {
             .prop_flat_map(|dim| arb_text_of(dim, 3)),
     ) {
         let mut params = BTreeMap::new();
-        params.insert(ParamName::new("S"), Dimension::Scalar);
-        params.insert(ParamName::new("N"), Dimension::Count);
+        params.insert(ParamName::literal("S"), Dimension::Scalar);
+        params.insert(ParamName::literal("N"), Dimension::Count);
         let e = parse_expr(&src, &params).expect(&src);
         let text = unparse(&e);
         let back = parse_expr(&text, &params).expect(&text);

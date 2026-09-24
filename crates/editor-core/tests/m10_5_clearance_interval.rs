@@ -151,12 +151,12 @@ fn half() -> f64 {
     Tol::witness().eps() / 64.0
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::literal(n)
 }
 
 /// The leaf box: one axis at [`half`] around the nominal.
-fn box_of(axis: &str) -> ParamBox {
+fn box_of(axis: &'static str) -> ParamBox {
     let mut axes = BTreeMap::new();
     axes.insert(
         name(axis),
@@ -170,7 +170,7 @@ fn box_of(axis: &str) -> ParamBox {
 
 /// Declares one continuous parameter with a uniform distribution of
 /// half-width [`half`].
-fn declare(r: &mut Recorder, axis: &str, nominal: f64) {
+fn declare(r: &mut Recorder, axis: &'static str, nominal: f64) {
     r.push(DocEdit::SetDocParam {
         name: name(axis),
         value: DocParam::Continuous {

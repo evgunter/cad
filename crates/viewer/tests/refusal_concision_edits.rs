@@ -37,7 +37,7 @@ fn name() -> StableName {
 }
 
 fn param() -> ParamName {
-    ParamName::new("width")
+    ParamName::literal("width")
 }
 
 fn n(id: u64) -> RecipeNodeId {

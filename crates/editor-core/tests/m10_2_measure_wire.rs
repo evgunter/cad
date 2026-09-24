@@ -75,7 +75,7 @@ fn every_form() -> ProfileDoc {
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("pad"),
+            name: ParamName::literal("pad"),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.001,
@@ -107,7 +107,7 @@ fn every_form() -> ProfileDoc {
                         )
                         .expect("Length - Length"),
                         MeasureExpr::neg(MeasureExpr::value(Expr::param(
-                            ParamName::new("pad"),
+                            ParamName::literal("pad"),
                             Dimension::Length,
                         ))),
                     )

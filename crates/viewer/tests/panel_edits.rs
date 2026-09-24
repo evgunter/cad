@@ -368,13 +368,13 @@ fn a_gesture_on_an_absent_parameter_refuses_typed() {
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
     let outcome = session.perform(SessionOp::BeginParamGesture {
-        name: pncad::document::ParamName::new("no-such-parameter"),
+        name: pncad::document::ParamName::literal("no_such_parameter"),
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
     assert!(matches!(
         session
             .perform(SessionOp::PreviewParamGesture {
-                name: pncad::document::ParamName::new("no-such-parameter"),
+                name: pncad::document::ParamName::literal("no_such_parameter"),
                 value: 1.0
             })
             .refusal,
@@ -547,7 +547,7 @@ fn refusals_render_as_sentences() {
     // status line renders verbatim.
     let edit = session
         .perform(SessionOp::SetParam {
-            name: pncad::document::ParamName::new("tapper"),
+            name: pncad::document::ParamName::literal("tapper"),
             value: SlotValue::Continuous(1.0),
         })
         .refusal
@@ -559,7 +559,7 @@ fn refusals_render_as_sentences() {
 
     let lookup = session
         .perform(SessionOp::BeginParamGesture {
-            name: pncad::document::ParamName::new("tapper"),
+            name: pncad::document::ParamName::literal("tapper"),
         })
         .refusal
         .expect("dragging an absent parameter refuses");
@@ -729,7 +729,7 @@ fn create_parameter_reference_it_and_one_undo_removes_it() {
     let tol = Tol::witness();
     let (doc, _profile, extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    let margin = pncad::document::ParamName::new("margin");
+    let margin = pncad::document::ParamName::literal("margin");
 
     // Before: an expression naming the undeclared parameter refuses
     // typed at the parse door (deliberate typo-safety) and carries
@@ -865,7 +865,7 @@ fn the_create_door_refuses_an_existing_name_and_setparam_still_replaces() {
 #[test]
 fn a_unit_bearing_text_sets_the_value_and_the_notation_as_one_undo() {
     let tol = Tol::witness();
-    let name = ParamName::new("base_r");
+    let name = ParamName::literal("base_r");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-written",
@@ -914,7 +914,7 @@ fn a_unit_bearing_text_sets_the_value_and_the_notation_as_one_undo() {
 #[test]
 fn text_that_says_what_the_declaration_already_says_is_not_an_edit() {
     let tol = Tol::witness();
-    let name = ParamName::new("base_r");
+    let name = ParamName::literal("base_r");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-noop",
@@ -960,7 +960,7 @@ fn text_that_says_what_the_declaration_already_says_is_not_an_edit() {
 #[test]
 fn an_expression_typed_into_a_parameter_is_refused_with_a_sentence() {
     let tol = Tol::witness();
-    let name = ParamName::new("base_r");
+    let name = ParamName::literal("base_r");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-expression",
@@ -1008,7 +1008,7 @@ fn an_expression_typed_into_a_parameter_is_refused_with_a_sentence() {
 #[test]
 fn an_unknown_unit_carries_the_parsers_own_wording() {
     let tol = Tol::witness();
-    let name = ParamName::new("base_r");
+    let name = ParamName::literal("base_r");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-unknown-unit",
@@ -1044,7 +1044,7 @@ fn an_unknown_unit_carries_the_parsers_own_wording() {
 #[test]
 fn a_wrong_dimension_unit_refuses_the_whole_action() {
     let tol = Tol::witness();
-    let name = ParamName::new("sweep");
+    let name = ParamName::literal("sweep");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-mismatch",
@@ -1082,7 +1082,7 @@ fn a_wrong_dimension_unit_refuses_the_whole_action() {
 #[test]
 fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
     let tol = Tol::witness();
-    let name = ParamName::new("base_r");
+    let name = ParamName::literal("base_r");
     let mut session = DocSession::inline(
         common::declared(
             "auth2-picker",
@@ -1106,7 +1106,7 @@ fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
 
     // A count names no notation, and the door says so rather than
     // this one guessing.
-    let holes = ParamName::new("holes");
+    let holes = ParamName::literal("holes");
     let mut counted = DocSession::inline(
         common::declared("auth2-picker-count", &holes, DocParam::Count { value: 6 }),
         tol,
@@ -1137,7 +1137,7 @@ fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
 #[test]
 fn a_count_refuses_a_unit_bearing_value_in_the_values_words() {
     let tol = Tol::witness();
-    let holes = ParamName::new("holes");
+    let holes = ParamName::literal("holes");
     let mut session = DocSession::inline(
         common::declared("auth2-count-text", &holes, DocParam::Count { value: 6 }),
         tol,

@@ -308,7 +308,7 @@ fn real_study(tol: Tol) {
                 // it. `render_sensitivity` was made public for this.
                 println!(
                     "     ∂web/∂{}: {}",
-                    s.param.0,
+                    s.param.as_str(),
                     render_sensitivity(&s.outcome)
                 );
             }
@@ -571,7 +571,11 @@ struct HullSlack {
 fn hull_slack(verdict: &ParamBoxVerdict, hull: (f64, f64)) -> HullSlack {
     let (mut true_lo, mut true_hi) = (f64::INFINITY, f64::NEG_INFINITY);
     for leaf in verdict.certified() {
-        let span = |n: &str| match leaf.box_.axes().get(&pncad::document::ParamName::new(n)) {
+        let span = |n: &'static str| match leaf
+            .box_
+            .axes()
+            .get(&pncad::document::ParamName::literal(n))
+        {
             Some(BoxAxis::Varying { lo, hi }) => (*lo, *hi),
             _ => (0.0, 0.0),
         };

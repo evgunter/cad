@@ -37,7 +37,7 @@ fn small() -> (ProfileDoc, String) {
     let doc = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("q"),
+            name: ParamName::literal("q"),
             value: DocParam::continuous(Dimension::Length, 2.5),
         },
         Tol::witness(),
@@ -206,7 +206,7 @@ fn attack_long_decimal_strings() {
         assert_ne!(crafted, text);
         let loaded = load(&crafted, Tol::witness()).expect("valid file");
         let Some(DocParam::Continuous { value, .. }) =
-            loaded.doc.params().get(&ParamName::new("q"))
+            loaded.doc.params().get(&ParamName::literal("q"))
         else {
             panic!("param lost")
         };
@@ -229,7 +229,7 @@ fn attack_inf_via_big_exponent() {
             Err(PersistError::Parse { .. }) => {}
             Ok(l) => panic!(
                 "{s} loaded as {:?}",
-                l.doc.params().get(&ParamName::new("q"))
+                l.doc.params().get(&ParamName::literal("q"))
             ),
             Err(e) => panic!("unexpected refusal for {s}: {e:?}"),
         }
@@ -260,7 +260,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
     push(
         &mut doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("d"),
+            name: ParamName::literal("d"),
             value: DocParam::continuous(Dimension::Length, 1.5),
         },
     );
@@ -285,7 +285,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         DocEdit::InsertNode {
             node: Node::Extrude {
                 profile: p0,
-                distance: Expr::param(ParamName::new("d"), Dimension::Length),
+                distance: Expr::param(ParamName::literal("d"), Dimension::Length),
             },
         },
     )

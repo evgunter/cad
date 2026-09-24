@@ -75,7 +75,7 @@ fn main() {
         doc = apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::new(*name),
+                name: ParamName::literal(name),
                 value: value.clone(),
             },
             tol,
@@ -102,7 +102,7 @@ fn main() {
         let (lo, hi) = axis.absolute();
         println!(
             "  {:<8} nominal {:>8}  offsets [{:+.3e}, {:+.3e}]  absolute [{lo}, {hi}]{}",
-            format!("{:?}", name.0),
+            format!("{:?}", name.as_str()),
             axis.nominal,
             axis.offsets.lo,
             axis.offsets.hi,
@@ -119,16 +119,16 @@ fn main() {
     for (name, axis) in b.varying() {
         let dist = axis.distribution.expect("varying implies annotated");
         match tail_mass(name, &dist, &axis.offsets) {
-            Ok(t) => println!("  {:<8} {t:.3e}", format!("{:?}", name.0)),
-            Err(e) => println!("  {:<8} REFUSED: {e}", format!("{:?}", name.0)),
+            Ok(t) => println!("  {:<8} {t:.3e}", format!("{:?}", name.as_str())),
+            Err(e) => println!("  {:<8} REFUSED: {e}", format!("{:?}", name.as_str())),
         }
     }
 
     // Price a driver-leaf-shaped sub-box on the measured bore.
-    let bore = b.get(&ParamName::new("bore_r")).expect("axis");
+    let bore = b.get(&ParamName::literal("bore_r")).expect("axis");
     let leaf = (0.0, bore.offsets.hi / 2.0);
     let m = box_mass(
-        &ParamName::new("bore_r"),
+        &ParamName::literal("bore_r"),
         &bore.distribution.expect("annotated"),
         leaf,
     )
@@ -137,9 +137,9 @@ fn main() {
 
     // And the refusal a first-time user WILL hit: pricing a leaf over
     // the vendor band.
-    let plate = b.get(&ParamName::new("plate_t")).expect("axis");
+    let plate = b.get(&ParamName::literal("plate_t")).expect("axis");
     match box_mass(
-        &ParamName::new("plate_t"),
+        &ParamName::literal("plate_t"),
         &plate.distribution.expect("annotated"),
         (0.0, 1e-4),
     ) {

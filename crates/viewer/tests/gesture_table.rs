@@ -168,7 +168,7 @@ fn alignment() -> Alignment {
 /// never reaches its own validation, and a permitted one is asserted
 /// on WHICH refusal it gives, not on succeeding.
 fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
-    let param = ParamName::new("thickness");
+    let param = ParamName::literal("thickness");
     vec![
         SessionOp::Select(Selection::Node(node)),
         SessionOp::Hover(Some(Hovered::Face(FaceSelection {
@@ -521,7 +521,7 @@ fn every_op_behaves_as_the_table_says() {
 fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
     let tol = Tol::witness();
     let (mut session, first, second, param) = two_fields(tol);
-    let undeclared = ParamName::new("no-such-parameter");
+    let undeclared = ParamName::literal("no_such_parameter");
 
     // The second extrude's distance becomes a computed slot, which is
     // what `begin_gesture`'s own check refuses.
@@ -530,7 +530,7 @@ fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
             .perform(SessionOp::SetSlotExpression {
                 node: second,
                 slot: SlotId::Distance,
-                text: param.0.clone(),
+                text: param.as_str().to_owned(),
             })
             .refusal
             .is_none(),
@@ -949,8 +949,8 @@ fn sample_names() -> Vec<GestureName> {
             node: RecipeNodeId(4),
             slot: SlotId::Distance,
         }),
-        GestureName::Value(ValueGestureName::Param(ParamName("h".into()))),
-        GestureName::Value(ValueGestureName::Param(ParamName("w".into()))),
+        GestureName::Value(ValueGestureName::Param(ParamName::literal("h"))),
+        GestureName::Value(ValueGestureName::Param(ParamName::literal("w"))),
         GestureName::FreeMove(FreeMoveName {
             instance: RecipeNodeId(3),
         }),
@@ -1113,7 +1113,7 @@ fn a_names_cancel_is_its_own_drags() {
             node: RecipeNodeId(3),
             slot: SlotId::Distance,
         }),
-        GestureName::Value(ValueGestureName::Param(ParamName("h".into()))),
+        GestureName::Value(ValueGestureName::Param(ParamName::literal("h"))),
     ] {
         assert!(
             matches!(name.cancel(), SessionOp::CancelGesture),
@@ -1620,7 +1620,7 @@ fn two_fields(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, ParamName) {
         tol,
     );
     let mut session = DocSession::inline(doc, tol);
-    let param = ParamName::new("thickness");
+    let param = ParamName::literal("thickness");
     assert!(
         session
             .perform(SessionOp::CreateParam {
@@ -2072,7 +2072,7 @@ fn the_open_probes_own_instance_driven_again_lands_its_frame() {
 fn the_field_dragged_after_a_strand_does_not_land_in_the_stranded_slot() {
     let tol = Tol::witness();
     let (mut session, extrude) = fixture(tol);
-    let param = ParamName::new("thickness");
+    let param = ParamName::literal("thickness");
     assert!(
         session
             .perform(SessionOp::CreateParam {

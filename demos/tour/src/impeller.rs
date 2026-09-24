@@ -108,7 +108,7 @@ struct Recipe {
 /// The parameter table every expression in this document resolves
 /// against — one entry, which is the scene's whole point.
 fn params() -> BTreeMap<ParamName, Dimension> {
-    [(ParamName::new("blades"), Dimension::Count)]
+    [(ParamName::literal("blades"), Dimension::Count)]
         .into_iter()
         .collect()
 }
@@ -158,7 +158,7 @@ fn build_doc(tol: Tol) -> Recipe {
     let applied = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("blades"),
+            name: ParamName::literal("blades"),
             value: DocParam::Count { value: COUNTS[0] },
         },
         tol,
@@ -279,7 +279,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         let applied = apply(
             &doc,
             &DocEdit::SetDocParamValue {
-                name: ParamName::new("blades"),
+                name: ParamName::literal("blades"),
                 value: DocParamValue::Count(n),
             },
             tol,

@@ -272,8 +272,13 @@ impl Tok {
     }
 }
 
-/// Lex the whole source (byte positions retained per token).
-fn lex(src: &str) -> Result<Vec<(usize, Tok)>, ParseError> {
+/// Lex the whole source (byte positions retained per token). The one
+/// way it refuses is a character outside the alphabet, returned as
+/// the offset and the character: [`parse_expr`] words it as
+/// [`ParseError::UnexpectedChar`] and [`param_name_fault`] as
+/// [`ParamNameReason::OutsideAlphabet`], each in its own vocabulary
+/// over the same fact.
+fn lex(src: &str) -> Result<Vec<(usize, Tok)>, (usize, char)> {
     let mut out = Vec::new();
     let mut it = src.char_indices().peekable();
     while let Some(&(pos, ch)) = it.peek() {
@@ -358,10 +363,141 @@ fn lex(src: &str) -> Result<Vec<(usize, Tok)>, ParseError> {
                 }
                 out.push((pos, Tok::Ident(name)));
             }
-            _ => return Err(ParseError::UnexpectedChar { pos, ch }),
+            _ => return Err((pos, ch)),
         }
     }
     Ok(out)
+}
+
+/// Why a text is not a parameter name, with the text that was offered.
+///
+/// What [`ParamName::new`] answers. The rule is the lexer's, asked
+/// once by `param_name_fault`: a parameter exists to be referenced
+/// from an expression, so a name is admissible exactly when the
+/// expression parser reads the text back as a reference to that same
+/// parameter — one identifier token covering the whole text, and
+/// nothing else. Every door that turns text into a name renders this
+/// one sentence: the constructor, the load door (through
+/// `ParamName`'s `Deserialize`, which is the same constructor) and
+/// the bindings above them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ParamNameFault {
+    /// The text offered as a name, verbatim.
+    pub offered: String,
+    /// What the lexer found in it.
+    pub reason: ParamNameReason,
+}
+
+impl core::fmt::Display for ParamNameFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // Quoted, because this is the one class of sentence that echoes
+        // bytes an author typed rather than framing a name the document
+        // holds — `ParseError`'s reason, at the constructor.
+        write!(f, "parameter name {:?} {}", self.offered, self.reason)
+    }
+}
+
+impl core::error::Error for ParamNameFault {}
+
+/// The lexer's finding in a text that is not a parameter name: each
+/// arm names what was read and where, so a reader knows what to
+/// change. Rendered as a predicate phrase after the quoted text
+/// ([`ParamNameFault`]'s `Display`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ParamNameReason {
+    /// No token at all: the text is empty or whitespace.
+    Blank,
+    /// A character the expression alphabet has no token for.
+    OutsideAlphabet {
+        /// Byte offset of the character.
+        pos: usize,
+        /// The character itself.
+        ch: char,
+    },
+    /// The text opens with a token that is not an identifier — a
+    /// number, an operator, a bracket — so no expression could read it
+    /// as a reference.
+    NotAnIdentifier {
+        /// Byte offset of the token.
+        pos: usize,
+        /// A rendering of the token.
+        found: String,
+    },
+    /// An identifier, and then more: a second token follows it.
+    NotOneToken {
+        /// Byte offset of the second token.
+        pos: usize,
+        /// A rendering of that token.
+        found: String,
+    },
+    /// One identifier, padded with whitespace: the lexer would read the
+    /// text back as the trimmed name, which is a different key from
+    /// the one offered.
+    Padded,
+}
+
+impl core::fmt::Display for ParamNameReason {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Blank => f.write_str("is blank — a parameter name is one identifier"),
+            Self::OutsideAlphabet { pos, ch } => write!(
+                f,
+                "has {ch:?} at byte {pos}, outside the expression alphabet — no expression \
+                 could spell this name"
+            ),
+            Self::NotAnIdentifier { pos, found } => write!(
+                f,
+                "opens with {found:?} at byte {pos}, which is not an identifier — a parameter \
+                 name is one identifier, so an expression can refer to it"
+            ),
+            Self::NotOneToken { pos, found } => write!(
+                f,
+                "carries {found:?} at byte {pos} after the identifier — a parameter name is \
+                 one identifier, so an expression can refer to it"
+            ),
+            Self::Padded => f.write_str(
+                "is padded with whitespace, which an expression would not read back as part \
+                 of the name",
+            ),
+        }
+    }
+}
+
+/// **The one admissibility rule for a parameter name**, as the lexer
+/// decides it: `None` when the whole text lexes as exactly one
+/// identifier token, otherwise the first thing that breaks that shape.
+///
+/// The parser has no reserved words — `sin` is a call only when `(`
+/// follows it, and a bare `sin` is looked up as a parameter — and no
+/// constants, so a function word or a unit symbol is admissible here
+/// exactly because [`parse_expr`] would read it back as the parameter.
+/// `edit_one_predicate::a_name_is_admissible_exactly_when_the_parser_reads_it_back`
+/// pins that equivalence rather than restating the grammar here.
+pub(crate) fn param_name_fault(text: &str) -> Option<ParamNameReason> {
+    let toks = match lex(text) {
+        Ok(toks) => toks,
+        Err((pos, ch)) => return Some(ParamNameReason::OutsideAlphabet { pos, ch }),
+    };
+    let mut it = toks.into_iter();
+    let Some((pos, first)) = it.next() else {
+        return Some(ParamNameReason::Blank);
+    };
+    let Tok::Ident(ident) = first else {
+        return Some(ParamNameReason::NotAnIdentifier {
+            pos,
+            found: first.describe(),
+        });
+    };
+    if let Some((pos, second)) = it.next() {
+        return Some(ParamNameReason::NotOneToken {
+            pos,
+            found: second.describe(),
+        });
+    }
+    // One identifier token: it covers the whole text exactly when the
+    // text has no whitespace around it, since an identifier carries
+    // none of its own.
+    (ident != text).then_some(ParamNameReason::Padded)
 }
 
 /// Parse `src` into a dimension-checked [`Expr`] (module docs: the
@@ -375,7 +511,7 @@ fn lex(src: &str) -> Result<Vec<(usize, Tok)>, ParseError> {
 /// smart constructor's [`DimensionError`] whenever the refusal is
 /// dimensional rather than syntactic.
 pub fn parse_expr(src: &str, params: &BTreeMap<ParamName, Dimension>) -> Result<Expr, ParseError> {
-    let toks = lex(src)?;
+    let toks = lex(src).map_err(|(pos, ch)| ParseError::UnexpectedChar { pos, ch })?;
     let mut p = Parser {
         toks,
         i: 0,
@@ -477,10 +613,14 @@ impl Parser<'_> {
                 if let Some((_, Tok::LParen)) = self.peek() {
                     self.call(pos, &name)
                 } else {
-                    let key = ParamName::new(name);
-                    match self.params.get(&key) {
-                        Some(&dim) => Ok(Expr::param(key, dim)),
-                        None => Err(ParseError::UnknownParam { pos, name: key.0 }),
+                    // Looked up by the lexed text (`ParamName:
+                    // Borrow<str>`), so the parser never mints a name
+                    // of its own: the reference it builds is the
+                    // table's key, and an identifier the table lacks
+                    // is echoed as the bytes read.
+                    match self.params.get_key_value(name.as_str()) {
+                        Some((key, &dim)) => Ok(Expr::param(key.clone(), dim)),
+                        None => Err(ParseError::UnknownParam { pos, name }),
                     }
                 }
             }

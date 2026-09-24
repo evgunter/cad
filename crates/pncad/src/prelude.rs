@@ -701,13 +701,14 @@ pub use stl::{
 // `SitedFace` is a mate's head and `FaceName` is the name in it, whose
 // one constructor answers `NotAFaceName`: a prelude user who can spell
 // `Node::Mate` can spell its two heads, and handle the refusal a name
-// read out of a file gets.
+// read out of a file gets. `ParamNameFault` is the same thing for
+// `ParamName::new`, the door a name that arrives as text goes through.
 pub use crate::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions, Evaluation,
-    Expr, FaceName, LoopProgram, Node, NodeError, NotAFaceName, ParamEnv, ParamName, ParseError,
-    PatternKind, ProfileLift, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace, SlotId, StepArg, ValuePayload,
-    apply, evaluate, parse_expr, unparse,
+    Expr, FaceName, LoopProgram, Node, NodeError, NotAFaceName, ParamEnv, ParamName,
+    ParamNameFault, ParseError, PatternKind, ProfileLift, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId, RecordedNotation, RecordedProgramError, SitedFace,
+    SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr, unparse,
 };
 pub use editor_core::StableName;
 

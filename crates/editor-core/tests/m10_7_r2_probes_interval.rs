@@ -45,8 +45,8 @@ fn scl(v: f64) -> Expr {
     Expr::literal(v, Dimension::Scalar).expect("finite scalar")
 }
 
-fn plen(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn plen(n: &'static str) -> Expr {
+    Expr::param(ParamName::literal(n), Dimension::Length)
 }
 
 /// The nominal arm of the bracket, in metres.
@@ -67,9 +67,9 @@ const BORE_B_X: f64 = 2.2e-3;
 /// user would actually ask for and a smaller number is a narrower one.
 pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
+            name: ParamName::literal(n),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value,
@@ -145,7 +145,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         distance: thickness.clone(),
     });
 
-    let bore = |r: &mut Recorder, x: f64, radius: &str| {
+    let bore = |r: &mut Recorder, x: f64, radius: &'static str| {
         let profile = r.insert(Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Circle {
@@ -528,7 +528,7 @@ fn r2_what_a_real_study_gets_today() {
 fn collinear_walls() -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("w"),
+        name: ParamName::literal("w"),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: 4.0e-3,
@@ -548,7 +548,7 @@ fn collinear_walls() -> ProfileDoc {
     // two: segments 0 and 1 are collinear by construction, whatever `w`
     // does, so `side_planes_cosurface` is a genuine IDENTITY here and
     // not a coincidence at the nominal.
-    let w = || Expr::param(ParamName::new("w"), Dimension::Length);
+    let w = || Expr::param(ParamName::literal("w"), Dimension::Length);
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![

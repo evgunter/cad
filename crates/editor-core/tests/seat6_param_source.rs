@@ -51,8 +51,8 @@ const R: f64 = 0.125;
 /// The offset a wall is thinned by, meters (dyadic).
 const T: f64 = 0.03125;
 
-fn param(name: &str) -> Expr {
-    Expr::param(ParamName::new(name), Dimension::Length)
+fn param(name: &'static str) -> Expr {
+    Expr::param(ParamName::literal(name), Dimension::Length)
 }
 
 /// A cube of side 1 at `cx`, with every edge blended by `radius`.
@@ -89,14 +89,14 @@ fn document(radii: &[Expr]) -> (ProfileDoc, Vec<editor_core::RecipeNodeId>) {
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("r"),
+            name: ParamName::literal("r"),
             value: DocParam::continuous(Dimension::Length, R),
         },
     );
     let (mut doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("t"),
+            name: ParamName::literal("t"),
             value: DocParam::continuous(Dimension::Length, T),
         },
     );
@@ -303,7 +303,7 @@ fn the_chamfer_attaches_nothing_because_its_flow_says_so() {
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("r"),
+            name: ParamName::literal("r"),
             value: DocParam::continuous(Dimension::Length, R),
         },
     );
@@ -496,7 +496,7 @@ fn a_closed_chain_fillet_declares_its_torus_minor_radius() {
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("r"),
+            name: ParamName::literal("r"),
             value: DocParam::continuous(Dimension::Length, 0.05),
         },
     );
@@ -552,7 +552,7 @@ fn own_document(label: &str, value: f64) -> (ProfileDoc, RecipeNodeId) {
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("r"),
+            name: ParamName::literal("r"),
             value: DocParam::continuous(Dimension::Length, value),
         },
     );
@@ -714,7 +714,7 @@ fn the_memo_never_serves_a_stale_token() {
     let (doc3, _) = step(
         doc2,
         DocEdit::SetDocParam {
-            name: ParamName::new("r"),
+            name: ParamName::literal("r"),
             value: DocParam::continuous(Dimension::Length, 2.0 * R),
         },
     );

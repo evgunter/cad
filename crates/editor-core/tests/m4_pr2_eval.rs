@@ -121,7 +121,7 @@ fn doc_param_edit_recomputes_the_param_cone() {
         .doc
         .apply(
             &editor_core::DocEdit::SetDocParam {
-                name: editor_core::ParamName::new("pip_depth"),
+                name: editor_core::ParamName::literal("pip_depth"),
                 value: editor_core::DocParam::continuous(editor_core::Dimension::Length, 0.0625),
             },
             Tol::witness(),
@@ -153,7 +153,7 @@ fn poisoning_hits_descendants_only_and_is_walkable() {
                 slot: SlotId::Distance,
                 expr: editor_core::Expr::div(
                     editor_core::Expr::param(
-                        editor_core::ParamName::new("pip_depth"),
+                        editor_core::ParamName::literal("pip_depth"),
                         editor_core::Dimension::Length,
                     ),
                     fixture::scl(0.0),

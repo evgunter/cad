@@ -119,7 +119,7 @@ pub(crate) fn replay(
     tol: Tol,
 ) -> (Vec<DecisionShape>, Option<String>, geom_core::SymCounts) {
     for name in box_.axes().keys() {
-        name_param(&name.0);
+        name_param(name.as_str());
     }
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),

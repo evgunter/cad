@@ -180,7 +180,7 @@ fn a_retyped_frame_origin_is_refused_at_both_doors() {
 /// A one-extrude document whose distance is the PARAMETER `depth`,
 /// declared as a length.
 fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::ParamName) {
-    let name = editor_core::ParamName::new("depth");
+    let name = editor_core::ParamName::literal("depth");
     let (doc, _, extrude) = doc();
     let doc = apply(
         &doc,
@@ -214,7 +214,7 @@ fn parameterized() -> (ProfileDoc, RecipeNodeId, editor_core::ParamName) {
 #[test]
 fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
     let (doc, extrude, name) = parameterized();
-    let missing = editor_core::ParamName::new("nowhere");
+    let missing = editor_core::ParamName::literal("nowhere");
     match apply(
         &doc,
         &DocEdit::SetParam {
@@ -242,7 +242,7 @@ fn a_slot_reading_an_undeclared_parameter_is_refused_at_both_doors() {
             .as_object_mut()
             .expect("the params are a map");
         assert!(
-            params.remove(&name.0).is_some(),
+            params.remove(name.as_str()).is_some(),
             "the surgery is aimed at the declaration the slot reads"
         );
     });
@@ -294,7 +294,7 @@ fn a_slot_reading_a_parameter_at_the_wrong_dimension_is_refused_at_both_doors() 
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
     let corrupt = doctored(&text, |wire| {
-        let decl = &mut wire["snapshot"]["params"][&name.0]["Continuous"];
+        let decl = &mut wire["snapshot"]["params"][name.as_str()]["Continuous"];
         assert_eq!(
             decl["dim"],
             serde_json::json!("Length"),

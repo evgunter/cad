@@ -62,7 +62,7 @@ const PITCH: f64 = 0.3125;
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("fins"),
+        name: ParamName::literal("fins"),
         value: DocParam::Count { value: FINS },
     });
     let fin_p = r.profile(
@@ -97,7 +97,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: fins,
         slot: SlotId::Count,
-        expr: Expr::param(ParamName::new("fins"), Dimension::Count),
+        expr: Expr::param(ParamName::literal("fins"), Dimension::Count),
     });
     CorpusDoc {
         name: "heat_sink_fins",

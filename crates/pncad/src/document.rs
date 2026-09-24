@@ -157,7 +157,9 @@ pub use editor_core::{
 pub use editor_core::expr::{EvalError, eval, eval_count};
 
 // Named document parameters.
-// `ParamName` is a parameter's name — a plain string newtype — and
+// `ParamName` is a parameter's name — a string newtype admissible by
+// construction (one identifier an expression reads back), whose one
+// constructor answers `ParamNameFault` — and
 // `DocParam` its declared dimension plus exact stored value: recipe
 // vocabulary, plain values, no arena key anywhere in either. They
 // complete doors this module already carried: `DocEdit::SetDocParam`
@@ -185,7 +187,8 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // `DistributionRefusal` is the same thing at the third field, for
 // `DocParam::with_distribution`.
 pub use editor_core::{
-    DisplayUnitRefusal, DistributionRefusal, DocParam, DocParamValue, ParamName, UnitSym,
+    DisplayUnitRefusal, DistributionRefusal, DocParam, DocParamValue, ParamName, ParamNameFault,
+    ParamNameReason, UnitSym,
 };
 
 // A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the

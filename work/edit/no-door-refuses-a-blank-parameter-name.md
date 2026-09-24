@@ -2,8 +2,9 @@
 id: no-door-refuses-a-blank-parameter-name
 kind: issue
 title: No door refuses a blank parameter name — ParamName::new validates nothing and write_doc_param does not ask
-status: spec
+status: review
 branch: edit/param-name-door
+pr: 3164
 opened: 2026-09-19
 priority: P1
 cost: E
@@ -123,3 +124,34 @@ decides. The rule is the parser's, stated once, and the door asks it.
    sentence as the one the control should show.
 
 Pre-draw not applicable (middle tier, outside the protocol).
+
+## Built (2026-09-24)
+
+**The type holds the rule.** `ParamName`'s field is private and
+`ParamName::new` is the one door: it answers `ParamNameFault` — the
+offered text plus a `ParamNameReason` naming what the lexer found
+(blank, a character outside the alphabet, a leading non-identifier
+token, a second token, padding). The rule is the parser's own reading,
+asked of the lexer once (`parse::param_name_fault`), and pinned to it:
+every admissible spelling parses alone to `Param(name)`, no refused one
+does. Both doors refuse one rung up: no `DocEdit` can carry an
+inadmissible name, and the load door refuses at the token through
+`Deserialize` (`try_from = "String"`), the same constructor — in
+`PersistError::Unreadable`, as an off-table `UnitSym` refuses. So the
+spec's `EditError` arm and load walk were not built: neither is
+reachable. `ParamName::literal(&'static str)` is the panicking door for
+names written in source; `Borrow<str>` lets the parser look up a lexed
+identifier without minting a name.
+
+**Premise corrections.** The parser has no reserved words and no
+constants: a bare `sin` is looked up as a parameter, so a function or
+unit word is admissible, and the row says so. `range.rs`'s synthetic
+name `query:certified-range:N:label` was the one stored name the rule
+refuses; it is respelled as one identifier, with a typed
+`RangeRefusal::SyntheticNameUnspellable` guarding the composition. The
+persisted corpus (26 `.cad`/`.pncad` files) holds `clearance`, `depth`
+and `hole_r` only; the test literal `"no-such-parameter"` (three
+viewer sites) is the other refused spelling.
+
+**Hand-off.** `work/vnews/add-parameter-create-owes-the-name-doors-sentence`
+names the door's sentence for the Create button's silent conjunct.

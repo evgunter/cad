@@ -52,7 +52,7 @@ pub fn document() -> CorpusDoc {
     let ambient = r.doc.epsilon();
     r.push(DocEdit::SetTolerance { eps: ambient });
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("h"),
+        name: ParamName::literal("h"),
         value: DocParam::continuous(Dimension::Length, 1.0),
     });
     // The VALUE door, on the parameter the declaration above just
@@ -61,7 +61,7 @@ pub fn document() -> CorpusDoc {
     // moves. The document's state after this pair is the same
     // document a single declaration at 1.25 would have produced.
     r.push(DocEdit::SetDocParamValue {
-        name: ParamName::new("h"),
+        name: ParamName::literal("h"),
         value: DocParamValue::Continuous(1.25),
     });
     // The NOTATION door, the value door's mirror over the other field
@@ -71,7 +71,7 @@ pub fn document() -> CorpusDoc {
     // presentation metadata), so the round-trip rows read it as the
     // same document and the FILE is where it has to survive.
     r.push(DocEdit::SetDocParamUnit {
-        name: ParamName::new("h"),
+        name: ParamName::literal("h"),
         unit: UnitSym::from_def(&quantity::MM.def()),
     });
     // The ANNOTATION door, the third field of the same declaration:
@@ -80,14 +80,14 @@ pub fn document() -> CorpusDoc {
     // the notation, which is the trap the door removes; here the FILE
     // carries both, so the round-trip rows read them back together.
     r.push(DocEdit::SetDocParamDistribution {
-        name: ParamName::new("h"),
+        name: ParamName::literal("h"),
         distribution: Some(Distribution::Band {
             lo: -0.0001,
             hi: 0.0001,
         }),
     });
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("n"),
+        name: ParamName::literal("n"),
         value: DocParam::Count { value: 3 },
     });
 
@@ -113,7 +113,7 @@ pub fn document() -> CorpusDoc {
         [0.0, 1.0, 0.0],
         vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
     );
-    let h = Expr::param(ParamName::new("h"), Dimension::Length);
+    let h = Expr::param(ParamName::literal("h"), Dimension::Length);
     let dist =
         Expr::mul(h, Expr::sin(ang(std::f64::consts::FRAC_PI_2)).expect("sin")).expect("mul");
     let block_a = r.insert(Node::Extrude {
@@ -211,7 +211,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetStructuralParam {
         node: linear,
         slot: SlotId::Count,
-        expr: Expr::param(ParamName::new("n"), Dimension::Count),
+        expr: Expr::param(ParamName::literal("n"), Dimension::Count),
     });
     // Subtree surgery: replace `sin(π/2)` with the Scalar literal 1
     // (same dimension, same value — a pure representation edit).

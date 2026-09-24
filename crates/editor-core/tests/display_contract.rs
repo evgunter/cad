@@ -13,6 +13,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use editor_core::ParamNameReason;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
     AssemblyError, CapEnd, CarriedRefusal, Clash, ClusterMaintenance, ContactClass, DeclareError,
@@ -609,6 +610,58 @@ fn parse_error_display_names_its_content_not_its_struct() {
     assert_f6_every_variant(&cases, &PARSE_ERROR, &[]);
 }
 
+test_utils::f6_variants! {
+    /// `ParamNameReason`'s census — see [`NODE_PICK_ERROR`]. The
+    /// lexer's finding inside `ParamNameFault`, which is what
+    /// `ParamName::new` refuses with.
+    const PARAM_NAME_REASON: ParamNameReason = [
+        Blank,
+        OutsideAlphabet,
+        NotAnIdentifier,
+        NotOneToken,
+        Padded,
+    ];
+}
+
+#[test]
+fn param_name_reason_display_names_its_content_not_its_struct() {
+    let cases = [
+        (ParamNameReason::Blank, vec!["blank", "one identifier"]),
+        (
+            ParamNameReason::OutsideAlphabet { pos: 5, ch: '#' },
+            vec!["byte 5", "'#'", "outside the expression alphabet"],
+        ),
+        (
+            ParamNameReason::NotAnIdentifier {
+                pos: 0,
+                found: "1".to_string(),
+            },
+            vec!["byte 0", "\"1\"", "not an identifier"],
+        ),
+        (
+            ParamNameReason::NotOneToken {
+                pos: 1,
+                found: "+".to_string(),
+            },
+            vec!["byte 1", "\"+\"", "after the identifier"],
+        ),
+        (ParamNameReason::Padded, vec!["padded", "whitespace"]),
+    ];
+    assert_f6_every_variant(&cases, &PARAM_NAME_REASON, &[]);
+    // The wrapper frames the reason after the quoted text, and quotes
+    // for the parse door's reason: these are bytes an author typed.
+    let shown = editor_core::ParamNameFault {
+        offered: " width ".to_string(),
+        reason: ParamNameReason::Padded,
+    }
+    .to_string();
+    assert_f6(
+        &shown,
+        &["parameter name \" width \" is padded"],
+        &["Padded"],
+    );
+}
+
 /// Every rendering of a [`Dimension`] a user can reach, in one place.
 ///
 /// A dimension is a quantity KIND — what a value measures — not an
@@ -621,7 +674,7 @@ fn parse_error_display_names_its_content_not_its_struct() {
 /// almost right.
 #[test]
 fn a_dimension_reaches_refusal_prose_as_a_word_not_as_its_variant() {
-    let name = ParamName("width".to_string());
+    let name = ParamName::literal("width");
     let dump_words = dimension_dump_words();
     let dumps = as_strs(&dump_words);
 
@@ -904,7 +957,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             SnapshotError::SlotUnknownDocParam {
                 node,
                 slot: SlotId::Radius,
-                name: ParamName::new("fillet"),
+                name: ParamName::literal("fillet"),
             },
             vec!["slot radius", "fillet", "does not declare"],
         ),
@@ -912,7 +965,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
             SnapshotError::SlotDocParamDimension {
                 node,
                 slot: SlotId::Distance,
-                name: ParamName::new("depth"),
+                name: ParamName::literal("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
@@ -921,14 +974,14 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
         (
             SnapshotError::PayloadUnknownDocParam {
                 node,
-                name: ParamName::new("depth"),
+                name: ParamName::literal("depth"),
             },
             vec!["node 5", "payload expression", "depth", "does not declare"],
         ),
         (
             SnapshotError::PayloadDocParamDimension {
                 node,
-                name: ParamName::new("depth"),
+                name: ParamName::literal("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
@@ -1076,7 +1129,7 @@ fn the_two_doors_spell_the_four_param_ref_refusals_the_same_way_and_each_reports
     }
 
     let node = RecipeNodeId(5);
-    let name = ParamName::new("width");
+    let name = ParamName::literal("width");
 
     let edit_door: Vec<(String, String)> = vec![
         arm(&EditError::SlotUnknownDocParam {
@@ -2587,7 +2640,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
         SeedError, SplitError,
     };
 
-    let name = ParamName::new("width");
+    let name = ParamName::literal("width");
     let node = RecipeNodeId(5);
     let framed: Vec<(&str, String)> = vec![
         (
@@ -2678,11 +2731,11 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
     // read rather than decorating a name the document holds.
     let echoed = ParseError::UnknownParam {
         pos: 4,
-        name: name.0.clone(),
+        name: name.as_str().to_owned(),
     }
     .to_string();
     assert!(
-        echoed.contains(&format!("{:?}", name.0)),
+        echoed.contains(&format!("{:?}", name.as_str())),
         "the parse door delimits the bytes it read: {echoed}"
     );
 }
@@ -2693,10 +2746,10 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
 /// interval-only sibling, so the two lanes cannot drift into asking
 /// different questions of the same rule.
 fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) {
-    let quoted = format!("{:?}", name.0);
+    let quoted = format!("{:?}", name.as_str());
     for (door, shown) in framed {
         assert!(
-            shown.contains(&name.0),
+            shown.contains(name.as_str()),
             "{door} does not name the parameter at all: {shown}"
         );
         assert!(
@@ -2716,7 +2769,7 @@ fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) 
 fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
     use editor_core::{RangeRefusal, Unavailable};
 
-    let name = ParamName::new("width");
+    let name = ParamName::literal("width");
     let framed: Vec<(&str, String)> = vec![
         (
             "RangeRefusal::NotAContinuousParam",

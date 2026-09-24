@@ -269,7 +269,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "Expr",
             NodeErrorKind::Expr {
                 slot: SlotId::Distance,
-                source: EvalError::UnknownParam(ParamName::new("width")),
+                source: EvalError::UnknownParam(ParamName::literal("width")),
             },
         ),
         row(
@@ -389,7 +389,7 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             "SeedPinnedSection",
             NodeErrorKind::SeedPinnedSection {
                 section: RecipeNodeId(3),
-                param: ParamName::new("width"),
+                param: ParamName::literal("width"),
             },
         ),
         row(
@@ -1705,12 +1705,12 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
     let eval: Vec<(&str, EvalError)> = vec![
         (
             "UnknownParam",
-            EvalError::UnknownParam(ParamName::new("width")),
+            EvalError::UnknownParam(ParamName::literal("width")),
         ),
         (
             "ParamDimensionMismatch",
             EvalError::ParamDimensionMismatch {
-                name: ParamName::new("width"),
+                name: ParamName::literal("width"),
                 expected: Dimension::Length,
                 found: Dimension::Angle,
             },
@@ -1736,13 +1736,13 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "UnknownParam",
             ParamBoxError::UnknownParam {
-                param: ParamName::new("width"),
+                param: ParamName::literal("width"),
             },
         ),
         (
             "AxisUnrepresentable",
             ParamBoxError::AxisUnrepresentable {
-                param: ParamName::new("width"),
+                param: ParamName::literal("width"),
                 lo: 1.0,
                 hi: 0.0,
             },
@@ -1752,19 +1752,19 @@ fn editor_payloads() -> Vec<(String, NodeErrorKind)> {
         (
             "UnknownParam",
             SeedError::UnknownParam {
-                param: ParamName::new("width"),
+                param: ParamName::literal("width"),
             },
         ),
         (
             "CountParam",
             SeedError::CountParam {
-                param: ParamName::new("n"),
+                param: ParamName::literal("n"),
             },
         ),
         (
             "TangentUnrepresentable",
             SeedError::TangentUnrepresentable {
-                param: ParamName::new("width"),
+                param: ParamName::literal("width"),
             },
         ),
     ];

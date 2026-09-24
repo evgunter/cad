@@ -1818,7 +1818,11 @@ the standing goal's register at work: the gap was named in the
 north-star audit rather than worked around, and closing it flips this
 section from a pin to a demonstration.
 
-One parameter, referenced by two loops, moved by one edit:
+One parameter, referenced by two loops, moved by one edit.
+`ParamName::literal` takes a name written in source; a name that
+arrives as text at runtime goes through `ParamName::new`, which
+refuses one an expression could not read back (blank, padded, not
+one identifier) with a `ParamNameFault`:
 
 ```
 use pncad::prelude::*;
@@ -1829,7 +1833,7 @@ let lit = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
 // ONE expression, shared: BOTH holes' radius reads `hole_r`.
 let hole = |cx: f64, cy: f64| LoopProgram::Circle {
     centre: [lit(cx), lit(cy)],
-    radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
+    radius: Expr::param(ParamName::literal("hole_r"), Dimension::Length),
 };
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
@@ -1837,7 +1841,7 @@ let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 // Declare the parameter. An ordinary edit: recorded, replayable,
 // undoable like any other.
 doc = apply(&doc, &DocEdit::SetDocParam {
-    name: ParamName::new("hole_r"),
+    name: ParamName::literal("hole_r"),
     value: DocParam::continuous(Dimension::Length, 0.25),
 }, tol, &pncad::document::RefusingReach)?.doc;
 
@@ -1916,7 +1920,7 @@ assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 
 // One `SetDocParam` moves BOTH holes; the tab branch never re-runs.
 let bigger = apply(&doc, &DocEdit::SetDocParam {
-    name: ParamName::new("hole_r"),
+    name: ParamName::literal("hole_r"),
     value: DocParam::continuous(Dimension::Length, 0.4),
 }, tol, &pncad::document::RefusingReach)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
@@ -1978,8 +1982,8 @@ use pncad::document::{Distribution, DocParamValue};
 let tol = Tol::witness();
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide-distributions", tol);
 
-let declare = |doc: &Doc<ProfileProgram>, name: &str, value: DocParam| {
-    apply(doc, &DocEdit::SetDocParam { name: ParamName::new(name), value }, tol, &pncad::document::RefusingReach)
+let declare = |doc: &Doc<ProfileProgram>, name: &'static str, value: DocParam| {
+    apply(doc, &DocEdit::SetDocParam { name: ParamName::literal(name), value }, tol, &pncad::document::RefusingReach)
         .expect("the declaration applies").doc
 };
 
@@ -1998,23 +2002,23 @@ let boxed = analyzed_box(&doc, &policy);
 
 // The normal's box is the symmetric quantile interval, so it is
 // roughly ±3σ and it leaves the rest OUTSIDE.
-let bore = boxed.get(&ParamName::new("bore_r")).expect("an axis");
+let bore = boxed.get(&ParamName::literal("bore_r")).expect("an axis");
 assert!((bore.offsets.hi / 1e-6 - 3.0).abs() < 0.01);
-let tail = tail_mass(&ParamName::new("bore_r"),
+let tail = tail_mass(&ParamName::literal("bore_r"),
                      &bore.distribution.expect("annotated"), &bore.offsets)
     .expect("a normal prices");
 assert!((tail - (1.0 - policy.quantile_mass())).abs() < 1e-12);
 
 // The band's box IS its support, so nothing escapes it...
-let plate = boxed.get(&ParamName::new("plate_t")).expect("an axis");
+let plate = boxed.get(&ParamName::literal("plate_t")).expect("an axis");
 assert_eq!(plate.offsets.lo, -1e-4);
 // ...and the unannotated parameter is a width-zero axis at its nominal.
-assert!(boxed.get(&ParamName::new("web_t")).expect("an axis").offsets.is_fixed());
+assert!(boxed.get(&ParamName::literal("web_t")).expect("an axis").offsets.is_fixed());
 assert_eq!(boxed.varying().count(), 2);
 
 // The band refuses to price anything its shape would decide, and the
 // refusal NAMES the parameter rather than quietly assuming uniform.
-let refusal = box_mass(&ParamName::new("plate_t"),
+let refusal = box_mass(&ParamName::literal("plate_t"),
                        &plate.distribution.expect("annotated"), (-5e-5, 5e-5));
 assert!(matches!(refusal, Err(MeasureUnavailable::BandHasNoMeasure { .. })));
 assert!(format!("{}", refusal.unwrap_err()).contains("plate_t"));
@@ -2022,10 +2026,10 @@ assert!(format!("{}", refusal.unwrap_err()).contains("plate_t"));
 // Moving a value KEEPS the annotation — use the value door, never a
 // rebuilt `DocParam`.
 doc = apply(&doc, &DocEdit::SetDocParamValue {
-    name: ParamName::new("bore_r"),
+    name: ParamName::literal("bore_r"),
     value: DocParamValue::Continuous(0.0045),
 }, tol, &pncad::document::RefusingReach)?.doc;
-assert!(doc.params()[&ParamName::new("bore_r")].distribution().is_some());
+assert!(doc.params()[&ParamName::literal("bore_r")].distribution().is_some());
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
 

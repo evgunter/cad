@@ -3132,6 +3132,14 @@ fn distribution_fault_error(name: &ParamName, fault: DistributionFault) -> EditE
 /// [`DocEdit::SetDocParamDistribution`]. A fifth door writing a
 /// declaration routes through here too, and adds itself to that list.
 ///
+/// **The NAME is not checked here, because it cannot be wrong**: a
+/// [`ParamName`] is admissible by construction — one identifier the
+/// expression parser reads back as a reference — so no edit can carry
+/// a name the document could not be asked about, and the load door
+/// refuses one at the token (`ParamName`'s `Deserialize` is the same
+/// constructor). One decision at the type, and neither door restates
+/// it.
+///
 /// **The check order is the LOAD door's** (`persist::check`'s
 /// `validate_document`): floats first, then the distribution's shape,
 /// then the notation walk. A parameter broken in two ways at once

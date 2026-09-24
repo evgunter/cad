@@ -75,7 +75,7 @@ fn r2_measure_free_content_keys() {
     let d1 = push(
         &d0,
         &DocEdit::SetDocParam {
-            name: ParamName::new("t"),
+            name: ParamName::literal("t"),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 0.125,
@@ -109,7 +109,7 @@ fn r2_measure_free_content_keys() {
         &DocEdit::InsertNode {
             node: Node::Extrude {
                 profile: bp,
-                distance: Expr::param(ParamName::new("t"), Dimension::Length),
+                distance: Expr::param(ParamName::literal("t"), Dimension::Length),
             },
         },
     );

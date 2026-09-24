@@ -439,8 +439,9 @@ where
     fn axis_named(name: &ParamName, lo: f64, hi: f64) -> Option<Self> {
         // The bracket goes with the value: it is the one value the
         // symbolic tier reads (rule C's sign read, `geom_core::sym`).
-        T::axis(lo, hi)
-            .map(|v| geom_core::Sym::param_over(geom_core::ParamSymbol::of(&name.0), v, lo, hi))
+        T::axis(lo, hi).map(|v| {
+            geom_core::Sym::param_over(geom_core::ParamSymbol::of(name.as_str()), v, lo, hi)
+        })
     }
 }
 

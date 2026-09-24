@@ -241,7 +241,7 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     // clobbers whatever else the document happens to carry would keep
     // passing if the plate grew a second parameter that did the
     // refusing instead.
-    let hole_r = ParamName::new(corpus::plate_param::HOLE_R);
+    let hole_r = ParamName::literal(corpus::plate_param::HOLE_R);
     let Some(ParamValue::Continuous { value, .. }) = env.bindings.get_mut(&hole_r) else {
         panic!("the plate's hole radius is a continuous parameter named hole_r")
     };

@@ -55,8 +55,8 @@ fn scl(v: f64) -> Expr {
     Expr::literal(v, Dimension::Scalar).expect("finite scalar")
 }
 
-fn plen(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn plen(n: &'static str) -> Expr {
+    Expr::param(ParamName::literal(n), Dimension::Length)
 }
 
 /// M10-9's tier with the door shut — M10-8's. The rows here are
@@ -98,9 +98,9 @@ const BORE: f64 = 0.6e-3;
 /// ask for (±20 µm on the half-width, σ = 10 µm on the bores).
 pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
+            name: ParamName::literal(n),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value,

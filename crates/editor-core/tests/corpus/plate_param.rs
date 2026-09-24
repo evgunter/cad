@@ -59,7 +59,7 @@ fn lit(v: f64) -> Expr {
 
 /// The hole radius, as the shared parameter reference.
 pub fn hole_radius() -> Expr {
-    Expr::param(ParamName::new(HOLE_R), Dimension::Length)
+    Expr::param(ParamName::literal(HOLE_R), Dimension::Length)
 }
 
 /// One hole loop: a circle whose radius is the shared parameter.
@@ -100,7 +100,7 @@ pub fn plate_profile(plane: RecipeNodeId) -> ProfileProgram {
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new(HOLE_R),
+        name: ParamName::literal(HOLE_R),
         value: DocParam::continuous(Dimension::Length, HOLE_R_VALUE),
     });
 

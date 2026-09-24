@@ -53,7 +53,7 @@ fn round_trip(value: f64) -> ProfileDoc {
     doc = push(
         &doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("p"),
+            name: ParamName::literal("p"),
             value: DocParam::continuous(Dimension::Length, value),
         },
     );
@@ -107,7 +107,8 @@ fn assert_bits(label: &str, value: f64, loaded: f64) {
 
 fn check_all_slots(value: f64) {
     let doc = round_trip(value);
-    let Some(DocParam::Continuous { value: p, .. }) = doc.params().get(&ParamName::new("p")) else {
+    let Some(DocParam::Continuous { value: p, .. }) = doc.params().get(&ParamName::literal("p"))
+    else {
         panic!("param lost");
     };
     assert_bits("doc param", value, *p);

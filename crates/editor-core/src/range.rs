@@ -461,6 +461,14 @@ pub enum RangeRefusal {
         /// The name that collided.
         param: ParamName,
     },
+    /// The synthetic parameter's name, spelled from the slot's label,
+    /// is not a parameter name — a label outside the identifier
+    /// alphabet. No label in the vocabulary is one; the arm makes the
+    /// composition typed rather than trusted.
+    SyntheticNameUnspellable {
+        /// The constructor's refusal, with the spelling it refused.
+        fault: crate::parse::ParamNameFault,
+    },
     /// The derived document's own edit door refused the derivation.
     Derivation(Box<EditError>),
     /// The seed did not reach the driver as the analyzed axis: the
@@ -538,6 +546,10 @@ impl core::fmt::Display for RangeRefusal {
                 f,
                 "the query's synthetic parameter name {param} is already declared by this document"
             ),
+            Self::SyntheticNameUnspellable { fault } => write!(
+                f,
+                "the query's synthetic parameter could not be named: {fault}"
+            ),
             Self::Derivation(e) => write!(f, "the derived document was refused: {e}"),
             Self::SeedIsNotTheAnalyzedAxis { analyzed, asked } => write!(
                 f,
@@ -592,8 +604,24 @@ pub struct DerivedRange {
 /// a user authored: the derivation refuses rather than overwriting a
 /// name the document already declares
 /// ([`RangeRefusal::SyntheticNameTaken`]).
-fn synthetic_name(node: RecipeNodeId, slot: SlotId) -> ParamName {
-    ParamName::new(format!("query:certified-range:{}:{}", node.0, slot.label()))
+///
+/// Spelled as one identifier — the slot's label with its spaces closed
+/// up — because a parameter name is what an expression can read back,
+/// and the rewritten slot's expression reads this one.
+///
+/// # Errors
+///
+/// [`RangeRefusal::SyntheticNameUnspellable`]: a label outside the
+/// identifier alphabet would leave the slot no name to widen through.
+/// No label in the table is one; the composition is typed rather than
+/// trusted.
+fn synthetic_name(node: RecipeNodeId, slot: SlotId) -> Result<ParamName, RangeRefusal> {
+    ParamName::new(format!(
+        "query_certified_range_{}_{}",
+        node.0,
+        slot.label().replace(' ', "_")
+    ))
+    .map_err(|fault| RangeRefusal::SyntheticNameUnspellable { fault })
 }
 
 /// **The derived document** (a pure function of its three arguments).
@@ -670,7 +698,7 @@ pub fn derive(
                 });
             };
             let dim = slot.dimension();
-            let name = synthetic_name(*node, *slot);
+            let name = synthetic_name(*node, *slot)?;
             if doc.params().contains_key(&name) {
                 return Err(RangeRefusal::SyntheticNameTaken { param: name });
             }

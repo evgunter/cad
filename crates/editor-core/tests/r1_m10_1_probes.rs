@@ -34,8 +34,8 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-fn p(name: &str) -> ParamName {
-    ParamName::new(name)
+fn p(name: &'static str) -> ParamName {
+    ParamName::literal(name)
 }
 
 /// An independent oracle for `P(lo <= X <= hi)`, X ~ N(0, sigma²):

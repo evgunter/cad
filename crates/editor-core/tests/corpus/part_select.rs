@@ -63,7 +63,7 @@ pub fn section_face(split: RecipeNodeId, side: SplitHalf) -> StableName {
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new(H),
+        name: ParamName::literal(H),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: BOX_H,
@@ -85,7 +85,7 @@ pub fn document() -> CorpusDoc {
     )));
     let cube = r.insert(Node::Extrude {
         profile: box_p,
-        distance: Expr::param(ParamName::new(H), Dimension::Length),
+        distance: Expr::param(ParamName::literal(H), Dimension::Length),
     });
 
     // ---- the cut at mid-height, and its two halves as bodies ----

@@ -697,7 +697,7 @@ pub fn die() -> Die {
     let mut r = Recorder::new();
     // pip_depth: the mid-DAG continuous parameter.
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("pip_depth"),
+        name: ParamName::literal("pip_depth"),
         value: DocParam::continuous(Dimension::Length, DEPTH),
     });
     // The cube: profile on the xy plane, extruded +2.
@@ -720,7 +720,10 @@ pub fn die() -> Die {
         let prof = r.profile(o, u, v, vec![square(0.0, 0.0, 0.125)]);
         let ext = r.insert(Node::Extrude {
             profile: prof,
-            distance: Expr::neg(Expr::param(ParamName::new("pip_depth"), Dimension::Length)),
+            distance: Expr::neg(Expr::param(
+                ParamName::literal("pip_depth"),
+                Dimension::Length,
+            )),
         });
         masters.push((ext, u, v, pips));
     }

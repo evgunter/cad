@@ -261,7 +261,10 @@ fn measure_err(py: Python<'_>, err: &a::MeasureUnavailable) -> PyErr {
                     .unbind()
                     .into_any(),
             ),
-            ("param", PyString::new(py, &param.0).unbind().into_any()),
+            (
+                "param",
+                PyString::new(py, param.as_str()).unbind().into_any(),
+            ),
         ],
     )
 }
@@ -753,7 +756,7 @@ fn mc_err(py: Python<'_>, refusal: &a::McRefusal) -> PyErr {
     let text = |s: &str| PyString::new(py, s).unbind().into_any();
     let param = match refusal {
         a::McRefusal::BandHasNoMeasure(a::MeasureUnavailable::BandHasNoMeasure { param }) => {
-            text(&param.0)
+            text(param.as_str())
         }
         a::McRefusal::NoSamples | a::McRefusal::NominalDoesNotBuild { .. } => py.None(),
     };

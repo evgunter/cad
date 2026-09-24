@@ -606,7 +606,7 @@ fn a_dropped_loop_strands_and_a_moved_loop_rebinds_every_name_on_it() {
 #[test]
 fn a_program_that_no_longer_replays_has_no_spans_so_every_name_on_it_strands() {
     let square = LoopProgram::Chain(square_steps());
-    let radius = ParamName::new("hole_r");
+    let radius = ParamName::literal("hole_r");
     let driven = LoopProgram::Circle {
         centre: [len(1.0), len(1.0)],
         radius: Expr::param(radius.clone(), Dimension::Length),
@@ -947,7 +947,7 @@ fn a_program_naming_an_undeclared_parameter_refuses_the_slot_doors_own_arm() {
         "set-program-param-refs",
         vec![LoopProgram::Chain(square_steps())],
     );
-    let nope = Expr::param(ParamName::new("nope"), Dimension::Length);
+    let nope = Expr::param(ParamName::literal("nope"), Dimension::Length);
     let mut steps = square_steps();
     steps[1] = ProgramStep::LineTo(ProgramTarget::Point([nope.clone(), len(0.0)]));
     let slot = SlotId::Profile {
@@ -2335,7 +2335,7 @@ fn every_other_holder_kind_is_rebound_and_stranded_in_the_contracts_order() {
 #[test]
 fn a_shape_fault_wins_over_an_undeclared_parameter() {
     let r = rod("set-program-fault-param", &[]);
-    let nope = Expr::param(ParamName::new("nope"), Dimension::Length);
+    let nope = Expr::param(ParamName::literal("nope"), Dimension::Length);
     let LoopProgram::Chain(mut steps) = rod_loop(false) else {
         panic!()
     };

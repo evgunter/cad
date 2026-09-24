@@ -774,6 +774,12 @@ pub enum BoundaryEdit<'a> {
     /// the binding holds it here and answers with the constructor's
     /// own refusal.
     MateHead(&'a pncad::document::NotAFaceName),
+    /// A text that is not a parameter name. `ParamName(text)` is the
+    /// boundary that turns text into a name, and the document layer's
+    /// one rule for one — an identifier an expression reads back — is
+    /// held by the constructor there, so the binding answers with the
+    /// constructor's own refusal at the call that offered the text.
+    ParamName(&'a pncad::document::ParamNameFault),
 }
 
 /// Which `#[non_exhaustive]` kernel enum at the SELECTION boundary has

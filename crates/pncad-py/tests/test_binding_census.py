@@ -2747,6 +2747,14 @@ NOT_BOUND = {
     # rule.
     "FaceName": SHAPE,
     "NotAFaceName": SHAPE,
+    # `ParamNameFault` is what `ParamName::new` refuses with, and
+    # `ParamNameReason` the lexer's finding inside it. A Python caller
+    # holds a name as text until `ParamName(text)`, which is where the
+    # binding calls the constructor and publishes the refusal as
+    # `EditError.variant == "param_name_not_an_identifier"`; neither
+    # type crosses, for `NotAFaceName`'s reason.
+    "ParamNameFault": SHAPE,
+    "ParamNameReason": SHAPE,
     # **The clearance engine's refusal, flattened to a tag — and
     # unreachable at the lane Python evaluates on.** It reaches Python
     # as `EvaluationError.kind == "measure_clearance_refused"`

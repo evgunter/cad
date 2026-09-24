@@ -169,10 +169,10 @@ fn the_parametric_living_walk() {
 
     // ── 2. The user declares the proportions FIRST — four parameters,
     // each one committed `SetDocParam` edit and one undo step.
-    let base_r = ParamName::new("base_r");
-    let taper = ParamName::new("taper");
-    let height = ParamName::new("height");
-    let embed = ParamName::new("embed");
+    let base_r = ParamName::literal("base_r");
+    let taper = ParamName::literal("taper");
+    let height = ParamName::literal("height");
+    let embed = ParamName::literal("embed");
     for (name, param) in [
         (&base_r, DocParam::continuous(Dimension::Length, BASE_R)),
         (&taper, DocParam::continuous(Dimension::Scalar, TAPER)),
@@ -229,13 +229,13 @@ fn the_parametric_living_walk() {
     }
     assert!(outcome.committed.is_empty(), "a refusal commits nothing");
     let outcome = session.perform(SessionOp::SetParam {
-        name: ParamName::new("tapper"),
+        name: ParamName::literal("tapper"),
         value: SlotValue::Continuous(0.5),
     });
     match outcome.refusal {
         Some(Refusal::Edit(ref error)) => match **error {
             // The door rides along now; this row is about the NAME.
-            EditError::DocParamNotDeclared { ref name, .. } => assert_eq!(name.0, "tapper"),
+            EditError::DocParamNotDeclared { ref name, .. } => assert_eq!(name.as_str(), "tapper"),
             ref other => panic!("expected DocParamNotDeclared, got {other:?}"),
         },
         ref other => panic!("expected the edit door's refusal, got {other:?}"),
@@ -448,7 +448,7 @@ fn the_parametric_living_walk() {
     );
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Param {
-            name: ParamName::new("tapper"),
+            name: ParamName::literal("tapper"),
         },
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));

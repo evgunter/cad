@@ -1580,7 +1580,7 @@ fn write_expr(expr: &Expr, out: &mut String) {
     match &expr.kind {
         K::Literal(lit) => out.push_str(&write_literal(lit, expr.dim)),
         K::CountLiteral(n) => out.push_str(&n.to_string()),
-        K::Param(name) => out.push_str(&name.0),
+        K::Param(name) => out.push_str(name.as_str()),
         K::Add(a, b) => write_infix(a, "+", b, PREC_SUM, out),
         K::Sub(a, b) => write_infix(a, "-", b, PREC_SUM, out),
         K::Mul(a, b) => write_infix(a, "*", b, PREC_PRODUCT, out),

@@ -1627,22 +1627,22 @@ mod tests {
             SnapshotError::SlotUnknownDocParam {
                 node,
                 slot: SlotId::Radius,
-                name: ParamName::new("fillet"),
+                name: ParamName::literal("fillet"),
             },
             SnapshotError::SlotDocParamDimension {
                 node,
                 slot: SlotId::Distance,
-                name: ParamName::new("depth"),
+                name: ParamName::literal("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
             SnapshotError::PayloadUnknownDocParam {
                 node,
-                name: ParamName::new("depth"),
+                name: ParamName::literal("depth"),
             },
             SnapshotError::PayloadDocParamDimension {
                 node,
-                name: ParamName::new("depth"),
+                name: ParamName::literal("depth"),
                 declared: Dimension::Angle,
                 referenced: Dimension::Length,
             },
