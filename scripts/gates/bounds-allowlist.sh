@@ -521,7 +521,12 @@ BOUNDS_ALLOWLIST=(
   # restates that constructor's bound (its `Decide` implied by
   # `AtRestPolicy`) and nothing wider, in a `#[cfg(test)]` module that
   # reads no bracket.
-  'crates/topo/src/props.rs 29 M5 PR 11, the certified-quadrature plumbing'
+  # 29 -> 13 + 16: `quad_lane` lives in its own file,
+  # `props/quad_lane.rs`, and its sixteen occurrences are there under
+  # the same ruling; `props.rs` keeps the assemblers, `QuadLane`,
+  # `ShellDoor` and the wiring rows.
+  'crates/topo/src/props.rs 13 M5 PR 11, the certified-quadrature plumbing'
+  'crates/topo/src/props/quad_lane.rs 16 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
