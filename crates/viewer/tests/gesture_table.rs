@@ -96,7 +96,7 @@ use std::collections::BTreeSet;
 
 use common::{len, len3, scl3};
 use pncad::document::{
-    Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocParam, DocumentId, Expr, Frame,
+    Alignment, AxisSense, BooleanOp, Dimension, Doc, DocEdit, DocParam, DocumentId, Frame,
     MateFrame, MatePrimitive, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
@@ -276,7 +276,7 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
         SessionOp::AddRevolve {
             profile: node,
             axis: node,
-            angle: Expr::literal(1.0, Dimension::Angle).expect("a finite angle"),
+            angle: common::ang(1.0),
         },
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
@@ -291,7 +291,7 @@ fn every_op(node: RecipeNodeId, save_to: &std::path::Path) -> Vec<SessionOp> {
             input: node,
             translation: len3([0.0; 3]),
             rotation_axis: scl3([0.0, 0.0, 1.0]),
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("a finite angle"),
+            rotation_angle: common::ang(0.0),
         },
         SessionOp::AddPattern {
             input: node,

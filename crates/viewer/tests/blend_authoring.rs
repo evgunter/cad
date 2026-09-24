@@ -30,17 +30,16 @@
 
 use crate::common;
 
-use common::{ang, insert, len, len3, scl3, shape};
+use common::{ang, insert, len, len3, plate_index, scl3, shape};
 use pncad::document::{
-    Dimension, Doc, Expr, Node, NodeErrorKind, NodeResult, ProfileProgram, RecipeNodeId, SlotId,
+    Dimension, Doc, Node, NodeErrorKind, NodeResult, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, ValuePayload};
 use viewer::blend::FREEZE_NOTE;
 use viewer::blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool};
 use viewer::display::DisplayView;
-use viewer::pickindex::{PickIndex, PickKinds, PictureKey};
-use viewer::scene::DisplayTolerance;
+use viewer::pickindex::PickKinds;
 use viewer::session::{
     DatumSpec, DocSession, EdgeSelection, FaceSelection, NodeKindWanted, ProfilePlane,
     ProfileShape, Refusal, Selection, SessionOp,
@@ -83,34 +82,10 @@ fn boxed(session: &mut DocSession, side: f64) -> RecipeNodeId {
     )
 }
 
-/// The display tolerance the pick index is built at — coarse, since no
-/// row here measures a facet.
-fn delta() -> DisplayTolerance {
-    DisplayTolerance::new(2.0e-4).expect("a positive delta")
-}
-
-/// The pick index for a session's landed evaluation — the door a
-/// viewport pick answers through.
-fn index_of(session: &DocSession) -> PickIndex {
-    let (doc, eval) = session
-        .landed_pair()
-        .expect("the inline seam lands its first evaluation");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    PickIndex::build(
-        doc,
-        eval,
-        PictureKey::of(generation, delta()),
-        session.tol(),
-    )
-    .expect("the box indexes")
-}
-
 /// Every drawn edge of a node's body 0, as the pick selections a
 /// viewport click would produce.
 fn drawn_edges(session: &DocSession, node: RecipeNodeId) -> Vec<EdgeSelection> {
-    let index = index_of(session);
+    let index = plate_index(session);
     index
         .edges_in(node, 0)
         .iter()
@@ -135,7 +110,7 @@ fn all_edge_names(session: &DocSession, node: RecipeNodeId) -> Vec<StableName> {
 /// evaluation for the names, the pick index for the (node, body)
 /// narrowing.
 fn load_all(tools: &mut Tools, session: &DocSession, target: BlendTarget) -> Option<BlendEvent> {
-    let index = index_of(session);
+    let index = plate_index(session);
     let eval = session.evaluation().expect("the inline seam landed");
     tools
         .blend_mut()
@@ -249,11 +224,7 @@ fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
         panic!("the door minted a fillet");
     };
     assert_eq!(*stored_target, target);
-    assert_eq!(
-        *radius,
-        Expr::literal(BLEND, Dimension::Length).expect("finite"),
-        "the radius is a literal Length slot"
-    );
+    assert_eq!(*radius, len(BLEND), "the radius is a literal Length slot");
     // CANONICAL: sorted, deduplicated, and equal as a set to what the
     // all-edges door answers — the same twelve names either way.
     let mut canonical = selection.clone();
@@ -298,10 +269,7 @@ fn the_chamfer_twin_authors_the_other_node_from_the_same_picks() {
         panic!("the door minted a chamfer");
     };
     assert_eq!(*stored_target, target);
-    assert_eq!(
-        *distance,
-        Expr::literal(BLEND, Dimension::Length).expect("finite")
-    );
+    assert_eq!(*distance, len(BLEND));
     assert_eq!(*selection, all_edge_names(&session, target));
     // The size lands in the chamfer's OWN slot, which is what makes a
     // reader able to tell what the number means off the node kind.
@@ -880,7 +848,7 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
     // The node-wide door sees both halves at once; each drawn half has
     // fewer edges than that.
     let node_wide = all_edge_names(&session, split).len();
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let mut tools = Tools::new();
     for body in [0u32, 1] {
         let drawn = index.edges_in(split, body).len();
@@ -914,7 +882,7 @@ fn a_held_set_marks_exactly_the_edges_it_names() {
     let mut session = session(tol);
     let target = boxed(&mut session, SIDE);
     session.pump();
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let display = DisplayView::none();
 
     let mut tools = Tools::new();
@@ -1158,7 +1126,7 @@ fn only_a_drawn_selection_names_a_body_for_the_all_edges_door() {
     let mut session = session(tol);
     let target = boxed(&mut session, SIDE);
     session.pump();
-    let index = index_of(&session);
+    let index = plate_index(&session);
     let edge = drawn_edges(&session, target)
         .into_iter()
         .next()

@@ -97,3 +97,11 @@ owns `crates/topo/src/chart_region.rs`.
 Nothing about the finding is changed by the move: same id, same
 evidence, still `open`, and no part of its question is answered for
 you except where this note says Ev answered it.
+
+## Re-homed (TOPO orchestrator, 2026-09-24)
+
+FIX placed this row on TOPO on 2026-09-20 because `validate.rs`, whose
+`ValidationError` shape the decision is about, was TOPO's that day.
+The same day's priority-seam cut moved `validate.rs` to ATREST
+(`work/topo/program.md`'s `keep_out`), so the row moves with the file
+it decides. Nothing about it was decided on TOPO.
