@@ -322,3 +322,16 @@ link (the ten `rule-g-trades-sixteen-…` records as lost) and six on R2's
 filleted bracket. Rows: the rule-G row answered to its last shape and
 downgraded to P2; the decision-read cost row read and left where it is;
 one new row filed on SYM's slate for the pad's unmeasurable replay.
+
+## SYM-9 fix pass (2026-09-24)
+
+Both reviews MERGEABLE-AFTER-FIXES; the union taken. The first cut ran
+the ladder inside every rules differential (it rode
+`SymbolicDials::default()`), which read rule G's own cost on the link as
+recovered; the differentials now run with no ladder and DECIDE-3's link
+pin is rule G's trade again. On the release leaf instrument the ladder
+adds 36 % on the bracket, 14 % on the link and 12.5 % on the pad, all
+three over the 1.6 s line before it — so the drive ships no ladder and
+`SymRetry::kept_atom` is the dial. The decision read measured at zero
+on that instrument for those three documents. One row filed on SYM's
+slate (the retry attempts' missing cross-check).

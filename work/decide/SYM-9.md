@@ -41,25 +41,27 @@ Phase 1's first table and the kept-atom retry's measured instance).
 Lane `/home/user/lanes/sym-9`, branch `sym/9-retry-ladder`.
 
 
-## In review (2026-09-22)
+## In review (2026-09-22), fix pass (2026-09-24)
 
-PR #3083 against `props/sign-hull`, branch `sym/9-retry-ladder`.
+PR #3083 against `props/sign-hull`, branch `sym/9-retry-ladder`. Both
+reviews MERGEABLE-AFTER-FIXES (R1 2/7/7, R2 1/8/5); the fix pass takes
+the union, items A–U of the brief, every one listed in the PR body.
 
-Phase 1's two tables are in the PR body, on five of the six documents
-(R2's rounded pad does not finish one nominal replay on the measuring
-box — `work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`).
-The spec's stop clause is not tripped: the ring retry recovers 8 on the
-link and 6 on the bracket.
+Phase 1's tables stand, on five of the six documents at the nominal;
+the pad is measured on the release leaf instrument, where the ladder
+recovers nothing (`work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`).
 
-Phase 2 ships the ladder with two kept-atom attempts (rule G shut, then
-rule A shut) and no wider-ring attempt — the ring recovers a strict
-subset at four to eleven times the cost. It recovers 12 on R2's link
-and 6 on R2's filleted bracket and nothing on the other three, at 1.15x
-and 1.36x the nominal replay.
+What changed at the fix pass: the rules differentials run with no
+ladder on both sides (the first cut had the ladder inside all of them),
+so DECIDE-3's link pin is rule G's trade again; an attempt identical to
+the first is not walked; the leaf instrument was taken with and without
+the ladder in release, and because the ladder acts only on documents
+already over the 1.6 s line and adds 12.5–36 % there, the drive's
+default is now NO ladder and `SymRetry::kept_atom` is the measured
+ladder a caller installs. With it: twelve theorems on R2's link (the
+ten rule G costs `carrier_on_surface_2`, and two), six registrations on
+R2's bracket, nothing on the other four.
 
 `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`
-is answered down to its last shape: the ten are recovered without
-costing the document, the predicate's both-sides pin is re-baselined UP
-to `([98, 0, 0, 10], [92, 0, 6, 10])`, and the two narrow shapes the row
-left untried are measured at zero. It stays open at P2 for the render
-of the six the registrant re-takes.
+stays open at P2 for shape 2 (the render). Filed:
+`work/sym/a-retrys-zero-has-no-cross-check-against-the-numeric-channel`.
