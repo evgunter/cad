@@ -422,8 +422,10 @@ fn a_cylinder_band_answers_through_a_cut_root() {
 /// same cylinder, so each wall's loop is walked on its own branch,
 /// pinned from its first half-edge's PRINCIPAL azimuth — a value in
 /// `(-π, π]`. A wall whose arc starts past `π` therefore gets a
-/// NEGATIVE band: at `n = 4`, `phase = -π/4`, wall 2 measures
-/// `u ∈ [-π/2, 0]` straight out of `window_of`.
+/// NEGATIVE band. The azimuth is the cylinder chart's, whose zero is
+/// the loop's start vertex — the first vertex, at `phase` — so at
+/// `n = 4`, `phase = -3π/4`, wall 3 (the arc that closes the loop)
+/// measures `u ∈ [-π/2, 0]` straight out of `window_of`.
 ///
 /// The construction is R2's, from the v6 dual's probe P6
 /// (`t3s-r2` lane, `t3s_probes_interval.rs::p6_block_mid_way_along_the_negative_band_wall`),
@@ -473,11 +475,17 @@ fn block_at_azimuth(r: &mut Recorder, theta: f64, gap: f64) -> RecipeNodeId {
 /// of zero.** This is the row the spec's E7 wanted and the row TRIM-3
 /// PR-2 first filed as unreachable.
 ///
-/// Wall 2 of a four-way split peg phased at `-π/4` has the band
-/// `[-π/2, 0]`. The block stands 0.1 off that wall at world azimuth
-/// `+7π/8` — mid-band, because the wall's own material runs from
-/// `+3π/4` round through `π` to `-3π/4` in world terms while its chart
-/// azimuth runs `-π/2` to `0`. At `c = 0.3` the approach is real and
+/// Wall 3 of a four-way split peg phased at `-3π/4` has the band
+/// `[-π/2, 0]`: the circle's chart azimuth is measured from the loop's
+/// start vertex, here at `-3π/4`, and wall 3 is the arc that closes
+/// the loop back onto it. The block stands 0.1 off that wall at world
+/// azimuth `+7π/8` — mid-band, because the wall's own material runs
+/// from `+3π/4` round through `π` to `-3π/4` in world terms while its
+/// chart azimuth runs `-π/2` to `0`. (The same peg phased at `-π/4`,
+/// the row's first spelling, reached this wall as wall 2 only while
+/// validation moved every loop's start to its lex-min vertex; the
+/// start is the authored one now, so the phase says where the chart
+/// starts.) At `c = 0.3` the approach is real and
 /// the answer is `Violated`, with a witness whose chart `u` is
 /// NEGATIVE: the band was never folded.
 ///
@@ -496,9 +504,9 @@ fn block_at_azimuth(r: &mut Recorder, theta: f64, gap: f64) -> RecipeNodeId {
 fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
-    let peg = split_peg(&mut r, 4, -core::f64::consts::FRAC_PI_4);
+    let peg = split_peg(&mut r, 4, -3.0 * core::f64::consts::FRAC_PI_4);
     let block = block_at_azimuth(&mut r, 7.0 * core::f64::consts::FRAC_PI_8, 0.1);
-    let wall = named(peg, vec![fixture::fname(peg, fixture::wall(2))]);
+    let wall = named(peg, vec![fixture::fname(peg, fixture::wall(3))]);
     let report = clearance(
         &r.doc,
         &box_of("place"),
@@ -508,7 +516,7 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
         Tol::witness(),
     );
     println!(
-        "[E7b] split peg wall 2 vs a block at +7π/8, c = 0.3: windows {:?}, {}",
+        "[E7b] split peg wall 3 vs a block at +7π/8, c = 0.3: windows {:?}, {}",
         report.windows(),
         report.serialize()
     );

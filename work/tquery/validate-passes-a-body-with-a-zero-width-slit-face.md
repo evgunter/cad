@@ -43,3 +43,13 @@ its cost on the split suites.
 
 The sweep for EMIT's `split-section-face-keeps-a-zero-area-spur-along-a-tangent-edge`,
 corrected by PR 3133's review (m4).
+
+## Re-homed to TQUERY, 2026-09-24 (ATREST orchestrator)
+
+Moved from `work/atrest/` by `git mv`, id and body unchanged. The at-rest
+tiers answered correctly here — tier 2 and every geometric door refuse
+the spurred halves, and tier 1 passing them is its charter. What the
+row asks for is a validation tier run by `split` ON ITS OWN OUTPUTS,
+and `crates/topo/src/split.rs` is TQUERY's ground: whether an op
+validates what it returns, and at what cost to the split suites, is the
+op's posture to decide, not the validator's.
