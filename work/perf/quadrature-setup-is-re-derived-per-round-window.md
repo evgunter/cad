@@ -110,3 +110,21 @@ face's setup is live at a time.
 The `cylinder_cut_face` lane, which has no meaningful setup, and the
 exact per-span arm of `nurbs_patch_face`, which answers before any
 round runs and is entered at most once per face by construction.
+
+## More callers pay it since ATREST-3 (2026-09-24)
+
+ATREST-3 (PR #3191) moved tier 3′ onto the same sign-level walk, so
+`validate_pseudomanifold`, its certificate forms and `contact_marks*`
+now enter the lane one round window at a time, and `step-import`'s
+`gate3` — the production import path — continues the gate's
+certificate with `refine_to_target()` for the enclosure it ships. So
+every import of a body whose sign settles before its target now pays
+the setup twice where it paid one reporting read. Measured on the
+`tcost_k3_certificate` arc prism at `5e7·ε` (13 quadrature verdicts,
+sign settled after 8): gate + continuation ~36 s against a reporting
+read of ~18–23 s on a loaded 8-core box, CI's opt-level 1 — one run
+each and noisy, but the direction is this row's mechanism. Bodies
+that converge in round 0 (every NURBS-walled `step-export` fixture the
+unit measured) leave no round open and pay nothing extra. The
+per-caller priority this row carries may want re-reading with the
+import path in the set.
