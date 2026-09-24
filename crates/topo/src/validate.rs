@@ -2041,12 +2041,11 @@ impl fmt::Display for ValidationError {
             ),
             Self::LaminaWedge { edge } => write!(
                 f,
-                "edge {edge:?}: its two faces lie against each other from opposite \
-                 sides with no gap, which no contact declaration can make valid. Either \
-                 the body is a zero-thickness sheet here, or the two faces share one \
-                 surface and one of them is inside-out. Recourse: check the two faces' \
-                 orientations and flip the inside-out one; if neither is, move the \
-                 geometry"
+                "edge {edge:?}: its two faces lie flat against each other from opposite \
+                 sides, which no contact declaration can make valid: either the body has \
+                 zero thickness here, or the two faces share one surface and one is \
+                 inside-out. Recourse: flip the inside-out face if there is one; \
+                 otherwise move the geometry apart"
             ),
             Self::LoopRoleInverted { face, r#loop } => write!(
                 f,
