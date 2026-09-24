@@ -360,3 +360,71 @@ fn a_seam_passed_through_a_split_and_cut_later_is_named() {
         );
     }
 }
+
+/// **A seam between two placements of one prototype names.**
+///
+/// A transform adds no segment (N1), so the U-rib and a rotated copy of
+/// it carry identical tables and their seams are `Seam { a: x, b: x }`.
+/// Such a pair names no side; its seam chains take their sides from
+/// the pair's structure, and a later cut of one ranks along the edge's
+/// own carrier. Every pair boolean of the two, both union orders
+/// included, names its result, as does a union node over them.
+#[test]
+fn a_seam_between_two_placements_of_one_prototype_is_named() {
+    use crate::fixture::{ang, scl};
+    use editor_core::BooleanOp;
+    let doc = ProfileDoc::empty_derived("emit_union_member_order_same", Tol::witness());
+    let (doc, _slab, rib) = slab_rib(doc);
+    let (doc, turned) = insert(
+        doc,
+        Node::Transform {
+            input: rib,
+            translation: [len(0.1), len(1.5), len(0.3)],
+            rotation_axis: [scl(1.0), scl(0.0), scl(0.0)],
+            rotation_angle: ang(std::f64::consts::FRAC_PI_2),
+        },
+    );
+    let mut doc = doc;
+    let mut ids = Vec::new();
+    for (what, op, a, b) in [
+        ("union", BooleanOp::Union, rib, turned),
+        ("union, swapped", BooleanOp::Union, turned, rib),
+        ("subtract", BooleanOp::Subtract, rib, turned),
+        ("intersect", BooleanOp::Intersect, rib, turned),
+    ] {
+        let (d, id) = insert(
+            doc,
+            Node::Boolean {
+                op,
+                a,
+                b,
+                declare: None,
+            },
+        );
+        doc = d;
+        ids.push((what, id));
+    }
+    let (doc, node) = insert(
+        doc,
+        Node::Union {
+            members: vec![rib, turned],
+            declare: None,
+        },
+    );
+    ids.push(("union node", node));
+    let ev = run(&doc);
+    for (what, id) in ids {
+        if let Some(e) = crate::docm7_union_declare::failure(&ev, id) {
+            panic!("{what} refused: {e}");
+        }
+        let seams = named_geometry(&ev, id, false)
+            .expect("a body")
+            .into_iter()
+            .filter(|l| l.contains("Seam"))
+            .count();
+        assert!(
+            seams > 0,
+            "{what}: no seam was named, so the row pins nothing"
+        );
+    }
+}

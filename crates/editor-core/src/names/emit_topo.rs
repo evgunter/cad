@@ -22,7 +22,7 @@ use super::emit::{
 };
 use super::merged::{self, NESTED_MERGED};
 use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
-use super::seam_line;
+use super::seam_pair;
 use super::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
@@ -1133,8 +1133,10 @@ fn name_boolean_edges<T: Decide>(
             continue;
         }
         // Collinear chain: order along the pair's intersection line,
-        // oriented n_a × n_b with the pair's `a` face first, matched to
-        // its face by name (`seam_line_dir`), never by list order.
+        // oriented n_a × n_b with the A-side face first — the side read
+        // off the face's descent (structure, never list order). A later
+        // step that knows this seam only by its name reads the same
+        // orientation back through `seam_line_dir`.
         //
         // The SIGN of `dir` is load-bearing, not just its axis:
         // `edge_extent` projects onto it and `order_along` ranks by
@@ -1143,10 +1145,18 @@ fn name_boolean_edges<T: Decide>(
         // `face_plane` returns OUTWARD normals (S10 category A): the
         // orientation of this line is a fact about the two faces'
         // material sides, and it must move only when they do.
-        let RoleSeg::Seam { a: sa, b: sb } = &base.path[0] else {
-            return Err(bug("seam group base is not a seam"));
+        let faces = inc
+            .edge_faces
+            .get(&edges[0])
+            .ok_or_else(|| bug("seam group lost its faces"))?;
+        let (f0, f1) = (faces[0], faces[1]);
+        let (fa_key, fb_key) = match descend_face(f0)? {
+            OpSide::A(_) => (f0, f1),
+            OpSide::B(_) => (f1, f0),
         };
-        let dir = seam_line_dir(body, t, node, edges[0], (sa, sb))?;
+        let (_, na) = face_plane(body, fa_key)?;
+        let (_, nb) = face_plane(body, fb_key)?;
+        let dir = na.cross(nb);
         let extents = edges
             .iter()
             .map(|&e| edge_extent(body, e, dir))
@@ -1173,7 +1183,7 @@ fn name_boolean_edges<T: Decide>(
         // before it is minted; one line, one orientation, whichever step
         // cut it. Any other parent is ordered along its own oriented
         // carrier (operand geometry).
-        let dir = match seam_line::seam_line_pair(&inner.name) {
+        let dir = match seam_pair::seam_line_pair(&inner.name) {
             Some(pair) => seam_line_dir(op.body, op.table, op.node, root_key, pair)?,
             None => edge_dir(op_body, root_key)?,
         };
@@ -1478,7 +1488,7 @@ fn resolve_edge_carrier<T: Decide>(
         return Ok(None);
     }
     match op.table.lookup(parent) {
-        Some(Entry::Unique(e)) => match (e.key, seam_line::seam_line_pair(parent)) {
+        Some(Entry::Unique(e)) => match (e.key, seam_pair::seam_line_pair(parent)) {
             // An edge on a seam line is ranked along that line, the one
             // orientation every ranker along a seam line uses.
             (EntityKey::Edge(k), Some(pair)) => {
@@ -1572,15 +1582,16 @@ fn edge_dir<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<Vec3<T>, NamingErro
 
 /// The direction a chain along a seam line is ranked in: the pair's
 /// `n_a × n_b`, with `a` and `b` the pair's two sides as its name
-/// records them (`super::seam_line`). They are matched by NAME to the
+/// records them (`super::seam_pair`). They are matched by NAME to the
 /// two faces of `edge` in `body`, whose names `table` holds, and the
 /// outward normals are read from those faces. `node` is the node whose
 /// body this is, carried by the refusal.
 ///
-/// Every ranker along a seam line reads its direction here: the
-/// seam-chain ranker on the result body, and the descent ranker and
-/// the vertex carrier on an operand body. So the pieces of one line are
-/// ranked one way, whichever step cut it.
+/// The rankers that know a seam only by its NAME read their direction
+/// here: the descent ranker and the vertex carrier, on an operand body.
+/// The seam-chain ranker knows its sides structurally and computes the
+/// same `n_a × n_b` from them. So the pieces of one line are ranked one
+/// way, whichever step cut it.
 fn seam_line_dir<T: Decide>(
     body: &Body<T>,
     table: &NameTable,
@@ -1611,7 +1622,7 @@ fn seam_line_dir<T: Decide>(
     let [Some((f0, n0)), Some((f1, n1))] = faces else {
         return Err(bug("seam line edge without two faces"));
     };
-    let (fa, fb) = match seam_line::a_side_is_first(n0, n1, a, b) {
+    let (fa, fb) = match seam_pair::a_side_is_first(n0, n1, a, b) {
         Some(true) => (f0, f1),
         Some(false) => (f1, f0),
         None => return Err(NamingError::SeamLineSides { node, edge }),

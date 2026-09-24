@@ -720,12 +720,14 @@ pub enum Qualifier {
     /// `of` fragments, ordered along the parent's oriented line.
     ///
     /// Which line, and which way:
-    /// - for pieces on a SEAM line — a seam chain, the pieces of a
-    ///   seam a later step cut, and a seam-vertex group ranked along a
-    ///   seam edge — the seam pair's `n_a × n_b`, with the pair's `a`
-    ///   face first (`names::seam_line`), so one line is ranked one way
+    /// - for pieces on a SEAM line whose pair's two sides carry
+    ///   distinguishable names — a seam chain, the pieces of a seam a
+    ///   later step cut, and a seam-vertex group ranked along a seam
+    ///   edge — the seam pair's `n_a × n_b`, with the pair's `a` face
+    ///   first (`names::seam_pair`), so one line is ranked one way
     ///   whichever step cut it;
-    /// - for pieces of any other edge, that edge's own direction;
+    /// - for pieces of any other edge, including a seam between two
+    ///   same-named faces, that edge's own direction;
     /// - for face fragments of a split, the section line oriented by
     ///   `n_face × n_tool`.
     ///

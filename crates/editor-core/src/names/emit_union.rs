@@ -36,7 +36,7 @@
 //! the pieces of a seam minted already cut, the pieces of a whole seam a
 //! later step cut, and a seam-vertex group ranked along a seam edge.
 //! Which ranks lie on a seam line, and which pair's line, is ONE answer,
-//! `names::seam_line`, read by the pair emitter to pick the direction
+//! `names::seam_pair`, read by the pair emitter to pick the direction
 //! and by this collapse to decide the rule. For each `OrderAlong` the
 //! collapse finds that pair from the fold-space name, through any depth
 //! of `FromA`/`FromB` wrapping, and reads the rank from the other end
@@ -203,7 +203,7 @@ const JUNCTION_LINES_COLLIDE: &str =
     "two lines of a union's seam junction collapse to one member-space line";
 
 use super::merged::NESTED_MERGED;
-use super::seam_line::seam_line_pair;
+use super::seam_pair::seam_line_pair;
 
 /// One fold-table name, keyed by member.
 ///

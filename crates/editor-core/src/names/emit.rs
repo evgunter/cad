@@ -246,14 +246,22 @@ pub enum NamingError {
     },
     /// A chain along a seam line whose direction cannot be read: the
     /// two faces of the seam edge, as `node`'s table names them, do not
-    /// descend one from each side of the pair the edge's name records.
+    /// settle which of them is the `a` side of the pair the edge's name
+    /// records.
     ///
-    /// Every ranker along a seam line orients it by that pair's
-    /// `n_a × n_b`, finding the pair's faces BY NAME through the
-    /// pass-through wrappers (`names::seam_line`). A face renamed by a
-    /// node that wrapper list does not see through leaves the pair
-    /// unmatched. The body is sound and the recipe legal; what is
-    /// missing is a rule for that renaming, which is why this is not an
+    /// A ranker that knows a seam only by its name orients it by that
+    /// pair's `n_a × n_b`, finding the pair's faces BY NAME through the
+    /// pass-through wrappers (`names::seam_pair`). Two causes leave the
+    /// sides unsettled:
+    /// - neither assignment fits: a face renamed by a node the wrapper
+    ///   list does not see through descends from neither side;
+    /// - both fit: each face is a merged face with constituents from
+    ///   both sides.
+    ///
+    /// A pair whose two sides carry the same NAME (two placements of one
+    /// prototype) is not this: it names no side, and its pieces rank
+    /// along their own carrier. The body is sound and the recipe legal;
+    /// what is missing is a rule, which is why this is not an
     /// [`Self::Emission`].
     SeamLineSides {
         /// The node whose body holds `edge` — the boolean's own result
@@ -410,9 +418,9 @@ impl core::fmt::Display for NamingError {
             ),
             Self::SeamLineSides { node, edge } => write!(
                 f,
-                "{UNRULED_FRAMING}: seam edge {edge:?} of node {}'s body has faces that do not \
-                 descend one from each side of its recorded pair, so no direction orders a \
-                 chain along it",
+                "{UNRULED_FRAMING}: seam edge {edge:?} of node {}'s body has faces whose names do \
+                 not settle which is each side of its recorded pair (neither face descends from \
+                 a side, or both faces descend from both), so no direction orders a chain along it",
                 node.0
             ),
             Self::MergedChordOffRim { edge, node, rim } => write!(
