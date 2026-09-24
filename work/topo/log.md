@@ -1889,3 +1889,26 @@ Seam between the two slots: each makes `same_chart` `pub(crate)`, and
 PR 2603's `drop_rows` is the removal PR 2594's `drop_face_rows` should
 call. Whichever lands second folds the face door onto it. PR 2594 is
 expected to land first, so the fold goes with PR 2603's merge-forward.
+
+## B5 slot 2 delivered as PR 3148; its dual dispatched (2026-09-24)
+
+`topo/rebasing-gate-null-edges-and-no-move` came in as PR 3148, head
+`36c7d0f36`, hosted CI green on the full matrix. The lane took shape 1:
+a typed `RebasedNullEdge` refusal for any null edge in a moved run, and
+the M7-8 over-refusal kept and documented, with `mev_null` +
+`set_edge_curve` named as the way to split without moving. The
+ratification check found that shape 2's surface is ratified: DESIGN.md
+Q1's "comparison-free by construction" (`03353d5da`) and the retired
+production bit-identity channel. So shape 2 is written up on the m7-8
+row as the `[ev]` proposal, and its own recommendation is the
+comparison-free third option. The `[ev]` PR opens from main once
+PR 3148 merges. The two can't share a PR, because the unit merges on
+its own authority and a question must never sit on a merged PR. The
+lane's seam: `merge_faces.rs` is double-claimed with ZIP, and the edit
+is one arm in an exhaustive match, so this is not a crossing.
+
+Dual dispatched at 05:21 UTC, run concurrently on the frozen head
+`36c7d0f36` under `docs/DUAL-REVIEW-PROTOCOL.md`. The briefs are
+identical apart from lane label, build target and scratch path; hashes
+are stored privately. No method was relaxed for either reviewer. This
+is the first row for the dual-review log.
