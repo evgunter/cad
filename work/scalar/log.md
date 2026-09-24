@@ -1760,3 +1760,20 @@ refusal before any cache exists, byte-identical to today's
 seam) as well as TOPO's #3160 (`pcurves.rs` `walk_loop`; its head has
 not moved since 09:02Z). If #3160 is still idle when RING-5 lands,
 LANE-4 is dispatched anyway and the second to land merges the other.
+
+## RING-5 fix pass green; waiting on Ev (2026-09-24)
+
+Fix pass (Opus, 493,190 tokens, 105 min harness; main merged first):
+all eight items, none refuted. REEXPORT rule (any `pub`-qualified `use`
+of the certification module in any production file; both reviewers'
+real-tree plants red); the census ported `lib.sh`'s production cut and
+per-statement key (all five probes now agree with the gate); C9 says "a
+value typed `Interval`" and states the generic lane route (new KNOWN
+GAP 6); decision 2's table re-derived by call (73/77 in importers);
+"poison" → "refused" across the importers (`TensorNet::poisoned` →
+`refused`; one pinned note moved in `m5_pr7_ssi.rs`); stale locators
+incl. SSI's P0 row; a `gated_to!` coverage row; four rows filed (three
+SCALAR, one GUARD), two earlier rows priced; the mignitude copies added
+as evidence to PROPS's existing row rather than a second row. Head
+`d5cef24373`, run 36039124302 green. Ready-for-sign-off comment posted;
+DR row drafted and held for merge (fair pair; no tally candidate).
