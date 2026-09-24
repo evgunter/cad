@@ -622,10 +622,10 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
                 .into_iter()
                 .filter_map(|e| mapped(e.key).map(|key| ent(0, key)))
                 .collect();
-            match moved.len() {
-                0 => {}
-                1 => t.insert(wrapped, moved[0])?,
-                _ => t.insert_tied(wrapped, moved)?,
+            // A tie whose every candidate the fuse consumed has no row to
+            // write; any survivors narrow through the one door.
+            if !moved.is_empty() {
+                super::defer::narrow_into(&mut t, super::role::NameRef::new(wrapped), moved)?;
             }
         }
     }

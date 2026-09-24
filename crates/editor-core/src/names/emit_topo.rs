@@ -15,7 +15,7 @@ use geom_core::{Decide, Margin, Point3, Sign, Vec3};
 use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
-use super::defer::{TieRows, Upstream, put, upstream_name};
+use super::defer::{TieRows, Upstream, mint_candidates, put, upstream_name};
 use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along, side_of_face};
 use super::emit::{
     Incidence, NamingError, Rim, edge_ends, ent, face_half_edges, name1, rim_between,
@@ -359,10 +359,11 @@ fn name_split_edges_vertices<T: Decide>(
                     face: parent.name,
                 },
             );
-            let shared = parent.tied || edges.len() > 1;
-            for e in edges {
-                put(t, tie, shared, name.clone(), ent(s.ix, EntityKey::Edge(e)))?;
-            }
+            let ents = edges
+                .iter()
+                .map(|&e| ent(s.ix, EntityKey::Edge(e)))
+                .collect();
+            mint_candidates(t, tie, parent.tied, name, ents)?;
         }
         // Remaining edges: pass-through or crossing-cut fragments. A
         // kept-key first child looks like an intact operand edge in
@@ -840,14 +841,10 @@ fn name_fragment_group<T: Decide>(
     for (vector, faces) in by_vector {
         let mut name = base.clone();
         name.path.push(RoleSeg::Fragment(Qualifier::SideOf(vector)));
-        if faces.len() == 1 {
-            put(t, tie, from_tie, name, ent(0, EntityKey::Face(faces[0])))?;
-        } else {
-            // The N2 tie: equally-admissible symmetric candidates.
-            for &f in &faces {
-                tie.push(name.clone(), ent(0, EntityKey::Face(f)));
-            }
-        }
+        // Several with one sign vector are the N2 tie:
+        // equally-admissible symmetric candidates.
+        let ents = faces.iter().map(|&f| ent(0, EntityKey::Face(f))).collect();
+        mint_candidates(t, tie, from_tie, name, ents)?;
     }
     Ok(())
 }
@@ -1438,9 +1435,11 @@ fn name_boolean_vertices<T: Decide>(
             None => resolve_edge_carrier(&pb, b)?,
         };
         let Some(dir) = carrier else {
-            for &v in &verts {
-                tie.push(base.clone(), ent(0, EntityKey::Vertex(v)));
-            }
+            let ents = verts
+                .iter()
+                .map(|&v| ent(0, EntityKey::Vertex(v)))
+                .collect();
+            mint_candidates(t, tie, from_tie, base, ents)?;
             continue;
         };
         let extents = verts
@@ -1587,11 +1586,7 @@ fn insert_ranked_or_tied<T: Decide, K: Copy>(
                 put(t, tie, from_tie, name, to_ent(k))?;
             }
         }
-        None => {
-            for k in keys {
-                tie.push(base.clone(), to_ent(k));
-            }
-        }
+        None => mint_candidates(t, tie, from_tie, base, keys.iter().map(to_ent).collect())?,
     }
     Ok(())
 }
@@ -1681,24 +1676,16 @@ fn name_split_faces<T: Decide>(
             .iter()
             .map(|&(_, _, f)| face_extent(body, f, dir))
             .collect::<Result<Vec<_>, _>>()?;
-        match order_along(&extents, b)? {
-            Some(ranks) => {
-                let of = u32::try_from(members.len()).unwrap_or(u32::MAX);
-                for (m, rank) in members.iter().zip(ranks) {
-                    let mut name = name1(EntityKind::Face, node, base.clone());
-                    name.path
-                        .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of }));
-                    put(t, tie, from_tie, name, ent(m.0, EntityKey::Face(m.2)))?;
-                }
-            }
-            None => {
-                // Genuine tie (N2): one name, all candidates marked.
-                let name = name1(EntityKind::Face, node, base);
-                for &(ix, _, f) in &members {
-                    tie.push(name.clone(), ent(ix, EntityKey::Face(f)));
-                }
-            }
-        }
+        insert_ranked_or_tied(
+            t,
+            tie,
+            from_tie,
+            name1(EntityKind::Face, node, base),
+            &members,
+            &extents,
+            b,
+            |&(ix, _, f)| ent(ix, EntityKey::Face(f)),
+        )?;
     }
     Ok(())
 }
