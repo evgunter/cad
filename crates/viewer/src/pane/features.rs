@@ -217,11 +217,11 @@ mod tests {
 
     use super::{INDENT_MAX_DEPTH, INDENT_STEP, failure_lines, indent, message_indent, row_label};
     use crate::app::GLYPH_ROOT;
+    use crate::pane::headless::SLACK;
     use crate::pane::headless::{landed, painted_after_clicking, painted_text};
     use crate::theme::Theme;
     use crate::tree;
     use crate::tree::{RowStatus, TreeRow};
-    use crate::widgets::message_tests::SLACK;
     use crate::widgets::{message, message_floor};
 
     /// A failure line of the length and shape a refusal has, quoting a

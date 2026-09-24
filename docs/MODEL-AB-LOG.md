@@ -7018,6 +7018,65 @@ implementer's head. Shared-box note applying to BOTH arms equally: one
 are stale builds from before a large merge of main — wall-clock
 asymmetry only.
 
+Mef/kef-runs row, recorded AT MERGE (2026-09-24, PR #2603;
+`work/topo/mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows.md`
+CLOSED at this merge): `mef`'s chord surgery and `kef`'s unsplice
+carry or drop the rows of the run they move. One `same_chart` per
+decision site over one predicate-free removal, `Body::drop_rows`.
+`kef` resolves the surviving face and decides the chart in its plan
+phase. `mef`/`kef` are declared `Transfers`. Difficulty **M**, task
+class STRUCTURAL (logged before the block draw — clean). Implementer
+arm **FABLE** (block TOPO-B5 slot 1, byte 7). **DUAL: ordinal 2713;
+sample #241 (main's highest at this writing #240; main's merge order
+rules on a collision); byte 61 parity 1 ⇒ R1 FABLE + R2 OPUS;
+CONCURRENT same-head on frozen `2216e0c00`; briefs stored with sha256
+before dispatch, identical modulo lane paths (diff 4 lines).**
+**ARM-EXPOSED** per the disclosure above: the implementer's arm had
+been named on main since 2026-09-14. Both briefs barred this log, the
+program log and the block branch. Both reviewers disclosed glimpses:
+R1 the head commit's co-author trailer and the PR body's footer; R2 a
+line of main's git log naming sibling review lanes' models, and the
+orchestrator merge commit's trailer. Neither saw the other's review.
+R1 MERGEABLE-AFTER-FIXES, counts 2/4/7, rubric idiom 4 / tests 2 /
+docs 3. R2 MERGEABLE-AFTER-FIXES, counts 0/5/11; its rubric was lost
+with its report (the harness refused its scratch write; the returned
+message was archived as a summary), so it is missing data. **No
+unilateral MAJOR.** CONVERGED, severity divergent, both by execution:
+(1) `kef` through the LOOP door after the splice survives both suites,
+the run door's reason for existing unpinned (R1 MAJOR, R2 MINOR; both
+wrote the survivor-rows probe); (2) the drop after the orphan sweep
+survives both suites, with `same_chart` reading a reaped key as two
+charts (R1 MAJOR, R2 MINOR; both wrote the reaped-key probe). Both
+MINOR: (3) the PCERT evidence the body claimed was never filed;
+(4) the precondition-order paragraph was still out of order on
+`SameFace`; (5) the new surviving-face resolution changes the typed
+refusal on multi-fault corrupt input, undisclosed (R1 one plant, R2 a
+table of three). Style, both: (6) `same_chart` evaluated twice on the
+loop path; (7) `Neither` false for doors that now drop rows; (8) dead
+`work/` paths in doc comments; (9) the run door trusts caller-supplied
+keys; (10) a second `Vec` for the keys. Notes, both: drop-always reds
+`sweep` `review_m2_pr7`; `set_surface_source`'s unchecked stamp
+licenses a carry. R1 unique: `mef`'s red-first row goes red only in
+the count (MINOR). R2 unique: the body's "face → loops → run"
+composition with PR 2594 is false (MINOR; R1 noted it untested); the
+`sense` reset under `Shared(second key)` (style); `killed_rows`
+misnamed (style). Fix pass (same arm, one lane): every item taken,
+none refuted; four rows filed (TOPO `sense`/`same_chart`, ORIGIN
+`set_surface_source`, META tracker-path rot, the PCERT evidence). The
+lane died on its arm's usage limit after its last push and before
+posting the body; the orchestrator posted the lane's drafted body
+verbatim, changing one gendered reference. No orchestrator code
+commit after review; the frozen head was itself the orchestrator's
+merge of main (tracker conflicts only). Pair COUNTS (neither review
+interrupted; the implementer lane's two deaths are missing data, not
+a review interruption), flagged arm-exposed. CI: impl run 34877183170
+green on `e36af64a4`; fix head `8de0718b4` run 35952065552 GREEN on
+the full matrix (`CONFIG_SOURCE=lane:unsampled eps:unsampled
+klint:unsampled`, `gate ok`). Tokens: impl missing data, fix missing
+data, R1 ≈375k, R2 ≈270k (self-reported). Wall: impl missing data,
+fix missing data, R1 ≈95 min, R2 ≈80 min (concurrent). Tally after
+this entry: candidates unchanged.
+
 ## SYM program rows (work/sym/; band 4700–4799; blocks named SYM-B<n>)
 
 SYM-4 review ordinal fixed at dispatch (2026-09-14, PR #2565 open —
