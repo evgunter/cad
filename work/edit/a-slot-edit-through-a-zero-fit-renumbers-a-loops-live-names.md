@@ -61,3 +61,54 @@ edit would then report `Rebound` for every name after it, or strand
 it, exactly as a reshaping does. That is a widening of what a slot
 edit may report — today it reports nothing but cluster maintenance —
 and is a design question for EDIT, filed here rather than built.
+
+## Survey (2026-09-24, EDIT orchestrator, read-only lane on main at `a0be7d132`)
+
+**Doors that change a profile's replay without changing its steps.**
+`SetParam` and `SetExpression` on a profile slot
+(`check_profile_after_slot_edit`, `edit.rs`), `SetDocParam` and
+`SetDocParamValue` through `write_doc_param`, which re-checks slots
+but replays no profile, so a parameter change that reshapes a program
+is not even refused by VQ9 today. A `Count` parameter reaches a profile
+argument through `CountToScalar`. `SetTolerance` can change whether
+fused-arc carriers are identical (`carriers_are_identical`, the ε
+band), which changes the segment count; it has no in-process door.
+`UpdateReference` moves a part's pin, and a host's names embed the
+part's names through `InPart`. Names held outside the document (the
+viewer's selection, Python text) never see a `Maintenance` row.
+
+**Analysis.** Profile structure is chosen at the document's nominal
+values. The guided lane pass refuses a sample whose fit or span
+changes (`structure.rs`, `path/program.rs`), and Monte Carlo counts
+it unmeasured. No sample silently re-denotes a name today.
+
+**Steps whose segment count depends on values.** The line-line corner
+fillet (`resolve_fillet`), `FarEndTo` (`end_side_at`), the arc-carrier
+fillets through `emit_fillet_in` (the fused `FilletArc`, `ArcFillet`,
+`ArcFilletArc`), and fused `FromTip` carrier identity (the ε band).
+`CircleSplit`, the ray merge and the degenerate arms are not
+value-dependent. The fit gates use exact order, so `Zero` is a knife
+edge, reached mainly by authored coincidences such as a full-round
+slot whose radius is the half-width.
+
+**Naming by step needs roles, not ordinals.** Spans are positional: in
+this row's chain the `FarEndTo` step draws [line, arc, line] at
+r = 0.3 and [arc] at r = 2, so an ordinal piece index flips from a
+line to the arc. The arc's role is already recorded
+(`RadiusEmission`, keyed by the authoring step).
+
+**Size of naming by step.** About ten production sites: the sweep
+emitters and `role.rs` builders (unchanged if the anchor rewrite does
+the translation), the anchor rewrite in `eval/anchor.rs` (the choke
+point), DM8's door in `program.rs`, `SegmentMap`, the `RoleSeg`
+rewrite walk, content-key hashing, the derived `Ord`. The resolver and
+pick path match names by equality and read no coordinate. The Python
+text form is the serde form. The wire form has no schema version;
+renaming the field makes old files refuse typed. Files carrying
+`"segment": N`: the bool13 goldens, `golden/golden.cad`, the die tour
+corpus, `plate_param.pncad`, `test_document.py`, the tess budget CSV.
+
+**Stale sentences either fix must sweep.** `crates/profile/README.md`
+V3 ("a continuous edit cannot renumber"), `names/role.rs` ("a
+parameter edit cannot renumber a frozen selection"), `names/README.md`
+N1 (this PR), `pncad-py/src/py/select.rs` ("canonical chain").
