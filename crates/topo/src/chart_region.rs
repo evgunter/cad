@@ -3597,7 +3597,7 @@ mod tests {
     use geom_core::Tol;
     use geom_core::{Point3, Vec3};
 
-    fn band() -> Band {
+    pub(super) fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
@@ -3694,7 +3694,7 @@ mod tests {
         }
     }
 
-    fn pt(x: f64, y: f64) -> Point2<f64> {
+    pub(super) fn pt(x: f64, y: f64) -> Point2<f64> {
         Point2::new(x, y)
     }
 
@@ -3709,13 +3709,13 @@ mod tests {
     }
 
     /// CCW axis-aligned rectangle polygon.
-    fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<Point2<f64>> {
+    pub(super) fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<Point2<f64>> {
         vec![pt(x0, y0), pt(x1, y0), pt(x1, y1), pt(x0, y1)]
     }
 
     /// A `ScaledFace` from raw polygons (already metred), rings by
     /// their measures.
-    fn face_of(outer: Vec<Point2<f64>>, rings: &[Vec<Point2<f64>>]) -> ScaledFace<f64> {
+    pub(super) fn face_of(outer: Vec<Point2<f64>>, rings: &[Vec<Point2<f64>>]) -> ScaledFace<f64> {
         let (a2, p) = loop_measures(&outer);
         assert!(a2 > 0.0, "test polygons are CCW");
         ScaledFace {
@@ -4169,7 +4169,7 @@ mod tests {
 
     /// The shared test plane: chart u = x, v = y (u_ref = x̂, normal =
     /// ẑ ⇒ v_ref = ẑ × x̂ = ŷ).
-    fn xy_plane() -> Surface<f64> {
+    pub(super) fn xy_plane() -> Surface<f64> {
         Surface::Plane {
             origin: Point3::origin(),
             normal: Vec3::unit_z(),
@@ -4180,7 +4180,12 @@ mod tests {
     /// Builds an open rectangular sheet (a pillow: the mef face is the
     /// rectangle, the mvfs seed face keeps its placeholder) whose mef
     /// face carries `surface`. Returns the rectangle face.
-    fn sheet(
+    ///
+    /// `pub(super)`, with this module's other polygon and plane
+    /// helpers, because the sibling test modules in this file and
+    /// `r2_probes` build on the same vocabulary rather than keeping a
+    /// copy each.
+    pub(super) fn sheet(
         body: &mut Body<f64>,
         x0: f64,
         y0: f64,
@@ -4762,91 +4767,14 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod inf_arms {
+    use super::tests::{band, rect, sheet, xy_plane};
     use super::{ChartOverlap, ChartRegionError, FaceUv, certified_arms, overlap_of_uv, v_window};
     use crate::body::Body;
-    use crate::entity::FaceKey;
     use crate::euler::FaceSurface;
     use geom::{NurbsSurface, Surface};
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point2, Point3, Vec3};
+    use geom_core::{Point3, Vec3};
     use std::sync::Arc;
-
-    fn band() -> Band {
-        Band::new(1e-9, 1e-8).unwrap()
-    }
-
-    fn xy_plane() -> Surface<f64> {
-        Surface::Plane {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            normal: Vec3::new(0.0, 0.0, 1.0),
-            u_ref: Vec3::new(1.0, 0.0, 0.0),
-        }
-    }
-
-    fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<Point2<f64>> {
-        vec![
-            Point2::new(x0, y0),
-            Point2::new(x1, y0),
-            Point2::new(x1, y1),
-            Point2::new(x0, y1),
-        ]
-    }
-
-    /// A one-loop planar face: the pipeline needs a body and a face
-    /// only for the loop keys its refusals name, so the cheapest
-    /// well-formed sheet is the right fixture here — the CHART under
-    /// test is the one passed alongside.
-    fn sheet(body: &mut Body<f64>) -> FaceKey {
-        use crate::euler::{MefSite, MevSite};
-        use geom_brep::EdgeCurveSpec;
-        use geom_core::Tol;
-        let c = |x: f64, y: f64| Point3::new(x, y, 0.0);
-        let (a, b, cc, d) = (c(0.0, 0.0), c(1.0, 0.0), c(1.0, 1.0), c(0.0, 1.0));
-        let seed = body.mvfs(a).unwrap();
-        let e_ab = body
-            .mev_line(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                b,
-                Tol::witness(),
-            )
-            .unwrap();
-        let e_bc = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: e_ab.he_minus,
-                    he2: e_ab.he_minus,
-                },
-                cc,
-                Tol::witness(),
-            )
-            .unwrap();
-        let e_cd = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: e_bc.he_minus,
-                    he2: e_bc.he_minus,
-                },
-                d,
-                Tol::witness(),
-            )
-            .unwrap();
-        let he = body
-            .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-            .unwrap();
-        body.mef(
-            MefSite::Chords {
-                he1: he,
-                he2: e_ab.he_plus,
-            },
-            EdgeCurveSpec::line_between(d, a),
-            FaceSurface::New(xy_plane()),
-            Tol::witness(),
-        )
-        .unwrap()
-        .face
-    }
 
     fn sphere(radius: f64) -> Surface<f64> {
         Surface::Sphere {
@@ -5144,10 +5072,13 @@ mod inf_arms {
     /// axis swap cannot pass this row.
     #[test]
     fn the_v_window_reads_the_second_channel_and_the_arms_follow_it() {
+        // The pipeline needs a body and a face only for the loop keys
+        // its refusals name, so the cheapest well-formed sheet serves:
+        // the CHART under test is `s`, passed alongside.
         let mut ba = Body::<f64>::new();
-        let fa = sheet(&mut ba);
+        let fa = sheet(&mut ba, 0.0, 0.0, 1.0, 1.0, FaceSurface::New(xy_plane()));
         let mut bb = Body::<f64>::new();
-        let fb = sheet(&mut bb);
+        let fb = sheet(&mut bb, 0.0, 0.0, 1.0, 1.0, FaceSurface::New(xy_plane()));
         let s = sphere(2.0);
         // u spans π/2 (1.5708); v stays inside |v| ≤ 0.3.
         let uv = |x0: f64, y0: f64, x1: f64, y1: f64| FaceUv {
@@ -5218,15 +5149,12 @@ mod inf_arms {
 #[cfg(feature = "interval")]
 mod inf_arms_interval {
     use super::certified_arms;
+    use super::tests::band;
     use geom::{NurbsSurface, Surface};
     use geom_core::k_stats::decide;
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Bounds, Interval, Margin, Point3, Real, Sign};
+    use geom_core::{Bounds, Interval, Margin, Point3, Real, Sign};
     use std::sync::Arc;
-
-    fn band() -> Band {
-        Band::new(1e-9, 1e-8).unwrap()
-    }
 
     fn flat_chart(su: f64, sv: f64) -> Surface<Interval> {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -5338,15 +5266,8 @@ mod r2_mate8_probes {
     //! Blinded-review probes (lane R2, PR #1472): adversarial edge
     //! cases for `decomposition_witness`'s completeness argument and
     //! its budget guard. Probe-branch only; not part of the unit.
+    use super::tests::{pt, rect};
     use super::*;
-
-    fn pt(x: f64, y: f64) -> Point2<f64> {
-        Point2::new(x, y)
-    }
-
-    fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<Point2<f64>> {
-        vec![pt(x0, y0), pt(x1, y0), pt(x1, y1), pt(x0, y1)]
-    }
 
     fn uv(outer: Vec<Point2<f64>>, rings: Vec<Vec<Point2<f64>>>) -> FaceUv<f64> {
         FaceUv { outer, rings }

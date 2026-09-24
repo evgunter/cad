@@ -2505,7 +2505,7 @@ impl<T: Decide> Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::test_support_fixtures::declined_cube;
+    use crate::test_support_fixtures::{declined_cube, plant_ring_face};
 
     /// A shared edge of the ops cube, as the pair of faces meeting
     /// there — addressed exactly as the absorption scan addresses it,
@@ -2832,36 +2832,18 @@ mod tests {
             mefs,
             ..
         } = declined_cube::<f64>(tol);
-        let strut = |body: &mut Body<f64>, at, x, y, z| {
-            body.mev_line(
-                crate::euler::MevSite::Fan { he1: at, he2: at },
-                pt(x, y, z),
-                tol,
-            )
-            .expect("the fan strut grows")
-        };
-        let hole_strut = strut(&mut body, mefs[1].he_plus, 0.25, 0.25, 1.0);
-        let kill = body
-            .kemr(hole_strut.he_plus, hole_strut.he_minus)
-            .expect("the strut becomes a lone-vertex ring");
-        let s_pq = body
-            .mev_line(
-                crate::euler::MevSite::Lone { r#loop: kill.ring },
+        let membrane = plant_ring_face(
+            &mut body,
+            mefs[1].he_plus,
+            &[
+                pt(0.25, 0.25, 1.0),
                 pt(0.75, 0.25, 1.0),
-                tol,
-            )
-            .expect("the ring grows its first edge");
-        let s_qr = strut(&mut body, s_pq.he_minus, 0.75, 0.75, 1.0);
-        let s_rs = strut(&mut body, s_qr.he_minus, 0.25, 0.75, 1.0);
-        let membrane = body
-            .mef_chord(
-                crate::euler::MefSite::Chords {
-                    he1: s_pq.he_plus,
-                    he2: s_rs.he_minus,
-                },
-                tol,
-            )
-            .expect("the rim closes into a membrane face");
+                pt(0.75, 0.75, 1.0),
+                pt(0.25, 0.75, 1.0),
+            ],
+            tol,
+        )
+        .membrane;
         (body, seed.face, membrane.face)
     }
 
@@ -2980,36 +2962,18 @@ mod tests {
             };
             first
         };
-        let strut = |body: &mut Body<f64>, at, x, y, z| {
-            body.mev_line(
-                crate::euler::MevSite::Fan { he1: at, he2: at },
-                pt(x, y, z),
-                tol,
-            )
-            .expect("the fan strut grows")
-        };
-        let hole_strut = strut(&mut body, host_he, 0.25, 0.25, 1.0);
-        let kill = body
-            .kemr(hole_strut.he_plus, hole_strut.he_minus)
-            .expect("the strut becomes a lone-vertex ring");
-        let s_pq = body
-            .mev_line(
-                crate::euler::MevSite::Lone { r#loop: kill.ring },
+        let membrane = plant_ring_face(
+            &mut body,
+            host_he,
+            &[
+                pt(0.25, 0.25, 1.0),
                 pt(0.75, 0.25, 1.0),
-                tol,
-            )
-            .expect("the ring grows its first edge");
-        let s_qr = strut(&mut body, s_pq.he_minus, 0.75, 0.75, 1.0);
-        let s_rs = strut(&mut body, s_qr.he_minus, 0.25, 0.75, 1.0);
-        let membrane = body
-            .mef_chord(
-                crate::euler::MefSite::Chords {
-                    he1: s_pq.he_plus,
-                    he2: s_rs.he_minus,
-                },
-                tol,
-            )
-            .expect("the rim closes into a membrane face");
+                pt(0.75, 0.75, 1.0),
+                pt(0.25, 0.75, 1.0),
+            ],
+            tol,
+        )
+        .membrane;
         (body, membrane.face)
     }
 
