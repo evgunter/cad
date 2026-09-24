@@ -227,6 +227,8 @@ use crate::entity::{
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
+use crate::euler::FaceSurface;
+use crate::pcurves::{SiteHalf, SiteRows};
 use crate::geometry::{CurveKey, SurfaceKey};
 use crate::live::{Live, require_key};
 use crate::provenance::Provenance;
@@ -1190,13 +1192,25 @@ impl<T: Decide> Body<T> {
             return true;
         }
         match (self.get_surface(a), self.get_surface(b)) {
-            (Some(geom::Surface::Nurbs(x)), Some(geom::Surface::Nurbs(y))) => {
-                std::sync::Arc::ptr_eq(x, y)
-            }
-            (Some(geom::Surface::Approx(x)), Some(geom::Surface::Approx(y))) => {
-                std::sync::Arc::ptr_eq(x, y)
-            }
+            (Some(x), Some(y)) => one_payload(x, y),
             _ => false,
+        }
+    }
+
+    /// [`Body::same_chart`] asked of a face-surface SPEC before a door
+    /// mints its key: would a face given `spec` be on `from`'s chart?
+    /// `Inherit` is `from` itself and `Shared` names a key the question
+    /// is already about. A `New` surface is minted a fresh key with no
+    /// recorded source, so of the three rungs only the shared payload
+    /// can hold for it — the answer `same_chart` gives the key once it
+    /// exists.
+    pub(crate) fn same_chart_spec(&self, from: SurfaceKey, spec: &FaceSurface<T>) -> bool {
+        match spec {
+            FaceSurface::Inherit => true,
+            FaceSurface::Shared(key) => self.same_chart(from, *key),
+            FaceSurface::New(surface) => self
+                .get_surface(from)
+                .is_some_and(|own| one_payload(own, surface)),
         }
     }
 
@@ -1263,9 +1277,21 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
+        // ---- The pcurve rows the new halves need (still no mutation):
+        // he_plus → ring … prev(ring) → he_minus → target … prev(target).
+        let rows = self.plan_site_rows(
+            |body| {
+                let target_side = body.site_cycle_from(target, target_loop)?;
+                let ring_side = ring_members.iter().map(|m| m.key());
+                body.mekr_site(face_key, target_loop, ring_loop, ring_side, target_side)
+            },
+            &certified,
+            tol,
+        )?;
 
         // ---- Mutation (infallible from here on). ----
-        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, certified);
+        let (curve, edge, he_plus, he_minus) =
+            self.mekr_mint(site, u, w, target_loop, certified, rows);
         // Reparent the whole ring cycle into the target loop.
         for &moved in &ring_members {
             let Some(he) = self.get_half_edge_mut(moved.key()) else {
@@ -1344,9 +1370,20 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
+        // ---- The pcurve rows the new halves need (still no mutation):
+        // he_plus → he_minus → target … prev(target).
+        let rows = self.plan_site_rows(
+            |body| {
+                let target_side = body.site_cycle_from(target, target_loop)?;
+                body.mekr_site(face_key, target_loop, ring, [], target_side)
+            },
+            &certified,
+            tol,
+        )?;
 
         // ---- Mutation (infallible from here on). ----
-        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target_loop, certified);
+        let (curve, edge, he_plus, he_minus) =
+            self.mekr_mint(site, u, w, target_loop, certified, rows);
         // Splice: … prev(target) → he_plus → he_minus → target … (the
         // strut shape, re-created; inverse of kemr's ring-side-empty
         // case).
@@ -1414,9 +1451,20 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
+        // ---- The pcurve rows the new halves need (still no mutation):
+        // he_plus → ring … prev(ring) → he_minus.
+        let rows = self.plan_site_rows(
+            |body| {
+                let ring_side = ring_members.iter().map(|m| m.key());
+                body.mekr_site(face_key, target, ring_loop, ring_side, Vec::new())
+            },
+            &certified,
+            tol,
+        )?;
 
         // ---- Mutation (infallible from here on). ----
-        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified);
+        let (curve, edge, he_plus, he_minus) =
+            self.mekr_mint(site, u, w, target, certified, rows);
         for &moved in &ring_members {
             let Some(he) = self.get_half_edge_mut(moved.key()) else {
                 unreachable!(
@@ -1484,9 +1532,17 @@ impl<T: Decide> Body<T> {
         // ---- Geometry gate (still no mutation): certify u → w (the
         // he_plus forward order).
         let certified = self.certify_edge_spec(curve, p_u, p_w, tol)?;
+        // ---- The pcurve rows the new halves need (still no mutation):
+        // he_plus → he_minus.
+        let rows = self.plan_site_rows(
+            |body| body.mekr_site(face_key, target, ring, [], Vec::new()),
+            &certified,
+            tol,
+        )?;
 
         // ---- Mutation (infallible from here on). ----
-        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified);
+        let (curve, edge, he_plus, he_minus) =
+            self.mekr_mint(site, u, w, target, certified, rows);
         // The two halves form the whole cycle: u → w → u (the segment
         // loop — inverse of kemr's both-empty case).
         self.link_half_edges(he_plus, he_minus);
@@ -1546,7 +1602,9 @@ impl<T: Decide> Body<T> {
     /// `mekr`'s mint phase (documented minting order: curve — the
     /// certified `EdgeCurve` from the attachment gate — edge,
     /// `he_plus`, `he_minus`). Both halves land in the target loop;
-    /// `next`/`prev` are provisional for the caller's splice.
+    /// `next`/`prev` are provisional for the caller's splice. `rows` is
+    /// what the plan phase decided the face stores
+    /// ([`Body::plan_site_rows`]), written as the halves are minted.
     fn mekr_mint(
         &mut self,
         site: MekrSite,
@@ -1554,13 +1612,39 @@ impl<T: Decide> Body<T> {
         w: VertexKey,
         target_loop: LoopKey,
         certified: geom_brep::EdgeCurve<T>,
+        rows: Vec<SiteRows<T>>,
     ) -> (CurveKey, EdgeKey, Live, Live) {
         let provenance = Provenance::Mekr { site };
         let curve = self.add_curve(certified);
         let edge = self.mint_edge(curve, &provenance);
         let (he_plus, he_minus) =
             self.mint_halves(edge, (u, target_loop), (w, target_loop), &provenance);
+        crate::pcurves::apply_site_rows(self, rows, (he_plus.key(), he_minus.key()));
         (curve, edge, he_plus, he_minus)
+    }
+
+    /// `mekr`'s face as the surgery leaves it: the target loop becomes
+    /// `he_plus`, the ring's half-edges from the ring anchor, `he_minus`,
+    /// then the target's from the target anchor — re-anchored at
+    /// `he_plus` — and the ring loop is gone.
+    fn mekr_site(
+        &self,
+        face: FaceKey,
+        target_loop: LoopKey,
+        ring_loop: LoopKey,
+        ring_side: impl IntoIterator<Item = HalfEdgeKey>,
+        target_side: Vec<HalfEdgeKey>,
+    ) -> Result<Vec<crate::pcurves::SiteFace<T>>, EulerOpError> {
+        let merged: Vec<SiteHalf> = core::iter::once(SiteHalf::NewPlus)
+            .chain(ring_side.into_iter().map(SiteHalf::Existing))
+            .chain(core::iter::once(SiteHalf::NewMinus))
+            .chain(target_side.into_iter().map(SiteHalf::Existing))
+            .collect();
+        Ok(vec![self.site_face(
+            face,
+            &[(target_loop, merged)],
+            Some(ring_loop),
+        )?])
     }
 
     /// `mekr`'s common tail: re-anchor the target loop at `he_plus`
@@ -1598,6 +1682,16 @@ impl<T: Decide> Body<T> {
             unreachable!("mekr: `w` resolved in check_anchors")
         };
         vertex.emanating = Some(he_minus);
+    }
+}
+
+/// [`Body::same_chart`]'s third rung: two spline surfaces holding one
+/// shared payload are one described chart.
+fn one_payload<T: Decide>(a: &geom::Surface<T>, b: &geom::Surface<T>) -> bool {
+    match (a, b) {
+        (geom::Surface::Nurbs(x), geom::Surface::Nurbs(y)) => std::sync::Arc::ptr_eq(x, y),
+        (geom::Surface::Approx(x), geom::Surface::Approx(y)) => std::sync::Arc::ptr_eq(x, y),
+        _ => false,
     }
 }
 

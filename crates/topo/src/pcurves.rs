@@ -2015,8 +2015,355 @@ fn mint_face<T: PcurveFittedLane>(
     Ok(())
 }
 
+/// One half-edge of a face as an Euler operator's plan phase names it:
+/// before the surgery, the two half-edges the operator adds have no
+/// key yet.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SiteHalf {
+    /// A half-edge the body already holds.
+    Existing(HalfEdgeKey),
+    /// The new edge's `he_plus`, which the surgery mints.
+    NewPlus,
+    /// The new edge's `he_minus`, which the surgery mints.
+    NewMinus,
+}
+
+/// Why an Euler operator refused to add a half-edge to a face whose
+/// pcurve rows are complete — [`site_rows`]' refusal, raised before the
+/// operator mutates anything, so the body is untouched.
+///
+/// Each arm but the first is the refusal [`mint_pcurves`] would raise
+/// over the face the surgery leaves, named by [`SiteHalf`] because the
+/// half-edges the operator would add have no key yet.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SiteRowRefusal {
+    /// **The fitted frontier.** The face is on a SPLINE chart (a
+    /// described NURBS or an approximating surface), where a chart
+    /// image derives from the edge's description through the iso and
+    /// general lanes (`nurbs_iso_derive`), whose doors carry
+    /// [`PcurveFittedLane`]. The Euler operators are generic over
+    /// `Decide`, so they refuse here rather than leave the face
+    /// half-minted.
+    SplineChart,
+    /// A chart image of the face failed certification — the new edge's
+    /// own (a carrier that does not lie on the face's surface is the
+    /// ordinary case), or a neighbour's re-derived beside it.
+    Certify {
+        /// The half-edge whose image was refused.
+        at: SiteHalf,
+        /// The typed certification failure, nested whole.
+        error: PcurveCertifyError,
+    },
+    /// The image of `at` meets its predecessor's in the chart on no
+    /// branch ([`PcurveMintError::LoopDiscontinuity`]).
+    LoopDiscontinuity {
+        /// The half-edge whose entry met no branch.
+        at: SiteHalf,
+    },
+    /// A loop of the face does not close in the chart
+    /// ([`PcurveMintError::LoopNotClosed`]).
+    LoopNotClosed,
+    /// A branch or continuity decision escalated.
+    Escalated {
+        /// The half-edge under classification.
+        at: SiteHalf,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
+    /// A key the derivation reads did not resolve — tier 1's
+    /// corruption, which the operator's own plan phase did not see.
+    Corrupt,
+}
+
+impl core::fmt::Display for SiteRowRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::SplineChart => write!(
+                f,
+                "the face is on a spline chart, where a new edge's pcurve row derives only \
+                 through the fitted lane; the Euler operators do not carry it. Recourse: run \
+                 the operator before the face is minted, and mint once the surgery is done"
+            ),
+            Self::Certify { at, error } => write!(
+                f,
+                "the pcurve row of {at:?} does not certify on the face's chart: {error}. \
+                 Recourse: give the new edge a carrier that lies on the face's surface"
+            ),
+            Self::LoopDiscontinuity { at } => write!(
+                f,
+                "the pcurve row of {at:?} meets its predecessor's on no branch of the face's \
+                 chart. Recourse: re-mint the body if it was edited after minting"
+            ),
+            Self::LoopNotClosed => write!(
+                f,
+                "a loop of the face does not close in its chart. Recourse: re-mint the body if \
+                 it was edited after minting"
+            ),
+            Self::Escalated { at, cause } => {
+                write!(f, "the pcurve row of {at:?} escalated: {cause}")
+            }
+            Self::Corrupt => write!(
+                f,
+                "the body is structurally corrupt (a key did not resolve); read the \
+                 structural validators' report and repair the reference it names"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for SiteRowRefusal {}
+
+/// One loop of a face after an Euler operator's surgery, as the
+/// operator's plan phase knows it before mutating.
+pub(crate) enum SiteLoop {
+    /// A loop the surgery rewires: its half-edges in `next` order from
+    /// the loop's `first` AFTER the surgery — the order the minting
+    /// walk reads it in.
+    Rewired(Vec<SiteHalf>),
+    /// A loop of the face the surgery leaves as it is.
+    Kept(LoopKey),
+}
+
+/// A face an Euler operator's new half-edges land on, described before
+/// the surgery.
+pub(crate) struct SiteFace<T: Real> {
+    /// The face whose rows decide whether this one is minted: the face
+    /// itself, or — for `mef`'s new face — the face it is carved from.
+    /// Named by the refusal.
+    pub(crate) rows_from: FaceKey,
+    /// The chart the face is on after the surgery.
+    pub(crate) surface: Surface<T>,
+    /// Whether `rows_from`'s rows stand on this face: `false` only for
+    /// a face `mef` carves onto another chart, whose moved run loses
+    /// its rows ([`crate::Body::drop_rows`]).
+    pub(crate) carried: bool,
+    /// Its loops after the surgery, outer first.
+    pub(crate) loops: Vec<SiteLoop>,
+}
+
+/// What an Euler operator writes into the pcurve map for one face once
+/// its surgery is done ([`apply_site_rows`]).
+pub(crate) enum SiteRows<T: Real> {
+    /// The face is not minted — its chart mints nothing, or it stores
+    /// no row, or it is already half-minted — and the operator leaves
+    /// its rows exactly as found.
+    Leave,
+    /// Every row of the face after the surgery, the two new halves'
+    /// among them.
+    Mint(Vec<(SiteHalf, PcurveCache<T>)>),
+    /// The new edge's carrier is outside the chart's closed-form
+    /// classes, so the face is not covered by the minting lane and
+    /// stores nothing — [`mint_pcurves`]' answer for such a face.
+    /// Every half-edge of the face after the surgery.
+    Clear(Vec<SiteHalf>),
+}
+
+/// **The row of every half-edge an Euler operator adds to a minted
+/// face, derived before the operator mutates.** The operator's
+/// contract: it never returns a face half-minted. So for each face its
+/// new halves land on ([`SiteFace`]), this decides what that face
+/// stores after the surgery:
+///
+/// - **An unminted face stays unminted** ([`SiteRows::Leave`]): a
+///   chart that mints nothing, or a face storing no row. The minting
+///   pass owns such a face, and a row minted onto it would half-mint it
+///   the other way. So is a face `mef` carves onto another chart,
+///   whose moved rows the operator drops.
+/// - **A half-minted face is left as found** (also `Leave`). It is
+///   already the defect [`validate_pcurves`] reports: the walk below
+///   cannot pin a branch against a neighbour with no row, and the
+///   operator neither completes it nor pretends to. Its new halves are
+///   reported rowless beside the half-edges that already were. The
+///   boolean's null scaffolding is the ordinary producer of this
+///   state mid-surgery (`Body::mev_null` has no carrier to derive a
+///   row from), and its closing mint is what ends it.
+/// - **A COMPLETE face — every half-edge of every loop carries a row —
+///   is re-minted whole**, exactly as [`mint_pcurves_of`] would re-mint
+///   it after the surgery: the same walk from each loop's `first`
+///   ([`walk_cycle`]), the same window, the same certification. So the
+///   rows this writes ARE the pass's rows, and a caller that runs the
+///   pass over the result afterwards rewrites the same bits.
+///
+/// **Why this is stated under `Decide`.** The mint of an ANALYTIC
+/// chart needs nothing the fitted lane holds: the derivation is
+/// [`chart_pcurve`], the branch walk is [`walk_cycle`] and the
+/// certification is [`PcurveCache::certify`], all three `Decide`. The
+/// fitted lane is the SPLINE chart's derivation (`nurbs_iso_derive`)
+/// and U2's `General` certificate, so a complete face on a spline
+/// chart refuses [`SiteRowRefusal::SplineChart`] — the frontier, typed,
+/// before any mutation.
+///
+/// **Where the pass would leave a face uncovered, so does this**: a
+/// carrier outside the chart's closed-form classes
+/// ([`PcurveCertifyError::UnsupportedCarrier`]) makes the face store
+/// nothing ([`SiteRows::Clear`]), which is `mint_faces`' answer for it.
+/// Every other refusal the pass would raise is raised here, before the
+/// surgery, rather than by the pass after it.
+///
+/// # Errors
+///
+/// [`SiteRowRefusal`].
+pub(crate) fn site_rows<T: Decide>(
+    body: &Body<T>,
+    face: &SiteFace<T>,
+    edge: &geom_brep::EdgeCurve<T>,
+    band: Band,
+) -> Result<SiteRows<T>, SiteRowRefusal> {
+    if !face.carried {
+        return Ok(SiteRows::Leave);
+    }
+    let from = body
+        .get_face(face.rows_from)
+        .ok_or(SiteRowRefusal::Corrupt)?;
+    let from_surface = body
+        .get_surface(from.surface)
+        .ok_or(SiteRowRefusal::Corrupt)?;
+    if !chart_mints(from_surface) || !chart_mints(&face.surface) {
+        return Ok(SiteRows::Leave);
+    }
+    let stored = stored_rows(body, from);
+    if stored.window.is_none() {
+        return Ok(SiteRows::Leave);
+    }
+    let complete = stored
+        .loops
+        .iter()
+        .all(|lp| lp.as_ref().is_some_and(|c| c.iter().all(|&he| body.pcurve(he).is_some())));
+    if !complete {
+        return Ok(SiteRows::Leave);
+    }
+    if face.surface.spline_chart().is_some() {
+        return Err(SiteRowRefusal::SplineChart);
+    }
+    // The face's half-edges after the surgery, loop by loop.
+    let mut loops: Vec<Vec<SiteHalf>> = Vec::with_capacity(face.loops.len());
+    for lp in &face.loops {
+        loops.push(match lp {
+            SiteLoop::Rewired(halves) => halves.clone(),
+            SiteLoop::Kept(key) => match loop_rows(body, *key) {
+                LoopRows::Cycle(cycle) => cycle.into_iter().map(SiteHalf::Existing).collect(),
+                LoopRows::NoCycle => Vec::new(),
+                LoopRows::Corrupt => return Err(SiteRowRefusal::Corrupt),
+            },
+        });
+    }
+    let every_half = || loops.iter().flatten().copied().collect::<Vec<_>>();
+    let traversal = |at: SiteHalf| -> Result<(geom::Curve3<T>, T, T, bool), SiteRowRefusal> {
+        match at {
+            SiteHalf::Existing(he) => {
+                let (carrier, t0, t1) =
+                    half_edge_carrier(body, he).map_err(|_| SiteRowRefusal::Corrupt)?;
+                let plus = is_plus(body, he).map_err(|_| SiteRowRefusal::Corrupt)?;
+                Ok((carrier, t0, t1, plus))
+            }
+            SiteHalf::NewPlus | SiteHalf::NewMinus => {
+                let (t0, t1) = edge.params();
+                Ok((edge.carrier().clone(), t0, t1, at == SiteHalf::NewPlus))
+            }
+        }
+    };
+    // Pass 1: the walk, loop by loop, in the pass's order.
+    let mut walked: Vec<(SiteHalf, geom::Curve3<T>, Pcurve<T>, T, T)> = Vec::new();
+    for halves in &loops {
+        let mut carriers: Vec<geom::Curve3<T>> = Vec::with_capacity(halves.len());
+        let item = |i: usize| -> Result<WalkItem<T>, SiteRowRefusal> {
+            let at = halves[i];
+            let (carrier, t0, t1, plus) = traversal(at)?;
+            let base = chart_pcurve(&carrier, &face.surface, band)
+                .map_err(|error| SiteRowRefusal::Certify { at, error })?;
+            carriers.push(carrier);
+            Ok(WalkItem { base, t0, t1, plus })
+        };
+        let pinned = match walk_cycle(&face.surface, halves.len(), item, band) {
+            Ok(pinned) => pinned,
+            Err(WalkFail::Item(SiteRowRefusal::Certify {
+                error: PcurveCertifyError::UnsupportedCarrier,
+                ..
+            })) => return Ok(SiteRows::Clear(every_half())),
+            Err(WalkFail::Item(refusal)) => return Err(refusal),
+            Err(WalkFail::Miss {
+                index,
+                miss: PinMiss::Discontinuity,
+            }) => {
+                return Err(SiteRowRefusal::LoopDiscontinuity { at: halves[index] });
+            }
+            Err(WalkFail::Miss {
+                index,
+                miss: PinMiss::Escalated(cause),
+            }) => {
+                return Err(SiteRowRefusal::Escalated {
+                    at: halves[index],
+                    cause,
+                });
+            }
+            Err(WalkFail::NotClosed) => return Err(SiteRowRefusal::LoopNotClosed),
+        };
+        for ((&at, carrier), (pcurve, t0, t1)) in halves.iter().zip(carriers).zip(pinned) {
+            walked.push((at, carrier, pcurve, t0, t1));
+        }
+    }
+    // Pass 2: the face's window — `mint_face`'s, the hull of the images
+    // being derived — and every image certified against it.
+    let mut window: Option<ChartWindow<T>> = None;
+    for (_, _, pcurve, t0, t1) in &walked {
+        let b = pcurve.chart_box(*t0, *t1);
+        window = Some(match window {
+            None => b,
+            Some(acc) => acc.hull(b),
+        });
+    }
+    let Some(window) = window else {
+        return Ok(SiteRows::Leave);
+    };
+    let mut rows = Vec::with_capacity(walked.len());
+    for (at, carrier, pcurve, t0, t1) in walked {
+        match PcurveCache::certify(pcurve, t0, t1, &carrier, &face.surface, window, band) {
+            Ok(cache) => rows.push((at, cache)),
+            Err(PcurveCertifyError::UnsupportedCarrier) => {
+                return Ok(SiteRows::Clear(every_half()));
+            }
+            Err(error) => return Err(SiteRowRefusal::Certify { at, error }),
+        }
+    }
+    Ok(SiteRows::Mint(rows))
+}
+
+/// Writes what [`site_rows`] decided, once the surgery has minted the
+/// two half-edges it named [`SiteHalf::NewPlus`] and
+/// [`SiteHalf::NewMinus`]. Infallible: it sits in the operator's
+/// mutation phase and only writes the map.
+pub(crate) fn apply_site_rows<T: Decide>(
+    body: &mut Body<T>,
+    plans: Vec<SiteRows<T>>,
+    (he_plus, he_minus): (HalfEdgeKey, HalfEdgeKey),
+) {
+    let key = |at: SiteHalf| match at {
+        SiteHalf::Existing(he) => he,
+        SiteHalf::NewPlus => he_plus,
+        SiteHalf::NewMinus => he_minus,
+    };
+    for plan in plans {
+        match plan {
+            SiteRows::Leave => {}
+            SiteRows::Mint(rows) => {
+                for (at, cache) in rows {
+                    body.pcurves.insert(key(at), cache);
+                }
+            }
+            SiteRows::Clear(halves) => body.drop_rows(halves.into_iter().map(key)),
+        }
+    }
+}
+
 /// The one-branch walk of a single loop (module docs). Appends the
 /// branch-pinned chart curves to `out`.
+///
+/// The derivation is the one step that forks by chart: a SPLINE chart
+/// derives from the edge's description ([`nurbs_iso_derive`], the
+/// fitted lane's), every analytic chart from the carrier's closed form
+/// ([`chart_pcurve`]). Everything after the derivation — the branch
+/// pin, the continuity margins, the closure — is [`walk_cycle`], which
+/// is stated under `Decide`.
 pub(crate) fn walk_loop<T: PcurveFittedLane>(
     body: &Body<T>,
     face: FaceKey,
@@ -2031,15 +2378,8 @@ pub(crate) fn walk_loop<T: PcurveFittedLane>(
         return Ok(());
     };
     let cycle = body.loop_cycle(first).ok_or(PcurveMintError::Corrupt)?;
-    // The chart's own u period (`chart_u_period`): `τ` on an analytic
-    // azimuth chart, the knot-domain length on a NURBS chart closed in
-    // u, and NO shift at all on a chart that does not wrap.
-    let u_period = chart_u_period(surface, band);
-    let tau = T::tau();
-    // The walk's running exit point, in chart coordinates.
-    let mut prev_exit: Option<geom_core::Point2<T>> = None;
-    let mut first_entry: Option<geom_core::Point2<T>> = None;
-    for he in cycle {
+    let item = |i: usize| -> Result<WalkItem<T>, PcurveMintError> {
+        let he = cycle[i];
         let (carrier, t0, t1) = half_edge_carrier(body, he)?;
         let base = if surface.spline_chart().is_some() {
             // Spline charts derive from the edge's intensional
@@ -2052,134 +2392,115 @@ pub(crate) fn walk_loop<T: PcurveFittedLane>(
             })?
         };
         let plus = is_plus(body, he)?;
+        Ok(WalkItem { base, t0, t1, plus })
+    };
+    let walked = walk_cycle(surface, cycle.len(), item, band).map_err(|fail| match fail {
+        WalkFail::Item(e) => e,
+        WalkFail::Miss {
+            index,
+            miss: PinMiss::Discontinuity,
+        } => PcurveMintError::LoopDiscontinuity {
+            half_edge: cycle[index],
+        },
+        WalkFail::Miss {
+            index,
+            miss: PinMiss::Escalated(cause),
+        } => PcurveMintError::Escalated {
+            half_edge: cycle[index],
+            cause,
+        },
+        WalkFail::NotClosed => PcurveMintError::LoopNotClosed { face },
+    })?;
+    out.extend(
+        cycle
+            .iter()
+            .zip(walked)
+            .map(|(&half_edge, (pcurve, t0, t1))| Walked {
+                half_edge,
+                pcurve,
+                t0,
+                t1,
+            }),
+    );
+    Ok(())
+}
+
+/// One half-edge of a cycle as [`walk_cycle`] reads it: its chart
+/// image on the chart's principal branch, its carrier interval, and
+/// whether the loop traverses it forward.
+pub(crate) struct WalkItem<T: Real> {
+    base: Pcurve<T>,
+    t0: T,
+    t1: T,
+    plus: bool,
+}
+
+/// Why [`pin_branch`] placed no representation of an image.
+pub(crate) enum PinMiss {
+    /// No representation meets the predecessor's exit on any branch.
+    Discontinuity,
+    /// No representation fits and one of them escalated: the first
+    /// such cause, deterministically.
+    Escalated(Indeterminate),
+}
+
+/// Why [`walk_cycle`] refused, with the index of the item it refused
+/// at where there is one.
+pub(crate) enum WalkFail<E> {
+    /// The caller's item producer refused (a key that did not resolve,
+    /// a derivation that refused).
+    Item(E),
+    /// The branch pin placed item `index` nowhere.
+    Miss {
+        /// The cycle position of the item.
+        index: usize,
+        /// Why.
+        miss: PinMiss,
+    },
+    /// The walk did not return to its start (module docs: exactly, or
+    /// by one whole period).
+    NotClosed,
+}
+
+/// **The one-branch walk, stated under `Decide`.** Walks `len` items in
+/// cycle order, asking `item` for each in turn (so an item's refusal
+/// is reported in cycle order, before any later item is read), pins
+/// each image's entry to its predecessor's exit ([`pin_branch`]), and
+/// checks the closure ([`loop_closes`]). Returns each item's pinned
+/// image with its interval.
+///
+/// This is the whole of the minting walk except the derivation, and
+/// none of it needs the fitted lane: both of its callers —
+/// [`walk_loop`], the pass's, and [`site_rows`], the Euler operators'
+/// — hand it their own derivation through `item`.
+fn walk_cycle<T: Decide, E>(
+    surface: &Surface<T>,
+    len: usize,
+    mut item: impl FnMut(usize) -> Result<WalkItem<T>, E>,
+    band: Band,
+) -> Result<Vec<(Pcurve<T>, T, T)>, WalkFail<E>> {
+    // The chart's own u period (`chart_u_period`): `τ` on an analytic
+    // azimuth chart, the knot-domain length on a NURBS chart closed in
+    // u, and NO shift at all on a chart that does not wrap.
+    let u_period = chart_u_period(surface, band);
+    // The walk's running exit point, in chart coordinates.
+    let mut prev_exit: Option<geom_core::Point2<T>> = None;
+    let mut first_entry: Option<geom_core::Point2<T>> = None;
+    let mut out = Vec::with_capacity(len);
+    for index in 0..len {
+        let WalkItem { base, t0, t1, plus } = item(index).map_err(WalkFail::Item)?;
         let (entry_t, exit_t) = if plus { (t0, t1) } else { (t1, t0) };
-        // Gap metering: azimuth through the chart's lever arm; the
-        // second channel directly where it is a length, through the
-        // polar arm where it is an angle (sphere/torus, M6-3).
-        let v_arm = polar_arm(surface);
-        let v_meter = v_meter(surface);
         let pcurve = match prev_exit {
             None => base,
-            Some(prev) => {
-                // The ONE branch decision of this half-edge: the
-                // representation (the derivation's own or, on a sphere
-                // chart, its involution twin — `sphere_twin`) and the
-                // whole number of periods per angular channel that
-                // land its entry on the predecessor's exit. Exact by
-                // construction — the two chart points denote the SAME
-                // vertex — and CHECKED here, so a body where no
-                // representation is exact refuses rather than snapping
-                // to the nearest branch. Candidate order (base first)
-                // is fixed: D9.
-                let twin = sphere_twin(surface, &base);
-                let mut chosen: Option<Pcurve<T>> = None;
-                // A WRONG candidate's escalation is not the loop's
-                // verdict: the base representation of a pole-crossing
-                // sphere pcurve sits π off, which lands its
-                // whole-period rounding EXACTLY on an integer
-                // boundary — at the interval scalar that floor spans
-                // two integers and the continuity margin becomes a
-                // full-period enclosure. The twin still fits exactly.
-                // So escalations are DEFERRED per candidate and
-                // surfaced (first one, deterministically) only when
-                // no candidate fits — single-candidate charts keep
-                // their old escalate-immediately behavior through
-                // exactly that arm.
-                let mut deferred: Option<Indeterminate> = None;
-                let candidates: Vec<Pcurve<T>> = core::iter::once(base).chain(twin).collect();
-                for cand in candidates {
-                    let raw = cand.eval(entry_t);
-                    // An AZIMUTH-FREE joint (a pole / the apex / a
-                    // spline chart whose whole u stretch sits under
-                    // the band: the lever is zero in metres) has no
-                    // branch to pick — every azimuth agrees there, and
-                    // the whole-period rounding below would land on an
-                    // integer boundary (the gap need not be a period at
-                    // all), which the interval scalar honestly reports
-                    // as a two-integer floor. Skip the shift; downstream
-                    // joints anchor their own branches.
-                    //
-                    // **The in-band arm takes the same skip, and this
-                    // is the argument for it — which is NOT that a
-                    // sub-tolerance lever is harmless.** An escalated
-                    // arm means the lever's own size is undecided, so
-                    // whether a period shift is even meaningful is
-                    // undecided with it, and rounding on an undecided
-                    // lever would MANUFACTURE a branch choice from a
-                    // measurement that refused. Skipping keeps the
-                    // decision unmade. What makes that safe is not the
-                    // skip: it is that the continuity margins below run
-                    // unconditionally on the unshifted candidate and are
-                    // metred by the same arm, so a joint that genuinely
-                    // needed the shift fails them and the loop refuses
-                    // or escalates rather than certifying. The skip
-                    // defers; the margins decide.
-                    let joint_arm = chart_u_arm(surface, prev.y);
-                    let ku = match decide(
-                        "pcurve_loop_pole_joint",
-                        Margin::of(joint_arm.magnitude()),
-                        band,
-                    ) {
-                        Ok(Sign::Zero) | Err(_) => T::zero(),
-                        Ok(Sign::Positive | Sign::Negative) => match u_period {
-                            Some(p) => (prev.x - raw.x).periodic_branch(p),
-                            None => T::zero(),
-                        },
-                    };
-                    let mut shifted = cand.shift_branch(ku, u_period.unwrap_or_else(T::zero));
-                    if v_arm.is_some() {
-                        let ry = shifted.eval(entry_t).y;
-                        let kv = (prev.y - ry).periodic_branch(tau);
-                        shifted = shift_polar_branch(&shifted, kv, tau);
-                    }
-                    let entry = shifted.eval(entry_t);
-                    let arm = chart_u_arm(surface, prev.y);
-                    let mut fits = true;
-                    for margin in [
-                        arm.meter(entry.x - prev.x),
-                        Margin::metered_sup(entry.y - prev.y, v_meter),
-                    ] {
-                        match decide("pcurve_loop_continuity", margin, band) {
-                            Ok(Sign::Zero) => {}
-                            Ok(Sign::Positive | Sign::Negative) => fits = false,
-                            Err(cause) => {
-                                fits = false;
-                                if deferred.is_none() {
-                                    deferred = Some(cause);
-                                }
-                            }
-                        }
-                    }
-                    if fits {
-                        chosen = Some(shifted);
-                        break;
-                    }
-                }
-                match (chosen, deferred) {
-                    (Some(p), _) => p,
-                    (None, Some(cause)) => {
-                        return Err(PcurveMintError::Escalated {
-                            half_edge: he,
-                            cause,
-                        });
-                    }
-                    (None, None) => {
-                        return Err(PcurveMintError::LoopDiscontinuity { half_edge: he });
-                    }
-                }
-            }
+            Some(prev) => pin_branch(surface, base, entry_t, prev, u_period, band)
+                .map_err(|miss| WalkFail::Miss { index, miss })?,
         };
         let entry = pcurve.eval(entry_t);
         if first_entry.is_none() {
             first_entry = Some(entry);
         }
         prev_exit = Some(pcurve.eval(exit_t));
-        out.push(Walked {
-            half_edge: he,
-            pcurve,
-            t0,
-            t1,
-        });
+        out.push((pcurve, t0, t1));
     }
     // Closure: the walk returns to its start, either exactly (an
     // ordinary loop) or one full period around the chart (a loop that
@@ -2188,9 +2509,116 @@ pub(crate) fn walk_loop<T: PcurveFittedLane>(
     if let (Some(start), Some(end)) = (first_entry, prev_exit)
         && !loop_closes(surface, start, end, u_period, band)
     {
-        return Err(PcurveMintError::LoopNotClosed { face });
+        return Err(WalkFail::NotClosed);
     }
-    Ok(())
+    Ok(out)
+}
+
+/// The ONE branch decision of one half-edge: the representation (the
+/// derivation's own or, on a sphere chart, its involution twin —
+/// `sphere_twin`) and the whole number of periods per angular channel
+/// that land its entry on the predecessor's exit `prev`. Exact by
+/// construction — the two chart points denote the SAME vertex — and
+/// CHECKED here, so a body where no representation is exact refuses
+/// rather than snapping to the nearest branch. Candidate order (base
+/// first) is fixed: D9.
+fn pin_branch<T: Decide>(
+    surface: &Surface<T>,
+    base: Pcurve<T>,
+    entry_t: T,
+    prev: geom_core::Point2<T>,
+    u_period: Option<T>,
+    band: Band,
+) -> Result<Pcurve<T>, PinMiss> {
+    let tau = T::tau();
+    // Gap metering: azimuth through the chart's lever arm; the
+    // second channel directly where it is a length, through the
+    // polar arm where it is an angle (sphere/torus, M6-3).
+    let v_arm = polar_arm(surface);
+    let v_meter = v_meter(surface);
+    let twin = sphere_twin(surface, &base);
+    // A WRONG candidate's escalation is not the loop's
+    // verdict: the base representation of a pole-crossing
+    // sphere pcurve sits π off, which lands its
+    // whole-period rounding EXACTLY on an integer
+    // boundary — at the interval scalar that floor spans
+    // two integers and the continuity margin becomes a
+    // full-period enclosure. The twin still fits exactly.
+    // So escalations are DEFERRED per candidate and
+    // surfaced (first one, deterministically) only when
+    // no candidate fits — single-candidate charts keep
+    // their old escalate-immediately behavior through
+    // exactly that arm.
+    let mut deferred: Option<Indeterminate> = None;
+    let candidates: Vec<Pcurve<T>> = core::iter::once(base).chain(twin).collect();
+    for cand in candidates {
+        let raw = cand.eval(entry_t);
+        // An AZIMUTH-FREE joint (a pole / the apex / a
+        // spline chart whose whole u stretch sits under
+        // the band: the lever is zero in metres) has no
+        // branch to pick — every azimuth agrees there, and
+        // the whole-period rounding below would land on an
+        // integer boundary (the gap need not be a period at
+        // all), which the interval scalar honestly reports
+        // as a two-integer floor. Skip the shift; downstream
+        // joints anchor their own branches.
+        //
+        // **The in-band arm takes the same skip, and this
+        // is the argument for it — which is NOT that a
+        // sub-tolerance lever is harmless.** An escalated
+        // arm means the lever's own size is undecided, so
+        // whether a period shift is even meaningful is
+        // undecided with it, and rounding on an undecided
+        // lever would MANUFACTURE a branch choice from a
+        // measurement that refused. Skipping keeps the
+        // decision unmade. What makes that safe is not the
+        // skip: it is that the continuity margins below run
+        // unconditionally on the unshifted candidate and are
+        // metred by the same arm, so a joint that genuinely
+        // needed the shift fails them and the loop refuses
+        // or escalates rather than certifying. The skip
+        // defers; the margins decide.
+        let joint_arm = chart_u_arm(surface, prev.y);
+        let ku = match decide(
+            "pcurve_loop_pole_joint",
+            Margin::of(joint_arm.magnitude()),
+            band,
+        ) {
+            Ok(Sign::Zero) | Err(_) => T::zero(),
+            Ok(Sign::Positive | Sign::Negative) => match u_period {
+                Some(p) => (prev.x - raw.x).periodic_branch(p),
+                None => T::zero(),
+            },
+        };
+        let mut shifted = cand.shift_branch(ku, u_period.unwrap_or_else(T::zero));
+        if v_arm.is_some() {
+            let ry = shifted.eval(entry_t).y;
+            let kv = (prev.y - ry).periodic_branch(tau);
+            shifted = shift_polar_branch(&shifted, kv, tau);
+        }
+        let entry = shifted.eval(entry_t);
+        let arm = chart_u_arm(surface, prev.y);
+        let mut fits = true;
+        for margin in [
+            arm.meter(entry.x - prev.x),
+            Margin::metered_sup(entry.y - prev.y, v_meter),
+        ] {
+            match decide("pcurve_loop_continuity", margin, band) {
+                Ok(Sign::Zero) => {}
+                Ok(Sign::Positive | Sign::Negative) => fits = false,
+                Err(cause) => {
+                    fits = false;
+                    if deferred.is_none() {
+                        deferred = Some(cause);
+                    }
+                }
+            }
+        }
+        if fits {
+            return Ok(shifted);
+        }
+    }
+    Err(deferred.map_or(PinMiss::Discontinuity, PinMiss::Escalated))
 }
 
 /// The chart image of one walked half-edge, in loop direction.
