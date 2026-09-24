@@ -2,7 +2,7 @@
 id: gather
 kind: program
 title: GATHER — the product gather and member space: what the assembly road can resolve, and what it refuses
-status: ready
+status: active
 opened: 2026-09-20
 area: api
 prefix: gather/
