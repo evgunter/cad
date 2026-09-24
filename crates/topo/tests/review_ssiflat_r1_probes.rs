@@ -129,7 +129,7 @@ fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
 /// image against the (sphere, tilted plane) pair at `T`.
 fn drive_fitted_door<T>() -> Result<PcurveCache<T>, PcurveCertifyError>
 where
-    T: geom_brep::PcurveFittedLane,
+    T: topo::AtRestPolicy,
 {
     let band = Band::linear(Tol::witness()).unwrap();
     let (f0, f1) = ARC;
@@ -145,6 +145,7 @@ where
         Some(&tilted_plane::<T>()),
         window,
         band,
+        T::fitted_lane().expect("a certifying scalar holds the fitted door"),
     )
 }
 

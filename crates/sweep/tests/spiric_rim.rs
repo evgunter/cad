@@ -672,7 +672,7 @@ mod interval_rows {
         ])
     }
 
-    fn vessel_at<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
+    fn vessel_at<T: geom_core::Decide + topo::AtRestPolicy>(
         iv: &impl Fn(f64) -> T,
     ) -> Body<T> {
         let tol = Tol::witness();

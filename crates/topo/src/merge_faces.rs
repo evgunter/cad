@@ -1063,7 +1063,7 @@ impl<T: Decide> Body<T> {
         tol: Tol,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
     where
-        T: geom_brep::PcurveFittedLane,
+        T: crate::props::AtRestPolicy,
     {
         self.merge_coplanar_faces_declared(&[], tol)
     }
@@ -1185,7 +1185,7 @@ impl<T: Decide> Body<T> {
         tol: Tol,
     ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
     where
-        T: geom_brep::PcurveFittedLane,
+        T: crate::props::AtRestPolicy,
     {
         // ---- Gate: tier-valid before. ----
         if let Err(errors) = validate_closed(self) {

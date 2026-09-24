@@ -267,7 +267,7 @@ impl<T: Real> BooleanResult<T> {
 /// # Errors
 ///
 /// [`BooleanError`] — every stage's typed refusals pass through.
-pub fn union<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn union<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -287,7 +287,7 @@ pub fn union<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::At
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn intersect<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn intersect<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -307,7 +307,7 @@ pub fn intersect<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn subtract<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn subtract<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -328,7 +328,7 @@ pub fn subtract<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props:
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn union_with<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn union_with<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -343,7 +343,7 @@ pub fn union_with<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::prop
 ///
 /// [`BooleanError`].
 pub fn intersect_with<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+    T: Decide + Bounds + crate::props::AtRestPolicy,
 >(
     a: &Body<T>,
     b: &Body<T>,
@@ -366,7 +366,7 @@ pub fn intersect_with<
 ///
 /// [`BooleanError`].
 pub fn subtract_with<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+    T: Decide + Bounds + crate::props::AtRestPolicy,
 >(
     a: &Body<T>,
     b: &Body<T>,
@@ -394,7 +394,7 @@ pub fn subtract_with<
 ///
 /// [`BooleanError`] — identical to [`union`] and friends.
 pub fn boolean_op_with<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+    T: Decide + Bounds + crate::props::AtRestPolicy,
 >(
     op: BooleanOp,
     a: &Body<T>,
@@ -466,7 +466,7 @@ pub fn boolean_op_with<
 /// pass sets `recut = false`, so a re-cut that surfaces no crossings
 /// is a loud invariant failure rather than a loop.
 fn boolean_op_recut<
-    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+    T: Decide + Bounds + crate::props::AtRestPolicy,
 >(
     op: BooleanOp,
     a: &Body<T>,
@@ -1986,7 +1986,7 @@ fn cylinder_extent_gate<T: Decide + Bounds>(
 /// polar axis lands on the escape normal (the same point set — a
 /// sphere is rotation-invariant about its center — with the seam
 /// meridians now transverse to the escape planes), and grafted back.
-fn apply_recuts<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+fn apply_recuts<T: Decide + Bounds + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     recuts: &[SphereRecut<T>],
@@ -2164,7 +2164,7 @@ fn classify_shells<T: Decide>(
 
 /// The containment fallback (F8): no crossings — classify whole
 /// shells, keep per Eq. 15.1's sides, and assemble the typed result.
-fn fallback<T: Decide + geom_brep::PcurveFittedLane>(
+fn fallback<T: Decide + crate::props::AtRestPolicy>(
     op: BooleanOp,
     red: &BooleanReduction<T>,
     a_pristine: &Body<T>,
@@ -2320,7 +2320,7 @@ fn fallback<T: Decide + geom_brep::PcurveFittedLane>(
 /// Finishes a single-operand fallback result (the merge output stage
 /// is a documented no-op on a maximal-faced operand but runs anyway —
 /// the contract is uniform), applying ∖'s B-side revert when needed.
-fn finish_fallback<T: Decide + geom_brep::PcurveFittedLane>(
+fn finish_fallback<T: Decide + crate::props::AtRestPolicy>(
     op: BooleanOp,
     body: Body<T>,
     contacts: &ContactRecords,

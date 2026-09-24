@@ -58,6 +58,7 @@ pub mod description;
 pub mod dihedral;
 pub mod edge_nurbs;
 pub mod enters;
+pub mod fitted_lane;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
@@ -115,13 +116,14 @@ pub use offset_fit::{
     certify_offset, certify_offset_at, certify_offset_over, certify_offset_over_at, fit_offset,
     fit_offset_at, recertify_approx, recertify_approx_at,
 };
+pub use fitted_lane::FittedLane;
 pub use offset_fit_lane::OffsetFitLane;
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
     ChartStretchInf, ChartWindow, EnvelopeStatement, NoChartSup, Pcurve, PcurveCache,
-    PcurveCertificate, PcurveCertifyError, PcurveCheck, PcurveFittedLane, chart_pcurve,
+    PcurveCertificate, PcurveCertifyError, PcurveCheck, chart_pcurve,
     chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
 };
 pub use props::{

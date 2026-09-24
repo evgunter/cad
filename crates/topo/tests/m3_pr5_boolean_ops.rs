@@ -81,7 +81,7 @@ fn assert_tier3_posture(body: &Body<f64>) {
 /// (exact-value oracles are the f64 lane's; Interval has no PartialEq
 /// by design).
 fn generic_scenarios<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy,
+    T: Decide + geom_core::Bounds + topo::AtRestPolicy,
 >() {
     let (a, b) = two_bricks::<T>();
     for (op, faces) in [

@@ -121,7 +121,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsCurve3;
-use geom_brep::PcurveFittedLane;
 use geom_core::{Affine3, Band, Bounds, Decide, OrthoFrame, Point2, Point3, Real, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
@@ -270,7 +269,7 @@ pub fn revolved_about_y(
 /// interval twins build their fixtures through this, so the two lanes
 /// differ in the scalar and in nothing else. The bound is the door's
 /// own (`crate::revolve`'s), carrying no bracket read of its own.
-pub fn revolved_about_y_at<T: Decide + PcurveFittedLane>(
+pub fn revolved_about_y_at<T: Decide + topo::AtRestPolicy>(
     verts: Vec<ProfileVertex<T>>,
     rev: crate::Revolution<T>,
     tol: Tol,
@@ -437,7 +436,7 @@ pub fn waisted(tol: Tol) -> Body<f64> {
 /// [`waisted`] at any scalar: the same five dyadic vertices (every one
 /// exactly representable, so the fixture's enclosures are points at a
 /// certified scalar) through the same doors.
-pub fn waisted_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
+pub fn waisted_at<T: Decide + topo::AtRestPolicy>(tol: Tol) -> Body<T> {
     let v =
         |x: f64, y: f64| ProfileVertex::new(Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
     revolved_about_y_at(
@@ -500,7 +499,7 @@ pub fn ball_poled_z(r: f64, c: Vec3<f64>, tol: Tol) -> Body<f64> {
 
 /// [`ball_poled_z`] at any scalar the revolve and rigid-motion doors
 /// take.
-pub fn ball_poled_z_at<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(
+pub fn ball_poled_z_at<T: Decide + topo::AtRestPolicy>(
     r: T,
     c: Vec3<T>,
     tol: Tol,
@@ -1296,7 +1295,7 @@ pub fn bowl(tol: Tol) -> Body<f64> {
 /// [`bowl`] at any scalar: the same five dyadic vertices through the
 /// same doors, so the interval twin differs in the scalar and nothing
 /// else.
-pub fn bowl_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
+pub fn bowl_at<T: Decide + topo::AtRestPolicy>(tol: Tol) -> Body<T> {
     let v =
         |x: f64, y: f64| ProfileVertex::new(Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
     revolved_about_y_at(
@@ -1362,7 +1361,7 @@ pub fn hemisphere_on_flat_base(r: f64, tol: Tol) -> Body<f64> {
 
 /// [`hemisphere_on_flat_base`] at any scalar, so the interval twin
 /// differs in the scalar and nothing else.
-pub fn hemisphere_on_flat_base_at<T: Decide + PcurveFittedLane>(r: T, tol: Tol) -> Body<T> {
+pub fn hemisphere_on_flat_base_at<T: Decide + topo::AtRestPolicy>(r: T, tol: Tol) -> Body<T> {
     // A quarter turn: `tan(theta/4)` at `theta = pi/2`.
     let bulge = T::from_f64((core::f64::consts::FRAC_PI_2 / 4.0).tan());
     revolved_about_y_at(
@@ -1706,14 +1705,14 @@ pub fn rod_upper_crease(body: &Body<f64>) -> EdgeKey {
 /// branch. Same creases, same caps, same closed form as
 /// [`rod_with_flat`]; generic over the scalar for the interval twin
 /// (the extrude door's bound is `Decide + PcurveFittedLane`, no bracket).
-pub fn rod_d_profile_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
+pub fn rod_d_profile_at<T: Decide + topo::AtRestPolicy>(tol: Tol) -> Body<T> {
     rod_d_profile_of_length_at(ROD_L, tol)
 }
 
 /// [`rod_d_profile_at`] at any length — the one home for the D-rod of
 /// a length other than [`ROD_L`], which the prism factor `A · L` and
 /// the cap lever are pinned on.
-pub fn rod_d_profile_of_length_at<T: Decide + PcurveFittedLane>(len: f64, tol: Tol) -> Body<T> {
+pub fn rod_d_profile_of_length_at<T: Decide + topo::AtRestPolicy>(len: f64, tol: Tol) -> Body<T> {
     let f = T::from_f64;
     let c = rod_chord_at(ROD_FLAT);
     let lp = ProfileLoop::new(vec![

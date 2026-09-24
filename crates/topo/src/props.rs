@@ -2369,40 +2369,24 @@ mod wiring_rows {
 /// bounds admit; this trait only decides which scalars'
 /// evaluation-service gates consult them.
 ///
-/// The trait also carries the two INJECTED DOORS whose presence is a
+/// The trait also carries the three INJECTED DOORS whose presence is a
 /// per-scalar fact, for the same reason it carries the gates: it is
 /// the per-scalar policy home. [`AtRestPolicy::offset_fit_lane`] is
-/// the offset fit's, and [`AtRestPolicy::shell_door`] is the
+/// the offset fit's, [`AtRestPolicy::fitted_lane`] is the fitted
+/// pcurve derivations', and [`AtRestPolicy::shell_door`] is the
 /// hollowing verb's; each answers `None` for its own reason — a
-/// derivation written at one scalar, and certification rights (DL1) —
-/// and the doc on each method says which. What a reader gets from the
-/// one trait is every per-scalar answer the at-rest machinery needs,
-/// in one place, rather than a lane trait apiece.
+/// derivation written at one scalar, or certification rights (DL1) —
+/// and the doc on each method says which. Beside them sits the
+/// scalar's name ([`AtRestPolicy::scalar_name`]), which the refusals
+/// those `None`s produce carry. What a reader gets from the one trait
+/// is every per-scalar answer the at-rest machinery needs, in one
+/// place, rather than a lane trait apiece.
 ///
-/// **Why the one lane trait rides along.**
-/// [`geom_brep::PcurveFittedLane`] is a supertrait because it is the
-/// same split, over the same scalars, for the same reason as the
-/// gates: a fitted (rung-3) pcurve's between-samples obligation is a
-/// certificate reached through a scalar's bracket, exactly as the
-/// quadrature's flux enclosures are; `f64`, the telemetry probe, the
-/// interval scalar and `Sym` over any of those can derive it, and a
-/// [`Dual`](geom_core::Dual) cannot and says so in a refusing impl (a
-/// dual carries a bracket since D1 — the refusal stands on DL1, a dual
-/// may not certify, which is [`geom_core::CertifiedEnclosure`]'s
-/// absence and not [`geom_core::Bounds`]'). So `T: AtRestPolicy` reads
-/// at every consumer as "this scalar's at-rest policy, lane included",
-/// where the alternative is threading a pointwise-identical lane bound
-/// through every tier-3 signature and generic body helper for no
-/// additional honesty — the refusing side is the same scalar. The
-/// bundle holds until that lane trait goes the way the quadrature
-/// lane's ([`QuadLane`]) and the chart-region lane's
-/// ([`crate::RegionLane`]) did, a value in place of a trait, taken as
-/// an `Option` by the passes that run at both kinds of scalar.
-/// [`geom_core::Bounds`] deliberately does
-/// not ride along: a name that hands out a bracket door is a bound the `Bounds`
-/// scope rule's gate cannot read at its use sites, so every door that
-/// reads a bracket spells `Bounds` where the reader can see it.
-pub trait AtRestPolicy: Decide + geom_brep::PcurveFittedLane {
+/// [`geom_core::Bounds`] deliberately does not ride along: a name that
+/// hands out a bracket door is a bound the `Bounds` scope rule's gate
+/// cannot read at its use sites, so every door that reads a bracket
+/// spells `Bounds` where the reader can see it.
+pub trait AtRestPolicy: Decide {
     /// **This scalar's offset-fit door, or `None` where the fit is not
     /// derived here** — the ONE seam the `Some` comes from, read by
     /// check 1's tier-3 battery, the offset mint
@@ -2422,9 +2406,37 @@ pub trait AtRestPolicy: Decide + geom_brep::PcurveFittedLane {
     /// as the per-scalar policy that cut leaves standing): the door
     /// itself is a value the passes take as a parameter, and this is
     /// the one place each scalar's answer is written. The same holds
-    /// of the shell door beside it ([`AtRestPolicy::shell_door`]) —
-    /// two doors, one policy, no trait apiece.
+    /// of the fitted-pcurve and shell doors beside it
+    /// ([`AtRestPolicy::fitted_lane`], [`AtRestPolicy::shell_door`]) —
+    /// three doors, one policy, no trait apiece.
     fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>>;
+
+    /// **This scalar's fitted-pcurve door, or `None` where it may not
+    /// certify** — the ONE seam the `Some` comes from, read by every
+    /// consumer: the pcurve mint ([`crate::mint_pcurves`]: its general
+    /// image, its chart-foot rim arms and its `certify_general` call)
+    /// and the tier-3 pcurve pass ([`crate::pcurves::validate_pcurves`],
+    /// through [`geom_brep::PcurveCache::recertify`]), whichever
+    /// validation door reaches it.
+    ///
+    /// `None` is certification rights (DL1), the same fact as
+    /// [`AtRestPolicy::shell_door`]'s: a fitted (rung-3) pcurve's
+    /// between-samples obligation is a C2 certificate reached through
+    /// certification arithmetic, exactly as the quadrature's flux
+    /// enclosures are, and [`geom_brep::FittedLane`]'s one constructor
+    /// is bounded on [`geom_core::CertifiedBounds`]. A consumer holding
+    /// `None` refuses typed with
+    /// [`geom_brep::PcurveCertifyError::FittedLaneUnsupported`], naming
+    /// the scalar by [`AtRestPolicy::scalar_name`] — or, at the mint's
+    /// rim arms, keeps the refusal the arm already had, since no foot
+    /// is measured.
+    fn fitted_lane() -> Option<geom_brep::FittedLane<Self>>;
+
+    /// **This scalar's name**, as the refusals that name a scalar with
+    /// no door carry it
+    /// ([`geom_brep::PcurveCertifyError::FittedLaneUnsupported`],
+    /// [`crate::TransformError::ApproxLaneUnsupported`]).
+    fn scalar_name() -> &'static str;
 
     /// **This scalar's shell door, or `None` where it may not form the
     /// call** — the ONE seam the `Some` comes from, read by the verb
@@ -2487,6 +2499,16 @@ impl AtRestPolicy for f64 {
         Some(geom_brep::OffsetFitLane::fit())
     }
 
+    /// The decide-with-escalation lane certifies, so it derives fitted
+    /// pcurves.
+    fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
+        Some(geom_brep::FittedLane::certified())
+    }
+
+    fn scalar_name() -> &'static str {
+        "f64"
+    }
+
     /// The decide-with-escalation lane certifies, so it runs the door.
     fn shell_door() -> Option<ShellDoor<Self>> {
         Some(ShellDoor::certified())
@@ -2517,6 +2539,16 @@ impl AtRestPolicy for geom_core::Probe {
 
     /// The recording scalar is `f64` with a sink attached, so it
     /// carries exactly what `f64` carries — here, the door.
+    fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
+        Some(geom_brep::FittedLane::certified())
+    }
+
+    fn scalar_name() -> &'static str {
+        "telemetry probe"
+    }
+
+    /// The recording scalar is `f64` with a sink attached, so it
+    /// carries exactly what `f64` carries — here, the door.
     fn shell_door() -> Option<ShellDoor<Self>> {
         Some(ShellDoor::certified())
     }
@@ -2541,6 +2573,16 @@ impl AtRestPolicy for geom_core::interval::Interval {
     /// certification rights, which it has in full.
     fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
         None
+    }
+
+    /// The certified interval scalar derives fitted pcurves: its
+    /// brackets are what the C2 certificate's hull bound is made of.
+    fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
+        Some(geom_brep::FittedLane::certified())
+    }
+
+    fn scalar_name() -> &'static str {
+        "interval"
     }
 
     /// The certified interval scalar runs the door: its brackets are
@@ -2578,6 +2620,17 @@ where
     /// cannot add one.
     fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
         None
+    }
+
+    /// Every door is the base scalar's, run at `Sym<T>`: the tier
+    /// alters one decision rule inside the scalar, so a `Sym`-wrapped
+    /// certifying scalar still mints and re-derives fitted caches.
+    fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
+        Some(geom_brep::FittedLane::certified())
+    }
+
+    fn scalar_name() -> &'static str {
+        "symbolic"
     }
 
     /// For the reason [`QuadLane`] gives at the symbolic tier: the
@@ -2618,6 +2671,21 @@ where
     /// are absent because a dual does not certify.
     fn offset_fit_lane() -> Option<geom_brep::OffsetFitLane<Self>> {
         None
+    }
+
+    /// **A dual does not certify** (DL1), and a fitted pcurve's
+    /// certificate — like the image and chart feet it is certified
+    /// over — is certification arithmetic, so no `Dual` can hold the
+    /// door ([`geom_brep::FittedLane::certified`]'s bound). A dual body
+    /// therefore never carries a fitted cache, because one cannot be
+    /// built there, and its mint refuses typed where a general image
+    /// would be derived.
+    fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
+        None
+    }
+
+    fn scalar_name() -> &'static str {
+        "dual"
     }
 
     /// **A dual does not certify** (the DL3 ruling, unmoved), and the
@@ -2706,6 +2774,14 @@ mod at_rest_policy_tests {
         assert!(
             std::ptr::fn_addr_eq(door.open, super::ShellDoor::<T>::certified().open),
             "the certifying arm hands out something other than `ShellDoor::certified()`"
+        );
+        // The fitted door's fields are private to `geom_brep`, so the
+        // arm cannot spell a literal: its `Some` is
+        // `FittedLane::certified()` or nothing, and which functions that
+        // holds is `geom_brep`'s own wiring pin.
+        assert!(
+            T::fitted_lane().is_some(),
+            "a certifying scalar holds the fitted-pcurve door"
         );
     }
 

@@ -139,7 +139,7 @@ pub struct Blended<T: Real> {
 /// typed refusal, when an Euler operator refuses;
 /// [`BlendError::Certify`], carrying the pass's own typed refusal,
 /// when the result's pcurve caches cannot be re-minted.
-pub fn fillet_edges<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn fillet_edges<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &Body<T>,
     edges: &[EdgeKey],
     radius: T,
@@ -154,7 +154,7 @@ pub fn fillet_edges<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// [`fillet_edges`] behind the door: the whole request, refusing
 /// through the shared verb-neutral vocabulary. The door above is the
 /// one place the fillet's verb is attached.
-fn fillet_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+fn fillet_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &Body<T>,
     edges: &[EdgeKey],
     radius: T,
@@ -395,7 +395,7 @@ pub type Chamfered<T> = Blended<T>;
 /// [`BlendError::RingClearance`] when a carried-through ring does not
 /// clear a trimline; [`BlendError::Op`] / [`BlendError::Certify`]
 /// carrying an operator's or the pcurve pass's own typed refusal.
-pub fn chamfer_edges<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn chamfer_edges<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &Body<T>,
     edges: &[EdgeKey],
     distance: T,
@@ -410,7 +410,7 @@ pub fn chamfer_edges<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// [`chamfer_edges`] behind the door: the whole request, refusing
 /// through the shared verb-neutral vocabulary. The door above is the
 /// one place the chamfer's verb is attached.
-fn chamfer_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+fn chamfer_edges_inner<T: Decide + Bounds + topo::AtRestPolicy>(
     body: &Body<T>,
     edges: &[EdgeKey],
     distance: T,

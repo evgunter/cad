@@ -234,7 +234,7 @@ impl<T: Real> fmt::Display for VerbError<T> {
 
 impl<T: Real> core::error::Error for VerbError<T> {}
 
-impl<T: Decide + Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy> Verb<T> {
+impl<T: Decide + Bounds + topo::AtRestPolicy> Verb<T> {
     /// **Run this one-operand verb against its operand.**
     ///
     /// The operand comes in borrowed, never in the payload. Every

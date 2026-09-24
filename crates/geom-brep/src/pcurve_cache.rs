@@ -194,7 +194,7 @@ use crate::ssi::{SsiCertificate, SsiLimb, SsiOperand};
 /// between-samples obligation is discharged by the **C2.2 control-hull
 /// machinery** in `geom_brep::ssi::certify` instead: see
 /// [`PcurveCertificate::statement`] for exactly which sup-norm each
-/// lane bounds, and [`PcurveFittedLane`] for which scalars can derive
+/// lane bounds, and [`crate::FittedLane`] for which scalars can derive
 /// it at all.
 ///
 /// [`Pcurve::IsoLine`] (M6-3) and [`Pcurve::IsoArc`] (M8-3) are the two
@@ -766,11 +766,11 @@ pub enum PcurveCertifyError {
     /// carrier, which no constructor mints.
     UnsupportedCarrier,
     /// A [`Pcurve::Fitted`] cache was offered to a scalar with **no
-    /// certified fitted lane** — [`PcurveFittedLane`]'s refusing side.
-    /// A dual scalar may not certify (D1, 2026-08-19), so certification
-    /// arithmetic (C9) is not reachable from it and the C2.2 hull bound does not exist
-    /// there; the refusal is typed and static rather than a silent
-    /// success.
+    /// certified fitted lane** — the refusal a consumer holding no
+    /// [`crate::FittedLane`] gives. A dual scalar may not certify (D1,
+    /// 2026-08-19), so certification arithmetic (C9) is not reachable
+    /// from it and the C2.2 hull bound does not exist there; the
+    /// refusal is typed and static rather than a silent success.
     FittedLaneUnsupported {
         /// The scalar lane, named.
         scalar: &'static str,
@@ -1118,136 +1118,23 @@ pub struct PcurveCertificate<T: Real> {
     pub ssi: Option<SsiCertificate<T>>,
 }
 
-/// **Which scalars can derive which certificate** — the static lane
-/// split (M5 PR 11's ratified pattern).
-///
-/// What it carries is the **fitted-pcurve derivations**
-/// ([`Self::fitted_certificate`], [`Self::general_image`],
-/// [`Self::chart_foot`]): a C9 certification hull bound reached through a
-/// scalar's bracket, and building one is **certification**. `f64`, the
-/// telemetry probe and the interval scalar may certify;
-/// [`geom_core::Dual`] may not — Ev's D1 ruling, 2026-08-19: a dual
-/// carries a bracket (the value channel's) and may still not certify,
-/// which is why `geom_core::CertifiedEnclosure` has no dual impl and
-/// `geom_core::Bounds` now does. So these exist for the first three and
-/// are **statically absent** for the fourth, stated as a refusing impl
-/// rather than discovered as a mysterious failure at run time, and a
-/// scalar added later has to say what it can do on each.
-///
-/// **The offset fit is a different absence and is not one of these
-/// methods.** It is `f64` ALONE, because its home
-/// ([`crate::offset_fit`]) is written at `f64` throughout — the
-/// interpolation stack, the span schedule and the patch-bound meters
-/// all are — so that split is not about which scalars may certify but
-/// about which scalar the derivation was written in. It travels as a
-/// door the passes take ([`crate::OffsetFitLane`]), answered by the
-/// per-scalar policy seam `topo::AtRestPolicy::offset_fit_lane`. The
-/// probe and interval arms here are what make the difference visible:
-/// they delegate the pcurve derivations through certification arithmetic and still
-/// have no fit to offer.
-///
-/// The trait is also what keeps `Bounds` out of `topo`'s signatures:
-/// consumers write `T: PcurveFittedLane` and get the lane; the
-/// quadrature lane travels as a value instead (`topo::QuadLane`).
-pub trait PcurveFittedLane: Decide {
-    /// The full C2 certificate of a fitted chart image against its
-    /// operand pair, or `None` when this scalar has no certified lane.
-    ///
-    /// The carrier arrives as the edge's own [`Curve3`] (M6-3): a
-    /// rung-3 `Curve3::Nurbs` feeds the SSI door directly; an exact
-    /// `Curve3::Circle` (the sphere chart's GENERAL-circle class,
-    /// walk row 4) is converted to its locus-exact rational-quadratic
-    /// chain for the certificate limbs — every limb consulted is a
-    /// statement about the LOCUS (on-locus hull, uniqueness tube), so
-    /// the chain's own parameter never enters the certified claim;
-    /// `t0`/`t1` name the traversed angular arc.
-    ///
-    /// # Errors
-    ///
-    /// [`PcurveCertifyError::FittedCertificate`] when the SSI
-    /// certificate itself refuses, or for a (Circle carrier, NURBS
-    /// operand) pairing — the NURBS limbs are parameter-coupled to a
-    /// traced pcurve a synthetic arc chain does not have. Never from
-    /// the "no lane" arm.
-    fn fitted_certificate(
-        carrier: &Curve3<Self>,
-        t0: Self,
-        t1: Self,
-        image: &NurbsCurve2<Self>,
-        surface: &Surface<Self>,
-        mate: &Surface<Self>,
-        band: Band,
-    ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError>;
-
-    /// **The chart image of a spline carrier on a NURBS wall**, or
-    /// `None` when this scalar has no certified lane.
-    ///
-    /// The producer is `edge_nurbs`'s — the one derivation of this
-    /// object in the tree (`edge_nurbs::chart_image`): foot points at
-    /// the D9-fixed schedule, interpolated on the carrier's own
-    /// parameter. It is EVIDENCE and certifies nothing by itself; the
-    /// caller's next move is [`PcurveCache::certify_general`], which
-    /// bounds `sup_t |S(P(t)) − C(t)|` over the whole span against the
-    /// operand pair.
-    ///
-    /// It sits on THIS trait rather than beside its producer because
-    /// the derivation and the certificate are the same static split —
-    /// both need certification arithmetic (C9), both are absent at [`geom_core::Dual`] —
-    /// and a mint that had to name two lane traits for one image would
-    /// carry the split twice. The plane × NURBS lane
-    /// ([`crate::plane_nurbs_limbs`]) keeps its own door for the ADOPT
-    /// path, which certifies the same image with the plane operand's
-    /// limbs beside it.
-    ///
-    /// # Errors
-    ///
-    /// [`PcurveCertifyError::FittedCertificate`] when a foot point of
-    /// the schedule will not converge or the interpolation is
-    /// degenerate. Never from the "no lane" arm, which returns
-    /// `Ok(None)`.
-    fn general_image(
-        carrier: &NurbsCurve3<Self>,
-        wall: &NurbsSurface<Self>,
-    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError>;
-    /// **The chart foot of one point** on a NURBS wall, or `None` when
-    /// this scalar has no certified lane.
-    ///
-    /// [`Self::general_image`]'s single-sample sibling, same producer
-    /// (`edge_nurbs::chart_foot`). Its consumer is the pcurve mint's
-    /// rim arms: they know the SHAPE of their image and are only
-    /// missing its position, which on a chart wider than the face it
-    /// trims is not a knot-domain end. Evidence, not a certificate —
-    /// the caller offers it to its own metre-valued check.
-    ///
-    /// # Errors
-    ///
-    /// [`PcurveCertifyError::FittedCertificate`] when the projection
-    /// will not converge. Never from the "no lane" arm, which returns
-    /// `Ok(None)`.
-    fn chart_foot(
-        point: Point3<Self>,
-        wall: &NurbsSurface<Self>,
-    ) -> Result<Option<Point2<f64>>, PcurveCertifyError>;
-
-    /// The lane's name, for the typed refusal's text.
-    fn lane_name() -> &'static str;
-}
-
-/// The image producer's body, shared by every bracket-carrying scalar
-/// ([`PcurveFittedLane::general_image`]).
+/// The image producer's body, shared by every certifying scalar
+/// ([`crate::FittedLane::general_image`]).
 ///
 /// The `edge_nurbs` schedule with no per-sample hook: the transversality
 /// sweep the adopt path runs there is a statement about the PLANE
 /// operand, which the mint does not have in hand and does not need —
 /// the mint's next step re-derives the whole C2 certificate against the
 /// operand pair anyway.
-fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
+pub(crate) fn general_image_lane<
+    T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure,
+>(
     carrier: &NurbsCurve3<T>,
     wall: &NurbsSurface<T>,
-) -> Result<Option<NurbsCurve2<T>>, PcurveCertifyError> {
+) -> Result<NurbsCurve2<T>, PcurveCertifyError> {
     let (t0, t1) = carrier.domain();
     match crate::edge_nurbs::chart_image(carrier, wall, |_, _| Ok(())) {
-        Ok(image) => Ok(Some(image)),
+        Ok(image) => Ok(image),
         Err(crate::edge_nurbs::PlaneNurbsRefusal::FootPointInconclusive {
             sample,
             last_distance,
@@ -1274,14 +1161,14 @@ fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclos
     }
 }
 
-/// The foot producer's body, shared by every bracket-carrying scalar
-/// ([`PcurveFittedLane::chart_foot`]).
-fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
+/// The foot producer's body, shared by every certifying scalar
+/// ([`crate::FittedLane::chart_foot`]).
+pub(crate) fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     point: Point3<T>,
     wall: &NurbsSurface<T>,
-) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
+) -> Result<Point2<f64>, PcurveCertifyError> {
     match crate::edge_nurbs::chart_foot(point, wall) {
-        Ok(foot) => Ok(Some(foot)),
+        Ok(foot) => Ok(foot),
         Err(crate::edge_nurbs::PlaneNurbsRefusal::FootPointInconclusive {
             last_distance, ..
         }) => Err(PcurveCertifyError::FittedCertificate {
@@ -1304,7 +1191,7 @@ fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure
 /// carrier's own parameter (the OQ4 identity). A NURBS *mate* has no
 /// stored image to offer, so that pairing refuses typed inside the SSI
 /// door rather than being invented here.
-fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
+pub(crate) fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &Curve3<T>,
     t0: T,
     t1: T,
@@ -1312,7 +1199,7 @@ fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     surface: &Surface<T>,
     mate: &Surface<T>,
     band: Band,
-) -> Result<Option<SsiCertificate<T>>, PcurveCertifyError> {
+) -> Result<SsiCertificate<T>, PcurveCertifyError> {
     fn operand<T: Real>(s: &Surface<T>) -> SsiOperand<'_, T> {
         // The catch-all is SPLIT: an approximating surface's chart is
         // its fit's, so the spline operand is the one that describes
@@ -1330,9 +1217,10 @@ fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     }
     // The certificate's carrier spline: a rung-3 carrier IS one; an
     // exact circle converts to its locus-exact rational-quadratic
-    // chain (trait docs — the limbs are locus statements, so the
-    // chain's rational parameter never enters the claim). The chain
-    // conversion is only honest against ANALYTIC operands: the NURBS
+    // chain (`FittedLane::fitted_certificate`'s docs — the limbs are
+    // locus statements, so the chain's rational parameter never enters
+    // the claim). The chain conversion is only honest against ANALYTIC
+    // operands: the NURBS
     // limbs warm-start foot points from the traced pcurve at the SAME
     // parameter, which a synthetic chain cannot offer.
     let chain;
@@ -1391,7 +1279,6 @@ fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
         crate::ssi::TubeScale::uniform(arm),
         band,
     )
-    .map(Some)
     .map_err(ssi_refusal)
 }
 
@@ -1402,7 +1289,8 @@ fn fitted_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
 /// The chain's LOCUS is the circle arc exactly (positive weights, the
 /// classic construction); its rational parameter is NOT the angle, so
 /// callers may consult it for locus statements only (the fitted
-/// certificate's on-locus hull and uniqueness tube — trait docs).
+/// certificate's on-locus hull and uniqueness tube —
+/// [`crate::FittedLane::fitted_certificate`]'s docs).
 /// Knot structure is `f64` (C6), read from the angular span's bracket
 /// midpoints; control points are exact at `T`. `None` for a
 /// degenerate (non-forward) span — the certificate's own forward-span
@@ -1562,184 +1450,6 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
     }
 }
 
-impl PcurveFittedLane for f64 {
-    fn fitted_certificate(
-        carrier: &Curve3<Self>,
-        t0: Self,
-        t1: Self,
-        image: &NurbsCurve2<Self>,
-        surface: &Surface<Self>,
-        mate: &Surface<Self>,
-        band: Band,
-    ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError> {
-        fitted_lane(carrier, t0, t1, image, surface, mate, band)
-    }
-
-    fn general_image(
-        carrier: &NurbsCurve3<Self>,
-        wall: &NurbsSurface<Self>,
-    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
-        general_image_lane(carrier, wall)
-    }
-
-    fn chart_foot(
-        point: Point3<Self>,
-        wall: &NurbsSurface<Self>,
-    ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
-        chart_foot_lane(point, wall)
-    }
-
-    fn lane_name() -> &'static str {
-        "f64"
-    }
-}
-
-#[cfg(feature = "probe")]
-impl PcurveFittedLane for geom_core::Probe {
-    fn fitted_certificate(
-        carrier: &Curve3<Self>,
-        t0: Self,
-        t1: Self,
-        image: &NurbsCurve2<Self>,
-        surface: &Surface<Self>,
-        mate: &Surface<Self>,
-        band: Band,
-    ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError> {
-        fitted_lane(carrier, t0, t1, image, surface, mate, band)
-    }
-
-    fn general_image(
-        carrier: &NurbsCurve3<Self>,
-        wall: &NurbsSurface<Self>,
-    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
-        general_image_lane(carrier, wall)
-    }
-
-    fn chart_foot(
-        point: Point3<Self>,
-        wall: &NurbsSurface<Self>,
-    ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
-        chart_foot_lane(point, wall)
-    }
-
-    fn lane_name() -> &'static str {
-        "telemetry probe"
-    }
-}
-
-impl PcurveFittedLane for geom_core::interval::Interval {
-    fn fitted_certificate(
-        carrier: &Curve3<Self>,
-        t0: Self,
-        t1: Self,
-        image: &NurbsCurve2<Self>,
-        surface: &Surface<Self>,
-        mate: &Surface<Self>,
-        band: Band,
-    ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError> {
-        fitted_lane(carrier, t0, t1, image, surface, mate, band)
-    }
-
-    fn general_image(
-        carrier: &NurbsCurve3<Self>,
-        wall: &NurbsSurface<Self>,
-    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
-        general_image_lane(carrier, wall)
-    }
-
-    fn chart_foot(
-        point: Point3<Self>,
-        wall: &NurbsSurface<Self>,
-    ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
-        chart_foot_lane(point, wall)
-    }
-
-    fn lane_name() -> &'static str {
-        "interval"
-    }
-}
-
-/// **The symbolic tier over a certifying scalar** (`geom_core::sym`):
-/// every door is the base scalar's, run at `Sym<T>`. The tier alters
-/// one decision rule inside the scalar, so a `Sym`-wrapped certifying
-/// scalar still mints and re-derives fitted caches.
-impl<T> PcurveFittedLane for geom_core::Sym<T>
-where
-    geom_core::Sym<T>: Decide,
-    T: geom_core::CertifiedBounds,
-{
-    fn fitted_certificate(
-        carrier: &Curve3<Self>,
-        t0: Self,
-        t1: Self,
-        image: &NurbsCurve2<Self>,
-        surface: &Surface<Self>,
-        mate: &Surface<Self>,
-        band: Band,
-    ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError> {
-        fitted_lane(carrier, t0, t1, image, surface, mate, band)
-    }
-
-    fn general_image(
-        carrier: &NurbsCurve3<Self>,
-        wall: &NurbsSurface<Self>,
-    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
-        general_image_lane(carrier, wall)
-    }
-
-    fn chart_foot(
-        point: Point3<Self>,
-        wall: &NurbsSurface<Self>,
-    ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
-        chart_foot_lane(point, wall)
-    }
-
-    fn lane_name() -> &'static str {
-        "symbolic"
-    }
-}
-
-/// never carries a fitted cache, because one cannot be built there.
-/// The dual lane: STATICALLY no fitted certificate — this impl
-/// instantiates none of the certified machinery (trait docs). The
-/// caller turns the `None` into
-/// [`PcurveCertifyError::FittedLaneUnsupported`]; a dual body simply
-/// never carries a fitted cache, because one cannot be built there.
-impl<T> PcurveFittedLane for geom_core::Dual<T>
-where
-    geom_core::Dual<T>: Decide,
-{
-    fn fitted_certificate(
-        _carrier: &Curve3<Self>,
-        _t0: Self,
-        _t1: Self,
-        _image: &NurbsCurve2<Self>,
-        _surface: &Surface<Self>,
-        _mate: &Surface<Self>,
-        _band: Band,
-    ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError> {
-        Ok(None)
-    }
-
-    fn general_image(
-        _carrier: &NurbsCurve3<Self>,
-        _wall: &NurbsSurface<Self>,
-    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
-        Ok(None)
-    }
-
-    fn chart_foot(
-        _point: Point3<Self>,
-        _wall: &NurbsSurface<Self>,
-    ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
-        Ok(None)
-    }
-
-    fn lane_name() -> &'static str {
-        "dual"
-    }
-}
-
 /// A certified pcurve cache: the chart image, the carrier-parameter
 /// interval it is certified over, and the [`PcurveCertificate`] of the
 /// run. Constructible only through [`PcurveCache::certify`] — the
@@ -1887,7 +1597,7 @@ impl<T: Decide> PcurveCache<T> {
     }
 }
 
-impl<T: PcurveFittedLane> PcurveCache<T> {
+impl<T: Decide> PcurveCache<T> {
     /// Certifies a **fitted** (rung-3) chart image.
     ///
     /// **This door has no `src` caller** — the certified route exists,
@@ -1895,19 +1605,23 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
     /// It is nonetheless the lane's only callerless ITEM: the rest is
     /// reached through [`PcurveCache::recertify`], whose `Fitted` arm
     /// the tier-3 validator dispatches per half-edge, which is why
-    /// `topo::validate_pcurves` carries the [`PcurveFittedLane`] bound
-    /// at all. That arm cannot execute on a body this workspace
+    /// `topo::validate_pcurves` reads the fitted door off the scalar's
+    /// policy at all. That arm cannot execute on a body this workspace
     /// builds, since this door is the variant's sole origin; it is
     /// live for a caller who attaches a `Fitted` cache through
     /// `topo::Body::attach_pcurve`.
+    ///
+    /// `lane` is the door itself, not an `Option`: only a scalar that
+    /// may certify can hold one ([`crate::FittedLane`]), so no `Fitted`
+    /// cache exists at a scalar that may not.
     ///
     /// Three consumers are waiting on it, in decreasing firmness:
     ///
     /// 1. **Mint-side wiring of the general-circle route** — the
     ///    oblique-trihedron octant faces whose boundary circles are
-    ///    GENERAL sphere circles stay legally uncached. The BOUND is no
-    ///    longer what blocks it: `topo::mint_pcurves` carries
-    ///    [`PcurveFittedLane`] since PCURVE P-2 (#498), which wired
+    ///    GENERAL sphere circles stay legally uncached. The door is not
+    ///    what blocks it: `topo::mint_pcurves` holds the fitted door
+    ///    (`topo::AtRestPolicy::fitted_lane`) and wires
     ///    [`PcurveCache::certify_general`] through it. What is left is
     ///    this door's own wiring for a Circle carrier, which no mint
     ///    site reaches. Named as an open frontier in `docs/DESIGN.md`,
@@ -1949,8 +1663,10 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
         mate: Option<&Surface<T>>,
         window: ChartWindow<T>,
         band: Band,
+        lane: crate::FittedLane<T>,
     ) -> Result<Self, PcurveCertifyError> {
-        let certificate = run_fitted_checks(&image, t0, t1, carrier, surface, mate, window, band)?;
+        let certificate =
+            run_fitted_checks(&image, t0, t1, carrier, surface, mate, window, band, lane)?;
         Ok(Self {
             pcurve: Pcurve::Fitted(image),
             param_start: t0,
@@ -1980,10 +1696,13 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
     ///   IntervalNotForward`];
     /// - **escalate**: [`PcurveCertifyError::Escalated`] /
     ///   [`PcurveCertifyError::FittedEscalated`] (a sliver-band
-    ///   verdict), [`PcurveCertifyError::FittedMateMissing`] (no
-    ///   operand pair to state a tube about), or
-    ///   [`PcurveCertifyError::FittedLaneUnsupported`] (a scalar with
-    ///   no certification hull).
+    ///   verdict) or [`PcurveCertifyError::FittedMateMissing`] (no
+    ///   operand pair to state a tube about).
+    ///
+    /// `lane` is the door itself, as at
+    /// [`PcurveCache::certify_fitted`]; a caller whose scalar holds no
+    /// door refuses with [`PcurveCertifyError::FittedLaneUnsupported`]
+    /// before it reaches this one.
     ///
     /// # Errors
     ///
@@ -1998,8 +1717,10 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
         mate: Option<&Surface<T>>,
         window: ChartWindow<T>,
         band: Band,
+        lane: crate::FittedLane<T>,
     ) -> Result<Self, PcurveCertifyError> {
-        let certificate = run_fitted_checks(&image, t0, t1, carrier, surface, mate, window, band)?;
+        let certificate =
+            run_fitted_checks(&image, t0, t1, carrier, surface, mate, window, band, lane)?;
         Ok(Self {
             pcurve: Pcurve::General(image),
             param_start: t0,
@@ -2015,9 +1736,23 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
     /// fitted cache that means re-deriving the whole C2 certificate,
     /// hull bound and uniqueness tube included).
     ///
+    /// `lane` is the scalar's fitted door, or `None` where the scalar
+    /// may not certify, and `scalar` is that scalar's name for the
+    /// refusal; both come from the one per-scalar seam
+    /// (`topo::AtRestPolicy::fitted_lane` and `scalar_name`). Only the
+    /// `Fitted | General` arm reads them. `None` there refuses typed
+    /// with [`PcurveCertifyError::FittedLaneUnsupported`] and runs no
+    /// check. The seam answers `None` only at a scalar whose fitted
+    /// constructors cannot be called, so no cache the tree builds ever
+    /// meets that arm; it is reached by a caller handing `None`
+    /// explicitly.
+    ///
     /// # Errors
     ///
-    /// As [`PcurveCache::certify`] / [`PcurveCache::certify_fitted`].
+    /// As [`PcurveCache::certify`] / [`PcurveCache::certify_fitted`],
+    /// and [`PcurveCertifyError::FittedLaneUnsupported`] for a fitted
+    /// cache with no door.
+    #[allow(clippy::too_many_arguments)] // one parameter per named quantity
     pub fn recertify(
         &self,
         carrier: &Curve3<T>,
@@ -2025,18 +1760,24 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
         mate: Option<&Surface<T>>,
         window: ChartWindow<T>,
         band: Band,
+        lane: Option<crate::FittedLane<T>>,
+        scalar: &'static str,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
         match &self.pcurve {
-            Pcurve::Fitted(image) | Pcurve::General(image) => run_fitted_checks(
-                image,
-                self.param_start,
-                self.param_end,
-                carrier,
-                surface,
-                mate,
-                window,
-                band,
-            ),
+            Pcurve::Fitted(image) | Pcurve::General(image) => match lane {
+                None => Err(PcurveCertifyError::FittedLaneUnsupported { scalar }),
+                Some(lane) => run_fitted_checks(
+                    image,
+                    self.param_start,
+                    self.param_end,
+                    carrier,
+                    surface,
+                    mate,
+                    window,
+                    band,
+                    lane,
+                ),
+            },
             Pcurve::IsoLine { p0, pl } => run_iso_checks(
                 *p0,
                 *pl,
@@ -3318,7 +3059,7 @@ fn trim_containment<T: Decide>(
 ///    [`PcurveCertificate::statement`] records which sup it bounds.
 /// 5. **Trim containment**: identical, and shared code.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
-fn run_fitted_checks<T: PcurveFittedLane>(
+fn run_fitted_checks<T: Decide>(
     image: &Arc<NurbsCurve2<T>>,
     t0: T,
     t1: T,
@@ -3327,14 +3068,16 @@ fn run_fitted_checks<T: PcurveFittedLane>(
     mate: Option<&Surface<T>>,
     window: ChartWindow<T>,
     band: Band,
+    lane: crate::FittedLane<T>,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     // ---- Check 1: the lane. ----
     // Rung-3 NURBS carriers feed the SSI door directly; exact CIRCLE
     // carriers are the sphere chart's general-circle class (M6-3,
     // walk row 4) and enter through their locus-exact rational chain
-    // inside the lane (trait docs). Lines/ellipses have no fitted
-    // class anywhere — every line and every conic-on-its-own-chart is
-    // a closed-form citizen or a named refusal.
+    // inside the lane (`FittedLane::fitted_certificate`'s docs).
+    // Lines/ellipses have no fitted class anywhere — every line and
+    // every conic-on-its-own-chart is a closed-form citizen or a named
+    // refusal.
     if !matches!(carrier, Curve3::Nurbs(_) | Curve3::Circle { .. }) {
         return Err(PcurveCertifyError::UnsupportedCarrier);
     }
@@ -3395,11 +3138,7 @@ fn run_fitted_checks<T: PcurveFittedLane>(
     schedule_residuals(&pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
 
     // ---- Check 4: the full C2 certificate, RE-DERIVED. ----
-    let Some(ssi) = T::fitted_certificate(carrier, t0, t1, image, surface, mate, band)? else {
-        return Err(PcurveCertifyError::FittedLaneUnsupported {
-            scalar: T::lane_name(),
-        });
-    };
+    let ssi = lane.fitted_certificate(carrier, t0, t1, image, surface, mate, band)?;
     let envelope = ssi.hull_sup;
     // The catch-all is SPLIT: an approximating surface's limbs are the
     // spline composite's, exactly as a `Nurbs` chart's, because the

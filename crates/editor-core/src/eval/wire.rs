@@ -630,7 +630,7 @@ fn compose_placed<T: Decide>(
 ///
 /// The kernel's own [`topo::transform::TransformError`] as
 /// [`NodeErrorKind::Transform`].
-fn place<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
+fn place<T: Decide + topo::AtRestPolicy>(
     body: &Body<T>,
     map: Option<&Affine3<T>>,
     by: RecipeNodeId,
@@ -1801,7 +1801,6 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
 fn wire_swept<
     T: Decide
         + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
         + crate::lane::Lane
         + topo::AtRestPolicy,
     A,
@@ -1863,7 +1862,6 @@ fn wire_swept<
 fn wire_extrude<
     T: Decide
         + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
         + crate::lane::Lane
         + topo::AtRestPolicy,
 >(
@@ -1917,7 +1915,6 @@ fn written_against(
 fn wire_revolve<
     T: Decide
         + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
         + crate::lane::Lane
         + topo::AtRestPolicy,
 >(
@@ -2118,7 +2115,7 @@ fn tube_args<T: Decide>(
 /// loop and step indices onto validate's canonical ones, and a tube
 /// has no profile node. Its traversal is canonical by construction,
 /// so the canonical indices ARE the final ones.
-fn wire_tube<T: Decide + geom_brep::PcurveFittedLane>(
+fn wire_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     spine: RecipeNodeId,
     window: &crate::node::TubeWindow,
@@ -2153,7 +2150,7 @@ fn wire_tube<T: Decide + geom_brep::PcurveFittedLane>(
 /// Naming is [`wire_tube`]'s, for the reason given there: a hollow
 /// tube's cavity shell is the revolve's own hole-loop vocabulary,
 /// already emitted by `name_revolve`'s holed-full and windowed arms.
-fn wire_hollow_tube<T: Decide + geom_brep::PcurveFittedLane>(
+fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     spine: RecipeNodeId,
     window: &crate::node::TubeWindow,
@@ -2278,7 +2275,6 @@ fn verb_refused<T: crate::lane::Lane>(refusal: verbs::VerbError<T>) -> NodeError
 fn wire_blend<
     T: Decide
         + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
         + crate::lane::Lane
         + topo::AtRestPolicy,
 >(
@@ -2382,7 +2378,6 @@ fn wire_blend<
 fn wire_shell<
     T: Decide
         + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
         + crate::lane::Lane
         + topo::AtRestPolicy,
 >(
@@ -3082,7 +3077,6 @@ fn wire_assertion<T: Decide>(
 fn wire_split<
     T: Decide
         + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
         + crate::lane::Lane
         + topo::AtRestPolicy,
 >(
@@ -3248,7 +3242,6 @@ fn wire_part<T: Decide>(
 fn wire_boolean<
     T: Decide
         + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
         + crate::lane::Lane
         + topo::AtRestPolicy,
 >(
@@ -3379,7 +3372,6 @@ fn wire_boolean<
 fn wire_union<
     T: Decide
         + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
         + crate::lane::Lane
         + topo::AtRestPolicy,
 >(
@@ -4601,7 +4593,7 @@ pub(crate) fn transform_map<T: Decide>(
 /// `Instances` this holds body by body because a row's output-body
 /// index is the instance index and the i-th output body is the i-th
 /// input body placed. Stamps: [`compose_placed`].
-fn wire_transform<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
+fn wire_transform<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     results: &Results<T>,
@@ -4733,7 +4725,7 @@ fn stepped_map<T: Decide>(
 /// arithmetic is [`names::flat_body_index`], which the name table is
 /// keyed by too: every master name wraps `Instance(j)` per placement
 /// (A8/N1), and key-stability means instance keys equal master keys.
-fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
+fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -4804,7 +4796,7 @@ fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
 /// instance, a placed union has no reason to special-case a map that an
 /// explicit rule need not make the identity.
 fn wire_placed_union<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy,
+    T: Decide + geom_core::Bounds + topo::AtRestPolicy,
 >(
     id: RecipeNodeId,
     input: RecipeNodeId,
@@ -5015,7 +5007,7 @@ fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, Nod
 /// The Loft node (M6-3: the frontier flipped to the BUILDER — the
 /// §10.3 walls plus the M5-LOG item-6 assembly, tiers 1–3 green at
 /// rest).
-fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super::SectionScalar>(
+fn wire_loft<T: Decide + topo::AtRestPolicy + geom_core::Bounds + super::SectionScalar>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
     doc: &crate::doc::Doc<ProfileProgram>,

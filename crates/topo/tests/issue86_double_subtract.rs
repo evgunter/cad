@@ -31,7 +31,7 @@ use topo::{
 };
 
 fn double_subtract_crossing_slots<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy,
+    T: Decide + geom_core::Bounds + topo::AtRestPolicy,
 >() -> BooleanBody<T> {
     let a = brick::<T>((0.0, 3.0), (0.0, 3.0), (0.0, 1.0), Tol::witness());
     let b1 = brick::<T>((1.0, 2.0), (-1.0, 4.0), (0.5, 1.5), Tol::witness());
