@@ -45,7 +45,7 @@
 //! that twin entirely:
 //!
 //! ```text
-//! CAD_FUZZ_EFFORT=64 cargo test -p geom-core --test all -- ring_interval_fuzz --nocapture
+//! CAD_FUZZ_EFFORT=64 cargo test -p geom-core --test all -- interval_exact_fuzz --nocapture
 //! ```
 
 test_utils::gated_to![
@@ -518,7 +518,7 @@ fn sweep(rng: &mut fuzz::Rng) {
     }
 
     println!(
-        "[ring-fuzz] {n} exact-comparator cases (~{} endpoint comparisons), \
+        "[interval-fuzz] {n} exact-comparator cases (~{} endpoint comparisons), \
          0 containment violations",
         n * 8
     );
@@ -574,13 +574,13 @@ fn check_powi(v: f64, neg: bool, m: u128, e: i32, n: i32) {
 
 #[test]
 fn ring_ops_are_sound_against_exact_arithmetic() {
-    let mut rng = fuzz::start("ring_interval_fuzz::ring_ops");
+    let mut rng = fuzz::start("interval_exact_fuzz::ring_ops");
     sweep(&mut rng);
 }
 
 #[test]
 fn powi_is_sound_against_exact_arithmetic() {
-    let mut rng = fuzz::start("ring_interval_fuzz::powi");
+    let mut rng = fuzz::start("interval_exact_fuzz::powi");
     let mut n_cases = 0u64;
     for _ in 0..fuzz::scaled(5_000) {
         let (v, neg, m, e) = short_dyadic(&mut rng, 60);
@@ -616,7 +616,7 @@ fn powi_is_sound_against_exact_arithmetic() {
 
 #[test]
 fn poison_paths_are_total() {
-    let mut rng = fuzz::start("ring_interval_fuzz::poison");
+    let mut rng = fuzz::start("interval_exact_fuzz::poison");
     let mut n = 0u64;
     for _ in 0..fuzz::scaled(25_000) {
         let a = f64_raw(&mut rng);

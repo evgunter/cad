@@ -13,7 +13,7 @@ refs: [ring-3-ring-dissolves-into-interval, H5]
 
 RING-3 dissolves `RingInterval` into `Interval` inside its fence
 (`docs/RING-3-SPEC.md` §5). Its sweep for the retired name and the
-prose that describes it without naming it found five sites on ground
+prose that describes it without naming it found four sites on ground
 the fence does not reach; each still states something about the
 retired type, and none is forced by a gate today.
 
@@ -36,13 +36,6 @@ retired type, and none is forced by a gate today.
   outward-rounded `sqrt`, so whether the torus arm's blocker is the
   arithmetic or C9's transcendental-free rule is the question to put
   to that doc's owner.
-- `scripts/gates/interval-square-allowlist.sh` (GUARD) —
-  `ALLOWLISTED_HOMES` (`:255`) and the rationale (`:174`) name
-  `crates/geom-core/src/ring_interval.rs`, which no longer exists. The
-  gate goes quiet on a missing file (its own header), so nothing reds;
-  the entry is stale, and `interval.rs` inherited the ring's bodies
-  without inheriting an entry (its production code has no `x * x`, so
-  none is owed today).
 - `local-scripts/bt-scalars.sh` (CIW/MIRROR) `:20` counts `RingInterval`
   in a monomorphisation dump; the count is now always 0.
 - `crates/geom-core/Cargo.toml` `:99` (a manifest; RING-4 rewrites this
