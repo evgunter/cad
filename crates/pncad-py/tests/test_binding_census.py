@@ -596,6 +596,42 @@ BOUND_AS = {
     "IN": "inch",
     "M": "m",
     "MM": "mm",
+    # THE SECOND SAME-SPELLED PAIR was here, and this roster is where
+    # it ends up now that the collision is gone. `pncad.pyi` published
+    # a `DimensionError` class that was the QUANTITY boundary's
+    # operator check — `1 * m + 1 * rad`, with `op`/`left`/`right` —
+    # while the curated name is `editor_core`'s document-layer refusal,
+    # a different type answering a different question; rule 1 matched
+    # them on spelling alone, exactly as it matched the two `Datum`s.
+    # The quantity refusal now crosses under its own Rust name
+    # (`QuantityOpMismatch`), so no Python class shares this spelling
+    # and rule 1 has nothing to match — the name is argued whole, here.
+    #
+    # Its ten arms cross at SIX doors under four class names, each
+    # class named for the DOOR and each carrying this type's own tag
+    # beside it. The roster, with the attribute each door spells the
+    # tag as, is on `ErrorClass::DIMENSION_DOORS` in
+    # `crates/pncad-py/src/errors.rs` — ONE statement of the count,
+    # because this comment and three others each carried their own and
+    # they disagreed. One attribute is named in the row below because a
+    # row takes one; it is not the only spelling, and the roster says
+    # which are which.
+    #
+    # WHAT THIS ROW COST THE CENSUS, stated rather than filed as
+    # bookkeeping: it replaced TEN member rows
+    # (`DimensionError::Mismatch` and its nine siblings) with one
+    # whole-name row. That was mechanically forced — the member rule
+    # only reaches a curated name the stub declares top-level, and
+    # `pncad.pyi` declares no `DimensionError` any more — but the
+    # effect is real. Before, a new arm on the kernel type showed up
+    # here as an unaccounted member; now it does not. What pins the
+    # arms instead is `crate::tags::expr_dimension_error_tag`'s own
+    # exhaustive match — a new arm stops the BUILD — and
+    # `TAG_INVENTORY`'s row for it, held by
+    # `tests::the_whole_tag_table_matches_its_committed_inventory`. The
+    # census sees LESS than it did; those two are why that is
+    # survivable, not why it did not happen.
+    "DimensionError": "ParseError.kind",
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
     # The gather's refusal class, flattened to the tag its carrier
@@ -3172,28 +3208,6 @@ MEMBERS_BOUND_AS = {
     # `test_a_reshaped_program_rebinds_a_fillets_name_and_reports_it`
     # is the Python program that makes one appear.
     "Maintenance::Rebound": "Maintenance.variant",
-    # THE SECOND SAME-SPELLED PAIR, and this rule is what found it.
-    # `pncad.pyi`'s `DimensionError` is the QUANTITY boundary's refusal —
-    # `1 * m + 1 * rad`, with `op`/`left`/`right` — while the curated
-    # name is `editor_core`'s document-layer refusal, a different type
-    # answering a different question. Rule 1 matched them on spelling
-    # alone, exactly as it matched the two `Datum`s. The ten arms cross
-    # where the class's own docstring says they do: `Doc.parse_expr`
-    # raises `ParseError` with `variant == "dimension"` and the
-    # mismatch's own tag as `kind`, which is the one of the three
-    # crossings that keeps it branchable (literal construction is
-    # `LiteralError.kind`; a save file's arrives as `PersistError`
-    # `variant == "parse"`, issue #694).
-    "DimensionError::Mismatch": "ParseError.kind",
-    "DimensionError::MulNeedsScalar": "ParseError.kind",
-    "DimensionError::DivNeedsScalarDivisor": "ParseError.kind",
-    "DimensionError::TrigNeedsAngle": "ParseError.kind",
-    "DimensionError::CountNeedsExplicitPromotion": "ParseError.kind",
-    "DimensionError::NotCount": "ParseError.kind",
-    "DimensionError::LiteralCountIsInteger": "ParseError.kind",
-    "DimensionError::NonFiniteLiteral": "ParseError.kind",
-    "DimensionError::DisplayUnitMismatch": "ParseError.kind",
-    "DimensionError::UnknownDisplayUnit": "ParseError.kind",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
     "DistributionFault::NominalOutsideSupport": "DistributionFault.variant",
@@ -3362,6 +3376,7 @@ MEMBERS_BOUND_AS = {
     "PersistError::IdMismatch": "PersistError.variant",
     "PersistError::Parse": "PersistError.variant",
     "PersistError::Unreadable": "PersistError.variant",
+    "PersistError::Dimension": "PersistError.variant",
     "PersistError::EditReplay": "PersistError.variant",
     "PersistError::MaintenanceFrame": "PersistError.variant",
     "PersistError::ToleranceConflict": "PersistError.variant",

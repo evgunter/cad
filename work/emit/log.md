@@ -374,6 +374,24 @@ neither run. The fix pass walks each run separately, through the
 shared `roots::walk_strict_ancestors`. Two ShadowExec sentences that
 claimed per-pair evidence now state their node-level trigger.
 
+## 2026-09-24 — seam-line ranks close (PR 3125)
+
+A union's seam-edge pieces rebound across member orders, because two
+rankers oriented one seam line differently: a seam chain minted
+already cut, and a descent chain cut later. After three review rounds
+there is one home, `names::seam_pair`. It answers which seam line a
+rank runs along, through one exhaustive wrapper list, for the emitter
+and for the collapse alike. The pair emitter keeps its structural
+sides. An equal-named pair (two placements of one prototype) ranks
+along its own carrier, and a union cannot produce one because members
+are wrapped in `FromMember`.
+
+Measured rebinds, main to head, all 0: 192 in `far`, 352 in `two_b`,
+108 in `two`, and 368 in the reviewer's `two_ribs`. Some pair-boolean
+names move and are listed in the PR: 12 rows in `cross`, 12 in
+`cross_plain`, 4 in the split repro. Filed: P3
+`seam-line-sides-is-a-missing-rule`, raised to P0 if a document
+reaches it.
 ## 2026-09-24 — the split spur closes (PR 3133)
 
 A split plane touching the target along an edge while cutting it
@@ -427,3 +445,17 @@ Filed:
 - P3 `a-lofts-names-follow-only-its-first-sections-reshaping`.
 - `a-param-jump-that-swaps-the-outer-loop-renumbers-names-unreported`,
   re-banded P0 at merge because it is a silent rebind.
+## 2026-09-24 — SharedRim(Several) is held for its rebind sibling
+
+PR 3167 names a chord over a rim that exists in several collinear
+pieces: the chord takes the one piece it lies within. On the probe
+corpus, all 62 refusing union cells fuse, and 0 names that fused on
+main move. But measured over member orders, 42 order pairs that used
+to refuse loudly would now silently bind a rim-piece name to a
+different piece. That silent class already exists on main: 18 of 162
+pairs that both fuse on main rebind.
+
+The project is fail-loud, so 3167 does not land alone. The P0
+`union-rim-piece-ranks-follow-fold-order-so-rim-names-rebind` is
+stacked on it and dispatched to the same lane. The two land together
+once the probe corpus shows 0 rebinds.

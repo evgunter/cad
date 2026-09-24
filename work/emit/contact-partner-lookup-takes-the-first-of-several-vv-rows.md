@@ -2,10 +2,11 @@
 id: contact-partner-lookup-takes-the-first-of-several-vv-rows
 kind: issue
 title: The seam-vertex pass takes the first contact-record vv row for a vertex, by row order, and silently ignores any other
-status: open
+status: dispatched
 opened: 2026-09-23
 priority: P3
 cost: E
+branch: emit/small-rows
 ---
 
 

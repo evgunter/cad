@@ -138,7 +138,7 @@ assert abs(body.mass_properties().volume - 2.56e-5) < 1e-18
 ```
 
 Here `25 * mm` builds a typed `Length`. Dimensions are checked: `25 *
-mm + 90 * deg` is a `DimensionError`, not a number.
+mm + 90 * deg` is a `QuantityOpMismatch`, not a number.
 
 A dimensioned slot takes an `Expr`, and `Expr.length_in(8, mm)` is how
 an authored number reaches one: the value and the unit it was written

@@ -2,11 +2,12 @@
 id: msrv-floor-is-declared-and-never-compiled
 kind: issue
 title: Cargo.toml's rust-version is a floor nothing verifies and nothing ever compiles at
-status: review
+status: closed
 opened: 2026-09-11
 refs: [seal-oracle-toolchain-read-first-match, 2327]
 branch: port/msrv-floor-equality-gate
 pr: 2676
+closed: 2026-09-15
 priority: P3
 cost: E
 ---

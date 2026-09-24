@@ -715,11 +715,24 @@ pub enum Qualifier {
     /// orientation sense is part of the geometry these names are
     /// covariant with; see `emit_topo::face_plane`.
     SideOf(Vec<(StableName, SideVerdict)>),
-    /// Ordinal position under order-along(oriented parent carrier)
+    /// Ordinal position under order-along(oriented parent line)
     /// (`name_frag_order_along` through `k_stats`): rank `rank` of
-    /// `of` fragments, ordered along the parent's own oriented
-    /// carrier (edge direction; for face fragments of a split, the
-    /// section line oriented by n_face × n_tool).
+    /// `of` fragments, ordered along the parent's oriented line.
+    ///
+    /// Which line, and which way:
+    /// - for pieces on a SEAM line whose pair's two sides carry
+    ///   distinguishable names — a seam chain, the pieces of a seam a
+    ///   later step cut, and a seam-vertex group ranked along a seam
+    ///   edge — the seam pair's `n_a × n_b`, with the pair's `a` face
+    ///   first (`names::seam_pair`), so one line is ranked one way
+    ///   whichever step cut it;
+    /// - for pieces of any other edge, including a seam between two
+    ///   same-named faces, that edge's own direction;
+    /// - for face fragments of a split, the section line oriented by
+    ///   `n_face × n_tool`.
+    ///
+    /// A union's collapse puts a seam pair in name order, and where
+    /// that swaps the pair it reads the rank from the other end.
     ///
     /// The carrier's orientation is load-bearing — reversing it
     /// reverses every rank — so where it is built from face normals
