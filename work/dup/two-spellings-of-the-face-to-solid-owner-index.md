@@ -4,6 +4,9 @@ kind: issue
 title: SolidOwners::of and offset_together::Scope::walk are two spellings of the face-to-solid owner index
 status: open
 opened: 2026-09-20
+priority: P1
+cost: D
+refs: [the-guarded-shell-list-of-a-solid-is-spelled-thirteen-times, listing-a-solids-faces-is-spelled-four-times-in-topo-src]
 ---
 
 
@@ -95,3 +98,81 @@ so. **Those two rows are the only ones that do.** `body.rs`'s
 `faces_of_solid_restricts_the_face_arena_to_one_solid` was cited here
 for that and does not mention `faces_in_scope` at all; after the fix
 pass it carries no shell-walk comparison either.
+
+## Measured 2026-09-20: TWO doors, and they already DISAGREE
+
+The `Body::shells_of_solid` unit took this row as the second half of
+its unit and did **not** fold it. The reason is a measurement, not a
+judgement about contracts.
+
+`Scope::walk` builds its vertex map by descending
+face → loops → `loop_cycle` → half-edges, and it has an arm for
+`LoopBoundary::Empty { vertex }`. `SolidOwners::of` builds its vertex
+map by scanning the **half-edge arena** and looking each half-edge's
+loop up in the face map. **A lone vertex in an empty loop has no
+half-edge**, so it never enters `SolidOwners`' map at all.
+
+Run in-crate against a bare `mvfs` body — one solid, one shell, one
+face, one empty loop, one vertex:
+
+| | answer |
+| --- | --- |
+| `crate::validate(&body)` | `Ok(())` — **tier 1 valid** |
+| `SolidOwners::of(&body).face(m.face)` | `Some(solid)` |
+| `SolidOwners::of(&body).vertex(m.vertex)` | **`None`** |
+| `Scope::whole(&body).solid_of(m.face)` | `Some(solid)` |
+| `Scope::whole(&body).holds_vertex(m.vertex)` | **`true`** |
+
+So the two indices answer differently about the same entity of the
+same body, and **one of the two says so in its own rustdoc while the
+other's is false about it**:
+
+- `Scope`'s doc (`offset_together.rs`, above the struct): *"The scope
+  is total on the entities a shell owns, lone vertices included: an
+  empty loop's vertex is reached through the loop's own face rather
+  than through an orbit it has no half-edge for."* Accurate.
+- `SolidOwners`' doc (`separation.rs`): *"a body that passes tier 1 has
+  a total map."* **Measurably false** on the body above. The skeletal
+  `mvfs` state is tier-1 valid — `validate::tests::tier_two_rejects_the_skeletal_mvfs_state`
+  is the row that says tier TWO is what rejects it — so the sentence's
+  own precondition is met and its claim is not.
+
+**That settles the row's question.** These are not one door with a
+posture argument: folding either onto the other would change what it
+answers about a lone vertex, silently, with no row to catch it.
+
+**And the falsification itself is unpinned.** The probe above was a
+throwaway, run in-crate and deleted; **nothing in the tree reds if
+either door's behaviour changes here**, in either direction. So the
+divergence is recorded in this file and nowhere a build can see it,
+which is the weakest possible state for a finding about a `pub` door:
+the next lane to touch `SolidOwners` gets no signal at all. A row that
+asserts the two answers against each other — whichever way the
+decision goes — is the first thing a unit here owes, before any fold.
+
+The `shells_of_solid` unit corrected `SolidOwners`' **mechanism**
+prose, which was false independently of the decision: the paragraph
+said the map is built *"from the STORED back-pointers — a half-edge
+names its loop, a loop its face, a face its shell, a shell its solid"*,
+and the FACE map is not built that way at all. It walks the forward
+ownership lists, `body.solids() → solid.shells → shell.faces`; only
+the vertex map follows back-pointers. That correction carries the
+divergence as a stated non-totality and points here. **It does not
+decide which answer is right**, which is this row's question and stays
+open.
+
+The shared spine is nonetheless smaller than the row assumed: the
+outer step of `Scope::walk` — `get_solid(solid)?.shells` — folded onto
+`Body::shells_of_solid` with the rest of that class.
+`SolidOwners::of` and `SolidSeparation::of` were **not members** of
+that class at all — they are in its "not members" table, with the
+reason. The three-posture table above therefore compares three things
+of which only one ever resolved a solid key.
+
+### What is left for a unit here
+
+1. The divergence above: decide which answer is right, pin it with a
+   row, and correct the false totality sentence. **This is the part
+   that has to happen first** — it is a live disagreement, not a
+   duplication.
+2. Only then, whether the face half of the two walks shares a home.

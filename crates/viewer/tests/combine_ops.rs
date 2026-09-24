@@ -38,8 +38,8 @@ use viewer::combine::{
 use viewer::pickindex::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
 use viewer::session::{
-    DatumSpec, DocSession, NodeKindWanted, PatternRuleSpec, ProfileShape, Refusal, Selection,
-    SessionOp,
+    DatumSpec, DocSession, NodeKindWanted, PatternRuleSpec, ProfilePlane, ProfileShape, Refusal,
+    Selection, SessionOp,
 };
 use viewer::tools::{ToolKind, Tools};
 use viewer::tree::{self, RowStatus};
@@ -66,7 +66,7 @@ fn boxed(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
     let profile = insert(
         session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: size[0],
                 height: size[1],
@@ -242,7 +242,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Circle {
                 centre: [0.0, 0.0],
                 radius: 0.01,
@@ -1358,7 +1358,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane: sketch_frame,
+            plane: ProfilePlane::Existing(sketch_frame),
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.01,
                 height: 0.01,
@@ -1563,7 +1563,7 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
     let profile = insert(
         &mut session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Rectangle {
                 width: 0.01,
                 height: 0.01,
@@ -1913,7 +1913,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             input: extruded_b,
             translation: [common::len(0.1), common::len(0.0), common::len(0.0)],
             rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+            rotation_angle: common::ang(0.0),
         },
         tol,
     );
@@ -1924,7 +1924,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             input: body,
             translation: [common::len(0.01), common::len(0.002), common::len(0.002)],
             rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-            rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+            rotation_angle: common::ang(0.0),
         },
         tol,
     );
@@ -1995,7 +1995,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
             Node::Revolve {
                 profile: ring,
                 axis: sketch_axis,
-                angle: Expr::literal(core::f64::consts::TAU, Dimension::Angle).expect("finite"),
+                angle: common::ang(core::f64::consts::TAU),
             },
         ),
         (
@@ -2028,7 +2028,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 input: body,
                 translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
                 rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+                rotation_angle: common::ang(0.0),
             },
         ),
         (
@@ -2112,7 +2112,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 input: candidate,
                 translation: [common::len(0.0), common::len(0.0), common::len(0.0)],
                 rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+                rotation_angle: common::ang(0.0),
             },
             tol,
         );

@@ -4,6 +4,8 @@ kind: issue
 title: The xy-plane quad-sheet helper is written three times across chart_region.rs and chart_region_r2_probes.rs
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 

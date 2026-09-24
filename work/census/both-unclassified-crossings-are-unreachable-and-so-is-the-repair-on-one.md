@@ -4,6 +4,8 @@ kind: issue
 title: Both unclassified crossings are unreachable today, so the word no test can construct and the AttributeError repair beside it cannot go red
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

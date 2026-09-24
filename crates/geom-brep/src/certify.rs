@@ -59,7 +59,7 @@ use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3
 use crate::description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
-use crate::dihedral::{DihedralClass, classify_dihedral, decide};
+use crate::dihedral::{DihedralClass, classify_dihedral, decide, decide_positive};
 use crate::implicit::{implicit_residual, seam_frame};
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
@@ -1716,16 +1716,7 @@ fn run_checks<T: Decide>(
             let meter = n.speed_lower_bound();
             let (d0, d1) = n.domain();
             let net_length = Margin::metered(T::from_f64(d1 - d0), meter);
-            match decide("nurbs_span_meter", net_length, band).map_err(span_escalated)? {
-                Sign::Positive => {}
-                Sign::Zero | Sign::Negative => {
-                    return Err(span_escalated(Indeterminate {
-                        margin: geom_core::MarginDiag::Invalid,
-                        band,
-                        predicate: Some("nurbs_span_meter"),
-                    }));
-                }
-            }
+            decide_positive("nurbs_span_meter", net_length, band).map_err(span_escalated)?;
             let arc = Margin::metered(span, meter);
             match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}
@@ -1841,9 +1832,15 @@ fn run_checks<T: Decide>(
     let mut tangent_kappa_min = T::from_f64(f64::MAX);
     let mut tangent_arm_min = T::from_f64(f64::MAX);
     for i in 0..CERT_SAMPLES {
-        let p = spec.carrier.eval(sample_param(t0, t1, i));
+        let t = sample_param(t0, t1, i);
+        // Each arm takes the point through the door it needs: the
+        // `Tangent` arm's interior samples read the tangent too, from
+        // the same jet pass as the point; every other arm, and that
+        // arm's end samples, take the point alone, so no pass computes
+        // a tangent that is then discarded.
         match &resolved {
             Resolved::Intersection { surf1, surf2, .. } => {
+                let p = spec.carrier.eval(t);
                 check_residual(
                     "carrier_on_surface_1",
                     CertCheck::Surface1Residual,
@@ -1883,6 +1880,12 @@ fn run_checks<T: Decide>(
             // normal parallelism within the derived threshold at lever
             // arm r = 1/κ_rel (D2 verbatim, D4 ¶1).
             Resolved::Tangent { surf1, surf2, .. } => {
+                let (p, tau) = if i > 0 && i < CERT_SAMPLES - 1 {
+                    let (p, tau) = spec.carrier.ders1(t);
+                    (p, Some(tau))
+                } else {
+                    (spec.carrier.eval(t), None)
+                };
                 let r1 = implicit_residual(surf1, p);
                 let r2 = implicit_residual(surf2, p);
                 tangent_resid_max = tangent_resid_max.max(r1.abs()).max(r2.abs());
@@ -1902,8 +1905,7 @@ fn run_checks<T: Decide>(
                     band,
                     &mut max_residual,
                 )?;
-                if i > 0 && i < CERT_SAMPLES - 1 {
-                    let tau = spec.carrier.deriv(sample_param(t0, t1, i));
+                if let Some(tau) = tau {
                     // The must-carry rule's one spelling
                     // (`crate::tangent_second_order`): the constructor
                     // that stores a `TangentIntersection` and this
@@ -1947,6 +1949,7 @@ fn run_checks<T: Decide>(
             // keeps its own meter for exactly as long as the fence
             // keeps it legal.
             Resolved::Scaffold(mc) => {
+                let p = spec.carrier.eval(t);
                 let s = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
                 check_residual(
                     "carrier_matches_mapped_source",
@@ -2020,7 +2023,8 @@ fn run_checks<T: Decide>(
                 let Some(chart) = canonical.chart() else {
                     return Err(CertifyError::Unimplemented);
                 };
-                let q = chart.pcurve.eval(sample_param(t0, t1, i));
+                let p = spec.carrier.eval(t);
+                let q = chart.pcurve.eval(t);
                 check_residual(
                     "pcurve_map_residual",
                     CertCheck::ChartResidual,

@@ -2,8 +2,13 @@
 id: viewer-tests-rebuild-the-pick-index-in-every-suite
 kind: issue
 title: Fourteen private spellings of one PickIndex build in crates/viewer/tests
-status: open
+status: closed
 opened: 2026-09-20
+priority: P4
+cost: E
+closed: 2026-09-20
+branch: dup/viewer-shared-doors
+pr: 2929
 ---
 
 
@@ -47,3 +52,143 @@ opened: 2026-09-20
 and `view` (`work.py territory`), so there is no single ground-owner to
 file it with, and the subject — one construction spelled fourteen times
 — is S-DUP's charter. Any of the five may claim it by `git mv`.
+
+## Closed 2026-09-20 — re-taken at `cd9fdfd6b`, folded onto `common::{index_at, index_of}`
+
+### The census, re-taken
+
+`git grep -n 'PickIndex::build'` over every tracked file, **no path
+argument**, then a read of each enclosing function. **14 textual sites
+in 13 files** — the row's count held. Two things in the row did not:
+
+- **"six names" is wrong; there are four.** The row's own list
+  enumerates `index_of`, `fresh_index`, `index_at` and `indexed` and
+  then calls them six. Four is the number of distinct functions that
+  CONTAIN a build; `review_gui2_r1::index_of` and
+  `review_gui2_r2::landed_index` are one-line forwarders onto
+  `index_at` and contain none.
+- **"fourteen PRIVATE helpers" is thirteen private and one shared.**
+  `common/asm.rs`'s `index_of` is `pub` in `tests/common/` already —
+  it was the home for the assembly suites, with their δ baked in.
+
+The hit list and its disposition:
+
+| site | disposition |
+| --- | --- |
+| `blend_authoring::index_of` | folded → `common::index_of(session, common::plate_delta())`; the private `delta()` went with it |
+| `edge_pick::index_of` | folded, same |
+| `focus_highlight::index_of` | folded; its own δ (5×10⁻⁴) is not this class's value and stays |
+| `frame_policy::index_of` | folded |
+| `select_pick::index_of` | folded |
+| `select_pick::indexed` | folded — it opened a session and then rebuilt the construction; now `index_of(&session)` |
+| `pick_windows::indexed` | folded, same shape |
+| `pick3_acceptance::fresh_index` | folded |
+| `review_pick_r2::fresh_index` | folded |
+| `review_pick2_r1::fresh_index` | folded |
+| `index_memo::fresh_index` | folded onto the **`Result` arm**, `common::index_at` — its rows read the refusal, which is why the door has two arms rather than one |
+| `review_gui2_r1::index_at` | folded; the suite keeps `index_at(session, δ)` as its own one-line binding |
+| `review_gui2_r2::index_at` | folded, same |
+| `common/asm.rs::index_of` | folded — it is now `super::index_of(session, delta())`, an adapter binding the assembly's δ |
+| `crates/viewer/src/pane/viewport.rs`'s `tests::plate_index` | **a fifteenth member, left, and the row's description of it was wrong.** The row called it *"the shipped caller"*; it is inside `#[cfg(test)] mod tests`. No non-test `PickIndex::build` exists in `crates/viewer/src/` at all — the shipped path is `DocSession::index_inputs` → `PickCache` → `evalseam::build_index` → `PickIndex::build_with`. It cannot reach `tests/common` (a unit-test module in `src/` is a different target), so the fold is unavailable; the disposition was still owed |
+
+**The blind spots the row named, run rather than restated.**
+`PickIndex::build_with` — `git grep 'build_with'` over every tracked
+file: no `crates/viewer/tests/` site calls it; the two hits in that tree
+are comments, and the one real caller is `crates/viewer/src/evalseam.rs`.
+Macro-assembled: none — every hit is textual. **The converse needle**
+for a class whose members "build and take the result" is the set of
+other PickIndex PRODUCERS: `git grep 'PickIndex' --
+crates/viewer/tests/` read for `-> PickIndex` and `-> Result<PickIndex`
+names three more (`index_memo::seam_index`, `seam_index_at`, and
+`review_gui2_r1::landed`), of which the first two are the SEAM door and
+not this construction, and the third is a session opener that now calls
+the folded one.
+
+### The proof
+
+See the mutation table in
+`viewer-tests-spell-one-display-tolerance-in-seven-places`. The two
+plants that isolate this door:
+
+| plant in `common::index_at` | direction | total | reds |
+| --- | --- | --- | --- |
+| indexes at 5×10⁻² whatever δ it was handed | coarsen at the door, so the index disagrees with what its caller keyed | 616 / 10 | `index_memo` 5, `review_gui2_r2` 2, `pick3_acceptance` 1, `review_pick_r2` 1, `select_pick` 1 |
+| keys the picture on `generation.next()` | harder — the index claims to picture a run that has not happened; nothing is made easier | 620 / 6 | `review_gui2_r1` 2, `review_gui2_r2` 2, `frame_policy` 1, `select_pick` 1 |
+
+Seven of the thirteen suites are plant-proved on the door. The other
+six (`blend_authoring`, `edge_pick`, `focus_highlight`, `pick_windows`,
+`review_pick2_r1`, and the assembly suites through `asm::index_of`) are
+**compiler-proved only** at the door — their private helper is deleted
+and the call is type-checked — though the picture they pick against is
+itself live: aiming `common::down_from` under the fixture reds
+`edge_pick` 2 and thirteen suites' worth besides. `focus_highlight` and
+`pick_windows` appear in NO red set across thirteen plants and are
+filed as
+`work/tint/viewer-plate-suites-index-at-a-display-tolerance-nothing-asserts`.
+
+### The fix pass
+
+The first pass minted **eight byte-identical one-line wrappers** —
+four `fn index_of(session) { common::index_of(session, plate_delta()) }`
+and four `fn delta() { common::corpus_delta() }` — which is verbatim
+the class of `the-fold-left-thirteen-one-line-fixture-wrappers-still-copied`,
+open on this same slate: *"identical one-liners rather than identical
+ten-liners"*. Two more, `review_gui2_r1::index_at` and
+`review_gui2_r2::index_at`, were called *bindings* here and bound
+nothing — identical signature, identical argument order. All ten are
+gone: `common` gained `plate_index(session)` and `corpus_index(session)`,
+the four plate suites and three corpus suites import one of those, and
+`index_memo` spells `common::index_at(session, common::corpus_delta())`
+at its six sites because its arm answers the refusal. What survives is
+every wrapper that genuinely binds a per-suite value, which is the same
+test the parent unit applied to `review_gui2_r2::insert`. **The first
+version of this sentence named three and the census is five** — the δ
+row's second-instrument shape, one pass later, in the row whose job is
+to say the class is empty. Re-taken mechanically over every one-line
+`fn` in `crates/viewer/tests/` whose body is a single call, the
+complete surviving set is:
+
+| wrapper | what it binds |
+| --- | --- |
+| `common/asm.rs::index_of` | the assembly fixture's δ (`asm::delta`) |
+| `focus_highlight::index_of` | this suite's own δ, 5×10⁻⁴ |
+| `review_gui2_r1::index_of` | this suite's own δ, 1.5×10⁻⁴ |
+| `review_gui2_r2::landed_index` | this suite's own δ, 3×10⁻⁴ |
+| `index_memo::seam_index` | the corpus δ, onto the SEAM door (`seam_index_at`) — a different construction from this class, and in the class only by its shape |
+
+Outside this class, on the same test: `review_gui2_r1::down` and
+`review_gui2_r2::down_at` bind a ray height, `review_gui2_r2::insert`
+binds a tolerance, `camera_ops::framed` and `input_mapping::framed`
+bind different aspect ratios. No two of the ten are byte-identical and
+none binds nothing.
+
+`crates/viewer/examples/r1_gallery_probe.rs` held **two byte-identical
+eleven-line copies** of this construction twenty lines apart, plus two
+copies of a δ literal. The lane's own instrument returned them and the
+first hit list did not disposition them. An example cannot reach
+`tests/common`, so the shared fold is unavailable, but the in-file one
+is not: both now call a private `probe_index` in that file.
+
+### After merging main
+
+Two things main moved, both found by reading its diff rather than by
+the merge:
+
+- **`edge_pick.rs` gained a new caller** of the `index_of` wrapper this
+  PR deleted. The merge was textually clean and the build failed — a
+  semantic conflict git could not see. Now `plate_index`.
+- **`crates/viewer/src/marks.rs` gained a sixteenth member**, a
+  `#[cfg(test)]` helper `plate()` that builds the index longhand at a
+  private `2.0e-4` δ. Like `viewport.rs`'s it cannot reach `tests/common`
+  and is left. Its doc cited *"`tests/edge_pick.rs`'s reading"* for the
+  δ, which this PR moved into `tests/common`'s `plate_delta`, so the
+  citation is re-pointed here, not filed. The sentence it cites
+  for — *"fine enough that the plate's hole is a ring of facets"* — is
+  the claim the S-TINT row measured unasserted in `tests/`; whether
+  `marks`' own row holds it has not been measured, so it is left as
+  written.
+
+Re-taken on the merged tree: `git grep -n 'PickIndex::build(' --
+'*.rs'` returns the home, `examples/r1_gallery_probe.rs`'s one in-file
+door, and the two `src/` test-module members. The class in
+`crates/viewer/tests/` is the home alone.

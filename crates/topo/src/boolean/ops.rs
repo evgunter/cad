@@ -229,8 +229,11 @@ pub struct BooleanNaming {
     /// new-face column through `graft_faces` for result keys).
     pub face_fragments_b: Vec<(FaceKey, FaceKey)>,
     /// The reduction's declared-contact records BEFORE result
-    /// remapping (A rows in A-clone = result keys, B rows in B-CLONE
-    /// = operand keys): the mint-time crossing correspondences the
+    /// remapping: each row's A column in A-CLONE keys and its B column
+    /// in B-CLONE keys — the result's keys on whichever side is
+    /// `Direct`, the graft's source keys on a `Grafted` side, and keys
+    /// of no body in the result on an `Absent` side. The mint-time
+    /// crossing correspondences the
     /// naming layer reads even when one side's key was consumed
     /// (`BooleanBody::contacts` drops such rows by design).
     pub reduction_contacts: ContactRecords,
@@ -264,7 +267,7 @@ impl<T: Real> BooleanResult<T> {
 /// # Errors
 ///
 /// [`BooleanError`] — every stage's typed refusals pass through.
-pub fn union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn union<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -284,7 +287,7 @@ pub fn union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn intersect<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn intersect<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -304,7 +307,7 @@ pub fn intersect<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn subtract<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn subtract<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     tol: Tol,
@@ -325,7 +328,7 @@ pub fn subtract<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn union_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn union_with<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -339,7 +342,9 @@ pub fn union_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn intersect_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn intersect_with<
+    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -360,7 +365,9 @@ pub fn intersect_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`BooleanError`].
-pub fn subtract_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn subtract_with<
+    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+>(
     a: &Body<T>,
     b: &Body<T>,
     decls: &BooleanDeclarations,
@@ -386,7 +393,9 @@ pub fn subtract_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`BooleanError`] — identical to [`union`] and friends.
-pub fn boolean_op_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+pub fn boolean_op_with<
+    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -456,7 +465,9 @@ pub fn boolean_op_with<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 /// no-crossings sphere RE-CUT (M5 S13) may still run: the re-entry
 /// pass sets `recut = false`, so a re-cut that surfaces no crossings
 /// is a loud invariant failure rather than a loop.
-fn boolean_op_recut<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+fn boolean_op_recut<
+    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -1056,8 +1067,8 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     let mut det = true;
                     for i in 1..(geom_brep::CERT_SAMPLES - 1) {
                         let t = geom_brep::sample_param(t0, t1, i);
-                        let p = c.carrier().eval(t);
-                        let jet = geom_brep::tangent_jet(surf1, surf2, p, c.carrier().deriv(t));
+                        let (p, tau) = c.carrier().ders1(t);
+                        let jet = geom_brep::tangent_jet(surf1, surf2, p, tau);
                         let arm = geom_brep::curvature_lever_arm(surf1, p)
                             .min(geom_brep::curvature_lever_arm(surf2, p))
                             .min(extent);
@@ -1975,7 +1986,7 @@ fn cylinder_extent_gate<T: Decide + Bounds>(
 /// polar axis lands on the escape normal (the same point set — a
 /// sphere is rotation-invariant about its center — with the seam
 /// meridians now transverse to the escape planes), and grafted back.
-fn apply_recuts<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+fn apply_recuts<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     a: &Body<T>,
     b: &Body<T>,
     recuts: &[SphereRecut<T>],
@@ -2060,9 +2071,8 @@ fn apply_recuts<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
             rotated.push(turned);
         }
         let keep: Vec<ShellKey> = src
-            .get_solid(solid)
+            .shells_of_solid(solid)
             .ok_or(corrupt("re-cut solid lost"))?
-            .shells
             .iter()
             .copied()
             .filter(|s| !cut_shells.contains(s))
@@ -2573,12 +2583,12 @@ mod tests {
         let BooleanError::NurbsExtentUnsupported { .. } = err else {
             panic!("expected the NURBS re-gate, got {err:?}");
         };
-        // The refusal names the lift blocker, so the recourse is
-        // discoverable from the error alone.
+        // The refusal names the face kind that stopped it and ends on
+        // what the person can do; the lift blocker is the variant's
+        // rustdoc, not the sentence.
         let msg = err.to_string();
-        assert!(msg.contains("NurbsSurface::project"), "{msg}");
-        assert!(msg.contains("implicit_residual"), "{msg}");
-        assert!(msg.contains("re-gated"), "{msg}");
+        assert!(msg.contains("spline (NURBS) face"), "{msg}");
+        assert!(msg.contains("Recourse: "), "{msg}");
     }
 
     /// The D5 descendant chase, pinned at the mechanism level (M3

@@ -164,6 +164,55 @@ pub enum SymRegistration {
     Unwitnessed,
 }
 
+/// **What a comparison at this scalar PROVES** — the property that
+/// decides, per lane scalar, whether a disagreement between the value
+/// channel and a symbolic form is a soundness defect or a dispute.
+///
+/// It is a property of the SCALAR, fixed at compile time
+/// ([`Real::WITNESS`]), and never a value read: nothing branches on a
+/// number to obtain it, so D9 is untouched and it is not the
+/// instrument [`crate::Decide::enclosure_probe`] is.
+///
+/// **Two contracts read it, and that is the point.** The
+/// registered-identity door forwards the lane scalar's refusal arm —
+/// [`SymRegistration::Contradicted`] from an exact witness,
+/// [`SymRegistration::Disputed`] from an inexact one — and
+/// `Sym<T>::sign_within` charges a theorem-vs-numeric contradiction
+/// the same way: asserted at an exact witness, counted
+/// ([`crate::SymCounts::theorems_disputed`]) at an inexact one. Both
+/// are the same question about the same channel, so they read one
+/// marker rather than two roster copies.
+///
+/// **That they cannot drift is a property of the PIN, not of the
+/// marker**, and the difference is one a first cut got wrong: a const
+/// read in two places still lets a scalar declare one thing and answer
+/// another. What closes it is that
+/// `geom-core/tests/sym11_witness_kind_rows.rs`'s `witness_agrees` is
+/// GENERIC — one predicate instantiated at every `impl Real` in the
+/// tree by name — so an impl whose const and whose refusal arm
+/// disagree reds without anyone having written that pair down.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Witness {
+    /// **A comparison here is a PROOF.** The value channel is a
+    /// certified enclosure of the real ([`crate::Interval`]), so two
+    /// enclosures that do not meet prove the two reals differ, and an
+    /// enclosure that excludes zero proves the margin is not zero.
+    /// There is no slack in either test and no scale at which the
+    /// answer is the arithmetic giving up, so a disagreement with a
+    /// form is a defect in one of the two channels and this codebase
+    /// fails loud on it.
+    Exact,
+    /// **A comparison here is a MEASUREMENT of one rounded number.**
+    /// `f64` and [`crate::Probe`] evaluate at a point: at a far
+    /// placement the rounding exceeds the band, under rule F a one-ulp
+    /// error in a sign argument becomes a whole `2.0` at the margin,
+    /// and at a pole the channel has no clause 1 to refuse with. None
+    /// of those is a false claim by the form, so none of them may be
+    /// charged to the form: the numeric answer is kept and the
+    /// disagreement is counted.
+    Inexact,
+}
+
 /// The scalar type the geometry evaluation layer is generic over.
 ///
 /// See the [module docs](self) for the design rationale: the deliberately
@@ -203,6 +252,22 @@ pub trait Real:
     + Sync
     + 'static
 {
+    /// **What a comparison at this scalar proves** ([`Witness`]) —
+    /// declared, never defaulted, because the two things that read it
+    /// both fail in the same direction when a scalar under-declares:
+    /// [`Real::register_equal`]'s refusal arm and the theorem-vs-numeric
+    /// charge at `Sym<T>::sign_within`. **No default, so the compiler
+    /// is what asks**: a new lane scalar does not compile until it says
+    /// which side of the partition it is on, and nothing has to notice
+    /// that it did not.
+    ///
+    /// Its [`Real::register_equal`] arm then has to AGREE, which the
+    /// compiler cannot ask — `witness_agrees` in
+    /// `geom-core/tests/sym11_witness_kind_rows.rs` does, generically,
+    /// at every `impl Real` in the tree: `Exact` ⇔ a separated pair is
+    /// refused `Contradicted`, `Inexact` ⇔ `Disputed`.
+    const WITNESS: Witness;
+
     /// Embeds an `f64` exactly (a point interval, a constant dual number).
     fn from_f64(x: f64) -> Self;
 
@@ -852,26 +917,25 @@ pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
 /// question is answered where it was already answered: the PR 12 entry
 /// above, under the delegation rule, for the doors this one calls.
 ///
-/// **The file now carries TWO compound headers, and the second is the
-/// answer to the paragraph above rather than an exception to it**
-/// (SEAT-9). `verbs::run`'s shell door delegates to `topo::shell_open`,
-/// which is `Decide + PropsQuadLane + `[`CertifiedBounds`] — already
-/// allowlisted, at `topo/src/shell.rs`, under the 2026-09-02 certified
-/// at-rest entry — so the delegation rule covers it on the same terms
-/// as the first header: the shell arm passes its operand, its thickness
-/// and its designation through unchanged, reads no bracket, and decides
-/// nothing in or out of the trilean. What it does NOT do is ride the
-/// first header, and that is the point of writing it separately: the
-/// paragraph above records that tightening `Decide + Bounds +
-/// PcurveFittedLane` to a certifying bound breaks
-/// `editor_core::eval::wire`'s `Dual`-instantiated blend lowering, so
-/// the two bounds cannot be merged. They are two `impl` blocks, each
-/// asking for exactly what its callee asks for, and the `Dual` caller
-/// stays green by construction — it names `Verb::run`, in the block
-/// that did not move. The WEAKEST-bound test is the callee's own
-/// signature: dropping any of the three does not compile, and there is
-/// no tighter one to show failing because this IS the tighter one, held
-/// away from the lane that cannot take it.
+/// **The file carries ONE compound header, and the second seam
+/// SEAT-9 allows for has nothing in it** — the allowance stands and
+/// covers nothing. What it was written for was the shell door's own
+/// header: `verbs::run`'s shell arm delegates to `topo::shell_open`,
+/// which is `Decide + `[`CertifiedBounds`]` + AtRestPolicy` (already
+/// allowlisted, at `topo/src/shell.rs`, under the 2026-09-02
+/// certified at-rest entry), and a bound that names the callee's
+/// rights cannot be merged into the first header: the paragraph above
+/// records that tightening `Decide + Bounds + PcurveFittedLane` to a
+/// certifying bound breaks `editor_core::eval::wire`'s
+/// `Dual`-instantiated blend lowering. That right is now a VALUE the
+/// caller passes — `topo::ShellDoor`, whose one constructor carries
+/// the certifying bound — so the seat's shell arm takes the door as a
+/// parameter and rides the first header like every other verb, with
+/// the delegation rule covering it on the same terms: it passes its
+/// operand, its thickness and its designation through unchanged,
+/// reads no bracket, and decides nothing in or out of the trilean. A
+/// door whose right cannot be carried in a value is what would put a
+/// second header back here, and that is what this allowance is for.
 ///
 /// The "no bracket read at all" clearance above still describes the
 /// whole file, and it is still a review-time measurement rather than a
@@ -1057,8 +1121,8 @@ pub mod bounds_allowlist {
     //! certified-quadrature plumbing**, which decides (its `props_quad_*`
     //! funnel margins) and reads brackets into the C9 ring. Its split from
     //! scalars that may not certify is STATIC and stands on two things:
-    //! `PropsQuadLane`'s explicit per-scalar impls are the only entry and the
-    //! dual impl instantiates none of it, and the `quad_lane::*` signatures
+    //! `topo::QuadLane::certified`, at `Decide + CertifiedBounds`, is the only
+    //! entry from the reporting walks, and the `quad_lane::*` signatures
     //! carry [`CertifiedEnclosure`](super::CertifiedEnclosure) as a third term, which no `Dual` has.
     //!
     //! **Re-counted when the certified half grew a LEVEL** (tier 3's +V
@@ -1116,7 +1180,7 @@ pub mod bounds_allowlist {
     //! `geom::projection_policy`'s `mid` freeze (issue 874's class) is the live
     //! counterexample shape when it is not. A read that MINTS a certificate
     //! object or feeds a [`CertifiedEnclosure`](super::CertifiedEnclosure) consumer is never exempt: it
-    //! needs a refusing lane in the `PropsQuadLane` shape, and admitting one
+    //! needs a lane door in the `topo::QuadLane` shape, and admitting one
     //! without a lane would be a ratified REVERSAL of DL5 on its own
     //! evidence — not an entry this rule can grow.
     //!
@@ -1168,9 +1232,11 @@ pub mod bounds_allowlist {
     //! the call, and the refusal variant is retired with the impl that raised
     //! it. **What a mixed pass does instead** is take the lane as an
     //! ARGUMENT: `topo::validate`'s check 2 re-certifies through
-    //! `EdgeCurve::recertify_via`, whose `Option<NurbsLane>` the composed
-    //! certified entry fills and the structural half and the two lane-keeping
-    //! at-rest passes leave empty — the M7-8 class is then not re-derived
+    //! `EdgeCurve::recertify_via`, whose `Option<NurbsLane>` every door
+    //! bounded on the certification right fills (`validate_geometric`,
+    //! `validate_pseudomanifold`, `contact_marks` and their certificate and
+    //! declared forms) and every `_structural` door leaves empty — the M7-8
+    //! class is then not re-derived
     //! and, being outside those doors' rights, not reported either
     //! (`EdgeCurve::needs_nurbs_lane` is where that question is asked).
     //! **The symbolic tier needs no arm of its own and gains none**:
@@ -1188,13 +1254,15 @@ pub mod bounds_allowlist {
     //! `0.0`; the `props.rs` rectangle-trim read) plus the
     //! bit-identical-region fast path — so a sole-bound form is unsatisfiable.
     //!
-    //! **The door and the lane guard different things, and both are needed.**
+    //! **The door and the hook guard different things, and both are needed.**
     //! The door's bound is `Decide + `[`CertifiedBounds`](super::CertifiedBounds), which no `Dual`
     //! satisfies, so the predicate is uninstantiable at one however it is
-    //! reached — including from outside the crate, where the lane is never
-    //! consulted. `ChartRegionLane`'s refusing `Dual` impl is not redundant
-    //! with that: it is what lets the census, a MIXED pass, decline this one
-    //! arm and keep going, which no bound on a whole function can express.
+    //! reached — including from outside the crate, where no census is
+    //! running. The census's `Option<topo::RegionLane<T>>` parameter (one
+    //! constructor, at the door's bound; `None` from the `_structural` twin)
+    //! is not redundant with that: its `None` is what lets the census, a
+    //! MIXED pass, decline this one arm and keep going, which no bound on a
+    //! whole function can express.
     //! The tightening replaced an audit rather than a wrong answer, and
     //! **the discriminator is that nothing generic calls this door** — which
     //! is why `topo::separation`, whose caller is a mixed pass, was not
@@ -1226,37 +1294,42 @@ pub mod bounds_allowlist {
     //! which any deciding scalar answers and one of which — the +V global
     //! orientation invariant — READS A CERTIFIED VOLUME ENCLOSURE. The
     //! battery is therefore two functions, `validate_geometric_structural`
-    //! at `T: PropsQuadLane` and a private certified half at
+    //! at `T: Decide + Bounds + AtRestPolicy` and a private certified half at
     //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds), and the public entry is their
     //! composition, so its bound is the union and IS the compound one this
     //! file ratifies. `shell`/`shell_open` take the same bound because their
     //! last act is that entry.
     //!
     //! **What it owes "brackets never decide", stated at the substance and
-    //! not at the grep.** No `lo`/`hi` call appears in `validate.rs`, and the
-    //! certified half's own bracket read is `props`' certified quadrature,
-    //! already ratified at the `props.rs` seam — but the clearance would be
-    //! false if it stopped there, because ONE tier-3 site does read a bracket
-    //! end and branch on it, through a renamed accessor a grep for `lo`/`hi`
-    //! cannot see: check 1's `minor_radius.datum_lo()`, which is
-    //! `PropsQuadLane::datum_lo`, i.e. [`Bounds::lo`](super::Bounds::lo).
-    //! It is disclosed here rather than left to be discovered, and the reason
-    //! it is admissible is the reason that accessor has its own name: a torus
+    //! not at the grep.** ONE `lo` call appears in `validate.rs`, and it is
+    //! disclosed here rather than left to be discovered: check 1's
+    //! [`Bounds::lo`](super::Bounds::lo) of a torus's tube radius, the
+    //! representability read. The certified half's own bracket read is
+    //! `props`' certified quadrature, already ratified at the `props.rs`
+    //! seam; this one compares a STORED DATUM's lower bound with zero — a
     //! tube radius that is zero, negative or poison does not describe a small
-    //! torus, it fails to describe one, so the read is about a STORED DATUM's
-    //! representability and not about where geometry lies. It takes no
-    //! `k_stats` name and no band precisely because it meters nothing — the
-    //! chamfer's `NonpositiveSize` precedent — and the geometric question
-    //! beside it (`R - r`) does go through `decide`. This is `S88`'s named
-    //! blind spot (a bracket read behind a renamed accessor) with its one
-    //! in-fence instance written down. The weakest bound that works is this one, checked
+    //! torus, it fails to describe one — so the read is about whether the
+    //! datum is a number at all and not about where geometry lies, and the
+    //! value never crosses into a certificate. It takes no `k_stats` name and
+    //! no band precisely because it meters nothing — the chamfer's
+    //! `NonpositiveSize` precedent — and the geometric question beside it
+    //! (`R - r`) does go through `decide`. `S88`'s named blind spot (a
+    //! bracket read behind a renamed accessor) has no instance here any
+    //! more: the accessor is gone and the read is spelled `Bounds::lo`
+    //! where a grep sees it. What this entry discloses is a different
+    //! shape — a bracket read that DECIDES NOTHING — with its one in-fence
+    //! instance written down, and the count is not left to prose:
+    //! `scripts/gates/bounds-allowlist.sh` pins compound BOUNDS per file,
+    //! not reads, so `crates/topo/tests/r1_lane1_bracket_read_census.rs`
+    //! counts the file's bracket reads over the code view against the
+    //! one disclosed here and reds on a second. The weakest bound that works is this one, checked
     //! against the next tighter spelling rather than asserted: `Decide + `[`CertifiedEnclosure`](super::CertifiedEnclosure)
     //! alone does NOT compile, because the certified quadrature reads
     //! [`Bounds`](super::Bounds) as well.
     //!
     //! **Why the obligation had to become literal at all**, since the door
     //! was already closed to a dual before this row and by construction: it
-    //! was not closed. `T: PropsQuadLane` ADMITS a dual — the lane answers
+    //! was not closed. The quadrature lane TRAIT admitted a dual — its arm answered
     //! "no certified quadrature" and the +V check reported that refusal at
     //! run time — so the certification duty rode a trait name that spells
     //! none of this gate's, invisible to every instrument. What changed is
@@ -1267,8 +1340,8 @@ pub mod bounds_allowlist {
     //!
     //! **What a future row owes instead of citing this one.** Two negative
     //! results carried its first draft and neither reaches the question: that
-    //! `topo::PropsQuadLane` does not imply [`Bounds`](super::Bounds) (true, checked by
-    //! deleting the term), and that a `PropsQuadLane`-style lane would have an
+    //! the quadrature lane trait did not imply [`Bounds`](super::Bounds) (true, checked by
+    //! deleting the term), and that a refusing lane in that shape would have an
     //! empty refusing side since D1 (also true). Both establish that SOME
     //! bracket bound is needed, never that the WEAK one is.
     //!
@@ -1375,8 +1448,8 @@ impl<T: Bounds> Enclosure for T {
 /// So this trait is not "a better [`Enclosure`]" and does not replace it.
 /// It is the access-control half, split out, so that the two questions
 /// have separate doors and a caller has to say which one it is asking.
-/// It deliberately carries **one method and no supertrait**: a body that
-/// needs the raw bracket too holds both doors, and says so with the
+/// It carries **no supertrait**: a body that needs a bracket accessor
+/// too holds both doors, and says so with the
 /// **sole** bound [`CertifiedBounds`] — still an honest inventory of the
 /// doors it uses, which is the point of the alias: the inventory is
 /// spelled as one name rather than as a compound bound the
@@ -1386,7 +1459,11 @@ impl<T: Bounds> Enclosure for T {
 /// [`Enclosure`] would re-bundle exactly what is being split, and would
 /// put a third `lo`/`hi` in scope wherever a compound bound is written —
 /// the ambiguity this module's style note already warns about for the
-/// [`Bounds`]/[`Enclosure`] pair.
+/// [`Bounds`]/[`Enclosure`] pair. The second method below is not a
+/// door of that kind and is not reached for instead of one:
+/// [`Self::crossing_bracket`] answers a *refused* value's own endpoints
+/// for the single consumer that carries the refusal in a channel of its
+/// own, and promises nothing about the computation behind them.
 /// Certification entry points bound by `CertifiedEnclosure` cannot be
 /// handed a value that merely *has* a bracket; containment checks bounded
 /// by [`Bounds`] keep working on values certification would refuse, which
@@ -1403,9 +1480,11 @@ impl<T: Bounds> Enclosure for T {
 ///   threshold [`crate::predicate::Decide::sign_within`] refuses at, and
 ///   for the same reason. Empty and NaI sit below it, so the NaN
 ///   brackets they store never leave the door.
-/// - [`crate::RingInterval`] — refuses on poison. The ring has two
-///   states and no decorations, so `is_poison` is its whole
-///   domain-violation channel.
+/// - [`crate::RingInterval`] — refuses on poison, which it reads off
+///   the decoration it carries (`dec < Def`, with NaI and empty below
+///   that): `is_poison` is its whole domain-violation channel, and a
+///   refused ring still has endpoints, which is what
+///   [`Self::crossing_bracket`] reports at it.
 /// - `k_stats::Probe` (feature `probe`) — refuses on NaN, byte-for-byte
 ///   as `f64` does; D9 forbids the recording lane diverging.
 ///
@@ -1433,6 +1512,33 @@ pub trait CertifiedEnclosure: Copy {
     /// through `f64` combinators (`f64::max` returns the non-NaN operand),
     /// whereas a `None` the caller must destructure cannot be ignored.
     fn certified_bracket(self) -> Option<(f64, f64)>;
+
+    /// The endpoints this value carries, refused or not — **for a
+    /// consumer whose own refusal channel is a decoration** rather than
+    /// an absence, so the refusal travels in that channel instead of
+    /// erasing the bracket that came with it.
+    ///
+    /// This is **not** a second certified door and promises nothing:
+    /// the pair brackets the reals the value stands for and says
+    /// nothing about the computation behind it, exactly as
+    /// [`Bounds`] does. A caller that may ACT on the bracket asks
+    /// [`Self::certified_bracket`], whose `None` it cannot ignore; a
+    /// caller that reads this one is obliged to carry the refusal
+    /// itself, and the C9 ring's crossing
+    /// (`RingInterval::from_certified`) is the one in the tree — it
+    /// pairs this with the certified door's verdict and caps the
+    /// decoration at `Trv` when the verdict is a refusal, which keeps
+    /// the refusal readable at a type where NaN endpoints would not be.
+    ///
+    /// The default is the honest answer for a scalar whose refusal has
+    /// no bracket to report: `f64`'s refusal IS its NaN, so the pair is
+    /// `(NaN, NaN)` and nothing is lost. A scalar that records a domain
+    /// violation *beside* a sound bracket — the interval scalar's `Trv`
+    /// after a clamp, the ring's zero-touching quotient — overrides
+    /// this and reports those endpoints.
+    fn crossing_bracket(self) -> (f64, f64) {
+        self.certified_bracket().unwrap_or((f64::NAN, f64::NAN))
+    }
 }
 
 /// `f64` refuses on NaN and only on NaN: the bracket is the value, so
@@ -1520,6 +1626,13 @@ pub(crate) fn powi_by_squaring<T: Real>(base: T, n: i32) -> T {
 /// operations because IEEE 754 *requires* them to be exact/correctly
 /// rounded, so they are already bit-identical everywhere (and faster).
 impl Real for f64 {
+    /// **INEXACT**: `f64` compares one rounded number against another.
+    /// Its [`Real::register_equal`] refuses with
+    /// [`SymRegistration::Disputed`] for that reason, and the same
+    /// reason is why a theorem contradicted by this channel is a
+    /// dispute rather than a defect.
+    const WITNESS: Witness = Witness::Inexact;
+
     /// The identity — every `f64` embeds as itself, exactly.
     fn from_f64(x: f64) -> Self {
         x
@@ -1598,12 +1711,18 @@ impl Real for f64 {
     /// (`m10_9_no_registrant_lies_on_any_measured_document` pins
     /// `registered` per document, identical at all three rows).
     ///
-    /// **This witness is INEXACT, so its refusal is
+    /// **This witness is INEXACT** — [`Real::WITNESS`] is
+    /// [`Witness::Inexact`] at this scalar, and this arm is that const
+    /// spelled as a refusal — **so its refusal is
     /// [`SymRegistration::Disputed`] and never
     /// [`SymRegistration::Contradicted`]**: a comparison at a slack
     /// cannot tell a false claim from a true one the arithmetic lost at
     /// this scale, and `Contradicted` is reserved for the exact witness
-    /// that can ([`crate::Interval`]'s meet).
+    /// that can ([`crate::Interval`]'s meet). The same const is what
+    /// keeps a theorem this channel contradicts a counted dispute
+    /// rather than a panic ([`crate::SymCounts::theorems_disputed`]);
+    /// a row pins the two together, so the door and the tier cannot
+    /// drift apart.
     ///
     /// A poisoned value witnesses nothing: NaN is not a real, so no
     /// claim about it is checkable.

@@ -5,6 +5,8 @@ title: 26 citations under crates/ name work/view/ rows that the 2026-09-17 re-sc
 status: open
 opened: 2026-09-19
 refs: [stale-file-citations-after-the-split, renamed-module-leaves-citations-in-two-other-programs]
+priority: P4
+cost: E
 ---
 
 Found by a VNEWS census lane

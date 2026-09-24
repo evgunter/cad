@@ -399,7 +399,7 @@ const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gat
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 73] = [
+const CORPUS: [(&str, Disposition); 75] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
@@ -555,6 +555,24 @@ const CORPUS: [(&str, Disposition); 73] = [
     // 900× outside that band and pin the adoption bar there instead).
     ("tests/fixtures/poleguard/poleband_eps12.step", EpsSensitive),
     ("tests/fixtures/poleguard/polefrustum.step", EpsSensitive),
+    // -- tests/fixtures/rim-only-cap/ ---------------------------------
+    // A sphere cap stated as one rim circle and its base disc: the pole
+    // is interior to the sphere face and no meridian or pole vertex is
+    // stated. Both statements of the rim — one closed circle edge, two
+    // half arcs — are adopted as written and pass the gate; what the
+    // mesh lane answers for the sphere face is `meridian_free_cap.rs`'s
+    // row. BOTH CENSUSES MOVE BY DESIGN when import learns to re-mint
+    // this face in the seamed form
+    // (`work/exch/import-normalizes-the-rim-only-cap.md`): more faces,
+    // edges and vertices here is that unit working, not a regression.
+    (
+        "tests/fixtures/rim-only-cap/rimonly1.step",
+        Pass(1, 1, 2, 1, 1),
+    ),
+    (
+        "tests/fixtures/rim-only-cap/rimonly2.step",
+        Pass(1, 1, 2, 2, 2),
+    ),
     // #653's import route: one D-prism, stated four ways. The two
     // `split_*` files state the cylindrical face's vertical boundary as
     // two collinear `EDGE_CURVE`s, which is what every exporter emits
@@ -1081,10 +1099,12 @@ fn the_refusal_carries_the_kernels_verdicts() {
         *solid, None,
         "a one-solid file's subject is the assembled body itself"
     );
-    assert_eq!(
-        errors.as_slice(),
-        [topo::ValidationError::NegativeVolume],
-        "the verdicts are the kernel's own, unfiltered and unrephrased"
+    assert!(
+        matches!(
+            errors.as_slice(),
+            [topo::ValidationError::NegativeVolume { .. }]
+        ),
+        "the verdicts are the kernel's own, unfiltered and unrephrased: {errors:?}"
     );
     let msg = e.to_string();
     for want in [

@@ -1074,3 +1074,121 @@ pub(crate) fn ops_strut_cube(tol: Tol) -> OpsStrutCube {
     assert_eq!(crate::validate::validate(&body), Ok(()));
     OpsStrutCube { body, outer, strut }
 }
+
+// ---------------------------------------------------------------------
+// The offset-fit door's subject
+// ---------------------------------------------------------------------
+
+/// **Two offset certificates agree, limb for limb, by bits.**
+///
+/// The five limbs are the whole certificate's numeric content, and a
+/// row that compares four of them is a row with a hole in it — which
+/// is why this is one function rather than a loop each caller writes.
+/// `what` names the pair so a failure says which comparison broke.
+pub(crate) fn assert_certificates_agree(
+    what: &str,
+    got: &geom::OffsetCertificate,
+    expected: &geom::OffsetCertificate,
+) {
+    for (limb, a, b) in [
+        ("distance", got.distance, expected.distance),
+        ("on_locus_max", got.on_locus_max, expected.on_locus_max),
+        ("hull_sup", got.hull_sup, expected.hull_sup),
+        ("normal_floor", got.normal_floor, expected.normal_floor),
+        (
+            "curvature_reach",
+            got.curvature_reach,
+            expected.curvature_reach,
+        ),
+    ] {
+        assert_eq!(
+            a.to_bits(),
+            b.to_bits(),
+            "{what}: {limb} moved behind the door ({a:e} vs {b:e})"
+        );
+    }
+    assert_eq!(
+        (got.cells, got.samples),
+        (expected.cells, expected.samples),
+        "{what}: the schedule moved"
+    );
+}
+
+/// A gently bowed polynomial patch over `[0,1]²` — a base whose offset
+/// is genuinely not a NURBS, so the fit has real work to do.
+///
+/// **The bow is the largest one that certifies at every eps row, and
+/// that is what picks it.** This patch goes through the `Tol` door, so
+/// its fit target is the RUN's ε, and the gate commits three rows —
+/// `1e-6`, the default `1e-9` and `1e-12`
+/// (`.github/workflows/ci.yml`, `EPS_ROWS`). Measured through the mint
+/// door at `d = 0.05`:
+///
+/// | bow | 1e-6 | 1e-9 | 1e-12 |
+/// |---|---|---|---|
+/// | `0.15` | `rounds 0`, `hull_sup 4.4e-7` | `rounds 3`, `9.3e-10` | budget exhausted at `3.3e-10` |
+/// | `1.5e-2` | `rounds 0`, `4.2e-11` | `rounds 0`, `4.2e-11` | `rounds 3`, `8.9e-13` |
+/// | `1.5e-5` | `rounds 0`, `2.9e-15` | `rounds 0`, `2.9e-15` | `rounds 0`, `2.9e-15` |
+///
+/// **No bow refines at every row.** The refinement loop runs only when
+/// the unrefined residual is above the target, so running it at `1e-6`
+/// wants a residual above `1e-6`, while certifying at `1e-12` wants
+/// the converged residual below `1e-12` — and the loop saturates near
+/// `3e-10` on this geometry (six rounds, a 27×27 grid), so the two
+/// cannot both hold. What IS available is a certificate whose limbs
+/// are measurements rather than f64 rounding noise at every row, and
+/// a loop that runs at the tightest one; `1.5e-2` is the largest bow
+/// with both, and `curvature_reach` at it is `1.0e2` rather than the
+/// `1.0e5` a hair-thin bow reports.
+pub(crate) fn bowed_patch() -> geom::NurbsSurface<f64> {
+    /// The bow's amplitude in `u`; the `v` bow is two thirds of it.
+    const BOW: f64 = 1.5e-2;
+    let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut control = Vec::new();
+    for i in 0..3 {
+        for j in 0..3 {
+            let (u, v) = (f64::from(i) * 0.5, f64::from(j) * 0.5);
+            control.push(Point3::new(
+                u,
+                v,
+                BOW * u * (1.0 - u) + (BOW * 2.0 / 3.0) * v * v,
+            ));
+        }
+    }
+    geom::NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap()
+}
+
+/// The certified `Approx` surface of [`bowed_patch`]'s `+0.05` offset,
+/// at the RUN's tolerance — the smallest subject that reaches the
+/// offset-fit door, lifted to `T` verbatim
+/// (`geom::ApproxSurface::map_scalar`, which carries the stored
+/// certificate rather than re-deriving it, so the lift is available at
+/// scalars that have no fit).
+pub(crate) fn bowed_offset_approx<T: geom_core::Real>() -> geom::ApproxSurface<T> {
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let minted =
+        geom_brep::approx_offset_surface(std::sync::Arc::new(bowed_patch()), 0.05, tol, band)
+            .expect("the bowed patch's offset fits at every eps row the gate commits");
+    let geom::Surface::Approx(approx) = minted else {
+        panic!("the mint door produces `Surface::Approx`");
+    };
+    approx.map_scalar(T::from_f64)
+}
+
+/// The `mvfs` seed body with [`bowed_offset_approx`] on its one face —
+/// the smallest body whose check-1 walk reaches the offset-fit door.
+pub(crate) fn approx_faced_body<T: geom_core::Decide>() -> (Body<T>, FaceKey) {
+    let mut body = Body::<T>::new();
+    let created = body
+        .mvfs(Point3::new(T::zero(), T::zero(), T::zero()))
+        .expect("mvfs has no preconditions");
+    body.set_face_surface(
+        created.face,
+        crate::euler::FaceSurface::New(geom::Surface::Approx(std::sync::Arc::new(
+            bowed_offset_approx::<T>(),
+        ))),
+    )
+    .expect("the seed face takes a fresh surface");
+    (body, created.face)
+}

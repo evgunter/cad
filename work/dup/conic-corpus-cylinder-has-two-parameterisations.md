@@ -4,6 +4,8 @@ kind: issue
 title: The two conic-pruning suites cut with two spellings of one three-arc cylinder
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 

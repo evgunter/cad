@@ -4,6 +4,8 @@ kind: issue
 title: a bare backtick name in a doc comment is checked by nothing; 35 spans over 29 names in viewer
 status: open
 opened: 2026-09-16
+priority: P4
+cost: E
 ---
 
 

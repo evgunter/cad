@@ -4,6 +4,8 @@ kind: issue
 title: WitnessOutcome::BudgetExhausted fires from two caps (segments, cells) under one name — the payload, not the type, says which
 status: open
 opened: 2026-09-06
+priority: P1
+cost: E
 ---
 
 

@@ -4,6 +4,8 @@ kind: issue
 title: A boss on a widened derived frame refuses on the symbolic lane at clause 1: newell normalises a cross-sum whose enclosure contains zero, so a margin the tier proves zero is never asked
 status: open
 opened: 2026-09-14
+priority: P0
+cost: H
 ---
 
 
@@ -213,3 +215,21 @@ normalize that follows it is the place a `UnitVec3::new(sum,
 it lands, this site and `step-import`'s `recognize` (exch's
 `recognize-normalizes-without-a-length-decision-and-cannot-mint-the-witness`)
 are the only two callers of the bare door, and it retires with them.
+
+## Added 2026-09-21 (SYM-10's Phase 1): the site moves to the boss's SIDE plane on the sign-hull construction
+
+On `main` merged with `props/sign-hull`, the height document at
+`5e-2` (`m10_derived_frame_interval`'s `boss_on_widened_box`) refuses
+on the symbolic lane at the BOSS's side plane, loop 0 segment 0:
+`newell_plane_residual … margin is invalid` — under the shipped set at
+both lifts and under `none` — where Duff's construction refused at the
+boss's cap. Same class, same document, a different face of the same
+boss: the widened cap's newell normal is the enclosure the frame is
+built from either way, and which of the boss's newell sums straddles
+first is the construction's. The plain `Interval` lane on this
+document refuses earlier still, at the CUBE's `carrier_endpoint_end`
+`[0, 0.21]` (node 2), so the boss is never reached there. Measured by
+`sym10_phase1_the_derived_frame_rows_refusal_rendered` and
+`sym5_phase1_the_newell_refusal_at_5e_2` on `sym/10-decision-door`;
+the consequence for the row that pins the `none` rung is
+`work/decide/the-derived-frame-refusal-rows-none-rung-pins-the-retired-construction`.

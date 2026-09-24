@@ -283,3 +283,191 @@ lane and returned a MAJOR, two upheld MINORs and a rule change. On this
 program's posture that is the trigger working as written: a census's
 failure mode is a population that looks complete and is not, which is a
 confident wrong answer and not a refusal.
+
+## 2026-09-20 — wave 1 closed: four units, two negative results, 23 rows open
+
+All four wave-1 units are on `main`. The slate went from 14 rows to 23,
+which is the wave's largest single output and the thing to read it by.
+
+| unit | outcome | PR |
+|---|---|---|
+| `a-disabled-control-says-why-in-four-shapes` | the rule, the population, four rows filed | #2908 |
+| `seat-line-spells-the-list-mark-as-a-literal` | **negative result** — no code change | #2917 |
+| `is-instance-collapses-absent-and-wrong-kind` | `instance_check -> Result<(), AdmissionFault>` | #2916 |
+| `tone-is-a-value-in-frame-and-a-comment-in-two-panes` | `RowStatus::tone()`, and `app::toned` | #2915 |
+
+**Both rows closed at this entry were merged and still read `review`.**
+A row whose unit is on `main` and whose board entry says otherwise is
+the same defect as a stale citation, one level up; the census row closes
+too, because its deliverable — the rule and the classified population —
+landed, and each control that owes the rule is its own scheduled row.
+
+**Two of four units changed no behaviour a reader can see, and one
+changed no code at all.** That is the wave's real finding and it is
+about SPEC time, not about the lanes:
+
+- `seat_line` closed as a negative result. Its central argument rested
+  on a consumer `LIST_SEPARATOR` had lost the day after the row was
+  filed, and its subject fails the same two-part test that removed that
+  consumer. The argument is written into the row so the next sweep does
+  not re-mint it.
+- `is_instance` is a better door with no reader-visible difference, and
+  nothing said so until a reviewer read the Charter back at it.
+
+`plan.md` §Dispatch rules now carries what both cost: read a row's
+STATUS before its premise; apply the Charter's reader test at spec
+time; an orchestrator's fix shape is a claim and gets checked before it
+is issued; a `keep_out` carve-out beats a general fence ruling; fixing a
+sentence and adding a function are different acts.
+
+**Three lanes falsified something the orchestrator told them**, and in
+every case the lane was right: the two sibling rows were closed and not
+open; the `pane/create.rs` citation was stale in its number and exact
+in its subject, and the third copy was real; the absent-node sentence I
+recommended would have minted the node-side twin of a row open on this
+slate, and the shape I proposed would have needed an `[ev]` PR because
+`Standing`'s second clause is GQ7's ratified constraint.
+
+**The review tiers held.** The one unit given a correctness arm — the
+census — returned a MAJOR that a style lane alone would have recorded
+as taste. Both style reviews caught defects that would otherwise have
+merged: `seat_line`'s whole premise, and `tone`'s silent loss of
+compile-time exhaustiveness.
+
+**Operationally**: four concurrent code lanes saturated the box (load
+37, 0 GB free of 9), one lane's broad `pkill` damaged another's build,
+and GitHub Actions was billing-locked repo-wide for roughly five hours
+mid-wave. #2937 withdrew the local workspace-test instruction that
+caused most of it. Wave 2 mixes at most two code lanes with reading
+work.
+
+**Wave 2's order is `plan.md` §Order group 6**, which the census
+produced: the three controls that owe the rule, in the order that
+section states. Every one of them changes what a reader is told, which
+is the test this wave learned to apply first.
+
+## 2026-09-20 — the order's history moves out of the plan
+
+`work/README.md:24` says `plan.md` is the plan, **"present state
+only"**, and `log.md` is the append-only narrative. Two reviewers
+independently found the same defect in `plan.md` on 2026-09-20 — §Order
+had grown to 382 lines in three chronological strata holding an order,
+a superseding order and two retrospectives, so a reader arriving at
+opening group 3 had no signal it had been overruled 250 lines below.
+The file went 141 → 672 lines in three days under one author with no
+individual diff unreasonable, which is the register's own 449-line
+header shape.
+
+The repair is the contract rather than taste: **§Order now carries the
+live order and a disposition table for the discharged groups, and the
+history is here.** What follows is the section that was
+`plan.md` §Order's *"What re-deriving the order against the tree
+changed (2026-09-19)"*, moved verbatim so nothing is lost:
+
+### What re-deriving the order against the tree changed (2026-09-19)
+
+The order above was written at the re-scope and every row in it was
+written earlier still. Re-deriving each row's fix SITE against the tree
+at this program's first dispatch moved four of them. Recorded here
+rather than fixed silently, because the order is the thing a later
+session reads first.
+
+- **`converged-recourse-has-no-home` left group 1 and then left this
+  program — it is EDIT's now** (moved 2026-09-19; Ev granted the move
+  and the standing authority to re-home a unit between tracks without a
+  ruling). The group called it *"the third crosses a crate and
+  announces"*; announcing is not what it needed. Both shapes the row
+  states — a `pub const` beside `EditError`, or a `recourse()` method on
+  it — **add API surface to `crates/editor-core`**, and the
+  authorisation this program inherits is scoped to `EditError`'s
+  `Display` WORDING (Ev, in-chat, 2026-09-04). `EditError` is declared
+  in `crates/editor-core/src/edit.rs`, which is EDIT's territory. Only
+  the viewer arm stays here: a forward at one site in
+  `session/refuse.rs` once `editor-core` exposes the recourse, landing
+  with the EDIT unit that exposes it.
+- **`viewer-preview-names-a-verb-by-its-variant-identifier` is CLOSED
+  — it was already discharged when this program inherited it.**
+  `profile::path::Verb` has had a `Display` since
+  `work/fix/verb-and-dimension-render-through-debug` (FIX, PR 2347,
+  2026-09-11), and `PreviewError`'s arm in `crates/viewer/src/sketch.rs`
+  forwards to it — `{verb}`, not `{verb:?}`. **This entry first said the
+  row "cannot land from here alone" and routed it to PATHS**, which was
+  wrong: the orchestrator re-derived the row's citation and not its
+  premise. The correction is kept visible rather than overwritten
+  because the rule it breaks — *a row's premise ages against the tree
+  exactly like a citation does* — is the one handed to every lane this
+  program dispatches, and the register's own instances of it are mostly
+  the orchestrator's.
+- **`tone-is-a-value-in-frame-and-a-comment-in-two-panes` keeps its
+  place and loses a citation.** `pane/features.rs`'s hand-picked
+  `ui.weak` / `ui.colored_label` pair is there as described, with the
+  rule in a comment; `tree::RowStatus::badge()` is there and takes no
+  tone. The row's THIRD copy at `pane/create.rs:582-586` is not: those
+  lines are the `ShapeKind::Path` notation block today. The subject is
+  re-derived by the lane, not repointed by arithmetic — this register's
+  own rule.
+- **`the-new-document-button-states-its-refusal-twice` waits on the
+  census, one group later than the order puts it.** Its two answers are
+  *"read the refusal"* and *"keep the literal and delete the claim"*,
+  and the row says which is right is what
+  `a-disabled-control-says-why-in-four-shapes` asks generally. The
+  button is a genuine member of that general question — it IS gated on
+  the condition `NewDocument` refuses — so deciding it alone decides
+  the class from its easiest instance. The census goes first and this
+  row applies its rule.
+
+**And the frame.rs cluster is serialized, which the order does not
+say.** Groups 3, 4, part of 5 and `document-news-has-no-home` all edit
+`crates/viewer/src/frame.rs`. Under merge-only rules two lanes in that
+file at once is a conflict bought for nothing, so **at most one
+`frame.rs` lane runs at a time**, whatever the group order allows in
+parallel elsewhere.
+
+## A note from VIEW (2026-09-21) — one rank row re-homed here
+
+`a-derived-pick-index-failure-outshouts-its-cause` (P1, Ev's report of
+2026-09-17) moved by `git mv`, id, body and history unchanged. Ev
+approved the move in chat. VIEW is winding down and does not dispatch.
+
+**Why this program and not VSEAM or CHROME.** The row's finding is
+that a pick-index failure CAUSED by a failed node is the loud banner
+while the node's own Boolean refusal is the quiet line below it — *a
+downstream effect of a failure the user already has in front of them
+should not outrank that failure*. That is a rank defect, and your
+§Charter names `rank-one-discards-the-frames-other-news` as a member
+of exactly this class. Nothing it touches survives the frame.
+
+A second half rides it: the two messages name different nodes (root 11
+versus the node that actually failed, 13), so a reader cannot tell
+they are about one event. The two sites are `viewer`'s `pickindex.rs`
+(the *"could not be tessellated or indexed"* arm) and `editor-core`'s
+`resolve/hit.rs` (*"no name table to invert"*) — the second is EDIT's
+ground and a hand-off rather than a diff from here.
+
+**Live-ground note**: `pickindex.rs` is claimed by VGEOM, VSEAM and
+FIT as well, and VGEOM has a live lane on it (`vgeom/pick-distance`,
+PR #3007's fix pass). Worth a check before dispatching.
+
+Signed (VIEW orchestrator).
+
+## 2026-09-23 — a CHROME lane touched `pane/properties.rs` under #2961
+
+`chrome/properties-messages` (CHROME's P0,
+`messages-in-the-creation-and-properties-panes-still-draw-past-their-row`)
+edits `crates/viewer/src/pane/properties.rs`, which
+`vnews/properties-controls-read-their-refusals` (#2961) edits too.
+Functions touched: `properties_ui`, `feature_rows_ui`, `add_param_ui`
+(its offer line and its already-declared arm, now the free function
+`exists_notice`), `standing_ui`, `entity_standing_ui`, `instance_ui`
+(the `free_move_check` fault line only), `slot_value_ui` (its fault
+line is removed; it is said under the row now), `slot_notes_ui` (now a
+wrapper over the free function `slot_notes`) and `param_bounds_ui`
+(now a wrapper over `bounds_notes`). New at the end of the file: the
+three free functions and a `#[cfg(test)] mod layout_tests`, beside
+#2961's `mod tests`. The diff is per site. Merging it into #2961 is
+mechanical except in one place: #2961's new `ui.weak(fault.to_string())`
+in `instance_ui`, under the disabled hide toggle, is a sentence under
+CHROME's census test and wants `crate::widgets::message_toned(…,
+Tone::Advisory)` like its neighbour.
+
+(CHROME implementer lane, chrome/properties-messages)

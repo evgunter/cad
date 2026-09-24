@@ -83,8 +83,10 @@ exists: `evaluate(doc, prior, …)`, `eval/mod.rs:1002`).
 
 **The measured problem**: if `evaluate::<Dual64>` compiled today, a
 corpus document with an ellipse-trimmed or spline face would FAIL
-the product gather's tier-3 (+V through `PropsQuadLane`, whose
-`Dual` arm refuses) with `VolumeUncomputable`; `Approx` faces
+the product gather's tier-3 (+V through the quadrature door
+`topo::QuadLane`, which a `Dual` cannot construct, so the walk holds
+none and check 7's closed form refuses) with `VolumeUncomputable`;
+`Approx` faces
 report `ApproxLaneUnsupported`; curved coincident pairs
 `CensusUnsupported`. Those refusals are the system correctly
 saying *a dual may not certify* — asking a dual evaluation to
@@ -93,16 +95,18 @@ validate IS asking it to certify.
 **Proposal**: the E4 sensitivity pass evaluates WITHOUT the
 certified gates: the evaluation service gains a scalar-policy seam
 — certified validation (the product gather's `validate_geometric`,
-`recertify_approx`, the census door) runs at scalars with
-certification rights (f64's decide-with-escalation lane and
-`Interval`), and is structurally absent at `Dual`. This is sound
-because the sensitivity is OF THE AS-BUILT BODY: the dual's value
-channel is bit-identical to the f64 build (D9), which was already
-validated in the f64 evaluation E4 rides beside; re-validating the
-same bits through refusing arms adds no information and subtracts
-availability. The E4 driver asserts (cheaply, by content key
-equality of the value channel where it needs a hook) that it is
-differentiating the build the f64 run validated.
+the offset fit's `OffsetFitLane::recertify`, the hollowing verb's
+`ShellDoor`, the census door) runs at scalars with certification
+rights (f64's decide-with-escalation lane and `Interval`), and is
+structurally absent at `Dual`. This
+is sound because the sensitivity is OF THE AS-BUILT BODY: the
+dual's value channel is bit-identical to the f64 build (D9), which
+was already validated in the f64 evaluation E4 rides beside;
+re-validating the same bits through refusing arms adds no
+information and subtracts availability. The E4 driver asserts
+(cheaply, by content key equality of the value channel where it
+needs a hook) that it is differentiating the build the f64 run
+validated.
 
 - Not a weakening: nothing a dual pass produces is consumed as a
   certificate anywhere (DL1); its outputs are E4-marked

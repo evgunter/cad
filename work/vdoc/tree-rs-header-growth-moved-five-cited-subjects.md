@@ -4,6 +4,8 @@ kind: issue
 title: Five cited subjects in viewer/src/tree.rs moved when CHROME grew its module header; one of them had its text rewritten
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

@@ -5,6 +5,8 @@ title: demos/tour klein scene still draws its U-turn spine as two elbows althoug
 status: open
 opened: 2026-09-16
 refs: [2752, 368]
+priority: P3
+cost: D
 ---
 
 Filed by the S-BOOL orchestrator from BOOL-6 (PR 2752). The Klein

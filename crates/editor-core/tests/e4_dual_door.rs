@@ -57,7 +57,12 @@
 //!
 //! **This suite is the record of which bounds a dual satisfies.** When
 //! that set changes, the change belongs in this header with its date,
-//! because nothing else in the tree states it.
+//! because nothing else in the tree states it. 2026-09-21: the set
+//! lost `ShellLane`, its eleventh term. Which scalars can form the
+//! shell door's call is now a VALUE the DL3 policy answers
+//! (`topo::AtRestPolicy::shell_door`), so the capability rides the
+//! `AtRestPolicy` term already in the list and the refusal a dual
+//! meets at a shell node is unchanged.
 
 use geom_core::Dual64;
 use geom_core::predicate::Decide;
@@ -76,8 +81,7 @@ where
         + editor_core::analysis::AxisScalar
         + editor_core::analysis::SeedScalar
         + editor_core::MinClearanceLane
-        + editor_core::eval::SectionScalar
-        + editor_core::ShellLane,
+        + editor_core::eval::SectionScalar,
 {
 }
 
@@ -102,8 +106,7 @@ where
         + editor_core::analysis::AxisScalar
         + editor_core::analysis::SeedScalar
         + editor_core::MinClearanceLane
-        + editor_core::eval::SectionScalar
-        + editor_core::ShellLane,
+        + editor_core::eval::SectionScalar,
 {
     let _ = editor_core::eval::evaluate::<T>;
 }
@@ -124,8 +127,7 @@ where
         + editor_core::analysis::AxisScalar
         + editor_core::analysis::SeedScalar
         + editor_core::MinClearanceLane
-        + editor_core::eval::SectionScalar
-        + editor_core::ShellLane,
+        + editor_core::eval::SectionScalar,
 {
     requires_the_whole_eval_scalar_set::<T>();
 }

@@ -419,13 +419,13 @@ impl<T: Decide> Body<T> {
         let before = self.arena_counts();
 
         // ---- Preconditions: no mutation until every check passes. ----
-        let solid_data = self.get_solid(solid).ok_or(EulerOpError::StaleKey {
+        let listed = self.shells_of_solid(solid).ok_or(EulerOpError::StaleKey {
             key: EntityId::Solid(solid),
         })?;
-        let [shell] = solid_data.shells[..] else {
+        let [shell] = listed[..] else {
             return Err(EulerOpError::SolidNotSingleShell {
                 solid,
-                shells: solid_data.shells.len(),
+                shells: listed.len(),
             });
         };
         let shell_data = self.get_shell(shell).ok_or(EulerOpError::StaleKey {

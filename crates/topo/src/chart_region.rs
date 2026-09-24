@@ -435,186 +435,209 @@ impl core::fmt::Display for ChartRegionError {
 
 impl std::error::Error for ChartRegionError {}
 
-/// **The per-scalar chart-region lane** — the static split that lets a
-/// `Decide`-generic consumer (the census arms) hold a dual body without
-/// holding a chart-region predicate: bracket-carrying scalars (`f64`,
-/// `Probe`, the interval scalar) reach [`chart_region_overlap`]; the
-/// dual scalar REFUSES statically, its impl instantiating none of the
-/// predicate (the `PropsQuadLane` shape). The census maps that `None`
-/// to its typed unsupported refusal.
+/// **The chart-region door, as a value** — what lets a `Decide`-generic
+/// MIXED pass (the census arms) hold a dual body without holding a
+/// chart-region predicate. The census runs at every `AtRestPolicy`
+/// scalar with a bracket, a [`Dual`](geom_core::Dual) included, and
+/// no bound on a whole function can say *"this arm certifies, the rest
+/// does not"*; so the passes that run at both kinds of scalar take the
+/// door as `Option<RegionLane<T>>`, and `None` is the arm's own typed
+/// refusal ([`crate::ValidationError::CensusLaneUnsupported`] at the
+/// two reporting arms, a `false` at the crossing rung's backing
+/// consult) rather than a silent skip.
 ///
-/// **What this lane is for, and what it is not.** It is what lets a
-/// MIXED pass keep going at a dual — no bound on a whole function can
-/// say *"this arm certifies, the rest does not"*, so the arm carries
-/// its own refusal. It is **not** what keeps a dual out of the
-/// predicate: [`chart_region_overlap`]'s own bound is
+/// Holding a value IS the statement that the scalar can certify: the
+/// one constructor is [`RegionLane::certified`], in an `impl` block
+/// bounded `Decide + `[`CertifiedBounds`], and its two fields are
+/// [`chart_region_overlap`] and [`declared_pair_overlap`] — the doors
+/// themselves, at the same bound, so the certified callers reach the
+/// same functions on the same inputs (`wiring_rows` pins both
+/// pointers). Nothing dispatches on the scalar at run time and there
+/// is no blanket impl: the certified name
+/// ([`crate::validate_pseudomanifold_certificate`]) supplies `Some` by
+/// name and its `_structural` twin supplies `None`.
+///
+/// **What this value is for, and what it is not.** It is not what
+/// keeps a dual out of the predicate: the doors' own bound is
 /// `Decide + `[`CertifiedBounds`], which [`geom_core::Dual`] does not
-/// satisfy, so the door refuses an external caller structurally whether
-/// or not this lane is consulted. That matches the other three lanes'
-/// doors, all of which carry [`geom_core::CertifiedEnclosure`]. See the
-/// M9-2 entry in `geom-core/src/real.rs`'s `Bounds` scope rule.
-pub trait ChartRegionLane: Decide {
-    /// The overlap door at this scalar, or `None` when the scalar has
-    /// no certified lane (dual) — the census maps `None` to its typed
-    /// unsupported refusal, never to a silent skip.
-    fn chart_overlap(
-        body_a: &Body<Self>,
-        face_a: FaceKey,
-        body_b: &Body<Self>,
-        face_b: FaceKey,
-        band: Band,
-    ) -> Option<Result<ChartOverlap, ChartRegionError>>;
-
-    /// The same door for a pair whose chart authority may be a
-    /// VERIFIED DECLARATION — [`declared_pair_overlap`], which adds the
-    /// world-carrier arm below the structural rung and therefore
-    /// demands Door 1's verdict in hand. `None` carries the same
-    /// meaning: no certified lane at this scalar.
-    fn declared_overlap(
-        body_a: &Body<Self>,
-        face_a: FaceKey,
-        body_b: &Body<Self>,
-        face_b: FaceKey,
-        door_one: crate::contact::ContactVerdict,
-        band: Band,
-    ) -> Option<Result<ChartOverlap, ChartRegionError>>;
-}
-
-impl ChartRegionLane for f64 {
-    fn chart_overlap(
-        body_a: &Body<Self>,
-        face_a: FaceKey,
-        body_b: &Body<Self>,
-        face_b: FaceKey,
-        band: Band,
-    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
-        Some(chart_region_overlap(body_a, face_a, body_b, face_b, band))
-    }
-
-    fn declared_overlap(
-        body_a: &Body<Self>,
-        face_a: FaceKey,
-        body_b: &Body<Self>,
-        face_b: FaceKey,
-        door_one: crate::contact::ContactVerdict,
-        band: Band,
-    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
-        Some(declared_pair_overlap(
-            body_a, face_a, body_b, face_b, door_one, band,
-        ))
-    }
-}
-
-#[cfg(feature = "probe")]
-impl ChartRegionLane for geom_core::Probe {
-    fn chart_overlap(
-        body_a: &Body<Self>,
-        face_a: FaceKey,
-        body_b: &Body<Self>,
-        face_b: FaceKey,
-        band: Band,
-    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
-        Some(chart_region_overlap(body_a, face_a, body_b, face_b, band))
-    }
-
-    fn declared_overlap(
-        body_a: &Body<Self>,
-        face_a: FaceKey,
-        body_b: &Body<Self>,
-        face_b: FaceKey,
-        door_one: crate::contact::ContactVerdict,
-        band: Band,
-    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
-        Some(declared_pair_overlap(
-            body_a, face_a, body_b, face_b, door_one, band,
-        ))
-    }
-}
-
-#[cfg(feature = "interval")]
-impl ChartRegionLane for geom_core::interval::Interval {
-    fn chart_overlap(
-        body_a: &Body<Self>,
-        face_a: FaceKey,
-        body_b: &Body<Self>,
-        face_b: FaceKey,
-        band: Band,
-    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
-        Some(chart_region_overlap(body_a, face_a, body_b, face_b, band))
-    }
-
-    fn declared_overlap(
-        body_a: &Body<Self>,
-        face_a: FaceKey,
-        body_b: &Body<Self>,
-        face_b: FaceKey,
-        door_one: crate::contact::ContactVerdict,
-        band: Band,
-    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
-        Some(declared_pair_overlap(
-            body_a, face_a, body_b, face_b, door_one, band,
-        ))
-    }
-}
-
-/// **The symbolic tier over a certifying scalar** (`geom_core::sym`):
-/// the overlap doors are the base scalar's, run at `Sym<T>`. The tier
+/// satisfy, so the predicate is uninstantiable at one however it is
+/// reached — including from outside the crate, where no census is
+/// running. That matches the other lane doors (`topo::QuadLane::certified`,
+/// the fitted-pcurve lane's), all of which carry
+/// [`geom_core::CertifiedEnclosure`]. See the M9-2 entry in
+/// `geom-core/src/real.rs`'s `Bounds` scope rule.
+///
+/// **The symbolic tier over a certifying scalar** (`geom_core::sym`)
+/// holds the BASE scalar's doors, run at `Sym<T>` itself: the tier
 /// alters one decision rule inside the scalar and nothing about what a
-/// chart region is, so demoting to the dual's `None` here would drop a
-/// certified door from the driver's own replay.
-impl<T> ChartRegionLane for geom_core::Sym<T>
-where
-    geom_core::Sym<T>: Decide,
-    T: geom_core::CertifiedBounds,
-{
-    fn chart_overlap(
-        body_a: &Body<Self>,
-        face_a: FaceKey,
-        body_b: &Body<Self>,
-        face_b: FaceKey,
-        band: Band,
-    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
-        Some(chart_region_overlap(body_a, face_a, body_b, face_b, band))
-    }
+/// chart region is, so demoting it to the dual's `None` would drop a
+/// certified door from the driver's own replay; `Sym<T>:
+/// CertifiedBounds` whenever `T` is, so the constructor is there for
+/// it.
+///
+/// A scalar that may not certify cannot hold one — the constructor's
+/// `impl` block is bounded on the right, so the value cannot be
+/// written, let alone handed to the census:
+///
+/// ```compile_fail,E0599
+/// use geom_core::Dual64;
+/// use topo::RegionLane;
+/// let _ = RegionLane::<Dual64>::certified();
+/// ```
+///
+/// The code is `E0599` and not [`chart_region_overlap`]'s `E0277`,
+/// because the two are refused at different places: a free function's
+/// bound is an unsatisfied trait obligation on the call (`E0277`),
+/// while `certified` is an associated function that EXISTS on
+/// `RegionLane<Dual64>` and whose `impl` block's bounds are not met
+/// (`E0599`, read off `rustc` on the snippet). Stable rustdoc verifies
+/// only that the block fails to build (`geom_core::spline::hull`'s
+/// rule), so the code beside the fence is a statement and not a check.
+#[derive(Clone, Copy)]
+#[allow(clippy::type_complexity)]
+pub struct RegionLane<T: Decide> {
+    /// [`chart_region_overlap`], and nothing else can be written here
+    /// (`wiring_rows` pins the pointer).
+    chart_overlap:
+        fn(&Body<T>, FaceKey, &Body<T>, FaceKey, Band) -> Result<ChartOverlap, ChartRegionError>,
+    /// [`declared_pair_overlap`] — the same door for a pair whose chart
+    /// authority may be a VERIFIED DECLARATION, which adds the
+    /// world-carrier arm below the structural rung and therefore
+    /// demands Door 1's verdict in hand. Pinned the same way.
+    declared_overlap: fn(
+        &Body<T>,
+        FaceKey,
+        &Body<T>,
+        FaceKey,
+        crate::contact::ContactVerdict,
+        Band,
+    ) -> Result<ChartOverlap, ChartRegionError>,
+}
 
-    fn declared_overlap(
-        body_a: &Body<Self>,
-        face_a: FaceKey,
-        body_b: &Body<Self>,
-        face_b: FaceKey,
-        door_one: crate::contact::ContactVerdict,
-        band: Band,
-    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
-        Some(declared_pair_overlap(
-            body_a, face_a, body_b, face_b, door_one, band,
-        ))
+impl<T: Decide + CertifiedBounds> RegionLane<T> {
+    /// The certified chart-region doors — the whole inventory of this
+    /// value, and the only constructor there is.
+    #[must_use]
+    pub const fn certified() -> Self {
+        Self {
+            chart_overlap: chart_region_overlap::<T>,
+            declared_overlap: declared_pair_overlap::<T>,
+        }
     }
 }
 
-/// The dual lane: statically no chart-region predicate (trait docs).
-impl<T> ChartRegionLane for geom_core::Dual<T>
-where
-    geom_core::Dual<T>: Decide,
-{
-    fn chart_overlap(
-        _body_a: &Body<Self>,
-        _face_a: FaceKey,
-        _body_b: &Body<Self>,
-        _face_b: FaceKey,
-        _band: Band,
-    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
-        None
+impl<T: Decide> RegionLane<T> {
+    /// The structural door, reached by the census's conformal face-pair
+    /// arm.
+    ///
+    /// # Errors
+    ///
+    /// As [`chart_region_overlap`].
+    pub(crate) fn chart_overlap(
+        self,
+        body_a: &Body<T>,
+        face_a: FaceKey,
+        body_b: &Body<T>,
+        face_b: FaceKey,
+        band: Band,
+    ) -> Result<ChartOverlap, ChartRegionError> {
+        (self.chart_overlap)(body_a, face_a, body_b, face_b, band)
     }
 
-    fn declared_overlap(
-        _body_a: &Body<Self>,
-        _face_a: FaceKey,
-        _body_b: &Body<Self>,
-        _face_b: FaceKey,
-        _door_one: crate::contact::ContactVerdict,
-        _band: Band,
-    ) -> Option<Result<ChartOverlap, ChartRegionError>> {
-        None
+    /// The declared-pair door, reached by the census's confirm pass and
+    /// the crossing rung's backing consult.
+    ///
+    /// # Errors
+    ///
+    /// As [`declared_pair_overlap`].
+    pub(crate) fn declared_overlap(
+        self,
+        body_a: &Body<T>,
+        face_a: FaceKey,
+        body_b: &Body<T>,
+        face_b: FaceKey,
+        door_one: crate::contact::ContactVerdict,
+        band: Band,
+    ) -> Result<ChartOverlap, ChartRegionError> {
+        (self.declared_overlap)(body_a, face_a, body_b, face_b, door_one, band)
+    }
+}
+
+/// **The door's WIRING** — the rows that say which free functions
+/// [`RegionLane::certified`] holds, rather than what they answered.
+///
+/// A row that compares outputs cannot see a door re-pointed at a
+/// predicate that agrees on the fixture in front of it; these rows
+/// compare the stored function pointers instead, so a re-point is a
+/// failure no matter what it computes. Function-pointer identity is
+/// what `std::ptr::fn_addr_eq` compares and is not a language guarantee
+/// (identical bodies may be merged), which costs nothing here: a false
+/// PASS would need the re-pointed routine to be instruction-identical
+/// to the door it replaced. `certified_enclosure_impl_census` counts
+/// the scalars instantiated here against the `CertifiedEnclosure`
+/// impls in the tree, both directions.
+#[cfg(test)]
+mod wiring_rows {
+    use super::{RegionLane, chart_region_overlap, declared_pair_overlap};
+
+    /// `Ok(())` when both fields hold their door; otherwise the name of
+    /// the first field that does not, so a red says which pointer moved.
+    fn holds_the_certified_region_doors<T: super::Decide + geom_core::CertifiedBounds>()
+    -> Result<(), &'static str> {
+        let lane = RegionLane::<T>::certified();
+        if !std::ptr::fn_addr_eq(
+            lane.chart_overlap,
+            chart_region_overlap::<T> as fn(_, _, _, _, _) -> _,
+        ) {
+            return Err("chart_overlap is not `chart_region_overlap`");
+        }
+        if !std::ptr::fn_addr_eq(
+            lane.declared_overlap,
+            declared_pair_overlap::<T> as fn(_, _, _, _, _, _) -> _,
+        ) {
+            return Err("declared_overlap is not `declared_pair_overlap`");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn f64_is_wired_to_the_certified_region_doors() {
+        assert_eq!(
+            holds_the_certified_region_doors::<f64>(),
+            Ok(()),
+            "`RegionLane::<f64>::certified()` holds something other than the two doors"
+        );
+    }
+
+    /// The symbolic tier holds the base scalar's doors: the same
+    /// pointers, instantiated at `Sym<f64>`.
+    #[test]
+    fn sym_over_f64_is_wired_to_the_certified_region_doors() {
+        assert_eq!(
+            holds_the_certified_region_doors::<geom_core::Sym<f64>>(),
+            Ok(()),
+            "`RegionLane::<Sym<f64>>::certified()` holds something other than the two doors"
+        );
+    }
+
+    #[cfg(feature = "probe")]
+    #[test]
+    fn probe_is_wired_to_the_certified_region_doors() {
+        assert_eq!(
+            holds_the_certified_region_doors::<geom_core::Probe>(),
+            Ok(()),
+            "`RegionLane::<Probe>::certified()` holds something other than the two doors"
+        );
+    }
+
+    #[cfg(feature = "interval")]
+    #[test]
+    fn interval_is_wired_to_the_certified_region_doors() {
+        assert_eq!(
+            holds_the_certified_region_doors::<geom_core::interval::Interval>(),
+            Ok(()),
+            "`RegionLane::<Interval>::certified()` holds something other than the two doors"
+        );
     }
 }
 
@@ -667,8 +690,8 @@ fn definite_diag<T: Bounds>(
 /// }
 /// ```
 ///
-/// — and [`Dual`](geom_core::Dual) does not, whether or not
-/// [`ChartRegionLane`] is consulted:
+/// — and [`Dual`](geom_core::Dual) does not, whether or not a
+/// [`RegionLane`] is in hand:
 ///
 /// ```compile_fail,E0277
 /// use geom_core::{Band, Dual64};
@@ -1978,7 +2001,7 @@ pub struct WitnessBudget {
 /// guaranteed to cover every component — so the rung can DECLINE where
 /// an exact arrangement would have certified. It cannot certify
 /// anything false, because no candidate is believed until `contfp`
-/// certifies it on the lane's own arithmetic.
+/// certifies it on the scalar's own arithmetic.
 ///
 /// # What the argument does NOT claim
 ///
@@ -1990,10 +2013,10 @@ pub struct WitnessBudget {
 ///   overlap is not certifiable at this ε — and it is the same posture
 ///   [`overlap_of_regions`] takes on a thin region.
 /// - **The hint is nominal.** Candidates are built from each
-///   coordinate's bracket midpoint, so on an enclosure lane the
+///   coordinate's bracket midpoint, so at an enclosure scalar the
 ///   decomposition describes the nominal trims rather than every member
 ///   of the enclosure. It cannot mislead: the certificate is `contfp`'s
-///   and is taken on the lane's own arithmetic.
+///   and is taken on the scalar's own arithmetic.
 /// - **The frame still rotates.** The decomposition is a function of
 ///   the unordered PAIR of trims — swapping the arguments permutes
 ///   nothing in `X` — but not of the pair alone: it is taken along the
@@ -4043,13 +4066,10 @@ mod tests {
     // The seam-branch gate (item 5).
     // ------------------------------------------------------------------
 
+    /// The canonical cylinder of `radius` these fixtures are charted
+    /// on.
     fn cyl_surface(radius: f64) -> Surface<f64> {
-        Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius,
-            u_ref: Vec3::unit_x(),
-        }
+        crate::test_support_fixtures::CylFrame::canonical(radius).surface()
     }
 
     fn uv_of(outer: Vec<Point2<f64>>) -> FaceUv<f64> {
@@ -4143,8 +4163,9 @@ mod tests {
 
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use crate::source::GeomSource;
+    use crate::test_support_fixtures::unit_cyl_sheet;
     use geom::Curve3;
-    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_brep::EdgeCurveSpec;
 
     /// The shared test plane: chart u = x, v = y (u_ref = x̂, normal =
     /// ẑ ⇒ v_ref = ẑ × x̂ = ŷ).
@@ -4306,140 +4327,25 @@ mod tests {
     // tilted-cut exclusion at body level.
     // ------------------------------------------------------------------
 
-    /// A point of the unit cylinder at azimuth `u`, height `z`.
-    fn cyl_pt(u: f64, z: f64) -> Point3<f64> {
-        Point3::new(u.cos(), u.sin(), z)
-    }
-
-    /// A forward rim-arc spec at height `z` from azimuth `u0` to `u1`
-    /// (`ccw`), or from `u1` down to `u0` (`!ccw`, carried on the
-    /// −ẑ-axis circle so the parameter still runs forward).
-    fn rim_spec(
-        body: &mut Body<f64>,
-        cyl: crate::geometry::SurfaceKey,
-        z: f64,
-        u0: f64,
-        u1: f64,
-        ccw: bool,
-    ) -> EdgeCurveSpec<f64> {
-        let plane = body.add_surface(Surface::Plane {
-            origin: Point3::new(0.0, 0.0, z),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
-        });
-        let (carrier, t1) = if ccw {
-            (
-                Curve3::Circle {
-                    center: Point3::new(0.0, 0.0, z),
-                    axis: Vec3::unit_z(),
-                    radius: 1.0,
-                    u_ref: Vec3::unit_x(),
-                },
-                u1,
-            )
-        } else {
-            // Clockwise: angle t measured from u1 about −ẑ reaches
-            // azimuth u1 − t; params [0, u1 − u0].
-            (
-                Curve3::Circle {
-                    center: Point3::new(0.0, 0.0, z),
-                    axis: Vec3::new(0.0, 0.0, -1.0),
-                    radius: 1.0,
-                    u_ref: Vec3::new(u1.cos(), u1.sin(), 0.0),
-                },
-                u1 - u0,
-            )
-        };
-        let t0 = if ccw { u0 } else { 0.0 };
-        let mid = cyl_pt((u0 + u1) * 0.5, z);
-        EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection {
-                s1: cyl,
-                s2: plane,
-                witness: mid,
-            },
-            carrier,
-            param_start: t0,
-            param_end: t1,
-        }
-    }
-
-    /// An open cylinder-wall sheet `u ∈ [u0, u1] × z ∈ [z0, z1]` on
-    /// the unit cylinder about ẑ: pass `None` to mint the cylinder
-    /// surface (AFTER the seed solid exists — an unreferenced surface
-    /// is an orphan at the mvfs postcondition), `Some(key)` to share.
-    fn cyl_sheet(
-        body: &mut Body<f64>,
-        cyl: Option<crate::geometry::SurfaceKey>,
-        u0: f64,
-        u1: f64,
-        z0: f64,
-        z1: f64,
-    ) -> (FaceKey, crate::geometry::SurfaceKey) {
-        let (p00, p10, p11, p01) = (
-            cyl_pt(u0, z0),
-            cyl_pt(u1, z0),
-            cyl_pt(u1, z1),
-            cyl_pt(u0, z1),
-        );
-        let seed = body.mvfs(p00).unwrap();
-        let cyl = cyl.unwrap_or_else(|| body.add_surface(cyl_surface(1.0)));
-        let bottom = rim_spec(body, cyl, z0, u0, u1, true);
-        let e_b = body
-            .mev(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p10,
-                bottom,
-                Tol::witness(),
-            )
-            .unwrap();
-        let e_r = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: e_b.he_minus,
-                    he2: e_b.he_minus,
-                },
-                p11,
-                Tol::witness(),
-            )
-            .unwrap();
-        let top = rim_spec(body, cyl, z1, u0, u1, false);
-        let e_t = body
-            .mev(
-                MevSite::Fan {
-                    he1: e_r.he_minus,
-                    he2: e_r.he_minus,
-                },
-                p01,
-                top,
-                Tol::witness(),
-            )
-            .unwrap();
-        let he = body
-            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
-            .unwrap();
-        let face = body
-            .mef(
-                MefSite::Chords {
-                    he1: he,
-                    he2: e_b.he_plus,
-                },
-                EdgeCurveSpec::line_between(p01, p00),
-                FaceSurface::Shared(cyl),
-                Tol::witness(),
-            )
-            .unwrap()
-            .face;
-        (face, cyl)
-    }
-
     #[test]
     fn cylinder_walls_overlap_through_the_radius_lever() {
         let mut body = Body::<f64>::new();
-        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0);
-        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
+        let (w2, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (1.0, 2.4),
+            (0.3, 0.7),
+            true,
+            Tol::witness(),
+        );
         // Without minted caches a minting chart refuses (props.rs
         // posture) — plane charts are the only derive-on-demand lane.
         match chart_region_overlap(&body, w1, &body, w2, band()) {
@@ -4452,7 +4358,14 @@ mod tests {
             ChartOverlap::PositiveArea
         );
         // Disjoint azimuth ranges answer EMPTY.
-        let (w3, _) = cyl_sheet(&mut body, Some(cyl), 3.0, 4.0, 0.0, 1.0);
+        let (w3, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (3.0, 4.0),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         assert_eq!(
             chart_region_overlap(&body, w1, &body, w3, band()).unwrap(),
@@ -4466,7 +4379,14 @@ mod tests {
         // the tilted-section SINUSOID (the F5 envelope discipline
         // moved to (u, v)) refuses typed — never a chord read.
         let mut body = Body::<f64>::new();
-        let (wall, _) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0);
+        let (wall, _) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
 
         // The tilted section z = 0.4·x of the unit cylinder, as its

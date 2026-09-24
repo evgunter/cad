@@ -471,7 +471,15 @@ BOUNDS_ALLOWLIST=(
   # ratified by a ruling that does not mention it.
   "crates/topo/src/separation.rs 4 2026-07-29 (M5 PR 8) for three of them; the fourth (SolidSeparation::of) rests on SolidSeparation's own doc and OWES a ledger row"
   'crates/editor-core/src/eval/mod.rs 7 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/editor-core/src/eval/wire.rs 15 2026-07-29 (M5 PR 8), the driver amendment'
+  # 15 -> 16: `wire_shell` joined its nine sibling lowerings on the
+  # same header. The shell's seat door stopped being a trait method
+  # of its own and became `Verb::run_shell` on the seat's general
+  # `impl` block, whose header is `Decide + Bounds +
+  # PcurveFittedLane + AtRestPolicy` — the header every other verb
+  # in this file already reaches through, ratified for the same
+  # seam. The added occurrence is the caller spelling that header,
+  # not a new bracket read: nothing in `wire_shell` reads a bound.
+  'crates/editor-core/src/eval/wire.rs 16 2026-07-29 (M5 PR 8), the driver amendment'
   # M5 PR 11, the certified-quadrature plumbing.
   #
   # 19 -> 23 (TRIM-2 PR-1, the trimmed-region quadrature). The seam is
@@ -498,7 +506,14 @@ BOUNDS_ALLOWLIST=(
   # Neither reaches past the seam: no new public door, no new
   # instantiation site, and the `Bounds` reads are `from_certified` on
   # scalars the quadrature already consumed.
-  'crates/topo/src/props.rs 23 M5 PR 11, the certified-quadrature plumbing'
+  # 27 -> 28: `ShellDoor`'s constructor block (`Decide +
+  # CertifiedBounds + AtRestPolicy`). It is `QuadLane::certified`'s
+  # header one line up, for the same reason and over the same
+  # seam: the bound is the certification RIGHT the door's value
+  # stands for, so the type cannot be written at a scalar without
+  # it, and no bracket is read here — the door holds a function
+  # pointer and hands its arguments on.
+  'crates/topo/src/props.rs 28 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
@@ -516,15 +531,15 @@ BOUNDS_ALLOWLIST=(
   'crates/geom-brep/src/certify.rs 1 M7-8 2026-09-02, the lane split as a BOUND'
   'crates/topo/src/euler.rs 1 M7-8 2026-09-02, the lane split as a BOUND'
   # M9-2 PR-1, the chart-region overlap predicate.
-  'crates/topo/src/chart_region.rs 26 M9-2 PR-1, the chart-region overlap predicate'
+  'crates/topo/src/chart_region.rs 28 M9-2 PR-1, the chart-region overlap predicate; the region door value `RegionLane::certified` and its wiring row at the same bound'
   # 2026-08-29, the advisory-check registry.
-  'crates/editor-core/src/checks.rs 3 2026-08-29, the advisory-check registry'
+  'crates/editor-core/src/checks.rs 4 2026-08-29, the advisory-check registry'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
   # `validate.rs` carries the at-rest validator's nine and, since the
   # census took the C10 tree as its pre-filter, the three doors that
   # reach `census::census_and_certify` — the driver amendment's seam,
   # argued in the ledger under 2026-07-29 beside `separation`.
-  'crates/topo/src/validate.rs 12 2026-09-02, the certified at-rest validator; the three census doors under 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/validate.rs 21 2026-09-02, the certified at-rest validator; the three census doors under 2026-07-29 (M5 PR 8), the driver amendment'
   # The census's BVH pre-filter: `Trees::build`, `Candidates::build`,
   # the three census entries above them (`census_and_certify`,
   # `census_traces`, `census_with`) and the backstop's own tree over its
@@ -534,8 +549,11 @@ BOUNDS_ALLOWLIST=(
   'crates/topo/src/shell.rs 2 2026-09-02, the certified at-rest validator'
   # SEAT-4, in the `Bounds` trait's own doc rather than the
   # `bounds_allowlist` ledger: the verb dispatch site, which decides
-  # nothing and reads no bracket. SEAT-9 is the second header.
-  'crates/verbs/src/run.rs 2 SEAT-4 with SEAT-9, in the Bounds trait doc'
+  # nothing and reads no bracket. 2 -> 1: SEAT-9 was the shell
+  # door's own second header, and the shell door is now a VALUE the
+  # caller passes (`topo::ShellDoor`), so the file has one header
+  # again and the seam SEAT-9 argued for has nothing left in it.
+  'crates/verbs/src/run.rs 1 SEAT-4, in the Bounds trait doc'
   # LIB-G2's LB3 (ruled 2026-08-08), homed in the file's own module docs.
   "crates/profile/src/path/arc_fillet.rs 3 LIB-G2's LB3 (ruled 2026-08-08), in the file's module docs"
 )
@@ -1234,7 +1252,7 @@ plant_rustfmt_where_block() {
 plant_wrapper_type_compound() {
   mkdir -p "$1/crates/planted/src"
   {
-    printf 'impl<T> PropsQuadLane for geom_core::Sym<T>\n'
+    printf 'impl<T> AtRestPolicy for geom_core::Sym<T>\n'
     printf 'where\n'
     printf '    geom_core::Sym<T>: Decide + geom_core::Bounds,\n'
     printf '{\n'
@@ -1317,7 +1335,7 @@ plant_where_clause_near_misses() {
   {
     printf 'pub fn a<T>(_t: T) where T: CertifiedBounds {}\n'
     printf 'pub fn b<T, U>(_t: T, _u: U) where T: Decide, U: Bounds {}\n'
-    printf 'impl<T> ChartRegionLane for geom_core::Sym<T>\n'
+    printf 'impl<T> PcurveFittedLane for geom_core::Sym<T>\n'
     printf 'where\n'
     printf '    geom_core::Sym<T>: Decide,\n'
     printf '    T: geom_core::CertifiedBounds,\n'

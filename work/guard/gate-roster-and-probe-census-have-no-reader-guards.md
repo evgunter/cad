@@ -4,6 +4,8 @@ kind: issue
 title: gate-roster.sh reports OK over a reader that read nothing: zero guard sites, and its diagnosing variant names the wrong stage
 status: open
 opened: 2026-09-10
+priority: P3
+cost: D
 ---
 
 
