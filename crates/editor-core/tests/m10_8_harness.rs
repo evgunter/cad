@@ -98,12 +98,24 @@ pub(crate) fn ceiling(
     hi: f64,
     steps: usize,
 ) -> (f64, f64, f64) {
+    ceiling_with(doc_at, dials(rules), tol, lo, hi, steps)
+}
+
+/// [`ceiling`] under whole dials — the rules AND the retry ladder.
+pub(crate) fn ceiling_with(
+    doc_at: &dyn Fn(f64) -> ProfileDoc,
+    dials: SymbolicDials,
+    tol: Tol,
+    lo: f64,
+    hi: f64,
+    steps: usize,
+) -> (f64, f64, f64) {
     let (mut lo, mut hi) = (lo, hi);
     let mut probes = 0.0;
     let mut spent = 0.0;
     let mut probe = |s: f64| {
         let t = Instant::now();
-        let ok = certifies_whole(&doc_at(s), rules, tol);
+        let ok = certifies_whole_with(&doc_at(s), dials, tol);
         spent += t.elapsed().as_secs_f64();
         probes += 1.0;
         ok
