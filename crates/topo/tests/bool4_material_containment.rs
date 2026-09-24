@@ -301,7 +301,11 @@ fn the_embedded_cube_is_a_decided_interference() {
     let text = finding.to_string();
     assert!(text.contains("interference fit"), "{text}");
     assert!(text.contains("material contains vertex"), "{text}");
-    assert!(text.contains("recorded gate-skips do not exist"), "{text}");
+    assert!(text.contains("no declaration can admit an overlap"), "{text}");
+    assert!(
+        text.ends_with("Recourse: move the instances apart, or combine them with a Boolean op"),
+        "{text}"
+    );
     assert!(!text.contains("InstanceInterference {"), "{text}");
     assert!(!text.contains("witness:"), "{text}");
 }

@@ -4405,10 +4405,10 @@ mod tests {
     /// only the variant.
     fn lane_unsupported_sentence(pair: (FaceKey, FaceKey)) -> String {
         format!(
-            "tier-3′ census: this scalar has no certified chart-overlap lane, so the conformal \
-             face-pair arm could not examine the candidate {} — a fact about the RUN and not \
-             about the geometry, refused rather than skipped. Replay the body at f64, the \
-             telemetry probe or the interval scalar to get the candidate examined",
+            "tier-3′ census: {} was not examined, because this structural check holds no \
+             certified chart-overlap lane at any scalar; it refuses the pair rather than skip \
+             it, and says nothing about the geometry. Recourse: run the certified check, \
+             validate_pseudomanifold, at a certifying scalar",
             CensusSubject::FacePair(pair.0, pair.1)
         )
     }

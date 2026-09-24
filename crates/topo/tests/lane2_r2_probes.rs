@@ -84,9 +84,11 @@ fn the_declared_seat_through_the_four_doors_at_f64() {
     );
     let text = refusals[0].to_string();
     assert!(
-        text.contains("this scalar has no certified chart-overlap lane")
-            && text.contains("Replay the body at f64"),
-        "the f64 caller of the structural door is told to replay at f64: {text}"
+        text.contains("holds no certified chart-overlap lane at any scalar")
+            && text.contains("Recourse: run the certified check, validate_pseudomanifold")
+            && !text.contains("f64"),
+        "the f64 caller of the structural door is sent to the certified door, not to \
+         the scalar it is already at: {text}"
     );
     assert_eq!(
         crossings(&errors),

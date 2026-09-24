@@ -1315,17 +1315,27 @@ pub enum ValidationError {
         /// of them and not of the rest.
         cause: CensusUnsupportedCause,
     },
-    /// Tier 3′: the SCALAR has no certified chart-overlap lane, so the
-    /// conformal face-pair arm could not examine this candidate —
-    /// a fact about the run, not about the geometry.
+    /// Tier 3′: the DOOR the census ran through holds no certified
+    /// chart-overlap lane, so a census arm that needs one could not
+    /// examine this face pair — a fact about the door, not about the
+    /// geometry. Two arms raise it: the conformal face-pair sweep on an
+    /// undeclared candidate, and the declared-record confirm pass
+    /// (`confirm_curve_and_patch_records`' Door 2) on a declared patch.
+    ///
+    /// The `_structural` doors ([`validate_pseudomanifold_structural`],
+    /// [`validate_pseudomanifold_certificate_structural`]) hand the
+    /// census no region lane at ANY scalar, `f64` included — H5 ruling
+    /// 3's letter — so this is what they answer wherever a pair needs
+    /// one. The recourse is the certified door family
+    /// ([`validate_pseudomanifold`] and its siblings) at a certifying
+    /// scalar — `f64`, the telemetry probe or the interval scalar —
+    /// where the same pair is examined.
     ///
     /// Distinct from [`ValidationError::CensusUnsupported`] on
     /// purpose, and the distinction is the recourse: that one says a
     /// certifying lane LOOKED at this record or candidate and refused
-    /// typed, and carries which lane and why; this one says the same
-    /// candidate would be examined at `f64`, the telemetry probe or
-    /// the interval scalar and wants the body replayed at one of
-    /// them. No lane refused here, which is why this arm carries no
+    /// typed, and carries which lane and why; this one says no lane
+    /// looked, and the certified door would. No lane refused here, which is why this arm carries no
     /// [`CensusUnsupportedCause`] — there is none to carry. The two used to be
     /// the same variant on the same face, which made a run-wide fact
     /// read as a per-pair geometric refusal.
@@ -1986,33 +1996,26 @@ impl fmt::Display for ValidationError {
                  be described intrinsically as the Intersection of their faces' surfaces \
                  (prefer-intrinsic, D2)"
             ),
-            // The message states what is WRONG and stops there. An
-            // earlier wording added "so it has a chart to be described
-            // in" — asserting that a chart image necessarily exists —
-            // which this unit's own findings deny: a fillet strut on a
-            // curved support (#1116) and a diagonal chord across a
-            // cylinder are SECANTS, lying in neither adjacent surface,
-            // and no chart image describes them. For those the fence
-            // is naming a construction that cannot come to rest as
-            // built, which is a sharper and more useful report than a
-            // claim the reader can falsify.
+            // The recourse never asserts that a chart image exists: a
+            // fillet strut on a curved support and a diagonal chord
+            // across a cylinder are SECANTS, lying in neither adjacent
+            // surface, and no chart image describes them. For those the
+            // fence names a construction that cannot come to rest as
+            // built, which is what the recourse's second clause says.
             Self::ScaffoldAtRest { edge } => write!(
                 f,
-                "edge {edge:?} is still described by the scaffolding door (a sketch \
-                 pushforward standing in for a description) in a body at rest — the door \
-                 is for edges whose surfaces do not exist yet, and this edge has two \
-                 faces (U2's transience fence). Either describe it in a chart it lies \
-                 in, or the construction that built it stopped half-way"
+                "edge {edge:?} still carries the stand-in description a construction \
+                 uses before an edge's faces exist, but the body is finished and the \
+                 edge has both its faces. Recourse: describe the edge in a surface it \
+                 lies in; if it lies in neither face's surface, the operation that \
+                 built it stopped half-way"
             ),
             Self::TangentNotIntrinsic { edge } => write!(
                 f,
-                "edge {edge:?} is a jet-determinate tangency (definitely smooth at \
-                 every interior sample, second-order separation definitely positive — \
-                 the surfaces DETERMINE the locus) but its locus is recorded as \
-                 DECLARED by a sketch entity — such edges must be described intrinsically \
-                 as the TangentIntersection of their faces' surfaces (prefer-intrinsic \
-                 one order up; a G2 join is exempt by its zero-side \
-                 second-order margin, never by a list)"
+                "edge {edge:?}: its two faces meet tangentially and their surfaces \
+                 determine where the edge runs, but the edge is stored as a sketch \
+                 curve. Recourse: describe it as the TangentIntersection of its two \
+                 faces' surfaces"
             ),
             Self::UndeclaredCusp { edge, wedge } => write!(
                 f,
@@ -2025,16 +2028,12 @@ impl fmt::Display for ValidationError {
             ),
             Self::LaminaWedge { edge } => write!(
                 f,
-                "edge {edge:?}: its two faces have opposed material sides and OSCULATING \
-                 jets (κ_rel definitely collapsed) — conformal contact along the locus, \
-                 not the curve-locus tangency the declared wedge-0/2π arm admits, and no \
-                 contact declaration cures it (there is no certifiable tangency to \
-                 declare). Two defects wear this signature and this edge-local reading \
-                 cannot separate them: a genuine zero-thickness LAMINA (move the \
-                 geometry), or a body of real volume whose two faces share ONE surface \
-                 with one face's SENSE inverted — osculation is what two faces of the \
-                 same surface do (fix the sense). Read the two faces' surfaces and senses \
-                 before moving anything"
+                "edge {edge:?}: its two faces lie against each other from opposite \
+                 sides with no gap, which no contact declaration can make valid. Either \
+                 the body is a zero-thickness sheet here, or the two faces share one \
+                 surface and one of them is inside-out. Recourse: check the two faces' \
+                 orientations and flip the inside-out one; if neither is, move the \
+                 geometry"
             ),
             Self::LoopRoleInverted { face, r#loop } => write!(
                 f,
@@ -2116,11 +2115,11 @@ impl fmt::Display for ValidationError {
             ),
             Self::CensusLaneUnsupported { subject } => write!(
                 f,
-                "tier-3′ census: this scalar has no certified chart-overlap lane, so the \
-                 conformal face-pair arm could not examine the candidate {subject} — a fact \
-                 about the RUN and not about the geometry, refused rather than skipped. Replay \
-                 the body at f64, the telemetry probe or the interval scalar to get the \
-                 candidate examined"
+                "tier-3′ census: {subject} was not examined, because this structural \
+                 check holds no certified chart-overlap lane at any scalar; it refuses \
+                 the pair rather than skip it, and says nothing about the geometry. \
+                 Recourse: run the certified check, validate_pseudomanifold, at a \
+                 certifying scalar"
             ),
             Self::CensusUndecidable { a, b, what } => write!(
                 f,
@@ -2137,11 +2136,9 @@ impl fmt::Display for ValidationError {
             } => write!(
                 f,
                 "tier-3′ census: solid {outer:?}'s material contains vertex {witness:?} of \
-                 solid {inner:?} — an interference fit, decided by the material test (the two \
-                 instances' boundaries do not cross, so one vertex strictly inside places the \
-                 contained instance's whole interior inside); recorded gate-skips do not \
-                 exist, so no declaration admits an interference — separate the instances, \
-                 or make the overlap a boolean's working state"
+                 solid {inner:?}, so the two instances overlap (an interference fit), and \
+                 no declaration can admit an overlap. Recourse: move the instances apart, \
+                 or combine them with a Boolean op"
             ),
             Self::DanglingTopology { from, to } => {
                 write!(f, "{from} references {to}, which does not resolve")
