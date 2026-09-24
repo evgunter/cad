@@ -1268,19 +1268,21 @@ pub enum ValidationError {
     ContactContradicted {
         /// The face pair and class that were declared.
         declaration: DeclaredContact,
-        /// Where the contradiction was witnessed, read after "at" in
-        /// the message: the witnessing edge (the curve-record confirm
-        /// pass), or — where the verdict compares whole surfaces and
-        /// yields no point (the patch-record confirm pass's Door 1) —
-        /// a phrase naming them. Never the pair again: `declaration`
-        /// carries it.
+        /// Where the contradiction holds, as a place read after
+        /// "contradicted" in the message, preposition included: along
+        /// the witnessing edge (the curve-record confirm pass), or
+        /// across both faces (the patch-record confirm pass's Door 1,
+        /// whose verdict compares whole surfaces). Never the pair
+        /// again, and never a key: `declaration` carries both.
         witness: String,
         /// The margin that decided, and its predicate. The message
-        /// names the predicate, so a contradiction never reads bare;
-        /// the margin itself rides in `Debug` — at most sites it is
-        /// `MarginDiag::Invalid`, standing in where the deciding fact
-        /// is a definite relation (senses aligned, a point off a
-        /// surface) rather than a number.
+        /// reads the predicate as a reason in words
+        /// ([`crate::contact::contradiction_reason`]), so a
+        /// contradiction never reads bare; the margin itself rides in
+        /// `Debug`. Every raise site carries `MarginDiag::Invalid`
+        /// here, standing in for a definite relation (senses aligned,
+        /// a carrier datum apart, a point off a surface) rather than
+        /// a number.
         margin: Indeterminate,
         /// Extra recourse steering when the counter-evidence has a
         /// named remedy (AQ6's designed-clearance arm).
@@ -1805,40 +1807,18 @@ pub enum CensusContact {
 /// enum's own struct-variant braces do not reach the message.
 impl fmt::Display for CensusContact {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // In words, without the keys: the typed fields carry them.
         match self {
-            Self::VertexVertex { a, b } => {
-                write!(f, "vertices {a:?} and {b:?} at one position")
-            }
-            Self::VertexOnFace { vertex, face } => {
-                write!(f, "vertex {vertex:?} on face {face:?}'s interior")
-            }
-            Self::VertexOnEdge { vertex, edge } => {
-                write!(f, "vertex {vertex:?} on edge {edge:?}'s interior")
-            }
-            Self::EdgeFacePierce { edge, face } => write!(
-                f,
-                "edge {edge:?} piercing face {face:?} transversally at both interiors"
-            ),
-            Self::EdgeEdgeCross { a, b } => {
-                write!(f, "edges {a:?} and {b:?} crossing at both interiors")
-            }
-            Self::EdgeEdgeOverlap { a, b } => write!(
-                f,
-                "edges {a:?} and {b:?} overlapping along a positive-length segment"
-            ),
-            Self::EdgeFaceOverlap { edge, face } => write!(
-                f,
-                "edge {edge:?} lying in face {face:?} along a positive-length segment"
-            ),
-            // The declaration that WOULD verify it, quoted in the
-            // declaration's own vocabulary (M9-1's layering: one
-            // vocabulary end to end).
+            Self::VertexVertex { .. } => f.write_str("two vertices at one position"),
+            Self::VertexOnFace { .. } => f.write_str("a vertex lying on a face"),
+            Self::VertexOnEdge { .. } => f.write_str("a vertex lying on an edge"),
+            Self::EdgeFacePierce { .. } => f.write_str("an edge passing through a face"),
+            Self::EdgeEdgeCross { .. } => f.write_str("two edges crossing"),
+            Self::EdgeEdgeOverlap { .. } => f.write_str("two edges overlapping along a length"),
+            Self::EdgeFaceOverlap { .. } => f.write_str("an edge lying in a face along a length"),
             Self::ConformalPatch { finding } => write!(
                 f,
-                "conformal contact between faces {:?} and {:?} (the declaration that \
-                 would verify it is a {} contact on that pair)",
-                finding.pair.a,
-                finding.pair.b,
+                "two faces lying against each other (a {} contact)",
                 finding.pair.class.name()
             ),
         }
@@ -1891,343 +1871,642 @@ pub enum StaleDeclaration {
 /// caller which declaration to withdraw or re-seat.
 impl fmt::Display for StaleDeclaration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::VertexVertex { a, b } => write!(
-                f,
-                "the vertex-granularity record naming vertices {a:?} and {b:?}"
-            ),
-            Self::VertexOnFace { vertex, face } => write!(
-                f,
-                "the vertex-granularity record naming vertex {vertex:?} and face {face:?}"
-            ),
-            Self::CurveLocus {
-                face_a,
-                face_b,
-                witness,
-            } => write!(
-                f,
-                "the curve-granularity record naming faces {face_a:?} and {face_b:?}, \
-                 whose witness edge is {witness:?}"
-            ),
-            Self::Patch { face_a, face_b } => write!(
-                f,
-                "the patch-granularity record naming faces {face_a:?} and {face_b:?}"
-            ),
-        }
+        // In words, without the keys: the typed fields carry them.
+        f.write_str(match self {
+            Self::VertexVertex { .. } => "a declared vertex-to-vertex contact",
+            Self::VertexOnFace { .. } => "a declared vertex-on-face contact",
+            Self::CurveLocus { .. } => "a declared contact along an edge",
+            Self::Patch { .. } => "a declared face-to-face contact",
+        })
     }
 }
 
+/// The recourse a kernel defect gets: nothing the user can change in
+/// the model repairs a body whose structure a kernel operation (or a
+/// damaged file) left wrong, and the sentence says so plainly.
+const DEFECT: &str =
+    "There is no way through: this is a kernel defect or a damaged file; report it";
+
+/// The recourse for a shape the kernel cannot check yet.
+const NOT_YET: &str = "There is no way through yet";
+
+/// The recourse for a tolerance that forms no usable band.
+const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
+
+/// The recourse for a margin the band could not decide: the shared
+/// coincidence menu, prefixed by the input check a poisoned margin
+/// wants first.
+fn too_close(margin: Option<&geom_core::MarginDiag>) -> &'static str {
+    match margin {
+        Some(geom_core::MarginDiag::Invalid) => {
+            "Recourse: check the inputs that built this body, then declare the coincidence, \
+             move the geometry, or lower the tolerance"
+        }
+        _ => "Recourse: declare the coincidence, move the geometry, or lower the tolerance",
+    }
+}
+
+/// A census subject in words, without its keys (they ride in `Debug`).
+fn subject_noun(subject: &CensusSubject) -> &'static str {
+    match subject {
+        CensusSubject::FacePair(..) => "a pair of faces",
+        CensusSubject::Entity(e) => entity_noun(*e),
+    }
+}
+
+fn entity_noun(e: EntityId) -> &'static str {
+    match e {
+        EntityId::Solid(_) => "a solid",
+        EntityId::Shell(_) => "a shell",
+        EntityId::Face(_) => "a face",
+        EntityId::Loop(_) => "a loop",
+        EntityId::HalfEdge(_) => "a half-edge",
+        EntityId::Edge(_) => "an edge",
+        EntityId::Vertex(_) => "a vertex",
+    }
+}
+
+// The rendered-reason CLASSIFIERS below map a nested refusal onto the
+// short reason and the one recourse a person at the viewer can act
+// on. They classify, so each match is exhaustive (this enum's docs):
+// a nested variant added upstream is placed here by hand. The nested
+// refusal's own sentence — written for a library caller, naming the
+// lane, the sample and the lever — rides whole in the payload and in
+// its own `Display`.
+
+fn classify_band(e: &BandError) -> &'static str {
+    match e {
+        BandError::InvalidValue { .. } => "a tolerance threshold is not finite and positive",
+        BandError::InvalidLeverArm { .. } => "its lever arm is not finite and positive",
+        BandError::Empty { .. } => "its zero threshold is not below its escalate threshold",
+    }
+}
+
+fn classify_certify(e: &CertifyError) -> (&'static str, &'static str) {
+    use geom_brep::PlaneNurbsRefusal as P;
+    const MISMATCH: &str = "its stored description does not match its geometry";
+    const CLOSE: &str = "its faces meet too nearly tangentially to decide at this tolerance";
+    const KIND: &str = "the kernel cannot yet check an edge of this kind";
+    match e {
+        CertifyError::ChartImageUnavailable { .. }
+        | CertifyError::UnresolvedSurface { .. }
+        | CertifyError::IntersectionSameSurface { .. }
+        | CertifyError::SeamOnNonPeriodic
+        | CertifyError::IntervalNotForward
+        | CertifyError::WindingExceeded
+        | CertifyError::ResidualExceeded { .. }
+        | CertifyError::PlaneNurbs(
+            P::FootPointInconclusive { .. } | P::PcurveFit | P::Limb { .. },
+        ) => (MISMATCH, DEFECT),
+        CertifyError::Unimplemented
+        | CertifyError::TangentCertificateUnsupported
+        | CertifyError::PlaneNurbs(P::Unsupported { .. }) => (KIND, NOT_YET),
+        CertifyError::NotTransverse { .. }
+        | CertifyError::NotSecondOrderSeparated { .. }
+        | CertifyError::PlaneNurbs(P::NotTransverse { .. } | P::TubeStraddles { .. }) => {
+            (CLOSE, too_close(None))
+        }
+        CertifyError::Escalated { cause, .. } | CertifyError::PlaneNurbs(P::Escalated(cause)) => {
+            (CLOSE, too_close(Some(&cause.margin)))
+        }
+        CertifyError::Band(b) => (classify_band(b), TOLERANCE),
+    }
+}
+
+fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, &'static str) {
+    use geom_brep::OffsetFitError as O;
+    use geom_brep::offset_meters::MeterError as M;
+    match e {
+        O::Meter(M::NormalFloor { .. } | M::CurvatureHeadroom { .. }) => (
+            "the offset folds or degenerates on this face",
+            "Recourse: use a smaller offset distance",
+        ),
+        O::Meter(M::Escalated { source }) => (
+            "whether the offset folds here is too close to call at this tolerance",
+            too_close(Some(&source.margin)),
+        ),
+        O::BudgetExhausted { .. }
+        | O::SampleCapReached { .. }
+        | O::BoundNotFinite { .. }
+        | O::RefinementStalled { .. }
+        | O::Limb { .. } => (
+            "the fitted surface does not stay within the tolerance of the one it stands for",
+            "Recourse: loosen the tolerance, or rebuild the offset",
+        ),
+        O::PatchBound(_)
+        | O::Fit(_)
+        | O::Structure(_)
+        | O::InvalidRequest { .. }
+        | O::NonFiniteSample { .. }
+        | O::WindowUnsupported { .. } => ("its stored fit is not well-formed", DEFECT),
+    }
+}
+
+fn classify_mass_props(e: &crate::props::MassPropsError) -> (&'static str, &'static str) {
+    use crate::props::MassPropsError as M;
+    use geom_brep::props::PropsError as P;
+    match e {
+        M::Band { error } => (classify_band(error), TOLERANCE),
+        M::Face { source, .. } => match source {
+            P::Escalated { cause } => (
+                "a face's contribution is too close to call at this tolerance",
+                too_close(Some(&cause.margin)),
+            ),
+            P::QuadratureBudget { .. } => (
+                "a face's contribution did not converge to the tolerance",
+                "Recourse: loosen the tolerance",
+            ),
+            P::Unimplemented
+            | P::NotIsoRectangle { .. }
+            | P::NappeSpanning
+            | P::NotOneChartBranch { .. }
+            | P::QuadratureUnsupported { .. } => {
+                ("the kernel cannot yet measure a face of this kind", NOT_YET)
+            }
+            P::DegenerateFace => ("a face encloses no area", DEFECT),
+        },
+        M::RingOnCurvedFace { .. } => (
+            "the kernel cannot yet measure a curved face with a hole",
+            NOT_YET,
+        ),
+        M::Corrupt { .. } | M::NullScaffoldEdge { .. } => ("its structure is incomplete", DEFECT),
+    }
+}
+
+fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, &'static str) {
+    use crate::pcurves::PcurveMintError as M;
+    use geom_brep::PcurveCertifyError as C;
+    const WRONG: &str = "the stored boundary does not match the face";
+    const KIND: &str = "the kernel cannot yet map a boundary of this kind";
+    const CLOSE: &str = "the boundary is too close to call at this tolerance";
+    match e {
+        M::Corrupt
+        | M::LoopDiscontinuity { .. }
+        | M::LoopNotClosed { .. }
+        | M::SingularChartJoint { .. }
+        | M::MissingCache { .. } => (WRONG, DEFECT),
+        M::OuterSpansPeriod | M::LoopWraps { .. } => (
+            "the face wraps all the way round its surface, which the kernel cannot yet map",
+            NOT_YET,
+        ),
+        M::Escalated { cause, .. } => (CLOSE, too_close(Some(&cause.margin))),
+        M::Band(b) => (classify_band(b), TOLERANCE),
+        M::Certify { error, .. } => match error {
+            C::UnsupportedChart { .. }
+            | C::UnsupportedCarrier
+            | C::IsoUnsupported { .. }
+            | C::ChartWindingUnsupported
+            | C::AzimuthPeriodExceeded
+            | C::FittedMateMissing => (KIND, NOT_YET),
+            C::FittedLaneUnsupported { .. } => (
+                "this scalar cannot certify a fitted boundary",
+                "Recourse: check the body at a certifying scalar",
+            ),
+            C::ChartRow { .. }
+            | C::IntervalNotForward
+            | C::ResidualExceeded { .. }
+            | C::TrimEscape
+            | C::FittedCertificate { .. } => (WRONG, DEFECT),
+            C::FittedEscalated { cause } | C::Escalated { cause, .. } => {
+                (CLOSE, too_close(Some(&cause.margin)))
+            }
+            C::Band(b) => (classify_band(b), TOLERANCE),
+        },
+    }
+}
+
+fn classify_contain(e: &ContainError) -> (&'static str, &'static str) {
+    match e {
+        ContainError::Escalated(diag) => (
+            "a point of it lies too close to a boundary to place at this tolerance",
+            too_close(Some(&diag.margin)),
+        ),
+        ContainError::RayExhausted => (
+            "a point of it lies too close to a boundary to place at this tolerance",
+            too_close(None),
+        ),
+        ContainError::Corrupt => ("its boundary could not be walked", DEFECT),
+        ContainError::ArcLoopUnsupported { .. } => (
+            "its boundary has an arc the check cannot yet handle",
+            NOT_YET,
+        ),
+    }
+}
+
+fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
+    match e {
+        ChartRegionError::ChartDivergence { .. } => (
+            "the two faces lie on separately described surfaces, which the check cannot \
+             compare",
+            NOT_YET,
+        ),
+        ChartRegionError::NonPlanarTrim { .. } => (
+            "a face's boundary is curved in a way the check cannot yet measure",
+            NOT_YET,
+        ),
+        ChartRegionError::SeamBranch | ChartRegionError::PeriodFold => (
+            "the faces straddle the seam of a round surface in a way the check cannot yet \
+             place",
+            NOT_YET,
+        ),
+        ChartRegionError::ArmUnbounded { .. } => (
+            "a face reaches a pole, apex or fold of its surface",
+            "Recourse: keep the contact clear of the surface's pole, apex or fold",
+        ),
+        ChartRegionError::CarrierTilt => (
+            "the two faces' surfaces drift apart across the contact",
+            "Recourse: move the parts so the two faces lie exactly on each other",
+        ),
+        ChartRegionError::TouchingBoundary => (
+            "the faces' edges touch at this tolerance, so their overlap is undecidable",
+            "Recourse: move the edges clearly apart or clearly across each other, or lower \
+             the tolerance",
+        ),
+        ChartRegionError::Escalated(diag) => (
+            "their overlap is too close to call at this tolerance",
+            too_close(Some(&diag.margin)),
+        ),
+        ChartRegionError::RayExhausted => (
+            "a point lies too close to a boundary to place at this tolerance",
+            too_close(None),
+        ),
+        ChartRegionError::WitnessBudgetExhausted { .. } => (
+            "their boundaries cross too many times for the check to finish",
+            "Recourse: simplify the faces' boundaries",
+        ),
+        ChartRegionError::MissingCache { .. }
+        | ChartRegionError::DegenerateLoop { .. }
+        | ChartRegionError::Corrupt => ("a face's stored boundary is incomplete", DEFECT),
+    }
+}
+
+fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
+    match e {
+        ContactRefusal::Contradicted { diag, .. } => (
+            crate::contact::contradiction_reason(diag),
+            crate::contact::CONTRADICTION_RECOURSE,
+        ),
+        // A contact site's recourse has no tolerance arm (SELECT §3d,
+        // `CONTACT_RECOURSE`): loosening ε cannot supply intent.
+        ContactRefusal::Escalated { .. } => (
+            "whether the declared faces touch is too close to call",
+            "Recourse: declare the contact, or move the geometry",
+        ),
+        ContactRefusal::Undeclared { .. } => (
+            "the faces touch with no declared contact behind them",
+            "Recourse: declare the contact, or move the geometry",
+        ),
+        ContactRefusal::NotCertifiable { .. } => (
+            "the kernel cannot yet check a contact between faces of these kinds",
+            NOT_YET,
+        ),
+    }
+}
+
+fn classify_census_cause(cause: &CensusUnsupportedCause) -> (&'static str, &'static str) {
+    match cause {
+        CensusUnsupportedCause::ChartRegion(e) => classify_chart_region(e),
+        CensusUnsupportedCause::ContactLane(e) => classify_contact_lane(e),
+        CensusUnsupportedCause::Containment(e) => classify_contain(e),
+        CensusUnsupportedCause::FaceUnboundable => (
+            "a face has no corner to bound it by (an empty or broken outer loop)",
+            DEFECT,
+        ),
+    }
+}
+
+// Every arm says, in the words of a person at the viewer, what is
+// wrong and the ONE thing to do about it — `Recourse: …`, or `There is
+// no way through …` where nothing in the model repairs it. Arena keys
+// are developer detail and ride in `Debug`, except on the tier-1/2
+// arms: those report a damaged structure, and the key is what the bug
+// report needs. A nested refusal renders through its classifier above,
+// never whole.
 impl fmt::Display for ValidationError {
+    #[allow(clippy::too_many_lines)] // one sentence per arm
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Band { error } => write!(f, "tier 3: {error}"),
-            Self::DanglingDescription { from, to } => {
+            Self::Band { error } => write!(
+                f,
+                "the tolerance the body was checked at is not usable: {}. {TOLERANCE}",
+                classify_band(error)
+            ),
+            Self::DanglingDescription { from, to } => write!(
+                f,
+                "{from}'s description references {to}, which does not resolve. {DEFECT}"
+            ),
+            Self::UncertifiableSurface { .. } => write!(
+                f,
+                "a face has no real surface yet, only the placeholder a construction starts \
+                 from. {DEFECT}"
+            ),
+            Self::PoisonedSurfaceDescription { .. } => write!(
+                f,
+                "a face's surface description holds invalid numbers, so it describes no \
+                 shape. {DEFECT}"
+            ),
+            Self::ApproxCertification { error, .. } => {
+                let (why, recourse) = classify_offset_fit(error);
                 write!(
                     f,
-                    "{from}'s description references {to}, which does not resolve"
+                    "a face's fitted offset surface no longer certifies against the surface \
+                     it approximates: {why}. {recourse}"
                 )
             }
-            Self::UncertifiableSurface { face } => write!(
+            Self::ApproxLaneUnsupported { .. } => write!(
                 f,
-                "face {face:?}'s surface is the Nurbs PLACEHOLDER (mvfs's all-poison \
-                 'no description yet' state) — uncertifiable at rest; attach the real \
-                 surface. A described NURBS surface of finite data passes this check"
+                "a face carries a fitted offset surface, and this scalar has no \
+                 re-derivation lane for its certificate. Recourse: check the body at f64, \
+                 the one scalar that re-derives it"
             ),
-            Self::PoisonedSurfaceDescription { face } => write!(
+            Self::DegenerateTorus { .. } => write!(
                 f,
-                "face {face:?}'s surface is a DESCRIBED Nurbs net carrying poison in some \
-                 channel — a description that claims a locus and cannot evaluate one. Not \
-                 the placeholder, which is the benign 'no description yet' state"
+                "a torus face's tube radius is not smaller than its ring radius (a horn or \
+                 spindle torus). Recourse: make the tube radius smaller than the ring radius"
             ),
-            Self::ApproxCertification { face, error } => write!(
+            Self::DegenerateTorusEscalated { cause, .. } => write!(
                 f,
-                "tier 3: face {face:?}'s approximating surface does not re-certify against \
-                 its own description at rest: {error}"
+                "whether a torus face's tube radius is smaller than its ring radius is too \
+                 close to call at this tolerance. {}",
+                too_close(Some(&cause.margin))
             ),
-            Self::ApproxLaneUnsupported { face } => write!(
+            Self::NonpositiveTorusTube { .. } => write!(
                 f,
-                "tier 3: face {face:?} carries an approximating surface and this scalar has \
-                 no re-derivation lane — the certificate cannot be re-derived, and a \
-                 surface certificate is never trusted unchecked"
+                "a torus face's tube radius is not positive. Recourse: give the torus a \
+                 positive tube radius"
             ),
-            Self::DegenerateTorus { face } => write!(
-                f,
-                "face {face:?}'s torus violates D3's ring convention R > r > 0 (a horn or \
-                 spindle torus, whose axis carries a chart singularity)"
-            ),
-            Self::DegenerateTorusEscalated { face, cause } => write!(
-                f,
-                "face {face:?}'s ring-torus margin R - r escalated: {cause}"
-            ),
-            Self::NonpositiveTorusTube { face } => write!(
-                f,
-                "face {face:?}'s torus has a tube radius that is not definitely positive, \
-                 so it is not a torus at all (D3's ring convention R > r > 0)"
-            ),
-            Self::EdgeCertification { edge, error } => {
-                write!(f, "edge {edge:?} failed re-certification at rest: {error}")
+            Self::EdgeCertification { error, .. } => {
+                let (why, recourse) = classify_certify(error);
+                write!(
+                    f,
+                    "an edge's stored curve does not certify against its faces: {why}. \
+                     {recourse}"
+                )
             }
-            Self::DescriptionNotAdjacent { edge } => write!(
+            Self::DescriptionNotAdjacent { .. } => write!(
                 f,
-                "edge {edge:?}'s intrinsic/seam description names surfaces that are not \
-                 its adjacent faces' surfaces (D2 adjacency coherence)"
+                "an edge's description names surfaces that are not its two faces' \
+                 surfaces. {DEFECT}"
             ),
-            Self::PlanarFaceResidual { face, vertex } => write!(
+            Self::PlanarFaceResidual { .. } => {
+                write!(
+                    f,
+                    "a corner of a flat face lies off that face's plane. {DEFECT}"
+                )
+            }
+            Self::PlanarFaceEscalated { cause, .. } => write!(
                 f,
-                "vertex {vertex:?} lies definitely off planar face {face:?}'s stored \
-                 plane (D4 \u{b6}2 residual)"
+                "whether a corner of a flat face lies on its plane is too close to call at \
+                 this tolerance. {}",
+                too_close(Some(&cause.margin))
             ),
-            Self::PlanarFaceEscalated {
-                face,
-                vertex,
-                cause,
-            } => write!(
+            Self::PlanarBoundaryResidual { .. } => write!(
                 f,
-                "vertex {vertex:?}'s residual against planar face {face:?}'s plane \
-                 escalated: {cause}"
+                "an edge of a flat face leaves that face's plane between its ends. {DEFECT}"
             ),
-            Self::PlanarBoundaryResidual { face, edge } => write!(
+            Self::PlanarBoundaryEscalated { cause, .. } => write!(
                 f,
-                "edge {edge:?}'s carrier lies definitely off planar face {face:?}'s \
-                 stored plane between its vertices (face-boundary containment, D4 \u{b6}2)"
+                "whether an edge of a flat face stays on its plane is too close to call at \
+                 this tolerance. {}",
+                too_close(Some(&cause.margin))
             ),
-            Self::PlanarBoundaryEscalated { face, edge, cause } => write!(
+            Self::SliverDihedral { cause, .. } => write!(
                 f,
-                "edge {edge:?}'s carrier residual against planar face {face:?}'s plane \
-                 escalated: {cause}"
+                "the angle between two faces at an edge is too close to call at this \
+                 tolerance (a sliver). {}",
+                too_close(Some(&cause.margin))
             ),
-            Self::SliverDihedral { edge, cause } => write!(
+            Self::TransverseNotIntrinsic { .. } => write!(
                 f,
-                "edge {edge:?}'s dihedral wedge cannot be classified definitely \
-                 (sliver, D4 \u{b6}3): {cause}"
+                "an edge where two faces cross is stored as a sketch curve, though their \
+                 surfaces determine it. {DEFECT}"
             ),
-            Self::TransverseNotIntrinsic { edge } => write!(
-                f,
-                "edge {edge:?} is definitely transverse at every interior sample but its \
-                 locus is recorded as DECLARED by a sketch entity — transverse edges must \
-                 be described intrinsically as the Intersection of their faces' surfaces \
-                 (prefer-intrinsic, D2)"
-            ),
-            // The recourse never asserts that a chart image exists: a
+            // The finding never asserts that a chart image exists: a
             // fillet strut on a curved support and a diagonal chord
             // across a cylinder are SECANTS, lying in neither adjacent
-            // surface, and no chart image describes them. For those the
-            // fence names a construction that cannot come to rest as
-            // built, which is what the recourse's second clause says.
-            Self::ScaffoldAtRest { edge } => write!(
+            // surface. What it names is a construction that did not
+            // come to rest as built.
+            Self::ScaffoldAtRest { .. } => write!(
                 f,
-                "edge {edge:?} still carries the stand-in description a construction \
-                 uses before an edge's faces exist, but the body is finished and the \
-                 edge has both its faces. Recourse: describe the edge in a surface it \
-                 lies in; if it lies in neither face's surface, the operation that \
-                 built it stopped half-way"
+                "an edge still carries the stand-in description a construction uses before \
+                 its faces exist, so the operation that built it stopped half-way. {DEFECT}"
             ),
-            Self::TangentNotIntrinsic { edge } => write!(
+            Self::TangentNotIntrinsic { .. } => write!(
                 f,
-                "edge {edge:?}: its two faces meet tangentially and their surfaces \
-                 determine where the edge runs, but the edge is stored as a sketch \
-                 curve. Recourse: describe it as the TangentIntersection of its two \
-                 faces' surfaces"
+                "an edge where two faces meet tangentially is stored as a sketch curve, \
+                 though their surfaces determine it. {DEFECT}"
             ),
-            Self::UndeclaredCusp { edge, wedge } => write!(
+            Self::UndeclaredCusp { wedge, .. } => write!(
                 f,
-                "edge {edge:?}: its two faces subtend a material wedge of {} — the two ends \
-                 of the wedge range, legal only where the tangency is DECLARED (a Tangent \
-                 contact on the face pair) and jet-determinate. Nothing declares it, and \
-                 discovery is never declaration: {}",
-                wedge.name(),
-                crate::contact::CONTACT_RECOURSE
+                "two faces meet at an edge in a {}, which is valid only where a Tangent \
+                 contact between them is declared. Recourse: declare a Tangent contact \
+                 between the two faces, or move the geometry",
+                wedge.name()
             ),
-            Self::LaminaWedge { edge } => write!(
+            Self::LaminaWedge { .. } => write!(
                 f,
-                "edge {edge:?}: its two faces lie flat against each other from opposite \
-                 sides, which no contact declaration can make valid: either the body has \
-                 zero thickness here, or the two faces share one surface and one is \
-                 inside-out. Recourse: flip the inside-out face if there is one; \
-                 otherwise move the geometry apart"
+                "two faces lie flat against each other from opposite sides at an edge, \
+                 which no contact declaration can make valid: either the body has zero \
+                 thickness here, or one face is inside-out. Recourse: move the geometry so \
+                 the body has thickness here; if it already has, report the inside-out face \
+                 as a kernel defect"
             ),
-            Self::LoopRoleInverted { face, r#loop } => write!(
+            Self::LoopRoleInverted { .. } => write!(
                 f,
-                "face {face:?}: loop {loop:?}'s winding disagrees with its outer/ring role \
-                 (the outer loop must wind positively around the outward normal, rings \
-                 negatively — the planar region-bounding statement)"
+                "a flat face's boundary runs the wrong way round (its outline and holes are \
+                 swapped, or the face is inside-out). {DEFECT}"
             ),
-            Self::CurvedSenseInverted { face } => write!(
+            Self::CurvedSenseInverted { .. } => write!(
                 f,
-                "face {face:?}: the stored sense bit disagrees with the material side \
-                 the face's own boundary traversal encodes (rim side / meridian \
-                 orientation) — the face is inside-out; the two orientation encodings \
-                 of a curved face must state the same side"
+                "a curved face is inside-out: its stored orientation disagrees with its \
+                 boundary. {DEFECT}"
             ),
-            Self::NegativeVolume { solid } => write!(
+            Self::NegativeVolume { .. } => write!(
                 f,
-                "solid {solid:?}'s exact-B-rep signed volume is definitely negative — global \
-                 orientation corruption (+V invariant; every solid's outward-oriented \
-                 boundary encloses positive volume)"
+                "a solid encloses negative volume, so it is inside-out. {DEFECT}"
             ),
-            Self::VolumeUncomputable { solid, source } => write!(
+            Self::VolumeUncomputable { source, .. } => {
+                let (why, recourse) = classify_mass_props(source);
+                write!(
+                    f,
+                    "a solid's volume could not be computed to check that it is not \
+                     inside-out: {why}. {recourse}"
+                )
+            }
+            Self::Pcurve { finding } => {
+                let (why, recourse) = classify_pcurve(finding);
+                write!(
+                    f,
+                    "a face's boundary could not be mapped onto its surface: {why}. {recourse}"
+                )
+            }
+            Self::RingMeetsOuter { contact, .. } => write!(
                 f,
-                "the exact-B-rep volume of solid {solid:?}, for the +V invariant, could not \
-                 be computed: {source}"
+                "a hole in a face touches the face's outline {}, so the face encloses no \
+                 single region. Recourse: move the hole so it lies strictly inside the \
+                 outline",
+                match contact {
+                    RingContact::Vertex { .. } => "at a corner",
+                    RingContact::VertexOnEdge { .. } => "where a corner meets an edge",
+                    RingContact::Edge { .. } => "along an edge",
+                }
             ),
-            // The TWO-arm menu (SELECT-DESIGN §3d, ratified), not the
-            // three-arm decidability sentence: a contact refusal is
-            // about intent nobody recorded, and lowering ε cannot
-            // supply intent — it can only hide its absence.
+            Self::RingContactEscalated { source, .. } => write!(
+                f,
+                "whether a hole in a face touches the face's outline is too close to call at \
+                 this tolerance. {}",
+                too_close(Some(&source.margin))
+            ),
+            Self::RingOutsideOuter { .. } => write!(
+                f,
+                "a hole in a face reaches outside the face's outline. Recourse: move the \
+                 hole so it lies strictly inside the outline"
+            ),
+            Self::RingNestingUndecided { source, .. } => {
+                let (why, recourse) = classify_contain(source);
+                write!(
+                    f,
+                    "whether a hole in a face lies inside the face's outline could not be \
+                     decided: {why}. {recourse}"
+                )
+            }
             Self::UndeclaredContact { contact, witness } => write!(
                 f,
-                "tier-3′ census: undeclared contact {contact} at {witness} — \
-                 touching must be backed by a declared-contact record, never \
-                 blessed from discovery; {}",
-                crate::contact::CONTACT_RECOURSE
+                "tier-3′ census: {contact} at {witness}, and no declared contact covers it. \
+                 Recourse: declare the contact, or move the geometry"
+            ),
+            Self::StaleContactDeclaration { declaration } => write!(
+                f,
+                "tier-3′ census: {declaration} names a contact the geometry does not have. \
+                 Recourse: remove the declaration, or move the geometry so the contact exists"
             ),
             Self::ContactContradicted {
                 declaration,
                 witness,
                 margin,
                 steer,
-            } => {
-                write!(
-                    f,
-                    "tier-3′ census: the geometry contradicts the declared {} contact \
-                     between faces {:?} and {:?} at {witness}",
-                    declaration.class.name(),
-                    declaration.a,
-                    declaration.b,
-                )?;
-                if let Some(predicate) = margin.predicate {
-                    write!(f, " (the check {predicate})")?;
-                }
-                write!(
-                    f,
-                    "; {}{}",
-                    crate::contact::CONTACT_RECOURSE,
-                    steer.map(|s| format!(" — {s}")).unwrap_or_default(),
-                )
-            }
-            Self::StaleContactDeclaration { declaration } => write!(
+            } => write!(
                 f,
-                "tier-3′ census: declaration {declaration} has no geometric \
-                 witness — stale contact records are defects, not noise"
+                "tier-3′ census: the declared {} contact between two faces is contradicted \
+                 {witness}: {}. {}{}",
+                declaration.class.name(),
+                crate::contact::contradiction_reason(margin),
+                crate::contact::CONTRADICTION_RECOURSE,
+                crate::contact::steer_clause(*steer),
             ),
-            // `{cause}` (Display), NOT `{cause:?}`: the S6 sweep fixed a
-            // Debug-format bug here that dropped the carrier's recourse
-            // sentence from the user-facing message entirely.
             Self::CensusEscalated { cause } => write!(
                 f,
-                "tier-3′ census predicate escalated: {cause} — indeterminate \
-                 coincidence geometry at rest is a defect"
+                "tier-3′ census: whether two parts of the body touch is too close to call at \
+                 this tolerance. {}",
+                too_close(Some(&cause.margin))
             ),
-            // The CAUSE supplies the recourse, and the arm no longer
-            // supplies one of its own. The blanket "declare and
-            // certify through a supported lane, or separate the
-            // geometry" tail was true of the inventory arms and FALSE
-            // of the rest — a stopped interior-witness search wants
-            // simpler trims, an absent pcurve cache wants a re-mint —
-            // so it named the wrong repair for every finding it did
-            // not describe.
             Self::CensusUnsupported { subject, cause } => {
-                write!(f, "tier-3′ census: {subject} was not certified: {cause}")
+                let (why, recourse) = classify_census_cause(cause);
+                write!(
+                    f,
+                    "tier-3′ census: {} could not be checked: {why}. {recourse}",
+                    subject_noun(subject)
+                )
             }
-            Self::CensusLaneUnsupported { subject } => write!(
+            Self::CensusLaneUnsupported { .. } => write!(
                 f,
-                "tier-3′ census: {subject} was not examined, because this structural \
-                 check holds no certified chart-overlap lane at any scalar; it refuses \
-                 the pair rather than skip it, and says nothing about the geometry. \
-                 Recourse: run the certified check, validate_pseudomanifold, at a \
-                 certifying scalar"
+                "tier-3′ census: a pair of faces was not examined, because this structural \
+                 check holds no certified chart-overlap lane at any scalar; nothing was \
+                 decided about the geometry. Recourse: run the certified check \
+                 (validate_pseudomanifold, or validate_pseudomanifold_certificate for a \
+                 certificate) at a certifying scalar"
             ),
             Self::CensusUndecidable { a, b, what } => write!(
                 f,
-                "tier-3′ census: {a} and {b} can be neither examined nor cleared: \
-                 {what}. Recourse: separate the bodies"
+                "tier-3′ census: {} can be neither examined nor cleared: {what}",
+                match (a, b) {
+                    (EntityId::Face(_), EntityId::Face(_)) => "two faces of different parts",
+                    (EntityId::Solid(_), EntityId::Solid(_)) => "two parts",
+                    _ => "two parts of the body",
+                }
             ),
-            Self::InstanceInterference {
-                outer,
-                inner,
-                witness,
-            } => write!(
+            Self::InstanceInterference { .. } => write!(
                 f,
-                "tier-3′ census: solid {outer:?}'s material contains vertex {witness:?} of \
-                 solid {inner:?}, so the two instances overlap (an interference fit), and \
-                 no declaration can admit an overlap. Recourse: move the instances apart, \
-                 or combine them with a Boolean op"
+                "tier-3′ census: two instances overlap: a corner of one lies inside the other \
+                 (an interference fit), which no declaration can make valid. Recourse: move \
+                 the instances apart"
             ),
             Self::DanglingTopology { from, to } => {
-                write!(f, "{from} references {to}, which does not resolve")
+                write!(
+                    f,
+                    "{from} references {to}, which does not resolve. {DEFECT}"
+                )
             }
             Self::DanglingGeometry { from, to } => {
-                write!(f, "{from} references {to}, which does not resolve")
+                write!(
+                    f,
+                    "{from} references {to}, which does not resolve. {DEFECT}"
+                )
             }
             Self::NextPrevMismatch { half_edge } => write!(
                 f,
-                "half-edge {half_edge:?}'s next half-edge does not point back \
-                 to it via prev"
+                "half-edge {half_edge:?}'s next half-edge does not point back to it. {DEFECT}"
             ),
             Self::LoopCycleOverrun { loop_ } => write!(
                 f,
-                "loop {loop_:?}'s cycle does not return to its first half-edge \
-                 within the arena bound"
+                "loop {loop_:?} does not close within the arena bound. {DEFECT}"
             ),
             Self::ParentLoopMismatch { half_edge, owner } => write!(
                 f,
-                "half-edge {half_edge:?} is in loop {owner:?}'s cycle but its \
-                 parent_loop points elsewhere"
+                "half-edge {half_edge:?} is in loop {owner:?}'s cycle but names another \
+                 loop as its parent. {DEFECT}"
             ),
             Self::UnreachableHalfEdge { half_edge } => write!(
                 f,
-                "half-edge {half_edge:?} is not reached by its parent loop's \
-                 boundary"
+                "half-edge {half_edge:?} is not reached by its loop's boundary. {DEFECT}"
             ),
             Self::EdgeHalvesIdentical { edge } => write!(
                 f,
-                "edge {edge:?}'s two half-edge slots hold the same half-edge"
+                "edge {edge:?}'s two half-edge slots hold the same half-edge. {DEFECT}"
             ),
             Self::EdgeSlotBackpointerMismatch { edge, half_edge } => write!(
                 f,
-                "edge {edge:?} claims half-edge {half_edge:?}, which points at \
-                 a different edge"
+                "edge {edge:?} claims half-edge {half_edge:?}, which points at a different \
+                 edge. {DEFECT}"
             ),
             Self::HalfEdgeUnclaimed { half_edge } => {
-                write!(f, "half-edge {half_edge:?} is claimed by no edge slot")
+                write!(f, "half-edge {half_edge:?} belongs to no edge. {DEFECT}")
             }
             Self::HalfEdgeMultiplyClaimed { half_edge, claims } => write!(
                 f,
-                "half-edge {half_edge:?} is claimed by {claims} edge slots \
-                 (exactly one required)"
+                "half-edge {half_edge:?} is claimed by {claims} edges, not one. {DEFECT}"
             ),
             Self::EdgeNotAntiparallel { edge } => write!(
                 f,
-                "edge {edge:?}'s half-edges do not traverse it in opposite \
-                 directions"
+                "edge {edge:?}'s half-edges do not run in opposite directions. {DEFECT}"
             ),
             Self::EmanatingStartMismatch { vertex, emanating } => write!(
                 f,
-                "vertex {vertex:?}'s emanating half-edge {emanating:?} does \
-                 not start at it"
+                "vertex {vertex:?}'s outgoing half-edge {emanating:?} does not start at it. \
+                 {DEFECT}"
             ),
             Self::EmptyLoopVertexWithEmanating {
                 vertex,
                 empty_loops,
             } => write!(
                 f,
-                "vertex {vertex:?} has an emanating half-edge but is the lone \
-                 vertex of {empty_loops} empty loop(s)"
+                "vertex {vertex:?} has an outgoing half-edge but is the lone vertex of \
+                 {empty_loops} empty loop(s). {DEFECT}"
             ),
             Self::LoneVertexWithIncidence { vertex, incident } => write!(
                 f,
-                "vertex {vertex:?} has no emanating half-edge but {incident} \
-                 half-edge(s) start at it"
+                "vertex {vertex:?} has no outgoing half-edge but {incident} half-edge(s) \
+                 start at it. {DEFECT}"
             ),
             Self::VertexOrbitOverrun { vertex } => write!(
                 f,
-                "vertex {vertex:?}'s orbit does not return to its emanating \
-                 half-edge within the arena bound"
+                "the half-edges around vertex {vertex:?} do not close within the arena \
+                 bound. {DEFECT}"
             ),
             Self::OrbitForeignMember { vertex, half_edge } => write!(
                 f,
-                "vertex {vertex:?}'s orbit visits half-edge {half_edge:?}, \
-                 which starts at a different vertex"
+                "the half-edges around vertex {vertex:?} include {half_edge:?}, which \
+                 starts at a different vertex. {DEFECT}"
             ),
             Self::SplitVertexOrbit {
                 vertex,
@@ -2235,32 +2514,35 @@ impl fmt::Display for ValidationError {
                 incident,
             } => write!(
                 f,
-                "vertex {vertex:?} is non-manifold: its orbit closes over \
-                 {orbit} half-edge(s) but {incident} start at it"
+                "vertex {vertex:?} is non-manifold: {orbit} half-edge(s) circle it but \
+                 {incident} start at it. {DEFECT}"
             ),
-            Self::OuterListedAsRing { face } => {
-                write!(f, "face {face:?} lists its outer loop among its rings")
-            }
+            Self::OuterListedAsRing { face } => write!(
+                f,
+                "face {face:?} lists its outline among its holes. {DEFECT}"
+            ),
             Self::BackPointerMismatch {
                 child,
                 stored,
                 owner,
-            } => write!(f, "{child} points back at {stored} but is owned by {owner}"),
-            Self::OrphanEntity { entity } => {
-                write!(f, "{entity} is anchored by no parent entity")
-            }
-            Self::MultiplyOwned { child, owners } => write!(
+            } => write!(
                 f,
-                "{child} has {owners} owning references (exactly one required)"
+                "{child} points back at {stored} but is owned by {owner}. {DEFECT}"
             ),
+            Self::OrphanEntity { entity } => {
+                write!(f, "{entity} belongs to nothing. {DEFECT}")
+            }
+            Self::MultiplyOwned { child, owners } => {
+                write!(f, "{child} has {owners} owners, not one. {DEFECT}")
+            }
             Self::OrphanGeometry { geometry } => {
-                write!(f, "{geometry} is referenced by no entity")
+                write!(f, "{geometry} is used by nothing. {DEFECT}")
             }
             Self::SolidWithoutShells { solid } => {
-                write!(f, "solid {solid:?} has no shells (every solid has ≥ 1)")
+                write!(f, "solid {solid:?} has no shells. {DEFECT}")
             }
             Self::ShellWithoutFaces { shell } => {
-                write!(f, "shell {shell:?} has no faces (every shell has ≥ 1)")
+                write!(f, "shell {shell:?} has no faces. {DEFECT}")
             }
             Self::EdgeAcrossShells {
                 edge,
@@ -2268,8 +2550,8 @@ impl fmt::Display for ValidationError {
                 shell_minus,
             } => write!(
                 f,
-                "edge {edge:?}'s two halves lie in different shells \
-                 ({shell_plus:?} vs {shell_minus:?})"
+                "edge {edge:?}'s two halves lie in different shells ({shell_plus:?} and \
+                 {shell_minus:?}). {DEFECT}"
             ),
             Self::ComponentEulerViolation {
                 shell,
@@ -2282,92 +2564,49 @@ impl fmt::Display for ValidationError {
                 let chi = *vertices as i64 - *edges as i64 + *faces as i64 - *rings as i64;
                 write!(
                     f,
-                    "shell {shell:?}'s component seeded at face {seed:?} violates \
-                     Euler–Poincaré: v − e + f − r = {vertices} − {edges} + {faces} \
-                     − {rings} = {chi}, which is not 2(1 − g) for any integer g ≥ 0"
+                    "shell {shell:?}'s component at face {seed:?} fails Euler–Poincaré \
+                     (v − e + f − r = {chi}, not 2 − 2g for any genus g). {DEFECT}"
                 )
             }
             Self::MissingProvenance { entity } => {
-                write!(f, "{entity} is live but has no D5 provenance record")
+                write!(f, "{entity} has no provenance record. {DEFECT}")
             }
-            Self::LeakedProvenance { entity } => write!(
-                f,
-                "a D5 provenance record exists for {entity}, which is not live \
-                 (leaked past its entity's death)"
-            ),
+            Self::LeakedProvenance { entity } => {
+                write!(f, "a provenance record outlives {entity}. {DEFECT}")
+            }
             Self::ScaffoldingEmptyLoop { loop_ } => write!(
                 f,
-                "loop {loop_:?} is an empty loop — construction scaffolding, \
-                 banned on a closed solid (tier 2)"
+                "loop {loop_:?} is an empty construction loop left in a closed solid. \
+                 {DEFECT}"
             ),
             Self::ScaffoldingStrutVertex { vertex } => write!(
                 f,
-                "vertex {vertex:?} has valence 1 (a strut tip) — construction \
-                 scaffolding, banned on a closed solid (tier 2)"
+                "vertex {vertex:?} ends a construction strut left in a closed solid. {DEFECT}"
             ),
             Self::ShellDisconnected { shell, components } => write!(
                 f,
-                "shell {shell:?}'s incidence complex has {components} connected \
-                 components (a closed solid requires exactly 1, tier 2)"
+                "shell {shell:?} falls into {components} separate pieces, not one. {DEFECT}"
             ),
             Self::NullScaffoldShared { curve, edges } => write!(
                 f,
-                "null-scaffold curve entry {curve:?} is referenced by {edges} \
-                 edges (the null-scaffold attribute is per-edge data — sharing is corrupt)"
+                "construction curve {curve:?} is shared by {edges} edges, not one. {DEFECT}"
             ),
             Self::LeakedNullFaceRecord { face } => write!(
                 f,
-                "null-face record outlives its face {face:?} (record leak — \
-                 face kills must remove the record)"
+                "a construction record outlives its face {face:?}. {DEFECT}"
             ),
             Self::StaleNullFaceLoop { face, named_loop } => write!(
                 f,
-                "null-face record on face {face:?} names loop {named_loop:?}, \
-                 which does not resolve (record leak — loop kills must \
-                 scrub records naming the loop)"
+                "a construction record on face {face:?} names loop {named_loop:?}, which \
+                 no longer exists. {DEFECT}"
             ),
             Self::NullEdgeAtRest { edge } => write!(
                 f,
-                "edge {edge:?} is null-edge scaffolding at rest (tier 2 bans \
-                 unconsumed surgery transients)"
+                "edge {edge:?} is a construction edge left in a finished body. {DEFECT}"
             ),
             Self::NullFaceAtRest { face } => write!(
                 f,
-                "face {face:?} carries a null-face record at rest (tier 2 bans \
-                 unconsumed surgery transients)"
-            ),
-            Self::Pcurve { finding } => write!(f, "tier 3: {finding}"),
-            Self::RingMeetsOuter {
-                face,
-                ring,
-                contact,
-            } => write!(
-                f,
-                "tier 3: ring {ring:?} of {face:?} meets that face's own outer loop ({contact}) \
-                 — a ring is a hole strictly inside the region its face trims, and one that \
-                 touches the outer boundary trims no region at all"
-            ),
-            Self::RingContactEscalated { face, ring, source } => write!(
-                f,
-                "tier 3: whether ring {ring:?} of {face:?} meets that face's own outer loop \
-                 could not be certified ({source}) — an undecidable separation is reported, \
-                 never read as disjoint"
-            ),
-            Self::RingOutsideOuter {
-                face,
-                ring,
-                ring_vertex,
-            } => write!(
-                f,
-                "tier 3: vertex {ring_vertex:?} of ring {ring:?} of {face:?} lies outside that \
-                 face's own outer loop — a ring is a hole strictly inside the region its face \
-                 trims, and a ring with a point outside that region trims no region at all"
-            ),
-            Self::RingNestingUndecided { face, ring, source } => write!(
-                f,
-                "tier 3: whether ring {ring:?} of {face:?} lies inside that face's own outer \
-                 loop could not be certified ({source}) — an undecidable nesting is reported, \
-                 never read as nested"
+                "face {face:?} is a construction face left in a finished body. {DEFECT}"
             ),
         }
     }
@@ -7298,7 +7537,7 @@ mod tests {
             assert_eq!(kind as usize, i, "EnumIter order is the discriminant order");
         }
         let mut covered = [false; ValidationErrorKind::COUNT];
-        for err in &all {
+        for (_, err) in &all {
             // Display and Error are wired up; content is human-oriented.
             assert!(!err.to_string().is_empty());
             let _: &dyn std::error::Error = err;
@@ -7311,6 +7550,11 @@ mod tests {
         assert!(
             missing.is_empty(),
             "every ValidationError variant needs a Display sample; missing {missing:?}",
+        );
+        let nested = crate::test_support_samples::nested_coverage_gaps();
+        assert!(
+            nested.is_empty(),
+            "every variant of every enum an arm renders whole needs a sample; missing {nested:?}",
         );
     }
 

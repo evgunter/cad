@@ -123,6 +123,57 @@ pub const CONTACT_RECOURSE: &str = "declare the named contact class, or move the
 pub const FIT_DEFERRAL: &str = "a designed nonzero clearance is `Fit { gap }`, whose variant is \
      specified but not yet built — it lands with its first consumer";
 
+/// What a person at the viewer reads for [`FIT_DEFERRAL`]. The constant
+/// itself is the wire's and the mate door's sentence (quoted verbatim
+/// by `editor-core`), so it cannot change; a rendered contradiction
+/// that carries it as its steer says this instead, in the user's terms
+/// rather than as a variant name and a roadmap note.
+pub const FIT_DEFERRAL_FOR_USERS: &str = "a designed gap between the faces cannot be declared yet";
+
+/// The recourse for a contradicted declaration. The declaration is
+/// what the geometry refutes, so re-declaring it is no way through:
+/// the declaration is corrected or removed, or the geometry is moved
+/// until it holds.
+pub const CONTRADICTION_RECOURSE: &str =
+    "Recourse: correct or remove the declaration, or move the geometry so it holds";
+
+/// A contradiction's reason in words, read off the predicate that
+/// decided it. Every contradiction site carries an invalid margin
+/// standing for a definite relation, so the predicate IS the reason;
+/// its name, and the margin, ride in `Debug`.
+pub(crate) fn contradiction_reason(diag: &Indeterminate) -> &'static str {
+    match diag.predicate {
+        Some("contact_rest_senses_opposed") => {
+            "the two faces face the same way, so neither rests against the other"
+        }
+        Some("contact_tangent_opposed") => {
+            "the two faces face the same way along the edge, so they cannot touch from \
+             opposite sides"
+        }
+        Some("contact_tangent_independent") => "the faces cross at the edge rather than touch",
+        Some("contact_tangent_parallel") => "the faces are not tangent along the edge",
+        Some("contact_tangent_on_1" | "contact_tangent_on_2") => {
+            "the edge does not lie on both faces"
+        }
+        Some("carrier_kind") => "the two faces lie on different kinds of surface",
+        Some("bool_plane_offset") => "the two faces' planes are parallel but apart",
+        Some("bool_plane_parallel") => "the two faces' planes are not parallel",
+        Some("bool_plane_orient") => "the two faces face the same way",
+        Some(p) if p.starts_with("carrier_") => "the two faces lie on different surfaces",
+        _ => "the geometry definitely disagrees with it",
+    }
+}
+
+/// A steer as the rendered contradiction says it: `FIT_DEFERRAL` in the
+/// user's words, any other steer as written.
+pub(crate) fn steer_clause(steer: Option<&'static str>) -> String {
+    match steer {
+        Some(s) if s == FIT_DEFERRAL => format!("; {FIT_DEFERRAL_FOR_USERS}"),
+        Some(s) => format!("; {s}"),
+        None => String::new(),
+    }
+}
+
 /// **The trilean a contact verification returns** (C4's per-class
 /// tables, AQ6's shape): every declaration states three lists, and
 /// this is the verdict that says which one the geometry landed in.
@@ -206,33 +257,33 @@ pub enum ContactRefusal {
 impl core::fmt::Display for ContactRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            // The reason in words, never the margin payload: every
+            // contradiction carries an invalid margin standing for a
+            // definite relation, which the payload would render as
+            // "indeterminate".
             Self::Contradicted { diag, steer } => write!(
                 f,
-                "contact: the declaration is contradicted by {} — every definite \
-                 verdict wins over every declaration; {CONTACT_RECOURSE}{}",
-                diag.payload(),
-                steer.map(|s| format!(" — {s}")).unwrap_or_default(),
+                "the declared contact is contradicted: {}. {CONTRADICTION_RECOURSE}{}",
+                contradiction_reason(diag),
+                steer_clause(*steer),
             ),
             Self::Escalated { diag } => write!(
                 f,
-                "contact: {} — the margin escalated with no declaration able to \
-                 bridge it, which is terminal rather than guessed at; \
-                 {CONTACT_RECOURSE}",
+                "whether the declared faces touch is too close to call ({}), and no \
+                 declaration can decide it; {CONTACT_RECOURSE}",
                 diag.payload()
             ),
             Self::Undeclared { diag } => write!(
                 f,
-                "contact: the faces touch on the geometry's own evidence ({}) \
-                 with no declaration behind them — near-coincidence never \
-                 silently becomes contact; {CONTACT_RECOURSE}",
+                "the faces touch on the geometry's own evidence ({}) with no declaration \
+                 behind them — near-coincidence never silently becomes contact; \
+                 {CONTACT_RECOURSE}",
                 diag.payload()
             ),
             Self::NotCertifiable { what } => write!(
                 f,
-                "contact: the configuration is outside this class's certifiable \
-                 set ({what}) — the demanded set IS the certifiable set, so this \
-                 refuses rather than sampling for a verdict it cannot stand \
-                 behind"
+                "this contact cannot be certified ({what}), and a declaration cannot move a \
+                 configuration into the certifiable set"
             ),
         }
     }

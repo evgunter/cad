@@ -1,56 +1,508 @@
-//! **One [`ValidationError`] of every arm, on a representative
-//! payload**: the samples two rows read.
+//! **Every [`ValidationError`] shape the viewer can draw, on a
+//! representative payload**: the samples two rows read.
 //!
 //! - This crate's `errors_display_without_panicking` indexes them by
 //!   the enum's compiler-derived companion, so an arm added without a
-//!   sample here reds by name.
+//!   sample reds by name, and it asserts [`nested_coverage_gaps`] is
+//!   empty — the same statement one level in, for every enum an arm
+//!   renders whole.
 //! - `editor-core`'s `refusal_concision_at_rest` renders each one the
-//!   way the viewer's at-rest badge draws a finding and holds it to the
-//!   refusal word budget — which is why the list lives behind the
-//!   `test_support` door rather than in `crate::fixtures`, which no
-//!   other crate can name ([`crate::test_support_impl`] states the
-//!   routing rule).
+//!   way the viewer's at-rest and product badges draw a finding and
+//!   holds it to the refusal standard — which is why the list lives
+//!   behind the `test_support` door rather than in `crate::fixtures`,
+//!   which no other crate can name ([`crate::test_support_impl`] states
+//!   the routing rule).
 //!
-//! **Representative, not minimal**: where a raise site fills a field
-//! with prose — a `what`, a `steer`, a region witness — the sample
-//! carries the prose a real run renders, and an arm raised with more
-//! than one such string has a sample per string, because the budget
-//! is a claim about what a reader sees. Arena keys are the default
-//! (null) keys: a key renders as one word whatever its index.
-#![allow(clippy::expect_used)] // two fixed bands, well-formed and inverted by construction
+//! **Every variant of every nested enum, not one sample per arm.** An
+//! arm that renders a nested refusal (`{cause}`, `{error}`, `{source}`)
+//! is as long as its longest nested sentence, so each such arm is
+//! sampled once per variant of the enum it carries:
+//! [`CensusUnsupportedCause`] and, under it, every [`ChartRegionError`],
+//! [`ContactRefusal`] and [`ContainError`]; every `CertifyError`,
+//! [`PcurveMintError`], [`MassPropsError`], `OffsetFitError` and
+//! [`BandError`]; every margin shape an [`Indeterminate`] renders;
+//! every [`CensusContact`], [`StaleDeclaration`] and [`RingContact`];
+//! and every [`Undecided`] reason, which is every `what` the
+//! cross-solid backstop can raise. One level further in, the enums
+//! `PcurveMintError::Certify`, `MassPropsError::Face` and
+//! `CertifyError::PlaneNurbs` carry are sampled whole too; the four
+//! `OffsetFitError` wrappers carry one value each.
+//!
+//! Where a raise site fills a field with prose — a `what`, a `detail`,
+//! a steer — the sample carries the prose a real run renders, and a
+//! field with several real values is sampled at each one this module
+//! names. Arena keys are the default (null) keys.
+#![allow(clippy::expect_used)] // one fixed band, well-formed by construction
 
 use geom_brep::MaterialWedge;
-use geom_core::{Band, Indeterminate, MarginDiag};
+use geom_brep::certify::{CertCheck, CertifyError};
+use geom_brep::edge_nurbs::PlaneNurbsRefusal;
+use geom_brep::offset_fit::{OffsetFitError, OffsetLimb};
+use geom_brep::pcurve_cache::{FittedMagnitude, PcurveCertifyError, PcurveCheck};
+use geom_brep::props::PropsError;
+use geom_core::{Band, BandError, BandField, Indeterminate, MarginDiag};
 
-use crate::census::{CARRIER_COMPARISON_WITNESS, CONFORMAL_REGION_WITNESS};
+use crate::boolean::ContainError;
+use crate::census::Undecided;
 use crate::chart_region::ChartRegionError;
-use crate::contact::{ContactClass, ContactFinding, ContactRefusal, ContactVerdict};
-use crate::contact::{DeclaredContact, FIT_DEFERRAL};
+use crate::contact::{
+    ContactClass, ContactFinding, ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL,
+};
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopKey, ShellKey, SolidKey, VertexKey,
 };
 use crate::geometry::{CurveKey, PointKey};
+use crate::pcurves::PcurveMintError;
+use crate::props::MassPropsError;
 use crate::validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, RingContact, StaleDeclaration,
     ValidationError,
 };
 
-/// A census or tier-3 escalation's diagnostic, as a run renders it: a
-/// margin, the band it fell in, and the predicate that asked.
-fn indeterminate() -> Indeterminate {
-    Indeterminate {
-        margin: MarginDiag::Value(5e-9),
-        band: Band::new(1e-9, 1e-8).expect("a well-formed band"),
+fn band() -> Band {
+    Band::new(1e-9, 1e-8).expect("a well-formed band")
+}
+
+/// The three shapes an [`Indeterminate`] renders: a margin value, an
+/// enclosure, and the invalid margin a definite-relation site carries.
+fn diags() -> [Indeterminate; 3] {
+    let with = |margin| Indeterminate {
+        margin,
+        band: band(),
         predicate: Some("side_of_plane"),
+    };
+    [
+        with(MarginDiag::Value(5e-9)),
+        with(MarginDiag::Enclosure {
+            lo: -2e-9,
+            hi: 4e-9,
+        }),
+        with(MarginDiag::Invalid),
+    ]
+}
+
+fn diag() -> Indeterminate {
+    diags()[0]
+}
+
+/// The margin every `ContactRefusal::Contradicted` raise site carries:
+/// invalid, naming the contact predicate that decided.
+fn contradiction_margin(predicate: &'static str) -> Indeterminate {
+    Indeterminate {
+        margin: MarginDiag::Invalid,
+        band: band(),
+        predicate: Some(predicate),
     }
 }
 
-/// Every [`ValidationError`] arm at least once, on a representative
-/// payload (the module docs).
-#[must_use]
-pub fn validation_error_samples() -> Vec<ValidationError> {
+fn band_errors() -> Vec<BandError> {
+    vec![
+        BandError::InvalidValue {
+            field: BandField::Escalate,
+            value: 0.0,
+        },
+        BandError::InvalidLeverArm { value: f64::NAN },
+        BandError::Empty {
+            zero: 1.0,
+            escalate: 0.5,
+        },
+    ]
+}
+
+fn chart_region_errors() -> Vec<ChartRegionError> {
     let face = FaceKey::default();
-    let other_face = FaceKey::default();
+    let mut v = vec![
+        ChartRegionError::NonPlanarTrim {
+            face,
+            half_edge: HalfEdgeKey::default(),
+            what: "no closed-form chart image for this carrier kind",
+        },
+        ChartRegionError::MissingCache {
+            half_edge: HalfEdgeKey::default(),
+        },
+        ChartRegionError::ArmUnbounded { chart: "sphere" },
+        ChartRegionError::SeamBranch,
+        ChartRegionError::PeriodFold,
+        ChartRegionError::CarrierTilt,
+        ChartRegionError::TouchingBoundary,
+        ChartRegionError::DegenerateLoop {
+            face,
+            r#loop: LoopKey::default(),
+        },
+        ChartRegionError::RayExhausted,
+        ChartRegionError::WitnessBudgetExhausted {
+            segments: crate::chart_region::WITNESS_BUDGET.segments + 1,
+            cells: 0,
+        },
+        ChartRegionError::Corrupt,
+    ];
+    v.push(ChartRegionError::ChartDivergence {
+        detail: "same GeomSource with non-bit-identical descriptions — the same-source \
+                 theorem violated (forged or corrupted source attachment)",
+    });
+    v.extend(diags().into_iter().map(ChartRegionError::Escalated));
+    v
+}
+
+fn contact_refusals() -> Vec<ContactRefusal> {
+    let mut v = vec![
+        ContactRefusal::Contradicted {
+            diag: contradiction_margin("contact_rest_senses_opposed"),
+            steer: None,
+        },
+        ContactRefusal::Contradicted {
+            diag: contradiction_margin("carrier_cyl_radius"),
+            steer: Some(FIT_DEFERRAL),
+        },
+        ContactRefusal::Escalated { diag: diag() },
+        ContactRefusal::Undeclared { diag: diag() },
+    ];
+    // The longest `what`s the raise sites write.
+    v.extend(
+        [
+            "a declared face's surface kind is outside the Rest ladder's inventory \
+             (plane, sphere, cylinder)",
+            "the (carrier kind, surface-kind pair) triple is outside the jet \
+             certificate's span-bound lane (the order-k boundary)",
+        ]
+        .map(|what| ContactRefusal::NotCertifiable { what }),
+    );
+    v
+}
+
+fn contain_errors() -> Vec<ContainError> {
+    vec![
+        ContainError::Escalated(diag()),
+        ContainError::RayExhausted,
+        ContainError::Corrupt,
+        ContainError::ArcLoopUnsupported {
+            r#loop: LoopKey::default(),
+        },
+    ]
+}
+
+fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
+    vec![
+        PlaneNurbsRefusal::FootPointInconclusive {
+            sample: 3,
+            last_distance: 1e-7,
+        },
+        PlaneNurbsRefusal::NotTransverse { sample: 3 },
+        PlaneNurbsRefusal::PcurveFit,
+        PlaneNurbsRefusal::Limb {
+            limb: geom_brep::SsiLimb::Tube,
+            value: 1e-7,
+        },
+        PlaneNurbsRefusal::TubeStraddles {
+            certified_clearance: 1e-7,
+            boxes: 12,
+        },
+        PlaneNurbsRefusal::Escalated(diag()),
+        PlaneNurbsRefusal::Unsupported {
+            what: "a rational NURBS surface",
+        },
+    ]
+}
+
+fn certify_errors() -> Vec<CertifyError> {
+    let key = geom_brep::SurfaceKey::default();
+    let mut v = vec![
+        CertifyError::ChartImageUnavailable {
+            chart: "cone",
+            carrier: "ellipse",
+        },
+        CertifyError::UnresolvedSurface { key },
+        CertifyError::Unimplemented,
+        CertifyError::IntersectionSameSurface { key },
+        CertifyError::SeamOnNonPeriodic,
+        CertifyError::IntervalNotForward,
+        CertifyError::WindingExceeded,
+        CertifyError::ResidualExceeded {
+            check: CertCheck::Surface1Residual,
+            sample: 4,
+        },
+        CertifyError::NotTransverse { sample: 4 },
+        CertifyError::NotSecondOrderSeparated {
+            sample: 4,
+            band: band(),
+        },
+        CertifyError::TangentCertificateUnsupported,
+        CertifyError::Escalated {
+            check: CertCheck::Transversality,
+            sample: 4,
+            cause: diag(),
+        },
+    ];
+    v.extend(band_errors().into_iter().map(CertifyError::Band));
+    v.extend(
+        plane_nurbs_refusals()
+            .into_iter()
+            .map(CertifyError::PlaneNurbs),
+    );
+    v
+}
+
+fn pcurve_certify_errors() -> Vec<PcurveCertifyError> {
+    let mut v = vec![
+        PcurveCertifyError::UnsupportedChart { chart: "torus" },
+        PcurveCertifyError::UnsupportedCarrier,
+        PcurveCertifyError::FittedLaneUnsupported { scalar: "Dual64" },
+        PcurveCertifyError::FittedMateMissing,
+        PcurveCertifyError::IsoUnsupported {
+            what: "a rational NURBS surface",
+        },
+        PcurveCertifyError::ChartRow {
+            source: geom_core::spline::SplineError::DomainInvalid { lo: 1.0, hi: 0.0 },
+        },
+        PcurveCertifyError::FittedCertificate {
+            limb: Some(geom_brep::SsiLimb::Tube),
+            what: "the uniqueness tube straddles a second branch",
+            magnitude: Some(FittedMagnitude::CertifiedClearance {
+                certified_clearance: 1e-7,
+                boxes: 12,
+            }),
+        },
+        PcurveCertifyError::FittedEscalated { cause: diag() },
+        PcurveCertifyError::IntervalNotForward,
+        PcurveCertifyError::ChartWindingUnsupported,
+        PcurveCertifyError::AzimuthPeriodExceeded,
+        PcurveCertifyError::ResidualExceeded {
+            check: PcurveCheck::MapResidual,
+            sample: 4,
+        },
+        PcurveCertifyError::TrimEscape,
+        PcurveCertifyError::Escalated {
+            check: PcurveCheck::Envelope,
+            sample: 4,
+            cause: diag(),
+        },
+    ];
+    v.extend(band_errors().into_iter().map(PcurveCertifyError::Band));
+    v
+}
+
+fn pcurve_mint_errors() -> Vec<PcurveMintError> {
+    let face = FaceKey::default();
+    let half_edge = HalfEdgeKey::default();
+    let r#loop = LoopKey::default();
+    let mut v = vec![
+        PcurveMintError::Corrupt,
+        PcurveMintError::LoopDiscontinuity { half_edge },
+        PcurveMintError::LoopNotClosed { face },
+        PcurveMintError::SingularChartJoint {
+            face,
+            r#loop,
+            half_edge,
+        },
+        PcurveMintError::OuterSpansPeriod,
+        PcurveMintError::LoopWraps { face, r#loop },
+        PcurveMintError::MissingCache { half_edge },
+        PcurveMintError::Escalated {
+            half_edge,
+            cause: diag(),
+        },
+    ];
+    v.extend(band_errors().into_iter().map(PcurveMintError::Band));
+    v.extend(
+        pcurve_certify_errors()
+            .into_iter()
+            .map(|error| PcurveMintError::Certify { half_edge, error }),
+    );
+    v
+}
+
+fn props_errors() -> Vec<PropsError> {
+    vec![
+        PropsError::Unimplemented,
+        PropsError::NotIsoRectangle {
+            what: "a trim edge that is not an iso-parameter line",
+        },
+        PropsError::NappeSpanning,
+        PropsError::NotOneChartBranch {
+            edge: 2,
+            what: "the edge crosses the seam",
+        },
+        PropsError::DegenerateFace,
+        PropsError::Escalated { cause: diag() },
+        PropsError::QuadratureBudget {
+            width_len: 1e-6,
+            target_len: 1e-9,
+            rounds: 12,
+        },
+        PropsError::QuadratureUnsupported {
+            what: "a NURBS face",
+        },
+    ]
+}
+
+fn mass_props_errors() -> Vec<MassPropsError> {
+    let face = FaceKey::default();
+    let mut v: Vec<MassPropsError> = band_errors()
+        .into_iter()
+        .map(|error| MassPropsError::Band { error })
+        .collect();
+    v.extend([
+        MassPropsError::RingOnCurvedFace { face },
+        MassPropsError::Corrupt {
+            what: "a face's loop does not close",
+        },
+        MassPropsError::NullScaffoldEdge {
+            edge: EdgeKey::default(),
+        },
+    ]);
+    v.extend(
+        props_errors()
+            .into_iter()
+            .map(|source| MassPropsError::Face { face, source }),
+    );
+    v
+}
+
+fn offset_fit_errors() -> Vec<OffsetFitError> {
+    use geom_brep::offset_meters::MeterError;
+    vec![
+        OffsetFitError::Meter(MeterError::NormalFloor {
+            floor: 1e-9,
+            thinness: 1e-3,
+            speed_lever: 2.0,
+        }),
+        OffsetFitError::Meter(MeterError::CurvatureHeadroom {
+            reach: 0.5,
+            headroom: -0.1,
+            kappa: (2.0, 0.5),
+        }),
+        OffsetFitError::Meter(MeterError::Escalated { source: diag() }),
+        OffsetFitError::PatchBound(geom_brep::patch_bound::PatchBoundError::Crease),
+        OffsetFitError::Fit(geom::curves::fit::FitError::TooFewPoints { have: 2, need: 4 }),
+        OffsetFitError::Structure(geom_core::spline::SplineError::DomainInvalid {
+            lo: 1.0,
+            hi: 0.0,
+        }),
+        OffsetFitError::InvalidRequest {
+            d: 0.0,
+            tolerance: 0.0,
+        },
+        OffsetFitError::NonFiniteSample { uv: (0.5, 0.25) },
+        OffsetFitError::BudgetExhausted {
+            budget: 4096,
+            grid: (64, 64),
+            achieved: 3e-6,
+            tolerance: 1e-6,
+        },
+        OffsetFitError::SampleCapReached {
+            cap: 4096,
+            rounds: 6,
+            grid: (64, 64),
+            achieved: 3e-6,
+            tolerance: 1e-6,
+        },
+        OffsetFitError::BoundNotFinite {
+            rounds: 6,
+            grid: (64, 64),
+            d: 0.1,
+            tolerance: 1e-6,
+            last_finite: Some(3e-6),
+        },
+        OffsetFitError::RefinementStalled {
+            rounds: 6,
+            grid: (64, 64),
+            achieved: 3e-6,
+            tolerance: 1e-6,
+        },
+        OffsetFitError::WindowUnsupported {
+            window: geom::ApproxWindow {
+                u: (0.0, 1.0),
+                v: (0.0, 1.0),
+            },
+        },
+        OffsetFitError::Limb {
+            limb: OffsetLimb::HullSup,
+            bound: 3e-6,
+            tolerance: 1e-6,
+        },
+    ]
+}
+
+fn census_contacts() -> Vec<CensusContact> {
+    let (vertex, edge, face) = (VertexKey::default(), EdgeKey::default(), FaceKey::default());
+    vec![
+        CensusContact::VertexVertex {
+            a: vertex,
+            b: vertex,
+        },
+        CensusContact::VertexOnFace { vertex, face },
+        CensusContact::VertexOnEdge { vertex, edge },
+        CensusContact::EdgeFacePierce { edge, face },
+        CensusContact::EdgeEdgeCross { a: edge, b: edge },
+        CensusContact::EdgeEdgeOverlap { a: edge, b: edge },
+        CensusContact::EdgeFaceOverlap { edge, face },
+        CensusContact::ConformalPatch {
+            finding: ContactFinding {
+                pair: DeclaredContact {
+                    a: face,
+                    b: face,
+                    class: ContactClass::Rest,
+                },
+                verdict: ContactVerdict::Definite,
+            },
+        },
+    ]
+}
+
+fn stale_declarations() -> Vec<StaleDeclaration> {
+    let (vertex, face) = (VertexKey::default(), FaceKey::default());
+    vec![
+        StaleDeclaration::VertexVertex {
+            a: vertex,
+            b: vertex,
+        },
+        StaleDeclaration::VertexOnFace { vertex, face },
+        StaleDeclaration::CurveLocus {
+            face_a: face,
+            face_b: face,
+            witness: EdgeKey::default(),
+        },
+        StaleDeclaration::Patch {
+            face_a: face,
+            face_b: face,
+        },
+    ]
+}
+
+fn ring_contacts() -> Vec<RingContact> {
+    let (vertex, edge) = (VertexKey::default(), EdgeKey::default());
+    vec![
+        RingContact::Vertex {
+            ring_vertex: vertex,
+            outer_vertex: vertex,
+        },
+        RingContact::VertexOnEdge {
+            ring_vertex: vertex,
+            outer_edge: edge,
+        },
+        RingContact::Edge {
+            ring_edge: edge,
+            outer_edge: edge,
+        },
+    ]
+}
+
+/// `arm/Variant`, the variant read off the nested value's `Debug`.
+fn label<T: core::fmt::Debug>(arm: &str, nested: &T) -> String {
+    let debug = format!("{nested:?}");
+    let head: String = debug
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '_')
+        .collect();
+    format!("{arm}/{head}")
+}
+
+/// Every [`ValidationError`] shape the viewer can draw, each with a
+/// short label naming the arm and the nested variant it carries (the
+/// module docs).
+#[must_use]
+pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
+    let face = FaceKey::default();
     let edge = EdgeKey::default();
     let vertex = VertexKey::default();
     let he = HalfEdgeKey::default();
@@ -58,194 +510,21 @@ pub fn validation_error_samples() -> Vec<ValidationError> {
     let shell = ShellKey::default();
     let solid = SolidKey::default();
     let point = PointKey::default();
-    let band_error = || Band::new(1.0, 0.0).expect_err("an inverted band");
-    let declared = |class| DeclaredContact {
-        a: face,
-        b: other_face,
-        class,
-    };
-    let witness = "(0.4375, 0.5, 0.25)".to_owned();
-    let mut samples = vec![
-        ValidationError::Band {
-            error: band_error(),
-        },
-        ValidationError::DanglingDescription {
-            from: GeomRef::Point(point),
-            to: GeomRef::Point(point),
-        },
-        ValidationError::UncertifiableSurface { face },
-        ValidationError::PoisonedSurfaceDescription { face },
-        ValidationError::ApproxCertification {
-            face,
-            error: geom_brep::OffsetFitError::InvalidRequest {
-                d: 0.0,
-                tolerance: 0.0,
-            },
-        },
-        ValidationError::ApproxLaneUnsupported { face },
-        ValidationError::DegenerateTorus { face },
-        ValidationError::DegenerateTorusEscalated {
-            face,
-            cause: indeterminate(),
-        },
-        ValidationError::NonpositiveTorusTube { face },
-        ValidationError::EdgeCertification {
-            edge,
-            error: geom_brep::CertifyError::Unimplemented,
-        },
-        ValidationError::DescriptionNotAdjacent { edge },
-        ValidationError::PlanarFaceResidual { face, vertex },
-        ValidationError::PlanarFaceEscalated {
-            face,
-            vertex,
-            cause: indeterminate(),
-        },
-        ValidationError::PlanarBoundaryResidual { face, edge },
-        ValidationError::PlanarBoundaryEscalated {
-            face,
-            edge,
-            cause: indeterminate(),
-        },
-        ValidationError::SliverDihedral {
-            edge,
-            cause: indeterminate(),
-        },
-        ValidationError::TransverseNotIntrinsic { edge },
-        ValidationError::ScaffoldAtRest { edge },
-        ValidationError::TangentNotIntrinsic { edge },
-        ValidationError::UndeclaredCusp {
-            edge,
-            wedge: MaterialWedge::Cusp,
-        },
-        ValidationError::UndeclaredCusp {
-            edge,
-            wedge: MaterialWedge::Slit,
-        },
-        ValidationError::LaminaWedge { edge },
-        ValidationError::LoopRoleInverted {
-            face,
-            r#loop: loop_,
-        },
-        ValidationError::CurvedSenseInverted { face },
-        ValidationError::NegativeVolume { solid },
-        ValidationError::VolumeUncomputable {
-            solid,
-            source: crate::props::MassPropsError::Band {
-                error: band_error(),
-            },
-        },
-        ValidationError::Pcurve {
-            finding: crate::pcurves::PcurveMintError::Corrupt,
-        },
-        ValidationError::RingMeetsOuter {
-            face,
-            ring: loop_,
-            contact: RingContact::Vertex {
-                ring_vertex: vertex,
-                outer_vertex: vertex,
-            },
-        },
-        ValidationError::RingMeetsOuter {
-            face,
-            ring: loop_,
-            contact: RingContact::VertexOnEdge {
-                ring_vertex: vertex,
-                outer_edge: edge,
-            },
-        },
-        ValidationError::RingMeetsOuter {
-            face,
-            ring: loop_,
-            contact: RingContact::Edge {
-                ring_edge: edge,
-                outer_edge: edge,
-            },
-        },
-        ValidationError::RingContactEscalated {
-            face,
-            ring: loop_,
-            source: indeterminate(),
-        },
-        ValidationError::RingOutsideOuter {
-            face,
-            ring: loop_,
-            ring_vertex: vertex,
-        },
-        ValidationError::RingNestingUndecided {
-            face,
-            ring: loop_,
-            source: crate::boolean::ContainError::Escalated(indeterminate()),
-        },
-        ValidationError::UndeclaredContact {
-            contact: CensusContact::EdgeFacePierce { edge, face },
-            witness: witness.clone(),
-        },
-        ValidationError::UndeclaredContact {
-            contact: CensusContact::ConformalPatch {
-                finding: ContactFinding {
-                    pair: declared(ContactClass::Rest),
-                    verdict: ContactVerdict::Definite,
-                },
-            },
-            witness: CONFORMAL_REGION_WITNESS.to_owned(),
-        },
-        ValidationError::StaleContactDeclaration {
-            declaration: StaleDeclaration::VertexVertex {
-                a: vertex,
-                b: vertex,
-            },
-        },
-        ValidationError::ContactContradicted {
-            declaration: declared(ContactClass::Rest),
-            witness: CARRIER_COMPARISON_WITNESS.to_owned(),
-            margin: indeterminate(),
-            steer: None,
-        },
-        ValidationError::ContactContradicted {
-            declaration: declared(ContactClass::Tangent),
-            witness: witness.clone(),
-            margin: indeterminate(),
-            steer: Some(FIT_DEFERRAL),
-        },
-        ValidationError::CensusEscalated {
-            cause: indeterminate(),
-        },
-        // Three causes, not one three times: an arm whose cause is only
-        // ever the chart-region one would leave the other two
-        // composition paths unrendered. The segment figure is derived
-        // from the cap it is one past, never restated.
-        ValidationError::CensusUnsupported {
-            subject: CensusSubject::FacePair(face, other_face),
-            cause: CensusUnsupportedCause::ChartRegion(ChartRegionError::WitnessBudgetExhausted {
-                segments: crate::chart_region::WITNESS_BUDGET.segments + 1,
-                cells: 0,
-            }),
-        },
-        ValidationError::CensusUnsupported {
-            subject: CensusSubject::Entity(EntityId::Face(face)),
-            cause: CensusUnsupportedCause::FaceUnboundable,
-        },
-        ValidationError::CensusUnsupported {
-            subject: CensusSubject::Entity(EntityId::Edge(edge)),
-            cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
-                what: "a declared face's surface kind is outside the Rest ladder's \
-                       inventory (plane, sphere, cylinder)",
-            }),
-        },
-        ValidationError::CensusLaneUnsupported {
-            subject: CensusSubject::FacePair(face, other_face),
-        },
-        ValidationError::InstanceInterference {
-            outer: solid,
-            inner: solid,
-            witness: vertex,
-        },
+    let pair = CensusSubject::FacePair(face, face);
+    let mut s: Vec<(String, ValidationError)> = Vec::new();
+
+    // Tiers 1 and 2: the body's own structure.
+    for e in [
         ValidationError::DanglingTopology {
             from: EntityId::Solid(solid),
             to: EntityId::Shell(shell),
         },
         ValidationError::DanglingGeometry {
             from: EntityId::Vertex(vertex),
+            to: GeomRef::Point(point),
+        },
+        ValidationError::DanglingDescription {
+            from: GeomRef::Point(point),
             to: GeomRef::Point(point),
         },
         ValidationError::NextPrevMismatch { half_edge: he },
@@ -292,7 +571,7 @@ pub fn validation_error_samples() -> Vec<ValidationError> {
         ValidationError::BackPointerMismatch {
             child: EntityId::Loop(loop_),
             stored: EntityId::Face(face),
-            owner: EntityId::Face(other_face),
+            owner: EntityId::Face(face),
         },
         ValidationError::OrphanEntity {
             entity: EntityId::Vertex(vertex),
@@ -342,15 +621,577 @@ pub fn validation_error_samples() -> Vec<ValidationError> {
         },
         ValidationError::NullEdgeAtRest { edge },
         ValidationError::NullFaceAtRest { face },
-    ];
-    // Every `what` a raise site writes, each its own sample: the arm's
-    // length is the literal's plus this.
-    samples.extend(crate::census::UNDECIDABLE_WHATS.iter().map(|&what| {
-        ValidationError::CensusUndecidable {
-            a: EntityId::Face(face),
-            b: EntityId::Face(other_face),
-            what,
+        // Tier 3 arms that carry nothing nested.
+        ValidationError::UncertifiableSurface { face },
+        ValidationError::PoisonedSurfaceDescription { face },
+        ValidationError::ApproxLaneUnsupported { face },
+        ValidationError::DegenerateTorus { face },
+        ValidationError::NonpositiveTorusTube { face },
+        ValidationError::DescriptionNotAdjacent { edge },
+        ValidationError::PlanarFaceResidual { face, vertex },
+        ValidationError::PlanarBoundaryResidual { face, edge },
+        ValidationError::TransverseNotIntrinsic { edge },
+        ValidationError::ScaffoldAtRest { edge },
+        ValidationError::TangentNotIntrinsic { edge },
+        ValidationError::LaminaWedge { edge },
+        ValidationError::LoopRoleInverted {
+            face,
+            r#loop: loop_,
+        },
+        ValidationError::CurvedSenseInverted { face },
+        ValidationError::NegativeVolume { solid },
+        ValidationError::RingOutsideOuter {
+            face,
+            ring: loop_,
+            ring_vertex: vertex,
+        },
+        ValidationError::CensusLaneUnsupported { subject: pair },
+        ValidationError::InstanceInterference {
+            outer: solid,
+            inner: solid,
+            witness: vertex,
+        },
+    ] {
+        s.push((label("", &e).trim_start_matches('/').to_owned(), e));
+    }
+
+    // Tier 3 arms that render something nested: one sample per variant.
+    for error in band_errors() {
+        s.push((label("Band", &error), ValidationError::Band { error }));
+    }
+    for error in offset_fit_errors() {
+        s.push((
+            label("ApproxCertification", &error),
+            ValidationError::ApproxCertification { face, error },
+        ));
+    }
+    for error in certify_errors() {
+        let l = match &error {
+            CertifyError::PlaneNurbs(r) => label("EdgeCertification/PlaneNurbs", r),
+            other => label("EdgeCertification", other),
+        };
+        s.push((l, ValidationError::EdgeCertification { edge, error }));
+    }
+    for cause in diags() {
+        let m = label("", &cause.margin);
+        for (arm, e) in [
+            (
+                "DegenerateTorusEscalated",
+                ValidationError::DegenerateTorusEscalated { face, cause },
+            ),
+            (
+                "PlanarFaceEscalated",
+                ValidationError::PlanarFaceEscalated {
+                    face,
+                    vertex,
+                    cause,
+                },
+            ),
+            (
+                "PlanarBoundaryEscalated",
+                ValidationError::PlanarBoundaryEscalated { face, edge, cause },
+            ),
+            (
+                "SliverDihedral",
+                ValidationError::SliverDihedral { edge, cause },
+            ),
+            (
+                "RingContactEscalated",
+                ValidationError::RingContactEscalated {
+                    face,
+                    ring: loop_,
+                    source: cause,
+                },
+            ),
+            (
+                "CensusEscalated",
+                ValidationError::CensusEscalated { cause },
+            ),
+        ] {
+            s.push((format!("{arm}{m}"), e));
         }
-    }));
-    samples
+    }
+    for wedge in [MaterialWedge::Cusp, MaterialWedge::Slit] {
+        s.push((
+            label("UndeclaredCusp", &wedge),
+            ValidationError::UndeclaredCusp { edge, wedge },
+        ));
+    }
+    for source in mass_props_errors() {
+        let l = match &source {
+            MassPropsError::Face { source, .. } => label("VolumeUncomputable/Face", source),
+            other => label("VolumeUncomputable", other),
+        };
+        s.push((l, ValidationError::VolumeUncomputable { solid, source }));
+    }
+    for finding in pcurve_mint_errors() {
+        let l = match &finding {
+            PcurveMintError::Certify { error, .. } => label("Pcurve/Certify", error),
+            other => label("Pcurve", other),
+        };
+        s.push((l, ValidationError::Pcurve { finding }));
+    }
+    for contact in ring_contacts() {
+        s.push((
+            label("RingMeetsOuter", &contact),
+            ValidationError::RingMeetsOuter {
+                face,
+                ring: loop_,
+                contact,
+            },
+        ));
+    }
+    for source in contain_errors() {
+        s.push((
+            label("RingNestingUndecided", &source),
+            ValidationError::RingNestingUndecided {
+                face,
+                ring: loop_,
+                source,
+            },
+        ));
+    }
+
+    // Tier 3′: the census.
+    for contact in census_contacts() {
+        let witness = match contact {
+            CensusContact::ConformalPatch { .. } => {
+                crate::census::CONFORMAL_REGION_WITNESS.to_owned()
+            }
+            _ => "(0.4375, 0.5, 0.25)".to_owned(),
+        };
+        s.push((
+            label("UndeclaredContact", &contact),
+            ValidationError::UndeclaredContact { contact, witness },
+        ));
+    }
+    for declaration in stale_declarations() {
+        s.push((
+            label("StaleContactDeclaration", &declaration),
+            ValidationError::StaleContactDeclaration { declaration },
+        ));
+    }
+    // Door 1's whole-surface verdict (a Rest record) and the curve
+    // record's witnessing edge (a Tangent record), each with and
+    // without the designed-clearance steer.
+    for (class, witness, predicate) in [
+        (
+            ContactClass::Rest,
+            crate::census::CARRIER_COMPARISON_WITNESS,
+            "carrier_sphere_radius",
+        ),
+        (
+            ContactClass::Tangent,
+            crate::census::CURVE_RECORD_WITNESS,
+            "contact_tangent_opposed",
+        ),
+    ] {
+        for steer in [None, Some(FIT_DEFERRAL)] {
+            s.push((
+                format!(
+                    "ContactContradicted/{}{}",
+                    class.name(),
+                    if steer.is_some() { "/steered" } else { "" }
+                ),
+                ValidationError::ContactContradicted {
+                    declaration: DeclaredContact {
+                        a: face,
+                        b: face,
+                        class,
+                    },
+                    witness: witness.to_owned(),
+                    margin: contradiction_margin(predicate),
+                    steer,
+                },
+            ));
+        }
+    }
+    let mut causes: Vec<(String, CensusUnsupportedCause)> = Vec::new();
+    for e in chart_region_errors() {
+        causes.push((
+            label("CensusUnsupported/ChartRegion", &e),
+            CensusUnsupportedCause::ChartRegion(e),
+        ));
+    }
+    for e in contact_refusals() {
+        causes.push((
+            label("CensusUnsupported/ContactLane", &e),
+            CensusUnsupportedCause::ContactLane(e),
+        ));
+    }
+    for e in contain_errors() {
+        causes.push((
+            label("CensusUnsupported/Containment", &e),
+            CensusUnsupportedCause::Containment(e),
+        ));
+    }
+    causes.push((
+        "CensusUnsupported/FaceUnboundable".to_owned(),
+        CensusUnsupportedCause::FaceUnboundable,
+    ));
+    for (l, cause) in causes {
+        // The subject each cause is raised on: a face pair for the
+        // chart-region and contact lanes, one face for the rest.
+        let subject = match cause {
+            CensusUnsupportedCause::ChartRegion(_) | CensusUnsupportedCause::ContactLane(_) => pair,
+            CensusUnsupportedCause::Containment(_) | CensusUnsupportedCause::FaceUnboundable => {
+                CensusSubject::Entity(EntityId::Face(face))
+            }
+        };
+        s.push((l, ValidationError::CensusUnsupported { subject, cause }));
+    }
+    // Every `what` the backstop raises, on the pair kind its arm raises
+    // it on (`Undecided` is their one source).
+    for why in Undecided::ALL {
+        let (a, b) = if why.on_faces() {
+            (EntityId::Face(face), EntityId::Face(face))
+        } else {
+            (EntityId::Solid(solid), EntityId::Solid(solid))
+        };
+        s.push((
+            format!("CensusUndecidable/{why:?}"),
+            ValidationError::CensusUndecidable {
+                a,
+                b,
+                what: why.what(),
+            },
+        ));
+    }
+    s
+}
+
+/// Which variants a list covers, against the full roster; `kind` is an
+/// exhaustive match, so a variant added to the enum is a compile error
+/// there before it is a gap here.
+#[cfg(test)]
+fn gaps<T>(
+    enum_name: &str,
+    roster: &[&str],
+    seen: &[T],
+    kind: fn(&T) -> &'static str,
+) -> Vec<String> {
+    roster
+        .iter()
+        .filter(|want| !seen.iter().any(|x| kind(x) == **want))
+        .map(|want| format!("{enum_name}::{want}"))
+        .collect()
+}
+
+/// The nested variants no sample carries, as `Enum::Variant` — empty
+/// when every variant of every enum [`validation_error_samples`]
+/// renders whole is sampled.
+#[cfg(test)]
+#[allow(clippy::too_many_lines)] // one roster and one exhaustive match per enum
+pub(crate) fn nested_coverage_gaps() -> Vec<String> {
+    let mut out = Vec::new();
+    out.extend(gaps(
+        "ChartRegionError",
+        &[
+            "ChartDivergence",
+            "NonPlanarTrim",
+            "MissingCache",
+            "ArmUnbounded",
+            "SeamBranch",
+            "PeriodFold",
+            "CarrierTilt",
+            "TouchingBoundary",
+            "DegenerateLoop",
+            "Escalated",
+            "RayExhausted",
+            "WitnessBudgetExhausted",
+            "Corrupt",
+        ],
+        &chart_region_errors(),
+        |e| match e {
+            ChartRegionError::ChartDivergence { .. } => "ChartDivergence",
+            ChartRegionError::NonPlanarTrim { .. } => "NonPlanarTrim",
+            ChartRegionError::MissingCache { .. } => "MissingCache",
+            ChartRegionError::ArmUnbounded { .. } => "ArmUnbounded",
+            ChartRegionError::SeamBranch => "SeamBranch",
+            ChartRegionError::PeriodFold => "PeriodFold",
+            ChartRegionError::CarrierTilt => "CarrierTilt",
+            ChartRegionError::TouchingBoundary => "TouchingBoundary",
+            ChartRegionError::DegenerateLoop { .. } => "DegenerateLoop",
+            ChartRegionError::Escalated(_) => "Escalated",
+            ChartRegionError::RayExhausted => "RayExhausted",
+            ChartRegionError::WitnessBudgetExhausted { .. } => "WitnessBudgetExhausted",
+            ChartRegionError::Corrupt => "Corrupt",
+        },
+    ));
+    out.extend(gaps(
+        "ContactRefusal",
+        &["Contradicted", "Escalated", "Undeclared", "NotCertifiable"],
+        &contact_refusals(),
+        |e| match e {
+            ContactRefusal::Contradicted { .. } => "Contradicted",
+            ContactRefusal::Escalated { .. } => "Escalated",
+            ContactRefusal::Undeclared { .. } => "Undeclared",
+            ContactRefusal::NotCertifiable { .. } => "NotCertifiable",
+        },
+    ));
+    out.extend(gaps(
+        "ContainError",
+        &["Escalated", "RayExhausted", "Corrupt", "ArcLoopUnsupported"],
+        &contain_errors(),
+        |e| match e {
+            ContainError::Escalated(_) => "Escalated",
+            ContainError::RayExhausted => "RayExhausted",
+            ContainError::Corrupt => "Corrupt",
+            ContainError::ArcLoopUnsupported { .. } => "ArcLoopUnsupported",
+        },
+    ));
+    out.extend(gaps(
+        "CertifyError",
+        &[
+            "ChartImageUnavailable",
+            "UnresolvedSurface",
+            "Unimplemented",
+            "IntersectionSameSurface",
+            "SeamOnNonPeriodic",
+            "IntervalNotForward",
+            "WindingExceeded",
+            "ResidualExceeded",
+            "NotTransverse",
+            "NotSecondOrderSeparated",
+            "TangentCertificateUnsupported",
+            "Escalated",
+            "Band",
+            "PlaneNurbs",
+        ],
+        &certify_errors(),
+        |e| match e {
+            CertifyError::ChartImageUnavailable { .. } => "ChartImageUnavailable",
+            CertifyError::UnresolvedSurface { .. } => "UnresolvedSurface",
+            CertifyError::Unimplemented => "Unimplemented",
+            CertifyError::IntersectionSameSurface { .. } => "IntersectionSameSurface",
+            CertifyError::SeamOnNonPeriodic => "SeamOnNonPeriodic",
+            CertifyError::IntervalNotForward => "IntervalNotForward",
+            CertifyError::WindingExceeded => "WindingExceeded",
+            CertifyError::ResidualExceeded { .. } => "ResidualExceeded",
+            CertifyError::NotTransverse { .. } => "NotTransverse",
+            CertifyError::NotSecondOrderSeparated { .. } => "NotSecondOrderSeparated",
+            CertifyError::TangentCertificateUnsupported => "TangentCertificateUnsupported",
+            CertifyError::Escalated { .. } => "Escalated",
+            CertifyError::Band(_) => "Band",
+            CertifyError::PlaneNurbs(_) => "PlaneNurbs",
+        },
+    ));
+    out.extend(gaps(
+        "PlaneNurbsRefusal",
+        &[
+            "FootPointInconclusive",
+            "NotTransverse",
+            "PcurveFit",
+            "Limb",
+            "TubeStraddles",
+            "Escalated",
+            "Unsupported",
+        ],
+        &plane_nurbs_refusals(),
+        |e| match e {
+            PlaneNurbsRefusal::FootPointInconclusive { .. } => "FootPointInconclusive",
+            PlaneNurbsRefusal::NotTransverse { .. } => "NotTransverse",
+            PlaneNurbsRefusal::PcurveFit => "PcurveFit",
+            PlaneNurbsRefusal::Limb { .. } => "Limb",
+            PlaneNurbsRefusal::TubeStraddles { .. } => "TubeStraddles",
+            PlaneNurbsRefusal::Escalated(_) => "Escalated",
+            PlaneNurbsRefusal::Unsupported { .. } => "Unsupported",
+        },
+    ));
+    out.extend(gaps(
+        "PcurveMintError",
+        &[
+            "Corrupt",
+            "Certify",
+            "LoopDiscontinuity",
+            "LoopNotClosed",
+            "SingularChartJoint",
+            "OuterSpansPeriod",
+            "LoopWraps",
+            "MissingCache",
+            "Escalated",
+            "Band",
+        ],
+        &pcurve_mint_errors(),
+        |e| match e {
+            PcurveMintError::Corrupt => "Corrupt",
+            PcurveMintError::Certify { .. } => "Certify",
+            PcurveMintError::LoopDiscontinuity { .. } => "LoopDiscontinuity",
+            PcurveMintError::LoopNotClosed { .. } => "LoopNotClosed",
+            PcurveMintError::SingularChartJoint { .. } => "SingularChartJoint",
+            PcurveMintError::OuterSpansPeriod => "OuterSpansPeriod",
+            PcurveMintError::LoopWraps { .. } => "LoopWraps",
+            PcurveMintError::MissingCache { .. } => "MissingCache",
+            PcurveMintError::Escalated { .. } => "Escalated",
+            PcurveMintError::Band(_) => "Band",
+        },
+    ));
+    out.extend(gaps(
+        "PcurveCertifyError",
+        &[
+            "UnsupportedChart",
+            "UnsupportedCarrier",
+            "FittedLaneUnsupported",
+            "FittedMateMissing",
+            "IsoUnsupported",
+            "ChartRow",
+            "FittedCertificate",
+            "FittedEscalated",
+            "IntervalNotForward",
+            "ChartWindingUnsupported",
+            "AzimuthPeriodExceeded",
+            "ResidualExceeded",
+            "TrimEscape",
+            "Escalated",
+            "Band",
+        ],
+        &pcurve_certify_errors(),
+        |e| match e {
+            PcurveCertifyError::UnsupportedChart { .. } => "UnsupportedChart",
+            PcurveCertifyError::UnsupportedCarrier => "UnsupportedCarrier",
+            PcurveCertifyError::FittedLaneUnsupported { .. } => "FittedLaneUnsupported",
+            PcurveCertifyError::FittedMateMissing => "FittedMateMissing",
+            PcurveCertifyError::IsoUnsupported { .. } => "IsoUnsupported",
+            PcurveCertifyError::ChartRow { .. } => "ChartRow",
+            PcurveCertifyError::FittedCertificate { .. } => "FittedCertificate",
+            PcurveCertifyError::FittedEscalated { .. } => "FittedEscalated",
+            PcurveCertifyError::IntervalNotForward => "IntervalNotForward",
+            PcurveCertifyError::ChartWindingUnsupported => "ChartWindingUnsupported",
+            PcurveCertifyError::AzimuthPeriodExceeded => "AzimuthPeriodExceeded",
+            PcurveCertifyError::ResidualExceeded { .. } => "ResidualExceeded",
+            PcurveCertifyError::TrimEscape => "TrimEscape",
+            PcurveCertifyError::Escalated { .. } => "Escalated",
+            PcurveCertifyError::Band(_) => "Band",
+        },
+    ));
+    out.extend(gaps(
+        "MassPropsError",
+        &[
+            "Band",
+            "Face",
+            "RingOnCurvedFace",
+            "Corrupt",
+            "NullScaffoldEdge",
+        ],
+        &mass_props_errors(),
+        |e| match e {
+            MassPropsError::Band { .. } => "Band",
+            MassPropsError::Face { .. } => "Face",
+            MassPropsError::RingOnCurvedFace { .. } => "RingOnCurvedFace",
+            MassPropsError::Corrupt { .. } => "Corrupt",
+            MassPropsError::NullScaffoldEdge { .. } => "NullScaffoldEdge",
+        },
+    ));
+    out.extend(gaps(
+        "PropsError",
+        &[
+            "Unimplemented",
+            "NotIsoRectangle",
+            "NappeSpanning",
+            "NotOneChartBranch",
+            "DegenerateFace",
+            "Escalated",
+            "QuadratureBudget",
+            "QuadratureUnsupported",
+        ],
+        &props_errors(),
+        |e| match e {
+            PropsError::Unimplemented => "Unimplemented",
+            PropsError::NotIsoRectangle { .. } => "NotIsoRectangle",
+            PropsError::NappeSpanning => "NappeSpanning",
+            PropsError::NotOneChartBranch { .. } => "NotOneChartBranch",
+            PropsError::DegenerateFace => "DegenerateFace",
+            PropsError::Escalated { .. } => "Escalated",
+            PropsError::QuadratureBudget { .. } => "QuadratureBudget",
+            PropsError::QuadratureUnsupported { .. } => "QuadratureUnsupported",
+        },
+    ));
+    out.extend(gaps(
+        "OffsetFitError",
+        &[
+            "Meter",
+            "PatchBound",
+            "Fit",
+            "Structure",
+            "InvalidRequest",
+            "NonFiniteSample",
+            "BudgetExhausted",
+            "SampleCapReached",
+            "BoundNotFinite",
+            "RefinementStalled",
+            "WindowUnsupported",
+            "Limb",
+        ],
+        &offset_fit_errors(),
+        |e| match e {
+            OffsetFitError::Meter(_) => "Meter",
+            OffsetFitError::PatchBound(_) => "PatchBound",
+            OffsetFitError::Fit(_) => "Fit",
+            OffsetFitError::Structure(_) => "Structure",
+            OffsetFitError::InvalidRequest { .. } => "InvalidRequest",
+            OffsetFitError::NonFiniteSample { .. } => "NonFiniteSample",
+            OffsetFitError::BudgetExhausted { .. } => "BudgetExhausted",
+            OffsetFitError::SampleCapReached { .. } => "SampleCapReached",
+            OffsetFitError::BoundNotFinite { .. } => "BoundNotFinite",
+            OffsetFitError::RefinementStalled { .. } => "RefinementStalled",
+            OffsetFitError::WindowUnsupported { .. } => "WindowUnsupported",
+            OffsetFitError::Limb { .. } => "Limb",
+        },
+    ));
+    out.extend(gaps(
+        "BandError",
+        &["InvalidValue", "InvalidLeverArm", "Empty"],
+        &band_errors(),
+        |e| match e {
+            BandError::InvalidValue { .. } => "InvalidValue",
+            BandError::InvalidLeverArm { .. } => "InvalidLeverArm",
+            BandError::Empty { .. } => "Empty",
+        },
+    ));
+    out.extend(gaps(
+        "CensusContact",
+        &[
+            "VertexVertex",
+            "VertexOnFace",
+            "VertexOnEdge",
+            "EdgeFacePierce",
+            "EdgeEdgeCross",
+            "EdgeEdgeOverlap",
+            "EdgeFaceOverlap",
+            "ConformalPatch",
+        ],
+        &census_contacts(),
+        |e| match e {
+            CensusContact::VertexVertex { .. } => "VertexVertex",
+            CensusContact::VertexOnFace { .. } => "VertexOnFace",
+            CensusContact::VertexOnEdge { .. } => "VertexOnEdge",
+            CensusContact::EdgeFacePierce { .. } => "EdgeFacePierce",
+            CensusContact::EdgeEdgeCross { .. } => "EdgeEdgeCross",
+            CensusContact::EdgeEdgeOverlap { .. } => "EdgeEdgeOverlap",
+            CensusContact::EdgeFaceOverlap { .. } => "EdgeFaceOverlap",
+            CensusContact::ConformalPatch { .. } => "ConformalPatch",
+        },
+    ));
+    out.extend(gaps(
+        "StaleDeclaration",
+        &["VertexVertex", "VertexOnFace", "CurveLocus", "Patch"],
+        &stale_declarations(),
+        |e| match e {
+            StaleDeclaration::VertexVertex { .. } => "VertexVertex",
+            StaleDeclaration::VertexOnFace { .. } => "VertexOnFace",
+            StaleDeclaration::CurveLocus { .. } => "CurveLocus",
+            StaleDeclaration::Patch { .. } => "Patch",
+        },
+    ));
+    out.extend(gaps(
+        "RingContact",
+        &["Vertex", "VertexOnEdge", "Edge"],
+        &ring_contacts(),
+        |e| match e {
+            RingContact::Vertex { .. } => "Vertex",
+            RingContact::VertexOnEdge { .. } => "VertexOnEdge",
+            RingContact::Edge { .. } => "Edge",
+        },
+    ));
+    out
 }

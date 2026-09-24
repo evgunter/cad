@@ -1174,14 +1174,21 @@ fn witness<T: Real>(p: Point3<T>) -> String {
 /// positive area and hands back no point in it, so the slot names that
 /// region. It reads after "at" in [`ValidationError::UndeclaredContact`]'s
 /// `Display`, as a coordinate does.
-pub(crate) const CONFORMAL_REGION_WITNESS: &str = "the region the two faces share";
+pub(crate) const CONFORMAL_REGION_WITNESS: &str = "their shared region";
 
 /// The witness of a patch record Door 1 contradicts: the verdict
 /// compares the two faces' carriers whole — the same surface, opposed
-/// senses — and hands back no point, so the slot names the surfaces.
-/// It reads after "at" in [`ValidationError::ContactContradicted`]'s
-/// `Display`, as a coordinate does.
-pub(crate) const CARRIER_COMPARISON_WITNESS: &str = "the two faces' surfaces";
+/// senses — and hands back no point, so the slot names where the
+/// contradiction holds: everywhere. It reads after "contradicted" in
+/// [`ValidationError::ContactContradicted`]'s `Display`.
+pub(crate) const CARRIER_COMPARISON_WITNESS: &str = "across the whole of both faces";
+
+/// The witness of a curve record the confirm pass contradicts: the
+/// record's witnessing edge, named as a place rather than by its arena
+/// key (the record, which carries the key, is the caller's own). It
+/// reads after "contradicted" in [`ValidationError::ContactContradicted`]'s
+/// `Display`.
+pub(crate) const CURVE_RECORD_WITNESS: &str = "along the edge the record names";
 
 /// An impossible sign from a nonnegative margin — surfaced as the
 /// invalid-margin escalation (poison posture; never silent).
@@ -2782,61 +2789,182 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
     )
 }
 
-// The `what` of each [`ValidationError::CensusUndecidable`] the
-// cross-solid backstop raises from a fixed sentence, at module scope so
-// [`UNDECIDABLE_WHATS`] can list them: the arm renders the `what`
-// whole, so its length is part of the finding's length.
-pub(crate) const CURVED_WITHIN_REACH: &str = "cross-solid faces within reach, at least one of \
-                                              them with a curved carrier or a curved \
-                                              boundary — the conformal-rest / proximity / \
-                                              partial-embedding class the exclusion ring \
-                                              will examine";
-pub(crate) const NO_SOUND_REACH: &str = "a cross-solid face pair one of whose faces has no \
-                                         sound cheap reach bound — a placeholder surface, or \
-                                         a boundary carrying a curve with no sound box — the \
-                                         exclusion ring is the certified excluder";
-pub(crate) const CROSSING: &str = "a crossing already stands against one of these instances, so \
-                        their boundaries are not certified crossing-free and no \
-                        witness decides the placement";
-pub(crate) const UNEXAMINED: &str = "an unexamined or escalated finding already stands against \
-                          one of these instances, so their boundaries are not \
-                          certified crossing-free and no witness decides the \
-                          placement";
-pub(crate) const MIXED_TOUCH: &str = "a touch between these instances is a crossing at a \
-                           lower-dimensional feature — the touching solid's edges \
-                           or faces leave the touched face's plane on both sides — \
-                           so the placement is not decided by its vertices";
-pub(crate) const TOUCH_IN_BAND: &str = "a touch between these instances has an edge or face \
-                             leaving the touched face's plane in band, so which side \
-                             it rests on is undecided at this ε";
-pub(crate) const TOUCH_UNREADABLE: &str = "a touch between these instances involves a curved \
-                                face or edge, whose side the planar analysis does \
-                                not read — the exclusion ring's case";
-pub(crate) const TOUCH_UNANALYSED: &str = "a touch between these instances (a coincident vertex \
-                                pair, a vertex on an edge, a collinear edge overlap \
-                                or a conformal patch) has no local side analysis \
-                                yet, so the placement is not decided by its vertices";
-pub(crate) const DECLARED_FACE_PAIR: &str = "a declared face-pair record between these instances \
-                                  backs vertex events without a side, so the \
-                                  placement is not decided by its vertices";
+/// **Why the cross-solid backstop left a pair undecided** — the one
+/// source of every `what` a [`ValidationError::CensusUndecidable`]
+/// carries. Each reason's sentence ends in its own recourse, or says
+/// plainly that there is none yet, because the reasons want different
+/// repairs: a standing crossing wants that crossing fixed, a damaged
+/// instance is a kernel defect, and a designed resting contact the
+/// backstop cannot place has no way through yet.
+///
+/// A raise site names a variant and never writes a sentence:
+/// `the_backstop_writes_no_sentence_of_its_own` holds that, so
+/// [`Undecided::ALL`] is every `what` a run can render.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Undecided {
+    /// Arm 1: faces of two solids within reach, one of them curved.
+    CurvedWithinReach,
+    /// Arm 1: a face with no sound reach bound.
+    NoSoundReach,
+    /// Arm 2: the containing instance's extent is unclaimable.
+    Unclaimable,
+    /// Arm 2: a crossing already stands against the pair.
+    Crossing,
+    /// Arm 2: an unexamined or escalated finding already stands.
+    Unexamined,
+    /// Arm 2: a touch that crosses at a lower-dimensional feature.
+    MixedTouch,
+    /// Arm 2: a touch whose side is in band.
+    TouchInBand,
+    /// Arm 2: a touch at a curved face or edge.
+    TouchUnreadable,
+    /// Arm 2: a touch with no local side analysis.
+    TouchUnanalysed,
+    /// Arm 2: a declared face-pair record backing sideless events.
+    DeclaredFacePair,
+    /// Arm 2: every vertex of the contained instance on the boundary.
+    AllOn,
+    /// Arm 2: the contained instance has no vertex.
+    NoVertex,
+    /// Arm 2: the point-in-solid door could not place a vertex near
+    /// the boundary (escalated, every ray grazed, or its loop walk).
+    WitnessUndecided,
+    /// Arm 2: an instance of (near-)zero signed volume.
+    ZeroVolume,
+    /// Arm 2: an instance whose closed-form volume is uncertified.
+    VolumeUncertified,
+    /// Arm 2: an instance with a face kind the door does not serve.
+    FaceKindUnsupported,
+    /// Arm 2: an instance whose topology the door could not walk.
+    CorruptInstance,
+}
 
-/// Every fixed-sentence `what` the cross-solid backstop raises
-/// [`ValidationError::CensusUndecidable`] with — the samples the
-/// refusal budget renders the arm on. A `what` written inline at a
-/// raise site, or forwarded from another refusal's summary, is not
-/// here.
-#[cfg(any(test, feature = "test-support"))]
-pub(crate) const UNDECIDABLE_WHATS: [&str; 9] = [
-    CURVED_WITHIN_REACH,
-    NO_SOUND_REACH,
-    CROSSING,
-    UNEXAMINED,
-    MIXED_TOUCH,
-    TOUCH_IN_BAND,
-    TOUCH_UNREADABLE,
-    TOUCH_UNANALYSED,
-    DECLARED_FACE_PAIR,
-];
+impl Undecided {
+    /// Every reason, in declaration order.
+    pub(crate) const ALL: [Self; 17] = [
+        Self::CurvedWithinReach,
+        Self::NoSoundReach,
+        Self::Unclaimable,
+        Self::Crossing,
+        Self::Unexamined,
+        Self::MixedTouch,
+        Self::TouchInBand,
+        Self::TouchUnreadable,
+        Self::TouchUnanalysed,
+        Self::DeclaredFacePair,
+        Self::AllOn,
+        Self::NoVertex,
+        Self::WitnessUndecided,
+        Self::ZeroVolume,
+        Self::VolumeUncertified,
+        Self::FaceKindUnsupported,
+        Self::CorruptInstance,
+    ];
+
+    /// Whether arm 1 raises it, on a face pair; arm 2 raises the rest,
+    /// on a solid pair.
+    pub(crate) fn on_faces(self) -> bool {
+        matches!(self, Self::CurvedWithinReach | Self::NoSoundReach)
+    }
+
+    /// The reason and its recourse, as the finding renders them.
+    pub(crate) fn what(self) -> &'static str {
+        match self {
+            Self::CurvedWithinReach => {
+                "a curved face of one is within reach of the other, and the kernel cannot \
+                 yet tell whether curved faces of two parts touch. Recourse: move the parts \
+                 so their curved faces are clearly apart"
+            }
+            Self::NoSoundReach => {
+                "one face has no extent the check can bound (an unfinished surface, or an \
+                 edge whose curve has no bounds). Recourse: finish that face, or move the \
+                 parts clearly apart"
+            }
+            Self::Unclaimable => {
+                "a face of one has no extent the check can bound, so where that part ends \
+                 is unknown. Recourse: move the parts clearly apart"
+            }
+            Self::Crossing => {
+                "another finding reports their boundaries crossing, and this one cannot be \
+                 decided until that is fixed. Recourse: fix that crossing first"
+            }
+            Self::Unexamined => {
+                "another finding left their boundaries unchecked, and this one cannot be \
+                 decided until that is resolved. Recourse: resolve that finding first"
+            }
+            Self::MixedTouch => {
+                "an edge or face of one passes through a face of the other where they \
+                 touch. Recourse: move them so they touch face to face, or not at all"
+            }
+            Self::TouchInBand => {
+                "they touch, and which side of the touched face each is on is too close \
+                 to call at this tolerance. There is no way through yet for a designed \
+                 resting contact; otherwise move them apart"
+            }
+            Self::TouchUnreadable => {
+                "they touch at a curved face or edge, and the check cannot yet tell which \
+                 side each is on. There is no way through yet for a designed resting \
+                 contact; otherwise move them apart"
+            }
+            Self::TouchUnanalysed => {
+                "they touch at a point, along an edge or over a curved patch, and the check \
+                 cannot yet tell which side each is on. There is no way through yet for a \
+                 designed resting contact; otherwise move them apart"
+            }
+            Self::DeclaredFacePair => {
+                "a declared contact between their faces touches only at corners the check \
+                 cannot yet place. There is no way through yet for this declared contact"
+            }
+            Self::AllOn => {
+                "every corner of one lies on the other's boundary, so the corners cannot \
+                 place it. There is no way through yet for a designed resting fit; \
+                 otherwise move them apart"
+            }
+            Self::NoVertex => {
+                "one has no corner to test, so nothing places it. There is no way through \
+                 yet for this shape; if they are not meant to meet, move them apart"
+            }
+            Self::WitnessUndecided => {
+                "a corner of one lies too close to the other's boundary to place at this \
+                 tolerance. Recourse: move the parts apart, or lower the tolerance"
+            }
+            Self::ZeroVolume => {
+                "one has no volume, so nothing can be inside it. Recourse: fix that part \
+                 so it encloses a volume"
+            }
+            Self::VolumeUncertified => {
+                "the check could not certify one's volume, so it cannot tell that part's \
+                 inside from its outside. Recourse: move the parts clearly apart"
+            }
+            Self::FaceKindUnsupported => {
+                "one has a face (a spline, or part of a sphere, cone or torus) the check \
+                 cannot yet test a point against. Recourse: move the parts clearly apart"
+            }
+            Self::CorruptInstance => {
+                "one part's topology could not be walked. There is no way through: this is \
+                 a kernel defect or a damaged file; report it"
+            }
+        }
+    }
+
+    /// The reason a point-in-solid refusal leaves a placement
+    /// undecided. Exhaustive, so a new refusal is placed here by hand.
+    pub(crate) fn of_point_in_solid(e: &crate::boolean::PointInSolidError) -> Self {
+        use crate::boolean::PointInSolidError as E;
+        match e {
+            E::Escalated { .. } | E::RayExhausted | E::Loop(_) => Self::WitnessUndecided,
+            E::ZeroVolumeBody => Self::ZeroVolume,
+            E::VolumeUncertified => Self::VolumeUncertified,
+            E::KindUnsupported { .. }
+            | E::PartialSphereFace { .. }
+            | E::PartialConeFace { .. }
+            | E::PartialTorusFace { .. } => Self::FaceKindUnsupported,
+            E::CorruptFace { .. } | E::NoSuchSolid { .. } | E::SurfaceSharedOutsideSolid { .. } => {
+                Self::CorruptInstance
+            }
+        }
+    }
+}
 
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
 /// census must DECIDE or REFUSE — it must never silently not-examine
@@ -3311,14 +3439,14 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Face(a.face),
                         b: EntityId::Face(b.face),
-                        what: CURVED_WITHIN_REACH,
+                        what: Undecided::CurvedWithinReach.what(),
                     });
                 }
             } else {
                 errors.push(ValidationError::CensusUndecidable {
                     a: EntityId::Face(a.face),
                     b: EntityId::Face(b.face),
-                    what: NO_SOUND_REACH,
+                    what: Undecided::NoSoundReach.what(),
                 });
             }
             if let Some(t) = trace.as_deref_mut() {
@@ -3533,9 +3661,9 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
     let touch_verdict = |side: Side| -> Option<&'static str> {
         match side {
             Side::InPlane | Side::One => None,
-            Side::Mixed => Some(MIXED_TOUCH),
-            Side::InBand => Some(TOUCH_IN_BAND),
-            Side::Unreadable => Some(TOUCH_UNREADABLE),
+            Side::Mixed => Some(Undecided::MixedTouch.what()),
+            Side::InBand => Some(Undecided::TouchInBand.what()),
+            Side::Unreadable => Some(Undecided::TouchUnreadable.what()),
         }
     };
     let blocks =
@@ -3552,17 +3680,17 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             for e in standing_errors {
                 let what = match e {
                     // Names no entity: it may be about this pair.
-                    ValidationError::CensusEscalated { .. } => Some(UNEXAMINED),
+                    ValidationError::CensusEscalated { .. } => Some(Undecided::Unexamined.what()),
                     ValidationError::UndeclaredContact { contact, .. } => match *contact {
                         CensusContact::EdgeFacePierce { edge, face }
                             if names(&[EntityId::Edge(edge), EntityId::Face(face)]) =>
                         {
-                            Some(CROSSING)
+                            Some(Undecided::Crossing.what())
                         }
                         CensusContact::EdgeEdgeCross { a, b }
                             if names(&[EntityId::Edge(a), EntityId::Edge(b)]) =>
                         {
-                            Some(CROSSING)
+                            Some(Undecided::Crossing.what())
                         }
                         CensusContact::VertexOnFace { vertex, face }
                             if between(EntityId::Vertex(vertex), EntityId::Face(face)) =>
@@ -3577,24 +3705,24 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                         CensusContact::VertexVertex { a, b }
                             if between(EntityId::Vertex(a), EntityId::Vertex(b)) =>
                         {
-                            Some(TOUCH_UNANALYSED)
+                            Some(Undecided::TouchUnanalysed.what())
                         }
                         CensusContact::VertexOnEdge { vertex, edge }
                             if between(EntityId::Vertex(vertex), EntityId::Edge(edge)) =>
                         {
-                            Some(TOUCH_UNANALYSED)
+                            Some(Undecided::TouchUnanalysed.what())
                         }
                         CensusContact::EdgeEdgeOverlap { a, b }
                             if between(EntityId::Edge(a), EntityId::Edge(b)) =>
                         {
-                            Some(TOUCH_UNANALYSED)
+                            Some(Undecided::TouchUnanalysed.what())
                         }
                         CensusContact::ConformalPatch { ref finding } => {
                             if between(
                                 EntityId::Face(finding.pair.a),
                                 EntityId::Face(finding.pair.b),
                             ) {
-                                Some(TOUCH_UNANALYSED)
+                                Some(Undecided::TouchUnanalysed.what())
                             } else {
                                 None
                             }
@@ -3603,23 +3731,25 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                     },
                     ValidationError::CensusUnsupported { subject, .. }
                     | ValidationError::CensusLaneUnsupported { subject } => match subject {
-                        CensusSubject::Entity(id) if names(&[*id]) => Some(UNEXAMINED),
+                        CensusSubject::Entity(id) if names(&[*id]) => {
+                            Some(Undecided::Unexamined.what())
+                        }
                         CensusSubject::FacePair(f, g)
                             if names(&[EntityId::Face(*f), EntityId::Face(*g)]) =>
                         {
-                            Some(UNEXAMINED)
+                            Some(Undecided::Unexamined.what())
                         }
                         _ => None,
                     },
                     ValidationError::CensusUndecidable { a, b, .. } if names(&[*a, *b]) => {
-                        Some(UNEXAMINED)
+                        Some(Undecided::Unexamined.what())
                     }
                     ValidationError::CensusUndecidable { .. } => None,
                     // Nothing else is pushed ahead of this arm: the census
                     // is entered with tiers 1–3 clean and the confirm pass
                     // runs after it. Whatever does stand here is unknown to
                     // this arm and blocks.
-                    _ => Some(UNEXAMINED),
+                    _ => Some(Undecided::Unexamined.what()),
                 };
                 if what.is_some() {
                     return what;
@@ -3640,14 +3770,14 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                 .iter()
                 .any(|&(a, b)| between(EntityId::Vertex(a), EntityId::Vertex(b)))
             {
-                return Some(TOUCH_UNANALYSED);
+                return Some(Undecided::TouchUnanalysed.what());
             }
             if declared
                 .faces
                 .iter()
                 .any(|&(a, b)| between(EntityId::Face(a), EntityId::Face(b)))
             {
-                return Some(DECLARED_FACE_PAIR);
+                return Some(Undecided::DeclaredFacePair.what());
             }
             None
         };
@@ -3668,7 +3798,7 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
     let probe = |outer: SolidKey, inner: SolidKey| -> Probe {
         let sel = match crate::boolean::SolidFaces::of(body, outer) {
             Ok(sel) => sel,
-            Err(e) => return Probe::Refused(e.summary()),
+            Err(e) => return Probe::Refused(Undecided::of_point_in_solid(&e).what()),
         };
         let (mut refused, mut out_seen, mut any) = (None, false, false);
         for &(v, p) in geo
@@ -3682,7 +3812,7 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                 Ok(SolidContainment::Out) => out_seen = true,
                 Ok(SolidContainment::OnBoundary) => {}
                 Err(e) => {
-                    refused.get_or_insert(e.summary());
+                    refused.get_or_insert(Undecided::of_point_in_solid(&e).what());
                 }
             }
         }
@@ -3736,9 +3866,7 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Solid(outer),
                         b: EntityId::Solid(inner),
-                        what: "a surface kind with no cheap sound box leaves the \
-                               containing instance's extent unclaimable — the \
-                               same interference class",
+                        what: Undecided::Unclaimable.what(),
                     });
                     unclaimable = true;
                     continue;
@@ -3780,14 +3908,8 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                         }
                         Probe::Clear => continue,
                         Probe::Refused(what) => what,
-                        Probe::AllOn => {
-                            "every vertex of the contained instance lies on the containing \
-                             instance's boundary — a placement its vertices do not decide"
-                        }
-                        Probe::NoVertex => {
-                            "the contained instance has no vertex to probe — a placement \
-                             no witness decides"
-                        }
+                        Probe::AllOn => Undecided::AllOn.what(),
+                        Probe::NoVertex => Undecided::NoVertex.what(),
                     };
                     clear = false;
                     errors.push(ValidationError::CensusUndecidable {
@@ -3948,7 +4070,7 @@ fn confirm_curve_and_patch_records<T: Decide>(
                         b: c.face_b,
                         class: crate::contact::ContactClass::Tangent,
                     },
-                    witness: format!("{:?}", c.witness),
+                    witness: CURVE_RECORD_WITNESS.to_owned(),
                     margin: diag,
                     steer,
                 });
@@ -4108,6 +4230,41 @@ mod tests {
 
     fn band() -> Band {
         Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// **The backstop writes no sentence of its own**: every `what` it
+    /// raises comes from [`Undecided`], so [`Undecided::ALL`] — what the
+    /// refusal-budget row renders — is every `what` a run can show. A
+    /// raise site that wrote a sentence inline would be a `what` no row
+    /// measures; this reads the function's source for a multi-word
+    /// string literal (a predicate name is one word) and reds on one.
+    #[test]
+    fn the_backstop_writes_no_sentence_of_its_own() {
+        let src = include_str!("census.rs");
+        let start = src
+            .find("\nfn sweep_cross_solid_backstop")
+            .expect("the backstop is in this file");
+        let len = src[start + 1..]
+            .find("\n}\n")
+            .expect("the backstop's closing brace");
+        let body = &src[start..start + 1 + len];
+        // Comments stripped line by line, then the literals read off the
+        // whole text: a sentence continued with `\` spans lines.
+        let code: String = body
+            .lines()
+            .map(|line| line.split("//").next().unwrap_or(""))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let sentences: Vec<&str> = code
+            .split('"')
+            .skip(1)
+            .step_by(2)
+            .filter(|literal| literal.contains(' '))
+            .collect();
+        assert!(
+            sentences.is_empty(),
+            "the backstop writes a `what` inline; name an `Undecided` reason instead: {sentences:#?}"
+        );
     }
 
     /// Two overlapping opposed-sense wall sheets on one cylinder key.

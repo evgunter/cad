@@ -1655,21 +1655,23 @@ impl core::fmt::Display for BooleanError {
                      face. Recourse: {COINCIDENCE_RECOURSE}"
                 )
             }
+            // The reason in words, never the margin payload: every
+            // contradiction carries an invalid margin standing for a
+            // definite relation, which the payload renders as
+            // "indeterminate". The faces are the first and second
+            // operands' (the declaration's own order).
             Self::ContactContradicted {
                 declaration,
                 margin,
                 steer,
             } => write!(
                 f,
-                "the declared {} contact between faces {:?} and {:?} is \
-                 contradicted by {} — every definite verdict wins over every declaration; \
+                "the declared {} contact between the operands' faces is contradicted: {}. \
                  {}{}",
                 declaration.class.name(),
-                declaration.a,
-                declaration.b,
-                margin.payload(),
-                crate::contact::CONTACT_RECOURSE,
-                steer.map(|s| format!(" — {s}")).unwrap_or_default(),
+                crate::contact::contradiction_reason(margin),
+                crate::contact::CONTRADICTION_RECOURSE,
+                crate::contact::steer_clause(*steer),
             ),
             Self::DeclarationContradicted { diag } => write!(
                 f,

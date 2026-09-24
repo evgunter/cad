@@ -330,8 +330,8 @@ pub use census::{CensusStrategy, CensusTrace, SweepPairs};
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
-    DeclaredContact, FIT_DEFERRAL,
+    CONTACT_RECOURSE, CONTRADICTION_RECOURSE, ContactClass, ContactFinding, ContactRefusal,
+    ContactVerdict, DeclaredContact, FIT_DEFERRAL, FIT_DEFERRAL_FOR_USERS,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
