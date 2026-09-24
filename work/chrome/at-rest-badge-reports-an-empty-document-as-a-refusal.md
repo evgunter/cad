@@ -8,7 +8,7 @@ opened: 2026-09-15
 priority: P1
 cost: E
 closed: 2026-09-24
-pr: PRNUM
+pr: 3135
 ---
 
 
@@ -95,7 +95,7 @@ badge. Re-home to VIEW if that reading is wrong.
 
 ## Closed
 
-Closed by PR PRNUM (`chrome/empty-doc-badge`). The premise held
+Closed by PR 3135 (`chrome/empty-doc-badge`). The premise held
 against the tree: `DocSession::land`'s `Err(fault)` arm built
 `AtRestBadge::Refused` for every class, and the derivation above is
 constructible — `landing_gathers::a_body_less_assembly_takes_no_at_rest_badge`

@@ -8,7 +8,7 @@ opened: 2026-09-21
 priority: P3
 cost: E
 closed: 2026-09-24
-pr: PRNUM
+pr: 3135
 ---
 
 ## Finding
@@ -114,7 +114,7 @@ charter and the loudest site is a badge-column comment.
 
 ## Closed
 
-Closed by PR PRNUM (`chrome/empty-doc-badge`). Each of the six was
+Closed by PR 3135 (`chrome/empty-doc-badge`). Each of the six was
 verified against the tree before it was touched; all six were there as
 described, and each now cites the home in one line:
 
