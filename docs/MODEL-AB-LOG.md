@@ -6548,3 +6548,7 @@ Ordinal claims go to main at each review dispatch (band 2700–2799).
 Slot 1 CONCLUDED 2026-09-24: PR #2603 merged (`af04748de`), ordinal
 2713, sample #241, no tally candidate. Arm-exposed per the main-side
 disclosure. The implementer lane's tokens and wall are missing data.
+
+Slot 0 CONCLUDED 2026-09-24: PR #2594 merged (`0efe5c224`), ordinal
+2712, sample #242. One unilateral MAJOR, doc class, was excluded, so
+there is no tally candidate. Arm-exposed per the main-side disclosure.
