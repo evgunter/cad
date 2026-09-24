@@ -786,3 +786,29 @@ That arm skews every levered predicate silently, so the fix is a
 finite arm by construction at its one formation door, and the minted
 `Indeterminate` becomes unreachable rather than re-routed. Review
 tier: single, full.
+
+## MSOLVE-9 dual review adjudicated; fix pass to the lane (2026-09-24)
+
+PR 2934 frozen at `7cf04d8ee` (run 35955846813 green, the full
+matrix). Dual review under `docs/DUAL-REVIEW-PROTOCOL.md`, run
+sequentially under its late-trigger fallback: about 4.7 GB free holds
+one build at a time, and one worktree shared by two concurrent
+reviewers would let one's broken probe break the other's build. Same
+frozen head, identical briefs. Both returned APPROVE-WITH-FIXES; both
+executed C1, C2, C3 and notes (a) and (b) as holding. The one MAJOR
+(R1) was raised by R2 at NOTE: a face frame refuses `Unpinned` on
+every analysis lane while the viewer now authors only face frames.
+Ruled honest — the pose follows the part's parameters and the solve
+decides at nominal, so a Dual's real part would drop the pose's
+sensitivity and a pinned Interval would certify a face that moves —
+and owed disclosure at every door plus a P1 row. Bilateral MINORs:
+the memo key's "iff" is an over-approximation (sound; the claims
+re-worded, a row pins it); `FaceFrame::reference` has no admitted
+value (ruled dropped, with its two refusal arms; the roll residue
+filed, since a face frame does not turn a mate's roll as `plan.md`
+item 16 assumed); `PartUnresolved` drops the part and the face;
+prose the change invalidated, A11 rule 5's clause included (it lands
+with the change). One home each for the name-table ladder, the face
+side's part, the `InPart` unwrapping and the replay's static order.
+Tally candidates: none. The pre-note is in the lane's scratch and
+goes into `docs/DUAL-REVIEW-LOG.md` at state-sync.
