@@ -234,6 +234,33 @@ fn an_unminted_face_beside_a_minted_one_stays_rowless() {
     assert_eq!(rows_deep(&body), elsewhere);
 }
 
+/// **A face with no half-edge at all is not a complete one.** A second
+/// shell's seed face, put on the cylinder, is a lone vertex: every one
+/// of its (zero) half-edges carries a row, and it stores none. A `mev`
+/// growing a segment on it — a ruling, whose image the lane derives —
+/// leaves it rowless: it was never minted, so it is the minting pass's.
+#[test]
+fn a_lone_vertex_face_on_a_minting_chart_stays_unminted() {
+    let (mut body, _, _) = wall();
+    let seed = body.mvfs(at(0.6, 0.2)).unwrap();
+    body.set_face_surface(
+        seed.face,
+        topo::FaceSurface::New(CylFrame::canonical(1.0).surface()),
+    )
+    .unwrap();
+    let made = body
+        .mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            at(0.6, 0.7),
+            tol(),
+        )
+        .unwrap();
+    assert!(body.pcurve(made.he_plus).is_none());
+    assert_eq!(rows_of(&body, seed.face), (0, 2));
+}
+
 /// **A strut spliced before the loop's `first` is minted too.** Halves
 /// inserted before `first` are the last ones the walk from `first`
 /// reaches; the face is complete afterwards, with the pass's rows.
