@@ -2554,7 +2554,11 @@ pub struct EvalOptions {
     /// compare both schedules in one test run; results land by node
     /// id either way — order is data, not schedule. The `k_stats`
     /// recordings (verdicts, escalations, `probe` samples) are the
-    /// serial walk's at any thread count. A request, not a guarantee:
+    /// serial walk's at any thread count, in its order — except where
+    /// a part two instances in one level share is first evaluated,
+    /// whose samples land at whichever instance won the cache's lock
+    /// (`work/wire/part-cache-miss-samples-land-on-whichever-instance-wins-the-lock.md`).
+    /// A request, not a guarantee:
     /// while the calling thread has a symbolic session or shape report
     /// installed (`geom_core::sym::decisions_are_thread_portable`) the
     /// run is the serial walk.
