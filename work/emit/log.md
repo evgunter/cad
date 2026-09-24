@@ -482,3 +482,27 @@ placed-union tie are identical to main.
 
 Filed: `naming-index-casts-saturate-silently-at-u32-max` (P4), widened
 at review to the 14 truncating `as u32` casts in `editor-core`.
+
+## 2026-09-24 — value edits report a numbering move (PR 3180)
+
+A value edit (SetParam, SetExpression, SetStructuralParam, SetDocParam,
+SetDocParamValue) that moves a profile's canonical numbering used to
+rename silently: a hole grown past its outer loop, or a loop whose
+sense flipped. It now runs the same carry-and-report door as
+SetProgram. DM7 is re-worded to cover edits that move a name's
+numbering.
+
+Review found a two-step path through an unreadable state (no replay,
+a tie, or zero area). The interim rule makes it loud: an unreadable
+side strands every name on that profile. The lossless answer needs
+the last published numbering, and that is not recipe state (two
+saves are byte-identical while the same name denotes different
+walls). The choice between option A (persist it) and option B
+(doc-param edits refuse unreadable results) is with Ev in
+`a-value-edits-last-published-numbering-is-not-recipe-state`
+(`needs_ev`).
+
+Filed:
+- P0 `a-child-documents-rebind-leaves-the-parents-held-names-in-the-old-numbering`
+- P1 `the-viewer-drops-every-dm7-rename-report`
+- P2 `the-value-edit-numbering-check-costs-a-replay-per-swept-profile`
