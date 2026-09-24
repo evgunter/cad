@@ -35,13 +35,20 @@
 //!
 //! # The population
 //!
-//! Every `crates/*/src` file whose PRODUCTION code calls a certification
-//! door ([`DOORS`]): it builds a certification bracket
-//! (`Interval::from_certified`, `Interval::hull`, `Interval::poison`,
-//! `.clamped_to(…)`) or refuses one (`.is_certified()`). The key is what
-//! the code does, read off the same CODE view the counts are, so a file
-//! enters when it starts building or refusing certification brackets and
-//! leaves only when it stops — never because a comment moved.
+//! Two parts, walked as one:
+//!
+//! * every `crates/*/src` file whose PRODUCTION code calls a
+//!   certification door ([`DOORS`]): it builds a certification bracket
+//!   (`Interval::from_certified`, `Interval::hull`, `Interval::poison`,
+//!   `.clamped_to(…)`) or refuses one (`.is_certified()`). The key is
+//!   what the code does, read off the same CODE view the counts are, so
+//!   a file enters when it starts building or refusing certification
+//!   brackets and leaves only when it stops — never because a comment
+//!   moved;
+//! * every file in [`HOLDERS`]: the files that hold certification
+//!   brackets, by name, whether or not they call a door. A file that
+//!   reads a bracket it was handed calls no door, and the door key alone
+//!   cannot see it.
 //!
 //! # Blind spots, stated
 //!
@@ -67,17 +74,20 @@
 //!    module's own `balanced_end`, which is exact over a blanked view and
 //!    is why this row rolls no reader of its own
 //!    (`crates/test-utils/tests/reader_census.rs`).
-//! 6. **The population is keyed on door CALLS.** A file that reads a
-//!    certification bracket it was handed, without calling any door in
-//!    its own production code, is outside it: the read happens and
-//!    nothing here counts it. The match is textual, so a door reached
-//!    under another name (`use geom_core::Interval as Ring;`) is outside
-//!    it too; no such alias exists in the tree.
+//! 6. **A new holder is invisible until it is listed.** A file that
+//!    comes to hold a certification bracket without calling a door, and
+//!    is not in [`HOLDERS`], is outside the population: a read there
+//!    happens and nothing here counts it. No text key can find such a
+//!    file, because the bracket's type is also the evaluation scalar —
+//!    telling the two apart needs name resolution, a compiler, not a
+//!    lexer. The door match is textual too, so a door reached under
+//!    another name (`use geom_core::Interval as Cert;`) is outside it;
+//!    no such alias exists in the tree.
 //!
 //! # Where it lives, and why here
 //!
 //! In `geom-core/tests/` rather than beside the consumers, because the
-//! subject is one type's doors across five crates and no consumer crate
+//! subject is one type's doors across six crates and no consumer crate
 //! can see the others. `geom-core` owns the type.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -90,6 +100,7 @@ test_utils::gated_to![
     "crates/geom/src/",
     "crates/mesh/src/",
     "crates/topo/src/",
+    "crates/step-import/src/recognize_curve.rs",
 ];
 
 /// The certification doors whose call puts a file in the population:
@@ -104,8 +115,51 @@ const DOORS: &[&str] = &[
     ".is_certified()",
 ];
 
+/// The files that hold certification brackets, walked whether or not
+/// their production code calls a door: every `crates/*/src` file that
+/// named the certification type when it was a type of its own, plus the
+/// two that read its brackets without naming it (the SSI driver's
+/// pcurve windows, and the scalar the crossing starts from).
+///
+/// **A fixed list, not a rule**, and the choice is forced (blind spot 6):
+/// deciding whether a file holds certification brackets needs name
+/// resolution. What keeps it honest is that each entry's counts are
+/// pinned in [`ROSTER`] like every other file's, so a read arriving in
+/// one of them reds, and [`every_listed_holder_exists`] reds when an
+/// entry names a file that is gone — a list that silently shrinks is
+/// the failure a list invites.
+const HOLDERS: &[&str] = &[
+    "crates/geom-brep/src/offset_fit.rs",
+    "crates/geom-brep/src/offset_meters.rs",
+    "crates/geom-brep/src/patch_bound.rs",
+    "crates/geom-brep/src/props/mod.rs",
+    "crates/geom-brep/src/props/quad.rs",
+    "crates/geom-brep/src/ssi.rs",
+    "crates/geom-brep/src/ssi/certify.rs",
+    "crates/geom-brep/src/ssi/enclose.rs",
+    "crates/geom-brep/src/ssi/exhaust.rs",
+    "crates/geom-core/src/interval.rs",
+    "crates/geom-core/src/lib.rs",
+    "crates/geom-core/src/real.rs",
+    "crates/geom-core/src/spline/algebra.rs",
+    "crates/geom-core/src/spline/compose.rs",
+    "crates/geom-core/src/spline/compose/patch.rs",
+    "crates/geom-core/src/spline/compose/tensor.rs",
+    "crates/geom-core/src/spline/hull.rs",
+    "crates/geom-core/src/spline/net.rs",
+    "crates/geom-core/src/sym/signed.rs",
+    "crates/geom/src/curves/nurbs.rs",
+    "crates/geom/src/net.rs",
+    "crates/geom/src/surfaces/nurbs.rs",
+    "crates/mesh/src/chords.rs",
+    "crates/mesh/src/nurbs_cert.rs",
+    "crates/step-import/src/recognize_curve.rs",
+    "crates/topo/src/props.rs",
+];
+
 /// One entry per file walked with at least one endpoint read — every
-/// `crates/*/src` file whose production code calls a door in [`DOORS`]:
+/// `crates/*/src` file whose production code calls a door in [`DOORS`],
+/// and every file in [`HOLDERS`]:
 /// the path, the production endpoint-read LINES, and how many of those
 /// sit in a function that asks `is_certified()`.
 ///
@@ -162,16 +216,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     (
         "crates/geom-brep/src/ssi/certify.rs",
         16,
-        4,
-        "the 4 that ask are the mignitude (`zero_free_lower_bound`). Of the other 12, \
-         ten are `T: Bounds` reads on the evaluation scalar and not certification endpoints at \
-         all — blind spot 1 — and two are the transversality span-hull window, safe \
-         because `KnotVector::clamped` refuses degree 0: a window therefore holds at \
-         least two coefficients, and `CoeffWindow::hull` folds every one after the \
-         first through `Interval::hull`, whose refusing guard mints NaI. (The \
-         hull guard alone would not do it — the fold seeds `acc` with the first \
-         coefficient and would hand a one-coefficient window's refusal straight out \
-         with its endpoints intact.)",
+        8,
+        "the 8 that ask are the mignitude (`zero_free_lower_bound`, 4), the \
+         transversality span-hull window (2: `probe_tube_chart` refuses either window \
+         hull by name before reading it — a refused hull is NaI, and a NaN window end \
+         would land on the first span), and two `T: Bounds` reads of the pcurve's \
+         tangent that share that function and count only by blind spot 2. The other \
+         8 are `T: Bounds` reads on the evaluation scalar and not certification \
+         endpoints at all — blind spot 1",
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
@@ -210,8 +262,8 @@ fn repo_root() -> std::path::PathBuf {
         .expect("crates/<name> sits two levels under the repo root")
 }
 
-/// Every `crates/*/src` file whose production code calls a door, with
-/// its production lines. **The shared lexer's CODE view**, not the raw
+/// Every `crates/*/src` file whose production code calls a door, and
+/// every file in [`HOLDERS`], with its production lines. **The shared lexer's CODE view**, not the raw
 /// text: a `.lo()` or a door inside a doc comment or a string literal is
 /// neither a read nor a call, and blanking keeps the newlines so a line
 /// count over this view is a line count over the file
@@ -230,17 +282,17 @@ fn population(root: &std::path::Path) -> Vec<(String, Vec<String>)> {
         for path in source::rust_sources(&d.join("src")) {
             let raw = std::fs::read_to_string(&path).expect("a readable source file");
             let lines = production(&source::code_only(&raw));
-            if !lines
-                .iter()
-                .any(|l| DOORS.iter().any(|door| l.contains(door)))
-            {
-                continue;
-            }
             let rel = path
                 .strip_prefix(root)
                 .expect("a walked file lies under the repo root")
                 .to_string_lossy()
                 .replace('\\', "/");
+            let calls_a_door = lines
+                .iter()
+                .any(|l| DOORS.iter().any(|door| l.contains(door)));
+            if !calls_a_door && !HOLDERS.contains(&rel.as_str()) {
+                continue;
+            }
             out.push((rel, lines));
         }
     }
@@ -369,5 +421,24 @@ fn every_production_endpoint_read_is_counted_and_dispositioned() {
         "the walk found only {total} endpoint reads across {} files — it is reading the \
          wrong tree",
         found.len()
+    );
+}
+
+/// [`HOLDERS`] is a list kept by hand, so it is held to the tree: an
+/// entry whose file was renamed or deleted would drop out of the walk
+/// with no count moving, and the population would shrink unannounced.
+#[test]
+fn every_listed_holder_exists() {
+    let root = repo_root();
+    let gone: Vec<&str> = HOLDERS
+        .iter()
+        .copied()
+        .filter(|p| !root.join(p).is_file())
+        .collect();
+    assert!(
+        gone.is_empty(),
+        "{gone:?} in HOLDERS no longer exist. A renamed file takes its entry with it, \
+         under its new path; a deleted one leaves the list, and the certification \
+         brackets it held are either gone or now live somewhere that has to be listed"
     );
 }

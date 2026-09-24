@@ -669,6 +669,14 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         let m = 0.5 * (a + b);
         let hu = wu.hull();
         let hv = wv.hull();
+        // A refused window hull is NaI, and its NaN endpoints are no
+        // chart window: `span_range` sends a NaN end to the first span,
+        // so the derivative boxes below would be an arbitrary cell's
+        // and the margin would certify from them. The probe refuses —
+        // no span of this pcurve can be bounded, so none is probed.
+        if !hu.is_certified() || !hv.is_certified() {
+            return None;
+        }
         let (u0, u1) = (hu.lo() - radius_uv.0, hu.hi() + radius_uv.0);
         let (v0, v1) = (hv.lo() - radius_uv.1, hv.hi() + radius_uv.1);
         let du = boxes.deriv_box(u0, u1, v0, v1, true);
@@ -1116,6 +1124,37 @@ mod tests {
                  margin {margin} — the crossing read the BRACKET door, so \
                  the chart tube certifies uniqueness from a plane equation \
                  that was clamped out of its own domain"
+            );
+        }
+
+        /// The same principle on the PCURVE: a control coordinate that left
+        /// its domain carries real endpoints (`sqrt([−1, 0.01]) + 0.1` is
+        /// about `[0.1, 0.2]` at `Trv`), the span window's hull refuses it as NaI,
+        /// and NaI's NaN endpoints must not become a chart window — a NaN
+        /// window end lands on the first span in `span_range`, and the
+        /// derivative boxes of an arbitrary cell would then certify.
+        #[test]
+        fn a_violated_pcurve_coordinate_cannot_certify() {
+            let bad = Interval::from_bounds(-1.0, 0.01).sqrt() + iv(0.1);
+            let (lo, hi) = (geom_core::Bounds::lo(bad), geom_core::Bounds::hi(bad));
+            assert!(
+                (0.09..0.21).contains(&lo) && (0.09..0.21).contains(&hi),
+                "fixture drifted: [{lo}, {hi}] is not a real bracket near [0.1, 0.2]"
+            );
+            assert!(!bad.is_certified(), "fixture drifted: it certifies");
+            let pcurve = NurbsCurve2::new(
+                linear_kv(),
+                vec![Point2::new(bad, iv(0.5)), Point2::new(iv(0.9), iv(0.5))],
+                vec![1.0, 1.0],
+            )
+            .expect("valid pcurve");
+            let normal = Vec3::new(iv(0.0), iv(2.0), iv(0.0));
+            let verdict = probe_tube_chart(&pcurve, &unit_patch(), normal, (0.01, 0.01));
+            assert_eq!(
+                verdict, None,
+                "a pcurve whose control coordinate left its domain produced the \
+                 transversality verdict {verdict:?} — the span window's refused \
+                 hull was read for its endpoints"
             );
         }
     }
