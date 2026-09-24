@@ -1886,3 +1886,25 @@ and the fold (`29aa4b345`). Both re-earned the gate. The ordinal-2712
 row rides as this PR's last commit. Its one unilateral MAJOR (the
 half-minted blind spot asserted away) is doc/claim class, recorded and
 excluded, so the tally is unchanged. Slot 0 is concluded.
+
+## The re-basing gate merged: PR 3148 closes `a-null-edge-can-be-re-based-…` (2026-09-24)
+
+The fix pass took all ten adjudicated items and refuted none.
+- The gate refuses only a run that moves ONE end of a null edge, and
+  a run moving both halves keeps the edge one vertex. Each mutant
+  (full stop restored, one half skipped, null check after the carrier
+  loop, silent `continue`) reds exactly its rows.
+- The rationale lives in one home and is corrected for `query.rs`'s
+  `same_point_bits`, which is filed on TQUERY.
+- The M7-8 split is asserted through `Body::mev`, with its tier-3
+  reading and non-atomicity rowed.
+- The `kev` evidence is corrected to what was measured.
+
+Head `1baa7735e` is green on the full matrix (run 35964734053). The
+orchestrator verified the refinement by reading the gate: it tests
+run membership and compares no points. Main is merged forward over
+PR 2594 (clean, no conflict). The program charter's stale premise is
+re-worded here. The DR-1 row rides as this PR's last commit. The
+m7-8 row stays open and carries the `[ev]` proposal, which opens from
+main once this lands. Slot 2 is concluded: it ran undrawn, as the
+suspension requires.
