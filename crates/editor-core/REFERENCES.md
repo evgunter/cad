@@ -356,18 +356,25 @@ span and its per-radius emission (fields of `crates/profile`'s
 `ReplayStructure`, beside its fillet decisions) give the answer — the
 span for a step, the emission for a radius, since the step a radius is
 authored on is not always the step its arc is credited to — in the
-program's own step order —
-the numbering the published names carry, since `eval/anchor.rs`
-renumbers every emitted ref canonical → program before the name table
-is published — and canonicalization's `reversed` and `start` on
-`LoopCanonical` are checked against the naming anchor's record of the
-same permutation, never applied. A disagreement between those two
-records is the evaluation contradicting itself and asserts. The door
-refuses typed where a record is absent or of the wrong shape rather
-than guessing. It is derived from the structure record the geometry
-came from, so it cannot disagree with the geometry, and it is not
-persisted. For a loft the published anchoring is section 0's
-(`work/wire/loft-anchors-every-section-with-section-zeros-map`).
+program's own step order, and the profile's naming anchor carries it
+into the numbering every published name carries: the CANONICAL one.
+The canonical form keeps what the author wrote wherever validity
+allows — each loop's authored start and the authored hole order, with
+only the traversal sense normalized (outer counterclockwise, holes
+clockwise) — so the published segment is the program's own for a loop
+authored in its canonical sense and its reflection `s ↦ n − 1 − s` for
+one authored against it, and every verb that consumes a profile
+publishes that one numbering. A loft is no exception: it pairs
+canonical segment `k` of every section into one wall, so the wall's one
+ref is every section's own canonical segment `k`, and the door answers
+any section through that section's own anchor. The anchor is checked
+against canonicalization's `reversed` and `start` on `LoopCanonical`,
+its own record of the same permutation, before it is read. A
+disagreement between those two records is the evaluation contradicting
+itself and asserts. The door refuses typed where a record is absent or
+of the wrong shape rather than guessing. It is derived from the
+structure record the geometry came from, so it cannot disagree with
+the geometry, and it is not persisted.
 
 - **Why not the viewer.** A second derivation from both endpoints can
   disagree with the first.
@@ -386,7 +393,10 @@ checked rather than applied, a disagreement asserting — was ruled by
 Ev on EDIT's third `[ev]` PR of 2026-09-16
 (`dm8-names-canonical-segments-but-the-published-refs-are-program-anchored`),
 after the unit that built the door measured the original clause's
-composition wrong.*
+composition wrong. The canonical numbering — authored start and hole
+order, orientation normalized, one numbering for every verb — was ruled
+by Ev on PR 3102's thread (2026-09-23)
+(`loft-section-correspondence-is-authored`).*
 
 ## What this doc does not touch
 

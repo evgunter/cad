@@ -39,12 +39,11 @@
 //! index their output maps by exactly these identities, which is what
 //! makes sweep naming a mechanical zip.
 //!
-//! What the NAME TABLE publishes is that identity only for a
-//! hand-built profile. For a program loop `eval::anchor` rewrites
-//! every emitted ref canonical → program before the table is
-//! published, so the ref a consumer holds is the one the program's
-//! own step order authored — see the two types' docs and DM8
-//! (`crates/editor-core/REFERENCES.md`).
+//! What the NAME TABLE publishes is that identity, for every profile:
+//! the canonical form keeps each loop's authored start and hole order,
+//! so the ref a consumer holds is the author's own segment counted
+//! along the loop's canonical traversal — see the two types' docs and
+//! DM8 (`crates/editor-core/REFERENCES.md`).
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
@@ -566,15 +565,14 @@ pub enum CapEnd {
 }
 
 /// A profile edge (segment) by combinatorial identity, never a bare
-/// index — and WHICH identity depends on where the ref came from: the
-/// profile crate's canonical form (module docs, cited) for a
-/// hand-built profile, the program's own step order for a program
-/// loop, whose refs `eval::anchor` rewrites canonical → program
-/// before the name table is published, so that a parameter edit
-/// cannot renumber a frozen selection. DM8
-/// (`crates/editor-core/REFERENCES.md`) rules on the published
-/// anchoring and names the one exception: a loft's sections are all
-/// anchored by section 0's map.
+/// index: the profile crate's canonical form (module docs, cited) —
+/// canonical loop order, and segment `k` counted along the canonical
+/// traversal from the loop's AUTHORED start. No geometric choice
+/// enters it, so a parameter edit cannot renumber a frozen selection,
+/// and every verb that consumes the profile — a loft's sections
+/// included — publishes the same one. DM8
+/// (`crates/editor-core/REFERENCES.md`) states how an authored step
+/// maps onto it.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]

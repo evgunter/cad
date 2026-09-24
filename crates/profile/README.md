@@ -89,14 +89,19 @@ and the naming anchor are derived values: memoized per node under a
 content key that hashes the program's structure and resolved values
 (and the lane-resolved values under `Guided`), never persisted, rebuilt
 on load; D9 makes the rebuild bit-exact. Profile-entity names
-(`ProfileEdgeRef`/`ProfileVertexRef`) for program loops index
-program-structural positions: `eval/anchor.rs` recovers each loop's
-canonical rotation and reversal as a `LoopAnchor` by bit-matching the
-canonical loop against the replayed one and remaps emitted names
-canonical → program order, so nothing geometric enters an index and a
-continuous edit cannot renumber. `validate` still canonicalizes
-(lex-min start, outer counterclockwise) for downstream geometry.
-Structural edits may renumber; stale selections then refuse Vanished.
+(`ProfileEdgeRef`/`ProfileVertexRef`) index CANONICAL positions, and
+the canonical form keeps what the author wrote wherever validity allows:
+`validate` orients each loop (outer counterclockwise, holes clockwise)
+and keeps its AUTHORED start vertex and the authored hole order, so
+canonical segment `k` is the author's segment `k` for a loop authored
+in its canonical sense and segment `n − 1 − k` for one authored against
+it. No geometric choice enters an index, so a continuous edit cannot
+renumber, and every verb that consumes a profile — a loft's sections
+included — names its entities in that one numbering. `eval/anchor.rs`
+recovers each loop's reversal as a `LoopAnchor` by bit-matching the
+canonical loop against the replayed one, which is how an authored step
+is mapped to the canonical segments it became. Structural edits may
+renumber; stale selections then refuse Vanished.
 
 **V4 — The stored form, chain-only.** `Node::Profile` carries
 `ProfileProgram { plane: RecipeNodeId, loops: Vec<LoopProgram> }`;

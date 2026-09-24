@@ -372,8 +372,9 @@ pub struct LoopCanonical {
     /// Whether canonicalization reversed the input chain to reach the
     /// role's required winding.
     pub reversed: bool,
-    /// The rotation: which vertex of the oriented chain became the
-    /// canonical start.
+    /// Which vertex of the oriented chain is the canonical start —
+    /// `0`, the authored start, whenever `validate` made the decision;
+    /// a guided pass consumes whatever the record says.
     pub start: usize,
     /// The canonical chain's per-segment shapes.
     pub segments: Vec<SegmentShape>,

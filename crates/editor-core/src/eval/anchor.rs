@@ -1,28 +1,26 @@
-//! **Program-anchored profile naming (LIB-SWITCH §6 under the ratified
-//! resolution; PROFILES-V2 §V3 round 2).**
+//! **The profile naming anchor (PROFILES-V2 §V3).**
 //!
-//! Profile-entity naming for program loops anchors to PROGRAM-
-//! STRUCTURAL positions: `ProfileEdgeRef`/`ProfileVertexRef` indices
-//! mean "the segment/vertex the program's step order authored", not
-//! "the canonical rotation's position". Nothing geometric enters the
-//! index, so a parameter edit CANNOT renumber, by construction — the
-//! renumbering class (lex-band crossings under the canonical rotation)
-//! is eliminated for program loops. Structural edits (re-authoring the
+//! Profile-entity names (`ProfileEdgeRef`/`ProfileVertexRef`) index
+//! CANONICAL positions — canonical loop order (outer first, holes in
+//! authored order) and canonical traversal from each loop's AUTHORED
+//! start — and every verb that consumes a profile emits them in that
+//! one numbering. The canonical form keeps what the author wrote
+//! wherever validity allows, so nothing geometric enters an index and a
+//! parameter edit CANNOT renumber: the start is the author's, and the
+//! one thing canonicalization decides — each loop's traversal sense —
+//! cannot flip under a continuous edit without passing through a
+//! sliver, which validation refuses. Structural edits (re-authoring the
 //! program) may renumber; the freeze doctrine (stale selections refuse
 //! Vanished, M6-5) remains that backstop, as everywhere.
 //!
 //! # Mechanism
 //!
-//! `validate` still canonicalizes (its ladder is out of this unit's
-//! fence, and downstream GEOMETRY follows canonical order — exports
-//! stay byte-identical). What changes is the NAMING SUBSTRATE: the
-//! profile value carries a per-loop [`LoopAnchor`] — the exact
+//! The profile value carries a per-loop [`LoopAnchor`] — the exact
 //! reindexing canonicalization applied, recovered by BIT-matching the
-//! canonical f64 loop against the replayed (program-order) f64 loop —
-//! and every emitted name's profile refs are rewritten canonical →
-//! program before the table is published ([`remap_table`]). Emitters
-//! stay untouched (`names/` is fenced); the rewrite is a pure
-//! reindexing at the emission call sites.
+//! canonical f64 loop against the replayed (program-order) f64 loop.
+//! Its one reader is the map from an authored step to the canonical
+//! segments it became (`ProfileProgram::profile_edges_of`), where a
+//! loop authored against its canonical sense reads `s ↦ n − 1 − s`.
 //!
 //! The match is exact: canonical loops are EXACT reindexings of their
 //! input (validate's own contract). Uniqueness needs positions AND
@@ -32,7 +30,6 @@
 
 use profile::{Profile, ProfileLoop, ValidatedProfile};
 
-use crate::names::{Entry, NameTable, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName};
 
 /// One canonical loop's anchor: how canonical indices map back to the
 /// program's authored order.
@@ -76,6 +73,19 @@ impl LoopAnchor {
             (self.offset + k) % n
         }
     }
+
+    /// Program segment `s` → canonical segment: the inverse of
+    /// [`LoopAnchor::segment`]. The reversed map is its own inverse
+    /// shape (`k ↦ offset − k − 1` mod n); the forward one subtracts
+    /// the offset.
+    pub fn canonical_segment(&self, s: u32) -> u32 {
+        let n = self.len;
+        if self.reversed {
+            (self.offset + 2 * n - (s % n) - 1) % n
+        } else {
+            (s % n + n - self.offset % n) % n
+        }
+    }
 }
 
 /// The per-profile naming anchor: one [`LoopAnchor`] per CANONICAL
@@ -88,7 +98,8 @@ pub struct ProfileNaming {
 
 impl ProfileNaming {
     /// Whether every anchor is the identity (canonical order == program
-    /// order) — the common corpus case; callers skip the table rebuild.
+    /// order) — every loop authored in its canonical sense, the outer
+    /// loop first.
     pub fn is_identity(&self) -> bool {
         self.loops
             .iter()
@@ -98,14 +109,14 @@ impl ProfileNaming {
 }
 
 /// The profile node's evaluated value: the validated (canonical)
-/// profile, the naming anchor that program-anchors every profile ref
-/// emitted against it, and the per-edge radius the program draws each
-/// of its segments at.
+/// profile, the naming anchor that maps its program's segments onto the
+/// canonical ones every profile ref names, and the per-edge radius the
+/// program draws each of its segments at.
 #[derive(Debug, Clone)]
 pub struct ProfileValue<T: geom_core::Real> {
     /// The validated profile downstream ops consume.
     pub validated: ValidatedProfile<T>,
-    /// The canonical→program naming anchor.
+    /// The canonical ↔ program naming anchor.
     pub naming: ProfileNaming,
     /// **Which radius expression each profile edge is drawn at**, per
     /// CANONICAL loop and then per CANONICAL segment — the indexing a
@@ -174,7 +185,7 @@ pub(crate) struct ProfilePre {
     /// type rather than by a placeholder a reader could mistake for a
     /// placement.
     pub placement_f64: Option<profile::SketchPlane<f64>>,
-    /// The canonical→program naming anchor.
+    /// The canonical ↔ program naming anchor.
     pub naming: ProfileNaming,
     /// The discrete decisions this f64 pass made — the witness the
     /// lift's second pass consumes and re-verifies at its own scalar.
@@ -276,120 +287,4 @@ pub(crate) fn derive_naming(
         anchors.push(found?);
     }
     Some(ProfileNaming { loops: anchors })
-}
-
-/// Rewrites one profile ref canonical → program.
-fn remap_edge(naming: &ProfileNaming, e: ProfileEdgeRef) -> ProfileEdgeRef {
-    match naming.loops.get(e.loop_index as usize) {
-        None => e,
-        Some(a) => ProfileEdgeRef {
-            loop_index: a.program_loop,
-            segment: a.segment(e.segment),
-        },
-    }
-}
-
-fn remap_vertex(naming: &ProfileNaming, v: ProfileVertexRef) -> ProfileVertexRef {
-    match naming.loops.get(v.loop_index as usize) {
-        None => v,
-        Some(a) => ProfileVertexRef {
-            loop_index: a.program_loop,
-            vertex: a.vertex(v.vertex),
-        },
-    }
-}
-
-/// Rewrites the profile-ref-bearing role segments an emitter minted
-/// DIRECTLY (extrude/revolve/loft emitters; wrapped upstream names are
-/// already program-anchored, so composition variants are untouched).
-///
-/// Not to be confused with [`crate::refactor`]'s function of the same
-/// name: that one partitions [`RoleSeg`] by whether the variant embeds
-/// a [`StableName`] and recurses into the ones that do; this one
-/// partitions it by whether the variant embeds a PROFILE LOCATOR, and
-/// does not recurse — the sentence above is why, and nothing enforces
-/// it.
-fn remap_seg(naming: &ProfileNaming, seg: RoleSeg) -> RoleSeg {
-    use RoleSeg as R;
-    match seg {
-        R::Lateral(e) => R::Lateral(remap_edge(naming, e)),
-        R::RimEdge(c, e) => R::RimEdge(c, remap_edge(naming, e)),
-        R::LateralEdge(v) => R::LateralEdge(remap_vertex(naming, v)),
-        R::CapVertex(c, v) => R::CapVertex(c, remap_vertex(naming, v)),
-        R::Band(e) => R::Band(remap_edge(naming, e)),
-        R::BandRim(v) => R::BandRim(remap_vertex(naming, v)),
-        R::BandRimPi(v) => R::BandRimPi(remap_vertex(naming, v)),
-        R::BandPi(e) => R::BandPi(remap_edge(naming, e)),
-        R::Meridian(m, e) => R::Meridian(m, remap_edge(naming, e)),
-        R::MeridianVertex(m, v) => R::MeridianVertex(m, remap_vertex(naming, v)),
-        R::Pole(v) => R::Pole(remap_vertex(naming, v)),
-        R::AxisEdge(e) => R::AxisEdge(remap_edge(naming, e)),
-        // EXHAUSTIVE on purpose (the `walk_names` rule): the arms above
-        // are exactly the variants that embed a `ProfileEdgeRef` or a
-        // `ProfileVertexRef`, and these are exactly the ones that do
-        // not. A future variant carrying a profile locator must be
-        // classified here or the compile breaks; a catch-all would let
-        // it cross a re-anchor with a stale locator, silently.
-        R::OutputBody
-        | R::Cap(..)
-        | R::RevolveCap(..)
-        | R::FromMember { .. }
-        | R::FromA(..)
-        | R::FromB(..)
-        | R::Seam { .. }
-        | R::Merged(..)
-        | R::Fragment(..)
-        | R::SplitBody(..)
-        | R::SectionFace { .. }
-        | R::SectionEdge { .. }
-        | R::SplitFragment { .. }
-        | R::CrossingVertex { .. }
-        | R::OnToolVertex { .. }
-        | R::FromTarget(..)
-        | R::BlendFace(..)
-        | R::CornerFace(..)
-        | R::TrimEdge { .. }
-        | R::FootVertex { .. }
-        | R::EndArc { .. }
-        | R::BandFace(..)
-        | R::BandTrim { .. }
-        | R::BandFoot(..)
-        | R::BandCross(..)
-        | R::BandCut(..)
-        | R::BandSlit(..)
-        | R::Inner(..)
-        | R::Rim(..)
-        | R::HoleRim { .. }
-        | R::InPart { .. }
-        | R::Instance { .. } => seg,
-    }
-}
-
-fn remap_name(naming: &ProfileNaming, name: StableName) -> StableName {
-    StableName {
-        kind: name.kind,
-        node: name.node,
-        path: name
-            .path
-            .into_iter()
-            .map(|seg| remap_seg(naming, seg))
-            .collect(),
-    }
-}
-
-/// Rewrites every name in an emitted table canonical → program (the
-/// anchor rewrite, applied at the emission call sites of the ops that
-/// mint profile refs). The rewrite is a bijection per loop, so
-/// injectivity is preserved; a collision is therefore an internal bug
-/// and surfaces as `None` (the caller refuses typed).
-pub(crate) fn remap_table(table: &NameTable, naming: &ProfileNaming) -> Option<NameTable> {
-    let mut out = NameTable::new();
-    for (name, entry) in table.iter() {
-        let new_name = remap_name(naming, name.clone());
-        match entry {
-            Entry::Unique(ent) => out.insert(new_name, *ent).ok()?,
-            Entry::Tied(ents) => out.insert_tied(new_name, ents.clone()).ok()?,
-        }
-    }
-    Some(out)
 }

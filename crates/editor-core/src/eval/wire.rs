@@ -69,7 +69,7 @@ use topo::{
     DATUM_UNIT_NORM, FacePairDeclaration, GeomSource, VfContact, VvContact,
 };
 
-use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
+use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
 use crate::names::{self, NameTable, ProfileEdgeRef, SplitHalf};
@@ -1531,8 +1531,7 @@ fn wire_datum<T: Decide>(
 /// program replays through `profile::replay` — the driver, the ONLY
 /// path from steps to geometry — then the assembled `Profile<f64>`
 /// validates at f64 (the C6 structure-selection gate, which also
-/// yields the canonical form the program-anchor naming map is derived
-/// from). Runs inside the node's verdict frame (`eval_node`) ahead of
+/// yields the canonical form the naming anchor is derived from). Runs inside the node's verdict frame (`eval_node`) ahead of
 /// the op: structure decisions, the successor of the stored f64 bits,
 /// logged as the node's own. The validated form is kept: under the
 /// pinned lift it IS the op's value, lifted (`wire_profile`), so the
@@ -1601,9 +1600,9 @@ pub(crate) fn prepare_profile(
 /// still zero, and until seeding lands the capability is exercised one
 /// door down, at the program-resolve seam this function calls, which is
 /// where `editor-core`'s `m10_p_lift` suite drives it.
-/// The naming is pass 1's verbatim (PP4): names are program-structural
-/// indices, and the canonical permutation they hang off is pinned by
-/// the record, so `T`-valued geometry changes no name.
+/// The naming is pass 1's verbatim (PP4): names are canonical indices,
+/// and the canonical permutation they hang off is pinned by the record,
+/// so `T`-valued geometry changes no name.
 fn lane_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
     plane: profile::SketchPlane<T>,
@@ -1703,15 +1702,14 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
 }
 
 /// **The per-edge radius expressions, in the sweep's own indexing** —
-/// `ProfileProgram::segment_radii`'s answer re-addressed from program
-/// segments to CANONICAL ones, which is what a wall record is keyed by.
+/// `ProfileProgram::segment_radii`'s answer laid out per CANONICAL loop
+/// and segment, which is what a wall record is keyed by.
 ///
-/// The hop is the anchor's, and only the anchor's: `LoopAnchor::segment`
-/// is the canonical → program reindexing the published names were
-/// rewritten through, so asking it for canonical segment `k` names the
-/// program segment the door answered about. Nothing here re-derives a
-/// permutation; the door already checked the evaluation's two records
-/// of this one against each other.
+/// The door already answers in canonical refs — the numbering every
+/// published name carries — so this is a lookup by position: canonical
+/// loop `l`, segment `k` is the ref `(l, k)`. Nothing here re-derives a
+/// permutation; the door checked the evaluation's two records of it
+/// against each other.
 ///
 /// **A refusal here is the evaluation contradicting itself.** The
 /// records were minted from this program by the same pre-pass, so
@@ -1728,7 +1726,8 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
     pre.naming
         .loops
         .iter()
-        .map(|anchor| {
+        .enumerate()
+        .map(|(canonical_loop, anchor)| {
             let by_program_segment = program
                 .segment_radii(&pre.structure, &pre.naming, anchor.program_loop)
                 .unwrap_or_else(|e| {
@@ -1744,8 +1743,10 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
             (0..anchor.len)
                 .map(|k| {
                     let want = ProfileEdgeRef {
-                        loop_index: anchor.program_loop,
-                        segment: anchor.segment(k),
+                        loop_index: u32::try_from(canonical_loop).unwrap_or_else(|_| {
+                            unreachable!("a profile's loop count fits in u32")
+                        }),
+                        segment: k,
                     };
                     // FIRST match: one segment carries at most one
                     // emission, because each arc's bulge is set once
@@ -1761,24 +1762,6 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
                 .collect()
         })
         .collect()
-}
-
-/// Applies the program-anchor rewrite to an emitted table (identity
-/// anchors skip the rebuild). A collision is an internal bug (the
-/// rewrite is a bijection per loop), refused typed.
-fn anchored(
-    table: Arc<NameTable>,
-    naming: &ProfileNaming,
-) -> Result<Arc<NameTable>, NodeErrorKind> {
-    if naming.is_identity() {
-        return Ok(table);
-    }
-    match anchor::remap_table(&table, naming) {
-        Some(t) => Ok(Arc::new(t)),
-        None => Err(NodeErrorKind::Naming(names::NamingError::Emission {
-            what: "program-anchor rewrite collided (bijection invariant broken)",
-        })),
-    }
 }
 
 /// **The profile-operand verbs' ONE lowering**, driven by the verb's
@@ -1807,8 +1790,9 @@ fn anchored(
 /// # What it writes
 ///
 /// The body (moved out of the record), the name table (emitted from the
-/// record, then program-anchor rewritten — canonical → program indices,
-/// LIB-SWITCH §6), the provenance stamp on everything the sweep minted,
+/// record, its profile refs in canonical numbering — the one numbering
+/// every profile-consuming verb publishes), the provenance stamp on
+/// everything the sweep minted,
 /// and the per-edge parameter sources the verb's flow declares.
 // The 8th argument is the verb's correspondence — the parameter that
 // REMOVES duplication rather than adding a duty, exactly as
@@ -1848,7 +1832,7 @@ fn wire_swept<
     // Eager N4 emission from the emitter's own maps, inside the reader,
     // BEFORE the structural handoff is taken apart.
     let out = (verb.read)(id, record, verb.foreign_record)?;
-    let table = anchored(out.table, &vp.naming)?;
+    let table = out.table;
     let mut body = out.body;
     // The sweep's own surfaces, curves and points are minted HERE
     // (D1/N6).
@@ -4929,7 +4913,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     id: RecipeNodeId,
     lane: LaneEnv<'_, T>,
     tol: Tol,
-) -> Result<(sweep::Section, Affine3<f64>, ProfileNaming), NodeErrorKind> {
+) -> Result<(sweep::Section, Affine3<f64>), NodeErrorKind> {
     let program = node_operand(doc, id, super::family::PROFILE, |n| match n {
         Node::Profile(program) => Some(program),
         _ => None,
@@ -4954,8 +4938,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // the same C6/D9 pipeline the profile node runs. The profile's own
     // validation door still runs first, so a bad section reads as a
     // profile error at the NODE (the §2 compatibility contract) before
-    // the library door re-gates it — and the f64 canonical form yields
-    // the program-anchor naming map for the loft emitter's refs.
+    // the library door re-gates it.
     let resolved = program
         .resolve(lane.nominal)
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
@@ -5010,7 +4993,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // The sections are the REPLAYED loops (program order — exactly
     // the stored-loop handoff LIB-U3 established, one derivation
     // earlier): positions, bulges, declared joints verbatim.
-    Ok((pre.profile_f64.loops, place, pre.naming))
+    Ok((pre.profile_f64.loops, place))
 }
 
 /// A structural (Count) slot, refused typed when absent or unusable.
@@ -5034,23 +5017,10 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
     let v_degree = need_count(vals, SlotId::VDegree)?;
     let mut sections = Vec::with_capacity(profiles.len());
     let mut places = Vec::with_capacity(profiles.len());
-    let mut first_naming = ProfileNaming::default();
-    for (i, pid) in profiles.iter().enumerate() {
-        let (chain, place, naming) = section_of::<T>(doc, results, *pid, lane, tol)?;
+    for pid in profiles {
+        let (chain, place) = section_of::<T>(doc, results, *pid, lane, tol)?;
         sections.push(chain);
         places.push(place);
-        if i == 0 {
-            // The loft emitter's profile refs are canonical (loop,
-            // segment) indices of the SECTION combinatorics; sections
-            // must correspond, so the FIRST section's anchor is the
-            // rewrite for the emitted table. PINNED LIMITATION
-            // (reported; review NOTE): a later section authored
-            // rotated/reversed relative to section 0 anchors to
-            // section 0's map, not its own — acceptable while the
-            // kernel requires corresponding sections; revisit if loft
-            // ever accepts per-section reparametrization.
-            first_naming = naming;
-        }
     }
     // The geometry/profile doors keep their historical node-error
     // shapes (the §2 compatibility contract predates the builder);
@@ -5061,9 +5031,12 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
             other => NodeErrorKind::Loft(other),
         })?;
     // Eager N4 emission from the builder's own maps, BEFORE the
-    // structural handoff is dropped (the extrude idiom).
+    // structural handoff is dropped (the extrude idiom). The refs are
+    // canonical (loop, segment) indices, and the skin paired canonical
+    // segment `k` of every section into wall `k`: canonical traversal
+    // from each loop's AUTHORED start, so wall `k` is every section's
+    // own canonical segment `k` — the numbering every verb publishes.
     let table = names::name_loft(id, &built).map_err(NodeErrorKind::Naming)?;
-    let table = anchored(table, &first_naming)?;
     stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
