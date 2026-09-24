@@ -1337,8 +1337,9 @@ fn choose_roles<T: Decide>(
 /// # Dimension (audit F4, `docs/predicate-dimension-audit.md`)
 ///
 /// The CANONICAL statement for this predicate's three sites (the other
-/// two are `merge_faces::loop_winding` and `validate`'s tier-3 check 6,
-/// which cross-reference here): the Newell functional is an AREA (m²)
+/// two — the merge's role assigner and `validate`'s tier-3 check 6 —
+/// share one statement, `crate::loop_winding`, which cross-references
+/// here): the Newell functional is an AREA (m²)
 /// and ε is a point deviation (D4), so the decided margin divides it by
 /// the run's boundary PERIMETER `P`. `2A/P` is the region's MEAN WIDTH
 /// — exactly the deviation the winding sign is about: it is the

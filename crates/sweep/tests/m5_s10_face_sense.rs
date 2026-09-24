@@ -405,22 +405,28 @@ fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
 }
 
 // =====================================================================
-// ATREST-2 rows: what the sense bit means on an arc-capped loft.
+// What the sense bit means on an arc-capped loft, and where tier 3
+// reads it.
 //
-// A PERF-6 reviewer found that inverting EVERY face's sense on the
-// three-station arc loft leaves tier 3 green with an unchanged positive
-// enclosure, while the same inversion on the square loft refuses
-// `LoopRoleInverted`. These three rows pin the three measurements that
-// explain it — one per answer, each red when its answer changes.
+// Inverting EVERY face's sense on the three-station arc loft is refused
+// at its two planar caps, exactly as on the square loft: check 6's
+// planar arm winds a loop of `Line` and `Circle` carriers exactly (the
+// chord polygon plus each arc's circular segment), so an arc cap is as
+// falsifiable as a polygonal one. The spline walls stay silent on both
+// bodies, and a planar loop riding an `Ellipse` or NURBS carrier stays
+// outside the arm; the rows below pin both residues so their silence
+// stays visible.
 //
 // They live here and not in `topo`'s `tier3_tests` because the bodies
-// are `sweep::loft_body` output: `topo` cannot reach the constructor
-// that builds them, and a hand-assembled stand-in would pin a fixture
-// rather than the loft the finding is about.
+// are `sweep` output: `topo` cannot reach the constructors that build
+// them, and a hand-assembled stand-in would pin a fixture rather than
+// the verbs' own bodies.
 //
-// The two bodies are the crate's shared `arc_prism` and `square_prism`
-// (`common`), which differ in the BULGE alone — same station count,
-// same v-degree — so a row that runs both isolates the carrier.
+// The two lofts are the crate's shared `arc_prism` and `square_prism`
+// (`common`), which differ in the bulge, the station count and the
+// v-degree; the arc carrier alone decided the verdict under the
+// line-only arm (the 2×2 in
+// `work/atrest/sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts.md`).
 // =====================================================================
 
 /// Every face's sense inverted, through the PUBLIC door
@@ -434,6 +440,14 @@ fn sense_inverted_everywhere(body: &Body<f64>) -> Body<f64> {
     out
 }
 
+/// `face`'s sense alone inverted, through the same public door.
+fn sense_inverted_at(body: &Body<f64>, face: FaceKey) -> Body<f64> {
+    let mut out = body.clone();
+    let sense = out.get_face(face).expect("the face is live").sense;
+    out.set_face_sense(face, !sense).expect("the face is live");
+    out
+}
+
 /// Whether `face`'s surface is a spline chart — the discriminant of
 /// check 6's curved-arm skip and of tier 3's `nurbs_adjacent`
 /// short-circuit, asked of a FACE key.
@@ -443,54 +457,57 @@ fn is_spline_chart_face(body: &Body<f64>, face: FaceKey) -> bool {
         .is_some_and(|s| s.spline_chart().is_some())
 }
 
-/// **The (face, loop) pairs check 6's PLANAR arm actually examines** on
-/// `body`, re-derived here from the same stored data the arm reads.
-///
-/// It is a re-derivation of the arm's own entry conditions, in the
-/// arm's order, and it must match all four of them or the row that uses
-/// it reports a false red:
+/// The certified carriers of `l`'s cycle, in cycle order; empty for a
+/// loop that is not a `Cycle`.
+fn loop_carriers(body: &Body<f64>, l: topo::LoopKey) -> Vec<geom::Curve3<f64>> {
+    let Some(topo::entity::LoopBoundary::Cycle { first }) = body.get_loop(l).map(|ld| ld.boundary)
+    else {
+        return Vec::new();
+    };
+    body.loop_cycle(first)
+        .expect("a live cycle closes")
+        .iter()
+        .map(|&he| {
+            body.get_half_edge(he)
+                .and_then(|hd| body.get_edge(hd.edge))
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(topo::null::CurveGeom::certified)
+                .expect("every edge of an at-rest body carries a certified curve")
+                .carrier()
+                .clone()
+        })
+        .collect()
+}
+
+/// **The (face, loop) pairs check 6's PLANAR arm examines** on `body`,
+/// re-derived here from the same stored data the arm reads, in the
+/// arm's order:
 ///
 /// - the face's surface is a `Plane` (the arm `continue`s on every
-///   other kind — there is no planarity filter anywhere else, so a
-///   predicate that omitted this one would drag the NURBS walls in the
-///   day `loft_body` mints `Line` carriers for straight rails);
-/// - the loop is the outer loop OR one of `face.rings` (the arm runs
-///   over both);
-/// - the loop's boundary is a `Cycle` (the arm `continue`s otherwise —
-///   an empty ring bounds no area, so it is NOT examined, and a
-///   predicate answering "yes" there would have the semantics
-///   inverted);
-/// - every certified carrier on the cycle is a `Line` (`all_lines`).
+///   other kind — a predicate that omitted this would drag the spline
+///   walls in the day `loft_body` mints `Line` carriers for straight
+///   rails);
+/// - the loop is the outer loop OR one of `face.rings`;
+/// - the loop's boundary is a `Cycle` (an empty ring bounds no area and
+///   is NOT examined);
+/// - every certified carrier on the cycle is a `Line` or a `Circle` —
+///   an `Ellipse`, spiric or NURBS carrier puts the loop outside.
 ///
 /// A `(face, loop)` PAIR and not a face, because `LoopRoleInverted`
-/// names both and a face can refuse once per loop — a face key vector
-/// would need deduping to be comparable and would lose which loop it
-/// was.
+/// names both and a face can refuse once per loop.
 fn planar_arm_reaches(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey)> {
     let mut out = Vec::new();
     for (fk, f) in body.faces() {
-        if !matches!(
-            body.get_surface(f.surface),
-            Some(geom::Surface::Plane { .. })
-        ) {
+        if !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })) {
             continue;
         }
         for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
-            let Some(ld) = body.get_loop(l) else { continue };
-            let topo::entity::LoopBoundary::Cycle { first } = ld.boundary else {
-                continue; // bounds no area: the arm skips it
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
-                continue;
-            };
-            let all_lines = cycle.iter().all(|&he| {
-                body.get_half_edge(he)
-                    .and_then(|hd| body.get_edge(hd.edge))
-                    .and_then(|e| body.get_curve_geom(e.curve))
-                    .and_then(topo::null::CurveGeom::certified)
-                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
-            });
-            if all_lines {
+            let carriers = loop_carriers(body, l);
+            if !carriers.is_empty()
+                && carriers
+                    .iter()
+                    .all(|c| matches!(c, geom::Curve3::Line { .. } | geom::Curve3::Circle { .. }))
+            {
                 out.push((fk, l));
             }
         }
@@ -499,52 +516,19 @@ fn planar_arm_reaches(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey)> {
     out
 }
 
-/// **Answer 1.** The only at-rest site that produces `LoopRoleInverted`
-/// is tier 3's check 6 PLANAR arm, and the only thing that silences it
-/// on the arc prism is that arm's `all_lines` gate: a cap loop carrying
-/// one circular arc is skipped, a cap loop of four lines is not.
-///
-/// The row states both halves as runtime facts. On the square prism the
-/// refusal set is non-empty, is `LoopRoleInverted` and NOTHING else,
-/// and its `(face, loop)` pairs are exactly the ones the planar arm
-/// examines — so the four NURBS walls contribute no refusal on either
-/// body and the discriminant is the cap. On the arc prism the same
-/// inversion validates clean, and the arm examines NOTHING there.
-///
-/// **How it goes red.** Widening the planar arm past line carriers
-/// (`verbs-1031b-assigner-checker-divergence`'s open question) makes
-/// `validate_geometric` on the inverted arc prism return `Err`, and the
-/// `is_ok` assertion fails. A curved arm that stopped exempting spline
-/// charts would raise `CurvedSenseInverted` on the walls, which this
-/// row's `other => panic!` arm catches first — still red, and named
-/// here so a reader knows which value fires. A loft that stopped
-/// emitting an arc carrier for a bulged segment makes
-/// `planar_arm_reaches` non-empty on the arc prism and fails the last
-/// assertion. The runtime values are the error vector from
-/// `validate_geometric` and the stored carrier discriminants.
-///
-/// **What it deliberately does NOT claim** is that the walls are absent
-/// from the examined set because they are curved. They are absent
-/// because they are not `Plane`, which `planar_arm_reaches` asks
-/// directly — so the day `loft_body` mints `Line` carriers for a
-/// straight rail (an obvious improvement, and one that changes nothing
-/// about check 6) this row stays green.
-#[test]
-fn only_the_line_bounded_cap_refuses_a_whole_body_sense_inversion() {
-    let tol = Tol::witness();
-    let arc = crate::common::arc_prism();
-    let square = crate::common::square_prism();
-    assert!(
-        topo::validate_geometric(&arc, tol).is_ok(),
-        "the arc prism is honest at rest"
-    );
-    assert!(
-        topo::validate_geometric(&square, tol).is_ok(),
-        "the square prism is honest at rest"
-    );
+/// Whether any loop of `pairs` carries a `Circle` — the premise that
+/// makes a row over them a row about ARC-bearing loops.
+fn some_loop_rides_an_arc(body: &Body<f64>, pairs: &[(FaceKey, topo::LoopKey)]) -> bool {
+    pairs.iter().any(|&(_, l)| {
+        loop_carriers(body, l)
+            .iter()
+            .any(|c| matches!(c, geom::Curve3::Circle { .. }))
+    })
+}
 
-    let errs = topo::validate_geometric(&sense_inverted_everywhere(&square), tol)
-        .expect_err("a whole-body inversion of the square prism is refused");
+/// The `(face, loop)` pairs of `LoopRoleInverted` in `errs`, sorted;
+/// panics on any other refusal, naming it.
+fn role_inversions(errs: &[topo::ValidationError]) -> Vec<(FaceKey, topo::LoopKey)> {
     let mut refused: Vec<(FaceKey, topo::LoopKey)> = errs
         .iter()
         .map(|e| match e {
@@ -557,41 +541,213 @@ fn only_the_line_bounded_cap_refuses_a_whole_body_sense_inversion() {
         })
         .collect();
     refused.sort();
-    let examined = planar_arm_reaches(&square);
-    assert!(
-        !examined.is_empty(),
-        "check 6's planar arm examines the square prism's line-bounded caps"
-    );
-    assert_eq!(
-        refused, examined,
-        "every (face, loop) the planar arm examines refuses under a whole-body \
-         inversion, and nothing else does — the arm is the sole raiser and \
-         `all_lines` is its whole gate"
-    );
+    refused
+}
 
+/// **A whole-body inversion refuses at the planar caps, arcs included.**
+/// On the square prism and the arc prism alike, the refusal set is
+/// `LoopRoleInverted` and nothing else, and its `(face, loop)` pairs
+/// are exactly the ones check 6's planar arm examines — the two caps.
+/// On the arc prism each examined loop carries a `Circle`, so the
+/// verdict is the arc-exact winding's.
+///
+/// The four spline walls contribute no refusal on either body: the
+/// curved arm exempts spline charts, which is
+/// `work/verdict/m6-sense-gate-recorded-residuals.md`'s residual 3.
+///
+/// **How it goes red.** An arm that went back to skipping arc-bearing
+/// loops leaves the inverted arc prism `Ok`, and `expect_err` fails. A
+/// curved arm that stopped exempting spline charts raises
+/// `CurvedSenseInverted`, which `role_inversions` names in its panic. A
+/// loft that stopped minting an arc carrier for a bulged segment fails
+/// the arc premise. The runtime values are the error vectors from
+/// `validate_geometric` and the stored carrier discriminants.
+#[test]
+fn a_whole_body_sense_inversion_refuses_at_every_planar_cap_arcs_included() {
+    let tol = Tol::witness();
+    for (name, body) in [
+        ("square prism", crate::common::square_prism()),
+        ("arc prism", crate::common::arc_prism()),
+    ] {
+        assert!(
+            topo::validate_geometric(&body, tol).is_ok(),
+            "the {name} is honest at rest"
+        );
+        let examined = planar_arm_reaches(&body);
+        assert_eq!(
+            examined.len(),
+            2,
+            "check 6's planar arm examines the {name}'s two caps; got {examined:?}"
+        );
+        let errs = topo::validate_geometric(&sense_inverted_everywhere(&body), tol)
+            .expect_err("a whole-body inversion is refused");
+        assert_eq!(
+            role_inversions(&errs),
+            examined,
+            "every (face, loop) the planar arm examines on the {name} refuses under a \
+             whole-body inversion, and nothing else does"
+        );
+    }
+    let arc = crate::common::arc_prism();
     assert!(
-        topo::validate_geometric(&sense_inverted_everywhere(&arc), tol).is_ok(),
-        "MEASURED GAP: the same whole-body inversion of the arc prism is clean at \
-         rest. This row pins the gap; when a check closes it, re-cut the row \
-         rather than loosening it"
-    );
-    assert_eq!(
-        planar_arm_reaches(&arc),
-        Vec::new(),
-        "check 6's planar arm examines NO loop of the arc prism — each cap loop \
-         carries a `Circle`, which is what `all_lines` rejects and the whole \
-         reason the arm never runs on this body"
+        some_loop_rides_an_arc(&arc, &planar_arm_reaches(&arc)),
+        "the arc prism's caps carry a `Circle` — the premise of the arc half"
     );
 }
 
-/// **Answer 2.** No at-rest check reads `Face::sense` on the arc prism
-/// at all, and the row pins the four gates that stop each reader rather
-/// than the absence itself:
+/// **An inverted arc-bounded planar face refuses by name.** One cap of
+/// the arc prism has its bit inverted through the public door; the
+/// refusal is exactly `LoopRoleInverted` naming THAT face and ITS outer
+/// loop — the loop of three lines and one arc.
 ///
-/// - check 6's PLANAR arm reads the bit through `plane_outward_normal`
-///   and is gated on `all_lines` — every planar face here fails it;
-/// - check 6's CURVED arm reads `face.sense` directly and skips
-///   `Plane` and spline charts — every face here is one or the other;
+/// **How it goes red.** An arm that skips arc-bearing loops leaves the
+/// body `Ok`; one that mis-signed the arc's segment term would still
+/// see the three-line chord polygon's sign here (the quarter-circle's
+/// bulge is small beside the square), so the SIGN of the bulge is
+/// pinned by the ring row below, where the chord term is zero. The
+/// runtime value is the error vector.
+#[test]
+fn an_inverted_arc_bounded_planar_cap_refuses_naming_its_face_and_loop() {
+    let tol = Tol::witness();
+    let arc = crate::common::arc_prism();
+    let caps = planar_arm_reaches(&arc);
+    assert!(some_loop_rides_an_arc(&arc, &caps), "the caps carry arcs");
+    for &(face, l) in &caps {
+        assert_eq!(
+            arc.get_face(face).map(|f| f.outer),
+            Some(l),
+            "a cap's loop is outer"
+        );
+        let errs = topo::validate_geometric(&sense_inverted_at(&arc, face), tol)
+            .expect_err("an arc cap whose bit disagrees with its winding is refused");
+        assert_eq!(
+            role_inversions(&errs),
+            vec![(face, l)],
+            "the refusal names the inverted cap and its outer loop, and nothing else"
+        );
+    }
+}
+
+/// The extruded washer: a unit-radius disc with a concentric hole of
+/// radius ½, each loop a full circle of two semicircular arcs, extruded
+/// one unit. Both planar caps carry an outer loop and a ring of
+/// `Circle` carriers only, so every chord polygon is a DIGON: its
+/// Newell term is zero and the winding is the arcs' segment terms alone.
+fn washer() -> Body<f64> {
+    let circle = |r: f64| {
+        ProfileLoop::new(vec![
+            ProfileVertex::new(p2(-r, 0.0), 1.0),
+            ProfileVertex::new(p2(r, 0.0), 1.0),
+        ])
+    };
+    let prof = Profile::new(SketchPlane::xy(), vec![circle(1.0), circle(0.5)])
+        .validate(Tol::witness())
+        .expect("the washer profile validates");
+    extrude(&prof, Extrusion::Distance(1.0), Tol::witness())
+        .expect("the washer extrudes")
+        .body
+}
+
+/// **A ring carrying an arc refuses too.** Each cap of the extruded
+/// washer has its bit inverted in turn; the refusal names that face
+/// twice — its outer loop AND its ring — and nothing else. Every loop
+/// here is a digon of two semicircles, so the chord term is zero and
+/// the verdict is the arcs' segment terms alone: an arm that dropped
+/// the bulge would see `Zero` and exempt both loops, and one that
+/// applied it with the wrong sign would refuse the HONEST washer.
+///
+/// **How it goes red.** An arm that skips arc-bearing loops, or one
+/// that drops the segment term, leaves the inverted cap `Ok`; a
+/// mis-signed segment term refuses the honest body in the first
+/// assertion. The runtime values are the error vectors.
+#[test]
+fn an_inverted_cap_refuses_at_its_arc_ring_as_well_as_its_outline() {
+    let tol = Tol::witness();
+    let body = washer();
+    assert!(
+        topo::validate_geometric(&body, tol).is_ok(),
+        "the washer is honest at rest"
+    );
+    let examined = planar_arm_reaches(&body);
+    let caps: Vec<FaceKey> = body
+        .faces()
+        .filter(|(_, f)| !f.rings.is_empty())
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(caps.len(), 2, "the washer has two ringed caps");
+    for face in caps {
+        let f = body.get_face(face).expect("the cap is live");
+        let mut expected = vec![(face, f.outer), (face, f.rings[0])];
+        expected.sort();
+        assert!(
+            expected.iter().all(|pair| examined.contains(pair)),
+            "check 6's planar arm examines both of the cap's loops"
+        );
+        let errs = topo::validate_geometric(&sense_inverted_at(&body, face), tol)
+            .expect_err("a washer cap whose bit disagrees with its winding is refused");
+        assert_eq!(
+            role_inversions(&errs),
+            expected,
+            "the refusal names the cap's outline and its arc ring, and nothing else"
+        );
+    }
+}
+
+/// **The residue: a planar loop riding an `Ellipse` stays outside the
+/// arm.** `tilted_cut_upper`'s cut face is a plane bounded by one exact
+/// `Ellipse`; its bottom cap is bounded by circle arcs. Inverting the
+/// bit of the circle cap is refused; inverting the bit of the ellipse
+/// face is not — check 6's planar arm answers on `Line` and `Circle`
+/// carriers only, and a loop riding an ellipse (or a NURBS carrier) is
+/// not examined.
+///
+/// **How it goes red.** The day the arm reaches ellipse carriers the
+/// `is_ok` fails, and this row is re-cut to the new verdict rather than
+/// loosened. A split that stopped minting an `Ellipse` for the tilted
+/// cut fails the carrier premise. The runtime values are the stored
+/// carrier discriminants and the two validation results.
+#[test]
+fn an_ellipse_bounded_planar_face_stays_outside_the_planar_arm() {
+    let tol = Tol::witness();
+    let body = crate::common::tilted_cut_upper();
+    assert!(
+        topo::validate_geometric(&body, tol).is_ok(),
+        "the tilted cut is honest at rest"
+    );
+    let planar = |pred: fn(&geom::Curve3<f64>) -> bool| -> Vec<(FaceKey, topo::LoopKey)> {
+        body.faces()
+            .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+            .filter(|(_, f)| loop_carriers(&body, f.outer).iter().any(pred))
+            .map(|(k, f)| (k, f.outer))
+            .collect()
+    };
+    let elliptic = planar(|c| matches!(c, geom::Curve3::Ellipse { .. }));
+    let circular = planar(|c| matches!(c, geom::Curve3::Circle { .. }));
+    assert_eq!(elliptic.len(), 1, "the tilted cut face rides an `Ellipse`");
+    assert_eq!(circular.len(), 1, "the bottom cap rides circle arcs");
+    assert!(
+        !planar_arm_reaches(&body).contains(&elliptic[0]),
+        "the ellipse-bounded loop is outside the planar arm"
+    );
+
+    let (cap, cap_loop) = circular[0];
+    let errs = topo::validate_geometric(&sense_inverted_at(&body, cap), tol)
+        .expect_err("the circle-bounded cap's inversion is refused");
+    assert_eq!(role_inversions(&errs), vec![(cap, cap_loop)]);
+
+    assert!(
+        topo::validate_geometric(&sense_inverted_at(&body, elliptic[0].0), tol).is_ok(),
+        "MEASURED RESIDUE: an ellipse-bounded planar face inverted through the public \
+         door is clean at rest"
+    );
+}
+
+/// **The planar arm is the only sense reader on the arc loft.** Check
+/// 6's planar arm now reads the bit on both caps; the other three
+/// readers stay gated shut on this body, and the row pins each gate:
+///
+/// - check 6's CURVED arm reads `face.sense` directly and skips `Plane`
+///   and spline charts — every face here is one or the other;
 /// - tier 3's **check 4 MATERIAL arm** reads `sense` on both sides of a
 ///   definitely-smooth edge, behind `nurbs_adjacent` — every edge here
 ///   has a spline-chart face, so the short-circuit fires first;
@@ -601,34 +757,40 @@ fn only_the_line_bounded_cap_refuses_a_whole_body_sense_inversion() {
 ///   bit-identical volume where it computes, the same typed refusal
 ///   where this body's rational walls honestly run out of budget.
 ///
-/// **How it goes red.** If `loft_body` ever mints an analytic cylinder
-/// for a circular-arc profile segment — the obvious improvement — that
-/// wall is neither `Plane` nor a spline chart, the second assertion
-/// fails, and the third fails with it because its edges stop being
-/// nurbs-adjacent. If the quadrature ever folds the bit into a loft
-/// face's flux, the same-reading assertion fails. The runtime values
-/// are the stored `Surface` discriminants, the per-edge face pair, and
-/// the `f64` bits of the metered volume (or the typed `MassPropsError`
-/// where the schedule refuses).
+/// So the walls' bits are read by nothing at rest (residual 3), and the
+/// whole-body inversion is caught at the caps alone.
+///
+/// **How it goes red.** An arm that stops examining the caps fails the
+/// first assertion. If `loft_body` ever mints an analytic cylinder for
+/// a circular-arc profile segment, that wall is neither `Plane` nor a
+/// spline chart and the second assertion fails, the third with it. If
+/// the quadrature ever folds the bit into a loft face's flux, the
+/// same-reading assertion fails. The runtime values are the stored
+/// `Surface` discriminants, the per-edge face pair, and the `f64` bits
+/// of the metered volume (or the typed `MassPropsError` where the
+/// schedule refuses).
 #[test]
-fn every_sense_reading_gate_shuts_on_the_arc_loft() {
+fn the_planar_arm_is_the_only_sense_reader_on_the_arc_loft() {
     let tol = Tol::witness();
     let arc = crate::common::arc_prism();
 
-    // The planar arm's gate: it examines no loop of this body at all,
-    // because no planar face of it is line-bounded.
+    let mut planar_outers: Vec<(FaceKey, topo::LoopKey)> = arc
+        .faces()
+        .filter(|(_, f)| matches!(arc.get_surface(f.surface), Some(Surface::Plane { .. })))
+        .map(|(k, f)| (k, f.outer))
+        .collect();
+    planar_outers.sort();
     assert_eq!(
         planar_arm_reaches(&arc),
-        Vec::new(),
-        "check 6's planar arm now examines a loop of the arc prism, so it reads \
-         `Face::sense` on this body and this row's answer has changed"
+        planar_outers,
+        "check 6's planar arm examines every planar face's loop of the arc prism"
     );
 
     // The curved arm's gate: `Plane` or a spline chart, face by face.
     for (k, f) in arc.faces() {
         let s = arc.get_surface(f.surface).expect("the surface is live");
         assert!(
-            matches!(s, geom::Surface::Plane { .. }) || is_spline_chart_face(&arc, k),
+            matches!(s, Surface::Plane { .. }) || is_spline_chart_face(&arc, k),
             "face {k:?} is neither planar nor a spline chart ({s:?}) — check 6's \
              curved arm would now run on it and this row's answer has changed"
         );
@@ -679,29 +841,22 @@ fn every_sense_reading_gate_shuts_on_the_arc_loft() {
     }
 }
 
-/// **Answer 3.** The inverted body is reachable through the PUBLIC API:
-/// [`sense_inverted_everywhere`] builds it with
-/// [`topo::Body::set_face_sense`] alone, which is `pub`, not
-/// `#[doc(hidden)]`, and callable from outside `topo` — this
-/// integration test is the witness. So the finding is a real gap, not
-/// an artefact of the `_for_tests` door.
+/// **The public door's inversion of an arc loft is refused at rest.**
+/// [`sense_inverted_everywhere`] builds the inverted body with
+/// [`topo::Body::set_face_sense`] alone, which is `pub` and callable
+/// from outside `topo` — this integration test is the witness that the
+/// state is reachable through the public API, and tier 3 refuses it at
+/// exactly the caps its planar arm examines, as it does the square
+/// control. The refusal SET is asserted, not `is_err`: an `is_err`
+/// would still pass the day either body started refusing for an
+/// unrelated reason.
 ///
-/// The control half is what makes the row a guard rather than a
-/// restatement: the same public door on the square prism DOES earn a
-/// refusal, so the door genuinely writes the bit and the arc prism's
-/// silence is the checks', not the door's. The control asserts the
-/// exact refusal SET, not merely that something refused — an `is_err`
-/// would still pass the day the square prism started refusing for an
-/// unrelated reason, which is not the fact this row rests on.
-///
-/// **How it goes red.** Making `set_face_sense` private or hiding it
-/// breaks compilation, which is this row failing. A gate that catches
-/// the public-door inversion on the arc prism fails the `is_ok`
-/// assertion; one that stops catching it on the square prism fails the
-/// refusal-set assertion. The runtime values are the two error vectors
-/// and the per-face `sense` bits.
+/// **How it goes red.** Making `set_face_sense` private breaks
+/// compilation. An arm that stops catching the inversion on either body
+/// fails its refusal-set assertion. The runtime values are the two
+/// error vectors and the per-face `sense` bits.
 #[test]
-fn the_public_sense_door_builds_an_inverted_arc_loft_tier_3_accepts() {
+fn the_public_sense_door_inversion_of_an_arc_loft_is_refused_at_its_caps() {
     let tol = Tol::witness();
     let arc = crate::common::arc_prism();
     let inverted = sense_inverted_everywhere(&arc);
@@ -714,28 +869,12 @@ fn the_public_sense_door_builds_an_inverted_arc_loft_tier_3_accepts() {
             .expect("the clone keeps every face key");
         assert_ne!(before.sense, after.sense, "face {k:?}'s bit is inverted");
     }
-    assert!(
-        topo::validate_geometric(&inverted, tol).is_ok(),
-        "MEASURED GAP: a body built inverted through the public `set_face_sense` \
-         door validates clean at rest"
-    );
+    let errs = topo::validate_geometric(&inverted, tol)
+        .expect_err("a body built inverted through the public door is refused at rest");
+    assert_eq!(role_inversions(&errs), planar_arm_reaches(&arc));
 
     let square = crate::common::square_prism();
     let errs = topo::validate_geometric(&sense_inverted_everywhere(&square), tol)
         .expect_err("the same public door on the line-bounded control IS refused");
-    let mut refused: Vec<(FaceKey, topo::LoopKey)> = errs
-        .iter()
-        .map(|e| match e {
-            topo::ValidationError::LoopRoleInverted { face, r#loop } => (*face, *r#loop),
-            other => panic!("the control must refuse by check 6's planar arm, got {other:?}"),
-        })
-        .collect();
-    refused.sort();
-    assert_eq!(
-        refused,
-        planar_arm_reaches(&square),
-        "the control's refusal is exactly check 6's planar arm over the loops it \
-         examines — the door writes the bit, so the arc prism's silence is that \
-         arm's gate and not a no-op write"
-    );
+    assert_eq!(role_inversions(&errs), planar_arm_reaches(&square));
 }
