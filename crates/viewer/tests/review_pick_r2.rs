@@ -144,7 +144,7 @@ struct Tally {
 
 /// The pinned tally over the aim below (docs: re-derive with
 /// `--nocapture`).
-const PINNED: (usize, usize, usize, usize) = (441_126, 141_106, 20_016, 10_536);
+const PINNED: (usize, usize, usize, usize) = (442_782, 141_992, 20_016, 10_536);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let parts = flatten(index);

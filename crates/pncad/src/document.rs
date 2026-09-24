@@ -71,9 +71,18 @@
 // edit forced and the references a delete stranded (DM7) — and a
 // consumer that can hold an `Applied` in a typed field must be able to
 // hold what it carries.
+// `LoopProvenance` is a field of `DocEdit::SetProgram` — a caller who
+// cannot spell it cannot author the edit — and `ProvenanceFault` is
+// what `EditError::ProvenanceMalformed` carries, so a consumer matching
+// that arm can name what it caught.
+// `RETIRED_FLOOR` is where `SetProgram` retires a stranded name's
+// locator: a consumer reading a `Strand` row's spelling recognises the
+// retired coordinate by it, and a consumer inventing one cannot pick a
+// coordinate a program might draw.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
-    Maintenance, MetaVersionError, ProgramRefusal, apply, apply_logged,
+    LoopProvenance, Maintenance, MetaVersionError, ProgramRefusal, ProvenanceFault, RETIRED_FLOOR,
+    apply, apply_logged,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states

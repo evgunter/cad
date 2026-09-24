@@ -1100,6 +1100,85 @@ impl<P> Doc<P> {
             .flat_map(move |carrier| self.names_in(carrier))
     }
 
+    /// **Every [`StableName`] this document holds, rewritten in
+    /// place** — [`Doc::name_carriers`]' `&mut` twin, driven by the
+    /// same [`Carrier::ALL`] roster in the same order, so the two
+    /// walks cannot disagree about which fields hold a name or in
+    /// what order they are met
+    /// (`tests::name_carriers_reads_the_payloads_then_the_store` holds
+    /// that the twin meets exactly what the read walk yields).
+    ///
+    /// `rewrite` is asked once per carried name, in
+    /// [`Doc::name_carriers`]' order, and answers the name the site
+    /// now holds or `None` to leave it. A node's payload is rewritten
+    /// through [`Node::rewrite_payload_names`] — one simultaneous pass
+    /// per node, which is what a permutation needs — and the store's
+    /// keys are re-keyed all at once: every moved record is lifted out
+    /// BEFORE any is put back, so a key that is both a source and
+    /// another's target is read as the source it was and written as
+    /// the target it becomes. `place` puts one lifted record under its
+    /// new key and is where a collision is decided (the edit layer's
+    /// rule, which this walk does not own).
+    ///
+    /// # Errors
+    ///
+    /// `place`'s, at the first record it refuses; the payloads are
+    /// already rewritten by then, so a caller that refuses discards
+    /// the document it handed in (every edit door does — spec D2).
+    pub(crate) fn rewrite_names<E>(
+        &mut self,
+        mut rewrite: impl FnMut(NameCarrier<'_>) -> Option<StableName>,
+        mut place: impl FnMut(&mut AppearanceMap, AppearanceRecord, &StableName) -> Result<(), E>,
+    ) -> Result<(), E> {
+        for carrier in Carrier::ALL {
+            self.rewrite_names_in(carrier, &mut rewrite, &mut place)?;
+        }
+        Ok(())
+    }
+
+    /// The names ONE carrier holds, rewritten — [`Doc::names_in`]'s
+    /// `&mut` twin, exhaustive with no wildcard arm for the same
+    /// reason: a variant added to [`Carrier`] does not compile until
+    /// it says how its field is rewritten here.
+    fn rewrite_names_in<E>(
+        &mut self,
+        carrier: Carrier,
+        rewrite: &mut impl FnMut(NameCarrier<'_>) -> Option<StableName>,
+        place: &mut impl FnMut(&mut AppearanceMap, AppearanceRecord, &StableName) -> Result<(), E>,
+    ) -> Result<(), E> {
+        match carrier {
+            Carrier::Payloads => {
+                for id in self.order.clone() {
+                    if let Some(node) = self.nodes.get_mut(&id) {
+                        node.rewrite_payload_names(&mut |name| {
+                            rewrite(NameCarrier::Payload { node: id, name })
+                        });
+                    }
+                }
+            }
+            Carrier::Appearance => {
+                let moves: Vec<(StableName, StableName)> = self
+                    .appearance
+                    .keys()
+                    .filter_map(|key| {
+                        rewrite(NameCarrier::Store { name: key }).map(|now| (key.clone(), now))
+                    })
+                    .collect();
+                let mut lifted = Vec::with_capacity(moves.len());
+                for (from, to) in moves {
+                    let Some(record) = self.appearance.remove(&from) else {
+                        unreachable!("appearance key {from} was read out of the store a moment ago")
+                    };
+                    lifted.push((record, to));
+                }
+                for (record, to) in lifted {
+                    place(&mut self.appearance, record, &to)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// The names ONE carrier holds — the map from a [`Carrier`] to
     /// the field it reads.
     ///
@@ -1367,10 +1446,15 @@ mod tests {
         }
     }
 
-    /// **A carrier [`Carrier::ALL`] does not name never walks.**
+    /// **A carrier [`Carrier::ALL`] does not name never walks** — by
+    /// either walk: [`Doc::name_carriers`] and its `&mut` twin
+    /// [`Doc::rewrite_names`] are both driven by the array, and the
+    /// order row below holds that the twin meets exactly what the
+    /// read walk yields.
     ///
     /// One half of the weld is the compiler's: a variant added to
-    /// [`Carrier`] does not compile until `Doc::names_in` places it.
+    /// [`Carrier`] does not compile until `Doc::names_in` places it
+    /// and `Doc::rewrite_names_in` rewrites it.
     /// The compiler does NOT say the new variant reached the array —
     /// adding one leaves the array's length alone, so a carrier can
     /// be placed, be readable, and be walked by nobody. That is the
@@ -1537,6 +1621,35 @@ mod tests {
             ],
             "the walk is `Carrier::ALL`'s order: document order over the payloads, then the \
              store's own key order"
+        );
+
+        // **The `&mut` twin meets exactly the carriers the read walk
+        // yields, in its order** — so a carrier walked by one report
+        // and not the other is a red here, whichever walk a mutant
+        // adds it to. The rewrite leaves every name alone (`None`),
+        // and what it records is what it was shown.
+        let read: Vec<(Option<RecipeNodeId>, StableName)> = doc
+            .name_carriers()
+            .map(|c| match c {
+                NameCarrier::Payload { node, name } => (Some(node), name.clone()),
+                NameCarrier::Store { name } => (None, name.clone()),
+            })
+            .collect();
+        let mut met = Vec::new();
+        let Ok(()) = doc.rewrite_names(
+            |c| {
+                met.push(match c {
+                    NameCarrier::Payload { node, name } => (Some(node), name.clone()),
+                    NameCarrier::Store { name } => (None, name.clone()),
+                });
+                None
+            },
+            |_, _, _| Ok::<(), core::convert::Infallible>(()),
+        );
+        assert_eq!(
+            met, read,
+            "`Doc::rewrite_names` walks the carriers `Doc::name_carriers` yields, in the same \
+             order — one roster, `Carrier::ALL`, drives both"
         );
     }
 }
