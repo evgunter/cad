@@ -698,3 +698,16 @@ orchestrating session runs on a different model than the one it was
 configured with (the session reports `claude-opus-5-5`, switched by the
 user; configured `claude-fable-5-1`) — the block rows record it as a
 method note, since the orchestrator writes the specs and adjudicates.
+
+## Block SCALAR-B6 closed, slot 2 unspent (2026-09-24)
+
+Two slots run, two duals, no counted tally candidate: LANE-2 (FABLE,
+#233, its one MAJOR bilateral — the `_structural` door's verdict move,
+ruled to stand), LANE-3 (OPUS, #240, no MAJOR on either arm). The
+protocol's suspension (Ev, 2026-09-23) closes the block with slot 2
+(RING-3) unspent; RING-3 runs outside it on Opus with a dual review.
+The block's record — pre-draw fields, the draw (byte 153), the two
+rows, the conclusion with its method notes (the Opus 5.5 boundary, the
+orchestrator's switch to Opus 5.5 before LANE-3's state-sync, the
+restarts and overloads, the idle) — lands on main with this PR. This is
+the program's last A/B block while the suspension stands.
