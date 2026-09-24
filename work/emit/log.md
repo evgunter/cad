@@ -569,7 +569,7 @@ Evidence behind the PR:
     built Ev's PR 3102 ruling.
   - DM7's "rewritten in place" arm was written by 7b9423eeca, which
     built Ev's #2904 ruling.
-  - DM7's value-edit arm was written by e96a305bab (#3180, agent-landed).
+  - DM7's value-edit arm was written by 94f7a773de and revised by e96a305bab (both #3180, agent-landed).
   - N1's "combinatorial identities" dates from the ledger move
     (585b3422ff).
   - The id rule keeps PR 3102's substance: correspondence by canonical
