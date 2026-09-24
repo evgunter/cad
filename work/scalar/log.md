@@ -1655,3 +1655,21 @@ reversing C9's "one type in both roles"). C9's "inherent methods"
 wording changes with it — an `[ev]` PR. The backend's IEEE-1788 set
 operations stay as they are (evaluation wants them; the oracle checks
 them).
+
+## RING-5 surveyed and specified; waits on LANE-4P (2026-09-24)
+
+Survey (Opus, `/home/user/scalar-briefs/survey-ring5.md` at `6d85ace893`;
+textual counts — a `#[deprecated]` compiler census was refused by the
+permission layer, so the spec makes that census the implementer's first
+step). ~316 production lines in 16 files call a door; 13 already have no
+`Real`; two mix (`topo/src/props.rs` — `quad_lane` itself is `Real`-free,
+the file is not; `ssi/certify.rs`'s `probe_tube_chart`), both separable by
+pure moves. Only `zero`/`one`/`powi` collide with `Real` (E0034 only if
+the trait lived inside `interval.rs`). Four hulls today; `tangent_hull` is
+a second name for the evaluation hull. Spec (`scalar/ring-5` at
+`80c7b85e17`): a sealed `Certification` trait in
+`geom_core::interval::certification`, imported by path, `poison` →
+`refused`; `from_certified` stays inherent (a decision stated for Ev);
+gate `certification-doors.sh`; census re-keyed with a cross-read of the
+gate; C9 re-worded (`[ev]`). Tier DUAL. Dispatch waits for LANE-4P
+(#3165), which edits `topo/src/props.rs` and `bounds-allowlist.sh`.
