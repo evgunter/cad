@@ -7077,6 +7077,65 @@ data, R1 ≈375k, R2 ≈270k (self-reported). Wall: impl missing data,
 fix missing data, R1 ≈95 min, R2 ≈80 min (concurrent). Tally after
 this entry: candidates unchanged.
 
+Set-face-surface row, recorded AT MERGE (2026-09-24, PR #2594;
+`work/topo/set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left.md`
+CLOSED at this merge): `Body::set_face_surface` decides the chart once
+with `same_chart`, after minting the new surface and before its orphan
+sweep, and drops the face's rows through `drop_face_rows`, which hands
+the validator's `stored_rows` walk to the one removal
+`Body::drop_rows` (folded onto PR #2603's primitive at the
+merge-forward). The setter is `Transfers`; `set_edge_curve` stays
+`Neither`, with its half-minted blind spot stated. Difficulty **S**,
+task class STRUCTURAL (logged before the block draw — clean).
+Implementer arm **OPUS** (block TOPO-B5 slot 0, byte 7). **DUAL:
+ordinal 2712; sample #242 (main's highest at this writing #241, PR
+#2603's; main's merge order rules on a collision); byte 72 parity 0 ⇒
+R1 OPUS + R2 FABLE; CONCURRENT same-head on frozen `71d846be4`; briefs
+stored with sha256 before dispatch (template 14cb3598…, R1 f54bd8ad…,
+R2 d31d1c48…), identical modulo lane paths (diff 4 lines).**
+**ARM-EXPOSED** per the disclosure above (the block's draw entry on
+main named slot 0's arm before the dual dispatched); no reviewer
+disclosed a glimpse. R1 MERGEABLE-AFTER-FIXES, counts 1/5/5, rubric
+idiom 3 / tests 4 / docs 2, 2 silent deviations. R2
+MERGEABLE-AFTER-FIXES, counts 0/5/5, rubric 4/4/3, 1 silent.
+**One unilateral MAJOR, R1's, executed and EXCLUDED as doc/claim
+class (6(b)):** the `set_edge_curve` note this PR added ("refused …
+wherever the row exists at all") is false on a half-minted minting
+face, where `validate_pcurves` skips passes 2 and 3. R1's probe
+detached one unrelated row, and the staled row went unreported. This
+is a pre-existing blind spot the note asserted away in two places, and
+it was load-bearing for the `Neither` posture. CONVERGED:
+(1) the ordering duty (drop before the orphan sweep) is prose with no
+pin: both swapped the order and every suite stayed green, the failure
+being a silent over-drop (R1 MINOR, R2 MINOR; R2's orphaning probe
+reds it); (2) the receipt's "twelve production call sites" is 19 in 12
+files (both MINOR); (3) the `mesh` re-attach residue is disclosed on a
+log, not filed (both MINOR); (4) the own-key control never enters the
+door (R1 NOTE, R2 MINOR); (5) the face door hand-writes the loop walk
+and evaluates `same_chart` twice (both, Q1). R1 unique: the `Arc`
+rung is unrowed; the red-first row's `[]` half carries no signal. R2
+unique: `attach.rs`'s "every producer re-mints" is false for `extrude`;
+a brief correction (`MissingCache` fires only on a half-minted face).
+Fix pass (same arm, one lane): every item taken, none refuted. The
+decision moved before the write (the duty retired, R2's probe the
+row), R1's probe adopted as the half-minted row, the `Arc` rung rowed
+in `mesh`, the walk routed through `stored_rows`, three rows filed.
+**Post-review orchestrator commits reaching code, each re-earning the
+gate:** `b5d25ac44` re-baselined VREV's hazard row (added to main
+2026-09-15, after this PR's green; sixteen stranded pcurves become
+none, the four stale edge descriptions stand) and re-worded
+`reversed_v`'s doc; `29aa4b345` merged main forward through PR #2603
+and folded `drop_face_rows` onto `drop_rows`. Tracker-only merges
+`920134175` and `3ec9def74` sit between them. Pair COUNTS (neither
+review interrupted), flagged arm-exposed. CI: impl run 34868100811
+green on `71d846be4`; final head `29aa4b345` run 35962645677 GREEN on
+the full matrix (`CONFIG_SOURCE=lane:unsampled eps:unsampled
+klint:unsampled`, `gate ok`). Tokens (harness): impl 262,516, fix
+241,489, R1 245,605, R2 286,982. Wall (harness): impl 48 min, fix
+40 min, R1 34 min, R2 24 min (R2's self-report said ≈110 min; the
+harness figure is the record). Tally after this entry: candidates
+unchanged (the one MAJOR is doc class).
+
 ## SYM program rows (work/sym/; band 4700–4799; blocks named SYM-B<n>)
 
 SYM-4 review ordinal fixed at dispatch (2026-09-14, PR #2565 open —
