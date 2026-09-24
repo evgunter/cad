@@ -23,9 +23,9 @@ use pncad::document::{
     CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
     RecipeNodeId, content_pin, evaluate,
 };
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::geom_core::{Tol, Vec3};
 use pncad::prelude::StableName;
-use pncad::select::{CapEnd, EntityKind, NamePat, Ray, SegPat, SegTag, Selector};
+use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector};
 use pncad::workspace::Workspace;
 use viewer::session::{DocSession, SessionOp};
 
@@ -218,22 +218,9 @@ pub fn authored_from_world(
     )
 }
 
-/// A ray straight down onto the assembly at `(x, y)`.
-pub fn down_at(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, 1.0),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    }
-}
-
-/// A ray straight up from under the assembly at `(x, y)` — how a
-/// part's underside is picked.
-pub fn up_at(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, -1.0),
-        dir: Vec3::new(0.0, 0.0, 1.0),
-    }
-}
+// The assembly suites say `asm::down_at` / `asm::up_at`; both name the
+// shared rays, re-exported rather than restated.
+pub use super::{down_at, up_at};
 
 /// The seat choice the mate rows commit: Rest at frame coincidence,
 /// axes opposed, no clocking rider — on a frame coincidence the coset
@@ -304,17 +291,8 @@ pub fn delta() -> viewer::scene::DisplayTolerance {
     viewer::scene::DisplayTolerance::new(1.0e-3).expect("a positive delta")
 }
 
-/// The pick index for a session's landed evaluation.
+/// The pick index for a session's landed evaluation, at this
+/// fixture's δ.
 pub fn index_of(session: &DocSession) -> viewer::pickindex::PickIndex {
-    let (doc, eval) = session.landed_pair().expect("an evaluation has landed");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    viewer::pickindex::PickIndex::build(
-        doc,
-        eval,
-        viewer::pickindex::PictureKey::of(generation, delta()),
-        session.tol(),
-    )
-    .expect("the assembly indexes")
+    super::index_of(session, delta())
 }

@@ -343,10 +343,9 @@ pub(super) fn split_finish<T: Decide>(
 
     // ---- Distribution: movefac every shell of the solid. ----
     let shells: Vec<ShellKey> = body
-        .get_solid(solid)
+        .shells_of_solid(solid)
         .ok_or(SplitFinishError::Corrupt)?
-        .shells
-        .clone();
+        .to_vec();
     let mut all_shells = Vec::new();
     for shell in shells {
         all_shells.extend(body.movefac(shell)?);
@@ -730,7 +729,7 @@ pub(crate) fn carve<T: Decide>(
     let mut body = src.clone();
     let corrupt = || SplitFinishError::Corrupt;
 
-    let all: Vec<ShellKey> = body.get_solid(solid).ok_or_else(corrupt)?.shells.clone();
+    let all: Vec<ShellKey> = body.shells_of_solid(solid).ok_or_else(corrupt)?.to_vec();
     let drop: Vec<ShellKey> = all.iter().copied().filter(|s| !keep.contains(s)).collect();
 
     // Collect the dropped entity sets (deterministic list walks).

@@ -29,7 +29,7 @@ use pncad::document::{
     Datum, Dimension, Doc, DocEdit, DocParam, Expr, Node, ParamName, ProfileProgram, RecipeNodeId,
 };
 use pncad::geom_core::Tol;
-use pncad::prelude::{EntityKind, MM, StableName};
+use pncad::prelude::{EntityKind, StableName};
 use viewer::session::ProfilePlane;
 use viewer::tree;
 
@@ -84,14 +84,11 @@ fn two_frames_a_centimetre_apart_get_different_labels() {
 fn a_frames_origin_is_written_in_its_own_notation() {
     let node = Node::Datum(Datum::Frame {
         origin: [
-            Expr::literal_with_unit(0.0, Dimension::Length, MM.def())
-                .expect("a millimetre literal"),
-            Expr::literal_with_unit(0.0, Dimension::Length, MM.def())
-                .expect("a millimetre literal"),
+            common::len_mm(0.0),
+            common::len_mm(0.0),
             // Ten millimetres, written in millimetres: the canonical
             // value and its notation, which is what a literal is.
-            Expr::literal_with_unit(0.010, Dimension::Length, MM.def())
-                .expect("a millimetre literal"),
+            common::len_mm(0.010),
         ],
         u: common::scl3(ProfilePlane::xy_numbers().1),
         v: common::scl3(ProfilePlane::xy_numbers().2),
@@ -113,8 +110,8 @@ fn a_frames_origin_is_written_in_its_own_notation() {
 fn a_driven_origin_is_said_to_be_driven_and_never_evaluated() {
     let node = Node::Datum(Datum::Frame {
         origin: [
-            Expr::literal(0.0, Dimension::Length).expect("a literal"),
-            Expr::literal(0.0, Dimension::Length).expect("a literal"),
+            common::len(0.0),
+            common::len(0.0),
             Expr::param(ParamName::new("height"), Dimension::Length),
         ],
         u: common::scl3(ProfilePlane::xy_numbers().1),
@@ -156,7 +153,7 @@ fn a_face_frame_names_the_node_its_face_is_read_off() {
             node: RecipeNodeId(4),
             path: vec![],
         },
-        spin: Expr::literal(0.0, Dimension::Angle).expect("a literal"),
+        spin: common::ang(0.0),
     });
     let shown = label(&node, 6);
     assert!(shown.contains("feature 6"), "{shown}");

@@ -42,7 +42,7 @@ use crate::common;
 use common::asm;
 use pncad::document::{AxisSense, ClassAdmission, Frame, MatePrimitive};
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::select::{ContactClass, Ray, face_frame};
+use pncad::select::{ContactClass, face_frame};
 use viewer::display::AdmissionFault;
 use viewer::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
 use viewer::scene::SceneMesh;
@@ -164,14 +164,10 @@ fn the_exit_demo_walk() {
     let shelf_bottom = index
         .face_at_for(
             eval,
-            &Ray {
-                origin: Point3::new(
-                    asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
-                    asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
-                    -1.0,
-                ),
-                dir: Vec3::new(0.0, 0.0, 1.0),
-            },
+            &asm::up_at(
+                asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
+                asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
+            ),
             &view,
         )
         .expect("answers")

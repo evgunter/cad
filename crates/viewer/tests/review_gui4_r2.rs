@@ -77,14 +77,10 @@ fn seat_picks(session: &DocSession, bench: &asm::Bench) -> (FaceSelection, FaceS
     assert_eq!(a.node, bench.post_b, "pick a is post_b");
     let b = pick(
         session,
-        &Ray {
-            origin: Point3::new(
-                asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
-                asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
-                -1.0,
-            ),
-            dir: Vec3::new(0.0, 0.0, 1.0),
-        },
+        &asm::up_at(
+            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
+            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
+        ),
     );
     assert_eq!(b.node, bench.shelf_i, "pick b is the shelf");
     (a, b)
@@ -203,10 +199,7 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     let (_, eval) = session.landed_pair().expect("landed");
     let view = session.display_view();
     // Upward ray from below: post_b's bottom cap, now at z = -height.
-    let up = Ray {
-        origin: Point3::new(centre[0], centre[1], -1.0),
-        dir: Vec3::new(0.0, 0.0, 1.0),
-    };
+    let up = asm::up_at(centre[0], centre[1]);
     let under = index
         .pick_for(eval, &up, &view)
         .expect("the pick answers")
@@ -563,14 +556,10 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     let under = index
         .pick_for(
             eval,
-            &Ray {
-                origin: Point3::new(
-                    asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
-                    asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
-                    -1.0,
-                ),
-                dir: Vec3::new(0.0, 0.0, 1.0),
-            },
+            &asm::up_at(
+                asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
+                asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
+            ),
             &session.display_view(),
         )
         .expect("the pick answers")
