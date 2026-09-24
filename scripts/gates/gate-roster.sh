@@ -46,9 +46,9 @@
 # planted one — together with the shared plumbing that supplies it. Only
 # a bash gate can source that. A python check either reimplements the
 # whole contract or meets none of it: `scripts/check-interval-cfg-additive.py`
-# is the live case, and it is the near miss — it has `--selftest`, but no
-# `--root`, and its self-test runs over in-memory snippets rather than a
-# fixture tree. Widening the glob would make "in this directory" and
+# was the case (retired with the `interval` feature, RING-4), and it was the
+# near miss — it had `--selftest`, but no `--root`, and its self-test ran over
+# in-memory snippets rather than a fixture tree. Widening the glob would make "in this directory" and
 # "under lib.sh's contract" two different sets, and this roster is worth
 # something only while they are one. What keeps a python check from
 # going unmirrored instead is `scripts/check-ci-mirror-parity.py`, not

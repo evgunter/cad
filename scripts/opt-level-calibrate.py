@@ -110,7 +110,7 @@ from datetime import datetime, timezone
 # then refuses to run arm B against a missing arm A. That is the failure
 # direction to prefer, but it is still a failure, so the names are here in one
 # place with this sentence next to them.
-ARCHIVE_JOB = "build + archive (default)"
+ARCHIVE_JOB = "build + archive"
 ARCHIVE_STEP = "build test binaries + archive"
 # The `test` job's name carries the sampled ε (`test (eps = 1e-6, 1/2)`), so
 # the match is a prefix; the shards are summed, because what the verdict
@@ -124,8 +124,8 @@ RUN_STEP = "run archived tests"
 # being averaged away over a week.
 DEFAULT_RUNS = 5
 # How many recent workflow runs to look through to find those five. Most runs
-# in the window are docs-tier, superseded by `cancel-in-progress`, or drew the
-# interval lane — none of which carry both steps.
+# in the window are docs-tier or superseded by `cancel-in-progress` — neither
+# carries both steps.
 DEFAULT_WINDOW = 60
 
 # Recalibration cadence. WEEKLY, plus a DRIFT TRIGGER: arm A is free to read
@@ -218,9 +218,9 @@ def page_is_whole(listing: dict) -> bool:
 
 def sample_run(jobs: list[dict]) -> dict | None:
     """`{a, E, shards, labels}` for one workflow run, or None if this run is
-    not a DEFAULT-LANE CODE-TIER run — a docs-tier run has no archive job, an
-    interval draw has a differently-named one, and a cancelled run has steps
-    that never completed. Every one of those is a skip, not an error."""
+    not a CODE-TIER run — a docs-tier run has no archive job, a run from
+    before RING-4 names it `build + archive (default)` and archived the f64
+    lane only, and a cancelled run has steps that never completed. Every one of those is a skip, not an error."""
     a = None
     labels: list[str] = []
     for job in jobs:

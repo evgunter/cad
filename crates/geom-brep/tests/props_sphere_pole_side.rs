@@ -605,7 +605,6 @@ fn a_cylinder_rim_only_face_is_extent_less() {
 /// The same geometry through the Interval decision scalar: the fold is
 /// a discrete sign product and the two margins it decides are already
 /// on the matrix, so no outcome may move.
-#[cfg(feature = "interval")]
 mod interval_lane {
     use crate::shared::surf;
     use crate::shared::tol::band;

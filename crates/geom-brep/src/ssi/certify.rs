@@ -29,7 +29,7 @@
 //! A sampled max is not a bound, and a marched-and-fitted curve lies
 //! about the locus *precisely between samples*. Two mechanisms, one per
 //! operand kind, both pure convexity facts about control coefficients
-//! (C9's ring, no evaluation, no interval feature):
+//! (C9's ring, no evaluation):
 //!
 //! - **analytic**: `geom_core::spline::compose` composes the surface's
 //!   polynomial implicit form with the carrier and returns a certified
@@ -1012,7 +1012,6 @@ mod tests {
     /// cannot certify has to be refused at the crossing — otherwise the
     /// transversality margin is a positive number computed from a plane
     /// equation that was never evaluated where it was asked for.
-    #[cfg(feature = "interval")]
     #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
     mod normal_crossing_tests {
         use geom::NurbsCurve2;

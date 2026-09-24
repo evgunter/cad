@@ -2,8 +2,9 @@
 id: interval-cfg-gate-names-the-wrong-cause-for-an-attribute-order
 kind: issue
 title: check-interval-cfg-additive's tests-half message names block-gating for what is really an attribute order
-status: open
+status: closed
 opened: 2026-09-17
+closed: 2026-09-24
 priority: P4
 cost: E
 ---
@@ -85,3 +86,7 @@ Either is cheap and neither weakens the gate:
 
 Whichever, the script's `--selftest` should gain a case for it: the
 existing cases cover prose lines and negation, not this.
+
+## Closed (2026-09-24) — mooted by RING-4, PR 3154
+
+Moot: `scripts/check-interval-cfg-additive.py` is deleted with the `interval` feature (RING-4, PR 3154); there is one build, so there is no additive-cfg gate whose message could name a cause.

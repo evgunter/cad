@@ -150,7 +150,6 @@ fn r1_dump_f64() {
     );
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn r1_dump_interval() {
     use geom_core::{Bounds, Interval};

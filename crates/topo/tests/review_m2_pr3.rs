@@ -937,7 +937,6 @@ fn fixed_n4_raw_mef_precondition_paths() {
 // Interval lane: the e2e prism and the setters, at the certified
 // interval scalar (target 6 + 3d).
 // =====================================================================
-#[cfg(feature = "interval")]
 mod interval_lane {
     use super::*;
     use geom_core::{Interval, Real};
@@ -967,14 +966,6 @@ mod interval_lane {
         // At rest the interval lane names all nine chords, once by each
         // of the two rules they break, and nothing else — the same
         // bijection its f64 twin asserts, at the interval scalar.
-        //
-        // **Re-expressed at PCURVE P-1b, and this row is why the
-        // interval lane has to be gated deliberately.** Its f64 twin
-        // was re-expressed with the rest of the census; this one is
-        // behind `cfg(feature = "interval")`, so a default-features
-        // battery never compiles it and every local run reported green
-        // over a row that was red. Hosted CI at a NAMED lane
-        // (`CI-Config: lane=both`, #1136) is what surfaced it.
         let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
         common::assert_every_chord_named_by_both_rules(&body, &errs);
         // The prefer-intrinsic upgrade at the interval scalar.

@@ -7,7 +7,6 @@
 //! shortest-round-trip, bit-faithfully).
 //!
 //! M4 PR 8a: the fixture is the whole Band 4 corpus, not just the die.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;

@@ -2113,10 +2113,9 @@ schedules produce bit-identical reports. A band refuses the whole run
 answering an offset in the distribution's own dimension.
 
 What does NOT cross is the certified half — the E6 driver, the E4/E5
-stackup, the E10 reports — which lives behind the `interval` feature
-the wheel is not built with. That is the whole reason the advisory
-lane is un-gated in the kernel: a caller with no certified scalar
-still gets the labeled estimate.
+stackup, the E10 reports — which answers at the certified scalar, and
+the binding evaluates at `f64`. The advisory lane is pure `f64` replay,
+so a caller with no certified scalar still gets the labeled estimate.
 
 ## 4. The rest of the documentation
 

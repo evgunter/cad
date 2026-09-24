@@ -17,11 +17,7 @@
 //!   kernel. It carries decorations and exactness witnesses, and the
 //!   ring's surface is a re-spelling of them for certification code.
 //! - `geom_core::Interval`, the certification scalar, over the same
-//!   backend. The type compiles in every build; the `interval` cargo
-//!   feature gates the lane-trait impls above this crate and the
-//!   interval test files, which is why this lane — a test file —
-//!   carries `#[cfg(feature = "interval")]` and its sibling does not.
-//!   What the second lane adds is the *scalar wrapper* (poison
+//!   backend, compiled in every build. What the second lane adds is the *scalar wrapper* (poison
 //!   convention, `Real` lifting, `powi` routing): it must reach the
 //!   same bracket the ring does, through a different surface.
 //!
@@ -350,7 +346,6 @@ impl Oracle for DInterval {
     }
 }
 
-#[cfg(feature = "interval")]
 impl Oracle for geom_core::Interval {
     const LABEL: &'static str = "Interval scalar";
     const SEED_NAME: &'static str = "ring_interval_differential::interval_scalar";
@@ -610,7 +605,6 @@ fn ring_forwards_dinterval_on_every_shared_op() {
     fuzz_lane::<DInterval>();
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn ring_forwards_the_interval_scalar_on_every_shared_op() {
     fuzz_lane::<geom_core::Interval>();
@@ -747,7 +741,6 @@ fn verdicts_and_endpoints_agree_over_the_corner_corpus() {
     assert_the_corner_corpus_agrees::<DInterval>();
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn verdicts_and_endpoints_agree_over_the_corner_corpus_at_the_interval_scalar() {
     assert_the_corner_corpus_agrees::<geom_core::Interval>();

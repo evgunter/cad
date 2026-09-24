@@ -185,12 +185,10 @@ fn a_dual_seed_on_a_profile_parameter_now_carries_a_tangent() {
 /// spanning from well inside the plate to well outside it): the claim
 /// is about the SHAPE of the answer, not about where the exact
 /// threshold sits.
-#[cfg(feature = "interval")]
 #[test]
 fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
-    // All three of these are used ONLY by this interval-gated row, so
-    // they are imported here rather than at module scope, where the
-    // default build would carry them unused.
+    // All three of these are used ONLY by this row, so they are
+    // imported here rather than at module scope.
     use crate::fixture;
     use editor_core::ParamName;
     use geom_core::{Interval, Real};
@@ -422,7 +420,6 @@ fn the_evaluation_door_runs_the_lift_at_dual() {
 /// lane's own), and the loft's body is bit-identical to the pinned
 /// lane's. The second half is the load-bearing one — it is what says
 /// the gate did not leak into the geometry.
-#[cfg(feature = "interval")]
 #[test]
 fn the_loft_section_stays_f64_while_the_profile_payload_lifts() {
     use geom_core::Interval;

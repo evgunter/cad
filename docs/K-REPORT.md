@@ -2408,7 +2408,7 @@ budget freezes (the per-node cap is a cost wall, not a reach).
 `1.6e3 · ε` — ε-relative like the slabs, and now far inside the
 plate's ceiling at every row, so it certifies whole in ONE leaf whose
 certified-midpoint replay carries the arc family. Local driver K row,
-the sweep's own configuration (`--features probe,interval`, dev
+the sweep's own configuration (then `--features probe,interval`, dev
 profile, three ε rows, `k-lint --gate-rule-1-only`): per file `74423
 samples (48039 symbolic_zero, 0 sign_gated, 140 registered, 26244
 classified)`, rule 1 `0` at every row; `TOTAL over 3 file(s): 223269

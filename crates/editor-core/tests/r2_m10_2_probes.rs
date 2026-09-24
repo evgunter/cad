@@ -971,7 +971,6 @@ fn r2_a_measure_at_dual64_is_bit_identical_and_untangented() {
 
 /// Interval containment on a `gap` — the SIGNED arm, where a loose
 /// enclosure is easier to get wrong than on a magnitude.
-#[cfg(feature = "interval")]
 #[test]
 fn r2_a_signed_gap_at_interval_contains_the_f64_value() {
     use geom_core::{Bounds, Interval};

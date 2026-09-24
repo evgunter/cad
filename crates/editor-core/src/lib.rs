@@ -20,17 +20,13 @@ pub mod analysis;
 pub mod appearance;
 pub mod assembly;
 pub mod checks;
-#[cfg(feature = "interval")]
 pub mod clearance;
 pub mod diff;
 pub mod distribution;
 pub mod doc;
 /// The E6 subdivision driver — the analysis lane's parameter-box
-/// verdict. Gated on `interval` because the leaf protocol replays at
-/// the certified interval scalar: without that scalar there is no leaf
-/// to certify, and a driver that fell back to `f64` would be a
-/// sampler.
-#[cfg(feature = "interval")]
+/// verdict. The leaf protocol replays at the certified interval
+/// scalar: a driver that fell back to `f64` would be a sampler.
 pub mod drive;
 pub mod edit;
 pub mod eval;
@@ -42,14 +38,7 @@ pub mod mate;
 /// The E11.1 Monte-Carlo ADVISORY estimator lane (ruling Q3): pure f64
 /// replay over samples drawn from the document's own distributions.
 /// Never gates, never persists as an assertion, never enters the
-/// accounting.
-///
-/// **UNGATED** (M10-6, R2's MINOR-9). It shipped behind `interval`,
-/// which made E11.1's pure-`f64` advisory lane unusable in a default
-/// build — a narrowing nothing in E11 asks for. The only thing holding
-/// it there was one hashing helper that lived in the gated reporting
-/// module; the helper moved to [`mod@eval`] beside `KeyHasher`, and
-/// nothing else in this module needs the certified scalar.
+/// accounting. Nothing in this module needs the certified scalar.
 pub mod mc;
 pub mod measure;
 pub mod meta;
@@ -66,29 +55,23 @@ pub mod program;
 /// query whose answer is meant to REPLACE the sampling probe's
 /// reading, in a consumer nothing in this tree has built yet
 /// (`work/offer/certify-affordance-on-the-bounds-panel`,
-/// `work/lib/certified-range-has-no-python-door`). Gated on `interval`
-/// for [`mod@drive`]'s reason: the certificate IS a drive's leaves,
-/// and a query that fell back to `f64` would be the sampler it exists
-/// to improve on.
-#[cfg(feature = "interval")]
+/// `work/lib/certified-range-has-no-python-door`). The certificate IS
+/// a [`mod@drive`]'s leaves, and a query that fell back to `f64` would
+/// be the sampler it exists to improve on.
 pub mod range;
 pub mod refactor;
 /// The E10/E11.6 reporting layer: the goldening and human forms every
 /// derived report carries, the priced-vs-forced budget type, the
-/// leaf-mass histogram, and the one content-key cache. Gated on
-/// `interval` because every report in it is derived from a drive, and
-/// a drive needs the certified scalar to have leaves at all.
-#[cfg(feature = "interval")]
+/// leaf-mass histogram, and the one content-key cache. Every report
+/// in it is derived from a drive.
 pub mod report;
 pub mod resolve;
 pub mod roots;
 /// The E4 sensitivity driver and the E5 stackup — the analysis lane's
-/// derivative and report services over [`mod@drive`]'s leaves. Gated on
-/// `interval` for the driver's own reason: every sensitivity carries a
-/// chamber mark whose certified variant IS an E6 leaf identity, and
-/// the gating `worst_case` is a certified interval enclosure; without
-/// the certified scalar neither exists to be minted.
-#[cfg(feature = "interval")]
+/// derivative and report services over [`mod@drive`]'s leaves. Every
+/// sensitivity carries a chamber mark whose certified variant IS an E6
+/// leaf identity, and the gating `worst_case` is a certified interval
+/// enclosure.
 pub mod stackup;
 pub mod update;
 mod verbs;
@@ -119,7 +102,6 @@ pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{
     DisplayUnitRefusal, DistributionRefusal, Doc, DocParam, DocParamField, DocParamValue, ParamName,
 };
-#[cfg(feature = "interval")]
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
     FlipEvidence, LeafResults, MeasureAccounting, ParamBoxVerdict, ReasonClass, Receipt,
@@ -197,12 +179,10 @@ pub use program::{
     ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError, StepSegmentsError,
     resolve_loops,
 };
-#[cfg(feature = "interval")]
 pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
 pub use refactor::{InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split};
-#[cfg(feature = "interval")]
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
 };
@@ -227,7 +207,6 @@ pub use resolve::{
     MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, pick_face,
 };
 pub use roots::RootFault;
-#[cfg(feature = "interval")]
 pub use stackup::{
     Chamber, ChamberSpan, LiftRefusal, PairingViolation, PerParam, Rss, Sensitivity,
     SensitivityOutcome, SensitivityRefusal, Stackup, StackupRefusal, Unavailable, WorstCase,

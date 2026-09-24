@@ -68,7 +68,8 @@ import tempfile
 # Above the job count this workflow can produce — 33 on a code-tier run at the
 # 2026-09-04 job set (17 single jobs + 6 `test` + 6 `test-interval` + 3 nested
 # `render lanes / …` + `gate ok` itself, which the run 33894380300 receipt
-# confirms as "32 jobs" plus the caller). Nothing computes on that number: the
+# confirms as "32 jobs" plus the caller), and fewer since RING-4 folded the
+# interval lane into `build`/`clippy`/`test`. Nothing computes on that number: the
 # guard is `total_count`, checked below, so a run that outgrows this page is a
 # RED that says to raise it and never a silent summary of a subset.
 PER_PAGE = 100
