@@ -1638,11 +1638,14 @@ fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option
 /// from the group's parent, however each is spelled. A member passing
 /// through undivided under its upstream name counts, and so does an N3
 /// `Merged` face the parent survives in. At a UNION the output is the
-/// published body, so a group a fold step formed counts what the later
-/// steps left of it: a member a later step swallows counts 0, and one
-/// it divides counts each piece. Both records are the MINTING node's
-/// own (`name.node`), because the group is what that node's emission
-/// divided.
+/// published body, so a group a fold step formed counts the DISTINCT
+/// published entities that descend from its parent within it, the
+/// descent followed by entity through every later step: a member a
+/// later step swallows counts 0, one it divides counts each piece, and
+/// a later merged face holding two pieces counts once. Whichever step
+/// spelled the base, the count is that one number. Both records are
+/// the MINTING node's own (`name.node`), because the group is what
+/// that node's emission divided.
 ///
 /// Two TIED parents share one base. Where the emitter groups by parent
 /// ENTITY — a face or an edge by the operand entity it descends from,

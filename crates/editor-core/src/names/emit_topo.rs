@@ -536,6 +536,14 @@ impl<K: Copy> OpSide<K> {
         }
     }
 
+    /// The same side, its key mapped through `f`.
+    fn map<J>(self, f: impl FnOnce(K) -> J) -> OpSide<J> {
+        match self {
+            OpSide::A(k) => OpSide::A(f(k)),
+            OpSide::B(k) => OpSide::B(f(k)),
+        }
+    }
+
     /// The same side, carrying another key.
     fn with<J>(self, j: J) -> OpSide<J> {
         match self {
@@ -560,13 +568,16 @@ impl<K: Copy> OpSide<K> {
             OpSide::B(_) => RoleSeg::FromB(inner),
         }
     }
+}
 
-    /// Where a group whose base [`OpSide::wrap`]s `inner` descends from,
-    /// for the group record (`names::groups`): the A operand's row
-    /// `inner`, or somewhere no later fold step carries by row.
-    fn parent(self, inner: &NameRef) -> Parent {
+impl OpSide<EntityKey> {
+    /// Where a group whose members descend from this operand entity
+    /// comes from, for the group record (`names::groups`): the A
+    /// operand's entity, which a union's next fold step carries by key,
+    /// or the B operand's, which no later step carries.
+    fn parent(self) -> Parent {
         match self {
-            OpSide::A(_) => Parent::AOperand(inner.clone()),
+            OpSide::A(k) => Parent::AOperand(ent(0, k)),
             OpSide::B(_) => Parent::Elsewhere,
         }
     }
@@ -663,10 +674,10 @@ pub(crate) fn name_boolean<T: Decide>(
     // Kept face → constituent descents (M4 PR 5: the seam-edge walk
     // reads THROUGH a merged face to its mint-time operand identity).
     let mut merged_descents: BTreeMap<FaceKey, Vec<OpSide<FaceKey>>> = BTreeMap::new();
-    // Operand face → the merged rows it survives in: those faces
+    // Operand face → the merged faces it survives in: those faces
     // descend from it too, so they are members of its group
-    // (`names::groups`), under their `Merged` names.
-    let mut merged_into: BTreeMap<OpSide<FaceKey>, Vec<NameRef>> = BTreeMap::new();
+    // (`names::groups`).
+    let mut merged_into: BTreeMap<OpSide<FaceKey>, Vec<FaceKey>> = BTreeMap::new();
     for (kept, absorbed) in &naming.merge_groups {
         if body.get_face(*kept).is_none() {
             return Err(bug("merge kept face not live"));
@@ -717,19 +728,14 @@ pub(crate) fn name_boolean<T: Decide>(
         // face's constituents are ONE set, where nesting once kept
         // them apart — and a per-group discriminator is what would
         // upgrade the refusal to a success if that class ever matters.
-        let merged = NameRef::new(canonical::minted(name1(
-            EntityKind::Face,
-            node,
-            RoleSeg::Merged(constituents),
-        )));
         for d in parents {
-            merged_into.entry(d).or_default().push(merged.clone());
+            merged_into.entry(d).or_default().push(*kept);
         }
         put(
             &mut t,
             &mut tie,
             from_tie,
-            merged,
+            canonical::minted(name1(EntityKind::Face, node, RoleSeg::Merged(constituents))),
             ent(0, EntityKey::Face(*kept)),
         )?;
         handled.insert(*kept);
@@ -748,23 +754,27 @@ pub(crate) fn name_boolean<T: Decide>(
     for (d, members) in groups {
         let root_name = operand_face_name(d)?;
         let from_tie = root_name.tied;
-        let parent = d.parent(&root_name.name);
         let base = name1(EntityKind::Face, node, d.wrap(root_name.name));
-        let mut names = merged_into.remove(&d).unwrap_or_default();
+        let in_merged = merged_into.remove(&d).unwrap_or_default();
+        rec.record(
+            &base,
+            members
+                .iter()
+                .chain(&in_merged)
+                .map(|&f| ent(0, EntityKey::Face(f)))
+                .collect(),
+            d.map(EntityKey::Face).parent(),
+        );
         match members.as_slice() {
             [] => {}
-            [one] => {
-                let name = NameRef::new(base.clone());
-                names.push(name.clone());
-                put(
-                    &mut t,
-                    &mut tie,
-                    from_tie,
-                    name,
-                    ent(0, EntityKey::Face(*one)),
-                )?;
-            }
-            _ => names.extend(name_fragment_group(
+            [one] => put(
+                &mut t,
+                &mut tie,
+                from_tie,
+                base,
+                ent(0, EntityKey::Face(*one)),
+            )?,
+            _ => name_fragment_group(
                 &mut t,
                 &mut tie,
                 from_tie,
@@ -776,9 +786,8 @@ pub(crate) fn name_boolean<T: Decide>(
                 &descend_face,
                 &operand_face_name,
                 bnd,
-            )?),
+            )?,
         }
-        rec.record(&base, names, parent);
     }
     tie.flush(&mut t)?;
 
@@ -822,8 +831,7 @@ pub(crate) fn name_boolean<T: Decide>(
 
 /// Qualifies a multi-fragment descent group (N2): sign vectors of
 /// `name_frag_side_of` against the seam partners' carriers; equal
-/// vectors tie. Answers the name each member was put under, one per
-/// member.
+/// vectors tie.
 #[allow(clippy::too_many_arguments)]
 fn name_fragment_group<T: Decide>(
     t: &mut NameTable,
@@ -837,7 +845,7 @@ fn name_fragment_group<T: Decide>(
     descend_face: &impl Fn(FaceKey) -> Result<OpSide<FaceKey>, NamingError>,
     operand_face_name: &impl Fn(OpSide<FaceKey>) -> Result<Upstream, NamingError>,
     bnd: geom_core::Band,
-) -> Result<Vec<NameRef>, NamingError> {
+) -> Result<(), NamingError> {
     let bug = |what| NamingError::Emission { what };
     // Partners: operand faces across the members' seam edges.
     let mut partners: BTreeMap<NameRef, FaceKey> = BTreeMap::new();
@@ -881,18 +889,16 @@ fn name_fragment_group<T: Decide>(
         }
         by_vector.entry(vector).or_default().push(m);
     }
-    let mut names = Vec::with_capacity(members.len());
     for (vector, faces) in by_vector {
         let mut name = base.clone();
         name.path.push(RoleSeg::Fragment(Qualifier::SideOf(vector)));
-        let name = NameRef::new(canonical::minted(name));
-        names.extend(faces.iter().map(|_| name.clone()));
+        let name = canonical::minted(name);
         // Several with one sign vector are the N2 tie:
         // equally-admissible symmetric candidates.
         let ents = faces.iter().map(|&f| ent(0, EntityKey::Face(f))).collect();
         mint_candidates(t, tie, from_tie, name, ents)?;
     }
-    Ok(names)
+    Ok(())
 }
 
 /// Boolean edges: `Seam` for zip-minted edges, `FromA`/`FromB` (with
@@ -1171,10 +1177,13 @@ fn name_boolean_edges<T: Decide>(
     }
     for ((fa, fb), (from_tie, edges)) in seam_groups {
         let base = name1(EntityKind::Edge, node, RoleSeg::Seam { a: fa, b: fb });
+        rec.record_by_name(
+            &base,
+            edges.iter().map(|&e| ent(0, EntityKey::Edge(e))).collect(),
+            from_tie,
+        );
         if edges.len() == 1 {
-            let name = NameRef::new(base.clone());
-            rec.record_by_name(&base, vec![name.clone()], from_tie);
-            put(t, tie, from_tie, name, ent(0, EntityKey::Edge(edges[0])))?;
+            put(t, tie, from_tie, base, ent(0, EntityKey::Edge(edges[0])))?;
             continue;
         }
         // Collinear chain: order along the pair's intersection line,
@@ -1206,23 +1215,24 @@ fn name_boolean_edges<T: Decide>(
             .iter()
             .map(|&e| edge_extent(body, e, dir))
             .collect::<Result<Vec<_>, _>>()?;
-        let names = insert_ranked_or_tied(t, tie, from_tie, &base, &edges, &extents, bnd, |&e| {
+        insert_ranked_or_tied(t, tie, from_tie, &base, &edges, &extents, bnd, |&e| {
             ent(0, EntityKey::Edge(e))
         })?;
-        rec.record_by_name(&base, names, from_tie);
     }
     for (root, edges) in groups {
         let (op, root_key) = root.of(a, b);
         let inner = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(root_key)))?;
         let op_body = op.body;
         let from_tie = inner.tied;
-        let parent = root.parent(&inner.name);
         let seg = root.wrap(inner.name.clone());
         let base = name1(EntityKind::Edge, node, seg);
+        rec.record(
+            &base,
+            edges.iter().map(|&e| ent(0, EntityKey::Edge(e))).collect(),
+            root.map(EntityKey::Edge).parent(),
+        );
         if edges.len() == 1 {
-            let name = NameRef::new(base.clone());
-            rec.record(&base, vec![name.clone()], parent);
-            put(t, tie, from_tie, name, ent(0, EntityKey::Edge(edges[0])))?;
+            put(t, tie, from_tie, base, ent(0, EntityKey::Edge(edges[0])))?;
             continue;
         }
         // Sub-edge chain: order along the parent's line. A parent that
@@ -1240,10 +1250,9 @@ fn name_boolean_edges<T: Decide>(
             .iter()
             .map(|&e| edge_extent(body, e, dir))
             .collect::<Result<Vec<_>, _>>()?;
-        let names = insert_ranked_or_tied(t, tie, from_tie, &base, &edges, &extents, bnd, |&e| {
+        insert_ranked_or_tied(t, tie, from_tie, &base, &edges, &extents, bnd, |&e| {
             ent(0, EntityKey::Edge(e))
         })?;
-        rec.record(&base, names, parent);
     }
     Ok(())
 }
@@ -1291,7 +1300,7 @@ fn name_boolean_vertices<T: Decide>(
         |k: VertexKey| -> Result<Option<(StableName, bool, Parent)>, NamingError> {
             let (side, _) = operand_key(naming, inv_vertices, k)?;
             Ok(named_in(side)?.map(|u| {
-                let parent = side.parent(&u.name);
+                let parent = side.map(EntityKey::Vertex).parent();
                 (
                     name1(EntityKind::Vertex, node, side.wrap(u.name)),
                     u.tied,
@@ -1321,8 +1330,7 @@ fn name_boolean_vertices<T: Decide>(
         }
         if let Some((name, from_tie, parent)) = identity {
             // A vertex carried through whole: a group of one.
-            let name = NameRef::new(name);
-            rec.record(&name, vec![name.clone()], parent);
+            rec.record(&name, vec![ent(0, EntityKey::Vertex(v))], parent);
             put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
             continue;
         }
@@ -1515,10 +1523,16 @@ fn name_boolean_vertices<T: Decide>(
                 b: pb.clone(),
             },
         );
+        rec.record_by_name(
+            &base,
+            verts
+                .iter()
+                .map(|&v| ent(0, EntityKey::Vertex(v)))
+                .collect(),
+            from_tie,
+        );
         if verts.len() == 1 {
-            let name = NameRef::new(base.clone());
-            rec.record_by_name(&base, vec![name.clone()], from_tie);
-            put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(verts[0])))?;
+            put(t, tie, from_tie, base, ent(0, EntityKey::Vertex(verts[0])))?;
             continue;
         }
         // Same pair crossing more than once: order along the edge
@@ -1528,17 +1542,11 @@ fn name_boolean_vertices<T: Decide>(
             None => resolve_edge_carrier(&pb, b)?,
         };
         let Some(dir) = carrier else {
-            let name = NameRef::new(base.clone());
-            rec.record_by_name(
-                &base,
-                verts.iter().map(|_| name.clone()).collect(),
-                from_tie,
-            );
             let ents = verts
                 .iter()
                 .map(|&v| ent(0, EntityKey::Vertex(v)))
                 .collect();
-            mint_candidates(t, tie, from_tie, name, ents)?;
+            mint_candidates(t, tie, from_tie, base, ents)?;
             continue;
         };
         let extents = verts
@@ -1553,10 +1561,9 @@ fn name_boolean_vertices<T: Decide>(
                 Ok(Extent { min: tv, max: tv })
             })
             .collect::<Result<Vec<_>, NamingError>>()?;
-        let names = insert_ranked_or_tied(t, tie, from_tie, &base, &verts, &extents, bnd, |&v| {
+        insert_ranked_or_tied(t, tie, from_tie, &base, &verts, &extents, bnd, |&v| {
             ent(0, EntityKey::Vertex(v))
         })?;
-        rec.record_by_name(&base, names, from_tie);
     }
     Ok(())
 }
@@ -1753,8 +1760,7 @@ fn seam_line_dir<T: Decide>(
 }
 
 /// Inserts a same-name group ranked by order-along, or tied when
-/// genuinely unordered. Answers the name each member was put under,
-/// one per member.
+/// genuinely unordered.
 #[allow(clippy::too_many_arguments)]
 fn insert_ranked_or_tied<T: Decide, K: Copy>(
     t: &mut NameTable,
@@ -1765,8 +1771,7 @@ fn insert_ranked_or_tied<T: Decide, K: Copy>(
     extents: &[Extent<T>],
     bnd: geom_core::Band,
     to_ent: impl Fn(&K) -> super::table::EntityRef,
-) -> Result<Vec<NameRef>, NamingError> {
-    let mut names = Vec::with_capacity(keys.len());
+) -> Result<(), NamingError> {
     match order_along(extents, bnd)? {
         Some(ranks) => {
             let of = group_count(keys.len())?;
@@ -1774,18 +1779,18 @@ fn insert_ranked_or_tied<T: Decide, K: Copy>(
                 let mut name = base.clone();
                 name.path
                     .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of }));
-                let name = NameRef::new(name);
-                names.push(name.clone());
                 put(t, tie, from_tie, name, to_ent(k))?;
             }
         }
-        None => {
-            let name = NameRef::new(base.clone());
-            names.extend(keys.iter().map(|_| name.clone()));
-            mint_candidates(t, tie, from_tie, name, keys.iter().map(to_ent).collect())?;
-        }
+        None => mint_candidates(
+            t,
+            tie,
+            from_tie,
+            base.clone(),
+            keys.iter().map(to_ent).collect(),
+        )?,
     }
-    Ok(names)
+    Ok(())
 }
 
 /// Split faces: pass-through for uncut operand faces; `SplitFragment`
@@ -1828,7 +1833,7 @@ fn name_split_faces<T: Decide>(
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Face(f)))?;
                 rec.record(
                     &split_base(node, s.half, up.name.clone()),
-                    vec![up.name.clone()],
+                    vec![ent(s.ix, EntityKey::Face(f))],
                     Parent::Elsewhere,
                 );
                 put(t, tie, up.tied, up.name, ent(s.ix, EntityKey::Face(f)))?;
@@ -1844,11 +1849,17 @@ fn name_split_faces<T: Decide>(
         let parent = upstream_name(target_table, target_node, ent(0, EntityKey::Face(root)))?;
         let from_tie = parent.tied;
         let base_name = split_base(node, members[0].1, parent.name);
+        rec.record(
+            &base_name,
+            members
+                .iter()
+                .map(|&(ix, _, f)| ent(ix, EntityKey::Face(f)))
+                .collect(),
+            Parent::Elsewhere,
+        );
         if members.len() == 1 {
             let (ix, _, f) = members[0];
-            let name = NameRef::new(base_name.clone());
-            rec.record(&base_name, vec![name.clone()], Parent::Elsewhere);
-            put(t, tie, from_tie, name, ent(ix, EntityKey::Face(f)))?;
+            put(t, tie, from_tie, base_name, ent(ix, EntityKey::Face(f)))?;
             continue;
         }
         // Same-side multiplicity: order along the parent's section
@@ -1873,7 +1884,7 @@ fn name_split_faces<T: Decide>(
             .iter()
             .map(|&(_, _, f)| face_extent(body, f, dir))
             .collect::<Result<Vec<_>, _>>()?;
-        let names = insert_ranked_or_tied(
+        insert_ranked_or_tied(
             t,
             tie,
             from_tie,
@@ -1883,7 +1894,6 @@ fn name_split_faces<T: Decide>(
             b,
             |&(ix, _, f)| ent(ix, EntityKey::Face(f)),
         )?;
-        rec.record(&base_name, names, Parent::Elsewhere);
     }
     Ok(())
 }

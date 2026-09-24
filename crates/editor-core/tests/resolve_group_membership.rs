@@ -202,6 +202,13 @@ fn two_tied_parents_each_cut_in_two_are_two_groups_of_two() {
     }
 }
 
+/// The ladder's evidence-free fallback at `node`: every rung declined.
+fn fallback(node: RecipeNodeId) -> Diagnosis {
+    Diagnosis::RecipeEdit {
+        edit: editor_core::RecipeEditRef::NodeChanged { node },
+    }
+}
+
 /// `ev` with every node's verdict log emptied: the flip lanes then have
 /// nothing to diff.
 fn silent(mut ev: Evaluation<f64>) -> Evaluation<f64> {
@@ -406,10 +413,13 @@ fn a_seam_group_tied_parents_share_is_not_counted() {
         !rows.is_empty(),
         "no tied seam fragment vanished, so the row pins nothing"
     );
+    // With no flip and no edit in evidence, the fallback: the rung
+    // declined.
     for (n, d) in rows {
-        assert!(
-            !matches!(d, Diagnosis::GroupResized { .. }),
-            "{n:?}: a tie-summed seam group was counted: {d:?}"
+        assert_eq!(
+            d,
+            fallback(cut),
+            "{n:?}: a tie-summed seam group was counted"
         );
     }
 }
@@ -464,10 +474,60 @@ fn a_union_group_a_later_step_partly_swallows_counts_what_is_published() {
             !rows.is_empty(),
             "{label}: no fragment vanished, so the row pins nothing"
         );
+        // 1 → 1 is no resize: the rung declines to the fallback.
         for (n, d) in rows {
-            assert!(
-                !matches!(d, Diagnosis::GroupResized { was: 2, now: 1, .. }),
-                "{label}: {n:?} counted at the step that formed it: {d:?}"
+            assert_eq!(
+                d,
+                fallback(u),
+                "{label}: {n:?} counted at the step that formed it"
+            );
+        }
+    }
+}
+
+/// **A tie carried through a later fold step counts one parent at a
+/// time.**
+///
+/// The tie fixture's first cut, the bar and a far block, united: the
+/// bar divides each of the two tied prong faces at one fold step, and
+/// the far block's step carries the pieces through. The two tied
+/// parents are two entities, so each tied group counts its own pieces
+/// in the published body, 2 → 1 as the bar slides out of the cavity —
+/// never the tie's sum. `[sub, far, tr]` forms the groups at the LAST
+/// step, which counts its own members: the control.
+#[test]
+fn a_tie_carried_through_a_later_fold_step_counts_one_parent() {
+    for order in [[0usize, 1, 2], [1, 0, 2], [0, 2, 1]] {
+        let (doc, sub, tr, _) = tied_prongs_cut();
+        let (doc, far) = block(doc, (20.0, 21.0), (0.0, 1.0), 0.0, 1.0);
+        let m = [sub, tr, far];
+        let (doc, u) = insert(
+            doc,
+            Node::Union {
+                members: order.iter().map(|&i| m[i]).collect(),
+                declare: None,
+            },
+        );
+        let ev1 = run(&doc, None);
+        let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::Z), 3.2);
+        let ev2 = silent(run(&doc2, Some(&ev1)));
+        let ev1 = silent(ev1);
+        let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, e| {
+            n.kind == editor_core::EntityKind::Face && matches!(e, Entry::Tied(c) if c.len() == 2)
+        });
+        assert!(
+            !rows.is_empty(),
+            "{order:?}: no tied face fragment vanished, so the row pins nothing"
+        );
+        for (n, d) in rows {
+            assert_eq!(
+                d,
+                Diagnosis::GroupResized {
+                    node: u,
+                    was: 2,
+                    now: 1,
+                },
+                "{order:?}: {n:?}"
             );
         }
     }

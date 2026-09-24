@@ -3155,7 +3155,7 @@ fn wire_split<
     .map_err(NodeErrorKind::Naming)?;
     Ok(
         OpOut::plain(ValuePayload::Split { above, below }, emitted.table)
-            .grouped(Arc::new(names::FragmentGroups::minted(emitted.groups))),
+            .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups))),
     )
 }
 
@@ -3353,7 +3353,7 @@ fn wire_boolean<
                 }),
                 emitted.table,
             )
-            .grouped(Arc::new(names::FragmentGroups::minted(emitted.groups))))
+            .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups))))
         }
     }
 }
@@ -3568,7 +3568,7 @@ fn wire_union<
         }),
         table,
     )
-    .grouped(Arc::new(names::FragmentGroups::folded(id, step_groups))))
+    .grouped(Arc::new(names::FragmentGroups::folded(id, &step_groups))))
 }
 
 /// One declared pair as the recipe carries it: the two SITED
