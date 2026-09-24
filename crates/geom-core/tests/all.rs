@@ -79,6 +79,8 @@ mod d290_r2_probes;
 mod d8_knot_queries_adversarial;
 #[path = "decide_4_root_quotient_rows.rs"]
 mod decide_4_root_quotient_rows;
+#[path = "decide_4_review_r1_probes.rs"]
+mod decide_4_review_r1_probes;
 #[path = "decoration_seam.rs"]
 mod decoration_seam;
 #[path = "eps_provenance.rs"]
