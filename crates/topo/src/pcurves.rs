@@ -1986,24 +1986,25 @@ fn mint_face<T: AtRestPolicy>(
             // from the body rather than stored). The closed-form door
             // cannot state that certificate and refuses this variant.
             // The certificate is the fitted door's, read off the
-            // scalar's policy; a scalar with none refuses as the
-            // derivation that produced the image would have.
-            Pcurve::General(image) => match T::fitted_lane() {
-                None => Err(PcurveCertifyError::FittedLaneUnsupported {
-                    scalar: T::scalar_name(),
-                }),
-                Some(lane) => PcurveCache::certify_general(
-                    std::sync::Arc::clone(image),
-                    w.t0,
-                    w.t1,
-                    &carrier,
-                    &surface,
-                    mate_surface(body, w.half_edge).as_ref(),
-                    window,
-                    band,
-                    lane,
-                ),
-            },
+            // scalar's policy, and the image is not always one this
+            // pass derived: the own-chart arm of `nurbs_iso_derive`
+            // hands a construction's STATED `General` image here at
+            // every scalar, a dual included. So the door goes in as
+            // the policy answers it, `None` and all, and an absent one
+            // refuses at check 4 — an image that fails checks 1–3 draws
+            // those checks' verdict at every scalar.
+            Pcurve::General(image) => PcurveCache::certify_general(
+                std::sync::Arc::clone(image),
+                w.t0,
+                w.t1,
+                &carrier,
+                &surface,
+                mate_surface(body, w.half_edge).as_ref(),
+                window,
+                band,
+                T::fitted_lane(),
+                T::scalar_name(),
+            ),
             _ => PcurveCache::certify(
                 w.pcurve.clone(),
                 w.t0,

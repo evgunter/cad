@@ -79,7 +79,8 @@ fn general_without_a_mate_escalates_at_the_pair() {
         None,
         window(),
         band(),
-        FittedLane::certified(),
+        Some(FittedLane::certified()),
+        "f64",
     );
     assert!(
         matches!(got, Err(PcurveCertifyError::FittedMateMissing)),
@@ -103,7 +104,8 @@ fn a_general_image_of_the_wrong_column_refuses_definitely() {
         Some(&m),
         window(),
         band(),
-        FittedLane::certified(),
+        Some(FittedLane::certified()),
+        "f64",
     );
     assert!(
         matches!(
@@ -232,7 +234,8 @@ fn a_general_circle_image_certifies_at_the_fitted_grade() {
         Some(&plane),
         w,
         band(),
-        FittedLane::certified(),
+        Some(FittedLane::certified()),
+        "f64",
     )
     .expect("the general circle certifies through the general door");
     assert!(

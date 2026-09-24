@@ -43,14 +43,17 @@
 //! [`crate::PcurveCertifyError::FittedLaneUnsupported`], naming the
 //! scalar by the name the same seam hands it.
 //!
-//! **A `None` door never meets a fitted cache.** The two fitted
-//! constructors ([`crate::PcurveCache::certify_fitted`] and
-//! [`crate::PcurveCache::certify_general`]) take the door itself, not
-//! an `Option`, so no `Fitted` or `General` cache exists at a scalar
-//! whose seam answers `None`, and there is no certificate-less fitted
-//! cache for any reader to meet. [`crate::PcurveCache::recertify`] is
-//! the one door that takes the `Option`, because it dispatches every
-//! variant and only its fitted arm needs the lane.
+//! **A `None` door refuses where the door is first needed.** Every
+//! fitted cache's certificate is derived by check 4 of the fitted
+//! lane's five checks, so check 4 is where an absent door refuses —
+//! in [`crate::PcurveCache::certify_general`] and
+//! [`crate::PcurveCache::recertify`], the two doors that take the
+//! `Option` because a caller reaches them at every scalar (the mint
+//! with a construction's stated `General` image, the tier-3 pass with
+//! every row). Checks 1–3 read no door, so an image they refuse draws
+//! the same verdict at every scalar, and no `Fitted` or `General`
+//! cache is built without the door. [`crate::PcurveCache::certify_fitted`]
+//! has no caller at a scalar without one, and takes the door itself.
 //!
 //! The shape is [`crate::OffsetFitLane`]'s, and the absence is a
 //! different fact from that one's: the offset fit's `None` is a

@@ -1610,8 +1610,8 @@ impl<T: Decide> PcurveCache<T> {
     /// `topo::Body::attach_pcurve`.
     ///
     /// `lane` is the door itself, not an `Option`: only a scalar that
-    /// may certify can hold one ([`crate::FittedLane`]), so no `Fitted`
-    /// cache exists at a scalar that may not.
+    /// may certify can hold one ([`crate::FittedLane`]), so this door
+    /// cannot be called at a scalar that may not.
     ///
     /// Three consumers are waiting on it, in decreasing firmness:
     ///
@@ -1664,7 +1664,7 @@ impl<T: Decide> PcurveCache<T> {
         lane: crate::FittedLane<T>,
     ) -> Result<Self, PcurveCertifyError> {
         let certificate =
-            run_fitted_checks(&image, t0, t1, carrier, surface, mate, window, band, lane)?;
+            run_fitted_checks(&image, t0, t1, carrier, surface, mate, window, band, Ok(lane))?;
         Ok(Self {
             pcurve: Pcurve::Fitted(image),
             param_start: t0,
@@ -1694,13 +1694,22 @@ impl<T: Decide> PcurveCache<T> {
     ///   IntervalNotForward`];
     /// - **escalate**: [`PcurveCertifyError::Escalated`] /
     ///   [`PcurveCertifyError::FittedEscalated`] (a sliver-band
-    ///   verdict) or [`PcurveCertifyError::FittedMateMissing`] (no
-    ///   operand pair to state a tube about).
+    ///   verdict), [`PcurveCertifyError::FittedMateMissing`] (no
+    ///   operand pair to state a tube about), or
+    ///   [`PcurveCertifyError::FittedLaneUnsupported`] (a scalar with
+    ///   no fitted door).
     ///
-    /// `lane` is the door itself, as at
-    /// [`PcurveCache::certify_fitted`]; a caller whose scalar holds no
-    /// door refuses with [`PcurveCertifyError::FittedLaneUnsupported`]
-    /// before it reaches this one.
+    /// `lane` is the scalar's fitted door, or `None` where the scalar
+    /// may not certify, and `scalar` is that scalar's name for the
+    /// refusal; both come from the one per-scalar seam
+    /// (`topo::AtRestPolicy::fitted_lane` and `scalar_name`), as at
+    /// [`PcurveCache::recertify`]. This door takes the `Option` because
+    /// its mint caller reaches it at every scalar: `topo::mint_pcurves`
+    /// hands it a construction's STATED `General` image with no
+    /// derivation in front of it. An absent door is check 4's refusal,
+    /// in check 4's place, so an image that fails checks 1–3 draws the
+    /// same verdict at every scalar, and no `General` cache is built
+    /// without the door, since check 4 derives its certificate.
     ///
     /// # Errors
     ///
@@ -1715,10 +1724,20 @@ impl<T: Decide> PcurveCache<T> {
         mate: Option<&Surface<T>>,
         window: ChartWindow<T>,
         band: Band,
-        lane: crate::FittedLane<T>,
+        lane: Option<crate::FittedLane<T>>,
+        scalar: &'static str,
     ) -> Result<Self, PcurveCertifyError> {
-        let certificate =
-            run_fitted_checks(&image, t0, t1, carrier, surface, mate, window, band, lane)?;
+        let certificate = run_fitted_checks(
+            &image,
+            t0,
+            t1,
+            carrier,
+            surface,
+            mate,
+            window,
+            band,
+            lane.ok_or(scalar),
+        )?;
         Ok(Self {
             pcurve: Pcurve::General(image),
             param_start: t0,
@@ -1738,12 +1757,13 @@ impl<T: Decide> PcurveCache<T> {
     /// may not certify, and `scalar` is that scalar's name for the
     /// refusal; both come from the one per-scalar seam
     /// (`topo::AtRestPolicy::fitted_lane` and `scalar_name`). Only the
-    /// `Fitted | General` arm reads them. `None` there refuses typed
-    /// with [`PcurveCertifyError::FittedLaneUnsupported`] and runs no
-    /// check. The seam answers `None` only at a scalar whose fitted
-    /// constructors cannot be called, so no cache the tree builds ever
-    /// meets that arm; it is reached by a caller handing `None`
-    /// explicitly.
+    /// `Fitted | General` arm reads them, and it reads them where
+    /// [`PcurveCache::certify_general`] does: `None` is check 4's
+    /// refusal, [`PcurveCertifyError::FittedLaneUnsupported`], after
+    /// checks 1–3 have run. Neither fitted constructor builds a cache
+    /// without the door, so a fitted cache reaches `None` here only
+    /// when a caller hands one built at a certifying scalar the answer
+    /// of a scalar that may not.
     ///
     /// # Errors
     ///
@@ -1762,20 +1782,17 @@ impl<T: Decide> PcurveCache<T> {
         scalar: &'static str,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
         match &self.pcurve {
-            Pcurve::Fitted(image) | Pcurve::General(image) => match lane {
-                None => Err(PcurveCertifyError::FittedLaneUnsupported { scalar }),
-                Some(lane) => run_fitted_checks(
-                    image,
-                    self.param_start,
-                    self.param_end,
-                    carrier,
-                    surface,
-                    mate,
-                    window,
-                    band,
-                    lane,
-                ),
-            },
+            Pcurve::Fitted(image) | Pcurve::General(image) => run_fitted_checks(
+                image,
+                self.param_start,
+                self.param_end,
+                carrier,
+                surface,
+                mate,
+                window,
+                band,
+                lane.ok_or(scalar),
+            ),
             Pcurve::IsoLine { p0, pl } => run_iso_checks(
                 *p0,
                 *pl,
@@ -3055,6 +3072,11 @@ fn trim_containment<T: Decide>(
 ///    re-derived here at rest, never trusted from storage. The stored
 ///    envelope is that certificate's `hull_sup`, and
 ///    [`PcurveCertificate::statement`] records which sup it bounds.
+///    `lane` is the fitted door that derives it, or the name of a
+///    scalar that holds none, which refuses HERE
+///    ([`PcurveCertifyError::FittedLaneUnsupported`]) and nowhere
+///    earlier: checks 1–3 read no door, so their verdicts are the same
+///    at every scalar.
 /// 5. **Trim containment**: identical, and shared code.
 #[allow(clippy::too_many_arguments)] // one parameter per named quantity
 fn run_fitted_checks<T: Decide>(
@@ -3066,7 +3088,7 @@ fn run_fitted_checks<T: Decide>(
     mate: Option<&Surface<T>>,
     window: ChartWindow<T>,
     band: Band,
-    lane: crate::FittedLane<T>,
+    lane: Result<crate::FittedLane<T>, &'static str>,
 ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
     // ---- Check 1: the lane. ----
     // Rung-3 NURBS carriers feed the SSI door directly; exact CIRCLE
@@ -3136,6 +3158,7 @@ fn run_fitted_checks<T: Decide>(
     schedule_residuals(&pcurve, t0, t1, carrier, surface, band, &mut max_residual)?;
 
     // ---- Check 4: the full C2 certificate, RE-DERIVED. ----
+    let lane = lane.map_err(|scalar| PcurveCertifyError::FittedLaneUnsupported { scalar })?;
     let ssi = lane.fitted_certificate(carrier, t0, t1, image, surface, mate, band)?;
     let envelope = ssi.hull_sup;
     // The catch-all is SPLIT: an approximating surface's limbs are the
