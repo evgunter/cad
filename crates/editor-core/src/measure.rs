@@ -80,7 +80,7 @@ pub enum MeasurePrimitive {
     /// primitive does, and each one's ENTITY KIND is the selection's
     /// face scope: a reference to a BODY selects all of that body's
     /// faces, a reference to a FACE selects that one. Those are the two
-    /// scopes M10-5's [`crate::clearance::FaceScope`] carries; a
+    /// scopes M10-5's `clearance::FaceScope` carries; a
     /// several-named-faces scope has no spelling here, because a
     /// primitive's arity is fixed at two references and the general
     /// selection vocabulary is the clearance door's own. A reference to
@@ -94,7 +94,7 @@ pub enum MeasurePrimitive {
     /// minimum and not the minimum, and reporting one as the measured
     /// value is the degradation E7 forbids by name. At `Interval` over
     /// a leaf the value IS
-    /// [`crate::clearance::min_separation`]'s bracket.
+    /// `clearance::min_separation`'s bracket.
     MinClearance {
         /// Index into the node's `refs` of the first selection.
         a: u32,
@@ -513,7 +513,7 @@ impl core::fmt::Display for MeasureUnavailableAt {
 /// call site rather than a quietly degraded answer.
 ///
 /// The engine that computes it is the interval lane's
-/// ([`crate::clearance::min_separation`]) and so is the only `Some`.
+/// (`clearance::min_separation`) and so is the only `Some`.
 pub trait MinClearanceLane: crate::lane::Lane {
     /// The minimum separation between two resolved selections, or
     /// `None` when this scalar cannot carry an enclosure.
@@ -652,7 +652,7 @@ impl MinClearanceLane for geom_core::Interval {
 /// deviation D3; issue `symbolic-tier-and-clearance-engine`).
 ///
 /// Every other lane the tier composes with is scalar-generic and runs
-/// at `Sym<T>` unaltered. This one is not: [`crate::clearance`]'s engine
+/// at `Sym<T>` unaltered. This one is not: `clearance`'s engine
 /// is written at [`geom_core::Interval`] concretely — its selection type
 /// borrows a `&Body<Interval>` and its inner subdivision is spelled in
 /// that type — so the door cannot be handed a `Body<Sym<Interval>>`, and

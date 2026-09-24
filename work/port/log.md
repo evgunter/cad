@@ -739,6 +739,248 @@ lockfile is **regenerated** — a deliberate act — and not on an ordinary
 build. Recorded in the gate's header and beside the declaration itself,
 because the repository recorded it nowhere.
 
+## The options doors land; the posture is corrected per-claim (2026-09-15)
+
+`python-cannot-set-options-structs` merged (#2678) and closes. Six rows
+filed outside the fence — five on LIB, one on CIW.
+
+**The unit disproved the posture clause written the same morning.** It
+was dispatched style-only under the converse rule *"a compiler-enforced
+claim does not earn the second arm however public its surface"*, on the
+reading that `surface_census.rs`'s destructure anchor is the correctness
+arm. The lane's four probe measurements — required by the spec precisely
+because that reasoning is only worth as much as the anchor — showed
+`ImportOptions` and `EvalOptions` silent at **both** sites before the
+change, and the `NotBound` decay half reading declared *names* where an
+options field is bound by becoming a *keyword*, so the first declined
+options entry would have stayed green forever. The spec asserted that
+machinery was sound and told the lane to reuse it.
+
+The reviewer then gave the mechanism the correction needed: **a presence
+anchor cannot guard a forwarded value; that is what a destructure is.**
+The converse clause was applied per-unit when it only ever holds per
+claim. `plan.md`'s Review posture now says so, with this unit as the
+worked example and the cost named — two STL doors sat under a green
+census writing `solid ` and eighty zero bytes where the kernel's own
+defaults say a part name and a producer line, for as long as they had
+existed. The spec had waved those two doors through as "the visible work
+is small".
+
+**What the review bought, beyond the finding.** It ran the four probes
+itself rather than reading the table, reproduced every line number,
+built the wheel and observed the bytes, restored main's two files with a
+probe still in place to confirm the *before* state, and ran five
+mutations against the census. It also swept a different shape — every
+`#[pyo3(signature = …)]` for a non-`None` keyword default — and found
+exactly one hit, the row the lane had already filed. Two MINORs, both
+sentences rather than behaviour.
+
+**One written reason was false on the first entries to use the device.**
+`param_box`'s `NotBound` reason claimed no f64 evaluation could carry a
+box; `mc.rs` builds one and `monte_carlo` is its Python door. The decay
+check falsifies a **spelling**, never a **reason**, and that gap is now
+stated at the check itself.
+
+**The fix pass made the roster derivable** rather than hand-listed —
+`every_options_type_in_py_is_rostered` scans `src/py/` for a constructed
+`*Options` type and fails if it is unrostered, measured with a probe,
+with its scanner checked by a second test — and the module header stopped
+claiming "every" in favour of the narrow rule it actually enforces, with
+`ChecksConfig`/`McConfig` named as the blind spot and their row cited.
+
+**A lane habit worth carrying.** The fix pass's first push went red on
+`test-utils`'s `reader_census`: the new source scan put `surface_census.rs`
+into the class of files that read Rust source, which owes a ledger line.
+Every local check the lane ran was package-scoped (`-p pncad-py`), and a
+tree-wide census living in another crate is invisible to those. CI found
+what no local check could.
+
+
+## The MSRV floor is held, at every manifest that declares one (2026-09-15)
+
+`msrv-floor-is-declared-and-never-compiled` merged (#2676) and closes.
+Ev's ruling — hold the two strings equal and call it a day — is a
+`scripts/gates/` row with a ten-case selftest, wired into both halves by
+the roster with no hand-maintained list.
+
+**The style review returned a MAJOR and it was the completeness of the
+fence.** Three manifests declare a literal `rust-version = "1.97.0"`:
+the workspace root, `benches/` and `interval-transcendentals/`. The last
+two are in `Cargo.toml`'s `exclude` list, so they are not members and
+inherit nothing. The gate held one of the three, and its header fenced
+the gap with a sentence about *members* — true, and about the case that
+does not occur. The day the channel moved, the gate would have forced
+the root up and left two behind: the drift it exists to prevent, one
+directory over. `docs/prompts/implementer-discipline.md` §2 names that
+trap by name, listing those excludes, and the lane had read it.
+
+**The lane's remedy is better than the one prescribed and says why.**
+The orchestrator asked for the root set from `scripts/doc-gate.sh
+--print-roots`; the lane walks **every `Cargo.toml` in the tree**
+instead. That is a strict superset — it covers a fifth root the day it
+lands, and also the first *member* that stops inheriting, which a root
+list structurally cannot see because a member is not a root. It also
+keeps `cargo metadata` and `git ls-files` out of a discipline row that
+is otherwise greps, and keeps every fixture from having to be an
+initialised repo with a resolvable workspace. Argued in the header
+rather than left as a preference, which is what a better-than-spec
+deviation owes.
+
+**Nine mutants, all red**, including the one for the MAJOR itself
+(scanning only the workspace manifest reds on the new
+`plant_outside_root_drifts`). A guard green from birth — the three
+manifests already agreed — is a decoration until something shows it
+would fire.
+
+**The resolver fact is now written down.** `Cargo.toml`'s
+`resolver = "3"` makes `rust-version` an input to dependency version
+selection, so the floor is not documentation-only, which is the premise
+the item had put to Ev. `Cargo.lock` is committed, so the preference is
+consulted when the lockfile is **regenerated** — a deliberate act — not
+on an ordinary build. Ev cleared it; the header and a comment beside the
+declaration now carry it, because nothing in the repo did.
+
+Four rows filed outside the fence: one on CIW (`seal-oracle.sh`'s reader
+refuses a `rust-toolchain.toml` spelling this gate blesses — two readers
+of one field drifted in opposite directions), three on GUARD (a
+`gate_require_file` guard with no gone-case, proved by mutation in a
+second gate too; gate counts in prose that go stale on every new gate;
+embedded python readers copied between gates and outside `ruff.toml`'s
+population).
+
+## PORT-DIMS-1 — the load door's structure and the vacated name (2026-09-15)
+
+**PR #2702** on `port/dims-1-load-door-and-name`. Both rows
+close: `load-path-stringifies-structured-refusals` and
+`python-dimensionerror-names-the-quantity-check-not-the-dimension-check`.
+**`H` was right**, and for the reason the plan gave — the decision, not
+the diff.
+
+**Where the structure goes.** A per-parse refusal slot
+(`persist/refusal.rs`), read back by `parse_body` and routed by
+`parse_err`. serde's `Deserialize` hands an impl one error type and it
+is the format's, so a typed value can only leave by a channel beside the
+error. The two alternatives the spec sketched were priced and rejected
+in the PR: a deserializer adapter with our own `Error` type costs
+`Unreadable`'s line/column, which is a tested payload, and validating
+the wire type ahead of serde costs a parallel wire tree for the whole
+document. Both are bigger than this unit; the slot is ~70 lines and
+carries its own hazard statement.
+
+**The name.** Reading 1 — vacant. `QuantityOpMismatch` crosses under its
+Rust name; the document layer's `DimensionError` keeps reaching Python
+under DOOR names, because it reaches it at four doors and two of them
+carry payload the type has no room for. Part A's refusals therefore
+arrive as `PersistError` / `variant == "dimension"` / `inner_variant`
+from `expr_dimension_error_tag` — the shape `ParseError` already had.
+
+**Three of the spec's premises were wrong**, all in its own "confirmed"
+list or adjacent to it, and all corrected in the deleted spec's ledger
+row: the load door's tag was `unreadable` and not `parse` (and had been
+since PR 1553), which five doc comments, the binding census and both
+rows had copied onward; the `persist/` half of the row's first sweep was
+exact rather than stale; and the side-channel direction was the only one
+of the three sketched that does not cost something already tested.
+
+**Two assertions in the tree were not reaching their subject**, both
+found by executing them rather than by reading:
+`m4_pr6_refusal::corrupt_payloads_refuse_typed`'s ill-dimensioned case
+needled a literal spelling that lost its match when `unit` was added to
+the wire, and fell to an `else` branch that probed `serde_json::from_str`
+instead of `load`; and `pncad-py`'s seven-arm load-door probe wrote its
+literals without `unit`, so five of the seven refused as a MISSING FIELD
+and never reached the dimension checker at all — they passed on
+`unreadable` for the wrong reason. Both are now structural tampers that
+fail if the slot they aim at is gone.
+
+**Rows filed outside the fence**: one on EDIT
+(`load-door-is-the-construction-door-for-expressions-and-not-for-profile-programs`
+— the reachability sweep's finding: `wire.rs` rebuilds expressions
+through their constructors and profile programs structurally, and states
+only the first; `ProgramRefusal::Validate` has no stated disposition),
+and a second sighting added to LIB's existing
+`persist-err-projects-fourteen-arms-through-a-fifteen-slot-positional-tuple`
+rather than a duplicate.
+
+**Territory**: `crates/editor-core/src/persist/*` is EDIT's and
+`crates/pncad-py/*` is LIB's; both announced on the PR.
+
+### Fix pass (2026-09-16)
+
+The full review returned no MAJOR, two MINORs and one style finding the
+orchestrator escalated to a must-fix because the repo has a written
+standard for it. Six things moved.
+
+**The refusal channel is a type now, not a paragraph.**
+`docs/PERF-SCAN-2026-08.md` §2.4 sets the bar for a production value
+delivered by thread-local side effect — RAII, loud re-entrancy,
+type-enforced thread confinement, coupling visible at both ends — and
+`work/scalar/D283.md` records `k_stats`'s outcome in one line: *"The
+thread-local stays; its correctness is now a type."* The first draft's
+slot met none of the four; its clear-before-parse made re-entrancy safe
+by silently discarding the outer refusal, which is criterion 2
+inverted. It is now `refusal::Parse`, a `!Send`, `Drop`-closed frame
+stack — `Bracket`'s shape one frame deep. Re-entrancy composes rather
+than overwrites, and `record` outside a parse is a no-op, which is
+strictly better than the clear-before it replaces: a `from_str` of one
+wire type can no longer arm anything. **All four met**, with one
+qualification: the `compile_fail` doctest that pins `!Send` for
+`Bracket` cannot run for a private module, so what stands is the bound
+and the type's single construction site.
+
+**One fault, one arm.** An off-table display-unit symbol on an
+expression literal arrived typed with no recourse; the same symbol on a
+document PARAMETER went through `UnitSym`'s own `Deserialize` and
+arrived `unreadable` with *"regenerate the file from its source
+recipe"* — advice that reproduces the refusal. The unit's own sweep had
+dispositioned that site **(b), correct**, which was defensible before
+this diff and is exactly what this diff changed. `UnitSym` now records
+into the frame, so both routes are `PersistError::Dimension` with
+`inner_variant == "unknown_display_unit"`. A `test_notation.py` row had
+pinned the split; it now pins the union and says what it used to say.
+
+**The door count was wrong three ways** — four in one file, three in
+two others, four implied in a fourth. It is **six doors, four classes,
+three attribute spellings**, and the count is now stated ONCE
+(`ErrorClass::DIMENSION_DOORS`) with the other three pointing at it,
+because each carrying its own is how they diverged.
+
+**The defect survived at a sibling route through this unit's own
+door.** `py/doc.rs`'s `EditReplay` arm projects `edit_error_tag` only,
+so a replayed `SetExpression` refusal reaches Python as
+`inner_variant='dimension'` with the actual check surviving in the
+message — and the PR called that arm *"the model the new one copies"*.
+It is one rung short. Filed rather than fixed (`persist_err`'s tuple
+has one `inner_variant` slot and this arm nests two levels, so the fix
+is a public payload decision), with a kernel-side row proving
+reachability: it has to be a TAMPERED file, because `save` replays the
+log through the same doors.
+
+**Two premises in this crate's own files were false after the diff**
+and are corrected: `persist/mod.rs`'s header said the arm is decided by
+serde_json's classification *"and by nothing else"*, and framed
+`Unreadable` as the one door for `Data`.
+
+**The "first refusal wins" premise is a gate**, not a reading:
+`scripts/gates/persist-no-backtracking.sh` refuses `untagged`, `other`,
+`flatten`, an unallowlisted `deserialize_with` and a
+`serde_json::Value` intermediate across `editor-core`, with nine
+self-test cases. The review named two blind spots the first draft's
+prose had missed (`flatten` and a `Value` intermediate — plus a
+backtracking `deserialize_with` and a retrying visitor); all are in the
+matcher or in the stated gaps.
+
+**And the disclosed cost named the wrong precedent.** `product.rs`'s
+gather counter is a `cfg(debug_assertions)` counter and the least like
+this of the nine thread-locals in `crates/`. The family is
+`geom-core/src/sym/report.rs` and `sym/profile.rs` — the same
+install/record/take scaffold spelled twice, each saying so at its copy
+— plus `k_stats`. `refusal.rs` names them.
+
+Rows filed: two more on LIB
+(`persist-inner-variant-stops-one-rung-above-the-check`,
+`literalerror-publishes-its-tag-under-two-names`), bringing this unit's
+§6 total to four.
 ## The edit log has one wire shape; the pre-rows migration is gone (2026-09-23)
 
 Surfaced by PORT-DIMS-1 (#2702) and decided by Ev in chat. #2702's
@@ -781,3 +1023,16 @@ hand-edited corpus row (`msolve10`, a contradictory rider logged bare)
 now records its join. The review's S8, MSOLVE-9's spec prescribing an
 untagged `MateFrame` on this retired precedent, is filed on MSOLVE's
 slate (`msolve-9-spec-prescribes-an-untagged-wire`).
+
+## PORT-DIMS-1 closes; the program is ready again (2026-09-23)
+
+PR 2702 merges with PORT-DIMS-1 and both of its rows
+(`load-path-stringifies-structured-refusals`,
+`python-dimensionerror-names-the-quantity-check-not-the-dimension-check`)
+closed. It landed after PR 3123, which removed the `untagged` read its
+backtracking gate refused; merging main forward also needed the gate's
+`plane_ref` allowlist to match the full path `program.rs` spells, and
+`m4_pr6_refusal`'s tamper to reach the expression through the entry's
+`edit` — by `pointer_mut`, so a vanished slot fails the test instead of
+`[..]` inserting it. The orchestrator releases the program: `status:
+ready`, with the remaining open rows dispatchable.

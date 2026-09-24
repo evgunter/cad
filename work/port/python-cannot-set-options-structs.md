@@ -2,12 +2,13 @@
 id: python-cannot-set-options-structs
 kind: issue
 title: Python callers cannot set import/STL/eval options: four kernel options structs cross the FFI with no exposure and no census anchor
-status: review
+status: closed
 opened: 2026-09-01
 github: 1495
 refs: [1493, 730]
 branch: port/pyopts-four-doors
 pr: 2678
+closed: 2026-09-15
 priority: P3
 cost: D
 ---
