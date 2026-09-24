@@ -642,7 +642,7 @@ fn compose_placed<T: Decide>(
 ///
 /// The kernel's own [`topo::transform::TransformError`] as
 /// [`NodeErrorKind::Transform`].
-fn place<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
+fn place<T: Decide + topo::AtRestPolicy>(
     body: &Body<T>,
     map: Option<&Affine3<T>>,
     by: RecipeNodeId,
@@ -1810,14 +1810,7 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
 // `wire_blend`'s is; the 7th is the evaluation environment, read for
 // the descent chain the attached tokens' scope is.
 #[allow(clippy::too_many_arguments)]
-fn wire_swept<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
-    A,
->(
+fn wire_swept<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy, A>(
     verb: &crate::verbs::sweep::ProfileVerb<T, A>,
     args: A,
     id: RecipeNodeId,
@@ -1872,13 +1865,7 @@ fn wire_swept<
 
 /// **Extrudes a profile along its sketch normal** — the distance slot
 /// read, and the generic lowering from there.
-fn wire_extrude<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
->(
+fn wire_extrude<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileProgram>,
@@ -1926,13 +1913,7 @@ fn written_against(
 // chain the attached tokens' scope is; the 7th is the document, read
 // for the frame rule and the operand profile's own expressions.
 #[allow(clippy::too_many_arguments)]
-fn wire_revolve<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
->(
+fn wire_revolve<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     axis: RecipeNodeId,
@@ -2130,7 +2111,7 @@ fn tube_args<T: Decide>(
 /// loop and step indices onto validate's canonical ones, and a tube
 /// has no profile node. Its traversal is canonical by construction,
 /// so the canonical indices ARE the final ones.
-fn wire_tube<T: Decide + geom_brep::PcurveFittedLane>(
+fn wire_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     spine: RecipeNodeId,
     window: &crate::node::TubeWindow,
@@ -2165,7 +2146,7 @@ fn wire_tube<T: Decide + geom_brep::PcurveFittedLane>(
 /// Naming is [`wire_tube`]'s, for the reason given there: a hollow
 /// tube's cavity shell is the revolve's own hole-loop vocabulary,
 /// already emitted by `name_revolve`'s holed-full and windowed arms.
-fn wire_hollow_tube<T: Decide + geom_brep::PcurveFittedLane>(
+fn wire_hollow_tube<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     spine: RecipeNodeId,
     window: &crate::node::TubeWindow,
@@ -2287,13 +2268,7 @@ fn verb_refused<T: crate::lane::Lane>(refusal: verbs::VerbError<T>) -> NodeError
 // duplication rather than adding a duty; the 9th is the evaluation
 // environment, read for the descent chain the token's scope is.
 #[allow(clippy::too_many_arguments)]
-fn wire_blend<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
->(
+fn wire_blend<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
     verb: &crate::verbs::blend::BlendVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -2391,13 +2366,7 @@ fn wire_blend<
 // The 9 arguments are the blend lowering's: the correspondence, the
 // node and its operand, the payload, and the evaluation environment.
 #[allow(clippy::too_many_arguments)]
-fn wire_shell<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
->(
+fn wire_shell<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
     verb: &crate::verbs::shell::ShellVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -3091,13 +3060,7 @@ fn wire_assertion<T: Decide>(
 /// error unaltered, through [`verb_refused`]. The D7 pinch lane lives
 /// inside the kernel door and is reached through the verb door
 /// unchanged; nothing here re-derives the plane or its orientation.
-fn wire_split<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
->(
+fn wire_split<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
     verb: &crate::verbs::split::SplitVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -3260,13 +3223,7 @@ fn wire_part<T: Decide>(
 // The correspondence (`crate::verbs::boolean`) supplies what varies
 // per pair verb: the verb constructor and the naming emitter.
 #[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
-fn wire_boolean<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
->(
+fn wire_boolean<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     op: BooleanOp,
@@ -3392,13 +3349,7 @@ fn wire_boolean<
 // The allow is `wire_boolean`'s, for its reason: one parameter per
 // named input, and the declare edge is one of them.
 #[allow(clippy::too_many_arguments)]
-fn wire_union<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
->(
+fn wire_union<T: Decide + geom_core::Bounds + crate::lane::Lane + topo::AtRestPolicy>(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
     members: &[RecipeNodeId],
@@ -4622,7 +4573,7 @@ pub(crate) fn transform_map<T: Decide>(
 /// `Instances` this holds body by body because a row's output-body
 /// index is the instance index and the i-th output body is the i-th
 /// input body placed. Stamps: [`compose_placed`].
-fn wire_transform<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
+fn wire_transform<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     results: &Results<T>,
@@ -4754,7 +4705,7 @@ fn stepped_map<T: Decide>(
 /// arithmetic is [`names::flat_body_index`], which the name table is
 /// keyed by too: every master name wraps `Instance(j)` per placement
 /// (A8/N1), and key-stability means instance keys equal master keys.
-fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
+fn wire_pattern<T: Decide + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -4824,9 +4775,7 @@ fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
 /// node, which may hand back the prototype verbatim for its identity
 /// instance, a placed union has no reason to special-case a map that an
 /// explicit rule need not make the identity.
-fn wire_placed_union<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy,
->(
+fn wire_placed_union<T: Decide + geom_core::Bounds + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -5036,7 +4985,7 @@ fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, Nod
 /// The Loft node (M6-3: the frontier flipped to the BUILDER — the
 /// §10.3 walls plus the M5-LOG item-6 assembly, tiers 1–3 green at
 /// rest).
-fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super::SectionScalar>(
+fn wire_loft<T: Decide + topo::AtRestPolicy + geom_core::Bounds + super::SectionScalar>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
     doc: &crate::doc::Doc<ProfileProgram>,

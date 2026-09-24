@@ -270,7 +270,7 @@ fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
 /// Build the fixture at `T`. `None` is the typed budget stand-down.
 pub fn build<T>() -> Option<Built<T>>
 where
-    T: geom_brep::PcurveFittedLane + geom_core::Bounds,
+    T: topo::AtRestPolicy + geom_core::Bounds,
 {
     let branch = branch_or_budget()?;
     let s = restrict(branch, (0.0, 0.25))?;
@@ -295,35 +295,12 @@ pub fn foreign_cache(built: &Built<f64>) -> PcurveCache<f64> {
         .clone()
 }
 
-/// The dual lane's refusal, executed: the same fitted image offered at
-/// a scalar that may not certify. Since the D1 ruling (2026-08-19) a
-/// dual DOES carry a bracket, so the refusal this exercises is the
-/// lane's own, not a missing `Bounds` impl standing in for it.
-pub fn certify_at_dual(built: &Built<f64>) -> geom_brep::PcurveCertifyError {
-    type D = geom_core::Dual<f64>;
-    let carrier = Curve3::Nurbs(Arc::new(lift3::<D>(&built.carrier)));
-    let image = Arc::new(lift2::<D>(&built.image));
-    let (t0, t1) = image.domain();
-    let window = Pcurve::Fitted(Arc::clone(&image)).chart_box(D::from_f64(t0), D::from_f64(t1));
-    PcurveCache::<D>::certify_fitted(
-        image,
-        D::from_f64(t0),
-        D::from_f64(t1),
-        &carrier,
-        &cylinder::<D>(),
-        Some(&sphere::<D>()),
-        window,
-        Band::linear(Tol::witness()).unwrap(),
-    )
-    .expect_err("a dual scalar has no fitted lane")
-}
-
 /// Assemble the body: the cylinder face carries the edge (its chart is
 /// the well-conditioned one — azimuth about the axis, height along it),
 /// the sphere is the mate the edge's own DESCRIPTION names.
 fn assemble<T>(s: &Structure) -> Built<T>
 where
-    T: geom_brep::PcurveFittedLane + geom_core::Bounds,
+    T: topo::AtRestPolicy + geom_core::Bounds,
 {
     let band = Band::linear(Tol::witness()).unwrap();
     let carrier = Arc::new(lift3::<T>(&s.carrier));
@@ -375,6 +352,7 @@ where
             Some(&sphere::<T>()),
             window,
             band,
+            T::fitted_lane().expect("a certifying scalar holds the fitted door"),
         )
         .expect("the fitted cache certifies through the M6-2 door");
         body.attach_pcurve(he, cache);

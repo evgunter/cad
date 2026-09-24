@@ -71,7 +71,7 @@ fn stadium_extrude<T: Decide>(d: T, r: T) -> Result<usize, String> {
 /// revolved a full turn about the sketch's y axis: every vertex is a
 /// latitude carrier whose rim identity `revolve::full` /
 /// `revolve::surfaces` register.
-fn washer_revolve<T: Decide + geom_brep::PcurveFittedLane>(d: T, r: T) -> Result<usize, String> {
+fn washer_revolve<T: Decide + topo::AtRestPolicy>(d: T, r: T) -> Result<usize, String> {
     let lit = |v: f64| T::from_f64(v);
     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(d, d, d)));
     let lp = ProfileLoop::polygon([
@@ -232,7 +232,7 @@ fn outcome(r: &Result<usize, String>) -> String {
 fn build_all<T>(d: Sym<T>, r: Sym<T>) -> [Result<usize, String>; 3]
 where
     T: Real + Decide,
-    Sym<T>: geom_brep::PcurveFittedLane,
+    Sym<T>: topo::AtRestPolicy,
 {
     [
         stadium_extrude(d, r * Sym::from_f64(0.5)),
@@ -254,8 +254,8 @@ struct Built {
 /// ([`test_utils::own_thread`], which keeps the panic's own message).
 fn drive_on_a_thread<T>(d: f64, lift: fn(f64) -> (Sym<T>, Sym<T>)) -> Result<Built, String>
 where
-    T: Real + Decide + geom_brep::PcurveFittedLane + Send + 'static,
-    Sym<T>: geom_brep::PcurveFittedLane,
+    T: Real + Decide + topo::AtRestPolicy + Send + 'static,
+    Sym<T>: topo::AtRestPolicy,
 {
     test_utils::own_thread::caught(move || {
         let (outcomes, counts) = with_session_rules(budget(), SymRules::shipped(), || {

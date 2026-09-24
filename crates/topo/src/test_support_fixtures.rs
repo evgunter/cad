@@ -897,7 +897,7 @@ pub enum CylKey {
 /// no validity promise on its own: the plane is an orphan surface
 /// until the rim edge naming it exists, and the `mev` that mints that
 /// edge is the op whose postcondition covers it.
-pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
+pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     frame: CylFrame,
     key: CylKey,
@@ -1055,7 +1055,7 @@ pub(crate) fn unit_cyl_sheet(
 /// key placement and runs the pcurve pass over the result. The wall
 /// face's sense is left where `mef` put it — [`unit_cyl_sheet`] is the
 /// spelling that writes one.
-pub fn cyl_wall_sheet<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
+pub fn cyl_wall_sheet<T: geom_core::Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     frame: CylFrame,
     source: Option<u64>,

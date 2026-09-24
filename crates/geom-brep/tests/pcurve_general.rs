@@ -16,7 +16,7 @@ use crate::shared::fixture::wide_window as window;
 use crate::shared::surf;
 use crate::shared::tol::band;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3, Surface};
-use geom_brep::{Pcurve, PcurveCache, PcurveCertifyError};
+use geom_brep::{FittedLane, Pcurve, PcurveCache, PcurveCertifyError};
 use geom_core::spline::KnotVector;
 use geom_core::{Point2, Point3};
 
@@ -79,6 +79,7 @@ fn general_without_a_mate_escalates_at_the_pair() {
         None,
         window(),
         band(),
+        FittedLane::certified(),
     );
     assert!(
         matches!(got, Err(PcurveCertifyError::FittedMateMissing)),
@@ -102,6 +103,7 @@ fn a_general_image_of_the_wrong_column_refuses_definitely() {
         Some(&m),
         window(),
         band(),
+        FittedLane::certified(),
     );
     assert!(
         matches!(
@@ -230,6 +232,7 @@ fn a_general_circle_image_certifies_at_the_fitted_grade() {
         Some(&plane),
         w,
         band(),
+        FittedLane::certified(),
     )
     .expect("the general circle certifies through the general door");
     assert!(
@@ -240,9 +243,18 @@ fn a_general_circle_image_certifies_at_the_fitted_grade() {
     // certificate: `General` is the fitted GRADE, and the two doors
     // differ only in what their callers may assume, never in what the
     // kernel measured.
-    let twin =
-        PcurveCache::certify_fitted(img, t0, t1, &carrier, &sphere(), Some(&plane), w, band())
-            .expect("the same inputs certify through the fitted door");
+    let twin = PcurveCache::certify_fitted(
+        img,
+        t0,
+        t1,
+        &carrier,
+        &sphere(),
+        Some(&plane),
+        w,
+        band(),
+        FittedLane::certified(),
+    )
+    .expect("the same inputs certify through the fitted door");
     assert_eq!(
         format!("{:?}", cache.certificate()),
         format!("{:?}", twin.certificate()),

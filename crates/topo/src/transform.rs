@@ -301,7 +301,7 @@ fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformE
 /// ([`crate::entity::LoopBoundary::Cycle`]'s `first`;
 /// [`crate::Body::revert`] is the map that does both). `det = +1` is
 /// enforced upstream, so there is no such branch to write here today.
-fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+fn map_surface<T: Decide + crate::props::AtRestPolicy>(
     map: &Affine3<T>,
     s: &Surface<T>,
     band: Band,
@@ -380,6 +380,7 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPol
             a,
             band,
             <T as crate::props::AtRestPolicy>::offset_fit_lane(),
+            <T as crate::props::AtRestPolicy>::scalar_name(),
         )?)),
     })
 }
@@ -436,12 +437,15 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPol
 /// handed in as a parameter; what a `None` means is
 /// [`crate::AtRestPolicy::offset_fit_lane`]'s subject. A caller
 /// holding such a surface with no door refuses typed rather than
-/// carrying the certificate it already has across a geometry change.
-fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
+/// carrying the certificate it already has across a geometry change,
+/// naming the scalar by `scalar` — the name the same seam hands out
+/// ([`crate::AtRestPolicy::scalar_name`]).
+fn map_approx<T: Decide>(
     map: &Affine3<T>,
     a: &geom::ApproxSurface<T>,
     band: Band,
     offset_fit: Option<geom_brep::OffsetFitLane<T>>,
+    scalar: &'static str,
 ) -> Result<geom::ApproxSurface<T>, TransformError> {
     let old = a.spec();
     let geom::SurfaceDescription::Offset { ref base, d } = old.description;
@@ -458,9 +462,7 @@ fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
     geom::ApproxSurface::certify(
         spec,
         |description, fit, window, tolerance| match offset_fit {
-            None => Err(TransformError::ApproxLaneUnsupported {
-                lane: <T as geom_brep::PcurveFittedLane>::lane_name(),
-            }),
+            None => Err(TransformError::ApproxLaneUnsupported { lane: scalar }),
             Some(lane) => match lane.remap(description, fit, window, tolerance, band) {
                 Err(source) => Err(TransformError::ApproxRecertify { source }),
                 Ok(certificate) => Ok(geom::OffsetCertificate {
@@ -557,7 +559,7 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 /// # Errors
 ///
 /// [`TransformError`] — closed and typed.
-pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn transform_rigid<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     map: &Affine3<T>,
     tol: Tol,
@@ -585,7 +587,7 @@ pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane + crate::props::A
 /// `transform_rigid`'s own bound to `Decide + CertifiedBounds` would
 /// propagate through this op's generic callers — `boolean`'s sphere
 /// re-cut reaches it under `boolean_op_with`, which `verbs::Verb`'s
-/// `Decide + Bounds + PcurveFittedLane` block runs and the dual corpus
+/// `Decide + Bounds + AtRestPolicy` block runs and the dual corpus
 /// instantiates at a `Dual`, which implements no
 /// `CertifiedEnclosure`. Injecting at the door is the same resolution
 /// [`geom_brep::NurbsLane`] states for certification itself.
@@ -593,7 +595,7 @@ pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane + crate::props::A
 /// # Errors
 ///
 /// [`TransformError`] — closed and typed.
-pub fn transform_rigid_via<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
+pub fn transform_rigid_via<T: Decide + crate::props::AtRestPolicy>(
     body: &Body<T>,
     map: &Affine3<T>,
     tol: Tol,
@@ -943,7 +945,13 @@ mod offset_fit_door_rows {
     fn no_door_refuses_the_mapped_surface_by_name() {
         let band = Band::linear(Tol::witness()).unwrap();
         let approx = crate::fixtures::bowed_offset_approx::<f64>();
-        match map_approx(&turned(), &approx, band, None) {
+        match map_approx(
+            &turned(),
+            &approx,
+            band,
+            None,
+            <f64 as crate::AtRestPolicy>::scalar_name(),
+        ) {
             Err(TransformError::ApproxLaneUnsupported { lane }) => assert_eq!(lane, "f64"),
             other => panic!("the absence must name the lane: {other:?}"),
         }
@@ -969,8 +977,14 @@ mod offset_fit_door_rows {
         let band = Band::linear(tol).unwrap();
         let map = turned();
         let approx = crate::fixtures::bowed_offset_approx::<f64>();
-        let mapped = map_approx(&map, &approx, band, Some(OffsetFitLane::fit()))
-            .expect("a rigid map of a certified fit re-certifies at the same tolerance");
+        let mapped = map_approx(
+            &map,
+            &approx,
+            band,
+            Some(OffsetFitLane::fit()),
+            <f64 as crate::AtRestPolicy>::scalar_name(),
+        )
+        .expect("a rigid map of a certified fit re-certifies at the same tolerance");
         let spec = mapped.spec();
         let geom::SurfaceDescription::Offset { base, d } = &spec.description;
         assert_eq!(

@@ -151,6 +151,7 @@ fn a_between_samples_image_corruption_survives_the_full_c2_certificate() {
         Some(&built.sphere),
         window,
         band,
+        geom_brep::FittedLane::certified(),
     )
     .expect(
         "OnLocusHull certifies the CARRIER's incidence, not the image between \
@@ -203,6 +204,7 @@ fn a_sub_interval_cache_is_caught_by_loop_continuity() {
         Some(&built.sphere),
         window,
         band,
+        geom_brep::FittedLane::certified(),
     )
     .expect("the half-interval certifies honestly");
     built.body.attach_pcurve(built.he_plus, cache);

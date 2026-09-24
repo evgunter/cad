@@ -357,6 +357,7 @@ fn r1_certify_general_refuses_a_plausible_wrong_column() {
         Some(&mate),
         window,
         band(),
+        geom_brep::FittedLane::certified(),
     );
     assert!(
         verdict.is_err(),
@@ -537,8 +538,8 @@ fn r1_wall_seam_arm_mints_and_certifies_the_interior_column() {
 }
 
 /// **No lane fabricates a foot.** At `Dual64` — a scalar with no
-/// certified projection (`PcurveFittedLane`'s statically-refusing
-/// impl) — the wall–seam arm on the same widened chart refuses typed,
+/// certified projection (its policy holds no fitted door,
+/// `topo::AtRestPolicy::fitted_lane`) — the wall–seam arm on the same widened chart refuses typed,
 /// naming the missing lane rather than a boundary it never measured. The dual body is the same loft at the same
 /// scale, its bowed wall re-charted with the same widened net lifted
 /// constant.
@@ -823,6 +824,7 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
         Some(&mate),
         window,
         band(),
+        geom_brep::FittedLane::certified(),
     )
     .expect("General certifies a partial column against its operand pair");
     let cert = cache.certificate();

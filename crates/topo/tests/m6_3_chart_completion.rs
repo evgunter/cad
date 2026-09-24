@@ -136,7 +136,7 @@ fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
 /// public-door pattern).
 fn build<T>() -> (Body<T>, topo::HalfEdgeKey)
 where
-    T: geom_brep::PcurveFittedLane,
+    T: topo::AtRestPolicy,
 {
     try_build::<T>().expect("the general circle certifies through the fitted door")
 }
@@ -148,7 +148,7 @@ where
 /// wants to assert that outcome needs the error, not a panic.
 fn try_build<T>() -> Result<(Body<T>, topo::HalfEdgeKey), geom_brep::PcurveCertifyError>
 where
-    T: geom_brep::PcurveFittedLane,
+    T: topo::AtRestPolicy,
 {
     let band = Band::linear(Tol::witness()).unwrap();
     let carrier = general_circle::<T>();
@@ -202,6 +202,7 @@ where
             Some(&tilted_plane::<T>()),
             window,
             band,
+            T::fitted_lane().expect("a certifying scalar holds the fitted door"),
         )?;
         body.attach_pcurve(he, cache);
     }

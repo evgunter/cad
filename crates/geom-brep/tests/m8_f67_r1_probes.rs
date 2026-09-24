@@ -30,8 +30,8 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
-    CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCache,
-    PcurveCertifyError, PcurveCheck,
+    CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FittedLane, Pcurve,
+    PcurveCache, PcurveCertifyError, PcurveCheck,
 };
 use geom_core::k_stats::{self, Probe};
 use geom_core::spline::KnotVector;
@@ -305,6 +305,7 @@ fn fitted_lane_poison_meter_escalates_invalid_end_to_end() {
         Some(&px),
         window(),
         band(),
+        FittedLane::certified(),
     );
     match got {
         Err(PcurveCertifyError::Escalated {

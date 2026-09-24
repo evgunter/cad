@@ -1360,7 +1360,7 @@ Cross-milestone commitments; each binds at the layer named.
   `T` payload**: candidate generation (`ssi::jet`/`march`/`system`, the
   analytic composite's implicit form) is `f64`-only and untrusted, and
   the certificate is derived and carried at `T` (`SsiCertificate<T>`,
-  `PcurveFittedLane`) — so a WIDENED analytic operand refuses typed
+  `FittedLane`) — so a WIDENED analytic operand refuses typed
   rather than picking a representative surface out of the family.
 
 ### Q2: Tolerance model — **resolved**, folded into D4.

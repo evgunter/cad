@@ -463,7 +463,7 @@ impl std::error::Error for ChartRegionError {}
 /// satisfy, so the predicate is uninstantiable at one however it is
 /// reached — including from outside the crate, where no census is
 /// running. That matches the other lane doors (`topo::QuadLane::certified`,
-/// the fitted-pcurve lane's), all of which carry
+/// `geom_brep::FittedLane::certified`), all of which carry
 /// [`geom_core::CertifiedEnclosure`]. See the M9-2 entry in
 /// `geom-core/src/real.rs`'s `Bounds` scope rule.
 ///

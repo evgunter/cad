@@ -128,21 +128,29 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
 // successor's. Nothing is lost.
 
 /// The `Dual` lane's refusing side, executed rather than assumed: a
-/// fitted cache cannot be certified by a scalar that may not certify
-/// (D1, 2026-08-19 — a dual now carries a bracket and still may not
-/// reach certification arithmetic, C9), and it says so.
+/// fitted cache is never re-derived at a scalar that may not certify
+/// (D1, 2026-08-19 — a dual carries a bracket and still may not reach
+/// certification arithmetic, C9), and the refusal says so.
 ///
-/// **The asserted substring changed with D1, and it had to.** This row
-/// used to require the message to contain `"bracket"`, which was the
-/// reason the refusal gave: *"this scalar carries no bracket to reach the
-/// ring with"*. That sentence is now false — a dual carries the value
-/// channel's bracket — so the message says the true reason instead, and
-/// this row asserts the true reason. It is the assertion that keeps the
-/// user-facing string honest, so it is the one place that must move when
-/// the string does: `msg.contains("bracket")` passing again would mean
-/// someone reintroduced the stale claim.
+/// **What is left to execute.** A dual cannot hold the fitted door at
+/// all — `geom_brep::FittedLane::certified` is bounded on the right,
+/// and `fitted_lane.rs` carries the `compile_fail` block that says so —
+/// so a `Fitted` cache is unconstructible at a dual and there is no
+/// dual cache to offer. What a dual's policy DOES answer is `None` and
+/// its name, and the one door that takes an absent lane is
+/// `PcurveCache::recertify`: its fitted arm refuses on `None` without
+/// running a check. So the row hands that door exactly the dual's
+/// answer, over this fixture's own cache, and reads the refusal a dual
+/// body's tier-3 pass would produce.
+///
+/// **The asserted substring is the true reason.** The message must
+/// name the scalar and say that it may not certify; it must not say it
+/// carries no bracket, which D1 made false — `msg.contains("bracket")`
+/// passing again would mean someone reintroduced the stale claim.
 #[test]
 fn the_dual_lane_refuses_a_fitted_cache_typed() {
+    use geom_core::Dual64;
+    use topo::AtRestPolicy;
     let Some(built) = fixture::build::<f64>() else {
         vacuity::stood_down(
             &format!(
@@ -157,7 +165,29 @@ fn the_dual_lane_refuses_a_fitted_cache_typed() {
         );
         return;
     };
-    let err = fixture::certify_at_dual(&built);
+    let band = Band::linear(Tol::witness()).unwrap();
+    let cache = built
+        .body
+        .pcurve(built.he_plus)
+        .expect("the fixture's half-edge carries the fitted cache");
+    let err = cache
+        .recertify(
+            &geom::Curve3::Nurbs(std::sync::Arc::clone(&built.carrier)),
+            &built.cylinder,
+            Some(&built.sphere),
+            built.window,
+            band,
+            None,
+            <Dual64 as AtRestPolicy>::scalar_name(),
+        )
+        .expect_err("a fitted cache with no door refuses");
+    assert!(
+        matches!(
+            err,
+            geom_brep::PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" }
+        ),
+        "the absent door's refusal is the fitted-lane one, naming the dual: {err:?}"
+    );
     let msg = format!("{err}");
     assert!(
         msg.contains("dual") && msg.contains("may not certify"),

@@ -248,6 +248,7 @@ fn main() {
                 None,
                 window,
                 band,
+                geom_brep::FittedLane::certified(),
             );
             println!(
                 "Q2  certify_general(mate = what mint_face supplies) -> {:?}",
@@ -267,6 +268,7 @@ fn main() {
                 Some(&plane_surf),
                 window,
                 band,
+                geom_brep::FittedLane::certified(),
             );
             println!(
                 "Q2  certify_general(mate = hand-picked plane)        -> {}",
@@ -369,6 +371,7 @@ fn main() {
                         mate,
                         window,
                         band,
+                        geom_brep::FittedLane::certified(),
                     )
                 }
                 other => PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, window, band),
@@ -424,6 +427,7 @@ fn main() {
                         None,
                         window,
                         band,
+                        geom_brep::FittedLane::certified(),
                     ),
                 ),
                 other => (

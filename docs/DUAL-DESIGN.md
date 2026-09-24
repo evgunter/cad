@@ -95,9 +95,10 @@ validate IS asking it to certify.
 **Proposal**: the E4 sensitivity pass evaluates WITHOUT the
 certified gates: the evaluation service gains a scalar-policy seam
 — certified validation (the product gather's `validate_geometric`,
-the offset fit's `OffsetFitLane::recertify`, the hollowing verb's
-`ShellDoor`, the census door) runs at scalars with certification
-rights (f64's decide-with-escalation lane and `Interval`), and is
+the offset fit's `OffsetFitLane::recertify`, the fitted pcurves'
+`FittedLane`, the hollowing verb's `ShellDoor`, the census door) runs
+at scalars with certification rights (f64's decide-with-escalation
+lane and `Interval`), and is
 structurally absent at `Dual`. This
 is sound because the sensitivity is OF THE AS-BUILT BODY: the
 dual's value channel is bit-identical to the f64 build (D9), which

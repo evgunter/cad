@@ -883,7 +883,7 @@ pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
 /// on the prune/report side — vacuously and checkably: the file
 /// contains no [`Bounds`] read at all. No `lo`, no `hi`, no
 /// comparison; the bound appears exactly once, as an INLINE bound on
-/// the `impl<T: Decide + Bounds + PcurveFittedLane> Verb<T>` header
+/// the `impl<T: Decide + Bounds + AtRestPolicy> Verb<T>` header
 /// (not a `where` clause — the earlier wording of this entry said
 /// `where`-position and was simply wrong about the syntax), purely so
 /// the callee's bound is satisfiable. Nothing there decides anything,
@@ -905,7 +905,7 @@ pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
 /// **On the second — the WEAKEST bound that works, with the next
 /// tighter one shown failing.** Dropping [`Bounds`] does not compile:
 /// the callees require it. The next tighter bound,
-/// `Decide + `[`CertifiedBounds`]` + PcurveFittedLane`, compiles in
+/// `Decide + `[`CertifiedBounds`]` + AtRestPolicy`, compiles in
 /// this crate and BREAKS its caller — `editor_core::eval::wire`'s
 /// blend lowering runs beneath `evaluate<T>`, a mixed pass
 /// instantiated at [`Dual`](crate::Dual) by the dual corpus, and no
@@ -925,7 +925,7 @@ pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
 /// allowlisted, at `topo/src/shell.rs`, under the 2026-09-02
 /// certified at-rest entry), and a bound that names the callee's
 /// rights cannot be merged into the first header: the paragraph above
-/// records that tightening `Decide + Bounds + PcurveFittedLane` to a
+/// records that tightening `Decide + Bounds + AtRestPolicy` to a
 /// certifying bound breaks `editor_core::eval::wire`'s
 /// `Dual`-instantiated blend lowering. That right is now a VALUE the
 /// caller passes — `topo::ShellDoor`, whose one constructor carries
@@ -1194,9 +1194,16 @@ pub mod bounds_allowlist {
     //! `ssi_hull_sup`, `ssi_tube_transversality`, `pcurve_*` funnel margins)
     //! and consuming certification enclosures (limb 2 a control-hull bound, limb 3 a
     //! box-chain enclosure). Its refusing side is **not** empty:
-    //! `PcurveFittedLane` certifies at `f64`, [`Probe`](crate::Probe) and the
-    //! interval scalar and refuses at [`Dual`](crate::Dual), dual bodies
-    //! really validating and really not holding a fitted cache.
+    //! the fitted door (`geom_brep::FittedLane`, answered by
+    //! `topo::AtRestPolicy::fitted_lane`) is held at `f64`,
+    //! [`Probe`](crate::Probe) and the interval scalar and absent at
+    //! [`Dual`](crate::Dual), dual bodies really validating and really not
+    //! holding a fitted cache. That door's module, `geom_brep::fitted_lane`,
+    //! is the fitted lane's own seam and not a widening of it: its
+    //! constructor (`FittedLane::certified`) and that constructor's
+    //! pointer-identity helper carry the certification RIGHT the value
+    //! stands for, hold the three `pcurve_cache` bodies by pointer, and read
+    //! no bracket.
     //! `geom_brep::ssi::enclose` is deliberately absent: the enclosure machinery
     //! decides nothing and takes the sole bound the rule already allows.
     //!

@@ -138,7 +138,8 @@
 //! halves and the two new halves, deriving nothing and minting nothing
 //! where there was nothing. Two frontiers ride with it, both stated at
 //! [`split_cache`]: a `Fitted`/`General` row is left exactly as found
-//! (its certification doors carry the [`PcurveFittedLane`] bound), and
+//! (its certification doors take the fitted door,
+//! [`crate::AtRestPolicy::fitted_lane`]), and
 //! on a SPLINE chart the carry is exact but [`mint_pcurves`] — the
 //! recovery step this module's caveats name for a face left rowless —
 //! refuses on the split body, because [`nurbs_iso_derive`]'s rim arms
@@ -266,9 +267,7 @@
 //!   survey, checked by nothing.
 
 use geom::Surface;
-use geom_brep::{
-    ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, PcurveFittedLane, chart_pcurve,
-};
+use geom_brep::{ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve};
 use geom_core::Tol;
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
@@ -278,6 +277,7 @@ use crate::body::Body;
 use crate::chart_bound::{ChartBound, ChartEdge, ChartLoop};
 use crate::entity::{FaceKey, HalfEdgeKey, LoopKey};
 use crate::null::CurveGeom;
+use crate::props::AtRestPolicy;
 
 /// Typed refusal of the pcurve minting pass (D4 ¶3).
 #[derive(Clone, Debug, PartialEq)]
@@ -486,7 +486,7 @@ fn chart_mints<T: Real>(surface: &Surface<T>) -> bool {
 ///
 /// [`PcurveMintError`] — a corrupt key, or a typed chart refusal for a
 /// frontier chart/carrier kind.
-pub fn pcurve_of<T: PcurveFittedLane>(
+pub fn pcurve_of<T: AtRestPolicy>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
     band: Band,
@@ -666,7 +666,7 @@ fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
 ///   derived from the wall's own foot schedule.
 /// - Everything else on a NURBS chart refuses typed with the class
 ///   named.
-fn nurbs_iso_derive<T: PcurveFittedLane>(
+fn nurbs_iso_derive<T: AtRestPolicy>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
     surface: &Surface<T>,
@@ -1061,7 +1061,7 @@ fn nurbs_iso_derive<T: PcurveFittedLane>(
 /// own spline chart — U2's `General` arm, at the honest Fitted grade.
 ///
 /// The producer is `geom_brep`'s one derivation of this object
-/// ([`PcurveFittedLane::general_image`], whose body is the same
+/// ([`geom_brep::FittedLane::general_image`], whose body is the same
 /// `edge_nurbs` foot schedule the plane × NURBS edge certificate uses
 /// at adopt time). Nothing is certified here: this returns EVIDENCE,
 /// and the mint's next move is `PcurveCache::certify_general`, which
@@ -1074,7 +1074,7 @@ fn nurbs_iso_derive<T: PcurveFittedLane>(
 /// [`PcurveCertifyError::FittedLaneUnsupported`] at a scalar with no
 /// certified lane (a dual body may not certify — D1), or the
 /// derivation's own typed refusal.
-fn derive_general_image<T: PcurveFittedLane>(
+fn derive_general_image<T: AtRestPolicy>(
     carrier: &geom::Curve3<T>,
     surface: &Surface<T>,
     half_edge: HalfEdgeKey,
@@ -1088,18 +1088,17 @@ fn derive_general_image<T: PcurveFittedLane>(
         // without it.
         return Err(certify(PcurveCertifyError::UnsupportedCarrier));
     };
-    match T::general_image(spline, wall) {
-        Ok(Some(image)) => Ok(image),
-        Ok(None) => Err(certify(PcurveCertifyError::FittedLaneUnsupported {
-            scalar: T::lane_name(),
-        })),
-        Err(error) => Err(certify(error)),
-    }
+    let Some(lane) = T::fitted_lane() else {
+        return Err(certify(PcurveCertifyError::FittedLaneUnsupported {
+            scalar: T::scalar_name(),
+        }));
+    };
+    lane.general_image(spline, wall).map_err(certify)
 }
 
 /// The **certified chart foot** of one model-space point on this face's
 /// own spline chart — [`derive_general_image`]'s single-sample sibling,
-/// same producer (`geom_brep`'s `PcurveFittedLane::chart_foot`).
+/// same producer ([`geom_brep::FittedLane::chart_foot`]).
 ///
 /// `None` at a scalar with no certified lane, which lets a caller keep
 /// its previous typed refusal rather than inventing a foot: a dual body
@@ -1108,15 +1107,17 @@ fn derive_general_image<T: PcurveFittedLane>(
 /// # Errors
 ///
 /// [`PcurveMintError::Certify`] when the projection will not converge.
-fn derive_chart_foot<T: PcurveFittedLane>(
+fn derive_chart_foot<T: AtRestPolicy>(
     point: geom_core::Point3<T>,
     surface: &Surface<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<Option<geom_core::Point2<f64>>, PcurveMintError> {
-    let Some(wall) = surface.spline_chart() else {
+    let (Some(wall), Some(lane)) = (surface.spline_chart(), T::fitted_lane()) else {
         return Ok(None);
     };
-    T::chart_foot(point, wall).map_err(|error| PcurveMintError::Certify { half_edge, error })
+    lane.chart_foot(point, wall)
+        .map(Some)
+        .map_err(|error| PcurveMintError::Certify { half_edge, error })
 }
 
 /// Is `half_edge` the `he_plus` of its edge (so the loop traverses it
@@ -1647,8 +1648,9 @@ pub(crate) enum SplitRowError {
 /// is the whole bound argument: a restriction re-certifies through
 /// [`PcurveCache::certify`], which `geom-brep` declares in an
 /// `impl<T: Decide>` block, so `split_edge` keeps the `Decide` bound it
-/// has and no caller's bound moves. `PcurveFittedLane` is the
-/// DERIVATION lanes' bound, and nothing here derives.
+/// has and no caller's bound moves. The fitted door
+/// ([`crate::AtRestPolicy::fitted_lane`]) is the DERIVATION lanes', and
+/// nothing here derives.
 ///
 /// **`t₀` and `t₁` are the EDGE's certified interval**, read from the
 /// carrier through [`half_edge_carrier`] — the same interval
@@ -1675,7 +1677,7 @@ pub(crate) enum SplitRowError {
 /// - `half_edge` carries no row (the ordinary case: an all-planar
 ///   body, or a body that never ran the minting pass);
 /// - the row's image is [`Pcurve::Fitted`] or [`Pcurve::General`],
-///   whose certification doors are the `PcurveFittedLane` ones
+///   whose certification doors are the fitted door's
 ///   ([`PcurveCache::certify_fitted`] / [`PcurveCache::certify_general`],
 ///   which need the mate operand and the fitted machinery). Widening
 ///   `split_edge` to reach them is the bound ripple banked at
@@ -1770,10 +1772,7 @@ pub(crate) fn split_cache<T: Decide>(
 /// [`PcurveMintError`] — a certification refusal, a discontinuous or
 /// unclosed loop walk, or an escalated classification. Never a silent
 /// skip of a face the lane covers.
-pub fn mint_pcurves<T: PcurveFittedLane>(
-    body: &mut Body<T>,
-    tol: Tol,
-) -> Result<(), PcurveMintError> {
+pub fn mint_pcurves<T: AtRestPolicy>(body: &mut Body<T>, tol: Tol) -> Result<(), PcurveMintError> {
     let band = Band::linear(tol).map_err(PcurveMintError::Band)?;
     // Start from empty. A body reaching this pass may have been carved
     // from a scratch clone that inherited rows for half-edges the
@@ -1835,7 +1834,7 @@ pub fn mint_pcurves<T: PcurveFittedLane>(
 /// # Errors
 ///
 /// [`mint_pcurves`]'s, raised by a face in `faces`.
-pub fn mint_pcurves_of<T: PcurveFittedLane>(
+pub fn mint_pcurves_of<T: AtRestPolicy>(
     body: &mut Body<T>,
     faces: &[FaceKey],
     tol: Tol,
@@ -1852,7 +1851,7 @@ pub fn mint_pcurves_of<T: PcurveFittedLane>(
 /// The mint itself, over the faces it is handed: the shared body of
 /// [`mint_pcurves`] and [`mint_pcurves_of`], which differ only in which
 /// rows they clear first.
-fn mint_faces<T: PcurveFittedLane>(
+fn mint_faces<T: AtRestPolicy>(
     body: &mut Body<T>,
     faces: &[FaceKey],
     band: Band,
@@ -1871,9 +1870,9 @@ fn mint_faces<T: PcurveFittedLane>(
             // would claim a coverage the lane does not have. The
             // class's certified route EXISTS (`certify_fitted`'s
             // Circle-carrier arm, mate from the edge's description);
-            // wiring it into this pass needs the `PcurveFittedLane`
-            // bound on every constructor and is banked with that
-            // ripple — banked in no milestone plan and in no
+            // wiring it into this pass needs the fitted door's
+            // `AtRestPolicy` bound on every constructor and is banked
+            // with that ripple — banked in no milestone plan and in no
             // carried-items register. Every OTHER failure — a covered
             // class whose residuals, envelope, continuity or closure
             // refuse — is a genuine defect and propagates.
@@ -1892,7 +1891,7 @@ fn mint_faces<T: PcurveFittedLane>(
 /// Drops any caches minted for `face` before its walk refused — a
 /// face outside the lane's coverage stores NOTHING (a half-minted
 /// face is the defect `validate_pcurves` hunts).
-fn clear_face_caches<T: PcurveFittedLane>(body: &mut Body<T>, face: FaceKey) {
+fn clear_face_caches<T: Decide>(body: &mut Body<T>, face: FaceKey) {
     let Some(face_data) = body.get_face(face) else {
         return;
     };
@@ -1920,7 +1919,7 @@ fn clear_face_caches<T: PcurveFittedLane>(body: &mut Body<T>, face: FaceKey) {
 /// Mints the caches of one face (module docs: the two-pass shape — walk
 /// the loops to pin branches and build the chart window, then certify
 /// every pcurve against that window).
-fn mint_face<T: PcurveFittedLane>(
+fn mint_face<T: AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     band: Band,
@@ -1986,16 +1985,25 @@ fn mint_face<T: PcurveFittedLane>(
             // the description, never from the topology, and re-read
             // from the body rather than stored). The closed-form door
             // cannot state that certificate and refuses this variant.
-            Pcurve::General(image) => PcurveCache::certify_general(
-                std::sync::Arc::clone(image),
-                w.t0,
-                w.t1,
-                &carrier,
-                &surface,
-                mate_surface(body, w.half_edge).as_ref(),
-                window,
-                band,
-            ),
+            // The certificate is the fitted door's, read off the
+            // scalar's policy; a scalar with none refuses as the
+            // derivation that produced the image would have.
+            Pcurve::General(image) => match T::fitted_lane() {
+                None => Err(PcurveCertifyError::FittedLaneUnsupported {
+                    scalar: T::scalar_name(),
+                }),
+                Some(lane) => PcurveCache::certify_general(
+                    std::sync::Arc::clone(image),
+                    w.t0,
+                    w.t1,
+                    &carrier,
+                    &surface,
+                    mate_surface(body, w.half_edge).as_ref(),
+                    window,
+                    band,
+                    lane,
+                ),
+            },
             _ => PcurveCache::certify(
                 w.pcurve.clone(),
                 w.t0,
@@ -2017,7 +2025,7 @@ fn mint_face<T: PcurveFittedLane>(
 
 /// The one-branch walk of a single loop (module docs). Appends the
 /// branch-pinned chart curves to `out`.
-pub(crate) fn walk_loop<T: PcurveFittedLane>(
+pub(crate) fn walk_loop<T: AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
     lp: LoopKey,
@@ -2201,7 +2209,7 @@ pub(crate) fn walk_loop<T: PcurveFittedLane>(
 /// for a `General` image carrying no stored certificate: its envelope
 /// is the only statement bounding the image against its carrier, and
 /// inventing one would widen nothing while claiming a bound.
-fn chart_edge<T: PcurveFittedLane>(
+fn chart_edge<T: Decide>(
     body: &Body<T>,
     walked: &Walked<T>,
     chart: &Surface<T>,
@@ -2335,7 +2343,7 @@ fn chart_edge<T: PcurveFittedLane>(
 /// walk that closes a whole period off; and
 /// [`PcurveMintError::OuterSpansPeriod`] from
 /// [`crate::chart_bound::ChartBound::assembled`].
-pub fn chart_boundary<T: PcurveFittedLane>(
+pub fn chart_boundary<T: AtRestPolicy>(
     body: &Body<T>,
     face: FaceKey,
     chart: &Surface<T>,
@@ -2479,8 +2487,13 @@ pub fn chart_boundary<T: PcurveFittedLane>(
 /// empty when the body is clean. Bodies with no stored caches (every
 /// all-planar body, and every body built before a curved face existed)
 /// produce no findings — absence is not a defect.
-pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<PcurveMintError> {
+pub fn validate_pcurves<T: AtRestPolicy>(body: &Body<T>, band: Band) -> Vec<PcurveMintError> {
     let mut findings = Vec::new();
+    // The fitted door every `Fitted`/`General` row re-derives through,
+    // read off the scalar's policy once: the certified and the
+    // structural validation doors reach this pass alike, so neither
+    // moves a verdict at any scalar.
+    let (lane, scalar) = (T::fitted_lane(), T::scalar_name());
     for (face_key, face) in body.faces() {
         let Some(surface) = body.get_surface(face.surface) else {
             continue;
@@ -2537,8 +2550,15 @@ pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<
                     }
                 };
                 let mate = mate_surface(body, he);
-                if let Err(error) = cache.recertify(&carrier, &surface, mate.as_ref(), window, band)
-                {
+                if let Err(error) = cache.recertify(
+                    &carrier,
+                    &surface,
+                    mate.as_ref(),
+                    window,
+                    band,
+                    lane,
+                    scalar,
+                ) {
                     findings.push(PcurveMintError::Certify {
                         half_edge: he,
                         error,

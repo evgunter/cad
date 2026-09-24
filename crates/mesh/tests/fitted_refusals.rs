@@ -155,6 +155,7 @@ fn build_fitted_cache() -> Option<PcurveCache<f64>> {
             Some(&sphere()),
             window,
             Band::linear(Tol::witness()).unwrap(),
+            geom_brep::FittedLane::certified(),
         )
         .expect("the fitted cache certifies through the M6-2 door"),
     )

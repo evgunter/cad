@@ -376,7 +376,7 @@ fn stacking_fold<T: Decide>(
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum.
-fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
+fn assemble<T: Decide + topo::AtRestPolicy>(
     places: &[Affine3<f64>],
     geometry: &LoftGeometry,
     tol: Tol,
@@ -724,7 +724,7 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum.
-pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn loft_body<T: Decide + topo::AtRestPolicy>(
     sections: &[Section],
     places: &[Affine3<f64>],
     v_degree: usize,
@@ -767,7 +767,7 @@ pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
 /// [`LoftError`] — every door named on the enum, with
 /// [`SkinError::PathTangentReversal`] arriving through
 /// [`LoftError::Skin`].
-pub fn sweep_body<T: Decide + geom_brep::PcurveFittedLane>(
+pub fn sweep_body<T: Decide + topo::AtRestPolicy>(
     profile: &[ProfileLoop<f64>],
     place: Affine3<f64>,
     path: &geom::NurbsCurve3<f64>,

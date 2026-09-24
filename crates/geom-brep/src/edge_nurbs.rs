@@ -381,7 +381,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
 ///
 /// **Two consumers, one producer.** [`plane_nurbs_limbs`] certifies the image as
 /// part of the plane × NURBS edge certificate at ADOPT time;
-/// [`crate::PcurveFittedLane::general_image`] hands the same image to
+/// [`crate::FittedLane::general_image`] hands the same image to
 /// the pcurve mint, where it becomes a stored
 /// [`crate::Pcurve::General`] cache certified through
 /// [`crate::PcurveCache::certify_general`]. They must be the same bits
