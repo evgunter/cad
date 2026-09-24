@@ -321,3 +321,16 @@ Filed from the unit and its reviews:
   re-banded: the commonest refusal on legal unions.
 - P0 `split-of-a-fused-declared-union-refuses-duplicate-vertex-name`.
 - P4 `opside-unit-respells-topo-operand`.
+
+## 2026-09-24 — Ev rules the loft unit global
+
+On 3102's thread, Ev chose the global canonical start (V3's lex-min
+start retired) and canonical numbering for every verb's published
+profile refs. That means migrating the names of clockwise-authored
+extrudes and revolves. Re-baselining is not a cost against a correct
+change. The loft unit's `needs_ev` is cleared, and the unit is
+re-dispatched with the wider scope.
+
+The weekly usage limit stopped all lanes on 2026-09-23 at about 09:30
+UTC. They were resumed on 2026-09-24 from their pushed branches and
+worktrees.

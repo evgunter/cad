@@ -8,7 +8,6 @@ priority: P0
 cost: H
 branch: emit/loft-correspondence
 refs: [loft-anchors-every-section-with-section-zeros-map, loft-v-parameterization-is-the-first-strips-so-a-rolled-section-changes-the-body, 3102]
-needs_ev: true
 ---
 
 
@@ -79,3 +78,27 @@ authored start. Today it counts from the lex-min start. Consequences:
   only if the change meaningfully deviates from what was ratified above.
   Moving published names for non-loft verbs, or a name-bit migration,
   would be such a deviation.
+
+## Ev's second ruling (3102's thread, 2026-09-23)
+
+Measuring before the first commit turned up two things the first
+ratification did not settle. Ev ruled on both:
+
+- **The canonical start becomes the authored start globally, not
+  only in the loft.** `profile::validate` canonicalizes each loop's
+  orientation and keeps its authored start. The lex-min start in V3
+  (`crates/profile/README.md`) is retired. Measured cost: no published
+  name moves for any verb, and body point sets are identical. Arena
+  order moves in 4 corpus documents, one extrude volume moves by
+  1 ulp, and about 30 goldens and verdict counts shift. Ev: "same rule
+  about never skipping a good change to avoid rebaselining applies".
+  Re-baseline all of them and say in the PR what moved.
+- **Every verb publishes its profile refs in canonical numbering**
+  (orientation-normalized, authored start). The door therefore reads
+  each profile's own anchor, with no loft special case, and a section
+  authored against section 0's sense needs no extra data. The cost is
+  a name migration: extrudes and revolves of clockwise-authored
+  profiles renumber their walls s → n−1−s. Ev accepted that.
+
+Neither needs a further `[ev]` round unless the implementation
+deviates from these two rulings.
