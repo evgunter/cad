@@ -583,10 +583,9 @@ impl core::fmt::Display for CensusUnsupportedCause {
             Self::Containment(e) => write!(f, "{e}"),
             Self::FaceUnboundable => write!(
                 f,
-                "census: the face has no boundary vertex — an empty outer loop, or a \\
-                 boundary reference that does not resolve — so the bounding sweep \\
-                 could not read its extent; repair the face's loop before asking \\
-                 the census about it"
+                "the face has no boundary vertex (an empty outer loop, or a boundary \
+                 reference that does not resolve), so its extent could not be read; \
+                 repair the face's loop, then check again"
             ),
         }
     }
@@ -2127,11 +2126,9 @@ impl fmt::Display for ValidationError {
             // simpler trims, an absent pcurve cache wants a re-mint —
             // so it named the wrong repair for every finding it did
             // not describe.
-            Self::CensusUnsupported { subject, cause } => write!(
-                f,
-                "tier-3′ census: {subject} was not certified — refused rather \
-                 than sampled, and the refusing lane says why. {cause}"
-            ),
+            Self::CensusUnsupported { subject, cause } => {
+                write!(f, "tier-3′ census: {subject} was not certified: {cause}")
+            }
             Self::CensusLaneUnsupported { subject } => write!(
                 f,
                 "tier-3′ census: {subject} was not examined, because this structural \
