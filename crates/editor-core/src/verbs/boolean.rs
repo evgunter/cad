@@ -34,7 +34,6 @@
 //! instance, no match over the kernel's verb vocabulary anywhere in this file, so
 //! a future verb never has to open it.
 
-use std::sync::Arc;
 
 use geom_core::{Decide, Tol};
 use topo::{
@@ -42,7 +41,7 @@ use topo::{
 };
 use verbs::{Verb, VerbRecord};
 
-use crate::names::{self, NameTable, NamingError};
+use crate::names::{self, NamingError};
 use crate::node::RecipeNodeId;
 
 /// A two-operand verb's naming emitter: this node's id, the result
@@ -54,7 +53,7 @@ pub(crate) type PairEmitter<T> = fn(
     &names::OperandCtx<'_, T>,
     &names::OperandCtx<'_, T>,
     Tol,
-) -> Result<Arc<NameTable>, NamingError>;
+) -> Result<names::Emitted, NamingError>;
 
 /// **The boolean's correspondence**, as data — everything the
 /// two-operand lowering needs to turn a `Node::Boolean` into a

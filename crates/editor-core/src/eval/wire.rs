@@ -103,6 +103,9 @@ type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
 pub(crate) struct OpOut<T: Decide> {
     pub payload: ValuePayload<T>,
     pub names: Arc<NameTable>,
+    /// The fragment groups the op's emitter formed
+    /// (`names::FragmentGroups`); empty for an op that forms none.
+    pub groups: Arc<names::FragmentGroups>,
     pub contacts: Arc<topo::ContactRecords>,
     /// Whose mate authored each of those records, and which mates of
     /// the documents below could not be minted at all — the same
@@ -118,9 +121,17 @@ impl<T: Decide> OpOut<T> {
         Self {
             payload,
             names,
+            groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
         }
+    }
+}
+
+impl<T: Decide> OpOut<T> {
+    /// This output with the fragment groups its emitter formed.
+    fn grouped(self, groups: Arc<names::FragmentGroups>) -> Self {
+        Self { groups, ..self }
     }
 }
 
@@ -484,6 +495,7 @@ where
     Ok(OpOut {
         payload: ValuePayload::Body(Arc::new(placed)),
         names: table,
+        groups: Arc::default(),
         contacts: Arc::clone(&part.contacts),
         carried: Arc::new(carried),
     })
@@ -3146,7 +3158,7 @@ fn wire_split<
     };
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let (ab, bb) = (as_body(&above), as_body(&below));
-    let table = (verb.emitter)(
+    let emitted = (verb.emitter)(
         id,
         ab.as_deref(),
         bb.as_deref(),
@@ -3158,7 +3170,7 @@ fn wire_split<
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
-    Ok(OpOut::plain(ValuePayload::Split { above, below }, table))
+    Ok(OpOut::plain(ValuePayload::Split { above, below }, emitted.table).grouped(emitted.groups))
 }
 
 /// **The projection node** (DM3): ONE body out of a split's or a
@@ -3326,7 +3338,7 @@ fn wire_boolean<
                 contacts,
                 naming,
             } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
-            let table = (verb.emitter)(
+            let emitted = (verb.emitter)(
                 id,
                 &out.body,
                 &naming,
@@ -3353,8 +3365,9 @@ fn wire_boolean<
                     kind,
                     contacts: Arc::new(contacts),
                 }),
-                table,
-            ))
+                emitted.table,
+            )
+            .grouped(emitted.groups))
         }
     }
 }
@@ -3438,6 +3451,8 @@ fn wire_union<
         Some(d) => route_declarations(id, members, declared_pairs(results, d)?, doc)?,
     };
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
+    // Each step's fragment groups, in fold order (`FragmentGroups::folded`).
+    let mut step_groups = Vec::with_capacity(rest.len());
     for (step, member) in rest.iter().enumerate() {
         let member_body = body_operand(results, *member)?;
         let member_table = Arc::new(
@@ -3509,7 +3524,7 @@ fn wire_union<
                 // tables are the member-keyed views, so an error this
                 // step raises about an operand is about a row in this
                 // node's space.
-                acc_table = (verb.emitter)(
+                let emitted = (verb.emitter)(
                     id,
                     &out.body,
                     &naming,
@@ -3526,6 +3541,8 @@ fn wire_union<
                     tol,
                 )
                 .map_err(NodeErrorKind::Naming)?;
+                acc_table = emitted.table;
+                step_groups.push(emitted.groups);
                 acc_body = Arc::new(out.body);
             }
         }
@@ -3564,7 +3581,8 @@ fn wire_union<
             contacts,
         }),
         table,
-    ))
+    )
+    .grouped(Arc::new(names::FragmentGroups::folded(id, step_groups))))
 }
 
 /// One declared pair as the recipe carries it: the two SITED

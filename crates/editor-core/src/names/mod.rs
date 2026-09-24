@@ -32,6 +32,7 @@ mod emit_topo;
 mod emit_union;
 mod flush;
 mod geompred;
+mod groups;
 pub(crate) mod interrogate;
 pub(crate) mod merged;
 mod role;
@@ -58,6 +59,8 @@ pub use flush::{
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare, declare_all, declare_node,
     find_flush_candidates,
 };
+pub(crate) use groups::Emitted;
+pub use groups::FragmentGroups;
 pub use geompred::{
     ALL_SURFACE_KINDS, Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal,
     SurfaceKindSet,

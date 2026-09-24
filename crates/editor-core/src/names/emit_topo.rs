@@ -6,7 +6,6 @@
 //! is matched; unresolvable descent is a typed error.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
 
 use geom::Surface;
 use geom_brep::OutwardNormal;
@@ -16,6 +15,7 @@ use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
 use super::defer::{TieRows, Upstream, put, upstream_name};
+use super::groups::{Emitted, FragmentGroups};
 use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along, side_of_face};
 use super::emit::{
     Incidence, NamingError, Rim, edge_ends, ent, face_half_edges, name1, rim_between,
@@ -179,9 +179,10 @@ pub(crate) fn name_split<T: Decide>(
     target_body: &Body<T>,
     tool_normal: Vec3<T>,
     tol: Tol,
-) -> Result<Arc<NameTable>, NamingError> {
+) -> Result<Emitted, NamingError> {
     let b = band(tol)?;
     let mut t = NameTable::new();
+    let mut rec = FragmentGroups::new();
     let frag_rows: BTreeMap<FaceKey, FaceKey> = naming.face_fragments.iter().copied().collect();
     let section_keys: BTreeSet<FaceKey> = naming.sections.iter().map(|&(f, _)| f).collect();
     let mut sides: Vec<Side<'_, T>> = Vec::new();
@@ -247,6 +248,7 @@ pub(crate) fn name_split<T: Decide>(
         node,
         &mut t,
         &mut tie,
+        &mut rec,
         &sides,
         &frag_rows,
         &section_keys,
@@ -273,7 +275,7 @@ pub(crate) fn name_split<T: Decide>(
     for s in &sides {
         super::emit::check_total(&t, s.body, s.ix)?;
     }
-    Ok(Arc::new(t))
+    Ok(Emitted::new(t, rec))
 }
 
 /// Chord edges: every boundary edge of `body`'s live section faces,
@@ -603,10 +605,11 @@ pub(crate) fn name_boolean<T: Decide>(
     a: &OperandCtx<'_, T>,
     b: &OperandCtx<'_, T>,
     tol: Tol,
-) -> Result<Arc<NameTable>, NamingError> {
+) -> Result<Emitted, NamingError> {
     let bnd = band(tol)?;
     let bug = |what| NamingError::Emission { what };
     let mut t = NameTable::new();
+    let mut rec = FragmentGroups::new();
     t.insert(
         name1(EntityKind::Body, node, RoleSeg::OutputBody),
         ent(0, EntityKey::Body),
@@ -647,6 +650,10 @@ pub(crate) fn name_boolean<T: Decide>(
     // Kept face → constituent descents (M4 PR 5: the seam-edge walk
     // reads THROUGH a merged face to its mint-time operand identity).
     let mut merged_descents: BTreeMap<FaceKey, Vec<OpSide<FaceKey>>> = BTreeMap::new();
+    // Operand face → the merged rows it survives in: those faces
+    // descend from it too, so they are members of its group
+    // (`names::groups`), under their `Merged` names.
+    let mut merged_into: BTreeMap<OpSide<FaceKey>, Vec<NameRef>> = BTreeMap::new();
     for (kept, absorbed) in &naming.merge_groups {
         if body.get_face(*kept).is_none() {
             return Err(bug("merge kept face not live"));
@@ -685,6 +692,7 @@ pub(crate) fn name_boolean<T: Decide>(
         {
             return Err(bug(NESTED_MERGED));
         }
+        let parents: BTreeSet<OpSide<FaceKey>> = descents.iter().copied().collect();
         merged_descents.insert(*kept, descents);
         constituents.sort_unstable();
         // The constituent SET is the name (review R8): two merge
@@ -697,11 +705,15 @@ pub(crate) fn name_boolean<T: Decide>(
         // them apart — and a per-group discriminator is what would
         // upgrade the refusal to a success if that class ever matters.
         constituents.dedup();
+        let merged = NameRef::new(name1(EntityKind::Face, node, RoleSeg::Merged(constituents)));
+        for d in parents {
+            merged_into.entry(d).or_default().push(merged.clone());
+        }
         put(
             &mut t,
             &mut tie,
             from_tie,
-            name1(EntityKind::Face, node, RoleSeg::Merged(constituents)),
+            merged,
             ent(0, EntityKey::Face(*kept)),
         )?;
         handled.insert(*kept);
@@ -712,33 +724,38 @@ pub(crate) fn name_boolean<T: Decide>(
             groups.entry(descend_face(f)?).or_default().push(f);
         }
     }
+    // A parent that survives only inside merged faces still has a
+    // group: those faces.
+    for d in merged_into.keys() {
+        groups.entry(*d).or_default();
+    }
     for (d, members) in groups {
         let root_name = operand_face_name(d)?;
         let from_tie = root_name.tied;
         let base = name1(EntityKind::Face, node, d.wrap(root_name.name));
-        if members.len() == 1 {
-            put(
+        let mut names = merged_into.remove(&d).unwrap_or_default();
+        match members.as_slice() {
+            [] => {}
+            [one] => {
+                let name = NameRef::new(base.clone());
+                names.push(name.clone());
+                put(&mut t, &mut tie, from_tie, name, ent(0, EntityKey::Face(*one)))?;
+            }
+            _ => names.extend(name_fragment_group(
                 &mut t,
                 &mut tie,
                 from_tie,
-                base,
-                ent(0, EntityKey::Face(members[0])),
-            )?;
-            continue;
+                body,
+                &base,
+                &members,
+                &seam_set,
+                &inc,
+                &descend_face,
+                &operand_face_name,
+                bnd,
+            )?),
         }
-        name_fragment_group(
-            &mut t,
-            &mut tie,
-            from_tie,
-            body,
-            &base,
-            &members,
-            &seam_set,
-            &inc,
-            &descend_face,
-            &operand_face_name,
-            bnd,
-        )?;
+        rec.record(&base, names);
     }
     tie.flush(&mut t)?;
 
@@ -746,6 +763,7 @@ pub(crate) fn name_boolean<T: Decide>(
         node,
         &mut t,
         &mut tie,
+        &mut rec,
         body,
         naming,
         a,
@@ -764,6 +782,7 @@ pub(crate) fn name_boolean<T: Decide>(
         node,
         &mut t,
         &mut tie,
+        &mut rec,
         body,
         naming,
         &inv_vertices,
@@ -775,12 +794,13 @@ pub(crate) fn name_boolean<T: Decide>(
     tie.flush(&mut t)?;
 
     super::emit::check_total(&t, body, 0)?;
-    Ok(Arc::new(t))
+    Ok(Emitted::new(t, rec))
 }
 
 /// Qualifies a multi-fragment descent group (N2): sign vectors of
 /// `name_frag_side_of` against the seam partners' carriers; equal
-/// vectors tie.
+/// vectors tie. Answers the name each member was put under, one per
+/// member.
 #[allow(clippy::too_many_arguments)]
 fn name_fragment_group<T: Decide>(
     t: &mut NameTable,
@@ -794,7 +814,7 @@ fn name_fragment_group<T: Decide>(
     descend_face: &impl Fn(FaceKey) -> Result<OpSide<FaceKey>, NamingError>,
     operand_face_name: &impl Fn(OpSide<FaceKey>) -> Result<Upstream, NamingError>,
     bnd: geom_core::Band,
-) -> Result<(), NamingError> {
+) -> Result<Vec<NameRef>, NamingError> {
     let bug = |what| NamingError::Emission { what };
     // Partners: operand faces across the members' seam edges.
     let mut partners: BTreeMap<NameRef, FaceKey> = BTreeMap::new();
@@ -838,9 +858,12 @@ fn name_fragment_group<T: Decide>(
         }
         by_vector.entry(vector).or_default().push(m);
     }
+    let mut names = Vec::with_capacity(members.len());
     for (vector, faces) in by_vector {
         let mut name = base.clone();
         name.path.push(RoleSeg::Fragment(Qualifier::SideOf(vector)));
+        let name = NameRef::new(name);
+        names.extend(faces.iter().map(|_| name.clone()));
         if faces.len() == 1 {
             put(t, tie, from_tie, name, ent(0, EntityKey::Face(faces[0])))?;
         } else {
@@ -850,7 +873,7 @@ fn name_fragment_group<T: Decide>(
             }
         }
     }
-    Ok(())
+    Ok(names)
 }
 
 /// Boolean edges: `Seam` for zip-minted edges, `FromA`/`FromB` (with
@@ -860,6 +883,7 @@ fn name_boolean_edges<T: Decide>(
     node: RecipeNodeId,
     t: &mut NameTable,
     tie: &mut TieRows,
+    rec: &mut FragmentGroups,
     body: &Body<T>,
     naming: &topo::BooleanNaming,
     a: &OperandCtx<'_, T>,
@@ -1129,7 +1153,9 @@ fn name_boolean_edges<T: Decide>(
     for ((fa, fb), (from_tie, edges)) in seam_groups {
         let base = name1(EntityKind::Edge, node, RoleSeg::Seam { a: fa, b: fb });
         if edges.len() == 1 {
-            put(t, tie, from_tie, base, ent(0, EntityKey::Edge(edges[0])))?;
+            let name = NameRef::new(base.clone());
+            rec.record(&base, vec![name.clone()]);
+            put(t, tie, from_tie, name, ent(0, EntityKey::Edge(edges[0])))?;
             continue;
         }
         // Collinear chain: order along the pair's intersection line,
@@ -1161,9 +1187,10 @@ fn name_boolean_edges<T: Decide>(
             .iter()
             .map(|&e| edge_extent(body, e, dir))
             .collect::<Result<Vec<_>, _>>()?;
-        insert_ranked_or_tied(t, tie, from_tie, base, &edges, &extents, bnd, |&e| {
+        let names = insert_ranked_or_tied(t, tie, from_tie, &base, &edges, &extents, bnd, |&e| {
             ent(0, EntityKey::Edge(e))
         })?;
+        rec.record(&base, names);
     }
     for (root, edges) in groups {
         let (op, root_key) = root.of(a, b);
@@ -1173,7 +1200,9 @@ fn name_boolean_edges<T: Decide>(
         let seg = root.wrap(inner.name.clone());
         let base = name1(EntityKind::Edge, node, seg);
         if edges.len() == 1 {
-            put(t, tie, from_tie, base, ent(0, EntityKey::Edge(edges[0])))?;
+            let name = NameRef::new(base.clone());
+            rec.record(&base, vec![name.clone()]);
+            put(t, tie, from_tie, name, ent(0, EntityKey::Edge(edges[0])))?;
             continue;
         }
         // Sub-edge chain: order along the parent's line. A parent that
@@ -1191,9 +1220,10 @@ fn name_boolean_edges<T: Decide>(
             .iter()
             .map(|&e| edge_extent(body, e, dir))
             .collect::<Result<Vec<_>, _>>()?;
-        insert_ranked_or_tied(t, tie, from_tie, base, &edges, &extents, bnd, |&e| {
+        let names = insert_ranked_or_tied(t, tie, from_tie, &base, &edges, &extents, bnd, |&e| {
             ent(0, EntityKey::Edge(e))
         })?;
+        rec.record(&base, names);
     }
     Ok(())
 }
@@ -1207,6 +1237,7 @@ fn name_boolean_vertices<T: Decide>(
     node: RecipeNodeId,
     t: &mut NameTable,
     tie: &mut TieRows,
+    rec: &mut FragmentGroups,
     body: &Body<T>,
     naming: &topo::BooleanNaming,
     inv_vertices: &BTreeMap<VertexKey, VertexKey>,
@@ -1261,6 +1292,9 @@ fn name_boolean_vertices<T: Decide>(
             }
         }
         if let Some((name, from_tie)) = identity {
+            // A vertex carried through whole: a group of one.
+            let name = NameRef::new(name);
+            rec.record(&name, vec![name.clone()]);
             put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
             continue;
         }
@@ -1439,7 +1473,9 @@ fn name_boolean_vertices<T: Decide>(
             },
         );
         if verts.len() == 1 {
-            put(t, tie, from_tie, base, ent(0, EntityKey::Vertex(verts[0])))?;
+            let name = NameRef::new(base.clone());
+            rec.record(&base, vec![name.clone()]);
+            put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(verts[0])))?;
             continue;
         }
         // Same pair crossing more than once: order along the edge
@@ -1449,8 +1485,10 @@ fn name_boolean_vertices<T: Decide>(
             None => resolve_edge_carrier(&pb, b)?,
         };
         let Some(dir) = carrier else {
+            let name = NameRef::new(base.clone());
+            rec.record(&base, verts.iter().map(|_| name.clone()).collect());
             for &v in &verts {
-                tie.push(base.clone(), ent(0, EntityKey::Vertex(v)));
+                tie.push(name.clone(), ent(0, EntityKey::Vertex(v)));
             }
             continue;
         };
@@ -1466,9 +1504,10 @@ fn name_boolean_vertices<T: Decide>(
                 Ok(Extent { min: tv, max: tv })
             })
             .collect::<Result<Vec<_>, NamingError>>()?;
-        insert_ranked_or_tied(t, tie, from_tie, base, &verts, &extents, bnd, |&v| {
+        let names = insert_ranked_or_tied(t, tie, from_tie, &base, &verts, &extents, bnd, |&v| {
             ent(0, EntityKey::Vertex(v))
         })?;
+        rec.record(&base, names);
     }
     Ok(())
 }
@@ -1633,18 +1672,20 @@ fn seam_line_dir<T: Decide>(
 }
 
 /// Inserts a same-name group ranked by order-along, or tied when
-/// genuinely unordered.
+/// genuinely unordered. Answers the name each member was put under,
+/// one per member.
 #[allow(clippy::too_many_arguments)]
 fn insert_ranked_or_tied<T: Decide, K: Copy>(
     t: &mut NameTable,
     tie: &mut TieRows,
     from_tie: bool,
-    base: StableName,
+    base: &StableName,
     keys: &[K],
     extents: &[Extent<T>],
     bnd: geom_core::Band,
     to_ent: impl Fn(&K) -> super::table::EntityRef,
-) -> Result<(), NamingError> {
+) -> Result<Vec<NameRef>, NamingError> {
+    let mut names = Vec::with_capacity(keys.len());
     match order_along(extents, bnd)? {
         Some(ranks) => {
             let of = u32::try_from(keys.len()).unwrap_or(u32::MAX);
@@ -1652,16 +1693,20 @@ fn insert_ranked_or_tied<T: Decide, K: Copy>(
                 let mut name = base.clone();
                 name.path
                     .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of }));
+                let name = NameRef::new(name);
+                names.push(name.clone());
                 put(t, tie, from_tie, name, to_ent(k))?;
             }
         }
         None => {
+            let name = NameRef::new(base.clone());
             for k in keys {
-                tie.push(base.clone(), to_ent(k));
+                names.push(name.clone());
+                tie.push(name.clone(), to_ent(k));
             }
         }
     }
-    Ok(())
+    Ok(names)
 }
 
 /// Split faces: pass-through for uncut operand faces; `SplitFragment`
@@ -1672,6 +1717,7 @@ fn name_split_faces<T: Decide>(
     node: RecipeNodeId,
     t: &mut NameTable,
     tie: &mut TieRows,
+    rec: &mut FragmentGroups,
     sides: &[Side<'_, T>],
     frag_rows: &BTreeMap<FaceKey, FaceKey>,
     section_keys: &BTreeSet<FaceKey>,
@@ -1697,8 +1743,21 @@ fn name_split_faces<T: Decide>(
             let root = chase(frag_rows, f)?;
             if root == f && !divided.contains(&root) {
                 // Uncut operand face: pass-through (N1: the split
-                // contributes no segment to survivors).
+                // contributes no segment to survivors). It is still
+                // its (face, side) group's one member, spelled by its
+                // upstream name rather than the group's base.
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Face(f)))?;
+                rec.record(
+                    &name1(
+                        EntityKind::Face,
+                        node,
+                        RoleSeg::SplitFragment {
+                            side: s.half,
+                            parent: up.name.clone(),
+                        },
+                    ),
+                    vec![up.name.clone()],
+                );
                 put(t, tie, up.tied, up.name, ent(s.ix, EntityKey::Face(f)))?;
             } else {
                 groups
@@ -1716,15 +1775,12 @@ fn name_split_faces<T: Decide>(
             side: half,
             parent: parent.name,
         };
+        let base_name = name1(EntityKind::Face, node, base.clone());
         if members.len() == 1 {
             let (ix, _, f) = members[0];
-            put(
-                t,
-                tie,
-                from_tie,
-                name1(EntityKind::Face, node, base),
-                ent(ix, EntityKey::Face(f)),
-            )?;
+            let name = NameRef::new(base_name.clone());
+            rec.record(&base_name, vec![name.clone()]);
+            put(t, tie, from_tie, name, ent(ix, EntityKey::Face(f)))?;
             continue;
         }
         // Same-side multiplicity: order along the parent's section
@@ -1749,24 +1805,29 @@ fn name_split_faces<T: Decide>(
             .iter()
             .map(|&(_, _, f)| face_extent(body, f, dir))
             .collect::<Result<Vec<_>, _>>()?;
+        let mut names = Vec::with_capacity(members.len());
         match order_along(&extents, b)? {
             Some(ranks) => {
                 let of = u32::try_from(members.len()).unwrap_or(u32::MAX);
                 for (m, rank) in members.iter().zip(ranks) {
-                    let mut name = name1(EntityKind::Face, node, base.clone());
+                    let mut name = base_name.clone();
                     name.path
                         .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of }));
+                    let name = NameRef::new(name);
+                    names.push(name.clone());
                     put(t, tie, from_tie, name, ent(m.0, EntityKey::Face(m.2)))?;
                 }
             }
             None => {
                 // Genuine tie (N2): one name, all candidates marked.
-                let name = name1(EntityKind::Face, node, base);
+                let name = NameRef::new(base_name.clone());
                 for &(ix, _, f) in &members {
+                    names.push(name.clone());
                     tie.push(name.clone(), ent(ix, EntityKey::Face(f)));
                 }
             }
         }
+        rec.record(&base_name, names);
     }
     Ok(())
 }
@@ -1910,7 +1971,9 @@ mod tests {
             table: &empty,
             body: &built.body,
         };
-        let t = name_boolean(bool_node, &built.body, &naming, &a, &b, Tol::witness()).unwrap();
+        let t = name_boolean(bool_node, &built.body, &naming, &a, &b, Tol::witness())
+            .unwrap()
+            .table;
 
         // Exactly one Merged name, on the kept (top) face, with the
         // TWO deduped constituents in sorted order.
@@ -2185,7 +2248,9 @@ mod tests {
             table: &empty,
             body: &built.body,
         };
-        let t = name_boolean(bool_node, &built.body, &naming, &a, &b, Tol::witness()).unwrap();
+        let t = name_boolean(bool_node, &built.body, &naming, &a, &b, Tol::witness())
+            .unwrap()
+            .table;
         let wrap = |inner: &StableName| {
             name1(
                 EntityKind::Face,

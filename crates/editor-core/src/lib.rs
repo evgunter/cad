@@ -147,7 +147,7 @@ pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
-    EntityKind, EntityRef, Entry, FIT_DEFERRAL, FaceName, FlushEvidence, FlushFinding, FlushRung,
+    EntityKind, EntityRef, Entry, FIT_DEFERRAL, FaceName, FlushEvidence, FlushFinding, FlushRung, FragmentGroups,
     GeomPred, InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError,
     NotAFaceName, OpGroup, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport,
     RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
