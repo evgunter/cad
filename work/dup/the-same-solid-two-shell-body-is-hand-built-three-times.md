@@ -2,10 +2,12 @@
 id: the-same-solid-two-shell-body-is-hand-built-three-times
 kind: issue
 title: The same-solid multi-shell body is hand-built four times in topo/src, and the newest copy is a candidate home
-status: open
+status: closed
 opened: 2026-09-20
 priority: P4
 cost: E
+closed: 2026-09-24
+branch: dup/topo-fixture-batch
 ---
 
 
@@ -121,3 +123,50 @@ roots outside `--workspace` hand-build the same body is unmeasured;
 three is a floor for one crate. The instrument that found it was prose
 at the copy site, not a structural match, so a fourth copy that says
 nothing about itself would not have been found this way either.
+
+## Re-census at the merge base (2026-09-24, `dup/topo-fixture-batch`, `6db5b87f2`)
+
+**Instrument 1, the required atom**: every write of a shell's
+back-pointer, `git grep '\.solid = '` over every tracked file, no path
+argument. Eight hits: `body.rs`'s `adopt_shell_into`,
+`euler_ring.rs`'s `fused_two_shell_body` (and the two corruption
+writes in `kfmrh_refuses_a_dead_shared_solid`, which point both shells
+at a dead key), `tier3_tests.rs`'s `refile_shells`, `validate.rs`'s
+`face_and_shell_back_pointer_mismatches_are_reported`, and production
+`boolean/combine.rs` and `movefac.rs`. **Blind spot**: a shell born
+already pointing at the keeper (`add_shell(Shell { solid: .. })`),
+which writes no `.solid =`.
+
+**Instrument 2, at that gap**: every `shells.push(`/`extend(`/
+`insert(` over every tracked file. Outside `topo/src` it returns
+nothing; inside, every hit is production, a raw-family fixture
+building its one shell, or a corruption row that `add_shell`s a NEW
+shell — empty, or holding faces moved out of the body's own — to
+provoke the error it names: `validate.rs`'s tier-1/tier-2 rows,
+`review_m1_pr5_internal.rs`'s round-robin torn body,
+`review_m0_pr7.rs`'s and `review_m1_pr1.rs`'s doubly-owned faces, and
+`euler_kill.rs`'s `kvfs_rejects_extra_shells_and_rings`. None re-homes
+an existing shell, which is what the three members do.
+
+**The class is three definitions over six uses**: `adopt_shell_into`
+(two rows), `fused_two_shell_body` (two rows), `refile_shells` (three
+rows). The row's `validate.rs` site is the corruption family above: a
+sibling, as the row said, and not folded — each of those rows builds
+exactly the broken state its assertion names.
+
+**The three differ, and the difference was measured, not assumed.**
+`adopt_shell_into` inserts at a chosen position and removes the donor
+with its provenance; `refile_shells` appends and does the same;
+`fused_two_shell_body` appends and LEAVES the emptied donor standing.
+Folded onto `refile_shells` as the row proposed: position is decided
+by which solid keeps (the `shells_of_solid` row now refiles the pillow's
+shell under the minted solid, so the minted solid's own shell is first
+— the same list-against-arena order it asserts). The PR's plant V2
+restores the leave-it-standing spelling inside the shared body and
+reads which rows see it.
+
+## Closed (2026-09-24, `dup/topo-fixture-batch`)
+
+`fixtures::refile_shells(body, donor, keeper)` is the one spelling,
+with the pairing comment; `body.rs`, `euler_ring.rs` and
+`tier3_tests.rs` call it. The PR body carries the plant table.

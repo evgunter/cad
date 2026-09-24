@@ -2,10 +2,12 @@
 id: a-doors-rustdoc-carries-an-unguarded-census-sentence
 kind: issue
 title: Two doors in a row carry an unguarded census sentence in their rustdoc; the tree has the machine for a guard
-status: open
+status: closed
 opened: 2026-09-19
 priority: P4
 cost: E
+closed: 2026-09-24
+branch: dup/topo-fixture-batch
 ---
 
 
@@ -103,3 +105,66 @@ census claim at the door. `block`'s useful content is the sentence
 above it — that it is a second VIEW of `brick` and not a second body —
 and that is an invariant, which is what a door's rustdoc is for.
 
+
+## Which remedy the tree prefers (2026-09-24, `dup/topo-fixture-batch`)
+
+This row asked for a `source_walk.rs` guard. The program's method has
+since ruled the other way — `work/dup/plan.md` item 13: *"The fix is
+not to guard the sentence; it is to make no census claim at the door
+and let the row hold the measurement, dated, with its instruments
+named."* `solid_of_face` already took that shape. So both remaining
+carriers here were rewritten, not guarded:
+
+- `Body::face_of_half_edge`: the *"Every spelling in this crate … reads
+  through here"* universal, the *"Six more"* and the *"sixteen sites"*
+  are gone. What stays is the invariant (a caller whose refusal names
+  the stale key keeps its own walk, and that is a population) and the
+  same *"No census is claimed here"* pointer `solid_of_face` carries,
+  to `work/dup/half-edge-to-face-walk-is-spelled-once-per-suite.md`.
+- `sweep::test_support::block`: the *"seven private copies"* history
+  is gone; the sentence now says what the door is for.
+
+## The class, re-census at the merge base (`6db5b87f2`)
+
+**Pass 1**, line-shaped: a `///` line holding a count of three or more
+(word or digit) followed within two words by *sites, copies,
+spellings, callers, call sites, suites, consumers, places, files*,
+over every tracked `crates/*/src` file. **55 hits.** Blind spot: a
+count and its noun on two lines.
+
+**Pass 2**, at that gap: each file's consecutive `///`/`//!` lines
+joined into one string, same pattern. **107 hits, 50 that pass 1
+missed** — among them **this row's own subject**, `body.rs`'s
+*"sixteen / sites"*, and `sweep::test_support`'s module-header
+*"six integration suites"*. A line is not this class's unit
+(`the-withdrawn-never-simplify-rule-still-stands-in-seventeen-files`
+found the same). Blind spot: an ORDINAL count.
+
+**Pass 3**, at that gap: ordinals (*third … twentieth*) before the
+singular nouns, joined. **41 hits**, among them
+`sweep::test_support::prism`'s *"The twelfth copy of this four-line
+helper … was what got it homed"*.
+
+**Folded here, every hit in the two files this row names**:
+`body.rs` (1) and `sweep/src/test_support.rs` (7: the module header,
+`block`, `revolved_about_y`, `prism`, `stacked_at`,
+`assert_promises_either_side`, `assert_full_revolve_rim` — each
+rewritten to the door's reason, with no count). In the other files
+this PR had open, the hits are **named enumerations, not counts of a
+drifting population**, and stay: `chart_region.rs`'s *"three named
+places"* and *"exactly THREE places"* (each followed by its list of
+arms in the same function), `boolean/join.rs` and `merge_faces.rs`'s
+*"three sites"* of the ring-winding predicate (named in full at the
+canonical statement), `test_support_fixtures.rs`'s *"three axes"*
+(listed below it), `euler_ring.rs`'s *"third spelling of the second"*
+(an argument, not a count).
+
+The rest of the population is outside this row's two doors and is
+filed as
+`work/dup/rustdoc-count-sentences-outside-the-two-doors-are-unguarded.md`.
+
+## Closed (2026-09-24, `dup/topo-fixture-batch`)
+
+Both doors now make no census claim, and neither does any other door
+in the two files this row names. The population outside them is the
+row filed above, with its instruments and hit list.

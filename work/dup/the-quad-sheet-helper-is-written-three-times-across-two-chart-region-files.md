@@ -2,10 +2,12 @@
 id: the-quad-sheet-helper-is-written-three-times-across-two-chart-region-files
 kind: issue
 title: The xy-plane quad-sheet helper is written three times across chart_region.rs and chart_region_r2_probes.rs
-status: open
+status: closed
 opened: 2026-09-19
 priority: P4
 cost: E
+closed: 2026-09-24
+branch: dup/topo-fixture-batch
 ---
 
 
@@ -58,3 +60,48 @@ a visibility question this row has not measured.
   item of `chart_region.rs` at all, and at what cost.
 - Whether the two `chart_region.rs` copies are in the same `cfg` arm.
 - `face_of`'s two copies were read, not diffed.
+
+## Re-census at the merge base (2026-09-24, `dup/topo-fixture-batch`, `6db5b87f2`)
+
+**Instrument**: every `fn` definition in the two files, by name, in
+every `mod` block, read against each other; then the bodies built,
+`{:?}` compared. **Scope**: `chart_region.rs` and
+`chart_region_r2_probes.rs`, which is the row's scope.
+
+| helper | copies | where |
+| --- | --- | --- |
+| `sheet` | 3 | `tests`, `inf_arms`, `r2_probes` |
+| `xy_plane` | 3 | the same three |
+| `face_of` | 2 | `tests`, `r2_probes` |
+| `rect` | 4 | `tests`, `inf_arms`, `r2_mate8_probes`, `r2_probes` |
+| `band` | 4 | `tests`, `inf_arms`, `inf_arms_interval`, `r2_probes` |
+| `pt` | 3 | `tests`, `r2_mate8_probes`, `r2_probes` |
+
+**Measured, not read**: `tests::sheet` at the unit square and
+`inf_arms::sheet` build `{:?}`-identical bodies, as do `tests::sheet`
+and `r2_probes::sheet` at the unit square and at the two-sheet shared
+key configuration `r2_probes` uses; the three `xy_plane`s are
+`{:?}`-identical. The row's *"`xy_plane` is a bare `newell_plane`"*
+is not so: all three are a literal `Surface::Plane`. `r2_probes`'s
+`tol` parameter was `Tol::witness()` at all nine call sites.
+
+**The visibility question the row left open is free**:
+`chart_region_r2_probes.rs` is `chart_region`'s child module (a
+`#[path]` `mod r2_probes`), and every block involved is `#[cfg(test)]`
+(`inf_arms_interval` also `feature = "interval"`), so a `pub(super)`
+item of `tests` resolves from every sibling block and from
+`r2_probes` with no gate change.
+
+**Second pass, outside the row's scope**: `fn band`/`rect`/`sheet`/
+`face_of`/`xy_plane` definitions over `crates/topo/src` return 18
+further files, one or two each. Those are one- and two-line locals in
+unrelated suites, not the quad sheet; not this row's class.
+
+## Closed (2026-09-24, `dup/topo-fixture-batch`)
+
+All six helpers live once, in `chart_region`'s `tests` module, as
+`pub(super)`; `inf_arms`, `inf_arms_interval`, `r2_mate8_probes` and
+`r2_probes` import them. `inf_arms`' one-argument `sheet` became the
+shared `sheet` at the unit square, with its reason ("the pipeline
+needs a body only for the loop keys its refusals name") moved to the
+call site. The PR body carries the plant table.

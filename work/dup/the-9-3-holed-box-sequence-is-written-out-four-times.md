@@ -2,11 +2,13 @@
 id: the-9-3-holed-box-sequence-is-written-out-four-times
 kind: issue
 title: The §9.3 holed-box sequence is written out four times, and the §9.4.2 census never looked for it
-status: open
+status: closed
 opened: 2026-09-19
 refs: [the-cube-sequence-is-written-five-times-and-twice-inside-src]
 priority: P4
 cost: E
+closed: 2026-09-24
+branch: dup/topo-fixture-batch
 ---
 
 
@@ -80,3 +82,67 @@ count.
 - Whether `box_with_hole.rs` is exempt the way `cube_by_hand.rs` is —
   both are M1 acceptance tests that validate after EVERY operator, and
   that per-operator validation is plausibly their subject.
+
+## Re-census at the merge base (2026-09-24, `dup/topo-fixture-batch`, `6db5b87f2`)
+
+**Instrument 1, the row's needle**: files holding both `kemr(` and
+`kfmrh(`, `git grep -l` over every tracked file, no path argument.
+**19 code files**, the same 19 the row lists (plus two tracker rows).
+**Blind spot**: a member that plants the ring and stops before the
+tube (no `kfmrh`), and a member reached through a helper in another
+file.
+
+**Instrument 2, aimed at that gap — the rim grown inside a planted
+ring**: `MevSite::Lone { r#loop: <x>.ring }`, one-line and wrapped
+forms, every tracked file. It found four **(f)–(i) ring-face
+plants** no `kfmrh` needle can see:
+`merge_faces.rs`'s `cube_with_membrane` and
+`cube_with_arena_first_membrane`, `validate.rs`'s `lamina_with_ring`,
+and `tests/review_f7_pole_r1_probes.rs`'s `inset_patch_prism`. Its
+other hits are the production ring machinery
+(`sweep/src/{extrude,loft}.rs`, `boolean/vtxfac.rs`), single-segment
+rings on a line (`movefac.rs`'s tests, `review_m1_pr4.rs`'s
+`body_with_cycle_ring`, `validate.rs`'s `detached_digon_body`) and `review_m1_pr5.rs`'s seven digon islands — a
+two-corner rim closed by `mef(he_plus, he_minus)`, a different shape.
+
+**A fifth hole body the row did not name**:
+`review_m1_pr4.rs`'s `carve_hole` (the PR 3 recipe "compacted; no
+ledger asserts"), whose one caller built `ops_holed_box` plus the
+triangular hole — the body `fixtures::ops_genus2` builds, byte-identical
+at the merge base (`{:?}` of both bodies compared).
+
+**And a third plating pass**: the two `tests/` holed boxes each end in
+the same "every face gets its outer loop's Newell plane" loop, and
+`validate.rs`'s `plane_every_face` is that loop a third time.
+
+## Dispositions
+
+| site | disposition |
+| --- | --- |
+| `fixtures::ops_holed_box` | **folded** onto `test_support_fixtures::drill_hole` |
+| `fixtures::ops_genus2` | **folded** onto `drill_hole` (its own copy of the loop-written recipe) |
+| `review_m1_pr4::carve_hole` + `genus_two_double_hole_body_tears_down_to_nothing` | **folded**: the row now takes `fixtures::ops_genus2`, which asserts the genus-2 ledger the row used to re-assert; `carve_hole` deleted |
+| `tests/m3_pr3_split.rs` `holed_box_geometric` | **folded** onto `test_support_fixtures::holed_block` (4, [1]) + the description step |
+| `tests/review_m3_pr3_rings.rs` `holed_box` | **folded** onto `holed_block` (6, [1, 5]) at both scalars; the file's own builder deleted |
+| `merge_faces.rs` `cube_with_membrane`, `cube_with_arena_first_membrane` | **folded** onto `test_support_fixtures::plant_ring_face` |
+| `validate.rs` `lamina_with_ring` | ring half **folded** onto `plant_ring_face`; its n-gon lamina is a sheet, not this class |
+| `validate.rs` `plane_every_face` + the two `tests/` plating loops | **folded** onto `test_support_fixtures::plane_every_face` |
+| `review_m1_pr3::carve_hole` | **kept**: the row it serves (`independent_genus_one_and_two_builds_with_hand_ledger`) claims the hand ledger after EVERY operator, plus kill hygiene and arena-untouched-by-`kfmrh` checks interleaved between them. That is the surviving clause of `memories/review-and-dependency-policy.md` — own code where a row's claim needs its own derivation — not the withdrawn "never simplify" one |
+| `tests/box_with_hole.rs` `build_holed_box` | **kept**, as `cube_by_hand.rs` is: the M1 acceptance test validates after every operator, and that per-operator validation is its subject |
+| `tests/review_f7_pole_r1_probes.rs` `inset_patch_prism` | **kept**: an (f)–(i) relative, not a hole, in a file whose header records R1's fixture geometry as preserved verbatim; left as the file says |
+| `euler_kill`, `euler_ring`, `movefac`, `seqgen`, `shell.rs`, `sweep/src/*`, `step-import/src/assemble.rs`, `tests/{m3_pr1_surgery,review_m1_pr5,review_m3_pr1,loop_reparenting_pcurve_rows}.rs` | not members: production ring machinery, or isolated `kemr`/`kfmrh` rows on pillows, segments and planted inner boxes — no strut → rim → membrane → tube sequence |
+
+**Byte-identity, measured**: `{:?}` of every folded fixture's body
+(and `ops_holed_box`'s whole key bundle) before and after, twelve
+bodies — `ops_holed_box`, `ops_genus2`, `ops_ring_bridge`, both
+membrane cubes, the cross lamina, `plane_every_face` on the declined
+cube and on the holed box, `holed_box_geometric`, the rings box at
+`f64` and at `Interval`, and the untouched f7 prism as a control. All
+twelve identical.
+
+## Closed (2026-09-24, `dup/topo-fixture-batch`)
+
+The §9.3 surgery has one home, `test_support_fixtures`, in two levels:
+`plant_ring_face` (steps (f)–(i)) and `drill_hole` (f)–(l) on top of
+it, with `plane_every_face` and `holed_block` beside them. The PR
+body carries the plant table.
