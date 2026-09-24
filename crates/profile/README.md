@@ -75,7 +75,7 @@ moves (`crates/editor-core/REFERENCES.md` DM7; *ruled by Ev on EDIT's
 `[ev]` PR #2904, 2026-09-20*). Evaluation resolves the program at f64
 (`ProfileProgram::resolve`), replays it, embeds the loops into the lane
 scalar and validates there. Structure (junction classes, fillet fits and
-candidate picks, canonical start, loop roles) is selected once, at f64,
+candidate picks, loop orientation, loop roles) is selected once, at f64,
 identically for every scalar lane (the rule the code cites as C6), which
 is why profile expressions are f64-pinned while node magnitude slots are
 lane-live. Under `ProfileLift::Guided` the same program is also resolved

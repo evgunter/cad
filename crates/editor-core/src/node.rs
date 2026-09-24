@@ -3548,7 +3548,9 @@ impl<P> Node<P> {
     /// node mints names a segment or vertex of THAT profile. A loft's
     /// table names canonical segment `k` of every section at once, so
     /// it follows one section's reshaping, its FIRST's: a reshaping of
-    /// a later section moves none of its locators. A sweep's frontier publishes no table today; the
+    /// a later section moves none of its locators
+    /// (`work/emit/a-lofts-names-follow-only-its-first-sections-reshaping.md`).
+    /// A sweep's frontier publishes no table today; the
     /// answer is the profile it would anchor to, which is the same
     /// lowering as the extrude's, and costs nothing while no name
     /// exists to remap. Everything else mints locator-free names of

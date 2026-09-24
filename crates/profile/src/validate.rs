@@ -116,9 +116,11 @@
 //! like a sliver (width in (ε, Kε)) already escalated at the simplicity
 //! stage — the sliver band is one consistent notion across predicates.
 //!
-//! **The exact-order band.** Canonical-start selection is a
-//! *representation* choice, not a geometric coincidence question: it
-//! must be total, transitive, and bit-deterministic, and a tolerance
+//! **The exact-order band.** Choosing each loop's containment
+//! representative — its lexicographic-minimum vertex, the point the
+//! containment forest casts its rays from — is a *representation*
+//! choice, not a geometric coincidence question: it must be total,
+//! transitive, and bit-deterministic, and a tolerance
 //! band would make near-ties non-transitive (x-coordinates 1.5ε apart
 //! are legitimate and must still order). It therefore classifies
 //! against the documented hairline band (`geom_core::BandError::Empty`
@@ -1431,7 +1433,7 @@ impl<T: Decide> Profile<T> {
 
     /// [`validate`](Self::validate) keeping the structure record it
     /// built: the containment forest, the roles, and every loop's
-    /// canonical start, reversal and segment shapes.
+    /// reversal and segment shapes.
     ///
     /// Recording asks no predicate a different question, so this is
     /// [`validate`](Self::validate)'s canonical form bit for bit, plus
@@ -1499,8 +1501,8 @@ impl<T: Decide> Profile<T> {
         guide: &mut CanonGuide,
     ) -> Result<ValidatedProfile<T>, ProfileError> {
         let band = Band::linear(tol).map_err(ProfileError::Band)?;
-        // The exact-order band for canonical-start selection (module
-        // docs): no representable f64 lies strictly inside it.
+        // The exact-order band for the containment representative
+        // (module docs): no representable f64 lies strictly inside it.
         let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
 
         if self.loops.is_empty() {
@@ -1678,7 +1680,6 @@ impl<T: Decide> Profile<T> {
                 inside: core::mem::take(&mut within[li]),
                 representative: rep_index[li],
                 reversed: shapes.reversed,
-                start: shapes.start,
                 segments: shapes.segments,
                 tangent_joints: validated.tangent_joints.clone(),
             });
@@ -2030,26 +2031,16 @@ fn canonicalize_loop<T: Decide>(
             }
         }
     };
+    // The canonical start is the authored vertex 0, which `reversed()`
+    // keeps in place: no rotation runs, so the oriented chain IS the
+    // canonical one.
     let chain = if reversed { lp.reversed() } else { lp.clone() };
-    let start = match recorded {
-        Some(rec) => rec.start,
-        None => 0,
-    };
     let n = chain.vertices.len();
-    if start >= n {
-        return Err(ProfileError::Structure(StructureRefusal::out_of_range(
-            start, n,
-        )));
-    }
-    let vertices: Vec<ProfileVertex<T>> = (0..n).map(|k| chain.vertices[(start + k) % n]).collect();
-    // Declared joints follow their vertex through the rotation
-    // (reversal already remapped them in `reversed()`); indices are
-    // in range — validated at entry. Sorted + deduplicated: canonical.
-    let mut tangent_joints: Vec<usize> = chain
-        .tangent_joints
-        .iter()
-        .map(|&j| (j + n - start) % n)
-        .collect();
+    let vertices: Vec<ProfileVertex<T>> = chain.vertices;
+    // Declared joints: reversal already remapped them in `reversed()`,
+    // and indices are in range — validated at entry. Sorted +
+    // deduplicated: canonical.
+    let mut tangent_joints: Vec<usize> = chain.tangent_joints;
     tangent_joints.sort_unstable();
     tangent_joints.dedup();
 
@@ -2147,7 +2138,6 @@ fn canonicalize_loop<T: Decide>(
         },
         LoopPermutation {
             reversed,
-            start,
             segments: shapes,
         },
     ))
@@ -2157,7 +2147,6 @@ fn canonicalize_loop<T: Decide>(
 /// the part of a [`LoopCanonical`] only `canonicalize_loop` knows.
 struct LoopPermutation {
     reversed: bool,
-    start: usize,
     segments: Vec<SegmentShape>,
 }
 

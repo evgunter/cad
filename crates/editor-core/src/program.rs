@@ -738,13 +738,23 @@ pub(crate) struct CheckedRecords<'p, 'r> {
     replay: &'r profile::ReplayStructure,
     /// How many segments the loop has.
     segments: usize,
+}
+
+/// [`CheckedRecords`] with the loop's place in the published
+/// numbering: what [`ProfileProgram::checked_records`] hands its two
+/// doors, and the only thing that mints a published ref. The edit door
+/// reads spans in program order and holds plain [`CheckedRecords`], so
+/// a ref minted without an anchor is not a state the types admit.
+struct AnchoredRecords<'p, 'r> {
+    /// The loop's records, checked for shape.
+    records: CheckedRecords<'p, 'r>,
     /// The loop's position in the CANONICAL loop order (outer first,
     /// then holes in authored order) — the loop index published names
-    /// carry — and its naming anchor, program segment ↔ canonical
-    /// segment. Set by [`ProfileProgram::checked_records`], the one
-    /// reader that mints published refs; the edit door reads spans in
-    /// program order and holds none.
-    anchoring: Option<(u32, LoopAnchor)>,
+    /// carry.
+    canonical_loop: u32,
+    /// The loop's naming anchor, program segment ↔ canonical segment,
+    /// already checked against canonicalization's own record.
+    anchor: LoopAnchor,
 }
 
 impl<'p, 'r> CheckedRecords<'p, 'r> {
@@ -785,18 +795,7 @@ impl<'p, 'r> CheckedRecords<'p, 'r> {
             program,
             replay,
             segments,
-            anchoring: None,
         })
-    }
-
-    /// These records with the loop's canonical position and naming
-    /// anchor — what [`CheckedRecords::edge_of`] mints published refs
-    /// through.
-    fn anchored(self, canonical_loop: u32, anchor: LoopAnchor) -> Self {
-        Self {
-            anchoring: Some((canonical_loop, anchor)),
-            ..self
-        }
     }
 
     /// How many segments the loop has.
@@ -806,39 +805,6 @@ impl<'p, 'r> CheckedRecords<'p, 'r> {
 }
 
 impl CheckedRecords<'_, '_> {
-    /// The published ref naming PROGRAM segment `segment` of this loop:
-    /// the canonical segment it is. Published names carry canonical
-    /// indices, and the canonical start is the authored one, so the
-    /// hop is the identity for a loop authored in its canonical sense
-    /// and the reflection `s ↦ n − 1 − s` for one authored against it
-    /// — read off the anchor, which
-    /// [`ProfileProgram::checked_records`] has already checked against
-    /// canonicalization's own record of the permutation.
-    ///
-    /// The BOUND is the caller's, because the two callers hold
-    /// different facts and owe the reader different sentences: a span
-    /// is checked by [`CheckedRecords::span_of`] and an emission by
-    /// the arm that reads it. Both check before they get here, so a
-    /// segment past the end is a caller that forgot — the assertion
-    /// below, not a refusal this function invents a payload for.
-    fn edge_of(&self, segment: usize) -> ProfileEdgeRef {
-        debug_assert!(
-            segment < self.segments,
-            "an unchecked segment reached `edge_of`: {segment} of {}",
-            self.segments
-        );
-        let Some((canonical_loop, anchor)) = self.anchoring else {
-            unreachable!(
-                "a published ref is minted only through `checked_records`, which \
-                 anchors the records it hands out"
-            )
-        };
-        ProfileEdgeRef {
-            loop_index: canonical_loop,
-            segment: anchor.canonical_segment(program_index(segment)),
-        }
-    }
-
     /// One step's recorded span, checked against the loop's length.
     ///
     /// # Errors
@@ -863,6 +829,35 @@ impl CheckedRecords<'_, '_> {
         }
         Ok(span)
     }
+}
+
+impl AnchoredRecords<'_, '_> {
+    /// The published ref naming PROGRAM segment `segment` of this loop:
+    /// the canonical segment it is. Published names carry canonical
+    /// indices, and the canonical start is the authored one, so the
+    /// hop is the identity for a loop authored in its canonical sense
+    /// and the reflection `s ↦ n − 1 − s` for one authored against it
+    /// — read off the anchor, which
+    /// [`ProfileProgram::checked_records`] has already checked against
+    /// canonicalization's own record of the permutation.
+    ///
+    /// The BOUND is the caller's, because the two callers hold
+    /// different facts and owe the reader different sentences: a span
+    /// is checked by [`CheckedRecords::span_of`] and an emission by
+    /// the arm that reads it. Both check before they get here, so a
+    /// segment past the end is a caller that forgot — the assertion
+    /// below, not a refusal this function invents a payload for.
+    fn edge_of(&self, segment: usize) -> ProfileEdgeRef {
+        debug_assert!(
+            segment < self.records.segments,
+            "an unchecked segment reached `edge_of`: {segment} of {}",
+            self.records.segments
+        );
+        ProfileEdgeRef {
+            loop_index: self.canonical_loop,
+            segment: self.anchor.canonical_segment(program_index(segment)),
+        }
+    }
 
     /// Every published ref of `step`'s recorded span — ONE walk over
     /// one checked span, which is what both of the doors below answer
@@ -873,6 +868,7 @@ impl CheckedRecords<'_, '_> {
     /// [`CheckedRecords::span_of`]'s.
     fn edges_of_step(&self, step: u32) -> Result<Vec<ProfileEdgeRef>, StepSegmentsError> {
         Ok(self
+            .records
             .span_of(step)?
             .iter()
             .map(|s| self.edge_of(s))
@@ -1847,9 +1843,9 @@ impl ProfileProgram {
     ///    authored against it, the canonical start being the authored
     ///    one.
     /// 3. **The permutation canonicalization applied** — the check
-    ///    (`profile::LoopCanonical`'s `reversed` and `start`): the
-    ///    reversal that turns program vertex `i` of `n` into oriented
-    ///    vertex `n-i`, then the start the oriented chain is read from.
+    ///    (`profile::LoopCanonical`'s `reversed`): the reversal that
+    ///    turns program vertex `i` of `n` into canonical vertex
+    ///    `(n − i) mod n`, the only permutation it applies.
     ///
     /// # Why the answer is in CANONICAL indices
     ///
@@ -1929,7 +1925,7 @@ impl ProfileProgram {
         structure: &'r profile::ProfileStructure,
         naming: &ProfileNaming,
         loop_: u32,
-    ) -> Result<CheckedRecords<'p, 'r>, StepSegmentsError> {
+    ) -> Result<AnchoredRecords<'p, 'r>, StepSegmentsError> {
         let li = loop_ as usize;
         let program = self.loops.get(li).ok_or(StepSegmentsError::NoSuchLoop {
             loops: self.loops.len(),
@@ -1954,42 +1950,27 @@ impl ProfileProgram {
             .find(|(_, a)| a.program_loop == loop_)
             .ok_or(StepSegmentsError::NoAnchor { loop_ })?;
 
-        // The two records must be ONE permutation. `start` counts on
-        // the ORIENTED chain (after any reversal) while `offset` counts
-        // on the program chain, so the reversed case compares
-        // `n - start`: `reversed()` sends oriented vertex k to program
-        // vertex (n − k) mod n, and canonical vertex 0 is oriented
-        // vertex `start`.
-        let offset = anchor.offset as usize;
-        let same = anchor.len as usize == n
-            && n != 0
-            && anchor.reversed == canonical.reversed
-            && canonical.start < n
-            && offset
-                == if canonical.reversed {
-                    (n - canonical.start) % n
-                } else {
-                    canonical.start
-                };
+        // The two records must be ONE permutation: the same length and
+        // the same reversal (the canonical start being the authored
+        // vertex 0 on both, there is nothing else for them to say).
+        let same = anchor.len as usize == n && n != 0 && anchor.reversed == canonical.reversed;
         assert!(
             same,
             concat!(
                 "the evaluation's two records of loop {}'s permutation ",
-                "disagree: canonicalization recorded reversed={} start={} ",
+                "disagree: canonicalization recorded reversed={} ",
                 "over {} segments, the naming anchor recorded reversed={} ",
-                "offset={} over {} vertices. One evaluation produces both, ",
+                "over {} vertices. One evaluation produces both, ",
                 "so they describe one permutation or the kernel has ",
                 "contradicted itself"
             ),
-            loop_,
-            canonical.reversed,
-            canonical.start,
-            n,
-            anchor.reversed,
-            anchor.offset,
-            anchor.len
+            loop_, canonical.reversed, n, anchor.reversed, anchor.len
         );
-        Ok(checked.anchored(program_index(canonical_loop), *anchor))
+        Ok(AnchoredRecords {
+            records: checked,
+            canonical_loop: program_index(canonical_loop),
+            anchor: *anchor,
+        })
     }
 
     /// **Which radius each of a loop's profile edges is drawn at.**
@@ -2062,16 +2043,16 @@ impl ProfileProgram {
         // door walks, so a record whose step 0 does not cover the loop
         // is refused here exactly as it is there rather than answered
         // off the canonical segment count.
-        if let Some(radius) = checked.program.carrier_radius() {
+        if let Some(radius) = checked.records.program.carrier_radius() {
             // And the record must be a carrier's: `circle` and
             // `circle_split` mint their structure directly and emit
             // nothing, so an emission here is a chain's record under a
             // carrier program. Read before the answer, not after the
             // arm has returned.
-            if !checked.replay.radii.is_empty() {
+            if !checked.records.replay.radii.is_empty() {
                 return Err(StepSegmentsError::CarrierRecordsEmissions {
                     loop_,
-                    emissions: checked.replay.radii.len(),
+                    emissions: checked.records.replay.radii.len(),
                 });
             }
             return Ok(checked
@@ -2081,19 +2062,20 @@ impl ProfileProgram {
                 .collect());
         }
         let mut out = Vec::new();
-        for emission in &checked.replay.radii {
+        for emission in &checked.records.replay.radii {
             let step = program_index(emission.step);
             let arg = radius_arg_of(emission.role);
             let expr = checked
+                .records
                 .program
                 .expr(step, arg)
                 .ok_or(StepSegmentsError::RadiusNotAnArgument { step, arg })?;
-            if emission.segment >= checked.segments {
+            if emission.segment >= checked.records.segments {
                 return Err(StepSegmentsError::EmissionOffTheLoop {
                     step,
                     arg,
                     segment: emission.segment,
-                    segments: checked.segments,
+                    segments: checked.records.segments,
                 });
             }
             out.push((checked.edge_of(emission.segment), expr));

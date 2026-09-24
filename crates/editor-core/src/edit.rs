@@ -2608,10 +2608,13 @@ struct SegmentMap {
     continued: Vec<Option<u32>>,
     /// Per NEW loop, its segment count — a vertex wraps modulo it.
     new_len: Vec<u32>,
-    /// The old program's naming anchor: canonical locator → program
-    /// order. `None` where the old program does not validate, in which
-    /// case no name it holds can be read and every one strands.
-    old_naming: Option<crate::eval::ProfileNaming>,
+    /// The old program's naming anchor, per CANONICAL loop: canonical
+    /// locator → program order. Read off the old program's validation
+    /// where it validates, and off its replay alone where it does not
+    /// (`eval::anchor::replay_naming`). A loop whose anchor cannot be
+    /// read is `None` and every name on it strands; empty where the
+    /// canonical loop order itself cannot be read.
+    old_naming: Vec<Option<crate::eval::LoopAnchor>>,
     /// The new program's naming anchor: program order → the canonical
     /// locator a name is spelled in.
     new_naming: crate::eval::ProfileNaming,
@@ -2648,15 +2651,18 @@ impl SegmentMap {
     /// [`ProgramRefusal::Record`] where the new program's checked
     /// record refuses a span.
     fn build(
-        old: Option<(&[CheckedRecords<'_, '_>], crate::eval::ProfileNaming)>,
+        old: Option<(
+            &[CheckedRecords<'_, '_>],
+            Vec<Option<crate::eval::LoopAnchor>>,
+        )>,
         old_loops: usize,
         new: (&[CheckedRecords<'_, '_>], crate::eval::ProfileNaming),
         provenance: &[LoopProvenance],
     ) -> Result<Self, ProgramRefusal> {
         let (new, new_naming) = new;
         let (old, old_naming) = match old {
-            Some((records, naming)) => (Some(records), Some(naming)),
-            None => (None, None),
+            Some((records, naming)) => (Some(records), naming),
+            None => (None, Vec::new()),
         };
         use crate::program::program_index as ix;
         let new_len: Vec<u32> = new.iter().map(|r| ix(r.segments())).collect();
@@ -2739,10 +2745,10 @@ impl SegmentMap {
     }
 
     /// Old canonical loop `l` → the old program loop it is, and its
-    /// anchor; `None` where the old naming cannot be read or has no
-    /// such loop.
+    /// anchor; `None` where the old naming cannot read that loop or has
+    /// no such loop.
     fn old_anchor(&self, l: u32) -> Option<crate::eval::LoopAnchor> {
-        self.old_naming.as_ref()?.loops.get(l as usize).copied()
+        self.old_naming.get(l as usize).copied().flatten()
     }
 
     /// New program loop `li` → its canonical position and anchor. Every
@@ -3896,13 +3902,22 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             //
             // The names hold CANONICAL locators, so each side's naming
             // anchor is derived here from its own replayed loops — the
-            // derivation the evaluation makes. An old program that does
-            // not validate has no canonical numbering to read a name
-            // in, so every name on it strands as above.
+            // derivation the evaluation makes where the program
+            // validates. An old program that replays and does not
+            // validate still published its names under an evaluation
+            // that did, and the canonical form keeps the authored start,
+            // so its anchor is only each loop's canonical position and
+            // sense: read off the replay alone
+            // (`eval::anchor::replay_naming`), stranding only the loops
+            // whose sense or order that cannot decide.
             let old_replayed = payload.replay_records(&env, tol).ok();
             let old_checked = old_replayed.as_ref().and_then(|(loops, records)| {
                 let checked = checked_replay(old_loops, loops, records).ok()?;
-                Some((checked, crate::eval::naming_of(loops, tol)?))
+                let naming = match crate::eval::naming_of(loops, tol) {
+                    Some(n) => n.loops.into_iter().map(Some).collect(),
+                    None => crate::eval::replay_naming(loops).unwrap_or_default(),
+                };
+                Some((checked, naming))
             });
             let Some(new_naming) = crate::eval::naming_of(&new_loops, tol) else {
                 unreachable!(
@@ -3910,6 +3925,15 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                      anchor is an exact reindexing of those same loops"
                 )
             };
+            // The replay-only reading is the validated one wherever both
+            // exist — checked on every program this door admits, so the
+            // rule the old side falls back to cannot drift from the one
+            // it stands in for.
+            debug_assert_eq!(
+                crate::eval::replay_naming(&new_loops),
+                Some(new_naming.loops.iter().copied().map(Some).collect()),
+                "the replay-only naming anchor disagrees with the validated one"
+            );
             let map = SegmentMap::build(
                 old_checked
                     .as_ref()

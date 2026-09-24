@@ -742,9 +742,9 @@ pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
 ///
 /// [`loft_body`]'s paragraph of that name applies, and lands softly
 /// here for a reason worth knowing: every section is the SAME profile,
-/// so canonicalization re-anchors all of them identically and the
-/// index pairing is the identity whatever the profile's vertex order
-/// was. What the canonical start still decides is which wall of the
+/// so every section canonicalizes identically and the index pairing is
+/// the identity whatever the profile's vertex order was. What the
+/// authored start still decides is which wall of the
 /// built body is which — the segment order the returned
 /// [`Lofted::side_faces`] is keyed in, and, through the first strip,
 /// the surface's v-parameterization ([`loft_body`]). The body's roll

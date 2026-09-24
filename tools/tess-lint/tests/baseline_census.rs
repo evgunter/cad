@@ -818,20 +818,24 @@ fn an_undetected_swap_costs_the_gate_nothing_on_the_committed_baseline() {
     // have different CURVATURE, so the sizing lane gives them
     // different divisions and the identity columns separate them.
     //
-    // It reads ONE pair now, and it is a mirror pair rather than a
-    // scaled one: `lily_sepal_b`'s faces 3 and 7, the two halves of
-    // the blade either side of its ridge and keel. Its sections have
-    // been paired from their authored start since the loft's
-    // correspondence became the author's (DM8, PR 3147); before that
-    // the lex-min start gave the rectangle base section a
-    // one-segment twist against the kite sections, and the twist gave
-    // the two faces different divisions. Untwisted, the two agree on
-    // every identity column and differ by two certified cells —
-    // mirror images whose certificates are taken over mirrored
-    // control nets, equal only up to rounding. The gate assertion
-    // above holds with it (the two slacks are within
-    // `GROWTH_TOLERANCE`), so it is pinned by name: a pair arriving
-    // or leaving reds here and is read before it is re-pinned.
+    // It reads ONE pair now, and it is not a scaled pair: it is
+    // `lily_sepal_b`'s faces 3 and 7, two DIFFERENT walls of the blade
+    // with different curvature: `mvv` 1.4203 against 1.3228, and `muv`,
+    // `mu1`, `mv1` within about a percent of each other. What they
+    // share is every IDENTITY column. The trim box is the unit square,
+    // and the divisions the sizing lane quantizes those sups into land
+    // on the same `nu = 2`, `nv = 307`. The certificates behind the
+    // divisions still differ, and so do the cell counts, by 2.
+    //
+    // The pair arrived when the loft's correspondence became the
+    // author's (DM8, PR 3147). Under the lex-min start, the rectangle
+    // base section was paired one segment off the kite sections. That
+    // gave the blade a twist, and the twist gave these two walls
+    // different divisions (`nv` 360 and 384).
+    //
+    // The gate assertion above holds with this pair: the two slacks are
+    // within `GROWTH_TOLERANCE`. So it is pinned by name. A pair
+    // arriving or leaving reds here and is read before it is re-pinned.
     assert_eq!(
         drifted,
         ["lily/lily_sepal_b faces 3/7: grid_cells/span_opt_cells 272/261 against 274/266"],

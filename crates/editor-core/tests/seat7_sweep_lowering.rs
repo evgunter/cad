@@ -749,8 +749,9 @@ fn wall_evidence(a: &Body<f64>, fa: FaceKey, b: &Body<f64>, fb: FaceKey) -> Radi
 }
 
 /// **A HOLED profile authored hole-first**: every loop's walls carry
-/// that loop's own radius, and the canonical→program anchor is what
-/// makes that true.
+/// that loop's own radius, and the naming anchor — which carries each
+/// canonical loop to the program loop holding its expressions — is
+/// what makes that true.
 ///
 /// Canonicalization puts the OUTER loop first whatever the author
 /// wrote, so a profile authored `[hole, outer]` is a transposition:

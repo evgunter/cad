@@ -144,6 +144,18 @@ struct Tally {
 
 /// The pinned tally over the aim below (docs: re-derive with
 /// `--nocapture`).
+///
+/// Last moved when validation began keeping each loop's authored start
+/// (`profile` README V3): from `(442782, 141992, 20016, 10536)`. The
+/// rays are unchanged, because the point sets are. Per document, the
+/// move is entirely three documents' triangulations, whose loops start
+/// at another vertex, so the caps fan and the walls seam from there:
+/// - `cut_cylinder` takes 7236 fewer determinant refusals (3660 rays)
+///   and 63 fewer grazes, over its open and edited states.
+/// - `gallery_ring` gains 36 grazes and 6 refusals.
+/// - `boss_union` gains 18 grazes.
+///
+/// No genuine crossing is refused either way.
 const PINNED: (usize, usize, usize, usize) = (442_782, 141_983, 12_786, 6_882);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {

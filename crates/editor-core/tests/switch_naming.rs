@@ -95,7 +95,7 @@ fn names_of(doc: &ProfileDoc, id: RecipeNodeId) -> BTreeSet<StableName> {
         .collect()
 }
 
-fn anchor_offset(doc: &ProfileDoc) -> (u32, bool) {
+fn anchor_reversed(doc: &ProfileDoc) -> bool {
     let ev = evaluate::<f64>(
         doc,
         None,
@@ -106,8 +106,7 @@ fn anchor_offset(doc: &ProfileDoc) -> (u32, bool) {
     let ValuePayload::Profile(pv) = &ev.value(PROFILE).expect("profile").payload else {
         panic!("profile payload");
     };
-    let a = pv.naming.loops[0];
-    (a.offset, a.reversed)
+    pv.naming.loops[0].reversed
 }
 
 /// THE demonstration row (§6c): the param edit moves the loop's
@@ -143,14 +142,12 @@ fn a_parameter_edit_that_moves_the_lex_min_corner_renumbers_nothing() {
         "the edit must actually move the lexicographic minimum for this row to \
          demonstrate anything"
     );
-    // …while the canonical start stays the authored one…
-    let (off_before, rev_b) = anchor_offset(&before);
-    let (off_after, rev_a) = anchor_offset(&after);
-    assert!(!rev_b && !rev_a, "CCW-authored rectangles never reverse");
-    assert_eq!(
-        (off_before, off_after),
-        (0, 0),
-        "the authored start is kept"
+    // …while the anchor stays the identity: CCW-authored rectangles
+    // never reverse, and the start is the authored one by
+    // construction (the denotation check below reads it)…
+    assert!(
+        !anchor_reversed(&before) && !anchor_reversed(&after),
+        "CCW-authored rectangles never reverse"
     );
     // …so the name set is identical…
     assert_eq!(names_of(&before, BODY), names_of(&after, BODY));
@@ -246,7 +243,7 @@ fn stale_program_refs_refuse_vanished() {
          Vanished class at every consumer (fillet selections, Declare, \
          appearance), the M6-5 freeze doctrine"
     );
-    // And a REAL program-anchored ref resolves.
+    // And a REAL canonical ref resolves.
     let real = StableName {
         kind: EntityKind::Edge,
         node: BODY,
@@ -378,8 +375,9 @@ fn hole_circle_anchor_recovers_reversal() {
             "canonical seg {c} carries program seg {p_seg}'s negated bulge"
         );
     }
-    // Denotation at the name layer: both program-anchored semicircle
-    // walls exist under the hole's PROGRAM indices.
+    // Denotation at the name layer: both semicircle walls exist under
+    // the hole's CANONICAL indices — its two program segments,
+    // reflected.
     use editor_core::{EntityKind, ProfileEdgeRef, RoleSeg};
     let table = &ev.value(BODY).expect("extrude").name_table;
     for seg in 0..2u32 {

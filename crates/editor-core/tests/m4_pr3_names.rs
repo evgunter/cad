@@ -469,8 +469,8 @@ fn full_revolve_of_an_all_on_axis_loop_names_both_poles() {
     // The two-band sphere patch (V2 E2 F2): 1 body + 2 bands +
     // 2 meridians + 2 poles.
     assert_eq!(t.len(), 7);
-    // Canonical vertex 0 is the lexicographic least — (0, −1), the
-    // south pole; 1 is (0, 1). Canonical segment 0 is the arc.
+    // Canonical vertex 0 is the authored start — (0, −1), the south
+    // pole; 1 is (0, 1). Canonical segment 0 is the arc.
     for v in 0..2 {
         assert!(
             t.lookup(&minted(EntityKind::Vertex, rev, RoleSeg::Pole(pv(0, v))))

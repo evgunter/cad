@@ -649,10 +649,11 @@ fn a_program_that_no_longer_replays_has_no_spans_so_every_name_on_it_strands() {
             },
         ],
     );
-    // The old program does not validate, so no canonical numbering
-    // can be read off it — not even which of its loops the name's
-    // canonical loop 1 is — and the retired coordinate is filed by the
-    // name's own coordinates: loop `RETIRED_FLOOR + 1`, segment 0.
+    // The old program does not replay, so neither its spans nor its
+    // canonical numbering can be read — not even which of its loops the
+    // name's canonical loop 1 is — and the retired coordinate is filed
+    // by the name's own coordinates: loop `RETIRED_FLOOR + 1`,
+    // segment 0.
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::Strand {
@@ -660,6 +661,90 @@ fn a_program_that_no_longer_replays_has_no_spans_so_every_name_on_it_strands() {
             name: wall_of(ext, RETIRED_FLOOR + 1, 0),
         }],
         "one strand at the retired spelling and nothing else"
+    );
+}
+
+/// **A program that replays but does not validate still reads its
+/// names.** The names on it were published by an evaluation that
+/// validated, and the canonical form keeps each loop's authored start,
+/// so a name's canonical locator needs only each loop's canonical
+/// position and sense — both read off the replay alone. The hole is
+/// authored FIRST and counter-clockwise, so both facts matter: its
+/// canonical loop is 1 (the square is outer) and it is reversed. Its
+/// radius is driven to 1.05, past the square's walls 1 away, so the
+/// profile replays and refuses validation (the hole crosses the outer
+/// loop) while the square still encloses the larger area; the
+/// program is then replaced by one whose radius is a literal, under
+/// the identity provenance. Every name is kept where it was — no
+/// strand and no rebind — where reading the names without an anchor
+/// would strand all three, and a wrong order or sense would rebind
+/// them.
+#[test]
+fn a_program_that_replays_but_does_not_validate_keeps_its_names() {
+    let square = LoopProgram::Chain(square_steps());
+    let radius = ParamName::new("hole_r");
+    let driven = LoopProgram::Circle {
+        centre: [len(1.0), len(1.0)],
+        radius: Expr::param(radius.clone(), Dimension::Length),
+    };
+    let doc = ProfileDoc::empty_derived("set-program-unvalidated", tol());
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::SetDocParam {
+            name: radius.clone(),
+            value: DocParam::continuous(Dimension::Length, 0.3),
+        },
+    );
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![driven, square.clone()],
+        }),
+    );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let (doc, _) = frame_on(doc, ext, wall_of(ext, 1, 0));
+    let (doc, _) = frame_on(doc, ext, wall_of(ext, 1, 1));
+    let (doc, _) = frame_on(doc, ext, wall_of(ext, 0, 2));
+    let square_wall = face_origin(&doc, ext, &wall_of(ext, 0, 2));
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::SetDocParam {
+            name: radius,
+            value: DocParam::continuous(Dimension::Length, 1.05),
+        },
+    );
+    let applied = accepted(
+        &doc,
+        profile,
+        vec![LoopProgram::circle(1.0, 1.0, 0.3).unwrap(), square],
+        vec![
+            LoopProvenance {
+                from: Some(0),
+                steps: vec![Some(0)],
+            },
+            LoopProvenance {
+                from: Some(1),
+                steps: vec![Some(0), Some(1), Some(2), Some(3), Some(4)],
+            },
+        ],
+    );
+    assert_eq!(
+        applied.maintenance,
+        Vec::new(),
+        "every name is read through the replay's anchor and kept where it was"
+    );
+    assert_eq!(
+        face_origin(&applied.doc, ext, &wall_of(ext, 0, 2)),
+        square_wall,
+        "the square's canonical wall 2 is the wall it was before the radius moved"
     );
 }
 
@@ -1676,9 +1761,11 @@ fn a_revolves_names_carry_its_profiles_coordinates() {
     );
 }
 
-/// **A loft's names carry its FIRST section's coordinates** (DM8's
-/// exception), and only that section is [`Node::anchoring_profile`]'s
-/// answer. Two DIFFERING sections — the upper one scaled — skin a
+/// **A loft's names follow its FIRST section's reshaping.** A loft
+/// wall's one name is canonical segment `k` of every section at once
+/// (DM8), and only the first section is [`Node::anchoring_profile`]'s
+/// answer, so only a SetProgram on it moves the loft's names
+/// (`work/emit/a-lofts-names-follow-only-its-first-sections-reshaping.md`). Two DIFFERING sections — the upper one scaled — skin a
 /// loft; reshaping the second section moves none of the loft's names
 /// and leaves the sections with different segment counts, so the
 /// loft refuses rather than re-skinning under unchanged names;
@@ -1686,7 +1773,7 @@ fn a_revolves_names_carry_its_profiles_coordinates() {
 /// and the loft skins again with the rebound name at the wall that
 /// arrives at `(2, 2, 0)`.
 #[test]
-fn a_lofts_names_carry_its_first_sections_coordinates() {
+fn a_lofts_names_follow_its_first_sections_reshaping() {
     let square = |s: f64| {
         LoopProgram::polygon([
             (0.0, 0.0),

@@ -32,10 +32,10 @@
 //! emitter mints them that identity is `profile::ValidatedProfile`'s
 //! canonical form — its loop order (outer first, then holes in the
 //! DESCRIPTION's order — recipe data) and each loop's canonical chain
-//! indices, whose canonical start is selected through the exact-order
-//! band (`canonical_order_x`/`_y`, `crates/profile/src/validate.rs`):
-//! total, rotation-invariant, and a function of recipe structure plus
-//! recorded verdicts. The sweep emitters (`Extruded`, `Revolved`)
+//! indices, counted from the loop's AUTHORED start along its canonical
+//! traversal (`crates/profile/README.md` V3): a function of recipe
+//! structure plus the recorded orientation and role verdicts. The sweep
+//! emitters (`Extruded`, `Revolved`)
 //! index their output maps by exactly these identities, which is what
 //! makes sweep naming a mechanical zip.
 //!
@@ -568,8 +568,9 @@ pub enum CapEnd {
 /// index: the profile crate's canonical form (module docs, cited) —
 /// canonical loop order, and segment `k` counted along the canonical
 /// traversal from the loop's AUTHORED start. No geometric choice
-/// enters it, so a parameter edit cannot renumber a frozen selection,
-/// and every verb that consumes the profile — a loft's sections
+/// enters it beyond each loop's orientation and which loop is the
+/// outer one, so a parameter edit renumbers a frozen selection only by
+/// flipping one of those (`eval::anchor`'s module docs), and every verb that consumes the profile — a loft's sections
 /// included — publishes the same one. DM8
 /// (`crates/editor-core/REFERENCES.md`) states how an authored step
 /// maps onto it.
@@ -578,12 +579,13 @@ pub enum CapEnd {
 )]
 #[serde(deny_unknown_fields)]
 pub struct ProfileEdgeRef {
-    /// The loop: canonical loop order (0 = outer, then holes in
-    /// description order) as minted, the program's own loop index
-    /// once published for a program loop.
+    /// The loop, in canonical loop order: 0 = outer, then the holes
+    /// in description order. A hole described before the outer loop
+    /// carries its canonical index, not its description index.
     pub loop_index: u32,
-    /// The edge's index along that loop's chain, in the same
-    /// anchoring the loop index carries.
+    /// The edge's index along that loop's canonical chain: the
+    /// author's segment `k` for a loop authored in its canonical sense,
+    /// `n − 1 − k` for one authored against it.
     ///
     /// A coordinate at or above `editor_core::RETIRED_FLOOR` — as a
     /// segment or as a loop index — is one no program draws, and is
@@ -595,22 +597,22 @@ pub struct ProfileEdgeRef {
     pub segment: u32,
 }
 
-/// A profile vertex by combinatorial identity, under the same two
-/// anchorings as [`ProfileEdgeRef`] and by the same rewrite: vertex
-/// `v` starts segment `v` of its loop's chain, canonical as minted
-/// and program-order once published for a program loop (DM8). A
-/// vertex index at or above `editor_core::RETIRED_FLOOR` denotes
+/// A profile vertex by combinatorial identity, in the same canonical
+/// numbering as [`ProfileEdgeRef`]: vertex `v` starts canonical segment
+/// `v` of its loop's chain — the author's vertex `v`, or `(n − v) mod
+/// n` on a loop authored against its canonical sense (DM8). A vertex
+/// index at or above `editor_core::RETIRED_FLOOR` denotes
 /// nothing, for [`ProfileEdgeRef::segment`]'s reason.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
 pub struct ProfileVertexRef {
-    /// The loop, in the anchoring [`ProfileEdgeRef::loop_index`]
-    /// describes.
+    /// The loop, in the canonical loop order
+    /// [`ProfileEdgeRef::loop_index`] describes.
     pub loop_index: u32,
-    /// The vertex's index along that loop's chain (the start vertex
-    /// of segment `vertex`), in the same anchoring.
+    /// The vertex's index along that loop's canonical chain (the
+    /// start vertex of canonical segment `vertex`).
     pub vertex: u32,
 }
 

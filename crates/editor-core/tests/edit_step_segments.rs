@@ -174,7 +174,6 @@ impl Records {
             self.canonical_loop[li]
         );
         let c = &self.structure.canonical.loops[li];
-        assert_eq!(c.start, 0, "the canonical start is the authored one");
         let n = self.verts[li].len();
         let k = e.segment as usize;
         if c.reversed { n - 1 - k } else { k }
@@ -386,8 +385,7 @@ fn prism(id: &str, points: Vec<(f64, f64)>) -> (ProfileDoc, RecipeNodeId, Recipe
 /// permuted answer, and would pass while proving nothing.
 ///
 /// The canonical start is always the authored one, so the only
-/// permutation there is to apply is the reversal; [`perm_of`] asserts
-/// the start before it classifies.
+/// permutation there is to apply is the reversal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Perm {
     /// Authored in the loop's canonical sense: canonical = program.
@@ -398,14 +396,9 @@ enum Perm {
 }
 
 /// Which permutation canonicalization applied to program loop `li` of
-/// `r`, read off its own record — and the start it kept, which is the
-/// authored one.
+/// `r`, read off its own record.
 fn perm_of(r: &Records, li: usize) -> Perm {
     let canonical = &r.structure.canonical.loops[li];
-    assert_eq!(
-        canonical.start, 0,
-        "canonicalization keeps the authored start, so it rotates nothing"
-    );
     if canonical.reversed {
         Perm::Reversed
     } else {
@@ -816,6 +809,73 @@ fn a_loft_whose_first_section_is_not_the_identity_names_its_walls() {
     );
 }
 
+/// The 2 × 1 rectangle, counterclockwise from `(2, 1)` — a corner
+/// that is not its lexicographic minimum `(0, 0)`.
+fn rect_ccw_from_2_1() -> Vec<(f64, f64)> {
+    vec![(2.0, 1.0), (0.0, 1.0), (0.0, 0.0), (2.0, 0.0)]
+}
+/// The same rectangle, clockwise from `(2, 1)`.
+fn rect_cw_from_2_1() -> Vec<(f64, f64)> {
+    vec![(2.0, 1.0), (2.0, 0.0), (0.0, 0.0), (0.0, 1.0)]
+}
+/// The 4 × 4 outer square, counterclockwise from `(4, 4)` — not its
+/// lexicographic minimum.
+fn outer_ccw_from_4_4() -> Vec<(f64, f64)> {
+    vec![(4.0, 4.0), (0.0, 4.0), (0.0, 0.0), (4.0, 0.0)]
+}
+/// The same square, clockwise from `(4, 4)`.
+fn outer_cw_from_4_4() -> Vec<(f64, f64)> {
+    vec![(4.0, 4.0), (4.0, 0.0), (0.0, 0.0), (0.0, 4.0)]
+}
+/// The triangular hole, counterclockwise from `(3, 1)` — not its
+/// lexicographic minimum `(1, 1)`.
+fn tri_ccw_from_3_1() -> Vec<(f64, f64)> {
+    vec![(3.0, 1.0), (2.0, 3.0), (1.0, 1.0)]
+}
+/// The same hole, clockwise from `(3, 1)`.
+fn tri_cw_from_3_1() -> Vec<(f64, f64)> {
+    vec![(3.0, 1.0), (1.0, 1.0), (2.0, 3.0)]
+}
+
+/// **Sections authored from a corner that is NOT the lexicographic
+/// minimum**, in both senses. The rows above start every loop at its
+/// lexicographic minimum, where the authored start and a geometric one
+/// agree and no row can tell them apart. Here every section starts at
+/// `(2, 1)`: under the authored start the loft is the straight prism and
+/// each step's ref names the wall it bounds; a canonical form that
+/// re-started the loop at `(0, 0)` would pair and number the walls from
+/// another corner, and every wall check below would name a neighbour.
+#[test]
+fn a_loft_authored_from_a_non_lex_min_corner_names_its_walls() {
+    use Perm::{Identity as I, Reversed as R};
+    assert_loft_bounds_its_walls(
+        "loft-non-lex-min",
+        &[
+            vec![rect_ccw_from_2_1()],
+            vec![rect_cw_from_2_1()],
+            vec![rect_ccw_from_2_1()],
+        ],
+        &[vec![I], vec![R], vec![I]],
+    );
+}
+
+/// **An outer loop and a hole both authored from a non-lex-min corner**,
+/// the hole first and both senses flipped in the second section — the
+/// start rule on a hole, where the canonical loop order and the
+/// reflection both enter as well.
+#[test]
+fn a_loft_whose_outer_and_hole_start_off_their_lex_min_names_its_walls() {
+    use Perm::{Identity as I, Reversed as R};
+    assert_loft_bounds_its_walls(
+        "loft-non-lex-min-hole",
+        &[
+            vec![outer_ccw_from_4_4(), tri_ccw_from_3_1()],
+            vec![tri_cw_from_3_1(), outer_cw_from_4_4()],
+        ],
+        &[vec![I, R], vec![I, R]],
+    );
+}
+
 /// **Memo: re-authoring a section re-derives its answer.** Section 1
 /// re-authored clockwise (the same point set) against a prior
 /// evaluation: its anchor changes, the loft is recomputed, and the door
@@ -856,22 +916,21 @@ fn a_reauthored_section_is_answered_after_a_memoized_reevaluation() {
     assert_sections_bound_their_walls("loft-memo", &b, &eb, &ids, loft, &[vec![I], vec![R]]);
 }
 
-/// `canonical_segment` inverts `segment` for every anchor shape and n.
+/// `canonical_segment` inverts `segment`, and `canonical_vertex`
+/// inverts `vertex`, for both anchor shapes and every n.
 #[test]
 fn canonical_segment_inverts_segment_everywhere() {
     for n in 1..=9u32 {
-        for offset in 0..n {
-            for reversed in [false, true] {
-                let a = editor_core::eval::LoopAnchor {
-                    program_loop: 0,
-                    offset,
-                    reversed,
-                    len: n,
-                };
-                for k in 0..n {
-                    assert_eq!(a.canonical_segment(a.segment(k)), k, "{a:?} k={k}");
-                    assert_eq!(a.segment(a.canonical_segment(k)), k, "{a:?} s={k}");
-                }
+        for reversed in [false, true] {
+            let a = editor_core::eval::LoopAnchor {
+                program_loop: 0,
+                reversed,
+                len: n,
+            };
+            for k in 0..n {
+                assert_eq!(a.canonical_segment(a.segment(k)), k, "{a:?} k={k}");
+                assert_eq!(a.segment(a.canonical_segment(k)), k, "{a:?} s={k}");
+                assert_eq!(a.canonical_vertex(a.vertex(k)), k, "{a:?} v={k}");
             }
         }
     }
@@ -1275,8 +1334,8 @@ fn a_line_to_step_is_answered_with_the_segment_that_ends_where_it_says() {
 /// reader of the panic needs in order to tell which of the two lied.
 #[test]
 #[should_panic(expected = "the evaluation's two records of loop 0's permutation \
-     disagree: canonicalization recorded reversed=false start=0 over 4 segments, \
-     the naming anchor recorded reversed=true offset=0 over 4 vertices. One \
+     disagree: canonicalization recorded reversed=false over 4 segments, \
+     the naming anchor recorded reversed=true over 4 vertices. One \
      evaluation produces both, so they describe one permutation or the kernel \
      has contradicted itself")]
 fn two_records_describing_different_loops_assert() {
@@ -2164,11 +2223,6 @@ fn assert_rotated_arcs_are_answered(id: &str, side: profile::ArcSide, want_rever
     let r = records(&doc, program);
     let c = &r.structure.canonical.loops[0];
     assert_eq!(c.reversed, want_reversed, "{id}: the winding case");
-    assert_eq!(c.start, 0, "{id}: the authored start is kept");
-    assert_eq!(
-        pv.naming.loops[0].offset, 0,
-        "{id}: the anchor rotates nothing"
-    );
     let answer = program
         .segment_radii(&r.structure, &pv.naming, 0)
         .unwrap_or_else(|e| panic!("{id}: the door answers: {e}"));
@@ -2729,11 +2783,6 @@ fn assert_rotated_fillet_is_answered(id: &str, s: f64, want_reversed: bool) {
     let r = records(&row.doc, program);
     let c = &r.structure.canonical.loops[0];
     assert_eq!(c.reversed, want_reversed, "{id}: the winding case");
-    assert_eq!(c.start, 0, "{id}: the authored start is kept");
-    assert_eq!(
-        pv.naming.loops[0].offset, 0,
-        "{id}: the anchor rotates nothing"
-    );
     assert!(
         r.structure.replay[0].steps[3].is_empty(),
         "{id}: the binder emitted nothing"
@@ -2825,8 +2874,6 @@ fn a_reversed_via_closes_fillet_arc_reaches_its_wall() {
     let r = records(&row.doc, program);
     let c = &r.structure.canonical.loops[0];
     assert!(c.reversed, "the mirrored chain is clockwise");
-    assert_eq!(c.start, 0, "the authored start is kept");
-    assert_eq!(pv.naming.loops[0].offset, 0);
     let answer = program
         .segment_radii(&r.structure, &pv.naming, 0)
         .expect("the door answers");
