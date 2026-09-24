@@ -65,6 +65,8 @@ mod cert3r1_poison_detail;
 mod cert3r1_probes;
 #[path = "certified_door.rs"]
 mod certified_door;
+#[path = "certified_endpoint_census.rs"]
+mod certified_endpoint_census;
 #[path = "coeffs_bit_identity.rs"]
 mod coeffs_bit_identity;
 #[path = "coeffs_bit_identity_ext.rs"]
@@ -83,8 +85,12 @@ mod decoration_seam;
 mod eps_provenance;
 #[path = "flagged_census.rs"]
 mod flagged_census;
+#[path = "interval_backend_differential.rs"]
+mod interval_backend_differential;
 #[path = "interval_band.rs"]
 mod interval_band;
+#[path = "interval_exact_fuzz.rs"]
+mod interval_exact_fuzz;
 #[path = "interval_type_default_build.rs"]
 mod interval_type_default_build;
 #[path = "k_stats_doors.rs"]
@@ -127,12 +133,6 @@ mod review_margin_probe;
 mod ring0_review_probes;
 #[path = "ring2_r2_probes.rs"]
 mod ring2_r2_probes;
-#[path = "ring_endpoint_census.rs"]
-mod ring_endpoint_census;
-#[path = "ring_interval_differential.rs"]
-mod ring_interval_differential;
-#[path = "ring_interval_fuzz.rs"]
-mod ring_interval_fuzz;
 #[path = "span_basis_identity.rs"]
 mod span_basis_identity;
 #[path = "span_hull_window.rs"]

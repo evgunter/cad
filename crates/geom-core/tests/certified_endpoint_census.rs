@@ -1,132 +1,119 @@
 //! **The endpoint-read census: every production read of one side of a
-//! `Interval` bracket, counted and dispositioned.**
+//! certification bracket, counted and dispositioned.**
 //!
 //! # Why this row exists
 //!
-//! The ring's refusal used to be a NaN pair, so a consumer that read
-//! one endpoint and compared it refused *by accident*: every
-//! comparison against NaN is false, `f64::max(NaN, 0.0)` is `0.0`,
-//! and `!x.is_finite()` caught it. The refusal is now the decoration
-//! (`dec < Def`), and a refused bracket carries **ordinary
-//! endpoints** — a quotient by a divisor not proven away from zero, a
-//! negative integer power, or a crossing from a scalar that may not
-//! certify. At each of those reads the same code now takes the
-//! certifying branch on a value that does not certify, unless the
-//! site asks [`geom_core::Interval::is_poison`] by name.
+//! A certification bracket's refusal is its DECORATION (`dec < Def`,
+//! asked as `!Interval::is_certified()`), not a NaN pair: a quotient by a
+//! divisor not proven away from zero, a negative integer power, and a
+//! crossing from a scalar that may not certify all carry **ordinary
+//! endpoints**. A consumer that reads one endpoint and compares it
+//! therefore takes the certifying branch on a value that does not
+//! certify, unless the site asks [`geom_core::Interval::is_certified`] by
+//! name — and `Real::is_poison`, which at the interval scalar asks only
+//! NaI or empty, is not that question.
 //!
-//! A hand sweep found 31 such sites and missed five on its first
-//! pass. This row is the sweep, executed: it walks the same file set
-//! by the same rule and pins, per file, how many production lines
-//! read an endpoint and how many of those sit in a function that asks
-//! the refusal. **A read added anywhere in the ring's consumer set
-//! moves a number here**, so it cannot land without being
-//! dispositioned.
+//! This row is the sweep, executed: it walks the certification code by
+//! one rule and pins, per file, how many production lines read an
+//! endpoint and how many of those sit in a function that asks the
+//! refusal. **A read added anywhere in that code moves a number here**,
+//! so it cannot land without being dispositioned.
 //!
 //! # What the two numbers mean
 //!
-//! * `reads` — production lines carrying `.lo()` or `.hi()` in a file
-//!   that names `Interval`. It is a LINE count, not a site count:
-//!   a site spelled over two lines counts twice, and two reads on one
-//!   line count once. That is the same reading the register was
-//!   classified from, kept deliberately so the two are comparable.
+//! * `reads` — production lines carrying `.lo()` or `.hi()` in a file of
+//!   the population below. It is a LINE count, not a site count: a site
+//!   spelled over two lines counts twice, and two reads on one line
+//!   count once.
 //! * `asking` — of those, the lines whose enclosing function mentions
-//!   `is_poison()` anywhere. The refusal being IN the function is what
+//!   `is_certified()` anywhere. The refusal being IN the function is what
 //!   this can see; that it guards THIS read is the reader's judgement,
 //!   at the site.
 //!
-//! The remainder — `reads − asking` — is dispositioned by hand, and
-//! the disposition lives with the register
-//! (`work/scalar/ring-nan-poison-is-load-bearing-at-unguarded-reads`,
-//! and the PR that closed it). Today it is three classes, and they
-//! are named per file in `ROSTER` below.
+//! The remainder — `reads − asking` — is dispositioned by hand, and the
+//! disposition is named per file in [`ROSTER`] below.
+//!
+//! # The population
+//!
+//! Every `crates/*/src` file whose PRODUCTION code calls a certification
+//! door ([`DOORS`]): it builds a certification bracket
+//! (`Interval::from_certified`, `Interval::hull`, `Interval::poison`,
+//! `.clamped_to(…)`) or refuses one (`.is_certified()`). The key is what
+//! the code does, read off the same CODE view the counts are, so a file
+//! enters when it starts building or refusing certification brackets and
+//! leaves only when it stops — never because a comment moved.
 //!
 //! # Blind spots, stated
 //!
-//! 1. **Type-blind.** It cannot tell a ring endpoint from a
+//! 1. **Type-blind.** It cannot tell a certification endpoint from a
 //!    `Bounds::lo()` on an evaluation scalar, so `ssi/certify.rs`'s
-//!    twelve `T: Bounds` reads are counted here and are not this
-//!    census's subject at all — `Bounds` is decoration-blind by
-//!    ratification. They are in the remainder, named below.
+//!    `T: Bounds` reads are counted here and are not this census's
+//!    subject at all — `Bounds` is decoration-blind by ratification.
+//!    They are in the remainder, named below.
 //! 2. **Function-scoped.** A refusal anywhere in the enclosing
 //!    function counts, including one that guards a different value.
 //!    Narrowing it to "before this line" would mis-read the sites that
 //!    bind an endpoint and refuse on the next line, which is the
 //!    ordinary spelling here.
-//! 3. **A ring endpoint handed to a helper taking `f64`** is no longer
-//!    a ring value where the comparison happens, and no text scan can
-//!    follow it. Unchanged from the register's own blind spot.
+//! 3. **A certification endpoint handed to a helper taking `f64`** is no
+//!    longer an enclosure where the comparison happens, and no text scan
+//!    can follow it.
 //! 4. **A read inside a macro body, or split across two lines by
 //!    rustfmt**, is missed the same way.
-//! 5. The production/test cut is the register's: each `#[cfg(test)]
-//!    mod` BLOCK is skipped and the walk carries on past it. It runs
-//!    over `test_utils::source`'s CODE view — comments and string
-//!    literals blanked, newlines kept — and matches the block's
-//!    brackets with that module's own `balanced_end`, which is exact
-//!    over a blanked view and is why this row rolls no reader of its
-//!    own (`crates/test-utils/tests/reader_census.rs`). The register's
-//!    hand command read raw lines and skipped a line beginning `//`;
-//!    the two agree file for file on this tree, which is the
-//!    cross-check that made the conversion safe.
-//! 6. **The population is keyed on the TEXT `Interval`.** A file
-//!    that reads a ring bracket without naming the type is outside it,
-//!    and a file LEAVES it when a prose mention is deleted — which is
-//!    an edit no reviewer reads as a census change. The two files in
-//!    the tree that are outside the key and still belong are named in
-//!    [`ALSO_WALKED`] and walked anyway; a third that arrives is
-//!    detected by nothing here.
+//! 5. The production/test cut: each `#[cfg(test)] mod` BLOCK is skipped
+//!    and the walk carries on past it. It runs over
+//!    `test_utils::source`'s CODE view — comments and string literals
+//!    blanked, newlines kept — and matches the block's brackets with that
+//!    module's own `balanced_end`, which is exact over a blanked view and
+//!    is why this row rolls no reader of its own
+//!    (`crates/test-utils/tests/reader_census.rs`).
+//! 6. **The population is keyed on door CALLS.** A file that reads a
+//!    certification bracket it was handed, without calling any door in
+//!    its own production code, is outside it: the read happens and
+//!    nothing here counts it. The match is textual, so a door reached
+//!    under another name (`use geom_core::Interval as Ring;`) is outside
+//!    it too; no such alias exists in the tree.
 //!
 //! # Where it lives, and why here
 //!
 //! In `geom-core/tests/` rather than beside the consumers, because the
-//! subject is one type's accessor across five crates and no consumer
-//! crate can see the others. `geom-core` owns the type, and this suite
-//! is gated to the ring's own sources.
+//! subject is one type's doors across five crates and no consumer crate
+//! can see the others. `geom-core` owns the type.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use test_utils::source;
 
 test_utils::gated_to![
-    "crates/geom-core/src/interval.rs",
+    "crates/geom-core/src/",
     "crates/geom-brep/src/",
     "crates/geom/src/",
     "crates/mesh/src/",
     "crates/topo/src/",
 ];
 
-/// Files walked **in addition** to the text-keyed population, each
-/// because it reads a ring bracket without naming the type in its own
-/// text (blind spot 6).
-///
-/// **A fixed list, not a type-keyed rule**, and the choice is forced:
-/// this walk reads source as text through the shared lexer, and
-/// deciding whether an `x.lo()` is a ring read needs name resolution —
-/// a compiler, not a lexer. That is blind spot 1 seen from outside a
-/// file instead of inside one. The cost is that the list is kept by
-/// hand; what keeps it honest is that each entry's counts are pinned in
-/// [`ROSTER`] like every other file's, so a read arriving in one of
-/// them still reds.
-const ALSO_WALKED: &[&str] = &[
-    // The SSI driver's transversality read: `wu.hull()` is a
-    // `Interval` and the file names only the window it came from.
-    "crates/geom-brep/src/ssi.rs",
-    // The crossing's other end. `Interval`'s endpoints are what
-    // `Interval::from_certified` carries into the ring, and the
-    // file left the text-keyed population the moment its prose mention
-    // of the ring went away.
-    "crates/geom-core/src/interval.rs",
+/// The certification doors whose call puts a file in the population:
+/// the constructors that build a certification bracket and the
+/// predicate that refuses one, as they are spelled at a call site in the
+/// CODE view.
+const DOORS: &[&str] = &[
+    "Interval::from_certified(",
+    "Interval::hull(",
+    "Interval::poison(",
+    ".clamped_to(",
+    ".is_certified()",
 ];
 
-/// One entry per file walked — every file that names `Interval`
-/// under `crates/*/src`, plus [`ALSO_WALKED`]:
-/// the path, the production endpoint-read LINES, and how many of
-/// those sit in a function that asks `is_poison()`.
+/// One entry per file walked with at least one endpoint read — every
+/// `crates/*/src` file whose production code calls a door in [`DOORS`]:
+/// the path, the production endpoint-read LINES, and how many of those
+/// sit in a function that asks `is_certified()`.
 ///
-/// The remainder is dispositioned here, one note per file that has
-/// one. Nothing checks these notes — they are prose beside a number
-/// the walk re-derives, exactly like the ratification citations on
-/// `bounds-allowlist.sh`'s file list, and they are here so a reader
-/// who reds this row learns what the numbers were for.
+/// The remainder is dispositioned here, one note per file that has one.
+/// Nothing checks these notes — they are prose beside a number the walk
+/// re-derives, exactly like the ratification citations on
+/// `bounds-allowlist.sh`'s file list, and they are here so a reader who
+/// reds this row learns what the numbers were for.
 const ROSTER: &[(&str, usize, usize, &str)] = &[
     (
         "crates/geom-brep/src/offset_fit.rs",
@@ -145,7 +132,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         2,
         2,
         "both are in `rational_cells`, and only one of them is guarded by the \
-         `is_poison()` this counts — blind spot 2. That one is the refined weight \
+         `is_certified()` this counts — blind spot 2. That one is the refined weight \
          licence, which asks by name before reading `lo`. The other is the cell \
          CENTROID, safe because a centre is a translation choice and no enclosure \
          rests on it: the site takes each refined control point's midpoint and \
@@ -170,14 +157,14 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          corners, safe by construction: `SsiDomain::slab` is `Box3::around` of a \
          `Point3<f64>` and an `f64` half-extent, and an `f64`'s refusal IS its NaN — \
          the crossing has no decoration channel to carry a refusal in, so a refused \
-         slab reads NaN at both ends exactly as it did before the newtype",
+         slab reads NaN at both ends",
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
         16,
         4,
         "the 4 that ask are the mignitude (`zero_free_lower_bound`). Of the other 12, \
-         ten are `T: Bounds` reads on the evaluation scalar and not ring endpoints at \
+         ten are `T: Bounds` reads on the evaluation scalar and not certification endpoints at \
          all — blind spot 1 — and two are the transversality span-hull window, safe \
          because `KnotVector::clamped` refuses degree 0: a window therefore holds at \
          least two coefficients, and `CoeffWindow::hull` folds every one after the \
@@ -195,19 +182,15 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
         "crates/geom-core/src/interval.rs",
-        17,
-        0,
-        "not ring reads at all — blind spot 1. Every one is the certification \
-         scalar's own `self.0.lo()`/`hi()` on the `DInterval` it wraps, where the \
-         refusal is the decoration and `is_certified()` is what reads it. The file \
-         is walked because it is the crossing's other end (`ALSO_WALKED`)",
-    ),
-    (
-        "crates/geom-core/src/ring_interval.rs",
-        9,
-        4,
-        "the type's own body: five reads are the accessors and the two trait \
-         forwarders, which ARE what every site above calls",
+        19,
+        5,
+        "the type's own body. The 5 that ask are the certification doors that read \
+         an endpoint (`clamped_to`, `width`, `mag`) and the two refusal doors \
+         (`certified_bracket`, `sign_within`). The other 14 are not certification \
+         reads at all — blind spot 1: they are the evaluation scalar's own \
+         implementation reads of the `DInterval` it wraps (the `Bounds` forwarders, \
+         `repr_bits`, `copysign` and the kink selectors), which test NaI and empty \
+         themselves and carry the decoration forward rather than certifying",
     ),
     ("crates/geom-core/src/spline/compose/tensor.rs", 3, 3, ""),
     ("crates/geom-core/src/sym/signed.rs", 2, 2, ""),
@@ -227,8 +210,14 @@ fn repo_root() -> std::path::PathBuf {
         .expect("crates/<name> sits two levels under the repo root")
 }
 
-/// Every `crates/*/src` file whose text names `Interval`.
-fn consumer_files(root: &std::path::Path) -> Vec<(String, String)> {
+/// Every `crates/*/src` file whose production code calls a door, with
+/// its production lines. **The shared lexer's CODE view**, not the raw
+/// text: a `.lo()` or a door inside a doc comment or a string literal is
+/// neither a read nor a call, and blanking keeps the newlines so a line
+/// count over this view is a line count over the file
+/// (`crates/test-utils/tests/reader_census.rs` is the ledger this entry
+/// sits in).
+fn population(root: &std::path::Path) -> Vec<(String, Vec<String>)> {
     let mut out = Vec::new();
     let crates = root.join("crates");
     let mut dirs: Vec<std::path::PathBuf> = std::fs::read_dir(&crates)
@@ -240,22 +229,19 @@ fn consumer_files(root: &std::path::Path) -> Vec<(String, String)> {
     for d in dirs {
         for path in source::rust_sources(&d.join("src")) {
             let raw = std::fs::read_to_string(&path).expect("a readable source file");
+            let lines = production(&source::code_only(&raw));
+            if !lines
+                .iter()
+                .any(|l| DOORS.iter().any(|door| l.contains(door)))
+            {
+                continue;
+            }
             let rel = path
                 .strip_prefix(root)
                 .expect("a walked file lies under the repo root")
                 .to_string_lossy()
                 .replace('\\', "/");
-            if !raw.contains("Interval") && !ALSO_WALKED.contains(&rel.as_str()) {
-                continue;
-            }
-            // **The shared lexer's CODE view**, not the raw text: a
-            // `.lo()` inside a doc comment or a string literal is not
-            // an endpoint read, and blanking keeps the newlines so a
-            // line count over this view is a line count over the file
-            // (`crates/test-utils/tests/reader_census.rs` is the
-            // ledger this entry sits in).
-            let text = source::code_only(&raw);
-            out.push((rel, text));
+            out.push((rel, lines));
         }
     }
     out.sort();
@@ -335,8 +321,7 @@ fn declares_a_fn(line: &str) -> bool {
 fn every_production_endpoint_read_is_counted_and_dispositioned() {
     let root = repo_root();
     let mut found: Vec<(String, usize, usize)> = Vec::new();
-    for (name, text) in consumer_files(&root) {
-        let lines = production(&text);
+    for (name, lines) in population(&root) {
         let reads: Vec<usize> = (0..lines.len())
             .filter(|i| lines[*i].contains(".lo()") || lines[*i].contains(".hi()"))
             .collect();
@@ -352,7 +337,10 @@ fn every_production_endpoint_read_is_counted_and_dispositioned() {
             let end = (i + 1..lines.len())
                 .find(|j| declares_a_fn(&lines[*j]))
                 .unwrap_or(lines.len());
-            if lines[start..end].iter().any(|l| l.contains("is_poison()")) {
+            if lines[start..end]
+                .iter()
+                .any(|l| l.contains("is_certified()"))
+            {
                 asking += 1;
             }
         }
@@ -364,13 +352,13 @@ fn every_production_endpoint_read_is_counted_and_dispositioned() {
         .collect();
     assert_eq!(
         found, pinned,
-        "the ring's endpoint-read census moved. This is not a number to silence. The \
-         ring's refusal is its DECORATION, so a bracket that may not certify carries \
-         ordinary endpoints and a one-sided read of one takes the certifying branch: \
-         a new read has to ask `is_poison()` by name, or be argued safe at the site \
-         and its file's remainder note above extended. A read that went AWAY needs the \
-         same note shortened. The classes and the sweep's blind spots are in this \
-         file's docs."
+        "the certification endpoint-read census moved. This is not a number to \
+         silence. A certification bracket's refusal is its DECORATION, so a bracket \
+         that may not certify carries ordinary endpoints and a one-sided read of one \
+         takes the certifying branch: a new read has to ask `is_certified()` by name, \
+         or be argued safe at the site and its file's remainder note above extended. \
+         A read that went AWAY needs the same note shortened. The classes and the \
+         sweep's blind spots are in this file's docs."
     );
     // The census is about a population, so it says how big that
     // population is: a walk that found nothing would satisfy every
