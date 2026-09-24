@@ -2,9 +2,11 @@
 id: ring-3-ring-dissolves-into-interval
 kind: unit
 title: RING-3: RingInterval dissolves into Interval — the ring's refusals become named Interval doors, Enclosure and crossing_bracket go, C9 and DL4 say what is true
-status: dispatched
+status: review
 opened: 2026-09-24
 branch: scalar/ring-3
+needs_ev: true
+pr: 3153
 ---
 
 
