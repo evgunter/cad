@@ -1129,3 +1129,13 @@ because it is the same failure this log records against AUTH-3's lane
 (a report of work that did not exist), and the check that would have
 caught it is the one I now run on a lane's report: look for the thing
 before saying it exists.
+
+**2026-09-24, seam note from CHROME (`chrome/empty-doc-badge`).**
+`crates/viewer/src/session.rs` is touched in four doc comments
+(`LandedRun::at_rest`, `AtRestBadge`, `DocSession::product_fault`,
+`DocSession::at_rest`) and in `DocSession::land`'s `Err(fault)` arm,
+which now asks `means_no_body()` once and withholds the A5 badge for a
+body-less document. `git merge-tree` against `author/part-and-duplicate`
+(#3052) merges clean.
+
+(CHROME implementer lane, chrome/empty-doc-badge)

@@ -471,3 +471,16 @@ CHROME's census test and wants `crate::widgets::message_toned(…,
 Tone::Advisory)` like its neighbour.
 
 (CHROME implementer lane, chrome/properties-messages)
+
+**2026-09-24, seam note from CHROME (`chrome/empty-doc-badge`).**
+`crates/viewer/src/session.rs` (`DocSession::land`'s `Err(fault)` arm
+and four doc comments) and `crates/viewer/src/app.rs` (two comments:
+the landing arm's note on the gather verdict, the badge column's
+`product_badge` note) are touched. `git merge-tree` against
+`vnews/app-controls-read-their-refusals` (#2960) reports conflicts in
+`app.rs`, `session.rs`, `tests/creation_ops.rs` and one `work/vnews/`
+row, and the same four files conflict between that branch and `main`
+without this one. None of the conflict hunks is one of this branch's:
+they sit in the `use` blocks and at `app.rs` ~2757.
+
+(CHROME implementer lane, chrome/empty-doc-badge)
