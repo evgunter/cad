@@ -2314,6 +2314,12 @@ NOT_BOUND = {
     "ProfileDoc": SHAPE,
     "ProfileLift": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
+    # The floor of the retired index space — the coordinate
+    # `SetProgram` retires a stranded name to. A Python caller reads
+    # the retired spelling off the `strand` row's `name` and rebinds
+    # from it; it never mints one, so the number is not a door here
+    # (`test_document.py`'s strand row pins the spelling by value).
+    "RETIRED_FLOOR": SHAPE,
     "Real": SHAPE,
     "RecordedNotation": f"{GAP}: B-PATH-NOTATION the notation a recorded path leg was authored in",
     "RecordedProgramError": SHAPE,
