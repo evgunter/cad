@@ -1242,7 +1242,11 @@ pub enum ValidationError {
     UndeclaredContact {
         /// The coinciding entity pair, typed by census kind.
         contact: CensusContact,
-        /// A debug rendering of the witnessing position.
+        /// Where the contact was witnessed, read after "at" in the
+        /// message: a coordinate triple, or — where the arm's evidence
+        /// is a region verdict with no point (the conformal-patch
+        /// arm) — a phrase naming that region. Never the subject
+        /// again: `contact` carries it.
         witness: String,
     },
     /// Tier 3′: a declared contact record has no geometric witness —
@@ -1265,7 +1269,11 @@ pub enum ValidationError {
     ContactContradicted {
         /// The face pair and class that were declared.
         declaration: DeclaredContact,
-        /// A debug rendering of the witnessing site.
+        /// Where the contradiction was witnessed, read after "at" in
+        /// the message: a coordinate triple, or — where the verdict
+        /// compares whole surfaces and yields no point (the
+        /// patch-record confirm pass's Door 1) — a phrase naming
+        /// them. Never the pair again: `declaration` carries it.
         witness: String,
         /// The margin that decided, and its predicate — the named
         /// number the message renders, never a bare "contradicted".
@@ -7268,293 +7276,15 @@ mod tests {
 
     #[test]
     fn errors_display_without_panicking() {
-        // One sample per `ValidationError` variant, indexed by the
-        // enum's own compiler-derived companion: `ValidationErrorKind`
-        // supplies both the index and the count, so a variant added
-        // without a sample fails this row by name and nothing here
-        // restates the enum.
+        // At least one sample per `ValidationError` variant, from the
+        // shared list a downstream refusal-budget row renders too
+        // (`crate::test_support_samples`), indexed by the enum's own
+        // compiler-derived companion: `ValidationErrorKind` supplies
+        // both the index and the count, so a variant added without a
+        // sample fails this row by name — and, once sampled, is held
+        // to the budget there — and nothing here restates the enum.
         use strum::{EnumCount as _, IntoEnumIterator as _};
-        fn band_error() -> geom_core::BandError {
-            geom_core::Band::new(1.0, 0.0).unwrap_err()
-        }
-        fn indeterminate() -> Indeterminate {
-            Indeterminate {
-                margin: geom_core::MarginDiag::Value(5e-9),
-                band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("validate_probe"),
-            }
-        }
-        let t = pillow(Tol::witness());
-        let he = t.hes_a[0];
-        let v = t.vertices[0];
-        let e = t.edges[0];
-        let all: Vec<ValidationError> = vec![
-            ValidationError::DanglingTopology {
-                from: EntityId::Solid(t.solid),
-                to: EntityId::Shell(t.shell),
-            },
-            ValidationError::RingMeetsOuter {
-                face: t.face_a,
-                ring: t.loop_a,
-                contact: RingContact::Vertex {
-                    ring_vertex: v,
-                    outer_vertex: v,
-                },
-            },
-            ValidationError::RingMeetsOuter {
-                face: t.face_a,
-                ring: t.loop_a,
-                contact: RingContact::VertexOnEdge {
-                    ring_vertex: v,
-                    outer_edge: e,
-                },
-            },
-            ValidationError::RingContactEscalated {
-                face: t.face_a,
-                ring: t.loop_a,
-                source: indeterminate(),
-            },
-            ValidationError::RingOutsideOuter {
-                face: t.face_a,
-                ring: t.loop_a,
-                ring_vertex: v,
-            },
-            ValidationError::RingNestingUndecided {
-                face: t.face_a,
-                ring: t.loop_a,
-                source: crate::boolean::ContainError::Escalated(indeterminate()),
-            },
-            ValidationError::DanglingGeometry {
-                from: EntityId::Vertex(v),
-                to: GeomRef::Point(t.points[0]),
-            },
-            ValidationError::NextPrevMismatch { half_edge: he },
-            ValidationError::LoopCycleOverrun { loop_: t.loop_a },
-            ValidationError::ParentLoopMismatch {
-                half_edge: he,
-                owner: t.loop_a,
-            },
-            ValidationError::UnreachableHalfEdge { half_edge: he },
-            ValidationError::EdgeHalvesIdentical { edge: e },
-            ValidationError::EdgeSlotBackpointerMismatch {
-                edge: e,
-                half_edge: he,
-            },
-            ValidationError::HalfEdgeUnclaimed { half_edge: he },
-            ValidationError::HalfEdgeMultiplyClaimed {
-                half_edge: he,
-                claims: 2,
-            },
-            ValidationError::EdgeNotAntiparallel { edge: e },
-            ValidationError::EmanatingStartMismatch {
-                vertex: v,
-                emanating: he,
-            },
-            ValidationError::EmptyLoopVertexWithEmanating {
-                vertex: v,
-                empty_loops: 1,
-            },
-            ValidationError::LoneVertexWithIncidence {
-                vertex: v,
-                incident: 2,
-            },
-            ValidationError::VertexOrbitOverrun { vertex: v },
-            ValidationError::OrbitForeignMember {
-                vertex: v,
-                half_edge: he,
-            },
-            ValidationError::SplitVertexOrbit {
-                vertex: v,
-                orbit: 2,
-                incident: 4,
-            },
-            ValidationError::OuterListedAsRing { face: t.face_a },
-            ValidationError::BackPointerMismatch {
-                child: EntityId::Loop(t.loop_a),
-                stored: EntityId::Face(t.face_a),
-                owner: EntityId::Face(t.face_b),
-            },
-            ValidationError::OrphanEntity {
-                entity: EntityId::Vertex(v),
-            },
-            ValidationError::MultiplyOwned {
-                child: EntityId::Shell(t.shell),
-                owners: 2,
-            },
-            ValidationError::OrphanGeometry {
-                geometry: GeomRef::Point(t.points[0]),
-            },
-            ValidationError::SolidWithoutShells { solid: t.solid },
-            ValidationError::ShellWithoutFaces { shell: t.shell },
-            ValidationError::EdgeAcrossShells {
-                edge: e,
-                shell_plus: t.shell,
-                shell_minus: t.shell,
-            },
-            ValidationError::ComponentEulerViolation {
-                shell: t.shell,
-                seed: t.face_a,
-                vertices: 2,
-                edges: 2,
-                faces: 1,
-                rings: 0,
-            },
-            ValidationError::MissingProvenance {
-                entity: EntityId::Face(t.face_a),
-            },
-            ValidationError::LeakedProvenance {
-                entity: EntityId::Face(t.face_a),
-            },
-            ValidationError::ScaffoldingEmptyLoop { loop_: t.loop_a },
-            ValidationError::ScaffoldingStrutVertex { vertex: v },
-            ValidationError::ShellDisconnected {
-                shell: t.shell,
-                components: 2,
-            },
-            ValidationError::Band {
-                error: band_error(),
-            },
-            ValidationError::DanglingDescription {
-                from: GeomRef::Point(t.points[0]),
-                to: GeomRef::Point(t.points[0]),
-            },
-            ValidationError::UncertifiableSurface { face: t.face_a },
-            ValidationError::PoisonedSurfaceDescription { face: t.face_a },
-            ValidationError::EdgeCertification {
-                edge: e,
-                error: CertifyError::Unimplemented,
-            },
-            ValidationError::DescriptionNotAdjacent { edge: e },
-            ValidationError::PlanarFaceResidual {
-                face: t.face_a,
-                vertex: v,
-            },
-            ValidationError::PlanarFaceEscalated {
-                face: t.face_a,
-                vertex: v,
-                cause: indeterminate(),
-            },
-            ValidationError::PlanarBoundaryResidual {
-                face: t.face_a,
-                edge: e,
-            },
-            ValidationError::PlanarBoundaryEscalated {
-                face: t.face_a,
-                edge: e,
-                cause: indeterminate(),
-            },
-            ValidationError::SliverDihedral {
-                edge: e,
-                cause: indeterminate(),
-            },
-            ValidationError::TransverseNotIntrinsic { edge: e },
-            ValidationError::ScaffoldAtRest { edge: e },
-            ValidationError::TangentNotIntrinsic { edge: e },
-            ValidationError::UndeclaredCusp {
-                edge: e,
-                wedge: MaterialWedge::Cusp,
-            },
-            ValidationError::LaminaWedge { edge: e },
-            ValidationError::LoopRoleInverted {
-                face: t.face_a,
-                r#loop: t.loop_a,
-            },
-            ValidationError::CurvedSenseInverted { face: t.face_a },
-            ValidationError::NegativeVolume { solid: t.solid },
-            ValidationError::VolumeUncomputable {
-                solid: t.solid,
-                source: crate::props::MassPropsError::Band {
-                    error: band_error(),
-                },
-            },
-            ValidationError::Pcurve {
-                finding: crate::pcurves::PcurveMintError::Corrupt,
-            },
-            ValidationError::UndeclaredContact {
-                contact: CensusContact::VertexVertex { a: v, b: v },
-                witness: "witness".to_string(),
-            },
-            ValidationError::StaleContactDeclaration {
-                declaration: StaleDeclaration::VertexVertex { a: v, b: v },
-            },
-            ValidationError::ContactContradicted {
-                declaration: DeclaredContact {
-                    a: t.face_a,
-                    b: t.face_b,
-                    class: crate::ContactClass::Rest,
-                },
-                witness: "witness".to_string(),
-                margin: indeterminate(),
-                steer: None,
-            },
-            ValidationError::CensusEscalated {
-                cause: indeterminate(),
-            },
-            // Three causes, not one three times: the Display-coverage
-            // row renders every arm in this list, and an arm whose
-            // cause is only ever the chart-region one would leave the
-            // other two composition paths unrendered here. The
-            // segment figure is derived from the cap it is one past,
-            // never restated.
-            ValidationError::CensusUnsupported {
-                subject: CensusSubject::FacePair(t.face_a, t.face_b),
-                cause: CensusUnsupportedCause::ChartRegion(
-                    ChartRegionError::WitnessBudgetExhausted {
-                        segments: crate::chart_region::WITNESS_BUDGET.segments + 1,
-                        cells: 0,
-                    },
-                ),
-            },
-            ValidationError::CensusUnsupported {
-                subject: CensusSubject::Entity(EntityId::Face(t.face_a)),
-                cause: CensusUnsupportedCause::FaceUnboundable,
-            },
-            ValidationError::CensusUnsupported {
-                subject: CensusSubject::Entity(EntityId::Edge(e)),
-                cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable {
-                    what: "a declared face's surface kind is outside the Rest ladder's \
-                           inventory (plane, sphere, cylinder)",
-                }),
-            },
-            ValidationError::CensusLaneUnsupported {
-                subject: CensusSubject::FacePair(t.face_a, t.face_b),
-            },
-            ValidationError::CensusUndecidable {
-                a: EntityId::Face(t.face_a),
-                b: EntityId::Face(t.face_a),
-                what: "what",
-            },
-            ValidationError::InstanceInterference {
-                outer: t.solid,
-                inner: t.solid,
-                witness: crate::entity::VertexKey::default(),
-            },
-            ValidationError::NullScaffoldShared {
-                curve: CurveKey::default(),
-                edges: 2,
-            },
-            ValidationError::LeakedNullFaceRecord { face: t.face_a },
-            ValidationError::StaleNullFaceLoop {
-                face: t.face_a,
-                named_loop: t.loop_a,
-            },
-            ValidationError::NullEdgeAtRest { edge: e },
-            ValidationError::NullFaceAtRest { face: t.face_a },
-            ValidationError::DegenerateTorus { face: t.face_a },
-            ValidationError::DegenerateTorusEscalated {
-                face: t.face_a,
-                cause: indeterminate(),
-            },
-            ValidationError::NonpositiveTorusTube { face: t.face_a },
-            ValidationError::ApproxCertification {
-                face: t.face_a,
-                error: geom_brep::OffsetFitError::InvalidRequest {
-                    d: 0.0,
-                    tolerance: 0.0,
-                },
-            },
-            ValidationError::ApproxLaneUnsupported { face: t.face_a },
-        ];
+        let all = crate::test_support_samples::validation_error_samples();
         // The two derives agree on order: `from(err) as usize` is
         // the declaration index and `iter()` walks the same
         // sequence, so zipping them below pairs each flag with the

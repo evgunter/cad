@@ -1169,6 +1169,20 @@ fn witness<T: Real>(p: Point3<T>) -> String {
     format!("({:?}, {:?}, {:?})", p.x, p.y, p.z)
 }
 
+/// The witness of a conformal-patch finding: the chart-region verdict
+/// (`ChartOverlap::PositiveArea`) says the two faces share a region of
+/// positive area and hands back no point in it, so the slot names that
+/// region. It reads after "at" in [`ValidationError::UndeclaredContact`]'s
+/// `Display`, as a coordinate does.
+pub(crate) const CONFORMAL_REGION_WITNESS: &str = "the region the two faces share";
+
+/// The witness of a patch record Door 1 contradicts: the verdict
+/// compares the two faces' carriers whole — the same surface, opposed
+/// senses — and hands back no point, so the slot names the surfaces.
+/// It reads after "at" in [`ValidationError::ContactContradicted`]'s
+/// `Display`, as a coordinate does.
+pub(crate) const CARRIER_COMPARISON_WITNESS: &str = "the two faces' surfaces";
+
 /// An impossible sign from a nonnegative margin — surfaced as the
 /// invalid-margin escalation (poison posture; never silent).
 fn invalid(band: Band, predicate: &'static str) -> geom_core::Indeterminate {
@@ -2297,20 +2311,14 @@ fn sweep_conformal_patches<T: Decide>(
                                 },
                                 verdict: crate::contact::ContactVerdict::Definite,
                             };
-                            // Rendered in the arm's own order. A
-                            // census face pair is unordered for
-                            // EQUALITY alone — the order stays in the
-                            // value, and in what `Debug` prints — and
-                            // the arm's order is a function of the
-                            // input (D9), so no run-to-run instability
-                            // exists for a normalisation to cure.
-                            // Normalising here would also disagree
-                            // with the typed pair on the finding
-                            // beside it, which is what a consumer
-                            // resolves against.
+                            // The witness names the LOCUS, not the
+                            // pair: the finding beside it carries the
+                            // pair typed, and `PositiveArea` is a
+                            // region verdict that hands back no point,
+                            // so the locus is the region itself.
                             errors.push(ValidationError::UndeclaredContact {
                                 contact: CensusContact::ConformalPatch { finding },
-                                witness: format!("{fa:?}~{fb:?}"),
+                                witness: CONFORMAL_REGION_WITNESS.to_owned(),
                             });
                         }
                     }
@@ -2773,6 +2781,62 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
         Point3::new(s.x.hi, s.y.hi, s.z.hi),
     )
 }
+
+// The `what` of each [`ValidationError::CensusUndecidable`] the
+// cross-solid backstop raises from a fixed sentence, at module scope so
+// [`UNDECIDABLE_WHATS`] can list them: the arm renders the `what`
+// whole, so its length is part of the finding's length.
+pub(crate) const CURVED_WITHIN_REACH: &str = "cross-solid faces within reach, at least one of \
+                                              them with a curved carrier or a curved \
+                                              boundary — the conformal-rest / proximity / \
+                                              partial-embedding class the exclusion ring \
+                                              will examine";
+pub(crate) const NO_SOUND_REACH: &str = "a cross-solid face pair one of whose faces has no \
+                                         sound cheap reach bound — a placeholder surface, or \
+                                         a boundary carrying a curve with no sound box — the \
+                                         exclusion ring is the certified excluder";
+pub(crate) const CROSSING: &str = "a crossing already stands against one of these instances, so \
+                        their boundaries are not certified crossing-free and no \
+                        witness decides the placement";
+pub(crate) const UNEXAMINED: &str = "an unexamined or escalated finding already stands against \
+                          one of these instances, so their boundaries are not \
+                          certified crossing-free and no witness decides the \
+                          placement";
+pub(crate) const MIXED_TOUCH: &str = "a touch between these instances is a crossing at a \
+                           lower-dimensional feature — the touching solid's edges \
+                           or faces leave the touched face's plane on both sides — \
+                           so the placement is not decided by its vertices";
+pub(crate) const TOUCH_IN_BAND: &str = "a touch between these instances has an edge or face \
+                             leaving the touched face's plane in band, so which side \
+                             it rests on is undecided at this ε";
+pub(crate) const TOUCH_UNREADABLE: &str = "a touch between these instances involves a curved \
+                                face or edge, whose side the planar analysis does \
+                                not read — the exclusion ring's case";
+pub(crate) const TOUCH_UNANALYSED: &str = "a touch between these instances (a coincident vertex \
+                                pair, a vertex on an edge, a collinear edge overlap \
+                                or a conformal patch) has no local side analysis \
+                                yet, so the placement is not decided by its vertices";
+pub(crate) const DECLARED_FACE_PAIR: &str = "a declared face-pair record between these instances \
+                                  backs vertex events without a side, so the \
+                                  placement is not decided by its vertices";
+
+/// Every fixed-sentence `what` the cross-solid backstop raises
+/// [`ValidationError::CensusUndecidable`] with — the samples the
+/// refusal budget renders the arm on. A `what` written inline at a
+/// raise site, or forwarded from another refusal's summary, is not
+/// here.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) const UNDECIDABLE_WHATS: [&str; 9] = [
+    CURVED_WITHIN_REACH,
+    NO_SOUND_REACH,
+    CROSSING,
+    UNEXAMINED,
+    MIXED_TOUCH,
+    TOUCH_IN_BAND,
+    TOUCH_UNREADABLE,
+    TOUCH_UNANALYSED,
+    DECLARED_FACE_PAIR,
+];
 
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
 /// census must DECIDE or REFUSE — it must never silently not-examine
@@ -3247,20 +3311,14 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Face(a.face),
                         b: EntityId::Face(b.face),
-                        what: "cross-solid faces within reach, at least one of them with \
-                               a curved carrier or a curved boundary — the conformal-rest / \
-                               proximity / partial-embedding class the exclusion ring \
-                               will examine",
+                        what: CURVED_WITHIN_REACH,
                     });
                 }
             } else {
                 errors.push(ValidationError::CensusUndecidable {
                     a: EntityId::Face(a.face),
                     b: EntityId::Face(b.face),
-                    what: "a cross-solid face pair one of whose faces has no sound \
-                           cheap reach bound — a placeholder surface, or a boundary \
-                           carrying a curve with no sound box — the exclusion ring \
-                           is the certified excluder",
+                    what: NO_SOUND_REACH,
                 });
             }
             if let Some(t) = trace.as_deref_mut() {
@@ -3470,30 +3528,6 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             Side::InPlane
         }
     };
-    const CROSSING: &str = "a crossing already stands against one of these instances, so \
-                            their boundaries are not certified crossing-free and no \
-                            witness decides the placement";
-    const UNEXAMINED: &str = "an unexamined or escalated finding already stands against \
-                              one of these instances, so their boundaries are not \
-                              certified crossing-free and no witness decides the \
-                              placement";
-    const MIXED_TOUCH: &str = "a touch between these instances is a crossing at a \
-                               lower-dimensional feature — the touching solid's edges \
-                               or faces leave the touched face's plane on both sides — \
-                               so the placement is not decided by its vertices";
-    const TOUCH_IN_BAND: &str = "a touch between these instances has an edge or face \
-                                 leaving the touched face's plane in band, so which side \
-                                 it rests on is undecided at this ε";
-    const TOUCH_UNREADABLE: &str = "a touch between these instances involves a curved \
-                                    face or edge, whose side the planar analysis does \
-                                    not read — the exclusion ring's case";
-    const TOUCH_UNANALYSED: &str = "a touch between these instances (a coincident vertex \
-                                    pair, a vertex on an edge, a collinear edge overlap \
-                                    or a conformal patch) has no local side analysis \
-                                    yet, so the placement is not decided by its vertices";
-    const DECLARED_FACE_PAIR: &str = "a declared face-pair record between these instances \
-                                      backs vertex events without a side, so the \
-                                      placement is not decided by its vertices";
     // Does anything standing void the clear for the pair? `None` = the
     // clear may stand; `Some(what)` = the refusal to push.
     let touch_verdict = |side: Side| -> Option<&'static str> {
@@ -3968,21 +4002,19 @@ fn confirm_curve_and_patch_records<T: Decide>(
         ) {
             Ok(verdict) => verdict,
             Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
-                // Rendered in the declared record's own order,
-                // which is the reader's index back into the records
-                // they supplied — not this run's arena order. A census
-                // face pair is unordered for EQUALITY alone: the order
-                // stays in the value, and normalising it here would
-                // disagree with `declaration` beside it, the same two
-                // keys in the same order and what a consumer resolves
-                // against.
+                // The declaration is carried in the record's own
+                // order, the reader's index back into the records they
+                // supplied. The witness names the LOCUS, not the pair
+                // (`declaration` carries that): Door 1 compares the two
+                // faces' carriers whole — identity and senses — and
+                // hands back no point, so the locus is the surfaces.
                 errors.push(ValidationError::ContactContradicted {
                     declaration: crate::contact::DeclaredContact {
                         a: c.face_a,
                         b: c.face_b,
                         class: crate::contact::ContactClass::Rest,
                     },
-                    witness: format!("{:?}~{:?}", c.face_a, c.face_b),
+                    witness: CARRIER_COMPARISON_WITNESS.to_owned(),
                     margin: diag,
                     steer,
                 });
