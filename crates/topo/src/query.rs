@@ -1055,7 +1055,7 @@ mod tests {
             "the refusal says what happened to the LENGTH: {said}"
         );
         assert!(
-            said.contains("scale the geometry into the session's range"),
+            said.contains(geom_core::RANGE_RECOURSE),
             "and it names the recourse that works: {said}"
         );
         // The recourse it must NOT name, because it does not work:

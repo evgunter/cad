@@ -30,9 +30,9 @@ not what it says.
 - [Agent lane operations](agent-lane-operations.md) — lane creation,
   build-slot locks, disk, liveness, death recovery, and the ways CI
   silently does not run
-- [Model A/B experiment](model-ab-experiment.md) — the standing
-  Opus-vs-Fable implementation experiment; `docs/MODEL-AB-LOG.md` is
-  normative and owns every live number
+- [Experiments](experiments.md) — the process experiments that are
+  live (dual Opus review concordance) or suspended (model A/B), where
+  each one's normative log is, and what any experiment binds
 
 ## Testing, review, measurement
 

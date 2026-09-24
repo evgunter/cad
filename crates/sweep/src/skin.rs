@@ -183,9 +183,11 @@ pub enum SkinError {
 impl core::fmt::Display for SkinError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::TooFewSections { have, need } => {
-                write!(f, "skin: {have} sections, need at least {need}")
-            }
+            Self::TooFewSections { have, need } => write!(
+                f,
+                "{have} sections were given and at least {need} are needed. Recourse: supply \
+                 more sections"
+            ),
             Self::SectionShapeMismatch {
                 section,
                 expected,
@@ -193,38 +195,35 @@ impl core::fmt::Display for SkinError {
                 what,
             } => write!(
                 f,
-                "skin: section {section} has {found} {what}, section 0 has {expected} — a \
-                 skin matches like to like by index; supply sections with the same shape"
+                "section {section} has {found} {what} and section 0 has {expected}, but \
+                 sections are matched by index. Recourse: supply sections with the same shape"
             ),
             Self::SectionProfile { section, source } => {
-                write!(
-                    f,
-                    "skin: section {section} failed profile validation: {source}"
-                )
+                write!(f, "section {section} is not a valid profile: {source}")
             }
             Self::DomainNotUnit { section, domain } => write!(
                 f,
-                "skin: section {section} lives on [{}, {}], not the unit domain the \
-                 compatibility pass requires",
+                "section {section} lives on [{}, {}], not the unit domain the sections are \
+                 matched on",
                 domain.0, domain.1
             ),
             Self::DegenerateSection { section, what } => write!(
                 f,
-                "skin: section {section} is degenerate ({what}) — {COINCIDENCE_RECOURSE}"
+                "section {section} is degenerate ({what}). Recourse: {COINCIDENCE_RECOURSE}"
             ),
             Self::BadDegree { degree, sections } => write!(
                 f,
-                "skin: v-degree {degree} is not usable for {sections} sections (need \
-                 1 ≤ degree ≤ sections − 1)"
+                "degree {degree} is not usable for {sections} sections (it must be at least 1 \
+                 and below the section count)"
             ),
             Self::PathTangentReversal { station } => write!(
                 f,
-                "skin: the path's tangent reverses or vanishes at station {station} — no \
-                 rigid frame carries the profile through it"
+                "the path's tangent reverses or vanishes at station {station}, so no rigid \
+                 frame carries the profile through it. Recourse: smooth the path there"
             ),
-            Self::Fit(e) => write!(f, "skin: {e}"),
-            Self::KnotAlgebra(e) => write!(f, "skin: {e}"),
-            Self::Structure(e) => write!(f, "skin: {e}"),
+            Self::Fit(e) => write!(f, "{e}"),
+            Self::KnotAlgebra(e) => write!(f, "{e}"),
+            Self::Structure(e) => write!(f, "{e}"),
         }
     }
 }

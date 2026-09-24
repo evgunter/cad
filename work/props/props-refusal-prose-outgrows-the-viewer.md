@@ -44,3 +44,16 @@ viewer — most reach it through `NodeErrorKind`'s forwarding arms
 (feature tree fault line, status line) or through the checks window —
 and a `Display` written outside `impl Display` (a helper returning a
 `String`) is not seen.
+
+## A `Debug` struct on screen (CHROME concision fix pass, 2026-09-23)
+
+`MinClearanceRefusal`'s `Display` (`crates/editor-core/src/measure.rs:568-575`)
+renders the clearance engine's refusal as "the clearance engine refused
+`budget` (Depth { max_cell_depth: 20 })": the class is a code
+identifier in backticks and the payload is the engine refusal's
+`Debug` form. It reaches the feature tree through
+`NodeErrorKind::MeasureClearanceRefused`. The file is in open PR #2702,
+so the rewrite was filed here rather than made; the feature tree's
+guard (`crates/editor-core/tests/refusal_concision_chains.rs`) finds a
+`Debug` struct by its shape and admits it on exactly that row
+(`FILED_DEBUG`), and removing the entry is the check that this is done.

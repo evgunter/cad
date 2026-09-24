@@ -557,7 +557,7 @@ fn an_underflowed_pattern_direction_refuses_as_underflow_not_as_zero_length() {
                  length: {said}"
             );
             assert!(
-                said.contains("scale the geometry into the session's range"),
+                said.contains(geom_core::RANGE_RECOURSE),
                 "and the recourse that works — the overflow arm's: {said}"
             );
         }

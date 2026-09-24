@@ -328,28 +328,27 @@ impl core::fmt::Display for FrameError {
                 input,
                 indeterminate,
             } => {
-                write!(f, "frame: degenerate {}", input.name())?;
+                write!(f, "the frame's {} is degenerate", input.name())?;
                 if let Some(i) = indeterminate {
                     write!(f, " ({})", i.payload())?;
                 }
-                write!(f, "; {COINCIDENCE_RECOURSE}")
+                write!(f, ". Recourse: {COINCIDENCE_RECOURSE}")
             }
             FrameError::NonFiniteLength { input } => write!(
                 f,
-                "frame: {} has no finite length \u{2014} its components overflow the \
-                 norm, or one of them is not a number; scale the geometry into the \
-                 session's range",
-                input.name()
+                "the frame's {} has no finite length (a component overflows the norm or \
+                 is not a number). Recourse: {}",
+                input.name(),
+                crate::predicate::RANGE_RECOURSE
             ),
             FrameError::UnderflowedLength { input } => write!(
                 f,
-                "frame: {}'s length underflowed out of the format \u{2014} its components \
-                 are too small for the norm to hold, so it measures exactly zero while \
-                 still naming a direction; no tolerance reaches this, scale the geometry \
-                 into the session's range",
-                input.name()
+                "the frame's {} has a length that underflowed out of the format, though \
+                 it still names a direction. Recourse: {}",
+                input.name(),
+                crate::predicate::RANGE_RECOURSE
             ),
-            FrameError::Band(e) => write!(f, "frame: {e}"),
+            FrameError::Band(e) => write!(f, "{e}"),
         }
     }
 }
@@ -1303,10 +1302,7 @@ mod tests {
         .to_string();
         assert!(s.contains("path tangent"), "{s}");
         assert!(s.contains("no finite length"), "{s}");
-        assert!(
-            s.contains("scale the geometry into the session's range"),
-            "{s}"
-        );
+        assert!(s.contains(crate::predicate::RANGE_RECOURSE), "{s}");
         assert!(!s.contains(COINCIDENCE_RECOURSE), "{s}");
     }
 }

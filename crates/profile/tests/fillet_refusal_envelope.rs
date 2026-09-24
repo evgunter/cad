@@ -153,7 +153,7 @@ fn both_refusing_crossings_are_reported_each_with_its_own_reason() {
         "the header names the radius: {rendered}"
     );
     assert_eq!(
-        rendered.matches("at the corner near").count(),
+        rendered.matches("at corner (").count(),
         2,
         "one sentence per crossing: {rendered}"
     );
