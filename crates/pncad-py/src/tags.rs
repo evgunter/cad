@@ -1964,7 +1964,6 @@ pub fn export_error_tag(err: &pncad::export::ExportError) -> &'static str {
     use pncad::export::ExportError as E;
     match err {
         E::UnknownNode { .. } => "unknown_node",
-        E::PlacedUnderTwoRoots { .. } => "placed_under_two_roots",
         E::NodeFailed { .. } => "node_failed",
         E::Poisoned { .. } => "poisoned",
         E::NotABody { .. } => "not_a_body",
@@ -1981,6 +1980,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
     match err {
         E::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
         E::UnknownNode { .. } => "unknown_node",
+        E::PlacedUnderTwoRoots { .. } => "placed_under_two_roots",
         E::RootFailed { .. } => "root_failed",
         E::RootPoisoned { .. } => "root_poisoned",
         E::NoBodyRoots => "no_body_roots",
