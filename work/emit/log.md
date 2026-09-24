@@ -427,3 +427,19 @@ The project is fail-loud, so 3167 does not land alone. The P0
 `union-rim-piece-ranks-follow-fold-order-so-rim-names-rebind` is
 stacked on it and dispatched to the same lane. The two land together
 once the probe corpus shows 0 rebinds.
+
+## 2026-09-24 — rim-piece ranks: the piece set is order-shaped too
+
+Review of 3167 and 3168 found that re-ranking a member edge's pieces
+over the finished body is not enough. Which member keeps a flush
+stretch depends on order, so the SET of pieces under `(m, e)` differs
+by order, and ranks within it rebind (`r2ends`: 8 names). On one
+fixture, head is worse than main. The corpus could not see this
+because it had one flush partner per document.
+
+New rule, sent to the lane: rank each piece by its index in the
+geometric subdivision of `e` in the final body, counting every piece.
+A piece another member owns in another order then vanishes rather
+than rebinds, which DM4 accepts. Nested occurrences in vertex names
+are rewritten by the same rule. The pair still lands together only at
+0 rebinds on every fixture.
