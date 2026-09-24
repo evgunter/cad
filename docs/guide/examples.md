@@ -133,7 +133,7 @@ joined-path composition lane.)
 |---|---|
 | `examples/bracket.py` | **The Python flagship.** The one-shot journey — build a bracket, evaluate, validate, measure, export STEP — and then re-import its own output and compare volumes. Guide §2.8 walks the same model |
 | `tests/test_document.py` | The document surface end to end: edit refusals, evaluation errors including poisoning, literal refusals, the D9 bit-replay seed, persistence round-trips, STEP export refusals, and a test that no arena key is reachable |
-| `tests/test_quantities.py` | `25 * mm`, canonical units, and the typed `DimensionError` family |
+| `tests/test_quantities.py` | `25 * mm`, canonical units, and the typed `QuantityOpMismatch` family |
 | `tests/test_stubs.py` | The stubs cannot drift: `pncad.pyi` is parsed and compared name-for-name against the compiled module |
 | `tests/test_mesh.py` | The mesh door: tessellation budgets and their refusals, the mesh read-back, watertightness decided on shared indices, the mesh-vs-exact cross-check on planar, boolean and curved bodies, and STL. `docs/guide/meshing.md` is the prose |
 | `tests/test_workspace.py` | The store: the header-only scan and its refusals, identity vs content pin (`sha256(canonical_bytes(doc)) == content_pin(doc).hex`), `resolve`'s Cargo.lock semantics, the write doors, and the two acts a save is |

@@ -100,22 +100,23 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
-    DimensionError,
+    QuantityOpMismatch,
     PncadError,
     "An operator applied to two QUANTITIES whose dimensions do not \
      admit it — `1 * m + 1 * rad`. Carries `op`, `left`, `right`: \
      the operator and the two dimension tags.\n\n\
-     This is the quantity boundary only, and it is not the only \
-     dimension check in the library. The document layer has its own \
-     refusal type, which reaches Python three ways: through literal \
-     construction, raising `LiteralError`; through `Doc.parse_expr`, \
-     raising `ParseError` with `variant == \"dimension\"` and the \
-     mismatch's own tag as `kind`; and through `load`, where a save \
-     file's ill-dimensioned expression arrives as `PersistError` \
-     with `variant == \"parse\"` rather than as any dimension class \
-     (issue #694). So `DimensionError` never intercepts an \
-     expression-layer mismatch — the text door is where one is \
-     branchable."
+     The class is the Rust type's own name. The quantity boundary's \
+     operator check is not the library's only dimension check, and \
+     the document layer's own refusal type reaches Python under \
+     DOOR names rather than one type name: `LiteralError` from \
+     literal construction, from the measurement constructors and from \
+     the recorded-program lift; `ParseError` with `variant == \
+     \"dimension\"` from `Doc.parse_expr`; `EditError` from \
+     `Doc.apply`; and `PersistError` with `variant == \"dimension\"` \
+     from `load`. Six doors, four classes — the roster with each \
+     one's attribute is on `ErrorClass::DIMENSION_DOORS` in \
+     `crate::errors`. Each carries the failing check's own tag, so \
+     which check refused is branchable at every one."
 );
 pyo3::create_exception!(
     pncad,
@@ -140,13 +141,15 @@ pyo3::create_exception!(
     "A value the expression layer refused: non-finite, or a count \
      written as a continuous literal. Carries `kind`, the stable tag \
      of the refusing arm.\n\n\
-     Not `DimensionError`: that one is the quantity boundary's \
-     operator check. The expression layer's refusal type has \
-     dimension-mismatch arms too, and two other doors reach them — \
-     `load` from a hand-edited save file (as `PersistError` with \
-     `variant == \"parse\"`, issue #694) and `Doc.parse_expr` from \
-     source text (as `ParseError`). Every `kind` raised on THIS \
-     class is a literal-value refusal."
+     Not `QuantityOpMismatch`: that one is the quantity boundary's \
+     operator check, a different type. The expression layer's refusal \
+     type has dimension-mismatch arms too, and it reaches Python at \
+     six doors under four class names — the roster is on \
+     `ErrorClass::DIMENSION_DOORS` in `crate::errors`. THIS class is \
+     three of those six: literal construction, the measurement \
+     arithmetic constructors, and the recorded-program lift (which \
+     spells its tag `variant` rather than `kind` — filed, not \
+     decided)."
 );
 pyo3::create_exception!(
     pncad,
@@ -693,7 +696,7 @@ fn raise_typed(
         ErrorClass::Edit => EditError::new_err(message),
         ErrorClass::Evaluation(_) => EvaluationError::new_err(message),
         ErrorClass::Validation(_) => ValidationError::new_err(message),
-        ErrorClass::Dimension => DimensionError::new_err(message),
+        ErrorClass::QuantityOp => QuantityOpMismatch::new_err(message),
         ErrorClass::FmtQuantity => FmtQuantityError::new_err(message),
         ErrorClass::Literal => LiteralError::new_err(message),
         ErrorClass::Parse => ParseError::new_err(message),
@@ -800,7 +803,7 @@ fn class_discriminant(class: ErrorClass) -> Option<ClassDiscriminant> {
             word: crate::tags::validation_refusal_tag(refusal),
         }),
         ErrorClass::Edit
-        | ErrorClass::Dimension
+        | ErrorClass::QuantityOp
         | ErrorClass::FmtQuantity
         | ErrorClass::Literal
         | ErrorClass::Parse
@@ -866,7 +869,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("EditError", py.get_type::<EditError>())?;
     m.add("EvaluationError", py.get_type::<EvaluationError>())?;
     m.add("ValidationError", py.get_type::<ValidationError>())?;
-    m.add("DimensionError", py.get_type::<DimensionError>())?;
+    m.add("QuantityOpMismatch", py.get_type::<QuantityOpMismatch>())?;
     m.add("FmtQuantityError", py.get_type::<FmtQuantityError>())?;
     m.add("LiteralError", py.get_type::<LiteralError>())?;
     m.add("ParseError", py.get_type::<ParseError>())?;

@@ -4,6 +4,7 @@
 test here goes through a document; none reaches into the kernel.
 """
 
+import json
 import math
 import struct
 import unittest
@@ -621,6 +622,83 @@ class TestPersistence(unittest.TestCase):
         self.assertGreater(refusal.column, 0)
         self.assertIn("no_such_field", refusal.detail)
         self.assertIsNone(refusal.found)
+
+    def test_a_saved_expression_the_dimension_checker_refuses_crosses_whole(self):
+        """The load door's half of the never-strings contract.
+
+        `load` rebuilds every saved expression through the AUTHORING
+        constructors, so a hand-edited file reaches the document layer's
+        dimension checker with no new binding at all. What it raises is
+        the refusal itself — `variant` says a dimension check failed,
+        `inner_variant` says WHICH, from the same vocabulary
+        `ParseError.kind` uses — rather than a sentence a caller would
+        have to parse.
+        """
+        length = {"Literal": {"value": 1.0, "dim": "Length", "unit": "m"}}
+        angle = {"Literal": {"value": 1.0, "dim": "Angle", "unit": "rad"}}
+        cases = {
+            "mismatch": {"Add": [length, angle]},
+            "mul_needs_scalar": {"Mul": [length, length]},
+            "div_needs_scalar_divisor": {"Div": [length, length]},
+            "trig_needs_angle": {"Sin": length},
+            "unknown_display_unit": {
+                "Literal": {"value": 1.0, "dim": "Length", "unit": "furlong"}
+            },
+        }
+        for inner, wire in cases.items():
+            with self.subTest(refusal=inner):
+                with self.assertRaises(pncad.PersistError) as caught:
+                    load(self._save_with_distance(wire))
+                refusal = caught.exception
+                self.assertEqual(refusal.variant, "dimension")
+                self.assertEqual(refusal.inner_variant, inner)
+                # Position rides along; the reporter's own words do not
+                # — there is nothing on this arm that needs a sentence
+                # to be branchable.
+                self.assertEqual(refusal.line, 1)
+                self.assertGreater(refusal.column, 0)
+                self.assertIsNone(refusal.detail)
+
+    def test_a_dimension_refusal_does_not_tell_the_caller_to_regenerate(self):
+        """`regenerate the file` is the recourse for a document this
+        build has lost the vocabulary for. An expression that is
+        dimensionally wrong is not one — regenerating it produces the
+        same refusal — and the message says what IS wrong instead."""
+        bad = self._save_with_distance(
+            {
+                "Add": [
+                    {"Literal": {"value": 1.0, "dim": "Length", "unit": "m"}},
+                    {"Literal": {"value": 1.0, "dim": "Angle", "unit": "rad"}},
+                ]
+            }
+        )
+        with self.assertRaises(pncad.PersistError) as caught:
+            load(bad)
+        message = str(caught.exception)
+        self.assertNotIn("regenerate", message)
+        self.assertIn("cannot apply `add` to length and angle", message)
+
+    def _save_with_distance(self, wire):
+        """A unit box's save text with the extrude's distance expression
+        replaced by `wire`.
+
+        Structural rather than a string substitution: an expression's
+        spelling carries whatever fields the wire form has today, so a
+        needle written out in full would stop matching without failing,
+        and an assertion nothing reaches asserts nothing. This one fails
+        the test if the slot it aims at is gone.
+        """
+        doc = Doc()
+        unit_box(doc, 1 * m, 1 * m, 1 * m)
+        header, body_text = doc.save().split("\n", 1)
+        body = json.loads(body_text)
+        swapped = 0
+        for node in body["snapshot"]["nodes"].values():
+            if "Extrude" in node:
+                node["Extrude"]["distance"] = wire
+                swapped += 1
+        self.assertEqual(swapped, 1, "the fixture has one extrude to tamper")
+        return header + "\n" + json.dumps(body)
 
     def test_a_header_that_disagrees_with_the_snapshot_names_both_ids(self):
         """A tampered or hand-assembled file: the save door writes the

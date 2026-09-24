@@ -2000,6 +2000,7 @@ test_utils::f6_variants! {
         SharedRim,
         MergedChord,
         MergedChordOffRim,
+        SeamLineSides,
         Band,
         Escalated,
     ];
@@ -2108,6 +2109,13 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 rim: edge,
             },
             vec!["merged faces", "operand node 29", "does not lie within"],
+        ),
+        (
+            NamingError::SeamLineSides {
+                node: RecipeNodeId(31),
+                edge,
+            },
+            vec!["node 31", "each side of its recorded pair"],
         ),
         (
             NamingError::Band(BandError::Empty {
