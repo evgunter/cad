@@ -174,10 +174,11 @@
 //! check list, gate, and the honest not-yet-checked list live on
 //! [`validate_geometric`].
 //!
-//! **The tier is two functions.** Eight of its nine checks are answerable
-//! by any deciding scalar; the ninth — the +V global orientation
-//! invariant — reads a volume enclosure, and deciding its sign is an act
-//! of certification rather than a measurement. So
+//! **The tier is two functions.** Eight of its ten checks are answerable
+//! by any deciding scalar; the +V global orientation invariant reads a
+//! volume enclosure, and deciding its sign is an act of certification
+//! rather than a measurement — and the shell-winding check reads each
+//! shell's role off the same kind of sign. So
 //! [`validate_geometric_structural`] runs the eight and
 //! [`validate_geometric`] is that call followed by the certified one,
 //! carrying the union of their bounds — a scalar without certification
@@ -2721,6 +2722,17 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// 8. **Stored pcurve caches** ([`ValidationError::Pcurve`]).
 /// 9. **Ring versus outer loop** — disjointness and nesting
 ///    ([`ValidationError::RingMeetsOuter`] and its siblings).
+/// 10. **Shell winding, PER SOLID** (solids with more than one shell,
+///    behind a clean check 7): the solid's shells bound winding number
+///    0 or 1 everywhere — an `Outer` shell adds `+1` inside itself, a
+///    `Void` `-1` inside its cavity — decided at one vertex of each
+///    shell from the other shells' point-in-solid answers
+///    ([`ValidationError::ShellWinding`]). Several disjoint `Outer`
+///    shells, an island inside a cavity, and an ordinary cavity all
+///    pass; a `Void` outside every `Outer`, an `Outer` inside another
+///    with no `Void` between, and a `Void` inside a `Void` refuse.
+///    Silent where the walk or a shell's sign cannot answer (the list
+///    below).
 ///
 /// **Coarse gate** (the pass-11 philosophy): the geometric passes run
 /// only when tiers 1–2 are clean — structural defects void geometric
@@ -2775,25 +2787,31 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   therefore exempt — such a body's flips, single-face AND
 ///   whole-body, certify green today; executed on the tilted-section
 ///   cylinder and pinned as residual).
-/// - **A shell NESTED inside another shell's cavity.** No tier reads
-///   where one shell of a solid sits relative to another. What that
-///   leaves unchecked is precisely a solid holding an `Outer` shell, a
-///   `Void`, and a second `Outer` INSIDE that void
-///   (`work/atrest/tier-3-does-not-check-shell-roles-per-solid`): the
-///   nesting is the claim, and tier 3 has no at-rest containment walk
-///   for it — the same family as check 9's deferred nesting half and
-///   `validate-tier3-curved-boundary-containment`.
+/// - **Shell winding where the witness cannot be read** (check 10's
+///   silences, the false-refusal direction it must never fail in): a
+///   shell whose own signed volume does not decide a role (in-band,
+///   or a quadrature schedule that runs out first), and a point-in-solid
+///   walk that refuses — `KindUnsupported` on a spline or `Approx` face,
+///   a partial sphere, cone or torus face outside the walk's chart
+///   classes, an escalation, an exhausted ray schedule, an uncertified
+///   at-infinity volume. An `OnBoundary` witness is silent too: two
+///   shells TOUCH there, which the premise below excludes. And check 10
+///   reads one point per shell, which decides only under that premise
+///   — **shells that cross** are global self-intersection's, the first
+///   item of this list.
+///   (`work/atrest/check-10-is-silent-where-point-in-solid-refuses`.)
 ///
-///   **The COUNT is not the gap**, and that is measured rather than
-///   assumed. A solid holding several `Outer` shells is what four
-///   doors produce ON PURPOSE — `graft onto`, the boolean coplanar
-///   split, `subtract`'s two-shell complement and the editor's placed
-///   union — and how many material components a product should
-///   have is answered one layer up, as `editor_core`'s
-///   `CheckId::Connectedness` finding against an authored expectation.
-///   Tier 3 refusing that count would make tier 3 wrong, not the doors:
-///   `work/atrest/one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`
-///   carries the 36 rows that settled it.
+///   **What check 10 does not refuse is deliberate**: several `Outer`
+///   shells under one solid are what four doors produce ON PURPOSE —
+///   `graft onto`, the boolean coplanar split, `subtract`'s two-shell
+///   complement and the editor's placed union — and how many material
+///   components a product should have is answered one layer up, as
+///   `editor_core`'s `CheckId::Connectedness` finding against an
+///   authored expectation
+///   (`work/atrest/one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`).
+///   An island inside a cavity of its own solid winds `1` and is valid;
+///   filing it under the wall's solid is the boolean's output
+///   convention, not an at-rest invalidity.
 /// - **Curve conventional-invariant certification** (unit `dir`/`axis`,
 ///   `u_ref ⊥ axis`): partially implied by the residual checks (a
 ///   non-unit frame breaks the carrier-vs-description comparisons),
@@ -2805,9 +2823,10 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// any, else the tier-3 failures in the documented order.
 /// # The two halves, and why the entry carries both bounds
 ///
-/// Tier 3 is a battery of nine checks, eight of which any deciding
-/// scalar can answer and one of which — check 7, the +V invariant — is
-/// an act of CERTIFICATION: it reads a certified volume enclosure. So
+/// Tier 3 is a battery of ten checks, eight of which any deciding
+/// scalar can answer and two of which read a certified SIGN — check 7,
+/// the +V invariant, of each solid's volume enclosure, and check 10,
+/// shell winding, of each shell's. Those are acts of CERTIFICATION. So
 /// the battery is written as two functions and this one is their
 /// composition:
 ///
@@ -2815,8 +2834,8 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   every [`crate::AtRestPolicy`] scalar. It is a meaningful validator
 ///   on its own and it is the door a scalar without certification
 ///   rights uses.
-/// - `validate_geometric_certified` runs check 7, bounded on the
-///   quantity it actually needs.
+/// - `validate_geometric_certified` runs check 7, then check 10 behind
+///   it, bounded on the quantity they actually need.
 ///
 /// This entry is `structural(…)?` then certified, so its bound is the
 /// UNION and the `?` is the sequencing fact: check 7 used to run behind
@@ -2939,7 +2958,7 @@ pub fn validate_geometric_certificate<
     validate_geometric_certificate_declared(body, &[], tol)
 }
 
-/// **Tier 3 without its one certifying check** — checks 1–6, 8 and 9,
+/// **Tier 3 without its certifying checks** — checks 1–6, 8 and 9,
 /// at every [`crate::AtRestPolicy`] scalar with a bracket
 /// ([`validate_geometric`]'s two halves; the bound is the policy trait
 /// rather than bare `Decide` because check 1 reads the offset-fit seam
@@ -2950,7 +2969,8 @@ pub fn validate_geometric_certificate<
 /// one is named, not implied: the **+V global orientation invariant**
 /// (check 7) does not run, so **this pass says nothing about whether the
 /// body's volume is positive, and an inverted body passes it — by
-/// design, at every scalar.** It is LESS INFORMATION about a body, not a
+/// design, at every scalar.** Nor does shell winding (check 10), which
+/// reads each shell's role off a sign this door does not derive. It is LESS INFORMATION about a body, not a
 /// weaker body: every check it does run is the same check, in the same
 /// order, reporting the same errors.
 ///
@@ -3059,8 +3079,9 @@ fn structural_declared_via<
     }
 }
 
-/// **Tier 3's check 7 alone** — the +V global orientation invariant,
-/// at a scalar with certification rights.
+/// **Tier 3's certifying checks** — the +V global orientation invariant
+/// (check 7) and, behind it, shell winding (check 10), at a scalar with
+/// certification rights.
 ///
 /// Private, and that is the guarantee: no caller can take the
 /// certified half without the structural one, so no body is ever
@@ -3832,7 +3853,7 @@ pub(crate) fn material_arm_error(
 ///
 /// **This pass makes every check in ONE call**, which is why it is not
 /// [`validate_geometric`] with a second return value: the whole
-/// nine-check battery runs in one call, check 7 included through the
+/// ten-check battery runs in one call, check 7 included through the
 /// certified quadrature ([`crate::QuadLane::certified`]) and check 2
 /// through the certified plane × NURBS lane, so its bound names the
 /// certification right. Its `Err` is the battery's vector and differs
@@ -5626,7 +5647,7 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// Structure (D1):
 /// 1. Coarse-gate on tiers 1–2 (as [`validate_geometric`]).
 /// 2. All of tier 3's local checks, shared verbatim
-///    ([`tier3_local_checks`]) — the whole nine-check battery in one
+///    ([`tier3_local_checks`]) — the whole ten-check battery in one
 ///    call, check 7 included through the certified quadrature, and its
 ///    check-7 gate is the battery-internal one (checks 1-6) rather than
 ///    [`validate_geometric`]'s composition.
