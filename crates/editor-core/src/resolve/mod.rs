@@ -393,16 +393,15 @@ pub enum Diagnosis {
         /// Why the rung refused.
         reason: ShadowExecRefusal,
     },
-    /// At the vanished name's minting node, the rows spelled by the
-    /// name's base (the name without its trailing `Fragment`
-    /// qualifier), bare or with one `Fragment` qualifier, held `was`
-    /// entities in the last-good run and hold `now` in this one — and
-    /// no rung that names a cause found one ([`group_resized`], which
-    /// is where the reading and its limits are stated).
+    /// At the vanished name's minting node, the group its emitter formed
+    /// from the fragment's parent held `was` entities in the last-good
+    /// run and holds `now` in this one, and no rung that names a cause
+    /// found one ([`group_resized`], which is where the reading and its
+    /// limits are stated).
     ///
-    /// A statement about two recorded tables, nothing more: it does
-    /// not say where the parent entity went, which may be a row these
-    /// spellings do not match.
+    /// A statement about the groups the two runs recorded, nothing
+    /// more: it states how many entities descend from the parent, not
+    /// why the number changed.
     GroupResized {
         /// The vanished name's minting node, whose two tables were
         /// counted.
@@ -568,9 +567,9 @@ impl core::fmt::Display for Diagnosis {
             ),
             Self::GroupResized { node, was, now } => write!(
                 f,
-                "at node {}, the rows spelled by this fragment's base name, bare or \
-                 with one fragment qualifier, held {was} entities in the last-good run \
-                 and hold {now} now, and no verdict flip was found that explains the change",
+                "at node {}, the group this fragment's parent was divided into held \
+                 {was} entities in the last-good run and holds {now} now, and no verdict \
+                 flip was found that explains the change",
                 node.0
             ),
             Self::StructuralParam { node, param } => write!(
@@ -1630,31 +1629,56 @@ fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option
 /// EACH OTHER, so a group of one runs no pair and a shadow execution
 /// has nothing to re-run. What remains in evidence is the count.
 ///
-/// # What is counted, and what is not claimed
+/// # What is counted
 ///
-/// The group is spelled from the name's BASE ([`fragment_base`]): its
-/// members are the entities of the base row and of every
-/// `base + Fragment(_)` row of the same kind and minting node, a tied
-/// row counting each candidate. Both tables are the MINTING node's own
-/// (`name.node`), because the group is what that node's emission
-/// divided. The count is of those SPELLINGS: where the parent entity
-/// went is not claimed — it may survive under a row these spellings
-/// do not match (an N3 `Merged` row, or a face passing through
-/// undivided under its upstream name), which is why `now == 0` says
-/// "no row spelled so", not "the parent is gone".
+/// The group is the one the minting node's emitter FORMED, read from
+/// the record it keeps beside its name table
+/// ([`crate::names::FragmentGroups`]) under the name's BASE
+/// ([`fragment_base`]): the entities of that node's output that descend
+/// from the group's parent by the emitter's own descent, however each
+/// is spelled. A member passing
+/// through undivided under its upstream name counts, and so does an N3
+/// `Merged` face the parent survives in. At a UNION the output is the
+/// published body, so a group a fold step formed counts the DISTINCT
+/// published entities that descend from its parent within it, the
+/// descent followed by entity through every later step: a member a
+/// later step swallows counts 0, one it divides counts each piece, and
+/// a later merged face holding two pieces counts once. Whichever step
+/// spelled the base, the count is that one number. Both records are
+/// the MINTING node's own (`name.node`), because the group is what
+/// that node's emission divided. A piece a later step re-mints under a
+/// seam name of its own (a `Seam` edge zipped along the piece's line)
+/// is not the parent's descendant by that descent and is not counted.
+///
+/// Two TIED parents share one base. Where the emitter groups by parent
+/// ENTITY — a face or an edge by the operand entity it descends from,
+/// a split face by its face and side — each forms its own group, the
+/// tie lane gives their members' rows one set of names, and each group
+/// is counted on its own: `was` and `now` are one parent's group, never
+/// the tie's sum. Where it groups by parent NAMES — a seam edge or seam
+/// vertex by its two faces' names — tied parents' pieces land in one
+/// group, no one parent's count is on record, and the rung declines.
+///
+/// `now == 0` says no entity of the node's output is in that group:
+/// none descends from the parent there by the emitter's descent, or — for a split, whose group
+/// is a face AND a side — none on that side.
 ///
 /// # When it answers, and when it declines
 ///
 /// It answers when the last-good minting table CARRIED the name — a
 /// name the prior run never minted did not vanish by its group
-/// changing — and the current count differs. On an emitted table that
-/// prior count is at least two, since the name carries a qualifier.
-/// It declines, to the evidence-free fallback, when the name has no
-/// fragment tail, when either run has no value at the minting node,
-/// when either count does not fit the diagnosis's `u32` (a saturated
-/// size could make two different groups read as one), and when the
-/// size did NOT change: a group that re-qualified at the same size is
-/// a different event, about which the tables say nothing.
+/// changing — and the current count differs. It declines, to the
+/// evidence-free fallback, when the name has no fragment tail, when
+/// either run has no value at the minting node, when the prior record
+/// holds no group under the base, when a group under the base was
+/// formed by tied parents' names or the groups a tie shares a base
+/// among are not all one size (there is then no one parent's count to
+/// state), when a union's record cannot be read in its published space
+/// or two of one fold step's bases publish as one, when either count
+/// does not fit the diagnosis's `u32` (a saturated size could make two
+/// different groups read as one), and when the size did NOT change: a
+/// group that re-qualified at the same size is a different event, about
+/// which the records say nothing.
 ///
 /// # Why it sits last: cause before effect
 ///
@@ -1675,10 +1699,13 @@ fn group_resized<U: Decide, T: Decide>(
     name: &StableName,
 ) -> Option<Diagnosis> {
     let base = fragment_base(name)?;
-    let prior_table = &prior.value(name.node)?.name_table;
-    prior_table.lookup(name)?;
-    let was = group_size(prior_table, &base)?;
-    let now = group_size(&new.value(name.node)?.name_table, &base)?;
+    let prior_value = prior.value(name.node)?;
+    prior_value.name_table.lookup(name)?;
+    let was = match group_size(&prior_value.fragment_groups, &base)? {
+        0 => return None,
+        was => was,
+    };
+    let now = group_size(&new.value(name.node)?.fragment_groups, &base)?;
     (was != now).then_some(Diagnosis::GroupResized {
         node: name.node,
         was,
@@ -1686,29 +1713,21 @@ fn group_resized<U: Decide, T: Decide>(
     })
 }
 
-/// How many entities one table names by `base` or by `base` plus one
-/// trailing `Fragment` qualifier ([`group_resized`]'s count). A count
-/// the diagnosis's `u32` cannot hold is `None`, and the rung declines
-/// rather than report a saturated size two different groups would
-/// share.
-fn group_size(table: &crate::names::NameTable, base: &StableName) -> Option<u32> {
-    let members: usize = table
-        .iter()
-        .filter(|(row, _)| {
-            row.kind == base.kind
-                && row.node == base.node
-                && (row.path == base.path
-                    || matches!(
-                        row.path.split_last(),
-                        Some((RoleSeg::Fragment(_), head)) if head == base.path.as_slice()
-                    ))
-        })
-        .map(|(_, entry)| match entry {
-            Entry::Unique(_) => 1,
-            Entry::Tied(candidates) => candidates.len(),
-        })
-        .sum();
-    u32::try_from(members).ok()
+/// One parent's group size under `base` in one run's record
+/// ([`group_resized`]'s count): `0` when no group is recorded there,
+/// `None` when the groups sharing the base (a tie's) differ in size,
+/// when the record cannot be read, or when the size does not fit the
+/// diagnosis's `u32` — the rung declines rather than report a
+/// saturated size two different groups would share.
+fn group_size(groups: &crate::names::FragmentGroups, base: &StableName) -> Option<u32> {
+    match groups.sizes(base)?.as_slice() {
+        [] => Some(0),
+        [one, rest @ ..] => rest
+            .iter()
+            .all(|s| s == one)
+            .then(|| u32::try_from(*one).ok())
+            .flatten(),
+    }
 }
 
 /// The (from, to) sign pair iff `new` differs from `old` by exactly

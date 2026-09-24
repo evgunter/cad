@@ -6,7 +6,7 @@ status: parked
 opened: 2026-09-08
 priority: P0
 cost: H
-refs: [validate-tier3-curved-boundary-containment, check-9-nesting-is-line-bounded-only, 2977]
+refs: [validate-tier3-curved-boundary-containment, check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk, 2977]
 parent: ATREST-7
 blocked_on: [point-in-solid-reads-out-from-inside-a-re-posed-torus-barrel]
 ---
@@ -45,7 +45,7 @@ severity, and `cost: H` carries the effort separately.
 
 Tier 3 has no at-rest containment walk at all. This is the same family
 as check 9's deferred nesting half
-(`check-9-nesting-is-line-bounded-only`) and
+(`check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk`) and
 `validate-tier3-curved-boundary-containment`: the shape that would
 answer it is `shell::encloses`-shaped, not flux-shaped, and a
 sign-level read of a shell's volume — which ATREST-1 built and is
