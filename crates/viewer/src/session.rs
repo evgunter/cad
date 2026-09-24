@@ -2339,36 +2339,36 @@ impl DocSession {
         if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
             return OpOutcome::refused(refusal);
         }
-        let rule = match combine::duplicate_rule() {
-            Ok(rule) => rule,
+        // The kind gate above is the document's; this is the VALUE's —
+        // one body, with a width to clear — read off the picture the
+        // person picked from.
+        let step = match combine::duplicate_step(self.landed_pair(), input, self.tol) {
+            Ok(step) => step,
+            Err(fault) => return OpOutcome::refused(Refusal::Duplicate(fault)),
+        };
+        let pattern = match combine::duplicate_rule(step) {
+            Ok(rule) => combine::pattern_node(input, combine::DUPLICATE_COUNT, rule),
             Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
         };
-        let mut rule = Some(rule);
-        self.commit_run(|minted| match minted {
-            [] => Some(DocEdit::InsertNode {
-                node: combine::pattern_node(
-                    input,
-                    combine::DUPLICATE_COUNT,
-                    // Loud, like the profile door's: the generator is
-                    // called once per position and this one comes
-                    // round once.
-                    rule.take()
-                        .unwrap_or_else(|| unreachable!("the pattern's position comes round once")),
-                ),
+        // Position 0 is the pattern; position `1 + i` projects instance
+        // `i`, for every `i` below the pattern's own count. Instance 0
+        // — the original, where it already stood — goes first, so it
+        // takes the root slot the pattern took from the body it
+        // replicates; each later projection's input has stopped being a
+        // root by then, so it is APPENDED to the root list.
+        self.commit_run(|minted| match minted.split_first() {
+            None => Some(DocEdit::InsertNode {
+                node: pattern.clone(),
             }),
-            // The ORIGINAL first, so it keeps the root slot the
-            // pattern took from the body it replicates and the copy
-            // joins after it — the order a reader of the tree expects.
-            [Some(pattern)] => Some(DocEdit::InsertNode {
-                node: combine::part_node(*pattern, PartSelectSpec::Instance(0)),
-            }),
-            [Some(pattern), Some(_)] => Some(DocEdit::InsertNode {
-                node: combine::part_node(*pattern, PartSelectSpec::Instance(1)),
-            }),
-            [None] | [_, None] => {
+            Some((Some(pattern), projections)) => i64::try_from(projections.len())
+                .ok()
+                .filter(|index| *index < combine::DUPLICATE_COUNT)
+                .map(|index| DocEdit::InsertNode {
+                    node: combine::part_node(*pattern, PartSelectSpec::Instance(index)),
+                }),
+            Some((None, _)) => {
                 unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)")
             }
-            _ => None,
         })
     }
 

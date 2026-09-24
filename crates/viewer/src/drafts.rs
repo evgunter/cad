@@ -462,7 +462,8 @@ impl Default for Drafts {
             pattern_kind: PatternKindChoice::Linear,
             pattern_output: PatternOutputChoice::Instances,
             pattern_count: 3,
-            pattern_direction: [1.0, 0.0, 0.0],
+            // The one home both stepping gestures open on.
+            pattern_direction: crate::combine::STEP_DIRECTION,
             pattern_spacing: 0.02,
             pattern_step: core::f64::consts::FRAC_PI_2,
             part_select: PartSelectChoice::Half,

@@ -742,28 +742,33 @@ pub enum SessionOp {
         select: PartSelectSpec,
     },
     /// **Duplicate one body**: the picked body placed whole, plus one
-    /// copy stepped away from it, each an independently drawn and
+    /// copy stepped clear of it, each an independently drawn and
     /// independently placeable root.
     ///
-    /// Ev's ruling (2026-09-21): a duplicate is a `Node::Pattern` of
-    /// count 2 — no new document node and no flag on transform.
+    /// **A duplicate is a pattern of two, projected twice** — a
+    /// `Node::Pattern` of count [`crate::combine::DUPLICATE_COUNT`] over
+    /// the body, and one `Node::Part` per instance. Three inserts, one
+    /// action, one undo (the session's several-edit door, the shape
+    /// `AddProfile`'s new-frame arm takes), and the projections are not
+    /// decoration: `roots` maintenance puts a new node in the earliest
+    /// consumed root's slot and drops its inputs, and the viewport
+    /// draws roots. A pattern alone is ONE root drawing two bodies, so
+    /// neither copy can be hidden, moved or blended apart from the
+    /// other, and the first `Part` a user authored by hand would take
+    /// the pattern out of `roots` and leave the other copy undrawn. A
+    /// projection per instance puts every copy back in `roots`.
     ///
-    /// **Three inserts, one action, one undo** (the session's
-    /// several-edit door, the shape `AddProfile`'s new-frame arm
-    /// takes), and the two projections are not decoration. `roots`
-    /// maintenance puts a new node in the earliest consumed root's
-    /// slot and drops its inputs, and the viewport draws roots: a
-    /// pattern alone is ONE root drawing two bodies, so neither copy
-    /// can be hidden, moved or blended apart from the other, and the
-    /// first `Part` a user authored by hand would take the pattern out
-    /// of `roots` and leave the other copy undrawn. Two `Part`s put
-    /// both copies back in `roots`, which is what makes "duplicate,
-    /// then move one" a thing the document can express.
-    ///
-    /// The step is [`crate::combine::DUPLICATE_DIRECTION`] and
-    /// [`crate::combine::DUPLICATE_SPACING`]; both land in the
-    /// pattern's ordinary slots and are edited in the property panel
-    /// afterwards.
+    /// **The step is measured, not fixed**
+    /// ([`crate::combine::duplicate_step`]): along
+    /// [`crate::combine::STEP_DIRECTION`], far enough that the copy
+    /// clears the original by [`crate::combine::DUPLICATE_GAP`] of the
+    /// body's own width. It is read off the LANDED value, so this door
+    /// refuses ([`Refusal::Duplicate`]) before anything has landed,
+    /// and for an input whose value is several bodies — which the body
+    /// seat's node-kind gate admits for a transform of a pattern, and
+    /// which a pattern of two would index in place, adding nothing.
+    /// Both numbers land in the pattern's ordinary slots and are edited
+    /// in the property panel afterwards.
     Duplicate {
         /// The body duplicated.
         input: RecipeNodeId,

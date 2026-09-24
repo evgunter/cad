@@ -7,12 +7,11 @@ use std::collections::BTreeMap;
 
 use eframe::egui;
 use pncad::document::{AxisSense, BooleanOp, DocumentId, MatePrimitive, RecipeNodeId};
-use pncad::quantity::UnitDef;
 use pncad::select::SplitHalf;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
-use crate::combine::{DUPLICATE_DIRECTION, DUPLICATE_SPACING, PatternOutputChoice};
+use crate::combine::{DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
     ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
@@ -23,6 +22,7 @@ use crate::frame;
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::PartChooser;
+use crate::props::render_number;
 use crate::seats::{Seat, seat_line};
 use crate::session::{FaceFrameFault, ProfilePlane, Selection, SessionOp, face_frame_seat};
 use crate::sketch;
@@ -43,9 +43,21 @@ use crate::widgets::{
 /// off a picture that can change under it.
 pub(crate) const MIN_PART_INSTANCE: i64 = 0;
 
+/// **What a projection does to the picture**, said on the panel
+/// before the click: the split or pattern it reads stops being a root,
+/// so every body it does NOT select stops being drawn.
+///
+/// Not a refusal and not a surprise to hide — it is the document's
+/// roots rule (a new node takes its inputs' place), and a person who
+/// wants the other bodies kept projects each one, which is what the
+/// duplicate tool does for a pattern of two.
+pub(crate) const PROJECTION_HIDES_THE_REST: &str = "only the selected body stays drawn: the split or pattern it is read out of leaves the \
+     picture — project each body you want to keep";
+
 /// **The part form's selector rows**: which of the two selections is
-/// being authored, and the one field or radio row that selection
-/// needs.
+/// being authored, the one field or radio row that selection needs,
+/// and what committing it does to the picture
+/// ([`PROJECTION_HIDES_THE_REST`]).
 ///
 /// A free function over the `Ui` for [`profile_plane_row`]'s reason —
 /// `ViewerBehavior` borrows the whole application, so this is the only
@@ -84,25 +96,26 @@ pub(crate) fn part_selector_rows(
             ui.weak("instances are numbered from zero, in placement order");
         }
     }
+    ui.weak(PROJECTION_HIDES_THE_REST);
 }
 
 /// **What the duplicate tool tells a user before they click it** —
-/// where the copy lands, so the one number this gesture commits
-/// without asking is on screen rather than buried in the node it
-/// authors.
+/// where the copy will land, which is
+/// [`crate::combine::duplicate_step`]'s RULE: the
+/// step itself is measured off the body at the commit, so what the
+/// panel can promise ahead of it is how the step is chosen, and that
+/// the copy clears the original.
 ///
 /// A free function answering a STRING rather than painting, so a
 /// headless row can read the sentence and the panel can only show what
-/// this composed.
-pub(crate) fn duplicate_note(unit: UnitDef) -> String {
-    let [x, y, z] = DUPLICATE_DIRECTION;
-    // The step written in the unit the form is working in — the same
-    // conversion every length field on this page shows, so the
-    // sentence and the field a user edits next read in one unit.
-    let step = DUPLICATE_SPACING / unit.factor();
+/// this composed. Its numbers go through [`render_number`], the
+/// crate's one spelling of a number a person reads.
+pub(crate) fn duplicate_note() -> String {
+    let [x, y, z] = STEP_DIRECTION.map(render_number);
     format!(
-        "the copy lands {step} {} along ({x}, {y}, {z}); every slot is editable afterwards",
-        unit.symbol(),
+        "the copy lands along ({x}, {y}, {z}), one body-width plus {}% clear of the original, \
+         measured off the body on screen; every slot is editable afterwards",
+        render_number(DUPLICATE_GAP * 100.0),
     )
 }
 
@@ -238,11 +251,11 @@ impl ViewerBehavior<'_> {
             ui.separator();
             self.pattern_tool_ui(ui);
             ui.separator();
-            // The two doors of AUTH-4, beside the pattern they read
-            // and author: a part projects ONE body out of a split's
-            // or a pattern's several, and a duplicate authors a
-            // pattern of two with both projections already made.
-            self.part_tool_ui(ui);
+            // Beside the pattern they read and author: a projection
+            // takes ONE body out of a split's or a pattern's several,
+            // and a duplicate authors a pattern of two with both
+            // projections already made.
+            self.projection_tool_ui(ui);
             ui.separator();
             self.duplicate_tool_ui(ui);
         });
@@ -1186,8 +1199,14 @@ impl ViewerBehavior<'_> {
         );
     }
 
-    /// The part tool's panel: one pick of a split or a pattern, the
-    /// selector with its field, and the one committed edit.
+    /// The projection tool's panel — [`crate::combine::PartTool`],
+    /// which authors a `Node::Part`: one pick of a split or a pattern,
+    /// the selector with its field, and the one committed edit.
+    ///
+    /// Called the PROJECTION tool on screen because "part" is already
+    /// the word the `Add part…` chooser beside it uses for another
+    /// document, and the two gestures have nothing to do with each
+    /// other.
     ///
     /// **Two seats, one pick.** A half is read out of a split and an
     /// index out of a pattern, so the two selections want different
@@ -1196,14 +1215,16 @@ impl ViewerBehavior<'_> {
     /// then picks which seat the commit reads, so a user who picked a
     /// pattern and asked for a half is told which pick is missing
     /// rather than having one silently substituted.
-    pub(crate) fn part_tool_ui(&mut self, ui: &mut egui::Ui) {
+    pub(crate) fn projection_tool_ui(&mut self, ui: &mut egui::Ui) {
         let Some(tool) = self.tools.part() else {
-            if ui.button("Part tool…").clicked() {
+            if ui.button("Projection tool…").clicked() {
                 self.tools.open(ToolKind::Part);
             }
             return;
         };
-        ui.label(ToolKind::Part.says(&"pick the split or the pattern to project"));
+        ui.label(ToolKind::Part.says(
+            &"pick a split or a pattern, in the viewport or the tree, to project one body out of",
+        ));
         ui.weak(seat_line(&[
             (Seat::PartSplit, tool.split()),
             (Seat::PartInstance, tool.pattern()),
@@ -1214,7 +1235,7 @@ impl ViewerBehavior<'_> {
             &mut self.drafts.part_half,
             &mut self.drafts.part_instance,
         );
-        self.tool_commit_row(ui, "Commit part", ToolKind::Part, |drafts| {
+        self.tool_commit_row(ui, "Commit projection", ToolKind::Part, |drafts| {
             Ok(match drafts.part_select {
                 PartSelectChoice::Half => tool.half_op(drafts.part_half)?,
                 PartSelectChoice::Instance => tool.instance_op(drafts.part_instance)?,
@@ -1239,7 +1260,7 @@ impl ViewerBehavior<'_> {
         };
         ui.label(ToolKind::Duplicate.says(&"pick the body to duplicate"));
         ui.weak(seat_line(&[(Seat::DuplicateBody, tool.input())]));
-        ui.weak(duplicate_note(self.drafts.length_unit.def()));
+        ui.weak(duplicate_note());
         self.tool_commit_row(ui, "Commit duplicate", ToolKind::Duplicate, |_| {
             Ok(tool.op()?)
         });
@@ -1452,8 +1473,7 @@ mod tests {
     use pncad::select::SplitHalf;
 
     use super::{
-        MIN_PART_INSTANCE, NEW_XY_LABEL, ProfilePlane, duplicate_note, part_selector_rows,
-        profile_plane_row,
+        NEW_XY_LABEL, ProfilePlane, duplicate_note, part_selector_rows, profile_plane_row,
     };
     use crate::forms::PartSelectChoice;
     use crate::pane::headless::{painted_after_clicking, painted_text};
@@ -1526,32 +1546,47 @@ mod tests {
         );
     }
 
-    /// **The duplicate panel says where the copy lands**, in the unit
-    /// the form is working in — the one number the gesture commits
-    /// without asking.
+    /// **The duplicate panel says how the copy's step is chosen** —
+    /// along which direction and by how much clear space — in the
+    /// numbers the step rule actually uses.
+    ///
+    /// Held to the landed node from the other side by
+    /// `combine_ops::a_duplicate_lands_where_the_note_says`, which
+    /// asserts the committed pattern's spacing against the same rule.
     #[test]
-    fn the_duplicate_note_names_the_step_it_commits() {
-        let note = duplicate_note(pncad::quantity::MM.def());
-        assert!(
-            note.contains("20 mm"),
-            "twenty millimetres, written: {note}"
-        );
+    fn the_duplicate_note_says_how_the_step_is_chosen() {
+        let note = duplicate_note();
         assert!(note.contains("(1, 0, 0)"), "along world +x: {note}");
         assert!(
-            note.contains("editable afterwards"),
-            "and it says the slot is not frozen: {note}"
+            note.contains("25% clear"),
+            "a quarter of the body's width: {note}"
         );
-        let metres = duplicate_note(pncad::quantity::M.def());
         assert!(
-            metres.contains("0.02 m"),
-            "the same step in the form's own unit: {metres}"
+            note.contains("measured off the body"),
+            "and that the step is the body's, not a fixed length: {note}"
+        );
+        assert!(
+            note.contains("editable afterwards"),
+            "and that the slot is not frozen: {note}"
         );
     }
 
-    /// The instance field's floor is the pattern's own numbering.
+    /// **The projection panel says what a projection does to the
+    /// picture**, under either selector — the bodies it does not select
+    /// stop being drawn, and a person should hear that before the
+    /// click, not discover it after.
     #[test]
-    fn the_index_field_starts_where_a_patterns_instances_do() {
-        assert_eq!(MIN_PART_INSTANCE, 0);
+    fn the_part_form_says_the_other_bodies_leave_the_picture() {
+        for choice in [PartSelectChoice::Half, PartSelectChoice::Instance] {
+            let (mut select, mut half, mut instance) = (choice, SplitHalf::Above, 1_i64);
+            let drawn = painted_text(|ui| {
+                part_selector_rows(ui, &mut select, &mut half, &mut instance);
+            });
+            assert!(
+                drawn.contains("only the selected body stays drawn"),
+                "{choice:?}: {drawn}"
+            );
+        }
     }
 
     /// A stand-in labeller: the number alone, so a row asserting on

@@ -33,7 +33,8 @@ use pncad::geom_core::Tol;
 use pncad::prelude::ValuePayload;
 use pncad::select::SplitHalf;
 use viewer::combine::{
-    BooleanTool, PartTool, PatternOutputChoice, PatternTool, SplitTool, TransformTool, denotes_body,
+    BooleanTool, DUPLICATE_GAP, DuplicateFault, MEASURE_CHORD, PartTool, PatternOutputChoice,
+    PatternTool, STEP_DIRECTION, SplitTool, TransformTool, denotes_body,
 };
 use viewer::pickindex::PickKinds;
 use viewer::seats::{Seat, SeatError, SeatEvent, seat_line};
@@ -2236,7 +2237,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
 /// equally well, so they leave the bare cursor's rule alone.
 ///
 /// The expectation is a match rather than a comparison against one
-/// named kind: a seventh tool has to state which side of this it is on
+/// named kind: a new tool has to state which side of this it is on
 /// before the row compiles.
 #[test]
 fn each_tool_narrows_the_cursor_to_what_it_can_use() {
@@ -2571,6 +2572,11 @@ fn duplicating_a_body_leaves_two_roots_and_two_drawn_copies() {
     );
     let both = drawn_volume(&mut session, tol);
     assert!(near(both, one * 2.0), "two copies drawn {both}");
+    // Doubled volume alone cannot tell two copies from two copies
+    // sharing space — the product gathers shared space twice — so the
+    // check the picture itself raises is the witness that they do not
+    // meet.
+    assert_eq!(separation_findings(&mut session), 0, "and they do not meet");
 }
 
 /// **One gesture, one undo**: the three inserts are one action, so one
@@ -2580,6 +2586,7 @@ fn duplicating_is_one_undo() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = boxed(&mut session, A);
+    session.pump();
     let before = session.committed_doc().clone();
     assert!(
         session
@@ -2609,6 +2616,7 @@ fn a_duplicates_copy_moves_on_its_own() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = boxed(&mut session, A);
+    session.pump();
     let one = A[0] * A[1] * A[2];
     let outcome = session.perform(SessionOp::Duplicate { input: body });
     let minted = outcome.minted.clone();
@@ -2694,7 +2702,7 @@ fn a_duplicates_copy_moves_on_its_own() {
 /// body seats refuse a pattern), a loaded document can hold one, and
 /// the direction of the disagreement is the safe one: an honest
 /// refusal, not a node that lands and then fails. It is the same
-/// defect `work/chrome/body-seat-reads-through-the-placer-chain` names
+/// defect `work/forms/body-seat-reads-through-the-placer-chain` names
 /// at the BODY seat and asks the same repair for, so it is tracked
 /// there rather than as a second row; the day the classifier walks the
 /// chain, this row says so.
@@ -2884,4 +2892,320 @@ fn the_part_and_duplicate_tools_close_on_their_own_edits() {
     tools.open(ToolKind::Duplicate);
     assert!(tools.commits_open_tool(&duplicate));
     assert!(!tools.commits_open_tool(&part));
+}
+
+// ---------------------------------------------------------------
+// What a VIEWPORT pick seats, and where a duplicate lands.
+// ---------------------------------------------------------------
+
+/// A face picked through the session's real ray path, looking straight
+/// down at `(x, y)` — the viewport's own door, not a hand-built
+/// selection.
+fn picked_from_above(session: &DocSession, x: f64, y: f64) -> Selection {
+    let index = common::asm::index_of(session);
+    let (_, eval) = session.landed_pair().expect("landed");
+    Selection::Face(
+        index
+            .face_at_for(eval, &common::asm::down_at(x, y), &session.display_view())
+            .expect("the pick answers")
+            .expect("the ray hits"),
+    )
+}
+
+/// A literal slot's value, read back off the committed node.
+fn spacing_of(session: &DocSession, pattern: RecipeNodeId) -> f64 {
+    let Some(Node::Pattern {
+        kind: PatternKind::Linear { spacing, .. },
+        ..
+    }) = session.committed_doc().node(pattern)
+    else {
+        panic!("a linear pattern");
+    };
+    spacing
+        .literal_value()
+        .expect("the door authors a literal spacing")
+}
+
+/// The separation findings the landed checks report.
+fn separation_findings(session: &mut DocSession) -> usize {
+    session.pump();
+    let report = session.checks().expect("the registry ran");
+    report
+        .findings
+        .iter()
+        .filter(|f| f.check == pncad::document::CheckId::Separation)
+        .count()
+}
+
+/// Box `A` duplicated, and the copy moved `lift` along +y — the
+/// workflow the gesture exists for. Answers the session, the moved
+/// copy's node and where its centre now is in plan.
+fn a_moved_copy(tol: Tol, lift: f64) -> (DocSession, RecipeNodeId, [f64; 2]) {
+    let mut session = session(tol);
+    let body = boxed(&mut session, A);
+    session.pump();
+    let outcome = session.perform(SessionOp::Duplicate { input: body });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let minted = outcome.minted.clone();
+    let [pattern, _original, copy] = minted[..] else {
+        panic!("three inserts mint three ids: {minted:?}");
+    };
+    let step = spacing_of(&session, pattern);
+    let moved = insert(
+        &mut session,
+        SessionOp::AddTransform {
+            input: copy,
+            translation: len3([0.0, lift, 0.0]),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(0.0),
+        },
+    );
+    session.pump();
+    (session, moved, [step, lift])
+}
+
+/// **A viewport click seats the body that was DRAWN, not the feature
+/// that made the face** — for every tool whose seat takes a body.
+///
+/// The picked face on a moved copy was minted by the ORIGINAL extrude
+/// (a transform mints no name), so `Selection::node` — the feature
+/// tree's question — answers the extrude, which sits where the
+/// original is. A tool that took that answer would author against a
+/// body the user did not click.
+#[test]
+fn a_viewport_pick_seats_the_drawn_body_in_every_body_seat() {
+    let tol = Tol::witness();
+    let (session, moved, [x, y]) = a_moved_copy(tol, 0.05);
+    let picked = picked_from_above(&session, x, y);
+    let Selection::Face(face) = &picked else {
+        unreachable!("the helper answers a face")
+    };
+    assert_eq!(face.node, moved, "the ray met the moved copy's body");
+    assert_ne!(
+        face.feature(),
+        moved,
+        "and the face's FEATURE is the extrude upstream — the two answers differ here",
+    );
+    let doc = session.committed_doc();
+    for kind in ToolKind::ALL {
+        let mut tools = Tools::new();
+        tools.open(kind);
+        let _ = tools.feed(doc, &[SessionOp::Select(picked.clone())]);
+        let held = match kind {
+            ToolKind::Boolean => tools.boolean().and_then(|t| t.a()),
+            ToolKind::Split => tools.split().and_then(|t| t.target()),
+            ToolKind::Transform => tools.transform().and_then(|t| t.input()),
+            ToolKind::Pattern => tools.pattern().and_then(|t| t.input()),
+            ToolKind::Duplicate => tools.duplicate().and_then(|t| t.input()),
+            // Seats a split or a pattern, never a body: its own row
+            // below picks one.
+            ToolKind::Part => continue,
+            // Faces and edges, taken whole rather than as a node; and
+            // a profile and an axis, which a face pick never is.
+            ToolKind::Mate | ToolKind::Blend | ToolKind::Revolve => continue,
+        };
+        assert_eq!(held, Some(moved), "the {kind:?} tool seats the drawn body");
+    }
+}
+
+/// **Duplicating the copy you just moved duplicates THAT copy** —
+/// Ev's workflow, end to end through a real pick and the tool's own
+/// commit door.
+#[test]
+fn duplicating_a_moved_copy_picked_in_the_viewport_duplicates_the_copy() {
+    let tol = Tol::witness();
+    let (mut session, moved, [x, y]) = a_moved_copy(tol, 0.05);
+    let picked = picked_from_above(&session, x, y);
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Duplicate);
+    let _ = tools.feed(session.committed_doc(), &[SessionOp::Select(picked)]);
+    let op = tools
+        .duplicate()
+        .expect("open")
+        .op()
+        .expect("the pick filled the seat");
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let pattern = outcome.minted[0];
+    let Some(Node::Pattern { input, .. }) = session.committed_doc().node(pattern) else {
+        panic!("a pattern");
+    };
+    assert_eq!(*input, moved, "the pattern replicates the moved copy");
+    assert_eq!(
+        separation_findings(&mut session),
+        0,
+        "and no copy landed on top of another",
+    );
+}
+
+/// **The part tool seats a pattern clicked in the viewport** — which
+/// is where a pattern's instances are: on screen, not in the tree.
+#[test]
+fn the_part_tool_seats_a_pattern_picked_in_the_viewport() {
+    let tol = Tol::witness();
+    let (mut session, _body, pattern) = box_and_pattern(tol);
+    session.pump();
+    // Instance 1's top, one step along +x.
+    let picked = picked_from_above(&session, A[0] * 2.0, 0.0);
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Part);
+    let _ = tools.feed(session.committed_doc(), &[SessionOp::Select(picked)]);
+    let tool = tools.part().expect("open");
+    assert_eq!(
+        (tool.split(), tool.pattern()),
+        (None, Some(pattern)),
+        "the pattern lands in the pattern seat",
+    );
+    assert!(matches!(
+        tool.instance_op(1),
+        Ok(SessionOp::AddPart { of, .. }) if of == pattern
+    ));
+}
+
+/// **A duplicate lands clear of its original** — no separation
+/// finding, which is the check the picture actually raises when two
+/// bodies share space. Doubled volume cannot show it: the product
+/// gathers overlapping space twice.
+#[test]
+fn a_duplicate_lands_clear_of_its_original() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = boxed(&mut session, A);
+    session.pump();
+    let outcome = session.perform(SessionOp::Duplicate { input: body });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(
+        separation_findings(&mut session),
+        0,
+        "the copies do not meet"
+    );
+    let step = spacing_of(&session, outcome.minted[0]);
+    assert!(
+        step > A[0],
+        "the step clears the body's own width along the step: {step} vs {}",
+        A[0],
+    );
+}
+
+/// **The step the duplicate lands is the one the note promises**,
+/// against the body's closed form: box `A`'s width along +x, inflated
+/// by twice the measuring chord (the tessellation's conservative
+/// bound — the box's floor mesh is its eight corners, so its diagonal
+/// is exact), and then [`DUPLICATE_GAP`] of it clear.
+#[test]
+fn a_duplicate_lands_where_the_note_says() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = boxed(&mut session, A);
+    session.pump();
+    let outcome = session.perform(SessionOp::Duplicate { input: body });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let diagonal = (A[0] * A[0] + A[1] * A[1] + A[2] * A[2]).sqrt();
+    let chord = diagonal * MEASURE_CHORD;
+    let want = (A[0] + 2.0 * chord) * (1.0 + DUPLICATE_GAP);
+    let got = spacing_of(&session, outcome.minted[0]);
+    assert!(near(got, want), "spacing {got} vs the rule's {want}");
+    let Some(Node::Pattern {
+        kind: PatternKind::Linear { direction, .. },
+        ..
+    }) = session.committed_doc().node(outcome.minted[0])
+    else {
+        panic!("a linear pattern");
+    };
+    let direction: Vec<f64> = direction
+        .iter()
+        .map(|c| c.literal_value().expect("a literal component"))
+        .collect();
+    assert_eq!(
+        direction, STEP_DIRECTION,
+        "along the one stepping direction"
+    );
+}
+
+/// **A body whose value is several bodies is refused, typed** — the
+/// shape the body seat's node-kind gate admits (a transform of a
+/// pattern), and one a pattern of two would index IN PLACE: its two
+/// projections would select two of the existing bodies and the gesture
+/// would add nothing to the picture.
+#[test]
+fn duplicating_a_several_body_value_is_refused() {
+    let tol = Tol::witness();
+    let (session, _body, pattern) = box_and_pattern(tol);
+    // Past the viewer's own body seat, which refuses the pattern
+    // itself: a loaded document can hold this shape.
+    let mut doc = session.committed_doc().clone();
+    let placed = common::insert_into(
+        &mut doc,
+        Node::Transform {
+            input: pattern,
+            translation: len3([0.0, 0.05, 0.0]),
+            rotation_axis: scl3([0.0, 0.0, 1.0]),
+            rotation_angle: ang(0.0),
+        },
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let before = session.committed_doc().clone();
+    let out = session.perform(SessionOp::Duplicate { input: placed });
+    assert!(
+        matches!(
+            out.refusal,
+            Some(Refusal::Duplicate(DuplicateFault::NotOneBody { input })) if input == placed
+        ),
+        "{:?}",
+        out.refusal
+    );
+    assert!(session.committed_doc().bit_eq(&before), "nothing committed");
+}
+
+/// **Nothing landed, nothing to measure** — the step is read off the
+/// body, so before the first landing the door says so rather than
+/// guessing a length.
+#[test]
+fn duplicating_before_anything_has_landed_is_refused() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = boxed(&mut session, A);
+    let out = session.perform(SessionOp::Duplicate { input: body });
+    assert!(
+        matches!(
+            out.refusal,
+            Some(Refusal::Duplicate(DuplicateFault::NotLanded))
+        ),
+        "{:?}",
+        out.refusal
+    );
+}
+
+/// **And a split clicked in the viewport lands in the split seat** —
+/// the other half of what the projection panel's sentence promises.
+#[test]
+fn the_part_tool_seats_a_split_picked_in_the_viewport() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let body = boxed(&mut session, A);
+    let plane = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Plane {
+                origin: len3([0.0, 0.0, A[2] / 2.0]),
+                normal: scl3([0.0, 0.0, 1.0]),
+            },
+        },
+    );
+    let split = insert(
+        &mut session,
+        SessionOp::AddSplit {
+            target: body,
+            tool: plane,
+        },
+    );
+    session.pump();
+    let picked = picked_from_above(&session, 0.0, 0.0);
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Part);
+    let _ = tools.feed(session.committed_doc(), &[SessionOp::Select(picked)]);
+    let tool = tools.part().expect("open");
+    assert_eq!((tool.split(), tool.pattern()), (Some(split), None));
 }

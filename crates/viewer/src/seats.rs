@@ -4,7 +4,7 @@
 //!
 //! # Why one value and not one per tool
 //!
-//! The revolve tool and the four combining tools differ in exactly two
+//! The revolve tool and the combining tools differ in exactly two
 //! things: how many seats they have and what those seats MEAN. Everything
 //! else — fill the first empty seat, replace the last when both are
 //! full, drop a pick whose node left the document, refuse typed until a

@@ -1,8 +1,10 @@
 //! **The modal tools, and the rule that only one of them is open.**
 //!
 //! Every modal tool here holds picks in tool state and commits exactly
-//! one `DocEdit` (G1's preview-vs-commit rule; the mate tool set the
-//! shape and the creation tools took it). They all consume the SAME
+//! one ACTION — one history state, one undo (G1's preview-vs-commit
+//! rule; the mate tool set the shape and the creation tools took it).
+//! For every tool but the duplicate tool that action is one `DocEdit`;
+//! the duplicate tool's is three, recorded as one. They all consume the SAME
 //! selection stream, which is what makes the one-at-a-time rule a rule
 //! rather than a preference: with two open, one click fills a seat in
 //! each, and the picks a user believes they are making are not the
@@ -16,15 +18,15 @@
 //!
 //! **The four per-tool rules here dispatch through an exhaustive
 //! match** — the pick routing, the survival step, the cursor
-//! narrowing, the close-on-commit edit — for the same reason: an
-//! eighth tool must not be able to compile while three of its four
+//! narrowing, the close-on-commit edit — for the same reason: the
+//! next tool must not be able to compile while three of its four
 //! obligations are silently unmet. The READ door is not one of them:
 //! each typed accessor on [`Tools`] matches its own variant and
-//! answers `None` to every other, so an eighth tool that never gets
-//! an accessor compiles clean. [`ToolKind::ALL`] is not a list a
+//! answers `None` to every other, so a new tool that never gets an
+//! accessor compiles clean. [`ToolKind::ALL`] is not a list a
 //! compiler has to be asked to force either: it is projected from the
-//! enum's own declaration by the crate's `vocabulary!` macro, so an
-//! eighth kind reaches it by construction. Nothing outside the test
+//! enum's own declaration by the crate's `vocabulary!` macro, so a
+//! new kind reaches it by construction. Nothing outside the test
 //! suites reads it.
 //!
 //! The value is renderer-free on purpose: the pick routing, the
@@ -65,8 +67,8 @@ vocabulary! {
         Pattern,
         /// The blend tool: one body and a SET of its edges.
         Blend,
-        /// The part tool: one split or one pattern, and which body of
-        /// it.
+        /// The projection tool (it authors a `Node::Part`): one split or
+        /// one pattern, and which body of it.
         Part,
         /// The duplicate tool: one body.
         Duplicate,
@@ -96,7 +98,7 @@ impl ToolKind {
             Self::Transform => "transform tool",
             Self::Pattern => "pattern tool",
             Self::Blend => "blend tool",
-            Self::Part => "part tool",
+            Self::Part => "projection tool",
             Self::Duplicate => "duplicate tool",
         }
     }
@@ -120,8 +122,8 @@ impl ToolKind {
     /// no edge wins answers NOTHING rather than re-selecting the wall
     /// behind the edge the user was aiming at. Every other tool holds
     /// NODE picks, which a face and an edge answer equally well
-    /// (`Selection::node` reaches the feature either way), so none of
-    /// them narrows anything.
+    /// ([`Selection::seat_node`] reaches the drawn body either way), so
+    /// none of them narrows anything.
     pub fn pick_kinds(self) -> PickKinds {
         match self {
             Self::Mate => PickKinds::FacesOnly,
@@ -206,8 +208,8 @@ impl core::fmt::Display for ToolNotice {
 }
 
 /// **Which tool is open, and its state** — one variant per kind, so
-/// the open tool is a single value rather than seven optional ones and
-/// "two tools open" has no spelling.
+/// the open tool is a single value rather than one optional value per
+/// tool, and "two tools open" has no spelling.
 #[derive(Debug)]
 pub enum OpenTool {
     /// The mate tool.
@@ -249,13 +251,18 @@ impl OpenTool {
 }
 
 /// **The one guard every seated tool's pick shares.** A seated tool
-/// takes `Selection::node` and nothing else — a tree click directly, a
-/// face or edge pick through the one viewport→tree inversion — so a
-/// selection carrying no node is a click that tool does not see. The
-/// arms of [`Tools::feed`] that hold seats name the tool and share
-/// this; none of them re-spells it.
+/// takes [`Selection::seat_node`] and nothing else — a tree click
+/// directly, a face or edge pick as the node whose DRAWN body the ray
+/// met — so a selection carrying no node is a click that tool does not
+/// see. The arms of [`Tools::feed`] that hold seats name the tool and
+/// share this; none of them re-spells it.
+///
+/// **Not [`Selection::node`]**, which is the feature tree's question —
+/// the feature that MADE the face. On a moved copy or a filleted body
+/// that is a node upstream of what was clicked, and a seat fed it
+/// authors against geometry the user did not pick.
 fn on_node_pick(selection: &Selection, pick: impl FnOnce(RecipeNodeId)) {
-    if let Some(node) = selection.node() {
+    if let Some(node) = selection.seat_node() {
         pick(node);
     }
 }
@@ -421,9 +428,9 @@ impl Tools {
     /// face geometry, so an edge pick is not one of its picks), the
     /// blend tool takes the EDGE (it blends edges, and its target is
     /// the drawn body the edge was picked on rather than the feature
-    /// that minted it), and every seated tool takes `Selection::node`
-    /// — a tree click directly, a face or edge pick through the one
-    /// viewport→tree inversion.
+    /// that minted it), and every seated tool takes
+    /// [`Selection::seat_node`] — a tree click directly, a face or edge
+    /// pick as the node whose drawn body the ray met.
     ///
     /// **Feeding answers**, because a pick can be DECLINED: the blend
     /// tool refuses an edge on a second body rather than taking it or

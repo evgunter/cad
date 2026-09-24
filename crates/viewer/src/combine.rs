@@ -4,15 +4,16 @@
 //!
 //! # Shape
 //!
-//! The revolve tool's shape, four times over, on the shared seat
+//! The revolve tool's shape, once per tool here, on the shared seat
 //! machinery [`crate::seats`] carries: single-select stays ruled, so
 //! each tool holds its picks in tool state and consumes the ordinary
 //! selection stream — a tree click is a node pick directly, a viewport
-//! face or edge pick reaches the FEATURE it belongs to
-//! (`Selection::node`, the one viewport→tree inversion). Everything
-//! before the commit is tool state; the document transition is one
-//! [`SessionOp`], which commits one `DocEdit::InsertNode` through the
-//! session's ordinary commit door.
+//! face or edge pick reaches the node whose DRAWN body the ray met
+//! (`Selection::seat_node`). Everything before the commit is tool
+//! state; the document transition is one [`SessionOp`], committed
+//! through the session's ordinary commit door as one action — one
+//! `DocEdit::InsertNode` for every tool but the duplicate tool, whose
+//! op inserts a pattern and its two projections as one undo.
 //!
 //! The seat vocabulary, the pick rule, the survival step and the
 //! id-reuse hazard it does not cover (issue #1384) are all
@@ -22,11 +23,13 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    BooleanOp, Doc, Expr, Node, PartSelect, PatternKind, ProfileProgram, RecipeNodeId,
+    BooleanOp, Doc, Evaluation, Expr, Node, PartSelect, PatternKind, ProfileProgram, RecipeNodeId,
 };
+use pncad::geom_core::Tol;
 use pncad::select::SplitHalf;
 
 use crate::seats::{Seat, SeatError, SeatEvent, Seats};
+use crate::session::refuse::one_body;
 use crate::session::{PartSelectSpec, PatternRuleSpec, SessionOp};
 use crate::vocab::vocabulary;
 
@@ -558,13 +561,13 @@ impl PartTool {
 /// **The duplicate tool**: one body pick, committing one
 /// [`SessionOp::Duplicate`].
 ///
-/// One seat and no fields, which is the gesture's whole point: Ev's
-/// framing is that the step after duplicating is to MOVE the copy
-/// away, so a form asking where the copy should go first would be the
-/// pattern form again under another name. The step this gesture
-/// commits is [`DUPLICATE_DIRECTION`] and [`DUPLICATE_SPACING`], and
-/// both are ordinary slots of the pattern node it authors — editable
-/// in the property panel the moment the edit lands.
+/// One seat and no fields: the step after duplicating is to MOVE the
+/// copy away, so a form asking where the copy should go first would be
+/// the pattern form again under another name. Where the copy lands is
+/// [`duplicate_step`]'s rule — along [`STEP_DIRECTION`], clear of the
+/// original by [`DUPLICATE_GAP`] of its own width — and both numbers
+/// land in ordinary slots of the pattern node the gesture authors,
+/// editable in the property panel the moment the edit lands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DuplicateTool {
     seats: Seats,
@@ -618,52 +621,206 @@ impl DuplicateTool {
     }
 }
 
-/// **Which way a duplicate steps its copy**: world +x, unnormalized
-/// as every direction slot in this vocabulary is.
+/// **Which way a stepped copy goes by default**: world +x,
+/// unnormalized as every direction slot in this vocabulary is.
 ///
-/// A world direction rather than one read off the body, because the
-/// body's extent is a fact about the landed EVALUATION and a gesture
-/// that needed one could not be committed before the document had
-/// landed. What the number costs is an offset that does not scale with
-/// the part; what it buys is a gesture that behaves the same whatever
-/// the viewport is showing, and a slot the property panel edits.
-pub const DUPLICATE_DIRECTION: [f64; 3] = [1.0, 0.0, 0.0];
+/// ONE home for the two gestures that step a copy along a line: the
+/// duplicate tool commits it, and the pattern form's direction field
+/// opens on it (`Drafts::default`). The pattern form's SPACING is not
+/// shared, because the two answer different questions — a pattern's
+/// spacing is a number the person types, a duplicate's is measured off
+/// the body ([`duplicate_step`]).
+pub const STEP_DIRECTION: [f64; 3] = [1.0, 0.0, 0.0];
 
-/// **How far a duplicate steps its copy**, in metres.
+/// **How much clear space a duplicate leaves**, as a fraction of the
+/// body's own width along [`STEP_DIRECTION`]: the copy's near side
+/// lands this far past the original's far side.
 ///
-/// The pattern form's own default spacing, which is the same question
-/// answered for the same vocabulary: far enough to clear the shapes
-/// the creation forms author at their defaults, so the two copies are
-/// visibly two rather than one body drawn twice.
-pub const DUPLICATE_SPACING: f64 = 0.02;
+/// A fraction rather than a length, so the gap scales with the part —
+/// a millimetre gap beside a metre-long beam is invisible, and beside
+/// a millimetre pin it is the whole view.
+pub const DUPLICATE_GAP: f64 = 0.25;
 
-/// The pattern rule a duplicate commits: [`DUPLICATE_DIRECTION`]
-/// stepped by [`DUPLICATE_SPACING`].
+/// The measuring tessellation's chord, as a fraction of the body's
+/// FLOOR-mesh extent (`crate::scene::SCALE_PROBE_DELTA`'s mesh).
+///
+/// Fine enough that the conservative inflation it costs — twice the
+/// chord, on the width — stays well under [`DUPLICATE_GAP`]; coarse
+/// enough that measuring a body is one cheap tessellation rather than
+/// a picture's worth.
+///
+/// Public for [`crate::scene::SCALE_PROBE_DELTA`]'s reason: a row that
+/// asserts a landed step against a body's closed form has to run the
+/// rule at this number, and a literal copy in a suite goes stale
+/// without the build noticing.
+pub const MEASURE_CHORD: f64 = 1.0 / 64.0;
+
+/// **Why a duplicate could not be placed** — every way the landed body
+/// can fail to be one thing with a width.
+#[derive(Debug)]
+pub enum DuplicateFault {
+    /// Nothing has landed, so there is no body to measure yet.
+    NotLanded,
+    /// The landed evaluation holds no value for the input — it failed,
+    /// or it is newer than the picture.
+    NoValue {
+        /// The node picked.
+        input: RecipeNodeId,
+    },
+    /// The input's VALUE is several bodies. A pattern of two over it
+    /// would index the flat list of those bodies, so its two
+    /// projections would select two of the ORIGINAL bodies in place and
+    /// the gesture would add nothing to the picture.
+    ///
+    /// Reachable only past the body seat's own gate, which classifies
+    /// by node kind and admits a transform of a pattern
+    /// (`work/forms/body-seat-reads-through-the-placer-chain`); this
+    /// door asks the value, which is the evaluator's own question.
+    NotOneBody {
+        /// The node picked.
+        input: RecipeNodeId,
+    },
+    /// The measuring tessellation refused.
+    Unmeasured {
+        /// The node picked.
+        input: RecipeNodeId,
+        /// The tessellator's own refusal.
+        error: pncad::mesh::TessellateError,
+    },
+    /// The body's mesh has no extent to step by.
+    NoExtent {
+        /// The node picked.
+        input: RecipeNodeId,
+    },
+}
+
+impl core::fmt::Display for DuplicateFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotLanded => f.write_str(
+                "the document has not evaluated yet, so there is no body to measure a copy's \
+                 step off",
+            ),
+            Self::NoValue { input } => write!(
+                f,
+                "feature {} has no value in the picture on screen, so there is no body to copy",
+                input.0
+            ),
+            Self::NotOneBody { input } => write!(
+                f,
+                "feature {}'s value is several bodies; a duplicate copies ONE — project the one \
+                 you mean first",
+                input.0
+            ),
+            Self::Unmeasured { input, error } => write!(
+                f,
+                "feature {}'s body could not be measured for the copy's step: {error}",
+                input.0
+            ),
+            Self::NoExtent { input } => write!(
+                f,
+                "feature {}'s body has no width to step a copy by",
+                input.0
+            ),
+        }
+    }
+}
+
+impl core::error::Error for DuplicateFault {}
+
+/// **Where a duplicate's copy lands**: the step, in metres along
+/// [`STEP_DIRECTION`], that puts the copy's near side
+/// [`DUPLICATE_GAP`] of the body's width past the original's far side —
+/// so the two never touch, whatever the body's size.
+///
+/// **Read off the LANDED value**, which is what a person picking a
+/// body in the viewport is looking at, and the evaluator's own answer
+/// to whether that value is one body.
+///
+/// **Conservative, and why.** The width is measured on a tessellation
+/// at chord δ, whose points lie on the exact surfaces and which is
+/// within δ of them everywhere (`pncad::mesh::tessellate`'s contract),
+/// so the true width is at most the mesh's plus 2δ; the step adds that
+/// before the gap. δ is [`MEASURE_CHORD`] of the body's floor-mesh
+/// extent, which sets the scale without knowing it in advance.
 ///
 /// # Errors
 ///
-/// [`pncad::document::DimensionError`] never in practice — every
-/// component is a finite constant above — and it is a `Result` for
+/// Every [`DuplicateFault`].
+pub fn duplicate_step(
+    landed: Option<(&Doc<ProfileProgram>, &Evaluation<f64>)>,
+    input: RecipeNodeId,
+    tol: Tol,
+) -> Result<f64, DuplicateFault> {
+    let (_, eval) = landed.ok_or(DuplicateFault::NotLanded)?;
+    let value = eval.value(input).ok_or(DuplicateFault::NoValue { input })?;
+    let body = one_body(&value.payload).ok_or(DuplicateFault::NotOneBody { input })?;
+    let measured = |chord: f64| {
+        pncad::mesh::tessellate(body, chord, tol)
+            .map_err(|error| DuplicateFault::Unmeasured { input, error })
+    };
+    let floor = measured(crate::scene::SCALE_PROBE_DELTA)?;
+    // The floor mesh's box diagonal: the body's size, read before a
+    // chord can be chosen for it.
+    let scale = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+        .map(|axis| width_along(&floor.positions, axis).unwrap_or(0.0))
+        .iter()
+        .map(|w| w * w)
+        .sum::<f64>()
+        .sqrt();
+    if !(scale.is_finite() && scale > 0.0) {
+        return Err(DuplicateFault::NoExtent { input });
+    }
+    let chord = scale * MEASURE_CHORD;
+    let mesh = measured(chord)?;
+    let width = width_along(&mesh.positions, STEP_DIRECTION)
+        .filter(|w| w.is_finite() && *w > 0.0)
+        .ok_or(DuplicateFault::NoExtent { input })?;
+    Ok((width + 2.0 * chord) * (1.0 + DUPLICATE_GAP))
+}
+
+/// How far `points` spread along `direction` (normalized here): the
+/// largest projection less the smallest. `None` for no points or a
+/// zero direction.
+fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) -> Option<f64> {
+    let [dx, dy, dz] = direction;
+    let norm = (dx * dx + dy * dy + dz * dz).sqrt();
+    if !(norm.is_finite() && norm > 0.0) {
+        return None;
+    }
+    let mut along = points
+        .iter()
+        .map(|p| (p.x * dx + p.y * dy + p.z * dz) / norm);
+    let first = along.next()?;
+    let (lo, hi) = along.fold((first, first), |(lo, hi), r| (lo.min(r), hi.max(r)));
+    Some(hi - lo)
+}
+
+/// The pattern rule a duplicate commits: [`STEP_DIRECTION`] stepped by
+/// `step` metres ([`duplicate_step`]'s answer).
+///
+/// # Errors
+///
+/// [`pncad::document::DimensionError`] for a non-finite `step` — which
+/// [`duplicate_step`] never answers — and it is a `Result` for
 /// [`crate::session::ProfilePlane::world_xy`]'s reason: whether a
 /// number is authorable keeps ONE home, the expression door.
-pub fn duplicate_rule() -> Result<PatternRuleSpec, pncad::document::DimensionError> {
+pub fn duplicate_rule(step: f64) -> Result<PatternRuleSpec, pncad::document::DimensionError> {
     use pncad::document::Dimension;
     let scalar = |v: f64| Expr::literal(v, Dimension::Scalar);
+    let [x, y, z] = STEP_DIRECTION;
     Ok(PatternRuleSpec::Linear {
-        direction: [
-            scalar(DUPLICATE_DIRECTION[0])?,
-            scalar(DUPLICATE_DIRECTION[1])?,
-            scalar(DUPLICATE_DIRECTION[2])?,
-        ],
-        spacing: Expr::literal(DUPLICATE_SPACING, Dimension::Length)?,
+        direction: [scalar(x)?, scalar(y)?, scalar(z)?],
+        spacing: Expr::literal(step, Dimension::Length)?,
     })
 }
 
 /// **How many bodies a duplicate leaves**: the original and one copy.
 ///
-/// Named rather than written `2` at the door, because the two `Part`
-/// projections the same action commits index exactly this many
-/// instances and a reader has to see that they are one number.
+/// The pattern's count, and the range the same action's projections
+/// are generated over (`0..DUPLICATE_COUNT` at the session door) — one
+/// number, so a pattern and its projections cannot disagree about how
+/// many bodies there are.
 pub const DUPLICATE_COUNT: i64 = 2;
 
 /// Lower one part spec to its node, minting the STRUCTURAL index.
