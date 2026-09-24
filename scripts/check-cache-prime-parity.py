@@ -500,7 +500,7 @@ def _selftest() -> int:
                  or (lines[i] and not lines[i].startswith(" "))),
                 len(lines),
             )
-            block = [f"  {twin}:"] + lines[start + 1:end]
+            block = [f"  {twin}:", *lines[start + 1:end]]
             added += [ln.replace("shared-key: build-default", f"shared-key: {key}") for ln in block]
         at = lines.index("jobs:") + 1
         return "\n".join(lines[:at] + added + lines[at:])
