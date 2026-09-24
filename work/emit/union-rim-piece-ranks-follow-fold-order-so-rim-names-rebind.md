@@ -2,10 +2,12 @@
 id: union-rim-piece-ranks-follow-fold-order-so-rim-names-rebind
 kind: issue
 title: A declared union ranks a member's rim-edge pieces per fold step, so one FromMember rim OrderAlong name binds different pieces in different member orders
-status: open
+status: closed
 opened: 2026-09-24
 priority: P0
 cost: H
+closed: 2026-09-24
+pr: 3167
 ---
 
 
