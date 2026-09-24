@@ -4201,9 +4201,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # reach Python through the TEXT door as `ParseError` with
             # `variant == "dimension"` and the mismatch's own tag as
             # `kind` — not `LiteralError`, which has no position to
-            # put the byte offset in, and not `DimensionError`, which
-            # is the quantity boundary's own check. `load`'s route is
-            # untouched and still misrouted (issue #694).
+            # put the byte offset in, and not `QuantityOpMismatch`,
+            # which is the quantity boundary's own check. `load`'s
+            # route is the same shape: `PersistError` with `variant ==
+            # "dimension"` and the mismatch's own tag as
+            # `inner_variant`.
             #
             # What is left of G1 is the AUTHORING half, and it is a
             # SIGNATURE rather than a name — no door takes an `Expr`

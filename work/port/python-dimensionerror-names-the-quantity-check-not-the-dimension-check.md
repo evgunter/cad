@@ -2,11 +2,14 @@
 id: python-dimensionerror-names-the-quantity-check-not-the-dimension-check
 kind: issue
 title: Python's DimensionError names the quantity-operator check while the real dimension checker surfaces as LiteralError and PersistError
-status: open
+status: closed
 opened: 2026-09-15
 refs: [S107, 694, 689]
+parent: PORT-DIMS-1
+pr: 2702
 priority: P3
 cost: E
+closed: 2026-09-23
 ---
 
 
@@ -86,3 +89,34 @@ with its reasoning in the PR:
 PORT announces; `crates/pncad-py/*` is **LIB's** territory and LIB may
 take this row instead (`work/port/program.md`'s `keep_out`). The
 kernel-side type is not edited by this work.
+
+
+## Resolved (PORT-DIMS-1, 2026-09-15) — and the shape question decided
+
+The Python class for `QuantityOpMismatch` is now `QuantityOpMismatch`,
+the Rust type's own name, and `ErrorClass::Dimension` is
+`ErrorClass::QuantityOp`. No Python class is named `DimensionError` any
+more.
+
+**The shape question is decided reading 1: the name stays vacant.** The
+reasoning, in full, is in the PR; in short, the taxonomy already draws
+the line this row's reading 2 would have crossed. A class keeps the Rust
+type's own name where the refusal IS that type crossing at ONE door
+(`FmtQuantityError`, `TessellateError`, `SelectRefusal`, and now
+`QuantityOpMismatch`). Where one type crosses SEVERAL doors, the class
+names the door and the type's own word rides beside it as `kind` or
+`inner_variant`. The document layer's `DimensionError` is in the second
+family — it reaches Python at four doors under three class names — and
+two of those three (`ParseError`, `PersistError`) must keep their door
+names because they carry payload the type does not have (a byte offset;
+a stage, a body position). Giving the third the type's name would assert
+an equivalence the other two falsify, which is this row's own defect in
+a new place.
+
+What the load door's refusals arrive as is therefore `PersistError` with
+`variant == "dimension"` and the check's own tag as `inner_variant` —
+the same shape `ParseError` already had, drawn from the same one map. So
+the branchable fact this row was really about, *which dimension check
+refused*, is now answerable at all four doors in one vocabulary, which
+is what reading 2 wanted and what a second class name would not have
+bought.
