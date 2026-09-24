@@ -4697,6 +4697,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "missing_upstream",
             "seam_line_sides",
             "seam_vertex_parentage",
+            "seam_vertex_partners",
             "split_lineage_cycle",
             "unnamed",
         ],

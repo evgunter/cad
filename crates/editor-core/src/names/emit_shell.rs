@@ -51,8 +51,8 @@
 //! [`super::defer::TieRows`] rather than inserted one member at a time
 //! — the blend emitter's rule, for the blend emitter's reason: tied
 //! members carry the SAME name, so the flush hands the whole candidate
-//! list to `insert_tied` at once and `Duplicate` keeps meaning what it
-//! says.
+//! list to [`super::defer::narrow_into`] at once and `Duplicate` keeps
+//! meaning what it says.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;

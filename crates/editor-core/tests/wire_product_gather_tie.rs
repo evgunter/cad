@@ -15,6 +15,10 @@
 //! that alias a STRICT name still refuse, because a row whose source
 //! entry is `Unique` goes through `NameTable::insert` exactly as
 //! before.
+//!
+//! The third row places the same tie with a placed union, the other
+//! op that carries several copies of a tie onto one body: disjoint
+//! instances keep every candidate, so each instance's tie stays tied.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -25,8 +29,8 @@
 use crate::fixture;
 
 use editor_core::{
-    BooleanOp, Datum, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, NameTable, Node,
-    ProductError, ProfileDoc, RecipeNodeId, StableName, product_named,
+    BooleanOp, Datum, EntityKey, EntityRef, Entry, EvalOptions, Evaluation, Expr, NameTable, Node,
+    PatternKind, ProductError, ProfileDoc, RecipeNodeId, StableName, product_named,
 };
 use fixture::{ang, insert, len, on_frame, scl, table};
 use geom_core::Tol;
@@ -200,6 +204,50 @@ fn a_split_separating_a_tie_gathers_and_the_product_holds_one_tied_row() {
             );
         }
     }
+}
+
+/// The U-cutter subtract's tie, placed three times by a placed union
+/// whose instances are disjoint: each instance's tie keeps BOTH its
+/// candidates through the fuse, so the fused table carries one
+/// two-candidate `Tied` row per prototype tie per instance — the
+/// several-survivor branch of the placed union's narrowing, which no
+/// other row reaches.
+#[test]
+fn a_placed_union_carries_each_instances_tie_with_both_candidates() {
+    let (doc, sub) = u_cutter_subtract();
+    let (doc, group) = insert(
+        doc,
+        Node::placed_union(
+            sub,
+            Expr::count(3),
+            PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(10.0),
+            },
+        )
+        .unwrap(),
+    );
+    let ev = run(&doc);
+    let proto: Vec<usize> = table(&ev, sub)
+        .iter()
+        .filter_map(|(_, e)| match e {
+            Entry::Tied(c) => Some(c.len()),
+            Entry::Unique(_) => None,
+        })
+        .collect();
+    assert_eq!(proto, vec![2, 2], "the prototype's two-candidate ties");
+    let fused: Vec<usize> = table(&ev, group)
+        .iter()
+        .filter_map(|(_, e)| match e {
+            Entry::Tied(c) => Some(c.len()),
+            Entry::Unique(_) => None,
+        })
+        .collect();
+    assert_eq!(
+        fused,
+        vec![2; proto.len() * 3],
+        "one two-candidate tie per prototype tie per instance"
+    );
 }
 
 #[test]

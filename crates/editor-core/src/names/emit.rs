@@ -35,10 +35,10 @@ use crate::node::RecipeNodeId;
 ///    [`Self::Band`], whose own doc draws the line the two below
 ///    stand on — *nothing about the result body is wrong here*.
 /// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
-///    [`Self::SharedRim`], [`Self::MergedChord`],
-///    [`Self::MergedChordOffRim`], [`Self::SeamLineSides`] and
-///    [`Self::MemberEdgeTied`], reached
-///    from recipes nothing is wrong with,
+///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
+///    [`Self::MergedChord`], [`Self::MergedChordOffRim`],
+///    [`Self::SeamLineSides`] and [`Self::MemberEdgeTied`], reached from
+///    recipes nothing is wrong with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
 ///    because telling an author to file a kernel bug over their own
@@ -164,6 +164,24 @@ pub enum NamingError {
     SeamVertexParentage {
         /// The result-body vertex whose parentage is not determined.
         vertex: VertexKey,
+    },
+    /// A seam vertex whose boolean contact records pair it with SEVERAL
+    /// differently named vertices of the other operand.
+    ///
+    /// The seam-vertex pass names a vertex with no seam structure of its
+    /// own by its contact-record partner. One partner — or several rows
+    /// naming the same one — decides it. Several distinct partners do
+    /// not, and no rule chooses among them, so the pass refuses rather
+    /// than take whichever row the reduction happened to write first.
+    /// A sibling word of [`Self::SeamVertexParentage`]: the same vertex
+    /// pass, a different structure to read (the contact rows, not the
+    /// incident edge roles).
+    SeamVertexPartners {
+        /// The result-body vertex.
+        vertex: VertexKey,
+        /// The distinct upstream names the contact rows pair it with,
+        /// in name order.
+        candidates: Vec<StableName>,
     },
     /// Two faces a boolean's seam-chord derivation believes meet along
     /// ONE edge of an operand body do not.
@@ -428,6 +446,18 @@ impl core::fmt::Display for NamingError {
                  exactly one",
                 node.0
             ),
+            Self::SeamVertexPartners { vertex, candidates } => write!(
+                f,
+                "{UNRULED_FRAMING}: seam vertex {vertex:?} coincides, in the boolean's contact \
+                 records, with {} differently named vertices of the other operand ({}), and \
+                 no rule chooses which one names it",
+                candidates.len(),
+                candidates
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("; ")
+            ),
             Self::MergedChord { edge } => write!(
                 f,
                 "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces and is \
@@ -518,9 +548,21 @@ pub(crate) fn empty() -> Arc<NameTable> {
 /// placers and `Node::Part`, the emitters, the mate walk's `Part`
 /// agreement) and not a number silently narrowed.
 pub(crate) fn output_body(index: usize) -> Result<u32, NamingError> {
-    u32::try_from(index).map_err(|_| NamingError::Emission {
-        what: "an output-body index exceeds the table's u32 row width",
-    })
+    to_u32(
+        index,
+        "an output-body index exceeds the table's u32 row width",
+    )
+}
+
+/// **A count or index, narrowed to the `u32` the name vocabulary and
+/// the table store**, or [`NamingError::Emission`] with `what` when it
+/// does not fit. The one spelling of that narrowing in `names/`: a
+/// saturating or truncating cast would hand two different values one
+/// stored number, so a name or row would silently alias another. No
+/// body this crate can hold reaches the bound, so meeting it is a
+/// kernel bug, reported loudly.
+pub(crate) fn to_u32(n: usize, what: &'static str) -> Result<u32, NamingError> {
+    u32::try_from(n).map_err(|_| NamingError::Emission { what })
 }
 
 /// **The placement-major layout**, the one home of its arithmetic:
@@ -680,10 +722,14 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
                 .into_iter()
                 .filter_map(|e| mapped(e.key).map(|key| ent(0, key)))
                 .collect();
-            match moved.len() {
-                0 => {}
-                1 => t.insert(wrapped, moved[0])?,
-                _ => t.insert_tied(wrapped, moved)?,
+            // Empty for the prototype's BODY-kind rows: the fused body is
+            // this node's own, named above, so they have nothing to point
+            // at. A consumed candidate does not empty a row here — a placed
+            // union is gated to disjoint placements, where each instance's
+            // `GraftKeys` is total — so a tied row keeps every candidate
+            // and narrows through the one door.
+            if !moved.is_empty() {
+                super::defer::narrow_into(&mut t, super::role::NameRef::new(wrapped), moved)?;
             }
         }
     }
@@ -1495,6 +1541,19 @@ mod display_tests {
         // renders a constant where its subject belongs fails here.
         let vtx = two_vertices().0;
         let vtx_shown = format!("{vtx:?}");
+        // Two DIFFERENTLY named partners, as the refusal's premise has
+        // them: the same cap vertex of two different operands' sweeps.
+        let partner = |node| StableName {
+            kind: EntityKind::Vertex,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::CapVertex(
+                super::super::role::CapEnd::End,
+                super::super::role::ProfileVertexRef {
+                    loop_index: 0,
+                    vertex: 0,
+                },
+            )],
+        };
         let pair = two_faces();
         assert_ne!(
             pair.0, pair.1,
@@ -1564,6 +1623,18 @@ mod display_tests {
                     found: RimShare::Several,
                 },
                 vec![face0.as_str(), face1.as_str(), "23", "more than one edge"],
+            ),
+            (
+                NamingError::SeamVertexPartners {
+                    vertex: vtx,
+                    candidates: vec![partner(3), partner(4)],
+                },
+                vec![
+                    vtx_shown.as_str(),
+                    "2 differently named vertices",
+                    "vertex name minted by node 3",
+                    "vertex name minted by node 4",
+                ],
             ),
             (
                 NamingError::MergedChord {
@@ -1638,6 +1709,7 @@ mod display_tests {
                 | NamingError::SplitLineage(_)
                 | NamingError::FragmentLineage { .. } => Some(EMISSION_FRAMING),
                 NamingError::SeamVertexParentage { .. }
+                | NamingError::SeamVertexPartners { .. }
                 | NamingError::SharedRim { .. }
                 | NamingError::MergedChord { .. }
                 | NamingError::MergedChordOffRim { .. }
@@ -1657,11 +1729,12 @@ mod display_tests {
                 NamingError::FragmentLineage { .. } => 6,
                 NamingError::SeamVertexParentage { .. } => 7,
                 NamingError::SharedRim { .. } => 8,
-                NamingError::MergedChord { .. } => 9,
-                NamingError::MergedChordOffRim { .. } => 10,
-                NamingError::Band(_) => 11,
-                NamingError::SeamLineSides { .. } => 12,
-                NamingError::MemberEdgeTied { .. } => 13,
+                NamingError::SeamVertexPartners { .. } => 9,
+                NamingError::MergedChord { .. } => 10,
+                NamingError::MergedChordOffRim { .. } => 11,
+                NamingError::Band(_) => 12,
+                NamingError::SeamLineSides { .. } => 13,
+                NamingError::MemberEdgeTied { .. } => 14,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
