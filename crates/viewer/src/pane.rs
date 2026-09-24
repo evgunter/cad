@@ -41,7 +41,11 @@ pub(crate) mod headless {
 
     use eframe::egui;
 
-    use crate::widgets::{message_floor, message_tests::SLACK};
+    use crate::widgets::message_floor;
+
+    /// Rows are placed at whole pixels, so two readings of one edge
+    /// can differ by less than one.
+    pub(crate) const SLACK: f32 = 1.0;
 
     /// Everything one pass of `draw` painted, joined by newlines.
     pub(crate) fn painted_text(draw: impl FnOnce(&mut egui::Ui)) -> String {

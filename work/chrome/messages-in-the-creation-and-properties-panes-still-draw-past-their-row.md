@@ -257,7 +257,11 @@ list below is by function.
 - **In a row: two, not three.** `frame_picker`'s empty arm (now
   `NO_FRAMES`, said on a line of its own under the picker's label) and
   `add_part_ui`'s per-entry id (now `part_entry`, a free function: the
-  pick button, then the 32-digit id under it). The third,
+  pick button, then the 32-digit id under it). The id is a VALUE, not
+  a sentence. It is bounded at its source and has no space to break at,
+  so it is drawn as a truncating label, whole or elided with the full
+  id on hover. It is never wrapped through `message`, which would split
+  it mid-id. The third,
   `BlendTarget::of_face(face)` in the face row, is in
   `datum_face_frame_rows`, not `blend_tool_ui`, and is a NAME:
   `"feature {n} body {m}"` is a fixed literal and two integers. It
@@ -278,8 +282,11 @@ list below is by function.
   fixed button label including `"Extrude {node}"`.
 
 **The window width.** `add_part_ui`'s window is now built by
-`part_window`, which gives it the width of the pane that opened it
-(`egui::Ui::available_width`, never under `message_floor`). The premise
+`part_window`, which pins it (both `min_width` and `max_width`), every
+frame, to the width of the pane that opened it
+(`egui::Ui::available_width`, never under `message_floor`). A
+`default_width` alone would hold only on the first open in a session,
+because egui persists a window's size under its id. The premise
 that carried this bullet here did not hold as stated. Measured on
 egui 0.36.1: `egui::Window::new` begins at egui's own 340-point default
 size, so with no `default_width` the chooser's sentences wrapped at 326
@@ -287,13 +294,13 @@ points from the first painted frame. `egui::Resize::begin` ratchets UP
 to last frame's content and never back. So the wrap did fire, at a
 width egui chose, and a wider row (a long file name on a pick button)
 widened the window instead. `widgets::message`'s doc now says that.
-`the_part_choosers_sentences_wrap_at_the_opening_panes_width` holds the
-opener's width, red against the window with no width (its sentence
-ran 62 points past a 260-point opener).
+`the_part_chooser_takes_the_width_of_the_pane_each_time_it_opens`
+holds the opener's width both ways, across a wide open and a narrow
+reopen on one context.
 
 Filed from the sweep: `a-part-choosers-pick-button-draws-a-file-name-at-any-width`
 and `a-frame-pickers-closed-combo-draws-a-frames-pose-in-an-extend-row`.
 The sentences AUTHOR's PR 3052 adds to `create.rs` (`part_selector_rows`'
 two notes, `part_tool_ui` and `duplicate_tool_ui`'s prompts, seat lines
-and `duplicate_note`) were not on this branch and were not chased. They
-are that PR's to route through `message`.
+and `duplicate_note`) were not on this branch and were not chased.
+They are filed as `the-sentences-pr-3052-adds-to-create-rs-are-not-yet-messages`.

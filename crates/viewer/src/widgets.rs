@@ -1652,7 +1652,9 @@ mod roster_tests {
     /// paragraph, which enumerates them.
     ///
     /// Derived from the crate's own source, by the one spelling every
-    /// call site uses: the qualified path. That spelling is what
+    /// call site uses: the qualified path, called — so a file that
+    /// only measures the floor (`message_floor`) is not a message
+    /// site. That spelling is what
     /// makes this mechanical, so a site that imported the name
     /// instead would be invisible here — which is why there is no
     /// such site and why this row's failure message says so.
@@ -1675,7 +1677,14 @@ mod roster_tests {
                 let text = test_utils::source::code_only(
                     &std::fs::read_to_string(&path).expect("a source file"),
                 );
-                if text.contains("widgets::message") {
+                if [
+                    "widgets::message(",
+                    "widgets::message_link(",
+                    "widgets::message_toned(",
+                ]
+                .iter()
+                .any(|call| text.contains(call))
+                {
                     callers.push(
                         path.strip_prefix(&src)
                             .expect("a path under src")
@@ -1732,6 +1741,7 @@ pub(crate) mod message_tests {
     #![allow(clippy::expect_used)]
 
     use super::{message, wrapped_in_region};
+    use crate::pane::headless::SLACK;
     use eframe::egui;
 
     /// A refusal-length sentence: longer than [`REGION`] at the
@@ -1758,10 +1768,6 @@ pub(crate) mod message_tests {
 
     /// The region the single-width rows use.
     const REGION: f32 = REGIONS[1];
-
-    /// Rows are placed at whole pixels, so two readings of one edge
-    /// can differ by less than one.
-    pub(crate) const SLACK: f32 = 1.0;
 
     /// The widest row of a laid-out galley — what the sentence
     /// actually asked the layout for.

@@ -91,25 +91,35 @@ const NO_FRAMES: &str = "none in this document — add a frame datum first";
 /// window, because it is what every sentence in the chooser wraps at:
 /// the chooser answers the pane that opened it, so it lays its
 /// sentences out the way that pane would.
+///
+/// **Pinned, every frame**, as both the least and the most the window
+/// may be. A `default_width` alone is read once per session — egui
+/// persists a window's size under its id and only ratchets it up from
+/// there — so a chooser reopened after the pane narrowed would keep
+/// the old width. Pinning also follows a pane resized while the
+/// chooser is open.
 fn part_window(opener: &egui::Ui) -> egui::Window<'static> {
+    let width = opener
+        .available_width()
+        .max(crate::widgets::message_floor(opener));
     egui::Window::new("Add part")
         .collapsible(false)
         .resizable(false)
-        .default_width(
-            opener
-                .available_width()
-                .max(crate::widgets::message_floor(opener)),
-        )
+        .min_width(width)
+        .max_width(width)
 }
 
 /// **One part the chooser offers**: its pick button, and the
 /// document's id on a line of its own under it. Answers whether the
 /// button was clicked.
 ///
-/// The id is 32 hex digits with no space to break at, which is wider
-/// than a narrow pane holds; beside the button it was laid out from
-/// the button's right-hand edge, which a long file name pushes past
-/// the pane's.
+/// The id is a VALUE, not a sentence: 32 hex digits, bounded by its
+/// source and with no space to break at, so wrapping it at the region
+/// would split one id into two tokens. It is drawn whole or, in a
+/// window narrower than it, elided with the whole id on hover —
+/// egui's own truncation, which never breaks it. The file name above
+/// it is what a reader picks by (`crate::parts::catalogue` sorts on
+/// it); the id tells two same-named files apart.
 ///
 /// An entry that cannot be picked stays VISIBLE and disabled, carrying
 /// the op's own refusal — read off the entry, not minted here.
@@ -119,7 +129,14 @@ fn part_entry(ui: &mut egui::Ui, theme: &Theme, entry: &PartEntry) -> bool {
     if let Some(refusal) = refusal {
         pick = pick.on_disabled_hover_text(refusal.to_string());
     }
-    crate::widgets::message_toned(ui, entry.id.to_string(), theme, Tone::Advisory);
+    ui.add(
+        egui::Label::new(crate::app::toned(
+            entry.id.to_string(),
+            theme,
+            Tone::Advisory,
+        ))
+        .truncate(),
+    );
     pick.clicked()
 }
 
@@ -129,6 +146,18 @@ fn part_entry(ui: &mut egui::Ui, theme: &Theme, entry: &PartEntry) -> bool {
 /// that is the question being answered — which frame — and a document
 /// with none is the case this entry exists for.
 const NEW_XY_LABEL: &str = "a new xy frame";
+
+/// **The plane choices the add-profile form offers**, in the order it
+/// offers them: the mint, then the document's own frames.
+///
+/// Its own function so that "the mint goes first, whatever the
+/// document holds" is a claim a test can read directly as well as
+/// through the widget.
+fn profile_plane_choices(frames: &[RecipeNodeId]) -> Vec<ProfilePlane> {
+    core::iter::once(ProfilePlane::NewXy)
+        .chain(frames.iter().copied().map(ProfilePlane::Existing))
+        .collect()
+}
 
 /// **The add-profile form's plane row**: the mint, then the document's
 /// own frames, in one combo.
@@ -147,18 +176,6 @@ const NEW_XY_LABEL: &str = "a new xy frame";
 /// is therefore never empty, so [`frame_picker`]'s empty line is
 /// reachable only from the add-datum form, whose axis-in-sketch kind
 /// genuinely does need a frame that already exists.
-/// **The plane choices the add-profile form offers**, in the order it
-/// offers them: the mint, then the document's own frames.
-///
-/// Its own function so that "the mint goes first, whatever the
-/// document holds" is a claim a test can read directly as well as
-/// through the widget.
-fn profile_plane_choices(frames: &[RecipeNodeId]) -> Vec<ProfilePlane> {
-    core::iter::once(ProfilePlane::NewXy)
-        .chain(frames.iter().copied().map(ProfilePlane::Existing))
-        .collect()
-}
-
 pub(crate) fn profile_plane_row(
     ui: &mut egui::Ui,
     theme: &Theme,
@@ -380,7 +397,6 @@ impl ViewerBehavior<'_> {
         let mut chosen: Option<DocumentId> = None;
         let mut rescan = false;
         let mut close = false;
-        let theme = &self.theme;
         if let Some(chooser) = self.part_chooser.as_ref() {
             part_window(ui).show(ui.ctx(), |ui| {
                 match chooser.dir() {
@@ -388,7 +404,7 @@ impl ViewerBehavior<'_> {
                         crate::widgets::message_toned(
                             ui,
                             format!("parts in {}", dir.display()),
-                            theme,
+                            &self.theme,
                             Tone::Advisory,
                         );
                     }
@@ -409,13 +425,13 @@ impl ViewerBehavior<'_> {
                             ui,
                             "this directory holds no documents at all — not even the open \
                                  document's own file, which has gone from it",
-                            theme,
+                            &self.theme,
                             Tone::Advisory,
                         );
                     }
                     Ok(entries) => {
                         for entry in entries {
-                            if part_entry(ui, theme, entry) {
+                            if part_entry(ui, &self.theme, entry) {
                                 chosen = Some(entry.id);
                             }
                         }
@@ -1526,7 +1542,7 @@ mod layout_tests {
 
     use super::{NO_FRAMES, frame_picker, part_entry, part_window};
     use crate::pane::headless::{
-        assert_inside, assert_own_lines, assert_under, drawn_in, find, landed_after,
+        SLACK, assert_inside, assert_own_lines, assert_under, drawn_in, find, landed_after,
     };
     use crate::parts::PartEntry;
     use crate::theme::Theme;
@@ -1569,23 +1585,68 @@ mod layout_tests {
         assert_under(find(&painted, &entry.file_name()), id);
     }
 
-    /// **The chooser's window wraps at the width of the pane that
-    /// opened it** — not at egui's own default for a window, which is
-    /// wider than a narrow pane.
-    ///
-    /// Two frames, because a window paints nothing on the frame it
-    /// first appears.
+    /// **A part's id is never broken inside itself**: in a pane
+    /// narrower than its 32 digits it is elided on one line, where a
+    /// sentence's wrap would split it into two tokens.
     #[test]
-    fn the_part_choosers_sentences_wrap_at_the_opening_panes_width() {
+    fn a_parts_id_is_drawn_on_one_line_in_a_pane_narrower_than_it() {
+        const NARROW: f32 = 200.0;
+        let entry = PartEntry {
+            id: DocumentId(0x0123_4567_89ab_cdef_0123_4567_89ab_cdef),
+            path: PathBuf::from("lid.pncad"),
+            open_document: false,
+        };
+        let (region, painted) = drawn_in(NARROW, |ui| {
+            part_entry(ui, &Theme::DEFAULT, &entry);
+        });
+        let id = find(&painted, &entry.id.to_string());
+        assert_eq!(
+            id.rows.len(),
+            1,
+            "the id is one line, not two ({:?})",
+            id.rows
+        );
+        assert_inside(region, id);
+    }
+
+    /// **The chooser's window takes the width of the pane that opens
+    /// it, each time it is opened** — at least that width in a wide
+    /// pane, and in a narrow one reopened after a wide one, no more
+    /// than that width, so its sentences wrap there.
+    ///
+    /// One context across both opens, because what egui carries from
+    /// the first open to the second is its memory of the window's
+    /// size. Two frames per open, because a window paints nothing on
+    /// the frame it first appears.
+    #[test]
+    fn the_part_chooser_takes_the_width_of_the_pane_each_time_it_opens() {
+        const WIDE: f32 = 600.0;
         let sentence = "this directory holds no documents at all — not even the open \
                         document's own file, which has gone from it";
-        let painted = landed_after(2, |ui| {
-            ui.allocate_ui(egui::vec2(REGION, 800.0), |opener| {
-                part_window(opener).show(opener.ctx(), |ui| {
-                    crate::widgets::message(ui, sentence);
+        // (opener width, or `None` for a frame with the chooser closed)
+        let frames = [Some(WIDE), Some(WIDE), None, Some(REGION), Some(REGION)];
+        let widths = core::cell::RefCell::new(Vec::new());
+        let mut frame = 0;
+        let painted = landed_after(frames.len(), |ui| {
+            if let Some(Some(width)) = frames.get(frame) {
+                ui.allocate_ui(egui::vec2(*width, 800.0), |opener| {
+                    let shown = part_window(opener).show(opener.ctx(), |ui| {
+                        crate::widgets::message(ui, sentence);
+                    });
+                    let drawn = shown.map_or(f32::NAN, |shown| shown.response.rect.width());
+                    widths.borrow_mut().push((*width, drawn));
                 });
-            });
+            }
+            frame += 1;
         });
+        for (opener, drawn) in widths.borrow().iter().skip(1) {
+            assert!(
+                (drawn - opener).abs() <= SLACK,
+                "a chooser opened from a {opener}-point pane is {drawn} points wide \
+                 ({:?})",
+                widths.borrow()
+            );
+        }
         let said = find(&painted, sentence);
         assert!(
             said.rows.len() > 1,
