@@ -61,6 +61,7 @@ test_utils::gated_to![
 
 use geom_core::Bounds;
 use geom_core::Interval;
+use geom_core::interval::certification::Certification;
 use interval_transcendentals::{DInterval, Decoration};
 use test_utils::fuzz;
 

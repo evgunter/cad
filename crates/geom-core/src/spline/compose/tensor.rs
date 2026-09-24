@@ -128,6 +128,7 @@ use super::{
     BernsteinSpans, ComposeError, CurveRingData, bern_mul_row, binom_row, to_bezier_spans_extra,
 };
 use crate::interval::Interval;
+use crate::interval::certification::Certification;
 use crate::real::Bounds;
 
 // ---------------------------------------------------------------------
@@ -237,7 +238,7 @@ impl SurfaceResidual {
     /// The whole-domain per-coordinate enclosure: the hull of the span
     /// bounds (fixed ascending fold, D9). Poison if any span poisons.
     pub fn bound(&self) -> [Interval; 3] {
-        let mut acc = [Interval::poison(); 3];
+        let mut acc = [Interval::refused(); 3];
         for (n, row) in self.spans.iter().enumerate() {
             for d in 0..3 {
                 acc[d] = if n == 0 {
@@ -365,7 +366,7 @@ fn row_sub(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
 
 /// The coefficient hull of one row (ascending fold, D9).
 fn row_hull(row: &[Interval]) -> Interval {
-    let mut acc = Interval::poison();
+    let mut acc = Interval::refused();
     for (n, c) in row.iter().enumerate() {
         acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
     }
@@ -417,7 +418,7 @@ fn cell_residual(
     // never overflow, while `C(m_u,i)·C(m_v,j)` still could. Poison
     // explicitly rather than round silently.
     if mu + mv > super::BINOM_EXACT_MAX {
-        return [Interval::poison(); 3];
+        return [Interval::refused(); 3];
     }
     let (ua, ub) = (surf[0].breaks_u[su], surf[0].breaks_u[su + 1]);
     let (va, vb) = (surf[0].breaks_v[sv], surf[0].breaks_v[sv + 1]);
@@ -636,7 +637,7 @@ pub fn surface_curve_residual(
         let wu = row_hull(rows.u) / wden;
         let wv = row_hull(rows.v) / wden;
         if !wu.is_certified() || !wv.is_certified() {
-            spans.push([Interval::poison(); 3]);
+            spans.push([Interval::refused(); 3]);
             continue;
         }
         // Located in the SAME break arrays `cell_residual` indexes
@@ -660,7 +661,7 @@ pub fn surface_curve_residual(
             }
         }
         // `cells_touched` always returns at least one cell.
-        spans.push(acc.unwrap_or([Interval::poison(); 3]));
+        spans.push(acc.unwrap_or([Interval::refused(); 3]));
     }
     Ok(SurfaceResidual { breaks, spans })
 }

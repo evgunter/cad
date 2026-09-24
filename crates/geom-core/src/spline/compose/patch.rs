@@ -64,6 +64,7 @@ use super::{
     BernWeights, bern_mul_row_into, bern_mul_row_with, bern_weights, to_bezier_spans_extra,
 };
 use crate::interval::Interval;
+use crate::interval::certification::Certification;
 use std::borrow::Cow;
 
 /// One scalar channel of a tensor-product spline in per-cell Bernstein
@@ -102,9 +103,9 @@ impl PatchSpans {
     /// order (D9).
     pub fn cell_hull(&self, su: usize, sv: usize) -> Interval {
         let Some(block) = self.cells.get(su).and_then(|r| r.get(sv)) else {
-            return Interval::poison();
+            return Interval::refused();
         };
-        let mut acc = Interval::poison();
+        let mut acc = Interval::refused();
         for (n, c) in block.iter().enumerate() {
             acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
         }

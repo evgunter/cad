@@ -24,6 +24,7 @@ use geom_brep::patch_bound::{self, PatchCell};
 use geom_core::Bounds;
 use geom_core::Point3;
 use geom_core::interval::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 use geom_core::spline::net::TensorNet;
 

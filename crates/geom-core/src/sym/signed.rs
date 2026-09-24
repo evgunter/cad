@@ -45,6 +45,7 @@ use super::form::{Form, Mono, Poly, exp_of};
 use super::rational::Rat;
 use super::{INDET_PI, IndetMap, SymBudget, SymOp};
 use crate::interval::Interval;
+use crate::interval::certification::Certification;
 
 /// The most terms a candidate root may grow to before `poly_sqrt` gives
 /// up: a real residual's root is a handful of terms, and the bound keeps
@@ -236,7 +237,7 @@ fn mono_poly(m: &Mono, e: u32) -> Poly {
 fn rat_enclosure(c: &Rat) -> Interval {
     match c.f64_bracket() {
         Some((lo, hi)) => Interval::from_bounds(lo, hi),
-        None => Interval::poison(),
+        None => Interval::refused(),
     }
 }
 

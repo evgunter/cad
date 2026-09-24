@@ -219,6 +219,7 @@
 use geom::curves::fit::{FitError, interpolate_columns};
 use geom::surfaces::{NurbsSurface, Surface};
 use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotVector, SplineError};
 use geom_core::{Band, Interval, Point3, Tol};
@@ -2125,7 +2126,7 @@ impl Composite {
         // while a refused square had NaN endpoints. It does not: the
         // refusal is asked by name and carried across by hand.
         let e_mig_iv = if !e_mig_sq.is_certified() {
-            Interval::poison()
+            Interval::refused()
         } else {
             Interval::point(sqrt_down(e_mig_sq.lo())) / wt
         };
@@ -2234,6 +2235,7 @@ mod tests {
     use super::{Composite, Refine, directional_mark, stall_verdict};
     use crate::offset_meters::{norm_sup, sqrt_up};
     use geom_core::Bounds;
+    use geom_core::interval::certification::Certification;
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Interval, Point3, Tol};
 

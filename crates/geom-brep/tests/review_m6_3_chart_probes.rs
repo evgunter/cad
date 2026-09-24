@@ -14,6 +14,7 @@
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use core::num::NonZeroUsize;
 use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
 
 use crate::shared::tol::band;
 use geom::Curve3;

@@ -2789,6 +2789,7 @@ mod quad_lane {
     use geom_brep::props::{LoopEdge, PropsError, loop_vector_area};
     use geom_core::Tol;
     use geom_core::interval::Interval;
+    use geom_core::interval::certification::Certification;
     // The compound `Decide + Bounds` bound below is a RATIFIED seam
     // (M5 PR 11, Ev's lane-split ruling; discipline allowlist row):
     // this module is the certified lanes' plumbing and never
@@ -2837,7 +2838,7 @@ mod quad_lane {
         // clean. The refusal is carried across by hand.
         let clamp = |x: Interval, pad: f64| {
             if !x.is_certified() {
-                return Interval::poison();
+                return Interval::refused();
             }
             Interval::from_bounds(x.lo() - pad, x.hi() + pad).clamped_to(-1.0, 1.0)
         };

@@ -39,7 +39,7 @@
 //!
 //! * every `crates/*/src` file whose PRODUCTION code calls a
 //!   certification door ([`DOORS`]): it builds a certification bracket
-//!   (`Interval::from_certified`, `Interval::hull`, `Interval::poison`,
+//!   (`Interval::from_certified`, `Interval::hull`, `Interval::refused`,
 //!   `.clamped_to(…)`) or refuses one (`.is_certified()`). The key is
 //!   what the code does, read off the same CODE view the counts are, so
 //!   a file enters when it starts building or refusing certification
@@ -110,7 +110,7 @@ test_utils::gated_to![
 const DOORS: &[&str] = &[
     "Interval::from_certified(",
     "Interval::hull(",
-    "Interval::poison(",
+    "Interval::refused(",
     ".clamped_to(",
     ".is_certified()",
 ];

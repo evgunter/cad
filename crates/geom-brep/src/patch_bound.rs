@@ -97,6 +97,7 @@ use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
 use geom_core::interval::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{CurvePlan, KnotVector};
 
@@ -461,7 +462,7 @@ pub fn window_tilde_hull(
             });
         }
     }
-    acc.unwrap_or_else(Interval::poison)
+    acc.unwrap_or_else(Interval::refused)
 }
 
 /// The signed hull of `net[i][j]` over the window `wu × wv` —
@@ -801,7 +802,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
             let point_at = |comp: usize, i: usize, j: usize| {
                 p_nets
                     .get(comp)
-                    .map_or_else(Interval::poison, |p| p.get(i, j))
+                    .map_or_else(Interval::refused, |p| p.get(i, j))
             };
             // The cell centroid — a translation CHOICE, so ANY finite
             // value is sound and none of it has to be enclosed. Taken
@@ -861,7 +862,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                         });
                     }
                 }
-                let v0s = v0h.unwrap_or_else(Interval::poison);
+                let v0s = v0h.unwrap_or_else(Interval::refused);
                 // Recentred homogeneous derivative hulls
                 // `Ã_kl = A_kl − c·w_kl` on the cell.
                 let at =

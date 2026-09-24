@@ -58,6 +58,7 @@ use std::collections::HashMap;
 use geom::Curve3;
 use geom_brep::Pcurve;
 use geom_core::interval::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::{KnotVector, SplineCoeffs};
 use topo::{Body, EdgeKey};
 
@@ -281,7 +282,7 @@ fn nurbs_chord_count(
             // would have delivered it.
             let hull = kv1
                 .with_coeffs(&q1)
-                .map_or_else(Interval::poison, SplineCoeffs::derivative_domain_hull);
+                .map_or_else(Interval::refused, SplineCoeffs::derivative_domain_hull);
             sum_sq = sum_sq + hull.sqr();
         }
         // A refused hull has no bound to report: `NaN` is what the
@@ -409,14 +410,14 @@ fn rational_carrier_m_bound(
         for i in active {
             let e = match (net.get(i), wnet.get(i)) {
                 (Some(&a), Some(&w)) => a - c * w,
-                _ => Interval::poison(),
+                _ => Interval::refused(),
             };
             acc = Some(match acc {
                 None => e,
                 Some(h) => Interval::hull(h, e),
             });
         }
-        acc.unwrap_or_else(Interval::poison)
+        acc.unwrap_or_else(Interval::refused)
     };
     let mag = |h: Interval| Interval::from_bounds(0.0, h.mag());
     let two = Interval::point(2.0);
@@ -450,7 +451,7 @@ fn rational_carrier_m_bound(
                 Some(h) => Interval::hull(h, *w),
             });
         }
-        let w_span = w_span.unwrap_or_else(Interval::poison);
+        let w_span = w_span.unwrap_or_else(Interval::refused);
         let zero = Interval::zero();
         // Active windows: value [s−p, s]; each differencing drops the
         // top index, which is what `derived_window` names — so `s − 1`
@@ -474,7 +475,7 @@ fn rational_carrier_m_bound(
         let w1 = mag(window(&dw, &dw, zero, span.first_derived_window()));
         let w2 = mag(d2
             .clone()
-            .map_or_else(Interval::poison, |a| window(&ddw, &ddw, zero, a)));
+            .map_or_else(Interval::refused, |a| window(&ddw, &ddw, zero, a)));
         let mut sq = Interval::zero();
         for (c, (da, dda)) in a_nets.iter().enumerate() {
             let cc = Interval::point(cen[c]);
@@ -490,11 +491,11 @@ fn rational_carrier_m_bound(
                     Some(h) => Interval::hull(h, e),
                 });
             }
-            let v0 = mag(v0h.unwrap_or_else(Interval::poison));
+            let v0 = mag(v0h.unwrap_or_else(Interval::refused));
             let a1 = mag(window(da, &dw, cc, span.first_derived_window()));
             let a2 = mag(d2
                 .clone()
-                .map_or_else(Interval::poison, |a| window(dda, &ddw, cc, a)));
+                .map_or_else(Interval::refused, |a| window(dda, &ddw, cc, a)));
             let s1 = (a1 + v0 * w1) / w_span;
             let s2 = (a2 + two * s1 * w1 + v0 * w2) / w_span;
             sq = sq + s2.sqr();
@@ -711,7 +712,7 @@ fn general_uv_speeds(
         // never as a finite bound.
         *s = kv
             .with_coeffs(&coeffs)
-            .map_or_else(Interval::poison, SplineCoeffs::derivative_domain_hull)
+            .map_or_else(Interval::refused, SplineCoeffs::derivative_domain_hull)
             .mag()
             .next_up();
     }

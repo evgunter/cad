@@ -130,6 +130,7 @@
 
 use super::knots::{KnotVector, Span};
 use crate::interval::Interval;
+use crate::interval::certification::Certification;
 use crate::real::CertifiedBounds;
 
 /// A coefficient array **with the knot vector it is a proof about** —
@@ -514,8 +515,10 @@ impl KnotVector {
     /// net's lines, a derivative ladder's levels), and a door on the
     /// pair would make each of them spell the same mint-then-map.
     pub fn difference_coeffs<E: CertifiedBounds>(&self, coeffs: &[E]) -> Vec<Interval> {
-        self.with_coeffs(coeffs)
-            .map_or_else(|| vec![Interval::poison()], SplineCoeffs::derivative_coeffs)
+        self.with_coeffs(coeffs).map_or_else(
+            || vec![Interval::refused()],
+            SplineCoeffs::derivative_coeffs,
+        )
     }
 }
 
@@ -557,7 +560,7 @@ impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
     /// definitionally equal to the granular form subdivision consumers
     /// use.
     pub fn domain_hull(self) -> Interval {
-        let mut acc = Interval::poison();
+        let mut acc = Interval::refused();
         let mut seeded = false;
         // Fixed ascending span order (D9).
         for index in self.knots.first_span()..=self.knots.last_span() {
@@ -597,7 +600,7 @@ impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
         // Indexing justified by the caller's range: i + 1 ≤
         // control_count() − 1 = u.len() − p − 2, so i + p + 1 ≤ u.len() − 1.
         if i + 1 >= coeffs.len() || i + p + 1 >= u.len() {
-            return Interval::poison();
+            return Interval::refused();
         }
         let du = Interval::point(u[i + p + 1]) - Interval::point(u[i + 1]);
         let dc = Interval::from_certified(coeffs[i + 1]) - Interval::from_certified(coeffs[i]);
@@ -632,7 +635,7 @@ impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
     /// all derivative coefficients.
     pub fn derivative_domain_hull(self) -> Interval {
         let qs = self.derivative_coeffs();
-        let mut acc = Interval::poison();
+        let mut acc = Interval::refused();
         for (n, q) in qs.iter().enumerate() {
             acc = if n == 0 { *q } else { Interval::hull(acc, *q) };
         }
@@ -683,7 +686,7 @@ impl<'a, E: CertifiedBounds> RationalCoeffs<'a, E> {
     /// over spans of [`RationalWindow::hull_rational`]. Poison if any
     /// span's weights fail the precondition.
     pub fn domain_hull_rational(self) -> Interval {
-        let mut acc = Interval::poison();
+        let mut acc = Interval::refused();
         let mut seeded = false;
         for index in self.knots.first_span()..=self.knots.last_span() {
             // Emptiness check and window construction are one step.
@@ -739,7 +742,7 @@ impl<'a, E: CertifiedBounds> CoeffWindow<'a, E> {
     pub fn hull(self) -> Interval {
         let coeffs = self.pair.coeffs;
         let (first, last) = (self.span.first_control(), self.span.index());
-        let mut acc = Interval::poison();
+        let mut acc = Interval::refused();
         // Fixed ascending reduction order (D9).
         for (n, j) in (first..=last).enumerate() {
             // Indexing justified: last ≤ control_count() − 1 = coeffs.len() − 1.
@@ -763,7 +766,7 @@ impl<'a, E: CertifiedBounds> CoeffWindow<'a, E> {
     /// span's own window minus its top end.
     pub fn derivative_hull(self) -> Interval {
         let (first, last) = (self.span.first_control(), self.span.index());
-        let mut acc = Interval::poison();
+        let mut acc = Interval::refused();
         // Fixed ascending reduction order (D9). Range: [span − p, span − 1].
         for (n, i) in (first..last).enumerate() {
             let q = self.pair.deriv_coeff(i);
@@ -812,7 +815,7 @@ impl<E: CertifiedBounds> RationalWindow<'_, E> {
     /// values. A non-positive or non-finite weight is poison.
     pub fn hull_rational(self) -> Interval {
         if !self.weights_positive() {
-            return Interval::poison();
+            return Interval::refused();
         }
         CoeffWindow {
             pair: self.pair.plain(),

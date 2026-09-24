@@ -1260,6 +1260,7 @@ impl NurbsCellGrid {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 pub(crate) mod tests {
     use super::*;
+    use geom_core::interval::certification::Certification;
 
     /// The whole-patch bound of a single face, with no memo — the door
     /// the rows below take. The shipped lane never has this shape (it

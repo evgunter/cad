@@ -49,6 +49,7 @@ test_utils::gated_to![
 ];
 
 use geom_core::interval::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::CurveRingData;
 use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};

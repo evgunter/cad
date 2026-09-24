@@ -58,6 +58,7 @@
 
 use geom::{NurbsSurface, Surface};
 use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
 use geom_core::{Interval, Point3, SupSpeed, Vec3};
 
 use super::SsiError;

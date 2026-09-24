@@ -44,6 +44,7 @@
 
 use super::knots::{InteriorKnot, KnotVector, SplineError};
 use crate::interval::Interval;
+use crate::interval::certification::Certification;
 
 /// A typed knot-algebra refusal (fail-loud; the kernel never panics).
 #[derive(Clone, Debug, PartialEq)]
@@ -330,7 +331,7 @@ impl CurvePlan {
             }
         }
         new.into_iter()
-            .map(|slot| slot.unwrap_or_else(Interval::poison))
+            .map(|slot| slot.unwrap_or_else(Interval::refused))
             .collect()
     }
 }

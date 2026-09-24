@@ -142,6 +142,7 @@
 
 use geom_core::Bounds;
 use geom_core::interval::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::{Band, Indeterminate, Margin, Sign, SupSpeed};
 
 use crate::dihedral::decide;

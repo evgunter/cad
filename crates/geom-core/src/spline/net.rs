@@ -63,7 +63,7 @@
 //!
 //! # Poison (fail-loud, D4 ¶2)
 //!
-//! Every out-of-range read is [`Interval::poison`]; a shape that
+//! Every out-of-range read is [`Interval::refused`]; a shape that
 //! does not multiply out is a poisoned net rather than a panic or a
 //! truncation. Nothing here compares anything.
 
@@ -72,6 +72,7 @@ use core::ops::RangeInclusive;
 use super::algebra::CurvePlan;
 use super::knots::KnotVector;
 use crate::interval::Interval;
+use crate::interval::certification::Certification;
 
 /// A rectangular tensor coefficient net of certification enclosures, stored
 /// **row-major** (`u`-major): entry `(i, j)` — `u` index `i`, `v` index
@@ -114,7 +115,7 @@ impl TensorNet {
         Self {
             nu,
             nv,
-            c: vec![Interval::poison(); nu.saturating_mul(nv)],
+            c: vec![Interval::refused(); nu.saturating_mul(nv)],
         }
     }
 
@@ -174,12 +175,12 @@ impl TensorNet {
     #[must_use]
     pub fn get(&self, i: usize, j: usize) -> Interval {
         if i >= self.nu || j >= self.nv {
-            return Interval::poison();
+            return Interval::refused();
         }
         self.c
             .get(i * self.nv + j)
             .copied()
-            .unwrap_or_else(Interval::poison)
+            .unwrap_or_else(Interval::refused)
     }
 
     /// The `v`-line at `u` index `i`, borrowed. Out of range is empty —
@@ -219,7 +220,7 @@ impl TensorNet {
                 });
             }
         }
-        acc.unwrap_or_else(Interval::poison)
+        acc.unwrap_or_else(Interval::refused)
     }
 
     /// The hull of the WHOLE net — [`TensorNet::window_hull`] over
@@ -229,7 +230,7 @@ impl TensorNet {
     #[must_use]
     pub fn hull(&self) -> Interval {
         if self.nu == 0 || self.nv == 0 {
-            return Interval::poison();
+            return Interval::refused();
         }
         self.window_hull(&(0..=self.nu - 1), &(0..=self.nv - 1))
     }
@@ -250,7 +251,7 @@ impl TensorNet {
         if nu1 == 0 || self.nv == 0 {
             return Self::from_flat(nu1, self.nv, Vec::new());
         }
-        let mut c = vec![Interval::poison(); nu1 * self.nv];
+        let mut c = vec![Interval::refused(); nu1 * self.nv];
         for j in 0..self.nv {
             let d = step(&self.column(j));
             if d.len() != nu1 {
@@ -279,7 +280,7 @@ impl TensorNet {
         if nv1 == 0 || self.nu == 0 {
             return Self::from_flat(self.nu, nv1, Vec::new());
         }
-        let mut c = vec![Interval::poison(); self.nu * nv1];
+        let mut c = vec![Interval::refused(); self.nu * nv1];
         for i in 0..self.nu {
             let d = step(self.row(i));
             if d.len() != nv1 {
@@ -353,7 +354,7 @@ impl TensorNet {
         if nu_new != self.nu + plans.len() {
             return Self::poisoned(nu_new, self.nv);
         }
-        let mut c = vec![Interval::poison(); nu_new * self.nv];
+        let mut c = vec![Interval::refused(); nu_new * self.nv];
         for j in 0..self.nv {
             let mut line = self.column(j);
             for plan in plans {
@@ -383,7 +384,7 @@ impl TensorNet {
         if nv_new != self.nv + plans.len() {
             return Self::poisoned(self.nu, nv_new);
         }
-        let mut c = vec![Interval::poison(); self.nu * nv_new];
+        let mut c = vec![Interval::refused(); self.nu * nv_new];
         for i in 0..self.nu {
             let mut line = self.row(i).to_vec();
             for plan in plans {

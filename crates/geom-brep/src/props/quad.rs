@@ -150,6 +150,7 @@
 
 use geom_core::Bounds;
 use geom_core::interval::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{KnotVector, Span};
@@ -361,7 +362,7 @@ fn pt(x: f64) -> Interval {
 /// they say. The same argument covers [`sin_step`].
 fn cos_step(s: f64) -> Interval {
     if s.is_nan() || s.abs() > 1.5 {
-        return Interval::poison();
+        return Interval::refused();
     }
     let s2 = pt(s).sqr();
     let s4 = s2.sqr();
@@ -376,7 +377,7 @@ fn cos_step(s: f64) -> Interval {
 /// by oddness for s < 0.
 fn sin_step(s: f64) -> Interval {
     if s.is_nan() || s.abs() > 1.5 {
-        return Interval::poison();
+        return Interval::refused();
     }
     let a = s.abs();
     let a1 = pt(a);
@@ -417,7 +418,7 @@ fn trig_at(base: (Interval, Interval), off: f64) -> (Interval, Interval) {
         return base;
     }
     if !off.is_finite() {
-        return (Interval::poison(), Interval::poison());
+        return (Interval::refused(), Interval::refused());
     }
     let mut seed = off;
     let mut k = 0u32;
@@ -444,7 +445,7 @@ fn trig_at(base: (Interval, Interval), off: f64) -> (Interval, Interval) {
 /// d ≤ π; larger spans fall back to the whole circle).
 fn trig_over(base: (Interval, Interval), off: f64, d: f64) -> (Interval, Interval) {
     if d.is_nan() || d < 0.0 || !off.is_finite() {
-        return (Interval::poison(), Interval::poison());
+        return (Interval::refused(), Interval::refused());
     }
     if d > 3.0 {
         let full = Interval::from_bounds(-1.0, 1.0);
@@ -499,7 +500,7 @@ fn harmonic_edge_integral(e: &TrimEdgeQ, pieces: usize, radius: Interval) -> Int
     let (a, b) = (mid(e.t0), mid(e.t1));
     let span = b - a;
     if !(span.is_finite() && span >= 0.0) || pieces == 0 {
-        return Interval::poison();
+        return Interval::refused();
     }
     let du = e.u.deriv();
     let dv = e.v.deriv();
@@ -885,7 +886,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
 /// ring so its rounding is outward, matching `deriv_coeff`).
 fn bspline_eval_ring(kv: &KnotVector, coeffs: &[Interval], t: f64) -> Interval {
     if coeffs.len() != kv.control_count() || !t.is_finite() {
-        return Interval::poison();
+        return Interval::refused();
     }
     let p = kv.degree();
     let u = kv.knots();
@@ -914,10 +915,10 @@ fn bspline_eval_ring(kv: &KnotVector, coeffs: &[Interval], t: f64) -> Interval {
 /// as the answer a bound gives for structure it cannot license.
 fn range_hull(kv: &KnotVector, coeffs: &[Interval], lo: f64, hi: f64) -> Interval {
     let Some(pair) = kv.with_coeffs(coeffs) else {
-        return Interval::poison();
+        return Interval::refused();
     };
     let (s0, s1) = kv.span_range(lo, hi);
-    let mut acc = Interval::poison();
+    let mut acc = Interval::refused();
     let mut seeded = false;
     for index in s0.index()..=s1.index() {
         // Emptiness check and window construction are one step.
@@ -989,7 +990,7 @@ impl DerivLadder {
             // constants): the whole-domain coefficient hull is a sound
             // range bound for any sub-interval.
             Some((None, q)) => {
-                let mut acc = Interval::poison();
+                let mut acc = Interval::refused();
                 for (n, c) in q.iter().enumerate() {
                     acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
                 }
@@ -1253,7 +1254,7 @@ fn raw_span(knots: &[f64], degree: usize, count: usize, t: f64) -> usize {
 /// In-span de Boor on a raw knot slice (the [`Dir::Raw`] evaluator).
 fn raw_eval(knots: &[f64], degree: usize, coeffs: &[Interval], t: f64) -> Interval {
     if coeffs.len() < degree + 1 || knots.len() < coeffs.len() + degree + 1 || !t.is_finite() {
-        return Interval::poison();
+        return Interval::refused();
     }
     let span = raw_span(knots, degree, coeffs.len(), t);
     let mut d: Vec<Interval> = (0..=degree).map(|j| coeffs[span - degree + j]).collect();
@@ -1273,13 +1274,13 @@ fn raw_eval(knots: &[f64], degree: usize, coeffs: &[Interval], t: f64) -> Interv
 /// [`range_hull`] uses).
 fn raw_range_hull(knots: &[f64], degree: usize, coeffs: &[Interval], lo: f64, hi: f64) -> Interval {
     if coeffs.len() < degree + 1 {
-        return Interval::poison();
+        return Interval::refused();
     }
     let (s0, s1) = (
         raw_span(knots, degree, coeffs.len(), lo),
         raw_span(knots, degree, coeffs.len(), hi),
     );
-    let mut acc = Interval::poison();
+    let mut acc = Interval::refused();
     let mut seeded = false;
     for span in s0..=s1 {
         for j in 0..=degree {
@@ -1303,7 +1304,7 @@ fn raw_deriv(knots: &[f64], degree: usize, coeffs: &[Interval]) -> Vec<Interval>
     (0..coeffs.len() - 1)
         .map(|i| {
             let (Some(&a), Some(&b)) = (knots.get(i + degree + 1), knots.get(i + 1)) else {
-                return Interval::poison();
+                return Interval::refused();
             };
             // `knots[i+1] == knots[i+degree+1]` marks a DEGENERATE
             // (empty) span — the derivative has no coefficient there
@@ -1342,7 +1343,7 @@ impl Dir {
 fn bspline_eval_ring_in_span(coeffs: &[Interval], span: Span<'_>, t: Interval) -> Interval {
     let kv = span.knots();
     if coeffs.len() != kv.control_count() {
-        return Interval::poison();
+        return Interval::refused();
     }
     let p = kv.degree();
     let u = kv.knots();
@@ -1397,7 +1398,7 @@ impl PatchGrid {
                 TensorNet::from_fn(nu, nv, |i, j| {
                     control
                         .get(i * nv + j)
-                        .map_or_else(Interval::poison, |c| c[k])
+                        .map_or_else(Interval::refused, |c| c[k])
                 })
             }),
         }
@@ -1532,7 +1533,7 @@ impl PatchGrid {
                         coeffs
                             .get(span.saturating_sub(*degree) + j)
                             .copied()
-                            .unwrap_or_else(Interval::poison)
+                            .unwrap_or_else(Interval::refused)
                     })
                     .collect();
                 for r in 1..=*degree {
@@ -1540,7 +1541,7 @@ impl PatchGrid {
                         let i = span - *degree + j;
                         let (Some(&ka), Some(&kb)) = (knots.get(i + *degree + 1 - r), knots.get(i))
                         else {
-                            return Interval::poison();
+                            return Interval::refused();
                         };
                         let alpha = (*t - pt(kb)) / (pt(ka) - pt(kb));
                         d[j] = (pt(1.0) - alpha) * d[j - 1] + alpha * d[j];
@@ -2608,7 +2609,11 @@ fn refine_dir(
     nv: usize,
     along_u: bool,
 ) -> Option<(KnotVector, Vec<RVec3>, usize)> {
-    let poison = [Interval::poison(), Interval::poison(), Interval::poison()];
+    let poison = [
+        Interval::refused(),
+        Interval::refused(),
+        Interval::refused(),
+    ];
     let count = kv.control_count();
     if count == 0 || nv == 0 {
         return None;
@@ -4081,7 +4086,7 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
         }
     }
     let plans = geom_core::spline::algebra::refine_plan(kv, &img.weights, &add).ok()?;
-    let poison = (Interval::poison(), Interval::poison());
+    let poison = (Interval::refused(), Interval::refused());
     // [`ring_lerp`]'s association, two channels instead of three: the
     // rounding of the ARITHMETIC lands outward in the brackets, which
     // is what makes a refined bracket an enclosure. It is written out
@@ -4842,8 +4847,8 @@ fn chord_polygon_area(
 /// enclosure of the trim region, so a hull over it contains every
 /// cell's own.
 fn trim_box(chords: &[TrimChord]) -> (Interval, Interval) {
-    let mut bu = Interval::poison();
-    let mut bv = Interval::poison();
+    let mut bu = Interval::refused();
+    let mut bv = Interval::refused();
     let mut seeded = false;
     let mut take = |p: RPt2| {
         if seeded {

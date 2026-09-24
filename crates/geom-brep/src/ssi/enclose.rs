@@ -39,7 +39,7 @@
 //! Every function is **conservative or poison**: a widened enclosure
 //! costs a refusal, never a wrong answer, and any structural surprise
 //! (unsupported kind, malformed net, zero-touching divisor) yields
-//! [`Interval::poison`], which fails every downstream test. There is
+//! [`Interval::refused`], which fails every downstream test. There is
 //! no path here that narrows an enclosure on a value branch.
 //!
 //! # The M6-2 seam: generic scalars in, enclosures out
@@ -67,6 +67,7 @@
 
 use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, Vec3};
 
 /// An axis-aligned enclosure box in ℝ³.
@@ -200,7 +201,7 @@ impl Box3 {
         // prevent.
         let half = |i: Interval| {
             if !i.is_certified() {
-                return (Interval::poison(), Interval::poison());
+                return (Interval::refused(), Interval::refused());
             }
             let m = 0.5 * (i.lo() + i.hi());
             (
@@ -238,7 +239,7 @@ impl Box3 {
 fn pad_interval<T: CertifiedEnclosure>(r: T) -> Interval {
     match r.certified_bracket() {
         Some((_, hi)) => Interval::from_bounds(-hi, hi),
-        None => Interval::poison(),
+        None => Interval::refused(),
     }
 }
 
@@ -336,7 +337,7 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Bo
         // `Approx` with the no-enclosure group: the implicit forms this
         // module encloses do not exist for a spline stand-in.
         Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            Interval::poison()
+            Interval::refused()
         }
     }
 }
@@ -348,7 +349,7 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
     surface: &Surface<T>,
     b: Box3,
 ) -> [Interval; 3] {
-    let poison = [Interval::poison(); 3];
+    let poison = [Interval::refused(); 3];
     match *surface {
         Surface::Plane { normal, .. } => constv(normal),
         Surface::Sphere { center, radius, .. } => {
@@ -526,7 +527,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 let (Some(p0), Some(p1), Some(&w0), Some(&w1)) =
                     (ctl.get(idx0), ctl.get(idx1), wts.get(idx0), wts.get(idx1))
                 else {
-                    return (poison_box(), Interval::poison(), Interval::poison());
+                    return (poison_box(), Interval::refused(), Interval::refused());
                 };
                 // Homogeneous coefficients A = w·P. The weight is `f64`
                 // structure and the control point is the caller's
@@ -545,12 +546,12 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 ];
                 let (deg, span_lo, span_hi) = if along_u {
                     let Some((&lo, &hi)) = ku.get(iu + 1).zip(ku.get(iu + pu + 1)) else {
-                        return (poison_box(), Interval::poison(), Interval::poison());
+                        return (poison_box(), Interval::refused(), Interval::refused());
                     };
                     (pu as f64, lo, hi)
                 } else {
                     let Some((&lo, &hi)) = kv.get(iv + 1).zip(kv.get(iv + pv + 1)) else {
-                        return (poison_box(), Interval::poison(), Interval::poison());
+                        return (poison_box(), Interval::refused(), Interval::refused());
                     };
                     (pv as f64, lo, hi)
                 };
@@ -580,8 +581,8 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         }
         (
             abox.unwrap_or_else(poison_box),
-            wd.unwrap_or_else(Interval::poison),
-            w.unwrap_or_else(Interval::poison),
+            wd.unwrap_or_else(Interval::refused),
+            w.unwrap_or_else(Interval::refused),
         )
     }
 
@@ -687,9 +688,9 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
 
 fn poison_box() -> Box3 {
     Box3 {
-        x: Interval::poison(),
-        y: Interval::poison(),
-        z: Interval::poison(),
+        x: Interval::refused(),
+        y: Interval::refused(),
+        z: Interval::refused(),
     }
 }
 

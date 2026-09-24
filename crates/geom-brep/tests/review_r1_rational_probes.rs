@@ -28,6 +28,7 @@ use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::Bounds;
 use geom_core::Tol;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 use geom_core::{Interval, MarginDiag};
 

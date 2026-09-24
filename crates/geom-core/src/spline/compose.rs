@@ -52,6 +52,7 @@
 
 use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
 use crate::interval::Interval;
+use crate::interval::certification::Certification;
 use std::borrow::Cow;
 
 pub mod patch;
@@ -250,7 +251,7 @@ impl BernsteinSpans {
         self.spans
             .iter()
             .map(|row| {
-                let mut acc = Interval::poison();
+                let mut acc = Interval::refused();
                 for (n, c) in row.iter().enumerate() {
                     acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
                 }
@@ -606,7 +607,7 @@ fn poison_like(a: &BernsteinSpans, degree: usize) -> BernsteinSpans {
         spans: a
             .spans
             .iter()
-            .map(|_| vec![Interval::poison(); degree + 1])
+            .map(|_| vec![Interval::refused(); degree + 1])
             .collect(),
     }
 }
@@ -743,7 +744,7 @@ impl CompositeForm {
     /// The whole-domain enclosure: the hull of [`Self::span_bounds`]
     /// (fixed ascending fold, D9). Poison if any span poisons.
     pub fn bound(&self) -> Interval {
-        let mut acc = Interval::poison();
+        let mut acc = Interval::refused();
         for (n, b) in self.span_bounds().into_iter().enumerate() {
             acc = if n == 0 { b } else { Interval::hull(acc, b) };
         }

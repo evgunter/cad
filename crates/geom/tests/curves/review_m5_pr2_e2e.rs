@@ -33,6 +33,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use geom::NurbsCurve3;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 use geom_core::{Interval, Point3, Vec3};
 

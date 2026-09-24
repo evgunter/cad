@@ -51,6 +51,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::interval::certification::Certification;
 use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag};
 use geom_core::spline::KnotVector;
 use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};
@@ -158,7 +159,7 @@ fn the_certified_door_refuses_a_violated_decoration() {
         Interval::from_bounds(-1.0, 1.0).certified_bracket(),
         Some((-1.0, 1.0))
     );
-    assert!(Interval::poison().certified_bracket().is_none());
+    assert!(Interval::refused().certified_bracket().is_none());
 }
 
 /// The C9 hull bound over a two-coefficient degree-1 spline whose first

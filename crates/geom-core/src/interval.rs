@@ -1,10 +1,11 @@
-//! The [`Interval`] scalar over the in-repo `interval-transcendentals`
-//! crate — Q1's certified instantiation of [`Real`] and [`Decide`], and
-//! the enclosure certification arithmetic is built from
+//! The [`Interval`] scalar over the in-repo `interval-transcendentals` crate
+//! — Q1's certified instantiation of [`Real`] and [`Decide`], and the
+//! enclosure certification arithmetic is built from
 //! (`crates/geom-brep/README.md` C9): one type in both roles, read by
-//! certification code through the [certification doors](Interval::hull)
-//! below. It compiles in every build, and so do the lane-trait impls at
-//! it in the crates above this one.
+//! certification code through the
+//! [`Certification`](certification::Certification) doors of the child module
+//! [`certification`], imported by name. It compiles in every build, and so do
+//! the lane-trait impls at it in the crates above this one.
 //!
 //! An `Interval` is a machine-representable enclosure `[lo, hi]` of the
 //! **true real value** of a computation: every operation returns an
@@ -34,20 +35,19 @@
 //! enclosures keep computing) but never through *decisions*, the same
 //! policy [`crate::real`] states for NaN at `f64`.
 //!
-//! Every door where a decoration turns into a refusal asks the same
-//! question through [`Interval::is_certified`]: [`Decide::sign_within`],
-//! which will not branch; [`crate::CertifiedEnclosure::certified_bracket`],
-//! which will not hand the value to certification arithmetic; and the
-//! certification doors that arithmetic builds its brackets through
-//! ([`Interval::hull`], [`Interval::clamped_to`], [`Interval::contains`],
-//! [`Interval::width`], [`Interval::mag`], and the cap
-//! [`Interval::from_certified`] puts on a crossing), which refuse a value
-//! that is not certified whatever its endpoints say. [`Bounds`] is
-//! deliberately **not** one of them: it answers "what bracket does this
-//! carry?", and a clamped enclosure carries a perfectly sound one —
-//! reporting its endpoints is right, and containment properties written
-//! against `Bounds` depend on it. So a site that reads one endpoint of a
-//! certification bracket and compares it asks `is_certified()` first.
+//! Every door where a decoration turns into a refusal asks the same question
+//! through [`Interval::is_certified`]: [`Decide::sign_within`], which will
+//! not branch; [`crate::CertifiedEnclosure::certified_bracket`], which will
+//! not hand the value to certification arithmetic; the cap
+//! [`Interval::from_certified`] puts on a crossing; and the
+//! [`Certification`](certification::Certification) doors that arithmetic
+//! builds its brackets through, which refuse a value that is not certified
+//! whatever its endpoints say. [`Bounds`] is deliberately **not** one of
+//! them: it answers "what bracket does this carry?", and a clamped enclosure
+//! carries a perfectly sound one — reporting its endpoints is right, and
+//! containment properties written against `Bounds` depend on it. So a site
+//! that reads one endpoint of a certification bracket and compares it asks
+//! `is_certified()` first.
 //!
 //! Every door refuses below `Def`, so the backend's one operation whose
 //! result always carries `Trv` — `DInterval::intersection` — would be
@@ -139,6 +139,8 @@ use crate::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};
 use crate::real::{Bounds, CertifiedBounds, Real};
 use crate::tolerance::Tol;
 
+pub mod certification;
+
 /// An enclosure of a true real value: the interval scalar over
 /// [`interval_transcendentals::DInterval`] (see the [module docs](self)
 /// for the poison and certification semantics).
@@ -171,10 +173,11 @@ impl Interval {
     /// its poison — the one genuine laundering door around the decoration
     /// channel. So a rebuild from another enclosure's endpoints is written
     /// behind that enclosure's own [`Interval::is_certified`] check, or
-    /// argued safe by construction at the site (certification code does
-    /// both where it pads, splits or re-centres a bracket), and a
-    /// narrowing that keeps the decoration is [`Interval::clamped_to`]; an
-    /// unguarded rebuild of a value that came out of [`Bounds`]
+    /// argued safe by construction at the site (certification code does both
+    /// where it pads, splits or re-centres a bracket), and a narrowing that
+    /// keeps the decoration is
+    /// [`Certification::clamped_to`](certification::Certification::clamped_to);
+    /// an unguarded rebuild of a value that came out of [`Bounds`]
     /// mid-computation is the laundering itself.
     pub fn from_bounds(lo: f64, hi: f64) -> Self {
         Self(DInterval::from_bounds(lo, hi))
@@ -221,9 +224,10 @@ impl Interval {
     /// enclosure into a commitment asks through this:
     /// [`Decide::sign_within`], which will not branch on an uncertified
     /// value, [`crate::CertifiedEnclosure::certified_bracket`], which will
-    /// not hand one to certification arithmetic, and the certification
-    /// doors below, which refuse one. They are the same question — *may
-    /// this decide anything?* — and they must not be able to drift apart.
+    /// not hand one to certification arithmetic, and the
+    /// [`Certification`](certification::Certification) doors, which refuse
+    /// one. They are the same question — *may this decide anything?* — and
+    /// they must not be able to drift apart.
     ///
     /// It is not [`Real::is_poison`], which at this scalar is NaI or empty
     /// only: a `Trv` enclosure with real endpoints is not poison to
@@ -244,70 +248,6 @@ impl Interval {
     pub fn is_certified(self) -> bool {
         self.0.decoration() >= Decoration::Def
     }
-}
-
-/// # The certification doors
-///
-/// Certification arithmetic — de Boor over coefficient enclosures, hull
-/// bounds, implicit residuals, the mass-property quadrature's
-/// certificates — runs on this scalar, and these are the doors it builds
-/// and reads brackets through. Every one of them treats a value that is
-/// not [`Interval::is_certified`] as a **refusal**: it hulls to NaI,
-/// clamps to NaI, contains nothing, and has a NaN width and magnitude.
-/// The arithmetic operators need no door of their own — every backend
-/// operation propagates the minimum decoration of its operands, so a
-/// refusal flows through `+ − × ÷` and every power and stays one.
-///
-/// **A refusal is not a NaN pair.** A quotient by a divisor that touches
-/// zero, a negative power of a zero-straddling base, and a crossing from
-/// a scalar that may not certify all carry ORDINARY endpoints below
-/// `Def`, so a site that reads one endpoint and compares it asks
-/// [`Interval::is_certified`] first, by name. That is the refusal
-/// predicate here, and it is deliberately not [`Real::is_poison`], which
-/// at this scalar asks only whether the value is NaI or empty — the
-/// evaluation scalar's poison, a strictly weaker question.
-///
-/// The endpoints are read through [`Bounds`], the door out, and
-/// [`Bounds::lo`]/[`Bounds::hi`] are NaN only for NaI and the empty set:
-/// a refusal carrying real endpoints reports them.
-///
-/// The constructors below that restate a [`Real`] method (`point`,
-/// `zero`, `one`, `powi`) delegate to it and add nothing: they exist so
-/// a certification site builds brackets without `Real` in scope, which
-/// is what keeps `Real::is_poison` out of reach where the refusal is
-/// `!is_certified()`.
-///
-/// Raw `f64` comparisons inside these bodies are scalar-implementation
-/// code (Q1's allowance, as in [`Real::min`] at `f64`): the endpoints are
-/// concrete structure, and there is no `T` here.
-impl Interval {
-    /// The ill-formed interval (NaI): the permanent refusal. Never
-    /// certifies, flows through every operation.
-    #[must_use]
-    pub fn poison() -> Self {
-        Self(DInterval::nai())
-    }
-
-    /// The degenerate enclosure of an exactly-known value —
-    /// [`Real::from_f64`]. A non-finite `x` (NaN **or** ±inf) is NaI:
-    /// neither stands for a real number, and an infinite *point* would
-    /// launder overflow into data.
-    #[must_use]
-    pub fn point(x: f64) -> Self {
-        <Self as Real>::from_f64(x)
-    }
-
-    /// The exact zero enclosure `[0, 0]` — [`Real::zero`].
-    #[must_use]
-    pub fn zero() -> Self {
-        <Self as Real>::zero()
-    }
-
-    /// The exact one enclosure `[1, 1]` — [`Real::one`].
-    #[must_use]
-    pub fn one() -> Self {
-        <Self as Real>::one()
-    }
 
     /// Reads a scalar's bracket into certification arithmetic through
     /// the **certified** door, carrying the refusal in the DECORATION
@@ -315,28 +255,30 @@ impl Interval {
     /// (`f64`, [`crate::Probe`], [`crate::Sym`], or this scalar itself)
     /// into the enclosures certificates are built from.
     ///
-    /// A scalar that may not certify crosses as its own bracket capped
-    /// at `Trv` — endpoints intact, the refusal recorded where every
-    /// door here reads it. The scalar records a domain violation in its
-    /// decoration, not in its endpoints (`sqrt([−1, 4])` is `[0, 2]` at
-    /// `Trv`), so the violation has to be read HERE, and carried on in
-    /// the channel the certification doors read. Whatever is built from
-    /// the crossing is a certificate, so a scalar carrying a sound
-    /// bracket its computation is not entitled to stays a refusal,
+    /// A scalar that may not certify crosses as its own bracket capped at
+    /// `Trv` — endpoints intact, the refusal recorded where every
+    /// [`Certification`](certification::Certification) door reads it. The
+    /// scalar records a domain violation in its decoration, not in its
+    /// endpoints (`sqrt([−1, 4])` is `[0, 2]` at `Trv`), so the violation has
+    /// to be read HERE, and carried on in the channel the
+    /// [`Certification`](certification::Certification) doors read. Whatever
+    /// is built from the crossing is a certificate, so a scalar carrying a
+    /// sound bracket its computation is not entitled to stays a refusal,
     /// rather than becoming a plausible bound nothing downstream can
     /// question.
     ///
     /// A scalar that does certify crosses capped at `Def` — unless its
-    /// bracket is no interval at all: `f64::INFINITY` certifies as
-    /// `[∞, ∞]`, which [`Interval::from_bounds`] mints as NaI, so that
-    /// crossing refuses, in the safe direction. The cap is exactly what
+    /// bracket is no interval at all: `f64::INFINITY` certifies as `[∞, ∞]`,
+    /// which [`Interval::from_bounds`] mints as NaI, so that crossing
+    /// refuses, in the safe direction. The cap is exactly what
     /// [`certified_bracket`](crate::CertifiedEnclosure::certified_bracket)
-    /// promises and no more: the door's verdict is two-valued, and most
-    /// of its implementors (`f64`, `Probe`, `Sym`) have no decoration to
-    /// carry, so `Def` is the strongest claim every implementor makes.
-    /// A bound built from an `f64` is then exactly as strong as the
-    /// identical bound built from an `Interval`, and none of the doors
-    /// here reads a decoration above `Def`.
+    /// promises and no more: the door's verdict is two-valued, and most of
+    /// its implementors (`f64`, `Probe`, `Sym`) have no decoration to carry,
+    /// so `Def` is the strongest claim every implementor makes. A bound built
+    /// from an `f64` is then exactly as strong as the identical bound built
+    /// from an `Interval`, and none of the
+    /// [`Certification`](certification::Certification) doors reads a
+    /// decoration above `Def`.
     ///
     /// The endpoints are [`Bounds`]'s, and the verdict is the certified
     /// door's; that is why the parameter is [`CertifiedBounds`], both
@@ -356,104 +298,6 @@ impl Interval {
             Decoration::Trv
         };
         Self(DInterval::from_bounds(Bounds::lo(x), Bounds::hi(x)).with_dec_capped(cap))
-    }
-
-    /// The smallest enclosure containing both arguments. A refusal in
-    /// either argument makes the hull NaI — a hull that quietly dropped
-    /// a refused member would certify geometry it never bounded, and the
-    /// backend's `hull` treats the empty set as an identity, which is a
-    /// different operation from this one.
-    #[must_use]
-    pub fn hull(a: Self, b: Self) -> Self {
-        if !a.is_certified() || !b.is_certified() {
-            return Self::poison();
-        }
-        Self(a.0.hull(b.0))
-    }
-
-    /// The intersection with the window `[lo, hi]` — narrowing an
-    /// enclosure by a fact known independently of the arithmetic that
-    /// produced it (`cos` lies in `[−1, 1]` however the series was
-    /// summed).
-    ///
-    /// **Refusal first**, and that is the whole reason this is a method
-    /// rather than the two-line spelling at each call site: `f64::max`
-    /// and `f64::min` return the *non*-NaN operand, so
-    /// `from_bounds(x.lo().max(lo), x.hi().min(hi))` resurrects a
-    /// refused enclosure as the window itself — a plausible,
-    /// sound-looking bracket with no argument behind it, which is the
-    /// laundering D4 ¶2 exists to prevent. A refused enclosure, a NaN
-    /// window, and a window disjoint from the enclosure all yield NaI.
-    ///
-    /// Spelled over the endpoints, keeping the enclosure's own
-    /// decoration, rather than through the backend's `intersection`,
-    /// which caps its result at `Trv` — that would refuse every clamp,
-    /// which is a change to what the door says rather than to what the
-    /// arithmetic computes.
-    #[must_use]
-    pub fn clamped_to(self, lo: f64, hi: f64) -> Self {
-        if !self.is_certified() || lo.is_nan() || hi.is_nan() {
-            return Self::poison();
-        }
-        let narrowed = DInterval::from_bounds(self.0.lo().max(lo), self.0.hi().min(hi));
-        Self(narrowed.with_dec_capped(self.0.decoration()))
-    }
-
-    /// Whether `x` lies in the enclosure. False for a refusal and for a
-    /// NaN `x` (nothing is known to lie in a bracket that may not
-    /// certify).
-    #[must_use]
-    pub fn contains(self, x: f64) -> bool {
-        self.is_certified() && self.0.contains(x)
-    }
-
-    /// The bracket's width, rounded **up** by one step (`hi − lo` is
-    /// inexact in general); `0` for a point, `+inf` for an infinite
-    /// side, and `NaN` for a refusal.
-    #[must_use]
-    pub fn width(self) -> f64 {
-        if !self.is_certified() {
-            return f64::NAN;
-        }
-        let (lo, hi) = (self.0.lo(), self.0.hi());
-        if lo == hi {
-            return 0.0;
-        }
-        (hi - lo).next_up()
-    }
-
-    /// An upper bound on `|x|` over the enclosure (`NaN` for a refusal).
-    /// This is the scalar sup-norm reading: `max(|lo|, |hi|)` is exact
-    /// under negation (sign-bit only), so no widening is needed.
-    #[must_use]
-    pub fn mag(self) -> f64 {
-        if !self.is_certified() {
-            return f64::NAN;
-        }
-        let (a, b) = (self.0.lo().abs(), self.0.hi().abs());
-        if a > b { a } else { b }
-    }
-
-    /// The tight square, `x²` over the enclosure — **the operation to
-    /// use instead of `x * x`** whenever the argument can straddle
-    /// zero. `[-a, b]` squared is `[0, max(a², b²)]`, but the product
-    /// of two *independent* enclosures `[-a, b] · [-a, b]` is
-    /// `[-ab, …]`: a spurious negative lower bound that poisons a
-    /// downstream `sqrt`. The backend's even power, whose zero lower
-    /// bound for a zero-straddling argument is exact.
-    #[must_use]
-    pub fn sqr(self) -> Self {
-        Real::powi(self, 2)
-    }
-
-    /// Integer powers — [`Real::powi`], the backend's: `n == 0` refuses
-    /// a refused base (`NaN⁰` is not 1), a negative `n` is the
-    /// reciprocal of the positive power (so a zero-straddling base
-    /// refuses through the division), and every even power of a
-    /// zero-straddling enclosure keeps the exact lower bound `0`.
-    #[must_use]
-    pub fn powi(self, n: i32) -> Self {
-        Real::powi(self, n)
     }
 }
 
@@ -666,7 +510,7 @@ impl Real for Interval {
             Self(cap_decoration(-mag, sign.0.decoration()))
         } else {
             // Zero-containing sign: hull of ±|self|, decoration ≤ Def.
-            let hulled = tangent_hull(mag, -mag);
+            let hulled = enclosure_hull_of(mag, -mag);
             Self(cap_decoration(
                 hulled,
                 sign.0.decoration().min(Decoration::Def),
@@ -836,7 +680,7 @@ impl crate::spline::SpanLocate for Interval {
         // The convex hull with poison-first semantics — the same
         // convention as the kink tangent hull below (NaI/empty
         // propagate; 1788's empty-absorbing hull would drop poison).
-        Self(tangent_hull(self.0, other.0))
+        Self(enclosure_hull_of(self.0, other.0))
     }
 }
 
@@ -923,6 +767,12 @@ fn cap_decoration(x: DInterval, floor: Decoration) -> DInterval {
     x.with_dec_capped(floor)
 }
 
+/// The evaluation hull over the wrapped value — the operation
+/// [`crate::SpanLocate::enclosure_hull`] names at this scalar, shared by
+/// `copysign` and the kink selectors; certification's refusing hull is
+/// [`Certification::hull`](certification::Certification::hull), a
+/// different operation under a different name.
+///
 /// The convex hull of two decorated tangents, decorated with the *minimum*
 /// of their decorations — deliberately NOT IEEE 1788's set-operation
 /// convention (which would drop to `Trv` unconditionally): the hull here
@@ -932,7 +782,7 @@ fn cap_decoration(x: DInterval, floor: Decoration) -> DInterval {
 /// operand NaI ⇒ NaI, either empty ⇒ empty (1788's "empty absorbs into
 /// the hull" would *drop* a poisoned tangent — the opposite of poison
 /// propagation).
-fn tangent_hull(x: DInterval, y: DInterval) -> DInterval {
+fn enclosure_hull_of(x: DInterval, y: DInterval) -> DInterval {
     if x.is_nai() || y.is_nai() {
         return DInterval::nai();
     }
@@ -993,7 +843,7 @@ impl KinkJacobian for Interval {
     /// tangent, `other` certainly below takes the other's); any overlap —
     /// including a single shared endpoint, and in particular equal point
     /// values with different tangents — hulls both tangents
-    /// ([`tangent_hull`]). Strictness is deliberate: with touching
+    /// ([`enclosure_hull_of`]). Strictness is deliberate: with touching
     /// enclosures the minimum can sit *at* the tie, where the true
     /// one-sided derivatives are both branches' — only strict separation
     /// certifies a single branch. Empty/NaI **values** poison the tangent
@@ -1012,7 +862,7 @@ impl KinkJacobian for Interval {
         } else if other.0.hi() < self.0.lo() {
             other_deriv.0
         } else {
-            tangent_hull(self_deriv.0, other_deriv.0)
+            enclosure_hull_of(self_deriv.0, other_deriv.0)
         };
         Self(cap_decoration(
             chosen,
@@ -1119,7 +969,7 @@ impl KinkJacobian for Interval {
         } else if other.0.lo() > self.0.hi() {
             other_deriv.0
         } else {
-            tangent_hull(self_deriv.0, other_deriv.0)
+            enclosure_hull_of(self_deriv.0, other_deriv.0)
         };
         Self(cap_decoration(
             chosen,
@@ -1653,7 +1503,7 @@ mod tests {
         let selected = clean.min_deriv(tangent, iv(10.0, 11.0), iv(9.0, 9.0));
         assert_eq!(selected.0.decoration(), Decoration::Com);
         // The hull's decoration is the min of the tangents' (deliberately
-        // NOT 1788's unconditional Trv for set ops — doc on tangent_hull):
+        // NOT 1788's unconditional Trv for set ops — doc on enclosure_hull_of):
         // a Trv tangent hulled with a Com one yields Trv.
         let trv_tangent = iv(-1.0, 4.0).sqrt();
         let hulled = clean.min_deriv(trv_tangent, iv(1.0, 3.0), tangent);
@@ -1996,156 +1846,5 @@ mod tests {
                 ),
             }
         }
-    }
-}
-
-/// The certification doors' own rows: every door refuses a value that
-/// is not certified, whatever its endpoints say.
-#[cfg(test)]
-mod certification_door_tests {
-    use super::*;
-
-    fn ri(lo: f64, hi: f64) -> Interval {
-        Interval::from_bounds(lo, hi)
-    }
-
-    #[test]
-    fn construction_poison_paths() {
-        assert!(!Interval::point(f64::NAN).is_certified());
-        assert!(!Interval::point(f64::INFINITY).is_certified());
-        assert!(!Interval::point(f64::NEG_INFINITY).is_certified());
-        assert!(!ri(1.0, 0.0).is_certified());
-        assert!(!ri(f64::NAN, 1.0).is_certified());
-        assert!(!ri(0.0, f64::NAN).is_certified());
-        assert!(ri(f64::MAX, f64::INFINITY).is_certified());
-        assert!(ri(f64::NEG_INFINITY, f64::MIN).is_certified());
-        // Brackets that contain no real number at all.
-        assert!(!ri(f64::INFINITY, f64::INFINITY).is_certified());
-        assert!(!ri(f64::NEG_INFINITY, f64::NEG_INFINITY).is_certified());
-        assert!(!ri(f64::INFINITY, f64::NEG_INFINITY).is_certified());
-        assert!(ri(f64::NEG_INFINITY, f64::INFINITY).width().is_infinite());
-        assert!(Interval::point(0.0).contains(0.0));
-        assert!(!Interval::poison().contains(0.0));
-        assert!(!Interval::point(0.0).contains(f64::NAN));
-    }
-
-    #[test]
-    fn poison_flows_through_every_op() {
-        let p = Interval::poison();
-        let x = ri(1.0, 2.0);
-        for r in [p + x, x + p, p - x, x - p, p * x, x * p, p / x, x / p, -p] {
-            assert!(!r.is_certified());
-        }
-        assert!(!p.powi(0).is_certified(), "NaN^0 is not 1");
-        assert!(!p.powi(3).is_certified());
-        assert!(!p.sqr().is_certified());
-        assert!(!Interval::hull(p, x).is_certified());
-        assert!(p.width().is_nan());
-        assert!(p.mag().is_nan());
-    }
-
-    /// The hull's refusing guard, where it differs from the backend's
-    /// hull. A `Trv` operand is refused either way (the backend's hull
-    /// carries the minimum decoration); an EMPTY one is not — the backend
-    /// treats the empty set as a hull identity, so without the guard
-    /// `hull(∅, x)` is `x`, certified, and a refused member has vanished.
-    #[test]
-    fn hull_refuses_an_empty_operand_the_backend_would_absorb() {
-        let x = ri(1.0, 2.0);
-        let empty = x / Interval::zero();
-        assert!(!empty.is_certified(), "{empty:?}");
-        assert!(!Interval::hull(empty, x).is_certified());
-        assert!(!Interval::hull(x, empty).is_certified());
-        let trv = ri(-2.0, -1.0) / ri(0.0, 1.0);
-        assert!(!Interval::hull(trv, x).is_certified());
-    }
-
-    #[test]
-    fn division_refuses_zero_straddling_divisors() {
-        let x = ri(1.0, 2.0);
-        for d in [ri(-1.0, 1.0), ri(0.0, 1.0), ri(-1.0, 0.0), ri(0.0, 0.0)] {
-            assert!(!(x / d).is_certified(), "divisor touching zero must poison");
-        }
-        assert!((x / ri(1.0, 2.0)).is_certified());
-        assert!((x / ri(-2.0, -1.0)).is_certified());
-        // Negative powers inherit the refusal.
-        assert!(!ri(-1.0, 1.0).powi(-1).is_certified());
-    }
-
-    /// The shape a NaN-endpoint poison rule cannot see: the refusal is
-    /// in the decoration and the endpoints are real numbers, so every
-    /// consumer comparing one side has to ask `is_certified()` first.
-    #[test]
-    fn a_refusal_can_carry_real_endpoints() {
-        let q = ri(-2.0, -1.0) / ri(0.0, 5e-324);
-        assert!(!q.is_certified());
-        assert!(q.lo().is_finite() || q.hi().is_finite(), "{q:?}");
-        // The whole hazard in one line: the comparison a consumer writes
-        // is TRUE on a value that refuses.
-        assert!(q.hi() < 0.0, "{q:?}");
-        // And a finite one, through a multiply that annihilates the
-        // unbounded side.
-        let f = (ri(-2.0, -1.0) / ri(-1.0, 1.0)) * Interval::zero();
-        assert!(!f.is_certified());
-        assert!(f.lo() == 0.0 && f.hi() == 0.0, "{f:?}");
-    }
-
-    #[test]
-    fn ops_contain_the_true_result_and_widen_outward() {
-        // 0.1 + 0.2 is inexact at f64; the bracket must contain both the
-        // RN result and the exact sum.
-        let s = Interval::point(0.1) + Interval::point(0.2);
-        assert!(s.contains(0.1 + 0.2));
-        assert!(s.lo() < 0.1 + 0.2 && 0.1 + 0.2 < s.hi());
-        let q = Interval::point(1.0) / Interval::point(3.0);
-        assert!(q.contains(1.0 / 3.0) && q.lo() < q.hi());
-        let m = ri(-2.0, 3.0) * ri(-5.0, 7.0);
-        assert!(m.lo() <= -15.0 && m.hi() >= 21.0);
-    }
-
-    #[test]
-    fn even_powers_of_straddling_enclosures_keep_lower_bound_zero() {
-        // The zero-straddling-square lesson.
-        let x = ri(-3.0, 2.0);
-        assert!(x.sqr().lo() == 0.0 && x.sqr().hi() >= 9.0);
-        for n in [2, 4, 6, 8, 10, 12] {
-            let p = x.powi(n);
-            assert!(p.lo() == 0.0, "x^{n} lower bound {} != 0", p.lo());
-            assert!(p.hi() >= 3.0f64.powi(n));
-        }
-        // The independent-factor product is exactly the trap avoided.
-        assert!((x * x).lo() < 0.0, "plain Mul is the trap sqr avoids");
-        // Odd powers keep the sign structure.
-        assert!(x.powi(3).lo() <= -27.0 && x.powi(3).hi() >= 8.0);
-        // A zero factor annihilates exactly: the backend's corner
-        // convention answers `0 · x = 0`, with no pad to clamp back.
-        let z = Interval::zero() * ri(-1e300, 1e300);
-        assert!(z.lo() == 0.0 && z.hi() == 0.0);
-    }
-
-    #[test]
-    fn powi_edges() {
-        let x = ri(2.0, 3.0);
-        assert!(x.powi(0).contains(1.0) && x.powi(0).width() == 0.0);
-        assert!(x.powi(1).lo() == 2.0 && x.powi(1).hi() == 3.0);
-        assert!(x.powi(-2).contains(1.0 / 9.0) && x.powi(-2).contains(0.25));
-        // i32::MIN must not overflow the exponent: the magnitude goes
-        // through `unsigned_abs`, and the overflowed positive power is
-        // the honest `[MAX, +inf]` rather than poison, so its
-        // reciprocal is a finite underflowed bracket of zero.
-        let tiny = x.powi(i32::MIN);
-        assert!(tiny.is_certified(), "{tiny:?}");
-        assert!(tiny.contains(0.0) && tiny.hi() < 1e-300, "{tiny:?}");
-    }
-
-    /// The crossing carries the scalar's refusal in the decoration and
-    /// its endpoints unchanged: an uncertified scalar is poison here
-    /// without becoming a NaN bracket.
-    #[test]
-    fn the_crossing_carries_the_refusal_in_the_decoration() {
-        assert!(Interval::from_certified(1.5).is_certified());
-        assert!(!Interval::from_certified(f64::NAN).is_certified());
-        let crossed = Interval::from_certified(2.0f64);
-        assert!(crossed.lo() == 2.0 && crossed.hi() == 2.0);
     }
 }
