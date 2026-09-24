@@ -917,26 +917,25 @@ pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
 /// question is answered where it was already answered: the PR 12 entry
 /// above, under the delegation rule, for the doors this one calls.
 ///
-/// **The file now carries TWO compound headers, and the second is the
-/// answer to the paragraph above rather than an exception to it**
-/// (SEAT-9). `verbs::run`'s shell door delegates to `topo::shell_open`,
-/// which is `Decide + `[`CertifiedBounds`]` + AtRestPolicy` — already
-/// allowlisted, at `topo/src/shell.rs`, under the 2026-09-02 certified
-/// at-rest entry — so the delegation rule covers it on the same terms
-/// as the first header: the shell arm passes its operand, its thickness
-/// and its designation through unchanged, reads no bracket, and decides
-/// nothing in or out of the trilean. What it does NOT do is ride the
-/// first header, and that is the point of writing it separately: the
-/// paragraph above records that tightening `Decide + Bounds +
-/// PcurveFittedLane` to a certifying bound breaks
-/// `editor_core::eval::wire`'s `Dual`-instantiated blend lowering, so
-/// the two bounds cannot be merged. They are two `impl` blocks, each
-/// asking for exactly what its callee asks for, and the `Dual` caller
-/// stays green by construction — it names `Verb::run`, in the block
-/// that did not move. The WEAKEST-bound test is the callee's own
-/// signature: dropping any of the three does not compile, and there is
-/// no tighter one to show failing because this IS the tighter one, held
-/// away from the lane that cannot take it.
+/// **The file carries ONE compound header, and the second seam
+/// SEAT-9 allows for has nothing in it** — the allowance stands and
+/// covers nothing. What it was written for was the shell door's own
+/// header: `verbs::run`'s shell arm delegates to `topo::shell_open`,
+/// which is `Decide + `[`CertifiedBounds`]` + AtRestPolicy` (already
+/// allowlisted, at `topo/src/shell.rs`, under the 2026-09-02
+/// certified at-rest entry), and a bound that names the callee's
+/// rights cannot be merged into the first header: the paragraph above
+/// records that tightening `Decide + Bounds + PcurveFittedLane` to a
+/// certifying bound breaks `editor_core::eval::wire`'s
+/// `Dual`-instantiated blend lowering. That right is now a VALUE the
+/// caller passes — `topo::ShellDoor`, whose one constructor carries
+/// the certifying bound — so the seat's shell arm takes the door as a
+/// parameter and rides the first header like every other verb, with
+/// the delegation rule covering it on the same terms: it passes its
+/// operand, its thickness and its designation through unchanged,
+/// reads no bracket, and decides nothing in or out of the trilean. A
+/// door whose right cannot be carried in a value is what would put a
+/// second header back here, and that is what this allowance is for.
 ///
 /// The "no bracket read at all" clearance above still describes the
 /// whole file, and it is still a review-time measurement rather than a

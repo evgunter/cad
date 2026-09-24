@@ -1179,7 +1179,7 @@ fn refile_shells(
     donor: crate::entity::SolidKey,
     keeper: crate::entity::SolidKey,
 ) {
-    let moved = body.get_solid(donor).expect("a live donor").shells.clone();
+    let moved = body.shells_of_solid(donor).expect("a live donor").to_vec();
     for shell in &moved {
         body.get_shell_mut(*shell).expect("a live shell").solid = keeper;
     }
@@ -1348,7 +1348,7 @@ fn a_solid_holding_several_outer_shells_still_certifies() {
         panic!("three cubes are three solids");
     };
     let shell_of = |body: &Body<f64>, solid| {
-        let shells = &body.get_solid(solid).expect("a live solid").shells;
+        let shells = body.shells_of_solid(solid).expect("a live solid");
         assert_eq!(shells.len(), 1, "a cube arrives as one shell");
         shells[0]
     };
@@ -1360,7 +1360,7 @@ fn a_solid_holding_several_outer_shells_still_certifies() {
     refile_shells(&mut body, cavity, keeper);
     refile_shells(&mut body, island, keeper);
     assert_eq!(
-        body.get_solid(keeper).expect("the one solid").shells.len(),
+        body.shells_of_solid(keeper).expect("the one solid").len(),
         3,
         "one solid, three shells"
     );
@@ -1422,7 +1422,7 @@ fn a_solid_with_a_genuine_cavity_certifies() {
     };
     refile_shells(&mut body, cavity, keeper);
     assert_eq!(
-        body.get_solid(keeper).expect("the one solid").shells.len(),
+        body.shells_of_solid(keeper).expect("the one solid").len(),
         2,
         "one solid, two shells"
     );

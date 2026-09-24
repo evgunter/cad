@@ -15,9 +15,9 @@
 //! subject; a fixture read from the same constants as the expectation
 //! would track it silently. What carries no oracle is shared:
 //! `common::{ang, xy_frame, rectangle, inserted, len, scl,
-//! gallery_ring_at}`. The slabs' own dimensions and the world
-//! positions aimed at them stay here, where the expectation is
-//! written.
+//! gallery_ring_at, index_of, down_from, ring_delta}`. The slabs' own dimensions,
+//! the height the rays start above them and the world positions aimed
+//! at them stay here, where the expectation is written.
 //!
 //! Rows marked **EVIDENCE** assert nothing about the subject and exist
 //! to print what the review measured; they are not gates
@@ -132,36 +132,19 @@ fn pattern_of(count: i64) -> (Doc<ProfileProgram>, RecipeNodeId) {
     (doc, pattern)
 }
 
-fn index_at(session: &DocSession, d: DisplayTolerance) -> PickIndex {
-    let (doc, eval) = session.landed_pair().expect("an evaluation has landed");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, PictureKey::of(generation, d), session.tol())
-        .expect("the fixture indexes")
-}
-
 fn landed_index(session: &DocSession) -> PickIndex {
-    index_at(session, delta())
-}
-
-/// A δ coarse enough that the gallery ring tessellates cheaply — the
-/// e2e row's subject is the selection walk, not the facet count.
-fn coarse() -> DisplayTolerance {
-    DisplayTolerance::new(2.0e-3).expect("a positive delta")
+    common::index_of(session, delta())
 }
 
 fn evaluation(session: &DocSession) -> &Evaluation<f64> {
     session.evaluation().expect("an evaluation has landed")
 }
 
-/// A ray straight down the −z axis through `(x, y)`, starting above
-/// anything these fixtures build.
+/// A ray straight down at `(x, y)` from five metres up. The height is
+/// this suite's claim about its own fixture, which reaches higher than
+/// the plate the shared door's default was chosen for.
 fn down_at(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, 5.0),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    }
+    common::down_from(x, y, 5.0)
 }
 
 /// A camera looking at a box, at `aspect`.
@@ -1382,7 +1365,7 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
     let outcome = session.perform(SessionOp::Open(file.clone()));
     assert!(outcome.refusal.is_none(), "the gallery opens: {outcome:?}");
     session.pump();
-    let index = index_at(&session, coarse());
+    let index = common::index_of(&session, common::ring_delta());
     println!(
         "E2E opened: {} tree rows, {} drawn parts, {} ids",
         session.tree_rows().len(),
@@ -1493,11 +1476,11 @@ fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
     //    and a rebuilt one describes the new generation.
     let generation = session.landed_generation().expect("a generation");
     assert!(
-        !index.current_for(Some(PictureKey::of(generation, coarse()))),
+        !index.current_for(Some(PictureKey::of(generation, common::ring_delta()))),
         "the pre-edit index is stale after two evaluations"
     );
-    let rebuilt = index_at(&session, coarse());
-    assert!(rebuilt.current_for(Some(PictureKey::of(generation, coarse()))));
+    let rebuilt = common::index_of(&session, common::ring_delta());
+    assert!(rebuilt.current_for(Some(PictureKey::of(generation, common::ring_delta()))));
     let _ = std::fs::remove_dir_all(&dir);
 }
 

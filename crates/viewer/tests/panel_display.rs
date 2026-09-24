@@ -153,8 +153,7 @@ fn a_slot_is_written_in_the_unit_its_literal_remembers() {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal_with_unit(0.008, Dimension::Length, MM.def())
-                .expect("8 mm is a length"),
+            distance: common::len_mm(0.008),
         },
         tol,
     );
@@ -287,8 +286,7 @@ fn a_value_edit_keeps_the_slots_rendering_unit() {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal_with_unit(0.008, Dimension::Length, MM.def())
-                .expect("8 mm is a length"),
+            distance: common::len_mm(0.008),
         },
         tol,
     );
@@ -489,8 +487,7 @@ fn the_field_shows_a_bare_literals_number_without_its_unit() {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal_with_unit(0.008, Dimension::Length, MM.def())
-                .expect("8 mm is a length"),
+            distance: common::len_mm(0.008),
         },
         tol,
     );
@@ -561,8 +558,7 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal_with_unit(0.008, Dimension::Length, MM.def())
-                .expect("8 mm is a length"),
+            distance: common::len_mm(0.008),
         },
         tol,
     );
@@ -851,8 +847,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal_with_unit(0.008, Dimension::Length, MM.def())
-                .expect("8 mm is a length"),
+            distance: common::len_mm(0.008),
         },
         tol,
     );

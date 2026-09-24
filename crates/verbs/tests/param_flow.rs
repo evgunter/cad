@@ -316,7 +316,11 @@ fn the_shells_flow_is_empty_beside_a_real_record() {
         thickness: 0.1,
         open: Vec::new(),
     }
-    .run_shell(&cube, tol())
+    .run_shell(
+        &cube,
+        tol(),
+        <f64 as topo::AtRestPolicy>::shell_door().expect("f64 certifies"),
+    )
     .expect("the sealed cube is inside the door");
     let VerbRecord::Shell(naming) = out.record else {
         panic!("a shell run produced another family's record");
