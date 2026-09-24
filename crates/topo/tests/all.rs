@@ -235,10 +235,10 @@ mod rim_dim_review_probes;
 mod seat3_flush_detector;
 #[path = "shell_roles.rs"]
 mod shell_roles;
-#[path = "shell_winding.rs"]
-mod shell_winding;
 #[path = "shell_tolerance_chain.rs"]
 mod shell_tolerance_chain;
+#[path = "shell_winding.rs"]
+mod shell_winding;
 #[path = "solid_separation.rs"]
 mod solid_separation;
 #[path = "split_edge_pcurve_rows.rs"]
