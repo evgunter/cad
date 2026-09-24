@@ -3677,7 +3677,6 @@ mod tests {
         (body, split.edge)
     }
 
-
     /// The M7-8 pillow's fan site at the old vertex whose run is the
     /// plane × NURBS edge, with that vertex's point.
     fn m7_8_site(body: &Body<f64>, edge: EdgeKey) -> (MevSite, HalfEdgeKey, Point3<f64>) {
