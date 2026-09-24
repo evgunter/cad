@@ -1777,3 +1777,23 @@ SCALAR, one GUARD), two earlier rows priced; the mignitude copies added
 as evidence to PROPS's existing row rather than a second row. Head
 `d5cef24373`, run 36039124302 green. Ready-for-sign-off comment posted;
 DR row drafted and held for merge (fair pair; no tally candidate).
+
+## LANE-4 specified and dispatched (2026-09-24)
+
+Spec on `scalar/lane-4` (`2b3f50d024`): `geom_brep::FittedLane<T>` (three
+fn-pointer fields, `certified()` at `Decide + CertifiedBounds`) answered
+by `AtRestPolicy::fitted_lane()`; a per-scalar name source on the policy
+with today's exact strings, passed to the geom-brep doors and
+`map_approx`; `certify_fitted`/`certify_general` take a non-`Option`
+door, `recertify` an `Option` plus the name; the trait deleted, 25 items
+drop the term, 38 re-spell to `AtRestPolicy` (narrowed to `Decide` only
+where the compiler shows it); `certify_at_dual` → `compile_fail` doctest
++ runtime `None` row; pinned in LANE-4P's shape (helper over three
+fields, `ROSTERS` entry, census red-first). Policy read throughout (the
+earlier ruling). Tier DUAL; not `[ev]` (DL3's addition naming-only —
+the implementer stops if it is not). **Sequencing (orchestrator's call):
+dispatched now rather than after RING-5's sign-off** — the overlap is
+two regions of `topo/src/props.rs` and one `bounds-allowlist.sh` count,
+resolvable at the implementer's pre-PR merge; the alternative (wait)
+idles the last unit on Ev's review. TOPO's #3160 (idle since 09:02Z)
+likewise: whichever lands second merges the other.
