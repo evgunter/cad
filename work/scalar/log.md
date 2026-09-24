@@ -1565,3 +1565,39 @@ the representation question H5 left open (a fitted cache with no
 certificate), the seam (policy answer vs topo door value), the pin-site
 fold and census ROSTERS (LANE-3's filed row), collisions with the two
 RING PRs and the booleans/blend/wire ground, and a cut and tier.
+
+## LANE-4 surveyed; cut in two; LANE-4P dispatched (2026-09-24)
+
+The LANE-4 survey (Opus, `/home/user/scalar-briefs/survey-lane4.md` at
+`6709bc3229`; it stalled ~1 h on an unanswerable prompt after a refused
+delete, was stopped and resumed from its transcript; no compile ran — a
+compile experiment was refused, so two "wider than needed" claims are
+by reading). Findings: the trait has four methods (LANE-0 moved
+`remap_certificate` out); 66 production bound sites in five crates (not
+~57); `EvalScalar` never names it (it rides `AtRestPolicy`). **The
+representation question H5 left open has an answer from the tree**: a
+fitted cache with no certificate cannot exist today — both fitted
+producers refuse at check 4 — and nothing needs one, so a `None` hook
+produces today's refusal byte for byte; no type change. The seam: a
+`FittedLane<T>` value in geom-brep answered by
+`AtRestPolicy::fitted_lane()` in topo (LANE-0/LANE-3's split), because
+the ~40 consumers above geom-brep are construction passes with no
+certified twin; threading it as an argument would touch ~1,500–2,200
+public call sites. `lane_name` is NOT 4/5 dead any more (LANE-0 routed
+the offset-fit refusal through it; tests assert all five names) — it
+needs a per-scalar name source. One design call is open for LANE-4's
+spec: at the validators, the `None` from the policy (no verdict moves)
+or by door name (the `_structural` twin hands `None`, ruling 3's
+wording, LANE-2's precedent — f64 `_structural` would newly refuse a
+General row). The plan's ground list was stale (TRIM/PIN/BLEND own none
+of the files; PCERT, REACH, CARVE/BAND, ATREST … do). Heaviest live
+collision: TOPO's #3160 (`pcurves.rs` `walk_loop`, in dual review).
+
+**Cut (orchestrator's call, the survey's recommendation):** LANE-4P —
+the four door values' pins in one helper shape and a census that
+enumerates door VALUES as well as scalars (takes LANE-3's filed row),
+test code only, tier SINGLE — dispatched now on Opus (`scalar/lane-4p`
+at `1cc54df7ce`; the plan's LANE-4 row split and its ground corrected
+there). LANE-4 proper (tier DUAL) waits on RING-3, RING-4 and #3160; the
+alternative, one unit, was declined (LANE-4P is independent and small;
+LANE-4 is blocked on three PRs).
