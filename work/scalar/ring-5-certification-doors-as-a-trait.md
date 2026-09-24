@@ -2,9 +2,10 @@
 id: ring-5-certification-doors-as-a-trait
 kind: unit
 title: RING-5: the certification doors become a sealed extension trait on Interval, imported by name, with a gate on its importers
-status: open
+status: review
 opened: 2026-09-24
 branch: scalar/ring-5
+pr: 3174
 needs_ev: true
 ---
 
