@@ -23,7 +23,7 @@ author reorders the members.
 ## Measured (EMIT, 2026-09-23; scratch probe over PR 3112's review corpus)
 
 `fam010` (`a` = x∈(0,1), `b` = x∈(0.5,1.5), declared flush on all
-four families; third member x∈(0.3,0.4), y∈(-1,0.5), z∈(-0.5,1)).
+four families; third member x∈(0.3,0.4), y∈(-1,0.5), z∈(0.5,3.5)).
 Both orders fuse on main.
 
 | order | `FromMember(a, RimEdge(End, seg 0))#OrderAlong{1 of 2}` binds |

@@ -617,3 +617,5 @@ mod emit_seam_edge_merged;
 mod emit_seam_junction;
 #[path = "emit_shared_rim_several.rs"]
 mod emit_shared_rim_several;
+#[path = "emit_union_rim_piece_ranks.rs"]
+mod emit_union_rim_piece_ranks;

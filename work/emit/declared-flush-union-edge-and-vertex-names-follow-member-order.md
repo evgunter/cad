@@ -123,3 +123,15 @@ points only. With edges compared by their end points, 18 of the 162
 pairs of fused orders in PR 3112's review corpus rebind a name on main
 (24 names, all `FromMember` rim-edge pieces). That is its own P0 row:
 `work/emit/union-rim-piece-ranks-follow-fold-order-so-rim-names-rebind.md`.
+
+## After `emit/rim-piece-ranks` (EMIT, 2026-09-24)
+
+The published table now ranks each member edge's pieces once, over the
+finished body (`emit_union::rank_member_edges`). Over PR 3112's review
+corpus that takes rebinds to 0 of 350 pairs of fused orders, comparing
+vertices, edges and faces. What this row describes is still there,
+though: 307 of those 350 pairs publish different name SETS, spread
+across `FromMember` edges (which member keeps a flush stretch, so a
+rim's piece count differs), `Seam` vertices and edges, member
+vertices, and `Merged` faces. The names differ, and a reference still
+vanishes, typed, on a reorder. It no longer lands on the wrong piece.

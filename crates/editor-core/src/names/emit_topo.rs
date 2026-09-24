@@ -1504,7 +1504,7 @@ fn resolve_edge_carrier<T: Decide>(
 }
 
 /// An edge's endpoint-extent along `dir`.
-fn edge_extent<T: Decide>(
+pub(super) fn edge_extent<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
     dir: Vec3<T>,
@@ -1604,7 +1604,7 @@ fn rim_holding<T: Decide>(
 }
 
 /// The oriented direction of an operand edge (he_plus start → end).
-fn edge_dir<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<Vec3<T>, NamingError> {
+pub(super) fn edge_dir<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<Vec3<T>, NamingError> {
     let bug = |what| NamingError::Emission { what };
     let (v0, v1) = edge_ends(body, e)?;
     let p = |v: VertexKey| -> Result<Point3<T>, NamingError> {
