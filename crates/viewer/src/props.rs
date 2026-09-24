@@ -601,7 +601,7 @@ pub fn field_text(row: &SlotRow) -> String {
     }
 }
 
-/// A number as the chrome writes it: [`geom_core::Readable`]'s
+/// A number as the chrome writes it: [`pncad::geom_core::Readable`]'s
 /// shortest round-tripping digits, positional at modelling magnitudes
 /// with a bare integral form (`8`, not `8.0`) and scientific past them
 /// — a field showing `8` and a field showing `8.0` say the same thing,
@@ -616,7 +616,7 @@ pub fn field_text(row: &SlotRow) -> String {
 /// wrong for a coordinate a reader compares against what the panel
 /// shows.
 pub fn render_number(value: f64) -> String {
-    geom_core::Readable(value).to_string()
+    pncad::geom_core::Readable(value).to_string()
 }
 
 /// What text typed into a value field MEANS.

@@ -104,6 +104,6 @@ should look there too.
 
 ## What the fix looks like
 
-Each site through `geom_core::Readable` (every crate above depends on
-`geom-core`), with any message-pinning test moving with it; or, where a
+Each site through `geom_core::Readable` (every crate above reaches
+`geom-core`: directly, or — the viewer — as `pncad::geom_core`), with any message-pinning test moving with it; or, where a
 site's value is provably inside `[1e-4, 1e16)`, a line saying so.
