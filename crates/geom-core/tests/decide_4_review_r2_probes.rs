@@ -214,6 +214,22 @@ fn r2_no_fold_near_miss() {
     assert_ne!(off, "theorem");
 }
 
+/// A near miss whose remainder is a CONSTANT: `N = (t+2)^3 + 2^-80`,
+/// `D = t + 2`. A division that dropped its remainder would return
+/// `(t+2)^2`, whose root is exactly the other term: only the verified
+/// product (or an exact loop) keeps this off the theorem list.
+#[test]
+fn r2_no_fold_near_miss_constant_remainder() {
+    let tiny = 2.0_f64.powi(-80);
+    let (on, off) = both("sqrt(((t+2)^3 + 2^-80)/(t+2)) - |t+2|", &|| {
+        let t = over("t", 0.5, 1.0);
+        let p = lit(2.0) + t;
+        ((p.powi(3) + lit(tiny)) / p).sqrt() - p.abs()
+    });
+    assert_ne!(on, "theorem", "a near miss is not an identity");
+    assert_ne!(off, "theorem");
+}
+
 /// The dead-arm/`D = 0` shape: `sqrt(x^2 (x - 1)/(x - 1)) - |x|` over a
 /// box that CONTAINS `x = 1`, where the value channel divides by zero.
 #[test]

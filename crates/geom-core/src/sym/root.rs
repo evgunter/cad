@@ -535,3 +535,131 @@ pub(super) fn mint(arg: Form, sess: &mut Session) -> Form {
     out.gated |= gated;
     out
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod review_r2_probes {
+    //! Review r2's probes of the exact quotient's division, below the
+    //! scalar door. Review evidence, not a pin.
+    use super::*;
+    use crate::sym::SymBudget;
+    use crate::sym::form;
+
+    fn budget() -> SymBudget {
+        SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        }
+    }
+
+    /// Every monomial over ids {3, 5, 7} with exponents 0..=3, in the
+    /// type's invariant shape (sorted by id, no zero exponent).
+    fn monos() -> Vec<Mono> {
+        let mut out = Vec::new();
+        for a in 0..=3u32 {
+            for b in 0..=3u32 {
+                for c in 0..=3u32 {
+                    let m: Mono = [(3u128, a), (5, b), (7, c)]
+                        .into_iter()
+                        .filter(|&(_, e)| e > 0)
+                        .collect();
+                    out.push(m);
+                }
+            }
+        }
+        out
+    }
+
+    /// `grlex` is a total order on the invariant shape, agrees with
+    /// equality, and is a MONOMIAL order: `a > b ⇒ a·m > b·m`, and
+    /// `1` is the least.
+    #[test]
+    fn grlex_is_a_monomial_order() {
+        let ms = monos();
+        for a in &ms {
+            assert_eq!(grlex(a, &Mono::new()) == Ordering::Less, false);
+            for b in &ms {
+                let ab = grlex(a, b);
+                assert_eq!(ab, grlex(b, a).reverse(), "antisymmetric");
+                assert_eq!(ab == Ordering::Equal, a == b, "equal iff equal");
+                for m in &ms {
+                    let am = form::mono_mul(a, m).unwrap();
+                    let bm = form::mono_mul(b, m).unwrap();
+                    assert_eq!(grlex(&am, &bm), ab, "multiplicative: {a:?} {b:?} by {m:?}");
+                    // transitivity
+                    if ab == Ordering::Greater && grlex(b, m) == Ordering::Greater {
+                        assert_eq!(grlex(a, m), Ordering::Greater, "transitive");
+                    }
+                }
+            }
+        }
+    }
+
+    /// `mono_div` is the inverse of `mono_mul` and refuses a non-divisor.
+    #[test]
+    fn mono_div_inverts_mono_mul() {
+        let ms = monos();
+        for a in &ms {
+            for b in &ms {
+                let ab = form::mono_mul(a, b).unwrap();
+                assert_eq!(mono_div(&ab, b).as_ref(), Some(a));
+                let divides = b.iter().all(|&(id, e)| exp_of(a, id) >= e);
+                assert_eq!(mono_div(a, b).is_some(), divides);
+            }
+        }
+    }
+
+    fn x_plus(k: Rat, id: u128) -> Poly {
+        let mut p = Poly::indet(id);
+        p.insert(Mono::new(), k).unwrap();
+        p
+    }
+
+    /// The ring refuses PARTWAY through a division that would not have
+    /// terminated in a quotient: `x^40 / (x + 2^100)` builds `2^(100 j)`
+    /// coefficients until the ring refuses, and the answer is a decline.
+    #[test]
+    fn a_ring_refusal_partway_is_a_decline() {
+        let d = x_plus(Rat::new(1, 1, 100).unwrap(), 3);
+        let n = Poly::term(vec![(3, 40)], Rat::one());
+        assert!(exact_quotient(&n, &d, budget()).is_none());
+        // and the same shape that DOES divide, at a width the ring holds:
+        // (x + 2^100)^2 / (x + 2^100) = x + 2^100.
+        let n2 = d.mul(&d, budget()).unwrap();
+        assert_eq!(exact_quotient(&n2, &d, budget()), Some(d.clone()));
+        // and a divisible pair whose verification product the ring
+        // refuses under a narrower bound is a decline, not an answer.
+        let narrow =
+            crate::sym::rational::with_coeff_bound(120, || exact_quotient(&n2, &d, budget()));
+        println!("under a 120-bit ring: {narrow:?}");
+    }
+
+    /// Past `QUOTIENT_STEPS` the division declines even where `D | N`.
+    #[test]
+    fn the_step_cap_declines_an_exact_division() {
+        // (x - 1)(1 + x + ... + x^599) = x^600 - 1: 600 quotient terms.
+        let d = x_plus(Rat::new(-1, 1, 0).unwrap(), 3);
+        let mut n = Poly::term(vec![(3, 600)], Rat::one());
+        n.insert(Mono::new(), Rat::new(-1, 1, 0).unwrap()).unwrap();
+        assert!(exact_quotient(&n, &d, budget()).is_none());
+        let mut n2 = Poly::term(vec![(3, 100)], Rat::one());
+        n2.insert(Mono::new(), Rat::new(-1, 1, 0).unwrap()).unwrap();
+        assert_eq!(
+            exact_quotient(&n2, &d, budget()).unwrap().terms().len(),
+            100
+        );
+    }
+
+    /// `leading` over a polynomial whose stored order (`Mono`'s Vec
+    /// order) differs from grlex: `y^1` (id 5) sorts after `x^2` (id 3)
+    /// lexicographically? The leading term must be the grlex maximum.
+    #[test]
+    fn leading_is_the_grlex_maximum_not_the_stored_last() {
+        let mut p = Poly::term(vec![(3, 2)], Rat::one());
+        p.insert(vec![(5, 1)], Rat::one()).unwrap();
+        p.insert(vec![(3, 1), (5, 1)], Rat::one()).unwrap();
+        let (m, _) = leading(&p).unwrap();
+        println!("stored {:?}; leading {m:?}", p.terms());
+        assert_eq!(m, &vec![(3, 2)]);
+    }
+}
