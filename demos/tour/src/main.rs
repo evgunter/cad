@@ -53,7 +53,6 @@ mod booleans;
 mod bossplate;
 mod bud;
 mod chain;
-#[cfg(feature = "interval")]
 mod chaintol;
 mod checks;
 mod crosslap;
@@ -82,7 +81,6 @@ mod skinned;
 mod teapot;
 #[cfg(feature = "budget")]
 mod tessbudget;
-#[cfg(feature = "interval")]
 mod tolerance;
 mod torusvessel;
 mod tube;
@@ -964,20 +962,10 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     );
     checks::narration(tol);
 
-    // The tolerance cell (M10-6 §6): narration-only, and behind the
-    // `interval` feature because its whole subject is the certified
-    // scalar's leaves. A tour built without the feature says so rather
-    // than silently walking one scene fewer.
-    #[cfg(feature = "interval")]
-    {
-        println!("\n-- the two-hole plate (M10/E10: a tolerance study, certified and advisory) --");
-        tolerance::narration(tol);
-    }
-    #[cfg(not(feature = "interval"))]
-    println!(
-        "\n-- the two-hole plate (M10/E10) is SKIPPED: build with `--features interval`, \
-         whose certified scalar is the cell's entire subject --"
-    );
+    // The tolerance cell (M10-6 §6): narration-only; its whole subject is
+    // the certified scalar's leaves.
+    println!("\n-- the two-hole plate (M10/E10: a tolerance study, certified and advisory) --");
+    tolerance::narration(tol);
 
     println!(
         "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \
@@ -1124,21 +1112,10 @@ fn main() {
         chain_svg.len()
     );
 
-    // The chain's certified half, beside its picture and behind the
-    // `interval` feature for the reason the plate's tolerance cell is:
-    // the certified scalar's leaves are its entire subject.
-    #[cfg(feature = "interval")]
-    {
-        println!(
-            "\n-- the chain on the certified lane (E6/E12: one leaf per link count, measured) --"
-        );
-        chaintol::narration(tol);
-    }
-    #[cfg(not(feature = "interval"))]
-    println!(
-        "\n-- the chain's certified lane is SKIPPED: build with `--features interval`, \
-         whose certified scalar is the cell's entire subject --"
-    );
+    // The chain's certified half, beside its picture: the certified
+    // scalar's leaves are its entire subject.
+    println!("\n-- the chain on the certified lane (E6/E12: one leaf per link count, measured) --");
+    chaintol::narration(tol);
 
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");

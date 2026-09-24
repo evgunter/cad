@@ -23,7 +23,6 @@
 //!    comparison rather than a filtered one.
 //!
 //! The basename carries `interval` so `ci-filter.py` pins the lane.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the code it measures: the tier itself, the memo, the

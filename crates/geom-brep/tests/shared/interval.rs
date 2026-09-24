@@ -1,9 +1,7 @@
 //! Lifting exactly-known `f64` geometry onto the interval scalar.
 //!
 //! One function under three shapes — a coordinate, a vector, a point —
-//! all of them `Interval::from_f64` applied componentwise. Every caller
-//! is inside an `#[cfg(feature = "interval")]` suite or module, so the
-//! module is gated the same way.
+//! all of them `Interval::from_f64` applied componentwise.
 //!
 //! **What this module does NOT absorb.** `revolved_point_anchor.rs`'s
 //! `w(c)` widens a coordinate into `[c - half, c + half]`: that is the

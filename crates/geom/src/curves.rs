@@ -1568,7 +1568,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "interval")]
     mod spiric_interval {
         use geom_core::{Bounds, Interval};
 
@@ -1684,7 +1683,6 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "interval")]
     mod ellipse_interval {
         use geom_core::{Bounds, Interval};
 
@@ -2056,7 +2054,6 @@ mod tests {
     // Interval instantiation (feature-gated)
     // ------------------------------------------------------------------
 
-    #[cfg(feature = "interval")]
     mod interval {
         use geom_core::{Bounds, Interval};
 

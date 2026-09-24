@@ -1,6 +1,6 @@
 //! Evaluator behavior (spec D4): scalar-generic over `Real`, units
 //! erased at the boundary (GQ5), typed environment errors, and the
-//! pinned Interval instantiation (feature `interval`).
+//! pinned Interval instantiation.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the code it tests (TCOST-1). The claim is the evaluator's: a
@@ -161,7 +161,6 @@ mod props {
 /// The pinned Interval instantiation (spec D4/D8): the evaluator is
 /// generic over `Real` with no branches, so the certified scalar runs
 /// the SAME code path and must enclose the f64 result.
-#[cfg(feature = "interval")]
 mod interval_lane {
     use super::*;
     use geom_core::Interval;

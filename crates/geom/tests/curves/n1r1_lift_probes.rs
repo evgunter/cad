@@ -14,7 +14,6 @@ use geom_core::spline::KnotVector;
 use geom_core::{Dual, Dual64, Point2, Point3};
 // Lint conformance (lane edit): `Real` is only named by the
 // interval-gated rows below, so its import is gated the same way.
-#[cfg(feature = "interval")]
 use geom_core::Real;
 
 /// Degree 5, one interior knot at multiplicity 4 (= p − 1), weights
@@ -284,7 +283,6 @@ fn n1r1_surface_lift_matches_source_including_normal() {
 /// The composition `map_scalar(Interval::from_f64).map_scalar(
 /// Dual::constant)` reaches the same object the retired hand
 /// re-spelling built, field for field.
-#[cfg(feature = "interval")]
 mod interval_probes {
     use super::*;
     use geom_core::{Bounds, Interval, Vec3};

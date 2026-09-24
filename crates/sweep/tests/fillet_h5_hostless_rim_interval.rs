@@ -1,5 +1,5 @@
-//! The HOSTLESS-crossing closed rim at the CERTIFIED scalar (feature
-//! `interval`) — the interval twin of `fillet_h5_r1_probes`'s carve and
+//! The HOSTLESS-crossing closed rim at the CERTIFIED scalar — the
+//! interval twin of `fillet_h5_r1_probes`'s carve and
 //! closed-form rows.
 //!
 //! **What this lane is here to show, and what it is not.** The unit's
@@ -23,7 +23,6 @@
 //! coordinate is dyadic, so the fixtures' own enclosures are points and
 //! the widths below are this lane's.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Bounds, Interval, Real, Tol};

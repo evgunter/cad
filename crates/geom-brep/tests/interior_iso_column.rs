@@ -221,7 +221,6 @@ fn a1_an_interior_column_of_a_polynomial_chart_certifies() {
     a1_body::<f64>("A1 f64");
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn a1_an_interior_column_of_a_polynomial_chart_certifies_at_interval() {
     a1_body::<geom_core::Interval>("A1 interval");
@@ -259,7 +258,6 @@ fn a2_an_interior_column_of_a_separable_rational_chart_certifies() {
     a2_body::<f64>("A2 f64");
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn a2_an_interior_column_of_a_separable_rational_chart_certifies_at_interval() {
     a2_body::<geom_core::Interval>("A2 interval");
@@ -296,7 +294,6 @@ fn a2b_a_non_separable_weight_net_refuses_typed() {
     a2b_body::<f64>("A2b f64");
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn a2b_a_non_separable_weight_net_refuses_typed_at_interval() {
     a2b_body::<geom_core::Interval>("A2b interval");

@@ -435,7 +435,6 @@ fn plane_eq_nan_and_negzero() {
 }
 
 // ---- Interval lane spot checks on the review fixtures. ----
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use geom_core::Interval;

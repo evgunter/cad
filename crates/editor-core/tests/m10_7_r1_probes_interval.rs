@@ -4,7 +4,6 @@
 //!
 //! Sweep shape ([[test-suite-cost]]): static fixtures, no seed. Rows
 //! marked EVIDENCE-ONLY print and gate nothing.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

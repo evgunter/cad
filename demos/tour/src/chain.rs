@@ -200,11 +200,8 @@ pub const CERTIFIABLE_FRACTION: f64 = 1.110e-1;
 /// MEASURED by [`crate::chaintol`] and pinned there;
 /// [`CERTIFIABLE_FRACTION`] is the last row.
 ///
-/// Read only by that cell, which is behind the `interval` feature, so
-/// a default build legitimately has no consumer for it — the
-/// measurement is part of this document's record either way, and the
-/// sheet's own [`CERTIFIABLE_FRACTION`] is the last row of it.
-#[cfg_attr(not(feature = "interval"), allow(dead_code))]
+/// Read only by that cell; the sheet's own [`CERTIFIABLE_FRACTION`] is
+/// the last row of it.
 pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [1.0, 3.702e-1, 1.851e-1, 1.110e-1];
 
 /// **The tip's certified lateral half-width, over the pin radius** —
@@ -218,8 +215,7 @@ pub const CERTIFIABLE_FRACTION_BY_LINKS: [f64; LINKS] = [1.0, 3.702e-1, 1.851e-1
 /// says. The one-link chain is excluded on purpose: its box is the
 /// study, not the wall.
 ///
-/// Read only by that cell, which is behind the `interval` feature.
-#[cfg_attr(not(feature = "interval"), allow(dead_code))]
+/// Read only by that cell.
 pub const CERTIFIED_TIP_OVER_PIN_RADIUS: f64 = 4.995e-1;
 
 /// **The certified enclosure of each joint pin's centre at that box**
@@ -333,12 +329,7 @@ pub struct Chain {
     pub doc: ProfileDoc,
     /// The tip-position `Measure` node — `distance(tip pin, target)`.
     pub measure: RecipeNodeId,
-    /// The `Assertion` over it. Read by [`crate::chaintol`], which is
-    /// behind the `interval` feature, so a default build legitimately
-    /// has no consumer for it — the field is part of the document
-    /// either way and a cell that dropped it would be describing a
-    /// different one.
-    #[cfg_attr(not(feature = "interval"), allow(dead_code))]
+    /// The `Assertion` over it. Read by [`crate::chaintol`].
     pub assertion: RecipeNodeId,
     /// The placed bars, base first. Carried because a cell that DRAWS
     /// the study needs the built bodies and not only the summary over

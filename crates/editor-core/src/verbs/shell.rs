@@ -414,7 +414,6 @@ mod tests {
     /// ends differ: the refused thickness and a clearance gap at their
     /// infimum, the needed wall at its supremum. A fold that read one
     /// end everywhere would red here on the field it got wrong.
-    #[cfg(feature = "interval")]
     #[test]
     fn the_interval_witness_reports_the_end_each_field_declares() {
         use geom_core::{Interval, Point2, Tol};

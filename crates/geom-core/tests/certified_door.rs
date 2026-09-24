@@ -376,7 +376,6 @@ fn the_f64_crossing_admits_exactly_the_finite() {
 
 // ----------------------------------------------- the gated implementors
 
-#[cfg(feature = "interval")]
 mod interval_lane {
     use geom_core::{Interval, Real};
 

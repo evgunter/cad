@@ -51,7 +51,6 @@
 //! certified scalar) and `scripts/ci-filter.py` pins the hosted lane on
 //! exactly that name, so this unit's own axis is never left to the
 //! sampling draw.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

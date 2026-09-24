@@ -2343,19 +2343,10 @@ impl<T> EvalScalar for T where
 {
 }
 
-/// **The certified-leaf replay door** (ERROR-DESIGN E12) — one module
-/// rather than a handful of gated items, because
-/// `scripts/check-interval-cfg-additive.py` admits a gated `mod` and
-/// nothing smaller: the `interval` feature must not be able to change
-/// the default build, and a module is the granularity that keeps that
-/// checkable.
-///
-/// Gated for the driver's own reason (`crate::drive`'s module gate): a
-/// leaf replays at the certified scalar, so without it there is no leaf
-/// and nothing to replay. It lives inside `eval/mod.rs` because it names
+/// **The certified-leaf replay door** (ERROR-DESIGN E12): a leaf
+/// replays at the certified scalar. It lives inside `eval/mod.rs` because it names
 /// `EvalScalar`, which the evaluation-service seam confines to this file
 /// and `parts.rs`.
-#[cfg(feature = "interval")]
 pub(crate) mod leaf {
     use super::{
         CancelToken, ContentKey, EvalOptions, EvalScalar, Evaluation, NodeResult, ValuePayload,
@@ -2547,7 +2538,6 @@ pub(crate) mod leaf {
     }
 }
 
-#[cfg(feature = "interval")]
 pub(crate) use leaf::{LeafLane, LeafPrior, LeafRequest, replay_leaf};
 
 /// Evaluation options (spec D5/D6).
@@ -2675,7 +2665,6 @@ impl SectionScalar for geom_core::Probe {
     }
 }
 
-#[cfg(feature = "interval")]
 impl SectionScalar for geom_core::Interval {
     fn pinned_f64(self) -> Option<f64> {
         None

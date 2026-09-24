@@ -33,7 +33,6 @@
 //! revolve, where two surfaces meet at a corner) and the SOLVED one (a
 //! partial revolve, whose meridian caps contain the axis).
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Bounds, Interval, Point2, Real, Tol, Vec2};

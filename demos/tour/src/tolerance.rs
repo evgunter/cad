@@ -742,10 +742,9 @@ mod tests {
 
     /// **The cell's own row, so it EXECUTES on hosted CI.**
     ///
-    /// The narration runs in a tour WALK (`cargo run`), and the hosted
-    /// lane that walks the tour is a render lane which does not pass
-    /// `--features interval`. This row is what puts the cell inside
-    /// `ci.yml`'s `demos tour suite` step instead, and it asserts the
+    /// The narration runs in a tour WALK (`cargo run`), which asserts
+    /// nothing. This row is what puts the cell inside
+    /// `ci.yml`'s `demos tour suite` step, and it asserts the
     /// findings the captions claim rather than merely running the
     /// code: a real study CERTIFIES — every refusal the leaf budget,
     /// the requirement `Mixed` over the certified leaves with a stated

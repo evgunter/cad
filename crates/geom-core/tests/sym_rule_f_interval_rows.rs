@@ -1,9 +1,6 @@
 //! **Rule F's rows at the INTERVAL lift** — the half of
 //! `sym_rule_f_rows` that needs a BOX rather than a point, in its own
-//! wholly feature-gated file because `crates/*/tests` owes WHOLE-ITEM
-//! gating (`scripts/check-interval-cfg-additive.py`: a test present in
-//! both builds must run identical code, so a row whose body is gated
-//! inside a shared file runs nowhere on the interval legs).
+//! file.
 //!
 //! Clause 1 — the value channel certified the computation on the whole
 //! input box — is a statement about a BOX, and three of rule F's
@@ -14,7 +11,6 @@
 //! certified lane. Those rows are here; the point-lift rows, the
 //! predicate's boundary and the negatives are in `sym_rule_f_rows`,
 //! whose helpers this file shares.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::Margin;

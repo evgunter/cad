@@ -1255,7 +1255,6 @@ mod tests {
     // Interval instantiation (feature-gated)
     // ------------------------------------------------------------------
 
-    #[cfg(feature = "interval")]
     mod interval {
         use geom_core::{Bounds, Interval};
 

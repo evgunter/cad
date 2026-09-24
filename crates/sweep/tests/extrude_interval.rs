@@ -1,9 +1,8 @@
-//! Interval-lane extrusion (feature `interval`): the new geometry paths
+//! Interval-lane extrusion: the new geometry paths
 //! instantiated at the certified scalar — exact dyadic fixtures decide
 //! definitely from point enclosures, build end-to-end through the public
 //! op, and pass all three validation tiers.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;

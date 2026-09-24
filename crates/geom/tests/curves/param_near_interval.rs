@@ -7,7 +7,6 @@
 //! the anchored form's whole claim is that there is no fork — so this
 //! suite is the only interval-specific artifact the rule can match.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, TAU};

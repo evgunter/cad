@@ -5,7 +5,6 @@
 //! at `T = Interval`. This row does, on a box and on an oblique
 //! hexagonal prism, and reads the volume enclosure.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;

@@ -11,7 +11,6 @@
 //! per `memories/test-suite-cost.md` — no seeds anywhere.
 //!
 //! The basename carries `interval` so `ci-filter.py` pins the lane.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the code it tests (TCOST-1). This suite is specific to the E6

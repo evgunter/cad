@@ -220,7 +220,6 @@ impl ContentBits for geom_core::Probe {
 /// expression values AS BITS") and never compares values by bits.
 /// When provenance-based naming retires the channel, this feed moves
 /// to whatever exact-representation door replaces `repr_bits`.
-#[cfg(feature = "interval")]
 impl ContentBits for geom_core::Interval {
     fn feed(&self, h: &mut KeyHasher) {
         let (lo, hi, dec) = self.repr_bits();

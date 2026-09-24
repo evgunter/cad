@@ -825,8 +825,7 @@ each joint carrying an independent normal angular error at σ = 0.01 rad;
 joint `j` rotates every link below it, so the last link has the longest
 lever and the fan gets wider all the way down. The document is
 `demos/tour/src/chain.rs` (read by both of its cells, as `plate.rs` is),
-the sheet is `mcchain.rs`, and the certified half is `chaintol.rs`
-behind the `interval` feature.
+the sheet is `mcchain.rs`, and the certified half is `chaintol.rs`.
 
 Everything the plate's sheet does, this does with a longer document:
 512 replays from `mc::sample_offsets`, the four numbers checked BIT FOR

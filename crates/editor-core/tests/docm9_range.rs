@@ -23,7 +23,6 @@
 //! `NewFailure` needs a flip whose evidence carries a standing change,
 //! and no fixture reaches one
 //! (`work/props/coincidence-zone-priced-budget-at-the-floor`).
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

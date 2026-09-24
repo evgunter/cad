@@ -2701,7 +2701,6 @@ mod tests {
     /// **Consults no tolerance.** The widths are widths; the band below
     /// is the ordinary one the site's own margins need in order to run
     /// at all, and no assertion here reads it.
-    #[cfg(feature = "interval")]
     #[test]
     fn the_window_relative_start_keeps_its_width_when_the_start_straddles_the_edge() {
         use geom_core::{Bounds, Interval, Real};
@@ -2786,7 +2785,6 @@ mod tests {
     /// than 0, an off-axis chord end, a 2.5-radian window. The unit's
     /// committed row uses the zero azimuth, where several quantities
     /// are exactly representable; this one is not so friendly.
-    #[cfg(feature = "interval")]
     #[test]
     fn cert4r2_the_window_edge_straddle_off_axis() {
         use geom_core::{Bounds, Interval, Real};
@@ -2851,7 +2849,6 @@ mod tests {
 /// window's antipode.
 ///
 /// Consults no tolerance: the widths asserted are widths.
-#[cfg(feature = "interval")]
 #[test]
 fn cert4r1_the_centred_anchoring_widens_at_its_own_jump_for_a_near_whole_window() {
     use geom_core::{Bounds, Interval, Real};

@@ -281,7 +281,6 @@ fn tube_window_and_refusal_doors() {
 
 /// **§9.3 interval row:** the tube door at the interval scalar —
 /// build, tier 3, and the Pappus volume bracketed enclosure-style.
-#[cfg(feature = "interval")]
 mod certified {
     use geom_core::Real;
     use geom_core::interval::Interval;

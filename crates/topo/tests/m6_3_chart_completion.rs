@@ -246,7 +246,6 @@ fn a_general_circle_sphere_cache_survives_the_at_rest_pass() {
 /// refuses definitely — so the row asserts whichever of the three the
 /// run's tolerance selects rather than claiming one unconditionally.
 /// Either way it is the evidence the lane genuinely left `f64`.
-#[cfg(feature = "interval")]
 mod certified {
     use geom_core::Tol;
     use geom_core::interval::Interval;

@@ -315,7 +315,6 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
 /// below is already obtained; sampling re-verifies it over time,
 /// which is the normal posture. Guaranteeing one lane by excluding
 /// the other was the bad trade.
-#[cfg(feature = "interval")]
 mod at_intervals {
     use crate::shared::interval::iv;
     use crate::shared::surf::table;

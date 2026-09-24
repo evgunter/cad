@@ -2581,7 +2581,6 @@ fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) 
 /// cannot reach: `range.rs` and `stackup.rs` compile in the interval
 /// build only, so their spelling is censused in that lane — which every
 /// code-tier run gates, not a lane nobody runs.
-#[cfg(feature = "interval")]
 #[test]
 fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
     use editor_core::{RangeRefusal, Unavailable};
