@@ -368,7 +368,7 @@ fn survives_two_arc_hole_hand_traced_cycles() {
 #[test]
 fn survives_hole_near_outer_canonical_start() {
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
-    // Hole lex-min vertex at (0.006, 0.011): bridge chord ~0.0125 m,
+    // Hole start vertex (its authored −x point) at (0.006, 0.011): bridge chord ~0.0125 m,
     // clearance to the outer edges 0.006 m — all definite at every CI ε.
     let hole = circle_loop(0.011, 0.011, 0.005);
     let t = extrude(

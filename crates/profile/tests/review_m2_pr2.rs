@@ -186,7 +186,11 @@ fn origin_centered_square_keeps_each_authored_start() {
     }
     starts.sort_unstable();
     starts.dedup();
-    assert_eq!(starts.len(), 4, "four authored starts, four canonical starts");
+    assert_eq!(
+        starts.len(),
+        4,
+        "four authored starts, four canonical starts"
+    );
 }
 
 /// A loop that revisits a coordinate exactly (pinch at a bit-identical

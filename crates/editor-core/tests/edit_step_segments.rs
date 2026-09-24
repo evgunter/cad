@@ -632,13 +632,13 @@ fn assert_sections_bound_their_walls(
         let place =
             |p: Point2<f64>| placement.transform_point(geom_core::Point3::new(p.x, p.y, 0.0));
         let mut walls = BTreeSet::new();
-        for li in 0..r.verts.len() {
+        assert_eq!(want[si].len(), r.verts.len(), "{id}: one case per loop");
+        for (li, want) in want[si].iter().enumerate() {
             let found = perm_of(&r, li);
             assert_eq!(
-                found, want[si][li],
-                "{id}: section {si} loop {li} is the {found:?} case, not the {:?} one it \
-                 is written to be",
-                want[si][li]
+                found, *want,
+                "{id}: section {si} loop {li} is the {found:?} case, not the {want:?} one it \
+                 is written to be"
             );
             let n = r.verts[li].len();
             let steps = r.structure.replay[li].steps.len();
