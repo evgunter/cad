@@ -4081,15 +4081,30 @@ def selftest() -> None:
     # these two cases went red against a clean fixture — reporting the fixture
     # where the finding was the entry. An exemption's own list is the only
     # honest source for "an exemption".
-    _one_local = _exempt_side("local")[0]
+    #
+    # THE LOCAL-ONLY DIRECTION MAY HAVE NO LIVE ENTRY, and today it has none:
+    # its one entry, `scripts/interval-only-selection.py`, retired with the
+    # `interval` feature (RING-4). The ORPHAN and INVERSION arms are
+    # side-blind — they read `want` off the entry and compare it with the
+    # half that names the path — so with no local-only entry they run on the
+    # hosted-only one instead, planted from the other side. Only the local
+    # EXPIRY case needs a local-only entry, and without one it is skipped
+    # and says so; its hosted twin below exercises the same arm.
+    _locals = _exempt_side("local")
+    _one_local = _locals[0] if _locals else None
     _one_hosted = _exempt_side("hosted")[0]
+    _hosted_row = f"      - name: hosted only 0\n        run: {_one_hosted}\n"
     def exemption_expired(t):
         _append(HOSTED_HALF, f"      - name: x\n        run: {_one_local}\n")(t)
     def exemption_expired_hosted(t):
         _append(LOCAL_HALF, f"{_one_hosted}\n")(t)
     def exemption_orphaned(t):
-        _sub(t, LOCAL_HALF, f"{_one_local}\n", "")
-        os.remove(os.path.join(t, _one_local))
+        if _one_local is not None:
+            _sub(t, LOCAL_HALF, f"{_one_local}\n", "")
+            os.remove(os.path.join(t, _one_local))
+        else:
+            _sub(t, HOSTED_HALF, _hosted_row, "")
+            os.remove(os.path.join(t, _one_hosted))
     def marker_wrong_job(t):   _sub(t, LOCAL_HALF, "# HOSTED MIRROR: discipline / mirrored step 0", "# HOSTED MIRROR: k-lint / mirrored step 0")
     def marker_step_renamed(t): _sub(t, HOSTED_HALF, "- name: mirrored step 0", "- name: mirrored step zero")
     def markers_deleted(t):    _sub(t, LOCAL_HALF, "# HOSTED MIRROR: ", "# was: ")
@@ -4121,8 +4136,12 @@ def selftest() -> None:
                      "      - name: archived\n        run: echo hi\n")
 
     def exemption_inverted(t):
-        _sub(t, LOCAL_HALF, f"{_one_local}\n", "")
-        _append(HOSTED_HALF, f"      - name: x\n        run: {_one_local}\n")(t)
+        if _one_local is not None:
+            _sub(t, LOCAL_HALF, f"{_one_local}\n", "")
+            _append(HOSTED_HALF, f"      - name: x\n        run: {_one_local}\n")(t)
+        else:
+            _sub(t, HOSTED_HALF, _hosted_row, "")
+            _append(LOCAL_HALF, f"{_one_hosted}\n")(t)
 
     # CLAIM 10. One case per allowlisted flag, DERIVED from `SEMANTIC_FLAGS`
     # rather than listed again: a hand-written list of cases beside a
@@ -4794,7 +4813,11 @@ def selftest() -> None:
     _case("carries the key `runn`", unknown_step_key)
     _case("a TAB character", tabbed)
     _case("looks like a shell function definition", bad_func_spelling)
-    _case("BOTH halves now name it", exemption_expired)
+    if _one_local is not None:
+        _case("BOTH halves now name it", exemption_expired)
+    else:
+        print("check-ci-mirror-parity selftest: no local-only MIRROR_EXEMPT entry exists, so the "
+              "local expiry case is skipped; the hosted expiry case covers the arm", file=sys.stderr)
     # The same expiry from the other side: a hosted-only exemption whose row
     # came back locally. Symmetric because the widening above made
     # `want=hosted` a live value rather than a hypothetical one.
@@ -4803,7 +4826,8 @@ def selftest() -> None:
     _case("has a step named", marker_wrong_job)
     _case("has a step named", marker_step_renamed)
     _case("below the", markers_deleted)
-    _case("declared local-only in MIRROR_EXEMPT", exemption_inverted)
+    _case(f"declared {'local' if _one_local is not None else 'hosted'}-only in MIRROR_EXEMPT",
+          exemption_inverted)
     # THE SITING RULE, both halves. These are the cases the reviewer's
     # experiment plants: hollow `mirror`, move the steps back into a job that
     # skips on docs tier; and, locally, move the row below the docs exit.

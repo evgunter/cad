@@ -1043,8 +1043,8 @@ jobs:
   # selection.py` derives it as the difference between two
   # `cargo nextest list` outputs — the same trick, and the same shape, the
   # retired `scripts/interval-only-selection.py` used for the retired
-  # `interval` feature. Its header carries the details, including the one that is easy to get wrong:
-  # the difference is over the `ignored` FLAG, because nextest lists ignored
+  # `interval` feature. Its header carries the details, including the one
+  # that is easy to get wrong: the difference is over the `ignored` FLAG, because nextest lists ignored
   # tests too, so subtracting one name set from the other is empty for every
   # tree — a nightly reporting green having run nothing.
   #
