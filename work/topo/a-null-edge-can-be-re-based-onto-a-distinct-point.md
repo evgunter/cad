@@ -82,7 +82,9 @@ distinct point and stop meaning what `mev_null`'s F9 shape says), and
 it refuses the plane × NURBS `Unimplemented` class even where the new
 vertex takes the old vertex's own point. Both rows agree the exact
 question is "is `p_new` the point `p_old`", bitwise, and that
-`Point3<T>` at `T: Real` has no door for it by design. Phase 1 decides
+`Point3<T>` at `T: Real` has no door for it by design (one bound up, at
+`T: Bounds`, `crates/topo/src/query.rs`'s `same_point_bits` is one, in
+production: the m7-8 row's "Shape 2 is Ev's"). Phase 1 decides
 between two shapes and says why:
 
 1. **The structural answer inside `topo`**: a moved run refuses a null
