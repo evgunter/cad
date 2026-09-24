@@ -2324,7 +2324,6 @@ mod wiring_rows {
         );
     }
 
-    #[cfg(feature = "interval")]
     #[test]
     fn interval_is_wired_to_the_certified_shell_door() {
         assert_eq!(
