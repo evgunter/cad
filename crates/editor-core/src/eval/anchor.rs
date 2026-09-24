@@ -350,7 +350,7 @@ fn signed_area(lp: &ProfileLoop<f64>) -> f64 {
             let theta = 4.0 * bulge.atan();
             let chord2 = (b.x - a.x).powi(2) + (b.y - a.y).powi(2);
             let half = (0.5 * theta).sin();
-            let r2 = chord2 / (4.0 * half * half);
+            let r2 = chord2 / (4.0 * half.powi(2));
             arcs += 0.5 * r2 * (theta - theta.sin());
         }
     }
