@@ -1863,3 +1863,29 @@ become none, the four stand, the module doc says why), and
 claim, is re-worded to what holds (PROPS' file; seam on its log). A
 post-review commit reaching test code, by the orchestrator; it re-earns
 the gate, and the row records it.
+
+## PR 2603's fix pass ended on a usage limit after its last push; PR 2594 was never tested (2026-09-24)
+
+PR 2603's fix-pass lane stopped on a usage limit after pushing all
+three of its commits (head `8de0718b4`). Its worktree was clean, no
+detached build was running, and its scratch held the drafted PR body
+and the logs of the local chain the body cites: `topo` 760 + 585 + 14
++ 11, `sweep` 17 + 1501 + 2, the release selection's 20, clippy and
+fmt clean. The only step it had left was posting the body, and the
+orchestrator posted the draft verbatim except for one gendered
+reference to Ev. There is no relaunch, because nothing is unfinished.
+Its tokens and wall time are lost with its report, the second time for
+this unit, and the row records them as missing data. Hosted CI is
+running on the head.
+
+PR 2594's re-baseline head `b5d25ac44` never ran CI: GitHub marked the
+PR `dirty` against main. GitHub's merge ignores the union attribute on
+the logs, so a conflict that merges clean locally still blocks the
+`pull_request` run. Merged main forward (`3ec9def74`), checked that no
+log lost a line from either side, and pushed. The one code file both
+sides touched, `pcurves.rs`, merged textually clean.
+
+Seam between the two slots: each makes `same_chart` `pub(crate)`, and
+PR 2603's `drop_rows` is the removal PR 2594's `drop_face_rows` should
+call. Whichever lands second folds the face door onto it. PR 2594 is
+expected to land first, so the fold goes with PR 2603's merge-forward.
