@@ -5,6 +5,8 @@ title: chart_region::certified_arms is an inf rate per kind with no InfSpeed tag
 status: open
 opened: 2026-09-15
 refs: [three-tables-of-the-chart-arms]
+priority: P1
+cost: E
 ---
 
 

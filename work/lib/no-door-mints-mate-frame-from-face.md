@@ -7,6 +7,8 @@ closed: 2026-09-20
 opened: 2026-08-23
 github: 944
 refs: [938]
+priority: P3
+cost: H
 ---
 
 ## From GitHub issue 944

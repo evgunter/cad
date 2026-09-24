@@ -5,6 +5,8 @@ title: stranded_appearance is bound and tagged in pncad-py and no Python door ca
 opened: 2026-09-16
 status: open
 refs: [2784, five-doc-edit-arms-have-no-python-door]
+priority: P3
+cost: D
 ---
 
 (Found by the style review of PR 2784, which asked for a Python row

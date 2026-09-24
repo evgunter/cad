@@ -5,6 +5,8 @@ title: QuadratureBudget renders target and achieved length on a fixed .3e grid, 
 status: open
 opened: 2026-09-12
 refs: [2399]
+priority: P4
+cost: E
 ---
 
 

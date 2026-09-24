@@ -4,7 +4,9 @@ kind: issue
 title: the absent-chooser hover route is the only surface and nothing tests it, at any level
 status: open
 opened: 2026-09-10
-refs: [was-the-status-route-supposed-to-fire-for-an-absent-chooser, 2278]
+refs: [2278]
+priority: P4
+cost: E
 ---
 
 

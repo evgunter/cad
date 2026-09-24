@@ -4,6 +4,8 @@ kind: issue
 title: Suite headers carry standing instructions about ignored rows the file no longer has
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 

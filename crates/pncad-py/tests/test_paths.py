@@ -364,7 +364,7 @@ class TestRefusalsFireAtTheCallSite(unittest.TestCase):
         self.assertAlmostEqual(x, 3.0)
         self.assertAlmostEqual(y, 0.0)
         # The sentence names the corner it is about.
-        self.assertIn("at the corner near", str(err))
+        self.assertIn("at corner (", str(err))
         # Every other refusal carries the attribute too, empty.
         with self.assertRaises(pncad.PathError) as other:
             circle(ORIGIN, 0 * m)

@@ -2,7 +2,7 @@
 id: frame
 kind: program
 title: FRAME — who answers "give me a frame", and by what rule
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: frame/
@@ -10,6 +10,7 @@ tag: (FRAME orchestrator)
 ab_band: 5900-5999
 paths: [crates/geom-core/src/linalg/frame.rs]
 keep_out: [CUT FROM PROPS 2026-09-20 with Ev's agreement in chat — the family's head is PROPS' sign-hull unit (PR #2468, Ev's option-1 ruling on #1944), which PROPS lands and this program inherits the rest of the family from, exactly as PROPS inherited from S-CERT at its exit walk; until that lands, crates/geom-core/src/linalg/vec.rs carries an unmerged rewrite of orthonormal_basis and NOTHING here touches that region; crates/geom-core/src/* and crates/geom/src/* stay PROPS' paths and this program reaches them by announced seam, which is the honest record of a family whose code is spread across two crates' door sets; SHARED GROUND IS EXPECTED and is not a conflict (Ev, in chat, 2026-09-20) — what is owed is awareness when a lane is live on the same file]
+priority: P1
 ---
 
 One question asked eight ways: who answers "give me a frame", and by

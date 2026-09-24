@@ -4,6 +4,8 @@ kind: issue
 title: memories/orchestration-model.md prescribes the two-window usage check by a path that does not exist on at least two agent layouts, so the rule reads as followed when it cannot be
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

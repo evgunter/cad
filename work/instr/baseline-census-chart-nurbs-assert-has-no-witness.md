@@ -4,6 +4,8 @@ kind: issue
 title: baseline_census's chart-is-nurbs assert can only red on a tag no committed blob carries
 status: open
 opened: 2026-09-16
+priority: P3
+cost: D
 ---
 
 

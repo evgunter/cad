@@ -123,11 +123,12 @@ posture under §Process.
    against DOCM, EDIT's now) is **merged** (PR #2905, E-class, wave
    15: `Doc::has_minted`, the counter stays private; VIEW's layer-3
    row unblocked); `a-committed-profile-program-has-no-whole-program-edit`
-   was ruled (B) by Ev on `[ev]` #2904 and is **spec'd** as a kernel
-   unit (`docs/EDIT-PROGRAM-SPEC.md`, v6 dual, block EDIT-B2 slot 2,
-   wave 17: `SetProgram` carries the program and each step's
-   provenance, the door reports strands and rebinds kept names;
-   V2 and DM7 re-worded on the ruling);
+   was ruled (B) by Ev on `[ev]` #2904 and is **built and in the
+   dual** as a kernel unit (`docs/EDIT-PROGRAM-SPEC.md`, PR #2927,
+   v6 dual, ordinals 4808/4809, block EDIT-B2 slot 2, wave 17:
+   `SetProgram` carries the program and each step's provenance, the
+   door reports strands, retires stranded names and rebinds kept
+   ones; V2 and DM7 re-worded on the ruling);
    `nodepick-name-doors-take-a-second-evaluation-unpaired` is
    **merged** (PR #2773, middle tier). The pairing row went to PROPS
    with EDIT's door built.
@@ -143,8 +144,9 @@ posture under §Process.
    `docedit-header-is-a-changelog-not-an-invariant` is E-class prose.
    `converged-recourse-has-no-home` (re-homed from VNEWS 2026-09-19:
    the "declare it first" clause written in two crates) is ruled and
-   **spec'd** (E-class, wave 16: one `pub const` beside `EditError`,
-   both renderings through it, the tripwire test becomes the pin).
+   **merged** (PR #2920, E-class, wave 16: `UNDECLARED_PARAM_RECOURSE`
+   beside `EditError`, both renderings through it, the tripwire test
+   is the pin).
    Two prose rows filed by waves 10–11 were ruled and **merged** as one
    E-class unit (PR #2879, wave 13, `edit/prose-one-home`):
    `doc-param-refusals-keep-two-conventions-inside-one-enum` (the

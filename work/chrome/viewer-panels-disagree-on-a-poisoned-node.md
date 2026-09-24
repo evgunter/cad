@@ -5,6 +5,8 @@ title: The tree re-attributes a cluster-refused node; the properties panel and a
 status: open
 opened: 2026-09-04
 refs: [1769, 1463]
+priority: P1
+cost: D
 ---
 
 Found by CHROME's style lane on PR 1769, as a class rather than an
@@ -18,7 +20,8 @@ disagree about the same node:
 - the tree draws it `Poisoned`, weak, pointing at the mate — and
   since the same PR's fix pass, its line under the row is that
   POINTER, so the two panels now disagree in words as well as in
-  status: the tree says "upstream failure at node N", the properties
+  status: the tree says "upstream failure at feature N" (the wording
+  since PR 3090; "… at node N" before it), the properties
   panel recites the refusal;
 - the properties panel reads the kernel arm verbatim through
   `Resolution` and renders `TargetFailed` in `theme.unresolved`

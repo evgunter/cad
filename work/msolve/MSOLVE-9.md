@@ -5,6 +5,8 @@ title: A mate frame that names a face of the part and resolves at evaluation thr
 status: open
 opened: 2026-09-19
 branch: msolve/9-from-face
+priority: P0
+cost: D
 ---
 
 

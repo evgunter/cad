@@ -1007,6 +1007,36 @@ impl<T: Real> Body<T> {
         Some(out)
     }
 
+    /// **Failure-injection door** (`sweep-testing` only): a clone of
+    /// this body with `entity` removed from its arena and nothing that
+    /// names it repaired, so every reference to it dangles.
+    ///
+    /// This produces exactly the state the derived accessors answer
+    /// `None` for: a live half-edge whose edge, mate or loop is gone,
+    /// a live face whose loop is gone, a live edge whose half-edge is
+    /// gone. It is what a consumer that walks those links by hand, and
+    /// refuses per hop, needs to prove each refusal names its own hop.
+    /// No constructor, operator or validator produces or accepts this
+    /// body; it exists only to be refused.
+    ///
+    /// Returns `None` iff `entity` is stale.
+    #[cfg(feature = "sweep-testing")]
+    #[doc(hidden)]
+    #[must_use]
+    pub fn with_entity_removed_for_tests(&self, entity: EntityId) -> Option<Self> {
+        let mut out = self.clone();
+        let removed = match entity {
+            EntityId::Solid(k) => out.solids.remove(k).is_some(),
+            EntityId::Shell(k) => out.shells.remove(k).is_some(),
+            EntityId::Face(k) => out.faces.remove(k).is_some(),
+            EntityId::Loop(k) => out.loops.remove(k).is_some(),
+            EntityId::HalfEdge(k) => out.half_edges.remove(k).is_some(),
+            EntityId::Edge(k) => out.edges.remove(k).is_some(),
+            EntityId::Vertex(k) => out.vertices.remove(k).is_some(),
+        };
+        removed.then_some(out)
+    }
+
     /// The loop at `key`, or `None` if the key is stale (a foreign key is
     /// not caught — see the [module docs](self)).
     /// (`get_loop`, like all lookups here, keeps the `get_` prefix partly
@@ -1677,6 +1707,40 @@ mod tests {
                 EntityId::Loop(_)
             ))
         ));
+    }
+
+    /// The door removes the one entity and repairs nothing: the
+    /// mate that named it now dangles, the source body is untouched,
+    /// and a key the body does not hold is refused.
+    #[test]
+    fn with_entity_removed_leaves_every_reference_dangling() {
+        let t = pillow(Tol::witness());
+        let (a0, b0) = (t.hes_a[0], t.hes_b[0]);
+        let cut = t
+            .body
+            .with_entity_removed_for_tests(EntityId::HalfEdge(b0))
+            .unwrap();
+        assert!(cut.get_half_edge(b0).is_none());
+        assert_eq!(
+            cut.mate(a0),
+            Some(b0),
+            "the edge still names the removed half"
+        );
+        assert!(
+            t.body.get_half_edge(b0).is_some(),
+            "the source body is untouched"
+        );
+        let no_loop = t
+            .body
+            .with_entity_removed_for_tests(EntityId::Loop(
+                t.body.get_half_edge(a0).unwrap().parent_loop,
+            ))
+            .unwrap();
+        assert_eq!(no_loop.face_of_half_edge(a0), None);
+        assert!(
+            cut.with_entity_removed_for_tests(EntityId::HalfEdge(b0))
+                .is_none()
+        );
     }
 
     #[test]

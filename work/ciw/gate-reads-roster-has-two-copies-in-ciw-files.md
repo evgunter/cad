@@ -4,6 +4,8 @@ kind: issue
 title: Two CIW files state what the budget gate reads: the sweep script's copy is stale, and ci.yml's says the roster lives nowhere else in the file that carries it
 status: open
 opened: 2026-09-17
+priority: P4
+cost: E
 ---
 
 

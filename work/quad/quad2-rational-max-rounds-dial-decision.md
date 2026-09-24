@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-30
 github: 1315
 refs: [1314]
+priority: P1
+cost: D
 ---
 
 ## From GitHub issue 1315

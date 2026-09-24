@@ -5,6 +5,8 @@ title: a MateFrame arm that names a face and resolves at evaluation, and A11's i
 status: closed
 closed: 2026-09-20
 opened: 2026-09-09
+priority: P0
+cost: H
 ---
 
 Handed over by LIB under Ev's ruling (F) on

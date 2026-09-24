@@ -5,6 +5,8 @@ title: A circular hole's two half-arc envelope boxes cover the whole disc - no c
 status: open
 opened: 2026-09-06
 refs: [clearance-window-tightening-needs-chart-boundary, 1911]
+priority: P1
+cost: D
 ---
 
 

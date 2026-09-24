@@ -4,6 +4,8 @@ kind: issue
 title: path_start_frame is the only (point, tangent) -> frame door, and every interior-station caller reads wrong against its name
 status: open
 opened: 2026-09-12
+priority: P1
+cost: D
 ---
 
 

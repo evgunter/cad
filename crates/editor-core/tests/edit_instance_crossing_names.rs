@@ -477,13 +477,23 @@ fn a_split_that_takes_an_instance_naming_a_kept_node_is_refused() {
         None,
     )
     .expect_err("the instance's `outer` is a payload name reaching the remainder");
-    let SplitError::PartNameReachesRemainder { node, name } = refused else {
+    let SplitError::PartNameReachesRemainder {
+        node,
+        name,
+        missing,
+    } = refused
+    else {
         panic!("the seam name is what refuses, not another precondition: {refused:?}");
     };
     assert_eq!(
         (node, *name),
         (carrier, outer),
         "the refusal names the instance and the crossing `outer` it carries"
+    );
+    assert_eq!(
+        missing, keeper,
+        "and the node it reaches: the `InPart` argument is another document's id space, so \
+         the one LOCAL node the name derives from is the kept instance"
     );
 }
 

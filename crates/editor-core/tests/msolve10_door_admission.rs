@@ -30,10 +30,10 @@ use crate::fixture;
 use crate::wire;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, Clash, ContactClass, DocEdit, DocumentId, EditError, EvalOptions,
-    FacePoseRefusal, Lever, LeverRefusal, LoggedEdit, MateFault, MateFrame, MatePrimitive,
-    MateReach, MateRole, MateSide, Node, PartFault, PersistError, ProfileDoc, ReachRefusal,
-    RecipeNodeId, RefusingReach, load, mate_reach, save,
+    Alignment, AxisSense, CapEnd, Clash, ClusterMaintenance, ContactClass, DocEdit, DocumentId,
+    EditError, EvalOptions, FacePoseRefusal, Lever, LeverRefusal, LoggedEdit, MateFault, MateFrame,
+    MatePrimitive, MateReach, MateRole, MateSide, Node, PartFault, PersistError, ProfileDoc,
+    ReachRefusal, RecipeNodeId, RefusingReach, gauge_of, load, mate_reach, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, solve, step, step_with};
@@ -1111,9 +1111,19 @@ fn corpus() -> Vec<Row> {
         // re-decides nothing, so the document holds it.
         let (doc, ids, opts) = instances("msolve10-corpus-hand-edited", 2);
         let text = save(&doc, &[], Tol::witness()).expect("saves");
-        let entry = LoggedEdit::bare(DocEdit::InsertNode {
-            node: mate(ids[0], ids[1], seat(Some(core::f64::consts::FRAC_PI_2))),
-        });
+        // The mate joins the two instances' clusters, and a log entry
+        // carries the rows its edit performs — so the hand-edited entry
+        // records the join, as the save door would have.
+        let entry = LoggedEdit {
+            edit: DocEdit::InsertNode {
+                node: mate(ids[0], ids[1], seat(Some(core::f64::consts::FRAC_PI_2))),
+            },
+            maintenance: vec![ClusterMaintenance::Join {
+                survived: ids[0],
+                absorbed: ids[1],
+                absorbed_frame: doc.placements().get(&ids[1]).copied(),
+            }],
+        };
         let entry = serde_json::to_value(&entry).expect("serializes");
         let doctored = wire::doctored(&text, |wire| {
             wire["edits"]
@@ -1122,6 +1132,11 @@ fn corpus() -> Vec<Row> {
                 .push(entry);
         });
         let loaded = load(&doctored, Tol::witness()).expect("replay re-decides nothing");
+        assert_eq!(
+            gauge_of(&loaded.doc, ids[1]),
+            ids[0],
+            "the recorded join names the gauge the joined cluster keeps"
+        );
         ("msolve10-corpus-hand-edited", loaded.doc, opts)
     });
     rows

@@ -3,6 +3,8 @@
 //!
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
+use std::collections::BTreeMap;
+
 use eframe::egui;
 use pncad::document::{AxisSense, BooleanOp, DocumentId, MatePrimitive, RecipeNodeId};
 
@@ -19,9 +21,10 @@ use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::PartChooser;
 use crate::seats::{Seat, seat_line};
-use crate::session::SessionOp;
+use crate::session::{FaceFrameFault, ProfilePlane, Selection, SessionOp, face_frame_seat};
 use crate::sketch;
 use crate::tools::ToolKind;
+use crate::tree;
 use crate::widgets::{
     angle_picker, length_picker, number_field, point_fields, unit_field, unit_vec3_row, vec3_row,
 };
@@ -36,32 +39,96 @@ use crate::widgets::{
 /// does not have.
 pub(crate) const MIN_PATTERN_COUNT: i64 = 1;
 
-/// **A form's frame pick**: a combo over the document's frames, or a
-/// line saying there are none. One widget for every form that writes
-/// against a frame, so they name frames one way.
-fn frame_picker(
+/// **A form's frame pick**: a combo over the choices the form offers,
+/// or a line saying there are none. One widget for every form that
+/// writes against a frame, so they name frames one way.
+///
+/// `text` is a TOTAL function of a choice rather than a label stored
+/// beside it, because the closed combo has to name a pick the list no
+/// longer offers: a held pick outlives the frame it names (the
+/// document swap row,
+/// `work/forms/a-creation-forms-held-pick-survives-a-document-swap`),
+/// and a picker that fell silent there would read as no pick while the
+/// commit still carried one.
+fn frame_picker<T: Copy + PartialEq>(
     ui: &mut egui::Ui,
     label: &str,
     salt: &str,
-    frames: &[RecipeNodeId],
-    picked: &mut Option<RecipeNodeId>,
+    choices: &[T],
+    picked: &mut Option<T>,
+    text: impl Fn(&T) -> String,
 ) {
     ui.horizontal(|ui| {
         ui.label(label);
-        if frames.is_empty() {
+        if choices.is_empty() {
             ui.weak("none in this document — add a frame datum first");
         } else {
-            let shown =
-                picked.map_or_else(|| "pick one".to_owned(), |id| format!("feature {}", id.0));
+            let shown = picked.as_ref().map_or_else(|| "pick one".to_owned(), &text);
             egui::ComboBox::from_id_salt(salt)
                 .selected_text(shown)
                 .show_ui(ui, |ui| {
-                    for id in frames {
-                        ui.selectable_value(picked, Some(*id), format!("feature {}", id.0));
+                    for choice in choices {
+                        ui.selectable_value(picked, Some(*choice), text(choice));
                     }
                 });
         }
     });
+}
+
+/// **What the add-profile form calls the frame it offers to mint.**
+///
+/// A choice in the same combo as the document's own frames, because
+/// that is the question being answered — which frame — and a document
+/// with none is the case this entry exists for.
+const NEW_XY_LABEL: &str = "a new xy frame";
+
+/// **The add-profile form's plane row**: the mint, then the document's
+/// own frames, in one combo.
+///
+/// A free function over the `Ui` rather than a private arm of
+/// [`ViewerBehavior::add_profile_ui`], because it is the only seam a
+/// headless test can DRIVE: `ViewerBehavior` borrows the whole
+/// application, and a labelling helper proved correct beside the panel
+/// is not a labelling helper the panel calls. `create::tests` runs this
+/// against a real `egui::Context` and reads the text it painted.
+///
+/// **The mint goes FIRST and unconditionally**, which is what retires
+/// the "none in this document — add a frame datum first" dead end at
+/// this form: the question the combo answers is *which frame*, and an
+/// empty document's honest answer to it is *a new one*. The list here
+/// is therefore never empty, so [`frame_picker`]'s empty line is
+/// reachable only from the add-datum form, whose axis-in-sketch kind
+/// genuinely does need a frame that already exists.
+/// **The plane choices the add-profile form offers**, in the order it
+/// offers them: the mint, then the document's own frames.
+///
+/// Its own function so that "the mint goes first, whatever the
+/// document holds" is a claim a test can read directly as well as
+/// through the widget.
+fn profile_plane_choices(frames: &[RecipeNodeId]) -> Vec<ProfilePlane> {
+    core::iter::once(ProfilePlane::NewXy)
+        .chain(frames.iter().copied().map(ProfilePlane::Existing))
+        .collect()
+}
+
+pub(crate) fn profile_plane_row(
+    ui: &mut egui::Ui,
+    frames: &[RecipeNodeId],
+    names: &impl Fn(&RecipeNodeId) -> String,
+    picked: &mut Option<ProfilePlane>,
+) {
+    let planes = profile_plane_choices(frames);
+    frame_picker(
+        ui,
+        "on frame",
+        "profile_plane",
+        &planes,
+        picked,
+        |plane| match plane {
+            ProfilePlane::NewXy => NEW_XY_LABEL.to_owned(),
+            ProfilePlane::Existing(id) => names(id),
+        },
+    );
 }
 
 impl ViewerBehavior<'_> {
@@ -335,10 +402,12 @@ impl ViewerBehavior<'_> {
     /// The add-datum form: one kind choice, the kind's fields, one
     /// [`SessionOp::AddDatum`] on commit.
     ///
-    /// Every kind but one is numbers alone. An axis in a sketch also
+    /// Four of the six kinds are numbers alone. The two that are not
+    /// each take a PICK, from different places: an axis in a sketch
     /// names the frame its coordinates are written in, picked from the
     /// document's frames the way the add-profile form picks its plane,
-    /// and the button waits until one is picked.
+    /// and a frame on a face names the face itself, picked in the
+    /// viewport. Either way the button waits until the pick is in.
     pub(crate) fn add_datum_ui(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             ui.label("datum");
@@ -379,12 +448,14 @@ impl ViewerBehavior<'_> {
             }
             DatumKindChoice::AxisInPlane => {
                 let frames = self.frames();
+                let names = self.frame_names();
                 frame_picker(
                     ui,
                     "in frame",
                     "datum_frame",
                     &frames,
                     &mut self.drafts.datum_frame,
+                    names,
                 );
                 let unit = self.drafts.length_unit.def();
                 ui.horizontal(|ui| {
@@ -407,18 +478,42 @@ impl ViewerBehavior<'_> {
                 // rather than at the revolve's refusal.
                 ui.label("x and y are the frame's own; a revolve needs its profile on this frame");
             }
+            DatumKindChoice::FaceFrame => self.datum_face_frame_rows(ui),
             DatumKindChoice::Point => self.datum_origin_row(ui, "position"),
         }
+        // The face-frame gate, on the kind that has one, asked ONCE:
+        // its `Ok` is the pair the spec is lowered from and its `Err`
+        // is the sentence over the held button, so the button is gated
+        // by the same computation it commits. A second derivation of
+        // the picks would gate on one and commit the other.
+        let seat = (kind == DatumKindChoice::FaceFrame)
+            .then(|| face_frame_seat(self.session.landed_pair(), self.drafts.datum_face.as_ref()));
+        let refused = seat.as_ref().and_then(|seat| seat.as_ref().err());
         // Lowered every frame, so the button's enabling and its commit
-        // read one value: `Ok(None)` is the unpicked frame, and it is
-        // what holds the button.
-        let datum = self.drafts.datum_spec();
+        // read one value: `Ok(None)` is a seat still unfilled, and it
+        // is what holds the button. The sentence over it follows the
+        // KIND — the two picking kinds want different things from
+        // different places, so one sentence for the form would be
+        // false of whichever is not showing.
+        let datum = self
+            .drafts
+            .datum_spec(seat.as_ref().and_then(|seat| seat.as_ref().ok()));
         let unpicked = matches!(datum, Ok(None));
-        if unpicked {
-            ui.weak("pick a frame to write the axis in");
+        if unpicked && let Some(wanted) = kind.unmet_seat() {
+            ui.weak(wanted);
+        }
+        // `NoFace` is the unmet seat above, in the same words from its
+        // one home: the sentence asking for the pick is drawn once.
+        if let Some(fault) = refused
+            && *fault != FaceFrameFault::NoFace
+        {
+            ui.weak(fault.to_string());
         }
         if ui
-            .add_enabled(!unpicked, egui::Button::new("Add datum"))
+            .add_enabled(
+                !unpicked && refused.is_none(),
+                egui::Button::new("Add datum"),
+            )
             .clicked()
         {
             match datum {
@@ -433,6 +528,51 @@ impl ViewerBehavior<'_> {
                 }
             }
         }
+    }
+
+    /// **The frame-on-face form's rows**: the held face pick and the
+    /// spin.
+    ///
+    /// The seat LATCHES the viewport's face pick — a face is not a
+    /// node a combo can list, so the selection is this form's picker
+    /// and there is no widget to draw for it. Writing it here rather
+    /// than reading the live selection at the commit is what lets an
+    /// author pick a face, type a spin, open the unit picker and click
+    /// the feature tree without losing the pick; a second face pick
+    /// moves the seat, and nothing else clears it.
+    ///
+    /// Only the picks are decided here. Whether the face may carry a
+    /// frame at all is [`face_frame_seat`]'s answer, rendered by the
+    /// caller over the button it holds.
+    fn datum_face_frame_rows(&mut self, ui: &mut egui::Ui) {
+        if let Selection::Face(face) = self.session.selection() {
+            self.drafts.datum_face = Some(face.clone());
+        }
+        ui.horizontal(|ui| {
+            ui.label("face");
+            match &self.drafts.datum_face {
+                // The drawn body a pick is on, in the one sentence
+                // this crate names that scope with
+                // (`Display for BlendTarget`): a target that grew a
+                // third component would name the wrong scope here too.
+                Some(face) => ui.weak(BlendTarget::of_face(face).to_string()),
+                None => ui.weak("none picked"),
+            };
+        });
+        ui.horizontal(|ui| {
+            ui.label("spin");
+            unit_field(
+                ui,
+                self.drafts.angle_unit.def(),
+                ANGLE_DRAG_SPEED,
+                &mut self.drafts.datum_spin,
+            );
+            angle_picker(ui, "datum_spin", &mut self.drafts.angle_unit);
+        });
+        // What the number MEANS, said where it is typed: the origin
+        // and the normal are the face's, so this rotation is the whole
+        // of what an author chooses here.
+        ui.label("sketch +x, turned about the face's outward normal; the origin is the face's");
     }
 
     /// The add-datum form's 3-D Length row — an origin or a position —
@@ -460,15 +600,58 @@ impl ViewerBehavior<'_> {
             .unwrap_or_default()
     }
 
+    /// **How a picker names one frame node**: [`tree::node_label`],
+    /// against the same landed document [`Self::frames`] listed.
+    ///
+    /// One reading for the list and for the closed text. A combo
+    /// entry and that node's tree row do not read alike — the row
+    /// leads with the node's KIND and this leads with its number —
+    /// but the half that says WHICH frame is the same string from the
+    /// same function ([`tree::frame_pose`]), so the two agree about
+    /// the thing they are both trying to tell apart.
+    ///
+    /// Total, and that is what it is for: a held pick outlives the
+    /// frame it names, and an id the landed document does not hold is
+    /// named by its number alone — the text every refusal in this
+    /// crate calls a node by, and the text this combo drew for every
+    /// frame before it drew their poses.
+    fn frame_names(&self) -> impl Fn(&RecipeNodeId) -> String + use<> {
+        let named: BTreeMap<RecipeNodeId, String> = self
+            .session
+            .landed_pair()
+            .map(|(doc, _)| {
+                sketch::frames(doc)
+                    .into_iter()
+                    .filter_map(|id| doc.node(id).map(|node| (id, tree::node_label(node, id))))
+                    .collect()
+            })
+            .unwrap_or_default();
+        move |id| {
+            named
+                .get(id)
+                .cloned()
+                .unwrap_or_else(|| tree::node_number(*id))
+        }
+    }
+
     /// The add-profile form: a template shape with Length fields, one
     /// [`SessionOp::AddProfile`] on commit — on a frame picked from the
     /// document's frames.
     ///
     /// The circle's optional bore is what lets this template author
-    /// the hollow ring's annulus (one profile node, two loops); the
-    /// face-frame placement arm is deferred as a filed issue — the
-    /// interrogation vocabulary deliberately answers no "is this face
-    /// planar" verdict for it to gate on.
+    /// the hollow ring's annulus (one profile node, two loops).
+    ///
+    /// **The plane is a PICK**, and the picker offers the world xy
+    /// frame this form would MINT beside every frame the document
+    /// already holds ([`ProfilePlane`]) — so an empty document can
+    /// author a sketch without a trip to the add-datum form, in one
+    /// submit and one undo.
+    ///
+    /// Drawing on a picked FACE is still two gestures: minting that
+    /// face's frame in the add-datum form
+    /// ([`DatumKindChoice::FaceFrame`]) and choosing it here.
+    /// `work/author/add-profile-placement-on-picked-face-frame.md`
+    /// carries that residue.
     ///
     /// The bore field is guarded IN THE FORM: loop roles come from
     /// the profile layer's containment forest, not from list order,
@@ -486,16 +669,16 @@ impl ViewerBehavior<'_> {
                 ui.radio_value(&mut self.drafts.profile_shape, Some(shape), label);
             }
         });
-        // **The frame it is drawn on**, picked from the ones the
-        // document holds. A profile's plane is a node, so the form names
-        // one — and a document with no frame in it says so rather than
-        // conjuring one.
-        let frames = self.frames();
-        frame_picker(
+        // **The frame it is drawn on.** A profile's plane is a node,
+        // so what this picks is always a node — either one the
+        // document holds, or the world xy frame the same submit
+        // inserts and the profile then names. Nothing is conjured:
+        // the minted frame is an ordinary feature, in the tree and in
+        // the property panel.
+        profile_plane_row(
             ui,
-            "on frame",
-            "profile_plane",
-            &frames,
+            &self.frames(),
+            &self.frame_names(),
             &mut self.drafts.profile_plane,
         );
         let shape = self.drafts.profile_shape;
@@ -661,7 +844,10 @@ impl ViewerBehavior<'_> {
         });
         match self.session.selection().node() {
             Some(node) => {
-                if ui.button(format!("Extrude feature {}", node.0)).clicked() {
+                if ui
+                    .button(format!("Extrude {}", tree::node_number(node)))
+                    .clicked()
+                {
                     match self.drafts.length(self.drafts.extrude_distance) {
                         Ok(distance) => self.ops.push(SessionOp::AddExtrude {
                             profile: node,
@@ -1099,5 +1285,113 @@ impl ViewerBehavior<'_> {
         if close {
             self.tools.close();
         }
+    }
+}
+
+/// **The creation forms' own widgets, driven** —
+/// `crate::pane::headless` carries the harness and what it can and
+/// cannot reach.
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
+
+    use pncad::document::RecipeNodeId;
+
+    use super::{NEW_XY_LABEL, ProfilePlane, profile_plane_row};
+    use crate::pane::headless::{painted_after_clicking, painted_text};
+
+    /// A stand-in labeller: the number alone, so a row asserting on
+    /// the pose half is asserting on text this closure did not write.
+    fn numbers(id: &RecipeNodeId) -> String {
+        format!("feature {}", id.0)
+    }
+
+    /// The add-profile form's plane row, on an EMPTY document, offers
+    /// the mint and does not say the document is a dead end.
+    ///
+    /// The row this unit is filed against is that "on frame — none in
+    /// this document — add a frame datum first" is true and useless.
+    /// A drive of the widget is what can claim the sentence is gone,
+    /// because the sentence lives inside a widget call.
+    #[test]
+    fn the_plane_row_offers_a_new_frame_when_the_document_holds_none() {
+        let mut picked: Option<ProfilePlane> = None;
+        let drawn = painted_text(|ui| profile_plane_row(ui, &[], &numbers, &mut picked));
+        assert!(drawn.contains("on frame"), "{drawn}");
+        assert!(
+            !drawn.contains("add a frame datum first"),
+            "the empty-document dead end is unreachable from this form: {drawn}"
+        );
+        assert!(
+            drawn.contains("pick one"),
+            "an unfilled pick still asks to be filled: {drawn}"
+        );
+    }
+
+    /// **The mint is offered in a document that already holds frames
+    /// too** — `profile_plane_row`'s "FIRST and unconditionally".
+    ///
+    /// The three rows above pass an empty frame list, so between them
+    /// they hold only `frame_picker`'s empty-list branch: a mint
+    /// offered only when the document has nothing else would satisfy
+    /// all of them. This row is the one that does not, and it reads
+    /// the OPEN combo's entries rather than its closed text, since
+    /// with nothing picked the mint is a choice on the list and not
+    /// the selection.
+    #[test]
+    fn the_plane_row_offers_the_mint_beside_the_frames_that_exist() {
+        let frames = [RecipeNodeId(2), RecipeNodeId(5)];
+        let mut picked: Option<ProfilePlane> = None;
+        let drawn = painted_after_clicking("pick one", |ui| {
+            profile_plane_row(ui, &frames, &numbers, &mut picked);
+        });
+        assert!(
+            drawn.contains(NEW_XY_LABEL),
+            "the mint is on the open list beside the frames that exist: {drawn}"
+        );
+        assert!(drawn.contains("feature 2"), "{drawn}");
+        assert!(drawn.contains("feature 5"), "{drawn}");
+    }
+
+    /// The mint's own name reaches the widget: with it picked, the
+    /// closed combo says so rather than naming a node number.
+    #[test]
+    fn the_plane_row_names_the_frame_it_would_mint() {
+        let mut picked = Some(ProfilePlane::NewXy);
+        let drawn = painted_text(|ui| profile_plane_row(ui, &[], &numbers, &mut picked));
+        assert!(drawn.contains(NEW_XY_LABEL), "{drawn}");
+    }
+
+    /// **The row draws the LABELLING FUNCTION's sentence**, not a node
+    /// number of its own.
+    ///
+    /// The one assertion that goes red if `profile_plane_row` stops
+    /// calling the names it is handed — which is the failure mode a
+    /// test of the labelling function alone cannot see.
+    #[test]
+    fn the_plane_row_draws_the_name_it_is_handed() {
+        let mut picked = Some(ProfilePlane::Existing(RecipeNodeId(4)));
+        let names = |id: &RecipeNodeId| format!("feature {} — xy at (0, 0, 0) m", id.0);
+        let drawn =
+            painted_text(|ui| profile_plane_row(ui, &[RecipeNodeId(4)], &names, &mut picked));
+        assert!(
+            drawn.contains("feature 4 — xy at (0, 0, 0) m"),
+            "the closed combo says which frame, in the labeller's words: {drawn}"
+        );
+    }
+
+    /// A pick the list no longer offers is still NAMED — the held-pick
+    /// case `frame_picker`'s `text` argument exists for.
+    #[test]
+    fn the_plane_row_names_a_pick_the_document_no_longer_holds() {
+        let mut picked = Some(ProfilePlane::Existing(RecipeNodeId(9)));
+        let drawn = painted_text(|ui| profile_plane_row(ui, &[], &numbers, &mut picked));
+        assert!(
+            drawn.contains("feature 9"),
+            "a pick outside the list is named, not silently drawn as unfilled: {drawn}"
+        );
+        assert!(!drawn.contains("pick one"), "{drawn}");
     }
 }

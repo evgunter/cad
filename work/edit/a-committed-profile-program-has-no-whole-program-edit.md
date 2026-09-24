@@ -5,6 +5,8 @@ title: A committed profile's program can be edited only one argument at a time; 
 status: spec
 branch: edit/program-edit
 opened: 2026-09-18
+priority: P0
+cost: D
 ---
 
 

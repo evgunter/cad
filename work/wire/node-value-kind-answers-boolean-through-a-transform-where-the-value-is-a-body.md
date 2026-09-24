@@ -4,6 +4,8 @@ kind: issue
 title: node_value_kind answers the boolean family for a transform over a boolean, where the transform's value is a body
 status: open
 opened: 2026-09-19
+priority: P0
+cost: D
 ---
 
 
