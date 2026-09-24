@@ -120,6 +120,28 @@ pub enum ProductError {
         /// The root that was asked for.
         node: RecipeNodeId,
     },
+    /// One node's body is placed under two product roots: each root
+    /// reaches `placed` through transforms and part selections alone,
+    /// and the two select the same body of it (the whole value, or the
+    /// same half or instance).
+    ///
+    /// Neither a transform nor a part selection mints a name (N1), so
+    /// both roots carry `placed`'s names verbatim and the product would
+    /// hold two entities under each of them. Raised from the recipe
+    /// before any root's value is read, because the shape alone decides
+    /// it; `placed` is the node nearest the roots at which their chains
+    /// meet.
+    PlacedUnderTwoRoots {
+        /// The node whose body both roots place.
+        placed: RecipeNodeId,
+        /// Which body of `placed` both roots read: `None` when either
+        /// takes it whole, else the one selection they share.
+        select: Option<crate::node::PartSelect>,
+        /// The earlier of the two roots, in root-list order.
+        first: RecipeNodeId,
+        /// The later root.
+        second: RecipeNodeId,
+    },
     /// Name rows the gather carried would alias in the product table
     /// — the same STRICT name twice, or two names on one aggregate
     /// entity. Usually two ROOTS' rows, which is the only way a
@@ -127,6 +149,15 @@ pub enum ProductError {
     /// too, and there the colliding rows belong to no one root (see
     /// `node` below). An emission-level bug surfaced, never resolved
     /// by picking one.
+    ///
+    /// Two roots that place one body through transforms and part
+    /// selections refuse earlier, as
+    /// [`ProductError::PlacedUnderTwoRoots`]. What still reaches this
+    /// arm from a document is sharing through a split's intact
+    /// pass-through, which the recipe cannot decide: whether a split
+    /// root and another root over the split's target share a name
+    /// depends on which of the target's entities the plane leaves
+    /// uncut.
     ///
     /// A name that descends from an N2 TIE is not this: its candidates
     /// are equally admissible and stay so in the product, so rows
@@ -237,6 +268,33 @@ impl core::fmt::Display for ProductError {
                     node.0
                 )
             }
+            Self::PlacedUnderTwoRoots {
+                placed,
+                select,
+                first,
+                second,
+            } => {
+                let what = match select {
+                    None => format!("node {}'s body", placed.0),
+                    Some(crate::node::PartSelect::SplitHalf(SplitHalf::Above)) => {
+                        format!("the above half of node {}", placed.0)
+                    }
+                    Some(crate::node::PartSelect::SplitHalf(SplitHalf::Below)) => {
+                        format!("the below half of node {}", placed.0)
+                    }
+                    Some(crate::node::PartSelect::Instance(_)) => {
+                        format!("one instance of node {}", placed.0)
+                    }
+                };
+                write!(
+                    f,
+                    "product: {what} is placed under two roots, {} and {} — \
+                     a transform or part selection mints no name, so both \
+                     would carry its names; place it under one root, or \
+                     union the two",
+                    first.0, second.0
+                )
+            }
             Self::RootFailed { node } => write!(
                 f,
                 "product: root {} failed to evaluate (ask \
@@ -340,6 +398,8 @@ pub enum ProductErrorKind {
     EvaluationOfAnotherDocument,
     /// [`ProductError::UnknownNode`].
     UnknownNode,
+    /// [`ProductError::PlacedUnderTwoRoots`].
+    PlacedUnderTwoRoots,
     /// [`ProductError::Naming`].
     Naming,
     /// [`ProductError::RootFailed`].
@@ -397,6 +457,7 @@ impl ProductErrorKind {
             Self::NoBodyRoots => true,
             Self::EvaluationOfAnotherDocument
             | Self::UnknownNode
+            | Self::PlacedUnderTwoRoots
             | Self::Naming
             | Self::RootFailed
             | Self::RootPoisoned
@@ -420,6 +481,7 @@ impl ProductError {
                 ProductErrorKind::EvaluationOfAnotherDocument
             }
             Self::UnknownNode { .. } => ProductErrorKind::UnknownNode,
+            Self::PlacedUnderTwoRoots { .. } => ProductErrorKind::PlacedUnderTwoRoots,
             Self::Naming { .. } => ProductErrorKind::Naming,
             Self::RootFailed { .. } => ProductErrorKind::RootFailed,
             Self::RootPoisoned { .. } => ProductErrorKind::RootPoisoned,
@@ -717,6 +779,12 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     if let Some(m) = crate::ident::mispaired(doc.id(), evaluation.document) {
         return Err(m.into());
     }
+    // The recipe's own refusal, before any value is read: a body two
+    // roots both place is a fact of the DAG, and no evaluation makes
+    // it representable.
+    if let Some(err) = placed_under_two_roots(doc) {
+        return Err(err);
+    }
     // Pass 1: every root's value, refused whole. "No partial products"
     // means a FAILED root refuses even when a later root would have
     // supplied a body, so the whole list is read before anything is
@@ -823,6 +891,12 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     // A refusal here names the node that MINTED the colliding name
     // rather than a root: the collision is between rows that arrived
     // from different sources, so no one root is its author.
+    //
+    // No document reaches it. Two sources that share a tied name share
+    // a strict one too, so `carry_names` refuses first
+    // (`CarriedRows::finish` has the argument), and two roots that
+    // place one body refuse before that (`placed_under_two_roots`).
+    // The arm stays typed because this crate has no panic paths.
     tie_rows
         .finish(&mut names)
         .map_err(|e| ProductError::Naming {
@@ -854,6 +928,67 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
         carried,
         carried_unminted,
     })
+}
+
+/// **The first body two roots both place**, in root-list order, as
+/// [`ProductError::PlacedUnderTwoRoots`]; `None` when every root places
+/// bodies no other root places.
+///
+/// A root's chain is the run of nodes it reaches through the two
+/// verbatim-naming edges a recipe can decide on: a
+/// [`crate::Node::Transform`]'s input, which it places whole, and a
+/// [`crate::Node::Part`]'s `of`, which it narrows to one selection.
+/// The selection in effect rides down through the transforms below a
+/// part, since a transform of an `Instances` value keeps its instance
+/// order. Any other node ends the chain: every other op re-mints what
+/// it carries (N1) or, for a split's intact entities, carries a subset
+/// only its geometry decides.
+///
+/// Two chains that meet at one node with overlapping selections —
+/// either whole, or the same selection — carry that node's names
+/// twice. The node reported is the one nearest the later root, which
+/// is the one nearest both: below a meeting point the two chains are
+/// one chain.
+///
+/// Selections are compared as written. Two `Instance` selections whose
+/// expressions differ but evaluate to one index are not seen here and
+/// refuse later, as [`ProductError::Naming`].
+fn placed_under_two_roots<P>(doc: &Doc<P>) -> Option<ProductError> {
+    use crate::node::{Node, PartSelect};
+    let overlaps = |a: Option<&PartSelect>, b: Option<&PartSelect>| match (a, b) {
+        (Some(a), Some(b)) => a == b,
+        _ => true,
+    };
+    let mut seen: std::collections::HashMap<
+        RecipeNodeId,
+        Vec<(RecipeNodeId, Option<&PartSelect>)>,
+    > = std::collections::HashMap::new();
+    for &root in doc.roots() {
+        let mut at = root;
+        let mut select: Option<&PartSelect> = None;
+        loop {
+            let (next, narrowed) = match doc.node(at) {
+                Some(Node::Transform { input, .. }) => (*input, select),
+                Some(Node::Part { of, select: s }) => (*of, Some(s)),
+                _ => break,
+            };
+            if let Some(&(first, earlier)) = seen
+                .get(&next)
+                .and_then(|rows| rows.iter().find(|(_, s)| overlaps(*s, narrowed)))
+            {
+                return Some(ProductError::PlacedUnderTwoRoots {
+                    placed: next,
+                    select: earlier.and(narrowed).cloned(),
+                    first,
+                    second: root,
+                });
+            }
+            seen.entry(next).or_default().push((root, narrowed));
+            at = next;
+            select = narrowed;
+        }
+    }
+    None
 }
 
 /// One body the gather will graft: which root contributed it, which
@@ -1009,6 +1144,12 @@ mod tests {
                 found: crate::ident::DocumentId::derive("found"),
             },
             ProductError::UnknownNode { node },
+            ProductError::PlacedUnderTwoRoots {
+                placed: RecipeNodeId(1),
+                select: None,
+                first: node,
+                second: RecipeNodeId(4),
+            },
             ProductError::Naming {
                 node,
                 name: Box::new(StableName {
@@ -1066,6 +1207,7 @@ mod tests {
             match kind {
                 ProductErrorKind::EvaluationOfAnotherDocument => "EvaluationOfAnotherDocument",
                 ProductErrorKind::UnknownNode => "UnknownNode",
+                ProductErrorKind::PlacedUnderTwoRoots => "PlacedUnderTwoRoots",
                 ProductErrorKind::Naming => "Naming",
                 ProductErrorKind::RootFailed => "RootFailed",
                 ProductErrorKind::RootPoisoned => "RootPoisoned",

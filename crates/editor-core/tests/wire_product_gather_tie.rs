@@ -14,7 +14,9 @@
 //! The second row is the guard that is NOT retired by that: two roots
 //! that alias a STRICT name still refuse, because a row whose source
 //! entry is `Unique` goes through `NameTable::insert` exactly as
-//! before.
+//! before. Its document shares through a split's intact pass-through,
+//! the one sharing the recipe cannot decide, so it is the carry that
+//! refuses and not the recipe check ahead of it.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -204,29 +206,50 @@ fn a_split_separating_a_tie_gathers_and_the_product_holds_one_tied_row() {
 
 #[test]
 fn two_roots_aliasing_a_strict_name_still_refuse() {
-    // One block, two transforms of it: both roots carry the block's
-    // OWN names — a transform passes its operand's table through
-    // verbatim — so every carried row is a strict name arriving twice.
+    // One block, split at x = 0.5 by one root and moved whole by
+    // another. The plane cuts the four walls it crosses and leaves the
+    // two x-facing walls intact, and an intact wall keeps the block's
+    // own name through the split — so the moved block's copy of it is
+    // a strict name arriving twice. Nothing in the recipe says which
+    // walls the plane leaves whole, so the recipe check passes this
+    // document and the carry is what refuses.
     let doc = ProfileDoc::empty_derived("wire-product-gather-tie", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let shift = |doc: ProfileDoc, dx: f64| {
-        insert(
-            doc,
-            Node::Transform {
-                input: a,
-                translation: [len(dx), len(0.0), len(0.0)],
-                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-                rotation_angle: ang(0.0),
-            },
-        )
-    };
-    let (doc, t0) = shift(doc, 2.0);
-    let (doc, t1) = shift(doc, 4.0);
-    assert_eq!(doc.roots(), &[t0, t1][..], "both transforms root");
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.5), len(0.0), len(0.0)],
+            normal: [scl(1.0), scl(0.0), scl(0.0)],
+        }),
+    );
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: a,
+            tool: plane,
+        },
+    );
+    let (doc, moved) = insert(
+        doc,
+        Node::Transform {
+            input: a,
+            translation: [len(2.0), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(0.0),
+        },
+    );
+    assert_eq!(
+        doc.roots(),
+        &[split, moved][..],
+        "the split and the move root"
+    );
     let ev = run(&doc);
     match product_named(&doc, &ev, Tol::witness()) {
         Err(ProductError::Naming { node, name }) => {
-            assert_eq!(node, t1, "the refusal names the root whose rows collided");
+            assert_eq!(
+                node, moved,
+                "the refusal names the root whose rows collided"
+            );
             assert_eq!(name.node, a, "and the name the block minted");
         }
         other => panic!(

@@ -246,12 +246,12 @@ fn a_gather_refusal_lands_with_a_fault_and_no_report() {
 /// The row above uses a document whose ROOT failed, and the registry
 /// refuses that on its own precondition — so it cannot see whether the
 /// landing's `NoBodyRoots` filter is doing anything at all. This one
-/// can: two `Transform`s of one extrude are two roots whose name rows
-/// collide in the product table, every root evaluates, and the ONLY
-/// thing that refuses is the gather. Widen the filter to `true` and
+/// can: two `Transform`s of one extrude are two roots placing one
+/// body, every root evaluates, and the ONLY thing that refuses is the
+/// gather. Widen the filter to `true` and
 /// this row goes red where the other stays green.
 #[test]
-fn a_naming_collision_lands_with_a_fault_and_no_report() {
+fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("docm5-collision-landing", tol);
     let (doc, plane) = common::inserted(&doc, common::xy_frame(), tol);
@@ -284,8 +284,11 @@ fn a_naming_collision_lands_with_a_fault_and_no_report() {
 
     assert_eq!(gathers_of_one_landing(&mut session), 1);
     assert!(
-        matches!(session.product_fault(), Some(ProductError::Naming { .. })),
-        "the premise: only the gather refuses here, and it is a collision: {:?}",
+        matches!(
+            session.product_fault(),
+            Some(ProductError::PlacedUnderTwoRoots { .. })
+        ),
+        "the premise: only the gather refuses here, and it is one body under two roots: {:?}",
         session.product_fault()
     );
     assert!(

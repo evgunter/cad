@@ -1476,9 +1476,9 @@ mod tests {
     /// halves of that one pair — `kind` is the arm the gather's error
     /// actually is, not a class written down beside it.
     ///
-    /// The refusal below is reachable: two roots whose name rows
-    /// collide gather into `ProductError::Naming`, which is what
-    /// `editor-core`'s own `docm5` row drives through this door
+    /// The refusal below is reachable: one body placed under two
+    /// roots gathers into `ProductError::PlacedUnderTwoRoots`, which is
+    /// what `editor-core`'s own `docm5` row drives through this door
     /// end-to-end. This row pins the CONSTRUCTION, which is the part a
     /// caller deriving its own subject can get wrong.
     #[test]
