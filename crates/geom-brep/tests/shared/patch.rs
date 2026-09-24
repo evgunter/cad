@@ -31,7 +31,8 @@
 
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::{FaceCutBounds, nurbs_patch_face};
-use geom_core::RingInterval;
+use geom_core::Bounds;
+use geom_core::Interval;
 use geom_core::spline::KnotVector;
 
 /// All basis values `N_{i,p}(t)`, seeded by a `t >= knots[n]` branch at
@@ -275,7 +276,7 @@ impl Patch {
 pub(crate) fn oracle_patch(
     ku: &KnotVector,
     kv: &KnotVector,
-    control: &[[RingInterval; 3]],
+    control: &[[Interval; 3]],
     weights: &[f64],
 ) -> Patch {
     let nu = ku.control_count();
@@ -325,7 +326,7 @@ pub(crate) fn oracle_patch(
 pub(crate) fn face_posture(
     ku: &KnotVector,
     kv: &KnotVector,
-    control: &[[RingInterval; 3]],
+    control: &[[Interval; 3]],
     weights: &[f64],
     perimeter: f64,
     eps: f64,

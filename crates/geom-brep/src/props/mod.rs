@@ -392,6 +392,14 @@ pub enum PropsError {
     /// `props_meridian_pieces_*` names on a reconstructed torus
     /// meridian) — an arc no closed form here may fold. The payload
     /// names the structural expectation that failed.
+    ///
+    /// **Name-only**, like [`Self::NotOneChartBranch`] and for the
+    /// same reason. Where a margin decided the refusal, `what` is that
+    /// decision's predicate name (`props_rim_level`, `props_rim_side`)
+    /// and the K stream holds the margin under it; the other arms'
+    /// `what` is a structural sentence no margin decided. Either way
+    /// this `Decide`-generic lane does not read a margin back as
+    /// `f64`.
     NotIsoRectangle {
         /// Which structural expectation failed (static description).
         what: &'static str,
@@ -420,19 +428,22 @@ pub enum PropsError {
     /// mirror nappe at the apex. A single sentence here would be a
     /// sphere sentence printed over a cone refusal.
     ///
-    /// **No measured overshoot in the payload, and that is a
-    /// scheduled gap, not a choice** (issue 1602). The margin IS
-    /// measured — it is the same `props_meridian_pole` /
-    /// `props_cone_apex` quantity the funnel records, levered to
-    /// metres — but reading a DEFINITE margin back as `f64` from a
-    /// `Decide`-generic lane needs a compound `Bounds`/`Enclosure`
-    /// bound, which `scripts/gates/bounds-allowlist.sh` does not
-    /// ratify for `props/curved.rs`. Every arm of this enum that
-    /// carries a measured `f64` gets it from a concrete scalar
-    /// ([`Self::QuadratureBudget`], from a `RingInterval`); the
-    /// generic arms are name-only, exactly as
-    /// [`Self::NotIsoRectangle`] is. Issue 1602 is the ratification
-    /// that would let this arm carry the number.
+    /// **Name-only: the measured overshoot's record is the K
+    /// stream, not this payload.** The margin that decided the
+    /// refusal is the `props_meridian_pole` / `props_cone_apex`
+    /// decision, levered to metres, and `k_stats::decide` records it
+    /// under that name — so the number that separates "re-author the
+    /// part" from "kernel bug" exists, where a diagnosis reads
+    /// margins. The caller's recourse (state the edge as two meeting
+    /// at the singularity) does not depend on its size. Carrying it
+    /// here would mean reading a definite margin back as `f64` from a
+    /// `Decide`-generic lane, a compound `Bounds` bound that
+    /// `scripts/gates/bounds-allowlist.sh` exists to keep off
+    /// `props/curved.rs`; one payload does not earn that seam. Every
+    /// arm of this enum that carries a measured `f64` gets it from a
+    /// concrete scalar ([`Self::QuadratureBudget`], from an
+    /// `Interval`), and the generic arms are name-only, as
+    /// [`Self::NotIsoRectangle`] is.
     NotOneChartBranch {
         /// Which boundary edge, as its index in the loop slice the
         /// caller handed in — the same order `topo::props::loop_edges`

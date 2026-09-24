@@ -23,6 +23,7 @@ use super::emit::{
 };
 use super::merged::{self, NESTED_MERGED};
 use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
+use super::seam_pair;
 use super::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
@@ -1150,8 +1151,10 @@ fn name_boolean_edges<T: Decide>(
             continue;
         }
         // Collinear chain: order along the pair's intersection line,
-        // oriented n_a × n_b (the carriers' own orientations, A side
-        // first — descent decides which is which, never list order).
+        // oriented n_a × n_b with the A-side face first — the side read
+        // off the face's descent (structure, never list order). A later
+        // step that knows this seam only by its name reads the same
+        // orientation back through `seam_line_dir`.
         //
         // The SIGN of `dir` is load-bearing, not just its axis:
         // `edge_extent` projects onto it and `order_along` ranks by
@@ -1185,15 +1188,23 @@ fn name_boolean_edges<T: Decide>(
         let inner = upstream_name(op.table, op.node, ent(0, EntityKey::Edge(root_key)))?;
         let op_body = op.body;
         let from_tie = inner.tied;
-        let seg = root.wrap(inner.name);
+        let seg = root.wrap(inner.name.clone());
         let base = name1(EntityKind::Edge, node, seg);
         if edges.len() == 1 {
             put(t, tie, from_tie, base, ent(0, EntityKey::Edge(edges[0])))?;
             continue;
         }
-        // Sub-edge chain: order along the parent edge's own oriented
+        // Sub-edge chain: order along the parent's line. A parent that
+        // is itself a SEAM edge is ordered the way a seam chain is — along
+        // its pair's `n_a × n_b`, in the pair's minted order — because
+        // the same pieces are a seam chain in an order that cuts the line
+        // before it is minted; one line, one orientation, whichever step
+        // cut it. Any other parent is ordered along its own oriented
         // carrier (operand geometry).
-        let dir = edge_dir(op_body, root_key)?;
+        let dir = match seam_pair::seam_line_pair(&inner.name) {
+            Some(pair) => seam_line_dir(op.body, op.table, op.node, root_key, pair)?,
+            None => edge_dir(op_body, root_key)?,
+        };
         let extents = edges
             .iter()
             .map(|&e| edge_extent(body, e, dir))
@@ -1495,8 +1506,13 @@ fn resolve_edge_carrier<T: Decide>(
         return Ok(None);
     }
     match op.table.lookup(parent) {
-        Some(Entry::Unique(e)) => match e.key {
-            EntityKey::Edge(k) => edge_dir(op.body, k).map(Some),
+        Some(Entry::Unique(e)) => match (e.key, seam_pair::seam_line_pair(parent)) {
+            // An edge on a seam line is ranked along that line, the one
+            // orientation every ranker along a seam line uses.
+            (EntityKey::Edge(k), Some(pair)) => {
+                seam_line_dir(op.body, op.table, op.node, k, pair).map(Some)
+            }
+            (EntityKey::Edge(k), None) => edge_dir(op.body, k).map(Some),
             _ => Ok(None),
         },
         _ => Ok(None),
@@ -1614,6 +1630,58 @@ fn edge_dir<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<Vec3<T>, NamingErro
             .ok_or_else(|| bug("edge_dir: vertex without point"))
     };
     Ok(p(v1)? - p(v0)?)
+}
+
+/// The direction a chain along a seam line is ranked in: the pair's
+/// `n_a × n_b`, with `a` and `b` the pair's two sides as its name
+/// records them (`super::seam_pair`). They are matched by NAME to the
+/// two faces of `edge` in `body`, whose names `table` holds, and the
+/// outward normals are read from those faces. `node` is the node whose
+/// body this is, carried by the refusal.
+///
+/// The rankers that know a seam only by its NAME read their direction
+/// here: the descent ranker and the vertex carrier, on an operand body.
+/// The seam-chain ranker knows its sides structurally and computes the
+/// same `n_a × n_b` from them. So the pieces of one line are ranked one
+/// way, whichever step cut it.
+fn seam_line_dir<T: Decide>(
+    body: &Body<T>,
+    table: &NameTable,
+    node: RecipeNodeId,
+    edge: EdgeKey,
+    (a, b): (&StableName, &StableName),
+) -> Result<Vec3<T>, NamingError> {
+    let bug = |what| NamingError::Emission { what };
+    let e = body
+        .get_edge(edge)
+        .ok_or_else(|| bug("seam line edge not live in its body"))?;
+    let mut faces = [None, None];
+    for (slot, he) in faces
+        .iter_mut()
+        .zip([Some(e.he_plus), body.mate(e.he_plus)])
+    {
+        let he = he.ok_or_else(|| bug("seam line edge without a mate"))?;
+        let face = body
+            .get_half_edge(he)
+            .and_then(|h| body.get_loop(h.parent_loop))
+            .map(|l| l.face)
+            .ok_or_else(|| bug("seam line edge half-edge off any face"))?;
+        let name = table
+            .name_of(&ent(0, EntityKey::Face(face)))
+            .ok_or_else(|| bug("seam line edge face unnamed"))?;
+        *slot = Some((face, name));
+    }
+    let [Some((f0, n0)), Some((f1, n1))] = faces else {
+        return Err(bug("seam line edge without two faces"));
+    };
+    let (fa, fb) = match seam_pair::a_side_is_first(n0, n1, a, b) {
+        Some(true) => (f0, f1),
+        Some(false) => (f1, f0),
+        None => return Err(NamingError::SeamLineSides { node, edge }),
+    };
+    let (_, na) = face_plane(body, fa)?;
+    let (_, nb) = face_plane(body, fb)?;
+    Ok(na.cross(nb))
 }
 
 /// Inserts a same-name group ranked by order-along, or tied when

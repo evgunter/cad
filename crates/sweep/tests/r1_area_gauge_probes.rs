@@ -78,7 +78,7 @@ fn debug_assertions_are_on() -> bool {
 }
 
 /// The same body at the OTHER scalar lane. `Interval` is the second
-/// `Decide` substrate; the gauge reads the same `RingInterval`
+/// `Decide` substrate; the gauge reads the same `Interval`
 /// enclosure either way, so this is the cross-lane half of the E2E.
 /// **Lane posture (added when this row was adopted).** On THIS body
 /// the `Interval` lane does not reach the quadrature at all: the

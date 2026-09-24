@@ -12,7 +12,7 @@
 //!
 //! # The pipeline (the rehearsal's, generalized)
 //!
-//! 1. Lift the homogeneous channels in the ring: per coordinate `d`,
+//! 1. Lift the homogeneous channels in certification arithmetic: per coordinate `d`,
 //!    `G_d,i = w_i·(x_d,i − c_d)` (center-shifted **before** any
 //!    product — forming `|P|² − 2P·c + …` instead would cancel
 //!    catastrophically in the coefficients, and an interval bound
@@ -20,14 +20,14 @@
 //!    the weight channel `W_i = w_i`.
 //! 2. Bézier-decompose each channel: knot insertion to full interior
 //!    multiplicity, **structure** (positions, counts) read from the
-//!    `f64` knot vector, **coefficients** combined in the ring with the
+//!    `f64` knot vector, **coefficients** combined in certification arithmetic with the
 //!    insertion `α` formed as a ring quotient of knot enclosures (an
 //!    `f64`-rounded `α` would silently drop its rounding error).
 //! 3. Per span, exact Bernstein products: degree `da × db → da + db`
 //!    with the binomial weights `C(da,i)·C(db,j)/C(da+db,k)` computed
 //!    as ring quotients (several are not `f64`-representable).
 //! 4. Bounds: per-span coefficient hulls of numerator and denominator,
-//!    the quotient per span (the ring refuses a zero-touching divisor,
+//!    the quotient per span (interval arithmetic refuses a zero-touching divisor,
 //!    so a degenerate denominator poisons loudly), hulled across spans.
 //!
 //! # Scaling conventions (what the bound means)
@@ -35,22 +35,23 @@
 //! With unit `normal`/`axis` data the composites are the standard
 //! signed residuals: meters for [`ImplicitSurface::Plane`], meters² for
 //! sphere/cylinder/cone, meters⁴ for the torus. Axis normalization for
-//! the quadratic terms is **exact in the ring** — `(Q·a)²` enters as
-//! `T²/|a|²` with `|a|²` a ring enclosure — so a non-unit axis changes
+//! the quadratic terms is **exact in certification arithmetic** — `(Q·a)²` enters as
+//! `T²/|a|²` with `|a|²` a certification enclosure — so a non-unit axis changes
 //! nothing for those terms; the plane's linear normalization would need
-//! a square root, which the ring deliberately lacks, so the plane
+//! a square root, which certification arithmetic deliberately does not
+//! take (C9), so the plane
 //! composite is `n·(P − p₀)` as given (meters only for unit `n`).
 //!
 //! # C6 and the poison posture
 //!
 //! Structure (knots, weights, degrees, binomials) is `f64`; everything
-//! coefficient-valued is [`RingInterval`]. Checkable structural errors
+//! coefficient-valued is [`Interval`]. Checkable structural errors
 //! at the entry points are typed refusals; anything downstream (zero
 //! axis, degenerate weights) poisons the bound, which fails every
 //! `≤ ε` comparison (D4 ¶2).
 
 use super::knots::{InteriorKnot, KnotVector, SplineError, find_span_in};
-use crate::ring_interval::RingInterval;
+use crate::interval::Interval;
 use std::borrow::Cow;
 
 pub mod patch;
@@ -118,14 +119,14 @@ impl core::error::Error for ComposeError {}
 
 /// A NURBS curve's structure plus ring-lifted control coordinates —
 /// the data-in shape every composite consumes. `coords[d][i]` is the
-/// `d`-th coordinate of control point `i` as a ring enclosure (a plain
-/// `f64` control point lifts via [`RingInterval::point`]; a perturbed
-/// or interval-valued one via [`RingInterval::from_bounds`]).
+/// `d`-th coordinate of control point `i` as a certification enclosure (a plain
+/// `f64` control point lifts via [`Interval::point`]; a perturbed
+/// or interval-valued one via [`Interval::from_bounds`]).
 #[derive(Clone, Debug)]
 pub struct CurveRingData<'a> {
     kv: &'a KnotVector,
     weights: &'a [f64],
-    coords: &'a [Vec<RingInterval>],
+    coords: &'a [Vec<Interval>],
 }
 
 // `!(w > 0)` is deliberate (NaN-catching): see `algebra::check_weights`.
@@ -142,7 +143,7 @@ impl<'a> CurveRingData<'a> {
     pub fn new(
         kv: &'a KnotVector,
         weights: &'a [f64],
-        coords: &'a [Vec<RingInterval>],
+        coords: &'a [Vec<Interval>],
     ) -> Result<Self, ComposeError> {
         let n = kv.control_count();
         if weights.len() != n {
@@ -187,21 +188,17 @@ impl<'a> CurveRingData<'a> {
 
     /// The weight channel `W_i = w_i`, Bézier-decomposed.
     fn weight_channel(&self) -> BernsteinSpans {
-        let coeffs: Vec<RingInterval> = self
-            .weights
-            .iter()
-            .map(|w| RingInterval::point(*w))
-            .collect();
+        let coeffs: Vec<Interval> = self.weights.iter().map(|w| Interval::point(*w)).collect();
         to_bezier_spans(self.kv, &coeffs)
     }
 
     /// The unshifted weighted channel `w_i·x_d,i`, Bézier-decomposed.
     /// Caller guarantees `d < dims()`.
     fn weighted_channel(&self, d: usize) -> BernsteinSpans {
-        let coeffs: Vec<RingInterval> = self.coords[d]
+        let coeffs: Vec<Interval> = self.coords[d]
             .iter()
             .zip(self.weights.iter())
-            .map(|(x, w)| RingInterval::point(*w) * *x)
+            .map(|(x, w)| Interval::point(*w) * *x)
             .collect();
         to_bezier_spans(self.kv, &coeffs)
     }
@@ -210,11 +207,11 @@ impl<'a> CurveRingData<'a> {
     /// step 1: shift before any product), Bézier-decomposed. Caller
     /// guarantees `d < dims()`.
     fn shifted_channel(&self, d: usize, shift: f64) -> BernsteinSpans {
-        let s = RingInterval::point(shift);
-        let coeffs: Vec<RingInterval> = self.coords[d]
+        let s = Interval::point(shift);
+        let coeffs: Vec<Interval> = self.coords[d]
             .iter()
             .zip(self.weights.iter())
-            .map(|(x, w)| RingInterval::point(*w) * (*x - s))
+            .map(|(x, w)| Interval::point(*w) * (*x - s))
             .collect();
         to_bezier_spans(self.kv, &coeffs)
     }
@@ -227,7 +224,7 @@ impl<'a> CurveRingData<'a> {
 pub struct BernsteinSpans {
     degree: usize,
     breaks: Vec<f64>,
-    spans: Vec<Vec<RingInterval>>,
+    spans: Vec<Vec<Interval>>,
 }
 
 impl BernsteinSpans {
@@ -242,24 +239,20 @@ impl BernsteinSpans {
     }
 
     /// The per-span coefficient rows.
-    pub fn spans(&self) -> &[Vec<RingInterval>] {
+    pub fn spans(&self) -> &[Vec<Interval>] {
         &self.spans
     }
 
     /// Per-span coefficient hulls (the convexity fact of
     /// [`super::hull`]: each is a certified enclosure of the channel's
     /// values on that span). Fixed ascending fold order (D9).
-    pub fn span_hulls(&self) -> Vec<RingInterval> {
+    pub fn span_hulls(&self) -> Vec<Interval> {
         self.spans
             .iter()
             .map(|row| {
-                let mut acc = RingInterval::poison();
+                let mut acc = Interval::poison();
                 for (n, c) in row.iter().enumerate() {
-                    acc = if n == 0 {
-                        *c
-                    } else {
-                        RingInterval::hull(acc, *c)
-                    };
+                    acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
                 }
                 acc
             })
@@ -284,16 +277,16 @@ impl BernsteinSpans {
 /// insert one knot at `k + 1`. There the weights are `f64` and the
 /// output is a replayable `CurvePlan` of `Step`s whose `λ` is formed
 /// from those weights; here there are no weights at all — one
-/// homogeneous channel of `RingInterval`s, folded in place, with `α` a
+/// homogeneous channel of `Interval`s, folded in place, with `α` a
 /// ring quotient that rounds **outward** under D9's fixed association.
 /// A shared body would have to make that widening conditional on the
-/// scalar, which is the one thing the ring exists to make
-/// unconditional.
+/// scalar, which is the one thing certification arithmetic exists to
+/// make unconditional.
 fn insert_once_ring(
     knots: &mut Vec<f64>,
     p: usize,
     s: usize,
-    coeffs: &mut Vec<RingInterval>,
+    coeffs: &mut Vec<Interval>,
     u: InteriorKnot,
 ) {
     // Strictly interior by type plus privacy (`InteriorKnot`'s docs):
@@ -305,15 +298,15 @@ fn insert_once_ring(
     let k = find_span_in(knots, p, u);
     let n_old = coeffs.len();
     let mut out = Vec::with_capacity(n_old + 1);
-    let up = RingInterval::point(u);
+    let up = Interval::point(u);
     for i in 0..=n_old {
         if i + p <= k {
             // Q_i = c_i (carry below the affected window).
             out.push(coeffs[i]);
         } else if i + s <= k {
-            // Window k−p+1 ..= k−s: the ring combination.
-            let alpha = (up - RingInterval::point(knots[i]))
-                / (RingInterval::point(knots[i + p]) - RingInterval::point(knots[i]));
+            // Window k−p+1 ..= k−s: interval arithmetic combination.
+            let alpha = (up - Interval::point(knots[i]))
+                / (Interval::point(knots[i + p]) - Interval::point(knots[i]));
             out.push(coeffs[i - 1] + (coeffs[i] - coeffs[i - 1]) * alpha);
         } else {
             // Q_i = c_{i−1} (carry above the window; i ≥ 1 here because
@@ -328,7 +321,7 @@ fn insert_once_ring(
 /// Bézier-decomposes one scalar channel: knot insertion to full
 /// interior multiplicity (structure from `kv`, coefficients in the
 /// ring), then the per-span coefficient rows read off by chunks.
-fn to_bezier_spans(kv: &KnotVector, coeffs: &[RingInterval]) -> BernsteinSpans {
+fn to_bezier_spans(kv: &KnotVector, coeffs: &[Interval]) -> BernsteinSpans {
     to_bezier_spans_extra(kv, coeffs, &[])
 }
 
@@ -339,11 +332,7 @@ fn to_bezier_spans(kv: &KnotVector, coeffs: &[RingInterval]) -> BernsteinSpans {
 /// composite's alignment substrate, and knot insertion is exact in ℝ —
 /// the represented function is unchanged). Values outside the open
 /// domain or duplicating a knot are structure-filtered, not errors.
-fn to_bezier_spans_extra(
-    kv: &KnotVector,
-    coeffs: &[RingInterval],
-    extra: &[f64],
-) -> BernsteinSpans {
+fn to_bezier_spans_extra(kv: &KnotVector, coeffs: &[Interval], extra: &[f64]) -> BernsteinSpans {
     let p = kv.degree();
     let mut knots = kv.knots().to_vec();
     let mut c = coeffs.to_vec();
@@ -409,7 +398,7 @@ const BINOM_EXACT_MAX: usize = 54;
 /// composite coefficient built from it and fails every `≤ ε`
 /// certification loudly (D4 ¶2) — a rounded weight would instead be a
 /// silently unsound enclosure. (Forming the weights as ring quotients
-/// was considered and rejected: the ring's products widen outward
+/// was considered and rejected: interval arithmetic's products widen outward
 /// unconditionally, which would break the rehearsal's ratified
 /// bit-identity pin for the exact small-degree cases.)
 fn binom_row(n: usize) -> Vec<f64> {
@@ -452,14 +441,14 @@ fn binom_table() -> &'static [Vec<f64>] {
 /// whenever the output row is served at all: by Vandermonde,
 /// `C(da,i)·C(db,j) ≤ C(da+db, i+j)`, and `da + db >`
 /// [`BINOM_EXACT_MAX`] already poisons through `binom_row`.
-fn bern_mul_row(a: &[RingInterval], b: &[RingInterval]) -> Vec<RingInterval> {
+fn bern_mul_row(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
     let w = bern_weights(a.len() - 1, b.len() - 1);
     bern_mul_row_with(a, b, &w)
 }
 
 /// The Bernstein product's weight rows for ONE degree pair, carrying
 /// that pair: `row(k)[i − lo(k)] = C(da,i)·C(db,k−i)/C(da+db,k)` as
-/// the ring quotient, over the `i` the convolution actually visits
+/// interval arithmetic quotient, over the `i` the convolution actually visits
 /// (`lo(k) = k − db` clamped at zero, up to `min(k, da)`), in the
 /// ascending order [`bern_mul_row_into`] folds them in.
 ///
@@ -476,7 +465,7 @@ fn bern_mul_row(a: &[RingInterval], b: &[RingInterval]) -> Vec<RingInterval> {
 struct BernWeights {
     da: usize,
     db: usize,
-    rows: Vec<Vec<RingInterval>>,
+    rows: Vec<Vec<Interval>>,
 }
 
 impl BernWeights {
@@ -486,13 +475,13 @@ impl BernWeights {
     }
 
     /// Row `k`, over `i ∈ lo(k) ..= min(k, da)`, ascending.
-    fn row(&self, k: usize) -> &[RingInterval] {
+    fn row(&self, k: usize) -> &[Interval] {
         &self.rows[k]
     }
 
     /// The weight at `(k, i)`, `i` being an operand index rather than
     /// an offset into the row.
-    fn at(&self, k: usize, i: usize) -> RingInterval {
+    fn at(&self, k: usize, i: usize) -> Interval {
         self.rows[k][i - self.lo(k)]
     }
 
@@ -526,9 +515,9 @@ fn build_bern_weights(da: usize, db: usize) -> BernWeights {
         // `point(*bk)` is a pure constructor of the same divisor the
         // inline loop rebuilt per term; the quotients below are that
         // loop's, term for term.
-        let den = RingInterval::point(*bk);
+        let den = Interval::point(*bk);
         let row = (out.lo(k)..=k.min(da))
-            .map(|i| RingInterval::point(bin_a[i] * bin_b[k - i]) / den)
+            .map(|i| Interval::point(bin_a[i] * bin_b[k - i]) / den)
             .collect();
         out.rows.push(row);
     }
@@ -552,7 +541,7 @@ fn build_bern_weights(da: usize, db: usize) -> BernWeights {
 /// **Retained memory**, all of it for the life of the process and
 /// never freed: `(BINOM_EXACT_MAX + 1)² = 55 × 55` `OnceLock` slots,
 /// plus, for each pair actually asked for, that pair's table —
-/// `da + db + 1` rows holding `(da + 1)·(db + 1)` ring values in
+/// `da + db + 1` rows holding `(da + 1)·(db + 1)` certification values in
 /// total. A structural memo of a pure function, like [`binom_table`]
 /// one level down.
 fn bern_weights(da: usize, db: usize) -> Cow<'static, BernWeights> {
@@ -569,7 +558,7 @@ fn bern_weights(da: usize, db: usize) -> Cow<'static, BernWeights> {
 /// [`bern_mul_row`] over a weight table the caller already holds —
 /// the entry point for the tensor product, where one degree pair
 /// serves every cell of a whole patch.
-fn bern_mul_row_with(a: &[RingInterval], b: &[RingInterval], w: &BernWeights) -> Vec<RingInterval> {
+fn bern_mul_row_with(a: &[Interval], b: &[Interval], w: &BernWeights) -> Vec<Interval> {
     let mut out = Vec::with_capacity(w.row_count());
     bern_mul_row_into(a, b, w, &mut out);
     out
@@ -585,12 +574,7 @@ fn bern_mul_row_with(a: &[RingInterval], b: &[RingInterval], w: &BernWeights) ->
 /// with the rows so that the check below can exist at all, and a
 /// hoisted lookup handed to the wrong direction announces itself here
 /// (D2 addendum row 5).
-fn bern_mul_row_into(
-    a: &[RingInterval],
-    b: &[RingInterval],
-    w: &BernWeights,
-    out: &mut Vec<RingInterval>,
-) {
+fn bern_mul_row_into(a: &[Interval], b: &[Interval], w: &BernWeights, out: &mut Vec<Interval>) {
     debug_assert!(
         w.da == a.len() - 1 && w.db == b.len() - 1,
         "weight table for degrees ({}, {}) folded over operands of degree ({}, {})",
@@ -603,7 +587,7 @@ fn bern_mul_row_into(
     out.reserve(w.row_count());
     for k in 0..w.row_count() {
         let lo = w.lo(k);
-        let mut acc = RingInterval::zero();
+        let mut acc = Interval::zero();
         for (t, wt) in w.row(k).iter().enumerate() {
             let i = lo + t;
             acc = acc + a[i] * b[k - i] * *wt;
@@ -622,7 +606,7 @@ fn poison_like(a: &BernsteinSpans, degree: usize) -> BernsteinSpans {
         spans: a
             .spans
             .iter()
-            .map(|_| vec![RingInterval::poison(); degree + 1])
+            .map(|_| vec![Interval::poison(); degree + 1])
             .collect(),
     }
 }
@@ -682,7 +666,7 @@ fn ch_mul(a: &BernsteinSpans, b: &BernsteinSpans) -> BernsteinSpans {
 
 /// Span-wise left scale `c·x` (constant on the left — the rehearsal's
 /// `r²·W²` association, kept verbatim).
-fn ch_scale_left(c: RingInterval, a: &BernsteinSpans) -> BernsteinSpans {
+fn ch_scale_left(c: Interval, a: &BernsteinSpans) -> BernsteinSpans {
     BernsteinSpans {
         degree: a.degree,
         breaks: a.breaks.clone(),
@@ -696,7 +680,7 @@ fn ch_scale_left(c: RingInterval, a: &BernsteinSpans) -> BernsteinSpans {
 
 /// Span-wise right scale `x·c` (constant on the right — the rehearsal's
 /// `g_d,i·n_d` association, kept verbatim).
-fn ch_scale_right(a: &BernsteinSpans, c: RingInterval) -> BernsteinSpans {
+fn ch_scale_right(a: &BernsteinSpans, c: Interval) -> BernsteinSpans {
     BernsteinSpans {
         degree: a.degree,
         breaks: a.breaks.clone(),
@@ -718,7 +702,7 @@ fn ch_zero_like(a: &BernsteinSpans, degree: usize) -> BernsteinSpans {
         spans: a
             .spans
             .iter()
-            .map(|_| vec![RingInterval::zero(); degree + 1])
+            .map(|_| vec![Interval::zero(); degree + 1])
             .collect(),
     }
 }
@@ -745,9 +729,9 @@ pub struct CompositeForm {
 impl CompositeForm {
     /// Per-span certified enclosures of the composite's values: the
     /// numerator hull divided by the denominator hull, span by span.
-    /// The ring refuses a zero-touching divisor, so a degenerate
+    /// Interval arithmetic refuses a zero-touching divisor, so a degenerate
     /// denominator yields a poisoned (NaN-bracket) entry — fail-loud.
-    pub fn span_bounds(&self) -> Vec<RingInterval> {
+    pub fn span_bounds(&self) -> Vec<Interval> {
         self.num
             .span_hulls()
             .into_iter()
@@ -758,14 +742,10 @@ impl CompositeForm {
 
     /// The whole-domain enclosure: the hull of [`Self::span_bounds`]
     /// (fixed ascending fold, D9). Poison if any span poisons.
-    pub fn bound(&self) -> RingInterval {
-        let mut acc = RingInterval::poison();
+    pub fn bound(&self) -> Interval {
+        let mut acc = Interval::poison();
         for (n, b) in self.span_bounds().into_iter().enumerate() {
-            acc = if n == 0 {
-                b
-            } else {
-                RingInterval::hull(acc, b)
-            };
+            acc = if n == 0 { b } else { Interval::hull(acc, b) };
         }
         acc
     }
@@ -800,7 +780,7 @@ pub enum ImplicitSurface {
         radius: f64,
     },
     /// `f(P) = |Q|² − (Q·â)² − r²` with `Q = P − c`, `â = a/|a|`
-    /// (meters²; the `|a|²` normalization is exact in the ring).
+    /// (meters²; the `|a|²` normalization is exact in certification arithmetic).
     Cylinder {
         /// A point `c` on the axis.
         point: [f64; 3],
@@ -834,11 +814,11 @@ pub enum ImplicitSurface {
     },
 }
 
-/// `Σ_d a_d²` as a ring enclosure (ascending `d`, `acc + p·p`).
-fn axis_norm2(axis: &[f64; 3]) -> RingInterval {
-    let mut acc = RingInterval::zero();
+/// `Σ_d a_d²` as a certification enclosure (ascending `d`, `acc + p·p`).
+fn axis_norm2(axis: &[f64; 3]) -> Interval {
+    let mut acc = Interval::zero();
     for a in axis {
-        let p = RingInterval::point(*a);
+        let p = Interval::point(*a);
         acc = acc + p.sqr();
     }
     acc
@@ -874,7 +854,7 @@ fn dot_channel(g: &[BernsteinSpans], c: &[f64; 3]) -> BernsteinSpans {
     };
     let mut acc = ch_zero_like(first, first.degree);
     for (gd, cd) in g.iter().zip(c.iter()) {
-        acc = ch_add(&acc, &ch_scale_right(gd, RingInterval::point(*cd)));
+        acc = ch_add(&acc, &ch_scale_right(gd, Interval::point(*cd)));
     }
     acc
 }
@@ -916,7 +896,7 @@ pub fn implicit_composite(
         ImplicitSurface::Sphere { center, radius } => {
             let g = shifted(center);
             let w2 = ch_mul(&w, &w);
-            let r = RingInterval::point(*radius);
+            let r = Interval::point(*radius);
             let r2 = r.sqr();
             let s = sum_of_squares(&g);
             CompositeForm {
@@ -932,7 +912,7 @@ pub fn implicit_composite(
             let g = shifted(point);
             let w2 = ch_mul(&w, &w);
             let a2 = axis_norm2(axis);
-            let r = RingInterval::point(*radius);
+            let r = Interval::point(*radius);
             let r2 = r.sqr();
             let s = sum_of_squares(&g);
             let t = dot_channel(&g, axis);
@@ -954,8 +934,8 @@ pub fn implicit_composite(
             let g = shifted(apex);
             let w2 = ch_mul(&w, &w);
             let a2 = axis_norm2(axis);
-            let tg = RingInterval::point(*tan_half_angle);
-            let k = RingInterval::one() + tg.sqr();
+            let tg = Interval::point(*tan_half_angle);
+            let k = Interval::one() + tg.sqr();
             let s = sum_of_squares(&g);
             let t = dot_channel(&g, axis);
             // A2·S − k·(T·T), over A2·W².
@@ -974,10 +954,10 @@ pub fn implicit_composite(
             let g = shifted(center);
             let w2 = ch_mul(&w, &w);
             let a2 = axis_norm2(axis);
-            let rr = RingInterval::point(*major_radius);
-            let rm = RingInterval::point(*minor_radius);
+            let rr = Interval::point(*major_radius);
+            let rm = Interval::point(*minor_radius);
             let c1 = rr.sqr() - rm.sqr(); // R² − r²
-            let c4 = RingInterval::point(4.0) * rr.sqr(); // 4R²
+            let c4 = Interval::point(4.0) * rr.sqr(); // 4R²
             let s = sum_of_squares(&g);
             let t = dot_channel(&g, axis);
             // A2·(S + (R²−r²)·W²)² − 4R²·(A2·S − T·T)·W², over A2·W⁴.
@@ -1045,9 +1025,9 @@ pub fn linear_composite(
     let mut acc = ch_zero_like(&w, w.degree);
     for (d, cd) in coeffs.iter().enumerate() {
         let ad = data.weighted_channel(d);
-        acc = ch_add(&acc, &ch_scale_right(&ad, RingInterval::point(*cd)));
+        acc = ch_add(&acc, &ch_scale_right(&ad, Interval::point(*cd)));
     }
-    acc = ch_add(&acc, &ch_scale_right(&w, RingInterval::point(offset)));
+    acc = ch_add(&acc, &ch_scale_right(&w, Interval::point(offset)));
     Ok(CompositeForm { num: acc, den: w })
 }
 
@@ -1055,6 +1035,7 @@ pub fn linear_composite(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::real::Bounds;
     use crate::spline::basis;
 
     /// f64 rational-curve oracle: `x_d(t)` via A2.2 basis values —
@@ -1105,8 +1086,8 @@ mod tests {
         .unwrap();
         let p = kv.degree();
         let mut knots = kv.knots().to_vec();
-        let mut coeffs: Vec<RingInterval> = (0..kv.control_count())
-            .map(|i| RingInterval::point(i as f64))
+        let mut coeffs: Vec<Interval> = (0..kv.control_count())
+            .map(|i| Interval::point(i as f64))
             .collect();
         let interior: Vec<(InteriorKnot, usize)> = kv.interior_knot_runs().collect();
         assert_eq!(
@@ -1139,10 +1120,10 @@ mod tests {
         assert_eq!(coeffs.len(), 4 * p + 1);
     }
 
-    fn lift(coords: &[Vec<f64>]) -> Vec<Vec<RingInterval>> {
+    fn lift(coords: &[Vec<f64>]) -> Vec<Vec<Interval>> {
         coords
             .iter()
-            .map(|ch| ch.iter().map(|x| RingInterval::point(*x)).collect())
+            .map(|ch| ch.iter().map(|x| Interval::point(*x)).collect())
             .collect()
     }
 
@@ -1204,7 +1185,7 @@ mod tests {
         let ring = lift(&coords);
         let data = CurveRingData::new(&kv, &w, &ring).unwrap();
         // Non-unit axis on purpose: the |a|² normalization is exact in
-        // the ring, so the bound is still the meters² residual.
+        // interval arithmetic, so the bound is still the meters² residual.
         let cyl = ImplicitSurface::Cylinder {
             point: [0.0, 0.0, 1.0],
             axis: [0.0, 0.0, 3.0],
@@ -1282,13 +1263,13 @@ mod tests {
 
     /// **The convolution this unit replaced, kept verbatim**: the body
     /// [`bern_mul_row`] had before the weight table existed, with the
-    /// binomial rows read and the ring quotient formed inside the
+    /// binomial rows read and interval arithmetic quotient formed inside the
     /// coefficient loop. It is the oracle for every bit-identity row
     /// here and in [`super::patch`], so those rows pin the memo
     /// against the code it retired rather than against a second typing
     /// of the code that replaced it — a re-typed oracle agrees with a
     /// mis-typed builder.
-    pub(super) fn bern_mul_row_base(a: &[RingInterval], b: &[RingInterval]) -> Vec<RingInterval> {
+    pub(super) fn bern_mul_row_base(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
         let da = a.len() - 1;
         let db = b.len() - 1;
         let bin_a = binom_row(da);
@@ -1296,13 +1277,13 @@ mod tests {
         let bin_ab = binom_row(da + db);
         let mut out = Vec::with_capacity(da + db + 1);
         for (k, bk) in bin_ab.iter().enumerate() {
-            let mut acc = RingInterval::zero();
+            let mut acc = Interval::zero();
             for (i, ai) in a.iter().enumerate() {
                 let Some(j) = k.checked_sub(i) else { continue };
                 if j > db {
                     continue;
                 }
-                let w = RingInterval::point(bin_a[i] * bin_b[j]) / RingInterval::point(*bk);
+                let w = Interval::point(bin_a[i] * bin_b[j]) / Interval::point(*bk);
                 acc = acc + *ai * b[j] * w;
             }
             out.push(acc);
@@ -1313,19 +1294,19 @@ mod tests {
     /// A coefficient row of degree `n` with mixed sign, magnitude and
     /// width, so a dropped, reordered or mis-weighted term shows in
     /// the endpoints.
-    pub(super) fn sample_row(n: usize, seed: usize) -> Vec<RingInterval> {
+    pub(super) fn sample_row(n: usize, seed: usize) -> Vec<Interval> {
         (0..=n)
             .map(|i| {
                 let c = (i as f64 - 3.5) * (1.0 + seed as f64) / 7.0;
-                RingInterval::from_bounds(c - 1e-13, c + 3e-13)
+                Interval::from_bounds(c - 1e-13, c + 3e-13)
             })
             .collect()
     }
 
-    /// Bitwise identity of a ring value: NaN endpoints compare equal
+    /// Bitwise identity of a certification value: NaN endpoints compare equal
     /// to each other and to nothing else, which is what a poisoned
     /// weight has to preserve.
-    pub(super) fn same_bits(x: RingInterval, y: RingInterval) -> bool {
+    pub(super) fn same_bits(x: Interval, y: Interval) -> bool {
         x.lo().to_bits() == y.lo().to_bits() && x.hi().to_bits() == y.hi().to_bits()
     }
 
@@ -1420,7 +1401,7 @@ mod tests {
                 // A buffer carrying another product's row must leave
                 // no residue: the scratch entry point overwrites.
                 let mut buf = bern_mul_row(&b, &a);
-                buf.push(RingInterval::point(7.0));
+                buf.push(Interval::point(7.0));
                 let w = bern_weights(da, db);
                 bern_mul_row_into(&a, &b, &w, &mut buf);
                 assert_eq!(buf.len(), want.len(), "reused buffer length ({da}, {db})");
@@ -1471,7 +1452,7 @@ mod tests {
             ))
         ));
         // A zero axis reaches the denominator as a zero-touching
-        // divisor: the ring refuses, the bound poisons (NaN), and NaN
+        // divisor: interval arithmetic refuses, the bound poisons (NaN), and NaN
         // fails every ≤ ε certification (D4 ¶2).
         let coords3 = lift(&[vec![0.0, 1.0], vec![0.0, 1.0], vec![0.0, 1.0]]);
         let data3 = CurveRingData::new(&kv, &w, &coords3).unwrap();
