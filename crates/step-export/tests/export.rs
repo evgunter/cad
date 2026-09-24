@@ -17,12 +17,20 @@ use step_export::{StepExportError, StepOptions, step_string};
 /// fixtures are hermetic against `CAD_EPS`-style env overrides of the
 /// ambient tolerance. Must match `examples/export_fixtures.rs`.
 fn export(body: &topo::Body<f64>, name: &str) -> String {
+    try_export(body, name).expect("the fixed test options export")
+}
+
+/// [`export`] for the rows whose subject is a REFUSAL. Same options,
+/// stated once: a row that built its own would exercise the writer
+/// under a different ambient-tolerance hermeticity than its
+/// neighbours, for no reason it could state.
+fn try_export(body: &topo::Body<f64>, name: &str) -> Result<String, StepExportError> {
     let options = StepOptions {
         product_name: name.to_owned(),
         uncertainty_m: Some(1e-9),
         ..StepOptions::default()
     };
-    step_string(body, &options, Tol::witness()).unwrap()
+    step_string(body, &options, Tol::witness())
 }
 
 /// Counts non-overlapping occurrences of `needle`.
@@ -61,7 +69,7 @@ fn truck_shells(text: &str) -> Vec<(usize, usize, usize)> {
 fn cube_reconstructs_6_12_8() {
     let body = common::cube();
     let text = export(&body, "cube");
-    assert_eq!(common::census(&body), (6, 12, 8), "kernel census");
+    assert_eq!(common::fev_census(&body), (6, 12, 8), "kernel census");
     assert_eq!(
         truck_shells(&text),
         vec![(6, 12, 8)],
@@ -107,7 +115,7 @@ fn cube_syntactic_parse_and_instance_pin() {
 fn die_reconstructs_matching_kernel_census() {
     let body = common::die(0.0, 0.0, 0.0);
     let text = export(&body, "die");
-    let kernel = common::census(&body);
+    let kernel = common::fev_census(&body);
     assert_eq!(kernel, (11, 24, 16), "die census (top face carries a ring)");
     assert_eq!(truck_shells(&text), vec![kernel], "independent importer");
     // The pocket mouth is the ONE interior ring in the whole body:
@@ -129,7 +137,11 @@ fn kiss_assembly_exports_two_solids() {
     let total: (usize, usize, usize) = shells
         .iter()
         .fold((0, 0, 0), |acc, s| (acc.0 + s.0, acc.1 + s.1, acc.2 + s.2));
-    assert_eq!(total, common::census(&body), "nothing shared, nothing lost");
+    assert_eq!(
+        total,
+        common::fev_census(&body),
+        "nothing shared, nothing lost"
+    );
 }
 
 // -------------------------------------------------------- determinism
@@ -205,13 +217,67 @@ fn product_name_escaping() {
     };
     let text = step_string(&body, &options, Tol::witness()).unwrap();
     assert!(text.contains("PRODUCT('o''brien', 'o''brien', '', ("));
-    let options = StepOptions {
-        product_name: "kübel".to_owned(),
-        ..StepOptions::default()
+}
+
+/// The Part 21 basic alphabet the writer admits, with **both bounds
+/// pinned** and the two characters just outside them.
+///
+/// This row owns every band refusal on the write path; the sibling
+/// above owns the apostrophe doubling. Until this row landed the only
+/// band case in the file was one character above the band, which
+/// cannot see the band widened to DEL, nor narrowed off the space or
+/// the tilde. The admissible rows also reach a file, so the two
+/// halves cannot drift apart.
+///
+/// This band is a disclosed copy of `step_import`'s `string_body`
+/// (`quoted`'s docs say why the two are stated separately); the
+/// mirror row is `parser::part21_basic_alphabet_bounds_on_the_read_path`
+/// in `step-import`. The identical band in `stl`'s `SolidName` is an
+/// INDEPENDENT rule that must not move with these two, and its own
+/// row is `crates/stl/tests/export.rs`'s
+/// `the_acceptance_exports_agree_are_honest_and_are_byte_identical`.
+#[test]
+fn part21_basic_alphabet_bounds() {
+    let body = common::cube();
+    let verdict = |name: &str| -> Result<String, ()> {
+        match try_export(&body, name) {
+            Ok(text) => Ok(text),
+            Err(StepExportError::UnrepresentableString { .. }) => Err(()),
+            other => panic!("expected a written file or UnrepresentableString, got {other:?}"),
+        }
     };
-    match step_string(&body, &options, Tol::witness()) {
-        Err(StepExportError::UnrepresentableString { .. }) => {}
-        other => panic!("expected UnrepresentableString, got {other:?}"),
+    for (name, admissible) in [
+        // The bounds themselves: 0x20 and 0x7E.
+        ("part ", true),
+        ("part~", true),
+        // The two characters immediately outside them.
+        ("part\u{1f}", false),
+        ("part\u{7f}", false),
+        // The classes the band exists to keep out: the record
+        // separator that would break the one-record-per-line
+        // reading, and everything non-ASCII — Latin-1, a punctuation
+        // character a word processor substitutes, and an astral one.
+        ("part\n", false),
+        ("k\u{fc}bel", false),
+        ("part\u{2014}rev", false),
+        ("emoji\u{1f600}", false),
+    ] {
+        match (verdict(name), admissible) {
+            (Ok(text), true) => assert!(
+                text.contains(&format!("PRODUCT('{name}', '{name}', '', (")),
+                "an admissible name must reach the file verbatim: {name:?}"
+            ),
+            (Err(()), false) => {}
+            (written, _) => panic!(
+                "{name:?} must be {}, got {}",
+                if admissible { "written" } else { "refused" },
+                if written.is_ok() {
+                    "written"
+                } else {
+                    "refused"
+                }
+            ),
+        }
     }
 }
 

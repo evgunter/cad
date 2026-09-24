@@ -18,8 +18,8 @@ use profile::RawLoop;
 
 use crate::common::approx::band;
 use geom::Surface;
-use geom_core::Point3;
 use geom_core::Tol;
+use geom_core::{OrthoFrame, Point3};
 use profile::{ArcSweep, Center, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
@@ -381,11 +381,7 @@ fn adv_touching_union_with_reversed_faces_refuses_typed() {
     .body;
     // A box poking through the bottom annulus near x = 1.5.
     let sq = ProfileLoop::polygon([p2(1.2, -0.5), p2(1.8, -0.5), p2(1.8, 0.5), p2(1.2, 0.5)]);
-    let plane = SketchPlane::from_frame(
-        Point3::new(0.0, 0.0, 0.0),
-        geom_core::Vec3::new(1.0, 0.0, 0.0),
-        geom_core::Vec3::new(0.0, 1.0, 0.0),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, 0.0)));
     let vp = Profile::new(plane, vec![sq])
         .validate(Tol::witness())
         .unwrap();

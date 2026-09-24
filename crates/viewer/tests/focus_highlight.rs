@@ -20,7 +20,7 @@ use pncad::document::RecipeNodeId;
 use pncad::geom_core::Tol;
 use viewer::display::DisplayView;
 use viewer::marks;
-use viewer::pickindex::PickIndex;
+use viewer::pickindex::{PickIndex, PictureKey};
 use viewer::scene::{self, DisplayTolerance, SceneMesh};
 use viewer::session::{DocSession, Selection, SessionOp};
 
@@ -43,7 +43,13 @@ fn index_of(session: &DocSession) -> PickIndex {
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, generation, delta(), session.tol()).expect("the plate indexes")
+    PickIndex::build(
+        doc,
+        eval,
+        PictureKey::of(generation, delta()),
+        session.tol(),
+    )
+    .expect("the plate indexes")
 }
 
 /// Selecting nothing marks nothing — and the empty answer is the same

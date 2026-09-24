@@ -1,8 +1,8 @@
 //! M5 S12 acceptance: curved `revert` is wired, and curved
 //! subtract/intersect are live on the classes that have a seam lane.
 //!
-//! S10 ratified `Face::sense` (a face's outward normal is
-//! `sense_sign · chart_normal`); S11 made the constructors write the
+//! S10 ratified `Face::sense` (a face's outward normal is the chart
+//! normal negated where the bit is `false`); S11 made the constructors write the
 //! bit honestly; S12 — this unit — makes `revert` FLIP it, makes
 //! splitting's `mef`/`mfkrh` re-mints INHERIT the parent's bit, and
 //! narrows the wholesale curved ∖/∩ front door to the classes that
@@ -238,7 +238,9 @@ fn revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts() {
     assert_eq!(topo::validate_closed(&rev), Ok(()));
     assert_eq!(
         topo::validate_geometric(&rev, Tol::witness()),
-        Err(vec![topo::ValidationError::NegativeVolume]),
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: rev.solids().next().expect("one solid").0
+        }]),
         "a reverted body bounds the complement: tier 3 is exactly NegativeVolume"
     );
     assert_eq!(vol(&rev).to_bits(), (-v).to_bits(), "volume is bit-negated");

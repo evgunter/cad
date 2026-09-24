@@ -5,6 +5,8 @@ title: ci.yml's env block argues against itself about restating a pin in prose
 status: open
 opened: 2026-09-11
 refs: [pinned-version-named-in-present-tense-prose, 2327]
+priority: P4
+cost: E
 ---
 
 Raised by the style review of PR 2327 as a challenge to that unit's repair,

@@ -101,7 +101,6 @@ use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, SolidKey, VertexKey};
 use crate::euler::FaceSurface;
 use crate::geometry::SurfaceKey;
-use crate::props::PropsQuadLane;
 use crate::replace_face::ReplaceFaceError;
 
 /// One chart's move: the faces wearing it, and the signed distance
@@ -151,7 +150,7 @@ struct MovedPlane<T: Real> {
 /// [`ReplaceFaceError`], the body untouched on every one: the whole
 /// plan is decided before anything is written, and the writes go to a
 /// clone that replaces `body` only on success.
-pub fn offset_planes_together<T: Decide + PropsQuadLane>(
+pub fn offset_planes_together<T: Decide + geom_brep::PcurveFittedLane>(
     body: &mut Body<T>,
     moves: &[ChartMove<T>],
     band: Band,
@@ -689,13 +688,8 @@ pub(crate) fn faces_at_vertex<T: Real>(
     let mut out = Vec::new();
     for he in orbit {
         let face = body
-            .get_loop(
-                body.get_half_edge(he)
-                    .ok_or(ReplaceFaceError::Corrupt)?
-                    .parent_loop,
-            )
-            .ok_or(ReplaceFaceError::Corrupt)?
-            .face;
+            .face_of_half_edge(he)
+            .ok_or(ReplaceFaceError::Corrupt)?;
         if !out.contains(&face) {
             out.push(face);
         }
@@ -930,6 +924,13 @@ pub(crate) fn scope_of_moves<T: Real>(
     // A face names its solid in two pointer hops, so the solids are
     // read off the moves themselves and the ONE structural walk that
     // follows covers those solids alone.
+    //
+    // The two hops are spelled out rather than read through
+    // [`Body::solid_of_face`] because their refusals are not the same
+    // sentence: a key the caller handed over names ITSELF
+    // (`StaleFace`), while a back-pointer the body owns is the body's
+    // own corruption (`Corrupt`). `the_two_hops_refuse_differently`
+    // reds on a fold that collapses them.
     let mut solids: Vec<SolidKey> = Vec::new();
     for m in moves {
         for &face in &m.faces {
@@ -958,7 +959,8 @@ mod scope_walks {
 
     use super::{ChartMove, Scope, offset_planes_together, scope_of_moves};
     use crate::body::Body;
-    use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, SolidKey};
+    use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey};
+    use crate::replace_face::ReplaceFaceError;
     use crate::splitting::reassembly::quad_prism;
     use geom_core::{Affine3, Band, Point3, Tol, Vec3};
 
@@ -983,20 +985,13 @@ mod scope_walks {
         (body, first, second)
     }
 
-    fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
-        body.faces()
-            .filter(|(_, d)| body.get_shell(d.shell).unwrap().solid == solid)
-            .map(|(k, _)| k)
-            .collect()
-    }
-
     /// Every chart of `solid`, as a move of `distance`. A zero distance
     /// is a legal move set — the corner solve answers an unmoved corner
     /// before any meter runs — and it is what these rows use, so that
     /// what they measure is the BOOKKEEPING around the solve.
     fn moves_of(body: &Body<f64>, solid: SolidKey, distance: f64) -> Vec<ChartMove<f64>> {
         let mut out: Vec<(crate::geometry::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-        for face in faces_of(body, solid) {
+        for face in body.faces_of_solid(solid).expect("a live solid") {
             let key = body.get_face(face).unwrap().surface;
             match out.iter_mut().find(|(k, _)| *k == key) {
                 Some((_, v)) => v.push(face),
@@ -1011,7 +1006,7 @@ mod scope_walks {
     /// Breaks `solid`'s first loop cycle: one half-edge's `next` is
     /// re-pointed at a key no arena holds, so the walk is `Broken`.
     fn break_a_loop(body: &mut Body<f64>, solid: SolidKey) {
-        let face = faces_of(body, solid)[0];
+        let face = body.faces_of_solid(solid).expect("a live solid")[0];
         let outer = body.get_face(face).unwrap().outer;
         let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
             panic!("a box face bounds a cycle");
@@ -1026,18 +1021,19 @@ mod scope_walks {
     #[test]
     fn a_scope_holds_only_the_solids_it_names() {
         let (body, first, second) = two_boxes();
+        let seconds = body.faces_of_solid(second).expect("a live solid");
         let scope = Scope::of_solids(&body, &[first]).unwrap();
-        for f in faces_of(&body, first) {
+        for f in body.faces_of_solid(first).expect("a live solid") {
             assert_eq!(scope.solid_of(f), Some(first));
             assert!(scope.holds_face(f));
         }
-        for f in faces_of(&body, second) {
+        for &f in &seconds {
             assert_eq!(scope.solid_of(f), None, "an unwalked solid's face");
             assert!(!scope.holds_face(f));
         }
         // The whole body, for contrast: one walk, both solids.
         let whole = Scope::whole(&body).unwrap();
-        for f in faces_of(&body, second) {
+        for &f in &seconds {
             assert_eq!(whole.solid_of(f), Some(second));
         }
     }
@@ -1068,10 +1064,13 @@ mod scope_walks {
         let moves = moves_of(&body, first, 0.0);
         let scope = scope_of_moves(&body, &moves).expect("the sound solid's scope builds");
         // `faces_in_scope` is face-arena order by contract and
-        // `faces_of` reads the arena, so this is an equality of
-        // sequences, not of sets.
-        assert_eq!(scope.faces_in_scope(), faces_of(&body, first));
-        for f in faces_of(&body, second) {
+        // `Body::faces_of_solid` answers in it, so this is an equality
+        // of sequences, not of sets.
+        assert_eq!(
+            scope.faces_in_scope(),
+            body.faces_of_solid(first).expect("a live solid")
+        );
+        for f in body.faces_of_solid(second).expect("a live solid") {
             assert!(!scope.holds_face(f));
         }
     }
@@ -1087,7 +1086,7 @@ mod scope_walks {
     fn an_out_of_scope_faces_unmintable_chart_does_not_refuse_the_door() {
         let tol = Tol::witness();
         let (mut body, first, second) = two_boxes();
-        let victim = faces_of(&body, second)[0];
+        let victim = body.faces_of_solid(second).expect("a live solid")[0];
         body.set_face_surface(
             victim,
             crate::euler::FaceSurface::New(geom::Surface::Cylinder {
@@ -1112,5 +1111,79 @@ mod scope_walks {
         let mut work = body.clone();
         offset_planes_together(&mut work, &moves, Band::linear(tol).unwrap(), tol)
             .expect("the door reads its scope, and its scope charts");
+    }
+
+    /// The scope walk's two hops refuse DIFFERENTLY, and that is why it
+    /// is spelled out instead of read through [`Body::solid_of_face`].
+    /// A face key the CALLER handed over is named back to it
+    /// ([`ReplaceFaceError::StaleFace`]); a shell back-pointer the BODY
+    /// owns is the body's own incoherence
+    /// ([`ReplaceFaceError::Corrupt`]), and no key the caller holds is
+    /// wrong. An `Option` door raises one value for both, so a fold
+    /// onto it has to pick one of the two sentences and tell the other
+    /// caller something false. This row is the only thing in the tree
+    /// that reads the difference.
+    ///
+    /// **What arm 2 cannot separate.** `Corrupt` is also the refusal of
+    /// the terminal `Scope::of_solids(..).ok_or(Corrupt)`, so the
+    /// variant alone does not say WHICH of the two raised it. The arm
+    /// closes that by bracketing: the same face and the same body
+    /// build a scope before the back-pointer is broken and refuse
+    /// after, so the refusal is the corruption's and not the body's.
+    /// It still cannot tell hop 2 from an `of_solids` that the same
+    /// corruption also broke — what it guards is the flattening, and a
+    /// fold of hop 2 onto `StaleFace` changes the variant here either
+    /// way.
+    #[test]
+    fn the_two_hops_refuse_differently() {
+        let (mut body, first, _second) = two_boxes();
+
+        // Hop 1 — a key the caller handed over. The refusal names it,
+        // so the caller can say WHICH of its faces went stale. The
+        // witness is a face that LIVED and was killed through the
+        // public operators, not a never-minted `FaceKey::default()`:
+        // a stale key is the case this door promises to catch, and a
+        // foreign key is the case it documents that it does not, so
+        // only the first witnesses the refusal under test.
+        let scratch = body.mvfs(Point3::new(0.0, 0.0, 9.0)).unwrap();
+        let dead = scratch.face;
+        body.kvfs(scratch.solid)
+            .expect("the scratch solid dies whole");
+        assert!(
+            body.get_face(dead).is_none(),
+            "the witness is a real face key the body has since killed"
+        );
+        let moves = vec![ChartMove {
+            faces: vec![dead],
+            distance: 0.0,
+        }];
+        let Err(err) = scope_of_moves(&body, &moves) else {
+            panic!("a stale face key refuses the scope walk")
+        };
+        assert!(
+            matches!(err, ReplaceFaceError::StaleFace { face } if face == dead),
+            "hop 1 names the caller's own key: {err:?}"
+        );
+
+        // Hop 2 — a live face of that same body whose `shell`
+        // back-pointer is not. Every key the caller holds is good, so
+        // the refusal names none of them.
+        let live = body.faces_of_solid(first).expect("a live solid")[0];
+        let moves = vec![ChartMove {
+            faces: vec![live],
+            distance: 0.0,
+        }];
+        assert!(
+            scope_of_moves(&body, &moves).is_ok(),
+            "the same face and the same body build a scope before the corruption"
+        );
+        body.get_face_mut(live).expect("the face is live").shell = ShellKey::default();
+        let Err(err) = scope_of_moves(&body, &moves) else {
+            panic!("a dangling shell back-pointer refuses the scope walk")
+        };
+        assert!(
+            matches!(err, ReplaceFaceError::Corrupt),
+            "hop 2 is the body's own incoherence, not a stale argument: {err:?}"
+        );
     }
 }

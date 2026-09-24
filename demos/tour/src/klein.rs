@@ -120,13 +120,14 @@
 //!    place a Klein bottle MUST cross itself in 3-space — still
 //!    cannot be trimmed; what changed is that the reason is a pair
 //!    the reader can look at.
-//! 5. **`sweep_body` cannot carry a section around a U-turn**
-//!    (wall 5). The loop's whole spine is one path and would be ONE
-//!    body, but the loft's stacking trilean compares only the LAST
-//!    placement against the FIRST section's plane normal; a path that
-//!    ends behind where it started refuses `ReversedStacking`
-//!    wholesale, however well every consecutive pair stacks. That
-//!    gate is what makes the loop two bodies rather than one.
+//! 5. **`sweep_body` CAN carry a section around a U-turn — RETIRED
+//!    by the per-slab stacking fold** (wall 5, issue 368). The loft's
+//!    stacking statement is a fold over adjacent section pairs, each
+//!    decided against its own base section's normal, and the loop's
+//!    whole spine sweeps as ONE body; wall 5 asserts that build. The
+//!    SCENE still draws the loop as two elbows — adopting the one-body
+//!    sweep is a scene change, and the shape of the follow-up this
+//!    retirement leaves.
 //! 6. **`tube_along_arc` WAS solid-only — RETIRED by VERBS-TUBEWALL.**
 //!    The torus door took a `minor_radius` and no wall, so a hollow
 //!    tube had to be re-said as a revolve of an annulus and gave up
@@ -225,14 +226,14 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, CertifiedBounds, Mat3, Point3, Tol};
+use pncad::geom_core::{Affine3, Mat3, OrthoFrame, Point3, Tol};
 use pncad::prelude::{Open, ProfileLoop, Start, SurfaceKindSet, circle, query};
 use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, fillet_edges};
-use pncad::sweep::{LoftError, Revolution, RevolveAxis, revolve};
+use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, BooleanError, BooleanOp, EdgeKey, Operand};
 
-use crate::scalar::Scalar;
+use crate::scalar::{Scalar, sketch_frame};
 use crate::{SceneBody, Stop, View};
 
 // ---------------------------------------------------------------
@@ -440,10 +441,11 @@ fn sharp_band<S: Scalar>(m: &Meridian, tol: Tol) -> ProfileLoop<S> {
 /// bulb; the partial form exists only so wall 2 can ask the same
 /// question of an OPEN rim (findings entry 2).
 fn bulb<S: Scalar>(loop_: ProfileLoop<S>, revolution: Revolution<S>, tol: Tol) -> Body<S> {
-    let plane = SketchPlane::from_frame(
+    let plane = sketch_frame(
         p3::<S>(0.0, 0.0, 0.0),
         v3::<S>(1.0, 0.0, 0.0),
         v3::<S>(0.0, 0.0, 1.0),
+        tol,
     );
     revolve(
         &validated(plane, vec![loop_], tol).expect("the meridian band validates"),
@@ -473,11 +475,7 @@ fn bulb<S: Scalar>(loop_: ProfileLoop<S>, revolution: Revolution<S>, tol: Tol) -
 /// on the `r ≥ 0` side): the right-hand rule about −ŷ then carries
 /// the section UP, which is where the loop goes.
 fn elbow<S: Scalar>(z0: f64, sweep: f64, tol: Tol) -> Body<S> {
-    let plane = SketchPlane::from_frame(
-        p3::<S>(0.0, 0.0, z0),
-        v3::<S>(1.0, 0.0, 0.0),
-        v3::<S>(0.0, 1.0, 0.0),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3::<S>(0.0, 0.0, z0)));
     let annulus = vec![
         circle(p2::<S>(0.0, 0.0), S::from_f64(R + WALL / 2.0), tol)
             .expect("the outer wall")
@@ -743,14 +741,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
 /// The bottle's frontier, run live (the lily's rule): every shape
 /// this model wanted and the kernel would not state, attempted for
-/// real and pinned by its own typed refusal.
-///
-/// `CertifiedBounds` beyond [`Scalar`] because wall 6's retirement is
+/// real and pinned by its own typed refusal. Wall 6's retirement is
 /// asserted through `validate_geometric`, whose +V invariant reads a
-/// certified volume enclosure — the tour runs this at `f64` and
-/// `Probe`, both of which certify, so the extra term costs the caller
-/// nothing and states what the assertion needs.
-pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
+/// certified volume enclosure — [`Scalar`] certifies, so the bound is
+/// already the one that assertion needs.
+pub fn wall_probes<S: Scalar>(tol: Tol) {
     println!("\n-- the Klein bottle's walls: what a non-orientable surface asks for --");
     let m = meridian();
     let [bulb_body, over, into] = bottle::<S>(tol);
@@ -895,23 +890,37 @@ pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
             .expect("inner")
             .into(),
     ];
-    crate::walls::wall(
-        "bottle",
-        5,
-        "sweep the annulus along the loop's WHOLE spine, one body",
-        pncad::sweep::sweep_body::<f64>(
-            &annulus,
-            Affine3::from_parts(
-                Mat3::from_cols(v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.0)),
-                v3(0.0, 0.0, ZTOP),
-            ),
-            &path,
-            33,
-            3,
-            tol,
+    // RETIRED as a refusal by the per-slab stacking fold (issue 368),
+    // so the probe asserts the build. The loft's stacking statement is
+    // per-slab, and every consecutive pair of stations on this spine
+    // advances along the earlier one's own plane normal.
+    let one_body = pncad::sweep::sweep_body::<f64>(
+        &annulus,
+        Affine3::from_parts(
+            Mat3::from_cols(v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0), v3(0.0, 0.0, 1.0)),
+            v3(0.0, 0.0, ZTOP),
         ),
-        |e| matches!(e, LoftError::ReversedStacking),
-        "build the loop as ONE body and drop the two-elbow split",
+        &path,
+        33,
+        3,
+        tol,
+    )
+    .expect("the loop's whole spine sweeps as ONE body (issue 368)");
+    assert_eq!(
+        pncad::topo::validate(&one_body.body),
+        Ok(()),
+        "the one-body loop is tier-1 valid"
+    );
+    assert_eq!(
+        pncad::topo::validate_closed(&one_body.body),
+        Ok(()),
+        "and closed"
+    );
+    println!(
+        "   wall 5 — RETIRED as a refusal: the annulus sweeps along the loop's \
+         WHOLE spine as ONE body (issue 368, the per-slab stacking fold). The \
+         SCENE still draws the loop as two elbows; adopting the one-body sweep \
+         is a scene change this unit does not make."
     );
 
     // Wall 6 (RE-BASELINED by VERBS-RING): the one-call hollow ring —
@@ -925,10 +934,11 @@ pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
     // forms for planar faces only, so a multi-shell CURVED solid
     // refuses typed — OFFSET-DESIGN O6's known standing demo gate,
     // recorded here and never worked around.
-    let ring_plane = SketchPlane::from_frame(
+    let ring_plane = sketch_frame(
         p3::<S>(0.0, 0.0, 0.0),
         v3::<S>(1.0, 0.0, 0.0),
         v3::<S>(0.0, 0.0, 1.0),
+        tol,
     );
     let ring = validated(
         ring_plane,
@@ -974,10 +984,11 @@ pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
     // f64: `step_export` is a rendering/interchange-side door and
     // takes the run's own numbers (the wall-7 posture).
     let ring_f64 = validated(
-        SketchPlane::from_frame(
+        sketch_frame(
             p3::<f64>(0.0, 0.0, 0.0),
             v3::<f64>(1.0, 0.0, 0.0),
             v3::<f64>(0.0, 0.0, 1.0),
+            tol,
         ),
         vec![
             circle(p2::<f64>(RLOOP, 0.0), R + WALL / 2.0, tol)

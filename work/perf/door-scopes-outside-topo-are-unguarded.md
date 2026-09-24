@@ -4,6 +4,8 @@ kind: issue
 title: what holds a surgery scope closed, and the three populations nothing holds
 status: open
 opened: 2026-09-10
+priority: P3
+cost: D
 ---
 
 PERF-4 moved D1's whole-body tier-1 sweep from every Euler operator to

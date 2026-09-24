@@ -141,7 +141,7 @@
 //! offset distance against a patch's.
 
 use geom_core::ring_interval::RingInterval;
-use geom_core::{Band, Indeterminate, Margin, Sign};
+use geom_core::{Band, Indeterminate, Margin, Sign, SupSpeed};
 
 use crate::dihedral::decide;
 use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
@@ -218,7 +218,12 @@ impl core::fmt::Display for MeterError {
                  non-degenerate — the certified floor on ‖S_u × S_v‖ is {floor} m² per \
                  unit parameter area, which over the patch's faster chart speed \
                  ({speed_lever} m) leaves a chart thinness of {thinness} m; the offset \
-                 locus is undefined where the normal degenerates, so nothing is fitted"
+                 locus is undefined where the normal degenerates, so nothing is fitted. \
+                 A floor of exactly zero is the loud answer of a cell the normal turns \
+                 too far inside: split the face clear of the degeneracy and offset the \
+                 pieces. If the patch is regular and these numbers say so, the ladder \
+                 (OFFSET_METER_LADDER) ran out of rungs on it — report them, which is \
+                 what decides a further rung"
             ),
             Self::CurvatureHeadroom {
                 reach,
@@ -229,7 +234,8 @@ impl core::fmt::Display for MeterError {
                 "offset_curvature_headroom: |d| reaches the patch's certified \
                  curvature radius on the folding side (reach {reach} m, headroom \
                  {headroom} m, principal curvature in [{}, {}] 1/m) — the offset \
-                 folds, so nothing is fitted",
+                 folds, so nothing is fitted: ask for |d| strictly inside the reach, \
+                 or offset to the other side, where this patch does not fold",
                 kappa.0, kappa.1
             ),
             Self::Escalated { source } => write!(f, "offset meter escalated: {source}"),
@@ -239,9 +245,13 @@ impl core::fmt::Display for MeterError {
 
 impl core::error::Error for MeterError {}
 
-/// The smallest `|x|` over the enclosure — zero when it straddles (or
-/// is poisoned, whose comparisons are all false: the conservative
-/// answer).
+/// The smallest `|x|` over the enclosure — zero when it straddles, and
+/// zero when it is poisoned, which is the conservative answer.
+///
+/// **The poison arm is asked by name.** The ring's refusal is its
+/// decoration, not a NaN pair, so a refused enclosure carries ordinary
+/// endpoints and `i.lo() > 0.0` can be TRUE of one — a quotient by a
+/// divisor not proven away from zero is the shape that reaches here.
 ///
 /// The **mignitude**, and the same quantity `ssi::certify`'s
 /// `zero_free_lower_bound` reads for the transversality margin. Kept
@@ -252,6 +262,9 @@ impl core::error::Error for MeterError {}
 /// arithmetic reason. One spelling would have to pick one of the two
 /// docs, and the shared body is four comparisons.
 pub fn mig(i: RingInterval) -> f64 {
+    if i.is_poison() {
+        return 0.0;
+    }
     if i.lo() > 0.0 {
         i.lo()
     } else if i.hi() < 0.0 {
@@ -296,13 +309,29 @@ fn cross(a: &[RingInterval; 3], b: &[RingInterval; 3]) -> [RingInterval; 3] {
 /// The enclosure of `‖v‖²` — the DEPENDENT square per component, so
 /// a component straddling zero cannot drag the lower end negative
 /// (`x·x` treats its factors as independent; `x.sqr()` does not).
-fn norm_sq(v: &[RingInterval; 3]) -> RingInterval {
+pub(crate) fn norm_sq(v: &[RingInterval; 3]) -> RingInterval {
     v[0].sqr() + v[1].sqr() + v[2].sqr()
 }
 
 /// A certified upper bound on `‖v‖` for a componentwise enclosure.
-fn norm_sup(v: &[RingInterval; 3]) -> f64 {
-    sqrt_up(norm_sq(v).hi())
+///
+/// Every step rounds outward: the per-component `sqr()` and the two
+/// ring sums, then [`sqrt_up`]. An `f64` fold of the same endpoints
+/// rounds to nearest at each step and can land BELOW the real norm
+/// by ulps, which is the unsound side wherever the result is a
+/// divisor of a lower bound — so a site that wants an upper bound on
+/// a norm calls this rather than re-spelling the fold.
+/// A poisoned enclosure answers `NaN` — no bound at all, which is what
+/// every consumer of this value already treats as unbounded. The
+/// refusal is asked by name because a poisoned ring carries ordinary
+/// endpoints and `sqrt_up` of one would be a plausible bound with
+/// nothing behind it.
+pub(crate) fn norm_sup(v: &[RingInterval; 3]) -> f64 {
+    let sq = norm_sq(v);
+    if sq.is_poison() {
+        return f64::NAN;
+    }
+    sqrt_up(sq.hi())
 }
 
 /// One cell's chart-normal facts: the enclosure of `S_u × S_v` and
@@ -311,34 +340,43 @@ fn norm_sup(v: &[RingInterval; 3]) -> f64 {
 pub struct CellNormal {
     /// Componentwise enclosure of `m = S_u × S_v` on the cell.
     pub m: [RingInterval; 3],
-    /// Certified LOWER bound on `‖m‖` over the cell (m²) — the
-    /// regularity floor. Exactly `0.0` when neither assembly could
-    /// separate the cell's normal from zero.
+    /// Certified LOWER bound on `‖m‖` over the cell, in
+    /// [`PatchRegularity::floor`]'s units (m² per unit parameter
+    /// area) — the regularity floor. Exactly `0.0` when neither
+    /// assembly could separate the cell's normal from zero.
     pub floor: f64,
-    /// Certified UPPER bound on `‖m‖` over the cell (m²).
+    /// Certified UPPER bound on `‖m‖` over the cell, same units.
     pub sup: f64,
 }
 
 /// Meter 1, per cell: the three-assembly join (module docs).
 ///
-/// **Reads the cell's signed enclosures inf-side**, so it inherits
-/// their provenance: on the rational arm they enclose the refined-`f64`
-/// patch ([`PatchCell`], "What the enclosure encloses"). The gap is
-/// insertion dust, and every claim here is a MAGNITUDE claim at ε
-/// scale rather than a structural one (no `contains(0)`, no exact
-/// sign), so the dust is far below anything this meter decides — which
-/// is the reason it is sound to read them here, not an accident.
+/// **Reads the cell's signed enclosures inf-side**, and they enclose
+/// the DESCRIBED patch on both arms ([`PatchCell`], "What the enclosure
+/// encloses"), so an inf-side read needs no caveat about which patch it
+/// is about. What it still inherits is the refinement's WIDTH: the
+/// enclosures carry the insertion's outward rounding, which subtracts
+/// from a floor rather than being ignored by it. Every claim here is a
+/// magnitude claim at ε scale, decades above that width.
 pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     let m = cross(&cell.s_u, &cell.s_v);
     // Assembly A: componentwise mignitude.
     let sq = RingInterval::point(mig(m[0])).sqr()
         + RingInterval::point(mig(m[1])).sqr()
         + RingInterval::point(mig(m[2])).sqr();
-    let a = sqrt_down(sq.lo());
+    // A refused enclosure separates nothing from zero, and `0.0` is
+    // the floor's conservative answer — asked by name, because a
+    // refusal here carries real endpoints.
+    let a = if sq.is_poison() {
+        0.0
+    } else {
+        sqrt_down(sq.lo())
+    };
     // Assembly B: projection onto the enclosure's midpoint direction.
-    // The direction is STRUCTURE (any direction is sound); the
-    // division by a certified upper bound on `‖d̂‖` is what keeps the
-    // projection a bound when `d̂` is unit only to rounding.
+    // The direction is STRUCTURE (any direction is sound, and that is
+    // why this midpoint needs no refusal of its own); the division by
+    // a certified upper bound on `‖d̂‖` is what keeps the projection a
+    // bound when `d̂` is unit only to rounding.
     let mid = |i: RingInterval| (i.lo() + i.hi()) * 0.5;
     let dv = [mid(m[0]), mid(m[1]), mid(m[2])];
     let dn = sqrt_up(dv[0].mul_add(dv[0], dv[1].mul_add(dv[1], dv[2] * dv[2])));
@@ -352,7 +390,12 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
         // correctly-rounded f64 quotient, which is not a lower bound
         // on the real one. `dn` is a certified UPPER bound on `‖d̂‖`,
         // so dividing by it is the sound side.
-        (proj / RingInterval::point(dn)).lo().max(0.0)
+        //
+        // The quotient's refusal is asked by name: `f64::max(NaN, 0.0)`
+        // used to absorb a poisoned quotient, and a refused quotient
+        // now carries real endpoints instead.
+        let q = proj / RingInterval::point(dn);
+        if q.is_poison() { 0.0 } else { q.lo().max(0.0) }
     } else {
         0.0
     };
@@ -365,12 +408,16 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // the sphere-band fixture it is the assembly that moves the
     // certified curvature range from tens to fractions.
     let gram = norm_sq(&cell.s_u) * norm_sq(&cell.s_v) - dot(&cell.s_u, &cell.s_v).sqr();
-    let c = sqrt_down(gram.lo());
+    let (c, gram_sup) = if gram.is_poison() {
+        (0.0, f64::NAN)
+    } else {
+        (sqrt_down(gram.lo()), sqrt_up(gram.hi()))
+    };
     let floor = if a > b { a } else { b };
     CellNormal {
         m,
         floor: if floor > c { floor } else { c },
-        sup: norm_sup(&m).min(sqrt_up(gram.hi())),
+        sup: norm_sup(&m).min(gram_sup),
     }
 }
 
@@ -378,14 +425,22 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
 /// (module docs).
 #[derive(Clone, Copy, Debug)]
 pub struct PatchRegularity {
-    /// `inf ‖S_u × S_v‖` from below, over the whole patch (m²).
+    /// `inf ‖S_u × S_v‖` from below, over the whole patch — an AREA
+    /// RATE, m² per unit parameter area, which is `‖S_u × S_v‖`'s own
+    /// unit and the module docs' one spelling of it.
     pub floor: f64,
-    /// `sup ‖S_u × S_v‖` from above (m²).
+    /// `sup ‖S_u × S_v‖` from above, in [`PatchRegularity::floor`]'s
+    /// units.
     pub sup: f64,
-    /// `sup ‖S_u‖` (m per unit parameter).
-    pub speed_u: f64,
-    /// `sup ‖S_v‖` (m per unit parameter).
-    pub speed_v: f64,
+    /// `sup ‖S_u‖` (m per unit parameter) — a [`SupSpeed`] by
+    /// signature: every consumer of it meters an overshoot (the
+    /// regularity lever below, the refinement schedule's split
+    /// selection), where over-stating the speed refuses and
+    /// under-stating admits a fold.
+    pub speed_u: SupSpeed<f64>,
+    /// `sup ‖S_v‖` (m per unit parameter); see
+    /// [`PatchRegularity::speed_u`] for the bound direction.
+    pub speed_v: SupSpeed<f64>,
     /// `floor / (speed_u · speed_v)` — a dimensionless lower bound on
     /// `sin∠(S_u, S_v)`. A DIAGNOSTIC: the predicate classifies
     /// [`PatchRegularity::thinness`], not this (module docs).
@@ -396,9 +451,11 @@ pub struct PatchRegularity {
 
 impl PatchRegularity {
     /// The lever the regularity predicate divides by: the patch's
-    /// faster chart speed, in metres per unit parameter.
-    pub fn speed_lever(&self) -> f64 {
-        self.speed_u.max(self.speed_v)
+    /// faster chart speed, in metres per unit parameter. The max of
+    /// two sup bounds is a sup bound, so the pair's tag survives the
+    /// fold.
+    pub fn speed_lever(&self) -> SupSpeed<f64> {
+        SupSpeed::new(self.speed_u.get().max(self.speed_v.get()))
     }
 
     /// The margin [`offset_normal_floor`] classifies — the chart
@@ -410,8 +467,20 @@ impl PatchRegularity {
     /// number on every input: a zero lever leaves `0/0`, which
     /// escalates rather than certifying, and an infinite one leaves a
     /// zero margin, which refuses. Both are the loud answer.
+    /// **Why the tag comes off here.** The rate pair's
+    /// [`to_param`](SupSpeed::to_param) door crosses a model-space
+    /// LENGTH to parameter units, and `floor` is not one: it is an
+    /// area rate (m² per unit parameter area), so `floor / lever` is
+    /// m per unit parameter — itself a rate, and an inf-side one
+    /// (`≤ min(‖S_u‖, ‖S_v‖)·sin∠`, under-stated by the sup in the
+    /// denominator). What makes it the metres the predicate
+    /// classifies is the module's own unit-parameter-cell convention
+    /// (module docs, *The margin and its lever*), which is
+    /// [`Margin::over_lever`]'s argument and not the rate pair's. So
+    /// the quotient leaves this door untyped rather than reaching for
+    /// one whose dimensional argument does not cover it.
     pub fn thinness(&self) -> f64 {
-        self.floor / self.speed_lever()
+        self.floor / self.speed_lever().get()
     }
 }
 
@@ -452,8 +521,8 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
     PatchRegularity {
         floor,
         sup,
-        speed_u,
-        speed_v,
+        speed_u: SupSpeed::new(speed_u),
+        speed_v: SupSpeed::new(speed_v),
         sine_floor,
         cells: cells.len() as u32,
     }
@@ -472,7 +541,7 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
 /// below zero, [`MeterError::Escalated`] when it lands in the
 /// ambiguity band or is poisoned.
 pub fn offset_normal_floor(reg: &PatchRegularity, band: Band) -> Result<(), MeterError> {
-    let margin = Margin::over_lever(reg.floor, reg.speed_lever());
+    let margin = Margin::over_lever(reg.floor, reg.speed_lever().get());
     match decide("offset_normal_floor", margin, band)
         .map_err(|source| MeterError::Escalated { source })?
     {
@@ -480,7 +549,7 @@ pub fn offset_normal_floor(reg: &PatchRegularity, band: Band) -> Result<(), Mete
         Sign::Zero | Sign::Negative => Err(MeterError::NormalFloor {
             floor: reg.floor,
             thinness: margin.value(),
-            speed_lever: reg.speed_lever(),
+            speed_lever: reg.speed_lever().get(),
         }),
     }
 }
@@ -567,6 +636,16 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     let c = l * nn - m.sqr();
     let h = b / (two * a);
     let k = c / a;
+    // **The refusal is asked here, not left to the finiteness check at
+    // the end.** Both divisions above are by `A`, which is not proven
+    // away from zero on a cell whose normal barely separated, and a
+    // refused quotient carries real endpoints: `k_hi.is_finite()`
+    // would pass on one. Worse, the joins below are `f64::min`/`max`,
+    // which DROP a NaN operand — so one assembly's refusal would be
+    // covered by the other assembly's number.
+    if h.is_poison() || k.is_poison() {
+        return None;
+    }
     // `H² − K` is nonnegative at every real point (the principal
     // curvatures are real), so an enclosure whose upper end is
     // negative is rounding, not geometry: the root is zero there.
@@ -581,6 +660,11 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     let w12 = (g * m - f * nn) / a;
     let w21 = (e * m - f * l) / a;
     let w22 = (e * nn - f * m) / a;
+    // The same refusal, for the same reason, over Gershgorin's four
+    // entries.
+    if w11.is_poison() || w12.is_poison() || w21.is_poison() || w22.is_poison() {
+        return None;
+    }
     let b_hi = (w11.hi() + w12.mag()).max(w22.hi() + w21.mag());
     let b_lo = (w11.lo() - w12.mag()).min(w22.lo() - w21.mag());
     // Both assemblies are sound, so the tighter end of each wins.
@@ -703,5 +787,85 @@ pub fn offset_curvature_headroom(coll: &PatchCollapse, band: Band) -> Result<(),
             headroom: coll.headroom,
             kappa: (coll.kappa_lo, coll.kappa_hi),
         }),
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use geom_core::MarginDiag;
+    use geom_core::predicate::COINCIDENCE_RECOURSE;
+
+    use super::*;
+
+    /// Every meter refusal names what the caller changes, not only the
+    /// number that refused.
+    ///
+    /// `Escalated` renders the classifier's [`Indeterminate`] whole and
+    /// contributes three words of its own, so it is asserted
+    /// TRANSITIVELY — at every `MarginDiag` arm, because that Display's
+    /// three arms are three different sentences and picking one would
+    /// prove the chain at one payload.
+    #[test]
+    fn every_meter_error_arm_names_a_recourse() {
+        // A vocabulary, not a part-of-speech test: an arm that names
+        // the lever the caller turns satisfies the claim the same way
+        // an imperative does.
+        const RECOURSE_WORDS: &[&str] = &["split", "ask", "report", "offset to"];
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let margins = [
+            MarginDiag::Value(5e-9),
+            MarginDiag::Enclosure {
+                lo: -1e-9,
+                hi: 1e-9,
+            },
+            MarginDiag::Invalid,
+        ];
+        let arms = [
+            MeterError::NormalFloor {
+                floor: 0.0,
+                thinness: 0.0,
+                speed_lever: 1.0,
+            },
+            MeterError::CurvatureHeadroom {
+                reach: 1e-3,
+                headroom: -1e-4,
+                kappa: (-1e3, 0.0),
+            },
+            MeterError::Escalated {
+                source: Indeterminate {
+                    margin: MarginDiag::Value(5e-9),
+                    band,
+                    predicate: Some("offset_meter_recourse_probe"),
+                },
+            },
+        ];
+        assert_eq!(arms.len(), 3, "an arm was added without a row here");
+        for arm in &arms {
+            match arm {
+                MeterError::Escalated { .. } => {
+                    for margin in margins {
+                        let source = Indeterminate {
+                            margin,
+                            band,
+                            predicate: Some("offset_meter_recourse_probe"),
+                        };
+                        let msg = MeterError::Escalated { source }.to_string();
+                        assert!(
+                            msg.contains(&source.to_string()),
+                            "carrier not rendered whole: {msg}"
+                        );
+                        assert!(msg.contains(COINCIDENCE_RECOURSE), "no recourse in: {msg}");
+                    }
+                }
+                _ => {
+                    let msg = arm.to_string().to_lowercase();
+                    assert!(
+                        RECOURSE_WORDS.iter().any(|w| msg.contains(w)),
+                        "no recourse in: {msg}"
+                    );
+                }
+            }
+        }
     }
 }

@@ -176,8 +176,8 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
             if !fd.rings.is_empty() {
                 return Err(unbuilt_chain(
                     edge,
-                    "a ruled band's support face carries a ring; the band's carve on a curved \
-                     support does not carry rings through",
+                    "a ruled band's support face carries a ring, which its curved support cannot \
+             carry through",
                 ));
             }
             if loop_of_half(body, half) != Some(fd.outer) {
@@ -209,8 +209,8 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
             if opens.iter().any(|o| o.edge() == rim_a || o.edge() == rim_b) {
                 return Err(unbuilt_chain(
                     edge,
-                    "a ruled band's cap rim is itself requested; a cap whose rim edges are \
-                     blended too is not implemented",
+                    "a ruled band's cap rim is itself requested, and blending it too is not \
+             implemented",
                 ));
             }
             // The cap plane, from the STORED surface — the battery's
@@ -380,6 +380,7 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
                 center: end.center,
                 radius: plan.radius,
             },
+            crease,
         ));
         rec.arcs.push((created.edge, v, crease));
         slivers.push((a, b));
@@ -416,7 +417,7 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
                 tol,
             )
             .map_err(|e| op("ruled trimline mef", e))?;
-        described.push((created.edge, ContactCarrier::TrimLine));
+        described.push((created.edge, ContactCarrier::TrimLine, crease));
         rec.trims.push((created.edge, crease, face));
         trims.push(created.edge);
     }

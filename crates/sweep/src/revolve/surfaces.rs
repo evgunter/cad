@@ -14,7 +14,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve};
-use geom_core::{Point2, Point3, Real, Vec3};
+use geom_core::{Point2, Point3, Real, Tol, Vec3};
 
 use super::SweptSeg;
 use super::axis::{AxisFrame, WallKind};
@@ -84,6 +84,7 @@ pub(super) fn revolved_strut_spec<T: Real>(
     frame: &AxisFrame<T>,
     theta: T,
     axis_c: Vec3<T>,
+    tol: Tol,
 ) -> EdgeCurveSpec<T> {
     let center = frame.foot3(point);
     let rim = q - center;
@@ -96,7 +97,7 @@ pub(super) fn revolved_strut_spec<T: Real>(
     // value. Only the RIM: the span identity needs the far endpoint,
     // and this builder is handed the start point and the angle, never
     // `q_to` — see `work/blend/revolve-carriers-state-only-the-rim`.
-    crate::swept::register_rim_identity(rim, radius);
+    crate::swept::register_rim_identity(rim, radius, tol);
     EdgeCurveSpec {
         description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
             point,

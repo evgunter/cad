@@ -52,7 +52,7 @@ fn great(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 
 fn accepts_exactly(kind: &str, edges: &[LoopEdge<f64>], exact_area: f64) {
     let band = band();
-    match curved_face(&sphere(), edges, 1.0, band) {
+    match curved_face(&sphere(), edges, true, band) {
         Ok(fc) => {
             let rel = (fc.area - exact_area).abs() / exact_area;
             assert!(
@@ -173,7 +173,7 @@ fn a_multi_wrap_span_is_refused_at_the_parse() {
     ];
     assert!(
         matches!(
-            curved_face(&sphere(), &pair, 1.0, band),
+            curved_face(&sphere(), &pair, true, band),
             Err(PropsError::NotIsoRectangle {
                 what: "props_meridian_span_winding"
             })
@@ -245,7 +245,7 @@ fn two_distinct_near_polar_rims_are_not_one_level() {
     let edges = near_polar_staircase(0.2, v2 - dv, v2);
     assert!(
         matches!(
-            curved_face(&sphere(), &edges, 1.0, band),
+            curved_face(&sphere(), &edges, true, band),
             Err(PropsError::NotIsoRectangle {
                 what: "props_rim_level"
             })
@@ -275,7 +275,7 @@ fn the_near_polar_refusal_floor_is_the_coincidence_threshold() {
     let dv = 3.0 * band.zero() / RS;
     let v2 = core::f64::consts::FRAC_PI_2 - d0;
     let edges = near_polar_two_level_row(0.2, v2 - dv, v2);
-    match curved_face(&sphere(), &edges, 1.0, band) {
+    match curved_face(&sphere(), &edges, true, band) {
         Err(PropsError::NotIsoRectangle { .. }) | Err(PropsError::Escalated { .. }) => {}
         other => panic!(
             "two near-polar rims 3·zero of point separation apart must not \
@@ -301,7 +301,7 @@ fn a_near_polar_step_within_the_band_is_still_one_level() {
     let v0 = 0.2;
     let v2 = core::f64::consts::FRAC_PI_2 - d0;
     let edges = near_polar_two_level_row(v0, v2 - dv, v2);
-    let got = curved_face(&sphere(), &edges, 1.0, band)
+    let got = curved_face(&sphere(), &edges, true, band)
         .expect("a rim step half an epsilon of point separation is one level");
     let closed = 2.0 * RS * RS * (v2.sin() - v0.sin());
     let rel = (got.area - closed).abs() / closed;

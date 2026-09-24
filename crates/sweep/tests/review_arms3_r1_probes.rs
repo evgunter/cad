@@ -310,7 +310,7 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
         axis: Vec3::new(0.0, 1.0, 0.0),
         rim: Point3::new(0.8, 0.0, 0.0),
     };
-    let trace = |y: f64, side: f64| SupportTrace::Round {
+    let trace = |y: f64, side: bool| SupportTrace::Round {
         center: Point3::new(0.0, y, 0.0),
         radius: 1.0,
         side,
@@ -320,8 +320,8 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
     let at_tangency = sheet_center(
         sheet.rim,
         sheet.sheet_normal(),
-        trace(-0.6, 1.0),
-        trace(0.6, 1.0),
+        trace(-0.6, true),
+        trace(0.6, true),
         0.4,
     );
     // The half-chord square is an EXACT zero only in real arithmetic;
@@ -336,8 +336,8 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
     let past = sheet_center(
         sheet.rim,
         sheet.sheet_normal(),
-        trace(-0.6, 1.0),
-        trace(0.6, 1.0),
+        trace(-0.6, true),
+        trace(0.6, true),
         0.45,
     );
     assert!(
@@ -353,12 +353,12 @@ fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
         SupportTrace::Round {
             center: Point3::new(0.0, 0.0, 0.0),
             radius: 1.0,
-            side: 1.0,
+            side: true,
         },
         SupportTrace::Round {
             center: Point3::new(0.0, 0.15, 0.0),
             radius: 0.9,
-            side: -1.0,
+            side: false,
         },
         0.125,
     );

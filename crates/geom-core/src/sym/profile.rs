@@ -9,7 +9,7 @@
 //! CAUSE the ring or the budget refused for, noted at the refusal site
 //! itself ([`FreezeCause`]) rather than re-derived afterwards. Per walk
 //! ([`Walk`]) and per ORIGIN ([`Origin`] — the decision's own discharge,
-//! the contradiction assertion on a definite sign, or the shape
+//! the contradiction check on a definite sign, or the shape
 //! report's rendering): how many forms each built and the wall time it
 //! took. For the coefficient ring: every `Rat` operation, every one
 //! that left the `i128` inline path, and the widest coefficient any
@@ -25,7 +25,7 @@
 //! on the same thread, and takes it.
 
 use core::cell::{Cell, RefCell};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::{Duration, Instant};
 
 use super::form::Form;
@@ -95,11 +95,15 @@ pub enum Origin {
     /// check of a registered zero against a definite sign
     /// (`door_zero`) counts here too — it is the decision path.
     Decision,
-    /// The contradiction ASSERTION on a definite sign: `Decide for
-    /// Sym<T>` runs `discharge` inside a `debug_assert!` on every
-    /// margin the numeric channel proved non-zero, so under debug
-    /// assertions (dev, test, and this workspace's release profile)
-    /// those forms are built by the assertion and not by the tier.
+    /// The contradiction CHECK on a definite sign: `Decide for Sym<T>`
+    /// runs `discharge` on every margin the numeric channel answered
+    /// definite, so those forms are built by the check and not by the
+    /// tier. At an EXACT witness the check is a `debug_assert!`, so it
+    /// runs under debug assertions only (dev, test, and this
+    /// workspace's release profile); at an INEXACT one it is the
+    /// dispute count (`SymCounts::theorems_disputed`) and runs in
+    /// every profile. Both are charged here, because what the column
+    /// measures is the walk and not the verdict.
     Assertion,
     /// The shape report's rendering of a blocked residual
     /// (`report::render_node`), when the report is installed.
@@ -237,6 +241,29 @@ pub struct SymProfile {
     /// Rule D's fold (`trig::fold`), the memoized closed forms
     /// included.
     pub trig: Timed,
+    /// **The DISTINCT node ids the plain walk computed a form for**,
+    /// over every session recorded — against `walk(Walk::Plain).forms`,
+    /// which counts each computation, this is how many of them a memo
+    /// keyed by the id could have answered from another leaf. The
+    /// ratio is the ceiling of a drive-scoped plain memo's win.
+    pub plain_ids: BTreeSet<u128>,
+    /// **Each session's set of `Opaque` indeterminate ids**, in the
+    /// order the sessions ended.
+    ///
+    /// An `Opaque` id is the SEQUENCE NUMBER the leaf minted it at
+    /// (`OPAQUE_SEQ`) — the one part of a node id that is not a hash of
+    /// what the expression says. Two leaves that mint in different
+    /// orders therefore build different ids for the same subexpression,
+    /// and a drive-scoped plain memo MISSES on them. It does not answer
+    /// them wrongly: `sym::memo`'s header carries that argument once
+    /// (a plain form is a syntactic normal form of a syntactic id), and
+    /// this set is the instrument for the HIT RATE, not for soundness.
+    ///
+    /// On every document in the tree today every set is EMPTY, because
+    /// no drive mints an opaque at all: `Sym::opaque`'s one caller is
+    /// the unnamed `AxisScalar::axis`, and a drive binds its axes
+    /// through `axis_named`.
+    pub opaque_ids: Vec<BTreeSet<u128>>,
 }
 
 // The install / take scaffold is `report`'s, spelled again: two
@@ -247,6 +274,10 @@ thread_local! {
     static NOTE: Cell<Option<FreezeCause>> = const { Cell::new(None) };
     static ORIGIN: Cell<Origin> = const { Cell::new(Origin::Decision) };
     static PROFILE: RefCell<SymProfile> = RefCell::new(SymProfile::default());
+
+    /// The `Opaque` ids the session now installed has minted, flushed
+    /// into [`SymProfile::opaque_ids`] when it ends.
+    static OPAQUE_LEAF: RefCell<BTreeSet<u128>> = const { RefCell::new(BTreeSet::new()) };
 }
 
 /// Installs the profile on this thread, dropping anything recorded.
@@ -465,13 +496,40 @@ pub(super) fn trig_done(t0: Option<Instant>) {
     with(|p| timed(&mut p.trig, t0));
 }
 
+/// One session is about to run: the per-session accumulators start
+/// empty, so a mint outside any session cannot land in a leaf's set.
+pub(super) fn session_start() {
+    if active() {
+        OPAQUE_LEAF.with(|s| s.borrow_mut().clear());
+    }
+}
+
 /// One session ended, with this many nodes and atoms in its table.
 pub(super) fn session_done(nodes: usize, atoms: usize) {
+    let opaque = OPAQUE_LEAF.with(|s| core::mem::take(&mut *s.borrow_mut()));
     with(|p| {
         p.sessions += 1;
         p.nodes += nodes as u64;
         p.atoms += atoms as u64;
+        p.opaque_ids.push(opaque);
     });
+}
+
+/// One id the PLAIN walk put a form in its memo for — the distinct
+/// count a drive-scoped memo would key by.
+pub(super) fn record_plain_id(id: u128) {
+    with(|p| {
+        p.plain_ids.insert(id);
+    });
+}
+
+/// One `Opaque` indeterminate this session minted ([`super::Sym::opaque`]).
+pub(super) fn record_opaque(id: u128) {
+    if active() {
+        OPAQUE_LEAF.with(|s| {
+            s.borrow_mut().insert(id);
+        });
+    }
 }
 
 /// The kids' sizes over one `(cause, op)` class of freezes.
@@ -878,8 +936,13 @@ mod tests {
         assert_eq!(out.frozen(), 0);
 
         // A definite sign: the decision path builds no form; the
-        // contradiction assertion does (dev and test profiles), and the
-        // profile charges every walk it asks to `Assertion`.
+        // contradiction check does — here at `f64`, an INEXACT witness,
+        // where it is the dispute count and runs in every profile, so
+        // the `cfg!(debug_assertions)` guard below is looser than this
+        // arm needs (it is the EXACT arm that stops asking without
+        // them); kept so the row reads the same in every profile the
+        // workspace builds. The profile charges every walk it asks to
+        // `Assertion`.
         let out = profiled(budget(4096, 128), || {
             let (x, y) = (p("x", 1.0), p("y", 2.0));
             ask(x * y + y * x);

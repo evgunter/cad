@@ -224,28 +224,16 @@ pub(crate) fn tilted_halves() -> (Body<f64>, Body<f64>) {
     (above.clone(), below.clone())
 }
 
-/// The NURBS-walled corpus bodies, built the way `m7_nurbs_trimmed`
-/// builds them (its own header carries the provenance of each).
+/// The NURBS-walled corpus bodies. One name per body, kept because
+/// `patch_memo` reads them by it; the bodies themselves are
+/// `sweep::test_support`'s, whose doc comments carry the provenance
+/// and the derived volumes.
 pub(crate) mod nurbs_bodies {
-    use geom_core::{Affine3, Tol, Vec3};
-    use sweep::loft_body;
+    use geom_core::Tol;
     use topo::Body;
 
-    use crate::common::quad;
-
     pub(crate) fn loft_prism() -> Body<f64> {
-        let sections = vec![
-            quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-            quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-            quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        ];
-        let places: Vec<Affine3<f64>> = [0.0, 1.0, 2.0]
-            .iter()
-            .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-            .collect();
-        loft_body::<f64>(&sections, &places, 2, Tol::witness())
-            .expect("the loft builds")
-            .body
+        sweep::test_support::loft_prism(Tol::witness())
     }
 }
 
@@ -293,7 +281,7 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ),
     (
         "apex_crossing_bowtie",
-        [0xd64f_3d06_9373_61f5, 0xd64f_3d06_9373_61f5],
+        [0x9cdd_b7a3_543d_b550, 0x9cdd_b7a3_543d_b550],
     ),
     ("loft_prism", [0x2d6a_6bd0_bdce_2300, 0x6109_b327_f166_6647]),
     (

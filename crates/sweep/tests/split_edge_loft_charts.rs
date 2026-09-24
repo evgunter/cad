@@ -22,19 +22,14 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::PcurveCertifyError;
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::{Point2, Tol};
 use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use sweep::test_support::stacked_at;
 use topo::pcurves::PcurveMintError;
 use topo::{Body, EdgeKey, Pcurve};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn at_z(zs: &[f64]) -> Vec<Affine3<f64>> {
-    zs.iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect()
 }
 
 /// A square-profile prism: flat walls, so every wall row is `IsoLine`.
@@ -48,7 +43,7 @@ fn line_prism() -> Body<f64> {
             v(0.0, 2.0),
         ])]
     };
-    sweep::loft_body::<f64>(&[sq(), sq()], &at_z(&[0.0, 1.0]), 1, tol())
+    sweep::loft_body::<f64>(&[sq(), sq()], &stacked_at(&[0.0, 1.0]), 1, tol())
         .expect("the prism builds")
         .body
 }
@@ -70,7 +65,7 @@ fn bulged_prism() -> Body<f64> {
             v(0.0, 2.0, 0.0),
         ])]
     };
-    sweep::loft_body::<f64>(&[bulged(), bulged()], &at_z(&[0.0, 1.0]), 1, tol())
+    sweep::loft_body::<f64>(&[bulged(), bulged()], &stacked_at(&[0.0, 1.0]), 1, tol())
         .expect("the bulged prism builds")
         .body
 }

@@ -17,6 +17,7 @@ use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_a
 use topo::{Body, EdgeKey};
 
 use super::shell7_common::*;
+use sweep::test_support::tube_frame;
 
 const R: f64 = 2.0;
 const SMALL_R: f64 = 0.5;
@@ -132,9 +133,12 @@ fn p3_the_seam_decide_at_small_major_radii() {
         (2.0e-8, 5.0e-9),
     ] {
         let built = tube_along_arc::<f64>(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::unit_y(),
-            Vec3::unit_x(),
+            tube_frame(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::unit_y(),
+                Vec3::unit_x(),
+                tol(),
+            ),
             major,
             TubeWindow::Full,
             minor,
@@ -324,9 +328,12 @@ fn e2e_a_consumer_shells_classifies_measures_and_tessellates_tori() {
 
     // 2. The HOLLOW torus, shelled.
     let hollow = tube_along_arc_hollow::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol(),
+        ),
         R,
         TubeWindow::Full,
         SMALL_R,
@@ -467,9 +474,12 @@ fn p6_an_independent_corpus_differential() {
     }
     // The klein elbow: a quarter tube.
     let elbow = tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol(),
+        ),
         R,
         TubeWindow::Arc {
             t0: 0.0,
@@ -487,9 +497,12 @@ fn p6_an_independent_corpus_differential() {
     }
     // The hollow torus of SHELL-5, and the solid one.
     let hollow = tube_along_arc_hollow::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol(),
+        ),
         R,
         TubeWindow::Full,
         SMALL_R,

@@ -66,7 +66,7 @@ fn shipped_fillet_guard_is_green(text: &str) -> bool {
 /// relying on a source mutation.
 #[test]
 fn the_shipped_fillet_single_render_guard_is_blind_to_the_prefix_family() {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let vertex = body
         .vertices()
         .map(|(k, _)| k)
@@ -116,7 +116,7 @@ fn no_inner_error_opens_with_a_verb_word_on_either_door() {
     }
 
     // The regressed shape 1a builds is what this invariant catches.
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let vertex = body
         .vertices()
         .map(|(k, _)| k)
@@ -150,7 +150,7 @@ fn no_inner_error_opens_with_a_verb_word_on_either_door() {
 /// argument; this row makes the consequence explicit.
 #[test]
 fn the_closed_chamfer_arm_would_speak_the_other_verb_if_it_ever_fired() {
-    let body = cube(L, Tol::witness());
+    let body = cube::<f64>(L, Tol::witness());
     let edge = query::all_edges(&body)[0];
     let refusal = BlendRefusal {
         verb: BlendKind::Chamfer,

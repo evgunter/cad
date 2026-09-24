@@ -52,7 +52,7 @@ fn r1_a_coincidence_at_one_point_of_the_box_registers_and_decides_zero() {
     let (out, counts) = with_session_rules(budget(), SymRules::shipped(), || {
         let x = pi("x", 0.9, 1.1);
         let sq = x * x;
-        let reg = sq.register_equal(x);
+        let reg = sq.register_equal(x, Tol::witness());
         let s = sign_of(sq - x);
         (reg, s)
     });
@@ -77,24 +77,26 @@ fn r1_a_coincidence_at_one_point_of_the_box_registers_and_decides_zero() {
 }
 
 /// The same shape with a GEOMETRIC error rather than a coincidence: a
-/// rim whose declared radius is 0.1% wrong. At `f64` that is refused
-/// (`WITNESS_REL = 1e-9`); at `Interval` over a box wide enough for the
+/// rim whose declared radius is 0.1% wrong. At `f64` that is refused at
+/// every eps row the suite drives — the slack is `tol.eps() * max(|a|,
+/// |b|, 1)`, which is 1e-6 at the loosest row against a separation of
+/// 1e-3; at `Interval` over a box wide enough for the
 /// two enclosures to overlap it is recorded, and the residual decides
 /// `Zero`.
 #[test]
 fn r1_a_geometric_lie_the_f64_witness_refuses_is_recorded_at_interval() {
-    let f64_says = <f64 as Real>::register_equal(1.0, 1.001);
+    let f64_says = <f64 as Real>::register_equal(1.0, 1.001, Tol::witness());
     assert_eq!(
         f64_says,
-        SymRegistration::Contradicted,
-        "at a point: caught"
+        SymRegistration::Disputed,
+        "at a point: caught, and by an INEXACT witness, which never answers Contradicted"
     );
     let (out, counts) = with_session_rules(budget(), SymRules::shipped(), || {
         // ‖v‖ over a box, against a radius parameter 0.1% too large.
         let (vx, vy) = (pi("vx", 2.97, 3.03), pi("vy", 3.96, 4.04));
         let n = (vx * vx + vy * vy).sqrt();
         let r = pi("r", 5.0 * 1.001 * 0.99, 5.0 * 1.001 * 1.01).abs();
-        let reg = n.register_equal(r);
+        let reg = n.register_equal(r, Tol::witness());
         let one = <Sym<Interval> as Real>::one();
         let s = sign_of(vx * (r / n - one));
         (reg, s)
@@ -122,8 +124,8 @@ fn r1_the_registry_stores_a_pair_the_witness_never_compared() {
         let c = a * a * a;
         // Both of these are witnessed against `a`, never against each
         // other: over this box all three enclosures meet.
-        let first = b.register_equal(a);
-        let second = c.register_equal(a);
+        let first = b.register_equal(a, Tol::witness());
+        let second = c.register_equal(a, Tol::witness());
         // `b − c` is now the zero form, on a claim (`a² ≡ a³`) no
         // registrant made and no witness saw.
         let s = sign_of(b - c);
@@ -156,8 +158,8 @@ fn r1_two_registrations_make_the_two_channels_contradict_and_it_is_counted() {
         let a = pi("a", 0.9, 1.1);
         let lo = a - <Sym<Interval> as Real>::from_f64(0.2);
         let hi = a + <Sym<Interval> as Real>::from_f64(0.2);
-        let r1 = lo.register_equal(a);
-        let r2 = hi.register_equal(a);
+        let r1 = lo.register_equal(a, Tol::witness());
+        let r2 = hi.register_equal(a, Tol::witness());
         (r1, r2, sign_of(lo - hi))
     });
     println!("   {out:?} {counts:?}");
@@ -195,7 +197,7 @@ fn r1_a_refused_registration_is_counted_in_the_receipt() {
         let x = pi("x", 1.0, 1.0);
         let y = pi("y", 5.0, 5.0);
         assert_eq!(
-            x.register_equal(y),
+            x.register_equal(y, Tol::witness()),
             SymRegistration::Contradicted,
             "the enclosures are disjoint"
         );

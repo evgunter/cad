@@ -204,8 +204,8 @@
 //! about it, so the Newell normal of the outer walk IS the outward
 //! normal whenever the body honours the rule.
 //!
-//! **The S10 identity does not enter.** Outward = `sense_sign` · chart
-//! normal only relates the outward normal to a STORED chart, and
+//! **The S10 identity does not enter.** Outward = chart normal with
+//! `sense` folded in only relates the outward normal to a STORED chart, and
 //! [`chart_frame`] reads no chart — only walk indices and 3-D points.
 //! So the premise that S10 retired (*"a face's stored normal is the
 //! outward normal"*) is a different claim from this one, and its
@@ -459,7 +459,7 @@ fn triangulate_chart(
 
     // Outer-loop orientation in the chart frame decides the flip.
     //
-    // S10 CATEGORY B — do NOT multiply by the face's `sense_sign`. The
+    // S10 CATEGORY B — do NOT fold the face's `sense` in. The
     // sign here is derived from the loop's STORED TRAVERSAL (the
     // projected shoelace), and by interior-left the outer loop winds
     // CCW about the face's OUTWARD normal — so the shoelace comes out

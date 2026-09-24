@@ -33,12 +33,12 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 use pyo3::types::{PyFloat, PyString};
 
-use crate::errors::ErrorClass;
+use crate::errors::{ErrorClass, EvalReason, ValidationRefusal, measurement_dimension_tag};
 use crate::py::quantity::Length;
 use crate::py::{doc::NodeId, typed_err};
 use crate::tags::{
-    NODE_NOT_EVALUATED, export_error_tag, node_error_tag, node_inner_kind_tag,
-    normalization_kind_tag, promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag,
+    export_error_tag, node_error_tag, node_inner_kind_tag, normalization_kind_tag,
+    promoted_curve_kind_tag, promoted_kind_tag, step_import_error_tag,
 };
 use crate::validation;
 use pncad::document as d;
@@ -57,13 +57,21 @@ fn inner_kind(py: Python<'_>, kind: &d::NodeErrorKind) -> Py<PyAny> {
 
 /// Raise `EvaluationError` with a stable `reason` tag.
 ///
+/// The reason is an [`EvalReason`], not a `&str`, and it rides on the
+/// CLASS ([`ErrorClass::Evaluation`]) rather than in the payload: the
+/// word a Python caller branches on is minted once, by
+/// [`crate::tags::eval_reason_tag`], on a page the tag-table guard
+/// reads. That holds for this door's other two raises below and for
+/// any future one, because no raise of this class can be written
+/// without naming a variant of the enum.
+///
 /// `kind`, `inner_kind`, `through` and `finding` are ALWAYS present on
 /// the exception — `None` where the reason has no failing kind, no
 /// arm under that kind, no poisoning ancestor, or no refusal-menu
 /// payload — so stub-guided code can read them without an
 /// `AttributeError` trap — a stub that over-promises is worse than one
 /// that says `None`.
-fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: NodeId) -> PyErr {
+fn eval_err(py: Python<'_>, message: impl Into<String>, reason: EvalReason, node: NodeId) -> PyErr {
     let node = match node.into_pyobject(py) {
         Ok(bound) => bound.unbind().into_any(),
         // A `#[pyclass]` conversion fails as a `PyErr` already —
@@ -72,10 +80,9 @@ fn eval_err(py: Python<'_>, message: impl Into<String>, reason: &str, node: Node
     };
     typed_err(
         py,
-        ErrorClass::Evaluation,
+        ErrorClass::Evaluation(reason),
         message,
         &[
-            ("reason", PyString::new(py, reason).unbind().into_any()),
             ("node", node),
             ("kind", py.None().into_any()),
             ("inner_kind", py.None().into_any()),
@@ -114,13 +121,9 @@ fn node_failure(py: Python<'_>, node: NodeId, error: &d::NodeError) -> PyErr {
     };
     typed_err(
         py,
-        ErrorClass::Evaluation,
+        ErrorClass::Evaluation(EvalReason::NodeFailed),
         error.to_string(),
         &[
-            (
-                "reason",
-                PyString::new(py, "node_failed").unbind().into_any(),
-            ),
             ("node", node_obj),
             (
                 "kind",
@@ -146,7 +149,6 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
         (Err(failed), _) | (_, Err(failed)) => return failed,
     };
     let mut fields: Vec<(&str, Py<PyAny>)> = vec![
-        ("reason", PyString::new(py, "poisoned").unbind().into_any()),
         ("node", node_obj),
         ("through", through_obj),
         ("finding", py.None().into_any()),
@@ -170,7 +172,12 @@ fn poisoning(py: Python<'_>, node: NodeId, through: NodeId, root: Option<&d::Nod
             format!("never ran — poisoned through node {}", through.0.0)
         }
     };
-    typed_err(py, ErrorClass::Evaluation, message, &fields)
+    typed_err(
+        py,
+        ErrorClass::Evaluation(EvalReason::Poisoned),
+        message,
+        &fields,
+    )
 }
 
 /// Bulk mass properties of a body, in canonical units.
@@ -223,14 +230,12 @@ fn measurement_err(
     err: &topo::MassPropsError,
     extra: Vec<(&'static str, Py<PyAny>)>,
 ) -> PyErr {
-    let mut fields = vec![(
-        "reason",
-        PyString::new(py, "mass_properties_failed")
-            .unbind()
-            .into_any(),
-    )];
-    fields.extend(extra);
-    typed_err(py, ErrorClass::Validation, err.to_string(), &fields)
+    typed_err(
+        py,
+        ErrorClass::Validation(ValidationRefusal::MassProperties),
+        err.to_string(),
+        &extra,
+    )
 }
 
 /// A float payload attribute, `None` where the door has no value for
@@ -327,12 +332,16 @@ impl Body {
 
     /// Full validation. Raises `ValidationError` listing the failures.
     fn validate(&self, py: Python<'_>) -> PyResult<()> {
-        self.run_validator(py, "validate", topo::validate(&self.inner))
+        self.run_validator(py, ValidationRefusal::Validate, topo::validate(&self.inner))
     }
 
     /// Closure validation only.
     fn validate_closed(&self, py: Python<'_>) -> PyResult<()> {
-        self.run_validator(py, "validate_closed", topo::validate_closed(&self.inner))
+        self.run_validator(
+            py,
+            ValidationRefusal::Closed,
+            topo::validate_closed(&self.inner),
+        )
     }
 
     /// Tessellate at a chordal budget — the ladder's step 4.
@@ -357,7 +366,7 @@ impl Body {
         let tol = Tol::witness();
         self.run_validator(
             py,
-            "validate_geometric",
+            ValidationRefusal::Geometric,
             topo::validate_geometric(&self.inner, tol),
         )
     }
@@ -391,8 +400,8 @@ impl Body {
     /// may have no volume number at this ε. Tier 3 admits it — the +V
     /// check reads only the sign — and the measurement refuses, with
     /// the same `ValidationError` and the same `reason`
-    /// (`"mass_properties_failed"`) `mass_properties()` raises on that
-    /// body. On THAT refusal the exception also carries the
+    /// ([`ValidationRefusal::MassProperties`]) `mass_properties()`
+    /// raises on that body. On THAT refusal the exception also carries the
     /// sign-level bracket the gate decided on — `volume_lo`,
     /// `volume_hi`, `surface_area` — which is the whole of what the
     /// certified quadrature is entitled to say about the body, and is
@@ -405,7 +414,11 @@ impl Body {
             // the tag its refusal carries: a caller reading `door`
             // learns which gate refused, not which door it called.
             Err(failures) => {
-                return Err(Self::validator_err(py, "validate_geometric", &failures)?);
+                return Err(Self::validator_err(
+                    py,
+                    ValidationRefusal::Geometric,
+                    &failures,
+                )?);
             }
         };
         // The bracket has to be read BEFORE the continuation consumes
@@ -469,7 +482,7 @@ impl Body {
         let tol = Tol::witness();
         self.run_validator(
             py,
-            "validate_pseudomanifold",
+            ValidationRefusal::Pseudomanifold,
             topo::validate_pseudomanifold(&self.inner, &self.contacts, tol),
         )
     }
@@ -497,7 +510,7 @@ impl Body {
     fn run_validator(
         &self,
         py: Python<'_>,
-        door: &str,
+        door: ValidationRefusal,
         outcome: Result<(), Vec<topo::ValidationError>>,
     ) -> PyResult<()> {
         let Err(failures) = outcome else {
@@ -517,9 +530,12 @@ impl Body {
     /// `Result<(), _>`.
     fn validator_err(
         py: Python<'_>,
-        door: &str,
+        door: ValidationRefusal,
         failures: &[topo::ValidationError],
     ) -> PyResult<PyErr> {
+        // The word for the human sentence is the one the class mints
+        // for `door`, read from the same map rather than restated.
+        let door_word = crate::tags::validation_refusal_tag(door);
         let count = failures.len().into_pyobject(py)?.unbind().into_any();
         let findings: Vec<ValidationFinding> = failures
             .iter()
@@ -528,9 +544,9 @@ impl Body {
         let findings = findings.into_pyobject(py)?.unbind().into_any();
         Ok(typed_err(
             py,
-            ErrorClass::Validation,
+            ErrorClass::Validation(door),
             format!(
-                "{door} reported {} failure(s): {}",
+                "{door_word} reported {} failure(s): {}",
                 failures.len(),
                 failures
                     .iter()
@@ -538,11 +554,7 @@ impl Body {
                     .collect::<Vec<_>>()
                     .join("; ")
             ),
-            &[
-                ("door", PyString::new(py, door).unbind().into_any()),
-                ("failure_count", count),
-                ("findings", findings),
-            ],
+            &[("failure_count", count), ("findings", findings)],
         ))
     }
 }
@@ -729,7 +741,14 @@ impl Datum {
 /// surface uses.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Measurement {
-    /// `"Length"`, `"Angle"`, `"Count"` or `"Scalar"`.
+    /// The dimension measured in: `"Length"`, `"Angle"`, `"Count"`
+    /// or `"Scalar"`, capitalized where every other door's dimension
+    /// word is not. Spelled out because this docstring is the only
+    /// place a Python caller can read the four — `pncad.pyi` names
+    /// the attribute and not its words.
+    // The map is `crate::errors::measurement_dimension_tag`, held to
+    // `dimension_tag`'s lower-case four by
+    // `the_two_dimension_alphabets_are_one_list_in_two_cases`.
     #[pyo3(get)]
     dimension: &'static str,
     /// The measured value in canonical kernel units.
@@ -785,22 +804,6 @@ impl Verdict {
             (Some(m), Some(b)) => format!("Verdict({}: {m} vs {b})", self.status),
             _ => format!("Verdict({})", self.status),
         }
-    }
-}
-
-/// The F1 dimension as the one spelling this surface uses.
-///
-/// Capitalized on purpose: this is the Python-facing type name a
-/// `Measurement` repr reads back as, not prose. The other two
-/// spellings of the same word list are the kernel's prose rendering
-/// (`Dimension`'s `Display`, lowercase) and `errors::dimension_tag`
-/// (the lowercase FFI tag, pinned equal to that rendering).
-fn dimension_name(dim: d::Dimension) -> &'static str {
-    match dim {
-        d::Dimension::Length => "Length",
-        d::Dimension::Angle => "Angle",
-        d::Dimension::Count => "Count",
-        d::Dimension::Scalar => "Scalar",
     }
 }
 
@@ -878,13 +881,13 @@ impl Value {
             d::ValuePayload::Boolean(d::BooleanValue::Empty) => Err(eval_err(
                 py,
                 "the Boolean produced an empty result",
-                "empty_boolean",
+                EvalReason::EmptyBoolean,
                 self.node,
             )),
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a body", other.kind_name()),
-                "wrong_kind",
+                EvalReason::WrongKind,
                 self.node,
             )),
         }
@@ -920,7 +923,7 @@ impl Value {
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a split", other.kind_name()),
-                "wrong_kind",
+                EvalReason::WrongKind,
                 self.node,
             )),
         }
@@ -956,12 +959,12 @@ impl Value {
                 in_plane: None,
                 axes: None,
             }),
-            d::ValuePayload::Datum(d::DatumValue::Frame { origin, u, v }) => {
-                let (x, y) = (u.get(), v.get());
-                let n = d::DatumValue::frame_normal(*u, *v);
+            d::ValuePayload::Datum(d::DatumValue::Frame(f)) => {
+                let (x, y) = (f.u().get(), f.v().get());
+                let n = f.w().get();
                 Ok(Datum {
                     kind: "frame",
-                    origin: lengths(*origin),
+                    origin: lengths(f.origin()),
                     direction: Some((n.x, n.y, n.z)),
                     in_plane: None,
                     axes: Some(((x.x, x.y, x.z), (y.x, y.y, y.z))),
@@ -995,7 +998,7 @@ impl Value {
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a datum", other.kind_name()),
-                "wrong_kind",
+                EvalReason::WrongKind,
                 self.node,
             )),
         }
@@ -1023,7 +1026,7 @@ impl Value {
     fn measure(&self, py: Python<'_>) -> PyResult<Measurement> {
         match &self.payload {
             d::ValuePayload::Measure { value, dim } => Ok(Measurement {
-                dimension: dimension_name(*dim),
+                dimension: measurement_dimension_tag(*dim),
                 value: *value,
                 length: (*dim == d::Dimension::Length)
                     .then(|| Length(pncad::quantity::Length::from_meters(*value))),
@@ -1034,7 +1037,7 @@ impl Value {
             other => Err(eval_err(
                 py,
                 format!("a `{}` value is not a measure", other.kind_name()),
-                "wrong_kind",
+                EvalReason::WrongKind,
                 self.node,
             )),
         }
@@ -1047,7 +1050,7 @@ impl Value {
             return Err(eval_err(
                 py,
                 format!("a `{}` value is not an assertion", self.payload.kind_name()),
-                "wrong_kind",
+                EvalReason::WrongKind,
                 self.node,
             ));
         };
@@ -1165,13 +1168,13 @@ impl Evaluation {
                 py,
                 "this evaluation never reached the node: it was canceled first, \
                  and holds the completed prefix only",
-                NODE_NOT_EVALUATED,
+                EvalReason::NodeNotEvaluated,
                 *node,
             )),
             None => Err(eval_err(
                 py,
                 "no such node in the evaluated document",
-                "unknown_node",
+                EvalReason::UnknownNode,
                 *node,
             )),
         }
@@ -1495,10 +1498,14 @@ impl Evaluation {
     /// triangle position)`, so a ray down a shared edge answers the
     /// same face every time.
     ///
-    /// Raises `HitTestError`, typed: the standing ladder up front for
-    /// a target whose node this evaluation has no value for
-    /// (`node_not_evaluated`, `node_failed`, `node_poisoned`), and the
-    /// loud `unnamed` bug arm if the winning face inverts to no name.
+    /// Raises `HitTestError`, typed: the pairing refusal
+    /// (`evaluation_of_another_document`) for a target built from an
+    /// evaluation of another document, checked before any target's
+    /// standing because a twin recipe mints the same node ids; then
+    /// the standing ladder for a target whose node this evaluation has
+    /// no value for (`node_not_evaluated`, `node_failed`,
+    /// `node_poisoned`); then the loud `unnamed` bug arm if the
+    /// winning face inverts to no name.
     fn pick_face(
         &self,
         py: Python<'_>,
@@ -1595,10 +1602,9 @@ impl Evaluation {
     /// Every `StepOptions` field is a keyword here, and each defaults
     /// to `None` meaning the Rust default — so the door narrows
     /// nothing and an omitted keyword is the same file a Rust caller
-    /// gets from `StepOptions::default()`. The options struct is built
-    /// by a literal that names every field, so a field the kernel
-    /// gains does not compile until this door decides about it; that
-    /// decision is recorded, either way, in the surface census.
+    /// gets from `StepOptions::default()`. Its options are a literal
+    /// naming every field, held to `StepOptions` by the surface
+    /// census's options roster, which is where that device is argued.
     ///
     /// `uncertainty` is the exported
     /// `UNCERTAINTY_MEASURE_WITH_UNIT` length; omitted, the writer
@@ -2019,11 +2025,42 @@ impl ImportReport {
 /// quadrature to decide the body's orientation invariant, so
 /// `enclosure` is that measurement handed back and
 /// `body.mass_properties()` is a second one over the same body.
+///
+/// `eps_in` overrides the file's declared
+/// `UNCERTAINTY_MEASURE_WITH_UNIT` as the import's input tolerance —
+/// the reading end of the ε `Evaluation.step_string`'s `uncertainty`
+/// writes. Omitted, the file's own declaration is read, which is what
+/// the Rust default says; a value that is not finite and strictly
+/// positive is the importer's own `invalid_eps_override` refusal, not
+/// a check restated here.
+///
+/// Its options are a literal naming every field, held to
+/// `ImportOptions` by the surface census's options roster — which is
+/// also where `declared_contacts`, the field this door does not take,
+/// carries its reason.
 #[pyfunction]
-pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<ImportReport> {
+#[pyo3(signature = (text, *, eps_in = None))]
+pub(crate) fn import_step(
+    py: Python<'_>,
+    text: &str,
+    eps_in: Option<Length>,
+) -> PyResult<ImportReport> {
     let tol = Tol::witness();
-    match pncad::step_import::import_step(text, &pncad::step_import::ImportOptions::default(), tol)
-    {
+    let defaults = pncad::step_import::ImportOptions::default();
+    let options = pncad::step_import::ImportOptions {
+        eps_in: eps_in.map(|e| e.0.meters()).or(defaults.eps_in),
+        declared_contacts: defaults.declared_contacts,
+        // This door asks for no chart-coherence examination, because
+        // `ImportReport` has no field to report one on: asking would
+        // measure the body and drop the measurement. Written as the
+        // literal rather than read off `defaults`, so this line
+        // ENFORCES the sentence above it — a kernel-side default that
+        // flipped one crate away would otherwise turn the examination
+        // on here silently, and the comment would go quietly false.
+        // The surface census carries the decision as a `NotBound` row.
+        examine_chart_coherence: false,
+    };
+    match pncad::step_import::import_step(text, &options, tol) {
         Ok(pncad::step_import::StepImport::Solid {
             body,
             enclosure,
@@ -2031,6 +2068,10 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<ImportReport> 
             normalizations,
             curve_promotions,
             instances,
+            // `None` by construction: the options above ask for no
+            // examination, and `None` means NOT ASKED — which is the
+            // one thing an empty report would not say.
+            coherence: _,
         }) => Ok(ImportReport {
             body: Body::plain(Arc::new(body)),
             enclosure: MassProperties {
@@ -2050,8 +2091,10 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<ImportReport> 
         // Not a refusal variant: the import SUCCEEDED and produced
         // the other arm of `StepImport`, which this door does not
         // adopt. Its tag is the arm's name and shares the namespace
-        // with `step_import_error_tag`'s, which contains no
-        // `wireframe`.
+        // with `step_import_error_tag`'s, which does not mint it; the
+        // word is `crate::tags::STEP_IMPORT_WIREFRAME`, where the tag
+        // inventory reads it. A THIRD arm of the kernel's success enum
+        // stops this match compiling, and owes a word in that file.
         Ok(pncad::step_import::StepImport::Wireframe { .. }) => Err(typed_err(
             py,
             ErrorClass::StepImport,
@@ -2059,7 +2102,9 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<ImportReport> 
             &[
                 (
                     "variant",
-                    PyString::new(py, "wireframe").unbind().into_any(),
+                    PyString::new(py, crate::tags::STEP_IMPORT_WIREFRAME)
+                        .unbind()
+                        .into_any(),
                 ),
                 ("promoted_kind", py.None()),
             ],
@@ -2067,7 +2112,7 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<ImportReport> 
         // The tag is the importer's own, through `crate::tags`. Every
         // arm of `StepImportError` is reachable here, and the entity
         // id and line that would tell them apart live in the message
-        // prose — so one literal for all twenty-one would make them
+        // prose — so one literal for every arm would make them
         // indistinguishable to a caller.
         //
         // `promoted_kind` is the one arm's payload discriminant,
@@ -2250,6 +2295,14 @@ impl CancelToken {
 /// pyo3's own `RuntimeError("Already borrowed")` instead of editing
 /// a recipe out from under a running evaluation. Measured, not
 /// reasoned: `tests/test_cancellation.py` executes it.
+///
+/// `resolver` is the one `EvalOptions` field this door takes. The
+/// other six are not one kind of thing and the surface census's
+/// options roster says which each is — three are switches the kernel
+/// documents as answer-preserving, three change answers and are
+/// unreachable at this door's scalar rather than harmless. Its
+/// options are a literal naming every field, no `..default()` tail,
+/// which is what holds the door to that roster.
 #[pyfunction]
 #[pyo3(signature = (doc, *, resolver=None, prior=None, cancel=None))]
 pub(crate) fn evaluate(
@@ -2260,9 +2313,17 @@ pub(crate) fn evaluate(
     cancel: Option<&CancelToken>,
 ) -> Evaluation {
     let tol = Tol::witness();
+    let defaults = d::EvalOptions::default();
     let opts = d::EvalOptions {
-        resolver: resolver.map(super::store::Workspace::resolver),
-        ..d::EvalOptions::default()
+        epoch: defaults.epoch,
+        parallel: defaults.parallel,
+        boolean_sweep: defaults.boolean_sweep,
+        resolver: resolver
+            .map(super::store::Workspace::resolver)
+            .or(defaults.resolver),
+        profile_lift: defaults.profile_lift,
+        param_box: defaults.param_box,
+        seed: defaults.seed,
     };
     let token = cancel.map_or_else(d::CancelToken::new, CancelToken::token);
     let recipe = &doc.inner;

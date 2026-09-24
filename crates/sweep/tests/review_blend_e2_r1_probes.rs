@@ -19,6 +19,7 @@
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile};
+use sweep::test_support::sketch_from_axes;
 use sweep::{Extruded, Extrusion, extrude};
 use topo::{Body, FaceKey, LoopBoundary, LoopKey, validate_geometric};
 
@@ -60,10 +61,11 @@ fn planes() -> Vec<(&'static str, SketchPlane<f64>)> {
         ("xy", SketchPlane::xy()),
         (
             "tilted",
-            SketchPlane::from_frame(
+            sketch_from_axes(
                 Point3::new(0.3, -0.2, 0.7),
-                Vec3::new(1.0, 1.0, 0.0).normalize(),
-                Vec3::new(-1.0, 1.0, 2.0).normalize(),
+                Vec3::new(1.0, 1.0, 0.0),
+                Vec3::new(-1.0, 1.0, 2.0),
+                Tol::witness(),
             ),
         ),
     ]
@@ -91,7 +93,7 @@ fn stored_outward(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
     let Surface::Plane { normal, .. } = body.get_surface(f.surface).unwrap() else {
         panic!("an extrusion cap is a plane");
     };
-    if f.sense { *normal } else { -*normal }
+    geom_brep::OutwardNormal::from_chart(*normal, f.sense).vec()
 }
 
 /// Signed offsets of a cap's outer-loop vertices from the sketch

@@ -1,12 +1,18 @@
 //! GUI-2 review R1 — an independent consumer's derivation of the
 //! viewport-selection claims (PR #1106).
 //!
-//! Own fixtures throughout (two disjoint extrudes, a pattern with its
-//! own dimensions, the committed gallery ring), own ray and cursor
-//! constructions, own tolerance derivations — deliberately NOT the
-//! unit's plate helpers, because a promoted review suite's value is
-//! that it derives the claims independently
-//! (`memories/review-and-dependency-policy.md`).
+//! **Why the documents are authored here** — a reason in these rows,
+//! not in their authorship (`memories/review-and-dependency-policy.md`):
+//! every oracle here is a cursor position and the face it must resolve
+//! to, derived by hand from the fixture's own coordinates. The camera
+//! that turns the one into the other is `Camera::framing`, which these
+//! rows call directly, because framing is not what they check — the
+//! resolution is. A fixture whose dimensions came from the same place
+//! the aim did would move with it, and nothing here could see it move.
+//! What carries no oracle is shared: `common::{xy_frame, rectangle,
+//! inserted, len, scl, gallery_ring_at}`. The blocks' own dimensions
+//! and the cursor positions aimed at them stay here, where the aim is
+//! written.
 //!
 //! Conventions per `memories/test-suite-cost.md`: the randomized rows
 //! draw a fresh seed per run through `test_utils::fuzz` (logged
@@ -23,15 +29,25 @@
 #![allow(clippy::expect_used)]
 #![allow(clippy::panic)]
 
-test_utils::gated_to!["crates/viewer/src/", "crates/pncad/src/", "crates/bvh/src/"];
+test_utils::gated_to![
+    "crates/viewer/src/",
+    "crates/pncad/src/",
+    "crates/bvh/src/",
+    "crates/viewer/tests/common/",
+    "crates/viewer/tests/gallery_ring.pncad"
+];
 
-use pncad::document::{Doc, LoopProgram, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
+use crate::common;
+use crate::common::{inserted, len, scl, xy_frame};
+
+use pncad::document::{Doc, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{Ray, Resolution, RunCtx, resolve};
 use test_utils::fuzz;
 use viewer::camera::Camera;
 use viewer::input::{InputMap, PointerButton, ViewportEvent, ViewportSize};
-use viewer::pickindex::{IdMap, PickIndex};
+use viewer::narrowing::Narrow;
+use viewer::pickindex::{IdMap, PickIndex, PictureKey};
 use viewer::props::SlotValue;
 use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, Hovered, Selection, SessionOp};
@@ -43,61 +59,12 @@ fn delta() -> DisplayTolerance {
     DisplayTolerance::new(1.5e-4).expect("a positive delta")
 }
 
-/// A square profile at an offset — this suite's own authoring helper,
-/// so the fixtures do not share the unit's.
-/// The world xy frame — this suite's own, like every other fixture
-/// here (a review suite derives what it needs independently).
-fn xy_frame() -> Node<ProfileProgram> {
-    let len = |v: f64| {
-        pncad::document::Expr::literal(v, pncad::document::Dimension::Length).expect("finite")
-    };
-    let scl = |v: f64| {
-        pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).expect("finite")
-    };
-    Node::Datum(pncad::document::Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    })
-}
-
-fn offset_square(plane: RecipeNodeId, x0: f64, y0: f64, side: f64) -> Node<ProfileProgram> {
-    Node::Profile(ProfileProgram {
-        plane,
-        loops: vec![
-            LoopProgram::polygon([
-                (x0, y0),
-                (x0 + side, y0),
-                (x0 + side, y0 + side),
-                (x0, y0 + side),
-            ])
-            .expect("finite corners"),
-        ],
-    })
-}
-
-/// Insert one node, keeping the id.
-fn inserted(
-    doc: &Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
-    tol: Tol,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let applied = pncad::document::apply(doc, &pncad::document::DocEdit::InsertNode { node }, tol)
-        .expect("the fixture edit applies");
-    let id = *applied
-        .doc
-        .order()
-        .last()
-        .expect("the inserted node is last");
-    (applied.doc, id)
-}
-
 /// Two DISJOINT extruded blocks under two separate roots: block A is
 /// `[0,0.02]² × 0.01`, block B is `[0.1,0.14]×[0,0.04] × 0.02`.
 fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-two-blocks", tol);
     let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, pa) = inserted(&doc, offset_square(plane, 0.0, 0.0, 0.02), tol);
+    let (doc, pa) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.02, 0.02), tol);
     let (doc, a) = inserted(
         &doc,
         Node::Extrude {
@@ -106,7 +73,7 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         },
         tol,
     );
-    let (doc, pb) = inserted(&doc, offset_square(plane, 0.1, 0.0, 0.04), tol);
+    let (doc, pb) = inserted(&doc, common::rectangle(plane, [0.1, 0.0], 0.04, 0.04), tol);
     let (doc, b) = inserted(
         &doc,
         Node::Extrude {
@@ -116,16 +83,6 @@ fn two_blocks(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         tol,
     );
     (doc, a, b)
-}
-
-fn len(metres: f64) -> pncad::document::Expr {
-    pncad::document::Expr::literal(metres, pncad::document::Dimension::Length)
-        .expect("a finite length")
-}
-
-fn scl(value: f64) -> pncad::document::Expr {
-    pncad::document::Expr::literal(value, pncad::document::Dimension::Scalar)
-        .expect("a finite scalar")
 }
 
 /// A landed session plus its pick index.
@@ -145,8 +102,10 @@ fn index_at(session: &DocSession, delta: DisplayTolerance) -> PickIndex {
     PickIndex::build(
         doc,
         eval,
-        session.landed_generation().expect("a landed generation"),
-        delta,
+        PictureKey::of(
+            session.landed_generation().expect("a landed generation"),
+            delta,
+        ),
         session.tol(),
     )
     .expect("the fixture indexes")
@@ -247,8 +206,7 @@ fn cursor_projection_is_exactly_a_shift_and_scale_in_ndc() {
         )
         .expect("a finite camera");
         let aspect = rng.range(0.4, 3.0);
-        let matrix = camera.view_projection(aspect).expect("defined");
-        let vp32 = matrix.map(|c| c.map(|v| v as f32));
+        let vp32 = camera.view_projection_f32(aspect).expect("defined");
         let point = Point3::new(
             rng.range(-0.8, 0.8),
             rng.range(-0.8, 0.8),
@@ -257,13 +215,15 @@ fn cursor_projection_is_exactly_a_shift_and_scale_in_ndc() {
         if camera.project(point, aspect).expect("defined").is_none() {
             continue; // behind the eye: not this row's subject
         }
-        let cursor = [rng.range(-1.0, 1.0) as f32, rng.range(-1.0, 1.0) as f32];
-        let size = [
-            rng.range(64.0, 4000.0) as f32,
-            rng.range(64.0, 4000.0) as f32,
-        ];
+        let cursor = [rng.range(-1.0, 1.0), rng.range(-1.0, 1.0)]
+            .narrow()
+            .expect("a cursor inside the device cube");
+        let size = [rng.range(64.0, 4000.0), rng.range(64.0, 4000.0)]
+            .narrow()
+            .expect("a viewport of ordinary size");
         let shifted = cursor_projection(&vp32, cursor, size);
-        let v = [point.x as f32, point.y as f32, point.z as f32, 1.0f32];
+        let [px, py, pz] = point.narrow().expect("a point the seam draws");
+        let v = [px, py, pz, 1.0f32];
         let apply = |m: &[[f32; 4]; 4]| {
             let mut out = [0.0f32; 4];
             for (row, slot) in out.iter_mut().enumerate() {
@@ -472,7 +432,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-pattern", tol);
     let (doc, plane) = inserted(&doc, xy_frame(), tol);
-    let (doc, profile) = inserted(&doc, offset_square(plane, 0.0, 0.0, 0.03), tol);
+    let (doc, profile) = inserted(&doc, common::rectangle(plane, [0.0, 0.0], 0.03, 0.03), tol);
     let (doc, extrude) = inserted(
         &doc,
         Node::Extrude {
@@ -522,7 +482,11 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     assert!(!session.standing().live(), "its birth was undone");
     assert!(session.standing().unresolved().is_some());
     assert!(
-        !index.current_for(session.landed_generation(), delta()),
+        !index.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, delta()))
+        ),
         "and the index that answered the pick is stale, to be discarded"
     );
 
@@ -532,25 +496,6 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
 }
 
 // --- the end-to-end consumer walk on a real gallery document --------
-
-/// The committed gallery ring, re-stamped to this run's ε the same way
-/// the doc-io suite's rows are (ε is the file's only ε-dependent byte;
-/// that claim has its own gate there).
-const GALLERY_RING: &str = include_str!("gallery_ring.pncad");
-
-fn ring_at(tol: Tol) -> String {
-    let probe: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-eps-probe", tol);
-    let text = pncad::document::save(&probe, &[], tol).expect("an empty document saves");
-    let is_eps = |line: &str| line.trim_start().starts_with("\"epsilon\":");
-    let wanted = text.lines().find(|l| is_eps(l)).expect("ε is recorded");
-    let mut out: String = GALLERY_RING
-        .lines()
-        .map(|l| if is_eps(l) { wanted } else { l })
-        .collect::<Vec<&str>>()
-        .join("\n");
-    out.push('\n');
-    out
-}
 
 /// **The acceptance walk, headless**: open a real gallery document,
 /// aim the cursor by projecting a visible point of the drawn mesh,
@@ -568,7 +513,8 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     // on the facet count (`memories/test-suite-cost.md` — keep the
     // per-run cost where the claim needs it).
     let ring_delta = DisplayTolerance::new(2.0e-3).expect("a positive delta");
-    let loaded = pncad::document::load(&ring_at(tol), tol).expect("the gallery ring loads");
+    let loaded =
+        pncad::document::load(&common::gallery_ring_at(tol), tol).expect("the gallery ring loads");
     let mut session = DocSession::inline(loaded.snapshot, tol);
     session.pump();
     let index = index_at(&session, ring_delta);
@@ -672,7 +618,11 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     assert!(session.standing().unresolved().is_some());
     assert!(session.slot_rows().is_empty());
     assert!(
-        !index.current_for(session.landed_generation(), ring_delta),
+        !index.current_for(
+            session
+                .landed_generation()
+                .map(|g| PictureKey::of(g, ring_delta))
+        ),
         "the pick index is stale after the re-evaluation and is discarded whole"
     );
 

@@ -6,29 +6,16 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
+use crate::common::operands;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::test_support::block;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::readback::{EulerCounts, euler_counts};
 use topo::{Body, FaceKey, ShellError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn boxy(w: f64, d: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(w, 0.0), 0.0),
-        ProfileVertex::new(p2(w, d), 0.0),
-        ProfileVertex::new(p2(0.0, d), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("rectangle profile");
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .expect("rectangle extrudes")
-        .body
 }
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
@@ -107,7 +94,7 @@ fn plane_face_x(body: &Body<f64>, x: f64) -> FaceKey {
 /// face offsets (no margin exists), the cavity is inside-out.
 #[test]
 fn probe_overthick_box_fails_loud() {
-    let r = topo::shell(&boxy(2.0, 3.0, 4.0), 1.9, Tol::witness());
+    let r = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 1.9, Tol::witness());
     match r {
         Err(e) => println!("[probe] overthick box: LOUD: {e}"),
         Ok(topo::Shelled { body, .. }) => panic!(
@@ -122,7 +109,7 @@ fn probe_overthick_box_fails_loud() {
 /// PR's own named gap fixture. Every per-face margin is positive.
 #[test]
 fn probe_overhalf_slab_fails_loud() {
-    let r = topo::shell(&boxy(4.0, 4.0, 1.0), 0.6, Tol::witness());
+    let r = topo::shell(&operands::slab(), 0.6, Tol::witness());
     match r {
         Err(e) => println!("[probe] over-half slab: LOUD: {e}"),
         Ok(topo::Shelled { body, .. }) => panic!(
@@ -136,7 +123,7 @@ fn probe_overhalf_slab_fails_loud() {
 /// Exactly half the thickness: the cavity's top and bottom coincide.
 #[test]
 fn probe_exact_half_slab_fails_loud() {
-    let r = topo::shell(&boxy(4.0, 4.0, 1.0), 0.5, Tol::witness());
+    let r = topo::shell(&operands::slab(), 0.5, Tol::witness());
     match r {
         Err(e) => println!("[probe] exact-half slab: LOUD: {e}"),
         Ok(topo::Shelled { body, .. }) => panic!(
@@ -231,7 +218,7 @@ fn probe_dumbbell_neck_collision_fails_loud() {
 /// void with the dilated twin as its OUTER shell.
 #[test]
 fn probe_shell_of_a_hollow_thickens_every_boundary() {
-    let hollow = topo::shell(&boxy(2.0, 3.0, 4.0), 0.25, Tol::witness())
+    let hollow = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, Tol::witness())
         .expect("the first shell is the PR's own green row")
         .body;
     let shelled = topo::shell(&hollow, 0.05, Tol::witness())
@@ -286,7 +273,7 @@ fn probe_shell_of_a_hollow_thickens_every_boundary() {
 #[test]
 fn probe_opened_box_census() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
-    let body = boxy(w, d, h);
+    let body = block(w, d, h, Tol::witness());
     let top = plane_face_at(&body, h);
     let cup = topo::shell_open(&body, t, &[top], Tol::witness())
         .expect("the PR's own green fixture")
@@ -319,7 +306,7 @@ fn probe_opened_box_census() {
 #[test]
 fn probe_adjacent_two_face_opening() {
     let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
-    let body = boxy(w, d, h);
+    let body = block(w, d, h, Tol::witness());
     let top = plane_face_at(&body, h);
     let side = plane_face_x(&body, w);
     match topo::shell_open(&body, t, &[top, side], Tol::witness()) {
@@ -456,7 +443,7 @@ fn probe_opened_vessel_cup() {
 /// fires. A key minted past the operand's face count cannot resolve.
 #[test]
 fn probe_stale_designation_refuses_typed() {
-    let body = boxy(2.0, 3.0, 4.0);
+    let body = block(2.0, 3.0, 4.0, Tol::witness());
     let big = prism(
         &[
             (0.0, 0.0),

@@ -2,9 +2,11 @@
 id: no-docedit-splices-a-deleted-node
 kind: issue
 title: Deleting a feature from the middle of a chain is impossible: no DocEdit rewires a live node's inputs, so delete can only cascade
-status: open
+status: deferred
 opened: 2026-08-31
 github: 1324
+priority: P0
+cost: D
 ---
 
 ## From GitHub issue 1324
@@ -163,3 +165,15 @@ Moved from `work/docm/` to `work/edit/` at DOCM's exit sweep (`docs/DOC-LEDGER.m
 sweep 14): EDIT is DOCM's successor on the document-model ground (persist, the edit vocabulary, the node and resolver doors). Id, body and header are unchanged; the directory is the
 claim (`work/README.md`). Any `## Home` section above is superseded by
 this line and is kept as the record of why the file was where it was.
+
+## Deferred (2026-09-16, EDIT orchestrator)
+
+Ratified as not-now by **DM6** (`crates/editor-core/REFERENCES.md`,
+"Splice is not added"): no edit rewires a live node's inputs and none
+is planned, and this row is named there as the record of the one
+trigger that would reopen the question — a chain a flat operator
+cannot flatten that a user needs to edit from the middle. The plan's
+listing of this row as an `[ev]` conversation predated DM6's
+ratification and was not updated with it; Ev confirmed in chat
+(2026-09-16) that no conversation is owed. The row stays as DM6's
+named trigger, not as work.

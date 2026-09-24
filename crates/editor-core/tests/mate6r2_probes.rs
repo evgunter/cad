@@ -3,9 +3,11 @@
 //!
 //! Each prints a `P<n>:`-tagged line; the rows were written to compile
 //! on the MATE-6 head AND on its merge base, so the review could diff
-//! the tagged lines. That property is spent: P8 asserts the outer
-//! gate's carried-mint refusal, an arm neither of those trees had.
-//! What the rows are FOR now is what each one says below.
+//! the tagged lines. **That property is spent** — the branch merged —
+//! and four of the eight rows still assert nothing, so their printed
+//! answers are unguarded;
+//! `work/tint/mate6r1-shared-has-eleven-tests-and-no-assertions.md`
+//! owns that. What the rows are FOR now is what each one says below.
 //!
 //! P1/P2 — refusal precedence and identity with MULTIPLE bad mates
 //!         (claims 2 and 3): first bad mate in document order wins,
@@ -22,59 +24,14 @@
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ChecksConfig, ContactClass, DocEdit,
-    DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive, Node,
-    ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SitedRef, StableName,
-    assemble, content_pin, evaluate, run_checks,
+    Alignment, AssemblyError, AxisSense, CapEnd, ChecksConfig, ContactClass, DocEdit, DocRef,
+    DocumentId, EntityKind, Frame, MateFrame, MatePrimitive, Node, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, assemble, run_checks,
 };
-use fixture::{insert, len, on_frame, step};
+use fixture::resolver::{PartStore, in_part, with_resolver};
+use fixture::{insert, len, on_frame, run, step};
 use geom_core::Tol;
-
-#[derive(Debug, Default, Clone)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl editor_core::PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        if content_pin(doc, Tol::witness()).expect("the pin computes") != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
-
-fn opts(store: StubStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
 
 fn block(
     doc: ProfileDoc,
@@ -110,26 +67,6 @@ fn cube_part(label: &str) -> ProfileDoc {
     doc
 }
 
-/// The extrude in a one-block part document. A block is three nodes
-/// — the sketch frame, the profile drawn on it, then the extrude — so
-/// a part-local name is minted by node 2.
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
-
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
-}
-
 /// A reference whose inner name answers to nothing of the part —
 /// `RecipeNodeId(99)` has no face — so mint refuses `Vanished`.
 fn vanished(instance: RecipeNodeId) -> StableName {
@@ -162,8 +99,8 @@ fn mate_node(
     seat: f64,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
@@ -229,12 +166,18 @@ fn row_of(
 fn headline(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> String {
     match result {
         Ok(_) => "Ok".to_string(),
-        Err(AssemblyError::Reference {
-            mate, side, why, ..
-        }) => format!("Reference mate={mate:?} side={side:?} why={why:?}"),
-        Err(AssemblyError::NoAtRestRecord { mate, class, .. }) => {
-            format!("NoAtRestRecord mate={mate:?} class={class:?}")
-        }
+        Err(AssemblyError::Mint { refusals }) => refusals
+            .iter()
+            .map(|r| match r {
+                editor_core::MintRefusal::Reference {
+                    mate, side, why, ..
+                } => format!("Reference mate={mate:?} side={side:?} why={why:?}"),
+                editor_core::MintRefusal::NoAtRestRecord { mate, class, .. } => {
+                    format!("NoAtRestRecord mate={mate:?} class={class:?}")
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" + "),
         Err(AssemblyError::AtRest { findings }) => {
             format!("AtRest findings={}", findings.len())
         }
@@ -244,11 +187,12 @@ fn headline(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Strin
 
 /// P1: a stand whose declaration is FALSE (seat 1.5 — would refuse at
 /// the declared gate), plus a bad-reference mate, plus a Tangent mate,
-/// in that document order. The refusal must be the bad reference —
-/// first bad mate in document order — on both trees.
+/// in that document order. Both bad mates are refused, and the bad
+/// reference — first in document order — heads the list, on both
+/// trees.
 #[test]
-fn p1_first_bad_mate_wins_badref_before_tangent() {
-    let mut store = StubStore::default();
+fn p1_both_bad_mates_refuse_badref_heading_the_list() {
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p1-cube"), Tol::witness());
     let (doc, ids, _) = stand("m6r2-p1-stand", part, 1.5);
     let (doc, _) = step(
@@ -273,17 +217,28 @@ fn p1_first_bad_mate_wins_badref_before_tangent() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     println!("P1: {}", headline(&result));
-    assert!(matches!(result, Err(AssemblyError::Reference { .. })));
+    assert!(matches!(
+        &result,
+        Err(AssemblyError::Mint { refusals })
+            if matches!(
+                refusals.as_slice(),
+                [
+                    editor_core::MintRefusal::Reference { .. },
+                    editor_core::MintRefusal::NoAtRestRecord { .. },
+                ]
+            )
+    ));
 }
 
 /// P2: same document, the two bad mates in the OPPOSITE order. The
-/// refusal must be the Tangent's `NoAtRestRecord` on both trees.
+/// same two refusals, with the Tangent's `NoAtRestRecord` at the head,
+/// on both trees — the list is the DOCUMENT's order, not the walk's.
 #[test]
-fn p2_first_bad_mate_wins_tangent_before_badref() {
-    let mut store = StubStore::default();
+fn p2_both_bad_mates_refuse_tangent_heading_the_list() {
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p2-cube"), Tol::witness());
     let (doc, ids, _) = stand("m6r2-p2-stand", part, 1.5);
     let (doc, _) = step(
@@ -308,21 +263,31 @@ fn p2_first_bad_mate_wins_tangent_before_badref() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
     println!("P2: {}", headline(&result));
-    assert!(matches!(result, Err(AssemblyError::NoAtRestRecord { .. })));
+    assert!(matches!(
+        &result,
+        Err(AssemblyError::Mint { refusals })
+            if matches!(
+                refusals.as_slice(),
+                [
+                    editor_core::MintRefusal::NoAtRestRecord { .. },
+                    editor_core::MintRefusal::Reference { .. },
+                ]
+            )
+    ));
 }
 
 /// P3: the checks resident over the seam document (×3 stands).
 #[test]
 fn p3_checks_over_the_seam_document() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p3-cube"), Tol::witness());
     let (inner, _, _) = stand("m6r2-p3-stand", part, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p3-row", inner_ref, 3, 4.0);
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let report =
         run_checks(&outer, &ev, &ChecksConfig::default(), Tol::witness()).expect("the checks run");
     println!(
@@ -335,10 +300,10 @@ fn p3_checks_over_the_seam_document() {
 /// P4: the checks resident over the single correctly-mated stand.
 #[test]
 fn p4_checks_over_a_correctly_mated_document() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p4-cube"), Tol::witness());
     let (doc, _, _) = stand("m6r2-p4-stand", part, 1.0);
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let report =
         run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("the checks run");
     println!(
@@ -354,7 +319,7 @@ fn p4_checks_over_a_correctly_mated_document() {
 /// the separation finding; total mint does suppress it.
 #[test]
 fn p5_checks_with_a_bad_mate_before_a_good_one() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p5-cube"), Tol::witness());
     let mut doc = ProfileDoc::empty(DocumentId::derive("m6r2-p5"), Tol::witness());
     let mut ids = Vec::new();
@@ -397,7 +362,7 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
             ),
         },
     );
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let report =
         run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("the checks run");
     println!(
@@ -411,12 +376,12 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
 /// 0.5): whatever arm fires, the outer document must not pass.
 #[test]
 fn p6_carried_penetration_is_loud() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p6-cube"), Tol::witness());
     let (inner, _, _) = stand("m6r2-p6-stand", part, 0.5);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p6-row", inner_ref, 1, 4.0);
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     println!("P6: {}", headline(&result));
     assert!(result.is_err(), "penetrating carried geometry must be loud");
@@ -427,12 +392,12 @@ fn p6_carried_penetration_is_loud() {
 /// on the MATE-6 head it must be green.
 #[test]
 fn p7_seam_gate_by_arm() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p7-cube"), Tol::witness());
     let (inner, _, _) = stand("m6r2-p7-stand", part, 1.0);
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p7-row", inner_ref, 3, 4.0);
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let result = assemble(&outer, &ev, Tol::witness());
     match &result {
         Ok(_) => println!("P7: Ok"),
@@ -461,7 +426,7 @@ fn p7_seam_gate_by_arm() {
 /// documents' mint health the gate reads.
 #[test]
 fn p8_inner_mint_refusals_reach_the_outer_gate() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let part = store.insert(cube_part("m6r2-p8-cube"), Tol::witness());
     let mut inner = ProfileDoc::empty(DocumentId::derive("m6r2-p8-stand"), Tol::witness());
     let mut ids = Vec::new();
@@ -481,11 +446,11 @@ fn p8_inner_mint_refusals_reach_the_outer_gate() {
             ),
         },
     );
-    let inner_ev = run(&inner, &opts(store.clone()));
+    let inner_ev = run(&inner, &with_resolver(store.clone()));
     let inner_result = assemble(&inner, &inner_ev, Tol::witness());
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p8-row", inner_ref, 1, 4.0);
-    let ev = run(&outer, &opts(store));
+    let ev = run(&outer, &with_resolver(store));
     let outer_result = assemble(&outer, &ev, Tol::witness());
     println!(
         "P8: inner={} outer={}",

@@ -104,9 +104,9 @@
 //!   in band.
 
 use geom_core::linalg::svd::Svd;
-use geom_core::{Band, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, Margin, Point3, Sign, Vec3};
 
-use crate::dihedral::decide;
+use crate::dihedral::{decide, decide_positive};
 
 use super::SsiError;
 use super::system::LocalSystem;
@@ -365,17 +365,8 @@ where
         let (n1, n2) = sys.normals(&x);
         let sin_theta = n1.cross(n2).norm() / (n1.norm() * n2.norm());
         let arm = sys.lever_arm(&x).min(ctx.extent);
-        match decide("ssi_transversality_arm", Margin::of(arm), band) {
-            Ok(Sign::Positive) => {}
-            Ok(Sign::Zero | Sign::Negative) => {
-                return Err(SsiError::Escalated(Indeterminate {
-                    margin: geom_core::MarginDiag::Invalid,
-                    band,
-                    predicate: Some("ssi_transversality_arm"),
-                }));
-            }
-            Err(diag) => return Err(SsiError::Escalated(diag)),
-        }
+        decide_positive("ssi_transversality_arm", Margin::of(arm), band)
+            .map_err(SsiError::Escalated)?;
         let transversality = Margin::levered(sin_theta, arm);
         if transversality.value() < min_transversality {
             min_transversality = transversality.value();
@@ -887,6 +878,7 @@ mod tests {
     /// march over this system can refuse on is the speed, and the
     /// refusal it produces is the speed guard's own.
     struct FixedSpeedR3 {
+        /// Meters per unit of the march parameter.
         speed: f64,
     }
 

@@ -5,6 +5,8 @@ title: the witness-bifurcation arm projects no inner word, and cannot until the 
 status: open
 opened: 2026-09-08
 refs: [LIB-ARMS]
+priority: P3
+cost: D
 ---
 
 

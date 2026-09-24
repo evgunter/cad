@@ -2,9 +2,12 @@
 id: k-lint-eps-coupled-criterion-unwritten
 kind: issue
 title: What makes a predicate eps-coupled is nowhere written, so k-lint's roster cannot be pinned against the kernel in the ADDED direction
-status: open
+status: parked
+blocked_on: [k-lint-roster-wants-a-kernel-side-vocabulary]
 opened: 2026-09-07
 refs: [2115]
+priority: P3
+cost: D
 ---
 
 
@@ -160,3 +163,23 @@ the claim. This row is one of the twenty on INSTR's opening slate.
 ## Refs at METER's sweep (2026-09-09)
 
 METER closed and its item files left the tracker (`docs/DOC-LEDGER.md`, sweep 10); `k-lint-predicate-roster-unpinned` is now cited by its closing PR 2115.
+
+## Parked on the kernel-side vocabulary (2026-09-16)
+
+`k-lint-roster-wants-a-kernel-side-vocabulary` moved to `work/props/`
+on this date, because both shapes it proposes are edits under
+`crates/` and neither is INSTR's to make. This row is parked on it.
+
+**The park is not a re-statement of the fence — it is what this row
+always said.** A subset selected from an open vocabulary by an unwritten
+property cannot be checked for completeness, and the natural place to
+declare *which* names are metered against an ε-derived target is the
+same kernel-side declaration of the vocabulary that the moved row asks
+for. One PROPS unit lands both; this row then closes on the instrument's
+side, where `tools/k-lint/tests/predicate_roster.rs` trades its parser
+for an import and the ADDED direction becomes checkable for the first
+time.
+
+Until then the parser stays, for the reason the moved row gives: a
+textual pin that reds loudly on every spelling change is a worse
+instrument than an import and a better one than nothing.

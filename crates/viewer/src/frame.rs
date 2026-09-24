@@ -1,20 +1,44 @@
 //! The per-frame policies the viewport runs — as values, so they are
 //! replayable.
 //!
-//! # Why these live here and not in the frame loop
+//! # What that sentence decides, and what it therefore excludes
 //!
-//! Three decisions used to sit inside [`crate::app::ViewerBehavior::viewport_ui`]
-//! and `ViewerApp::perform_batch`: when a batch of operations clears the
-//! status line, when the id pass is asked a question, and when the two
-//! picking paths are reported as disagreeing. All three are invariants,
-//! and all three lived in `app`-gated code no test can execute — so the
-//! crate's own claim that "everything between event conversion and
-//! painting is exercised by `tests/`" was false about exactly the rules
-//! most likely to be wrong.
+//! A policy belongs here when it is a pure function of ONE frame: hand
+//! it the values that frame holds and it answers the same way every
+//! time, with no window, no session and no process around it. That is
+//! what makes a rule about the chrome testable at all, and these rules
+//! used to sit inside [`crate::app::ViewerBehavior::viewport_ui`] and
+//! `ViewerApp::perform_batch` — `app`-gated code no test can execute,
+//! so the crate's own claim that "everything between event conversion
+//! and painting is exercised by `tests/`" was false about exactly the
+//! decisions most likely to be wrong.
 //!
-//! Each is a pure function or a small value with typed steps here. The
-//! frame loop still decides WHEN to call them; it no longer decides what
-//! they mean.
+//! What is here is all of that shape. **What the chrome has to say and
+//! which of its two channels says it**: the [`Subject`] / [`Message`] /
+//! [`StatusUpdate`] / [`Badge`] vocabulary, the doors that build one,
+//! the two that spend one ([`apply`] for a ranked verdict or a
+//! retirement, [`deliver`] for a policy that may or may not have news),
+//! and [`frame_status`]'s ranking over a frame's news. **The toolbar
+//! badge for the landed product** ([`product_badge`]) and the rest of
+//! the badge family beside it. **The draft and the offer a refused
+//! batch leaves behind** ([`retype_draft`], [`creation_offer`]).
+//! **What a folded event stream amounts to** ([`folded_moved`],
+//! [`fold_status`]), **what a frame says about work outstanding**
+//! ([`progress`]), and **where a file dialog opens** ([`dialog_dir`]).
+//!
+//! The frame loop still decides WHEN to call one. It no longer decides
+//! what one MEANS.
+//!
+//! **The exclusions are the other half of the charter**, and they are
+//! where this module has drifted before. A concern that reads AMBIENT
+//! PROCESS STATE is a function of the machine rather than of the
+//! frame, and cannot be replayed from any value a test builds: that is
+//! [`crate::platform`]. A concern that carries state ACROSS frames is
+//! not a function of one frame at all — the id pass's query
+//! bookkeeping remembers what it asked and what it asked about, which
+//! is the whole of why it works: that is [`crate::idpass`]. Both are
+//! CONSUMED here — [`cursor_status`] takes an [`IdStep`] and turns it
+//! into news — and neither is decided here.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -55,8 +79,9 @@
 //!   exists because the user clicked. Reading it off the door is
 //!   wrong; it has to be traced to whoever raises it.
 //! * **Tracing that far does not settle it either.**
-//!   [`Disagreement`] reads only held state — the outstanding id
-//!   answer, the index, the cursor — and [`IdStep::Hold`] recomputes
+//!   [`crate::idpass::Disagreement`] reads only held state — the
+//!   outstanding id answer, the index, the cursor — and
+//!   [`IdStep::Hold`] recomputes
 //!   it on every frame the cursor holds still, so the mechanical form
 //!   alone badges it. What sorts it onto the line is *a reader
 //!   CONSULTS a badge*: a claim about where the pointer is this
@@ -147,10 +172,15 @@
 //! colour for at four call sites; and one draw at the toolbar consumes
 //! them all. The members are the at-rest verdict ([`at_rest_badge`]),
 //! the advisory checks ([`checks_badge`]), the δ the display budget
-//! chose ([`delta_badge`]), the product fault ([`product_badge`]), and
-//! the three display seams that hold a refusal — the scene
-//! ([`scene_badge`]), the pick index ([`index_badge`]) and the
-//! projection ([`projection_badge`]).
+//! chose ([`delta_badge`]), the product fault ([`product_badge`]), the
+//! store that keeps no preferences ([`prefs_badge`]), the datums this
+//! view draws nothing of ([`datums_badge`]), the profiles it draws
+//! nothing of ([`profiles_badge`]), and the three display seams that
+//! hold a refusal — the scene ([`scene_badge`]), the pick index
+//! ([`index_badge`]) and the projection ([`projection_badge`]).
+//! The population is every function here returning `Option<Badge>`,
+//! which `frame_policy.rs` counts against the README rather than
+//! against this sentence.
 //!
 //! # Two rules that follow, one per channel
 //!
@@ -164,15 +194,19 @@
 //! a fault about the document on screen outlives every frame the
 //! camera moves in.
 
-use pncad::document::{ChecksReport, ParamName, ParseError, ProductError, RecipeNodeId, SlotId};
-use pncad::prelude::StableName;
+use std::path::Path;
+
+use pncad::document::{
+    ChecksReport, ParamName, ParseError, ProductError, ProductErrorKind, RecipeNodeId, SlotId,
+};
+use pncad::select::HitTestError;
 
 use crate::camera::CameraError;
 use crate::camera::Folded;
-use crate::display::{DisplayFault, PruneReport, Withdrawn};
-use crate::generation::Generation;
+use crate::display::{AdmissionFault, PruneReport, Withdrawn};
+use crate::idpass::IdStep;
 use crate::pickcache::NotIndexed;
-use crate::pickindex::{IdMap, PickError, PickIndex, PickIndexError};
+use crate::pickindex::{PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
@@ -223,7 +257,7 @@ pub enum Subject {
     /// Issued by [`cursor_status`], off the id pass's own bookkeeping:
     /// a message about what was under the cursor is stale exactly when
     /// the outstanding pick question is, which is a judgement
-    /// [`IdQueryLog`] already makes.
+    /// [`crate::idpass::IdQueryLog`] already makes.
     Cursor,
     /// **The document on screen and the acts aimed at it** — retired
     /// by the next act the document ACCEPTS.
@@ -330,6 +364,16 @@ partial_mirror! {
 /// for [`Badge`]'s reason: a struct literal is a second way to build
 /// one, and a value whose whole point is that a decision was made in
 /// one place must not have a spelling that skips it.
+///
+/// **A message's text carries no [`NOTICE_MARK`], and that is what
+/// makes a joined line readable.** [`frame_status`] puts several
+/// notices on one line separated by [`NOTICE_SEPARATOR`], so a reader
+/// can only find the boundaries if the mark the separator is built
+/// from means "a new notice starts here" and nothing else. That is a
+/// claim about every string any producer will ever hand this type,
+/// which no signature can carry — so the only door enforces it
+/// instead of asserting it, and the invariant belongs to the value
+/// rather than to the one function that happens to join today.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Message {
     subject: Subject,
@@ -337,11 +381,49 @@ pub struct Message {
 }
 
 impl Message {
-    /// A message about `subject`, in `text`'s own words.
+    /// A message about `subject`, in `text`'s own words — with any
+    /// [`NOTICE_MARK`] in them rewritten to the within-a-notice mark.
+    ///
+    /// **Rewritten rather than refused.** A door that panicked would
+    /// be reachable from the keyboard: [`delta_not_a_number`] echoes
+    /// what the user typed into the δ field, so a pasted bullet would
+    /// take the application down. And a text that asks for a boundary
+    /// mark is asking for a list mark one level in — it is inside a
+    /// notice, which is what [`LIST_SEPARATOR`] is for — so the
+    /// rewrite says what the author meant at the level they are at.
     pub fn new(subject: Subject, text: impl Into<String>) -> Self {
         Self {
             subject,
-            text: text.into(),
+            text: text.into().replace(NOTICE_MARK, LIST_SEPARATOR.trim()),
+        }
+    }
+
+    /// **One line carrying several notices**, separated by
+    /// [`NOTICE_SEPARATOR`] — the rank-2 line [`frame_status`]
+    /// composes, and the startup line [`startup_notices`] composes
+    /// before any frame has run.
+    ///
+    /// **The one place a [`NOTICE_MARK`] is written into a message's
+    /// text, and the reason [`Message::new`] can rewrite every
+    /// other.** It takes [`Message`]s and not strings, so the texts it
+    /// joins already satisfy the invariant and nothing it produces
+    /// can be read as a boundary that was not one. A joiner handed
+    /// raw strings would be a second way to mint the mark, which is
+    /// the same objection [`Message::new`]'s private fields answer one
+    /// level up — so this is private to the module, and the public
+    /// door cannot express it.
+    ///
+    /// The caller decides the subject, because what a joined line is
+    /// ABOUT is a separate question with its own rule
+    /// ([`joined_subject`]).
+    fn joined(subject: Subject, notices: &[Message]) -> Self {
+        Self {
+            subject,
+            text: notices
+                .iter()
+                .map(Message::text)
+                .collect::<Vec<_>>()
+                .join(NOTICE_SEPARATOR),
         }
     }
 
@@ -533,8 +615,9 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
 /// 1. A **refusal** wins, alone. It is the answer to the action the
 ///    user asked the DOCUMENT for, and it is the louder of the two.
 /// 2. Else **every notice the frame produced**, in the order they
-///    happened, joined with the separator the preferences path already
-///    joins its startup notices with. Not the last one: assigning
+///    happened, joined with [`NOTICE_SEPARATOR`] — the same boundary
+///    the preferences path writes between its own startup notices
+///    ([`startup_notices`]). Not the last one: assigning
 ///    `status` from each in turn keeps the last and loses the rest,
 ///    which is the same keep-last defect [`batch_status`] exists to
 ///    stop for refusals. Not the first one either — a frame CAN drop
@@ -546,6 +629,37 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
 /// still its own typed value's own rendering, which is what the error
 /// micro-decision asks. Nothing here writes prose about someone else's
 /// failure.
+///
+/// # The join is invertible, and that is the whole rule
+///
+/// `line.split(NOTICE_SEPARATOR)` returns exactly the texts that went
+/// in, in order. A reader scanning for the boundary finds `n - 1` of
+/// them in a line carrying `n` notices and no more, because
+/// [`Message::new`] takes [`NOTICE_MARK`] out of every text that
+/// reaches it.
+///
+/// **The rule lives on the type, in two halves.** "No notice contains
+/// the separator" is a claim about strings, and no signature carries
+/// it: a joiner cannot check what it was given without either
+/// refusing a value the user caused or lying about it. What the crate
+/// CAN do is make the claim true where every notice is built and
+/// leave exactly one place able to write the mark — [`Message::new`]
+/// takes it out, [`Message::joined`] puts it in, and `joined` takes
+/// [`Message`]s rather than strings, so the only way to a boundary
+/// mark is to have had two notices. Both halves are private-field
+/// consequences, so this function asserts nothing and a second joiner
+/// written tomorrow inherits the guarantee instead of re-deriving
+/// it.
+///
+/// **Why not the alternatives.** Escaping at the join reads the same
+/// only until it fires, and then it shows the reader a sentence its
+/// author did not write, on a line whose whole job is to report
+/// accurately. Making the line stop being one string — several
+/// labels, one per notice — is the better answer and is not this
+/// function's to give: it needs a value that carries several
+/// subjects, which `work/view/one-line-one-subject-loses-a-mixed-
+/// frames-expiry.md` owns and which is a design question for Ev.
+/// Until then the line is one string, and one string needs a mark.
 pub fn frame_status(
     notices: &[Message],
     ops: &[SessionOp],
@@ -554,14 +668,7 @@ pub fn frame_status(
     match batch_status(ops, refusal) {
         refused @ StatusUpdate::Show(_) => refused,
         verdict if notices.is_empty() => verdict,
-        _ => StatusUpdate::Show(Message::new(
-            joined_subject(notices),
-            notices
-                .iter()
-                .map(Message::text)
-                .collect::<Vec<_>>()
-                .join(NOTICE_SEPARATOR),
-        )),
+        _ => StatusUpdate::Show(Message::joined(joined_subject(notices), notices)),
     }
 }
 
@@ -584,8 +691,9 @@ pub fn frame_status(
 /// document transition, so `Document` was the only subject on the
 /// list. The sweep that routed every writer through the ranking put
 /// four more on it: [`Subject::Camera`] ([`fold_status`]'s refused
-/// fold, delivered at [`crate::pane::viewport::land`]), [`Subject::Cursor`]
-/// ([`Disagreement::notice`]), [`Subject::Display`] (the pick index's
+/// fold, delivered at [`crate::pane::viewport::land`]),
+/// [`Subject::Cursor`] ([`crate::idpass::Disagreement::notice`]),
+/// [`Subject::Display`] (the pick index's
 /// refused click and the δ field's two doors, through
 /// [`PICK_INDEX_SEAM`] and [`SCENE_SEAM`]) and [`Subject::Preferences`]
 /// ([`store_refusal`]).
@@ -607,10 +715,50 @@ fn joined_subject(notices: &[Message]) -> Subject {
     }
 }
 
-/// What several notices in one frame are joined with — one spelling,
-/// shared with the preferences path's startup notices so the status
-/// line reads the same however many things it is carrying.
-pub const NOTICE_SEPARATOR: &str = "; ";
+/// **The mark that means "a new notice starts here"** — the one
+/// character a [`Message`]'s text may not carry, which
+/// [`Message::new`] is what makes true.
+///
+/// A bullet and not punctuation, deliberately. The marks a notice's
+/// own sentence uses are punctuation — a semicolon between the items
+/// of a list it carries, an em-dash between a preamble and what it
+/// introduces — and a boundary between two separate pieces of news
+/// has to be legible as something other than more of the same
+/// sentence. Any in-band mark is a claim about the text it sits in;
+/// this is the claim the crate can actually hold, because no notice
+/// writes prose with a bullet in it and the door makes that true
+/// rather than hoping for it.
+pub const NOTICE_MARK: char = '\u{2022}';
+
+/// **What [`frame_status`] puts between two of a frame's notices**,
+/// and [`startup_notices`] between two of the preferences file's.
+///
+/// Built from [`NOTICE_MARK`], so the joined line splits back into
+/// exactly the notices it was made from: there are `n - 1` of these
+/// in a line carrying `n` notices, never more, whatever any notice's
+/// own text says.
+///
+/// It was [`LIST_SEPARATOR`] until this rule existed, and the two
+/// being one spelling is what made the line ambiguous at two notices
+/// — a [`Withdrawal`] joins its own causes with the same string, and
+/// `DisplayFault::NonRigidFrame` writes one inside a single sentence,
+/// so a reader met a separator that might be a boundary or might be
+/// the notice talking. The inner level is answered by its element
+/// type rather than by a second mark
+/// ([`crate::display::AdmissionFault`]).
+pub const NOTICE_SEPARATOR: &str = " \u{2022} ";
+
+/// **What ONE notice puts between the items of a list of its own** —
+/// a [`Withdrawal`]'s causes, which are the items its counted preamble
+/// introduces. The preferences path's startup notices were joined with
+/// this and are not such a list: they are several notices and take the
+/// boundary mark ([`startup_notices`]).
+///
+/// A level in from [`NOTICE_SEPARATOR`], and spelled differently for
+/// that reason: the two levels are two questions, and one spelling
+/// could not answer both. A notice's text may carry this mark freely,
+/// which is exactly why the boundary between notices is not it.
+pub const LIST_SEPARATOR: &str = "; ";
 
 /// **What an accepted edit WITHDREW from the display state**, as a
 /// notice for [`frame_status`]'s rank 2.
@@ -619,7 +767,7 @@ pub const NOTICE_SEPARATOR: &str = "; ";
 ///
 /// A supersession, a dropped hide and a killed gesture are the same
 /// class of fact — display state an accepted edit took away, each
-/// carrying the [`DisplayFault`] the prune withdrew it on — and the
+/// carrying the [`AdmissionFault`] the prune withdrew it on — and the
 /// first two were free functions composing prose that differed in four
 /// format literals.
 /// They are a typed value with a `Display` here, which is the shape
@@ -638,17 +786,54 @@ pub const NOTICE_SEPARATOR: &str = "; ";
 /// landed on their probed instance, the delete that took it, the redo
 /// that stepped forward over the mate again.
 ///
-/// Its subject is [`Subject::Document`], so the event that retires it
-/// is the next act the document accepts — which the line already
-/// spells [`StatusUpdate::Clear`]. **That is a weaker lifetime than
-/// the argument above wants**, and the difference is stated rather
-/// than papered over: the fact is true of nothing after its own frame,
-/// while the sentence about it survives navigation and is retired by
-/// the next accepted edit. A one-frame sentence would be unreadable at
-/// sixty frames a second, so the frame is not a subject a reader can
-/// use; what the vocabulary buys here is that the lifetime is now
-/// STATED and implemented, and the residue is
-/// `work/view/a-supersession-outlives-its-own-frame.md`.
+/// Its subject is [`Subject::Document`], so what retires it is
+/// [`StatusUpdate::Clear`] — and [`acts`] makes that the next thing
+/// the user DOES other than hovering, which is narrower than "the next
+/// act the document accepts". Three legs, each with a row:
+///
+/// - **A hover leaves it standing.** [`batch_status`] answers
+///   [`StatusUpdate::Keep`] for a batch of nothing but
+///   [`SessionOp::Hover`], so the pointer drifting over the viewport
+///   does not take the sentence
+///   (`a_hover_only_batch_leaves_the_status_line_alone`).
+/// - **Navigation leaves it standing.** A camera fold is not a
+///   [`SessionOp`] at all — [`crate::camera::CameraOp`] is its own
+///   vocabulary — so it never reaches [`batch_status`], and the
+///   retirement it does issue names [`Subject::Camera`] and passes a
+///   `Document` message by (`a_clean_fold_keeps_a_message_it_did_not_write`,
+///   and `landing_a_clean_fold_does_not_clear_a_message_it_did_not_write`
+///   on the live path).
+/// - **The next non-hover operation takes the line off it**, whatever
+///   that operation's own verdict is: [`StatusUpdate::Clear`] where the
+///   document accepted it, the refusal's own sentence where it did not
+///   (`a_supersession_survives_the_accepted_edit_that_caused_it`,
+///   `an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on`).
+///
+/// **That is the lifetime this fact should have, and it is TIGHTER
+/// than the per-subject alternative a reader reaches for.** A
+/// supersession reports something COMPLETED — an accepted edit
+/// discarded a committed hand placement — so it cannot become false
+/// with age, only stale, and the question is never whether it is still
+/// true but whether the reader has moved on. The earliest honest
+/// evidence of that is the user doing something that is not moving the
+/// pointer, and that is exactly what `Clear` reads.
+///
+/// Making the subject the withdrawn INSTANCE instead, retired by that
+/// instance's own next event, runs the wrong way: a sentence about
+/// instance A would survive a selection of B, a hide of C and an edit
+/// elsewhere, so the news would live longest exactly where the reader
+/// has visibly left it. It would also INTRODUCE the one failure this
+/// lifetime does not have — the line contradicting the picture while
+/// the user re-places A by hand — because re-placing A is a non-hover
+/// operation and `Clear` has already taken the sentence, where a
+/// per-instance rule would have to get "A's own event" right to do the
+/// same.
+///
+/// Retiring on the frame boundary instead is tighter still and is not
+/// available: a sentence that lives one frame at sixty frames a second
+/// is one nobody reads, so the frame is not a subject a reader can use
+/// — which is why the fact being true of nothing after its own frame
+/// does not make the frame its subject.
 ///
 /// It reaches the line through the frame's NOTICES rather than by
 /// assignment, for the reason [`frame_status`] states: the transition
@@ -662,8 +847,8 @@ pub const NOTICE_SEPARATOR: &str = "; ";
 /// # The cause is the fault's own sentence
 ///
 /// **Nothing here composes prose about why a placement or a hide
-/// went.** Each entry carries the [`DisplayFault`] the prune discarded
-/// on, and this renders it through its own `Display` — the rule the
+/// went.** Each entry carries the [`AdmissionFault`] the prune
+/// discarded on, and this renders it through its own `Display` — the rule the
 /// rest of the crate follows. So the commonest arm names the mates and
 /// the remedy (`MateConstrained`: *delete the mate(s) if free relative
 /// motion is intended*), a fuse names the product and the instances
@@ -673,19 +858,18 @@ pub const NOTICE_SEPARATOR: &str = "; ";
 /// is why.
 ///
 /// The frame around the faults counts where there is anything to count,
-/// and never names: every fault
-/// [`crate::display::DisplayState::prune`] can put here names its own
-/// SUBJECT — the four arms `free_move_check` and `display_check`
-/// answer with — so naming the id again in the preamble would say it
-/// twice. It does not promise a vocabulary for that subject: three of
-/// those four say "instance N" and the absent-node arm says "node N",
-/// which is `DisplayFault`'s own rule and the only honest wording
-/// there.
+/// and never names: every [`AdmissionFault`] names its own SUBJECT, so
+/// naming the id again in the preamble would say it twice. It does not
+/// promise a vocabulary for that subject: three of the four say
+/// "instance N" and the absent-node arm says "node N", which is that
+/// enum's own rule and the only honest wording there.
 ///
-/// The other three `DisplayFault` arms name no id at all. They are
-/// about a gesture or a frame rather than a node, no prune path
-/// produces one, and nothing in a type says so — the invariant is
-/// established at `prune` and stated here.
+/// [`crate::display::DisplayFault`]'s own arms name no id at all — they are about a
+/// gesture or a frame rather than a node — and a `Withdrawn` cannot
+/// carry one: the admission tests answer [`AdmissionFault`] and
+/// `Withdrawn::cause` is typed as what they answer. That used to be a
+/// property of two functions' error sets with nothing in a type
+/// saying so.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Withdrawal<'a> {
     /// Which of the three this is.
@@ -850,7 +1034,7 @@ impl core::fmt::Display for Withdrawal<'_> {
             kind: which,
             withdrawn,
         } = self;
-        let fused = |w: &Withdrawn| matches!(w.cause, DisplayFault::FusedGeometry { .. });
+        let fused = |w: &Withdrawn| matches!(w.cause, AdmissionFault::FusedGeometry { .. });
         // The two kinds that are over a SET word themselves by
         // counting it. The third is over the one gesture that can be
         // in flight, so it has no plural and is NOT given one: a
@@ -885,20 +1069,28 @@ impl core::fmt::Display for Withdrawal<'_> {
             None => write!(f, "{kind}: {one}{consequence} — ")?,
         }
         // Each cause rendered by its own `Display`, in the order the
-        // prune found them, joined with [`NOTICE_SEPARATOR`] rather
-        // than composed into a sentence, for the reason
-        // [`frame_status`] joins notices with it: a list of several
-        // typed values must not become one written claim about them.
-        // The one spelling, so a line carrying two faults reads like a
-        // line carrying two notices.
+        // prune found them, joined with [`LIST_SEPARATOR`] rather than
+        // composed into a sentence, for the reason [`frame_status`]
+        // joins notices: a list of several typed values must not
+        // become one written claim about them.
         //
-        // The join is flat, so a fault whose own text contains the
-        // separator nests inside it and a reader cannot see where one
-        // cause ends. `DisplayFault::NonRigidFrame` is such a text; no
-        // prune path produces it here.
+        // This is the WITHIN-a-notice level, so it takes the
+        // within-a-notice mark. The whole rendering is one notice and
+        // [`frame_status`] puts [`NOTICE_SEPARATOR`] around it, so
+        // these marks cannot be read as boundaries between notices.
+        //
+        // The join is flat, so a cause whose own text contains
+        // [`LIST_SEPARATOR`] would nest inside it and a reader could
+        // not see where one cause ends. What keeps that from being a
+        // hope about wording is the element type: this joins
+        // [`AdmissionFault`]s, whose four sentences are the whole
+        // population the claim ranges over and which cannot gain a
+        // fifth without an arm there. `DisplayFault::NonRigidFrame`
+        // writes the mark inside one sentence and is outside that
+        // enum, so this join cannot reach it.
         for (position, entry) in withdrawn.iter().enumerate() {
             if position > 0 {
-                f.write_str(NOTICE_SEPARATOR)?;
+                f.write_str(LIST_SEPARATOR)?;
             }
             write!(f, "{}", entry.cause)?;
         }
@@ -946,7 +1138,8 @@ pub fn fold_status(folded: &Folded) -> StatusUpdate {
 /// **The status line after this frame's cursor step.**
 ///
 /// A message about what lies under the cursor is stale exactly when
-/// the outstanding pick question is, and [`IdQueryLog::step`] already
+/// the outstanding pick question is, and
+/// [`crate::idpass::IdQueryLog::step`] already
 /// makes that judgement for the id pass: it asks again when the cursor
 /// moved OR when the picture changed under a still cursor, and voids
 /// the outstanding question when the pointer leaves the pane. Both are
@@ -960,8 +1153,8 @@ pub fn fold_status(folded: &Folded) -> StatusUpdate {
 ///
 /// This is a policy over a value, not a report: it never SHOWS
 /// anything. What the cursor has to say is
-/// [`Disagreement`]'s, raised where the two picking paths are
-/// compared.
+/// [`crate::idpass::Disagreement`]'s, raised where the two picking
+/// paths are compared.
 pub fn cursor_status(step: IdStep) -> StatusUpdate {
     match step {
         IdStep::Hold => StatusUpdate::Keep,
@@ -1286,14 +1479,88 @@ pub fn store_refusal(error: &StoreError) -> Message {
 /// when it had nothing.
 ///
 /// [`Subject::Preferences`]. **Not type-pinned**: the notices arrive
-/// already rendered, from three sources with three types
-/// ([`crate::prefs::Notice`], [`crate::prefs::PrefsError`], and the
-/// theme and preset resolutions), so what this door buys is one place
+/// already rendered, from three types — [`crate::prefs::Notice`],
+/// which is what the file's own complaints AND the theme and preset
+/// resolutions both produce, [`crate::prefs::PrefsError`] when the
+/// document is not TOML at all, and [`crate::prefs::StoreError`] when
+/// the store could not be read — so what this door buys is one place
 /// the decision is made rather than a type that forbids the other
 /// answer.
+///
+/// # Several notices, not the items of one notice's list
+///
+/// Each of these becomes its own [`Message`] and the line between them
+/// is [`NOTICE_SEPARATOR`], the same boundary [`frame_status`] writes.
+/// Nothing counts them and no preamble introduces them: an unknown
+/// key, an unresolved theme name and an unresolved preset name are
+/// separate pieces of news that happen to share a subject, where a
+/// [`Withdrawal`]'s causes are the items a single counted sentence
+/// carries. Reading them as one notice's list was the category error,
+/// and [`LIST_SEPARATOR`] between them was its rendering.
+///
+/// **So the guarantee is the one the outer level already holds**, and
+/// it is needed here rather than merely available. Three of
+/// [`crate::prefs::Notice`]'s four arms write a [`LIST_SEPARATOR`]
+/// inside one sentence, so a flat join on that mark made a two-notice
+/// line read as four items — reachable with no error path at all, from
+/// a file naming a theme and a preset the registries no longer hold.
+/// No second mark could have been chosen instead: two of those four
+/// arms echo a key straight out of the user's file, and a TOML quoted
+/// key may hold any character, so nothing is out of band here. What
+/// holds the line is [`Message::new`] taking the boundary mark out of
+/// every text that reaches it and [`Message::joined`] being the only
+/// thing that writes one — a claim about the door rather than about
+/// anybody's sentences.
 pub fn startup_notices(notices: &[String]) -> Option<Message> {
-    (!notices.is_empty())
-        .then(|| Message::new(Subject::Preferences, notices.join(NOTICE_SEPARATOR)))
+    let notices: Vec<Message> = notices
+        .iter()
+        .map(|text| Message::new(Subject::Preferences, text.as_str()))
+        .collect();
+    (!notices.is_empty()).then(|| Message::joined(Subject::Preferences, &notices))
+}
+
+/// **Where a file dialog opens**, from the three places it could: the
+/// current document's own directory, the directory the last dialog
+/// returned a path in, and the directory the viewer was launched from
+/// — in that order, the first that `is_dir` confirms.
+///
+/// The order is by how recently a person pointed at the place. The
+/// document's directory is where THIS work lives; the last dialog's is
+/// where they went most recently, and it outlives the session through
+/// the preferences (`crate::prefs::Prefs::last_dir`); the launch
+/// directory is where they were when they started. `None` — reached
+/// only when all three are absent or gone — leaves the dialog to its
+/// backend's own default, whatever that is.
+///
+/// **A candidate that is not a directory falls through** rather than
+/// refusing. A remembered directory deleted since is the ordinary way
+/// a preferences file goes stale, and a dialog refused over it would
+/// cost a person the save to protect a memory. `is_dir` is handed in
+/// rather than read here so the rule is a function of its arguments —
+/// `Path::is_dir` at the one live caller, a table in the rows that
+/// exercise it.
+///
+/// A document's directory is its [`containing_dir`].
+pub fn dialog_dir<'a>(
+    document: Option<&'a Path>,
+    last: Option<&'a Path>,
+    launch: Option<&'a Path>,
+    is_dir: impl Fn(&Path) -> bool,
+) -> Option<&'a Path> {
+    [document.and_then(containing_dir), last, launch]
+        .into_iter()
+        .flatten()
+        .find(|dir| is_dir(dir))
+}
+
+/// **The directory a file lives in, as a place a dialog can open**:
+/// its `parent`, or `None` when that parent is EMPTY. The parent of a
+/// bare relative file name is `""`, which names no directory — as a
+/// dialog candidate it would stop the search before the candidates
+/// behind it, and as a remembered directory it would overwrite a real
+/// one with nothing.
+pub fn containing_dir(path: &Path) -> Option<&Path> {
+    path.parent().filter(|dir| !dir.as_os_str().is_empty())
 }
 
 /// **What a cursor action the pick index refused says.**
@@ -1302,9 +1569,42 @@ pub fn startup_notices(notices: &[String]) -> Option<Message> {
 /// answer to an operation the user aimed at the document through the
 /// cursor, and moving the pointer does not answer it. The cursor
 /// subject is for a message ABOUT what lies under the pointer, which
-/// is [`Disagreement`]'s.
+/// is [`crate::idpass::Disagreement`]'s.
+///
+/// # The certified tie is re-rendered here, and only here
+///
+/// The kernel's own [`HitTestError::Ambiguous`] numbers its faces by
+/// name — `StableName`'s `Display`, which omits the role path on
+/// purpose, so two faces minted by one node render as the SAME phrase
+/// and the ordinal is all that tells them apart. That is right for
+/// the kernel, whose prose contract forbids a `Debug` derivation in a
+/// message and whose typed payload carries the path anyway.
+///
+/// It is not enough on a status line. The reader has no payload to
+/// open, and a sentence whose whole subject is that two answers
+/// cannot be told apart cannot render them identically. So this door
+/// writes the tie itself, rendering each face the way
+/// [`crate::idpass::Disagreement`] renders a name — kind and minting
+/// node, then the role path — for the same reason and with the same
+/// shape. Every other arm is the typed refusal's own words,
+/// unaltered.
 pub fn pick_refusal(error: &PickError) -> Message {
-    Message::new(Subject::Document, error.to_string())
+    let PickError::HitTest(HitTestError::Ambiguous { hits }) = error else {
+        return Message::new(Subject::Document, error.to_string());
+    };
+    let tied: Vec<String> = hits
+        .iter()
+        .map(|hit| format!("{} ({:?})", hit.name, hit.name.path))
+        .collect();
+    Message::new(
+        Subject::Document,
+        format!(
+            "the ray is tied between {} faces the arithmetic cannot order — {} — so the pick \
+             names none of them; aim away from the shared edge, or choose one of the tied faces",
+            tied.len(),
+            tied.join(", ")
+        ),
+    )
 }
 
 /// **What a tool has to say** — an authoring panel's refusal, a
@@ -1421,6 +1721,91 @@ pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
     )
 }
 
+/// **Where the chrome reports a gather refusal**, and whether it is a
+/// refusal at all — the whole of what this crate decides about a
+/// [`ProductError`], and the answer [`product_badge`] gates on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BadgeSite {
+    /// This frame badges it: a gather-level fault no per-node badge
+    /// can carry — a naming collision across roots, a graft the kernel
+    /// refused, a validity verdict on the assembled product, an
+    /// evaluation of the wrong document.
+    Frame,
+    /// The Features pane badges it AT the node, with the typed cause,
+    /// so the frame stays silent.
+    FeatureTree,
+    /// No channel at all, because the class is one
+    /// [`ProductErrorKind::means_no_body`] claims. What that means
+    /// about the document is stated there and nowhere else.
+    NotAFault,
+}
+
+/// Which channel reports a refusal of this class, if any.
+///
+/// A `match` rather than a predicate, and that is the point: it is
+/// exhaustive over [`ProductErrorKind`], so an eleventh class reds
+/// this crate — where a reader sees the consequence — instead of being
+/// silently badged or silently declined by whichever way an expression
+/// happened to be written.
+///
+/// **The local policy is the three the feature tree owns.**
+/// [`crate::tree::RowStatus`] has exactly three non-`Ok` states —
+/// `Failed`, `Poisoned`, `Unevaluated` — and
+/// [`ProductError::RootFailed`], [`ProductError::RootPoisoned`] and
+/// [`ProductError::UnknownNode`] are those same three states seen from
+/// the gather. That count is a MEASUREMENT of another module's enum,
+/// so it does not stand on this `match` being exhaustive:
+/// `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`
+/// is its guard, and a fourth non-`Ok` state reds there. The tree badges each AT the node and carries the typed
+/// cause with it, so a frame badge would say strictly less, in a
+/// louder colour, one row above a status line already reporting the
+/// same root's tessellation refusal. The Features pane goes further
+/// and draws a poisoned row deliberately QUIET, reserving
+/// [`Tone::Actionable`] for the row a reader can act on; a badge
+/// shouting about the same poisoning would have the chrome saying both
+/// things at once. That is a decision about THIS chrome and not a
+/// classification of the refusal, which is why it is decided here.
+///
+/// **Whether what is left is a fault at all is not this crate's to
+/// decide**, and it is not re-derived here:
+/// [`ProductErrorKind::means_no_body`] is that reading's one home, and
+/// the classes it claims reach [`BadgeSite::NotAFault`] through the
+/// call rather than by being named again. The blank viewport is
+/// already the picture of such a document.
+///
+/// They are asked in that order because they are independent, which
+/// is what [`ProductErrorKind::means_no_body`]'s contract says a
+/// `false` does and does not appoint: a class the tree already badges
+/// is the tree's, whichever way the cited rule answers it.
+///
+/// **What the compiler buys here is exhaustiveness over the classes,
+/// not liveness of the citation.** A new class cannot dodge this
+/// `match`. Moving [`ProductErrorKind::NoBodyRoots`] into the first
+/// arm would instead leave a call that can never answer `true` — a
+/// dead citation, which nothing reds on and only
+/// `the_gather_verdict_badges_only_the_faults_nothing_else_carries`
+/// catches.
+fn badge_site(kind: ProductErrorKind) -> BadgeSite {
+    match kind {
+        ProductErrorKind::RootFailed
+        | ProductErrorKind::RootPoisoned
+        | ProductErrorKind::UnknownNode => BadgeSite::FeatureTree,
+        ProductErrorKind::EvaluationOfAnotherDocument
+        | ProductErrorKind::Naming
+        | ProductErrorKind::NoBodyRoots
+        | ProductErrorKind::Graft
+        | ProductErrorKind::SolidInvalid
+        | ProductErrorKind::ProductInvalid
+        | ProductErrorKind::ContactLineage => {
+            if kind.means_no_body() {
+                BadgeSite::NotAFault
+            } else {
+                BadgeSite::Frame
+            }
+        }
+    }
+}
+
 /// **What the chrome badges about the landed product**, and `None`
 /// when there is nothing to say.
 ///
@@ -1449,41 +1834,14 @@ pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
 ///
 /// # The arms that stay silent, and why
 ///
-/// **A document with no body root is EMPTY, not malformed.** A fresh
-/// document is in that state, and so is one whose last feature was just
-/// deleted — and the blank viewport says so more plainly than any words
-/// could. Reporting it makes deleting the last feature look like a
-/// failure.
-///
-/// **A per-node state the feature tree already badges is not this
-/// channel's to repeat.** [`crate::tree::RowStatus`] has exactly three
-/// non-`Ok` states — `Failed`, `Poisoned`, `Unevaluated` — and
-/// [`ProductError::RootFailed`], [`ProductError::RootPoisoned`] and
-/// [`ProductError::UnknownNode`] are those same three states seen from
-/// the gather. The tree badges each AT the node and carries the typed
-/// cause with it, so this badge would say strictly less, in a louder
-/// colour, one row above a status line already reporting the same
-/// root's tessellation refusal. The Features pane goes further and
-/// draws a poisoned row deliberately QUIET, reserving
-/// [`Tone::Actionable`] for the row a reader can act on; a badge
-/// shouting about the same poisoning would have the chrome saying both
-/// things at once.
-///
-/// What is left is what this channel is FOR: the gather-level faults no
-/// per-node badge can carry — a naming collision across roots, a graft
-/// the kernel refused, a validity verdict on the assembled product, an
-/// evaluation of the wrong document.
+/// [`badge_site`] decides it, exhaustively over the error class: a
+/// refusal another channel already carries, and a class that is no
+/// fault at all, are both `None` here, and the argument for each is
+/// there. What is left is what this channel is FOR — the
+/// gather-level faults no per-node badge can carry.
 pub fn product_badge(fault: Option<&ProductError>) -> Option<Badge> {
     fault
-        .filter(|fault| {
-            !matches!(
-                fault,
-                ProductError::NoBodyRoots
-                    | ProductError::RootFailed { .. }
-                    | ProductError::RootPoisoned { .. }
-                    | ProductError::UnknownNode { .. }
-            )
-        })
+        .filter(|fault| badge_site(fault.kind()) == BadgeSite::Frame)
         .map(|fault| Badge::read(Subject::Document, fault.to_string(), Tone::Actionable))
 }
 
@@ -1564,6 +1922,85 @@ pub fn projection_badge(error: Option<&CameraError>) -> Option<Badge> {
     })
 }
 
+/// **What the chrome badges about datums this view draws nothing
+/// of**, and `None` when every datum the document holds is on screen
+/// — or when it holds none.
+///
+/// **The fact it exists to make sayable is a DIFFERENCE.** Every mark
+/// `crate::datums` draws refuses on its own scale, correctly, and a
+/// datum whose every mark refuses contributes no geometry: the
+/// viewport then shows exactly what a document with no datums in it
+/// shows. This is the read that tells the two apart, and it is the
+/// whole of what it claims — `n` datums are in the document and none
+/// of their marks reached the picture.
+///
+/// [`Subject::Camera`], and a badge rather than a sentence, for
+/// [`projection_badge`]'s reasons in both halves. The subject: what
+/// makes the count the wrong answer is the camera moving, which is
+/// also what a reader does about it. No population of causes is named
+/// here, because naming one is a claim and there is no sweep rule
+/// that produces it: what empties a drawing is `crate::datums`'
+/// business and it has at least three ways
+/// (`datums::DatumDraws::vanished` enumerates them), each in its own
+/// band of the datum's magnitude and the view's. The channel: the
+/// count is true on every frame until the view or the document
+/// changes, so it is a read of held state and not news.
+///
+/// **What it does not do is HOLD.** The three display seams above
+/// keep a refusal until the seam succeeds; this is a per-frame count
+/// its writer re-takes, zeroed by the frame entry point
+/// (`<crate::app::ViewerApp as eframe::App>::ui`) before the panes
+/// draw whether or not the viewport is one of them. So it needs no
+/// sweeper, which is the defect
+/// `work/view/projection-fault-has-no-sweeper.md` records against the
+/// field beside it.
+///
+/// **It outlives the view it describes by exactly one frame**, and no
+/// further. The toolbar draws BEFORE the panes, so on the frame the
+/// viewport stops drawing this badge paints the count the previous
+/// frame made, and the zero written after that frame's panes takes it
+/// on the next. That is the same one-frame lag `crate::app`'s field
+/// docs argue is benign, and it is a bounded lag rather than the
+/// unbounded staleness a latch with no sweeper has.
+///
+/// [`Tone::Actionable`]: a reader can move the camera and get the
+/// datums back, which is exactly the difference from an
+/// [`Tone::Advisory`] report about something nobody can change.
+pub fn datums_badge(vanished: usize) -> Option<Badge> {
+    (vanished > 0).then(|| {
+        // The noun agrees with the count: "1 datums" is the tell that
+        // a sentence was assembled rather than written, and this one
+        // is read at a glance beside the others.
+        let noun = if vanished == 1 { "datum" } else { "datums" };
+        Badge::read(
+            Subject::Camera,
+            format!("datums: {vanished} {noun} this view draws nothing of"),
+            Tone::Actionable,
+        )
+    })
+}
+
+/// **What the chrome badges about committed profiles the viewport draws
+/// nothing of**, and `None` when it drew every one.
+///
+/// A badge, per-frame and unlatched, for [`datums_badge`]'s reasons.
+/// The cause is narrower than a datum's: a profile is drawn from its
+/// validated value at the display tolerance, and what empties it is an
+/// arc the flattener cannot put a point on (`crate::sketch::committed`)
+/// — a fact about the document at this tolerance, so the subject is
+/// the document and the tone [`Tone::Advisory`]: there is no camera
+/// move that brings it back.
+pub fn profiles_badge(undrawn: usize) -> Option<Badge> {
+    (undrawn > 0).then(|| {
+        let noun = if undrawn == 1 { "profile" } else { "profiles" };
+        Badge::read(
+            Subject::Document,
+            format!("profiles: {undrawn} {noun} with an arc the viewport cannot draw"),
+            Tone::Advisory,
+        )
+    })
+}
+
 /// **What the chrome badges about a store that keeps nothing**, and
 /// `None` while preferences are kept.
 ///
@@ -1617,10 +2054,11 @@ pub enum Progress {
     /// running** — what a cancel leaves behind. A spinner over that
     /// alone would be a lie about work nobody is doing.
     ///
-    /// `indexing` is whether the OTHER seam is nonetheless busy, and
-    /// it is carried here rather than answered by a second indicator
-    /// because this is the one state where the two seams disagree
-    /// about whether anything is happening: an index build submitted
+    /// `indexing` is whether a seam BELOW the evaluation is
+    /// nonetheless busy — an index build, or the display fit the index
+    /// waits on — and it is carried here rather than answered by a
+    /// second indicator because this is the one state where the seams
+    /// disagree about whether anything is happening: a build submitted
     /// before the cancel is still running, and it will change the
     /// picture. The rule the payload buys is **the spinner follows the
     /// work, never the name** — so a canceled evaluation with a live
@@ -1701,228 +2139,6 @@ pub fn retype_draft(
     })
 }
 
-/// What the environment offers `rfd` as a file-chooser backend.
-///
-/// Probed ONCE at startup ([`chooser_backend`]) — it is a fact about
-/// the environment, not per-frame state — and consulted wherever a
-/// dialog is offered. The point is to fail LOUD at first sight (first
-/// light, issue #1097: Open/Save As "silently did nothing" on a WSL
-/// distro shipping neither backend) instead of hedging after a dead
-/// click: `rfd`'s blocking dialogs return the same bare `None` for a
-/// user cancel and for a backend that could not put a dialog up, so
-/// the time to know is before the click.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ChooserBackend {
-    /// `zenity` is on `PATH`: dialogs work with no portal at all.
-    ZenityPresent,
-    /// No `zenity`, but a D-Bus session-bus address exists, so an
-    /// `xdg-desktop-portal` file chooser is possible. **A HINT, not a
-    /// verdict**: a session bus without a working portal frontend
-    /// still ends in a silent `None` the process cannot tell from a
-    /// cancel — that residue is the README's troubleshooting entry,
-    /// not a message this code can honestly print.
-    PortalPossible,
-    /// Neither: no dialog can possibly appear. The one CONFIDENT
-    /// arm, and the one the chrome disables the dialogs over.
-    Absent,
-}
-
-impl ChooserBackend {
-    /// Whether attempting a dialog can possibly show one.
-    pub fn usable(self) -> bool {
-        !matches!(self, Self::Absent)
-    }
-}
-
-/// The directory this project keeps user files in.
-const PREFS_DIR: &str = "pncad";
-/// The preferences file's name inside it.
-const PREFS_FILE: &str = "viewer.toml";
-
-/// What the `zenity` probe read.
-///
-/// A named type rather than a `bool` for the reason
-/// [`crate::session::Outstanding`] gives: it sits beside a second
-/// environment reading of the same shape, and two adjacent `bool`s
-/// that mean different things transpose silently.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Zenity {
-    /// A `zenity` binary sits in some `PATH` directory.
-    OnPath,
-    /// None does.
-    NotOnPath,
-}
-
-/// What the D-Bus probe read. Named for the same reason as
-/// [`Zenity`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SessionBus {
-    /// A session-bus address is advertised.
-    Advertised,
-    /// None is.
-    NotAdvertised,
-}
-
-/// The chooser verdict as a pure function of the two probe readings,
-/// so the rows exercising it do not depend on the CI box's `PATH`.
-pub fn chooser_backend_of(zenity: Zenity, bus: SessionBus) -> ChooserBackend {
-    match (zenity, bus) {
-        (Zenity::OnPath, _) => ChooserBackend::ZenityPresent,
-        (Zenity::NotOnPath, SessionBus::Advertised) => ChooserBackend::PortalPossible,
-        (Zenity::NotOnPath, SessionBus::NotAdvertised) => ChooserBackend::Absent,
-    }
-}
-
-/// Probe the environment for a chooser backend. Startup calls this
-/// once; everything downstream reads the stored value.
-pub fn chooser_backend() -> ChooserBackend {
-    if cfg!(target_family = "wasm") {
-        // The browser build links no `rfd` at all (its wasm backend
-        // offers only the async dialog; see `viewer`'s Cargo.toml),
-        // so this is the CONFIDENT arm in the strongest possible
-        // sense: there is not merely no backend, there is no dialog
-        // code. Saying `Absent` is what disables Open…/Save… with
-        // their reason showing, which is #1097's whole lesson — a
-        // door that cannot open must not answer a click with silence.
-        ChooserBackend::Absent
-    } else if cfg!(target_os = "linux") {
-        chooser_backend_of(zenity_on_path(), session_bus_hinted())
-    } else {
-        // Off Linux `rfd` speaks the platform's native dialog API and
-        // the zenity/portal question does not arise. Grouped under the
-        // hint arm because the downstream meaning is the same: attempt
-        // the dialog, and read a `None` as a genuine cancel.
-        ChooserBackend::PortalPossible
-    }
-}
-
-/// Whether a `zenity` binary sits in some `PATH` directory. Presence
-/// is the signal `rfd`'s own fallback lookup uses; a present but
-/// broken zenity is the dialog's own problem to report.
-fn zenity_on_path() -> Zenity {
-    let found = std::env::var_os("PATH")
-        .is_some_and(|paths| std::env::split_paths(&paths).any(|dir| dir.join("zenity").is_file()));
-    if found {
-        Zenity::OnPath
-    } else {
-        Zenity::NotOnPath
-    }
-}
-
-/// Whether a D-Bus session-bus address is advertised — the necessary
-/// (never sufficient) condition for the portal chooser.
-fn session_bus_hinted() -> SessionBus {
-    let advertised =
-        std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_some_and(|address| !address.is_empty());
-    if advertised {
-        SessionBus::Advertised
-    } else {
-        SessionBus::NotAdvertised
-    }
-}
-
-/// Where this platform keeps the viewer's preferences:
-/// `$XDG_CONFIG_HOME/pncad/viewer.toml`, falling back to
-/// `$HOME/.config` as the XDG base-directory specification says to.
-///
-/// **Here rather than in [`crate::prefs`], because this file is the
-/// viewer's ONE ambient door** — the ruling in
-/// `scripts/gates/no-ambient-env.sh`, which names this module by path
-/// and says so in as many words. `prefs` stays a pure value over a
-/// document and a store; where the document lives is a fact about the
-/// machine, and facts about the machine are observed here beside the
-/// chooser-backend verdict and the WSL probe.
-///
-/// Against that gate's four rows, the same way the entry beside it
-/// argues them. CONTRACT-RATIFIED holds vacuously: a config path is
-/// not a model parameter, and no read here can change what any
-/// document evaluates to. COMMIT-ONCE: read at startup and stored in
-/// the application, never re-read under a running app — a viewer
-/// whose config directory moved mid-session would be stranger than
-/// one that kept writing where it started. REPORTED: the path is
-/// carried in every [`crate::prefs::StoreError`], so a refusal to
-/// save names the file it could not write rather than leaving a
-/// person guessing. RECONCILED: this is a BOOTSTRAP and never the
-/// last word — the actual read or write outcome outranks it, and an
-/// environment that names no config directory yields `None`, which
-/// disables saving with a reason instead of inventing a path.
-///
-/// Resolved by hand rather than through `directories`, whose whole
-/// value is the two platforms this project does not build for.
-///
-/// `None` when neither variable is set, which is a real possibility
-/// in a stripped environment.
-#[must_use]
-pub fn prefs_path() -> Option<std::path::PathBuf> {
-    prefs_path_in(
-        std::env::var_os("XDG_CONFIG_HOME").as_deref(),
-        std::env::var_os("HOME").as_deref(),
-    )
-}
-
-/// The preferences path as a pure function of the two environment
-/// readings, so the XDG rules are asserted on rather than trusted.
-///
-/// Split out for [`chooser_backend_of`]'s reason, and it is the same
-/// reason: the ambient read is one line that cannot be exercised in a
-/// test without mutating the process's environment — which is a
-/// global other tests share — while everything INTERESTING here is
-/// the resolution, and the resolution is a function of two `Option`s.
-///
-/// The rules, from the XDG base-directory specification:
-///
-/// - `config_home` set and non-empty wins.
-/// - **An EMPTY `config_home` counts as unset**, which the spec says
-///   in as many words and which is the case a bare
-///   `unwrap_or_else` fallback gets wrong: it would take `""` as the
-///   base and write to a RELATIVE path, i.e. into whatever directory
-///   the viewer happened to be launched from.
-/// - Otherwise `$HOME/.config`.
-/// - With neither, `None` — no path is invented. The caller's store
-///   is then unusable and says so, which is how a person finds out
-///   their preferences are not being kept rather than wondering
-///   later why nothing was remembered.
-#[must_use]
-pub fn prefs_path_in(
-    config_home: Option<&std::ffi::OsStr>,
-    home: Option<&std::ffi::OsStr>,
-) -> Option<std::path::PathBuf> {
-    let base = match config_home {
-        Some(value) if !value.is_empty() => std::path::PathBuf::from(value),
-        _ => std::path::PathBuf::from(home.filter(|h| !h.is_empty())?).join(".config"),
-    };
-    Some(base.join(PREFS_DIR).join(PREFS_FILE))
-}
-
-/// Whether this process runs inside WSL, read off the environment
-/// markers WSL itself sets for every process (`WSL_DISTRO_NAME`,
-/// `WSL_INTEROP`). Either suffices; both are checked because WSL1
-/// and WSL2 differ in which they guarantee. Consumed by [`crate::app::run`],
-/// which prefers the X11 backend under WSL (WSLg's Wayland RAIL shell
-/// breaks horizontal resizing — #1097, confirmed).
-///
-/// Here rather than in `app` so the viewer's ambient-environment
-/// reads have ONE home, which is what the `no-ambient-env` gate's
-/// allowlist entry for this file ratifies — see the argument in
-/// `scripts/gates/no-ambient-env.sh`.
-#[cfg(target_os = "linux")]
-pub fn running_under_wsl() -> bool {
-    std::env::var_os("WSL_DISTRO_NAME").is_some() || std::env::var_os("WSL_INTEROP").is_some()
-}
-
-/// **What the disabled dialog controls say**, and the only thing that
-/// says it: the confident half of the #1097 finding, with the
-/// dialog-free workaround.
-///
-/// A missing backend is held state, so the disabled control carrying
-/// this as its `on_disabled_hover_text` is the read and there is no
-/// status-line route beside it. The argument, its sweep rule and Ev's
-/// ruling live in `crates/viewer/README.md`, under *"A missing
-/// file-chooser backend is not on the line at all"*.
-pub const NO_CHOOSER_BACKEND: &str = "no file chooser backend — install zenity or \
-     xdg-desktop-portal; a document path can also be passed on the \
-     command line";
-
 /// Whether a folded event stream actually moved the camera.
 ///
 /// The stream carries cursor events too, and a stream that denotes no
@@ -1939,186 +2155,6 @@ pub const NO_CHOOSER_BACKEND: &str = "no file chooser backend — install zenity
 /// it per-frame behaviour nobody asked for.
 pub fn folded_moved(folded: &Folded) -> bool {
     !folded.applied.is_empty() || folded.refused.is_some()
-}
-
-/// What the viewport should do about the GPU id query this frame.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum IdStep {
-    /// Ask: the cursor moved, or the picture changed under it.
-    Ask {
-        /// The serial to stamp the query with.
-        serial: u32,
-    },
-    /// Nothing to ask — the outstanding answer still describes this
-    /// cursor.
-    Hold,
-    /// The pointer is gone; any outstanding answer is void.
-    Void,
-}
-
-/// The id pass's query bookkeeping: which query is outstanding, and
-/// what it was asked about.
-///
-/// **Two defects this closes, both of them about a query's answer
-/// outliving its question.** The pass used to be asked on every frame
-/// the pointer was inside the pane, moved or not — a blocking GPU
-/// readback per frame, and a documented movement gate that did not
-/// exist. And on leaving the pane no query was issued, no serial was
-/// reset, and the last answer stayed matched: with the ray path's
-/// hover cleared to `None`, the comparison then reported a permanent
-/// disagreement over empty space, which is the one symptom issue
-/// #1097 §4 tells the operator to read as a `R32Uint` clear fault.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct IdQueryLog {
-    serial: u32,
-    /// The cursor and the picture the outstanding query was asked
-    /// about. `None` when nothing is outstanding.
-    asked: Option<([f64; 2], Option<Generation>)>,
-}
-
-impl IdQueryLog {
-    /// A log with nothing outstanding.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// The serial of the query whose answer is still about the cursor,
-    /// or `None` when nothing is outstanding.
-    ///
-    /// The comparison reads this: an answer whose serial does not match
-    /// is about a question nobody is asking any more.
-    pub fn outstanding(&self) -> Option<u32> {
-        self.asked.map(|_| self.serial)
-    }
-
-    /// Advance the log for this frame's cursor and picture.
-    ///
-    /// `cursor` is `None` when the pointer is outside the pane.
-    /// `generation` is the evaluation the index describes: a query is
-    /// re-asked when the picture changes under a still cursor, because
-    /// the answer is about the picture and not only about the pointer.
-    pub fn step(&mut self, cursor: Option<[f64; 2]>, generation: Option<Generation>) -> IdStep {
-        let Some(cursor) = cursor else {
-            self.asked = None;
-            return IdStep::Void;
-        };
-        if self.asked == Some((cursor, generation)) {
-            return IdStep::Hold;
-        }
-        // Saturating past zero: zero is the "nothing was ever asked"
-        // serial the answer channel is initialised to, so a wrap must
-        // not land on it.
-        self.serial = self.serial.wrapping_add(1).max(1);
-        self.asked = Some((cursor, generation));
-        IdStep::Ask {
-            serial: self.serial,
-        }
-    }
-}
-
-/// The two picking paths' answers for one cursor, when they differ.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Disagreement {
-    /// What the id buffer named, `None` for nothing under the cursor.
-    pub from_gpu: Option<StableName>,
-    /// What the ray path named.
-    pub from_ray: Option<StableName>,
-}
-
-impl core::fmt::Display for Disagreement {
-    /// Each side renders through [`StableName`]'s own `Display` — kind
-    /// and minting node, the half a user can act on — followed by the
-    /// role path.
-    ///
-    /// BOTH halves are load-bearing here, which is what makes this
-    /// message different from every other one in this crate. The name's
-    /// `Display` omits the path deliberately, so two names differing
-    /// only in their derivation would render identically; the path
-    /// alone drops kind and node, so two names on different nodes
-    /// sharing a role path would. A message whose entire subject is
-    /// that two answers DIFFER cannot afford either collapse.
-    ///
-    /// The path rides as `Debug` because `RoleSeg` has no `Display` in
-    /// this workspace — the one rendering here that is not prose, and
-    /// it is a derivation, not a sentence.
-    ///
-    /// Destructured rather than field-read, which is what holds the
-    /// paragraph above to the value: the argument is that BOTH halves
-    /// are load-bearing, and a third field added to
-    /// [`Disagreement`] and left out of this sentence would falsify it
-    /// silently. In the pattern it is E0027 instead.
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self { from_gpu, from_ray } = self;
-        let show = |name: &Option<StableName>| match name {
-            Some(name) => format!("{name} ({:?})", name.path),
-            None => "nothing".to_owned(),
-        };
-        write!(
-            f,
-            "picking paths disagree at the cursor: id buffer {}, ray {}",
-            show(from_gpu),
-            show(from_ray)
-        )
-    }
-}
-
-impl Disagreement {
-    /// This disagreement as a message for the status line.
-    ///
-    /// [`Subject::Cursor`]: it is a claim about what lies under THIS
-    /// cursor over THIS picture, and [`cursor_status`] retires it on
-    /// the id log's own judgement that the question has moved on.
-    pub fn notice(&self) -> Message {
-        Message::new(Subject::Cursor, self.to_string())
-    }
-}
-
-/// Compare the id pass's answer against the ray path's, **by name**.
-///
-/// # Why names and not ids
-///
-/// One stable name can be drawn under several ids — two `Transform`
-/// roots over one extrude carry the same names on both copies — so
-/// comparing raw ids reports a disagreement whenever the two paths
-/// name the same face on different drawn copies. The property the two
-/// lanes are supposed to share is "the same face is under the cursor",
-/// and a face is a name.
-///
-/// # The role inversion, recorded at the seam
-///
-/// GQ6-RESURVEY §3 assigns the GPU id buffer to hover/click exactness
-/// and the CPU ray cast to snapping. **This unit inverts that**: the
-/// ray path is authoritative because it is the path CI can execute,
-/// and the id pass is advisory — it runs beside the ray and
-/// contradicts it out loud rather than deciding anything. That is the
-/// whole reason this function reports and never resolves, and it is
-/// what makes issue #1097 §4's hardware check one cursor sweep.
-///
-/// `answer` is the raw channel word (`serial << 32 | id`); `expected`
-/// is [`IdQueryLog::outstanding`]. `None` means "no verdict": no query
-/// outstanding, a stale answer, or the two agree.
-pub fn disagreement(
-    index: &PickIndex,
-    answer: u64,
-    expected: Option<u32>,
-    from_ray: Option<&StableName>,
-) -> Option<Disagreement> {
-    if expected? != (answer >> 32) as u32 {
-        return None;
-    }
-    let id = answer as u32;
-    let from_gpu = if id == IdMap::NOTHING {
-        None
-    } else {
-        index
-            .name_of(id)
-            .and_then(|name| name.as_ref().ok())
-            .cloned()
-    };
-    (from_gpu.as_ref() != from_ray).then(|| Disagreement {
-        from_gpu,
-        from_ray: from_ray.cloned(),
-    })
 }
 
 /// **The two channels, as policy over values.**
@@ -2144,10 +2180,11 @@ mod tests {
 
     use bvh::Aabb;
     use pncad::document::RecipeNodeId;
-    use pncad::prelude::EntityKind;
+    use pncad::prelude::{EntityKind, StableName};
 
     use crate::camera::{Camera, CameraOp, CameraOpError};
-    use crate::display::DisplayFault;
+    use crate::display::AdmissionFault;
+    use crate::tree::RowStatus;
 
     /// A camera — any camera. Nothing here reads it: [`fold_status`]
     /// judges what a fold REFUSED, and [`Folded`] has to carry one.
@@ -2429,18 +2466,27 @@ mod tests {
             badge.label()
         );
 
-        // The silent arms. An empty document is not malformed, and the
-        // three per-node states are the feature tree's to badge — at
-        // the node, with the cause, one of them deliberately quiet.
-        for quiet in [
-            ProductError::NoBodyRoots,
-            ProductError::RootFailed { node },
-            ProductError::RootPoisoned {
-                node,
-                through: RecipeNodeId(1),
-            },
-            ProductError::UnknownNode { node },
+        // The silent arms, each paired with the silence it gets:
+        // `badge_site` is where the argument for both lives. (Plain
+        // backticks: a bracketed link in a `//` comment is checked by
+        // nothing, so it must not wear the spelling rustdoc gates.)
+        for (quiet, site) in [
+            (ProductError::NoBodyRoots, BadgeSite::NotAFault),
+            (ProductError::RootFailed { node }, BadgeSite::FeatureTree),
+            (
+                ProductError::RootPoisoned {
+                    node,
+                    through: RecipeNodeId(1),
+                },
+                BadgeSite::FeatureTree,
+            ),
+            (ProductError::UnknownNode { node }, BadgeSite::FeatureTree),
         ] {
+            assert_eq!(
+                badge_site(quiet.kind()),
+                site,
+                "which channel reports it: {quiet}"
+            );
             assert_eq!(
                 product_badge(Some(&quiet)),
                 None,
@@ -2448,6 +2494,80 @@ mod tests {
             );
         }
         assert_eq!(product_badge(None), None);
+
+        // And the classes this channel is FOR, by name rather than by
+        // the one sample above — the half of the policy a badge that
+        // went silent would not fail.
+        for kind in [
+            ProductErrorKind::EvaluationOfAnotherDocument,
+            ProductErrorKind::Naming,
+            ProductErrorKind::Graft,
+            ProductErrorKind::SolidInvalid,
+            ProductErrorKind::ProductInvalid,
+            ProductErrorKind::ContactLineage,
+        ] {
+            assert_eq!(
+                badge_site(kind),
+                BadgeSite::Frame,
+                "no per-node badge carries it: {kind:?}"
+            );
+        }
+    }
+
+    /// **The guard for the count [`badge_site`]'s doc states about
+    /// another module's enum.**
+    ///
+    /// That policy leaves a class to the Features pane because the
+    /// pane has a row status to carry it, one for one. A fourth
+    /// non-`Ok` [`RowStatus`] would be a state nothing here pairs
+    /// with, and the count in the prose would be silently wrong — so
+    /// the `match` below is exhaustive over `RowStatus` and reds on a
+    /// new variant, at the claim rather than a schedule away from it.
+    #[test]
+    fn the_tree_still_has_exactly_the_three_states_this_policy_pairs_with() {
+        let non_ok = |status: &RowStatus| match status {
+            RowStatus::Ok => 0_usize,
+            RowStatus::Failed { .. } | RowStatus::Poisoned { .. } | RowStatus::Unevaluated => 1,
+        };
+        let states: usize = [
+            RowStatus::Ok,
+            RowStatus::Failed {
+                message: String::new(),
+            },
+            RowStatus::Poisoned {
+                through: RecipeNodeId(1),
+                message: None,
+            },
+            RowStatus::Unevaluated,
+        ]
+        .iter()
+        .map(non_ok)
+        .sum();
+        // Every class, inline in the row the way this crate's suites
+        // hold a complete variant list (`crates/viewer/README.md`).
+        // It is hand-written and can be: a class cannot be added
+        // without [`badge_site`]'s `match` refusing to compile, so
+        // whoever adds one is already standing at the site that sends
+        // them here, and no schedule fires sooner than that.
+        let left_to_the_tree = [
+            ProductErrorKind::EvaluationOfAnotherDocument,
+            ProductErrorKind::UnknownNode,
+            ProductErrorKind::Naming,
+            ProductErrorKind::RootFailed,
+            ProductErrorKind::RootPoisoned,
+            ProductErrorKind::NoBodyRoots,
+            ProductErrorKind::Graft,
+            ProductErrorKind::SolidInvalid,
+            ProductErrorKind::ProductInvalid,
+            ProductErrorKind::ContactLineage,
+        ]
+        .into_iter()
+        .filter(|kind| badge_site(*kind) == BadgeSite::FeatureTree)
+        .count();
+        assert_eq!(
+            left_to_the_tree, states,
+            "every class this policy leaves to the Features pane is left to a row the pane draws"
+        );
     }
 
     #[test]
@@ -2488,7 +2608,7 @@ mod tests {
     fn constrained(instance: u64, mates: &[u64]) -> Withdrawn {
         Withdrawn {
             instance: RecipeNodeId(instance),
-            cause: DisplayFault::MateConstrained {
+            cause: AdmissionFault::MateConstrained {
                 instance: RecipeNodeId(instance),
                 mates: mates.iter().copied().map(RecipeNodeId).collect(),
             },
@@ -2507,7 +2627,7 @@ mod tests {
             notice.contains("instance 7"),
             "the notice names which of the user's placements went — here in \
              the part-instance vocabulary, because the MateConstrained arm's \
-             subject is an instance. That is `DisplayFault`'s per-arm rule \
+             subject is an instance. That is `AdmissionFault`'s per-arm rule \
              and not a promise the notice makes across all of them; the \
              absent-node arm says `node N` and is right to: {notice}"
         );
@@ -2542,8 +2662,8 @@ mod tests {
     fn a_supersession_says_the_cause_in_the_faults_own_words() {
         // The whole point of carrying the fault rather than the id: the
         // sentence names the mates AND the remedy, and neither string
-        // is written here — both come from `DisplayFault`'s `Display`.
-        let cause = DisplayFault::MateConstrained {
+        // is written here — both come from `AdmissionFault`'s `Display`.
+        let cause = AdmissionFault::MateConstrained {
             instance: RecipeNodeId(3),
             mates: vec![RecipeNodeId(5)],
         };
@@ -2562,7 +2682,7 @@ mod tests {
         // named as if the tree still drew it.
         let gone = superseded_text(&[Withdrawn {
             instance: RecipeNodeId(4),
-            cause: DisplayFault::NoSuchNode {
+            cause: AdmissionFault::NoSuchNode {
                 node: RecipeNodeId(4),
             },
         }])
@@ -2582,7 +2702,7 @@ mod tests {
         // of the two things happened to the picture.
         let fused = Withdrawn {
             instance: RecipeNodeId(3),
-            cause: DisplayFault::FusedGeometry {
+            cause: AdmissionFault::FusedGeometry {
                 instance: RecipeNodeId(3),
                 root: RecipeNodeId(8),
                 others: vec![RecipeNodeId(5)],
@@ -2632,7 +2752,7 @@ mod tests {
         // instances withdraws both hides in one prune.
         let fused = |instance: u64, other: u64| Withdrawn {
             instance: RecipeNodeId(instance),
-            cause: DisplayFault::FusedGeometry {
+            cause: AdmissionFault::FusedGeometry {
                 instance: RecipeNodeId(instance),
                 root: RecipeNodeId(8),
                 others: vec![RecipeNodeId(other)],
@@ -2640,7 +2760,7 @@ mod tests {
         };
         let gone = Withdrawn {
             instance: RecipeNodeId(4),
-            cause: DisplayFault::NoSuchNode {
+            cause: AdmissionFault::NoSuchNode {
                 node: RecipeNodeId(4),
             },
         };
@@ -2650,7 +2770,7 @@ mod tests {
             dropped_hide_text(&two).expect("two dropped hides are news"),
             format!(
                 "hide: 2 hides were dropped and the hidden geometry is drawn \
-                 again — {}{NOTICE_SEPARATOR}{}",
+                 again — {}{LIST_SEPARATOR}{}",
                 two[0].cause, two[1].cause
             ),
             "the plural agrees, and the consequence is said because both \
@@ -2695,7 +2815,7 @@ mod tests {
         assert_eq!(
             both,
             format!(
-                "free move: 2 committed placements were discarded — {}{NOTICE_SEPARATOR}{}",
+                "free move: 2 committed placements were discarded — {}{LIST_SEPARATOR}{}",
                 two[0].cause, two[1].cause
             ),
             "every word of the preamble agreeing with itself in number, and \

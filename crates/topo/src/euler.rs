@@ -3157,10 +3157,7 @@ mod tests {
         let q = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
         let (mut body, _seg, split) = described_pillow(tol);
         let s_plus = body.get_face(split.face).unwrap().surface;
-        let seed_face = body
-            .get_loop(body.get_half_edge(split.he_plus).unwrap().parent_loop)
-            .unwrap()
-            .face;
+        let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
         let s_seed = body.get_face(seed_face).unwrap().surface;
         *body.surfaces.get_mut(s_seed).unwrap() = geom::Surface::Plane {
             origin: q(0.0, 0.0, 0.0),

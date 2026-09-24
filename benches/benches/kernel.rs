@@ -144,11 +144,7 @@ fn washer() -> Body<f64> {
 
 /// An axis-aligned box [x0,x1]x[y0,y1]x[z0,z1], built by extrusion.
 fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let plane = SketchPlane::from_frame(
-        p3::<f64>(0.0, 0.0, z.0),
-        v3(1.0, 0.0, 0.0),
-        v3(0.0, 1.0, 0.0),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3::<f64>(0.0, 0.0, z.0)));
     let profile = validated(plane, vec![rect(x, y).into()], Tol::witness())
         .expect("the slab profile validates");
     extrude(

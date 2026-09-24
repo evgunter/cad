@@ -201,19 +201,26 @@ RUN_FLOOR=(
   plain:geom-core:k_stats_doors:2
   plain:geom-core:m10_7_r1_retag_probe:1
   plain:geom-core:m10_7_r2_sym_probes:18
+  plain:geom-core:sym11_witness_kind_rows:6
   plain:mesh:k_funnel_composition:2
   plain:profile:review_m2_pr2_probe:2
   plain:profile:review_s2_probe:1
   plain:profile:scalar_channels_probe:4
   plain:profile:validate_ok_probe:1
+  plain:sweep:contact_edge_must_carry:6
   plain:sweep:k_report:0
   plain:sweep:mass_props_are_thread_count_invariant:4
   plain:sweep:must_carry_rule:10
+  plain:sweep:r1_lane0_e2e:2
   plain:sweep:review_chamfer_r1_probes:7
+  plain:sweep:review_contact_edge_must_carry_r1_probes:5
+  plain:sweep:review_contact_edge_must_carry_r2_probes:6
   plain:sweep:review_must_carry_rule_r1_probes:4
   plain:sweep:review_fillet_e1_probes:4
   plain:sweep:review_ring_clearance_r1_probes:7
   plain:sweep:shell_census_is_thread_count_invariant:4
+  plain:sweep:sym11_far_placement_rows:3
+  plain:topo:lane0_r2_probes:4
   plain:topo:probe_census:1
   plain:topo:probe_s5_sectors:1
   plain:topo:review_m3_pr2:9

@@ -27,7 +27,7 @@ fn great(u: f64, t0: f64, t1: f64, a: u32, b: u32) -> LoopEdge<f64> {
 /// against a closed form so the reviewer reads execution.
 fn report(kind: &str, edges: &[LoopEdge<f64>], exact: f64) -> Option<f64> {
     let band = band();
-    match curved_face(&sphere(), edges, 1.0, band) {
+    match curved_face(&sphere(), edges, true, band) {
         Ok(fc) => {
             let rel = (fc.area - exact) / exact;
             println!(
@@ -251,7 +251,7 @@ fn probe_near_polar_separation_sweep() {
             rim(v2 - dv, 0.0, -1.0, 4, 5),
             great(-1.0, v2 - dv, v0, 5, 0),
         ];
-        match curved_face(&sphere(), &edges, 1.0, band) {
+        match curved_face(&sphere(), &edges, true, band) {
             Ok(fc) => println!("  sep = {mult:>6}*zero  ACCEPT area={:.9e}", fc.area),
             Err(e) => println!("  sep = {mult:>6}*zero  REFUSE {e:?}"),
         }
@@ -270,7 +270,7 @@ fn probe_near_polar_separation_sweep() {
             rim(vm - dv, 0.0, -1.0, 4, 5),
             great(-1.0, vm - dv, v0, 5, 0),
         ];
-        match curved_face(&sphere(), &edges, 1.0, band) {
+        match curved_face(&sphere(), &edges, true, band) {
             Ok(fc) => println!("  sep = {mult:>6}*zero  ACCEPT area={:.9e}", fc.area),
             Err(e) => println!("  sep = {mult:>6}*zero  REFUSE {e:?}"),
         }
@@ -367,8 +367,8 @@ mod interval_lane {
         let band = band();
         let mut mismatches = 0;
         for ((name, ef), (_, ei)) in cases::<f64>().into_iter().zip(cases::<Interval>()) {
-            let a = curved_face(&sphere::<f64>(), &ef, 1.0, band);
-            let bb = curved_face(&sphere::<Interval>(), &ei, Interval::from_f64(1.0), band);
+            let a = curved_face(&sphere::<f64>(), &ef, true, band);
+            let bb = curved_face(&sphere::<Interval>(), &ei, true, band);
             let tag = match (&a, &bb) {
                 (Ok(_), Ok(_)) => "both ACCEPT",
                 (Err(_), Err(_)) => "both REFUSE",

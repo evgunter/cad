@@ -15,6 +15,7 @@ use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
@@ -27,16 +28,6 @@ fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
     let lp = profile::circle(p2(0.0, 0.0), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
-}
-
-fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
-    let tol = Tol::witness();
-    let lp: ProfileLoop<f64> = RawLoop::polygon([p2(x0, y0), p2(x1, y0), p2(x1, y1), p2(x0, y1)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
     extrude(&profile, Extrusion::Distance(z1 - z0), tol)
         .unwrap()
         .body
@@ -65,7 +56,7 @@ fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
 fn a_box_driven_through_a_cap_no_longer_unions_as_two_disjoint_solids() {
     let tol = Tol::witness();
     let a = cyl(1.0, 0.0, 2.0);
-    let b = boxx(-0.3, 0.3, -0.3, 0.3, 1.0, 3.0);
+    let b = brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol);
     let err = match topo::union(&a, &b, tol) {
         Err(e) => e,
         Ok(topo::BooleanResult::Body(out)) => {
@@ -96,7 +87,7 @@ fn a_box_driven_through_a_cap_no_longer_unions_as_two_disjoint_solids() {
 fn a_crossing_outside_the_disc_mints_no_event() {
     let tol = Tol::witness();
     let a = cyl(1.0, 0.0, 2.0);
-    let b = boxx(1.05, 2.0, -0.5, 0.5, 1.0, 3.0);
+    let b = brick((1.05, 2.0), (-0.5, 0.5), (1.0, 3.0), tol);
     let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol).expect("no crossing to route")
     else {
         panic!("two clear solids union into a two-shell body");
@@ -117,7 +108,7 @@ fn a_crossing_outside_the_disc_mints_no_event() {
 fn a_box_buried_in_a_cylinder_unions_to_the_cylinder() {
     let tol = Tol::witness();
     let a = cyl(1.0, 0.0, 2.0);
-    let b = boxx(-0.3, 0.3, -0.3, 0.3, 0.5, 1.5);
+    let b = brick((-0.3, 0.3), (-0.3, 0.3), (0.5, 1.5), tol);
     let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol).expect("containment decides")
     else {
         panic!("a buried box unions into one solid");
@@ -157,7 +148,7 @@ fn a_box_down_a_circular_hole_in_a_square_plate_sees_the_hole() {
             .unwrap()
             .body
     };
-    let boss = boxx(-0.2, 0.2, -0.2, 0.2, 0.5, 2.0);
+    let boss = brick((-0.2, 0.2), (-0.2, 0.2), (0.5, 2.0), tol);
     let topo::BooleanResult::Body(out) =
         topo::union(&plate, &boss, tol).expect("the hole is empty; nothing to route")
     else {

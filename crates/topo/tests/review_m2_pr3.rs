@@ -204,7 +204,7 @@ fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     common::assert_every_chord_named_by_both_rules(&body, &errs);
     // The prefer-intrinsic upgrade: all nine upgrade via set_edge_curve.
-    common::describe_as_intersections(&mut body);
+    common::describe_as_intersections(&mut body, Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     assert!(body.curves().all(|(_, c)| matches!(
         c.certified().map(topo::EdgeCurve::description),
@@ -233,8 +233,8 @@ fn e2e_prism_dual_lane_matches_f64() {
     use geom_core::Dual64;
     let (mut f, _, _) = triangle_prism::<f64>();
     let (mut d, _, _) = triangle_prism::<Dual64>();
-    common::describe_as_intersections(&mut f);
-    common::describe_as_intersections(&mut d);
+    common::describe_as_intersections(&mut f, Tol::witness());
+    common::describe_as_intersections(&mut d, Tol::witness());
     // The dual takes the structural half — checks 1-6, 8 and 9, which
     // is where every certificate compared below is produced. The +V
     // volume invariant reads an enclosure a dual may not certify and
@@ -371,9 +371,9 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
 /// still resolves — no DanglingDescription, no silent reap).
 #[test]
 fn survives_surface_swap_behind_intersection_edges_detected_at_rest() {
-    let t = common::geometric_cube::<f64>();
+    let t = common::geometric_cube::<f64>(Tol::witness());
     let mut body = t.body;
-    common::describe_as_intersections(&mut body);
+    common::describe_as_intersections(&mut body, Tol::witness());
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 
     let old_surface = body.get_face(t.seed.face).unwrap().surface;
@@ -577,12 +577,12 @@ fn survives_nurbs_seed_gate_and_clear() {
 /// (y = 0): exactly one report, naming the front face and the edge.
 #[test]
 fn fixed_planar_face_arc_boundary_bulge_reported_at_tier3() {
-    let t = common::geometric_cube::<f64>();
+    let t = common::geometric_cube::<f64>(Tol::witness());
     let mut body = t.body;
     // Upgrade the cube first (M2 PR 4 fix pass: transverse chords must
     // carry Intersection at rest), so the arc corruption below is the
     // only conventional description left in the body.
-    common::describe_as_intersections(&mut body);
+    common::describe_as_intersections(&mut body, Tol::witness());
     // The bottom front edge A(0,0,0) -> B(1,0,0): re-describe as the
     // half-circle in the z = 0 plane bulging to y = −0.5 (a genuine,
     // honestly certified arc — description and carrier agree exactly).
@@ -642,11 +642,11 @@ fn fixed_planar_face_arc_boundary_bulge_reported_at_tier3() {
 #[test]
 fn fixed_aliased_interval_refused_at_public_setter() {
     use core::f64::consts::{PI, TAU};
-    let t = common::geometric_cube::<f64>();
+    let t = common::geometric_cube::<f64>(Tol::witness());
     let mut body = t.body;
     // Upgrade first (M2 PR 4 fix pass — see the previous test) so the
     // at-rest reports below stay scoped to the attacked edge.
-    common::describe_as_intersections(&mut body);
+    common::describe_as_intersections(&mut body, Tol::witness());
     let edge = t.mevs[0].edge;
     let mk = |t1: f64| EdgeCurveSpec {
         description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
@@ -978,7 +978,7 @@ mod interval_lane {
         let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
         common::assert_every_chord_named_by_both_rules(&body, &errs);
         // The prefer-intrinsic upgrade at the interval scalar.
-        common::describe_as_intersections(&mut body);
+        common::describe_as_intersections(&mut body, geom_core::Tol::witness());
         assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
         assert!(body.curves().all(|(_, c)| matches!(
             c.certified().map(topo::EdgeCurve::description),

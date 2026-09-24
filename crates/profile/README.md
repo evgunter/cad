@@ -104,7 +104,9 @@ Structural edits may renumber; stale selections then refuse Vanished.
 or `CircleSplit { centre, radius, n, phase }`, the carrier forms being
 one-step programs whose form is structural. There is one wire
 vocabulary: no raw vertex-table loop exists at rest (VQ1). The wire
-shape is `WireProfile { plane, loops }` with `deny_unknown_fields`; the
+shape is `WireProfile { plane, loops }` with `deny_unknown_fields`,
+which denies an unknown KEY and nothing else — a `plane` written in the
+pre-node shape refuses at `plane_ref`'s own visitor instead; the
 format carries no schema version and no migration, and a file this
 build cannot read refuses `PersistError::Unreadable` with the regenerate
 recourse. `plane` references a `Datum::Frame` node, so a profile has a
@@ -269,7 +271,7 @@ point) remains as the closed form's sign rule, unit-pinned and
 unreachable by any door. No construction is known to reach
 `NoCornerReason::NoCornerSideCandidate` since the class refuses earlier;
 the item that owned that reading was deleted with its program's tracker
-directory and is recoverable at the SHA `docs/DOC-LEDGER.md` names. The pins are
+directory and is recoverable in git history. The pins are
 `tests/review_s2.rs`'s `the_lattice_door_never_emits_an_enclosing_tangency`,
 `enclosing_fillet_swallows_both_leg_carriers` and
 `an_enclosing_leg_forces_an_equally_enclosing_partner`. The 3-D blend

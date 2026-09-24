@@ -98,7 +98,7 @@ use crate::validate::decide;
 /// call, the sector-shape rungs, the departure trileans — is
 /// sense-invariant GIVEN that value and must not multiply again: those
 /// sites pair it with the STORED orbit order, which `revert` reverses
-/// together with the sense bit, so a second `sense_sign` factor would
+/// together with the sense bit, so a second sense fold would
 /// cancel this one.
 pub(super) fn sector_face<T: Decide>(
     body: &Body<T>,
@@ -168,7 +168,9 @@ fn chord<T: Decide>(
         geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => {
             Ok((final_vertex, p_final - p_base, None))
         }
-        geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
+        geom::Curve3::Circle { .. }
+        | geom::Curve3::Ellipse { .. }
+        | geom::Curve3::Spiric { .. } => {
             let (t0, t1) = curve.params();
             // The base-endpoint jet: outgoing tangent, plus the raw
             // second derivative and squared speed for the C12.2
@@ -252,7 +254,7 @@ pub fn classify_neighborhood<T: Decide>(
                     // The reference side here is the SPLIT PLANE's
                     // normal: an operation input that DEFINES
                     // Above/Below, belonging to no face and with no
-                    // `sense_sign` to fold in. Its type says so —
+                    // `sense` bit to fold in. Its type says so —
                     // `enters_material`'s face slot would not accept
                     // it, and this slot does not accept a bare vector.
                     match geom_brep::enters_material_order2(
@@ -338,7 +340,7 @@ pub fn classify_neighborhood<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::fixtures::prism;
+    use crate::fixtures::raw_prism;
     use geom_core::Tol;
 
     /// The split lane has no sphere arm and says so BY NAME, on the
@@ -347,7 +349,7 @@ mod tests {
     /// row.
     #[test]
     fn a_sphere_carried_sector_refuses_by_name() {
-        let p = prism(3, Tol::witness());
+        let p = raw_prism(3, Tol::witness());
         let face = p.face_side[0];
         let mut body = p.body;
         body.set_face_surface(

@@ -2,9 +2,12 @@
 id: sweep-test-rebuilds-validated-net-for-v-reversal
 kind: issue
 title: review_probes_m8_4.rs rebuilds a validated NURBS net for a v-reversal and unwraps an unreachable Result
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1782]
+branch: scalar/vrev-surface-door
+pr: 2627
+closed: 2026-09-15
 ---
 
 ## Finding
@@ -52,3 +55,22 @@ unchanged by the move.
 `work/code-quality/` left the tracker (`docs/DOC-LEDGER.md`, sweep 11)
 and its closed rows went with it. `D320` is now cited by its closing PR
 1782.
+
+## Closed (2026-09-15) — PR 2627
+
+`NurbsSurface::reversed_u` (native) and `reversed_v` (by the module's
+transposition conjugation) in `crates/geom/src/surfaces/nurbs.rs`: the
+same point set with one direction reversed, defined only when that
+direction's knot vector is mirror-symmetric under an EXACT sum test
+(`geom_core::exact::two_sum`, one home), refusing `KnotMirrorError`
+otherwise — which means decimal-symmetric pairs (thirds, 0.1/0.9) refuse
+and the kernel's own loft accepts up to six equally spaced sections
+(BLEND's row `interpolate-columns-averaged-knots-could-be-mirror-symmetric`
+is the upstream fix). The door's doc says what it does not do: a
+reversed chart re-attached to a body leaves that face's pcurves stale
+(a row pins the hazard). `transposed` routes through
+`from_validated_parts`; the structural-map count argument has one home
+in `scalar_lift.rs`. `seam_on_chart` calls the door. Reviews: dual, both
+APPROVE WITH FIXES, no MAJOR; twelve fix-pass items taken. Rows filed:
+BLEND, PROPS ×2, TINT (extended), CIW (folded into
+`gate-ok-summarised-a-run-with-a-k-lint-row-still-in-progress`).

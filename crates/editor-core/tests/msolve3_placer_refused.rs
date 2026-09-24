@@ -28,11 +28,10 @@ use std::sync::Arc;
 use editor_core::{
     Alignment, Axis3, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EditError,
     EvalOptions, Expr, Frame, MateFault, MateFrame, MatePrimitive, Node, NodeErrorKind, NodeResult,
-    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SitedRef, SlotId, StableName,
-    solve_document,
+    PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, SlotId, StableName,
 };
 use fixture::resolver::{PartStore, in_part};
-use fixture::{ang, in_copy, insert, len, on_frame, run, scl, step, xform};
+use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step, step_with, xform};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -65,8 +64,8 @@ fn seat(a: StableName, b: StableName) -> Node<ProfileProgram> {
         reference: [1.0, 0.0, 0.0],
     };
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame([0.0, 0.0, 1.0], [0.0, 0.0, 1.0]),
@@ -103,7 +102,7 @@ impl Scene {
 
     /// The fault the solve records for the mate.
     fn fault(&self) -> MateFault {
-        solve_document(&self.doc, Tol::witness())
+        solve(&self.doc, &self.opts(), Tol::witness())
             .fault(self.mate)
             .cloned()
             .expect("the placer refuses")
@@ -182,7 +181,7 @@ where
     if let Node::Mate { a, .. } = &mut node {
         // The reference is read AT the placer: that operand is what
         // puts the placer on the walk's chain.
-        *a = SitedRef::new(placer, a.name.clone());
+        *a = crate::fixture::head_at(placer, (*a.name).clone());
     }
     let (doc, mate) = step(doc, DocEdit::InsertNode { node });
     (
@@ -606,6 +605,7 @@ fn an_explicit_pattern_rule_never_reaches_the_solve() {
             },
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect_err("a pattern spells its count once");
     assert!(
@@ -618,18 +618,30 @@ fn an_explicit_pattern_rule_never_reaches_the_solve() {
 // ---- what stays a dangling head ----
 
 /// A copy index at the pattern's count names a copy that does not
-/// exist — still `DanglingHead`, at the pattern.
+/// exist — still `DanglingHead`, at the pattern. The mate names copy
+/// 2 of a count-3 pattern that then shrinks to two copies: a head at
+/// the count at insert is the edit door's to refuse, and this is how
+/// one arises after it.
 #[test]
 fn an_index_at_the_count_is_still_a_dangling_head() {
-    let scene = patterned(
+    let mut scene = patterned(
         "msolve3-past-count",
         PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(2.0),
         },
-        2,
+        3,
         2,
     );
+    let (doc, _) = step(
+        scene.doc,
+        DocEdit::SetStructuralParam {
+            node: scene.placer,
+            slot: editor_core::SlotId::Count,
+            expr: Expr::count(2),
+        },
+    );
+    scene.doc = doc;
     let f = scene.fault();
     assert!(
         matches!(&f, MateFault::DanglingHead { head, .. } if *head == scene.placer),
@@ -650,8 +662,12 @@ fn a_stranded_operand_is_still_a_dangling_head() {
         4,
         1,
     );
-    let (doc, _) = step(scene.doc, DocEdit::DeleteNode { id: scene.placer });
-    let f = solve_document(&doc, Tol::witness())
+    let o = scene.opts();
+    // Deleting the placer strands the mate's operand and splits the
+    // cluster: the edit levers through the store's reach.
+    let reach = editor_core::mate_reach::<f64>(&o, Tol::witness());
+    let (doc, _) = step_with(scene.doc, DocEdit::DeleteNode { id: scene.placer }, &reach);
+    let f = solve(&doc, &o, Tol::witness())
         .fault(scene.mate)
         .cloned()
         .expect("the stranded mate refuses");
@@ -684,6 +700,7 @@ fn the_placement_axis_refuses_in_its_own_voice() {
                 frame,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )?
         .doc)
     };

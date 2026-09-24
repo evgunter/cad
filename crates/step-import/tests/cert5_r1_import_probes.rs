@@ -70,10 +70,12 @@ use step_import::{ImportOptions, StepImportError, import_step};
 /// That refusal is gone at the fine band. Tier 3's check 7 certifies
 /// a SIGN, and dm1's volume enclosure excludes zero however far short
 /// of the reporting target `1024*eps` the schedule stops, so the gate
-/// admits the solid and the import goes on to meet the D7 ladder gap
-/// at edge `#389` that the stall used to mask
-/// (`work/exch/step-import-degree-one-line-promotion.md`;
-/// `r1_dm1_probe` pins that disposition cell by cell).
+/// admits the solid — and the D7 ladder gap at edge `#389` the stall
+/// used to mask is RETIRED too (#388: degree-1 carriers promote to
+/// `Curve3::Line` and the slit adopts through its reversed wall
+/// column), so the import goes on to the pcurve MINT on the
+/// l-bracket wall's ARC rim, which refuses `MapResidual`
+/// (`r1_dm1_probe` pins that disposition cell by cell).
 ///
 /// **The residual did not move — its instrument did.** The width the
 /// schedule stops at is now what a caller asking for the NUMBER is
@@ -100,13 +102,23 @@ fn dm1_residual_and_wall_time_remeasured() {
     let out = import_step(&text, &ImportOptions::default(), Tol::witness());
     let dt = t0.elapsed();
     match out {
-        // Every band clears the at-rest gate and meets the ladder.
-        Err(StepImportError::Adoption { id, attempts }) => {
-            eprintln!("CERT5-R1 dm1: past the at-rest gate in {dt:?}, ladder gap at #{id}");
-            assert_eq!(id, 389, "the ladder gap's edge");
+        // Every band clears the at-rest gate AND the ladder (`#389`
+        // adopts, #388) and stops at the arc-rim pcurve mint.
+        Err(StepImportError::Pcurves { source }) => {
+            eprintln!("CERT5-R1 dm1: past the gate and the ladder in {dt:?}: {source}");
+            let shown = source.to_string();
             assert!(
-                attempts.is_empty(),
-                "the polyline GAP, not a refusal with candidates"
+                shown.contains("MapResidual"),
+                "the frontier is the arc-rim mint's residual: {shown}"
+            );
+        }
+        // The ladder, where no band stops now: `#389`'s gap would be
+        // a REGRESSION of #388's retirement.
+        Err(StepImportError::Adoption { id, attempts }) => {
+            panic!(
+                "the D7 ladder does not refuse dm1 any more (#388): \
+                 #{id}, {} candidate(s)",
+                attempts.len()
             );
         }
         // The at-rest gate, which no band stops at now. Kept as an arm
@@ -251,13 +263,20 @@ fn own_rational_wall_roundtrips_through_the_import_door() {
                 "E2E POSTURE: at a tighter eps the only honest refusal here is the \
                  budget: {e}"
             );
-            // The stand-down goes through the tree's ONE in-row door
-            // (`test_utils::vacuity`'s module docs: every in-row
-            // stand-down in `crates/` uses it, and the whole-binary
-            // `#[cfg]`-gated `interval_lane_skipped_…` rows are a
-            // different idiom). It has to be the in-row one here: the
-            // condition is the RUN's ε, read at run time, so no
-            // `#[cfg]` and therefore no test NAME can carry it.
+            // The stand-down goes through the tree's in-row door rather
+            // than a hand-rolled print. It has to be the IN-ROW one: the
+            // condition is the RUN's ε, read at run time, so no `#[cfg]`
+            // and therefore no test NAME can carry it — which is what
+            // separates this door from `test_utils::loud_skip_marker!`, the
+            // whole-binary spelling. That every in-row stand-down in
+            // `crates/` goes through this door is NOT claimed: it was a
+            // sweep result, `vacuity`'s module docs now name the
+            // counterexample, and nothing guards it.
+            //
+            // The announcement reaches no reader on a gating run (same
+            // module docs). What this row still gets from it is a local
+            // reader and one sentence stating which claims below were
+            // not made; what it does not get is any way to go red.
             test_utils::vacuity::stood_down(
                 "cert5-r1 balloon round trip",
                 &format!(

@@ -42,6 +42,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
+use crate::common::oracles::sigma;
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
@@ -228,17 +229,18 @@ fn the_sphere_sphere_arm_folds_both_sense_bits() {
         axis: Vec3::new(0.0, 1.0, 0.0),
         rim: Point3::new(RIM_R, 0.0, 0.0),
     };
-    let trace = |y: f64, side: f64| SupportTrace::Round {
+    let trace = |y: f64, side: bool| SupportTrace::Round {
         center: Point3::new(0.0, y, 0.0),
         radius: SPHERE_R,
         side,
     };
-    for (sa, sb) in [(1.0, 1.0), (-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0)] {
+    for (side_a, side_b) in [(true, true), (false, false), (true, false), (false, true)] {
+        let (sa, sb) = (sigma(side_a), sigma(side_b));
         let center = sheet_center(
             sheet.rim,
             sheet.sheet_normal(),
-            trace(-HALF_SEP, sa),
-            trace(HALF_SEP, sb),
+            trace(-HALF_SEP, side_a),
+            trace(HALF_SEP, side_b),
             r,
         );
         // The two offset radii, and the crossing they imply: the axial

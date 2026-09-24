@@ -9,38 +9,18 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Tol, Vec3};
+use geom_core::Tol;
 use mesh::budget::{self, FaceMeasure, Mode};
-use profile::{ProfileLoop, RawLoop as _};
-use sweep::loft_body;
+// The `loft_prism` corpus body (#212): squares at z = 0 and 2, the
+// non-affine trapezoid at z = 1, v-degree 2 — NURBS walls and planar
+// caps in one body, which is the mix the row rules are about. It is
+// `sweep::test_support`'s, shared with the mesher's golden and budget
+// rows that meter the same solid.
+use sweep::test_support::loft_prism;
 use tess_meter::{
     Bound, Chart, FaceName, FaceNames, Sizing, best_split_cells, divisions, face_rows,
 };
 use test_utils::vacuity::Exposure;
-use topo::Body;
-
-/// The `loft_prism` corpus body (#212): squares at z = 0 and 2, the
-/// non-affine trapezoid at z = 1, v-degree 2 — NURBS walls and planar
-/// caps in one body, which is the mix the row rules are about.
-fn loft_prism(tol: Tol) -> Body<f64> {
-    let quad = |pts: [(f64, f64); 4]| -> sweep::Section {
-        vec![ProfileLoop::polygon(
-            pts.iter().map(|&(x, y)| Point2::new(x, y)),
-        )]
-    };
-    let sections = vec![
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-    ];
-    let places: Vec<Affine3<f64>> = [0.0, 1.0, 2.0]
-        .iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect();
-    loft_body::<f64>(&sections, &places, 2, tol)
-        .expect("the corpus loft builds")
-        .body
-}
 
 #[test]
 fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
@@ -141,9 +121,25 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
         // many near-empty cells can honestly cost a few cells MORE
         // than the whole-patch grid — #547 measured exactly that on
         // the swept blades, span 0.9x.)
+        // **A PLANAR face certifies exactly zero.** `mesh::budget`'s
+        // `worst_cert` names two readings of a `0.0` — a genuinely
+        // tight face, and one that certified nothing — and names the
+        // caller's own `tessellate` result as the discriminant, which
+        // this fixture took above. Since the C9 ring became a newtype
+        // over the backend it pads only where an operation is inexact,
+        // so a plane's second-derivative bound is exactly `0` where it
+        // used to be subnormal-positive, and its certificate with it.
         assert!(
-            n.worst_cert.is_finite() && n.worst_cert > 0.0,
+            n.worst_cert.is_finite() && n.worst_cert >= 0.0,
             "the face's worst certificate is recorded: {n:?}"
+        );
+        // What a bug can still break, which the strict `> 0.0` above
+        // was standing in for: a CURVED face certifying exactly zero
+        // is a bound nothing computed, not a tight one.
+        assert!(
+            n.worst_cert > 0.0 || (n.muu == 0.0 && n.muv == 0.0 && n.mvv == 0.0),
+            "a face whose second-derivative bound is nonzero certified EXACTLY zero, \
+             so its certificate is one nothing computed rather than a tight face: {n:?}"
         );
         assert!(
             n.worst_dev.is_nan() && n.dev_samples == 0,

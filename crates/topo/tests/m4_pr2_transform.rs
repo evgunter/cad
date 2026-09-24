@@ -7,18 +7,13 @@ use crate::common;
 
 use std::f64::consts::FRAC_PI_2;
 
-use common::prism_z;
+use common::brick;
 use geom_core::Tol;
 use geom_core::{Affine3, Point3, Vec3};
 use topo::{
     Body, BooleanResult, mass_properties, transform_rigid, validate, validate_closed,
     validate_geometric,
 };
-
-/// A dyadic brick `[x0,x1]×[y0,y1]×[0,h]` (the M3 fixture builder).
-fn brick(x: (f64, f64), y: (f64, f64), h: f64) -> Body<f64> {
-    prism_z::<f64>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], 0.0, h).body
-}
 
 fn tiers_ok(b: &Body<f64>) {
     assert_eq!(validate(b), Ok(()));
@@ -28,7 +23,7 @@ fn tiers_ok(b: &Body<f64>) {
 
 #[test]
 fn translation_is_exact_and_key_stable() {
-    let b = brick((0.0, 2.0), (0.0, 1.0), 0.5);
+    let b = brick((0.0, 2.0), (0.0, 1.0), (0.0, 0.5), Tol::witness());
     let keys: Vec<_> = b.points().map(|(k, _)| k).collect();
     let t = transform_rigid(
         &b,
@@ -53,7 +48,7 @@ fn translation_is_exact_and_key_stable() {
 
 #[test]
 fn zero_angle_rotation_is_exact_identity() {
-    let b = brick((0.0, 1.0), (0.0, 1.0), 1.0);
+    let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let map =
         Affine3::rotation_about_axis(Point3::new(0.5, 0.5, 0.0), Vec3::new(0.0, 0.0, 1.0), 0.0);
     let t = transform_rigid(&b, &map, Tol::witness()).unwrap();
@@ -68,7 +63,7 @@ fn zero_angle_rotation_is_exact_identity() {
 
 #[test]
 fn quarter_turn_recertifies_and_preserves_mass_properties_close() {
-    let b = brick((0.0, 2.0), (0.0, 1.0), 0.5);
+    let b = brick((0.0, 2.0), (0.0, 1.0), (0.0, 0.5), Tol::witness());
     let map = Affine3::rotation_about_axis(
         Point3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 0.0, 1.0),
@@ -88,8 +83,13 @@ fn quarter_turn_recertifies_and_preserves_mass_properties_close() {
 fn transformed_tool_subtracts_exactly() {
     // The M3 pocket pattern: translate a dyadic tool onto a face and
     // subtract — the moved body composes with the boolean pipeline.
-    let base = brick((0.0, 2.0), (0.0, 2.0), 2.0);
-    let tool = brick((-0.125, 0.125), (-0.125, 0.125), 0.25);
+    let base = brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
+    let tool = brick(
+        (-0.125, 0.125),
+        (-0.125, 0.125),
+        (0.0, 0.25),
+        Tol::witness(),
+    );
     // Place the tool so it embeds in the top face: pocket at (1, 1).
     let map = Affine3::translation(Vec3::new(1.0, 1.0, 1.75));
     let placed = transform_rigid(&tool, &map, Tol::witness()).unwrap();
@@ -97,7 +97,7 @@ fn transformed_tool_subtracts_exactly() {
     let out = match topo::subtract_with(
         &base,
         &placed,
-        &common::flush_declarations(&base, &placed),
+        &common::flush_declarations(&base, &placed, Tol::witness()),
         Tol::witness(),
     )
     .unwrap()
@@ -112,7 +112,7 @@ fn transformed_tool_subtracts_exactly() {
 
 #[test]
 fn non_rigid_maps_are_refused_at_the_door() {
-    let b = brick((0.0, 1.0), (0.0, 1.0), 1.0);
+    let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     // Uniform scale: affinely self-consistent on planar bodies (re-
     // certification alone would PASS it) — the decided rigidity door
     // is what refuses it.
@@ -179,18 +179,12 @@ fn nurbs_wall() -> geom::Surface<f64> {
     geom::Surface::Nurbs(std::sync::Arc::new(n))
 }
 
-fn face_surface_of_he(body: &Body<f64>, he: topo::HalfEdgeKey) -> topo::SurfaceKey {
-    let he_data = body.get_half_edge(he).unwrap();
-    let loop_data = body.get_loop(he_data.parent_loop).unwrap();
-    body.get_face(loop_data.face).unwrap().surface
-}
-
 /// The unit cube with its front wall restated as a described NURBS net
 /// and that wall's four edges re-described as plane × NURBS
 /// `Intersection`s through `Body::set_edge_curve_nurbs_lane` — the
 /// M7-8 class, minted through the door that mints it.
 fn m7_8_cube() -> Body<f64> {
-    let cube = common::geometric_cube::<f64>();
+    let cube = common::geometric_cube::<f64>(Tol::witness());
     let mut body = cube.body;
     let wall = body
         .set_face_surface(cube.mefs[1].face, topo::FaceSurface::New(nurbs_wall()))
@@ -198,8 +192,8 @@ fn m7_8_cube() -> Body<f64> {
     let edges: Vec<_> = body.edges().map(|(k, e)| (k, e.clone())).collect();
     let mut lane_edges = 0;
     for (edge_key, edge) in edges {
-        let s1 = face_surface_of_he(&body, edge.he_plus);
-        let s2 = face_surface_of_he(&body, edge.he_minus);
+        let s1 = common::face_surface_of_he(&body, edge.he_plus);
+        let s2 = common::face_surface_of_he(&body, edge.he_minus);
         if s1 != wall && s2 != wall {
             continue;
         }
@@ -240,11 +234,7 @@ fn m7_8_cube() -> Body<f64> {
 /// happens at check 2; counting the edge-certification arm is what
 /// isolates the carrier question from that.
 fn edge_findings(body: &Body<f64>) -> usize {
-    match topo::validate_pseudomanifold_certified(
-        body,
-        &topo::ContactRecords::default(),
-        Tol::witness(),
-    ) {
+    match topo::validate_pseudomanifold(body, &topo::ContactRecords::default(), Tol::witness()) {
         Ok(()) => 0,
         Err(errs) => errs
             .iter()
@@ -304,7 +294,7 @@ fn an_m7_8_body_validates_at_rest_and_moves_through_the_lane() {
 /// injected lane is not a second code path for the ordinary classes.
 #[test]
 fn the_lane_changes_nothing_for_a_body_that_does_not_carry_the_class() {
-    let b = brick((0.0, 2.0), (0.0, 1.0), 0.5);
+    let b = brick((0.0, 2.0), (0.0, 1.0), (0.0, 0.5), Tol::witness());
     let map = Affine3::translation(Vec3::new(0.25, -1.5, 8.0));
     let plain = transform_rigid(&b, &map, Tol::witness()).unwrap();
     let laned = topo::transform_rigid_via(

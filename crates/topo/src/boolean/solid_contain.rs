@@ -109,10 +109,11 @@
 //!   Without this, a no-hit ray on a reverted operand would misreport
 //!   complement material as `Out`.
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
-use crate::entity::{FaceKey, LoopBoundary};
+use crate::entity::{FaceKey, LoopBoundary, SolidKey};
+use crate::face_normal::plane_outward_normal;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, SCHEDULE, point_in_loop};
 use crate::validate::decide;
 
@@ -196,10 +197,10 @@ pub enum PointInSolidError {
     /// Consulted only when a schedule ray crosses NO boundary at all —
     /// `q` then sits on the at-infinity side, and which side that IS
     /// depends on the body's orientation. A body whose volume the props
-    /// lane cannot certify (a rimless sphere band whose meridians lie
-    /// on two DIFFERENT great circles is the standing one: that arm
-    /// hardcodes `Δu = π`) leaves that question unanswerable, and this
-    /// says so rather than reporting a HEALTHY body as broken.
+    /// lane cannot certify (a curved face outside its closed-form
+    /// inventory — the shapes `topo::ValidationError::VolumeUncomputable`
+    /// breaks down by source) leaves that question unanswerable, and
+    /// this says so rather than reporting a HEALTHY body as broken.
     VolumeUncertified,
     /// A `Sphere` face that is neither closed on its own surface nor
     /// expressible as a chart RECTANGLE.
@@ -256,6 +257,79 @@ pub enum PointInSolidError {
         /// The torus face neither class expresses.
         face: FaceKey,
     },
+    /// [`point_in_solid_of`] was asked about a solid the body does not
+    /// hold — an arena claim, like [`Self::CorruptFace`].
+    NoSuchSolid {
+        /// The key that did not resolve.
+        solid: SolidKey,
+    },
+    /// [`point_in_solid_of`] found a face of the named solid whose
+    /// surface KEY is also carried by a face of another solid, on a
+    /// kind the door reads through a surface GROUP (cone, sphere,
+    /// torus).
+    ///
+    /// The group's representative is chosen over the whole body by
+    /// key, and every non-representative member is skipped at the
+    /// pre-pass and the ray sweep; with the group split across the
+    /// selection boundary the representative may lie outside the
+    /// selection, and the solid's own members would then drop out of
+    /// the sweep silently. Refused instead. Tier 1 does not forbid the
+    /// state; the assembly door cannot produce it, because instance
+    /// placement mints a fresh surface key per placed face
+    /// (`instance.rs`: distinct keys, equal values), so a body reaching
+    /// the census through it never carries one. A hand-built body can.
+    SurfaceSharedOutsideSolid {
+        /// The selected face.
+        face: FaceKey,
+        /// A face of another solid on the same surface key.
+        other: FaceKey,
+    },
+}
+
+impl PointInSolidError {
+    /// The refusal in one clause — the short form of the sentence
+    /// `Display` renders with its recourse, and the one vocabulary a
+    /// consumer that carries a `&'static str` reads (the census's
+    /// containment arm names the witness it could not decide with it).
+    pub fn summary(&self) -> &'static str {
+        match self {
+            Self::Escalated { .. } => {
+                "the material witness escalated in band at the instance's boundary — \
+                 undecided at this ε"
+            }
+            Self::RayExhausted => {
+                "every schedule ray from the material witness grazed the instance's \
+                 boundary — undecided"
+            }
+            Self::ZeroVolumeBody => {
+                "the instance's signed volume is (near-)zero — no material side at \
+                 infinity to classify against"
+            }
+            Self::Loop(_) => "the in-plane region walk at the instance's boundary refused",
+            Self::CorruptFace { .. } => {
+                "a face of the instance is not walkable, or an entity it names is lost"
+            }
+            Self::KindUnsupported { .. } => {
+                "the instance carries a face kind the point-in-solid door does not serve \
+                 (a spline surface), so its material cannot be probed"
+            }
+            Self::VolumeUncertified => {
+                "the instance's at-infinity side could not be read — its closed-form \
+                 signed volume is uncertified"
+            }
+            Self::PartialSphereFace { .. }
+            | Self::PartialConeFace { .. }
+            | Self::PartialTorusFace { .. } => {
+                "the instance carries a curved face outside the point-in-solid door's \
+                 chart classes, so its material cannot be probed"
+            }
+            Self::NoSuchSolid { .. } => "the instance's solid key does not resolve",
+            Self::SurfaceSharedOutsideSolid { .. } => {
+                "a surface group of the instance spans another instance, so its faces \
+                 could not be walked as one solid's"
+            }
+        }
+    }
 }
 
 impl From<PointInLoopError> for PointInSolidError {
@@ -267,123 +341,95 @@ impl From<PointInLoopError> for PointInSolidError {
 impl core::fmt::Display for PointInSolidError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Escalated { face, diag } => {
-                write!(f, "point_in_solid: escalated at face {face:?}: {diag}")
-            }
+            Self::Escalated { diag, .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its faces is too close \
+                 to call at this tolerance ({}). Recourse: {COINCIDENCE_RECOURSE}",
+                diag.payload()
+            ),
             Self::RayExhausted => write!(
                 f,
-                "point_in_solid: every schedule ray grazed — ill-conditioned query at this \
-                 tolerance"
+                "cannot tell what is inside the solid: every test ray grazed its \
+                 boundary, so the question is ill-conditioned at this tolerance. \
+                 Recourse: {COINCIDENCE_RECOURSE}"
             ),
-            Self::Loop(e) => write!(f, "point_in_solid: {e}"),
+            // `PointInLoopError` is shared with the split, whose wrapper
+            // states its own recourse; so the ray-exhausted arm carries
+            // none, and this path supplies the one it needs, as its
+            // sibling `RayExhausted` above does. The escalated arm's
+            // margin already ends in the shared recourse.
+            Self::Loop(e @ crate::splitting::PointInLoopError::RayExhausted { .. }) => write!(
+                f,
+                "cannot tell what is inside the solid: {e}. Recourse: {COINCIDENCE_RECOURSE}"
+            ),
+            Self::Loop(e) => write!(f, "cannot tell what is inside the solid: {e}"),
             Self::ZeroVolumeBody => write!(
                 f,
-                "point_in_solid: the body's signed volume is (near-)zero — no material side \
-                 at infinity to classify against"
+                "cannot tell what is inside the solid: it encloses no measurable volume"
             ),
-            Self::CorruptFace { face } => {
-                write!(
-                    f,
-                    "point_in_solid: face {face:?} is not walkable, or an entity it \
-                     names is lost — this is an arena claim about a BROKEN body, not \
-                     about a surface kind"
-                )
-            }
-            Self::KindUnsupported { face, kind } => {
-                write!(
-                    f,
-                    "point_in_solid: face {face:?} is a {} and the containment door \
-                     has no ray-crossing arm for the kind. The body is HEALTHY; what \
-                     is missing is a capability. This door is deliberately box-blind \
-                     — a ray from the query point crosses the whole boundary, so a \
-                     face out of reach of the CUT is still in reach of the RAY, which \
-                     is why the pair-scoped operand gate admitting the operation does \
-                     not settle this. Recourse: express the operation so no spline \
-                     face bounds the solid being classified against, or wait on \
-                     the containment arm for the kind",
-                    kind.name()
-                )
-            }
+            Self::CorruptFace { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its faces is broken (it \
+                 cannot be walked, or names something that is gone)"
+            ),
+            Self::KindUnsupported { kind, .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its faces is a {} \
+                 surface, which the inside/outside test has no way yet to cross. The \
+                 solid itself is fine. Recourse: build the solid so no spline (NURBS) \
+                 face bounds it",
+                super::kind_word(*kind)
+            ),
             Self::VolumeUncertified => write!(
                 f,
-                "point_in_solid: a schedule ray crossed no boundary at all, so the verdict is \
-                 the AT-INFINITY side — and that side is read off the body's signed volume, \
-                 which the closed-form props lane refused to certify. The body is HEALTHY and \
-                 this door's own arms answered; what is missing is a volume. The standing case \
-                 is a rimless sphere band whose two meridian boundaries lie on DIFFERENT great \
-                 circles (a lune narrower or wider than a hemisphere): that props arm hardcodes \
-                 the azimuthal width at π. Recourse: pose the query where a ray meets the \
-                 boundary, or wait on the props arm that reads the width from the boundary"
+                "cannot tell what is inside the solid: no test ray met its boundary, and \
+                 the solid's volume, which would settle it, could not be measured for \
+                 one of its curved faces. The solid itself is fine. Recourse: test a \
+                 point whose rays meet the boundary"
             ),
-            Self::PartialSphereFace { face } => {
-                write!(
-                    f,
-                    "point_in_solid: sphere face {face:?} is neither closed on its own \
-                     surface nor expressible as a chart rectangle. A trimmed sphere face \
-                     IS served when every boundary edge is a latitude rim or a meridian \
-                     great circle — that face is exactly the [azimuth] × [latitude] window \
-                     its boundary pins. This one is not: it carries a ring, a boundary edge \
-                     in neither chart class, an azimuth walk wrapping past a period, or a \
-                     meridian edge with a POLE strictly inside it. That last one breaks the \
-                     rectangle in both coordinates: a meridian's chart image is a \
-                     constant-azimuth iso-line and an arc through a pole is not one (its \
-                     azimuth jumps by π there, and the loop walk carries a pole junction \
-                     only at a VERTEX), while its latitude extreme is interior to the edge, \
-                     where a fold over boundary levels never looks. Recourse: bound the \
-                     sphere face with rims and meridians meeting AT the poles, keep it \
-                     whole, or trim it with the cylinder/plane arms"
-                )
-            }
-            Self::PartialConeFace { face } => {
-                write!(
-                    f,
-                    "point_in_solid: cone face {face:?} is in neither cone class. The body \
-                     is HEALTHY and the containment door HAS a ray-crossing arm for the \
-                     kind; what it cannot pin is this face's azimuth. A cone chart's apex \
-                     is a junction no azimuth walk crosses — every azimuth maps to the tip \
-                     — so a face whose two bounding meridians MEET there has no closed-form \
-                     window, and the walk reports a whole period for a face that covers part \
-                     of one. Two classes answer around that: a face group with no azimuth \
-                     boundary of its own (the full revolve's two bands, which together cover \
-                     every azimuth of their shared slant window), and a face whose window is \
-                     definitely NARROWER than a period. This one is neither: it carries a \
-                     ring, its group's members disagree on their slant window, or its window \
-                     wrapped without its group wrapping. Recourse: bound the cone face so its \
-                     azimuth window closes short of a period, or let its group cover the \
-                     chart"
-                )
-            }
-            Self::PartialTorusFace { face } => {
-                write!(
-                    f,
-                    "point_in_solid: torus face {face:?} is in neither torus class. The \
-                     body is HEALTHY and the containment door HAS a ray-crossing arm for \
-                     the kind; what it cannot pin is this face's extent on the chart. A \
-                     ring torus has no chart singularity, so the two classes are simply \
-                     the whole chart and a rectangle of it: a face group closed against \
-                     the rest of the body (its union covers the torus), or a face whose \
-                     major and minor windows the boundary walk pins — each window either \
-                     definitely narrower than a period or exactly one, which on this \
-                     chart means the face genuinely wraps that coordinate, and the \
-                     boundary itself checked to BE that rectangle rather than merely to \
-                     fit inside it. This one is neither: it carries a ring, an \
-                     unwalkable boundary, a boundary edge with no closed-form image on \
-                     the torus chart (an oblique circle — the Villarceau class), a walk \
-                     that does not close, a boundary with more variation than a \
-                     rectangle has (an L-shaped face), or a window the walk unwound PAST \
-                     a period, which describes no face. Recourse: bound the torus face \
-                     with parallels and meridians, or let its group cover the chart"
-                )
-            }
+            Self::PartialSphereFace { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its sphere faces has an \
+                 outline the inside/outside test cannot read. The solid itself is fine. \
+                 Recourse: bound the sphere face with latitude circles and meridians \
+                 that meet at the poles, keep it whole, or trim it with cylinders or \
+                 planes"
+            ),
+            Self::PartialConeFace { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its cone faces has an \
+                 outline the inside/outside test cannot read (two edges meet at its \
+                 apex, say). The solid itself is fine. Recourse: bound the cone face \
+                 short of a full turn around the axis, or let its faces cover the turn"
+            ),
+            Self::PartialTorusFace { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its torus faces has an \
+                 outline the inside/outside test cannot read. The solid itself is fine. \
+                 Recourse: bound the torus face with circles around and along the tube \
+                 (parallels and meridians), or let its faces together cover the whole \
+                 torus"
+            ),
+            Self::NoSuchSolid { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: the body holds no such solid"
+            ),
+            Self::SurfaceSharedOutsideSolid { .. } => write!(
+                f,
+                "cannot test this solid on its own: one of its faces shares its surface \
+                 with a face of another solid in the same body. Recourse: give each \
+                 solid its own surface keys (placing an instance already does)"
+            ),
         }
     }
 }
 
 impl std::error::Error for PointInSolidError {}
 
-/// The face's plane, F5-gated: origin and **outward** normal (chart
-/// normal times the face's `sense_sign`, S10 — the callers of this
-/// door are handed a material direction, not a chart datum).
+/// The face's plane, F5-gated: origin and **outward** normal (the
+/// chart normal with the face's sense folded in through
+/// [`plane_outward_normal`] — the callers of this door are handed a
+/// material direction, not a chart datum).
 ///
 /// Its one external consumer feeds the normal to [`point_in_face`],
 /// whose answer is ray-crossing parity and therefore blind to the
@@ -397,7 +443,9 @@ pub(super) fn face_plane<T: Decide>(
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
     match body.get_surface(f.surface) {
-        Some(Surface::Plane { origin, normal, .. }) => Ok((*origin, *normal * f.sense_sign::<T>())),
+        Some(Surface::Plane { origin, normal, .. }) => {
+            Ok((*origin, plane_outward_normal(f, *normal).vec()))
+        }
         // A resolved non-plane is a CAPABILITY answer; only a surface
         // key that does not resolve is corruption.
         Some(s) => Err(PointInSolidError::KindUnsupported {
@@ -417,8 +465,8 @@ pub(super) fn face_plane<T: Decide>(
 /// iso-lines too).
 ///
 /// **Orientation (S10)**: every arm's outward direction is the chart's
-/// times the face's `sense_sign`. The plane arm carries it in the
-/// normal itself (there is a vector to multiply); the curved arms have
+/// with the face's sense folded in. The plane arm carries it in the
+/// normal itself (there is a vector to fold it into); the curved arms have
 /// no stored normal — their outward direction is recomputed at each
 /// ray hit — so they carry the face's `sense` bit and the doors apply
 /// it to the sign they derive. Only the material-side signs need it:
@@ -612,9 +660,10 @@ fn face_geo<T: Decide>(
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
     match body.get_surface(f.surface) {
-        Some(Surface::Plane { origin, normal, .. }) => {
-            Ok(FaceGeo::Plane(*origin, *normal * f.sense_sign::<T>()))
-        }
+        Some(Surface::Plane { origin, normal, .. }) => Ok(FaceGeo::Plane(
+            *origin,
+            plane_outward_normal(f, *normal).vec(),
+        )),
         Some(&Surface::Cylinder {
             origin,
             axis,
@@ -632,6 +681,8 @@ fn face_geo<T: Decide>(
                 sense: f.sense,
             })
         }
+        // A group-read kind (`reads_surface_group`): the arm carries a
+        // representative chosen over the whole body by surface key.
         Some(&Surface::Cone {
             apex,
             axis,
@@ -2244,6 +2295,10 @@ pub(super) fn point_in_face<T: Decide>(
 /// Every face of every shell participates (multi-shell bodies and
 /// complements answer correctly by the closest-hit rule).
 ///
+/// One of the door's two entries over the one closest-hit core
+/// ([`point_in_faces`]): this one hands the core every face of the
+/// body in arena order; [`point_in_solid_of`] hands it one solid's.
+///
 /// # Errors
 ///
 /// [`PointInSolidError`] — escalation, ray exhaustion, or a
@@ -2256,9 +2311,147 @@ pub fn point_in_solid<T: Decide>(
 ) -> Result<SolidContainment, PointInSolidError> {
     // Deterministic face sweep order (arena order).
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+    point_in_faces(body, &faces, q, band, tol)
+}
+
+/// Trilean containment of `q` in the material of ONE solid of a
+/// multi-solid body: the faces of `solid`'s shells, in face-arena
+/// order, through the same closest-hit core as [`point_in_solid`] —
+/// the census's instance-containment arm asks this of a container
+/// while the other instances of the arena are not part of the
+/// question. The at-infinity side is read off THIS solid's closed-form
+/// signed volume (the selection's faces), not the body's.
+///
+/// # Errors
+///
+/// [`PointInSolidError`] — the core's, plus
+/// [`PointInSolidError::NoSuchSolid`] for a key the body does not hold,
+/// [`PointInSolidError::ZeroVolumeBody`] for a solid with no faces, and
+/// [`PointInSolidError::SurfaceSharedOutsideSolid`] where a
+/// group-read kind's surface key crosses the selection boundary (the
+/// variant's doc carries why that is refused rather than served).
+pub fn point_in_solid_of<T: Decide>(
+    body: &Body<T>,
+    solid: SolidKey,
+    q: Point3<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<SolidContainment, PointInSolidError> {
+    let sel = SolidFaces::of(body, solid)?;
+    point_in_solid_faces(body, &sel, q, band, tol)
+}
+
+/// One solid's faces, selected once and probed many times — what the
+/// census's containment arm holds per ordering, so the selection and
+/// its shared-key guard are paid once per pair rather than once per
+/// vertex. [`point_in_solid_of`] is this selection followed by one
+/// [`point_in_solid_faces`].
+#[derive(Clone, Debug)]
+pub struct SolidFaces {
+    faces: Vec<FaceKey>,
+}
+
+impl SolidFaces {
+    /// One solid's faces in face-arena order, guarded — selected by
+    /// the faces' own back-pointers through [`Body::faces_of_solid`],
+    /// not by a walk of [`crate::Solid::shells`] (that door's doc
+    /// carries why the two orders differ).
+    ///
+    /// # Errors
+    ///
+    /// [`PointInSolidError::NoSuchSolid`] for a key the body does not
+    /// hold; [`PointInSolidError::SurfaceSharedOutsideSolid`] where a
+    /// group-read kind's surface key crosses the selection boundary
+    /// (the variant's doc carries why that is refused rather than
+    /// served). An empty selection is not refused here: the probe
+    /// answers [`PointInSolidError::ZeroVolumeBody`] for it.
+    pub fn of<T: Decide>(body: &Body<T>, solid: SolidKey) -> Result<Self, PointInSolidError> {
+        let faces = body
+            .faces_of_solid(solid)
+            .ok_or(PointInSolidError::NoSuchSolid { solid })?;
+        // A group-read kind whose surface key is carried on both sides
+        // of the selection boundary (the variant's doc). One pass over
+        // the arena: every key's first face outside the selection.
+        //
+        // OUTSIDE is the complement of `faces`, read off `faces`
+        // itself rather than re-asked of the back-pointers: the two
+        // passes then cannot disagree about where the boundary is,
+        // which a second spelling of the membership test could.
+        let selected: std::collections::BTreeSet<FaceKey> = faces.iter().copied().collect();
+        let mut foreign: std::collections::BTreeMap<crate::geometry::SurfaceKey, FaceKey> =
+            std::collections::BTreeMap::new();
+        for (k, d) in body.faces() {
+            if !selected.contains(&k) {
+                foreign.entry(d.surface).or_insert(k);
+            }
+        }
+        for &face in &faces {
+            let d = body
+                .get_face(face)
+                .ok_or(PointInSolidError::CorruptFace { face })?;
+            if body.get_surface(d.surface).is_some_and(reads_surface_group)
+                && let Some(&other) = foreign.get(&d.surface)
+            {
+                return Err(PointInSolidError::SurfaceSharedOutsideSolid { face, other });
+            }
+        }
+        Ok(Self { faces })
+    }
+
+    /// The selected faces, in face-arena order.
+    pub fn faces(&self) -> &[FaceKey] {
+        &self.faces
+    }
+}
+
+/// The surface kinds [`face_geo`] reads through a surface GROUP — its
+/// arms that carry a `representative`: the cone, the closed sphere and
+/// the torus. The one list; [`SolidFaces::of`]'s guard and those arms
+/// cite it rather than restating it.
+pub(crate) fn reads_surface_group<T: geom_core::Real>(surface: &Surface<T>) -> bool {
+    matches!(
+        surface,
+        Surface::Cone { .. } | Surface::Sphere { .. } | Surface::Torus { .. }
+    )
+}
+
+/// Trilean containment of `q` in the material the selection's faces
+/// bound — [`point_in_solid_of`] with the selection made once.
+///
+/// # Errors
+///
+/// The core's ([`point_in_solid`]'s), plus
+/// [`PointInSolidError::ZeroVolumeBody`] for an empty selection.
+pub fn point_in_solid_faces<T: Decide>(
+    body: &Body<T>,
+    sel: &SolidFaces,
+    q: Point3<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<SolidContainment, PointInSolidError> {
+    point_in_faces(body, &sel.faces, q, band, tol)
+}
+
+/// The one closest-hit core behind both entries: the boundary
+/// pre-pass and the schedule sweep over exactly `faces` (module docs).
+/// An empty selection answers [`PointInSolidError::ZeroVolumeBody`]
+/// before any predicate runs, and it is the same state that variant
+/// names: no face means no enclosure, and the at-infinity fold would
+/// read the volume of nothing as exactly zero — there is no material
+/// side to classify against.
+fn point_in_faces<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    q: Point3<T>,
+    band: Band,
+    tol: Tol,
+) -> Result<SolidContainment, PointInSolidError> {
+    if faces.is_empty() {
+        return Err(PointInSolidError::ZeroVolumeBody);
+    }
 
     // ---- Boundary pre-pass: q on any face ⇒ OnBoundary. ----
-    for &face in &faces {
+    for &face in faces {
         let escalate = |diag| PointInSolidError::Escalated { face, diag };
         match face_geo(body, face, band)? {
             FaceGeo::Plane(origin, normal) => {
@@ -2442,7 +2635,7 @@ pub fn point_in_solid<T: Decide>(
     // ---- Closest-hit ray sweep over the fixed schedule. ----
     for r in &SCHEDULE {
         let d = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2])).normalize();
-        if let Some(verdict) = cast_ray(body, &faces, q, d, band, tol)? {
+        if let Some(verdict) = cast_ray(body, faces, q, d, band, tol)? {
             return Ok(verdict);
         }
         // graze: next schedule member
@@ -3420,13 +3613,20 @@ fn cast_ray<T: Decide>(
     }
 }
 
-/// The at-infinity material side, from the body's EXACT signed
-/// volume (the divergence-theorem props — carrier-aware since the
-/// M5 PR 9 fix pass: the old vertex-fan triangulation read a two-arc
-/// disc cylinder as (near-)zero volume, a structural degeneracy of
-/// the chord approximation, and refused `ZeroVolumeBody` on a
-/// perfectly solid operand). Margin is scaled to a mean thickness
-/// (V / surface area, meters), as before.
+/// The at-infinity material side, from the EXACT signed volume the
+/// entry's own `faces` enclose (the divergence-theorem props —
+/// carrier-aware since the M5 PR 9 fix pass: the old vertex-fan
+/// triangulation read a two-arc disc cylinder as (near-)zero volume, a
+/// structural degeneracy of the chord approximation, and refused
+/// `ZeroVolumeBody` on a perfectly solid operand). Margin is scaled to
+/// a mean thickness (V / surface area, meters), as before.
+///
+/// The volume is the SELECTION's, not the body's: for
+/// [`point_in_solid`] the two coincide (the arena list), and for
+/// [`point_in_solid_of`] a no-hit ray's side is the queried solid's
+/// orientation — the body's total would read the other instances'
+/// volumes into this solid's side, and would refuse this solid for a
+/// neighbour's uncertifiable face.
 fn at_infinity_side<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -3436,44 +3636,45 @@ fn at_infinity_side<T: Decide>(
     // Closed-form lane (M5 PR 11 lane split) — see `volume_backstop`.
     //
     // The props refusal is READ, not flattened. `VolumeUncertified`'s
-    // own message asserts "the body is HEALTHY and this door's arms
-    // answered; what is missing is a volume", and two of the props
+    // own message asserts that the solid itself is fine and only its
+    // volume could not be measured, and two of the props
     // lane's refusals make that sentence false: an escalation is an
     // ill-conditioned operand at this ε (with a predicate name and a
     // band the caller can act on), and the corruption-shaped arms are
     // arena claims about a BROKEN body. Each keeps its own door.
-    let props = crate::props::mass_properties_closed_form(body, band, tol).map_err(|e| {
-        match e {
-            // An escalation stays an escalation, carrying its
-            // diagnostics and the face it happened on.
-            crate::props::MassPropsError::Face {
-                face,
-                source: geom_brep::props::PropsError::Escalated { cause },
-            } => PointInSolidError::Escalated { face, diag: cause },
-            // Corruption-shaped: a face whose area enclosure will not
-            // certify a positive extent, a key the props walk could not
-            // resolve, or null scaffolding in a body being classified
-            // AT REST. None of these is "healthy body, missing
-            // capability".
-            crate::props::MassPropsError::Face {
-                face,
-                source: geom_brep::props::PropsError::DegenerateFace,
-            } => PointInSolidError::CorruptFace { face },
-            crate::props::MassPropsError::Corrupt { .. }
-            | crate::props::MassPropsError::NullScaffoldEdge { .. } => {
-                PointInSolidError::CorruptFace { face: faces[0] }
+    let props =
+        crate::props::mass_properties_closed_form_of(body, faces, band, tol).map_err(|e| {
+            match e {
+                // An escalation stays an escalation, carrying its
+                // diagnostics and the face it happened on.
+                crate::props::MassPropsError::Face {
+                    face,
+                    source: geom_brep::props::PropsError::Escalated { cause },
+                } => PointInSolidError::Escalated { face, diag: cause },
+                // Corruption-shaped: a face whose area enclosure will not
+                // certify a positive extent, a key the props walk could not
+                // resolve, or null scaffolding in a body being classified
+                // AT REST. None of these is "healthy body, missing
+                // capability".
+                crate::props::MassPropsError::Face {
+                    face,
+                    source: geom_brep::props::PropsError::DegenerateFace,
+                } => PointInSolidError::CorruptFace { face },
+                crate::props::MassPropsError::Corrupt { .. }
+                | crate::props::MassPropsError::NullScaffoldEdge { .. } => {
+                    PointInSolidError::CorruptFace { face: faces[0] }
+                }
+                // The remainder IS the capability gap the variant
+                // describes: a boundary outside the iso-rectangle
+                // inventory (the standing rimless-lune case), a ring on a
+                // curved face, an unimplemented kind, a quadrature that
+                // would not converge inside its budget, a band that would
+                // not construct. A HEALTHY body, and a missing volume.
+                crate::props::MassPropsError::Band { .. }
+                | crate::props::MassPropsError::RingOnCurvedFace { .. }
+                | crate::props::MassPropsError::Face { .. } => PointInSolidError::VolumeUncertified,
             }
-            // The remainder IS the capability gap the variant
-            // describes: a boundary outside the iso-rectangle
-            // inventory (the standing rimless-lune case), a ring on a
-            // curved face, an unimplemented kind, a quadrature that
-            // would not converge inside its budget, a band that would
-            // not construct. A HEALTHY body, and a missing volume.
-            crate::props::MassPropsError::Band { .. }
-            | crate::props::MassPropsError::RingOnCurvedFace { .. }
-            | crate::props::MassPropsError::Face { .. } => PointInSolidError::VolumeUncertified,
-        }
-    })?;
+        })?;
     let margin = Margin::over_lever(props.volume, props.surface_area);
     match decide("bool_point_in_solid_infinity", margin, band).map_err(|diag| {
         PointInSolidError::Escalated {
@@ -3497,3 +3698,149 @@ mod r1_generic_poses;
 #[cfg(test)]
 #[path = "torus_predicate_rows.rs"]
 mod torus_predicate_rows;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod per_solid_entry_tests {
+    //! The per-solid entry's own refusals, on states only an in-crate
+    //! hand can build: a surface key shared across the selection
+    //! boundary on a group-read kind, and a solid with no faces.
+
+    use super::*;
+    use crate::euler::FaceSurface;
+    use crate::splitting::reassembly::quad_prism;
+
+    fn two_cubes() -> Body<f64> {
+        let tol = Tol::witness();
+        let mut body = quad_prism(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 1.0, tol);
+        let other = quad_prism(&[(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)], 1.0, tol);
+        crate::instance::graft_disjoint(&mut body, &other, tol).unwrap();
+        body
+    }
+
+    fn solids(body: &Body<f64>) -> (SolidKey, SolidKey) {
+        let v: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
+        (v[0], v[1])
+    }
+
+    /// A sphere key on one face of each solid — the SAME key, written
+    /// into the second solid's face arena by hand (no public door
+    /// produces this: instance placement mints a fresh key per placed
+    /// face) — refuses the per-solid query typed before any predicate
+    /// runs. The same key on PLANES is served: no group is read.
+    #[test]
+    fn a_group_read_key_shared_across_the_selection_refuses_typed() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = two_cubes();
+        let (a, b) = solids(&body);
+        let fa = body.faces_of_solid(a).unwrap()[0];
+        let fb = body.faces_of_solid(b).unwrap()[0];
+        let sphere = Surface::Sphere {
+            center: Point3::new(0.5, 0.5, 0.5),
+            radius: 0.5,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let key = body.set_face_surface(fa, FaceSurface::New(sphere)).unwrap();
+        body.faces[fb].surface = key;
+        let q = Point3::new(0.5, 0.5, 0.5);
+        match point_in_solid_of(&body, a, q, band, tol) {
+            Err(PointInSolidError::SurfaceSharedOutsideSolid { face, other }) => {
+                assert_eq!((face, other), (fa, fb));
+            }
+            other => panic!("the typed guard: {other:?}"),
+        }
+        // Asked of `b`, the same shared key names `fa` as the foreign face.
+        match point_in_solid_of(&body, b, q, band, tol) {
+            Err(PointInSolidError::SurfaceSharedOutsideSolid { face, other }) => {
+                assert_eq!((face, other), (fb, fa));
+            }
+            other => panic!("the typed guard, other side: {other:?}"),
+        }
+        let text = PointInSolidError::SurfaceSharedOutsideSolid {
+            face: fa,
+            other: fb,
+        }
+        .to_string();
+        assert!(
+            text.contains("shares its surface with a face of another solid")
+                && text.contains("Recourse: give each solid its own surface keys"),
+            "{text}"
+        );
+        assert!(!text.contains("SurfaceSharedOutsideSolid {"), "{text}");
+    }
+
+    /// A PLANE key shared across the boundary is not a group read and
+    /// is served: the query decides on the selection's own faces.
+    #[test]
+    fn a_shared_plane_key_is_served() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let mut body = two_cubes();
+        let (a, b) = solids(&body);
+        let fa = body.faces_of_solid(a).unwrap()[0];
+        let fb = body.faces_of_solid(b).unwrap()[0];
+        let key = body.get_face(fa).unwrap().surface;
+        // Re-point a face of `b` at `a`'s plane key: `b` is no longer a
+        // sound body, but `a`'s query never reads `b`'s faces.
+        body.faces[fb].surface = key;
+        assert_eq!(
+            point_in_solid_of(&body, a, Point3::new(0.5, 0.5, 0.5), band, tol).unwrap(),
+            SolidContainment::In
+        );
+    }
+
+    /// The entries agree with each other where the body IS one solid,
+    /// and the per-solid entry answers for one solid where it is two.
+    #[test]
+    fn the_two_entries_agree_on_a_single_solid_and_split_a_pair() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let body = two_cubes();
+        let (a, b) = solids(&body);
+        for (q, in_a, in_b) in [
+            (
+                Point3::new(0.5, 0.5, 0.5),
+                SolidContainment::In,
+                SolidContainment::Out,
+            ),
+            (
+                Point3::new(3.5, 0.5, 0.5),
+                SolidContainment::Out,
+                SolidContainment::In,
+            ),
+            (
+                Point3::new(2.0, 0.5, 0.5),
+                SolidContainment::Out,
+                SolidContainment::Out,
+            ),
+            (
+                Point3::new(1.0, 0.5, 0.5),
+                SolidContainment::OnBoundary,
+                SolidContainment::Out,
+            ),
+        ] {
+            assert_eq!(
+                point_in_solid_of(&body, a, q, band, tol).unwrap(),
+                in_a,
+                "{q:?}"
+            );
+            assert_eq!(
+                point_in_solid_of(&body, b, q, band, tol).unwrap(),
+                in_b,
+                "{q:?}"
+            );
+            // The whole-body door sees both.
+            let whole = point_in_solid(&body, q, band, tol).unwrap();
+            let expected = match (in_a, in_b) {
+                (SolidContainment::In, _) | (_, SolidContainment::In) => SolidContainment::In,
+                (SolidContainment::OnBoundary, _) | (_, SolidContainment::OnBoundary) => {
+                    SolidContainment::OnBoundary
+                }
+                _ => SolidContainment::Out,
+            };
+            assert_eq!(whole, expected, "{q:?}");
+        }
+    }
+}

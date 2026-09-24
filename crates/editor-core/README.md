@@ -5,8 +5,16 @@
 is a plain value: the recipe (the feature DAG of `Node`s, data only, DESIGN.md
 D8) plus named parameters, the recorded tolerance ε, per-node witness data,
 appearance attributes and metadata. All mutation goes through the typed
-`DocEdit` vocabulary and the pure `apply(doc, edit, tol) -> Applied`
-(`src/edit.rs`), which returns a new document; undo is keeping the prior value.
+`DocEdit` vocabulary and `apply(doc, edit, tol, reach) -> Applied`
+(`src/edit.rs`) — pure over the document and the mated parts' reach — which
+returns a new document with the cluster-record maintenance the edit performed;
+undo is keeping the prior value, and replay re-applies the recorded maintenance
+without a solve. A mate being inserted passes the solve's own per-mate
+admission at that door (`EditError::MateRefused`, the solve's fault unaltered),
+so what the coset table refuses about a mate alone is met where the mate is
+authored; the doors decide edits and the solve decides states, so a verdict
+about a pair, and a per-mate fault a mate comes to carry after insert (a
+stranded head, a re-pointed `Part`, a loaded snapshot), are met at evaluation.
 The evaluation service (`src/eval/`), `evaluate(doc, prior, cancel, opts, tol)
 -> Evaluation<T>`, runs the live nodes in a deterministic topological order,
 reuses prior results by content key (`src/eval/memo.rs`: bit-exact inputs plus

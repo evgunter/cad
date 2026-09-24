@@ -57,6 +57,8 @@ mod cert1_r1_import_probes;
 mod cert5_r1_import_probes;
 #[path = "cert_n2r2_consumer_probes.rs"]
 mod cert_n2r2_consumer_probes;
+#[path = "coherence_channel.rs"]
+mod coherence_channel;
 #[path = "corpus_fold.rs"]
 mod corpus_fold;
 #[path = "curve_promotion_report.rs"]
@@ -69,6 +71,8 @@ mod geom_origin_import_arm;
 mod halfcap_pole;
 #[path = "inst_review_probes.rs"]
 mod inst_review_probes;
+#[path = "meridian_free_cap.rs"]
+mod meridian_free_cap;
 #[path = "mesh8r2_probes.rs"]
 mod mesh8r2_probes;
 #[path = "nurbs_import.rs"]
@@ -140,11 +144,4 @@ mod wall_column_structure;
 #[path = "wild.rs"]
 mod wild;
 
-/// The aggregation and ONE HOME checks, whose one home — the walk, the
-/// three checks and the argument for each — is `test_utils::source::aggregation_violations`.
-#[test]
-fn every_suite_file_is_aggregated() {
-    let tests = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let violations = test_utils::source::aggregation_violations(&tests, include_str!("all.rs"));
-    assert!(violations.is_empty(), "{}", violations.join("\n"));
-}
+test_utils::every_suite_file_is_aggregated!();

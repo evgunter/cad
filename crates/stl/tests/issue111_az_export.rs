@@ -10,7 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Point2, Point3, Vec3};
+use geom_core::{OrthoFrame, Point2, Point3};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, triangle_count};
 use profile::RawLoop;
@@ -47,11 +47,7 @@ fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> Validated
 fn az_counter() -> Body<f64> {
     let a = extrude(
         &validated(
-            SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, -0.0625),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-            ),
+            SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, -0.0625))),
             vec![lp(&A_OUTLINE), lp(&A_COUNTER)],
         ),
         Extrusion::Distance(2.125),
@@ -61,11 +57,7 @@ fn az_counter() -> Body<f64> {
     .body;
     let z = extrude(
         &validated(
-            SketchPlane::from_frame(
-                Point3::new(-0.0625, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-                Vec3::new(0.0, 0.0, 1.0),
-            ),
+            SketchPlane::from_frame(OrthoFrame::axes_yz(Point3::new(-0.0625, 0.0, 0.0))),
             vec![lp(&[
                 (-0.0625, 0.0),
                 (2.5625, 0.0),

@@ -78,6 +78,73 @@ pub enum Polarity {
     Dark,
 }
 
+/// How far one colour travels toward another: a fraction in `[0, 1]`.
+///
+/// **A type rather than an `f32`, because this number crosses to the
+/// GPU and the shader cannot refuse it.** Both mix fractions a theme
+/// states — [`Mark::strength`] and [`Theme::ambient`] — are written
+/// into a uniform lane by `crate::gpu` and consumed by WGSL
+/// arithmetic: `mix(base, tint, w)` for the first and
+/// `ambient + (1 - ambient) * lambert` for the second. WGSL's `clamp`
+/// is specified as `min(max(e1, e2), e3)` and its `select` takes the
+/// false arm for an unordered comparison, so a weight that is not a
+/// number does not saturate there — it spreads, through the mix and
+/// through the sRGB encode after it, to whatever the surface does
+/// with a channel nothing computed. There is no door downstream of
+/// this one: the uniform is where the crate last has a type system.
+///
+/// So the bound is the type's, and [`MixFraction::new`] is the one
+/// door through it: nothing else can make one. It refuses a caller at
+/// run time with `None`, and in a `const` item the `unwrap` that
+/// follows it is evaluated by the compiler, so a registry palette
+/// stating a weight outside `[0, 1]` — a `NaN` included — fails the
+/// BUILD rather than reaching the uniform.
+///
+/// `[0, 1]` and not merely *a number*: outside that range `mix`
+/// extrapolates — a colour brighter than either input, with nothing
+/// to report it — and a guard that admits everything finite is not a
+/// bound. The range test refuses a `NaN` on its own, because a `NaN`
+/// is in no range.
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
+pub struct MixFraction(f32);
+
+impl MixFraction {
+    /// A mix fraction, or `None` for a number that is not one.
+    ///
+    /// The one door a caller outside this module has. `None` rather
+    /// than a clamp: a weight outside `[0, 1]` is a caller's mistake
+    /// about what this value means, and the nearest legal weight is
+    /// a different picture rather than a repair.
+    ///
+    /// **`const`, so that a consumer can state a palette the way this
+    /// module states one.** `Theme` and `Mark` are built as `const`
+    /// items here, each weight written `MixFraction::new(w).unwrap()`;
+    /// an `unwrap` in a `const` item is a build error and never a
+    /// panic, which is what makes a checked constructor affordable in
+    /// a registry. **That `unwrap` is held to a `const` item by the
+    /// lint rather than by this sentence**: the workspace denies
+    /// `clippy::unwrap_used`, and a const-evaluated call is exempt
+    /// while the same call in a running body is not — so the one
+    /// failure this design is written against, a build error turning
+    /// into a panic, reds `-D warnings` where it is written.
+    #[allow(
+        clippy::manual_range_contains,
+        reason = "a `const fn` cannot call `RangeInclusive::contains`"
+    )]
+    pub const fn new(fraction: f32) -> Option<Self> {
+        if fraction >= 0.0 && fraction <= 1.0 {
+            Some(Self(fraction))
+        } else {
+            None
+        }
+    }
+
+    /// The fraction, as the number a mix multiplies by.
+    pub const fn get(self) -> f32 {
+        self.0
+    }
+}
+
 /// One highlight mark: the colour a flagged patch is tinted toward,
 /// and how far it travels.
 ///
@@ -93,10 +160,17 @@ pub enum Polarity {
 pub struct Mark {
     /// The colour the mixed result is pulled toward.
     pub tint: Rgba8,
-    /// How far, in `[0, 1]`: `0.0` leaves the body colour untouched,
-    /// `1.0` replaces it. Checked over every registered theme by
-    /// `tests/theme.rs` rather than at each use.
-    pub strength: f32,
+    /// How far: `0.0` leaves the body colour untouched, `1.0`
+    /// replaces it.
+    ///
+    /// A [`MixFraction`] and not an `f32`, because this is the number
+    /// `crate::gpu`'s `mark_lane` writes into the uniform's `w` lane
+    /// and the shader mixes with. The type is the door; where the
+    /// range used to be a claim in this sentence checked over the
+    /// registry by `tests/theme.rs`, it is now a property of every
+    /// value of this type, and that row measures the three shipped
+    /// palettes rather than standing in for the bound.
+    pub strength: MixFraction,
 }
 
 impl Mark {
@@ -107,10 +181,21 @@ impl Mark {
     /// The mix runs in *linear* light because that is where the
     /// shader's `mix` runs; doing it in sRGB would measure a screen
     /// nobody is looking at.
-    pub fn over(&self, body: Rgba8) -> Rgba8 {
+    ///
+    /// `None` is [`from_linear`]'s refusal carried up, and **nothing
+    /// this method computes can earn it**: `body` and `tint` are
+    /// bytes and reach linear light finite whatever they say, and
+    /// [`MixFraction`] holds `t` in `[0, 1]`, so every channel here
+    /// is `b + (t - b) * t` over finite operands and is finite too.
+    /// The `Option` is the shape [`from_linear`] has for the callers
+    /// that can hand it anything, not a case this mix has.
+    /// `tests/theme.rs`'s safety walk asserts `Some` at the point it
+    /// would otherwise measure a colour nothing computed, rather than
+    /// taking this paragraph's word for it.
+    pub fn over(&self, body: Rgba8) -> Option<Rgba8> {
         let [br, bg, bb] = linear(body);
         let [tr, tg, tb] = linear(self.tint);
-        let t = self.strength;
+        let t = self.strength.get();
         from_linear([br + (tr - br) * t, bg + (tg - bg) * t, bb + (tb - bb) * t])
     }
 }
@@ -154,12 +239,19 @@ pub struct Theme {
     /// patch once this crate reads appearance.
     pub body: Rgba8,
     /// The ambient term: the fraction of the body colour that
-    /// survives where the light does not reach, in `[0, 1]`.
+    /// survives where the light does not reach.
+    ///
+    /// A [`MixFraction`] for [`Mark::strength`]'s reason, and it is
+    /// the same defect if it is not one: this number rides the
+    /// `base_color` lane's `w` and the shader forms
+    /// `ambient + (1 - ambient) * lambert`, which has no more
+    /// standing against a weight that is not a number than the mix
+    /// does.
     ///
     /// Part of the palette rather than a constant beside it because
     /// it is polarity-bound: a part unlit to 0.25 reads as solid
     /// against a dark surround and as a hole against a pale one.
-    pub ambient: f32,
+    pub ambient: MixFraction,
     /// **The viewport's own ground** — what fills the pane where no
     /// geometry is drawn.
     ///
@@ -216,6 +308,23 @@ pub struct Theme {
     /// redundancy argument [`Theme::unresolved`] makes, and the reason
     /// it is not in [`Theme::marks`] either.
     pub datum: Rgba8,
+    /// **A profile the document holds**: the loops of a committed
+    /// profile node, drawn on its plane (`crate::sketch::committed`).
+    ///
+    /// A line colour like [`Theme::datum`], and not a [`Mark`], for
+    /// that field's reason: a profile is not material, so there is no
+    /// body colour for it to tint. A hue of its own and not the
+    /// datum's, because a profile usually lies ON a datum's grid and
+    /// has to be told from it at a glance; the edge pass also draws it
+    /// three times the grid's width and over it (`crate::gpu`'s
+    /// `lane_style`), so the colour is not the only thing separating
+    /// them. Not the probe mark either: that mark is what a PREVIEW is
+    /// drawn in, and it says "not committed", which a committed
+    /// profile is not.
+    ///
+    /// Held to the ground check for the datum's reason — it is drawn
+    /// in the viewport.
+    pub profile: Rgba8,
     /// This palette's legibility claim.
     pub safety: Safety,
 }
@@ -264,28 +373,35 @@ const DARK_NEUTRAL: Theme = Theme {
     // A neutral machined grey, so shading reads as shape rather than
     // as colour.
     body: Rgba8::opaque(206, 209, 214),
-    ambient: 0.25,
+    ambient: MixFraction::new(0.25).unwrap(),
     // A near-black with a trace of blue in it.
     ground: Rgba8::opaque(24, 26, 30),
     selected: Mark {
         tint: Rgba8::opaque(255, 206, 111),
-        strength: 0.55,
+        strength: MixFraction::new(0.55).unwrap(),
     },
     hovered: Mark {
         tint: Rgba8::opaque(179, 221, 255),
-        strength: 0.55,
+        strength: MixFraction::new(0.55).unwrap(),
     },
     probe: Mark {
         tint: Rgba8::opaque(206, 160, 249),
-        strength: 0.65,
+        strength: MixFraction::new(0.65).unwrap(),
     },
     focus: Mark {
         tint: Rgba8::opaque(255, 229, 173),
-        strength: 0.24,
+        strength: MixFraction::new(0.24).unwrap(),
     },
     unresolved: Rgba8::opaque(210, 90, 70),
     // Construction blue, well above the near-black ground.
     datum: Rgba8::opaque(122, 162, 214),
+    // A mid green, away from the datum blue, the selection amber, the
+    // hover blue and the probe violet the preview is drawn in — and
+    // held at a LIGHTNESS between the grid as seen over the ground and
+    // as seen over the body, because tritanopia folds this green onto
+    // that blue and lightness is what is left (`tests/theme.rs`,
+    // `a_profile_is_told_from_the_grid_and_the_preview`).
+    profile: Rgba8::opaque(40, 170, 80),
     safety: Safety::Unchecked,
 };
 
@@ -305,7 +421,7 @@ const LIGHT_NEUTRAL: Theme = Theme {
     name: "light-neutral",
     polarity: Polarity::Light,
     body: Rgba8::opaque(206, 209, 214),
-    ambient: 0.45,
+    ambient: MixFraction::new(0.45).unwrap(),
     // Near-white rather than the mid grey a light chrome suggests:
     // the body is itself a pale grey, so a ground anywhere near it
     // puts a lit facet on top of its own background. Above the body
@@ -313,19 +429,19 @@ const LIGHT_NEUTRAL: Theme = Theme {
     ground: LIGHT_GROUND,
     selected: Mark {
         tint: Rgba8::opaque(255, 206, 111),
-        strength: 0.55,
+        strength: MixFraction::new(0.55).unwrap(),
     },
     hovered: Mark {
         tint: Rgba8::opaque(179, 221, 255),
-        strength: 0.55,
+        strength: MixFraction::new(0.55).unwrap(),
     },
     probe: Mark {
         tint: Rgba8::opaque(206, 160, 249),
-        strength: 0.65,
+        strength: MixFraction::new(0.65).unwrap(),
     },
     focus: Mark {
         tint: Rgba8::opaque(255, 229, 173),
-        strength: 0.24,
+        strength: MixFraction::new(0.24).unwrap(),
     },
     // Darker than the dark theme's red by as much as the ground
     // moved: the same hue at the same lightness on a pale panel is
@@ -334,6 +450,9 @@ const LIGHT_NEUTRAL: Theme = Theme {
     // Deeper than the dark theme's by as much as the ground moved,
     // for `unresolved`'s reason one field up.
     datum: Rgba8::opaque(46, 96, 166),
+    // A deep green: the dark palette's hue, dark enough to stand on
+    // the pale ground.
+    profile: Rgba8::opaque(22, 124, 64),
     safety: Safety::Unchecked,
 };
 
@@ -438,7 +557,7 @@ const COLORBLIND_SAFE: Theme = Theme {
     // further is what the check refuses: at sRGB 200 the worst pair
     // is 0.0583, under the bar.
     body: Rgba8::opaque(190, 190, 188),
-    ambient: 0.42,
+    ambient: MixFraction::new(0.42).unwrap(),
     // The light themes' ground: the ladder's top rung is a light
     // amber, and that is the nearest swatch to it — everything else
     // in this palette is far below.
@@ -446,14 +565,14 @@ const COLORBLIND_SAFE: Theme = Theme {
     // The top rung — a light amber.
     selected: Mark {
         tint: Rgba8::opaque(255, 221, 110),
-        strength: 0.75,
+        strength: MixFraction::new(0.75).unwrap(),
     },
     // A deep blue, a clear step DOWN from the body where the neutral
     // themes' hover is a step up. This is the pair the check binds
     // on: body against hover under tritanopia, at 0.0872.
     hovered: Mark {
         tint: Rgba8::opaque(28, 66, 158),
-        strength: 0.70,
+        strength: MixFraction::new(0.70).unwrap(),
     },
     // The bottom rung, and the darkest thing on screen. G3 asks that
     // a probed placement be unmistakable; under every vision type in
@@ -463,7 +582,7 @@ const COLORBLIND_SAFE: Theme = Theme {
     // the pair it binds against is hover, at 0.0759.
     probe: Mark {
         tint: Rgba8::opaque(16, 10, 26),
-        strength: 0.78,
+        strength: MixFraction::new(0.78).unwrap(),
     },
     // **A dimming, not a lightening** — the one place this palette
     // parts company with the neutral themes' idea of a focus, and the
@@ -476,7 +595,7 @@ const COLORBLIND_SAFE: Theme = Theme {
     // emphasis rather than something switched off.
     focus: Mark {
         tint: Rgba8::opaque(18, 20, 30),
-        strength: 0.35,
+        strength: MixFraction::new(0.35).unwrap(),
     },
     // Dark, for the reason `LIGHT_NEUTRAL`'s is: this palette's
     // chrome is pale, and a light red on a pale panel is the one
@@ -485,8 +604,45 @@ const COLORBLIND_SAFE: Theme = Theme {
     // A dark teal: separated from this palette's pale ground by
     // lightness, which is the channel every dichromacy keeps.
     datum: Rgba8::opaque(0, 92, 92),
+    // Okabe–Ito's reddish purple, darkened well below the preview's
+    // near-black-on-grey tint: a green would sit on the teal datum
+    // under every dichromacy, and a purple at the preview's lightness
+    // loses to it once dichromacy takes the hue.
+    profile: Rgba8::opaque(110, 20, 80),
     safety: Safety::ColorblindSafe,
 };
+
+/// **How much of [`Theme::datum`] covers what a datum line is drawn
+/// over**, in `(0, 1]`: the edge pass blends a datum line as
+/// `datum · DATUM_OPACITY + under · (1 − DATUM_OPACITY)`.
+///
+/// **In which space depends on the surface**, and the two arms are
+/// `crate::gpu`'s `shader_source` encode switch. On a gamma-space
+/// (non-sRGB) framebuffer — what `egui-wgpu` asks for first, and so
+/// what the viewer runs on — the pass writes sRGB-encoded values and
+/// the blend mixes those, which is what the ground check measures. On
+/// an `*Srgb` framebuffer, the fallback when a surface offers no other,
+/// the hardware decodes, blends in LINEAR light and re-encodes: half
+/// coverage there lands nearer the lighter of the two colours than the
+/// encoded mix does, so a pale grid on a dark ground reads somewhat
+/// brighter than the check measured and a dark grid on a pale ground
+/// somewhat fainter.
+///
+/// A plane is ruled out toward its horizon, so its grid is the one
+/// line lane that covers the whole picture, and width alone makes the
+/// grid thinner while leaving it exactly as saturated — where the
+/// ruling is dense the lines still merge into a sheet of datum colour.
+/// Half coverage keeps the ruling legible and lets the body and ground
+/// through. Blended rather than pre-mixed toward [`Theme::ground`],
+/// because a grid is drawn over bodies as often as over the ground,
+/// and a colour pre-mixed toward the ground is wrong over a body.
+///
+/// Here rather than in the renderer because the ground check
+/// (`tests/theme.rs`) measures a datum the way it is SEEN, and a datum
+/// is seen at this coverage. One value for every palette: it is how
+/// loud the grid is relative to the lines drawn over it, which is not
+/// a colour decision.
+pub const DATUM_OPACITY: f32 = 0.5;
 
 /// `color`'s three channels as linear RGB — the space the shader
 /// shades in, and the one boundary a theme crosses to reach it.
@@ -505,13 +661,18 @@ pub fn linear(color: Rgba8) -> [f32; 3] {
 /// The inverse of [`linear`], for the composited colours the safety
 /// check measures — the mix happens in light, the answer is stated in
 /// the space the palette is written in.
-pub fn from_linear(linear: [f32; 3]) -> Rgba8 {
+///
+/// `None` when any of the three is not a number, which is
+/// [`channel_to_srgb8`]'s answer carried up: a colour with a channel
+/// nothing computed is not a colour, and the caller is the only place
+/// that can say what to do about it.
+pub fn from_linear(linear: [f32; 3]) -> Option<Rgba8> {
     let [r, g, b] = linear;
-    Rgba8::opaque(
-        channel_to_srgb8(r),
-        channel_to_srgb8(g),
-        channel_to_srgb8(b),
-    )
+    Some(Rgba8::opaque(
+        channel_to_srgb8(r)?,
+        channel_to_srgb8(g)?,
+        channel_to_srgb8(b)?,
+    ))
 }
 
 /// One 8-bit sRGB channel as linear light. The IEC 61966-2-1 curve,
@@ -528,14 +689,30 @@ fn channel_to_linear(channel: u8) -> f32 {
 }
 
 /// One linear channel as 8-bit sRGB, clamped: a mix of two in-gamut
-/// colours stays in gamut, but the clamp is what makes that a
-/// property of the arithmetic rather than an assumption about it.
-fn channel_to_srgb8(channel: f32) -> u8 {
+/// colours stays in gamut, and the clamp is what makes that a
+/// property of the arithmetic rather than an assumption about it —
+/// for every channel the clamp can order.
+///
+/// **`None` for the one it cannot.** `f32::clamp` returns `self` when
+/// `self` is a `NaN`, and `NaN as u8` is `0`, so a channel nothing
+/// computed used to leave here as a legitimate pure black — the far
+/// end of every distance the colourblind check takes, handed back as
+/// if it had been measured.
+///
+/// The test is `is_nan` and not `is_finite` deliberately, because the
+/// two values differ in exactly the property the clamp needs: an
+/// infinity is ORDERED, sits above the whole gamut, and clamps to the
+/// top of it correctly. A `NaN` has no order, so there is no bound to
+/// put it under and no channel to answer.
+fn channel_to_srgb8(channel: f32) -> Option<u8> {
+    if channel.is_nan() {
+        return None;
+    }
     let c = channel.clamp(0.0, 1.0);
     let encoded = if c <= 0.003_130_8 {
         12.92 * c
     } else {
         1.055 * c.powf(1.0 / 2.4) - 0.055
     };
-    (encoded * 255.0).round() as u8
+    Some((encoded * 255.0).round() as u8)
 }

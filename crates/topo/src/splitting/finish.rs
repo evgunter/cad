@@ -187,30 +187,37 @@ impl core::fmt::Display for SplitFinishError {
         match self {
             Self::NotSingleSolid { count } => write!(
                 f,
-                "split finish: operand holds {count} solids — split takes exactly one"
+                "the body holds {count} solids, and a split takes exactly one"
             ),
-            Self::DegenerateSide { shell, side } => write!(
+            Self::DegenerateSide { side, .. } => write!(
                 f,
-                "split finish: component {shell:?} on the {side:?} side has no real \
-                 material (only section faces) — degenerate piece refused, never emitted"
+                "the piece on the {} side of the plane bounds no volume (the residue of a \
+                 one-sided tangency: only section faces). Recourse: move the split plane \
+                 off the tangency",
+                match side {
+                    super::PlaneSide::Below => "below",
+                    super::PlaneSide::On => "on",
+                    super::PlaneSide::Above => "above",
+                }
             ),
             Self::TornComponent { shell } => write!(
                 f,
-                "split finish: component {shell:?} carries section faces of both sides \
-                 (kernel bug)"
+                "component {shell:?} carries section faces of both sides (kernel bug)"
             ),
             Self::UnclassifiableComponent { shell } => write!(
                 f,
-                "split finish: component {shell:?} has no section face and no off-plane \
-                 vertex to classify by"
+                "component {shell:?} has no section face and no off-plane vertex to \
+                 classify it by"
             ),
-            Self::Corrupt => write!(f, "split finish: traversal failed (corrupt body)"),
-            Self::Euler(e) => write!(f, "split finish: euler operation refused: {e}"),
-            Self::Band(e) => write!(f, "split finish: no classification band: {e}"),
-            Self::DescribeEscalated { edge, diag } => write!(
+            Self::Corrupt => write!(f, "the finish traversal failed (corrupt body)"),
+            Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            Self::Band(e) => write!(f, "{e}"),
+            Self::DescribeEscalated { diag, .. } => write!(
                 f,
-                "split finish: section-boundary dihedral escalated at edge {edge:?} \
-                 while minting its description: {diag}"
+                "the angle between two faces along the cut is too close to call ({}). \
+                 Recourse: {}",
+                diag.payload(),
+                super::SPLIT_COINCIDENCE_RECOURSE
             ),
         }
     }
@@ -457,7 +464,9 @@ fn describe_section_boundary<T: Decide>(
                     let arm = geom_brep::edge_extent(c.carrier(), t0, t1, p0.distance(p1));
                     Some((c.clone(), mid, arm))
                 }
-                geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => None,
+                geom::Curve3::Line { .. }
+                | geom::Curve3::Spiric { .. }
+                | geom::Curve3::Nurbs(_) => None,
             });
             let (witness, arm) = match &conic {
                 Some((_, mid, arm)) => (*mid, *arm),

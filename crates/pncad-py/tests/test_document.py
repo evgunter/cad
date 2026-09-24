@@ -294,7 +294,7 @@ class TestEvaluation(unittest.TestCase):
         # problem and the two-armed recourse, not Debug guts.
         message = str(caught.exception)
         self.assertIn("Boolean refused an undeclared contact", message)
-        self.assertIn("declare that finding", message)
+        self.assertIn("declare the candidate pair", message)
         for guts in ("UndeclaredCoincidence", "UndeclaredContact", "{", "NodeError"):
             self.assertNotIn(guts, message)
 
@@ -360,6 +360,39 @@ class TestDetectDeclareDoors(unittest.TestCase):
                 body = ev.value(glued).body()
                 body.validate()
                 self.assertEqual(body.mass_properties().volume, 1.125)
+
+    def test_deleting_the_consumer_reports_the_declaration_it_orphaned(self):
+        """The delete door's third row, beside DM7's strands, over
+        the doors this surface has: a `Declare` whose last consumer a
+        delete removed rides the accepted edit as `orphaned_declare`,
+        whose `node` is the declaration that survived and whose
+        `name` is None — nothing dangles, and no node consumes the
+        declaration any more.
+
+        The rule is a transition, so the same document reports
+        nothing when an unrelated node goes, and nothing at the
+        declare door itself, where the declaration is consumerless
+        and waiting for the union that is about to consume it."""
+        doc, lower, upper = self.stacked()
+        spare = slab(doc, (4 * m, 5 * m), (0 * m, 1 * m), (0 * m, 1 * m))
+        findings = evaluate(doc).find_flush_candidates(lower, upper)
+        decl = doc.declare_all(findings)
+        # The authoring window: the declaration has no consumer yet
+        # and the door that inserted it says nothing about that.
+        self.assertEqual(doc.last_maintenance, [])
+        glued = doc.insert(Node.boolean(BooleanOp.Union, lower, upper, declare=decl))
+        self.assertEqual(doc.last_maintenance, [])
+        # Nor does a delete elsewhere in the document.
+        doc.apply(DocEdit.delete_node(spare))
+        self.assertEqual(doc.last_maintenance, [])
+        # The delete that TAKES the consumer is the one that says it.
+        doc.apply(DocEdit.delete_node(glued))
+        (row,) = doc.last_maintenance
+        self.assertEqual(row.variant, "orphaned_declare")
+        self.assertEqual(row.node, decl)
+        self.assertIsNone(row.name)
+        # The report never repairs: the declaration is still there.
+        self.assertIn(decl, doc.order())
 
     def test_declaring_nothing_refuses_typed_at_every_door(self):
         # An empty Declare records no intent — refused, never inserted
@@ -819,6 +852,32 @@ class TestStepExport(unittest.TestCase):
         with self.assertRaises(pncad.StepImportError) as caught:
             import_step(header)
         self.assertNotEqual(caught.exception.variant, "syntax")
+
+    def test_the_import_tolerance_is_the_callers_to_override(self):
+        """`eps_in` is the reading end of the ε `step_string` writes.
+
+        Both halves are asserted, because the door used to pass
+        `ImportOptions::default()` and could only ever report the
+        file's own number: omitted, the report carries what the file
+        declares; given, it carries what the caller asked for — and
+        the two are different numbers here, so a door that ignored the
+        keyword would fail the second assertion rather than pass both.
+        """
+        doc = Doc()
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        step = evaluate(doc).step_string(box, uncertainty=1e-9 * m)
+        self.assertEqual(import_step(step).eps_in, 1e-9)
+        self.assertEqual(import_step(step, eps_in=1e-6 * m).eps_in, 1e-6)
+
+    def test_a_non_positive_import_tolerance_is_the_importers_refusal(self):
+        """Python pre-checks nothing here either: the rule is the
+        importer's, and its refusal arrives under its own tag."""
+        doc = Doc()
+        box = unit_box(doc, 1 * m, 1 * m, 1 * m)
+        step = evaluate(doc).step_string(box)
+        with self.assertRaises(pncad.StepImportError) as caught:
+            import_step(step, eps_in=0 * m)
+        self.assertEqual(caught.exception.variant, "invalid_eps_override")
 
 
 class TestNoArenaKeysCross(unittest.TestCase):
@@ -1367,6 +1426,7 @@ EDIT_ATTRS = (
     "path",
     "value_path",
     "pin",
+    "fault",
 )
 
 
@@ -1470,7 +1530,7 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         )
         with self.assertRaises(EditError) as unknown:
             doc.apply(DocEdit.bind_count_param(pattern, ParamName("n")))
-        self.assertEqual(unknown.exception.variant, "unknown_doc_param")
+        self.assertEqual(unknown.exception.variant, "slot_unknown_doc_param")
         self.assertEqual(unknown.exception.node, pattern)
         self.assertEqual(unknown.exception.slot, "count")
         self.assertEqual(unknown.exception.param, "n")
@@ -1503,7 +1563,7 @@ class TestTheEditDoorsPayload(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.apply(DocEdit.bind_count_param(pattern, ParamName("len")))
         refusal = caught.exception
-        self.assertEqual(refusal.variant, "doc_param_dimension_mismatch")
+        self.assertEqual(refusal.variant, "slot_doc_param_dimension")
         self.assertEqual(refusal.expected, "length")
         self.assertEqual(refusal.found, "count")
         self.assertEqual(

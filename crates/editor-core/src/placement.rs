@@ -157,7 +157,7 @@ impl Frame {
     /// axis carried through un-normalized would take one fewer rounding
     /// step through this door than through that one — for any axis, not
     /// just unit ones. Deciding the direction costs the agreement
-    /// nothing, because [`topo::query::decide_unit_direction`] answers
+    /// nothing, because [`geom_core::decide_unit_direction`] answers
     /// `v.normalize()`, the very expression a bare normalization used.
     ///
     /// **The axis is DECIDED here**, through the evaluation layer's
@@ -188,7 +188,7 @@ impl Frame {
             band,
         )
         .map_err(|e| AxisRefusal(NodeRefusal::from(e)))?;
-        let m = Mat3::rotation_about(dir, angle);
+        let m = Mat3::rotation_about(dir.get(), angle);
         Ok(Self {
             columns: [
                 [m.c0.x, m.c0.y, m.c0.z],
@@ -298,6 +298,29 @@ impl Frame {
         self.bit_eq(&Self::IDENTITY)
     }
 
+    /// **The frame half of A11/A6's admission rule, stated once**: a
+    /// frame the document admits carries only numbers, and preserves
+    /// orientation.
+    ///
+    /// One predicate with one home, asked wherever a document admits a
+    /// frame — the A11 cluster registry ([`crate::doc::PlacementFault`])
+    /// and a placement rule's listed frames
+    /// ([`crate::node::PlacementRuleFault`]) — so the two cannot come to
+    /// hold frames to different standards. Each caller keeps its own
+    /// arms, says WHICH frame is at fault in its own vocabulary, and
+    /// forwards this answer's sentence rather than restating it.
+    ///
+    /// It lives on [`Frame`] because the rule is about a frame and
+    /// nothing else: it reads no document, no node and no registry.
+    #[must_use]
+    pub(crate) fn admission_fault(&self) -> Option<FrameFault> {
+        if !self.is_finite() {
+            return Some(FrameFault::NonFinite);
+        }
+        let determinant = self.determinant();
+        (determinant <= 0.0).then_some(FrameFault::Improper { determinant })
+    }
+
     /// Bit-semantic frame equality (D7's comparator family): every
     /// coordinate compares by BITS, so `±0.0` do not conflate.
     #[must_use]
@@ -312,6 +335,39 @@ impl Frame {
                 .iter()
                 .zip(other.translation.iter())
                 .all(|(a, b)| a.to_bits() == b.to_bits())
+    }
+}
+
+/// What makes a [`Frame`] inadmissible as a placement
+/// ([`Frame::admission_fault`]) — one vocabulary, and one SENTENCE, for
+/// every door that admits a frame. Public because the load door
+/// carries it out on [`crate::PersistError::MaintenanceFrame`], for a
+/// recorded maintenance row held to the same rule.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum FrameFault {
+    /// A coordinate that is not a number: no predicate downstream can
+    /// decide anything about where this frame puts the material.
+    NonFinite,
+    /// The frame is IMPROPER — determinant ≤ 0, i.e. a mirror (A6).
+    /// Admitting one is gated on the equivariance audit R4 owns.
+    Improper {
+        /// The linear part's determinant.
+        determinant: f64,
+    },
+}
+
+// The ONE prose for the frame rule: a predicate clause, so each door
+// forwards it into its own subject ("placement 2 …", "the placement
+// frame on node 7 …") rather than inventing a second wording for the
+// fact they share.
+impl core::fmt::Display for FrameFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NonFinite => f.write_str("carries a non-finite coordinate"),
+            Self::Improper { determinant } => {
+                write!(f, "is improper (mirroring): determinant {determinant}")
+            }
+        }
     }
 }
 

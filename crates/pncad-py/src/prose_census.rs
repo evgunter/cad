@@ -1700,65 +1700,13 @@ fn local_binding_span(
 /// some of them leaves the guard green over the rest.
 const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[
     (
-        "crates/editor-core/src/edit.rs",
-        "EditError",
-        "path",
-        1,
-        "`ExprPath` is a named-field struct; DOCM's, filed at\
-         work/docm/debug-in-prose-residue-after-finding-sink.md. \
-         This one BLOCKS A DOOR rather than only degrading a message: \
-         `path_off_tree` is what an expression-path edit refuses with, \
-         so binding that edit would panic the gate exactly where the \
-         door is supposed to refuse (work/lib/\
-         the-expression-path-edit-cannot-refuse-as-prose.md)",
-    ),
-    (
-        "crates/editor-core/src/edit.rs",
-        "EditError",
-        "slot",
-        6,
-        "`SlotId::Profile` is a struct variant; DOCM's, filed at\
-         work/docm/debug-in-prose-residue-after-finding-sink.md",
-    ),
-    (
         "crates/editor-core/src/eval/mod.rs",
         "NodeErrorKind",
         "slot",
         2,
-        "`SlotId::Profile` is a struct variant; DOCM's, filed at\
-         work/docm/debug-in-prose-residue-after-finding-sink.md",
-    ),
-    (
-        "crates/editor-core/src/persist/check.rs",
-        "ProgramFault",
-        "slot",
-        1,
-        "`SlotId::Profile` is a struct variant; DOCM's, filed at\
-         work/docm/debug-in-prose-residue-after-finding-sink.md",
-    ),
-    (
-        "crates/editor-core/src/program.rs",
-        "ProgramRefusal",
-        "slot",
-        1,
-        "`SlotId::Profile` is a struct variant; DOCM's, filed at\
-         work/docm/debug-in-prose-residue-after-finding-sink.md",
-    ),
-    (
-        "crates/editor-core/src/resolve/mod.rs",
-        "Diagnosis",
-        "param",
-        1,
-        "`SlotId::Profile` is a struct variant; DOCM's, filed at\
-         work/docm/debug-in-prose-residue-after-finding-sink.md",
-    ),
-    (
-        "crates/step-import/src/error.rs",
-        "StepImportError",
-        "source",
-        2,
-        "a live panic on a public door — EXCH's, filed at\
-         work/issues/debug-in-prose-at-blend-and-step-import.md",
+        "`SlotId::Profile` is a struct variant, and `SlotId::label` is \
+         the prose spelling this site does not use — WIRE's, filed at \
+         work/wire/node-error-kind-renders-the-slot-id-through-debug.md",
     ),
     (
         "crates/topo/src/boolean/voids.rs",
@@ -1789,15 +1737,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         POSITIONAL,
         1,
         "a positional `{:?}` over an expression this census does not type",
-    ),
-    (
-        "crates/editor-core/src/persist/check.rs",
-        "ProgramFault",
-        "arg",
-        1,
-        "the binding is introduced by a pattern NESTED inside the field pattern\
-         this census reads — `slot: SlotId::Profile { .., arg }` — so no declared\
-         type reaches it",
     ),
     (
         "crates/editor-core/src/persist/check.rs",
@@ -1855,18 +1794,10 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
          match binding, and this census types patterns and fields",
     ),
     (
-        "crates/sweep/src/blend/mod.rs",
-        "BlendError",
-        "other",
-        1,
-        "a catch-all arm binds the name, and a pattern naming no variant path\
-         declares no field type to read it at",
-    ),
-    (
         "crates/topo/src/boolean/mod.rs",
         "BooleanError",
         POSITIONAL,
-        8,
+        3,
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
@@ -1987,7 +1918,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
-        "crates/viewer/src/frame.rs",
+        "crates/viewer/src/idpass.rs",
         "Disagreement",
         POSITIONAL,
         1,

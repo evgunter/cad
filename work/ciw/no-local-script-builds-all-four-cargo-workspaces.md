@@ -4,6 +4,8 @@ kind: issue
 title: The repo has four Cargo workspaces plus tools/tess-meter and no local script builds them all, so a signature change sweeps crates/ and reaches hosted CI red from demos/
 status: open
 opened: 2026-09-06
+priority: P4
+cost: E
 ---
 
 

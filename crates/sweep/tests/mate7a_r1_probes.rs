@@ -12,6 +12,7 @@
 
 use geom_brep::SurfaceKind;
 use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::tube_frame;
 use sweep::{TubeWindow, tube_along_arc};
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, BooleanDeclarations, BooleanError, ContactClass, FaceKey, FacePairDeclaration};
@@ -31,9 +32,12 @@ fn deg(d: f64) -> f64 {
 /// start radial +x, the axis -y (`tube_arc`'s left-turn sense).
 fn stem() -> Body<f64> {
     tube_along_arc(
-        Point3::new(-STEM_RING, 0.0, 0.0),
-        Vec3::new(0.0, -1.0, 0.0),
-        Vec3::new(1.0, 0.0, 0.0),
+        tube_frame(
+            Point3::new(-STEM_RING, 0.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Tol::witness(),
+        ),
         STEM_RING,
         TubeWindow::Arc {
             t0: 0.0,
@@ -85,9 +89,12 @@ fn arch_frame() -> ArchFrame {
 fn arch() -> Body<f64> {
     let f = arch_frame();
     tube_along_arc(
-        f.center,
-        Vec3::new(0.0, -1.0, 0.0),
-        f.radial,
+        tube_frame(
+            f.center,
+            Vec3::new(0.0, -1.0, 0.0),
+            f.radial,
+            Tol::witness(),
+        ),
         ARCH_RING,
         TubeWindow::Arc {
             t0: 0.0,
@@ -389,9 +396,12 @@ fn p2_the_g1_chain_price_is_the_measured_53_rows() {
         let inward = Vec3::new(-tangent.z, 0.0, tangent.x);
         let center = end + inward * 1.1;
         tube_along_arc(
-            center,
-            Vec3::new(0.0, -1.0, 0.0),
-            (end - center).normalize(),
+            tube_frame(
+                center,
+                Vec3::new(0.0, -1.0, 0.0),
+                (end - center).normalize(),
+                Tol::witness(),
+            ),
             1.1,
             TubeWindow::Arc {
                 t0: 0.0,
@@ -521,9 +531,12 @@ fn p4_a_definitely_different_rim_radius_keeps_the_class_refusal() {
     let inward = Vec3::new(-tangent.z, 0.0, tangent.x);
     let center = end + inward * 1.1;
     let seg_b = tube_along_arc(
-        center,
-        Vec3::new(0.0, -1.0, 0.0),
-        (end - center).normalize(),
+        tube_frame(
+            center,
+            Vec3::new(0.0, -1.0, 0.0),
+            (end - center).normalize(),
+            Tol::witness(),
+        ),
         1.1,
         TubeWindow::Arc {
             t0: 0.0,

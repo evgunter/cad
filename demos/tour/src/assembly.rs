@@ -76,9 +76,10 @@ use pncad::document::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CONTRADICTORY_RECOURSE,
     CancelToken, Datum, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId,
     EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram, MateFault, MateFrame,
-    MatePrimitive, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PatternKind, ProfileDoc,
-    ProfileProgram, RecipeNodeId, SitedRef, UNDER_RECOURSE, apply, assemble, content_pin, evaluate,
-    inline, load, mixed_pins, parse_expr, product_named, save, solve_document, split,
+    MatePrimitive, MateReach, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PartReach,
+    PartResolver, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace,
+    UNDER_RECOURSE, apply, assemble, content_pin, evaluate, inline, load, mixed_pins, parse_expr,
+    product_named, save, solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -166,16 +167,49 @@ fn pe(src: &str, params: &BTreeMap<ParamName, Dimension>) -> Expr {
     parse_expr(src, params).unwrap_or_else(|e| panic!("expression `{src}`: {e:?}"))
 }
 
+/// A mate head, read at the instance the name is qualified by.
+///
+/// A mate declares a contact between two FACES, and the kernel says so
+/// in the type: `Node::Mate` takes `SitedFace`s, whose names are
+/// `pncad::document::FaceName`s. A caller holding a `StableName` from
+/// a selection door asks for one and handles the refusal — which for
+/// this tour is the same loud panic every other authoring helper here
+/// uses, because a demo that named an edge would be a demo with a bug
+/// in it.
+///
+/// **Spelled by full path**, because this binary also uses
+/// `tess_meter::FaceName` (`main.rs`'s face-name tokens): two
+/// unrelated types with one short name, and a bare `FaceName` here
+/// would be read as either. `tess-meter`'s is a validated text token
+/// for a mesh report; this one is a `StableName` whose kind is
+/// `Face`.
+fn head(instance: RecipeNodeId, local: &StableName) -> SitedFace {
+    let name = pncad::document::FaceName::new(in_part(instance, local))
+        .unwrap_or_else(|err| panic!("a mate head names a face: {err}"));
+    SitedFace::at_mint(name)
+}
+
 /// Inserts a node and returns its minted id.
+///
+/// Every edit the scenes author through here INSERTS — an instance, a
+/// mate, a pattern, a placement — and an insert never moves a
+/// cluster's gauge (a new mate JOINS clusters; the survivor keeps its
+/// gauge), so the maintenance never asks the reach and the refusing
+/// one is the honest value. The edits that do move a gauge — the
+/// split and the inline below — take the workspace's own reach.
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the insert applies");
+    let applied =
+        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the insert applies");
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }
 
-/// Applies an edit that mints nothing.
-fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol) {
-    let applied = apply(doc, e, tol).unwrap_or_else(|err| panic!("edit refused: {err:?}"));
+/// Applies an edit that mints nothing, through `reach` — the scene
+/// builders pass the refusing one for a placement (see [`insert`]);
+/// the update door passes the workspace's, because a pin move on a
+/// mated document re-keys clusters through the parts' own extent.
+fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol, reach: &dyn MateReach) {
+    let applied = apply(doc, e, tol, reach).unwrap_or_else(|err| panic!("edit refused: {err:?}"));
     *doc = applied.doc;
 }
 
@@ -207,9 +241,16 @@ fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
 /// evaluable.
 fn with_store(ws: &Workspace) -> EvalOptions {
     EvalOptions {
-        resolver: Some(Arc::new(ws.clone())),
+        resolver: Some(store(ws)),
         ..EvalOptions::default()
     }
+}
+
+/// The workspace as the document seam the reach-taking doors resolve
+/// through — what an edit on a mated document levers the parts'
+/// extent with ([`PartReach::with_resolver`]).
+fn store(ws: &Workspace) -> Arc<dyn PartResolver> {
+    Arc::new(ws.clone())
 }
 
 fn run(doc: &ProfileDoc, opts: &EvalOptions, tol: Tol) -> Evaluation<f64> {
@@ -268,6 +309,7 @@ fn prism_part(
                 value: DocParam::continuous(Dimension::Length, value),
             },
             tol,
+            &RefusingReach,
         );
         scope.insert(name, Dimension::Length);
     }
@@ -395,6 +437,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
             .expect("the post lies down about +y"),
         },
         tol,
+        &RefusingReach,
     );
     let pattern = insert(
         &mut doc,
@@ -416,6 +459,7 @@ fn layout_doc(post: DocRef, shelf: DocRef, tol: Tol) -> (ProfileDoc, RecipeNodeI
             frame: Frame::translation([FLAT_PACK_GAP, 0.9, 0.0]),
         },
         tol,
+        &RefusingReach,
     );
     (doc, pattern, shelf_i)
 }
@@ -449,6 +493,7 @@ fn stand_doc(
             frame: Frame::translation([0.0, (SHELF_DEPTH - POST_SECTION) / 2.0, 0.0]),
         },
         tol,
+        &RefusingReach,
     );
     let shelf_i = insert(&mut doc, Node::instantiate_part(shelf), tol);
     let post_b = insert(&mut doc, Node::instantiate_part(post), tol);
@@ -456,8 +501,8 @@ fn stand_doc(
     let mate_1 = insert(
         &mut doc,
         Node::Mate {
-            a: SitedRef::at_mint(in_part(post_a, post_top)),
-            b: SitedRef::at_mint(in_part(shelf_i, shelf_bottom)),
+            a: head(post_a, post_top),
+            b: head(shelf_i, shelf_bottom),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(POST_SEAT),
@@ -472,8 +517,8 @@ fn stand_doc(
     let mate_2 = insert(
         &mut doc,
         Node::Mate {
-            a: SitedRef::at_mint(in_part(shelf_i, shelf_bottom)),
-            b: SitedRef::at_mint(in_part(post_b, post_top)),
+            a: head(shelf_i, shelf_bottom),
+            b: head(post_b, post_top),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(SEAT_B),
@@ -651,7 +696,9 @@ fn stand_scene(ws: &Workspace, stand: &Stand, tol: Tol) -> SceneBody {
     // The solve, read the way an author reads it: which instance is
     // the cluster's gauge, and what role each mate took (A11 rules
     // 3-4 — tree mates DETERMINE, the rest DECLARE).
-    let poses = solve_document(&stand.doc, tol);
+    let store = store(ws);
+    let reach = PartReach::<f64>::with_resolver(Some(&store), tol);
+    let poses = solve_document(&stand.doc, &reach, tol);
     let gauge = poses.gauge(stand.shelf_i).expect("the shelf is placed");
     assert_eq!(
         gauge, stand.post_a,
@@ -850,6 +897,11 @@ fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
 /// that stopped being typed, stopped naming its subject, or stopped
 /// ending on its recourse breaks this walk.
 fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
+    // Every edit and every solve here is on a MATED document, so it
+    // levers through the workspace's own reach: the parts' extent,
+    // the way the evaluation resolves them. ONE reach for the walk.
+    let store = store(ws);
+    let reach = PartReach::<f64>::with_resolver(Some(&store), tol);
     let (post, shelf) = (parts.post, parts.shelf);
     let (post_top, shelf_bottom) = (&parts.post_top, &parts.shelf_bottom);
     println!("\n-- the v1 boundary, walked: four refusals an author actually hits --");
@@ -867,7 +919,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         MatePrimitive::PlanarRest { offset: 0.0 },
         tol,
     );
-    let poses = solve_document(&under.doc, tol);
+    let poses = solve_document(&under.doc, &reach, tol);
     let fault = poses
         .fault(under.mate_1)
         .expect("a planar rest alone does not determine the pair");
@@ -900,8 +952,8 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let clash = insert(
         &mut contra.doc,
         Node::Mate {
-            a: SitedRef::at_mint(in_part(contra.post_a, post_top)),
-            b: SitedRef::at_mint(in_part(contra.shelf_i, shelf_bottom)),
+            a: head(contra.post_a, post_top),
+            b: head(contra.shelf_i, shelf_bottom),
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame([POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT]),
@@ -915,7 +967,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         },
         tol,
     );
-    let poses = solve_document(&contra.doc, tol);
+    let poses = solve_document(&contra.doc, &reach, tol);
     let fault = poses
         .fault(clash)
         .or_else(|| poses.fault(contra.mate_1))
@@ -949,6 +1001,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         &mut tangent.doc,
         &DocEdit::DeleteNode { id: tangent.mate_2 },
         tol,
+        &reach,
     );
     let mut swapped = tangent.doc.clone();
     if let Some(Node::Mate {
@@ -959,6 +1012,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
             &mut swapped,
             &DocEdit::DeleteNode { id: tangent.mate_1 },
             tol,
+            &reach,
         );
         insert(
             &mut swapped,
@@ -974,7 +1028,11 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
     let ev = run(&swapped, &with_store(ws), tol);
     let err = assemble(&swapped, &ev, tol).expect_err("a Tangent mate has no at-rest record");
     assert!(
-        matches!(err, AssemblyError::NoAtRestRecord { .. }),
+        matches!(&err, AssemblyError::Mint { refusals }
+            if !refusals.is_empty()
+                && refusals
+                    .iter()
+                    .all(|r| matches!(r, MintRefusal::NoAtRestRecord { .. }))),
         "the class table's mint half is what refuses, got {err}"
     );
     assert!(
@@ -1028,8 +1086,15 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     let (before, before_names) = product_of(layout, &before_ev, tol);
 
     let part_id = DocumentId::derive("pncad-demo-shelf-cell");
-    let out = split(layout, &BTreeSet::from([shelf_i]), part_id, tol)
-        .expect("cutting one whole cluster out is legal");
+    let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
+    let out = split(
+        layout,
+        &BTreeSet::from([shelf_i]),
+        part_id,
+        tol,
+        Some(&store),
+    )
+    .expect("cutting one whole cluster out is legal");
     ws.create(&out.part, tol).expect("the new part is stored");
     ws.resave(&out.remainder, tol)
         .expect("the remainder is stored");
@@ -1107,7 +1172,11 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
     // arena-key identity, so the correspondence is the composition of
     // the two recorded maps — split's, then inline's — and every
     // pre-split name must resolve through it.
-    let back = inline(&out.remainder, out.instance, ws, tol).expect("the instance inlines back");
+    // The store as it stands NOW — the new part was written above — is
+    // what the inline resolves the instance through.
+    let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
+    let back =
+        inline(&out.remainder, out.instance, &store, tol).expect("the instance inlines back");
     let back_ev = run(&back.doc, &with_store(ws), tol);
     let (back_body, back_names) = product_of(&back.doc, &back_ev, tol);
     assert_eq!(
@@ -1186,11 +1255,19 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
         .iter()
         .find(|&&id| matches!(layout.node(id), Some(Node::Pattern { .. })))
         .expect("the layout has a pattern");
-    match split(layout, &BTreeSet::from([post_i, pattern]), posts_id, tol) {
+    let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
+    match split(
+        layout,
+        &BTreeSet::from([post_i, pattern]),
+        posts_id,
+        tol,
+        Some(&store),
+    ) {
         Ok(posts) => {
             ws.create(&posts.part, tol)
                 .expect("the posts cell is stored");
-            match inline(&posts.remainder, posts.instance, ws, tol) {
+            let store: Arc<dyn PartResolver> = Arc::new(ws.clone());
+            match inline(&posts.remainder, posts.instance, &store, tol) {
                 Ok(_) => println!(
                     "   second cut: the patterned-post cell splits out AND inlines back \
                      (the hoisted cluster frame is expressible in the part's own recipe)"
@@ -1216,6 +1293,11 @@ fn refactorings(ws: &mut Workspace, layout: &ProfileDoc, shelf_i: RecipeNodeId, 
 /// it, the mixed-pin LINT in between, and re-verification at every
 /// evaluation.
 fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
+    // Every edit here is on a MATED document, so it levers through
+    // the workspace's own reach: the parts' extent, the way the
+    // evaluation resolves them.
+    let store = store(ws);
+    let reach = PartReach::<f64>::with_resolver(Some(&store), tol);
     println!("\n-- the update door: moving a pin is a recorded edit --");
     let before = run(&stand.doc, &with_store(ws), tol);
     let (before_body, _) = product_of(&stand.doc, &before, tol);
@@ -1235,6 +1317,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
             value: DocParamValue::Continuous(SHELF_THICKNESS * 1.5),
         },
         tol,
+        &reach,
     );
     ws.resave(&thicker, tol).expect("the new version is stored");
 
@@ -1285,7 +1368,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
             matches!(e, DocEdit::UpdateReference { .. }),
             "the elaboration is per-reference primitives and nothing else"
         );
-        edit(&mut updated, e, tol);
+        edit(&mut updated, e, tol, &reach);
     }
 
     let after = run(&updated, &with_store(ws), tol);
@@ -1335,6 +1418,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
             value: DocParamValue::Continuous(POST_HEIGHT - 0.04),
         },
         tol,
+        &reach,
     );
     ws.resave(&shorter, tol).expect("the short post is stored");
     let short_pin = content_pin(&shorter, tol).expect("the pin computes");
@@ -1351,6 +1435,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
             new_pin: short_pin,
         },
         tol,
+        &reach,
     );
     let lint = mixed_pins(&staged);
     assert_eq!(lint.len(), 1, "one id at two pins");
@@ -1389,7 +1474,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     assert_eq!(all.len(), 1, "one site is already on the new pin");
     let mut migrated = staged.clone();
     for e in &all {
-        edit(&mut migrated, e, tol);
+        edit(&mut migrated, e, tol, &reach);
     }
     assert!(
         mixed_pins(&migrated).is_empty(),
@@ -1436,6 +1521,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
             value: DocParamValue::Continuous(POST_HEIGHT),
         },
         tol,
+        &reach,
     );
     ws.resave(&shorter, tol).expect("the post is restored");
     edit(
@@ -1445,6 +1531,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
             value: DocParamValue::Continuous(SHELF_THICKNESS),
         },
         tol,
+        &reach,
     );
     ws.resave(&thicker, tol).expect("the shelf is restored");
     let restored = run(&stand.doc, &with_store(ws), tol);

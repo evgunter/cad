@@ -13,9 +13,29 @@ Ev's standing instructions for implementation work:
 
 - The top-level agent is **orchestrator and (meta-)reviewer**: central
   planning and design decisions stay with it; coding and reviews are
-  delegated to subagents, which may spawn their own. Implementation
-  model choice follows [[model-ab-experiment]]; design, specs, reviews
-  and rulings stay Fable.
+  delegated to subagents, which may spawn their own. Every phase —
+  implementers, reviewers, and the design, specs and rulings — runs
+  on Opus (Ev, 2026-09-23).
+- **Review tiers — the orchestrator's call per unit, at spec time**
+  (Ev, 2026-09-19, dual tier 2026-09-23). The program's `log.md` or
+  the unit's item file names the tier and its one-line reason at
+  dispatch, so no call is invisible.
+  - **Orchestrator's read**: a mechanical change, where neither
+    correctness nor style is meaningfully at risk, merges on green CI
+    and the orchestrator's own read — no review lane.
+  - **Single review** (the default): one Opus reviewer. A STYLE review
+    (`docs/prompts/reviewer-style-lane.md`), or a FULL review — claims
+    to falsify alongside the style questions — where the unit carries
+    a meaningful chance of correctness bugs. That is a feel for the
+    unit, not a criterion: where the change can be read and believed,
+    style is enough; where believing it would take more than reading
+    it, the review carries the correctness claims too.
+  - **Dual review**: logic that is especially tricky, or an
+    architectural or design decision whose impact is broad or which
+    would be hard to change later, gets two independent Opus reviewers
+    on the same frozen head, with the fix pass off the adjudicated
+    union. The pair is an experiment row ([[experiments]]), so its
+    method is `docs/DUAL-REVIEW-PROTOCOL.md`'s.
 - **Continue autonomously** to the next genuine branch point. High-
   confidence design PRs (dominant-argument conventions, faithful
   elaborations of a ratified plan) self-merge with their full writeups;
@@ -42,6 +62,8 @@ Ev's standing instructions for implementation work:
 
 **Standing operational rules:**
 
+- **Read `local-scripts/monitors/README.md` before arming anything** —
+  while its temporary note stands, do not arm.
 - **Monitors are tools, not mandates (Ev)**: arm, tune, re-cadence or
   disarm any of them at will. The default at session start is
   `cp local-scripts/monitors/*.sh ~/.local/share/cad-work/monitors/`
@@ -77,28 +99,28 @@ Ev's standing instructions for implementation work:
   both the thread subscription and the self-suppression key); to watch a
   thread your filter misses, post "(<ROLE> orchestrator) subscribing.";
   SIGN issue bodies you file.
-- **Channel to Ev**: questions go out as PRs titled `[ev] ...` (edit
-  the doc to state the question, update in place with the answer) with
-  `needs_ev: true` on the asking item in `work/` — NEVER comments on
-  merged PRs, he doesn't scan them. Watch 👍 reactions only on comments
-  you explicitly requested sign-off on. Arrange to be woken by comments
-  on every `[ev]` PR you open (the away-channel monitor locally, a PR
-  subscription on a remote box) — the answer arrives as a comment.
-  A file move or other reshuffle with NO design implication is not an
-  `[ev]` question — Ev (PR 1916, 2026-09-05): "you don't need to ask me
-  about moving things around, unless it has design implications"; just
-  do it and log it.
+- **Channel to Ev**: "Asking Ev" in `CLAUDE.md`. Watch 👍 reactions
+  only on comments you explicitly requested sign-off on.
+- **A commit that touches only docs or comments on an already-green
+  head merges immediately, without a fresh CI run** (Ev, 2026-08-27;
+  scope corrected 2026-09-21) — including a merge commit whose conflict
+  resolution touched only those. A commit that reaches code re-earns
+  the gate.
 - **State-sync records RIDE THE UNIT'S OWN PR (Ev, 2026-08-27)** — a
   unit's ledger row and log entries go on as one more commit to that
-  unit's branch. Two conditions: **LAST, after both reviews are
-  delivered** (the A/B row names the implementer's arm, and reviewers
-  read `git log`), and **merge immediately without a fresh CI run** when
-  the commit touches only docs/comments on an already-green head. This
+  unit's branch, **LAST, after every review is delivered** (an experiment row
+  can carry what a reviewer must not see yet, and reviewers read
+  `git log`). This
   is for STATE-SYNC only: design conversations, protocol and memory
   amendments, spec ratifications and anything asking Ev a question get
   their OWN PR — burying those in a unit's merge hides exactly what
   other orchestrators should see. Keep PUSHING branches continuously;
   only the PR is batched.
+- **Run `python3 scripts/work.py incoming` at every check-in and before
+  bringing main into your branch** (fetch first). `log.md` merges by
+  union (`work/README.md`), so a note another program leaves on your
+  log lands without a conflict; `incoming` lists what main carries into
+  `work/<program>/` that your branch lacks, until it arrives.
 - **Every implementer dispatch** points the lane at
   `docs/prompts/implementer-discipline.md` BY PATH (read it once
   yourself; do not paste it). Briefs carry BOTH halves of the

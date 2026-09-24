@@ -43,32 +43,81 @@
 //! of confident wrong answer this codebase's fail-loud posture exists
 //! to keep out.
 //!
-//! # The certified answer this method is standing in for (issue 1183)
+//! # The certified answer this method stands in for
 //!
-//! Sampling is a guess, and this kernel can in principle do better than
-//! guess. Evaluation is generic over its scalar and `evaluate::<Interval>`
-//! runs a whole `Doc` today; `Interval::from_bounds` is documented as the
-//! SUBDIVISION DRIVER's constructor. Replaying the document with the
-//! field widened to `[a, b]` and reading the verdict would say something
-//! categorically stronger than any number of samples — not "these values
-//! worked" but "no value in this box fails" — and branch-and-bound over
-//! the box would give the largest CERTIFIED locally-valid interval, with
-//! this search demoted to a seed for it.
+//! Sampling is a guess, and this kernel can do better than guess when
+//! it is given time: `editor_core::range::certified_range` replays the
+//! document with ONE field widened to an interval and reports, per
+//! side, whether every value in it decides what the current value
+//! decides — not "these values worked" but "nothing in this box builds
+//! anything else". Its three kernel-side doors are built, and each is
+//! a door this module cannot open for itself:
 //!
-//! Three doors are missing before that is clean, and they are the
-//! kernel's rather than this module's: `evaluate` derives its own
-//! `ParamEnv` through `T::from_f64`, so every binding enters degenerate;
-//! a node SLOT has no name to widen at all (its value is a bit-pinned
-//! `f64` literal, and the widening is a property of the QUERY, not of
-//! the document, so what is wanted is a driver-side override rather than
-//! an interval-valued literal in the recipe); and the verdict contract
-//! has to say what an INDETERMINATE interval decision means — subdivide,
-//! not fail — which is adjacent to the enclosure-lane contract open as
-//! issue 1143.
+//! * **A widened binding reaches evaluation as one.**
+//!   `editor_core::analysis::param_env_over` binds an axis as
+//!   `nominal + [lo, hi]` in the scalar's own arithmetic, where
+//!   `Doc::param_env` binds `T::from_f64` of the nominal alone and
+//!   every binding is therefore degenerate.
+//! * **A node SLOT has a name to widen.**
+//!   `editor_core::range::RangeField::Slot` names one, and the
+//!   widening stays a property of the QUERY rather than of the
+//!   document: the name is minted in a clone the query derives for
+//!   itself, never as an interval-valued literal in the caller's
+//!   recipe.
+//! * **An INDETERMINATE interval decision means subdivide.**
+//!   `editor_core::drive`'s leaf classifier answers
+//!   `LeafVerdict::Bisect` for every escalation but the ratified
+//!   terminal sliver, which it refuses as `SliverTerminal` carrying
+//!   the escalation's predicate — `<unnamed>` where the escalation
+//!   carries none, so the arm is typed but the culprit is not always
+//!   named. The SEPARATE question of what a certified lane owes when
+//!   a value goes non-real is open and is not this door:
+//!   `work/props/certified-lane-non-real-contract-audit.md`.
 //!
-//! What this module is built to survive that change: [`BoundsProbe`]
-//! evaluates nothing itself, so the oracle is replaceable without the
-//! panel noticing.
+//! **What keeps THIS module the interactive answer is cost**, and a
+//! drive's cost is measured rather than argued: `editor_core::range`
+//! carries the table (seconds per leaf on the corpus documents,
+//! nothing certified at a budget a caller can afford) beside the
+//! instruction to re-take it rather than trust it. **Nothing in
+//! either tree reds if those numbers drift** — they are a measurement
+//! at a tree, not an invariant — so this paragraph names where they
+//! live instead of copying them, and a reader who needs the figure
+//! reads it there and re-takes it.
+//!
+//! So the certified range is an ON-DEMAND query whose answer arrives
+//! later and REPLACES this reading rather than merging with it.
+//! **The two claims are not nested and neither contains the other.**
+//! A certified range is a subset of the LOCALLY-VALID RANGE — the
+//! thing this module is trying to report — because "does anything
+//! decide differently" is strictly more than "does anything new
+//! fail". It is NOT a subset of the BRACKET this module reports: the
+//! probe reports the furthest value it SAMPLED and found valid, which
+//! on a field with a nearby boundary sits well outside what a drive
+//! can prove, and `editor_core::range`'s own docs carry the
+//! counterexample (an 8 mm slot certified to `1.6e-8` against a
+//! furthest valid sample of `3.9e-6`). So a panel shows both or names
+//! which one it is showing, and never draws one inside the other.
+//!
+//! **A consumer reads four arms, not a yes or no.**
+//! `editor_core::range::RangeSide` is `Certified` (the seed's edge —
+//! never "unbounded"), `NewFailure` and `DecisionFlip` (a bracket
+//! around a boundary, with the driver's evidence), and
+//! `Indeterminate` (the driver could not decide). Rendering
+//! `Indeterminate` as an edge is the specific mistake to avoid, and
+//! it is sharper than "unknown": a definite failure reaches that arm
+//! today priced `Budget` at the depth floor, so "raise the budget" is
+//! honest advice only above the floor
+//! (`work/props/coincidence-zone-priced-budget-at-the-floor.md`).
+//!
+//! Nothing in `crates/viewer` asks for one on a user's behalf yet —
+//! the affordance is
+//! `work/offer/certify-affordance-on-the-bounds-panel.md`, and
+//! `crates/viewer/tests/docm9_range_vs_probe.rs` (the `interval`
+//! feature) is where the two answers are measured against each other.
+//!
+//! What lets that arrive without disturbing anything here:
+//! [`BoundsProbe`] evaluates nothing itself, so the oracle is
+//! replaceable without the panel noticing.
 //!
 //! # Why it is a resumable state machine
 //!
@@ -105,6 +154,14 @@ use pncad::quantity::UnitDef;
 /// consequence of an ancestor's failure, so counting it would make one
 /// failure register as many and make the verdict depend on how deep the
 /// recipe happens to be below the break.
+///
+/// **[`crate::tree::has_faults`] counts a poisoned row, and answers a
+/// different question**: whether the document is building at all — a
+/// boolean, which nothing inflates — where this is a SET whose size
+/// decides whether a value got worse. They disagree about whether
+/// anything is wrong only on a poisoned row whose chain ends at no
+/// failure, which that reading calls not building and over which this
+/// verdict is empty.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Verdict(BTreeSet<RecipeNodeId>);
 
@@ -225,21 +282,46 @@ impl Bounds {
     /// says what the value is to within its own stated accuracy and no
     /// more, in as many characters as that takes.
     ///
+    /// **The written number is the panel's own divide**
+    /// ([`crate::props::shown_in`]), not a second one: a range reading
+    /// and a panel field showing the same canonical value in the same
+    /// unit are the same number by construction, and a change to how a
+    /// written value is derived from a canonical one reaches both.
+    ///
     /// **A bound may be zero or negative, and the render is right about
     /// both.** The rule is that a text reads back as the value, not that
     /// it is non-zero: a bound that IS zero reads `0`, and a sign is not
-    /// a distance ([`crate::readout::REL_TOLERANCE`] is relative to the
-    /// magnitude). This is what stops the rule being
+    /// a distance ([`crate::readout::reads_back`] measures how far a
+    /// text reads FROM the value). This is what stops the rule being
     /// [`crate::scene::DisplayTolerance::render_mm`] with the δ taken
     /// out — δ is strictly positive and a probed field is not.
+    ///
+    /// **And a bound may be one the NOTATION cannot name**, which is
+    /// the one thing this sentence must not spell `inf`. Writing a
+    /// canonical value in millimetres multiplies it up by a thousand,
+    /// so a bound above `f64::MAX * MILLI` has no millimetre value and
+    /// `inf mm` would read as a search that reached infinity — the
+    /// overclaim this whole doc comment exists to refuse, at the one
+    /// end where nothing the probe did is wrong. The conversion is
+    /// asked rather than performed
+    /// ([`crate::props::shown_text`], over [`crate::props::written`]),
+    /// which is also why the divide is no longer written out here.
+    /// The `map_or` this line used to open with was a third
+    /// hand-written spelling of [`crate::props::shown_in`] — the one
+    /// that door's own doc warns about — and the door that renders it
+    /// is the same door with the render attached, so there is one home
+    /// for `canonical / factor` and one for what to say when it has no
+    /// answer.
+    ///
+    /// **This render owns no bound on the value itself, and no door
+    /// upstream of it does either.** A probed bound is where the
+    /// doubling search reached from the field's own value, and the
+    /// chrome's `f64` fields carry no `.range()`, so the origin is
+    /// whatever a user typed. There is nothing here to narrow; what
+    /// there is, is a value that has no reading in the unit asked for,
+    /// and saying so is the whole of the repair.
     pub fn wording(self, unit: Option<UnitDef>) -> String {
-        let show = |value: f64| {
-            let written = crate::readout::number(unit.map_or(value, |u| value / u.factor()));
-            match unit {
-                Some(unit) => format!("{written} {}", unit.symbol()),
-                None => written,
-            }
-        };
+        let show = |value: f64| crate::props::shown_text(unit, value);
         match (self.low, self.high) {
             (Bound::Open { probed: low }, Bound::Open { probed: high }) => format!(
                 "nothing new fails anywhere from {} to {} — as far as {} samples looked",
@@ -307,10 +389,7 @@ impl Sweep {
     fn next_offset(&self, seed: f64, integral: bool) -> Option<f64> {
         match self.phase {
             Phase::Settled => None,
-            // seed, 2·seed, 4·seed, … — a geometric reach, so a field
-            // whose limit is far away is found in a logarithmic number
-            // of samples rather than a linear one.
-            Phase::Reaching => Some(seed * f64::from(1u32 << self.reaches)),
+            Phase::Reaching => Some(BoundsProbe::reach_offset(seed, self.reaches)),
             Phase::Refining => {
                 let invalid = self.invalid?;
                 let mid = midpoint(self.valid, invalid, integral)?;
@@ -402,20 +481,58 @@ impl BoundsProbe {
     pub const MAX_REACHES: u32 = 12;
 
     /// How many bisection steps a direction spends narrowing a
-    /// bracket. Ten halvings take a bracket to about a thousandth of
-    /// the seed step, which is finer than the number a panel shows.
+    /// bracket. Ten halvings take it to about a thousandth of the
+    /// width it STARTED at, which is the reach stride that caught the
+    /// failure and NOT the seed: the stride doubles, so a bracket
+    /// entered four seeds wide closes to about four thousandths of a
+    /// seed, and one entered a thousand seeds wide closes no finer
+    /// than a seed. How fine the reported pair is therefore depends
+    /// on how far out the failure was, not on the step alone.
+    ///
+    /// **The division is exact and the reported pair is not.** Each
+    /// end of a [`Bound::Edge`] is `origin ± offset`, so the width a
+    /// reader measures off the pair carries the ORIGIN's rounding,
+    /// which at a millimetre-scale bracket around a centimetre-scale
+    /// origin is four thousand times the bracket's own. A check on
+    /// this law counts halvings; it does not compare widths.
     pub const MAX_REFINES: u32 = 10;
 
     /// The ceiling on samples over both directions — the cost bound the
     /// module docs quote, stated where it is enforced.
     pub const MAX_SAMPLES: usize = 2 * (Self::MAX_REACHES as usize + Self::MAX_REFINES as usize);
 
+    /// The offset the `doubling`th reach step places, stepping by
+    /// `seed`: `seed · 2^doubling`. The ladder is geometric, so a
+    /// failure far out is found in a logarithmic number of samples.
+    ///
+    /// `doubling` is a step index and is below [`Self::MAX_REACHES`]
+    /// at every caller, which is what keeps the shift in range.
+    fn reach_offset(seed: f64, doubling: u32) -> f64 {
+        seed * f64::from(1u32 << doubling)
+    }
+
+    /// The furthest offset a reach can place, stepping by `seed`: the
+    /// last of [`Self::MAX_REACHES`] doublings, `seed · 2^(N−1)`.
+    ///
+    /// Public for [`crate::camera::Camera::pitch_limit`]'s reason: it
+    /// is a *contract* a test has to reason against — how far
+    /// [`Bound::Open`] looked, for a seed — and a test that restates
+    /// it as a literal is a hand-synced copy of a constant's
+    /// consequence, which is the defect this door exists to remove.
+    /// One home; read it.
+    #[must_use]
+    pub fn furthest_reach(seed: f64) -> f64 {
+        Self::reach_offset(seed, Self::MAX_REACHES - 1)
+    }
+
     /// A probe around `origin`, stepping by `seed`.
     ///
     /// `seed` is the field's natural step — one of whatever unit the
     /// panel is writing it in, and 1 for a count — and sets the scale
-    /// of the whole search: the first sample is one seed out and the
-    /// finest bracket is about a thousandth of one. A non-finite or
+    /// of the whole search: the first sample is one seed out, the
+    /// furthest is [`BoundsProbe::furthest_reach`] of one, and a
+    /// bracket closes to about a thousandth of the stride that found
+    /// it ([`BoundsProbe::MAX_REFINES`]). A non-finite or
     /// non-positive seed is replaced by its magnitude or by 1, because
     /// a probe that refused would leave the panel with nothing to say
     /// about a field whose scale it could not guess.

@@ -20,7 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Point2, Point3, Vec3};
+use geom_core::{OrthoFrame, Point2, Point3};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
 use profile::RawLoop;
@@ -81,11 +81,7 @@ fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> Validated
 }
 
 fn a_prism(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
-    let plane = SketchPlane::from_frame(
-        Point3::new(0.0, 0.0, -0.0625),
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(Point3::new(0.0, 0.0, -0.0625)));
     extrude(
         &validated(plane, loops),
         Extrusion::Distance(2.125),
@@ -108,11 +104,7 @@ fn z_prism() -> Body<f64> {
         (1.8125, 1.5625),
         (-0.0625, 0.4375),
     ];
-    let plane = SketchPlane::from_frame(
-        Point3::new(-0.0625, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_yz(Point3::new(-0.0625, 0.0, 0.0)));
     extrude(
         &validated(plane, vec![lp(&z_poly)]),
         Extrusion::Distance(2.125),

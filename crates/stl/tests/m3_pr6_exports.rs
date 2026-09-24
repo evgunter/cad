@@ -44,8 +44,8 @@ fn stl_dir() -> String {
 /// external admesh row.
 #[test]
 fn corner_kiss_assembly_exports() {
-    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
+    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     let BooleanResult::Body(r) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("kiss union is a body");
     };
@@ -74,8 +74,8 @@ fn corner_kiss_assembly_exports() {
 /// STL for admesh.
 #[test]
 fn tangent_edge_assembly_exports() {
-    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
-    let b = brick((1.0, 2.0), (0.0, 1.0), (1.0, 2.0));
+    let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick((1.0, 2.0), (0.0, 1.0), (1.0, 2.0), Tol::witness());
     let BooleanResult::Body(r) = union(&a, &b, Tol::witness()).unwrap() else {
         panic!("tangent-edge union is a body");
     };

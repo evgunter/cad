@@ -230,11 +230,8 @@ pub enum ParamAttachError {
 impl core::fmt::Display for ParamAttachError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::StaleKey => write!(f, "param-source attachment: stale surface key"),
-            Self::FieldNotOnKind { field } => write!(
-                f,
-                "param-source attachment: the surface has no {field:?} field"
-            ),
+            Self::StaleKey => write!(f, "the surface key is stale"),
+            Self::FieldNotOnKind { field } => write!(f, "the surface has no {field:?} field"),
         }
     }
 }
@@ -300,7 +297,7 @@ mod tests {
     /// A cube with one face re-surfaced as a cylinder of `radius`,
     /// returning the body, that face and its surface key.
     fn cube_with_cylinder(radius: f64) -> (Body<f64>, FaceKey, crate::geometry::SurfaceKey) {
-        let mut body = crate::fixtures::ops_cube(Tol::witness()).body;
+        let mut body = crate::test_support_fixtures::declined_cube::<f64>(Tol::witness()).body;
         let face = crate::query::all_faces(&body)[0];
         let key = body
             .set_face_surface(face, FaceSurface::New(cyl(radius)))

@@ -28,6 +28,35 @@ use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ProfileLoop, SketchPlane};
+
+/// The spine frame the tube doors take: ring centre, spine axis, and
+/// the reference radial the window's angles start from. The axis is
+/// decided and KEPT; the reference yields its component along it.
+///
+/// One line over `OrthoFrame::from_axis_and_reference`, spelled here
+/// because these probes are an integration test of the tour BINARY
+/// and cannot reach the tour's own `scalar::axis_frame`.
+///
+/// # Panics
+///
+/// If the band cannot be formed, the axis has no direction, or the
+/// reference lies along it.
+fn tube_frame(
+    center: Point3<f64>,
+    axis: Vec3<f64>,
+    u_ref: Vec3<f64>,
+    tol: Tol,
+) -> pncad::geom_core::OrthoFrame<f64> {
+    pncad::geom_core::OrthoFrame::from_axis_and_reference(
+        center,
+        axis,
+        u_ref,
+        "tour_probe_frame_axis",
+        pncad::geom_core::Band::linear(tol).expect("the witness band"),
+    )
+    .expect("the spine axis has a direction and the reference radial is off it")
+}
+
 use pncad::sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc,
 };
@@ -348,6 +377,7 @@ fn r2_ring_anatomy_on_a_drum() {
                             format!("circle(c.y={:.4}, r={:.4})", center.y, radius)
                         }
                         Curve3::Ellipse { .. } => "ellipse".to_string(),
+                        Curve3::Spiric { .. } => "spiric".to_string(),
                         Curve3::Nurbs(_) => "nurbs".to_string(),
                     })
                     .unwrap_or_else(|| "?".to_string());
@@ -662,13 +692,16 @@ fn r2_the_two_union_walls_on_my_operands() {
         tol,
     );
     let handle = tube_along_arc::<f64>(
-        Point3 {
-            x: 0.5,
-            y: 0.5,
-            z: 0.0,
-        },
-        Vec3::unit_z(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3 {
+                x: 0.5,
+                y: 0.5,
+                z: 0.0,
+            },
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            tol,
+        ),
         0.3,
         TubeWindow::Arc { t0: -2.0, t1: 2.0 },
         0.08,
@@ -864,7 +897,9 @@ fn r2_the_scene_numbers() {
             Some(Surface::Plane { origin, normal, .. }) => Some((
                 origin.y,
                 normal.y,
-                if f.sense { normal.y } else { -normal.y },
+                pncad::geom_brep::OutwardNormal::from_chart(*normal, f.sense)
+                    .vec()
+                    .y,
             )),
             _ => None,
         })
@@ -913,13 +948,16 @@ fn r2_the_scene_numbers() {
     }
     // The handle and the spout, on the scene's own parameters.
     let handle = tube_along_arc::<f64>(
-        Point3 {
-            x: rb,
-            y: (yf + ys) / 2.0,
-            z: 0.0,
-        },
-        Vec3::unit_z(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3 {
+                x: rb,
+                y: (yf + ys) / 2.0,
+                z: 0.0,
+            },
+            Vec3::unit_z(),
+            Vec3::unit_x(),
+            tol,
+        ),
         6.0 / 256.0,
         TubeWindow::Arc {
             t0: -(core::f64::consts::FRAC_PI_2 + 0.5),

@@ -188,11 +188,16 @@
 //!    root radius, and thins as it goes — reachable by no revolve
 //!    about any axis, and by no extrude.
 //!
-//!    **The true half, narrowed to what it is.** `sweep_body` still
-//!    cannot round a U-turn — `wire_sweep` refuses unconditionally and
-//!    that door is banked (`SWEEP_FRONTIER`, U4/LQ3) — so a spout that
-//!    turns back on itself is still out of reach, and a loft of enough
-//!    sections is an approximation of that rather than the thing.
+//!    **The true half, narrowed to what it is.** The RECIPE door is
+//!    what is missing: `wire_sweep` refuses unconditionally, and that
+//!    door is banked (`SWEEP_FRONTIER`, U4/LQ3), so a swept spout
+//!    cannot be said in a document and a loft of enough sections is an
+//!    approximation of that rather than the thing. The U-turn itself
+//!    is no longer the obstacle — the library's `sweep_body` rounds
+//!    one (the loft's stacking statement is per-slab; klein wall 5
+//!    carries the retired row) — so what a recipe door would buy here
+//!    is the spine in the document, not a shape the kernel cannot
+//!    build.
 //!
 //!    **What the loft costs instead, and it is a different debt.** The
 //!    SPINE IS NOT IN THE DOCUMENT. `spout_frames` computes seven
@@ -310,7 +315,7 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
 use pncad::document::{
     BooleanOp, CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Expr,
     LoopProgram, Node, NodeErrorKind, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, TubeWindow, ValuePayload, apply, evaluate,
+    RecipeNodeId, RefusingReach, TubeWindow, ValuePayload, apply, evaluate,
 };
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
@@ -811,7 +816,8 @@ struct Recipe {
 }
 
 fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
+    let applied =
+        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the edit applies");
     *doc = applied.doc;
     applied.record.minted.expect("insert mints an id")
 }
@@ -1068,7 +1074,7 @@ pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
     [r.handle_union, r.spout_union, r.pot]
         .into_iter()
         .fold(r.doc, |doc, id| {
-            apply(&doc, &DocEdit::DeleteNode { id }, tol)
+            apply(&doc, &DocEdit::DeleteNode { id }, tol, &RefusingReach)
                 .expect("each is a sink: deleting it drops a root and uncovers no body")
                 .doc
         })
@@ -1389,7 +1395,92 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
         .collect()
 }
 
-pub fn stops(tol: Tol) -> Vec<Stop> {
+/// **The teapot's two walls** — the handle union and the spout union,
+/// each ATTEMPTED for real on every pass and pinned by its own typed
+/// refusal, in the shape `lily::wall_probes` and `klein::wall_probes`
+/// carry theirs.
+///
+/// It takes the scene's evaluation rather than building one of its
+/// own: each union is a NODE of the document and refuses at
+/// `evaluate`, with the kernel's payload carried unaltered into the
+/// panel's note — so the payload the caption quotes and the payload
+/// the probe pins cannot be two different measurements. That is why
+/// this one takes an evaluation where `torusvessel::wall_probes` takes
+/// only a tolerance and builds its own operands: nothing outside that
+/// scene's probe reads what it makes.
+fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
+    // WALL 2 — the handle joined to the pot. A curved x curved pair at
+    // the operand gate; the germ roster has no arm for it.
+    crate::walls::wall(
+        "teapot",
+        2,
+        "join the handle to the vessel (union; both roots driven 11.2 mm past the \
+         belly's inner wall — a real overlap, not a tangency)",
+        join_outcome(ev, r.handle_union),
+        |e| {
+            matches!(
+                e,
+                BooleanError::CurvedPairUnsupported {
+                    op: None,
+                    operand: Operand::B,
+                    kind: SurfaceKind::Torus,
+                    // The pot's belly is a SPHERE now, not the squared
+                    // pot's cylinder: same gate, and the pair it names
+                    // is the pair the geometry actually has.
+                    other_kind: SurfaceKind::Sphere,
+                    ..
+                }
+            )
+        },
+        "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
+         walls 2 and 3, re-state the montage caption (which currently says four solids), \
+         and RE-CUT THE HANDLE'S OVERSHOOT FIRST — at 0.5 rad its roots stand 11.2 mm \
+         inside the cavity, which is fine for a refused request and wrong for a joined one",
+    );
+
+    // WALL 3 — the spout joined to the pot, and it is a DIFFERENT RUNG
+    // of the gate from wall 2 now that the spout is a canal.
+    //
+    // The frustum's walls were cones, so this used to die where wall 2
+    // dies: `CurvedPairUnsupported`, on a face-kind pair with no arm.
+    // A loft's walls are `Nurbs` and the pair gate HAS an arm for
+    // `Nurbs`, so the request gets past that rung and dies one door in,
+    // on an EDGE of operand B — the canal's own seams, whose carriers
+    // are rung 3. The variant's own doc is the finding: *"rung-3 edges
+    // are what the curved zip MINTS, not what it consumes."*
+    //
+    // The predicate matches on the OPERAND alone, deliberately. This
+    // variant carries an `EdgeKey`, and an arena key moves whenever the
+    // model is re-authored (wall 3's face key already did once); a
+    // probe that pinned one would red on a rename. What is pinned is
+    // the class and the side: operand B, the spout, is where the
+    // unconsumable carrier is.
+    crate::walls::wall(
+        "teapot",
+        3,
+        "join the CANAL to the vessel (union; the root disc wholly inside the belly)",
+        join_outcome(ev, r.spout_union),
+        |e| {
+            matches!(
+                e,
+                BooleanError::CurvedEdgeUnsupported {
+                    operand: Operand::B,
+                    ..
+                }
+            )
+        },
+        "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
+         walls 2 and 3, re-state the montage caption (which currently says four solids), \
+         and RE-CUT THE HANDLE'S OVERSHOOT FIRST — at 0.5 rad its roots stand 11.2 mm \
+         inside the cavity, which is fine for a refused request and wrong for a joined one",
+    );
+}
+
+/// The scene's recipe, built and evaluated. Both the render walk and
+/// the wall-probe test below go through here, so the probes are pinned
+/// against the evaluation the scene actually draws from rather than a
+/// second one configured by hand.
+fn evaluated(tol: Tol) -> (Recipe, Evaluation<f64>) {
     let r = build_doc(tol);
     let ev = evaluate::<f64>(
         &r.doc,
@@ -1398,6 +1489,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         &EvalOptions::default(),
         tol,
     );
+    (r, ev)
+}
+
+pub fn stops(tol: Tol) -> Vec<Stop> {
+    let (r, ev) = evaluated(tol);
 
     // ---- the vessel, before the wall ----
     let bellied = body_at(&ev, r.bellied);
@@ -1483,7 +1579,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         .faces()
         .filter_map(|(_, f)| match bellied.get_surface(f.surface) {
             Some(Surface::Plane { origin, normal, .. }) => {
-                Some((origin.y, if f.sense { normal.y } else { -normal.y }))
+                let outward = pncad::geom_brep::OutwardNormal::from_chart(*normal, f.sense);
+                Some((origin.y, outward.vec().y))
             }
             _ => None,
         })
@@ -2194,78 +2291,13 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let cup_triangles: usize = cup_mesh.patches.iter().map(|q| q.triangles.len()).sum();
     assert!(cup_triangles > 0, "a mesh with no triangles is not a mesh");
 
-    // WALL 2 — the handle joined to the pot. A curved x curved pair at
-    // the operand gate; the germ roster has no arm for it.
-    //
-    // Each union is a NODE of the document and refuses at `evaluate`,
-    // with the kernel's payload carried unaltered into the panel's
-    // note — so the payload the caption quotes and the payload the
-    // probe pins cannot be two different measurements.
+    // The two unions, attempted for real. Both refusals are read off
+    // THIS evaluation — the one the probes are run against below and
+    // the one the note quotes — so the caption and the pin are one
+    // measurement.
     let handle_refusal = describe_join(&ev, r.handle_union);
-    crate::walls::wall(
-        "teapot",
-        2,
-        "join the handle to the vessel (union; both roots driven 11.2 mm past the \
-         belly's inner wall — a real overlap, not a tangency)",
-        join_outcome(&ev, r.handle_union),
-        |e| {
-            matches!(
-                e,
-                BooleanError::CurvedPairUnsupported {
-                    op: None,
-                    operand: Operand::B,
-                    kind: SurfaceKind::Torus,
-                    // The pot's belly is a SPHERE now, not the squared
-                    // pot's cylinder: same gate, and the pair it names
-                    // is the pair the geometry actually has.
-                    other_kind: SurfaceKind::Sphere,
-                    ..
-                }
-            )
-        },
-        "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
-         walls 2 and 3, re-state the montage caption (which currently says four solids), \
-         and RE-CUT THE HANDLE'S OVERSHOOT FIRST — at 0.5 rad its roots stand 11.2 mm \
-         inside the cavity, which is fine for a refused request and wrong for a joined one",
-    );
-
-    // WALL 3 — the spout joined to the pot, and it is a DIFFERENT RUNG
-    // of the gate from wall 2 now that the spout is a canal.
-    //
-    // The frustum's walls were cones, so this used to die where wall 2
-    // dies: `CurvedPairUnsupported`, on a face-kind pair with no arm.
-    // A loft's walls are `Nurbs` and the pair gate HAS an arm for
-    // `Nurbs`, so the request gets past that rung and dies one door in,
-    // on an EDGE of operand B — the canal's own seams, whose carriers
-    // are rung 3. The variant's own doc is the finding: *"rung-3 edges
-    // are what the curved zip MINTS, not what it consumes."*
-    //
-    // The predicate matches on the OPERAND alone, deliberately. This
-    // variant carries an `EdgeKey`, and an arena key moves whenever the
-    // model is re-authored (wall 3's face key already did once); a
-    // probe that pinned one would red on a rename. What is pinned is
-    // the class and the side: operand B, the spout, is where the
-    // unconsumable carrier is.
     let spout_refusal = describe_join(&ev, r.spout_union);
-    crate::walls::wall(
-        "teapot",
-        3,
-        "join the CANAL to the vessel (union; the root disc wholly inside the belly)",
-        join_outcome(&ev, r.spout_union),
-        |e| {
-            matches!(
-                e,
-                BooleanError::CurvedEdgeUnsupported {
-                    operand: Operand::B,
-                    ..
-                }
-            )
-        },
-        "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
-         walls 2 and 3, re-state the montage caption (which currently says four solids), \
-         and RE-CUT THE HANDLE'S OVERSHOOT FIRST — at 0.5 rad its roots stand 11.2 mm \
-         inside the cavity, which is fine for a refused request and wrong for a joined one",
-    );
+    wall_probes(&ev, &r);
 
     vec![Stop {
         name: "teapot",
@@ -2440,9 +2472,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              document. Wall 2 matches on operand and the two kinds; wall 3 matches on \
              the OPERAND alone, because the variant it now pins carries no kinds and the \
              edge key it does carry is exactly the sort of value a probe must not pin. The lofted canal above \
-             is what a potter would draw and it IS authorable; what is not is the \
-             U-turn a sweep would round (`wire_sweep` refuses unconditionally, U4/LQ3 \
-             banked) and, one level down, the SPINE ITSELF — the loft's placements are \
+             is what a potter would draw and it IS authorable; what is not is a SWEPT \
+             spout said as a recipe (`wire_sweep` refuses unconditionally, U4/LQ3 \
+             banked — the library sweep itself rounds a U-turn now) and, one level \
+             down, the SPINE ITSELF — the loft's placements are \
              {SPOUT_STATIONS} literal frames this file derives, so the saved document carries no \
              arc and moving the bend re-derives all seven",
             props.volume,
@@ -2479,4 +2512,42 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             SceneBody::plain("teapothandle", [0.58, 0.64, 0.72], handle).named(&ev, r.handle),
         ],
     }]
+}
+
+#[cfg(test)]
+mod wall_probes_run_here {
+    //! The scene's wall pair, driven by the TEST SUITE.
+    //!
+    //! [`wall_probes`] is where the two unions are attempted for real;
+    //! until this test existed its only caller was [`stops`], whose
+    //! only caller is `main.rs`'s render walk. So the frontier the
+    //! scene pins was exercised when somebody RENDERED the tour and
+    //! never under `cd demos/tour && cargo test --release` — the
+    //! command the spec-level local acceptance runs and the one CI's
+    //! "demos tour suite" row names. A union could start succeeding,
+    //! or start refusing for a different reason, with the suite green.
+    //!
+    //! It has to be an in-bin test: `demo-tour` is bin-only (no
+    //! `[lib]`, modules hang off `main.rs`), so nothing under `tests/`
+    //! can name `teapot::wall_probes` at all. `lily` and `klein` carry
+    //! theirs for the same reason and in the same shape.
+    //!
+    //! There is nothing here to assert that the probes do not already
+    //! assert: `crate::walls::wall` panics on BOTH off-nominal
+    //! outcomes — a different refusal, and no refusal at all. Running
+    //! it IS the check, which is why the missing caller was the whole
+    //! defect.
+    //!
+    //! What it costs is the document and one evaluation of it —
+    //! [`evaluated`], the same pair `stops` opens with — and not the
+    //! stop list, whose census, mass properties and tessellations are
+    //! about the bodies rather than about the frontier.
+
+    use super::*;
+
+    #[test]
+    fn every_teapot_wall_is_attempted_by_the_suite() {
+        let (r, ev) = evaluated(Tol::witness());
+        wall_probes(&ev, &r);
+    }
 }

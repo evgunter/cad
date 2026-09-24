@@ -402,3 +402,277 @@ gained its amendment section; the lane resumes on PR 2116.
 ## Announced from LIB (2026-09-09): a derive word on `MateSide`, `AxisSense` and `MateRole`
 
 LIB-MIRROR (PR #2271) adds `Hash` to `MateSide` (`mate.rs:84`), `AxisSense` (`mate.rs:144`) and `MateRole` (`mate/solve.rs:43`) so the Python tag mirrors match their Rust derives under Ev's (A) ruling on `[ev]` #2265; no solver behaviour and no serde spelling changes.
+
+## MSOLVE-6 landed, in review (2026-09-12)
+
+The lane died twice on model limits (2026-09-08, 01:45Z and ~03:20Z)
+after pushing the whole unit — the lever, the reach trait and door,
+the edit door taking the reach, `LoggedEdit` and the replay doors,
+the retired constants, ~400 call sites — and the orchestrator's
+session idled until 2026-09-12. Resumed that day: main had moved 474
+merged PRs, the lane merged it (2,420 commits) into
+`msolve/6-part-extent`, and PR 2116 is job-level green at `21f5a65`
+(39 checks; CI grew a corrupt-input job and a viewer montage lane in
+the interval). What the build measured, beyond the spec: the bracket
+read lives under `EvalScalar` in the eval adapter after the
+bounds-allowlist gate refused a compound bound in `mate/` (ruled: no
+allowlist entry); `split` and `inline` take a resolver rather than a
+reach because the maintenance of a split's own rebinds levers on the
+part the split is minting; the edit refuses only where the prior
+solve reached NO verdict and records `Split { frame: None }` where it
+decided there is no pose (deviation 2, argued in the PR). Style review
+and correctness arm dispatched on that head. Five items were routed
+onto this slate by EVAL and LIB in the interval (the `FromFace` mate
+frame arm under Ev's ruling (F) on PR 2256; three levered clash
+margins with their arm invisible; the flat-index `Part` over a nested
+pattern at `check_reference`; `axis_datum`'s seat; the per-check
+nominal environment) — triaged after this unit's review.
+
+## The routed items triaged (2026-09-12)
+
+Five items reached this slate from EVAL, LIB and FIX while the
+orchestrator idled. Triaged into three units after MSOLVE-6, in
+`plan.md`: MSOLVE-7 gathers the three `member.rs` findings (the
+nested-pattern flat index at `check_reference`, `axis_datum`'s seat,
+the per-check nominal environment); MSOLVE-8 is the three levered
+clash margins with their arm invisible, with the radians-vs-pure-number
+decision the item names; MSOLVE-9 is the `FromFace` mate-frame arm
+under Ev's ruling (F) on PR 2256, last, on MSOLVE-6's reach road. The
+exit walk moves behind them.
+
+## MSOLVE-6 reviews adjudicated, fix pass dispatched (2026-09-12)
+
+Correctness arm PASS with MINORs: C1 the lever bounds the true reach
+on six fixture parts (exact on all-line bodies, 24 % loose on the
+cylinder by the documented rim bound); C2 by construction plus the
+113 pose-pinning rows (main not rebuilt — disk); C3 typed on every
+road; C4 the census; C5 replay store-free and the reach asked only
+when a gauge moves (4 asks on a 3-instance chain: two pairs, two
+parts). Findings: a recorded maintenance row's frame is trusted
+bytes at load (a reflection loads; `SetPlacement` of it refuses);
+`unsolved_because`'s document-wide fallback could attribute another
+cluster's fault and, for a decided kind, PROCEED — dead in practice,
+ruled fixed by dropping the fallback and refusing `fault: None` as
+the typed invariant-excluded report; no interval-lane row for the
+bracket read (P2b adopted). Style: no MAJOR of its own; the
+`Applied.maintenance` and README premises now false; nine spellings
+of "a reach from a resolver"; the lever sum formed twice; five replay
+loops; two knobs for three states in `apply_maintaining`; a
+`PartialEq<DocEdit>` in `src` for a test; the archaeology in
+`lever_arm`'s doc (ruled: discipline §4 over the spec's "keep the
+story"); `PosesOfAnotherDocument` filed as decided (ruled: refuse).
+Twenty-seven items to the lane.
+
+## MSOLVE-6 lane resumed; six routed items triaged (2026-09-19)
+
+The implementer lane died on a session limit on 2026-09-12 with the
+whole 27-item fix pass committed locally (two commits over a merge
+with main) and nothing pushed; PR 2116 sat at `21f5a65ec` for a week
+while main moved 3506 commits and went `dirty`. Resumed 2026-09-19:
+push first, merge main again (EDIT's typed mate head, PR 2799, lands
+in the same files), the full verification as a fresh head, the PR
+body's fix-pass section, green at job level, then the head to this
+orchestrator for the item 1/2/4/8/10/11 spot-check and the merge.
+
+Six items reached `work/msolve/` from other programs while the
+orchestrator was idle. Two closed at triage as records (the stale
+`tree.rs` citation in the closed memo-key row, and MSOLVE-5's three
+kind rows that EDIT's typed head made unwritable — ruled: an ordering
+over one question is empty, nothing replaces it). `MatePrimitive`'s
+missing `deny_unknown_fields` joins MSOLVE-7's lane; `coset.rs`'s
+unit-direction witness and the `MateFault` subject row join MSOLVE-8's
+(ruled: no `subject()`, a sentence on the enum naming its two
+consumers and the `Band`/`PosesOfAnotherDocument` asymmetry); the
+clocking row splits — the static `FrameCoincidence`+clocking refusal
+at `AddMate` is MSOLVE-10, the roll convention rides MSOLVE-9's spec.
+`plan.md` items 13–16.
+## MSOLVE-6 MERGED (2026-09-19, PR 2116)
+
+The lever is the mated parts' own extent, and the edit door takes the
+reach with the log recording the maintenance. Reviews on `21f5a65ec`
+(correctness PASS with MINORs, style no MAJOR); the twenty-seven-item
+fix pass landed after the lane's session limit reset, over two merges
+with main (3506 commits, then 32: EDIT's typed mate head, DM7's mated
+deletes, the drafts row) and one CI round for four callers main added
+and the `deny_unknown_fields` census tally (two new sites in `edit.rs`,
+one in `mate/solve.rs` — a re-baseline, the sibling row passing).
+Orchestrator spot-check on the diff: the row-frame walk and the
+`SetPlacement` door share `Frame::admission_fault`; `unsolved_because`
+reads the gauge's own fault and `None` refuses; `PosesOfAnotherDocument`
+refuses; one `PartReach::with_resolver` at every resolver-only door;
+`mate_coset` takes the arm; one `replay_entry` behind five replays.
+Spec into the ledger at the unit head. Closes the lever item and the
+reconcile fork. Next: MSOLVE-7 (member.rs residue + the `MatePrimitive`
+wire hole), then MSOLVE-8, -9, -10 per `plan.md`.
+
+## MSOLVE-7 reviews adjudicated, fix pass dispatched (2026-09-19)
+
+PR 2885, head `6e27dac6a`. Correctness arm: C1–C4 HOLD (the offset
+is the document's nominal parameter bit for bit and follows a
+`SetDocParamValue`; the dangling-transform seat is the transform on
+both roads; 219 mate rows unchanged at three ε; the stray key refuses
+at the load door and loaded before the attribute). One MINOR: a
+transform over a DATUM as a circular pattern's axis is reachable
+through `apply`, and there the derivation still seats `WrongOperand`
+at the pattern while the evaluation seats it at the transform — the
+unit's own "live transform" row asserts one road on a fixture the
+evaluation refuses. Ruled: the unit's thesis is one seat, so that
+shape is seated at the transform through the one classifier, not a
+copied rule, with both roads on the row. Style: no MAJOR; the
+evaluator builds its nominal environment and then calls the solve,
+which builds a second (the class this unit closes, open at its own
+boundary — ruled: a crate-private solve entry that takes the
+evaluator's environment); the eight-parameter `solve_cluster` behind
+a clippy allow (ruled: a per-solve context, which the spec's "no
+cache that outlives the solve" never forbade); the seated pair spelled
+three ways; `node_value_kind` taking an id and its node; the A1 scan
+row's vacuous-green shapes; the environment sentence restated six
+times beside its new home; debug-string asserts; a stale
+`PlacerRefused::placer` doc. Thirteen items to the lane; two rows to
+file (the maintenance half of `solve.rs`, the `null` spelling of a
+unit variant).
+## MSOLVE-7 MERGED (2026-09-19, PR 2885)
+
+The member walk's residue: one nominal environment per solve, handed
+in by the evaluator; the axis operand's refusals seated where the
+evaluation seats them through one classifier; the flat index's
+account closed by citation; the mate wire's one `deny_unknown_fields`
+hole closed. Reviews on `6e27dac6a` (correctness PASS with one MINOR,
+style no MAJOR); the thirteen-item fix pass landed in one push over
+one merge with main. Orchestrator spot-check on the diff: `evaluate`
+→ `solve_with_env`; the `Solve` context; `node_value_kind` by id
+tracking the placer; seven both-roads seat rows; the A1 pin naming
+its functions. Spec into the ledger at the unit head. Closes the four
+items; four rows filed (three here, one on WIRE). Next: MSOLVE-8
+(`docs/MSOLVE-8-SPEC.md`, on the orchestrator branch), then -9, -10.
+
+## MSOLVE-8 dispatched; MSOLVE-9 spec and A11 sentence to Ev (2026-09-19)
+
+MSOLVE-8's lane launched from main after PR 2894 landed its spec.
+MSOLVE-9 — Ev's (F) on PR 2256 — drafted as a design unit: the arm
+resolves on MSOLVE-6's reach road (a cached part is its own product
+and name table in part coordinates, so `MateReach` grows `face_pose`
+and no placement pull-back is needed), the part-local name and the
+`reference` rule stated, the memo key carries the part's pin. A11
+rule 5's inputs sentence is the one ratified text that moves; DESIGN.md
+carries no A11 sentence (measured). Both on an `[ev]` PR, waiting for
+Ev's word; the unit dispatches after that merge and after MSOLVE-8.
+
+## MSOLVE-8 reviews adjudicated, fix pass dispatched (2026-09-20)
+
+PR 2896, head `f3896c554`. Correctness arm: C1, C3, C4 HOLD (the
+three residuals re-derived from the frames bit for bit; 266 mate rows
+unchanged at three ε; `Band` reaches every row and
+`PosesOfAnotherDocument` none, measured). C2 PARTIAL with one MAJOR:
+the planar-pair line is minted under a second decision
+(`‖(n1×n2)·arm‖`) that differs from `parallel`'s (`‖n1×n2‖·arm`) by
+up to two ulps, so at the escalate boundary ten door-built two-rest
+documents that were UNDER on main now refuse `Indeterminate` — a
+verdict move, which the spec calls a finding. Ruled: one decision —
+`parallel` decides the levered cross product's length through the
+normalizing constructor under its own name and returns the witness
+it minted, so the planar-pair site takes the direction the predicate
+decided and `mate_planar_pair_line` retires. MINOR: the aim is
+decided three times per mate where main decided twice, under one
+funnel name, because the lane's deviation 1 re-mints the axis under
+`point_at`'s name instead of taking the frame witness — and the spec's
+stop clause named that condition; the lane argued past it (recorded
+as a process lapse). Ruled: the door goes in geom-core after all — a
+`point_at` sibling returning the `OrthoFrame` it already builds, with
+`point_at` its `to_affine`, announced on SCALAR's tracker (the row
+the lane filed closes as done by this unit); `MateFrame::frame` takes
+it, the copied refusal projection, the dead side-A map and the third
+band build go. Style: `Contradictory`'s `clash` stored beside the
+lever's halves (ruled: one closed `Clash { Structural, Length,
+Levered(Lever) }`, the string compare on `MATE_MEMBER_EMPTY` with it);
+`derived_direction` mapping a decided zero to the in-band escalation
+(ruled: the frame ladder's own vocabulary under `MateFault::Frame`);
+two raising sites bypassing the one home for a levered margin; a
+second copy of the no-mate asymmetry on the enum; a hand-kept caller
+list; "thirty-two" counting nothing; rows that cannot go red. The
+Roll/Residual arms print different levers (the mate's own vs the
+fold's) — ruled honest, each the arm its predicate was decided over,
+stated at the type. Twenty-two items to the lane; one row to file
+(`LeverRefusal` mirroring `ReachRefusal`).
+## MSOLVE-8 MERGED (2026-09-20, PR 2896)
+
+The typed lever and the closed `Clash`; the coset's directions as
+`UnitVec3` with `parallel` deciding once and returning its witness;
+`MateFrame::frame` over geom-core's new `point_at_frame` (the fence
+widened by that one door, announced on SCALAR's tracker); the
+`MateFault` consumer sentence. Reviews on `f3896c554` (correctness
+one MAJOR — the planar-pair line's second decision refused under its own name at
+the boundary — and one MINOR, the aim decided three times per mate;
+style no MAJOR); the twenty-two-item fix pass landed in one push,
+the lane's argued-past stop clause reversed by ruling. Orchestrator
+spot-check on the diff: `parallel`'s one decision, `mate_planar_pair_
+line` gone; `point_at` = `point_at_frame(..).to_affine()`; `Clash`
+without the string compare; the aim-count row at two per mate. Spec
+into the ledger at the unit head. Closes the three items; two rows
+filed here. Next: MSOLVE-9 waits on Ev's word on PR 2895; MSOLVE-10
+(the static clocking refusal at `AddMate`) specs next.
+
+## MSOLVE-10 MERGED (2026-09-20, PR 2913)
+
+The insert door asks the solve's own per-mate admission
+(`admit_mate`) and refuses `EditError::MateRefused` with the solve's
+fault unaltered; the table's static gaps have one home
+(`mate::table_gap`, the fence widened by that one pub fn); one
+per-reference prefix (`check_references`) for the solve's first loop
+and the door; the lever a named `LeverArm`; `Maintain::reach` states
+the two replay rules once; `DocEdit::writes_a_mates_datum` pins that
+the mate insert is the one edit writing a datum. Reviews on
+`7534c8854` (style six MAJOR, the correctness arm's probes run by the
+orchestrator after the arm hung: door equals solve to the bit, the
+reach asked once per part, the band's edges agreeing); the fix pass
+landed in one push plus the census disposition of `table_gap` and a
+merge of main after PR 2895 conflicted `ASSEMBLY.md`. Orchestrator
+spot-check on the diff: the five rulings as ruled; one residue (a
+copied gap string as a fallback) fixed in the census push. Principle
+settled and written into A11 rule 1 as an elaboration: the doors
+decide edits, the solve decides states. Spec into the ledger at the
+unit head. Closes `mate-clocking-has-no-gui-path` (both halves
+recorded); files `mate-band-fault-unreachable-on-a-mate`. Next:
+MSOLVE-9 dispatches from main; the exit walk's rows 10–11 close.
+
+
+## Announced seam from DOOR (2026-09-21) — PR 2984
+
+**`crates/editor-core/src/mate/member.rs`, one line.** DOOR's
+`the-third-datum-axis-phrase-lives-in-mate-member`: `axis_datum`'s
+`expected:` was the literal `"datum axis"` and is now
+`crate::eval::phrase::DATUM_AXIS`, the const composed at compile time
+from the family word so the phrase and the `found:` word beside it
+cannot drift. WIRE retired its two copies onto it earlier; **this was
+the third and last in the tree**, re-derived as a measurement rather
+than inherited from the row.
+
+**No refusal text moves.** The const expands to exactly `"datum axis"`,
+verified through `concat!(family_word!(datum), " axis")` before the
+change landed, so every assertion on that sentence stays green by
+construction — including your `msolve3_placer_refused` rows.
+
+**One thing to know about your unit tests in that module.** Four of
+`member.rs`'s eight rows build their expectation from the const while
+the source held a literal, so they were discriminating the gap between
+the two — proved by mutation: drifting the literal turned exactly those
+four red. **That gap is now closed, so those four no longer discriminate
+the phrase's value**; both sides are the same const. This is correct and
+is the point of one home, but it means the only things in the tree still
+pinning the user-visible sentence are two literals in
+`crates/editor-core/tests/` (`lib_tube_node.rs`'s `expected: "datum
+axis"` pattern and `msolve3_placer_refused.rs`'s `contains` check).
+**Those must stay literals** — a test naming the const could never catch
+a change to the const's expansion. The `phrase` module's rule is about
+construction sites and does not reach test assertions.
+
+`found:` is untouched and was already right — it comes from
+`crate::eval::node_value_kind`. The row explicitly fenced off the
+`node_operand`/`axis_datum` refactor, and the lane did not widen into
+it; the residue is filed on WIRE's slate as
+`node-operand-has-one-consumer-where-axis-datum-is-the-same-door`, where
+it records that the two doors **disagree about the seat** —
+`node_operand` drops what `node_value_kind` answers with, `axis_datum`
+carries it per MSOLVE-7. Worth your read, since half of it is your file.
+
+Signed (DOOR orchestrator).
