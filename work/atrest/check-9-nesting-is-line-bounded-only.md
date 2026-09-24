@@ -80,3 +80,15 @@ open, and it is the decide this row's second third needs;
 `crates/topo/src/boolean/` is S-BOOL's ground and `validate.rs` is this
 program's, so that visibility change is announced on S-BOOL's board
 before it lands.
+
+**Resolved by ATREST-5.** The `Disc` third is closed: check 9's gate
+(`validate::nesting_region`) opens for a `Disc`-class outer loop on a
+`Plane` face and `validate::ring_nesting` places each ring vertex with
+`boolean::contain::disc_side`, now `pub(crate)` with its decide key,
+band and escalation unchanged. The `ArcParity` and `NoWalk` thirds
+moved, with their text, to
+`work/atrest/check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk.md`
+(parked on `arc-aware-point-in-loop`). The premise the vertex queries
+rest on — the two loops do not cross — is stated at `ring_nesting` and
+its unchecked half filed as
+`work/atrest/check-9-contact-half-misses-a-crossing-and-a-tangency.md`.

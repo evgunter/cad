@@ -11,12 +11,15 @@
 //!
 //! Where the arm is silent the pair asserts the silence in BOTH
 //! directions: that is check 9's stated residue, and a residue nothing
-//! measures is a claim.
+//! measures is a claim. The outer-loop classes this file reaches
+//! through the doors are all decided — no arc, and one circle; the
+//! silent classes are measured crate-side, in
+//! `validate::tests::an_arc_bearing_outer_loop_is_the_gates_residue`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tol};
+use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::{Extrusion, extrude};
+use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, FaceSurface, LoopKey, ValidationError};
 
 fn tol() -> Tol {
@@ -118,9 +121,8 @@ fn invert_the_glue(body: &Body<f64>) -> (Body<f64>, FaceKey, LoopKey) {
 }
 
 /// The honest body validates and check 9 is silent on it; the inverted
-/// glue is refused by name when `decided`, and silent in both
-/// directions when it is not (the gate's stated residue).
-fn nested_then_inverted(name: &str, body: &Body<f64>, decided: bool) {
+/// glue is refused by name, on that face and that loop.
+fn nested_then_inverted(name: &str, body: &Body<f64>) {
     let words = check_9_words(body);
     assert!(
         words.is_empty(),
@@ -133,19 +135,12 @@ fn nested_then_inverted(name: &str, body: &Body<f64>, decided: bool) {
     );
     let (inverted, face, outer) = invert_the_glue(body);
     let words = check_9_words(&inverted);
-    if decided {
-        assert!(
-            words.iter().any(|w| w.contains("RingOutsideOuter")
-                && w.contains(&format!("{face:?}"))
-                && w.contains(&format!("{outer:?}"))),
-            "[{name}] the inverted glue must be refused by name; got {words:?}"
-        );
-    } else {
-        assert!(
-            words.is_empty(),
-            "[{name}] the arm's residue: it must be SILENT here; got {words:?}"
-        );
-    }
+    assert!(
+        words.iter().any(|w| w.contains("RingOutsideOuter")
+            && w.contains(&format!("{face:?}"))
+            && w.contains(&format!("{outer:?}"))),
+        "[{name}] the inverted glue must be refused by name; got {words:?}"
+    );
 }
 
 // ---- the arm decides, and refuses no valid body -------------------------
@@ -156,7 +151,7 @@ fn a_plate_with_a_hole_at_one_end() {
         &[&rect(0.0, 0.0, 10.0, 0.2), &rect(9.6, 0.05, 9.7, 0.15)],
         0.1,
     );
-    nested_then_inverted("10 x 0.2 plate, end hole", &body, true);
+    nested_then_inverted("10 x 0.2 plate, end hole", &body);
 }
 
 #[test]
@@ -170,9 +165,9 @@ fn a_ring_beside_a_concave_corner() {
         (0.0, 4.0, 0.0),
     ];
     let body = plate(&[&l, &rect(0.1, 1.1, 0.9, 1.9)], 0.5);
-    nested_then_inverted("L-plate, ring up the reflex corner", &body, true);
+    nested_then_inverted("L-plate, ring up the reflex corner", &body);
     let body = plate(&[&l, &rect(1.1, 0.1, 1.9, 0.9)], 0.5);
-    nested_then_inverted("L-plate, ring along the reflex corner", &body, true);
+    nested_then_inverted("L-plate, ring along the reflex corner", &body);
 }
 
 #[test]
@@ -184,7 +179,7 @@ fn a_ring_in_a_long_thin_face() {
         ],
         0.05,
     );
-    nested_then_inverted("400:1 plate, hole at the end", &body, true);
+    nested_then_inverted("400:1 plate, hole at the end", &body);
     let body = plate(
         &[
             &rect(0.0, 0.0, 20.0, 0.05),
@@ -192,7 +187,7 @@ fn a_ring_in_a_long_thin_face() {
         ],
         0.05,
     );
-    nested_then_inverted("400:1 plate, hole at the middle", &body, true);
+    nested_then_inverted("400:1 plate, hole at the middle", &body);
 }
 
 #[test]
@@ -205,7 +200,7 @@ fn two_rings_on_one_face() {
         ],
         0.5,
     );
-    nested_then_inverted("two-ring plate", &body, true);
+    nested_then_inverted("two-ring plate", &body);
 }
 
 /// **A bowed end on the outer loop does not cost the pair its
@@ -226,27 +221,84 @@ fn a_plate_with_one_rounded_end_still_refuses_its_inversion() {
         (0.0, 1.0, 0.0),
     ];
     let body = plate(&[&outer, &rect(1.0, 0.3, 1.5, 0.7)], 0.4);
-    nested_then_inverted("bowed-end plate, one arc over four vertices", &body, true);
+    nested_then_inverted("bowed-end plate, one arc over four vertices", &body);
 }
 
-// ---- the gate's residue, measured in both directions ---------------------
+// ---- the disc class: every edge of the outer loop an arc of one circle ---
 
-/// **The disc class is a residue too, and it is the one with a known
-/// widening.** A loop every edge of which is an arc of ONE circle has
-/// a region the parity polygon does not express — the polygon through
-/// two semicircle endpoints has zero area — so the arm says nothing
-/// rather than refusing a valid body. `boolean::contain`'s `disc_side`
-/// decides that class exactly and reaching it from tier 3 is the
-/// widening `work/atrest/check-9-nesting-is-line-bounded-only.md` holds.
+/// **An annular face is decided, in both directions.** A loop every
+/// edge of which is an arc of ONE circle bounds that circle's disc,
+/// which the parity polygon does not express — the polygon through two
+/// semicircle endpoints has zero area — and which `boolean::contain`'s
+/// `disc_side` decides exactly. The honest annulus validates; its
+/// inversion, whose outer loop is the small circle and whose ring is
+/// the large one, is refused by name.
 #[test]
-fn a_disc_outer_loop_is_the_gates_residue() {
+fn an_annular_face_is_decided() {
     let body = plate(&[&circle(0.0, 0.0, 2.0), &circle(0.0, 0.0, 0.5)], 0.3);
-    nested_then_inverted("annulus face: both loops discs", &body, false);
-    // A polygonal outer loop with a round hole IS decided; it is the
-    // INVERSION of that body, whose outer loop becomes the circle,
-    // that lands in the disc class.
+    nested_then_inverted("annulus face: both loops discs", &body);
+    // An off-centre hole: its vertices sit at different radii of the
+    // outer disc, so the margin read is not the same one at every
+    // query.
+    let body = plate(&[&circle(0.0, 0.0, 2.0), &circle(1.2, 0.3, 0.4)], 0.3);
+    nested_then_inverted("annulus face, eccentric hole", &body);
+    // A polygonal outer loop with a round hole: the honest face is the
+    // polygon class; its INVERSION, whose outer loop becomes the
+    // circle, is the disc class, and a square ring's corners lie
+    // outside it.
     let body = plate(&[&rect(-2.0, -2.0, 2.0, 2.0), &circle(0.0, 0.0, 0.5)], 0.3);
-    nested_then_inverted("round hole in a square plate", &body, false);
+    nested_then_inverted("round hole in a square plate", &body);
+}
+
+/// **Every shelled vessel of revolution carries an annular rim, and it
+/// certifies.** The shape the disc class is named for: a revolved cup
+/// opened through `shell_open`, whose mouth is the annulus between the
+/// wall's two radii. A false refusal here would cost every such part,
+/// so the honest cup must validate; the rim with its host and guest
+/// roles inverted — the pick `shell_open`'s glue must not make — is
+/// refused by name at rest.
+#[test]
+fn a_shelled_vessel_of_revolution_certifies_and_its_inverted_rim_does_not() {
+    let (r, h, t) = (1.0, 2.0, 0.2);
+    let meridian = ProfileLoop::new(vec![
+        ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
+        ProfileVertex::new(Point2::new(r, 0.0), 0.0),
+        ProfileVertex::new(Point2::new(r, h), 0.0),
+        ProfileVertex::new(Point2::new(0.0, h), 0.0),
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![meridian])
+        .validate(tol())
+        .expect("the meridian profile");
+    let vessel = revolve(
+        &profile,
+        RevolveAxis {
+            origin: Point2::new(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        },
+        Revolution::Full,
+        tol(),
+    )
+    .expect("the meridian revolves")
+    .body;
+    // The axis is `y`: the top cap is every planar face at `y = h`.
+    let top: Vec<FaceKey> = vessel
+        .faces()
+        .filter(|(_, f)| {
+            matches!(vessel.get_surface(f.surface),
+                Some(geom::Surface::Plane { origin, .. }) if (origin.y - h).abs() < 1e-9)
+        })
+        .map(|(k, _)| k)
+        .collect();
+    let cup = topo::shell_open(&vessel, t, &top, tol())
+        .expect("the vessel opens")
+        .body;
+    let ringed: Vec<FaceKey> = cup
+        .faces()
+        .filter(|(_, f)| !f.rings.is_empty())
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(ringed.len(), 1, "one ringed face: the rim");
+    nested_then_inverted("shelled revolved cup, its rim", &cup);
 }
 
 // ---- orientation ---------------------------------------------------------

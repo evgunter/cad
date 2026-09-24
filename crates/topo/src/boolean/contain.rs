@@ -204,8 +204,8 @@ pub(crate) enum LoopShape<T: geom_core::Real> {
     /// [`contfp`] walks it anyway — one point's verdict, the posture
     /// it has always taken, with #1076 owning the general case. A
     /// consumer that would REFUSE a body on an `Out` must not: tier
-    /// 3's check 9 gates its nesting arm on [`Self::Polygon`] alone
-    /// for exactly that reason.
+    /// 3's check 9 gates its nesting arm on [`Self::Polygon`] and
+    /// [`Self::Disc`] alone for exactly that reason.
     ArcParity,
     /// **No walk expresses this region.** Arc-bearing over fewer than
     /// three vertices: the polygon through them is a segment of ZERO
@@ -360,7 +360,11 @@ pub(crate) fn loop_shape<T: Decide>(
 /// Which side of a [`loop_shape`] circle `q` lies on. `q` is on the
 /// face's plane by [`contfp`]'s contract, so the in-plane radial
 /// distance is the whole question.
-fn disc_side<T: Decide>(
+///
+/// Visible to the crate for the reason [`LoopShape`] is: tier 3's
+/// check 9 decides its nesting arm's disc class here, the same
+/// question about the same loops, so one decide answers both callers.
+pub(crate) fn disc_side<T: Decide>(
     disc: LoopCircle<T>,
     q: Point3<T>,
     band: Band,

@@ -43,7 +43,7 @@ severity, and `cost: H` carries the effort separately.
 
 Tier 3 has no at-rest containment walk at all. This is the same family
 as check 9's deferred nesting half
-(`check-9-nesting-is-line-bounded-only`) and
+(`check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk`) and
 `validate-tier3-curved-boundary-containment`: the shape that would
 answer it is `shell::encloses`-shaped, not flux-shaped, and a
 sign-level read of a shell's volume — which ATREST-1 built and is
