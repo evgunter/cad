@@ -12,7 +12,7 @@
 
 use crate::common;
 
-use common::insert;
+use common::session_insert;
 use pncad::document::{Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, apply};
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{Step, Target};
@@ -44,7 +44,7 @@ fn with_profile(points: &[(f64, f64)]) -> (DocSession, RecipeNodeId) {
     let tol = Tol::witness();
     let mut session = DocSession::inline(Doc::empty_derived("probe", tol), tol);
     let plane = common::xy_frame_in(&mut session);
-    let profile = insert(
+    let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),

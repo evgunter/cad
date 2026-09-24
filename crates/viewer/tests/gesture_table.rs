@@ -646,7 +646,7 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
     // A pattern over the probed instance: the slots a value gesture can
     // open on in an assembly of bare instances, and the reason the
     // instance's display state has a root to propagate to.
-    let pattern = perform(
+    let pattern = common::session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: post,
@@ -657,12 +657,6 @@ fn a_value_gesture_and_a_free_move_probe_do_not_disturb_each_other() {
             },
         },
     );
-    assert_eq!(pattern.committed.len(), 1);
-    let pattern = *session
-        .doc()
-        .order()
-        .last()
-        .expect("the pattern is the last node inserted");
     assert_eq!(
         viewer::display::drawn_targets(session.doc(), post),
         Ok(std::iter::once(pattern).collect()),

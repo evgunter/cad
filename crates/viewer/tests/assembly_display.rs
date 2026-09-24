@@ -48,14 +48,15 @@ fn seat_alignment() -> Alignment {
 /// Author the seat mate between `a_instance` and the shelf through
 /// the session's one committed-edit door.
 fn add_seat_mate(session: &mut DocSession, bench: &asm::Bench, a_instance: RecipeNodeId) {
-    let outcome = session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(a_instance, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Rest,
-        alignment: seat_alignment(),
-    });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
+    common::session_insert(
+        session,
+        SessionOp::AddMate {
+            a: common::head(asm::in_part(a_instance, &bench.post_top)),
+            b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+            class: ContactClass::Rest,
+            alignment: seat_alignment(),
+        },
+    );
     session.pump();
 }
 

@@ -22,7 +22,7 @@
 
 use crate::common;
 
-use common::{ang, body_volume, insert, len, len2, len3, near, scl2, scl3, shape};
+use common::{ang, body_volume, len, len2, len3, near, scl2, scl3, session_insert, shape};
 use pncad::document::SplitSide;
 use pncad::document::{
     Axis3, BooleanOp, Datum, Dimension, DimensionError, Doc, EditError, Expr, LoopProgram, Node,
@@ -63,7 +63,7 @@ fn session(tol: Tol) -> DocSession {
 /// rectangle profile on world XY, one extrude.
 fn boxed(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
     let plane = common::xy_frame_in(session);
-    let profile = insert(
+    let profile = session_insert(
         session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),
@@ -73,7 +73,7 @@ fn boxed(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
             })],
         },
     );
-    insert(
+    session_insert(
         session,
         SessionOp::AddExtrude {
             profile,
@@ -89,7 +89,7 @@ fn two_boxes(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     let mut session = session(tol);
     let a = boxed(&mut session, A);
     let raw_b = boxed(&mut session, B);
-    let b = insert(
+    let b = session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: raw_b,
@@ -134,7 +134,7 @@ fn assert_volume(session: &mut DocSession, node: RecipeNodeId, want: f64, tol: T
 fn a_two_body_union_authors_evaluates_saves_and_reloads() {
     let tol = Tol::witness();
     let (mut session, a, b) = two_boxes(tol);
-    let union = insert(
+    let union = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
@@ -193,7 +193,7 @@ fn subtraction_is_not_commutative_in_the_authored_order() {
     let va = A[0] * A[1] * A[2];
     let vb = B[0] * B[1] * B[2];
 
-    let a_minus_b = insert(
+    let a_minus_b = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Subtract,
@@ -201,7 +201,7 @@ fn subtraction_is_not_commutative_in_the_authored_order() {
             b,
         },
     );
-    let b_minus_a = insert(
+    let b_minus_a = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Subtract,
@@ -220,7 +220,7 @@ fn subtraction_is_not_commutative_in_the_authored_order() {
 
     // The intersection is the overlap brick either way — the operand
     // order is data for subtraction and for nothing else here.
-    let meet = insert(
+    let meet = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Intersect,
@@ -239,7 +239,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
     let mut session = session(tol);
     let a = boxed(&mut session, A);
     let plane = common::xy_frame_in(&mut session);
-    let profile = insert(
+    let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),
@@ -249,7 +249,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
             })],
         },
     );
-    let plane = insert(
+    let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
@@ -341,7 +341,7 @@ fn the_split_door_takes_a_body_and_a_datum_plane() {
     let mut session = session(tol);
     let body = boxed(&mut session, A);
     let cut = 0.004;
-    let plane = insert(
+    let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
@@ -350,7 +350,7 @@ fn the_split_door_takes_a_body_and_a_datum_plane() {
             },
         },
     );
-    let axis = insert(
+    let axis = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
@@ -389,7 +389,7 @@ fn the_split_door_takes_a_body_and_a_datum_plane() {
         refused.refusal
     );
 
-    let split = insert(
+    let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body,
@@ -410,7 +410,7 @@ fn several_bodies_are_not_one_body_at_a_seat() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = boxed(&mut session, A);
-    let plane = insert(
+    let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
@@ -419,14 +419,14 @@ fn several_bodies_are_not_one_body_at_a_seat() {
             },
         },
     );
-    let split = insert(
+    let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body,
             tool: plane,
         },
     );
-    let pattern = insert(
+    let pattern = session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: body,
@@ -476,7 +476,7 @@ fn the_transform_door_places_a_body_with_literal_slots() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = boxed(&mut session, A);
-    let placed = insert(
+    let placed = session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: body,
@@ -540,7 +540,7 @@ fn the_pattern_door_spells_its_count_structurally() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = boxed(&mut session, A);
-    let axis = insert(
+    let axis = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
@@ -549,7 +549,7 @@ fn the_pattern_door_spells_its_count_structurally() {
             },
         },
     );
-    let linear = insert(
+    let linear = session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: body,
@@ -588,7 +588,7 @@ fn the_pattern_door_spells_its_count_structurally() {
 
     // The circular rule takes the axis from the tool's second seat,
     // and that seat wants an axis datum.
-    let circular = insert(
+    let circular = session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: body,
@@ -633,7 +633,7 @@ fn the_pattern_door_spells_its_count_structurally() {
 fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
     let tol = Tol::witness();
     let (mut session, part, proto) = two_boxes(tol);
-    let fused = insert(
+    let fused = session_insert(
         &mut session,
         SessionOp::AddPlacedUnion {
             input: proto,
@@ -683,7 +683,7 @@ fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
 
     // And the seat that refuses a pattern takes this: the fused group
     // merges into the part through the ordinary boolean door.
-    let union = insert(
+    let union = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
@@ -715,7 +715,7 @@ fn overlapping_placements_refuse_on_the_fused_nodes_own_badge() {
     let proto = boxed(&mut session, B);
     // A step shorter than the prototype is wide: every pair of copies
     // meets.
-    let crowded = insert(
+    let crowded = session_insert(
         &mut session,
         SessionOp::AddPlacedUnion {
             input: proto,
@@ -728,7 +728,7 @@ fn overlapping_placements_refuse_on_the_fused_nodes_own_badge() {
     );
     // The unfused door over the SAME rule lands a value: the
     // difference is the certificate, not the placements.
-    let loose = insert(
+    let loose = session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: proto,
@@ -774,7 +774,7 @@ fn a_fused_pattern_round_trips_through_save_and_open() {
     let tol = Tol::witness();
     let mut authoring = session(tol);
     let proto = boxed(&mut authoring, B);
-    let fused = insert(
+    let fused = session_insert(
         &mut authoring,
         SessionOp::AddPlacedUnion {
             input: proto,
@@ -833,7 +833,7 @@ fn undo_and_redo_walk_the_fused_pattern_out_and_back() {
     let proto = boxed(&mut session, B);
     let before = session.committed_doc().clone();
     let states = session.history().len();
-    let fused = insert(
+    let fused = session_insert(
         &mut session,
         SessionOp::AddPlacedUnion {
             input: proto,
@@ -921,7 +921,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = boxed(&mut session, A);
-    let plane = insert(
+    let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
@@ -1105,7 +1105,7 @@ fn a_non_positive_count_refuses_at_the_node_not_at_the_door() {
     let mut session = session(tol);
     let body = boxed(&mut session, A);
     for count in [0, -3] {
-        let pattern = insert(
+        let pattern = session_insert(
             &mut session,
             SessionOp::AddPattern {
                 input: body,
@@ -1355,7 +1355,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     let tol = Tol::witness();
     let (mut session, body, _) = two_boxes(tol);
     let sketch_frame = common::xy_frame_in(&mut session);
-    let profile = insert(
+    let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(sketch_frame),
@@ -1365,7 +1365,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             })],
         },
     );
-    let plane = insert(
+    let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
@@ -1374,7 +1374,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
             },
         },
     );
-    let axis = insert(
+    let axis = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
@@ -1386,7 +1386,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     // A node the seat's own `wants()` says it cannot hold — and one
     // that is a legal node of SOME kind, so what the door refuses is
     // the kind and never the absence.
-    let sketch_axis = insert(
+    let sketch_axis = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::AxisInPlane {
@@ -1494,7 +1494,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
 fn a_second_body_re_targets_the_split_rather_than_displacing_its_plane() {
     let tol = Tol::witness();
     let (mut session, a, b) = two_boxes(tol);
-    let plane = insert(
+    let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
@@ -1519,7 +1519,7 @@ fn a_second_body_re_targets_the_split_rather_than_displacing_its_plane() {
 
     // And the routing runs the other way too: a second PLANE replaces
     // the plane, not the body it would otherwise displace.
-    let lower = insert(
+    let lower = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
@@ -1560,7 +1560,7 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
     // A profile is neither a body nor a plane, so the split tool has
     // no seat to steer it to.
     let plane = common::xy_frame_in(&mut session);
-    let profile = insert(
+    let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),
@@ -1836,17 +1836,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         tol,
     );
     doc = next;
-    let (next, profile_b) = common::inserted(
-        &doc,
-        Node::Profile(ProfileProgram {
-            plane: lifted,
-            loops: vec![
-                LoopProgram::polygon([(0.0, 0.0), (0.02, 0.0), (0.02, 0.02), (0.0, 0.02)])
-                    .expect("finite corners"),
-            ],
-        }),
-        tol,
-    );
+    let (next, profile_b) = common::inserted(&doc, common::square(lifted, 0.02), tol);
     doc = next;
     let (next, ring) = common::inserted(
         &doc,
@@ -2224,7 +2214,7 @@ fn each_tool_narrows_the_cursor_to_what_it_can_use() {
 fn the_split_plane_is_the_datum_form_s_own_plane() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let plane = insert(
+    let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {

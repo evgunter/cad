@@ -16,7 +16,7 @@
 
 use crate::common;
 
-use common::{insert, shape};
+use common::{session_insert, shape};
 use pncad::document::{Dimension, Doc, DocParam, ParamName};
 use pncad::document::{
     DocEdit, EditError, LoopProgram, Node, ParamEnv, ProfileProgram, RecipeNodeId, SlotId, StepArg,
@@ -160,7 +160,7 @@ fn with_profile(loops: &[ProfileShape], notation: Notation) -> (DocSession, Reci
         .iter()
         .map(|loop_| sketch::loop_program(loop_, notation).expect("a finite template"))
         .collect();
-    let profile = insert(
+    let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),

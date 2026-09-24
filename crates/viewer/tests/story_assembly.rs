@@ -40,7 +40,7 @@ use crate::common;
 use std::path::Path;
 
 use common::asm;
-use common::{body_volume, insert, len, near, shape};
+use common::{body_volume, len, near, session_insert, shape};
 use pncad::document::{Doc, DocumentId, Frame, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{Ray, Resolution, RunCtx, resolve};
@@ -102,14 +102,14 @@ fn author_box_part(
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let plane = common::xy_frame_in(session);
-    let profile = insert(
+    let profile = session_insert(
         session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Rectangle { width, height })],
         },
     );
-    let extrude = insert(
+    let extrude = session_insert(
         session,
         SessionOp::AddExtrude {
             profile,
@@ -127,7 +127,7 @@ fn author_box_part(
 
 /// Perform one `AddInstance`, answering the minted node.
 fn add_instance(session: &mut DocSession, id: DocumentId) -> RecipeNodeId {
-    let node = insert(session, SessionOp::AddInstance { id });
+    let node = session_insert(session, SessionOp::AddInstance { id });
     session.pump();
     node
 }

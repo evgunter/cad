@@ -73,32 +73,29 @@ fn the_mate_row_names_the_direction_and_not_a_dangling_head() {
         axis,
         reference: [1.0, 0.0, 0.0],
     };
-    let (doc, mate) = common::edited(
+    let (doc, mate) = common::inserted(
         &doc,
-        DocEdit::InsertNode {
-            node: Node::Mate {
-                a: common::head(StableName {
-                    kind: EntityKind::Face,
-                    node: pattern,
-                    path: vec![RoleSeg::Instance {
-                        i: 1,
-                        of: in_part(legs, CapEnd::End).into(),
-                    }],
-                }),
-                b: common::head(in_part(cap, CapEnd::Start)),
-                class: ContactClass::Rest,
-                alignment: Alignment {
-                    a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
-                    b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-                    primitive: MatePrimitive::FrameCoincidence,
-                    sense: AxisSense::Opposed,
-                    clocking: None,
-                },
+        Node::Mate {
+            a: common::head(StableName {
+                kind: EntityKind::Face,
+                node: pattern,
+                path: vec![RoleSeg::Instance {
+                    i: 1,
+                    of: in_part(legs, CapEnd::End).into(),
+                }],
+            }),
+            b: common::head(in_part(cap, CapEnd::Start)),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
+                b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
+                primitive: MatePrimitive::FrameCoincidence,
+                sense: AxisSense::Opposed,
+                clocking: None,
             },
         },
         tol,
     );
-    let mate = mate.expect("the mate mints");
 
     let opts = with_resolver(store);
     let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &opts, tol);
@@ -233,20 +230,18 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
         axis,
         reference: [1.0, 0.0, 0.0],
     };
-    let (doc, mate) = common::edited(
+    let (doc, mate) = common::inserted(
         &doc,
-        DocEdit::InsertNode {
-            node: Node::Mate {
-                a,
-                b: common::head(in_part(cap, CapEnd::Start)),
-                class: ContactClass::Rest,
-                alignment: Alignment {
-                    a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
-                    b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
-                    primitive: MatePrimitive::FrameCoincidence,
-                    sense: AxisSense::Opposed,
-                    clocking: None,
-                },
+        Node::Mate {
+            a,
+            b: common::head(in_part(cap, CapEnd::Start)),
+            class: ContactClass::Rest,
+            alignment: Alignment {
+                a: frame([0.0, 0.0, 0.02], [0.0, 0.0, 1.0]),
+                b: frame([0.0, 0.0, 0.0], [0.0, 0.0, -1.0]),
+                primitive: MatePrimitive::FrameCoincidence,
+                sense: AxisSense::Opposed,
+                clocking: None,
             },
         },
         tol,
@@ -256,7 +251,7 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
         opts: with_resolver(store),
         pattern,
         part,
-        mate: mate.expect("the mate mints while its copy is there"),
+        mate,
     }
 }
 

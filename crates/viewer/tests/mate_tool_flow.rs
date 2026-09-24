@@ -296,7 +296,7 @@ const PATTERN_STEP: f64 = 0.04;
 
 /// Pattern post_b twice along +x and answer the pattern node.
 fn patterned_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
-    let pattern = common::insert(
+    let pattern = common::session_insert(
         session,
         SessionOp::AddPattern {
             input: bench.post_b,
@@ -414,7 +414,7 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     // A transform between the instance and the pattern: the pattern's
     // input is a `Transform`, not an `InstantiatePart`, which is one
     // of the heads `member_of` declines.
-    let moved = common::insert(
+    let moved = common::session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: bench.post_b,
@@ -424,7 +424,7 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
         },
     );
     session.pump();
-    let pattern = common::insert(
+    let pattern = common::session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: moved,
@@ -485,7 +485,7 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
     let tol = Tol::witness();
     let bench = asm::bench("matefused", tol);
     let mut session = asm::open_bench(&bench, tol);
-    let fused = common::insert(
+    let fused = common::session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: pncad::document::BooleanOp::Union,
@@ -541,7 +541,7 @@ fn a_pick_on_a_moved_instance_authors_the_transform_and_seats() {
     let mut session = asm::open_bench(&bench, tol);
     // A quarter turn about z through the world origin plus an offset:
     // post_b's centre (0.07, 0.01) lands at (-0.01, 0.07) + (0.015, -0.005).
-    let moved = common::insert(
+    let moved = common::session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: bench.post_b,
@@ -625,7 +625,7 @@ const QUARTER_TURN: f64 = core::f64::consts::FRAC_PI_2;
 /// else. The ROTATION is the point: a linear rule moves only the
 /// origin, and a frame has two more channels.
 fn spun_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
-    let axis = common::insert(
+    let axis = common::session_insert(
         session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
@@ -635,7 +635,7 @@ fn spun_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
         },
     );
     session.pump();
-    let pattern = common::insert(
+    let pattern = common::session_insert(
         session,
         SessionOp::AddPattern {
             input: bench.post_b,

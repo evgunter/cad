@@ -68,29 +68,13 @@ fn authored_session(bench: &asm::Bench, label: &str, tol: Tol) -> (DocSession, P
     (session, path)
 }
 
-/// Perform one `AddInstance` and answer the node it minted, asserting
-/// the op's own contract: no refusal, exactly one committed edit.
+/// Perform one `AddInstance` and answer the node it minted, through
+/// the session's insert door (no refusal, exactly one committed
+/// insert).
 fn add_instance(session: &mut DocSession, id: DocumentId) -> RecipeNodeId {
-    let before: Vec<RecipeNodeId> = session.doc().order().to_vec();
-    let outcome = session.perform(SessionOp::AddInstance { id });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(
-        outcome.committed.len(),
-        1,
-        "an instance is exactly one committed edit"
-    );
+    let node = common::session_insert(session, SessionOp::AddInstance { id });
     session.pump();
-    let minted: Vec<RecipeNodeId> = session
-        .doc()
-        .order()
-        .iter()
-        .copied()
-        .filter(|id| !before.contains(id))
-        .collect();
-    match minted.as_slice() {
-        [only] => *only,
-        other => panic!("one insert mints one node, got {other:?}"),
-    }
+    node
 }
 
 /// The instance's node, as the document holds it.
