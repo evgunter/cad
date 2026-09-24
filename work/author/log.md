@@ -1144,7 +1144,11 @@ entry drawn by the new `part_entry`), `mate_tool_ui`, `add_datum_ui`,
 `pattern_tool_ui` and `blend_tool_ui` (each sentence through
 `crate::widgets::message` / `message_toned`), plus a new `layout_tests`
 module at the file's end. `git merge-tree` against
-`author/part-and-duplicate` reports no conflict. The sentences #3052
+`author/part-and-duplicate` at `6507b87fd` reports one conflict, in
+the imports: `use crate::parts::{PartChooser, PartEntry};` against
+#3052's `use crate::parts::PartChooser;` plus `use crate::props::render_number;`.
+Keep both. The sentences #3052 adds are filed as CHROME's
+`the-sentences-pr-3052-adds-to-create-rs-are-not-yet-messages`. The sentences #3052
 adds (`part_selector_rows`' two notes, the part and duplicate tools'
 prompts, seat lines and `duplicate_note`) are not converted. They are
 #3052's to route through `message` (a `ui.weak` becomes
