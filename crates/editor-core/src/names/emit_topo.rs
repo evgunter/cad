@@ -15,6 +15,7 @@ use geom_core::{Decide, Margin, Point3, Sign, Vec3};
 use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
+use super::canonical;
 use super::defer::{TieRows, Upstream, put, upstream_name};
 use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along, side_of_face};
 use super::emit::{
@@ -686,22 +687,25 @@ pub(crate) fn name_boolean<T: Decide>(
             return Err(bug(NESTED_MERGED));
         }
         merged_descents.insert(*kept, descents);
-        constituents.sort_unstable();
-        // The constituent SET is the name (review R8): two merge
-        // groups with one set collide LOUDLY at insert
-        // (`DuplicateName` → typed `NamingError`; pinned by
+        // The constituent SET is the name (review R8), so the
+        // canonical form sorts and deduplicates it: two merge groups
+        // with one set collide LOUDLY at insert (`DuplicateName` →
+        // typed `NamingError`; pinned by
         // `merged_same_constituent_groups_collide_loudly`). With the
         // set flat, two groups collide whenever they list the same
         // faces — a merge over a merged face and a merge over that
         // face's constituents are ONE set, where nesting once kept
         // them apart — and a per-group discriminator is what would
         // upgrade the refusal to a success if that class ever matters.
-        constituents.dedup();
         put(
             &mut t,
             &mut tie,
             from_tie,
-            name1(EntityKind::Face, node, RoleSeg::Merged(constituents)),
+            canonical::sided(name1(
+                EntityKind::Face,
+                node,
+                RoleSeg::Merged(constituents),
+            )),
             ent(0, EntityKey::Face(*kept)),
         )?;
         handled.insert(*kept);
@@ -841,6 +845,7 @@ fn name_fragment_group<T: Decide>(
     for (vector, faces) in by_vector {
         let mut name = base.clone();
         name.path.push(RoleSeg::Fragment(Qualifier::SideOf(vector)));
+        let name = canonical::sided(name);
         if faces.len() == 1 {
             put(t, tie, from_tie, name, ent(0, EntityKey::Face(faces[0])))?;
         } else {
@@ -1366,23 +1371,22 @@ fn name_boolean_vertices<T: Decide>(
             ([], [be], Some(pa), _) => (pa.clone(), be.clone()),
             // A seam JUNCTION (M4 PR 5: declared merges can consume
             // every operand-descended edge at a crossing): the vertex
-            // where k ≥ 2 seam LINES meet. Its name is the sorted
-            // path of the lines' Seam segments — deterministic, and
-            // unique per line set (straight lines meet once).
+            // where k ≥ 2 seam LINES meet. Its name is the path of the
+            // lines' Seam segments, in the canonical form's order —
+            // deterministic, and unique per line set (straight lines
+            // meet once).
             ([], [], _, _) if seam_lines.len() >= 2 => {
-                let mut segs: Vec<RoleSeg> = seam_lines
-                    .iter()
-                    .map(|(fa, fb)| RoleSeg::Seam {
-                        a: fa.clone(),
-                        b: fb.clone(),
-                    })
-                    .collect();
-                segs.sort_unstable();
-                let name = StableName {
+                let name = canonical::sided(StableName {
                     kind: EntityKind::Vertex,
                     node,
-                    path: segs,
-                };
+                    path: seam_lines
+                        .iter()
+                        .map(|(fa, fb)| RoleSeg::Seam {
+                            a: fa.clone(),
+                            b: fb.clone(),
+                        })
+                        .collect(),
+                });
                 put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
                 continue;
             }

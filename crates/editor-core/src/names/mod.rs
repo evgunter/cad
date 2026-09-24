@@ -20,6 +20,7 @@
 //! birth facts; THIS module (editor-core) names things.
 
 mod attribute;
+mod canonical;
 mod defer;
 mod discriminate;
 mod emit;

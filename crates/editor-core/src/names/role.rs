@@ -49,6 +49,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
+use super::canonical;
 use crate::node::RecipeNodeId;
 
 /// **The handle a role segment holds its argument [`StableName`] by**:
@@ -1388,9 +1389,10 @@ pub(crate) use name_free_seg;
 /// re-mapping of node ids across a split, and the whole-program edit's
 /// segment map. What differs between them is only what each does with
 /// a locator, a carried name and a member edge; what they share —
-/// which variant carries which, and how a set-valued segment
-/// re-canonicalizes after its members move — is the walk, written
-/// once. This trait is the part that differs.
+/// which variant carries which, and putting the rewritten path back in
+/// canonical form ([`StableName::rewrite_path`], through
+/// `names::canonical`) — is the walk, written once. This trait is the
+/// part that differs.
 ///
 /// Every method defaults to the identity, because "not this rewrite's
 /// concern" IS the identity: the anchor moves locators and nothing
@@ -1455,26 +1457,13 @@ fn rewrite_ref<W: SegRewrite>(n: NameRef, w: &mut W) -> Result<NameRef, W::Error
     })
 }
 
-/// A SET of names (canonical order = name order) through the
-/// rewriter: re-sorted when any member moved, because the rewrite may
-/// have changed the order and the emitters sort the same way. Left
-/// exactly as it was when none did.
+/// A SET of names through the rewriter, each kept as it is where the
+/// rewriter leaves it. The set's order is the path's canonical form's
+/// to restore, not this walk's.
 fn rewrite_set<W: SegRewrite>(v: Vec<StableName>, w: &mut W) -> Result<Vec<StableName>, W::Error> {
-    let mut moved = false;
-    let mut out = Vec::with_capacity(v.len());
-    for n in v {
-        match w.name(&n)? {
-            Some(next) => {
-                moved = true;
-                out.push(next);
-            }
-            None => out.push(n),
-        }
-    }
-    if moved {
-        out.sort();
-    }
-    Ok(out)
+    v.into_iter()
+        .map(|n| Ok(w.name(&n)?.unwrap_or(n)))
+        .collect()
 }
 
 impl RoleSeg {
@@ -1533,25 +1522,12 @@ impl RoleSeg {
             },
             R::Merged(v) => R::Merged(rewrite_set(v, w)?),
             R::Fragment(q) => R::Fragment(match q {
-                Qualifier::SideOf(entries) => {
-                    let mut moved = false;
-                    let mut out = Vec::with_capacity(entries.len());
-                    for (n, s) in entries {
-                        match w.name(&n)? {
-                            Some(next) => {
-                                moved = true;
-                                out.push((next, s));
-                            }
-                            None => out.push((n, s)),
-                        }
-                    }
-                    // Sorted by partner name — the qualifier's own
-                    // canonical order, re-established after a move.
-                    if moved {
-                        out.sort();
-                    }
-                    Qualifier::SideOf(out)
-                }
+                Qualifier::SideOf(entries) => Qualifier::SideOf(
+                    entries
+                        .into_iter()
+                        .map(|(n, s)| Ok((w.name(&n)?.unwrap_or(n), s)))
+                        .collect::<Result<_, _>>()?,
+                ),
                 Qualifier::OrderAlong { .. } => q,
             }),
             R::SectionEdge { side, face } => R::SectionEdge {
@@ -1612,23 +1588,42 @@ impl RoleSeg {
 
 impl StableName {
     /// This name with every segment of its path rebuilt through `w`
-    /// ([`RoleSeg::rewrite`]); the kind and the minting node are not
-    /// the path's and are kept.
+    /// ([`RoleSeg::rewrite`]), then put back in canonical form; the
+    /// kind and the minting node are not the path's and are kept.
+    ///
+    /// The canonical form is `names::canonical`'s, the one the emitters
+    /// mint: a rewrite that moves the names in a name-ordered position
+    /// (a set, a `SideOf` vector, a junction's run, a union seam's two
+    /// sides) can change their order, and a name the emitter would not
+    /// mint for the same entity resolves to nothing. A union seam whose
+    /// sides come out swapped reverses the ranks along its line, so the
+    /// rule is read from the name as it was and the images `w` gives
+    /// its sides ([`canonical::RankRule::across`]).
     ///
     /// # Errors
     ///
     /// Whatever `w` refuses.
     pub(crate) fn rewrite_path<W: SegRewrite>(self, w: &mut W) -> Result<StableName, W::Error> {
+        let seams = if canonical::published_by_name(&self) {
+            canonical::Seams::ByName(canonical::RankRule::across(&self, &mut |n| {
+                Ok(w.name(n)?.unwrap_or_else(|| n.clone()))
+            })?)
+        } else {
+            canonical::Seams::Sided
+        };
         let path = self
             .path
             .into_iter()
             .map(|seg| seg.rewrite(w))
             .collect::<Result<_, _>>()?;
-        Ok(StableName {
-            kind: self.kind,
-            node: self.node,
-            path,
-        })
+        Ok(canonical::recanonicalize(
+            StableName {
+                kind: self.kind,
+                node: self.node,
+                path,
+            },
+            seams,
+        ))
     }
 }
 /// The [`RoleSeg`] variants a BOOLEAN emitter never mints, as a

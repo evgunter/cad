@@ -98,6 +98,21 @@ pub(super) fn seam_line_pair(name: &StableName) -> Option<(&StableName, &StableN
     }
 }
 
+/// The two parents `(a, b)` of a seam VERTEX name, if it is one: a
+/// vertex minted as `Seam { a, b }`, or a pass-through of one through
+/// the wrappers [`head`] lists as `Through`. A junction (a run of
+/// lines) answers its first line; it carries no rank.
+pub(super) fn seam_vertex_parents(name: &StableName) -> Option<(&StableName, &StableName)> {
+    if name.kind != EntityKind::Vertex {
+        return None;
+    }
+    match head(name.path.first()?) {
+        Head::Seam(a, b) => Some((a, b)),
+        Head::Merged(_) | Head::Stop => None,
+        Head::Through(inner) => seam_vertex_parents(inner),
+    }
+}
+
 /// Whether face name `n` denotes face `x`, or a face descended from it:
 /// `x` itself or `x` followed by discriminators, through any number of
 /// the wrappers [`head`] passes through, or a merged face with such a

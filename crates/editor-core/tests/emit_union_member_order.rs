@@ -19,7 +19,11 @@
 //! - the same slab and rib with a cutter across every seam edge, in all
 //!   six member orders: a seam line's pieces are a seam chain in some
 //!   orders and a later step's cut of a whole seam in others, and no
-//!   name binds a different entity in any two orders.
+//!   name binds a different entity in any two orders;
+//! - two declared-flush members and a bar across both, in both orders
+//!   of the flush pair: the bar's cap fragments carry their `SideOf`
+//!   partners in member-space name order, so each fragment has one
+//!   name.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
@@ -427,4 +431,45 @@ fn a_seam_between_two_placements_of_one_prototype_is_named() {
             "{what}: no seam was named, so the row pins nothing"
         );
     }
+}
+
+/// **A fragment's `SideOf` partners are in name order whatever the
+/// member order** (the `abys` witness of
+/// `name-ordered-positions-in-a-path-have-no-single-home`).
+///
+/// `a` and `b` overlap in x and are declared flush; the bar `y` crosses
+/// both, so `y`'s start cap is cut into two fragments told apart by
+/// their side of `a`'s and `b`'s faces. The pair emitter writes the
+/// partners sorted in the FOLD's space, where the first member is the
+/// A side; the collapse has to sort them again in member space. In
+/// `[a, b, y]` and `[b, a, y]` every face fragment carries the same
+/// name and binds the same face.
+#[test]
+fn a_fragments_side_of_partners_are_one_order_in_every_member_order() {
+    use crate::docm7_union_declare::{declared_union, flush_pairs};
+    let tables: Vec<std::collections::BTreeMap<String, String>> = [[0usize, 1, 2], [1, 0, 2]]
+        .into_iter()
+        .map(|p| {
+            let doc = ProfileDoc::empty_derived("emit_union_member_order_abys", Tol::witness());
+            let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+            let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
+            let (doc, y) = block(doc, (-1.0, 2.0), (0.3, 0.4), 0.5, 3.5);
+            let m = [a, b, y];
+            let members: Vec<RecipeNodeId> = p.iter().map(|&i| m[i]).collect();
+            let (doc, u, _) = declared_union(doc, &members, flush_pairs((a, a), (b, b)));
+            let ev = run(&doc);
+            bindings(&ev, u)
+                .into_iter()
+                .filter(|(n, _)| n.contains("SideOf"))
+                .collect()
+        })
+        .collect();
+    assert!(
+        !tables[0].is_empty(),
+        "no fragment carries a SideOf, so the row pins nothing"
+    );
+    assert_eq!(
+        tables[0], tables[1],
+        "the fragments' names depend on the member order"
+    );
 }
