@@ -4592,7 +4592,7 @@ mod tests {
     /// The sentence [`ValidationError::CensusLaneUnsupported`] renders
     /// — for any pair, since it names none — so the `None` rows below
     /// pin the `Display` and not only the variant.
-    const LANE_UNSUPPORTED_SENTENCE: &str = "tier-3′ census: a pair of faces was not examined, \
+    const LANE_UNSUPPORTED_SENTENCE: &str = "a pair of faces was not examined, \
          because this structural check holds no certified chart-overlap lane at any scalar; \
          nothing was decided about the geometry. Recourse: run the certified check \
          (validate_pseudomanifold, or validate_pseudomanifold_certificate for a certificate) \

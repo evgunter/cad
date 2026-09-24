@@ -1349,12 +1349,10 @@ pub enum ValidationError {
     /// purpose, and the distinction is the recourse: that one says a
     /// certifying lane LOOKED at this record or candidate and refused
     /// typed, and carries which lane and why; this one says no lane
-    /// looked, and the certified door would. No lane refused here, which is why this arm carries no
-    /// [`CensusUnsupportedCause`] — there is none to carry. The two used to be
-    /// the same variant on the same face, which made a run-wide fact
-    /// read as a per-pair geometric refusal.
-    /// [`ValidationError::ApproxLaneUnsupported`] is the same shape
-    /// one pass over.
+    /// looked, and the certified door would. No lane refused here,
+    /// which is why this arm carries no [`CensusUnsupportedCause`] —
+    /// there is none to carry — and why the finding is about the door
+    /// rather than about the pair's geometry.
     CensusLaneUnsupported {
         /// The candidate the arm could not examine — the face PAIR,
         /// carried whole for the same reason
@@ -2372,12 +2370,12 @@ impl fmt::Display for ValidationError {
             }
             Self::UndeclaredContact { contact, witness } => write!(
                 f,
-                "tier-3′ census: {contact} at {witness}, and no declared contact covers it. \
+                "{contact} at {witness}, and no declared contact covers it. \
                  Recourse: declare the contact, or move the geometry"
             ),
             Self::StaleContactDeclaration { declaration } => write!(
                 f,
-                "tier-3′ census: {declaration} names a contact the geometry does not have. \
+                "{declaration} names a contact the geometry does not have. \
                  Recourse: remove the declaration, or move the geometry so the contact exists"
             ),
             Self::ContactContradicted {
@@ -2387,7 +2385,7 @@ impl fmt::Display for ValidationError {
                 steer,
             } => write!(
                 f,
-                "tier-3′ census: the declared {} contact is contradicted {witness}: {}. {}{}",
+                "the declared {} contact is contradicted {witness}: {}. {}{}",
                 declaration.class.name(),
                 crate::contact::contradiction_reason(margin),
                 crate::contact::CONTRADICTION_RECOURSE,
@@ -2395,7 +2393,7 @@ impl fmt::Display for ValidationError {
             ),
             Self::CensusEscalated { cause } => write!(
                 f,
-                "tier-3′ census: whether two parts of the body touch is too close to call at \
+                "whether two parts of the body touch is too close to call at \
                  this tolerance. {}",
                 too_close(Some(&cause.margin))
             ),
@@ -2403,13 +2401,13 @@ impl fmt::Display for ValidationError {
                 let (why, recourse) = classify_census_cause(cause);
                 write!(
                     f,
-                    "tier-3′ census: {} could not be checked: {why}. {recourse}",
+                    "{} could not be checked: {why}. {recourse}",
                     subject_noun(subject)
                 )
             }
             Self::CensusLaneUnsupported { .. } => write!(
                 f,
-                "tier-3′ census: a pair of faces was not examined, because this structural \
+                "a pair of faces was not examined, because this structural \
                  check holds no certified chart-overlap lane at any scalar; nothing was \
                  decided about the geometry. Recourse: run the certified check \
                  (validate_pseudomanifold, or validate_pseudomanifold_certificate for a \
@@ -2417,7 +2415,7 @@ impl fmt::Display for ValidationError {
             ),
             Self::CensusUndecidable { a, b, what } => write!(
                 f,
-                "tier-3′ census: {} can be neither examined nor cleared: {what}",
+                "{} can be neither examined nor cleared: {what}",
                 match (a, b) {
                     (EntityId::Face(_), EntityId::Face(_)) => "two faces of different parts",
                     (EntityId::Solid(_), EntityId::Solid(_)) => "two parts",
@@ -2426,7 +2424,7 @@ impl fmt::Display for ValidationError {
             ),
             Self::InstanceInterference { .. } => write!(
                 f,
-                "tier-3′ census: two instances overlap: a corner of one lies inside the other \
+                "two instances overlap: a corner of one lies inside the other \
                  (an interference fit), which no declaration can make valid. Recourse: move \
                  the instances apart"
             ),

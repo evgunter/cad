@@ -57,3 +57,14 @@ so the rewrite was filed here rather than made; the feature tree's
 guard (`crates/editor-core/tests/refusal_concision_chains.rs`) finds a
 `Debug` struct by its shape and admits it on exactly that row
 (`FILED_DEBUG`), and removing the entry is the check that this is done.
+
+## The at-rest route no longer renders these whole (2026-09-24, ATREST-8, PR 3185)
+
+A `topo::ValidationError` that carries a `PropsError` (through `MassPropsError::Face`) used to render it whole
+behind the at-rest and product badges (that composed length was not
+measured before the change). It now classifies each
+variant to a short reason and one recourse in the viewer's terms
+(`crates/topo/src/validate.rs`, `classify_*`), so that route is
+measured by `editor-core/tests/refusal_concision_at_rest.rs` and no
+longer by this row. This row's subject is unchanged: the sentence
+itself, as the callers that hold a `PropsError` (through `MassPropsError::Face`) directly still read it.

@@ -284,10 +284,13 @@ class TestTheRefusalsShape(unittest.TestCase):
         first, second = self.refusal(), self.refusal()
         self.assertEqual(first.failure_count, second.failure_count)
         self.assertEqual(str(first), str(second))
-        # Every finding is joined into the message, so the count and
-        # the separators agree: n findings, n-1 joins.
+        # Every finding is joined into the message, and every finding
+        # states exactly one recourse, so the count and the recourses
+        # agree: n findings, n recourses.
+        message = str(first)
         self.assertEqual(
-            str(first).count("tier-3′ census:"), first.failure_count
+            message.count("Recourse:") + message.count("There is no way through"),
+            first.failure_count,
         )
 
     def test_the_message_is_the_kernel_s_own_diagnosis(self):
