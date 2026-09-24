@@ -109,17 +109,15 @@ impl<T: Decide> Body<T> {
         };
         let cycle = self.loop_cycle(first).ok_or(TornLoop)?;
         let carrier_of = |he: HalfEdgeKey| -> Result<Option<LoopCarriers>, TornLoop> {
-            let curve = self
-                .get_half_edge(he)
-                .and_then(|hd| self.get_edge(hd.edge))
-                .and_then(|e| self.get_curve_geom(e.curve))
-                .ok_or(TornLoop)?;
-            // An uncertified carrier is a curve with no stated
-            // geometry: nothing here can wind it.
-            let Some(curve) = crate::null::CurveGeom::certified(curve) else {
-                return Ok(None);
+            let edge = self.get_half_edge(he).ok_or(TornLoop)?.edge;
+            let carrier = match crate::readback::edge_carrier_ref(self, edge) {
+                Ok(carrier) => carrier,
+                // Null-edge scaffolding states no geometry: nothing
+                // here can wind it.
+                Err(crate::readback::CarrierAbsence::NoCarrier) => return Ok(None),
+                Err(crate::readback::CarrierAbsence::Dangling(_)) => return Err(TornLoop),
             };
-            Ok(match curve.carrier() {
+            Ok(match carrier {
                 geom::Curve3::Line { .. } => Some(LoopCarriers::Lines),
                 geom::Curve3::Circle { .. } => Some(LoopCarriers::Circular),
                 geom::Curve3::Ellipse { .. } => Some(LoopCarriers::Elliptic),
