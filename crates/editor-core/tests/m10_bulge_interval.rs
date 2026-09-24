@@ -15,10 +15,14 @@
 //! the renders `m10_10_evidence_interval` makes of these documents
 //! (`CAD_M10_10_DOC=r1_segment_boss|r2_d_tab_literal|r2_d_tab_parameter`,
 //! and the dyadic controls `r2_d_tab_literal_dyadic|r2_d_tab_parameter_dyadic`);
-//! `m10_bulge_renders.txt` beside this file is the trimmed record of
-//! those renders — every decision the tier was asked and left numeric
-//! on an arc-family predicate, with its freeze causes and its
-//! attributed cause — with the boss's one value-free residual uncut.
+//! `m10_bulge_renders.txt` beside this file is the record of those
+//! renders at this tree: per document the whole split, then every
+//! decision the tier was asked and left numeric on an arc-family
+//! predicate with its freeze causes and its attributed cause — every
+//! form attributed to the sign of `b` or of the apothem UNCUT, so the
+//! attribution is re-checked by evaluating it, the frozen ones cut —
+//! and the boss's former value-free residual, rendered at the base and
+//! gone here.
 //!
 //! The split is the same at ε = 1e-6, 1e-9 and 1e-12 (the atoms a
 //! residual carries do not depend on the band), so the rows assert
