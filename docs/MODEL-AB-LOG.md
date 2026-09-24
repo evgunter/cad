@@ -8086,6 +8086,67 @@ derived bound; two instruments exist; the closed-boundary pins
 re-stated). Slot 1 = OPUS per the draw above.
 
 
+Block EDIT-B2 pre-draw fields (2026-09-17, logged before the draw):
+slot 0 = EDIT-DECL (docs/EDIT-DECL-SPEC.md, `a-declared-union-has-no-one-pass-authoring-path`,
+ruled by Ev on `[ev]` #2795) — difficulty M, task-class STRUCTURAL
+(a payload shape change on `Node::Declare` to sited pairs, the
+resolver's side pick replaced by the site, the union's routing by
+site with the member-space rewrite ahead of the shared look-through,
+two `DeclSite` variants and their rows retired by type, the persisted
+form and five declaring documents re-authored, the façades following
+mechanically). Slots 1–2 bank for the program's next kernel units in
+dispatch order (none spec'd yet; the middle-tier units — the tie
+refusal among them — run outside the protocol per the band record),
+pre-draw fields at their specs.
+
+
+Block EDIT-B2 draw (2026-09-17T05:24:55Z, after the pre-draw fields
+above; the 2026-09-04 ratio {opus, opus, fable}, one /dev/urandom
+byte, reject ≥252): byte **131**, 131 mod 3 = 2 = fable's position ⇒
+**fable at slot 2**. So: slot 0 EDIT-DECL = OPUS, slot 1 = OPUS, slot 2
+= FABLE. Recorded branch-side (`edit/b2-block`, the EDIT-B1 shape):
+this record reaches main when the block's last slot's reviews
+conclude; each ordinal claim at review dispatch goes to main on its
+own. Dispatch order: slot 0 when a lane frees (three middle-tier lanes
+are live at the draw).
+
+
+Block EDIT-B2 slot 0 concluded (2026-09-19): EDIT-DECL, PR #2809,
+implementer OPUS per the draw above, ordinals 4804/4805, sample #216
+(R1 fable 1/7/3 rubric 4/3/2 NOT-MERGEABLE-AS-IS; R2 opus 1/4/5 rubric
+4/3/3 APPROVE-WITH-FIXES; 1 bilateral MAJOR — a union refusal against
+a merged row degraded to an emission bug — 0 unilateral; tally +0).
+The sample row is on main with the merge. Slots 1 (OPUS) and 2 (FABLE)
+bank for the program's next kernel units; pre-draw fields at their
+specs.
+
+
+Block EDIT-B2 slot 1 concluded (2026-09-20): EDIT-RADIUS, PR #2892,
+implementer OPUS per the draw above, ordinals 4806/4807, sample #223
+(R1 fable 0/4/6 rubric 4/4/4 APPROVE-WITH-FIXES; R2 opus 0/5/3 rubric
+4/4/3 APPROVE-WITH-FIXES; 0 bilateral MAJOR, 0 unilateral; tally +0;
+convergent on five findings, R2 alone on the carrier arm's skipped
+span check). Pre-draw fields (M / STRUCTURAL) were logged at the spec
+after the block byte — disclosed at the ordinal claim. The sample row
+is on main with the merge (numbered #223: EDIT-DECL's "#216" above was
+written against a stale count, disclosed on the EDIT-RADIUS row). Slot
+2 (FABLE) banks for the program's next kernel unit; pre-draw fields at
+its spec.
+
+
+Block EDIT-B2 slot 2 concluded (2026-09-24): EDIT-PROGRAM, PR #2927,
+implementer FABLE per the draw above, ordinals 4808/4809, sample #241
+(R1 opus 1/5/4 rubric 4/4/3 APPROVE-WITH-FIXES; R2 fable 0/2/3 rubric
+4/4/3 APPROVE-WITH-FIXES; 0 bilateral MAJOR, 1 unilateral by execution
+— R1's retired coordinate revived by a slot edit; tally +1 candidate,
+opus arm). Pre-draw fields (L / STRUCTURAL) were logged at the spec
+after the block byte — disclosed at the ordinal claim. The fix lane
+was interrupted by a usage limit and resumed from its transcript, no
+work lost. **Block EDIT-B2 CONCLUDED**: all three slots run (OPUS,
+OPUS, FABLE per byte 131); tally across the block +1 candidate. This
+record reaches main with the slot-2 merge.
+
+
 ## EDIT-PICK2 review ordinal fixed at dispatch (2026-09-16)
 
 EDIT-PICK2 (`pick-accepts-uncertified-barycentrics-on-a-certified-determinant`,
