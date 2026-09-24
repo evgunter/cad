@@ -97,3 +97,12 @@ do (`check_profile_after_slot_edit`).**
 - It is the only option under which a round trip is lossless.
 - It keeps V1 class 2.
 - It removes most of the value door's cost.
+
+## Linked
+
+`a-child-documents-rebind-leaves-the-parents-held-names-in-the-old-numbering`
+(P0, executed) is the cross-document case of the same question. A parent's
+names are spelled in a child's numbering, whose history the child does not
+keep, so a pin update cannot translate them. Option A here records the
+last published numbering per profile, which is the per-document half of
+the rename ledger that row needs. Decide the two together.
