@@ -159,8 +159,11 @@ CERT_REAL_RE='(^|[^A-Za-z0-9_])Real([^A-Za-z0-9_]|$)'
 # alone at the start of a statement (the reader cuts at `{`, so
 # `use a::{*, B}` arrives as `use a::` and `*, B`), and followed by `,`
 # or the end of the statement. A deref (`*x`) is followed by an operand
-# and a product (`a * b`) is preceded by one.
-CERT_GLOB_RE='(^|::|,)[[:space:]]*\*[[:space:]]*(,|$)'
+# and a product (`a * b`) is preceded by one. The star is a bracket
+# class, never `\*`: the patterns reach `awk` through `-v`, which
+# processes backslash escapes, and gawk turns `\*` into a bare `*` — a
+# quantifier — where mawk keeps it.
+CERT_GLOB_RE='(^|::|,)[[:space:]]*[*][[:space:]]*(,|$)'
 CERT_EVALHULL_RE='(^|[^A-Za-z0-9_])(enclosure_hull|SpanLocate)([^A-Za-z0-9_]|$)'
 CERT_POISON_RE='(^|[^A-Za-z0-9_])is_poison([^A-Za-z0-9_]|$)'
 CERT_DECL_RE='(^|[^A-Za-z0-9_])trait[[:space:]]+Certification([^A-Za-z0-9_]|$)'
