@@ -2,7 +2,8 @@
 id: quadric-datums-unchecked-at-rest
 kind: issue
 title: Check 1 names no analytic surface whose stored frame or datum fails to describe a locus - they escalate elsewhere, by accident
-status: dispatched
+status: review
+pr: 3183
 opened: 2026-09-05
 refs: [S330]
 track: P
