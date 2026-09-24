@@ -9,11 +9,18 @@
 //! the two things canonicalization decides: each loop's traversal
 //! sense, which cannot flip under a continuous edit without passing
 //! through a sliver, and which loop is the outer one (canonical loop
-//! 0), which cannot change without the loops crossing. Validation
-//! refuses both intermediate states, but a `SetParam` that jumps
-//! straight past them lands, and then every name on the swapped loops
-//! renumbers unreported — a hole grown until it encloses the outer
-//! loop is the case. What a parameter edit CAN still
+//! 0), which cannot change without the loops crossing. A value edit can
+//! still move either in one jump — a hole grown until it encloses the
+//! outer loop, a vertex moved across its loop — and a document-parameter
+//! edit can also land the profile in a state whose numbering cannot be
+//! read at all (it does not replay, or its loops cannot be ordered:
+//! refusing programs may exist at rest). The edit door compares the
+//! profile's numbering before and after every value edit that reaches
+//! it: where both sides read and differ it carries every name spelled
+//! in the numbering across, and where either side cannot be read it
+//! strands them, reporting each row either way (`reanchor_report` in
+//! `edit.rs`, through `SetProgram`'s map and report). What a parameter
+//! edit CAN still
 //! do is change how many segments a step draws — a corner fillet whose
 //! runs reach a `Zero` fit emits nothing, so a radius written through
 //! `SetParam` grows or shrinks the loop and every live name after that
@@ -355,4 +362,16 @@ fn signed_area(lp: &ProfileLoop<f64>) -> f64 {
         }
     }
     0.5 * twice + arcs
+}
+
+/// **A program's naming anchor as far as it can be read**, per
+/// CANONICAL loop, off its replay alone ([`replay_naming`]); empty
+/// where the loops cannot be ordered. Where the loops validate this IS
+/// the validated anchor ([`naming_of`]) — the `SetProgram` door asserts
+/// the agreement on every program it admits — so the edit doors that
+/// carry names across a change read each side without paying for a
+/// validation: which is what a value edit would otherwise pay per
+/// profile, per edit.
+pub(crate) fn readable_naming(loops: &[ProfileLoop<f64>]) -> Vec<Option<LoopAnchor>> {
+    replay_naming(loops).unwrap_or_default()
 }

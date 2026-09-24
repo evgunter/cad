@@ -1252,7 +1252,9 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             // The group-size rung (`group_resized`'s docs).
             .or_else(|| prior.group_resized(new, name))
             // Every rung above came up empty: no verdict flip, no doc
-            // delta, no recorded qualifier delta, no group-size change.
+            // delta, no recorded qualifier delta, and no group-size
+            // change the rung could state (unchanged, or too large to
+            // count).
             .unwrap_or_else(|| Diagnosis::cause_not_in_evidence(name.node))
     };
     let last_good = prior.tombstone(new, name);
@@ -1649,8 +1651,10 @@ fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option
 /// prior count is at least two, since the name carries a qualifier.
 /// It declines, to the evidence-free fallback, when the name has no
 /// fragment tail, when either run has no value at the minting node,
-/// and when the size did NOT change: a group that re-qualified at the
-/// same size is a different event, about which the tables say nothing.
+/// when either count does not fit the diagnosis's `u32` (a saturated
+/// size could make two different groups read as one), and when the
+/// size did NOT change: a group that re-qualified at the same size is
+/// a different event, about which the tables say nothing.
 ///
 /// # Why it sits last: cause before effect
 ///
@@ -1673,8 +1677,8 @@ fn group_resized<U: Decide, T: Decide>(
     let base = fragment_base(name)?;
     let prior_table = &prior.value(name.node)?.name_table;
     prior_table.lookup(name)?;
-    let was = group_size(prior_table, &base);
-    let now = group_size(&new.value(name.node)?.name_table, &base);
+    let was = group_size(prior_table, &base)?;
+    let now = group_size(&new.value(name.node)?.name_table, &base)?;
     (was != now).then_some(Diagnosis::GroupResized {
         node: name.node,
         was,
@@ -1683,8 +1687,11 @@ fn group_resized<U: Decide, T: Decide>(
 }
 
 /// How many entities one table names by `base` or by `base` plus one
-/// trailing `Fragment` qualifier ([`group_resized`]'s count).
-fn group_size(table: &crate::names::NameTable, base: &StableName) -> u32 {
+/// trailing `Fragment` qualifier ([`group_resized`]'s count). A count
+/// the diagnosis's `u32` cannot hold is `None`, and the rung declines
+/// rather than report a saturated size two different groups would
+/// share.
+fn group_size(table: &crate::names::NameTable, base: &StableName) -> Option<u32> {
     let members: usize = table
         .iter()
         .filter(|(row, _)| {
@@ -1701,7 +1708,7 @@ fn group_size(table: &crate::names::NameTable, base: &StableName) -> u32 {
             Entry::Tied(candidates) => candidates.len(),
         })
         .sum();
-    u32::try_from(members).unwrap_or(u32::MAX)
+    u32::try_from(members).ok()
 }
 
 /// The (from, to) sign pair iff `new` differs from `old` by exactly

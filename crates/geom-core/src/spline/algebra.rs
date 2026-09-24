@@ -44,6 +44,7 @@
 
 use super::knots::{InteriorKnot, KnotVector, SplineError};
 use crate::interval::Interval;
+use crate::readable::Readable;
 
 /// A typed knot-algebra refusal (fail-loud; the kernel never panics).
 #[derive(Clone, Debug, PartialEq)]
@@ -96,19 +97,23 @@ impl core::fmt::Display for KnotAlgebraError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             KnotAlgebraError::Structure(e) => write!(f, "the knot edit refused: {e}"),
-            KnotAlgebraError::ParameterOutsideDomain { u } => {
-                write!(f, "knot parameter {u} is not strictly inside the domain")
-            }
+            KnotAlgebraError::ParameterOutsideDomain { u } => write!(
+                f,
+                "knot parameter {} is not strictly inside the domain",
+                Readable(*u)
+            ),
             KnotAlgebraError::MultiplicityOverflow { u, have, budget } => write!(
                 f,
-                "inserting knot {u} (multiplicity {have}) exceeds the interior budget {budget}"
+                "inserting knot {} (multiplicity {have}) exceeds the interior budget {budget}",
+                Readable(*u)
             ),
             KnotAlgebraError::KnotNotPresent { u } => {
-                write!(f, "{u} is not an interior knot")
+                write!(f, "{} is not an interior knot", Readable(*u))
             }
             KnotAlgebraError::RemovalExceedsMultiplicity { u, have, requested } => write!(
                 f,
-                "removing knot {u} {requested} times exceeds its multiplicity {have}"
+                "removing knot {} {requested} times exceeds its multiplicity {have}",
+                Readable(*u)
             ),
             KnotAlgebraError::WeightCollapse { index } => write!(
                 f,
@@ -1195,6 +1200,13 @@ mod tests {
         assert_eq!(
             insert_knot_plan(&kv, &w, 0.0, 1).unwrap_err(),
             KnotAlgebraError::ParameterOutsideDomain { u: 0.0 }
+        );
+        // The refusal names the parameter as a number a reader can
+        // see: at the ceiling of the range that is `1e308`, not the
+        // 309-digit positional expansion.
+        assert_eq!(
+            insert_knot_plan(&kv, &w, 1e308, 1).unwrap_err().to_string(),
+            "knot parameter 1e308 is not strictly inside the domain"
         );
         assert_eq!(
             insert_knot_plan(&kv, &w, 1.0, 2).unwrap_err(),
