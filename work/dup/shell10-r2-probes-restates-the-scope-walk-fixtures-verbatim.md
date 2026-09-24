@@ -8,6 +8,7 @@ priority: P4
 cost: E
 closed: 2026-09-24
 branch: dup/owner-index-divergence
+pr: 3151
 ---
 
 

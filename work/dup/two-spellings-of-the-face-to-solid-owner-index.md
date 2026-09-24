@@ -9,6 +9,7 @@ cost: D
 refs: [the-guarded-shell-list-of-a-solid-is-spelled-thirteen-times, listing-a-solids-faces-is-spelled-four-times-in-topo-src]
 closed: 2026-09-24
 branch: dup/owner-index-divergence
+pr: 3151
 ---
 
 
