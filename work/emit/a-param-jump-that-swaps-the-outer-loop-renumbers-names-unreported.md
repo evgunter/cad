@@ -4,7 +4,7 @@ kind: issue
 title: A SetParam that jumps a hole past its outer loop (or flips a loop's sense) renumbers every name on the swapped loops, unreported
 status: open
 opened: 2026-09-24
-priority: P3
+priority: P0
 cost: D
 ---
 
@@ -40,3 +40,9 @@ Candidate fix: `SetParam` (and every slot edit) compares the profile's
 canonical role/orientation vector before and after, and reports or
 remaps the names like SetProgram does. It needs the same replay-and-anchor
 read the SetProgram door now makes.
+
+## Re-banded P0 at merge (orchestrator)
+
+A name that renumbers without being reported is a silent rebind. By
+`work/README.md`'s bands that is a live wrong answer, P0, however rare
+the edit that triggers it.
