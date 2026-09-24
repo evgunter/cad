@@ -264,6 +264,8 @@ mod msolve6_part_extent;
 mod msolve7_member_residue;
 #[path = "msolve8_levered_clash.rs"]
 mod msolve8_levered_clash;
+#[path = "msolve9_from_face.rs"]
+mod msolve9_from_face;
 #[path = "onb_wall_normal_census.rs"]
 mod onb_wall_normal_census;
 #[path = "rv_payloadrefs_probes.rs"]

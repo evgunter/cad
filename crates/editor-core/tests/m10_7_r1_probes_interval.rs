@@ -319,11 +319,7 @@ fn r1_max_leaves_zero_with_the_tier_on() {
 #[test]
 fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
     use editor_core::mate::{Alignment, AxisSense, MateFrame, MatePrimitive};
-    let frame = |origin: [f64; 3]| MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    };
+    let frame = |origin: [f64; 3]| MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
     let at = |o: f64| Alignment {
         a: frame([o, 0.0, 0.0]),
         b: frame([0.0, 0.0, 0.0]),
@@ -331,13 +327,16 @@ fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
         sense: AxisSense::Aligned,
         clocking: None,
     };
+    // The datum term over the two sides' resolved frames — both are
+    // authored vectors here, so resolution is the projection.
+    let lever = fixture::datum_lever;
     // A datum at the origin contributes NOTHING — no metre stands in
     // for the parts, which the solve adds from their own bodies.
-    assert_eq!(at(0.0).lever_arm(), 0.0);
+    assert_eq!(lever(&at(0.0)), 0.0);
     // A datum at a nanometre contributes a nanometre: no floor, no
     // refusal — the parts on either side carry the lever.
-    assert_eq!(at(1e-9).lever_arm(), 1e-9);
-    assert_eq!(at(1e-3).lever_arm(), 1e-3);
+    assert_eq!(lever(&at(1e-9)), 1e-9);
+    assert_eq!(lever(&at(1e-3)), 1e-3);
     // Both origins and every authored length SUM: an upper bound on
     // the datum's own extent, never the larger of them.
     let rest = Alignment {
@@ -347,7 +346,7 @@ fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
         sense: AxisSense::Opposed,
         clocking: None,
     };
-    assert_eq!(rest.lever_arm(), 3.0e-3 + 4.0e-3 + 2.0e-3);
+    assert_eq!(lever(&rest), 3.0e-3 + 4.0e-3 + 2.0e-3);
 }
 
 // ------------------------------------------------------------ e2e

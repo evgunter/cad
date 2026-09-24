@@ -42,7 +42,7 @@ use crate::common;
 use common::asm;
 use pncad::document::{AxisSense, ClassAdmission, Frame, MatePrimitive};
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::select::ContactClass;
+use pncad::select::{ContactClass, face_frame};
 use viewer::display::AdmissionFault;
 use viewer::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
 use viewer::scene::SceneMesh;
@@ -155,11 +155,12 @@ fn the_exit_demo_walk() {
         .expect("answers")
         .expect("the probed post is picked where it is drawn");
     assert_eq!(post_top.node, bench.post_b);
-    tool.pick(viewer::session::FaceSelection {
+    let post_top = viewer::session::FaceSelection {
         name: post_top.name.clone(),
         node: post_top.node,
         body: post_top.body,
-    });
+    };
+    tool.pick(post_top.clone());
     let shelf_bottom = index
         .face_at_for(
             eval,
@@ -172,7 +173,7 @@ fn the_exit_demo_walk() {
         .expect("answers")
         .expect("the shelf's underside is picked");
     assert_eq!(shelf_bottom.node, bench.shelf_i);
-    tool.pick(shelf_bottom);
+    tool.pick(shelf_bottom.clone());
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
 
     // ── 7. The ADMITTED CLASS, exposed through the kernel's own
@@ -196,8 +197,6 @@ fn the_exit_demo_walk() {
         .proposal(
             doc,
             eval,
-            &session.eval_options(),
-            tol,
             MateChoice {
                 class: ContactClass::Rest,
                 primitive: MatePrimitive::FrameCoincidence,
@@ -232,27 +231,19 @@ fn the_exit_demo_walk() {
     );
     assert!(session.display().free_move_of(bench.post_b).is_none());
 
-    // ── 9. The PLACEMENT IS SOLVED: the two picked frames coincide
-    // in world space — the FULL frame, not origins alone: origins
-    // meet, axes oppose (the chosen sense), and the roll references
-    // agree under the solve's opposed flip. Solver-vs-authored by
-    // construction (the solve enforces what the alignment declares);
-    // the INDEPENDENT check that the authored alignment itself is the
-    // picked geometry pulled into part coordinates is the reviewer
-    // oracle rows (`review_gui4_r2::proposal_frames_agree_with_the_
-    // standalone_part_documents`, `review_gui4_r1::r1_the_minted_
-    // alignment_…` — the latter under a ROTATED placement).
+    // ── 9. The PLACEMENT IS SOLVED: the two picked FACES coincide in
+    // world space — the FULL frame, not origins alone: origins meet,
+    // chart axes oppose (the chosen sense), and the carriers' own
+    // roll references agree under the solve's opposed flip. The
+    // frames the mate carries are the faces' NAMES, so the poses read
+    // off the landed evaluation — each instance's body placed by the
+    // solve — are the one witness: what the alignment declares of
+    // the faces it names, the placed faces show.
     session.pump();
-    let (doc, _) = session.landed_pair().expect("landed");
-    let poses = common::solve(&session, doc, tol);
-    let placed_a = poses
-        .placement(doc, bench.post_b)
-        .expect("post_b is solved")
-        .affine::<f64>();
-    let placed_b = poses
-        .placement(doc, bench.shelf_i)
-        .expect("the shelf is placed")
-        .affine::<f64>();
+    let (_, eval) = session.landed_pair().expect("landed");
+    let pose_a = face_frame(eval, post_top.node, &post_top.name).expect("the cap has a pose");
+    let pose_b =
+        face_frame(eval, shelf_bottom.node, &shelf_bottom.name).expect("the underside has a pose");
     let close3 = |got: Vec3<f64>, want: Vec3<f64>, what: &str| {
         assert!(
             (got.x - want.x).abs() < 1e-9
@@ -261,27 +252,21 @@ fn the_exit_demo_walk() {
             "{what}: {got:?} vs {want:?}"
         );
     };
-    let point = |m: [f64; 3]| Point3::new(m[0], m[1], m[2]);
-    let vector = |m: [f64; 3]| Vec3::new(m[0], m[1], m[2]);
-    let world_a = placed_a.transform_point(point(proposal.alignment.a.origin));
-    let world_b = placed_b.transform_point(point(proposal.alignment.b.origin));
+    let world_a = pose_a.origin;
+    let world_b = pose_b.origin;
     close3(
         world_a - Point3::new(0.0, 0.0, 0.0),
         world_b - Point3::new(0.0, 0.0, 0.0),
-        "the mated frame ORIGINS coincide",
+        "the mated faces' ORIGINS coincide",
     );
-    let axis_a = placed_a.transform_vec(vector(proposal.alignment.a.axis));
-    let axis_b = placed_b.transform_vec(vector(proposal.alignment.b.axis));
     close3(
-        axis_a,
-        axis_b * -1.0,
-        "the AXES meet opposed, as the chosen sense declares",
+        pose_a.axis,
+        pose_b.axis * -1.0,
+        "the chart AXES meet opposed, as the chosen sense declares",
     );
-    let ref_a = placed_a.transform_vec(vector(proposal.alignment.a.reference));
-    let ref_b = placed_b.transform_vec(vector(proposal.alignment.b.reference));
     close3(
-        ref_a,
-        ref_b * -1.0,
+        pose_a.u_ref.expect("a cap fixes a reference"),
+        pose_b.u_ref.expect("a cap fixes a reference") * -1.0,
         "the roll REFERENCES meet under the solve's opposed flip at zero \
          clocking (the flip reverses reference and axis together, keeping \
          the pair's handedness proper)",
@@ -346,12 +331,10 @@ fn the_exit_demo_walk() {
     // The solved placement survives the round trip bit-for-bit at the
     // assertion tolerance: the mate is the document, the probe never
     // was.
-    let (doc2, _) = reopened.landed_pair().expect("landed");
-    let re_placed = common::solve(&reopened, doc2, tol)
-        .placement(doc2, bench.post_b)
-        .expect("post_b is solved after reopen")
-        .affine::<f64>();
-    let re_world = re_placed.transform_point(point(proposal.alignment.a.origin));
+    let (_, eval2) = reopened.landed_pair().expect("landed");
+    let re_world = face_frame(eval2, post_top.node, &post_top.name)
+        .expect("the cap has a pose after reopen")
+        .origin;
     assert!(
         (re_world.x - world_a.x).abs() < 1e-12
             && (re_world.y - world_a.y).abs() < 1e-12

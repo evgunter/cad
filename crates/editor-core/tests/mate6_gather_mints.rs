@@ -81,11 +81,7 @@ fn in_part_in_part(instance: RecipeNodeId, sub: RecipeNodeId, cap: CapEnd) -> St
 }
 
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis,
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, axis, [1.0, 0.0, 0.0])
 }
 
 /// A `Rest` mate declaring `a`'s TOP face against `b`'s BOTTOM face,

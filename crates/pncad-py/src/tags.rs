@@ -131,11 +131,11 @@ use pncad::analysis::{
 use pncad::document::{
     AssemblyError, AttrKind, Attribution, Axis3, CheckEvidence, ChecksError, ClassAdmission,
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
-    EditError, EvalError, FrameFault, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
-    MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
-    MintRefusal, NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault,
-    ProgramRefusal, ProvenanceFault, RecordedProgramError, RefusedRef, Relation, RootFault,
-    ShellClassifyError, SlotId, SnapshotError, SplitError, Subgroup, UpdateError,
+    EditError, EvalError, FaceRefusal, FrameFault, InlineError, InterfaceCrossing, LeverRefusal,
+    Maintenance, MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt,
+    MetaVersionError, MintRefusal, NodeErrorKind, ParseError, PersistError, PlacementRuleFault,
+    ProgramFault, ProgramRefusal, ProvenanceFault, RecordedProgramError, RefusedRef, Relation,
+    RootFault, ShellClassifyError, SlotId, SnapshotError, SplitError, Subgroup, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -1649,6 +1649,26 @@ pub fn mate_fault_tag(fault: &MateFault) -> &'static str {
         MateFault::PartSelectsAnotherCopy { .. } => "mate_part_selects_another_copy",
         MateFault::SelfMate { .. } => "mate_self",
         MateFault::Unleverable { .. } => "mate_unleverable",
+        MateFault::FaceUnresolved { .. } => "mate_face_unresolved",
+    }
+}
+
+/// The stable tag for a face refusal — the inner arm of
+/// [`mate_fault_tag`]'s `mate_face_unresolved`: why a `FromFace`
+/// frame's face answered no pose through the mated part's own
+/// evaluation.
+///
+/// The map is exhaustive rather than a constant so a new way for a
+/// face to refuse arrives here as a compile error.
+pub fn face_refusal_tag(refusal: &FaceRefusal) -> &'static str {
+    match refusal {
+        FaceRefusal::PartUnresolved { .. } => "part_unresolved",
+        FaceRefusal::NoSuchName { .. } => "no_such_name",
+        FaceRefusal::Ambiguous { .. } => "ambiguous",
+        FaceRefusal::NotAFace { .. } => "not_a_face",
+        FaceRefusal::Readback { .. } => "readback",
+        FaceRefusal::Unpinned { .. } => "unpinned",
+        FaceRefusal::NotAnInstance { .. } => "not_an_instance",
     }
 }
 

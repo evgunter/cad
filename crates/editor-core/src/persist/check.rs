@@ -1274,7 +1274,22 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         // predicate must be able to decide on. Asked in THIS walk, of
         // the same `Node::has_non_finite_alignment` the edit door asks
         // — a second pass over the nodes would be a second place to
-        // forget the question.
+        // forget the question. A `FromFace` side is checked
+        // STRUCTURALLY and no further — a face by type, its one key
+        // closed at the wire — because its numbers are the part's:
+        // whether the name is a row of the part's table is the
+        // solve's at evaluation (`MateFault::FaceUnresolved`), never
+        // this door's.
+        //
+        // Nor is its PART-LOCAL spelling checked here, and the gap is
+        // real: a face frame spelled as a head is (qualified by an
+        // `InPart` under the instance) loads from a snapshot and
+        // faults `NoSuchName` at evaluation, where the insert door
+        // refuses the same frame at once — the door resolves it, this
+        // one cannot. The spelling is not decidable off the bytes: a
+        // part that is itself an assembly carries `InPart` rows in its
+        // own table, so a qualified name can be exactly the part's own
+        // row, and only the part's product says which.
         if node.has_non_finite_alignment() {
             return Err(SnapshotError::MateAlignment { node: id });
         }
@@ -1846,16 +1861,8 @@ mod tests {
             b: face_head(name(ids[1])),
             class: topo::ContactClass::Rest,
             alignment: crate::mate::Alignment {
-                a: crate::mate::MateFrame {
-                    origin: [0.0; 3],
-                    axis: [0.0, 0.0, 1.0],
-                    reference: [1.0, 0.0, 0.0],
-                },
-                b: crate::mate::MateFrame {
-                    origin: [0.0; 3],
-                    axis: [0.0, 0.0, 1.0],
-                    reference: [1.0, 0.0, 0.0],
-                },
+                a: crate::mate::MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
+                b: crate::mate::MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]),
                 primitive: crate::mate::MatePrimitive::FrameCoincidence,
                 sense: crate::mate::AxisSense::Aligned,
                 clocking: None,
@@ -1874,7 +1881,13 @@ mod tests {
         // poked coordinate's.
         save(&doc, &[], Tol::witness()).expect("the mated assembly saves");
         match doc.nodes.get_mut(&mate_id) {
-            Some(Node::Mate { alignment, .. }) => alignment.a.origin[0] = f64::NAN,
+            Some(Node::Mate { alignment, .. }) => {
+                alignment.a = crate::mate::MateFrame::authored(
+                    [f64::NAN, 0.0, 0.0],
+                    [0.0, 0.0, 1.0],
+                    [1.0, 0.0, 0.0],
+                );
+            }
             other => panic!("the fixture's mate is a mate, got {other:?}"),
         }
         match save(&doc, &[], Tol::witness()) {

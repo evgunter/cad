@@ -2682,11 +2682,14 @@ impl Node {
     /// `class_admission` — ask it BEFORE authoring, because a class
     /// the solve folds may still mint nothing at the at-rest gate.
     ///
-    /// `alignment` is the authored datum: which frames coincide, at
-    /// which axis sense, with which clocking. It is AUTHORED data, not
-    /// geometry read back — nothing checks it against the faces `a`
-    /// and `b` name (issue #944), so a mate can solve cleanly and
-    /// still be refuted at the gate.
+    /// `alignment` is the datum: which frames coincide, at which axis
+    /// sense, with which clocking. A side is either a face of its part
+    /// (`MateFrame.from_face`), resolved from the part's own product
+    /// at every evaluation, or three AUTHORED vectors. A face frame is
+    /// its face, so it follows a part edit; authored vectors are not
+    /// geometry read back — nothing checks them against the faces `a`
+    /// and `b` name, so a mate authored so can solve cleanly and still
+    /// be refuted at the gate.
     ///
     /// **A head must name a FACE, and that is refused here.** A mate
     /// declares a face-pair contact; the kernel says so in the type of
@@ -2716,7 +2719,7 @@ impl Node {
                 a: d::SitedFace::new(a_at.0, face_name_from_text(py, a)?),
                 b: d::SitedFace::new(b_at.0, face_name_from_text(py, b)?),
                 class: class_.to_kernel(py)?,
-                alignment: alignment.0,
+                alignment: alignment.0.clone(),
             },
         })
     }

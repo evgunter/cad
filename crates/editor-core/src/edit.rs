@@ -4488,11 +4488,7 @@ mod tests {
             node,
             path: vec![],
         };
-        let frame = crate::mate::MateFrame {
-            origin: [0.0; 3],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        };
+        let frame = crate::mate::MateFrame::authored([0.0; 3], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
         let mate: DocEdit<ProfileProgram> = DocEdit::InsertNode {
             node: crate::node::Node::Mate {
                 a: crate::node::SitedFace::at_mint(
@@ -4504,7 +4500,7 @@ mod tests {
                 ),
                 class: crate::mate::ContactClass::Rest,
                 alignment: crate::mate::Alignment {
-                    a: frame,
+                    a: frame.clone(),
                     b: frame,
                     primitive: crate::mate::MatePrimitive::FrameCoincidence,
                     sense: crate::mate::AxisSense::Aligned,

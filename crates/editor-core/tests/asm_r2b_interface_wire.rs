@@ -59,11 +59,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
         at: node,
         name: face(node, cap),
     };
-    let frame = MateFrame {
-        origin: [0.0, 0.0, 0.0],
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    };
+    let frame = MateFrame::authored([0.0, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
     host = push(
         &host,
         Node::Mate {
@@ -71,7 +67,7 @@ fn doc_with_a_crossing() -> ProfileDoc {
             b: sited(RecipeNodeId(1), CapEnd::Start),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: frame,
+                a: frame.clone(),
                 b: frame,
                 primitive: MatePrimitive::FrameCoincidence,
                 sense: AxisSense::Aligned,

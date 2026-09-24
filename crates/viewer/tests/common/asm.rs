@@ -23,7 +23,7 @@ use pncad::document::{
     CancelToken, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation, Frame, Node, ProfileDoc,
     RecipeNodeId, content_pin, evaluate,
 };
-use pncad::geom_core::Tol;
+use pncad::geom_core::{Tol, Vec3};
 use pncad::prelude::StableName;
 use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector};
 use pncad::workspace::Workspace;
@@ -173,16 +173,47 @@ pub fn open_bench(bench: &Bench, tol: Tol) -> DocSession {
     session
 }
 
-/// The instance-qualified spelling of a part-local name (the GQ4
-/// wrapper), for rows that author a mate directly.
+/// The instance-qualified spelling of a part-local face (the GQ4
+/// wrapper), for rows that author a mate directly — the kernel's own
+/// wrapper (`FaceName::in_part`), the inverse of the unwrap the mate
+/// tool stores a face frame's name by.
 pub fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
-    StableName {
-        kind: local.kind,
-        node: instance,
-        path: vec![pncad::select::RoleSeg::InPart {
-            of: local.clone().into(),
-        }],
-    }
+    pncad::document::FaceName::new(local.clone())
+        .expect("a mate head is a face")
+        .in_part(instance)
+        .into_name()
+}
+
+/// **The frame the mate tool authors for a picked face**: the face's
+/// PART-LOCAL name, resolved by the solve at every evaluation — the
+/// whole of the frame. What every tool row compares a proposal's
+/// side against.
+pub fn from_face(local: &StableName) -> pncad::document::MateFrame {
+    pncad::document::MateFrame::from_face(
+        pncad::document::FaceName::new(local.clone()).expect("a cap is a face"),
+    )
+}
+
+/// **A world pose pulled back through a placement into part
+/// coordinates, as three authored vectors** — the hand-authored
+/// spelling a row uses where it wants a roll of its own
+/// (`reference` is the roll reference, in WORLD), which a face
+/// frame cannot carry beside the carrier's own. The placement is a
+/// rigid frame, so the pull-back is its inverse.
+pub fn authored_from_world(
+    placement: &pncad::geom_core::Affine3<f64>,
+    pose: &pncad::topo::readback::Pose<f64>,
+    reference: Vec3<f64>,
+) -> pncad::document::MateFrame {
+    let inverse = placement.inverse();
+    let origin = inverse.transform_point(pose.origin);
+    let axis = inverse.transform_vec(pose.axis);
+    let reference = inverse.transform_vec(reference);
+    pncad::document::MateFrame::authored(
+        [origin.x, origin.y, origin.z],
+        [axis.x, axis.y, axis.z],
+        [reference.x, reference.y, reference.z],
+    )
 }
 
 // The assembly suites say `asm::down_at` / `asm::up_at`; both name the
@@ -230,16 +261,16 @@ pub fn rest_alignment(b_x: f64) -> pncad::document::Alignment {
 pub fn seat_alignment(b_x: f64, clocking: Option<f64>) -> pncad::document::Alignment {
     use pncad::document::{Alignment, AxisSense, MateFrame, MatePrimitive};
     Alignment {
-        a: MateFrame {
-            origin: [POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        b: MateFrame {
-            origin: [b_x, SHELF_DEPTH / 2.0, 0.0],
-            axis: [0.0, 0.0, -1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
+        a: MateFrame::authored(
+            [POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+        ),
+        b: MateFrame::authored(
+            [b_x, SHELF_DEPTH / 2.0, 0.0],
+            [0.0, 0.0, -1.0],
+            [1.0, 0.0, 0.0],
+        ),
         primitive: MatePrimitive::FrameCoincidence,
         sense: AxisSense::Opposed,
         clocking,

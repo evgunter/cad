@@ -44,9 +44,13 @@
 //!   FLUSH with the shelf's ends — the obvious way to draw it — where
 //!   they had to be inset while the chart-identity door declined every
 //!   cross-instance pair (`SEAT_A`).
-//! - **#944** — nothing mints a mate's alignment frame from a
-//!   selected face, so the frame and the geometry drift apart
-//!   silently (`stops`, `update_door`).
+//! - **#944 — CLOSED.** A mate frame names a FACE of the part and
+//!   the solve resolves it from the part's own evaluation
+//!   (`MateFrame::from_face`); the stand's post sides are authored
+//!   that way, and `update_door` shows the mate FOLLOWING the post's
+//!   cap when the post is shortened — the shelf comes down with it
+//!   and the seat still certifies, where a frame of authored numbers
+//!   stayed behind and was refuted.
 //! - **#945** — mates and patterns do not compose at all, which is
 //!   why this file has two assembly documents rather than one; it
 //!   also records the A11 rule-4 drift, and wants Ev's ruling.
@@ -73,13 +77,13 @@ use std::path::Path;
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, Assembly, AssemblyError, Attribution, AxisSense, CONTRADICTORY_RECOURSE,
-    CancelToken, Datum, Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId,
-    EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram, MateFault, MateFrame,
-    MatePrimitive, MateReach, MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PartReach,
-    PartResolver, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace,
-    UNDER_RECOURSE, apply, assemble, content_pin, evaluate, inline, load, mixed_pins, parse_expr,
-    product_named, save, solve_document, split,
+    Alignment, Assembly, AssemblyError, AxisSense, CONTRADICTORY_RECOURSE, CancelToken, Datum,
+    Dimension, DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr,
+    FaceName, Frame, InlineError, LoopProgram, MateFault, MateFrame, MatePrimitive, MateReach,
+    MintRefusal, NO_AT_REST_RECORD_RECOURSE, Node, ParamName, PartReach, PartResolver, PatternKind,
+    ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, SitedFace, UNDER_RECOURSE, apply,
+    assemble, content_pin, evaluate, inline, load, mixed_pins, parse_expr, product_named, save,
+    solve_document, split,
 };
 use pncad::geom_core::{Band, Tol};
 use pncad::prelude::StableName;
@@ -148,11 +152,14 @@ const SHELF_THICKNESS: f64 = 0.04;
 const SEAT_A: [f64; 3] = [POST_SECTION / 2.0, SHELF_DEPTH / 2.0, 0.0];
 const SEAT_B: [f64; 3] = [SHELF_LENGTH - POST_SECTION / 2.0, SHELF_DEPTH / 2.0, 0.0];
 
-/// The post's own seating point, in POST coordinates: the centre of
-/// its top cap. Every mate that seats something on a post is authored
-/// against this one value — a second spelling of it is a second place
-/// for the model and the mates to disagree.
-const POST_SEAT: [f64; 3] = [POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT];
+/// The post's own seat, in POST coordinates: its top cap FACE, by the
+/// part's own name. The frame is resolved from the face's canonical
+/// pose at every evaluation — its centre, its normal, the carrier's
+/// own roll reference — so a post whose height changes moves the seat
+/// with it and no number here can disagree with the model.
+fn post_seat(post_top: &StableName) -> MateFrame {
+    MateFrame::from_face(FaceName::new(post_top.clone()).expect("a cap is a face"))
+}
 
 /// One post's volume, and the shelf's — the arithmetic every census
 /// below is checked against.
@@ -183,23 +190,51 @@ fn pe(src: &str, params: &BTreeMap<ParamName, Dimension>) -> Expr {
 /// would be read as either. `tess-meter`'s is a validated text token
 /// for a mesh report; this one is a `StableName` whose kind is
 /// `Face`.
+///
+/// The head is the part-local face as the instance names it — the
+/// kernel's own wrapper (`FaceName::in_part`), the inverse of the
+/// unwrap a face frame's name is.
 fn head(instance: RecipeNodeId, local: &StableName) -> SitedFace {
-    let name = pncad::document::FaceName::new(in_part(instance, local))
+    let name = pncad::document::FaceName::new(local.clone())
         .unwrap_or_else(|err| panic!("a mate head names a face: {err}"));
-    SitedFace::at_mint(name)
+    SitedFace::at_mint(name.in_part(instance))
 }
 
-/// Inserts a node and returns its minted id.
+/// Inserts a node that is not a mate and returns its minted id.
 ///
-/// Every edit the scenes author through here INSERTS — an instance, a
-/// mate, a pattern, a placement — and an insert never moves a
+/// Every node the scenes insert through here — an instance, a pattern,
+/// a sketch — is admitted on its own datum, and an insert never moves a
 /// cluster's gauge (a new mate JOINS clusters; the survivor keeps its
-/// gauge), so the maintenance never asks the reach and the refusing
-/// one is the honest value. The edits that do move a gauge — the
-/// split and the inline below — take the workspace's own reach.
+/// gauge), so neither the door nor the maintenance asks the reach and
+/// the refusing one is the honest value. A mate goes through
+/// [`insert_mate`]; the edits that move a gauge — the split and the
+/// inline below — take the workspace's own reach.
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied =
-        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the insert applies");
+    insert_through(doc, node, tol, &RefusingReach)
+}
+
+/// Inserts a mate through `reach` — the workspace's — and returns its
+/// minted id. The door admits a mate by reading its parts: it resolves
+/// a side that names a face ([`post_seat`]) from the part's own face,
+/// as it levers a coincidence's rider over the parts' extent, so the
+/// insert takes the reach an evaluation would use.
+fn insert_mate(
+    doc: &mut ProfileDoc,
+    node: Node<ProfileProgram>,
+    tol: Tol,
+    reach: &dyn MateReach,
+) -> RecipeNodeId {
+    insert_through(doc, node, tol, reach)
+}
+
+fn insert_through(
+    doc: &mut ProfileDoc,
+    node: Node<ProfileProgram>,
+    tol: Tol,
+    reach: &dyn MateReach,
+) -> RecipeNodeId {
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, reach)
+        .unwrap_or_else(|err| panic!("the insert applies: {err:?}"));
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }
@@ -213,18 +248,21 @@ fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol, reach: &dyn
     *doc = applied.doc;
 }
 
-/// A mate frame: origin, primary axis, clocking reference.
+/// An AUTHORED mate frame: origin, primary axis, clocking reference —
+/// the shelf's two seating points. Both lie on ONE face, the shelf's
+/// underside, and a face frame is that face's canonical origin with no
+/// offset inside the face, so the two seats spelled as the face would
+/// collapse onto one point: a point on a face that is not its origin
+/// is authored.
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
-/// A part-local name, wrapped at the instance that placed it — the
-/// instance-qualified form every cross-document reference takes (the
-/// GQ4 wrapper × N1–N7).
+/// A part-local name of ANY kind, wrapped at the instance that placed
+/// it — the instance-qualified form every cross-document reference
+/// takes (the GQ4 wrapper × N1–N7). A face goes through the kernel's
+/// own `FaceName::in_part` ([`head`]); this spells the wrapper for the
+/// edges and vertices a whole-table walk meets too.
 fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
     StableName {
         kind: local.kind,
@@ -483,6 +521,7 @@ fn stand_doc(
     shelf_bottom: &StableName,
     primitive: MatePrimitive,
     tol: Tol,
+    reach: &dyn MateReach,
 ) -> Stand {
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-stand"), tol);
     let post_a = insert(&mut doc, Node::instantiate_part(post), tol);
@@ -498,14 +537,14 @@ fn stand_doc(
     let shelf_i = insert(&mut doc, Node::instantiate_part(shelf), tol);
     let post_b = insert(&mut doc, Node::instantiate_part(post), tol);
 
-    let mate_1 = insert(
+    let mate_1 = insert_mate(
         &mut doc,
         Node::Mate {
             a: head(post_a, post_top),
             b: head(shelf_i, shelf_bottom),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: mate_frame(POST_SEAT),
+                a: post_seat(post_top),
                 b: mate_frame(SEAT_A),
                 primitive,
                 sense: AxisSense::Aligned,
@@ -513,8 +552,9 @@ fn stand_doc(
             },
         },
         tol,
+        reach,
     );
-    let mate_2 = insert(
+    let mate_2 = insert_mate(
         &mut doc,
         Node::Mate {
             a: head(shelf_i, shelf_bottom),
@@ -522,13 +562,14 @@ fn stand_doc(
             class: ContactClass::Rest,
             alignment: Alignment {
                 a: mate_frame(SEAT_B),
-                b: mate_frame(POST_SEAT),
+                b: post_seat(post_top),
                 primitive,
                 sense: AxisSense::Aligned,
                 clocking: None,
             },
         },
         tol,
+        reach,
     );
     Stand {
         doc,
@@ -918,6 +959,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         shelf_bottom,
         MatePrimitive::PlanarRest { offset: 0.0 },
         tol,
+        &reach,
     );
     let poses = solve_document(&under.doc, &reach, tol);
     let fault = poses
@@ -948,15 +990,16 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         shelf_bottom,
         MatePrimitive::FrameCoincidence,
         tol,
+        &reach,
     );
-    let clash = insert(
+    let clash = insert_mate(
         &mut contra.doc,
         Node::Mate {
             a: head(contra.post_a, post_top),
             b: head(contra.shelf_i, shelf_bottom),
             class: ContactClass::Rest,
             alignment: Alignment {
-                a: mate_frame([POST_SECTION / 2.0, POST_SECTION / 2.0, POST_HEIGHT]),
+                a: post_seat(post_top),
                 // The same pair, seated 10 mm higher: the author has
                 // said two things that cannot both be true.
                 b: mate_frame([SEAT_A[0], SEAT_A[1], SEAT_A[2] - 0.01]),
@@ -966,6 +1009,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
             },
         },
         tol,
+        &reach,
     );
     let poses = solve_document(&contra.doc, &reach, tol);
     let fault = poses
@@ -996,6 +1040,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         shelf_bottom,
         MatePrimitive::FrameCoincidence,
         tol,
+        &reach,
     );
     edit(
         &mut tangent.doc,
@@ -1014,7 +1059,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
             tol,
             &reach,
         );
-        insert(
+        insert_mate(
             &mut swapped,
             Node::Mate {
                 a,
@@ -1023,6 +1068,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
                 alignment,
             },
             tol,
+            &reach,
         );
     }
     let ev = run(&swapped, &with_store(ws), tol);
@@ -1402,6 +1448,14 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     // lint, not a refusal. The post is referenced twice; move ONE with
     // the primitive and the lint reports the multiplicity with the
     // nodes holding each pin.
+    // Where the shelf sits on the posts as they are — read now, while
+    // the store still holds the version both posts pin: a post side's
+    // frame is the post's own cap face, so a solve of a document whose
+    // pin the store has moved past refuses that side rather than
+    // remember an old frame.
+    let shelf_before = solve_document(&updated, &reach, tol)
+        .placement(&updated, stand.shelf_i)
+        .expect("the shelf is solved before the migration");
     let mut shorter = ws
         .resolve(
             &DocRef {
@@ -1481,35 +1535,39 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
         "the elaboration leaves every site on one pin"
     );
 
-    // And now the fit gate does its job. Both posts are 40 mm short,
-    // the mates still seat the shelf where the AUTHOR said (an
-    // alignment frame is authored data, not the seating face read
-    // back), so the declared rest between each post's cap and the
-    // shelf's underside is REFUTED — named, with its mate.
+    // And now the mates do their job. Both posts are 40 mm short, and
+    // each post's mate frame is the post's top cap FACE, resolved
+    // from the post's own evaluation at every solve — so the shelf
+    // comes down 40 mm with the posts, the declared rest between each
+    // cap and the shelf's underside still holds, and the gate
+    // CERTIFIES. A frame of authored numbers would have stayed where
+    // the cap used to be, and the gate would have refuted the mate by
+    // name; the face name is the state, the frame is derived.
     let ev = run(&migrated, &with_store(ws), tol);
-    match assemble(&migrated, &ev, tol) {
-        Err(AssemblyError::AtRest { findings }) => {
-            let refuted: Vec<_> = findings
-                .iter()
-                .filter_map(|f| match &f.attribution {
-                    Attribution::Refuted(m) => Some(m.mate),
-                    _ => None,
-                })
-                .collect();
-            assert!(
-                refuted.contains(&stand.mate_1) || refuted.contains(&stand.mate_2),
-                "the gate names the mate whose declaration stopped holding: {findings:?}"
-            );
-            println!(
-                "   \"does it actually fit\": after the migration the shortened posts leave \
-                 a 40 mm gap, and {} of {} finding(s) REFUTE their mate by name — the swap \
-                 is verified, never assumed",
-                refuted.len(),
-                findings.len()
-            );
-        }
-        other => panic!("a 40 mm gap under a declared rest must refuse: {other:?}"),
-    }
+    let shelf_after = solve_document(&migrated, &reach, tol)
+        .placement(&migrated, stand.shelf_i)
+        .expect("the shelf is solved after the migration");
+    let dropped = shelf_before.translation[2] - shelf_after.translation[2];
+    assert!(
+        (dropped - 0.04).abs() < 1e-12,
+        "the shelf follows the shortened posts by the height change: {dropped} m"
+    );
+    assert_eq!(
+        shelf_before.columns, shelf_after.columns,
+        "the shelf's orientation is untouched by a height edit"
+    );
+    let gate = at_rest(&migrated, &ev, tol);
+    assert!(
+        matches!(gate.verdict, AtRestVerdict::Certified),
+        "the seat still holds on the shortened posts: {}",
+        gate.verdict.describe()
+    );
+    println!(
+        "   \"does it actually fit\": after the migration the shelf came down {dropped:.3} m with \
+         the shortened posts — each mate names the post's cap FACE and the solve resolves the \
+         frame from the part — and the gate {}",
+        gate.verdict.describe()
+    );
 
     // Undo is keeping the prior value: the migrated document is one
     // the author can simply not adopt. Put both parts back, so the
@@ -1630,21 +1688,22 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
 /// which is the one thing a tour scene had never needed before — see
 /// the friction note in `walk_tour`.
 ///
-/// # Gap: a mate's alignment frame is authored data
+/// # A mate frame names a face, and the solve resolves it
 ///
-/// A11 makes the solve structural on purpose — no geometry
-/// inspection, no numerics beyond decided predicates — so a mate's
-/// two frames are numbers the AUTHOR wrote, not the seating face read
-/// back. The consequence a user meets is here in plain sight: the
-/// stand's mates carry the post's cap height (`POST_HEIGHT`) and the
-/// shelf's seating points as literals, and an edit to the part that
-/// moves that face does not move them. The mitigation this file uses
-/// is the one a CAD user learns — model each part from the datum it
-/// mates on, so the mated face sits at the part origin and a size
-/// change never moves it — and the update walk shows what happens
-/// when it is violated: the fit gate refutes the declaration and
-/// names its mate. There is no door today that derives an alignment
-/// frame FROM a selected face.
+/// A11 keeps the solve's ALGORITHM structural — coset intersection
+/// over decided predicates, no numeric fitting — while its inputs are
+/// the document plus its mated parts' evaluations: a mate frame is
+/// either numbers the author wrote or a FACE of the part, whose pose
+/// the solve reads off the part's own evaluation every time. The
+/// stand's post sides are faces (`post_seat`): the post's cap by the
+/// post's own name, so a post whose height changes moves the seat
+/// with it, which the update walk shows — the shelf comes down with
+/// the shortened posts and the gate still certifies. The shelf's
+/// seating points stay authored numbers, because both lie on its one
+/// underside and a face frame has no offset inside its face — the two
+/// would collapse onto the face's canonical origin ([`mate_frame`]);
+/// that spelling is also what a face with no canonical frame — a
+/// NURBS carrier — keeps taking.
 pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
     let (mut ws, parts) = workspace(work, tol);
     println!(
@@ -1655,6 +1714,10 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
 
     let (layout, pattern, shelf_i) = layout_doc(parts.post, parts.shelf, tol);
     ws.create(&layout, tol).expect("the layout is stored");
+    // The stand's mates name the post's cap face, so the door that
+    // inserts them reads the parts: through the workspace's reach.
+    let store = store(&ws);
+    let reach = PartReach::<f64>::with_resolver(Some(&store), tol);
     let stand = stand_doc(
         parts.post,
         parts.shelf,
@@ -1662,6 +1725,7 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
         &parts.shelf_bottom,
         MatePrimitive::FrameCoincidence,
         tol,
+        &reach,
     );
     ws.create(&stand.doc, tol).expect("the stand is stored");
 

@@ -164,18 +164,15 @@ pub fn with_resolver(store: PartStore) -> EvalOptions {
 
 /// **A cap face of `instance`'s part product**, in the wrapper the
 /// instantiate node mints: the part's own name for the face, worn
-/// inside a [`RoleSeg::InPart`] under the instance that placed it.
+/// inside a [`RoleSeg::InPart`] under the instance that placed it —
+/// the kernel's own wrapper (`FaceName::in_part`).
 pub fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
+    editor_core::FaceName::new(StableName {
         kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
+        node: PART_BODY,
+        path: vec![RoleSeg::Cap(cap)],
+    })
+    .expect("a cap is a face")
+    .in_part(instance)
+    .into_name()
 }

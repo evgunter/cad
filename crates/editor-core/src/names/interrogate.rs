@@ -246,7 +246,7 @@ pub fn denotation<T: Decide>(
 /// `WrongKind` for a non-face name, `Ambiguous` for an N2 tie among
 /// FACES, and the wrapped [`ReadbackError`]. The kind is asked first,
 /// so a non-face name is refused `WrongKind` whether or not it is
-/// tied ([`entity_of`]).
+/// tied ([`key_in`]).
 pub fn face_frame<T: Decide>(
     ev: &Evaluation<T>,
     node: RecipeNodeId,
@@ -378,35 +378,113 @@ pub(crate) fn entity_point<T: Decide>(
 /// `topo::readback` function. That is one shape, and it is written
 /// here once: a sixth read door is a delegate line, not a sixth copy
 /// of the ladder, and the `WrongKind` refusal cannot drift between
-/// doors because there is one site that builds it.
+/// doors because there is one site that builds it. The TABLE's half
+/// of the ladder ([`key_in`]) is its own door, for a reader that holds
+/// a table and a body but no evaluation node (a mated part's cached
+/// product, read for a `FromFace` mate frame).
 ///
 /// # Errors
 ///
-/// The node ladder and `NoSuchName`/`WrongKind`/`WholeBody`/`Ambiguous`
-/// through [`entity_of`], which asks them in that order, and the
-/// wrapped [`ReadbackError`] the kernel door refuses with.
+/// The node ladder, then `NoSuchName`/`WrongKind`/`WholeBody`/`Ambiguous`
+/// through [`key_in`], which asks them in that order, then the output
+/// body, and the wrapped [`ReadbackError`] the kernel door refuses with.
 fn read<T: Decide, K: Denoted, R>(
     ev: &Evaluation<T>,
     node: RecipeNodeId,
     name: &StableName,
     door: fn(&Body<T>, K) -> Result<R, ReadbackError>,
 ) -> Result<R, InterrogateError> {
-    let (body, key) = entity_of(ev, node, name, K::KIND)?;
-    match K::of(key) {
-        Some(k) => Ok(door(body, k)?),
-        // The kind question was answered off the NAME in
-        // [`entity_of`], and the table admits a row only at its
-        // name's kind, so reaching here is that rule broken.
-        // Asserted in debug; in release this answers what the KEY is,
-        // the one place the two can disagree.
+    let value = value_of(ev, node)?;
+    let (index, key) =
+        key_in::<K>(&value.name_table, name).map_err(|refusal| refusal.at(K::KIND))?;
+    Ok(door(output_body(&value.payload, index)?, key)?)
+}
+
+/// **What a name table answers a read door, where it answers no key**
+/// — the table's rungs of [`read`]'s ladder, without the node's: the
+/// kind that differs between two readers is the one they each ask for,
+/// so it is handed in ([`TableRefusal::at`]) rather than stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TableRefusal {
+    /// The table has no row for the name.
+    NoSuchName,
+    /// The name, or the row's key, is of another kind than the door
+    /// reads.
+    Kind {
+        /// What it is instead.
+        found: EntityKind,
+    },
+    /// The name is an N2 tie.
+    Ambiguous {
+        /// How many entities answer to it.
+        candidates: usize,
+    },
+}
+
+impl TableRefusal {
+    /// The refusal in [`InterrogateError`]'s voice, for a door that
+    /// reads `wanted`.
+    fn at(self, wanted: EntityKind) -> InterrogateError {
+        match self {
+            Self::NoSuchName => InterrogateError::NoSuchName,
+            Self::Kind { found } => kind_mismatch(wanted, found),
+            Self::Ambiguous { candidates } => InterrogateError::Ambiguous { candidates },
+        }
+    }
+}
+
+/// **Name → (the output body's index, the key of the kind a door
+/// reads)** in one name table — the table's half of every read door's
+/// ladder, and the door a reader holding a table but no evaluation node
+/// takes (`eval`'s face pose over a mated part's cached product). The
+/// arena key is produced and consumed inside this crate — that
+/// confinement is the whole point of the module.
+///
+/// **KIND BEFORE MULTIPLICITY.** A name that denotes another kind
+/// than the door reads is refused `Kind` before the tie is looked at:
+/// an edge name handed to a face door is not readable however few
+/// entities answer to it, so narrowing it is no recourse and
+/// `Ambiguous` would be the wrong word for the fault. The kind is the
+/// NAME's, which the table makes every candidate's kind —
+/// `NameTable::insert_ref` and `insert_tied_ref` refuse a row whose
+/// name's kind is not its key's, and they are the only two writers of
+/// a row — so a tie answers this as readily as a unique row does.
+/// `NoSuchName` still outranks it: nothing is said about what a name
+/// denotes here until the table answers to it.
+///
+/// A unique row's KEY of another kind than its name's is that writers'
+/// rule broken: asserted in debug, and answered in release as what the
+/// key is, the one place the two can disagree.
+pub(crate) fn key_in<K: Denoted>(
+    table: &crate::names::NameTable,
+    name: &StableName,
+) -> Result<(u32, K), TableRefusal> {
+    let Some(entry) = table.lookup(name) else {
+        return Err(TableRefusal::NoSuchName);
+    };
+    if name.kind != K::KIND {
+        return Err(TableRefusal::Kind { found: name.kind });
+    }
+    let ent = match entry {
+        Entry::Unique(e) => *e,
+        Entry::Tied(candidates) => {
+            return Err(TableRefusal::Ambiguous {
+                candidates: candidates.len(),
+            });
+        }
+    };
+    match K::of(ent.key) {
+        Some(k) => Ok((ent.body, k)),
         None => {
             debug_assert!(
                 false,
-                "the node's table holds a key whose kind is not its name's: \
+                "the table holds a key whose kind is not its name's: \
                  `NameTable::insert_ref` and `insert_tied_ref` admit a row only at \
                  its name's kind"
             );
-            Err(kind_mismatch(K::KIND, key.kind()))
+            Err(TableRefusal::Kind {
+                found: ent.key.kind(),
+            })
         }
     }
 }
@@ -419,7 +497,7 @@ fn read<T: Decide, K: Denoted, R>(
 /// The projections are exhaustive with no wildcard arm, so a fifth
 /// entity kind fails to compile here rather than resolving to `None`
 /// and refusing at run time.
-trait Denoted: Copy {
+pub(crate) trait Denoted: Copy {
     /// The kind a door reading this key asks for.
     const KIND: EntityKind;
     /// This kind's key, where the resolved entity is of this kind.
@@ -484,48 +562,6 @@ pub(crate) fn value_of<T: Decide>(
         }),
         None => Err(InterrogateError::NodeNotEvaluated { node }),
     }
-}
-
-/// Name → (the body it lives in, the entity within it), for a door
-/// that reads `wanted`. The arena key is produced and consumed inside
-/// this crate — that confinement is the whole point of the module.
-///
-/// **KIND BEFORE MULTIPLICITY.** A name that denotes another kind
-/// than the door reads is refused `WrongKind` (or `WholeBody`) before
-/// the tie is looked at: an edge name handed to a face door is not
-/// readable however few entities answer to it, so narrowing it is no
-/// recourse and `Ambiguous` would be the wrong word for the fault.
-/// The kind is the NAME's, which the table makes every candidate's
-/// kind — `NameTable::insert_ref` and `insert_tied_ref` refuse a row
-/// whose name's kind is not its key's, and they are the only two
-/// writers of a row — so a tie answers this as readily as a unique
-/// row does.
-///
-/// `NoSuchName` still outranks it, and the node ladder outranks that:
-/// nothing is said about what a name denotes here until this node has
-/// a table and that table answers to it.
-fn entity_of<'a, T: Decide>(
-    ev: &'a Evaluation<T>,
-    node: RecipeNodeId,
-    name: &StableName,
-    wanted: EntityKind,
-) -> Result<(&'a Body<T>, EntityKey), InterrogateError> {
-    let value = value_of(ev, node)?;
-    let Some(entry) = value.name_table.lookup(name) else {
-        return Err(InterrogateError::NoSuchName);
-    };
-    if name.kind != wanted {
-        return Err(kind_mismatch(wanted, name.kind));
-    }
-    let ent = match entry {
-        Entry::Unique(e) => *e,
-        Entry::Tied(candidates) => {
-            return Err(InterrogateError::Ambiguous {
-                candidates: candidates.len(),
-            });
-        }
-    };
-    Ok((output_body(&value.payload, ent.body)?, ent.key))
 }
 
 /// The node's output body at `index` — the same body ordering the

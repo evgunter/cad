@@ -31,13 +31,14 @@ use crate::wire;
 
 use editor_core::{
     Alignment, AxisSense, CapEnd, Clash, ClusterMaintenance, ContactClass, DocEdit, DocumentId,
-    EditError, EvalOptions, Lever, LeverRefusal, LoggedEdit, MateFault, MateFrame, MatePrimitive,
-    MateReach, MateRole, MateSide, Node, PartFault, PersistError, ProfileDoc, ReachRefusal,
-    RecipeNodeId, RefusingReach, gauge_of, load, mate_reach, save,
+    EditError, EvalOptions, FacePoseRefusal, Lever, LeverRefusal, LoggedEdit, MateFault, MateFrame,
+    MatePrimitive, MateReach, MateRole, MateSide, Node, PartFault, PersistError, ProfileDoc,
+    ReachRefusal, RecipeNodeId, RefusingReach, gauge_of, load, mate_reach, save,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{at_the_door, insert, len, on_frame, solve, step, step_with};
 use geom_core::Tol;
+use topo::readback::Pose;
 
 // ---- Substrate ----
 
@@ -77,11 +78,7 @@ fn instances(label: &str, n: usize) -> (ProfileDoc, Vec<RecipeNodeId>, EvalOptio
 }
 
 fn frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 /// `a`'s top cap on `b`'s bottom cap, at `alignment`.
@@ -143,13 +140,39 @@ fn seat(clocking: Option<f64>) -> Alignment {
     }
 }
 
-/// A reach that counts its asks and answers through `inner`.
-struct Counting<'a>(core::cell::Cell<usize>, &'a dyn MateReach);
+/// A reach that counts its asks and answers through `inner` — the
+/// reach asks and the face-pose asks counted apart, since the door
+/// asks each where the solve asks it.
+struct Counting<'a>(
+    core::cell::Cell<usize>,
+    &'a dyn MateReach,
+    core::cell::Cell<usize>,
+);
+
+impl<'a> Counting<'a> {
+    fn over(inner: &'a dyn MateReach) -> Self {
+        Self(core::cell::Cell::new(0), inner, core::cell::Cell::new(0))
+    }
+
+    /// How many face poses were asked.
+    fn faces(&self) -> usize {
+        self.2.get()
+    }
+}
 
 impl MateReach for Counting<'_> {
     fn reach(&self, part: &editor_core::DocRef) -> Result<f64, ReachRefusal> {
         self.0.set(self.0.get() + 1);
         self.1.reach(part)
+    }
+
+    fn face_pose(
+        &self,
+        part: &editor_core::DocRef,
+        face: &editor_core::FaceName,
+    ) -> Result<Pose<f64>, FacePoseRefusal> {
+        self.2.set(self.2.get() + 1);
+        self.1.face_pose(part, face)
     }
 }
 
@@ -157,7 +180,7 @@ impl MateReach for Counting<'_> {
 /// plus the datum's own terms.
 fn lever_of(doc: &ProfileDoc, opts: &EvalOptions, ids: &[RecipeNodeId], a: &Alignment) -> f64 {
     let reach = mate_reach::<f64>(opts, Tol::witness());
-    let mut arm = a.lever_arm();
+    let mut arm = fixture::datum_lever(a);
     for &id in ids {
         let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(id) else {
             panic!("an instance");
@@ -181,7 +204,7 @@ fn a1_a_rider_beyond_the_band_refuses_at_insert_with_the_solves_lever() {
     let reach = mate_reach::<f64>(&opts, Tol::witness());
     let alignment = seat(Some(core::f64::consts::FRAC_PI_2));
     let (named, fault) =
-        at_the_door(&doc, &reach, mate(ids[0], ids[1], alignment)).expect_err("refused");
+        at_the_door(&doc, &reach, mate(ids[0], ids[1], alignment.clone())).expect_err("refused");
     let MateFault::Contradictory {
         held,
         added,
@@ -263,7 +286,7 @@ fn a1_a_rider_inside_the_band_is_admitted_and_the_pair_is_placed() {
 #[test]
 fn a4_the_static_gaps_refuse_table_lacks_with_no_reach_asked() {
     let (doc, ids, _) = instances("msolve10-a4-static", 2);
-    let counting = Counting(core::cell::Cell::new(0), &RefusingReach);
+    let counting = Counting::over(&RefusingReach);
     let rest = Alignment {
         primitive: MatePrimitive::PlanarRest { offset: 0.0 },
         ..seat(Some(0.3))
@@ -292,9 +315,9 @@ fn a4_the_static_gaps_refuse_table_lacks_with_no_reach_asked() {
 #[test]
 fn a4_a_degenerate_frame_refuses_frame_at_insert_with_no_ask() {
     let (doc, ids, _) = instances("msolve10-a4-frame", 2);
-    let counting = Counting(core::cell::Cell::new(0), &RefusingReach);
+    let counting = Counting::over(&RefusingReach);
     let mut alignment = seat(Some(0.3));
-    alignment.b.axis = [0.0; 3];
+    alignment.b = MateFrame::authored([0.0; 3], [0.0; 3], [1.0, 0.0, 0.0]);
     let (_, fault) =
         at_the_door(&doc, &counting, mate(ids[0], ids[1], alignment)).expect_err("refused");
     assert!(
@@ -317,7 +340,7 @@ fn a4_a_degenerate_frame_refuses_frame_at_insert_with_no_ask() {
 #[test]
 fn a4_a_rider_needs_the_reach_and_a_plain_coincidence_asks_none() {
     let (doc, ids, _) = instances("msolve10-a4-reach", 2);
-    let counting = Counting(core::cell::Cell::new(0), &RefusingReach);
+    let counting = Counting::over(&RefusingReach);
     let (named, fault) =
         at_the_door(&doc, &counting, mate(ids[0], ids[1], seat(Some(0.0)))).expect_err("refused");
     assert!(
@@ -338,6 +361,96 @@ fn a4_a_rider_needs_the_reach_and_a_plain_coincidence_asks_none() {
         at_the_door(&doc, &counting, mate(ids[0], ids[1], seat(None))).expect("admitted");
     assert_eq!(counting.0.get(), 1, "no rider, no ask");
     assert_eq!(plain, named);
+}
+
+// ---- A `FromFace` side at the door, and on replay ----
+
+/// **A `FromFace` side asks `face_pose` once per such side at the
+/// door, an `Authored` side asks nothing, and a rider still asks the
+/// reach once per part**: the door asks each read exactly where the
+/// solve asks it — the face before the table reads the frame, the
+/// lever only for the rider.
+#[test]
+fn a_from_face_side_asks_face_pose_once_per_side_at_the_door() {
+    let (doc, ids, opts) = instances("msolve10-from-face-asks", 2);
+    let store_reach = mate_reach::<f64>(&opts, Tol::witness());
+    let counting = Counting::over(&store_reach);
+    let cap = |end: CapEnd| editor_core::StableName {
+        kind: editor_core::EntityKind::Face,
+        node: fixture::resolver::PART_BODY,
+        path: vec![editor_core::RoleSeg::Cap(end)],
+    };
+    let face =
+        |end: CapEnd| MateFrame::from_face(editor_core::FaceName::new(cap(end)).expect("a face"));
+    // One face side, one authored side, no rider: one face ask, no
+    // reach ask.
+    let one_side = Alignment {
+        a: face(CapEnd::End),
+        ..seat(None)
+    };
+    at_the_door(&doc, &counting, mate(ids[0], ids[1], one_side)).expect("admitted");
+    assert_eq!(counting.faces(), 1, "one face side, one ask");
+    assert_eq!(counting.0.get(), 0, "no rider, no reach");
+    // Two face sides, no rider: two face asks, still no reach ask.
+    let both = Alignment {
+        a: face(CapEnd::End),
+        b: face(CapEnd::Start),
+        ..seat(None)
+    };
+    at_the_door(&doc, &counting, mate(ids[0], ids[1], both)).expect("admitted");
+    assert_eq!(counting.faces(), 3, "two face sides, two asks");
+    assert_eq!(counting.0.get(), 0, "no rider, no reach");
+    // Two authored sides: no face ask. With a rider: the reach once
+    // per part.
+    at_the_door(&doc, &counting, mate(ids[0], ids[1], seat(Some(0.0)))).expect("admitted");
+    assert_eq!(counting.faces(), 3, "an authored side asks nothing");
+    assert_eq!(counting.0.get(), 2, "a rider asks the reach once per part");
+}
+
+/// **A logged `FromFace` insert replays with no store and loads**:
+/// replay declines the face as it declines the rider — the datum
+/// alone is decided, the face is not read, the next solve decides it
+/// — so a file the door admitted loads without the parts it was
+/// admitted against.
+#[test]
+fn a_logged_from_face_insert_replays_with_no_store_and_loads() {
+    let (doc, ids, opts) = instances("msolve10-from-face-replay", 2);
+    let reach = mate_reach::<f64>(&opts, Tol::witness());
+    let snapshot = doc.clone();
+    let cap = editor_core::StableName {
+        kind: editor_core::EntityKind::Face,
+        node: fixture::resolver::PART_BODY,
+        path: vec![editor_core::RoleSeg::Cap(CapEnd::End)],
+    };
+    let alignment = Alignment {
+        a: MateFrame::from_face(editor_core::FaceName::new(cap).expect("a face")),
+        ..seat(Some(0.0))
+    };
+    let edit = DocEdit::InsertNode {
+        node: mate(ids[0], ids[1], alignment),
+    };
+    let applied = doc.apply(&edit, Tol::witness(), &reach).expect("admitted");
+    let log = vec![LoggedEdit {
+        edit: edit.clone(),
+        maintenance: applied.cluster_rows(),
+    }];
+    let text = save(&snapshot, &log, Tol::witness()).expect("saves");
+    let loaded = load(&text, Tol::witness()).expect("a FromFace insert replays with no store");
+    assert_eq!(loaded.doc.order(), applied.doc.order());
+    assert_eq!(loaded.edits, log);
+    // And the same entry through the door with no reach at all —
+    // replay's own arm — is admitted, the face declined.
+    let admitted = snapshot
+        .apply(&edit, Tol::witness(), &RefusingReach)
+        .map(|applied| applied.doc.order().len());
+    assert!(
+        matches!(
+            admitted,
+            Err(EditError::MateRefused { ref fault, .. })
+                if matches!(**fault, MateFault::FaceUnresolved { .. })
+        ),
+        "the LIVE door with the refusing reach refuses, since it holds a reach: {admitted:?}"
+    );
 }
 
 // ---- The history and the log ----
@@ -654,7 +767,8 @@ fn own_datum_subject(fault: &MateFault) -> Option<RecipeNodeId> {
         | MateFault::DanglingHead { mate, .. }
         | MateFault::PartSelectsAnotherCopy { mate, .. }
         | MateFault::SelfMate { mate, .. }
-        | MateFault::Unleverable { mate, .. } => Some(*mate),
+        | MateFault::Unleverable { mate, .. }
+        | MateFault::FaceUnresolved { mate, .. } => Some(*mate),
         MateFault::Contradictory {
             held,
             added,
@@ -754,6 +868,15 @@ fn renamed(fault: MateFault, from: RecipeNodeId, to: RecipeNodeId) -> MateFault 
         },
         MateFault::Unleverable { mate, refusal } => MateFault::Unleverable {
             mate: r(mate),
+            refusal,
+        },
+        MateFault::FaceUnresolved {
+            mate,
+            side,
+            refusal,
+        } => MateFault::FaceUnresolved {
+            mate: r(mate),
+            side,
             refusal,
         },
     }

@@ -443,13 +443,7 @@ impl ViewerBehavior<'_> {
                             },
                             clocking: None,
                         };
-                        match tool.proposal(
-                            doc,
-                            eval,
-                            &self.session.eval_options(),
-                            self.session.tol(),
-                            choice,
-                        ) {
+                        match tool.proposal(doc, eval, choice) {
                             Ok(proposal) => {
                                 // Exactly one committed DocEdit; the
                                 // tool closes with it.

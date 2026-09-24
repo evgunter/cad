@@ -53,11 +53,7 @@ fn block_ref(label: &str) -> DocRef {
 }
 
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
-    MateFrame {
-        origin,
-        axis: [0.0, 0.0, 1.0],
-        reference: [1.0, 0.0, 0.0],
-    }
+    MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
 fn seat(a: StableName, b: StableName) -> Node<editor_core::ProfileProgram> {

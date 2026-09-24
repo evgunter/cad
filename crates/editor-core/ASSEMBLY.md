@@ -406,9 +406,11 @@ changes the solve's algorithm — coset intersection over decided
 predicates, no numeric fitting, no geometry inspected inside the
 fold — and nothing is stored twice: the face name is the state, the
 frame is derived. A mated part that does not resolve faults its
-mate `MateFault::Unleverable` in the resolver's own voice, carrying
-the part fault unaltered, and that fault poisons the cluster as any
-mate fault does. The two questions that DO need a number are
+mate in the resolver's own voice, carrying the part fault unaltered —
+`MateFault::FaceUnresolved` (`FaceRefusal::PartUnresolved`) where a
+`FromFace` side stands on it, since a side's frame is read before the
+lever, else `MateFault::Unleverable` — and that fault poisons the
+cluster as any mate fault does. The two questions that DO need a number are
 asked once per reference, where the solve reads it — for every
 reference of every live mate, not only the ones a tree edge's offset
 derives: the named copy must exist (its index against the pattern's

@@ -160,3 +160,19 @@ are dispositioned as ONE fact under the convention stated on
 `editor_core::EditError`'s enum doc.
 
 Population 63 → 67. Read-count 8 → 12.
+
+## Four more dispositioned, by MSOLVE-9 (PR #2934)
+
+`face_refusal_tag` (the inner arm of `mate_face_unresolved`) shares
+four words, each dispositioned as ONE fact and pinned in
+`crates/pncad-py/src/tests.rs`'s
+`a_face_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do`:
+`part_unresolved` and `not_an_instance` with `lever_refusal_tag`
+(`FaceRefusal` mirrors `LeverRefusal` over the member walk and the
+resolver), and `no_such_name` and `ambiguous` with
+`interrogate_error_tag` (the name table's own two answers). The first
+three words were already shared; `no_such_name` is new to the roster.
+
+Read-count 12 → 16. The roster's doc stopped carrying that count
+("all but twelve are unread" → "most are unread"): it was the prose
+count of this population the same doc says goes stale.
