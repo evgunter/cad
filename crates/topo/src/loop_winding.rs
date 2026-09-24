@@ -102,7 +102,8 @@ impl<T: Decide> Body<T> {
         band: geom_core::Band,
         reach: LoopCarriers,
     ) -> Result<Option<Result<Sign, Indeterminate>>, TornLoop> {
-        let crate::entity::LoopBoundary::Cycle { first } = self.get_loop(l).ok_or(TornLoop)?.boundary
+        let crate::entity::LoopBoundary::Cycle { first } =
+            self.get_loop(l).ok_or(TornLoop)?.boundary
         else {
             return Ok(None);
         };

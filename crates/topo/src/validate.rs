@@ -4561,10 +4561,28 @@ pub(crate) fn tier3_local_checks_marked<
             };
             // ATREST-4 MEASUREMENT (temporary; removed before landing).
             if let Ok(path) = std::env::var("ATREST4_SURFACE") {
-                let old = body.planar_loop_winding(l, outward, band, crate::loop_winding::LoopCarriers::Lines);
-                let new = body.planar_loop_winding(l, outward, band, crate::loop_winding::LoopCarriers::Circular);
-                let ell = body.planar_loop_winding(l, outward, band, crate::loop_winding::LoopCarriers::Elliptic);
-                let tag = |w: &Result<Option<Result<Sign, geom_core::Indeterminate>>, crate::loop_winding::TornLoop>| match w {
+                let old = body.planar_loop_winding(
+                    l,
+                    outward,
+                    band,
+                    crate::loop_winding::LoopCarriers::Lines,
+                );
+                let new = body.planar_loop_winding(
+                    l,
+                    outward,
+                    band,
+                    crate::loop_winding::LoopCarriers::Circular,
+                );
+                let ell = body.planar_loop_winding(
+                    l,
+                    outward,
+                    band,
+                    crate::loop_winding::LoopCarriers::Elliptic,
+                );
+                let tag = |w: &Result<
+                    Option<Result<Sign, geom_core::Indeterminate>>,
+                    crate::loop_winding::TornLoop,
+                >| match w {
                     Err(_) => "torn".to_string(),
                     Ok(None) => "none".to_string(),
                     Ok(Some(Ok(s))) => format!("{s:?}"),
@@ -4573,11 +4591,21 @@ pub(crate) fn tier3_local_checks_marked<
                 let (o, n, e) = (tag(&old), tag(&new), tag(&ell));
                 if o != n || n != e {
                     use std::io::Write as _;
-                    let exe = std::env::current_exe().ok().and_then(|p| p.file_name().map(|f| f.to_string_lossy().into_owned())).unwrap_or_default();
+                    let exe = std::env::current_exe()
+                        .ok()
+                        .and_then(|p| p.file_name().map(|f| f.to_string_lossy().into_owned()))
+                        .unwrap_or_default();
                     let th = std::thread::current().name().unwrap_or("?").to_string();
                     let refuses = matches!(new, Ok(Some(Ok(sg))) if sg == wrong);
-                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
-                        let _ = writeln!(f, "{exe}\t{th}\t{face_key:?}\t{l:?}\touter={is_outer}\told={o}\tnew={n}\tell={e}\trefuses={refuses}");
+                    if let Ok(mut f) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(&path)
+                    {
+                        let _ = writeln!(
+                            f,
+                            "{exe}\t{th}\t{face_key:?}\t{l:?}\touter={is_outer}\told={o}\tnew={n}\tell={e}\trefuses={refuses}"
+                        );
                     }
                 }
                 if matches!(old, Ok(Some(Ok(sg))) if sg == wrong) {
@@ -4591,9 +4619,12 @@ pub(crate) fn tier3_local_checks_marked<
             // Line and Circle carriers (banner); an empty ring, a loop
             // riding an ellipse, spiric or NURBS edge, and a torn
             // lookup (unreachable on tier-1 input) are not asked.
-            let Ok(Some(winding)) =
-                body.planar_loop_winding(l, outward, band, crate::loop_winding::LoopCarriers::Circular)
-            else {
+            let Ok(Some(winding)) = body.planar_loop_winding(
+                l,
+                outward,
+                band,
+                crate::loop_winding::LoopCarriers::Circular,
+            ) else {
                 continue;
             };
             if winding == Ok(wrong) {

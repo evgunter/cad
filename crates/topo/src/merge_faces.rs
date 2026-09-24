@@ -2264,13 +2264,13 @@ impl<T: Decide> Body<T> {
         normal: geom_core::Vec3<T>,
         band: Band,
     ) -> Result<Option<geom_core::Sign>, MergeCoplanarError> {
-        let winding =
-            self.planar_loop_winding(l, normal, band, crate::loop_winding::LoopCarriers::Elliptic)
-                .map_err(|crate::loop_winding::TornLoop| MergeCoplanarError::Op {
-                    error: EulerOpError::StaleKey {
-                        key: EntityId::Loop(l),
-                    },
-                })?;
+        let winding = self
+            .planar_loop_winding(l, normal, band, crate::loop_winding::LoopCarriers::Elliptic)
+            .map_err(|crate::loop_winding::TornLoop| MergeCoplanarError::Op {
+                error: EulerOpError::StaleKey {
+                    key: EntityId::Loop(l),
+                },
+            })?;
         match winding {
             None => Ok(None),
             Some(Ok(sign)) => Ok(Some(sign)),
