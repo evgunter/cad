@@ -1132,11 +1132,11 @@ fn cascading_a_declare_away_reports_the_orphan_and_then_removes_it() {
 ///
 /// `apply` is a function of `(document, edit)` and answers what one
 /// delete did; the NET over an action is the cascade door's answer,
-/// and nothing in the tree computes it today
-/// (`work/offer/cascade-delete-shows-the-strand-count.md` is where
-/// that affordance is owed). This row is the other half of the
-/// transient: the information needed to cancel exists one level up,
-/// at `cascade_delete_order`'s caller.
+/// which the viewer's session computes with this filter
+/// (`net_maintenance` in `crates/viewer`; the pre-click count is
+/// `work/offer/cascade-delete-shows-the-strand-count.md`). This row is
+/// the other half of the transient: the information needed to cancel
+/// exists one level up, at `cascade_delete_order`'s caller.
 #[test]
 fn the_orphan_transient_is_cancellable_at_the_cascade_door() {
     let doc = ProfileDoc::empty_derived("dm7_orphan_cancellable", Tol::witness());
@@ -1165,10 +1165,7 @@ fn the_orphan_transient_is_cancellable_at_the_cascade_door() {
             | Maintenance::Cluster(_) => true,
         })
         .collect();
-    assert!(
-        net.is_empty(),
-        "the cascade's NET maintenance is empty, and nothing in the tree computes it"
-    );
+    assert!(net.is_empty(), "the cascade's NET maintenance is empty");
 }
 
 /// **What the orphaned declaration BECOMES**: the same delete that

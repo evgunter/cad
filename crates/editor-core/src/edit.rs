@@ -2219,7 +2219,8 @@ pub enum Maintenance {
     /// (`dm7_delete_strands::the_orphan_transient_is_cancellable_at_the_cascade_door`),
     /// so the CASCADE door — the caller that holds
     /// [`cascade_delete_order`]'s answer — is where the net over an
-    /// action is computed, and nothing computes it today.
+    /// action is computed; the viewer's session computes it for every
+    /// action it commits (`net_maintenance` in `crates/viewer`).
     OrphanedDeclare {
         /// The `Declare` left with no consumer. It is LIVE in the
         /// document this edit produced — the surviving node is the

@@ -197,7 +197,8 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, ParamName, ParseError, ProductError, ProductErrorKind, RecipeNodeId, SlotId,
+    ChecksReport, Maintenance, ParamName, ParseError, ProductError, ProductErrorKind, RecipeNodeId,
+    SlotId,
 };
 use pncad::select::HitTestError;
 
@@ -210,7 +211,7 @@ use crate::pickindex::{PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
-use crate::session::{AtRestBadge, Outstanding, Refusal, SessionOp};
+use crate::session::{AtRestBadge, OpOutcome, Outstanding, Refusal, SessionOp};
 use crate::vocab::{partial_mirror, vocabulary};
 
 /// **What something the chrome shows is ABOUT** — carried by a
@@ -1022,6 +1023,77 @@ impl<'a> Withdrawal<'a> {
     /// This withdrawal as a notice for [`frame_status`]'s rank 2.
     pub fn notice(&self) -> Message {
         Message::new(Subject::Document, self.to_string())
+    }
+}
+
+/// **Every notice one operation's outcome carries**, for
+/// [`frame_status`]'s rank 2 — the ONE door from an [`OpOutcome`] to
+/// the frame's notices, and the call `app` makes per operation.
+///
+/// Two kinds of news, both provoked by the act the user just took and
+/// both true of the document it left: what the transition WITHDREW
+/// from the display state ([`Withdrawal::all`]), then what the
+/// committed edits did that the user did not ask for by name
+/// ([`maintenance_notice`], one notice per row in the outcome's own
+/// order). They are notices rather than a verdict for [`Withdrawal`]'s
+/// reason: the edit that produced them was accepted, so the same
+/// frame's batch verdict is [`StatusUpdate::Clear`], and the next
+/// non-hover act retires them.
+///
+/// **Destructured rather than field-read**, so a field added to
+/// [`OpOutcome`] is E0027 here and its author decides whether the
+/// line says it. The four this does not word are not news the line
+/// owes: `committed` and `previewed` are the act itself, `minted` is
+/// an id a form reads back, and `refusal` is ranked above every
+/// notice by [`frame_status`] on its own.
+pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '_ {
+    let OpOutcome {
+        committed: _,
+        previewed: _,
+        minted: _,
+        refusal: _,
+        withdrawn,
+        maintenance,
+    } = outcome;
+    Withdrawal::all(withdrawn)
+        .map(|withdrawal| withdrawal.notice())
+        .chain(maintenance.iter().filter_map(maintenance_notice))
+}
+
+/// **One maintenance row as a notice**, or `None` for a row the line
+/// does not carry.
+///
+/// **The row's own sentence, unaltered.** Each arm of [`Maintenance`]
+/// words itself (`Display for Maintenance`), naming the carrier and
+/// what the edit removed or rewrote; nothing here composes prose about
+/// it, for the rule [`Withdrawal`]'s causes follow. One notice per row
+/// rather than one per kind joined with [`LIST_SEPARATOR`], because a
+/// strand's own sentence writes that mark and a flat join of such
+/// sentences could not be split back into its rows; the boundary mark
+/// between notices is the one no sentence can carry ([`Message::new`]).
+///
+/// **Every arm DM7 makes the door report is worded**: a stranded
+/// payload name, a stranded appearance key, a declaration left with no
+/// consumer, and a name rewritten in place. A rebound is a repair the
+/// door made rather than a loss it left, and it is worded all the
+/// same: a name that moved without a word is exactly what the report
+/// exists to end.
+///
+/// **A cluster act is not**: it re-keys the mate graph's placement
+/// registry — a gauge instance and a frame, bookkeeping the chrome
+/// names nowhere — and what it decided about where the parts sit is
+/// what the picture draws. It still rides [`OpOutcome::maintenance`],
+/// where a reader of the API sees it.
+///
+/// The match names every arm, so a sixth is a compile error here
+/// rather than a row that reaches the outcome and is never worded.
+pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
+    match row {
+        Maintenance::Strand { .. }
+        | Maintenance::StrandedAppearance { .. }
+        | Maintenance::OrphanedDeclare { .. }
+        | Maintenance::Rebound { .. } => Some(Message::new(Subject::Document, row.to_string())),
+        Maintenance::Cluster(_) => None,
     }
 }
 

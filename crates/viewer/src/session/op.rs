@@ -16,8 +16,8 @@
 use std::path::PathBuf;
 
 use pncad::document::{
-    Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, LoopProgram, ParamName,
-    ProfileProgram, RecipeNodeId, SitedFace, SlotId,
+    Alignment, BooleanOp, DocEdit, DocParam, DocumentId, Expr, Frame, LoopProgram, Maintenance,
+    ParamName, ProfileProgram, RecipeNodeId, SitedFace, SlotId,
 };
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
@@ -1412,6 +1412,33 @@ pub struct OpOutcome {
     /// selection, a hover — because there was no transition to prune
     /// against.
     pub withdrawn: PruneReport,
+    /// **What the committed edits did that the user did not ask for by
+    /// name** — the edit door's `Applied::maintenance`, every row of
+    /// every edit the action applied, in the order they applied and
+    /// each edit's rows in the door's own order.
+    ///
+    /// The log keeps only the cluster acts (replay re-applies them and
+    /// re-derives the rest), so this is the one place the other rows —
+    /// a name stranded or rewritten in place, an appearance key
+    /// stranded, a declaration left with no consumer — leave the
+    /// session. The chrome words them through
+    /// [`crate::frame::outcome_notices`].
+    ///
+    /// **Net over the action, not per edit.** One action can apply
+    /// several edits (a cascade delete, a profile edit's one-slot
+    /// writes), and a row an earlier edit reported can be made moot by
+    /// a later one: a strand whose carrying node, or an orphan whose
+    /// declaration, the same action went on to delete; an appearance
+    /// strand whose key the action's document no longer holds; a name
+    /// rewritten and then rewritten again, which is one move from
+    /// where it started to where it ended — or none, when it ended
+    /// where it started. Those are folded out; every other row is the
+    /// door's, unaltered.
+    ///
+    /// Empty on every operation that committed nothing, and on a
+    /// gesture's previews: a preview enters no history, so nothing it
+    /// did has happened yet.
+    pub maintenance: Vec<Maintenance>,
 }
 
 impl OpOutcome {

@@ -92,6 +92,8 @@ mod docm1_face_frame;
 mod docm9_range_vs_probe;
 #[path = "edge_pick.rs"]
 mod edge_pick;
+#[path = "edit_maintenance.rs"]
+mod edit_maintenance;
 #[path = "error_display.rs"]
 mod error_display;
 #[path = "eval_seam.rs"]
