@@ -299,14 +299,21 @@ const PLATE_MAX_TERMS: usize = 288;
 /// The plate's walk ledger at its nominal — one row, because the
 /// plate's nominal reads no ε (its dimensions are literals, not
 /// multiples of ε) and the captures at the three rows agree.
+///
+/// Re-captured when validation began keeping each loop's authored
+/// start (`profile` README V3): the plate's holes are authored
+/// counter-clockwise and reversed into canonical sense, and a reversed
+/// loop now starts where it was authored rather than at its lex-min
+/// vertex, so the walks meet the same forms in another order. Every
+/// count is unchanged; only the digest chains moved.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 15030 frozen 672 digest 28009db4cb59a2d8449d77d029a0c6e1\n\
-     Plain/Assertion calls 462 forms 2594 frozen 372 digest 85728cdbe8c1b239b969bff8b2d83dbe\n\
+     Plain/Decision calls 951 forms 15030 frozen 672 digest e6c2bc06f3154db439dcd98c928a1b18\n\
+     Plain/Assertion calls 462 forms 2594 frozen 372 digest 37efdb25fdaa51c62baab603f47eedcb\n\
      Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 320 forms 7979 frozen 8 digest 7b9779738faac62b022ea91d8e03be38\n\
-     Early/Assertion calls 462 forms 3406 frozen 104 digest c0bd974b4501fd372c3882438eb9676f\n\
+     Early/Decision calls 320 forms 7979 frozen 8 digest 3551739d5d60cd4be669d11b4e08530c\n\
+     Early/Assertion calls 462 forms 3406 frozen 104 digest 0fe6f525b8bea5da7c1eca362f553f43\n\
      Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 330 forms 11884 frozen 104 digest 4472e9a44e2d62da994e09f453faba6c\n\
+     Door/Decision calls 330 forms 11884 frozen 104 digest 83bd5b09f38911dc29f21c19e208ea1a\n\
      Door/Assertion calls 190 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

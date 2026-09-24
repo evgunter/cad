@@ -530,8 +530,9 @@ fn a_step_whose_segment_count_moved_is_not_a_kept_one() {
 /// hole strands the hole's name, retired onto loop `RETIRED_FLOOR +
 /// 1` — no loop continues it, so it is filed by its OLD loop index at
 /// the floor — and leaves the square's alone. Swapping the two
-/// loops' order rebinds both — the hole to loop 0, the square's wall
-/// to loop 1.
+/// loops' AUTHORED order rebinds nothing: names index canonical loops,
+/// and the canonical order is the outer first whatever order the
+/// author writes the loops in.
 #[test]
 fn a_dropped_loop_strands_and_a_moved_loop_rebinds_every_name_on_it() {
     let square = LoopProgram::Chain(square_steps());
@@ -575,17 +576,8 @@ fn a_dropped_loop_strands_and_a_moved_loop_rebinds_every_name_on_it() {
     );
     assert_eq!(
         swapped.maintenance,
-        vec![
-            Maintenance::Rebound {
-                from: wall_of(ext, 0, 1),
-                to: wall_of(ext, 1, 1),
-            },
-            Maintenance::Rebound {
-                from: wall_of(ext, 1, 0),
-                to: wall_of(ext, 0, 0),
-            },
-        ],
-        "both names moved with their loops, in the carriers' document order"
+        Vec::new(),
+        "the canonical loop order is the outer first either way, so no name moves"
     );
     let _ = on_square;
     // The swapped program still extrudes: description order is recipe
@@ -657,17 +649,102 @@ fn a_program_that_no_longer_replays_has_no_spans_so_every_name_on_it_strands() {
             },
         ],
     );
-    // The hole loop is continued (into new loop 1, which draws the
-    // circle's segments), so its retired coordinate is filed on THAT
-    // loop, at the floor plus the old segment — exactly
-    // `RETIRED_FLOOR + 0`.
+    // The old program does not replay, so neither its spans nor its
+    // canonical numbering can be read — not even which of its loops the
+    // name's canonical loop 1 is — and the retired coordinate is filed
+    // by the name's own coordinates: loop `RETIRED_FLOOR + 1`,
+    // segment 0.
     assert_eq!(
         applied.maintenance,
         vec![Maintenance::Strand {
             node: on_hole,
-            name: wall_of(ext, 1, RETIRED_FLOOR),
+            name: wall_of(ext, RETIRED_FLOOR + 1, 0),
         }],
         "one strand at the retired spelling and nothing else"
+    );
+}
+
+/// **A program that replays but does not validate still reads its
+/// names.** The names on it were published by an evaluation that
+/// validated, and the canonical form keeps each loop's authored start,
+/// so a name's canonical locator needs only each loop's canonical
+/// position and sense — both read off the replay alone. The hole is
+/// authored FIRST and counter-clockwise, so both facts matter: its
+/// canonical loop is 1 (the square is outer) and it is reversed. Its
+/// radius is driven to 1.05, past the square's walls 1 away, so the
+/// profile replays and refuses validation (the hole crosses the outer
+/// loop) while the square still encloses the larger area; the
+/// program is then replaced by one whose radius is a literal, under
+/// the identity provenance. Every name is kept where it was — no
+/// strand and no rebind — where reading the names without an anchor
+/// would strand all three, and a wrong order or sense would rebind
+/// them.
+#[test]
+fn a_program_that_replays_but_does_not_validate_keeps_its_names() {
+    let square = LoopProgram::Chain(square_steps());
+    let radius = ParamName::new("hole_r");
+    let driven = LoopProgram::Circle {
+        centre: [len(1.0), len(1.0)],
+        radius: Expr::param(radius.clone(), Dimension::Length),
+    };
+    let doc = ProfileDoc::empty_derived("set-program-unvalidated", tol());
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::SetDocParam {
+            name: radius.clone(),
+            value: DocParam::continuous(Dimension::Length, 0.3),
+        },
+    );
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![driven, square.clone()],
+        }),
+    );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let (doc, _) = frame_on(doc, ext, wall_of(ext, 1, 0));
+    let (doc, _) = frame_on(doc, ext, wall_of(ext, 1, 1));
+    let (doc, _) = frame_on(doc, ext, wall_of(ext, 0, 2));
+    let square_wall = face_origin(&doc, ext, &wall_of(ext, 0, 2));
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::SetDocParam {
+            name: radius,
+            value: DocParam::continuous(Dimension::Length, 1.05),
+        },
+    );
+    let applied = accepted(
+        &doc,
+        profile,
+        vec![LoopProgram::circle(1.0, 1.0, 0.3).unwrap(), square],
+        vec![
+            LoopProvenance {
+                from: Some(0),
+                steps: vec![Some(0)],
+            },
+            LoopProvenance {
+                from: Some(1),
+                steps: vec![Some(0), Some(1), Some(2), Some(3), Some(4)],
+            },
+        ],
+    );
+    assert_eq!(
+        applied.maintenance,
+        Vec::new(),
+        "every name is read through the replay's anchor and kept where it was"
+    );
+    assert_eq!(
+        face_origin(&applied.doc, ext, &wall_of(ext, 0, 2)),
+        square_wall,
+        "the square's canonical wall 2 is the wall it was before the radius moved"
     );
 }
 
@@ -1684,9 +1761,11 @@ fn a_revolves_names_carry_its_profiles_coordinates() {
     );
 }
 
-/// **A loft's names carry its FIRST section's coordinates** (DM8's
-/// exception), and only that section is [`Node::anchoring_profile`]'s
-/// answer. Two DIFFERING sections — the upper one scaled — skin a
+/// **A loft's names follow its FIRST section's reshaping.** A loft
+/// wall's one name is canonical segment `k` of every section at once
+/// (DM8), and only the first section is [`Node::anchoring_profile`]'s
+/// answer, so only a SetProgram on it moves the loft's names
+/// (`work/emit/a-lofts-names-follow-only-its-first-sections-reshaping.md`). Two DIFFERING sections — the upper one scaled — skin a
 /// loft; reshaping the second section moves none of the loft's names
 /// and leaves the sections with different segment counts, so the
 /// loft refuses rather than re-skinning under unchanged names;
@@ -1694,7 +1773,7 @@ fn a_revolves_names_carry_its_profiles_coordinates() {
 /// and the loft skins again with the rebound name at the wall that
 /// arrives at `(2, 2, 0)`.
 #[test]
-fn a_lofts_names_carry_its_first_sections_coordinates() {
+fn a_lofts_names_follow_its_first_sections_reshaping() {
     let square = |s: f64| {
         LoopProgram::polygon([
             (0.0, 0.0),
@@ -2084,14 +2163,20 @@ fn a_leg_inserted_before_the_close_moves_only_the_closing_wall() {
     assert_eq!(face_origin(&applied.doc, r.rod, &wall(r.rod, 4)), w4);
 }
 
-/// **Names on a reversed and rotated loop move in PROGRAM
-/// coordinates.** The same square authored CLOCKWISE (canonicalization
-/// reverses it) and starting at a corner other than the canonical
-/// start: a frame on wall 1 and one on wall 3; a leg inserted before
-/// wall 1's step. The names move by program index and the walls they
-/// denote are the same planes as before.
+/// **Names on a CLOCKWISE loop move in CANONICAL coordinates.** The
+/// square authored clockwise from `(2, 2)`: canonicalization reverses
+/// it and keeps its start, so canonical segment `k` is program segment
+/// `n − 1 − k`. A frame on canonical wall 2 (program wall 1,
+/// `(2,0)→(0,0)`) and one on canonical wall 3 (program wall 0,
+/// `(2,2)→(2,0)`); a leg inserted before program wall 1's step.
+///
+/// Read through the two programs' anchors, program wall 1 becomes
+/// program wall 2 of five, which is canonical 5 − 1 − 2 = 2 again: the
+/// name stays and the wall it denotes now starts at the inserted
+/// point. Program wall 0 stays program wall 0, which is canonical 4
+/// now: the name moves, onto the same plane.
 #[test]
-fn names_on_a_reversed_and_rotated_loop_move_in_program_coordinates() {
+fn names_on_a_clockwise_loop_move_in_canonical_coordinates() {
     let pt = |x: f64, y: f64| [len(x), len(y)];
     let cw = |bump: bool| {
         let mut steps = vec![
@@ -2109,11 +2194,10 @@ fn names_on_a_reversed_and_rotated_loop_move_in_program_coordinates() {
         LoopProgram::Chain(steps)
     };
     let (doc, profile, ext) = extruded("set-program-cw", vec![cw(false)]);
-    let (doc, _f1) = frame_on(doc, ext, wall_of(ext, 0, 1));
+    let (doc, _f2) = frame_on(doc, ext, wall_of(ext, 0, 2));
     let (doc, _f3) = frame_on(doc, ext, wall_of(ext, 0, 3));
-    let w1 = face_origin(&doc, ext, &wall_of(ext, 0, 1));
+    let w2 = face_origin(&doc, ext, &wall_of(ext, 0, 2));
     let w3 = face_origin(&doc, ext, &wall_of(ext, 0, 3));
-    let w0 = face_origin(&doc, ext, &wall_of(ext, 0, 0));
     let applied = accepted(
         &doc,
         profile,
@@ -2125,27 +2209,20 @@ fn names_on_a_reversed_and_rotated_loop_move_in_program_coordinates() {
     );
     assert_eq!(
         applied.maintenance,
-        vec![
-            Maintenance::Rebound {
-                from: wall_of(ext, 0, 1),
-                to: wall_of(ext, 0, 2),
-            },
-            Maintenance::Rebound {
-                from: wall_of(ext, 0, 3),
-                to: wall_of(ext, 0, 4),
-            },
-        ]
+        vec![Maintenance::Rebound {
+            from: wall_of(ext, 0, 3),
+            to: wall_of(ext, 0, 4),
+        }]
     );
-    // Old wall 1 (2,0)→(0,0) now starts at the inserted (1,-0.5) and
-    // still arrives at (0,0); wall 3 (the close) is untouched.
+    // Canonical wall 2 is still old program wall 1's image: it now
+    // starts at the inserted (1,-0.5) and still arrives at (0,0).
     let c = wall_corners(&applied.doc, ext, &wall_of(ext, 0, 2));
     assert!(
         has_corner(&c, (0.0, 0.0)) && has_corner(&c, (1.0, -0.5)),
         "{c:?}"
     );
-    assert_ne!(face_origin(&applied.doc, ext, &wall_of(ext, 0, 2)), w1);
+    assert_ne!(face_origin(&applied.doc, ext, &wall_of(ext, 0, 2)), w2);
     assert_eq!(face_origin(&applied.doc, ext, &wall_of(ext, 0, 4)), w3);
-    assert_eq!(face_origin(&applied.doc, ext, &wall_of(ext, 0, 0)), w0);
 }
 
 /// Every name minted by `node` that `name` carries inside its path,
