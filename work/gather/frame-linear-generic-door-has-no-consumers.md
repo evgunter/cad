@@ -425,3 +425,51 @@ with each row's disposition recorded. What that sweep could not match is
 stated on the row: it re-reads verdicts against the level each was run
 at, and does not re-run the instrument, so a mis-transcribed `E0624`
 list or warning would survive it.
+
+## Read against the tree (2026-09-24)
+
+**Left open. The remaining half needs a decision this row does not own.**
+Re-measured on PR 3141's branch with instrument level B (make both rungs
+`pub(crate)`, then run `cargo check --workspace --all-targets`):
+`ProfileLoop::map_scalar` and `Profile::map_scalar` in
+`crates/profile/src/lib.rs` each report `warning: method 'map_scalar' is
+never used`. The `E0624`s land only in `profile/tests/`: `bool9_probes`
+×2, `bool9r1_probes` ×2, `r2_bool9_review_probes` ×2 and
+`scalar_lift_door` ×3. So both rungs are unchanged since 2026-09-12:
+their only consumers are tests. This row's own adjudication says what
+decides them: `scalar_lift.rs`'s convention against `pncad`'s
+mint-on-demand rule. That question is
+`work/verdict/the-scalar-lift-convention-mints-doors-faster-than-consumers.md`
+(cost D), which already names both rungs. Deciding it here would settle
+that row's question from one of its instances. **Recommend parking this
+row on that one.**
+
+**Class sweep.** The pattern was
+`pub fn (map_scalar|map|try_map|lift|linear|affine)<` outside `tests/`.
+A second pass looked for any `pub fn` generic over `U`/`V`/`S`. Each hit
+was measured with the instrument, not by grep:
+
+- `AssertionVerdict::map` (`editor-core/src/measure.rs`): **deleted in
+  PR 3141.** Level A (drop `pub`) gave `warning: method 'map' is never
+  used` and no errors anywhere, so there are no consumers at all, tests
+  included. It is not a geometry type, so `scalar_lift.rs`'s convention
+  does not reach it, and it has `Frame::linear`'s disposition.
+- `ProfileLoop::map_scalar`, `Profile::map_scalar`: test-only, as above.
+  Waits on VERDICT's row.
+- `ValidatedProfile::lift_onto` (`profile/src/validate.rs`): **live.**
+  Level B gives `E0624` at `crates/sweep/src/loft.rs`.
+- `SketchPlane::try_map`: **live** (`eval/wire.rs`'s `pinned_plane`).
+  `Vec3`/`Mat3`/`Affine3::try_map` are live through it.
+- `Margin::lift` (`geom-core/src/predicate.rs`): **live**
+  (`geom-brep/src/props/quad.rs`).
+- `Frame::affine`, `SketchPlane::map`, `Point2`/`Point3`/`Affine3::map`:
+  live, per the table above.
+- The `geom` rungs (`Curve3`, `Surface`, `NurbsCurve*`,
+  `SurfaceDescription`, `ApproxSurface`) and `Vec2::map`: VERDICT's row.
+  Not re-measured.
+- `viewer`'s `ProfileDoors::map` is `pub(crate)`, so it is outside the
+  class.
+
+**What neither pass could match:** about 250 non-lift `pub fn …<T: Real>`
+functions. Each needs its own compile to measure, so the sweep did not
+reach them, and no grep stands in for that instrument.

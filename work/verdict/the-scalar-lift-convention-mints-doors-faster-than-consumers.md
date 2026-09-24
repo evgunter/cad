@@ -206,3 +206,13 @@ name is owed on every type. Takeable without Ev: checked again on that
 branch, the convention was written by an agent in a fix pass
 (`b61d25ddc`) and `docs/DESIGN.md` still has zero occurrences of
 `scalar_lift` or `map_scalar`.
+
+## Evidence added (2026-09-24, GATHER's E-row batch, PR 3141)
+
+The two `profile` rungs were re-measured at level B and are unchanged:
+both report `never used`, and their `E0624`s are only in `profile/tests/`.
+`work/gather/frame-linear-generic-door-has-no-consumers.md` now waits on
+this row for their disposition. The same sweep found and deleted
+`editor-core`'s `AssertionVerdict::map`, which had zero consumers
+workspace-wide at level A. It is not a geometry type, so it is outside
+this convention and does not bear on the decision here.
