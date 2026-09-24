@@ -80,24 +80,11 @@ in-chat direction): the plan's lane that carries this item is in
 
 ## Sibling sites, from ATREST-5's sweep (2026-09-24)
 
-ATREST-5 swept every caller of `splitting::point_in_loop` for the
-shape "a loop's region read off the polygon walk with no `loop_shape`
-dispatch" and found one site this issue did not list:
-
-- **`chord_join::rehome_rings`** (the `laringmv` ring re-homing after
-  a face-dividing join) tests each bystander ring's anchor against the
-  RUN — `newf`'s outer loop — with `point_in_loop` and no shape
-  dispatch. The run's chords are minted through `Body::mef` with a
-  curved spec whenever the section is curved, so the run can bear
-  arcs; on a `Disc` or `NoWalk` run the polygon has zero area and a
-  ring inside the run reads `Out` and stays on the old face,
-  silently. Unmeasured — no row mints a curved face-dividing join with
-  a bystander ring inside the run — and the `OnBoundary` arm there
-  refuses (`RingHomingAmbiguous`), so only the `Out` direction is
-  silent.
-
-And one note on the site already listed: `solid_contain::point_in_face`'s
-`Disc` class no longer needs this issue's walk. `boolean::contain::disc_side`
-is `pub(crate)` as of ATREST-5 (tier 3's check 9 decides its disc class
-through it), so that third can close by the same dispatch `contfp` does,
-independently of the arc-aware walk.
+- **`chord_join::rehome_rings`** reads a split's run through
+  `point_in_loop` with no shape dispatch; filed on REACH's slate as
+  `work/reach/rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`
+  (unreproduced; the reachable class is mostly `ArcParity`).
+- **`solid_contain::point_in_face`**, already listed above: its `Disc`
+  class no longer needs this issue's walk. `boolean::contain::disc_side`
+  is `pub(crate)` as of ATREST-5, so that third can close by the same
+  dispatch `contfp` does, independently of the arc-aware walk.
