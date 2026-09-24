@@ -396,6 +396,71 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
     dot3(cross3(g1, g2), constv(e))
 }
 
+/// The plane × NURBS chart probe's transversality margin over one span
+/// cell: `∇φ = (n·S_u, n·S_v)` over the derivative boxes `du`/`dv`, read
+/// along the chart direction transverse to the pcurve's tangent, divided
+/// by the chart's stretch along that direction. `n` is the plane normal
+/// already crossed into certification arithmetic; `tangent` is
+/// `(t.x, t.y, ‖t‖)`, the tangent's bracket tops and a positive finite
+/// norm, which select the direction (structure, not a bound). `None`
+/// when the stretch is not positive finite.
+pub(super) fn chart_transverse_margin(
+    n: [Interval; 3],
+    du: Box3,
+    dv: Box3,
+    tangent: (f64, f64, f64),
+) -> Option<f64> {
+    let (tx, ty, tn) = tangent;
+    let phi_u = n[0] * du.x + n[1] * du.y + n[2] * du.z;
+    let phi_v = n[0] * dv.x + n[1] * dv.y + n[2] * dv.z;
+    // e⊥ = (−t.y, t.x)/‖t‖; the transverse derivative of φ.
+    let ex = Interval::point(-ty / tn);
+    let ey = Interval::point(tx / tn);
+    // ∇φ·e⊥ is metres of plane-distance per CHART unit, so it is
+    // not yet a margin: multiplying it by a lever arm in metres
+    // would give metres² per chart unit (D4 ¶1 forbids exactly
+    // that). Dividing by the chart's own stretch along e⊥ —
+    // ‖S_u·ex + S_v·ey‖, metres per chart unit — cancels the chart
+    // units and leaves the dimensionless sine-like quantity the ℝ³
+    // lane's `(∇f₁×∇f₂)·e` already is. An UPPER bound on the
+    // stretch is used, which can only shrink the margin: the safe
+    // direction.
+    let vt = Box3 {
+        x: du.x * ex + dv.x * ey,
+        y: du.y * ex + dv.y * ey,
+        z: du.z * ex + dv.z * ey,
+    };
+    let stretch = vt.speed_sup();
+    // Positive FINITE only: an admitted `+∞` stretch divides the
+    // margin to an exact `0`, which the caller's fold then records as
+    // the certificate's worst transversality — a definite-looking
+    // number manufactured from an overflow, not a measurement.
+    if !stretch.is_finite() || stretch <= 0.0 {
+        return None;
+    }
+    let margin = zero_free_lower_bound(phi_u * ex + phi_v * ey) / stretch;
+    Some(margin)
+}
+
+/// The certified distance of an enclosure from zero: `0` when it
+/// straddles (or is refused), which is exactly what makes the trilean
+/// land in the sliver band.
+/// (The mignitude. `offset_meters::mig` is the same arithmetic read
+/// as a coefficient-hull assembly term rather than a decision; noted
+/// at both sites.)
+pub(super) fn zero_free_lower_bound(i: Interval) -> f64 {
+    if !i.is_certified() {
+        return 0.0;
+    }
+    if i.lo() > 0.0 {
+        i.lo()
+    } else if i.hi() < 0.0 {
+        -i.hi()
+    } else {
+        0.0
+    }
+}
+
 /// Control-net enclosures for a NURBS chart over a parameter rectangle
 /// — the ℝ⁴ lane's substrate (module docs).
 ///

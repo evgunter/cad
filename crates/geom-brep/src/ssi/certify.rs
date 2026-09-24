@@ -109,7 +109,6 @@
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
-use geom_core::interval::certification::Certification;
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface, tensor};
 use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Interval, Margin, Point3, Real, Sign, SupSpeed, Vec3,
@@ -118,7 +117,9 @@ use geom_core::{
 use crate::certify::CERT_SAMPLES;
 use crate::dihedral::decide;
 
-use super::enclose::{Box3, NurbsBoxes, graph_margin};
+use super::enclose::{
+    Box3, NurbsBoxes, chart_transverse_margin, graph_margin, zero_free_lower_bound,
+};
 use super::{SsiError, SsiOperand, TubeScale};
 
 /// The **largest** tube radius tried, as a fraction of the caller's
@@ -692,8 +693,6 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
             Interval::from_certified(normal.y),
             Interval::from_certified(normal.z),
         ];
-        let phi_u = n[0] * du.x + n[1] * du.y + n[2] * du.z;
-        let phi_v = n[0] * dv.x + n[1] * dv.y + n[2] * dv.z;
         // The transverse chart direction is a DIRECTION — structure —
         // so it is selected through the bracket, exactly as the tube
         // ladder's radius is. `powi(2)`, never `t.x * t.x`.
@@ -709,32 +708,9 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
             return None;
         }
         let (tx, ty) = (t.x.hi(), t.y.hi());
-        // e⊥ = (−t.y, t.x)/‖t‖; the transverse derivative of φ.
-        let ex = Interval::point(-ty / tn);
-        let ey = Interval::point(tx / tn);
-        // ∇φ·e⊥ is metres of plane-distance per CHART unit, so it is
-        // not yet a margin: multiplying it by a lever arm in metres
-        // would give metres² per chart unit (D4 ¶1 forbids exactly
-        // that). Dividing by the chart's own stretch along e⊥ —
-        // ‖S_u·ex + S_v·ey‖, metres per chart unit — cancels the chart
-        // units and leaves the dimensionless sine-like quantity the ℝ³
-        // lane's `(∇f₁×∇f₂)·e` already is. An UPPER bound on the
-        // stretch is used, which can only shrink the margin: the safe
-        // direction.
-        let vt = Box3 {
-            x: du.x * ex + dv.x * ey,
-            y: du.y * ex + dv.y * ey,
-            z: du.z * ex + dv.z * ey,
-        };
-        let stretch = vt.speed_sup();
-        // Positive FINITE only: an admitted `+∞` stretch divides the
-        // margin to an exact `0`, which the fold below then records as
-        // the certificate's worst transversality — a definite-looking
-        // number manufactured from an overflow, not a measurement.
-        if !stretch.is_finite() || stretch <= 0.0 {
+        let Some(margin) = chart_transverse_margin(n, du, dv, (tx, ty, tn)) else {
             return None;
-        }
-        let margin = zero_free_lower_bound(phi_u * ex + phi_v * ey) / stretch;
+        };
         if margin < worst {
             worst = margin;
         }
@@ -744,25 +720,6 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         None
     } else {
         Some((worst, count))
-    }
-}
-
-/// The certified distance of an enclosure from zero: `0` when it
-/// straddles (or is poison), which is exactly what makes the trilean
-/// land in the sliver band.
-/// (The mignitude. `offset_meters::mig` is the same arithmetic read
-/// as a coefficient-hull assembly term rather than a decision; noted
-/// at both sites.)
-fn zero_free_lower_bound(i: Interval) -> f64 {
-    if !i.is_certified() {
-        return 0.0;
-    }
-    if i.lo() > 0.0 {
-        i.lo()
-    } else if i.hi() < 0.0 {
-        -i.hi()
-    } else {
-        0.0
     }
 }
 
