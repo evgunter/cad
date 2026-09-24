@@ -1465,3 +1465,37 @@ waits for Ev with the rest). One Opus full reviewer was dispatched
 twelve claims, coverage first). Merge order with RING-3: independent in
 code; whichever lands second merges main (RING-3 renamed three gated
 test files that RING-4 un-gates).
+
+## RING-3 dual delivered; fix pass dispatched (2026-09-24)
+
+R1 APPROVE-WITH-FIXES 0/4/6 (+10 style); R2 APPROVE-WITH-FIXES
+0/3/4 (+style). No MAJOR on either. Both, by execution: door bodies,
+`from_certified` and every endpoint/refusal bit identical base vs head
+(two independent programs, 2,968 and 67,226 lines incl. `Trv` at
+every door); C9/DL4 true at the head. Bilateral: the census re-key
+narrows coverage (a read in a file that calls no door reds the base
+census, not the head's); retired-ring prose left inside and outside
+the fence, incl. Ev's C2 text in `geom-brep/README.md`. Unilateral R1:
+`nurbs.rs:456` CAN be pinned white-box (the PR said no row can red);
+`ssi/certify.rs:670` certifies from a `Trv` pcurve (NaI hull → NaN
+window → first span; pre-existing at the base; the census note calling
+it safe is false). Unilateral R2: an empty bracket reaches `hull`
+through public `TensorNet::from_flat` (exact-zero division), so the
+guard is live, not dead. **Method divergence:** R2 ran no mutation
+probes — the session's permission classifier refused a revert edit as
+"Security Test Removal", and R2 did not route around it; R1 ran its
+reverts. Not an orchestrator relaxation, but the two reviewers differed
+in what they were able to do, so under protocol items 4 and 6(e) the
+pair is recorded in full and excluded from the tally and pair count.
+R2 disclosed a glimpse of R1's scratch PATH names in `git worktree
+list` (no contents). Blinded correspondence coding (byte 232) is with
+an Opus coder. Ruled (`/home/user/scalar-briefs/ring3-fix-pass.md`):
+the census population becomes door-callers ∪ the base population; the
+`certify.rs` hole fixed here with R1's probe as its row (a false
+certification now refuses — behaviour change named); the `hull`
+consumer row and the `nurbs.rs` pin added; prose fixed with the fence
+extended (comments only; announced on the PR) and C2 re-worded as
+naming-only in the decision section; certification-value hygiene
+(no gate against `is_poison`/transcendentals where `Real` is in
+scope, three hull semantics, "ring" public names) filed. Fix pass
+dispatched on Opus ~07:55Z.
