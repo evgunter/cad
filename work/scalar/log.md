@@ -685,3 +685,16 @@ sample-#230 collision with SYM-11's landed-highest numbering (filed);
 the vendor footer the REST route re-appends (stripped everywhere; the
 MCP path is clean); two container restarts (RING-2's implementer three
 lanes on one arm; LANE-2's reviewers resumed from their own material).
+
+## LANE-3 merged (2026-09-24)
+
+PR 3049, block SCALAR-B6 slot 1, ordinal 4116. What landed: the item's
+§Closed. The spec is deleted per the ledger. No MAJOR on either
+reviewing arm; the fix pass took all nine items, the fence extended
+for two naming-only corrections. The box sat idle from ~03:50Z on
+09-22 to ~01:30Z on 09-24 (the account's usage limit; the RING-3 survey
+lane died on it and was re-dispatched). From this entry on the
+orchestrating session runs on a different model than the one it was
+configured with (the session reports `claude-opus-5-5`, switched by the
+user; configured `claude-fable-5-1`) — the block rows record it as a
+method note, since the orchestrator writes the specs and adjudicates.

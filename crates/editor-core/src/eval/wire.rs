@@ -216,7 +216,7 @@ where
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
         + super::SectionScalar
-        + crate::verbs::shell::ShellLane,
+        + crate::lane::Lane,
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(
@@ -412,7 +412,7 @@ where
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
         + super::SectionScalar
-        + crate::verbs::shell::ShellLane,
+        + crate::lane::Lane,
 {
     let part = env
         .parts
@@ -1819,7 +1819,7 @@ fn wire_swept<
     T: Decide
         + geom_core::Bounds
         + geom_brep::PcurveFittedLane
-        + crate::verbs::shell::ShellLane
+        + crate::lane::Lane
         + topo::AtRestPolicy,
     A,
 >(
@@ -1881,7 +1881,7 @@ fn wire_extrude<
     T: Decide
         + geom_core::Bounds
         + geom_brep::PcurveFittedLane
-        + crate::verbs::shell::ShellLane
+        + crate::lane::Lane
         + topo::AtRestPolicy,
 >(
     id: RecipeNodeId,
@@ -1935,7 +1935,7 @@ fn wire_revolve<
     T: Decide
         + geom_core::Bounds
         + geom_brep::PcurveFittedLane
-        + crate::verbs::shell::ShellLane
+        + crate::lane::Lane
         + topo::AtRestPolicy,
 >(
     id: RecipeNodeId,
@@ -2204,7 +2204,7 @@ fn wire_hollow_tube<T: Decide + geom_brep::PcurveFittedLane>(
 /// undeclared-coincidence menu lift needs the operands'
 /// naming context, so [`refusal_menu`] intercepts it and delegates
 /// everything else here.
-fn verb_refused<T: crate::verbs::shell::ShellLane>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
+fn verb_refused<T: crate::lane::Lane>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
     match refusal {
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
             NodeErrorKind::Blend { verb, error }
@@ -2218,9 +2218,11 @@ fn verb_refused<T: crate::verbs::shell::ShellLane>(refusal: verbs::VerbError<T>)
         // The kernel's error is generic over the lane scalar and this
         // enum is scalar-free, so the carriage is a TOTAL fold — every
         // arm, every nested payload, every number — declared by the
-        // lane beside its rights (`ShellLane::witness`), never a
-        // rendering or a drop.
-        verbs::VerbError::Shell(error) => NodeErrorKind::Shell(Box::new(T::witness(*error))),
+        // lane's own end reading (`crate::verbs::shell::
+        // fold_shell_error_at`), never a rendering or a drop.
+        verbs::VerbError::Shell(error) => {
+            NodeErrorKind::Shell(Box::new(crate::verbs::shell::fold_shell_error_at(*error)))
+        }
     }
 }
 
@@ -2294,7 +2296,7 @@ fn wire_blend<
     T: Decide
         + geom_core::Bounds
         + geom_brep::PcurveFittedLane
-        + crate::verbs::shell::ShellLane
+        + crate::lane::Lane
         + topo::AtRestPolicy,
 >(
     verb: &crate::verbs::blend::BlendVerb<T>,
@@ -2364,7 +2366,7 @@ fn wire_blend<
 /// ([`crate::verbs::shell`]): resolve the frozen, ORDERED list of open
 /// faces through the target's name table into face keys, evaluate the
 /// thickness slot to `T`, build the kernel verb, run it through the
-/// seat's lane door, emit names from the birth record under THIS
+/// seat's shell door, emit names from the birth record under THIS
 /// node's id.
 ///
 /// # Refusals
@@ -2394,7 +2396,13 @@ fn wire_blend<
 // The 9 arguments are the blend lowering's: the correspondence, the
 // node and its operand, the payload, and the evaluation environment.
 #[allow(clippy::too_many_arguments)]
-fn wire_shell<T: Decide + crate::verbs::shell::ShellLane>(
+fn wire_shell<
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::lane::Lane
+        + topo::AtRestPolicy,
+>(
     verb: &crate::verbs::shell::ShellVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -2413,11 +2421,14 @@ fn wire_shell<T: Decide + crate::verbs::shell::ShellLane>(
     // The verb's own declaration of where its scalar lands, read off
     // the value the correspondence just built (VERB-SEAT-DESIGN V1).
     let flow = built.param_flow();
-    let out = T::run_shell(&built, &body, tol)
-        .ok_or(NodeErrorKind::ShellLaneUnsupported {
+    // The door is the scalar's own answer, read at the ONE seam that
+    // holds it; a scalar that may not certify has none and refuses
+    // here rather than at an unvalidated hollow.
+    let door =
+        <T as topo::AtRestPolicy>::shell_door().ok_or(NodeErrorKind::ShellLaneUnsupported {
             lane: <T as crate::lane::Lane>::NAME,
-        })?
-        .map_err(verb_refused)?;
+        })?;
+    let out = built.run_shell(&body, tol, door).map_err(verb_refused)?;
     let rec = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     let table = (verb.emitter)(id, target, &target_table, &out.body, &rec)
         .map_err(NodeErrorKind::Naming)?;
@@ -3089,7 +3100,7 @@ fn wire_split<
     T: Decide
         + geom_core::Bounds
         + geom_brep::PcurveFittedLane
-        + crate::verbs::shell::ShellLane
+        + crate::lane::Lane
         + topo::AtRestPolicy,
 >(
     verb: &crate::verbs::split::SplitVerb<T>,
@@ -3255,7 +3266,7 @@ fn wire_boolean<
     T: Decide
         + geom_core::Bounds
         + geom_brep::PcurveFittedLane
-        + crate::verbs::shell::ShellLane
+        + crate::lane::Lane
         + topo::AtRestPolicy,
 >(
     verb: &crate::verbs::boolean::PairVerb<T>,
@@ -3386,7 +3397,7 @@ fn wire_union<
     T: Decide
         + geom_core::Bounds
         + geom_brep::PcurveFittedLane
-        + crate::verbs::shell::ShellLane
+        + crate::lane::Lane
         + topo::AtRestPolicy,
 >(
     verb: &crate::verbs::boolean::PairVerb<T>,
@@ -3883,7 +3894,7 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 /// emission bug. The emission arm below is reached only when the
 /// COLLAPSE itself refuses, which is the fold's own table being
 /// malformed.
-fn union_refusal<T: crate::verbs::shell::ShellLane>(
+fn union_refusal<T: crate::lane::Lane>(
     id: RecipeNodeId,
     members: &[RecipeNodeId],
     a_table: &crate::names::NameTable,
@@ -4066,7 +4077,7 @@ const UNION_REFUSAL_FOREIGN: &str =
 /// ids: the n-ary union folds the same verb over an ACCUMULATION that
 /// is no node's result, and the menu reads nothing else about an
 /// operand.
-fn refusal_menu<T: crate::verbs::shell::ShellLane>(
+fn refusal_menu<T: crate::lane::Lane>(
     a: (RecipeNodeId, &crate::names::NameTable),
     b: (RecipeNodeId, &crate::names::NameTable),
     err: verbs::VerbError<T>,
