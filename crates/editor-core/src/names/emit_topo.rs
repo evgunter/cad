@@ -1542,12 +1542,68 @@ pub(super) fn edge_extent<T: Decide>(
     })
 }
 
+/// Where a point lies against the closed segment `q0 → q1`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum OnSegment {
+    /// Off the segment's line, or on it past one of its ends.
+    Off,
+    /// At `q0`.
+    AtStart,
+    /// At `q1`.
+    AtEnd,
+    /// On the line, strictly between the ends.
+    Inside,
+}
+
+/// **Where point `p` lies against the closed segment `q0 → q1`** —
+/// three margins, each a length decided through `predicate`: the
+/// distance off the line (must be `Zero` to be on it), and the signed
+/// distances past each end along it (a `Negative` one is off the
+/// segment, a `Zero` one is at that end). An in-band margin escalates
+/// typed.
+///
+/// The one point-on-segment test of this module: [`chord_on_rim`]
+/// asks it of a chord's two ends against a rim, and the union's
+/// member-edge ranker (`emit_union`) of every result vertex against a
+/// member edge.
+pub(super) fn place_on_segment<T: Decide>(
+    p: Point3<T>,
+    (q0, q1): (Point3<T>, Point3<T>),
+    predicate: &'static str,
+    bnd: geom_core::Band,
+) -> Result<OnSegment, NamingError> {
+    let d = q1 - q0;
+    let len = d.norm();
+    let sign = |m: Margin<T>| {
+        decide(predicate, m, bnd).map_err(|source| NamingError::Escalated { predicate, source })
+    };
+    let off = sign(Margin::over_lever((p - q0).cross(d).norm(), len))?;
+    let past0 = sign(Margin::over_lever((p - q0).dot(d), len))?;
+    let past1 = sign(Margin::over_lever((q1 - p).dot(d), len))?;
+    Ok(match (off, past0, past1) {
+        (Sign::Zero, Sign::Zero, Sign::Zero | Sign::Positive) => OnSegment::AtStart,
+        (Sign::Zero, Sign::Positive, Sign::Zero) => OnSegment::AtEnd,
+        (Sign::Zero, Sign::Positive, Sign::Positive) => OnSegment::Inside,
+        _ => OnSegment::Off,
+    })
+}
+
+/// A vertex's point in `body`.
+pub(super) fn vertex_point<T: Decide>(
+    body: &Body<T>,
+    v: VertexKey,
+) -> Result<Point3<T>, NamingError> {
+    body.get_vertex(v)
+        .and_then(|vd| body.get_point(vd.point))
+        .copied()
+        .ok_or(NamingError::Emission {
+            what: "a vertex without a point",
+        })
+}
+
 /// Whether result edge `chord` lies on operand edge `rim` of
-/// `op_body`: both of its ends on the rim's line and between the rim's
-/// ends. Three margins per end, each a length and each decided through
-/// [`CHORD_ON_RIM`]: the distance off the line (must be `Zero`), and
-/// the signed distances past each rim end along it (must not be
-/// `Negative`). An in-band margin escalates typed.
+/// `op_body`: both of its ends on the closed segment between the
+/// rim's ends ([`place_on_segment`], through [`CHORD_ON_RIM`]).
 fn chord_on_rim<T: Decide>(
     body: &Body<T>,
     chord: EdgeKey,
@@ -1555,30 +1611,11 @@ fn chord_on_rim<T: Decide>(
     rim: EdgeKey,
     bnd: geom_core::Band,
 ) -> Result<bool, NamingError> {
-    let bug = |what| NamingError::Emission { what };
-    let point = |b: &Body<T>, v: VertexKey| -> Result<Point3<T>, NamingError> {
-        b.get_vertex(v)
-            .and_then(|vd| b.get_point(vd.point))
-            .copied()
-            .ok_or_else(|| bug("chord_on_rim: vertex without point"))
-    };
     let (r0, r1) = edge_ends(op_body, rim)?;
-    let (q0, q1) = (point(op_body, r0)?, point(op_body, r1)?);
-    let d = q1 - q0;
-    let len = d.norm();
-    let sign = |m: Margin<T>| {
-        decide(CHORD_ON_RIM, m, bnd).map_err(|source| NamingError::Escalated {
-            predicate: CHORD_ON_RIM,
-            source,
-        })
-    };
+    let q = (vertex_point(op_body, r0)?, vertex_point(op_body, r1)?);
     let (c0, c1) = edge_ends(body, chord)?;
     for v in [c0, c1] {
-        let p = point(body, v)?;
-        let off = sign(Margin::over_lever((p - q0).cross(d).norm(), len))?;
-        let past0 = sign(Margin::over_lever((p - q0).dot(d), len))?;
-        let past1 = sign(Margin::over_lever((q1 - p).dot(d), len))?;
-        if off != Sign::Zero || past0 == Sign::Negative || past1 == Sign::Negative {
+        if place_on_segment(vertex_point(body, v)?, q, CHORD_ON_RIM, bnd)? == OnSegment::Off {
             return Ok(false);
         }
     }
@@ -1687,7 +1724,7 @@ fn seam_line_dir<T: Decide>(
 /// Inserts a same-name group ranked by order-along, or tied when
 /// genuinely unordered.
 #[allow(clippy::too_many_arguments)]
-fn insert_ranked_or_tied<T: Decide, K: Copy>(
+pub(super) fn insert_ranked_or_tied<T: Decide, K: Copy>(
     t: &mut NameTable,
     tie: &mut TieRows,
     from_tie: bool,

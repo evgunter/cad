@@ -3452,9 +3452,13 @@ fn wire_union<
         // The accumulation is presented COLLAPSED. Its own rows are
         // `FromA`/`FromB`-headed, which is the fold's internal space and
         // denotes nothing outside it; a declaration answers what this
-        // node's refusal named, and a refusal names published rows
+        // node's refusal named, and a refusal names collapsed rows
         // (`union_refusal`). So the door reads the accumulation in the
-        // one space a caller can write.
+        // one space a caller can write. The collapse is not the whole of
+        // what the published table gets: `names::name_union` then
+        // renumbers the pieces of member EDGES over the finished body,
+        // which a step that has not finished does not have. A declared
+        // pair names member faces, which that pass leaves alone.
         //
         // A member-space name the fold has already merged away is
         // rewritten to the accumulation's `Merged` row that holds it
@@ -3889,9 +3893,17 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 /// internal space: no published table holds it, [`mod@crate::resolve`]
 /// cannot look it up, and a selector written against it matches
 /// nothing. Every name the refusal carries is therefore put through
-/// [`names::collapse_name`], the same rewrite the node's own table gets
-/// from `name_union`, so a refusal denotes member-space entities and
-/// nothing else.
+/// [`names::collapse_name`], the collapse the node's own table gets from
+/// `name_union`, so a refusal denotes member-space entities and nothing
+/// else.
+///
+/// The collapse is not all `name_union` does: it then numbers the
+/// pieces of each member EDGE by the cells the finished body cuts it
+/// into, and has seam vertices cite member edges whole. A refusal is
+/// raised before there is a finished body, so a member-edge piece it
+/// carried would keep the fold's rank, which no published table holds.
+/// None carries one: `refusal_menu` resolves face keys, and a flush
+/// finding names faces.
 ///
 /// A name that will not collapse is an emission bug in the fold's own
 /// table, and it is raised as one rather than swallowed: the union was

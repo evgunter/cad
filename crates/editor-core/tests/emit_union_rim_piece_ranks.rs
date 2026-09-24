@@ -3,21 +3,24 @@
 //!
 //! The fold ranks a member edge's pieces at whichever step cuts it, and
 //! which step that is — and which member keeps the pieces where two run
-//! flush — depends on member order. The published table re-ranks each
-//! member edge's pieces over the finished body along the edge's own
-//! direction (`emit_union::rank_member_edges`). These rows pin the
-//! consequence over PR 3112's review corpus: a name two fused orders
-//! both publish denotes the same geometry in both.
+//! flush — depends on member order. The published table numbers each
+//! member edge's pieces by the cells the finished body's vertices cut
+//! that edge into (`emit_union::rank_member_edges`). These rows pin the
+//! consequence over PR 3112's review corpus and the review fixtures of
+//! #3168: a name two fused orders both publish denotes the same geometry
+//! in both, and a vertex cites a member edge whole.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{declared_union, failure, flush_pairs, run};
-use crate::emit_shared_rim_several::{document, permutations, probe_corpus, rim_piece};
-use crate::fixture::{face_vertices, table};
+use crate::emit_shared_rim_several::{Bx, document, permutations, probe_corpus, rim_piece};
+use crate::fixture::{face_vertices, insert, table};
 
-use editor_core::{CapEnd, EntityKey, EntityKind, Entry, ProfileEdgeRef, RoleSeg, StableName};
+use editor_core::{
+    CapEnd, EntityKey, EntityKind, Entry, Node, ProfileEdgeRef, RecipeNodeId, RoleSeg, StableName,
+};
 
 /// A rounded point, comparable across two evaluations.
 type P = (i64, i64, i64);
@@ -57,43 +60,196 @@ fn geometry(
     out
 }
 
-/// **No name rebinds across member orders.** Over every document of the
-/// corpus and every pair of fused orders, a name both tables publish
-/// denotes the same vertex point, the same edge ends and the same face
-/// vertices. Before the union re-ranked member edges, 102 of the 350
-/// pairs rebound a `FromMember` rim-edge piece (191 names).
+/// A document and how each of its member orders is built into a union.
+struct Case {
+    label: String,
+    blocks: Vec<Bx>,
+    creation: Vec<usize>,
+    /// Pairs of blocks declared flush on all four families; none makes
+    /// an undeclared union.
+    flush: Vec<(usize, usize)>,
+    /// Blocks 0 and 1 in an inner union declared flush (both orders), and
+    /// that union with the rest in an outer undeclared one (every order).
+    nested: bool,
+}
+
+impl Case {
+    fn flat(
+        label: &str,
+        blocks: Vec<Bx>,
+        creation: Vec<usize>,
+        flush: Vec<(usize, usize)>,
+    ) -> Self {
+        Case {
+            label: label.into(),
+            blocks,
+            creation,
+            flush,
+            nested: false,
+        }
+    }
+
+    fn nested(label: &str, blocks: Vec<Bx>) -> Self {
+        let creation = (0..blocks.len()).collect();
+        Case {
+            label: label.into(),
+            blocks,
+            creation,
+            flush: vec![(0, 1)],
+            nested: true,
+        }
+    }
+}
+
+const A: Bx = ((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+const B: Bx = ((0.5, 1.5), (0.0, 1.0), (0.0, 1.0));
+/// Two slabs across `a`'s rims, and a third overlapping both cuts.
+const S1: Bx = ((0.2, 0.3), (-1.0, 2.0), (0.5, 3.0));
+const S2: Bx = ((0.6, 0.7), (-1.0, 2.0), (0.5, 3.0));
+const S3: Bx = ((0.25, 0.65), (-1.0, 0.5), (0.8, 3.0));
+/// A long block, flush with `bend` at one end and `cend` at the other.
+const ALONG: Bx = ((0.0, 3.0), (0.0, 1.0), (0.0, 1.0));
+const BEND: Bx = ((2.0, 4.0), (0.0, 1.0), (0.0, 1.0));
+const CEND: Bx = ((-1.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+
+/// PR 3112's review corpus (`a`, `b` flush), and the review's own
+/// fixtures of #3168: one member edge cut in different steps (`r1two`,
+/// `r1three`), the same beside a flush partner (`r1flush`), a member
+/// flush with TWO partners (`r2ends`, `r2endsg`), and a declared union
+/// nested in an undeclared one (`r3nest`, `r3nest2`).
+fn cases() -> Vec<Case> {
+    let g = ((0.3, 0.4), (-1.0, 2.0), (0.5, 3.0));
+    let smid = ((1.4, 1.6), (-1.0, 2.0), (0.5, 3.0));
+    let mut out: Vec<Case> = probe_corpus()
+        .into_iter()
+        .map(|(label, blocks, creation)| Case::flat(&label, blocks, creation, vec![(0, 1)]))
+        .collect();
+    out.extend([
+        Case::flat("r1two", vec![A, S1, S2], vec![0, 1, 2], vec![]),
+        Case::flat("r1three", vec![A, S1, S2, S3], vec![0, 1, 2, 3], vec![]),
+        Case::flat(
+            "r1flush",
+            vec![A, B, S1, S2],
+            vec![0, 1, 2, 3],
+            vec![(0, 1)],
+        ),
+        r2ends(),
+        Case::flat(
+            "r2endsg",
+            vec![ALONG, BEND, CEND, smid],
+            vec![0, 1, 2, 3],
+            vec![(0, 1), (0, 2)],
+        ),
+        Case::nested("r3nest", vec![A, B, g]),
+        Case::nested("r3nest2", vec![A, B, S1, S2]),
+    ]);
+    out
+}
+
+fn r2ends() -> Case {
+    Case::flat(
+        "r2ends",
+        vec![ALONG, BEND, CEND],
+        vec![0, 1, 2],
+        vec![(0, 1), (0, 2)],
+    )
+}
+
+/// Every run of `case`: `each` is handed the orders that built it, the
+/// evaluation, the member ids by block, and the unions to read, tagged.
+fn runs(
+    case: &Case,
+    mut each: impl FnMut(&str, &editor_core::Evaluation<f64>, &[RecipeNodeId], &[(&str, RecipeNodeId)]),
+) {
+    let (doc, ids) = document(&case.blocks, &case.creation);
+    let flush = |ids: &[RecipeNodeId]| {
+        case.flush
+            .iter()
+            .flat_map(|&(p, q)| flush_pairs((ids[p], ids[p]), (ids[q], ids[q])))
+            .collect::<Vec<_>>()
+    };
+    if case.nested {
+        for inner in permutations(&[0, 1]) {
+            let io: Vec<_> = inner.iter().map(|&i| ids[i]).collect();
+            let (d1, u1, _) = declared_union(doc.clone(), &io, flush(&ids));
+            let outer: Vec<_> = std::iter::once(u1)
+                .chain(ids[2..].iter().copied())
+                .collect();
+            for olab in permutations(&(0..outer.len()).collect::<Vec<_>>()) {
+                let members = olab.iter().map(|&i| outer[i]).collect();
+                let (docx, top) = insert(
+                    d1.clone(),
+                    Node::Union {
+                        members,
+                        declare: None,
+                    },
+                );
+                let ev = run(&docx);
+                each(
+                    &format!("{inner:?}{olab:?}"),
+                    &ev,
+                    &ids,
+                    &[("U1", u1), ("U", top)],
+                );
+            }
+        }
+        return;
+    }
+    for order in permutations(&(0..case.blocks.len()).collect::<Vec<_>>()) {
+        let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
+        let (docx, union) = if case.flush.is_empty() {
+            insert(
+                doc.clone(),
+                Node::Union {
+                    members,
+                    declare: None,
+                },
+            )
+        } else {
+            let (d, u, _) = declared_union(doc.clone(), &members, flush(&ids));
+            (d, u)
+        };
+        let ev = run(&docx);
+        each(&format!("{order:?}"), &ev, &ids, &[("U", union)]);
+    }
+}
+
+/// **No name rebinds across member orders.** Over every case and every
+/// pair of fused orders, a name both tables publish denotes the same
+/// vertex point, the same edge ends and the same face vertices — for a
+/// nested case, in the inner union and in the outer one. Before the
+/// union ranked member edges over the finished body, 102 of the
+/// corpus's 350 pairs rebound a `FromMember` rim-edge piece (191 names);
+/// ranking over the pieces a member KEEPS left `r2ends` and `r2endsg`
+/// rebinding (8 names in one main-fused pair of `r2ends`), because which
+/// member keeps a flush stretch depends on order.
 #[test]
 fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
     let mut compared = 0;
-    for (label, blocks, creation) in probe_corpus() {
-        let (doc, ids) = document(&blocks, &creation);
-        let mut seen: BTreeMap<StableName, (Vec<P>, Vec<usize>)> = BTreeMap::new();
-        for order in permutations(&(0..blocks.len()).collect::<Vec<_>>()) {
-            let members: Vec<_> = order.iter().map(|&i| ids[i]).collect();
-            let (docx, union, _) = declared_union(
-                doc.clone(),
-                &members,
-                flush_pairs((ids[0], ids[0]), (ids[1], ids[1])),
-            );
-            let ev = run(&docx);
-            if failure(&ev, union).is_some() {
-                continue;
-            }
-            for (name, sig) in geometry(&ev, union) {
-                match seen.get(&name) {
-                    Some((first, at)) => {
-                        compared += 1;
-                        assert_eq!(
-                            first, &sig,
-                            "{label}: {name:?} is {first:?} in {at:?} and {sig:?} in {order:?}"
-                        );
-                    }
-                    None => {
-                        seen.insert(name, (sig, order.clone()));
+    for case in cases() {
+        let mut seen: BTreeMap<(String, StableName), (Vec<P>, String)> = BTreeMap::new();
+        runs(&case, |at, ev, _, unions| {
+            for &(tag, union) in unions {
+                if failure(ev, union).is_some() {
+                    continue;
+                }
+                for (name, sig) in geometry(ev, union) {
+                    match seen.get(&(tag.to_string(), name.clone())) {
+                        Some((first, then)) => {
+                            compared += 1;
+                            assert_eq!(
+                                first, &sig,
+                                "{} {tag}: {name:?} is {first:?} in {then} and {sig:?} in {at}",
+                                case.label
+                            );
+                        }
+                        None => {
+                            seen.insert((tag.to_string(), name), (sig, at.to_string()));
+                        }
                     }
                 }
             }
-        }
+        });
     }
     assert!(
         compared > 1000,
@@ -101,10 +257,148 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
     );
 }
 
+/// **A member flush with two others numbers its rim by the body, whoever
+/// holds each stretch.** `r2ends`: `a` = x 0..3 is flush with `b` over
+/// x 2..3 and with `c` over x 0..1. Its bottom start rim (x 0 → 3 at
+/// y = z = 0) is cut at x = 1 and 2 into three cells, so its pieces are
+/// `#k of 3` spanning x = k..k + 1 in every order: `a` always holds the
+/// middle one, and each end one when it was folded before that end's
+/// partner. Ranked over the pieces `a` keeps, `#0 of 2` was x = 0..1 in
+/// `[b, a, c]` and x = 1..2 in `[c, a, b]`.
+#[test]
+fn a_member_flush_with_two_others_numbers_its_rim_by_the_body() {
+    let rim = StableName {
+        kind: EntityKind::Edge,
+        node: RecipeNodeId(0),
+        path: vec![RoleSeg::RimEdge(
+            CapEnd::Start,
+            ProfileEdgeRef {
+                loop_index: 0,
+                segment: 0,
+            },
+        )],
+    };
+    let mut fused = 0;
+    runs(&r2ends(), |at, ev, ids, unions| {
+        let union = unions[0].1;
+        assert!(
+            failure(ev, union).is_none(),
+            "{at}: {:?}",
+            failure(ev, union)
+        );
+        fused += 1;
+        let a = ids[0];
+        let rim = StableName {
+            node: a,
+            ..rim.clone()
+        };
+        let geo = geometry(ev, union);
+        let x = |k: i64| (k * 1_000_000, 0, 0);
+        let mut held = Vec::new();
+        for k in 0..3 {
+            if let Some(sig) = geo.get(&rim_piece(union, a, &rim, Some((k, 3)))) {
+                assert_eq!(
+                    sig,
+                    &vec![x(k.into()), x(i64::from(k) + 1)],
+                    "{at}: #{k} of 3"
+                );
+                held.push(k);
+            }
+        }
+        assert!(
+            held.contains(&1),
+            "{at}: a does not hold its middle cell: {held:?}"
+        );
+        let pieces = geo
+            .keys()
+            .filter(|n| {
+                matches!(n.path.first(), Some(RoleSeg::FromMember { member, of })
+                    if *member == a && **of == rim)
+            })
+            .count();
+        assert_eq!(
+            pieces,
+            held.len(),
+            "{at}: a piece of a's rim outside the three cells"
+        );
+    });
+    assert_eq!(fused, 6);
+}
+
+/// **A vertex name cites a member edge whole, and lies on it.** A seam
+/// vertex names the entities that cross at it; the fold wrote the member
+/// edge a face crossed as far as it had cut it by then (`#k of n` of THAT
+/// step), which is fold history and names no published piece. Over every
+/// case and order, each edge a vertex's seam cites in the union's space
+/// is a member edge with no rank, and the vertex lies on that edge in
+/// the member's own body. On main 112 cited edges carried a fold rank;
+/// ranked over the finished body without this rewrite, 318 cited a rank
+/// no published row carries.
+#[test]
+fn a_vertex_cites_a_member_edge_whole_and_lies_on_it() {
+    let mut cited = 0;
+    for case in cases() {
+        runs(&case, |at, ev, _, unions| {
+            for &(tag, union) in unions {
+                if failure(ev, union).is_some() {
+                    continue;
+                }
+                let body = body_of(ev, union);
+                let point =
+                    |b: &topo::Body<f64>, v| *b.get_point(b.get_vertex(v).unwrap().point).unwrap();
+                for (name, entry) in table(ev, union).iter() {
+                    let (EntityKind::Vertex, Entry::Unique(e)) = (name.kind, entry) else {
+                        continue;
+                    };
+                    let EntityKey::Vertex(v) = e.key else {
+                        panic!("{name:?} names no vertex")
+                    };
+                    let p = point(body, v);
+                    for seg in &name.path {
+                        let RoleSeg::Seam { a, b } = seg else {
+                            continue;
+                        };
+                        for side in [a.name(), b.name()] {
+                            if side.kind != EntityKind::Edge || side.node != union {
+                                continue;
+                            }
+                            let Some(RoleSeg::FromMember { member, of }) = side.path.first() else {
+                                continue;
+                            };
+                            let here = format!("{} {tag} {at}: {name:?}", case.label);
+                            assert_eq!(side.path.len(), 1, "{here} cites a piece: {side:?}");
+                            let Some(Entry::Unique(me)) = table(ev, *member).lookup(of) else {
+                                panic!("{here}: its member does not name {of:?} once")
+                            };
+                            let EntityKey::Edge(k) = me.key else {
+                                panic!("{here}: not an edge")
+                            };
+                            let mb = body_of(ev, *member);
+                            let edge = mb.get_edge(k).unwrap();
+                            let end = |he| point(mb, mb.get_half_edge(he).unwrap().start);
+                            let (q0, q1) = (end(edge.he_plus), end(edge.he_minus));
+                            let d = q1 - q0;
+                            let off = (p - q0).cross(d).norm() / d.norm();
+                            let s = (p - q0).dot(d) / d.dot(d);
+                            assert!(
+                                off < 1e-9 && s > -1e-9 && s < 1.0 + 1e-9,
+                                "{here} at {p:?} is off the edge it cites, {q0:?}..{q1:?}"
+                            );
+                            cited += 1;
+                        }
+                    }
+                }
+            }
+        });
+    }
+    assert!(cited > 1000, "only {cited} cited member edges checked");
+}
+
 /// **`fam010`, the row's own case.** `a`'s bottom-y rim (segment 0,
-/// x = 0 → 1 at y = 0, z = 1) is ranked along +x over the pieces `a`
-/// keeps: three in `[a, b, g]`, where `a` keeps the stretch it runs
-/// flush with `b`, and two in `[b, a, g]`, where `b` does. Before, the
+/// x = 0 → 1 at y = 0, z = 1) is cut by the body's vertices at 0.3, 0.4
+/// and 0.5 into four cells, numbered along +x whoever holds them: cell 1
+/// is inside `g`, and cell 3 is the stretch `a` runs flush with `b`,
+/// which `a` holds in `[a, b, g]` and `b` in `[b, a, g]`. On main the
 /// name `#1 of 2` was x = 0.5..1.0 in the first order and x = 0.4..0.5
 /// in the second.
 #[test]
@@ -146,9 +440,9 @@ fn fam010_ranks_a_rim_the_same_way_in_both_orders() {
         sig.iter().map(|p| p.0).collect::<Vec<_>>()
     };
     let x = |a: f64, b: f64| vec![(a * 1e6).round() as i64, (b * 1e6).round() as i64];
-    assert_eq!(span([a, b, c], (0, 3)), x(0.0, 0.3));
-    assert_eq!(span([a, b, c], (1, 3)), x(0.4, 0.5));
-    assert_eq!(span([a, b, c], (2, 3)), x(0.5, 1.0));
-    assert_eq!(span([b, a, c], (0, 2)), x(0.0, 0.3));
-    assert_eq!(span([b, a, c], (1, 2)), x(0.4, 0.5));
+    for order in [[a, b, c], [b, a, c]] {
+        assert_eq!(span(order, (0, 4)), x(0.0, 0.3));
+        assert_eq!(span(order, (2, 4)), x(0.4, 0.5));
+    }
+    assert_eq!(span([a, b, c], (3, 4)), x(0.5, 1.0));
 }

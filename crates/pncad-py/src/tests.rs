@@ -4691,6 +4691,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "emission",
             "escalated",
             "fragment_lineage_cycle",
+            "member_edge_tied",
             "merged_chord",
             "merged_chord_off_rim",
             "missing_upstream",

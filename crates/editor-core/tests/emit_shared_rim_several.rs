@@ -137,9 +137,10 @@ fn every_member_edge_lies_on_its_source(
 
 /// **`[a, b, g]`: the chord x = 0.0..0.3 is named as a piece of `a`'s
 /// top/y = 1 rim**, ranked with that rim's other pieces. The rim runs
-/// from x = 1 to x = 0 (segment 2 of `a`'s profile), and the union
-/// ranks its three pieces once, along that direction
-/// (`emit_union::rank_member_edges`). On main this order refused
+/// from x = 1 to x = 0 (segment 2 of `a`'s profile), and the body's
+/// vertices cut it at 0.5, 0.4 and 0.3 into four cells, numbered along
+/// that direction (`emit_union::rank_member_edges`). `a` holds cells 0, 1
+/// and 3; cell 2 lies inside `g`. On main this order refused
 /// `SharedRim { found: Several }`.
 #[test]
 fn the_chord_is_named_as_the_rim_piece_it_lies_on() {
@@ -161,9 +162,9 @@ fn the_chord_is_named_as_the_rim_piece_it_lies_on() {
     };
     let near =
         |(p, q): (f64, f64), (r, s): (f64, f64)| (p - r).abs() < 1e-12 && (q - s).abs() < 1e-12;
-    for (rank, want) in [(0, (0.5, 1.0)), (1, (0.4, 0.5)), (2, (0.0, 0.3))] {
-        let got = x_span(&ev, union, &rim_piece(union, a, &rim, Some((rank, 3))));
-        assert!(near(got, want), "#{rank} of 3: {got:?}, wanted {want:?}");
+    for (rank, want) in [(0, (0.5, 1.0)), (1, (0.4, 0.5)), (3, (0.0, 0.3))] {
+        let got = x_span(&ev, union, &rim_piece(union, a, &rim, Some((rank, 4))));
+        assert!(near(got, want), "#{rank} of 4: {got:?}, wanted {want:?}");
     }
 }
 

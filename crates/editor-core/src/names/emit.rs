@@ -36,7 +36,8 @@ use crate::node::RecipeNodeId;
 ///    stand on — *nothing about the result body is wrong here*.
 /// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
 ///    [`Self::SharedRim`], [`Self::MergedChord`],
-///    [`Self::MergedChordOffRim`] and [`Self::SeamLineSides`], reached
+///    [`Self::MergedChordOffRim`], [`Self::SeamLineSides`] and
+///    [`Self::MemberEdgeTied`], reached
 ///    from recipes nothing is wrong with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
@@ -270,6 +271,22 @@ pub enum NamingError {
         /// The seam edge, a key in that node's body.
         edge: EdgeKey,
     },
+    /// A union's member edge whose pieces cannot be ranked along it,
+    /// because a tie stands where one edge is needed: the member's own
+    /// table ties the edge's name to several edges, or the fold tied
+    /// two of its pieces under one name.
+    ///
+    /// The union ranks the pieces of each member edge against the cut
+    /// points of that ONE edge in the finished body (`emit_union`'s
+    /// member-edge ranker); a tie offers several edges or several
+    /// pieces and no rule picks one. Nothing about the result body is
+    /// wrong, so this is a missing rule and not an [`Self::Emission`].
+    MemberEdgeTied {
+        /// The member whose edge it is.
+        member: RecipeNodeId,
+        /// The edge, as the member's own table names it.
+        edge: Box<StableName>,
+    },
     /// The N2 classification band could not be built from the ambient
     /// tolerance, so no discriminator below it can be decided.
     ///
@@ -429,6 +446,13 @@ impl core::fmt::Display for NamingError {
                  does not lie within the rim {rim:?} of operand node {}'s body its key reads \
                  through to",
                 node.0
+            ),
+            Self::MemberEdgeTied { member, edge } => write!(
+                f,
+                "{UNRULED_FRAMING}: the pieces of member node {}'s edge (the {edge}) cannot be \
+                 ranked along it, because a tie stands where one edge is needed (the member ties \
+                 that name to several edges, or two of its pieces were tied)",
+                member.0
             ),
             Self::Band(error) => write!(
                 f,
@@ -1549,6 +1573,24 @@ mod display_tests {
                 vec!["31", "each side of its recorded pair"],
             ),
             (
+                NamingError::MemberEdgeTied {
+                    member: RecipeNodeId(37),
+                    edge: Box::new(StableName {
+                        kind: EntityKind::Edge,
+                        node: RecipeNodeId(37),
+                        path: vec![RoleSeg::LateralEdge(super::super::role::ProfileVertexRef {
+                            loop_index: 0,
+                            vertex: 2,
+                        })],
+                    }),
+                },
+                vec![
+                    "member node 37",
+                    "edge name minted by node 37",
+                    "a tie stands",
+                ],
+            ),
+            (
                 // The band's subject is the pair of thresholds that
                 // could not separate: which end of the axis the ambient
                 // tolerance landed on is what tells the reader whether
@@ -1585,7 +1627,8 @@ mod display_tests {
                 | NamingError::SharedRim { .. }
                 | NamingError::MergedChord { .. }
                 | NamingError::MergedChordOffRim { .. }
-                | NamingError::SeamLineSides { .. } => Some(UNRULED_FRAMING),
+                | NamingError::SeamLineSides { .. }
+                | NamingError::MemberEdgeTied { .. } => Some(UNRULED_FRAMING),
                 NamingError::Band(_) | NamingError::Escalated { .. } => None,
             }
         };
@@ -1604,6 +1647,7 @@ mod display_tests {
                 NamingError::MergedChordOffRim { .. } => 10,
                 NamingError::Band(_) => 11,
                 NamingError::SeamLineSides { .. } => 12,
+                NamingError::MemberEdgeTied { .. } => 13,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

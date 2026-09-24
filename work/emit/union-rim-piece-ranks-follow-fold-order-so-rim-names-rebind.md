@@ -61,3 +61,25 @@ with no refusal. `declared-flush-union-edge-and-vertex-names-follow-member-order
 and does not hold for rim edges. The seam-edge sibling is
 `union-seam-edge-ranks-follow-which-step-split-the-seam` (P0). Both
 mechanisms are the same: pieces ranked by whichever step cut them.
+
+## Fixed on `emit/rim-piece-ranks` (EMIT, 2026-09-24)
+
+Two passes over the finished body, at the end of `emit_union::name_union`:
+- `rank_member_edges`: the vertices lying on member `m`'s edge `e` cut it
+  into cells, numbered along `e` in `m`'s body. A piece publishes
+  `FromMember(m, e)#k of n`, where `k` is its cell and `n` counts every
+  cell, including cells another member holds or no member does.
+- `cite_member_edges`: a seam vertex that cites a ranked piece of a
+  member edge now cites the whole edge.
+
+Measured with #3168's review probe over the corpus and the review's
+fixtures (226 fused cells, every order): 0 pairs of fused orders
+rebind a name. On main 25 pairs rebound 20 names. With ranks over the
+pieces a member keeps, 10 pairs still rebound 25 names, all in `r2ends`
+and `r2endsg`. No cell that fuses on main refuses.
+
+Rows:
+- `emit_union_rim_piece_ranks`: the cross-order rebind row over all of
+  these cases, the two-flush-partner row, and the vertex-citation row;
+- `emit_union`'s unit row for the tied refusal, `MemberEdgeTied`.
+

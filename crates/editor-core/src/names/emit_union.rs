@@ -19,7 +19,8 @@
 //! **Coming out** ([`name_union`] for the published table,
 //! [`collapse_table`] for the accumulation the declaration door
 //! reads, and [`collapse_name`] for the refusal paths — three
-//! consumers of one rewrite): a fold-table name is rewritten by descending its
+//! consumers of one collapse, which the published table follows with
+//! the two end passes below): a fold-table name is rewritten by descending its
 //! `FromA`/`FromB` chain to the [`RoleSeg::FromMember`] at its foot —
 //! one wrapper, whatever the depth. The names a segment embeds are
 //! collapsed by the same rule, and what happens to their ORDER differs
@@ -43,13 +44,17 @@
 //! (`of − 1 − rank`) exactly where the pair comes out swapped in name
 //! order. See [`RankRule`].
 //!
-//! One more rewrite happens at the END, on the published table only:
-//! the pieces of each member EDGE are ranked once, over the finished
-//! body, along that edge's own direction ([`rank_member_edges`]). The
-//! fold ranks them at whichever step cut them, and a rank written that
-//! way is fold history — the same name would denote different pieces in
-//! different member orders. A refusal raised mid-fold names the fold's
-//! own ranks, since the pieces are not final there.
+//! Two more rewrites happen at the END, on the published table only,
+//! because they read the finished body. The pieces of each member EDGE
+//! are numbered by the cells the finished body's vertices cut that edge
+//! into, counting every cell whoever holds it ([`rank_member_edges`]);
+//! and a seam vertex cites the member edge it lies on whole, not the
+//! stretch of it the fold had cut when it met the vertex
+//! ([`cite_member_edges`]). A rank the fold wrote is fold history — the
+//! same name would denote different pieces in different member orders.
+//! A refusal raised mid-fold, and the declaration door's view of an
+//! intermediate step, have no finished body and keep the fold's ranks;
+//! neither carries a member edge today (both name faces).
 //!
 //! # How an intermediate row is told from a member's row
 //!
@@ -71,11 +76,17 @@
 
 use std::sync::Arc;
 
-use crate::names::discriminate::{band, order_along};
-use crate::names::emit::{NamingError, check_total};
-use crate::names::emit_topo::{edge_dir, edge_extent};
+use geom_core::k_stats::decide;
+use geom_core::{Margin, Sign};
+
+use crate::names::defer::TieRows;
+use crate::names::discriminate::{Extent, ON_MEMBER_EDGE, band, order_along};
+use crate::names::emit::{NamingError, check_total, edge_ends};
+use crate::names::emit_topo::{
+    OnSegment, edge_dir, insert_ranked_or_tied, place_on_segment, vertex_point,
+};
 use crate::names::role::{
-    EntityKind, NameRef, Qualifier, RoleSeg, StableName, never_in_a_boolean_table,
+    EntityKind, NameRef, Qualifier, RoleSeg, SegRewrite, StableName, never_in_a_boolean_table,
 };
 use crate::names::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
@@ -157,8 +168,10 @@ pub(crate) fn name_union<T: geom_core::Decide>(
     members: &[Member<'_, T>],
     tol: geom_core::Tol,
 ) -> Result<Arc<NameTable>, NamingError> {
+    let bnd = band(tol)?;
     let t = collapse_table(node, folded)?;
-    let t = rank_member_edges(t, body, members, band(tol)?)?;
+    let t = rank_member_edges(t, body, members, bnd)?;
+    let t = cite_member_edges(t, body, members, bnd)?;
     check_total(&t, body, 0)?;
     Ok(Arc::new(t))
 }
@@ -174,31 +187,48 @@ pub(crate) struct Member<'a, T: geom_core::Decide> {
     pub table: &'a NameTable,
 }
 
-/// **The pieces of one member's edge are ranked once, over the
-/// finished body, along that edge's own direction.**
+/// **The pieces of one member's edge are ranked by where they lie on
+/// it in the finished body, and a rank counts every piece of it.**
 ///
 /// The fold ranks a member edge's pieces at whichever step cuts it
 /// (`emit_topo`'s descent groups), and a later step cutting a piece
 /// ranks ITS pieces under the first rank. Which step cuts where depends
 /// on member order, and so does which pieces the member keeps where it
 /// runs flush against another member (the coincident run is named for
-/// whichever member the fold reached first). A rank written that way
+/// whichever member the fold reached first). A rank written either way
 /// is fold history, and the same name lands on different pieces in
 /// different orders.
 ///
-/// So the published table re-ranks: every row
+/// So the published table re-ranks against the GEOMETRY. Every row
 /// `FromMember(m, e)` followed only by `Fragment(OrderAlong)` ranks, for
-/// an EDGE `e`, is one piece of `m`'s edge `e`, and the group is ranked
-/// afresh along `e`'s own oriented carrier in `m`'s own body — one
-/// `Fragment(OrderAlong { rank, of })` over the pieces the body has,
-/// or none when one piece remains. The pieces are disjoint stretches
-/// of one straight edge, so the order along it is total; a pair the
-/// band cannot order refuses typed ([`order_along`]), and a genuine
-/// overlap ties, as the fold's own ranker does.
+/// an EDGE `e`, is a piece of `m`'s edge `e`. The finished body's
+/// vertices lying on `e` — decided through [`ON_MEMBER_EDGE`] against
+/// `e`'s two ends in `m`'s own body — cut the closed segment into
+/// cells, numbered from `e`'s start in `m`'s body ([`Cells`]). A piece
+/// is one cell — or several, where a vertex of another shell sits inside
+/// it ([`Cells::rank_of`]) — and publishes `FromMember(m, e)` followed by
+/// one `Fragment(OrderAlong { rank, of })`: `rank` is its first cell's
+/// index and
+/// `of` counts every cell, whether `m` holds it, another member holds
+/// it, or it lies inside another member and holds no edge at all. A
+/// segment with no vertex inside it is one cell, and its piece carries
+/// no rank. The cut points and the cell count are a function of the
+/// finished body alone; which member was folded first cannot move
+/// either.
 ///
-/// A group holding a TIED row, or a member edge the member's table
-/// does not name uniquely, is left as the fold named it: there is no
-/// entity to rank.
+/// Refused rather than guessed:
+/// - a group holding a TIED row, or a member edge the member's own
+///   table ties: [`NamingError::MemberEdgeTied`], a missing rule — there
+///   is no one edge to cut;
+/// - a piece that ends off the segment or starts and ends at one place,
+///   or a member edge that names nothing in the member:
+///   [`NamingError::Emission`], an invariant of the body or of the fold
+///   found broken.
+///
+/// The rank rewrites the published table only. A refusal raised
+/// mid-fold, and the declaration door's view of an intermediate step,
+/// still carry the fold's ranks (`collapse_name`, `collapse_table`),
+/// because the pieces are not final there.
 fn rank_member_edges<T: geom_core::Decide>(
     t: NameTable,
     body: &topo::Body<T>,
@@ -207,7 +237,7 @@ fn rank_member_edges<T: geom_core::Decide>(
 ) -> Result<NameTable, NamingError> {
     use std::collections::BTreeMap;
     let bug = |what| NamingError::Emission { what };
-    // (member, member edge) → the group's rows, each with its entity.
+    // (member, member edge) → the group's rows.
     type Key = (RecipeNodeId, StableName);
     let mut groups: BTreeMap<Key, Vec<(StableName, Entry)>> = BTreeMap::new();
     let mut out = NameTable::new();
@@ -217,76 +247,200 @@ fn rank_member_edges<T: geom_core::Decide>(
                 .entry(key)
                 .or_default()
                 .push((name.clone(), entry.clone())),
-            None => match entry {
-                Entry::Unique(e) => out.insert(name.clone(), *e)?,
-                Entry::Tied(es) => out.insert_tied(name.clone(), es.clone())?,
-            },
+            None => put_entry(&mut out, name.clone(), entry.clone())?,
         }
     }
     for ((member, edge), rows) in groups {
-        let keep = |out: &mut NameTable, rows: Vec<(StableName, Entry)>| {
-            for (name, entry) in rows {
-                match entry {
-                    Entry::Unique(e) => out.insert(name, e)?,
-                    Entry::Tied(es) => out.insert_tied(name, es)?,
-                }
-            }
-            Ok::<(), NamingError>(())
+        let tied = || NamingError::MemberEdgeTied {
+            member,
+            edge: Box::new(edge.clone()),
         };
-        let source =
-            members
-                .iter()
-                .find(|m| m.node == member)
-                .and_then(|m| match m.table.lookup(&edge) {
-                    Some(Entry::Unique(e)) => match e.key {
-                        EntityKey::Edge(k) => Some((m.body, k)),
-                        _ => None,
-                    },
-                    _ => None,
-                });
-        let pieces: Option<Vec<_>> = rows
+        let (member_body, member_edge) = member_edge(members, member, &edge)?;
+        let pieces = rows
             .iter()
             .map(|(_, entry)| match entry {
                 Entry::Unique(e) => match e.key {
-                    EntityKey::Edge(k) => Some((*e, k)),
-                    _ => None,
+                    EntityKey::Edge(k) => Ok((*e, k)),
+                    _ => Err(bug("a union's member-edge row names no edge")),
                 },
-                Entry::Tied(_) => None,
+                Entry::Tied(_) => Err(tied()),
             })
-            .collect();
-        let (Some((member_body, member_edge)), Some(pieces)) = (source, pieces) else {
-            keep(&mut out, rows)?;
-            continue;
-        };
+            .collect::<Result<Vec<_>, _>>()?;
+        let cells = Cells::of(body, member_body, member_edge, bnd)?;
         let head = StableName {
             kind: EntityKind::Edge,
             node: rows[0].0.node,
             path: vec![rows[0].0.path[0].clone()],
         };
-        if pieces.len() == 1 {
-            out.insert(head, pieces[0].0)?;
-            continue;
-        }
-        let dir = edge_dir(member_body, member_edge)?;
-        let extents = pieces
-            .iter()
-            .map(|&(_, k)| edge_extent(body, k, dir))
-            .collect::<Result<Vec<_>, _>>()?;
-        match order_along(&extents, bnd)? {
-            Some(ranks) => {
-                let of = u32::try_from(pieces.len())
-                    .map_err(|_| bug("a member edge in more pieces than a rank can count"))?;
-                for (&(e, _), rank) in pieces.iter().zip(ranks) {
+        for (e, k) in pieces {
+            let name = match cells.count()? {
+                1 => head.clone(),
+                of => {
                     let mut name = head.clone();
-                    name.path
-                        .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of }));
-                    out.insert(name, e)?;
+                    name.path.push(RoleSeg::Fragment(Qualifier::OrderAlong {
+                        rank: cells.rank_of(body, k)?,
+                        of,
+                    }));
+                    name
                 }
-            }
-            None => out.insert_tied(head, pieces.iter().map(|&(e, _)| e).collect())?,
+            };
+            out.insert(name, e)?;
         }
     }
     Ok(out)
+}
+
+/// One row into a table, through the door its entry's shape takes.
+fn put_entry(t: &mut NameTable, name: StableName, entry: Entry) -> Result<(), NamingError> {
+    match entry {
+        Entry::Unique(e) => t.insert(name, e),
+        Entry::Tied(es) => t.insert_tied(name, es),
+    }?;
+    Ok(())
+}
+
+/// Member `member`'s edge `edge`, as its own body holds it: the body and
+/// the key the member's own table names uniquely. A tie there is
+/// [`NamingError::MemberEdgeTied`]; a member or a name the union does
+/// not have is an emission bug, since every member-keyed row came out
+/// of that member's own table ([`member_view`]).
+fn member_edge<'a, T: geom_core::Decide>(
+    members: &'a [Member<'a, T>],
+    member: RecipeNodeId,
+    edge: &StableName,
+) -> Result<(&'a topo::Body<T>, topo::EdgeKey), NamingError> {
+    let bug = |what| NamingError::Emission { what };
+    let m = members
+        .iter()
+        .find(|m| m.node == member)
+        .ok_or_else(|| bug("a union's row is keyed by a node that is not one of its members"))?;
+    match m.table.lookup(edge) {
+        Some(Entry::Unique(e)) => match e.key {
+            EntityKey::Edge(k) => Ok((m.body, k)),
+            _ => Err(bug("a member's edge name names no edge in the member")),
+        },
+        Some(Entry::Tied(_)) => Err(NamingError::MemberEdgeTied {
+            member,
+            edge: Box::new(edge.clone()),
+        }),
+        None => Err(bug(
+            "a union's member-keyed row names nothing in its member",
+        )),
+    }
+}
+
+/// **The cells a member edge is cut into in the finished body**: the
+/// places on its closed segment where a vertex of the body sits, in
+/// order from the edge's start, the two ends always among them.
+///
+/// A place is a set of vertices, not one: a union's body can hold
+/// several shells, and members that only touch meet at vertices of
+/// different shells sitting at one point. An end no vertex sits on is
+/// still a place, with no vertices — the stretch between it and the
+/// nearest vertex is a cell too.
+struct Cells {
+    places: Vec<Vec<topo::VertexKey>>,
+}
+
+impl Cells {
+    fn of<T: geom_core::Decide>(
+        body: &topo::Body<T>,
+        member_body: &topo::Body<T>,
+        member_edge: topo::EdgeKey,
+        bnd: geom_core::Band,
+    ) -> Result<Self, NamingError> {
+        let (r0, r1) = edge_ends(member_body, member_edge)?;
+        let (q0, q1) = (
+            vertex_point(member_body, r0)?,
+            vertex_point(member_body, r1)?,
+        );
+        let d = q1 - q0;
+        let len = d.norm();
+        let (mut start, mut end) = (Vec::new(), Vec::new());
+        // The interior places, each with its vertices and its position
+        // along the edge; a vertex joins the place it is `Zero` from.
+        let mut inside: Vec<(Vec<topo::VertexKey>, T)> = Vec::new();
+        for (v, _) in body.vertices() {
+            let p = vertex_point(body, v)?;
+            match place_on_segment(p, (q0, q1), ON_MEMBER_EDGE, bnd)? {
+                OnSegment::Off => {}
+                OnSegment::AtStart => start.push(v),
+                OnSegment::AtEnd => end.push(v),
+                OnSegment::Inside => {
+                    let t = (p - q0).dot(d) / len;
+                    let mut joined = false;
+                    for (vs, at) in &mut inside {
+                        let sign =
+                            decide(ON_MEMBER_EDGE, Margin::of(t - *at), bnd).map_err(|source| {
+                                NamingError::Escalated {
+                                    predicate: ON_MEMBER_EDGE,
+                                    source,
+                                }
+                            })?;
+                        if sign == Sign::Zero {
+                            vs.push(v);
+                            joined = true;
+                            break;
+                        }
+                    }
+                    if !joined {
+                        inside.push((vec![v], t));
+                    }
+                }
+            }
+        }
+        let along: Vec<_> = inside
+            .iter()
+            .map(|&(_, t)| Extent { min: t, max: t })
+            .collect();
+        let ranks = order_along(&along, bnd)?.ok_or(NamingError::Emission {
+            what: "two places on a member edge the order along it does not separate",
+        })?;
+        let mut places = vec![Vec::new(); inside.len() + 2];
+        places[0] = start;
+        for ((vs, _), rank) in inside.into_iter().zip(ranks) {
+            places[rank as usize + 1] = vs;
+        }
+        *places.last_mut().ok_or(NamingError::Emission {
+            what: "a member edge with no end",
+        })? = end;
+        Ok(Self { places })
+    }
+
+    /// How many cells: one more than the places inside the segment.
+    fn count(&self) -> Result<u32, NamingError> {
+        u32::try_from(self.places.len() - 1).map_err(|_| NamingError::Emission {
+            what: "a member edge cut into more cells than a rank can count",
+        })
+    }
+
+    /// The rank of piece `k` of the finished body: the index of the
+    /// first cell it covers, from its nearer end's place.
+    ///
+    /// A piece usually covers one cell. One that has a vertex of ANOTHER
+    /// shell of the body sitting inside it covers more, and is still
+    /// named by its first: two pieces of one member edge are disjoint, so
+    /// no two start at one place.
+    fn rank_of<T: geom_core::Decide>(
+        &self,
+        body: &topo::Body<T>,
+        k: topo::EdgeKey,
+    ) -> Result<u32, NamingError> {
+        let bug = |what| NamingError::Emission { what };
+        let (v0, v1) = edge_ends(body, k)?;
+        let at = |v| {
+            self.places
+                .iter()
+                .position(|p| p.contains(&v))
+                .ok_or_else(|| bug("a piece of a member edge ends off that edge"))
+        };
+        let (i, j) = (at(v0)?, at(v1)?);
+        if i == j {
+            return Err(bug("a piece of a member edge starts and ends at one place"));
+        }
+        u32::try_from(i.min(j))
+            .map_err(|_| bug("a member edge cut into more cells than a rank can count"))
+    }
 }
 
 /// The (member, member edge) a published row is a piece of: an EDGE
@@ -309,8 +463,174 @@ fn member_edge_piece(name: &StableName) -> Option<(RecipeNodeId, StableName)> {
     Some((*member, (**of).clone()))
 }
 
-/// A whole fold table in the union's published space — the rewrite
-/// [`name_union`] publishes, without the totality check.
+/// **A name embedded in another cites a member edge whole, never one of
+/// its pieces.**
+///
+/// A seam vertex names the entities that cross at it: at the fold step
+/// where a face crossed a member edge, that edge was the operand's edge
+/// as far as the fold had cut it, `FromMember(m, e)` followed by the
+/// fold's ranks. That stretch is fold history — cut in one order, whole
+/// in another, and in general more than one of the published cells
+/// [`rank_member_edges`] numbers, so no published rank denotes it. What
+/// the vertex lies on, in every order, is `m`'s edge `e`. So every
+/// embedded name `FromMember(m, e)` followed by ranks is rewritten to
+/// `FromMember(m, e)`, at any depth, through the one path walk
+/// ([`StableName::rewrite_path`]). An embedded member edge the fold had
+/// not cut already reads that way, so the rewrite makes the ranked
+/// spelling agree with it.
+///
+/// Dropping the stretch can make two vertex names one, where a curved
+/// face crosses one member edge twice and the fold met the two crossings
+/// on different stretches. So a VERTEX whose name moved also drops the
+/// fold's own rank on it (ranked within that stretch), and the vertices
+/// that come out with one name are ranked along the member edge they
+/// cite ([`insert_ranked_or_tied`], the fold's own ranker), over the
+/// finished body. A vertex citing TWO member edges has no one carrier,
+/// and several of them under one name refuse, as `collapse` refuses the
+/// fold's own rank on that shape. A moved name that is not a vertex's,
+/// or that collides with a name that did not move, refuses at insert.
+///
+/// Stripping a rank cannot reorder a seam's two sides: they differ at
+/// their first segment — two pieces of one member edge do not cross —
+/// and the rank is after it. That is checked, not assumed.
+fn cite_member_edges<T: geom_core::Decide>(
+    t: NameTable,
+    body: &topo::Body<T>,
+    members: &[Member<'_, T>],
+    bnd: geom_core::Band,
+) -> Result<NameTable, NamingError> {
+    use std::collections::BTreeMap;
+    let bug = |what| NamingError::Emission { what };
+    let mut out = NameTable::new();
+    let mut vertices: BTreeMap<StableName, Vec<(StableName, Entry)>> = BTreeMap::new();
+    for (name, entry) in t.iter() {
+        let cited = name
+            .clone()
+            .rewrite_path(&mut WholeMemberEdges { union: name.node })?;
+        if cited == *name {
+            put_entry(&mut out, cited, entry.clone())?;
+            continue;
+        }
+        if !seams_in_name_order(&cited) {
+            return Err(bug(SEAM_REORDERED));
+        }
+        if cited.kind != EntityKind::Vertex {
+            put_entry(&mut out, cited, entry.clone())?;
+            continue;
+        }
+        let mut base = cited;
+        while matches!(
+            base.path.last(),
+            Some(RoleSeg::Fragment(Qualifier::OrderAlong { .. }))
+        ) && base.path.len() > 1
+        {
+            base.path.pop();
+        }
+        vertices
+            .entry(base)
+            .or_default()
+            .push((name.clone(), entry.clone()));
+    }
+    let mut tie = TieRows::default();
+    for (base, rows) in vertices {
+        if let [(_, entry)] = rows.as_slice() {
+            put_entry(&mut out, base, entry.clone())?;
+            continue;
+        }
+        let (member, edge) = match base.path.as_slice() {
+            [RoleSeg::Seam { a, b }] => match (cited_edge(a), cited_edge(b)) {
+                (Some(m), None) | (None, Some(m)) => m,
+                _ => return Err(bug(SIDED_VERTEX_RANK)),
+            },
+            _ => return Err(bug(SIDED_VERTEX_RANK)),
+        };
+        let (member_body, member_edge) = member_edge(members, member, &edge)?;
+        let dir = edge_dir(member_body, member_edge)?;
+        let mut keys = Vec::with_capacity(rows.len());
+        let mut extents = Vec::with_capacity(rows.len());
+        for (_, entry) in rows {
+            let Entry::Unique(e) = entry else {
+                return Err(NamingError::MemberEdgeTied {
+                    member,
+                    edge: Box::new(edge),
+                });
+            };
+            let EntityKey::Vertex(v) = e.key else {
+                return Err(bug("a union's vertex row names no vertex"));
+            };
+            let p = vertex_point(body, v)?;
+            let along = geom_core::Vec3::new(p.x, p.y, p.z).dot(dir);
+            keys.push(e);
+            extents.push(Extent {
+                min: along,
+                max: along,
+            });
+        }
+        insert_ranked_or_tied(&mut out, &mut tie, false, base, &keys, &extents, bnd, |e| {
+            *e
+        })?;
+    }
+    tie.flush(&mut out)?;
+    Ok(out)
+}
+
+/// A seam's sides came out of [`cite_member_edges`] out of name order.
+const SEAM_REORDERED: &str = "citing a member edge whole reordered the two sides of a union's seam";
+
+/// The (member, edge) an embedded name cites whole: `FromMember(m, e)`
+/// alone, `e` an edge.
+fn cited_edge(n: &StableName) -> Option<(RecipeNodeId, StableName)> {
+    match n.path.as_slice() {
+        [RoleSeg::FromMember { member, of }] if of.kind == EntityKind::Edge => {
+            Some((*member, (**of).clone()))
+        }
+        _ => None,
+    }
+}
+
+/// Whether every `Seam` segment of `name` has its sides in name order,
+/// the order `collapse` put them in.
+fn seams_in_name_order(name: &StableName) -> bool {
+    name.path.iter().all(|s| match s {
+        RoleSeg::Seam { a, b } => **a <= **b,
+        _ => true,
+    })
+}
+
+/// The [`SegRewrite`] of [`cite_member_edges`]: an embedded ranked piece
+/// of a member edge becomes the member edge, and any other embedded
+/// name in the union's space is walked for one.
+///
+/// Only names the UNION minted are this rewrite's: the name a
+/// [`RoleSeg::FromMember`] carries is the member's own, published by
+/// the member — a nested union's ranks are that union's final ones — so
+/// the walk neither rewrites nor enters a name another node minted.
+struct WholeMemberEdges {
+    union: RecipeNodeId,
+}
+
+impl SegRewrite for WholeMemberEdges {
+    type Error = NamingError;
+
+    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, NamingError> {
+        if n.node != self.union {
+            return Ok(None);
+        }
+        if member_edge_piece(n).is_some() {
+            return Ok((n.path.len() > 1).then(|| StableName {
+                kind: n.kind,
+                node: n.node,
+                path: vec![n.path[0].clone()],
+            }));
+        }
+        let walked = n.clone().rewrite_path(self)?;
+        Ok((walked != *n).then_some(walked))
+    }
+}
+
+/// A whole fold table in the union's published space — the collapse
+/// [`name_union`] publishes, without its end passes over member edges
+/// and without the totality check.
 ///
 /// Two callers, and the split is what tells them apart. [`name_union`]
 /// rewrites the LAST step's table, which names a finished body and is
@@ -337,7 +657,8 @@ pub(crate) fn collapse_table(
 
 /// One fold-table name in the union's published space.
 ///
-/// The same rewrite [`name_union`] applies to a whole table, exposed
+/// The collapse [`name_union`] applies to a whole table (before its end
+/// passes over member edges, which need the finished body), exposed
 /// for the paths that carry a name out of a step that did NOT finish:
 /// a refusal raised at step `k` reads the ACCUMULATED table, whose
 /// rows are still `FromA`/`FromB`-headed, and a name in that shape is
@@ -1004,5 +1325,92 @@ mod tests {
             matches!(err, NamingError::Emission { what } if what == JUNCTION_LINES_COLLIDE),
             "{err:?}"
         );
+    }
+
+    /// A body holding two edges, and their keys: the arena is the only
+    /// source of an `EdgeKey`.
+    fn two_edge_body() -> (topo::Body<f64>, topo::EdgeKey, topo::EdgeKey) {
+        let mut body = topo::Body::<f64>::new();
+        let mut mint = |x: f64| {
+            let born = body
+                .mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+                .expect("mvfs births a lone vertex");
+            body.mev_line(
+                topo::MevSite::Lone {
+                    r#loop: born.r#loop,
+                },
+                geom_core::Point3::new(x + 1.0, 0.0, 0.0),
+                geom_core::Tol::witness(),
+            )
+            .expect("mev grows the loop by one edge")
+            .edge
+        };
+        let (a, b) = (mint(0.0), mint(10.0));
+        (body, a, b)
+    }
+
+    fn edge_ref(k: topo::EdgeKey) -> crate::names::table::EntityRef {
+        crate::names::table::EntityRef {
+            body: 0,
+            key: EntityKey::Edge(k),
+        }
+    }
+
+    /// **A tie where the member-edge ranker needs one edge refuses as a
+    /// missing rule**, in both places a tie can stand: the member's own
+    /// table ties the edge's name, or the union's table ties two of its
+    /// pieces under one name. Neither is guessed past with the fold's
+    /// ranks, which are order-dependent. No probe document reaches either
+    /// (0 tied rows over the review corpus and its fixtures), so the
+    /// refusal is pinned here, on the ranker itself.
+    #[test]
+    fn a_tied_member_edge_or_piece_refuses_as_a_missing_rule() {
+        let (union, m) = (RecipeNodeId(9), RecipeNodeId(4));
+        let (body, k0, k1) = two_edge_body();
+        let edge = StableName {
+            kind: EntityKind::Edge,
+            node: m,
+            path: vec![RoleSeg::LateralEdge(crate::names::role::ProfileVertexRef {
+                loop_index: 0,
+                vertex: 0,
+            })],
+        };
+        let piece = |rank| {
+            let mut n = member_name(union, m, &edge);
+            n.path
+                .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }));
+            n
+        };
+        let bnd = geom_core::Band::new(1e-9, 1e-6).unwrap();
+        // The member ties its edge's name; the union's row is unique.
+        let mut tied_member = NameTable::new();
+        tied_member
+            .insert_tied(edge.clone(), vec![edge_ref(k0), edge_ref(k1)])
+            .unwrap();
+        let mut t = NameTable::new();
+        t.insert(piece(0), edge_ref(k0)).unwrap();
+        // The member names its edge once; the union ties two pieces.
+        let mut unique_member = NameTable::new();
+        unique_member.insert(edge.clone(), edge_ref(k0)).unwrap();
+        let mut tied_rows = NameTable::new();
+        tied_rows
+            .insert_tied(piece(0), vec![edge_ref(k0), edge_ref(k1)])
+            .unwrap();
+        for (label, member_table, table) in [
+            ("member ties the edge", &tied_member, t),
+            ("union ties two pieces", &unique_member, tied_rows),
+        ] {
+            let members = [Member {
+                node: m,
+                body: &body,
+                table: member_table,
+            }];
+            let err = rank_member_edges(table, &body, &members, bnd).unwrap_err();
+            assert!(
+                matches!(&err, NamingError::MemberEdgeTied { member, edge: e }
+                    if *member == m && **e == edge),
+                "{label}: {err:?}"
+            );
+        }
     }
 }

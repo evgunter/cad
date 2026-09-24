@@ -163,6 +163,13 @@ pub(crate) const SIDE_OF: &str = "name_frag_side_of";
 /// half.
 pub(crate) const ORDER_ALONG: &str = "name_frag_order_along";
 
+/// The on-member-edge predicate's name (`emit_union`'s member-edge
+/// ranker): whether a vertex of a union's result lies on a member edge,
+/// and at which end. Its verdicts are the cut points a member edge's
+/// pieces are ranked between, so a flip moves a rank — which is why it
+/// is IN the [`FAMILY`], unlike [`CHORD_ON_RIM`].
+pub(crate) const ON_MEMBER_EDGE: &str = "name_frag_on_member_edge";
+
 /// The chord-on-rim predicate's name (`emit_topo`'s `chord_on_rim`):
 /// whether a boolean's chord between two merged faces lies within the
 /// rim its key's side reads it through to.

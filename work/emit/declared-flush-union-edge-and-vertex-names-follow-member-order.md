@@ -126,12 +126,25 @@ pairs of fused orders in PR 3112's review corpus rebind a name on main
 
 ## After `emit/rim-piece-ranks` (EMIT, 2026-09-24)
 
-The published table now ranks each member edge's pieces once, over the
-finished body (`emit_union::rank_member_edges`). Over PR 3112's review
-corpus that takes rebinds to 0 of 350 pairs of fused orders, comparing
-vertices, edges and faces. What this row describes is still there,
-though: 307 of those 350 pairs publish different name SETS, spread
-across `FromMember` edges (which member keeps a flush stretch, so a
-rim's piece count differs), `Seam` vertices and edges, member
-vertices, and `Merged` faces. The names differ, and a reference still
-vanishes, typed, on a reorder. It no longer lands on the wrong piece.
+The published table now numbers each member edge's pieces by the cells
+the finished body's vertices cut that edge into, counting cells another
+member holds (`emit_union::rank_member_edges`), and a seam vertex cites
+the member edge it lies on whole (`emit_union::cite_member_edges`).
+
+Measured with #3168's review probe: PR 3112's review corpus plus the
+review's fixtures (`r1two`, `r1three`, `r1flush`, `r2ends`, `r2endsg`,
+`r3nest`, `r3nest2`), every member order, 226 fused cells, comparing
+vertices, edges and faces. No pair of fused orders rebinds a name, and
+no cell that fuses on main refuses.
+
+An earlier draft of that branch ranked only the pieces a member keeps,
+and this note then said a name "no longer lands on the wrong piece".
+That was wrong: which member keeps a flush stretch depends on order, and
+`r2ends` (a member flush with two partners) still rebound 8 names in a
+pair of orders that both fuse on main.
+
+What this row describes is still there. 295 of the corpus's 336 pairs
+of fused orders publish different name SETS: a flush stretch is named
+for whichever member was folded first, and so are the `Seam` vertices
+and edges, member vertices and `Merged` faces around it. A reference
+vanishes, typed, on a reorder.
