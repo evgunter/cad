@@ -612,3 +612,62 @@ survey first for the owner and the cheapest correct remedy),
 `one-element-grid-axes-drop-schedule` (policy-shaped: S29's
 sizing-policy conversation), `rim-chords-…` (MESH-9 parked on its
 typed trigger).
+
+## TOPO's set_face_surface seam, re-homed from MESH's log (2026-09-24)
+
+PR 2594's lane wrote the two entries below on `work/mesh/log.md` on
+2026-09-14; S-MESH left the tracker before the PR merged, and TESS
+owns `crates/mesh/src/*` and shares `crates/mesh/tests/patch_memo.rs`,
+so they land here with the row they name, now
+`work/tess/a-chart-swap-whose-carriers-cannot-certify-leaves-a-face-nothing-can-re-derive`.
+Signed (TOPO orchestrator).
+
+### The memo suite's two re-keying rows, by seam (2026-09-14)
+
+TOPO's `topo/set-face-surface-drops-rows-on-chart-change` (PR 2594)
+makes `Body::set_face_surface` drop a face's pcurve rows when the swap
+re-charts the face, the answer the loop-re-parenting doors took in PR
+2549. Two rows in `crates/mesh/tests/patch_memo.rs` built their
+"after" body by swapping a surface on a body that already carried
+rows, and so read rows about the chart the face had left:
+
+- `arena_keys_are_not_in_the_key_a_reminted_surface_key_hits_on_every_lane`
+  re-keys every face of every corpus body to the surface it already
+  had; the analytic curved faces (`rounded_prism`, `ball`, `cone`,
+  `washer`, `donut`) lose their rows, because two keys holding an equal
+  surface with no `GeomSource` read as two charts
+  (`work/topo/two-provenance-free-keys-holding-one-surface-read-as-two-charts`,
+  which now carries this caller as evidence). It calls
+  `topo::mint_pcurves` after the re-key — the setter's own prescription,
+  and on an equal surface it re-derives the rows that were there, so the
+  row measures the memo's key exactly as before.
+- `the_trimmed_nurbs_lane_misses_when_its_surface_changes` perturbs one
+  weight of a loft wall's net. Those rows CANNOT be re-minted: the
+  wall's boundary carriers are iso-curves of the original net and do not
+  certify against the reweighted one. The row now saves the wall's rows
+  before the swap and puts them back with `Body::attach_pcurve`, with
+  the reason written beside it — the trimmed-NURBS lane cannot run on a
+  rowless face, and the body this row needs is the old rows under the
+  new fit, built deliberately rather than left behind by a silence.
+
+No mesh source changed and neither row's subject moved. Signed (TOPO,
+the set_face_surface lane).
+
+### The reweighted-net body is now a row on this slate (2026-09-14)
+
+PR 2594's fix pass, on both reviewers' finding: the entry above
+disclosed the reweighted-NURBS body — a face left rowless by a chart
+swap whose carriers cannot certify against the new surface, with
+nothing able to re-derive it — and a disclosure is not a schedule
+(`work/README.md`). It is now
+`work/tess/a-chart-swap-whose-carriers-cannot-certify-leaves-a-face-nothing-can-re-derive`,
+with R2's measurement (two `Certify` on the hand-restored body) and
+why the honest fixture needs a corpus body with an interior control
+point, which `loft_prism`'s 2x3 net has not.
+
+One row was ADDED to `crates/mesh/tests/patch_memo.rs` by that fix
+pass: `a_rekey_keeps_a_spline_faces_rows_and_drops_an_analytic_faces`,
+which pins both answers `set_face_surface` gives a re-key. It lives
+here because this corpus is where minted spline-charted faces are —
+`topo`'s own fixtures are analytic, so no row there can exercise the
+predicate's shared-`Arc` rung. Signed (TOPO, the set_face_surface lane).

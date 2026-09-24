@@ -1040,16 +1040,18 @@ impl<T: Real> NurbsSurface<T> {
     /// It preserves the POINT SET, not the parameterization: the
     /// reversed chart answers at `v` what the source answers at
     /// `lo + hi − v`. So every parameter already recorded against the
-    /// old chart — a pcurve, an edge description's interval — still
-    /// means what it meant in the old chart and now names a different
-    /// place on the surface. Reversing a face's chart and re-attaching
-    /// it therefore leaves those stale: `topo::validate` stays green
-    /// (nothing structural moved) while the geometric-structural tier
-    /// reports the mismatch on every edge of the face. `set_face_surface`'s
-    /// own warning is the contract — attach surfaces BEFORE upgrading
-    /// edge descriptions, and re-derive pcurves after — and
-    /// `crates/sweep/tests/vrev_reversed_chart_hazard.rs` pins what a
-    /// caller that does not sees.
+    /// old chart still means what it meant there and now names a
+    /// different place on the surface. Re-attaching a reversed chart
+    /// through `set_face_surface` drops the face's pcurve rows (they
+    /// are stated in the chart, and the chart changed), so the face
+    /// arrives rowless and wants re-deriving; an edge description's
+    /// interval is not the setter's to touch and goes stale:
+    /// `topo::validate` stays green (nothing structural moved) while
+    /// the geometric-structural tier reports it on every edge the face
+    /// described. `set_face_surface`'s own warning is the contract —
+    /// attach surfaces BEFORE upgrading edge descriptions, and re-derive
+    /// pcurves after — and `crates/sweep/tests/vrev_reversed_chart_hazard.rs`
+    /// pins what a caller that does not sees.
     ///
     /// [`two_sum`]: geom_core::exact::two_sum
     pub fn reversed_v(&self) -> Result<Self, KnotMirrorError> {

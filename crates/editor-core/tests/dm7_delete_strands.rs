@@ -57,7 +57,8 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
             Maintenance::Strand { node, name } => Some((*node, name.clone())),
             Maintenance::Cluster(_)
             | Maintenance::StrandedAppearance { .. }
-            | Maintenance::OrphanedDeclare { .. } => None,
+            | Maintenance::OrphanedDeclare { .. }
+            | Maintenance::Rebound { .. } => None,
         })
         .collect()
 }
@@ -71,7 +72,8 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
             Maintenance::StrandedAppearance { name } => Some(name.clone()),
             Maintenance::Strand { .. }
             | Maintenance::Cluster(_)
-            | Maintenance::OrphanedDeclare { .. } => None,
+            | Maintenance::OrphanedDeclare { .. }
+            | Maintenance::Rebound { .. } => None,
         })
         .collect()
 }
@@ -1155,6 +1157,7 @@ fn the_orphan_transient_is_cancellable_at_the_cascade_door() {
             Maintenance::OrphanedDeclare { declare } => !doomed.contains(declare),
             Maintenance::Strand { .. }
             | Maintenance::StrandedAppearance { .. }
+            | Maintenance::Rebound { .. }
             | Maintenance::Cluster(_) => true,
         })
         .collect();

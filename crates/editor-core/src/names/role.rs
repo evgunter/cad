@@ -617,13 +617,23 @@ pub struct ProfileEdgeRef {
     pub loop_index: u32,
     /// The edge's index along that loop's chain, in the same
     /// anchoring the loop index carries.
+    ///
+    /// A coordinate at or above `editor_core::RETIRED_FLOOR` — as a
+    /// segment or as a loop index — is one no program draws, and is
+    /// where `DocEdit::SetProgram` RETIRES a name whose step its
+    /// reshaping dropped: the name then resolves `Vanished` at every
+    /// evaluation until it is rebound, rather than denoting whichever
+    /// segment the new program, or a later slot edit that grows the
+    /// loop, draws at its old index.
     pub segment: u32,
 }
 
 /// A profile vertex by combinatorial identity, under the same two
 /// anchorings as [`ProfileEdgeRef`] and by the same rewrite: vertex
 /// `v` starts segment `v` of its loop's chain, canonical as minted
-/// and program-order once published for a program loop (DM8).
+/// and program-order once published for a program loop (DM8). A
+/// vertex index at or above `editor_core::RETIRED_FLOOR` denotes
+/// nothing, for [`ProfileEdgeRef::segment`]'s reason.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -1312,25 +1322,63 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
 /// The [`RoleSeg`] variants that embed no [`StableName`], as a
 /// PATTERN rather than a predicate.
 ///
-/// Four matches classify segments by this partition and each does
+/// Several matches classify segments by this partition and each does
 /// something different with the other half — the name walk visits,
-/// the rewrite rebuilds, the selector collects, and the attribution
-/// walk ([`fn@super::attribute`]) stops. Only the negative answer is
-/// common, so only the negative answer is shared, and it is shared as
-/// an or-pattern so that none of them loses its exhaustiveness: a
-/// variant added to [`RoleSeg`] and not added here breaks every one of
-/// those builds, exactly as spelling the list out at each site did.
-/// What changes is that classifying it name-free is ONE decision at
-/// one site instead of four that can be made differently.
+/// the selector collects, the member-edge read answers `None`, and
+/// the attribution walk ([`fn@super::attribute`]) stops. Only the
+/// negative answer is common, so only the negative answer is shared,
+/// and it is shared as an or-pattern so that none of them loses its
+/// exhaustiveness: a variant added to [`RoleSeg`] and not added here
+/// breaks every one of those builds, exactly as spelling the list out
+/// at each site did. What changes is that classifying it name-free is
+/// ONE decision at one site instead of one per match that can be made
+/// differently. (No count of those matches is carried here: a count
+/// in prose has gone stale before, and `rg 'name_free_seg!'` is the
+/// census.)
+///
+/// It is the union of two lists that are each ONE decision of their
+/// own: [`inert_seg`], the variants that carry neither a name nor a
+/// profile locator, and [`locator_seg`], the variants that carry a
+/// [`ProfileEdgeRef`] or a [`ProfileVertexRef`] directly. The one
+/// rewrite walk ([`RoleSeg::rewrite`]) needs the two halves apart —
+/// it passes a locator through its rewriter and an inert segment
+/// verbatim — and the compiler refuses the union as an arm after the
+/// locator arms (`unreachable_patterns` fires on a covered
+/// alternative of an or-pattern), so the split is what lets the walk
+/// share the decision rather than re-spell it.
 ///
 /// A `fn` returning `bool` would not do: a caller may forget to call
 /// a predicate, and the property this list carries is the one the
 /// compiler holds.
 macro_rules! name_free_seg {
     () => {
+        $crate::names::inert_seg!() | $crate::names::locator_seg!()
+    };
+}
+
+/// The [`RoleSeg`] variants that carry NEITHER a [`StableName`] nor a
+/// profile locator: the sweep, split and section primitives a rewrite
+/// of either kind crosses verbatim. One half of [`name_free_seg`].
+macro_rules! inert_seg {
+    () => {
         $crate::names::RoleSeg::OutputBody
             | $crate::names::RoleSeg::Cap(_)
-            | $crate::names::RoleSeg::Lateral(_)
+            | $crate::names::RoleSeg::RevolveCap(_)
+            | $crate::names::RoleSeg::SplitBody(_)
+            | $crate::names::RoleSeg::SectionFace { .. }
+    };
+}
+
+/// The [`RoleSeg`] variants that carry a [`ProfileEdgeRef`] or a
+/// [`ProfileVertexRef`] DIRECTLY — the ones an extrude, revolve or
+/// loft emitter mints, the ones `eval::anchor` re-anchors and the ones
+/// the whole-program edit's segment map moves. The other half of
+/// [`name_free_seg`]: none of them embeds a name. A variant that
+/// begins to carry a locator has to be added here or every rewrite
+/// walk stops compiling, which is the point.
+macro_rules! locator_seg {
+    () => {
+        $crate::names::RoleSeg::Lateral(_)
             | $crate::names::RoleSeg::RimEdge(..)
             | $crate::names::RoleSeg::LateralEdge(_)
             | $crate::names::RoleSeg::CapVertex(..)
@@ -1340,15 +1388,267 @@ macro_rules! name_free_seg {
             | $crate::names::RoleSeg::BandPi(_)
             | $crate::names::RoleSeg::Meridian(..)
             | $crate::names::RoleSeg::MeridianVertex(..)
-            | $crate::names::RoleSeg::RevolveCap(_)
             | $crate::names::RoleSeg::Pole(_)
             | $crate::names::RoleSeg::AxisEdge(_)
-            | $crate::names::RoleSeg::SplitBody(_)
-            | $crate::names::RoleSeg::SectionFace { .. }
     };
 }
 
+pub(crate) use inert_seg;
+pub(crate) use locator_seg;
 pub(crate) use name_free_seg;
+
+/// **What a rewrite of a role path does to each thing a segment
+/// carries** — the four holes in the one walk [`RoleSeg::rewrite`]
+/// makes over [`RoleSeg`]'s shape.
+///
+/// Three rewrites of a name's path exist: `eval::anchor`'s canonical →
+/// program re-anchoring of a freshly emitted locator, `refactor`'s
+/// re-mapping of node ids across a split, and the whole-program edit's
+/// segment map. What differs between them is only what each does with
+/// a locator, a carried name and a member edge; what they share —
+/// which variant carries which, and how a set-valued segment
+/// re-canonicalizes after its members move — is the walk, written
+/// once. This trait is the part that differs.
+///
+/// Every method defaults to the identity, because "not this rewrite's
+/// concern" IS the identity: the anchor moves locators and nothing
+/// else, the split re-map moves names and member edges and no
+/// locator. A rewrite that descends into a carried name does so from
+/// its own [`SegRewrite::name`], through [`StableName::rewrite_path`]
+/// — the walk itself never recurses, so a rewriter that must not (the
+/// anchor: a carried name's locators are already program-anchored,
+/// and re-anchoring them would be wrong) simply does not.
+pub(crate) trait SegRewrite {
+    /// What stops the rewrite; [`core::convert::Infallible`] where
+    /// nothing can.
+    type Error;
+
+    /// A profile edge locator the segment carries directly.
+    ///
+    /// # Errors
+    ///
+    /// The rewriter's own.
+    fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Self::Error> {
+        Ok(e)
+    }
+
+    /// A profile vertex locator the segment carries directly.
+    ///
+    /// # Errors
+    ///
+    /// The rewriter's own.
+    fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Self::Error> {
+        Ok(v)
+    }
+
+    /// A name the segment carries: `None` leaves it as it is (and
+    /// costs no clone), `Some` replaces it.
+    ///
+    /// # Errors
+    ///
+    /// The rewriter's own.
+    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, Self::Error> {
+        let _ = n;
+        Ok(None)
+    }
+
+    /// The member edge of a [`RoleSeg::FromMember`] — a bare node id,
+    /// which is not a name and which a rewrite of the document's id
+    /// space has to move too.
+    ///
+    /// # Errors
+    ///
+    /// The rewriter's own.
+    fn member(&mut self, m: RecipeNodeId) -> Result<RecipeNodeId, Self::Error> {
+        Ok(m)
+    }
+}
+
+/// One carried name through the rewriter, kept as it is where the
+/// rewriter leaves it.
+fn rewrite_ref<W: SegRewrite>(n: NameRef, w: &mut W) -> Result<NameRef, W::Error> {
+    Ok(match w.name(n.name())? {
+        Some(next) => NameRef::new(next),
+        None => n,
+    })
+}
+
+/// A SET of names (canonical order = name order) through the
+/// rewriter: re-sorted when any member moved, because the rewrite may
+/// have changed the order and the emitters sort the same way. Left
+/// exactly as it was when none did.
+fn rewrite_set<W: SegRewrite>(v: Vec<StableName>, w: &mut W) -> Result<Vec<StableName>, W::Error> {
+    let mut moved = false;
+    let mut out = Vec::with_capacity(v.len());
+    for n in v {
+        match w.name(&n)? {
+            Some(next) => {
+                moved = true;
+                out.push(next);
+            }
+            None => out.push(n),
+        }
+    }
+    if moved {
+        out.sort();
+    }
+    Ok(out)
+}
+
+impl RoleSeg {
+    /// **This segment rebuilt through `w`** — the one walk over
+    /// [`RoleSeg`]'s shape that every rewrite of a role path goes
+    /// through ([`SegRewrite`] says which three).
+    ///
+    /// The match is EXHAUSTIVE on purpose, with no wildcard (the
+    /// `walk_names` rule): a variant added to [`RoleSeg`] says here
+    /// which of the three things it carries — a locator, a name, or
+    /// neither — or stops the build. A catch-all would let a new
+    /// locator cross a re-anchor stale, or a new carried name cross a
+    /// split with an id from another document's space, silently. The
+    /// inert half is [`inert_seg`]'s one decision; the locator half is
+    /// [`locator_seg`]'s list, spelled arm by arm because each arm
+    /// rebuilds its own payload.
+    ///
+    /// `InPart` crosses verbatim under every rewriter: its argument
+    /// names ANOTHER document's nodes (the document seam), whose
+    /// profiles and id space are not this document's to rewrite.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `w` refuses, at the first thing it refuses.
+    #[allow(clippy::too_many_lines)] // one arm per RoleSeg variant, each short
+    pub(crate) fn rewrite<W: SegRewrite>(self, w: &mut W) -> Result<RoleSeg, W::Error> {
+        use RoleSeg as R;
+        Ok(match self {
+            // Neither a locator nor a name: verbatim.
+            inert_seg!() => self,
+            // The locators.
+            R::Lateral(e) => R::Lateral(w.edge(e)?),
+            R::RimEdge(c, e) => R::RimEdge(c, w.edge(e)?),
+            R::LateralEdge(v) => R::LateralEdge(w.vertex(v)?),
+            R::CapVertex(c, v) => R::CapVertex(c, w.vertex(v)?),
+            R::Band(e) => R::Band(w.edge(e)?),
+            R::BandRim(v) => R::BandRim(w.vertex(v)?),
+            R::BandRimPi(v) => R::BandRimPi(w.vertex(v)?),
+            R::BandPi(e) => R::BandPi(w.edge(e)?),
+            R::Meridian(m, e) => R::Meridian(m, w.edge(e)?),
+            R::MeridianVertex(m, v) => R::MeridianVertex(m, w.vertex(v)?),
+            R::Pole(v) => R::Pole(w.vertex(v)?),
+            R::AxisEdge(e) => R::AxisEdge(w.edge(e)?),
+            // The carried names.
+            R::FromA(n) => R::FromA(rewrite_ref(n, w)?),
+            R::FromB(n) => R::FromB(rewrite_ref(n, w)?),
+            // BOTH halves: the member edge is a local node id like the
+            // minting one, and a rewrite of the id space moves it too.
+            R::FromMember { member, of } => R::FromMember {
+                member: w.member(member)?,
+                of: rewrite_ref(of, w)?,
+            },
+            R::Seam { a, b } => R::Seam {
+                a: rewrite_ref(a, w)?,
+                b: rewrite_ref(b, w)?,
+            },
+            R::Merged(v) => R::Merged(rewrite_set(v, w)?),
+            R::Fragment(q) => R::Fragment(match q {
+                Qualifier::SideOf(entries) => {
+                    let mut moved = false;
+                    let mut out = Vec::with_capacity(entries.len());
+                    for (n, s) in entries {
+                        match w.name(&n)? {
+                            Some(next) => {
+                                moved = true;
+                                out.push((next, s));
+                            }
+                            None => out.push((n, s)),
+                        }
+                    }
+                    // Sorted by partner name — the qualifier's own
+                    // canonical order, re-established after a move.
+                    if moved {
+                        out.sort();
+                    }
+                    Qualifier::SideOf(out)
+                }
+                Qualifier::OrderAlong { .. } => q,
+            }),
+            R::SectionEdge { side, face } => R::SectionEdge {
+                side,
+                face: rewrite_ref(face, w)?,
+            },
+            R::SplitFragment { side, parent } => R::SplitFragment {
+                side,
+                parent: rewrite_ref(parent, w)?,
+            },
+            R::CrossingVertex { side, edge } => R::CrossingVertex {
+                side,
+                edge: rewrite_ref(edge, w)?,
+            },
+            R::OnToolVertex { side, of } => R::OnToolVertex {
+                side,
+                of: rewrite_ref(of, w)?,
+            },
+            R::FromTarget(n) => R::FromTarget(rewrite_ref(n, w)?),
+            R::BlendFace(n) => R::BlendFace(rewrite_ref(n, w)?),
+            R::CornerFace(n) => R::CornerFace(rewrite_ref(n, w)?),
+            R::TrimEdge { edge, support } => R::TrimEdge {
+                edge: rewrite_ref(edge, w)?,
+                support: rewrite_ref(support, w)?,
+            },
+            R::FootVertex { vertex, support } => R::FootVertex {
+                vertex: rewrite_ref(vertex, w)?,
+                support: rewrite_ref(support, w)?,
+            },
+            R::EndArc { vertex, edge } => R::EndArc {
+                vertex: rewrite_ref(vertex, w)?,
+                edge: rewrite_ref(edge, w)?,
+            },
+            R::BandFace(v) => R::BandFace(rewrite_set(v, w)?),
+            R::BandTrim { edge, support } => R::BandTrim {
+                edge: rewrite_ref(edge, w)?,
+                support,
+            },
+            R::BandFoot(n) => R::BandFoot(rewrite_ref(n, w)?),
+            R::BandCross(n) => R::BandCross(rewrite_ref(n, w)?),
+            R::BandCut(n) => R::BandCut(rewrite_ref(n, w)?),
+            R::BandSlit(n) => R::BandSlit(rewrite_ref(n, w)?),
+            R::Inner(n) => R::Inner(rewrite_ref(n, w)?),
+            R::Rim(n) => R::Rim(rewrite_ref(n, w)?),
+            R::HoleRim { of, hole } => R::HoleRim {
+                of: rewrite_ref(of, w)?,
+                hole,
+            },
+            // The document seam.
+            R::InPart { .. } => self,
+            R::Instance { i, of } => R::Instance {
+                i,
+                of: rewrite_ref(of, w)?,
+            },
+        })
+    }
+}
+
+impl StableName {
+    /// This name with every segment of its path rebuilt through `w`
+    /// ([`RoleSeg::rewrite`]); the kind and the minting node are not
+    /// the path's and are kept.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `w` refuses.
+    pub(crate) fn rewrite_path<W: SegRewrite>(self, w: &mut W) -> Result<StableName, W::Error> {
+        let path = self
+            .path
+            .into_iter()
+            .map(|seg| seg.rewrite(w))
+            .collect::<Result<_, _>>()?;
+        Ok(StableName {
+            kind: self.kind,
+            node: self.node,
+            path,
+        })
+    }
+}
 /// The [`RoleSeg`] variants a BOOLEAN emitter never mints, as a
 /// PATTERN rather than a predicate.
 ///

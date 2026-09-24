@@ -25,7 +25,7 @@ use pncad::select::ContactClass;
 
 use crate::display::PruneReport;
 use crate::props::SlotValue;
-use crate::session::author::{DatumSpec, PatternRuleSpec, ProfilePlane};
+use crate::session::author::{DatumSpec, PartSelectSpec, PatternRuleSpec, ProfilePlane};
 use crate::session::probe::BoundsTarget;
 use crate::session::refuse::Refusal;
 use crate::session::select::{Hovered, Selection};
@@ -710,6 +710,70 @@ pub enum SessionOp {
         /// The edges to chamfer, by stable name.
         selection: Vec<StableName>,
     },
+    /// Insert one PROJECTION of a multi-body value — the named half
+    /// of a split, or one instance of a pattern — as the `Body` value
+    /// every body seat takes (`Node::Part`).
+    ///
+    /// **`select` is an authoring spec, not the node's own enum**, and
+    /// the difference is one field: `PartSelect::Instance` carries an
+    /// `Expr` where [`PartSelectSpec::Instance`] carries an `i64`.
+    /// `SlotId::Instance` is a Count-typed STRUCTURAL slot (spec D3),
+    /// the same class as [`SessionOp::AddPattern`]'s count, and that
+    /// op's rule holds here for its own reason: a structural slot is
+    /// authored exact and edited afterwards through
+    /// `SetStructuralParam`, never through the continuous door. A door
+    /// taking `PartSelect` whole would be the one place an arbitrary
+    /// expression could reach one at authoring time.
+    ///
+    /// **The seat is per ARM, because the pairing is a fact about the
+    /// committed document.** A half reads a `Node::Split` and an index
+    /// reads a `Node::Pattern`; a half against a pattern is not a
+    /// well-typed node and never becomes one, so it refuses
+    /// [`Refusal::WrongNodeKind`] here rather than landing and failing
+    /// at evaluation — the same rule [`SessionOp::AddFillet`] states
+    /// for its target's kind. What is left to evaluation is the index
+    /// being IN RANGE, which is a fact about the pattern's value:
+    /// `NodeErrorKind::InstanceOutOfRange`, typed, on the node's own
+    /// badge.
+    AddPart {
+        /// The split or pattern whose value is read.
+        of: RecipeNodeId,
+        /// Which body of it.
+        select: PartSelectSpec,
+    },
+    /// **Duplicate one body**: the picked body placed whole, plus one
+    /// copy stepped clear of it, each an independently drawn and
+    /// independently placeable root.
+    ///
+    /// **A duplicate is a pattern of two, projected twice** — a
+    /// `Node::Pattern` of count [`crate::combine::DUPLICATE_COUNT`] over
+    /// the body, and one `Node::Part` per instance. Three inserts, one
+    /// action, one undo (the session's several-edit door, the shape
+    /// `AddProfile`'s new-frame arm takes), and the projections are not
+    /// decoration: `roots` maintenance puts a new node in the earliest
+    /// consumed root's slot and drops its inputs, and the viewport
+    /// draws roots. A pattern alone is ONE root drawing two bodies, so
+    /// neither copy can be hidden, moved or blended apart from the
+    /// other, and the first `Part` a user authored by hand would take
+    /// the pattern out of `roots` and leave the other copy undrawn. A
+    /// projection per instance puts every copy back in `roots`.
+    ///
+    /// **The step is measured, not fixed**
+    /// ([`crate::combine::duplicate_step`]): along
+    /// [`crate::combine::STEP_DIRECTION`], far enough that the copy
+    /// clears the original by at least [`crate::combine::DUPLICATE_GAP`]
+    /// of the body's own width. It is read off the LANDED value of the
+    /// CURRENT document, so this door refuses ([`Refusal::Duplicate`])
+    /// before anything has landed, while an edit has not landed yet,
+    /// and for an input whose value is several bodies — which the body
+    /// seat's node-kind gate admits for a transform of a pattern, and
+    /// which a pattern of two would index in place, adding nothing.
+    /// Both numbers land in the pattern's ordinary slots and are edited
+    /// in the property panel afterwards.
+    Duplicate {
+        /// The body duplicated.
+        input: RecipeNodeId,
+    },
     /// Commit **exactly one** `DocEdit` inserting an instance of
     /// another document — the assembly-authoring door, and the second
     /// insert door after the mate tool's.
@@ -979,6 +1043,8 @@ impl SessionOp {
             | Self::AddPlacedUnion { .. }
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
+            | Self::AddPart { .. }
+            | Self::Duplicate { .. }
             | Self::AddInstance { .. } => None,
         }
     }
@@ -1183,6 +1249,8 @@ impl SessionOp {
             | Self::AddPlacedUnion { .. }
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
+            | Self::AddPart { .. }
+            | Self::Duplicate { .. }
             | Self::AddInstance { .. } => false,
         }
     }
@@ -1297,6 +1365,8 @@ impl SessionOp {
             | Self::AddPlacedUnion { .. }
             | Self::AddFillet { .. }
             | Self::AddChamfer { .. }
+            | Self::AddPart { .. }
+            | Self::Duplicate { .. }
             | Self::AddInstance { .. } => true,
         }
     }

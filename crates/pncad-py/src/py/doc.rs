@@ -1666,6 +1666,33 @@ fn sketch_plane(
     }
 }
 
+/// **The loop programs an `outline` argument spells** — ONE
+/// `ClosedLoop` or a list of them, in the order they were written
+/// (`[outer, hole, hole]`) — the one reading both doors that take a
+/// profile description share: `Node.profile`, which mints a profile
+/// from it, and `DocEdit.set_program`, which writes it over a live
+/// profile's program. One reading, so the two doors cannot disagree
+/// about what a description is.
+///
+/// Nothing about the loop SET is pre-checked here: which loop is
+/// outer, whether the holes nest, whether two loops cross, is the
+/// kernel's own typed refusal at the door that consumes the loops.
+/// A value that is neither a loop nor a sequence of them is
+/// `extract`'s own `TypeError`, so a stringly-typed or numeric
+/// argument still refuses at the boundary rather than being iterated
+/// into nonsense.
+fn loops_from_outline(py: Python<'_>, outline: &Bound<'_, PyAny>) -> PyResult<Vec<d::LoopProgram>> {
+    match outline.cast::<super::path::ClosedLoop>() {
+        Ok(one) => Ok(vec![super::path::loop_program(py, &one.borrow())?]),
+        Err(_) => {
+            let many: Vec<PyRef<'_, super::path::ClosedLoop>> = outline.extract()?;
+            many.iter()
+                .map(|l| super::path::loop_program(py, l))
+                .collect::<PyResult<Vec<_>>>()
+        }
+    }
+}
+
 /// A recipe node, before it is inserted into a document.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
@@ -1760,19 +1787,7 @@ impl Node {
     #[staticmethod]
     fn profile(py: Python<'_>, outline: &Bound<'_, PyAny>, plane: NodeId) -> PyResult<Self> {
         let plane = plane.0;
-        // ONE loop or a sequence of them, and nothing else: a value
-        // that is neither is `extract`'s own `TypeError`, so a
-        // stringly-typed or numeric argument still refuses at the
-        // boundary rather than being iterated into nonsense.
-        let loops = match outline.cast::<super::path::ClosedLoop>() {
-            Ok(one) => vec![super::path::loop_program(py, &one.borrow())?],
-            Err(_) => {
-                let many: Vec<PyRef<'_, super::path::ClosedLoop>> = outline.extract()?;
-                many.iter()
-                    .map(|l| super::path::loop_program(py, l))
-                    .collect::<PyResult<Vec<_>>>()?
-            }
-        };
+        let loops = loops_from_outline(py, outline)?;
         Ok(Self {
             inner: d::Node::Profile(d::ProfileProgram { plane, loops }),
         })
@@ -3691,6 +3706,62 @@ impl DocEdit {
             inner: d::DocEdit::Rebind {
                 from: name_from_text(from_name)?,
                 to: name_from_text(to_name)?,
+            },
+        })
+    }
+
+    /// **Replace a live profile's PROGRAM whole** — its loops, their
+    /// verbs, order and count, arc modes and targets — validated once,
+    /// as one edit. The plane is not carried and does not move: it is
+    /// the profile's one input, and no edit rewires a live node's
+    /// inputs.
+    ///
+    /// `outline` is the profile description `Node.profile` takes —
+    /// one closed loop, or `[outer, hole, hole]` in that order — read
+    /// through the same door, so what this writes is what that mints.
+    /// `provenance` is one entry per new loop, in `outline`'s order:
+    /// `(from, steps)` where `from` is the OLD loop index this loop
+    /// continues (`None` for a new loop) and `steps[i]` the old step
+    /// index new step `i` continues (`None` for a new step). The
+    /// editor that reshaped the program is the one party that knows
+    /// which leg it inserted, so the door is told rather than
+    /// guessing.
+    ///
+    /// Every name spelled in the profile's coordinates — a fillet's
+    /// selection, a shell's mouth, a derived frame's face, a paint —
+    /// is rewritten to its new coordinates when its step was kept
+    /// (`Doc.last_maintenance` carries a `rebound` row per name, with
+    /// `name` the old spelling and `rebound_to` the new) and retired
+    /// when its step was dropped or changed — a step whose segment
+    /// count moved is not a kept one — reported as a `strand` or a
+    /// `stranded_appearance`, resolving to nothing until
+    /// `DocEdit.rebind` repairs it.
+    ///
+    /// Refuses `provenance_malformed` before the program is replayed
+    /// — `inner_variant` says which way the shape is wrong
+    /// (`loop_count`, `step_count`, `no_such_old_loop`,
+    /// `no_such_old_step`, `step_of_new_loop`,
+    /// `old_loop_continued_twice`, `old_step_continued_twice`) —
+    /// `set_program_on_non_profile` for a node holding no program,
+    /// and then everything an insert refuses of a profile:
+    /// `slot_unknown_doc_param` and its siblings over every argument,
+    /// `profile_program_refused` for a program that does not close,
+    /// replay or validate.
+    #[staticmethod]
+    fn set_program(
+        py: Python<'_>,
+        node: &NodeId,
+        outline: &Bound<'_, PyAny>,
+        provenance: Vec<(Option<u32>, Vec<Option<u32>>)>,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            inner: d::DocEdit::SetProgram {
+                node: node.0,
+                loops: loops_from_outline(py, outline)?,
+                provenance: provenance
+                    .into_iter()
+                    .map(|(from, steps)| d::LoopProvenance { from, steps })
+                    .collect(),
             },
         })
     }

@@ -697,6 +697,10 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
         | DocEdit::InsertNode { .. }
         // A list of node ids carries no float.
         | DocEdit::SetMembers { .. }
+        // A program's continuous arguments are `Expr` literals, finite
+        // by the construction door like an inserted profile's; its
+        // provenance is integers.
+        | DocEdit::SetProgram { .. }
         | DocEdit::SetTolerance { .. }
         | DocEdit::DeleteNode { .. }
         | DocEdit::SetParam { .. }

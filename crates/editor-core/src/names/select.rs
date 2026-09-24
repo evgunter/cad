@@ -381,7 +381,7 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
 /// future [`RoleSeg`] or [`Qualifier`] variant embedding names must be
 /// classified here or the compile breaks — or, if it embeds no name,
 /// added to [`crate::names::name_free_seg`], which is the one place
-/// that answer is written for this and its two sibling matches.
+/// that answer is written for every match that shares it.
 ///
 /// **Only NAMES.** [`RoleSeg::FromMember`] contributes its `of` and not
 /// its `member`, exactly as [`RoleSeg::Instance`] contributes its `of`

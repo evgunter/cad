@@ -65,3 +65,27 @@ for — today only `editor-core` does, so every `sweep` and
 this would pay off in the merge door's second rung too; (b) the bound
 widening above, priced by whoever wants it; (c) nothing, with the
 re-mint as the documented price — which is what the doors say today.
+
+## A caller outside `topo` met it (2026-09-14, the `set_face_surface` unit)
+
+The bound is no longer only the loop doors': `Body::set_face_surface`
+drops a face's rows on a chart change too, so a caller that re-keys a
+surface to the SAME value with no `GeomSource` on either key loses that
+face's rows. One real caller does exactly that —
+`crates/mesh/tests/patch_memo.rs`'s
+`arena_keys_are_not_in_the_key_a_reminted_surface_key_hits_on_every_lane`
+re-mints every face of every corpus body onto a fresh key holding the
+surface it already had, to prove the memo's key is not arena keys —
+and the whole curved half of that corpus (`rounded_prism`, `ball`,
+`cone`, `washer`, `donut`) came back rowless. It re-mints now and the
+row is unchanged in what it measures, which is the cost this row
+names: a re-mint, never a wrong row.
+
+Two details worth keeping for whoever widens the bound. The
+`Arc::ptr_eq` rung already covers this caller's NURBS and `Approx`
+faces — cloning `Surface::Nurbs(Arc)` clones the pointer — so the
+faces that lost their rows were exactly the ANALYTIC curved ones,
+where an equal surface means equal scalars and nothing else. And the
+same caller shape is what a structural compare would make free: it
+holds two keys whose surfaces are equal field for field, with no
+recipe on either.
