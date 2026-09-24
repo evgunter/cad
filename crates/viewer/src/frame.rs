@@ -1621,9 +1621,8 @@ pub fn tool_news(text: impl Into<String>) -> Message {
 }
 
 /// **What the chrome badges about the A5 at-rest verdict**, and `None`
-/// for a part document and before anything lands — which is
-/// [`crate::session::DocSession::at_rest`]'s own `None`, passed
-/// through.
+/// exactly when [`crate::session::DocSession::at_rest`] is — its own
+/// `None`, passed through; that doc says when.
 ///
 /// A certified assembly is [`Tone::Advisory`]: the verdict is good
 /// news and there is nothing to act on. A refusal is

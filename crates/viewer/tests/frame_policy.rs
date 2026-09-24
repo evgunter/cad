@@ -1001,7 +1001,7 @@ fn the_readme_counts_its_two_populations_correctly() {
 /// was right.
 #[test]
 fn a_badge_that_has_nothing_to_say_says_nothing() {
-    assert_eq!(frame::at_rest_badge(None), None, "no assembly, no verdict");
+    assert_eq!(frame::at_rest_badge(None), None, "no verdict, no badge");
     assert_eq!(
         frame::checks_badge(None),
         None,
@@ -2571,10 +2571,10 @@ fn opening_a_document_drops_the_previous_ones_landed_run() {
 #[test]
 fn a_well_formed_product_reports_no_fault_and_the_verdict_is_computed_once() {
     // The gather's verdict (which channel reports which class is
-    // `frame::badge_site`'s). Nothing in
-    // the gallery refuses, so the row asserts the honest half: the
-    // verdict exists, is `None` for a good document, and is `None`
-    // before anything lands (which is not the same as "well formed").
+    // `frame::badge_site`'s). Nothing in the gallery refuses, so the
+    // row asserts the honest half: the verdict exists, is `None` for a
+    // good document, and is `None` before anything lands (which is not
+    // the same as "well formed").
     let tol = Tol::witness();
     let (doc, _) = scene::plate_with_hole(tol).expect("the plate authors");
     let mut session = DocSession::inline(doc, tol);

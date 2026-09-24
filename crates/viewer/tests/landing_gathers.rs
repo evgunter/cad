@@ -389,6 +389,55 @@ fn a_body_less_assembly_takes_no_at_rest_badge() {
     );
 }
 
+/// **The other side of that guard: an assembly whose gather REALLY
+/// refuses still takes the refused at-rest badge.** Beside an instance,
+/// an extrude whose distance divides by zero fails at evaluation, so
+/// the gather refuses with a class `ProductErrorKind::means_no_body`
+/// does not claim, in a document that is assembly-shaped.
+///
+/// Widen the landing's guard so no gather refusal takes the badge
+/// (`false && …`) and this row goes red, where the body-less row above
+/// stays green: the two pin the two arms of one condition.
+#[test]
+fn an_assembly_whose_gather_refuses_keeps_the_refused_at_rest_badge() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("refused-gather-assembly", tol);
+    let asm = ProfileDoc::empty(DocumentId::derive("refused-gather-assembly"), tol);
+    let (mut asm, profile) = common::framed_square(&asm, 0.04, tol);
+    common::insert_into(&mut asm, Node::instantiate_part(bench.post), tol);
+    common::insert_into(
+        &mut asm,
+        Node::Extrude {
+            profile,
+            distance: Expr::div(common::len(0.008), common::scl(0.0))
+                .expect("length / scalar is a length"),
+        },
+        tol,
+    );
+    let path = Workspace::open(&bench.dir)
+        .expect("the bench's workspace opens")
+        .create(&asm, tol)
+        .expect("the assembly stores");
+    let mut session = DocSession::inline(Doc::empty_derived("refused-gather-boot", tol), tol);
+    let outcome = session.perform(SessionOp::Open(path));
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    session.pump();
+
+    assert!(
+        matches!(
+            session.product_fault(),
+            Some(ProductError::RootFailed { .. })
+        ),
+        "the premise: a failed root, which is a refusal and not an absence: {:?}",
+        session.product_fault()
+    );
+    assert!(
+        matches!(session.at_rest(), Some(AtRestBadge::Refused { .. })),
+        "so the A5 badge still carries it: {:?}",
+        session.at_rest()
+    );
+}
+
 /// **Every site of the counter carries the gate attribute.**
 ///
 /// WHAT THIS PINS AND WHAT IT DOES NOT, stated because the row's first

@@ -1065,9 +1065,9 @@ impl DocSession {
         // for it either: it takes what the gate did not eat.
         let doc: &Doc<ProfileProgram> = &self.requested_doc;
         let cfg = ChecksConfig::default();
-        // The A5 badge is taken for assembly-shaped documents only, and
-        // whether the document is one is a fact about the document
-        // rather than about its product — readable on either arm.
+        // Whether the document is assembly-shaped is a fact about its
+        // nodes, so it is read once here for both arms; the other
+        // condition [`AtRestBadge`] names is read off the gather below.
         let assembly_shaped = assembly_shaped(doc);
         let (fault, checks, at_rest, body) = match product_recorded(doc, &done.evaluation, self.tol)
         {
@@ -2785,10 +2785,10 @@ enum OrderFault {
     },
 }
 
-/// Whether a document is assembly-shaped, which is what decides
-/// whether an A5 badge is taken at all (see [`AtRestBadge`]): a
-/// document that instantiates no part declares no cross-instance rest
-/// and has nothing for the gate to answer about.
+/// Whether a document is assembly-shaped — one of the two conditions
+/// [`AtRestBadge`] names for taking an A5 badge: a document that
+/// instantiates no part declares no cross-instance rest and has
+/// nothing for the gate to answer about.
 fn assembly_shaped(doc: &Doc<ProfileProgram>) -> bool {
     doc.order()
         .iter()

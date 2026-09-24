@@ -1633,9 +1633,9 @@ impl ViewerApp {
             // nothing about how a badge looks is decided here
             // (`frame::Badge`).
             //
-            // The A5 at-rest verdict, for assembly-shaped
-            // documents: the verification verdict living past the
-            // commit.
+            // The A5 at-rest verdict, when the session took one
+            // (`DocSession::at_rest`): the verification verdict
+            // living past the commit.
             if let Some(badge) = frame::at_rest_badge(self.session.at_rest()) {
                 draw_badge(ui, &self.theme, &badge);
             }

@@ -48,3 +48,20 @@ why. If the first, `AtRestBadge`'s doc and `DocSession::at_rest`'s
 gains a row over a gather refusal in an assembly-shaped document; if
 the second, the `badge_site` argument needs a sentence on why it stops
 at `product_badge`.
+
+## Further evidence (PR 3135's review)
+
+- **The landing now holds its own class policy for the at-rest badge.**
+  `DocSession::land`'s `Err(fault)` arm (`session.rs`) badges "every
+  class but the one `means_no_body` claims" — a boolean over the class,
+  so it is a non-exhaustive sibling of `frame::badge_site`'s `match`. A
+  new `ProductErrorKind` reds `badge_site` and silently inherits
+  `Refused` here. Either option under "What a taker owes" removes the
+  second policy or
+  makes it answer to the first.
+- **The badge's words claim a gate run that did not happen.** The
+  `Refused` built in that arm renders
+  `AssemblyError::product_refusal(&fault)` — *"assembly: product: …"* —
+  though on a gather refusal the A5 gate never ran: there was no
+  product to hand it. That is a further argument for option 1 (no
+  at-rest verdict when the gather refused).
