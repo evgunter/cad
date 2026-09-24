@@ -2,12 +2,13 @@
 id: props-refusal-cannot-carry-measured-overshoot
 kind: issue
 title: props/curved: a typed refusal cannot carry its measured overshoot in metres — the Bounds compound bound is off bounds-allowlist.sh
-status: open
+status: closed
 opened: 2026-09-02
 github: 1602
 refs: [1599, 1571, S19]
 priority: P3
 cost: E
+closed: 2026-09-24
 ---
 
 ## From GitHub issue 1602
@@ -34,3 +35,17 @@ Moved from `work/cert/` to `work/props/` on S-CERT's exit walk PR
 and header are unchanged; the directory is the claim (`work/README.md`).
 The `## Home` section above naming `work/cert/` is superseded by this
 line and is kept as the record of why the file was filed there.
+
+## Closed (2026-09-24): name-only, the K stream is the record
+
+The row's second answer. The overshoot it asked for is measured and
+already recorded: the refusing decision is `props_meridian_pole` /
+`props_cone_apex` through `k_stats::decide`, which writes the margin (in
+metres, by `Margin`'s signature) into the K stream under that name. The
+caller's recourse — state the edge as two meeting at the singularity —
+does not depend on the number, and carrying it in the payload would need
+the compound `Bounds` seam `scripts/gates/bounds-allowlist.sh` exists to
+keep off `props/curved.rs`. Ev (in chat, 2026-09-24): switching would need
+a surprisingly good reason; none turned up. Written at both arms in
+`crates/geom-brep/src/props/mod.rs` (`NotOneChartBranch`,
+`NotIsoRectangle`), replacing the "scheduled gap" paragraph.
