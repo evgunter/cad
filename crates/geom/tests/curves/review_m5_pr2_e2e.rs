@@ -7,7 +7,7 @@
 //! at a stated ε?** It is deliberately arithmetic-free in its setup —
 //! every control point is dyadic and lies *exactly* on the plane
 //! `n · P = 1.5`, so the clean residual is zero in ℝ and the whole bound
-//! is the ring's own conservatism.
+//! is interval arithmetic's own conservatism.
 //!
 //! The residual composite is exact, not sampled. For a spline
 //! `C(t) = Σ N_j P_j` (or its rational form with positive weights), the
@@ -18,7 +18,7 @@
 //! ```
 //!
 //! so the residual is a scalar spline over the SAME knot vector whose
-//! coefficients are `n·P_j − 1.5`, built here in the ring. That is
+//! coefficients are `n·P_j − 1.5`, built here in certification arithmetic. That is
 //! exactly the "residual composite sampled into B-spline coefficient
 //! form" the hull primitives were specified to consume — with no
 //! sampling at all, because for a plane the composite is closed-form.
@@ -34,7 +34,7 @@
 
 use geom::NurbsCurve3;
 use geom_core::spline::KnotVector;
-use geom_core::{Point3, RingInterval, Vec3};
+use geom_core::{Interval, Point3, Vec3};
 
 /// The plane `n · P = 1.5`. Both are dyadic: `n = (0.5, 0.5, 0.75)`,
 /// offset `1.5`, so `n·P` is exact for dyadic `P` with modest exponents.
@@ -80,20 +80,20 @@ fn planar_curve() -> NurbsCurve3<f64> {
     NurbsCurve3::new(knots, control, weights).unwrap()
 }
 
-/// The residual composite's coefficients, built **in the ring**:
+/// The residual composite's coefficients, built **in certification arithmetic**:
 /// `r_j = n·P_j − 1.5`, fixed association (ascending coordinate, then
 /// the offset subtracted last).
-fn residual_coeffs(curve: &NurbsCurve3<f64>) -> Vec<RingInterval> {
+fn residual_coeffs(curve: &NurbsCurve3<f64>) -> Vec<Interval> {
     let n = plane_normal();
     curve
         .control()
         .iter()
         .map(|p| {
-            let mut acc = RingInterval::zero();
+            let mut acc = Interval::zero();
             for (nd, pd) in [(n.x, p.x), (n.y, p.y), (n.z, p.z)] {
-                acc = acc + RingInterval::point(nd) * RingInterval::point(pd);
+                acc = acc + Interval::point(nd) * Interval::point(pd);
             }
-            acc - RingInterval::point(OFFSET)
+            acc - Interval::point(OFFSET)
         })
         .collect()
 }
@@ -108,7 +108,7 @@ fn sampled_residual(curve: &NurbsCurve3<f64>, t: f64) -> f64 {
 #[test]
 fn control_points_are_exactly_on_the_plane() {
     // The fixture's premise, pinned: if this drifts, every number below
-    // is measuring the fixture instead of the ring.
+    // is measuring the fixture instead of interval arithmetic.
     let curve = planar_curve();
     for (i, p) in curve.control().iter().enumerate() {
         let r = N[0] * p.x + N[1] * p.y + N[2] * p.z - OFFSET;
@@ -147,7 +147,7 @@ fn the_clean_fit_is_certified_and_the_plant_is_refused() {
     // identically zero), so it must sit at fp scale, not merely under eps.
     assert!(
         bound < 1e-14,
-        "clean bound {bound:e} is far above fp scale — the ring is padding \
+        "clean bound {bound:e} is far above fp scale — interval arithmetic is padding \
          more than one step per operation somewhere"
     );
 
@@ -170,11 +170,11 @@ fn the_clean_fit_is_certified_and_the_plant_is_refused() {
         dirty_bound > EPS,
         "the {PLANT:e} plant must be refused at eps={EPS:e}, bound was {dirty_bound:e}"
     );
-    // Known to the ring's noise floor: only the victim coefficient is
+    // Known to interval arithmetic's noise floor: only the victim coefficient is
     // nonzero, and it is `n_z · PLANT`. The comparison tolerance is set
     // by the INTERMEDIATE scale, not the result's: the coefficient is
     // formed as `0.5x + 0.5y + 0.75z − 1.5`, four quantities of size
-    // ~1.5 that cancel to ~1.5e-9, so each of the ring's one-step
+    // ~1.5 that cancel to ~1.5e-9, so each of interval arithmetic's one-step
     // outward pads is an ulp of 1.5 (≈2.2e-16), not an ulp of the
     // answer. That cancellation is real and the enclosure reports it
     // honestly — which is the whole reason certification bounds rather

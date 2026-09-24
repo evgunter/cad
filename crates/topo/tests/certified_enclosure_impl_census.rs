@@ -8,7 +8,7 @@
 //! scalar without the right cannot hold a value. It does not carry the
 //! which-scalars half: each `wiring_rows` module is a hand-written
 //! list of the scalars whose door is pinned by pointer identity, and a
-//! sixth `impl CertifiedEnclosure` would form every door value in the
+//! new `impl CertifiedEnclosure` would form every door value in the
 //! tree and owe a row wherever that door is pinned, without anything
 //! going red. This census is that red for the two doors whose pins it
 //! reads. There are FOUR door values — `geom_brep::OffsetFitLane`,
@@ -47,12 +47,9 @@ const ROSTERS: [(&str, &str); 2] = [
 ];
 
 /// The impls that are not door scalars, each with the reason no wiring
-/// row is owed. An entry here is an exemption and has to earn it.
-const NOT_A_DOOR_SCALAR: [(&str, &str); 1] = [(
-    "RingInterval",
-    "a bracket currency (the ring the certified reads hand back), not a scalar: it \
-     implements no `Decide`, so no door forms at it",
-)];
+/// row is owed. An entry here is an exemption and has to earn it; every
+/// `CertifiedEnclosure` implementor in the tree is a door scalar today.
+const NOT_A_DOOR_SCALAR: [(&str, &str); 0] = [];
 
 /// The head of a type name: the path stripped and the generic arguments
 /// dropped, so `geom_core::Sym<f64>`, `Sym<T>` and `Sym` are one type.

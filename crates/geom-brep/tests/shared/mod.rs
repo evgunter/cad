@@ -63,7 +63,7 @@
 //! is hide that two spellings were never the same value. So each module
 //! below states, for the spellings it merged, WHY they are one value —
 //! `Band::linear`'s own body for `tol`, `Real::from_f64`'s two impls
-//! for `point`, `RingInterval`'s two doors for `ring` — and the
+//! for `point`, `Interval`'s two doors for `ring` — and the
 //! spellings that are a different value stay put and say so.
 
 pub(crate) mod fixture;

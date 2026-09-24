@@ -425,11 +425,11 @@ pub enum PropsError {
     /// measured — it is the same `props_meridian_pole` /
     /// `props_cone_apex` quantity the funnel records, levered to
     /// metres — but reading a DEFINITE margin back as `f64` from a
-    /// `Decide`-generic lane needs a compound `Bounds`/`Enclosure`
+    /// `Decide`-generic lane needs a compound `Bounds`
     /// bound, which `scripts/gates/bounds-allowlist.sh` does not
     /// ratify for `props/curved.rs`. Every arm of this enum that
     /// carries a measured `f64` gets it from a concrete scalar
-    /// ([`Self::QuadratureBudget`], from a `RingInterval`); the
+    /// ([`Self::QuadratureBudget`], from a `Interval`); the
     /// generic arms are name-only, exactly as
     /// [`Self::NotIsoRectangle`] is. Issue 1602 is the ratification
     /// that would let this arm carry the number.
