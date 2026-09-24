@@ -6969,6 +6969,200 @@ and every claim followed the slot line branch-side. Block TOPO-B5 was
 cut and drawn before this record published (pre-draw fields at
 `41eb35f5c`, byte 7 ⇒ fable at slot 1; record on `topo/b5-block`).
 
+**Disclosure — arm exposure in TOPO's program log (TOPO orchestrator,
+audit of 2026-09-24).** `work/topo/log.md`, on main, named the
+implementer's ARM at dispatch for most TOPO units from block TOPO-B2
+on: a block's draw-and-dispatch entry said which slot ran which arm
+(for example "slot 1 (`revert-leaves-…`, …, FABLE)"), and several
+later entries repeated it. This log's own rule names "a unit's log
+entry, a block record naming unstarted slots" as a leak, and the
+orchestrator wrote them anyway. No reviewer brief directed a reviewer
+to `work/topo/log.md`, and no reviewer disclosed reading it, but the
+rule flags contamination on the EXPOSURE, not on a disclosure: the
+rows of ordinals **2704, 2705 and 2707–2712** are flagged
+arm-exposed from this entry (2702, 2703 and 2706 were dispatched
+before any entry naming their own arm reached main, and are re-checked
+by whoever codes the readout). **2713**, claimed below, carries the
+same exposure — its arm has been named on main since 2026-09-14 — and
+both of its reviewers' briefs forbid reading the log, this file and
+the block branch. Nothing is re-ordered or re-drawn; the readout
+decides what a flagged pair counts for. The log names no arm from
+here on.
+
+Mef/kef-runs review ordinal fixed at dispatch (2026-09-24, PR #2603
+open — frozen head `2216e0c00`, a merge of `origin/main` onto the
+unit's green head `e36af64a4`; unit
+`work/topo/mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows.md`):
+**ordinal 2713** (TOPO band) — finishing under v6 by the suspension
+entry's item 4 (the implementer dispatched under block TOPO-B5's
+drawn arm on 2026-09-14, before the suspension). Pre-draw fields
+(logged in `work/topo/log.md` at `41eb35f5c` BEFORE block TOPO-B5
+was drawn — clean): difficulty **M**, task class **STRUCTURAL**.
+Implementer arm per block TOPO-B5 slot 1 (record branch-side on
+`topo/b5-block`). Disclosed: the implementer lane died on its arm's
+usage limit after pushing its PR and while its run was going green
+(run 34877183170, success on `e36af64a4`); its final report was lost,
+so its tokens and wall are missing data, never zeros. Protocol v6
+dual: draw = `/dev/urandom` byte **61**, parity 1 ⇒ **R1 = FABLE,
+R2 = OPUS**. Method, recorded before either review runs: CONCURRENT
+same-head on frozen `2216e0c00`, both briefs authored and STORED with
+sha256 before either dispatches (identical text modulo lane name,
+target and scratch paths, verified by diff: 4 lines), neither
+reviewer sees the other's report, v6 item 5 isolation in both briefs
+plus an explicit bar on this log, the program log and the block
+branch (the exposure above). Disclosed seams: the orchestrator ran on
+Fable until the suspension and on Opus (5.5 era) from here, for the
+adjudication of this pair; the pair dispatches ten days after the
+implementer's head. Shared-box note applying to BOTH arms equally: one
+4-core cloud box, no other lane live at dispatch, `-j2`; both targets
+are stale builds from before a large merge of main — wall-clock
+asymmetry only.
+
+Mef/kef-runs row, recorded AT MERGE (2026-09-24, PR #2603;
+`work/topo/mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows.md`
+CLOSED at this merge): `mef`'s chord surgery and `kef`'s unsplice
+carry or drop the rows of the run they move. One `same_chart` per
+decision site over one predicate-free removal, `Body::drop_rows`.
+`kef` resolves the surviving face and decides the chart in its plan
+phase. `mef`/`kef` are declared `Transfers`. Difficulty **M**, task
+class STRUCTURAL (logged before the block draw — clean). Implementer
+arm **FABLE** (block TOPO-B5 slot 1, byte 7). **DUAL: ordinal 2713;
+sample #241 (main's highest at this writing #240; main's merge order
+rules on a collision); byte 61 parity 1 ⇒ R1 FABLE + R2 OPUS;
+CONCURRENT same-head on frozen `2216e0c00`; briefs stored with sha256
+before dispatch, identical modulo lane paths (diff 4 lines).**
+**ARM-EXPOSED** per the disclosure above: the implementer's arm had
+been named on main since 2026-09-14. Both briefs barred this log, the
+program log and the block branch. Both reviewers disclosed glimpses:
+R1 the head commit's co-author trailer and the PR body's footer; R2 a
+line of main's git log naming sibling review lanes' models, and the
+orchestrator merge commit's trailer. Neither saw the other's review.
+R1 MERGEABLE-AFTER-FIXES, counts 2/4/7, rubric idiom 4 / tests 2 /
+docs 3. R2 MERGEABLE-AFTER-FIXES, counts 0/5/11; its rubric was lost
+with its report (the harness refused its scratch write; the returned
+message was archived as a summary), so it is missing data. **No
+unilateral MAJOR.** CONVERGED, severity divergent, both by execution:
+(1) `kef` through the LOOP door after the splice survives both suites,
+the run door's reason for existing unpinned (R1 MAJOR, R2 MINOR; both
+wrote the survivor-rows probe); (2) the drop after the orphan sweep
+survives both suites, with `same_chart` reading a reaped key as two
+charts (R1 MAJOR, R2 MINOR; both wrote the reaped-key probe). Both
+MINOR: (3) the PCERT evidence the body claimed was never filed;
+(4) the precondition-order paragraph was still out of order on
+`SameFace`; (5) the new surviving-face resolution changes the typed
+refusal on multi-fault corrupt input, undisclosed (R1 one plant, R2 a
+table of three). Style, both: (6) `same_chart` evaluated twice on the
+loop path; (7) `Neither` false for doors that now drop rows; (8) dead
+`work/` paths in doc comments; (9) the run door trusts caller-supplied
+keys; (10) a second `Vec` for the keys. Notes, both: drop-always reds
+`sweep` `review_m2_pr7`; `set_surface_source`'s unchecked stamp
+licenses a carry. R1 unique: `mef`'s red-first row goes red only in
+the count (MINOR). R2 unique: the body's "face → loops → run"
+composition with PR 2594 is false (MINOR; R1 noted it untested); the
+`sense` reset under `Shared(second key)` (style); `killed_rows`
+misnamed (style). Fix pass (same arm, one lane): every item taken,
+none refuted; four rows filed (TOPO `sense`/`same_chart`, ORIGIN
+`set_surface_source`, META tracker-path rot, the PCERT evidence). The
+lane died on its arm's usage limit after its last push and before
+posting the body; the orchestrator posted the lane's drafted body
+verbatim, changing one gendered reference. No orchestrator code
+commit after review; the frozen head was itself the orchestrator's
+merge of main (tracker conflicts only). Pair COUNTS (neither review
+interrupted; the implementer lane's two deaths are missing data, not
+a review interruption), flagged arm-exposed. CI: impl run 34877183170
+green on `e36af64a4`; fix head `8de0718b4` run 35952065552 GREEN on
+the full matrix (`CONFIG_SOURCE=lane:unsampled eps:unsampled
+klint:unsampled`, `gate ok`). Tokens: impl missing data, fix missing
+data, R1 ≈375k, R2 ≈270k (self-reported). Wall: impl missing data,
+fix missing data, R1 ≈95 min, R2 ≈80 min (concurrent). Tally after
+this entry: candidates unchanged.
+
+Set-face-surface row, recorded AT MERGE (2026-09-24, PR #2594;
+`work/topo/set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left.md`
+CLOSED at this merge): `Body::set_face_surface` decides the chart once
+with `same_chart`, after minting the new surface and before its orphan
+sweep, and drops the face's rows through `drop_face_rows`, which hands
+the validator's `stored_rows` walk to the one removal
+`Body::drop_rows` (folded onto PR #2603's primitive at the
+merge-forward). The setter is `Transfers`; `set_edge_curve` stays
+`Neither`, with its half-minted blind spot stated. Difficulty **S**,
+task class STRUCTURAL (logged before the block draw — clean).
+Implementer arm **OPUS** (block TOPO-B5 slot 0, byte 7). **DUAL:
+ordinal 2712; sample #242 (main's highest at this writing #241, PR
+#2603's; main's merge order rules on a collision); byte 72 parity 0 ⇒
+R1 OPUS + R2 FABLE; CONCURRENT same-head on frozen `71d846be4`; briefs
+stored with sha256 before dispatch (template 14cb3598…, R1 f54bd8ad…,
+R2 d31d1c48…), identical modulo lane paths (diff 4 lines).**
+**ARM-EXPOSED** per the disclosure above (the block's draw entry on
+main named slot 0's arm before the dual dispatched); no reviewer
+disclosed a glimpse. R1 MERGEABLE-AFTER-FIXES, counts 1/5/5, rubric
+idiom 3 / tests 4 / docs 2, 2 silent deviations. R2
+MERGEABLE-AFTER-FIXES, counts 0/5/5, rubric 4/4/3, 1 silent.
+**One unilateral MAJOR, R1's, executed and EXCLUDED as doc/claim
+class (6(b)):** the `set_edge_curve` note this PR added ("refused …
+wherever the row exists at all") is false on a half-minted minting
+face, where `validate_pcurves` skips passes 2 and 3. R1's probe
+detached one unrelated row, and the staled row went unreported. This
+is a pre-existing blind spot the note asserted away in two places, and
+it was load-bearing for the `Neither` posture. CONVERGED:
+(1) the ordering duty (drop before the orphan sweep) is prose with no
+pin: both swapped the order and every suite stayed green, the failure
+being a silent over-drop (R1 MINOR, R2 MINOR; R2's orphaning probe
+reds it); (2) the receipt's "twelve production call sites" is 19 in 12
+files (both MINOR); (3) the `mesh` re-attach residue is disclosed on a
+log, not filed (both MINOR); (4) the own-key control never enters the
+door (R1 NOTE, R2 MINOR); (5) the face door hand-writes the loop walk
+and evaluates `same_chart` twice (both, Q1). R1 unique: the `Arc`
+rung is unrowed; the red-first row's `[]` half carries no signal. R2
+unique: `attach.rs`'s "every producer re-mints" is false for `extrude`;
+a brief correction (`MissingCache` fires only on a half-minted face).
+Fix pass (same arm, one lane): every item taken, none refuted. The
+decision moved before the write (the duty retired, R2's probe the
+row), R1's probe adopted as the half-minted row, the `Arc` rung rowed
+in `mesh`, the walk routed through `stored_rows`, three rows filed.
+**Post-review orchestrator commits reaching code, each re-earning the
+gate:** `b5d25ac44` re-baselined VREV's hazard row (added to main
+2026-09-15, after this PR's green; sixteen stranded pcurves become
+none, the four stale edge descriptions stand) and re-worded
+`reversed_v`'s doc; `29aa4b345` merged main forward through PR #2603
+and folded `drop_face_rows` onto `drop_rows`. Tracker-only merges
+`920134175` and `3ec9def74` sit between them. Pair COUNTS (neither
+review interrupted), flagged arm-exposed. CI: impl run 34868100811
+green on `71d846be4`; final head `29aa4b345` run 35962645677 GREEN on
+the full matrix (`CONFIG_SOURCE=lane:unsampled eps:unsampled
+klint:unsampled`, `gate ok`). Tokens (harness): impl 262,516, fix
+241,489, R1 245,605, R2 286,982. Wall (harness): impl 48 min, fix
+40 min, R1 34 min, R2 24 min (R2's self-report said ≈110 min; the
+harness figure is the record). Tally after this entry: candidates
+unchanged (the one MAJOR is doc class).
+
+Block TOPO-B5 — CONCLUDED record (published from the orchestrator's
+branch-side record `topo/b5-block` at the last slot's conclusion,
+2026-09-24). Protocol: three slots {opus, opus, fable}, with fable at
+position byte mod 3. Pre-draw fields for all three slots were
+committed to `work/topo/log.md` at `41eb35f5c` BEFORE the draw. Draw
+2026-09-14: `/dev/urandom` byte **7** ⇒ 7 mod 3 = **1** ⇒ fable at
+slot 1. Slots:
+- 0 = `set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left`
+  (OPUS; S / STRUCTURAL; PR #2594, ordinal 2712, sample #242). One
+  unilateral MAJOR, doc class, was excluded, so there is no tally
+  candidate. Concluded 2026-09-24.
+- 1 = `mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`
+  (FABLE; M / STRUCTURAL; PR #2603, ordinal 2713, sample #241, no tally
+  candidate). The implementer lane's tokens and wall are missing data.
+  Concluded 2026-09-24.
+- 2 = `a-null-edge-can-be-re-based-onto-a-distinct-point` (+ the m7-8
+  row) was drawn OPUS but **dispatched only after the suspension**. It
+  therefore ran as an ordinary Opus unit, claimed no ordinal and drew
+  no sample. Its review is `docs/DUAL-REVIEW-LOG.md`'s DR-1 (PR #3148,
+  merged 2026-09-24). The slot is recorded as unconsumed by this
+  protocol.
+
+Every row of this block is flagged arm-exposed per the disclosure
+above. Both A/B pairs COUNT; neither review was interrupted. The block
+closes the TOPO band's use of the A/B protocol: no further TOPO block
+will be drawn under the suspension.
+
 ## SYM program rows (work/sym/; band 4700–4799; blocks named SYM-B<n>)
 
 SYM-4 review ordinal fixed at dispatch (2026-09-14, PR #2565 open —
@@ -7805,6 +7999,55 @@ and posture as B1/B2 (about three concurrent lanes, private target
 dirs, disk the limiting factor — the third lane waits for disk when the
 first two are building).
 
+### Block SCALAR-B6 — pre-draw fields (2026-09-21, before the byte)
+
+The remaining `H5` units but LANE-4 (`work/scalar/plan.md` §The H5
+units), slots by dispatch order, classes fixed here before the byte so
+the draw does not read them; blocks overlap in time (B5's slot 2 is in
+its implementation as this is drawn):
+
+- slot 0 — `lane-2-chart-region-lane-deleted` (LANE-2;
+  `docs/LANE-2-SPEC.md`) — **M / structural** (the trait and its five
+  forwarding impls go; a two-pointer `RegionLane` value in LANE-1's hook
+  shape threaded through twelve census signatures and the tier-3′
+  `_via` body; `None` keeping today's typed `CensusLaneUnsupported` and
+  the `false` fold read-for-read; two public doors untouched; every bit
+  and every refusal at every scalar unchanged).
+- slot 1 — `lane-3-shell-lane-folded` (LANE-3; `docs/LANE-3-SPEC.md`;
+  `ShellLane` folded into `AtRestPolicy`; DL3's wording moves, a
+  re-wording not a decision; dispatched after LANE-2 landed) —
+  **E / structural** (the plan's class, kept when the sub-unit was cut
+  on 2026-09-21 after the byte — the arm, OPUS, was known: the trait
+  and its five impls go; a one-pointer `ShellDoor` value in LANE-0's
+  shape answered by `AtRestPolicy::shell_door()` as an `Option`, `None`
+  from the `Dual` arm; the verb takes the door by value, the witness a
+  function over `Lane`; `EvalScalar` loses one term; every evaluation
+  output at every scalar and the refusal's name, tag and `Display`
+  unchanged).
+- slot 2 — `RING-3` (the newtype dissolves into `Interval` file by
+  file; the `interval` feature dropped; `Enclosure`, its blanket impl
+  and DL4's gate line deleted; C9, Q1, DL4 re-worded — Ev's text, the
+  PR waits for Ev; a Fable spec; dispatched after RING-2 lands) —
+  **M / structural, bit-preserving** (the plan's class; the sub-unit's
+  own sentence is written when it is cut).
+
+### Block SCALAR-B6 — the draw (2026-09-21)
+
+Draw: `/dev/urandom` byte **153** (< 252), 153 mod 3 = 0 ⇒ fable position
+0. Slots by dispatch order: **slot 0 LANE-2 = FABLE, slot 1 LANE-3 =
+OPUS, slot 2 RING-3 = OPUS.** Same box and posture as B1–B5. The block
+stays branch-side on `scalar/orchestrator` until slot 2's reviews
+conclude; each row is recorded at its merge.
+
+### Block SCALAR-B6 rows (recorded at each merge branch-side; landed at block close, 2026-09-24)
+
+| # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| LANE-2 | 2026-09-21 | LANE-2 (PR #3038): `ChartRegionLane` deleted (the trait, five impls, the `pub use`); `topo::RegionLane<T>` beside the two doors in `chart_region.rs` — `Copy`, two private fn-pointer fields, one constructor `RegionLane::certified()` at `Decide + CertifiedBounds`, two `pub(crate)` readers at `Decide` — taken as `Option<_>` by the twelve census signatures (four doors at `Decide + Bounds`, eight internals at `Decide`) and by `pseudomanifold_certificate_via` as its third lane parameter; `validate_pseudomanifold_certificate` supplies `Some` by name, the `_structural` twin `None`; the three read sites keep the base's `None` arm read for read (`CensusLaneUnsupported { FacePair }` at the conformal and confirm arms, `false` at the backing consult); the first rows that observe the variant produced, incl. a `Dual64` row through the public `_structural` door; `AtRestPolicy: Decide + PcurveFittedLane`; wiring by `fn_addr_eq` on both fields at four scalars; the `CertifiedEnclosure` impl census generalised to both rosters; 318 dump rows byte-identical base vs head; K roster unmoved | M / structural (pre-draw, branch-side, before byte 153; the arm — FABLE — known when the sentence was cut) | FABLE (block SCALAR-B6 slot 0) | **DUAL (ordinal 4115; sample #233 at merge — main's first-parent merge order: #3010 (#231), SYM-11's #3028 (#232 by this order; it recorded #230 on main by the landed-highest rule — `work/scalar/ab-sample-230-claimed-twice-on-main-and-branch-side.md`), five ordinal-claim and non-A/B merges, then #3038; byte 126 parity 0 ⇒ R1 OPUS + R2 FABLE, concurrent on frozen `991108fbe0`, v6 instrument; both reviewers killed by a container restart mid-review and resumed on the same arms from their own material).** R1 A-W-F **1**/4/8, rubric 4/4/3; R2 A-W-F **1**/4/5, rubric 4/4/3. **The one MAJOR is the same finding on both arms, by execution ⇒ BILATERAL, no tally candidate**: `validate_pseudomanifold_structural` at `f64` on the declared straddle seat answers `Ok(())` at the merge base and, at the head, a `CensusLaneUnsupported` refusal plus the two `EdgeEdgeCross` crossings the declaration backed reported as `UndeclaredContact` — the `_structural` twin hands the census `None` at every scalar now; the door docs enumerate two absences and have three; the PR presented it as a state, not a change. Ruled: the fold stands (ruling 3's twin holds no certified lane at any scalar; the base's `f64` reach of Door 2 through the supertrait was the lane-keeping hybrid the cut removes) and owes the door docs, the PR body's disclosure, the allowlist entry's honesty (its selector moved scalar-keyed → door-keyed — not naming-only as the body claimed; written by an agent lane, no ratification owed) and a row for the verdict. Bilateral MINORs: scalar-keyed prose left inside the changed functions; the D9 dumps blind to the one behaviour that moved. Unique R1: 17 rows notice of 24 that reach (seven negative "backs no crossing" rows stay green with the door gone); the roster census finds `where` by the letter `w`; the `Display` names the conformal arm where the confirm arm raises the same variant; six construction routes to a `RegionLane<Dual64>` all refused. Unique R2: two `git log -S` citations resolve to the shallow checkout's graft commit; 35 more `editor-core` rows red under the mutant. Both: the second copy of the wiring module (LANE-4 makes three); the merge base corrected (`ff1e982788`, not the branch point). **Pair COUNTS** (neither arm interrupted by the other; both resumed from their own scratch after the restart — no cross-lane material) | R1 counted 0 undisclosed (the consequence, not a deviation: the verdict move); R2 counted 0 | R1 4 / R2 4 | 4 / 4 | 3 / 3 | thirteen items, thirteen taken, none declined; both probe branches adopted `--no-ff` (R1's end-to-end example, R2's declared-seat rows); the door docs re-written to three absences; the ATREST row extended to the verdict (P4 → P3); one row filed on VACUITY for the seven negative rows; a `f64` declared-seat dump row added; one intermediate head red on one clippy row (an identity `map` in the adopted R2 probe — the lane's local set skipped clippy), fixed | impl CI 35649109217 GREEN on `991108fbe0` (39 jobs; twelve `test`, five `k-lint`, python suite, `gate ok`; no red head this unit); fix CI 35663154417 GREEN on `6f8f7132ab` (40 jobs, 36 success, 3 expected skips, `render drift (gui)` neutral; the first fix head 094326881b red on the three clippy legs); state-synced + main-merged head f83bf1da3e run 35665214825 GREEN (40 jobs, 36 success, 3 expected skips, `render drift (gui)` neutral); MERGED #3038 at 70cde285df, sample #233 | impl ~1.0M / fix ~340k / R1 ~250k / R2 ~270k (the killed lanes' ~10 min each unrecorded — no hand-back) (harness) | impl ~3 h 50 min (dispatched 18:10Z, PR 20:07Z, hand-back 20:35Z) / fix ~2 h 20 min / R1 ~2 h 40 min after the restart (+ ~10 min before) / R2 ~80 min after the restart (+ ~10 min before) |
+| LANE-3 | 2026-09-22 | LANE-3 (PR #3049): `ShellLane` deleted (the trait, five impls, the re-export, `EvalScalar`'s eleventh term, the `NOT_CARRIED` entry 92 → 91); `topo::ShellDoor<T>` beside `QuadLane` — `Copy`, one private fn-pointer field with `shell_open`'s signature, one `const fn certified()` at `Decide + CertifiedBounds + AtRestPolicy`, a `pub` reader at `Decide` — answered by `AtRestPolicy::shell_door() -> Option<_>` (`Some` on `f64`, `Probe`, `Interval`, `Sym<T: CertifiedBounds>`; `None` on `Dual` with its reason); `Verb::run_shell(.., door)` in the general block, the second `impl` block gone; `wire_shell` reads the policy and keeps `ShellLaneUnsupported { lane }` exactly on `None`; the witness a `pub(crate)` function over `Lane`; the e4 set rows re-written with the converse row untouched; the `f64` pointer pin in the policy roster; 453 dump lines byte-identical at `f64`; K roster unmoved | E / structural (pre-draw, branch-side, after byte 153 with the arm — OPUS — known; the plan's class kept) | OPUS (block SCALAR-B6 slot 1; the implementing lane died twice on API overloads after its push, everything pushed, the CI record an orchestrator comment) | **DUAL (ordinal 4116; sample #240 at merge — main's first-parent merge order: #3038 (#233), #3032 (#234), five other programs' A/B merges (#235–#239, each recorded on main by the landed-highest rule), then #3049; main's highest at merge #239, so the two rules agree; byte 139 parity 1 ⇒ R1 FABLE + R2 OPUS, concurrent on frozen `1df70b9ec8`, v6 instrument; the first R2 died on an API overload before its first tool call and was re-dispatched fresh on the same arm).** R1 A-W-F 0/4/6, rubric 4/3/3; R2 A-W-F 0/4/7, rubric 4/4/3. **No MAJOR on either arm ⇒ no tally candidate.** Bilateral by execution: the red-first set is 25 rows of 3169, not 14 (`lib_g17_r1_probes` ×5, `lib_g17_r2_probes` ×5, `m4_pr6_golden`), and the tour authors shell nodes (`teapot.rs`; its own cargo root is why it is outside the count); the `Sym` arm of the new policy method pinned by nothing — R2's three-line `Sym<f64>` roster row inside the fence passes (a gap this unit widened by one arm); the three fold signatures widened harmlessly at `Sym<Dual<_>>`; deviation 2's "no seam widened" true by inspection and unguarded (the gate counts headers per file); "lane" still spells the door in two live places; the census header's "both doors" false with four door values (the fourth `wiring_rows` is LANE-0's); DL3's addition naming-only. Unique R1: a doc claim copied from `QuadLane` names a wiring pin the shell door lacks; the `f64` arm's reason is new prose. Unique R2: `real.rs`'s SEAT-9 paragraph should have been re-worded under the carve-out rather than filed (ruled: the fence extended); `verbs/README.md` is a Ratified page and the carve-out is the ground, not the graft-bottomed `git log -S`; `QuadLane`'s reader is private, so the `pub` step is wider than stated; DL3's head-noun now lists a verb's door at four scalars where its parenthetical names two. Both: every route to a `ShellDoor<Dual64>` refused (nine `compile_fail` probes each); the `f64` pin reds exactly one row under a forwarder; the corpus dumps and an authored cup byte-identical base vs head at `f64`, the `Dual` refusal alone and identical. **Pair COUNTS** (neither arm interrupted; nothing glimpsed; the re-dispatched R2 started fresh) | R1 counted 2 undisclosed (the false tour sentence; the copied doc claim); R2 counted 0 (the same two as false statements, not deviations) | R1 4 / R2 4 | 3 / 4 | 3 / 3 | nine items, all taken, none declined (two probes declined within item 8, with reasons: a subsumed `Sym` presence probe and a dump row that asserts nothing unless an env var is set); both probe branches adopted `--no-ff`; the `Sym` roster row; SEAT-9 and the census header re-worded under the orchestrator's fence extension; the 25-row red-first named in the body with each failure mode; the `Sym` arm's `QuadLane` attribution restored; the façade end-to-end moved into `pncad/tests/all.rs` (that crate's single-file test form); one local clippy red (`type_complexity`) fixed before the push; `Sym`-arm mutant: 1 red of 3173, exactly the new row | impl CI 35674872222 GREEN on `1df70b9ec8` (39 jobs; no red head this unit); fix CI 35683197704 GREEN on `43fab29311` (39 jobs, 36 success, 3 expected skips; first try); state-synced + main-merged head 2a5963f62e run 35944009924 GREEN (39 jobs, 36 success, 3 expected skips; the state-sync resolved `docs/DOC-LEDGER.md`'s deletion on main to a note under `docs/doc-ledger/`); MERGED #3049 at ae049735dc, sample #240 | impl unrecorded (the lane died before its hand-back; ~1 h 42 min of transcript) / fix ~265k / R1 ~330k / R2 ~310k (harness; the dead first R2 ~0). **Method notes**: the model A/B protocol was suspended by Ev on 2026-09-23 while this unit sat merged-pending; it finishes under the protocol it started in (the suspension entry, item 4). **Opus 5.5 boundary (the 2026-09-22 instrument note)**: the implementer (OPUS) dispatched 2026-09-21 23:27Z, before the release; R2 (OPUS, re-dispatched 01:49Z) and the fix pass (OPUS, 02:36Z) dispatched on 2026-09-22 — the release date, exact model identity not known. The orchestrator was FABLE through dispatch, adjudication and the fix-pass brief; the state-sync and merge on 2026-09-24 ran on Opus 5.5 (the session switched by the user), so this unit's orchestrator field SPANS the boundary. The box sat idle ~2 days between the fix pass and the merge (the account's usage limit) | impl ~1 h 42 min to the PR (dispatched 23:27Z, PR 01:09Z) / fix ~80 min / R1 ~60 min / R2 ~45 min (+ 3 min the dead first lane) |
+
+**Block SCALAR-B6 CONCLUDED (2026-09-24), closed early by the protocol's suspension (Ev, 2026-09-23; the suspension entry, item 4)**: two slots run (FABLE / OPUS), two duals, **zero counted tally candidates** — LANE-2's one MAJOR bilateral by execution (the `_structural` door's verdict move at `f64`, ruled to stand), LANE-3 no MAJOR on either arm. **Slot 2 (RING-3, drawn OPUS) is UNSPENT**: RING-3 was not yet dispatched at the suspension and now runs outside the protocol on Opus with a dual review recorded under `docs/DUAL-REVIEW-PROTOCOL.md`; nothing here is renumbered. Samples #233 and #240 by main's first-parent order (#233 lands here; SYM-11's merge is #232 by that order and recorded #230 on main — `work/scalar/ab-sample-230-claimed-twice-on-main-and-branch-side.md`). Method notes the rows carry: the Opus 5.5 boundary (LANE-3's R2 and fix pass dispatched on 2026-09-22, exact identity unknown); the orchestrator FABLE through both units' adjudication and OPUS 5.5 for LANE-3's state-sync and merge on 2026-09-24 (the session switched by the user), so LANE-3's orchestrator field spans the boundary; two container restarts and three API overloads that re-dispatched or resumed lanes on their own arms from their own material; a ~2-day idle before LANE-3's merge (the account's usage limit).
+
 ### Block SCALAR-B5 — pre-draw fields (2026-09-21, before the byte)
 
 The next three `H5` units by the plan's order (`work/scalar/plan.md`
@@ -7988,6 +8231,67 @@ derived bound; two instruments exist; the closed-boundary pins
 re-stated). Slot 1 = OPUS per the draw above.
 
 
+Block EDIT-B2 pre-draw fields (2026-09-17, logged before the draw):
+slot 0 = EDIT-DECL (docs/EDIT-DECL-SPEC.md, `a-declared-union-has-no-one-pass-authoring-path`,
+ruled by Ev on `[ev]` #2795) — difficulty M, task-class STRUCTURAL
+(a payload shape change on `Node::Declare` to sited pairs, the
+resolver's side pick replaced by the site, the union's routing by
+site with the member-space rewrite ahead of the shared look-through,
+two `DeclSite` variants and their rows retired by type, the persisted
+form and five declaring documents re-authored, the façades following
+mechanically). Slots 1–2 bank for the program's next kernel units in
+dispatch order (none spec'd yet; the middle-tier units — the tie
+refusal among them — run outside the protocol per the band record),
+pre-draw fields at their specs.
+
+
+Block EDIT-B2 draw (2026-09-17T05:24:55Z, after the pre-draw fields
+above; the 2026-09-04 ratio {opus, opus, fable}, one /dev/urandom
+byte, reject ≥252): byte **131**, 131 mod 3 = 2 = fable's position ⇒
+**fable at slot 2**. So: slot 0 EDIT-DECL = OPUS, slot 1 = OPUS, slot 2
+= FABLE. Recorded branch-side (`edit/b2-block`, the EDIT-B1 shape):
+this record reaches main when the block's last slot's reviews
+conclude; each ordinal claim at review dispatch goes to main on its
+own. Dispatch order: slot 0 when a lane frees (three middle-tier lanes
+are live at the draw).
+
+
+Block EDIT-B2 slot 0 concluded (2026-09-19): EDIT-DECL, PR #2809,
+implementer OPUS per the draw above, ordinals 4804/4805, sample #216
+(R1 fable 1/7/3 rubric 4/3/2 NOT-MERGEABLE-AS-IS; R2 opus 1/4/5 rubric
+4/3/3 APPROVE-WITH-FIXES; 1 bilateral MAJOR — a union refusal against
+a merged row degraded to an emission bug — 0 unilateral; tally +0).
+The sample row is on main with the merge. Slots 1 (OPUS) and 2 (FABLE)
+bank for the program's next kernel units; pre-draw fields at their
+specs.
+
+
+Block EDIT-B2 slot 1 concluded (2026-09-20): EDIT-RADIUS, PR #2892,
+implementer OPUS per the draw above, ordinals 4806/4807, sample #223
+(R1 fable 0/4/6 rubric 4/4/4 APPROVE-WITH-FIXES; R2 opus 0/5/3 rubric
+4/4/3 APPROVE-WITH-FIXES; 0 bilateral MAJOR, 0 unilateral; tally +0;
+convergent on five findings, R2 alone on the carrier arm's skipped
+span check). Pre-draw fields (M / STRUCTURAL) were logged at the spec
+after the block byte — disclosed at the ordinal claim. The sample row
+is on main with the merge (numbered #223: EDIT-DECL's "#216" above was
+written against a stale count, disclosed on the EDIT-RADIUS row). Slot
+2 (FABLE) banks for the program's next kernel unit; pre-draw fields at
+its spec.
+
+
+Block EDIT-B2 slot 2 concluded (2026-09-24): EDIT-PROGRAM, PR #2927,
+implementer FABLE per the draw above, ordinals 4808/4809, sample #243
+(R1 opus 1/5/4 rubric 4/4/3 APPROVE-WITH-FIXES; R2 fable 0/2/3 rubric
+4/4/3 APPROVE-WITH-FIXES; 0 bilateral MAJOR, 1 unilateral by execution
+— R1's retired coordinate revived by a slot edit; tally +1 candidate,
+opus arm). Pre-draw fields (L / STRUCTURAL) were logged at the spec
+after the block byte — disclosed at the ordinal claim. The fix lane
+was interrupted by a usage limit and resumed from its transcript, no
+work lost. **Block EDIT-B2 CONCLUDED**: all three slots run (OPUS,
+OPUS, FABLE per byte 131); tally across the block +1 candidate. This
+record reaches main with the slot-2 merge.
+
+
 ## EDIT-PICK2 review ordinal fixed at dispatch (2026-09-16)
 
 EDIT-PICK2 (`pick-accepts-uncertified-barycentrics-on-a-certified-determinant`,
@@ -8132,6 +8436,8 @@ the last three specs carried a false premise) is put to both reviewers
 as a standing hazard: every premise a hypothesis, the corrections
 included.
 
+
+EDIT-PROGRAM RECORDED AT MERGE (2026-09-24, PR #2927; sample #243 — main's highest at this writing #242 (TOPO's ordinal 2712); written as #241 and then #242, renumbered each time a TOPO row merged first; main's merge order rules on a collision; block EDIT-B2 slot 2 concluded, which concludes the block; the block record reaches main from `edit/b2-block` with this merge). Ordinals 4808/4809. Pre-draw L / STRUCTURAL (at the spec, after the block byte — disclosed at the claim). Implementer arm FABLE (block EDIT-B2 slot 2; byte 131). `DocEdit::SetProgram { node, loops, provenance }`: a live profile's program replaced whole under a stated provenance — the provenance's shape refused first (`ProvenanceMalformed`, seven typed faults), the insert door's own checks, a segment map read off both replay records through DM8's checked door (kept = continued and equal span length; a vertex carried by the segment ARRIVING at it), one carrier roster driving both the read and the rewrite walk, `Maintenance::Rebound`, persisted (`reshaped_rod` the corpus's first), `DocEdit.set_program` in Python; DM7 and V2 re-worded to exactly Ev's (B) on `[ev]` #2904. Two spec premises fell before the build (premise 3's vertex convention; premise 4's carrier filter `name.node == profile`, which finds nothing — a profile mints no name) — the third EDIT spec in a row with a false premise, disclosed and put to both reviewers. Dual: byte 254, parity 0 ⇒ R1 OPUS, R2 FABLE, concurrent same-head on frozen `1a3359122`, briefs stored with sha256 before dispatch (identical modulo lane names and paths). R1 APPROVE-WITH-FIXES 1/5/4, rubric 4/4/3, devs 6 reported / 0 silent; R2 APPROVE-WITH-FIXES 0/2/3, rubric 4/4/3, devs 6 / 0. **R1's MAJOR, UNILATERAL and demonstrated by execution — a red probe: a stranded name retired one past its loop's end goes LIVE under a plain `SetParam` that moves a corner fillet through a `Zero` fit (the loop's segment count depends on its arguments), silently denoting a real wall — the DI1 aliasing class one slot edit later. R2 exercised the retirement under a second RESHAPING only (re-retired correctly) and did not reach a slot edit. v6 TALLY CANDIDATE +1 (opus arm), correctness-class, pending blinded coding.** Convergent: the carrier walk re-spelled beside `name_carriers`, a second step→segment reader with `unreachable!` beside DM8's typed door, a third `RoleSeg` walk, the retirement argued at length and disclosed-not-scheduled (DM7 reading as ruled), the loft's second section reshaping silently, every carrier kind rebinding and stranding, the Python first-head mismatch the row's provenance (both twinned it in Rust), every golden additive (both diffed). R2 alone: a re-retirement reported as a fresh strand; the PR's sweep sentence false (`node.rs`, `anchor.rs`). R1 alone: the VIEW row's sweep incomplete; `SetProgram`'s rustdoc omitting the rewrite; the `Unreadable` row's loose line assertion. Pair FAIR: private cold targets, one box, no glimpse either side, both complete, neither interrupted. Fix pass implementer-inherited (FABLE), fifteen rulings: `RETIRED_FLOOR = u32::MAX / 2` (no program draws there under any edit; resolver, Python and evaluation measured `Vanished`, no panic; R1's probe green), an already-retired name untouched and unreported, the retirement off DM7 and onto its own `needs_ev` row (`stranded-names-are-retired-to-an-undrawable-coordinate`), `Doc::rewrite_names` the `&mut` twin over `Carrier::ALL`, the map through `CheckedRecords`, one `SegRewrite` walk for the anchor, split and program rewrites (three matches deleted), the live-name renumbering filed with a row pinned as measured (`a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names`), both probe suites merged authorship-preserving then folded by name. **The fix lane was cut off by a usage limit on 2026-09-20 with four unpushed commits and resumed from its transcript on 2026-09-24** (no work lost; it then merged ~1,400 commits of main: three content conflicts, VIEW's directory gone so the viewer row went to AUTHOR, the wire pin re-baselined for main's #3123, one compile-forced viewer arm). CI: impl run 35495029547 GREEN on `1a3359122`; fix run 35948920293 GREEN on `7ee8b9f02` (twelve `test` jobs, five k-lint, python, rustdoc, clippies, render lanes), after reds on the way (a viewer exhaustive match from main; two intra-doc links and a `collapsible_if`). Tokens (harness): impl ~192k, R1 ~307k, R2 ~319k, fix ~735k (the resumed session). Wall-clock: impl ~130 min, R1 ~32 min / R2 ~21 min concurrent, fix ~189 min active after the resume (plus the four-day outage). The orchestrating session changed arm at the resume (after the fix dispatch, before the close-out) — a covariate on the close-out only, disclosed.
 ## EDIT-PICK3 review ordinals fixed at dispatch (2026-09-16)
 
 EDIT-PICK3 (`pick-door-answers-a-t-interval`, PR #2786 open — frozen

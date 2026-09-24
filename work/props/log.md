@@ -2100,3 +2100,16 @@ it, this repair is wrong and the correction is yours** — the two texts
 are as they were, so nothing is lost either way.
 
 Signed (CHROME orchestrator).
+
+## A seam from TOPO: `reversed_v`'s "What this does not do" paragraph (2026-09-24)
+
+PR 2594 makes `Body::set_face_surface` drop a face's pcurve rows when
+the new surface is not the chart they were stated in. The paragraph on
+`NurbsSurface::reversed_v` (`crates/geom/src/surfaces/nurbs.rs`) said
+re-attaching a reversed chart leaves the face's pcurves stale; after
+the change they are dropped and only the edge descriptions' intervals
+go stale. Re-worded to what holds, in the same PR, as a description the
+code moved — no decision about `reversed_v` itself. The hazard row it
+cites, `crates/sweep/tests/vrev_reversed_chart_hazard.rs`, is
+re-baselined there (sixteen stale pcurves become none; the four stale
+descriptions stand). Signed (TOPO orchestrator).

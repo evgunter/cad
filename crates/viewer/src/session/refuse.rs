@@ -15,7 +15,7 @@ use pncad::document::{
     BooleanValue, Datum, Dimension, DimensionError, Doc, DocumentId, EditError, Evaluation, Node,
     ParamName, ParseError, ProfileProgram, RecipeNodeId, SlotId, ValuePayload,
 };
-use pncad::prelude::{StableName, SurfaceKind};
+use pncad::prelude::{Body, StableName, SurfaceKind};
 use pncad::select::{InterrogateError, face_carrier_kind};
 use pncad::workspace::WorkspaceError;
 
@@ -60,6 +60,33 @@ pub enum NodeKindWanted {
     /// ([`combine::denotes_body`] carries the admissible set and why a
     /// split's sides and a pattern's instances are not in it).
     Body,
+    /// A `Node::Split` — the value a [`pncad::document::PartSelect::
+    /// SplitHalf`] reads a half out of.
+    ///
+    /// The node kind IS the family here, with no placer to walk
+    /// through: `eval::wire`'s placeable operand door refuses a split
+    /// value outright, so a transform over a split is a failed node
+    /// and never a second way to hold one.
+    Split,
+    /// A node whose value is a pattern's INSTANCES — what a
+    /// [`pncad::document::PartSelect::Instance`] indexes.
+    ///
+    /// **Classified off the node kind, and that is narrower than the
+    /// evaluator by one shape**: `Node::Transform` is shape-preserving
+    /// over its input's value, so a transform of a pattern evaluates to
+    /// `Instances` and `wire_part` would index it, while this answers
+    /// `no`. The viewer cannot author that shape — its body seats
+    /// refuse a pattern — but a loaded document may hold one, and the
+    /// direction of the disagreement is the safe one: an honest
+    /// refusal rather than a node that lands and then fails. It is the
+    /// same defect [`Self::Body`] has in the other direction, wanting
+    /// the same repair — read the family through the placer chain — so
+    /// it is tracked on the row that already asks for it,
+    /// `work/forms/body-seat-reads-through-the-placer-chain`. The row
+    /// `combine_ops::the_part_seats_track_the_evaluators_part_door`
+    /// asserts the disagreement by name, so the day the classifier
+    /// walks the chain that row says so.
+    Instances,
 }
 
 /// **Whether `held` is the wanted kind** — the one classification
@@ -89,6 +116,8 @@ pub fn admits(held: Option<&Node<ProfileProgram>>, wanted: NodeKindWanted) -> bo
             Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
         ),
         NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
+        NodeKindWanted::Split => matches!(held, Some(Node::Split { .. })),
+        NodeKindWanted::Instances => matches!(held, Some(Node::Pattern { .. })),
     }
 }
 
@@ -102,6 +131,8 @@ impl NodeKindWanted {
             Self::Plane => "a plane datum",
             Self::Frame => "a frame datum",
             Self::Body => "a body",
+            Self::Split => "a split",
+            Self::Instances => "a pattern",
         }
     }
 }
@@ -202,6 +233,9 @@ pub enum Refusal {
         /// The kind the seat requires.
         wanted: NodeKindWanted,
     },
+    /// A duplicate could not be placed — its input's landed value is
+    /// not one body with a width ([`combine::DuplicateFault`]).
+    Duplicate(combine::DuplicateFault),
     /// `apply` refused the edit — the door's own sentence, forwarded.
     ///
     /// **Layer 3 adds a frame and never a second opinion.** Every
@@ -365,6 +399,7 @@ impl Refusal {
             | Self::ParamExists { .. }
             | Self::EmptyName
             | Self::WrongNodeKind { .. }
+            | Self::Duplicate(_)
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -541,6 +576,7 @@ impl core::fmt::Display for Refusal {
             // Nothing is doubled: `EditError`'s arms state the problem
             // and carry no category prefix of their own, so this reads
             // as one sentence rather than as two openings.
+            Self::Duplicate(fault) => write!(f, "{fault}"),
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
             Self::Parse(error) => write!(f, "the expression did not parse: {error}"),
@@ -741,7 +777,7 @@ pub fn face_frame_seat(
     // about a feature that is gone.
     if ev
         .value(at)
-        .is_some_and(|value| !is_one_body(&value.payload))
+        .is_some_and(|value| one_body(&value.payload).is_none())
     {
         return Err(FaceFrameFault::NotOneBody { at });
     }
@@ -754,9 +790,9 @@ pub fn face_frame_seat(
     }
 }
 
-/// **Whether an evaluated value IS one body** — the evaluator's
-/// single-body operand door (`eval::wire::body_operand`) asked of a
-/// value the viewer is holding.
+/// **The one body an evaluated value IS, if it is one** — the
+/// evaluator's single-body operand door (`eval::wire::body_operand`)
+/// asked of a value the viewer is holding.
 ///
 /// The same two shapes that door takes: a `Body` payload, or a
 /// boolean's non-empty result. Everything else — a split's two sides,
@@ -767,9 +803,15 @@ pub fn face_frame_seat(
 /// narrower question a body SEAT asks, off the node vocabulary alone,
 /// before any value exists. A seat that has an evaluation in hand can
 /// ask the door's own question instead of a predicate that tracks it.
-fn is_one_body(payload: &ValuePayload<f64>) -> bool {
-    matches!(
-        payload,
-        ValuePayload::Body(_) | ValuePayload::Boolean(BooleanValue::Body { .. })
-    )
+///
+/// Two readers: the face-frame seat, which needs only the answer, and
+/// the duplicate door (`crate::combine::duplicate_step`), which
+/// measures the body it hands back.
+pub(crate) fn one_body(payload: &ValuePayload<f64>) -> Option<&Body<f64>> {
+    match payload {
+        ValuePayload::Body(body) | ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
+            Some(body)
+        }
+        _ => None,
+    }
 }

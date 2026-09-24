@@ -404,8 +404,8 @@ pub struct ViewerApp {
     /// it: what the seam holds is a request, and the δ it answers with
     /// is compared against the δ in force before it is taken.
     fit: Box<dyn FitService>,
-    /// **The modal tools, at most one open** — the mate tool, the
-    /// revolve tool and the four combining tools as one value, with
+    /// **The modal tools, at most one open** — every tool
+    /// [`crate::tools::ToolKind`] names, as one value, with
     /// the exclusivity rule inside it rather than spread across the
     /// activation sites ([`crate::tools::Tools`]).
     tools: Tools,

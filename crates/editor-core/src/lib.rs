@@ -126,8 +126,8 @@ pub use drive::{
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, Maintenance, apply,
-    apply_logged, cascade_delete_order,
+    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, LoopProvenance,
+    Maintenance, ProvenanceFault, RETIRED_FLOOR, apply, apply_logged, cascade_delete_order,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,
@@ -219,7 +219,6 @@ pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,
     VerdictSummary, VerdictVector, VerdictVectorKey, diff_summaries, verdict_summary,
 };
-pub use verbs::shell::ShellLane;
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.
