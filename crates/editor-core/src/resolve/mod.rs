@@ -356,12 +356,13 @@ pub const SHADOW_EXEC_MAX_PAIRS: usize = 32;
 
 /// Why a name vanished.
 ///
-/// N5's arms, including [`Self::GroupResized`], plus two additions
+/// N5's arms, including [`Self::GroupResized`], plus three additions
 /// and one field that are NOT N5's and are marked as such wherever
 /// they are read: the reserved `WitnessBifurcation` arm (SOLVER-DESIGN
 /// W3, constructed by the M6 solver), [`Self::ShadowExecDeclined`],
-/// and [`Self::PredicateFlip`]'s `source`, which says whether the flip
-/// was read out of a log or recomputed at diagnosis time. A consumer
+/// [`Self::ConsumedByFold`], and [`Self::PredicateFlip`]'s `source`,
+/// which says whether the flip was read out of a log or recomputed at
+/// diagnosis time. A consumer
 /// matching this enum is matching more than N5 wrote, and the
 /// difference is where a flip's provenance lives.
 #[derive(Debug, Clone, PartialEq)]
@@ -432,6 +433,73 @@ pub enum Diagnosis {
     /// branch selection refused (W3's payload verbatim; M6 constructs
     /// this arm).
     WitnessBifurcation(Box<WitnessBifurcation>),
+    /// An n-ary union's fold consumed the entity a member-space name
+    /// denotes, by a composition that leaves no one entity for the
+    /// name to denote — NOT N5's: the arm the rule *"a composition that
+    /// breaks one name denotes one entity refuses"* adds for the
+    /// compositions other than a merge. A merge's own case is looked
+    /// through, not refused (`Node::Union`).
+    ///
+    /// Read off the accumulation's rows at the step the name is fed
+    /// to, never by re-measuring the face: which composition consumed
+    /// it is the SHAPE of the rows that descend from it
+    /// ([`FoldConsumption`]). A refusal carrying this diagnosis offers
+    /// no replacement, because none is unique: a split and a
+    /// fragmented merge leave several candidates and a containment
+    /// leaves none.
+    ConsumedByFold {
+        /// The union whose fold consumed the entity.
+        union: RecipeNodeId,
+        /// How it did.
+        by: FoldConsumption,
+    },
+}
+
+/// Which composition of a union's fold consumed a member's entity
+/// ([`Diagnosis::ConsumedByFold`]) — the structural shape of what the
+/// accumulation holds in its place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FoldConsumption {
+    /// A later member SPLIT it: the accumulation holds fragments of
+    /// it (the name with `Fragment` qualifiers after it), bare or as
+    /// constituents of later merges, and never the name itself.
+    Split,
+    /// A declared MERGE consumed it and a later member split the
+    /// merged face: the accumulation holds fragments of a merged row
+    /// whose constituent set covers the name, and no bare merged row
+    /// that does.
+    FragmentedMerge,
+    /// Nothing in the accumulation descends from it, although its
+    /// member still derives it: the fold left none of it on the
+    /// boundary. That is a face inside another member's volume, and
+    /// equally a face closed off by a coincident face of another
+    /// member — the table reads the same for both, so this arm does
+    /// not tell them apart.
+    Contained,
+}
+
+// The composition as the clause of [`Diagnosis::ConsumedByFold`]'s
+// sentence that says what happened to the entity and why nothing is
+// offered in its place.
+impl core::fmt::Display for FoldConsumption {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Split => {
+                "a later member split it into fragments, and which fragment the \
+                 reference means is not decidable from the names, so none is offered"
+            }
+            Self::FragmentedMerge => {
+                "a declared merge consumed it and a later member then split the merged \
+                 face, and which fragment the reference means is not decidable from the \
+                 names, so none is offered"
+            }
+            Self::Contained => {
+                "no face of the union descends from it — it ended inside the union \
+                 (within another member, or against a coincident face of one) — so there \
+                 is nothing to offer"
+            }
+        })
+    }
 }
 
 impl Diagnosis {
@@ -525,6 +593,12 @@ impl core::fmt::Display for Diagnosis {
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
             }
+            Self::ConsumedByFold { union, by } => write!(
+                f,
+                "the union at node {} consumed it before the step its declared pair is fed \
+                 to: {by}",
+                union.0
+            ),
         }
     }
 }

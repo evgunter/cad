@@ -2,7 +2,8 @@
 //! member-space declaration resolves through the fold's merges**
 //! (DOCM-8; DM4's "merges and order" sentence): the flat mint at the
 //! pair emitter, the look-through at the union's routing step, and
-//! what neither of them does.
+//! the typed refusal every other consumption of a member face meets
+//! there.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -12,8 +13,9 @@ use crate::fixture;
 use crate::fixture::{Recorder, flush_segs, fname, insert, len, table, wall};
 
 use editor_core::{
-    BooleanOp, CapEnd, EntityKind, Entry, NameTable, NamingError, Node, NodeErrorKind, ProfileDoc,
-    RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SitedRef, StableName, resolve,
+    BooleanOp, CapEnd, Diagnosis, EntityKind, Entry, Evaluation, FoldConsumption, NameTable,
+    NamingError, Node, NodeErrorKind, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg,
+    RunCtx, SitedRef, StableName, resolve,
 };
 use geom_core::Tol;
 
@@ -348,33 +350,40 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
 // `a_declared_pair_side_that_is_a_bare_name_does_not_load` is what
 // stands in its place.
 
-/// **A member face the fold consumed WITHOUT a merge keeps the
-/// vanished refusal.** `a`'s x = 1 wall lies inside `big` and is gone
-/// after step 1 — in no table and in no merged row's set — so a pair
-/// naming it at step 2 is refused as the vanished name it is, exactly
-/// as before the look-through existed.
+/// **A member name in no row that its member does not derive either
+/// keeps the plain vanished refusal**: the fold consumed nothing, so no
+/// composition is named. `a`'s block has four walls and the pair names
+/// a fifth; it is fed at `far`'s step, on the accumulation side.
 #[test]
-fn a_member_face_in_no_table_and_no_merged_row_keeps_the_vanished_refusal() {
+fn a_member_name_its_member_never_derived_keeps_the_vanished_refusal() {
     let doc = ProfileDoc::empty_derived("docm8_vanished", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, big) = block(doc, (0.5, 3.0), (-1.0, 2.0), -1.0, 3.0);
     let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, union, _) = declared_union(
         doc,
-        &[a, big, far],
+        &[a, far],
         vec![(
-            SitedRef::new(a, fname(a, wall(1))),
+            SitedRef::new(a, fname(a, wall(4))),
             SitedRef::new(far, fname(far, wall(3))),
         )],
     );
     let ev = run(&doc);
+    let Some(NodeErrorKind::DeclareResolve { error }) = failure(&ev, union) else {
+        panic!(
+            "expected the vanished refusal, got {:?}",
+            failure(&ev, union)
+        )
+    };
+    let ResolveError::Vanished {
+        name, diagnosis, ..
+    } = &**error
+    else {
+        panic!("expected the vanished refusal, got {error:?}")
+    };
+    assert_eq!(*name, member_face(union, a, fname(a, wall(4))));
     assert!(
-        matches!(
-            failure(&ev, union),
-            Some(NodeErrorKind::DeclareResolve { .. })
-        ),
-        "expected the vanished refusal, got {:?}",
-        failure(&ev, union)
+        !matches!(diagnosis, Diagnosis::ConsumedByFold { .. }),
+        "{diagnosis:?}"
     );
 }
 
@@ -573,72 +582,252 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
 }
 
 // ---------------------------------------------------------------------
-// The bound: merges only. Measured, not argued.
+// Past the merges: every other consumption refuses, naming itself.
+// Measured, per order.
 // ---------------------------------------------------------------------
 
-/// **A declared member face SPLIT by a later member is still
-/// order-shaped** — the bound the look-through does not cross,
-/// asserted as measured. `a` and `c` meet flush along x; `s` sits on
-/// `a`'s top cap with its footprint strictly inside it, so folding `s`
-/// in fragments that cap. The orders that fold `s` last fuse; the
-/// orders that fold it before `c` refuse `Vanished` on `a`'s end cap
-/// (neither a row nor in any merged row's flat set); the orders that
-/// fold it before `a` refuse the emitter's seam-vertex `Emission`
-/// (`work/docm/two-emitter-refusals-a-legal-declared-union-reaches.md`).
-/// Filed as
-/// `work/docm/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`.
-#[test]
-fn a_member_face_split_by_a_later_member_is_still_order_shaped() {
-    let doc = ProfileDoc::empty_derived("docm8_split_order", Tol::witness());
+/// What one member order of a declared union came to, in the terms the
+/// tables below pin.
+#[derive(Debug, Clone, PartialEq)]
+enum Outcome {
+    /// One body.
+    Fused,
+    /// The declaration channel refused a member face the fold consumed
+    /// before its pair's step: which face, and by what.
+    Consumed(StableName, FoldConsumption),
+    /// The emitter has no naming rule for the construction the order
+    /// reached (`tests/wire_legal_union_refusals.rs`).
+    SeamVertexNoRule,
+    /// The kernel contradicted the declared contact: the face was a row
+    /// at the pair's step, and the pair is not a contact.
+    Contradicted,
+}
+
+fn outcome(ev: &Evaluation<f64>, union: RecipeNodeId) -> Outcome {
+    match failure(ev, union) {
+        None => Outcome::Fused,
+        Some(NodeErrorKind::DeclareResolve { error }) => match &**error {
+            ResolveError::Vanished {
+                name,
+                diagnosis: Diagnosis::ConsumedByFold { union: at, by },
+                last_good: None,
+            } if *at == union => Outcome::Consumed(name.clone(), *by),
+            other => panic!("a declare refusal that names no composition: {other:?}"),
+        },
+        Some(NodeErrorKind::Naming(NamingError::SeamVertexParentage { .. })) => {
+            Outcome::SeamVertexNoRule
+        }
+        Some(NodeErrorKind::Boolean(topo::BooleanError::ContactContradicted { .. })) => {
+            Outcome::Contradicted
+        }
+        Some(other) => panic!("unexpected outcome {other:?}"),
+    }
+}
+
+/// R1's split fixture: `a` and `c` meet flush along x; `s` sits on
+/// `a`'s top cap across its whole depth, declared against `a`'s two
+/// y-walls, so folding `s` in fragments that cap.
+fn split_fixture(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 3], Vec<(SitedRef, SitedRef)>) {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
-    let pairs = {
-        let mut v = flush_pairs((a, a), (c, c));
-        for seg in [wall(0), wall(2)] {
-            v.push((
-                SitedRef::new(a, fname(a, seg.clone())),
-                SitedRef::new(s, fname(s, seg)),
-            ));
-        }
-        v
-    };
-    #[derive(Debug, PartialEq)]
-    enum Outcome {
+    let mut pairs = flush_pairs((a, a), (c, c));
+    for seg in [wall(0), wall(2)] {
+        pairs.push((
+            SitedRef::new(a, fname(a, seg.clone())),
+            SitedRef::new(s, fname(s, seg)),
+        ));
+    }
+    (doc, [a, c, s], pairs)
+}
+
+/// **A declared member face SPLIT by a later member refuses as a
+/// split, with nothing offered.** The orders that fold `s` last fuse;
+/// the orders that fold it in before `c` meet `a`'s end cap as
+/// fragments only, and refuse naming the split — which fragment the
+/// pair meant is a geometric question the routing step does not ask
+/// (DM4). The orders that fold `s` before `a` never reach the
+/// declaration channel: the emitter has no rule for the seam vertex
+/// they build.
+#[test]
+fn a_member_face_split_by_a_later_member_refuses_as_a_split() {
+    let doc = ProfileDoc::empty_derived("docm8_split_order", Tol::witness());
+    let (doc, [a, c, s], pairs) = split_fixture(doc);
+    let a_end = |u| member_face(u, a, fname(a, RoleSeg::Cap(CapEnd::End)));
+    enum Want {
         Fused,
-        VanishedEndCapOfA,
+        Split,
         SeamVertexNoRule,
     }
-    let a_end = |u: RecipeNodeId| member_face(u, a, fname(a, RoleSeg::Cap(CapEnd::End)));
     for (order, want) in [
-        (vec![a, c, s], Outcome::Fused),
-        (vec![c, a, s], Outcome::Fused),
-        (vec![a, s, c], Outcome::VanishedEndCapOfA),
-        (vec![s, a, c], Outcome::VanishedEndCapOfA),
-        (vec![c, s, a], Outcome::SeamVertexNoRule),
-        (vec![s, c, a], Outcome::SeamVertexNoRule),
+        (vec![a, c, s], Want::Fused),
+        (vec![c, a, s], Want::Fused),
+        (vec![a, s, c], Want::Split),
+        (vec![s, a, c], Want::Split),
+        (vec![c, s, a], Want::SeamVertexNoRule),
+        (vec![s, c, a], Want::SeamVertexNoRule),
     ] {
         let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
         let ev = run(&docx);
-        let got = match failure(&ev, union) {
-            None => Outcome::Fused,
-            Some(NodeErrorKind::DeclareResolve { error }) if matches!(&**error, ResolveError::Vanished { name, .. } if *name == a_end(union)) => {
-                Outcome::VanishedEndCapOfA
-            }
-            // NOT an `Emission`: this document is well formed, so the
-            // refusal is the emitter saying it has no rule for the
-            // construction — `tests/wire_legal_union_refusals.rs`
-            // carries the argument.
-            Some(NodeErrorKind::Naming(NamingError::SeamVertexParentage { .. })) => {
-                Outcome::SeamVertexNoRule
-            }
-            other => panic!("{order:?}: unexpected outcome {other:?}"),
+        let want = match want {
+            Want::Fused => Outcome::Fused,
+            Want::Split => Outcome::Consumed(a_end(union), FoldConsumption::Split),
+            Want::SeamVertexNoRule => Outcome::SeamVertexNoRule,
         };
+        let got = outcome(&ev, union);
         assert_eq!(got, want, "{order:?}");
         if got == Outcome::Fused {
             let v = volume(body_of(&ev, union));
             assert!((v - 1.6).abs() < 1e-9, "{order:?}: volume {v}");
         }
+    }
+}
+
+/// **What a member order does to `capped`'s end cap**, when two cap
+/// partners meet it flush along x (declared on all four families) and
+/// `cutter` rises through that cap across its whole depth — the shape
+/// both four-member rows below share.
+///
+/// `capped` joining an accumulation that already holds `cutter` and a
+/// partner builds the seam vertex no rule names. Otherwise the pair
+/// naming the cap against the LATER partner is what decides: fed
+/// before `cutter` joins, everything fuses; fed after it, the cap is
+/// fragments of a merged row when a partner joined before `cutter`,
+/// and fragments of its own when none did.
+fn cap_outcome(
+    order: &[RecipeNodeId],
+    capped: RecipeNodeId,
+    partners: [RecipeNodeId; 2],
+    cutter: RecipeNodeId,
+    cap: StableName,
+) -> Outcome {
+    let pos = |m| order.iter().position(|x| *x == m).unwrap();
+    let first_partner = pos(partners[0]).min(pos(partners[1]));
+    let last_partner = pos(partners[0]).max(pos(partners[1]));
+    if pos(cutter) < pos(capped) && first_partner < pos(capped) {
+        Outcome::SeamVertexNoRule
+    } else if pos(cutter) > last_partner {
+        Outcome::Fused
+    } else if first_partner < pos(cutter) {
+        Outcome::Consumed(cap, FoldConsumption::FragmentedMerge)
+    } else {
+        Outcome::Consumed(cap, FoldConsumption::Split)
+    }
+}
+
+/// Every order of `members` against [`cap_outcome`], and the tally of
+/// the four outcomes: fused, the missing seam-vertex rule, split, and
+/// fragmented merge.
+fn every_cap_order(
+    doc: &ProfileDoc,
+    members: [RecipeNodeId; 4],
+    pairs: &[(SitedRef, SitedRef)],
+    capped: RecipeNodeId,
+    partners: [RecipeNodeId; 2],
+    cutter: RecipeNodeId,
+) -> [usize; 4] {
+    let mut tally = [0; 4];
+    for order in permutations(&members) {
+        let (docx, union, _) = declared_union(doc.clone(), &order, pairs.to_vec());
+        let ev = run(&docx);
+        let cap = member_face(union, capped, fname(capped, RoleSeg::Cap(CapEnd::End)));
+        let got = outcome(&ev, union);
+        assert_eq!(
+            got,
+            cap_outcome(&order, capped, partners, cutter, cap),
+            "{order:?}"
+        );
+        tally[match got {
+            Outcome::Fused => 0,
+            Outcome::SeamVertexNoRule => 1,
+            Outcome::Consumed(_, FoldConsumption::Split) => 2,
+            Outcome::Consumed(_, FoldConsumption::FragmentedMerge) => 3,
+            other => panic!("{order:?}: {other:?}"),
+        }] += 1;
+    }
+    tally
+}
+
+/// **A member face inside a declared merge that a later member split
+/// refuses as a fragmented merge**, and one split BEFORE any merge
+/// reached it refuses as a split — the same face, consumed by a
+/// different composition in each order, and the refusal says which.
+///
+/// The split fixture plus `d`, flush with `a` along x on the far side
+/// from `c` and clear of `s`. Folding one of `a`'s cap partners in
+/// before `s` merges the cap and `s` then fragments the merged row
+/// (`[Merged(set), Fragment(q)]`); folding `s` in first fragments
+/// `a`'s own cap. Either way the pair naming `a`'s cap against the
+/// partner that joins after `s` has no one entity to resolve to.
+#[test]
+fn a_member_face_inside_a_merge_a_later_member_split_refuses_as_a_fragmented_merge() {
+    let doc = ProfileDoc::empty_derived("docm8_fragmented_merge", Tol::witness());
+    let (doc, [a, c, s], mut pairs) = split_fixture(doc);
+    let (doc, d) = block(doc, (-0.5, 0.1), (0.0, 1.0), 0.0, 1.0);
+    pairs.extend(flush_pairs((a, a), (d, d)));
+    assert_eq!(
+        every_cap_order(&doc, [a, c, s, d], &pairs, a, [c, d], s),
+        [6, 10, 4, 4]
+    );
+}
+
+/// **R1's three-neighbour star, per order**: `c` sits between `w` and
+/// `e` along x, each flush with it on all four families, and `t` rises
+/// through `c`'s top cap across its depth, declared against `c`'s
+/// y-walls. The same law as the row above, on a different fixture:
+/// every refusal the declaration channel raises is on `c`'s end cap and
+/// names the composition that consumed it.
+#[test]
+fn the_three_neighbour_star_refuses_as_a_split_or_a_fragmented_merge() {
+    let doc = ProfileDoc::empty_derived("docm8_star", Tol::witness());
+    let (doc, c) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, w) = block(doc, (-0.5, 0.3), (0.0, 1.0), 0.0, 1.0);
+    let (doc, e) = block(doc, (0.7, 1.5), (0.0, 1.0), 0.0, 1.0);
+    let (doc, t) = block(doc, (0.4, 0.6), (0.0, 1.0), 0.5, 1.0);
+    let mut pairs = flush_pairs((c, c), (w, w));
+    pairs.extend(flush_pairs((c, c), (e, e)));
+    for seg in [wall(0), wall(2)] {
+        pairs.push((
+            SitedRef::new(c, fname(c, seg.clone())),
+            SitedRef::new(t, fname(t, seg)),
+        ));
+    }
+    assert_eq!(
+        every_cap_order(&doc, [c, w, e, t], &pairs, c, [w, e], t),
+        [6, 10, 4, 4]
+    );
+}
+
+/// **A member face a later member CONTAINS refuses as contained**, and
+/// the orders that feed the pair while the face is still a row reach
+/// the kernel, which contradicts it. R2's `r2_p7`: `a`'s x = 1 wall
+/// lies inside `big`, and is declared against `far`'s x = 6 wall —
+/// which it does not touch, so where the pair is read at all it is
+/// contradicted. Nothing descends from the wall once `big` has joined,
+/// so there is nothing to offer.
+#[test]
+fn a_member_face_inside_a_later_member_refuses_as_contained() {
+    let doc = ProfileDoc::empty_derived("docm8_contained", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, big) = block(doc, (0.5, 3.0), (-1.0, 2.0), -1.0, 3.0);
+    let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
+    let pairs = vec![(
+        SitedRef::new(a, fname(a, wall(1))),
+        SitedRef::new(far, fname(far, wall(3))),
+    )];
+    for order in permutations(&[a, big, far]) {
+        let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
+        let ev = run(&docx);
+        let pos = |m| order.iter().position(|x| *x == m).unwrap();
+        let want = if pos(big) < pos(far) && pos(a) < pos(far) {
+            Outcome::Consumed(
+                member_face(union, a, fname(a, wall(1))),
+                FoldConsumption::Contained,
+            )
+        } else {
+            Outcome::Contradicted
+        };
+        assert_eq!(outcome(&ev, union), want, "{order:?}");
     }
 }
 

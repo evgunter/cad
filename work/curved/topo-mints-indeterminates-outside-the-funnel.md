@@ -119,3 +119,15 @@ its diagnostic states a poison that did not occur.
 `work/stack/certified-lane-non-real-contract-audit.md` records the same
 payload from the M10-DI review as a member of its class; this is its
 minting site.
+
+## Also reached from a union's declaration channel (GATHER, 2026-09-24)
+
+`declared_rung`'s `Contradicted` arm (`bool_plane_offset`
+`Ok(Positive | Negative)`) is user-visible through a union too. R2's
+`r2_p7` declares `a`'s x = 1 wall Rest against `far`'s x = 6 wall.
+In the four member orders that feed the pair while the wall is still a
+row, the union refuses `ContactContradicted`, and the refusal reads
+*"… contradicted by predicate 'bool_plane_offset' indeterminate: margin
+is invalid (NaN or a poisoned enclosure) …"* about two planes 5 units
+apart whose offset DECIDED nonzero. Pinned (by kind, not text) in
+`docm8_flat_merged::a_member_face_inside_a_later_member_refuses_as_contained`.

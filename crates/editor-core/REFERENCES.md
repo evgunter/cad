@@ -251,10 +251,16 @@ So the chain goes, not the link:
   name resolves at its step through whatever merges the fold has
   performed (the union rewrites it to the flat `Merged` row containing
   it before the shared resolver), so a declaration set whose faces are
-  consumed by MERGES fuses in every member order. The bound: a face
-  consumed by a split, by containment, or by a merge a later step
-  fragmented is not looked through and stays order-shaped
-  (`member-space-look-through-stops-at-splits-containment-and-fragmented-merges`).
+  consumed by MERGES fuses in every member order. A merge is the one
+  consumption with a unique successor, so it is the one looked
+  through. A face consumed by a split, by containment, or by a merge a
+  later step fragmented has none, and a pair naming it at a later step
+  refuses — `Vanished`, diagnosed `ConsumedByFold` with the
+  composition read off the rows that descend from the face (fragments
+  of it; fragments of a merged row covering it; none at all while its
+  member still derives it), never by measuring it again — and offers
+  nothing: which fragment the pair meant is the geometric question the
+  routing step does not ask, and a containment leaves no candidate.
   **The refusal against a fold-minted row.** "The same recourse"
   above holds for a member's own face verbatim, and for a face the
   fold MERGED through a constituent: the refusal sites that side at
@@ -274,7 +280,9 @@ the member-space declaration channel is DOCM-7 (PR 2028), re-sited at
 the members by Ev on EDIT's fourth `[ev]` PR (#2795, 2026-09-17;
 `a-declared-union-has-no-one-pass-authoring-path`), built by the unit
 that row names; the flat
-`Merged` mint, the look-through and its bound are DOCM-8 (PR 2073).*
+`Merged` mint and the look-through are DOCM-8 (PR 2073); the typed
+refusal past the merges applies Ev's ruling on PR 2677
+(`does-n3-retire-loudly-generalise-to-the-folds-other-compositions`).*
 
 ## DM5 — A node's inputs are pairwise distinct
 

@@ -207,7 +207,7 @@ pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
 };
 pub use resolve::{
-    Diagnosis, FlipSet, FlipSource, HitTestError, MeshPatchKey, NodeVerdictDelta,
+    Diagnosis, FlipSet, FlipSource, FoldConsumption, HitTestError, MeshPatchKey, NodeVerdictDelta,
     PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure, ResolveError,
     ResolveIndeterminate, Resolved, RunCtx, RunStatus, SHADOW_EXEC_MAX_PAIRS, ShadowExecRefusal,
     TieWitness, Tombstone, VerdictFlip, appearance_rebind_suggestions, apply_with_names, body_name,

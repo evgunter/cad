@@ -1283,6 +1283,45 @@ fn a_resized_group_states_the_table_fact_and_claims_no_flip() {
     }
 }
 
+/// A fold consumption names the union and says WHICH composition
+/// consumed the entity, in words a reader can tell apart — a split, a
+/// merge split later, and a containment are three different sentences
+/// — and says why nothing is offered in its place.
+#[test]
+fn a_fold_consumption_names_the_composition_and_why_nothing_is_offered() {
+    use editor_core::FoldConsumption;
+    let banned = [
+        "ConsumedByFold",
+        "FoldConsumption",
+        "FragmentedMerge",
+        "Contained",
+    ];
+    for (by, wants) in [
+        (
+            FoldConsumption::Split,
+            &["split it into fragments", "none is offered"][..],
+        ),
+        (
+            FoldConsumption::FragmentedMerge,
+            &[
+                "a declared merge consumed it",
+                "split the merged face",
+                "none is offered",
+            ][..],
+        ),
+        (
+            FoldConsumption::Contained,
+            &["no face of the union descends from it", "nothing to offer"][..],
+        ),
+    ] {
+        let d = Diagnosis::ConsumedByFold {
+            union: RecipeNodeId(9),
+            by,
+        };
+        assert_f6(&d, &[&["the union at node 9"][..], wants].concat(), &banned);
+    }
+}
+
 /// Refusals that name a stable name FORWARD its `Display` rather than
 /// re-spelling the kind-plus-minting-node phrase. The expectation is
 /// built from the impl, so a copy that stops tracking it fails here —
