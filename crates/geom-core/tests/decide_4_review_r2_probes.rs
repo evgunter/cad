@@ -288,3 +288,85 @@ fn r2_the_step_cap_declines() {
     });
     println!("  under the cap: on {on_small}");
 }
+
+// ------------------------------------------------------------- the dial
+
+fn boss_shape() -> Sym<Interval> {
+    let h = over("h", -1.0e-4, 1.0e-4);
+    let p = lit(0.5) + h;
+    (lit(5.0) * p.powi(6) / p.powi(4)).sqrt() - lit(5.0).sqrt() * p.abs()
+}
+
+/// `root_quotient` on with `canonical_root` off is inert: the step is
+/// only reached through rule G's door.
+#[test]
+fn r2_the_quotient_without_rule_g_is_inert() {
+    let lone = decide(
+        "boss shape, canonical_root off, root_quotient on",
+        SymRules {
+            canonical_root: false,
+            root_quotient: true,
+            ..SymRules::shipped()
+        },
+        &boss_shape,
+    );
+    let shut = decide(
+        "boss shape, without_canonical_root",
+        SymRules::without_canonical_root(),
+        &boss_shape,
+    );
+    assert_eq!(lone, shut);
+    assert_ne!(lone, "theorem");
+}
+
+/// Under `all()` (rule C on), does the value-free quotient still get the
+/// boss's shape, or does rule C's node fold answer first?
+#[test]
+fn r2_the_quotient_under_all() {
+    let on = decide("boss shape, all()", SymRules::all(), &boss_shape);
+    let off = decide(
+        "boss shape, all() without root_quotient",
+        SymRules {
+            root_quotient: false,
+            ..SymRules::all()
+        },
+        &boss_shape,
+    );
+    println!("  all(): on {on} / off {off}");
+}
+
+/// Where `all()` loses the boss's shape: sub-shapes under rule C.
+#[test]
+fn r2_the_quotient_under_all_sub_shapes() {
+    let p = || lit(0.5) + over("h", -1.0e-4, 1.0e-4);
+    let shapes: [(&str, &dyn Fn() -> Sym<Interval>); 5] = [
+        ("sqrt(5p^6/p^4) - sqrt5 p", &|| {
+            (lit(5.0) * p().powi(6) / p().powi(4)).sqrt() - lit(5.0).sqrt() * p()
+        }),
+        ("sqrt(5p^2) - sqrt5 |p|", &|| {
+            (lit(5.0) * p().powi(2)).sqrt() - lit(5.0).sqrt() * p().abs()
+        }),
+        ("sqrt(p^6/p^4) - |p|", &|| {
+            (p().powi(6) / p().powi(4)).sqrt() - p().abs()
+        }),
+        ("sqrt(p^6/p^4) - p", &|| {
+            (p().powi(6) / p().powi(4)).sqrt() - p()
+        }),
+        ("|p| - p", &|| p().abs() - p()),
+    ];
+    for (what, build) in shapes {
+        for (name, rules) in [
+            ("shipped", SymRules::shipped()),
+            ("all", SymRules::all()),
+            (
+                "all-no-q",
+                SymRules {
+                    root_quotient: false,
+                    ..SymRules::all()
+                },
+            ),
+        ] {
+            decide(&format!("{what} [{name}]"), rules, build);
+        }
+    }
+}
