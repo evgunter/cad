@@ -47,6 +47,7 @@ use editor_core::drive::{DriveConfig, ParamBoxVerdict, drive};
 use geom_core::sym::profile::{start_profile, take_profile};
 use geom_core::{SymBudget, SymRules, Tol};
 
+use crate::fixture::on_pool;
 use crate::m10_3_r1_probes_interval::{CHAMBER_LEAVES, bounded_chamber};
 use crate::m10_7_plate::plate;
 use crate::m10_derived_frame_tilted_interval::boss_on_tilted;
@@ -399,17 +400,6 @@ fn the_memo_keeps_the_receipt_identical_across_schedules() {
     );
     assert_eq!(seq.content_key(), par.content_key());
     assert_eq!(seq.decisions(), par.decisions());
-}
-
-/// A drive on a rayon pool of `threads` workers — `install` binds the
-/// pool for the closure, so `drive`'s `par_iter` runs on it. Adopted
-/// from R2's probe, whose shape is `sweep/tests/common::on_pool`'s.
-fn on_pool<R: Send>(threads: usize, run: impl Fn() -> R + Send + Sync) -> R {
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build()
-        .expect("the pool builds")
-        .install(run)
 }
 
 /// Everything two drives of one document must agree on.

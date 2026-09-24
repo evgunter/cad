@@ -98,6 +98,12 @@ num-traits = { workspace = true }
 # the type's backend. It is also the differential oracle the
 # ring's default-lane tests read (`tests/ring_interval_differential.rs`).
 interval-transcendentals = { workspace = true }
+# D9 addendum idiom 1 for a walk whose units decide through the funnel
+# (`k_stats::map_detached`): the map lives beside `detached` and
+# `splice` because it is only sound with them, and every crate that
+# maps deciding units — `topo`'s face walks, `editor-core`'s node
+# schedule — sits above this one. The workspace pin.
+rayon = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

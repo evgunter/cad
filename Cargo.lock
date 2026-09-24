@@ -1205,6 +1205,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "proptest",
+ "rayon",
  "test-utils",
 ]
 
