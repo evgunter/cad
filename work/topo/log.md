@@ -1845,3 +1845,21 @@ and the paragraph made true. Fix pass dispatched as a fresh lane on
 the inherited branch, the implementer's arm (the unit finishes under
 the protocol it started in); reports archived privately. Row recorded
 at merge.
+
+## PR 2594 red after its merge-forward: VREV's hazard row pinned the old behaviour (2026-09-24)
+
+The run on the merged head `920134175` failed one test in all six
+test legs, the same one each time:
+`sweep::all vrev_reversed_chart_hazard::reversing_a_chart_under_its_face_strands_the_parameters_on_it`.
+VREV added it on 2026-09-15, after this PR's last green run. It swaps
+four lofted walls onto reversed charts through `set_face_surface`
+and pinned sixteen stranded pcurves beside four stale edge-description
+intervals — exactly what this unit changes: the setter now drops the
+rows of a face whose chart changed, so the walls arrive rowless and no
+pcurve is stranded, while the description intervals (not the setter's
+to touch) stay stale. The row is re-baselined on the branch (sixteen
+become none, the four stand, the module doc says why), and
+`reversed_v`'s "What this does not do" paragraph, which made the same
+claim, is re-worded to what holds (PROPS' file; seam on its log). A
+post-review commit reaching test code, by the orchestrator; it re-earns
+the gate, and the row records it.
