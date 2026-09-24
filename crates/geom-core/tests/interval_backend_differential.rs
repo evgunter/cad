@@ -1,72 +1,51 @@
-//! **Differential lane: the C9 ring against the arithmetic it wraps**
-//! (M5 PR 2, acceptance family 2).
+//! **Differential lane: the certification scalar against the arithmetic
+//! it wraps.**
 //!
-//! The exact-arithmetic fuzz (`ring_interval_fuzz.rs`) proves the ring
-//! *sound*. This file proves the newtype is a **faithful forwarding**:
-//! on every shared operation the ring's bracket is bit-identical to the
-//! backend's and the two refuse exactly the same inputs. A ring
-//! operation that stopped forwarding — a pad applied on top, an
-//! algebraic rule re-introduced, an association of its own — reds here,
-//! whatever it did to the endpoints.
+//! The exact-arithmetic fuzz (`interval_exact_fuzz.rs`) proves
+//! [`geom_core::Interval`]'s certification arithmetic *sound*. This file
+//! proves it is a **faithful forwarding** of the backend: on every shared
+//! operation the scalar's bracket is bit-identical to the backend's and
+//! the two refuse exactly the same inputs. An operation that stopped
+//! forwarding — a pad applied on top, an algebraic rule introduced, an
+//! association of its own — reds here, whatever it did to the endpoints.
 //!
-//! Two oracles, both dev-only:
-//!
-//! - [`interval_transcendentals::DInterval`] — the rigorous unit
-//!   (issue #115) the ring is a newtype over, and a **dev-dependency**
-//!   of `geom-core` for this lane as well as a normal one for the
-//!   kernel. It carries decorations and exactness witnesses, and the
-//!   ring's surface is a re-spelling of them for certification code.
-//! - `geom_core::Interval`, the certification scalar, over the same
-//!   backend, compiled in every build. What the second lane adds is the *scalar wrapper* (poison
-//!   convention, `Real` lifting, `powi` routing): it must reach the
-//!   same bracket the ring does, through a different surface.
+//! The oracle is [`interval_transcendentals::DInterval`] — the rigorous
+//! unit (issue #115) the scalar is a newtype over, a normal dependency
+//! of `geom-core` and read here as a dev oracle. It carries decorations
+//! and exactness witnesses, and the certification surface (`sqr`,
+//! `powi`, the operators) is a re-spelling of them.
 //!
 //! # What is asserted
 //!
 //! Per operation over `+ − × ÷ neg sqr powi` — `powi` at eleven
 //! exponents covering both signs and both chain shapes ([`EXPONENTS`])
-//! — and **before** any endpoint comparison, each lane asserts
-//! `ring.is_poison() == oracle refuses`. The two put their refusal in
-//! the same channel now (`dec < Def`, spelled
-//! `!Interval::is_certified()` at the scalar), so the claim is exact
-//! agreement with no exceptions. Then the endpoints: **bit-identical,
-//! both ends**, `sqr` against the oracle's `powi(2)`, which is the
-//! same call.
+//! — and **before** any endpoint comparison, the lane asserts
+//! `!x.is_certified() == oracle refuses`. The two put their refusal in
+//! the same channel (`dec < Def`), so the claim is exact agreement with
+//! no exceptions. Then the endpoints: **bit-identical, both ends**,
+//! `sqr` against the oracle's `powi(2)`, which is the same call.
 //!
 //! Where the backend has no endpoints to report — NaI and the empty
 //! set, whose bounds are NaN — the endpoint comparison is counted and
 //! skipped; the verdict comparison runs first and never skips, so
 //! those cases are carried by it alone.
 //!
-//! Each lane prints the conservatism it measured, in representable
-//! steps. It is **zero** by construction now and asserted so: the ring
+//! The lane prints the conservatism it measured, in representable
+//! steps. It is **zero** by construction and asserted so: the scalar
 //! buys no conservatism over the backend because it *is* the backend.
 //!
-//! # The allowlist that used to be here
+//! The indeterminate IEEE corners (`0 · ±inf` under `×`, `±inf / ±inf`
+//! under `÷`, `0 · ±inf` at a multiply inside `powi`'s chain, and a
+//! negative `powi` whose positive power pads into zero) are swept here
+//! as agreements; `ring0_review_probes.rs` writes the interesting ones
+//! down by hand.
 //!
-//! Until RING-2 the ring was a second arithmetic — one unconditional
-//! outward ulp per operation, a sign clamp, a zero annihilator, and a
-//! NaN-propagating corner reduction — and this lane carried a closed
-//! allowlist of four characterised classes where the two disagreed on
-//! the *verdict*: the ring poisoning on an indeterminate IEEE corner
-//! (`0 · ±inf` under `×`, `±inf / ±inf` under `÷`, and `0 · ±inf` at a
-//! multiply inside `powi`'s chain) that the backend resolves by
-//! convention, and, running the other way, a negative `powi` whose
-//! positive power the backend pads one step further into zero. **All
-//! four collapse to nothing**, because there is no second arithmetic
-//! left to disagree: the ring reaches those corners through the
-//! backend's own `mul_lo`/`mul_hi` and `pow_pos`. The record of what
-//! each class was, with its measured counts, is RING-0's (PR 2993);
-//! the corners themselves are still swept here and are now
-//! agreements, and `ring0_review_probes.rs` writes the interesting
-//! ones down by hand.
-//!
-//! **Division agrees wherever it refuses for the reason the ring was
-//! specified to refuse**: a divisor that straddles or touches zero is
-//! `Trv` in the backend (the empty set, for `[0,0]`), which is the
-//! ring's poison. That agreement is counted in its own right rather
-//! than merely left unrefuted — `div-touching-zero` in the report
-//! line, witnessed deterministically by the corner-corpus test.
+//! **Division agrees wherever it refuses for the reason certification
+//! refuses**: a divisor that straddles or touches zero is `Trv` in the
+//! backend (the empty set, for `[0,0]`), which is a refusal. That
+//! agreement is counted in its own right rather than merely left
+//! unrefuted — `div-touching-zero` in the report line, witnessed
+//! deterministically by the corner-corpus test.
 //!
 //! The corpus reaches the corners: a quarter of the fuzz rounds draw
 //! both endpoints from [`CORNERS`] (signed zeros and infinities,
@@ -76,12 +55,12 @@
 //! forms, with no randomness at all.
 
 test_utils::gated_to![
-    "crates/geom-core/src/ring_interval.rs",
     "crates/geom-core/src/interval.rs",
     "interval-transcendentals/src/",
 ];
 
-use geom_core::RingInterval;
+use geom_core::Bounds;
+use geom_core::Interval;
 use interval_transcendentals::{DInterval, Decoration};
 use test_utils::fuzz;
 
@@ -111,7 +90,7 @@ fn moderate(rng: &mut fuzz::Rng) -> f64 {
 /// underflow to zero), and magnitudes whose squares and cubes overflow.
 ///
 /// Two sibling lists of this shape exist and are deliberately not
-/// shared: `ring_interval_fuzz.rs`'s `edges` (signed zeros and exact
+/// shared: `interval_exact_fuzz.rs`'s `edges` (signed zeros and exact
 /// dyadics, for an exactness comparison that has no use for an
 /// infinity) and `interval-transcendentals`' `review_fuzz_exact.rs`
 /// `EDGE_MAGNITUDES` (which adds the 2Prod witness floor, and sits in
@@ -212,7 +191,7 @@ impl Ends {
 
     /// Whether both constructors accept this pair. They refuse the same
     /// set — a NaN endpoint, an inverted bracket, or a closed side at
-    /// infinity — because the ring's constructor IS the backend's, so
+    /// infinity — because interval arithmetic's constructor IS the backend's, so
     /// an input either is a bracket in both types or is refused by both.
     fn is_a_bracket(self) -> bool {
         self.lo <= self.hi && self.lo != f64::INFINITY && self.hi != f64::NEG_INFINITY
@@ -233,8 +212,8 @@ impl core::fmt::Display for Ends {
 /// mint a refusal out of a certified base; sampling one sign hides it.
 const EXPONENTS: [i32; 11] = [-3, -2, -1, 0, 1, 2, 3, 5, 6, 7, 31];
 
-/// The operations both types share. `Sqr` is the ring's `sqr` against
-/// the oracle's `powi(2)` — the same call, which is what the ring's
+/// The operations both types share. `Sqr` is interval arithmetic's `sqr` against
+/// the oracle's `powi(2)` — the same call, which is what interval arithmetic's
 /// `sqr` forwards to; `Powi` carries its exponent for the message.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Op {
@@ -283,8 +262,7 @@ impl core::fmt::Display for Op {
 
 // ----------------------------------------------------------- oracles
 
-/// The arithmetic a lane compares the ring against: the backend, and
-/// the scalar wrapper over the same backend.
+/// The arithmetic the lane compares `Interval` against: the backend.
 trait Oracle: Copy {
     /// The lane's label in the report, and the name its seed is drawn
     /// under.
@@ -307,7 +285,7 @@ trait Oracle: Copy {
 
 impl Oracle for DInterval {
     const LABEL: &'static str = "DInterval";
-    const SEED_NAME: &'static str = "ring_interval_differential::dinterval";
+    const SEED_NAME: &'static str = "interval_backend_differential::dinterval";
 
     fn from_bounds(lo: f64, hi: f64) -> Self {
         DInterval::from_bounds(lo, hi)
@@ -346,52 +324,6 @@ impl Oracle for DInterval {
     }
 }
 
-impl Oracle for geom_core::Interval {
-    const LABEL: &'static str = "Interval scalar";
-    const SEED_NAME: &'static str = "ring_interval_differential::interval_scalar";
-
-    fn from_bounds(lo: f64, hi: f64) -> Self {
-        geom_core::Interval::from_bounds(lo, hi)
-    }
-
-    fn refuses(self) -> bool {
-        !self.is_certified()
-    }
-
-    fn bracket(self) -> Option<(f64, f64)> {
-        use geom_core::Bounds;
-        // The scalar's `Bounds` door is deliberately decoration-blind and
-        // reports NaN for NaI and the empty set, which `check_ends`
-        // already counts as a skip — so this lane hands every result on
-        // and lets the one guard do the filtering.
-        Some((Bounds::lo(self), Bounds::hi(self)))
-    }
-
-    fn add(self, rhs: Self) -> Self {
-        self + rhs
-    }
-
-    fn sub(self, rhs: Self) -> Self {
-        self - rhs
-    }
-
-    fn mul(self, rhs: Self) -> Self {
-        self * rhs
-    }
-
-    fn div(self, rhs: Self) -> Self {
-        self / rhs
-    }
-
-    fn neg(self) -> Self {
-        -self
-    }
-
-    fn powi(self, n: i32) -> Self {
-        geom_core::Real::powi(self, n)
-    }
-}
-
 // ------------------------------------------------------------- tally
 
 /// Outcome of one comparison, for honest reporting.
@@ -407,27 +339,27 @@ struct Tally {
     verdicts: [u64; Op::SLOTS],
     verdicts_agreed: u64,
     /// Divisions both types refuse because the divisor is not proven
-    /// away from zero — the agreement the ring's `Div` doc claims.
+    /// away from zero — the agreement `Interval`'s `Div` refusal claims.
     div_touching_zero_agreed: u64,
 }
 
 impl Tally {
-    /// The verdict comparison: does the ring poison exactly where the
+    /// The verdict comparison: does `Interval` refuse exactly where the
     /// backend refuses? Runs before the endpoint comparison and never
     /// skips.
     ///
-    /// There is no allowlist and no exception. The ring's poison is the
+    /// There is no allowlist and no exception. A refusal is the
     /// backend's `dec < Def` read through one accessor, so a
     /// disagreement means an operation stopped forwarding.
-    fn verdict(&mut self, op: Op, a: Ends, b: Ends, ring: RingInterval, oracle_refuses: bool) {
+    fn verdict(&mut self, op: Op, a: Ends, b: Ends, ring: Interval, oracle_refuses: bool) {
         self.verdicts[op.slot()] += 1;
         assert_eq!(
-            ring.is_poison(),
+            !ring.is_certified(),
             oracle_refuses,
-            "{op}: ring {} but backend {} on a = {a}{} — the ring's poison IS the backend's \
+            "{op}: Interval {} but backend {} on a = {a}{} — a refusal IS the backend's \
              decoration, so this operation is no longer forwarding — {}",
-            if ring.is_poison() {
-                "poisons"
+            if !ring.is_certified() {
+                "refuses"
             } else {
                 "certifies"
             },
@@ -450,21 +382,20 @@ impl Tally {
         }
     }
 
-    /// Checks the ring bracket against the oracle bracket for the same
+    /// Checks the certification bracket against the oracle bracket for the same
     /// operation on the same inputs: **bit-identical, both ends**.
     ///
-    /// Containment would be the weaker claim, and it was the right one
-    /// while the ring ran its own arithmetic. It does not any more, so
-    /// anything other than the same bits is a pad, a clamp or an
-    /// association the newtype has grown — and each of those is the
-    /// second arithmetic this type was retired for being.
+    /// Containment would be the weaker claim. The scalar runs no
+    /// arithmetic of its own, so anything other than the same bits is a
+    /// pad, a clamp or an association it has grown — a second arithmetic
+    /// beside the backend's.
     ///
     /// `-0.0` and `0.0` are compared by bits deliberately: the sign of
     /// a zero endpoint is part of what the backend returns, and a
     /// forwarding that flipped it would be a change to the value the
-    /// ring hands its consumers.
-    fn check_ends(&mut self, r: RingInterval, olo: f64, ohi: f64, what: &str) {
-        if r.is_poison() || olo.is_nan() || ohi.is_nan() {
+    /// scalar hands its consumers.
+    fn check_ends(&mut self, r: Interval, olo: f64, ohi: f64, what: &str) {
+        if !r.is_certified() || olo.is_nan() || ohi.is_nan() {
             self.skipped += 1;
             return;
         }
@@ -481,7 +412,7 @@ impl Tally {
         }
         assert!(
             self.differing == 0,
-            "{what}: ring [{:e}, {:e}] is not the backend's [{olo:e}, {ohi:e}] — {}",
+            "{what}: Interval [{:e}, {:e}] is not the backend's [{olo:e}, {ohi:e}] — {}",
             r.lo(),
             r.hi(),
             fuzz::replay()
@@ -513,12 +444,12 @@ impl Tally {
     }
 
     /// The conservatism claim, asserted rather than printed: the
-    /// newtype buys none, because it is the backend.
+    /// scalar buys none, because it is the backend.
     fn assert_no_conservatism(&self, label: &str) {
         assert_eq!(
             (self.differing, self.max_lo_steps, self.max_hi_steps),
             (0, 0, 0),
-            "[{label}] the ring's endpoints moved off the backend's"
+            "[{label}] the scalar's endpoints moved off the backend's"
         );
     }
 }
@@ -530,11 +461,11 @@ impl Tally {
 /// subsume. One body for all four lanes, so the two oracles and the two
 /// corpora cannot drift apart.
 fn compare_ops<O: Oracle>(t: &mut Tally, a: Ends, b: Ends) {
-    let r = RingInterval::from_bounds(a.lo, a.hi);
-    let s = RingInterval::from_bounds(b.lo, b.hi);
+    let r = Interval::from_bounds(a.lo, a.hi);
+    let s = Interval::from_bounds(b.lo, b.hi);
     let d = O::from_bounds(a.lo, a.hi);
     let e = O::from_bounds(b.lo, b.hi);
-    let shared: [(Op, RingInterval, O); 6] = [
+    let shared: [(Op, Interval, O); 6] = [
         (Op::Add, r + s, d.add(e)),
         (Op::Sub, r - s, d.sub(e)),
         (Op::Mul, r * s, d.mul(e)),
@@ -601,13 +532,8 @@ fn fuzz_lane<O: Oracle>() {
 }
 
 #[test]
-fn ring_forwards_dinterval_on_every_shared_op() {
+fn interval_forwards_dinterval_on_every_shared_op() {
     fuzz_lane::<DInterval>();
-}
-
-#[test]
-fn ring_forwards_the_interval_scalar_on_every_shared_op() {
-    fuzz_lane::<geom_core::Interval>();
 }
 
 // ------------------------------------------------- the corner corpus
@@ -648,14 +574,12 @@ fn corner_sweep<O: Oracle>() -> Tally {
 ///
 /// The fuzz lanes above are a counterexample search: cutting their
 /// depth can only lose detection power. This one is the other shape —
-/// *every indeterminate IEEE corner the old ring poisoned on is swept,
-/// and every one of them now agrees* — and it is written down rather
+/// *every indeterminate IEEE corner is swept, and every one of them
+/// agrees* — and it is written down rather
 /// than hunted for: the corner corpus is small enough to sweep
 /// exhaustively, so the result is a fact about the arithmetic rather
 /// than a draw.
 ///
-/// One body for both oracles: a second copy is how one of them ends up
-/// with the weaker message.
 fn assert_the_corner_corpus_agrees<O: Oracle>() {
     let t = corner_sweep::<O>();
     t.assert_no_conservatism(O::LABEL);
@@ -667,13 +591,15 @@ fn assert_the_corner_corpus_agrees<O: Oracle>() {
     assert!(
         t.div_touching_zero_agreed > 0,
         "[{}] the corner corpus formed no division by a zero-touching divisor, so the \
-         agreement the ring's Div doc claims is untested here",
+         agreement `Interval`'s Div refusal claims is untested here",
         O::LABEL
     );
 }
 
-/// **The one place the newtype is LOOSER than the ring it replaced**,
-/// pinned so the sentence is executable.
+/// **The backend's answer at the subnormal floor and the overflow
+/// ceiling**, pinned so the sentence is executable: the four corners
+/// where the backend is LOOSER than the clamp-and-pad arithmetic
+/// certification ran before it.
 ///
 /// Every corpus in the tree moves tighter or not at all, and that is
 /// what the PR's "zero looser" counts. It is a claim about the
@@ -706,10 +632,10 @@ fn assert_the_corner_corpus_agrees<O: Oracle>() {
 #[test]
 fn the_subnormal_and_overflow_corners_are_where_the_newtype_gives_width_back() {
     let t = f64::MIN_POSITIVE;
-    let tiny = RingInterval::from_bounds(t, t);
+    let tiny = Interval::from_bounds(t, t);
 
     let product = tiny * tiny;
-    assert!(!product.is_poison(), "{product:?}");
+    assert!(product.is_certified(), "{product:?}");
     assert_eq!(
         (product.lo(), product.hi()),
         (-5e-324, 5e-324),
@@ -718,7 +644,7 @@ fn the_subnormal_and_overflow_corners_are_where_the_newtype_gives_width_back() {
     );
 
     for (what, got) in [("sqr", tiny.sqr()), ("powi(4)", tiny.powi(4))] {
-        assert!(!got.is_poison(), "{what}: {got:?}");
+        assert!(got.is_certified(), "{what}: {got:?}");
         assert_eq!(
             (got.lo(), got.hi()),
             (0.0, 1e-323),
@@ -727,8 +653,8 @@ fn the_subnormal_and_overflow_corners_are_where_the_newtype_gives_width_back() {
         );
     }
 
-    let recip = RingInterval::from_bounds(t, 1e-160).powi(-1);
-    assert!(!recip.is_poison(), "{recip:?}");
+    let recip = Interval::from_bounds(t, 1e-160).powi(-1);
+    assert!(recip.is_certified(), "{recip:?}");
     assert_eq!(
         (recip.lo(), recip.hi()),
         (9.999_999_999_999_999e159, 4.494_232_837_155_792e307),
@@ -739,9 +665,4 @@ fn the_subnormal_and_overflow_corners_are_where_the_newtype_gives_width_back() {
 #[test]
 fn verdicts_and_endpoints_agree_over_the_corner_corpus() {
     assert_the_corner_corpus_agrees::<DInterval>();
-}
-
-#[test]
-fn verdicts_and_endpoints_agree_over_the_corner_corpus_at_the_interval_scalar() {
-    assert_the_corner_corpus_agrees::<geom_core::Interval>();
 }

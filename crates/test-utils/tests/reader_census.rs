@@ -197,12 +197,12 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // sole-bracket-bound roster, code view
     },
     Entry {
-        path: "crates/geom-core/tests/flagged_census.rs",
-        disposition: Shared, // call census, code view + offsets
+        path: "crates/geom-core/tests/certified_endpoint_census.rs",
+        disposition: Shared, // certification endpoint-read census, code view + balanced_end
     },
     Entry {
-        path: "crates/geom-core/tests/ring_endpoint_census.rs",
-        disposition: Shared, // ring endpoint-read census, code view + balanced_end
+        path: "crates/geom-core/tests/flagged_census.rs",
+        disposition: Shared, // call census, code view + offsets
     },
     Entry {
         path: "crates/geom-core/tests/sym_rule_f_rows.rs",

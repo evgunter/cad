@@ -24,15 +24,16 @@ test_utils::gated_to![
     "crates/geom/src/curves/",
     "crates/geom/src/curves.rs",
     "crates/geom-core/src/spline/",
-    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/linalg/",
     "crates/geom-core/src/predicate.rs",
 ];
 
 use geom::{NurbsCurve2, NurbsCurve3};
+use geom_core::Bounds;
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
-use geom_core::{Point2, Point3, RingInterval};
+use geom_core::{Interval, Point2, Point3};
 use test_utils::fuzz;
 
 /// An inclusive integer draw in `lo..=hi`.
@@ -517,7 +518,7 @@ fn f3_rank_deficient_and_near_singular() {
 // F4: compose exactness (num/den evaluates to f∘C pointwise) and
 // containment fuzz across all five surfaces on random rational curves.
 // =====================================================================
-fn bernstein_eval_mid(coeffs: &[RingInterval], s: f64) -> f64 {
+fn bernstein_eval_mid(coeffs: &[Interval], s: f64) -> f64 {
     // de Casteljau on interval midpoints.
     let mut v: Vec<f64> = coeffs.iter().map(|c| 0.5 * (c.lo() + c.hi())).collect();
     let n = v.len();
@@ -689,9 +690,9 @@ fn f4_sphere_composite_hand_check_degree1() {
     let c = [0.5, 0.25, -0.75];
     let r = 1.5;
     let coords = vec![
-        vec![RingInterval::point(a[0]), RingInterval::point(b[0])],
-        vec![RingInterval::point(a[1]), RingInterval::point(b[1])],
-        vec![RingInterval::point(a[2]), RingInterval::point(b[2])],
+        vec![Interval::point(a[0]), Interval::point(b[0])],
+        vec![Interval::point(a[1]), Interval::point(b[1])],
+        vec![Interval::point(a[2]), Interval::point(b[2])],
     ];
     let w = [1.0, 1.0];
     let data = CurveRingData::new(&kv, &w, &coords).unwrap();

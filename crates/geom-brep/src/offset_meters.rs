@@ -2,7 +2,7 @@
 //! the collapse headroom (`crates/geom-brep/README.md` O3).
 //!
 //! Both are read off [`crate::patch_bound`]'s per-cell enclosures, and
-//! both are **f64-substrate**: the C9 ring produces an `f64` certified
+//! both are **f64-substrate**: certification arithmetic produces an `f64` certified
 //! enclosure, which is what a hull bound IS, so the numbers below are
 //! the same on every lane (the `SsiCertificate::hull_sup` posture).
 //!
@@ -140,7 +140,8 @@
 //! up: there, a blend radius against a spine's curvature; here, an
 //! offset distance against a patch's.
 
-use geom_core::ring_interval::RingInterval;
+use geom_core::Bounds;
+use geom_core::interval::Interval;
 use geom_core::{Band, Indeterminate, Margin, Sign, SupSpeed};
 
 use crate::dihedral::decide;
@@ -248,7 +249,7 @@ impl core::error::Error for MeterError {}
 /// The smallest `|x|` over the enclosure — zero when it straddles, and
 /// zero when it is poisoned, which is the conservative answer.
 ///
-/// **The poison arm is asked by name.** The ring's refusal is its
+/// **The poison arm is asked by name.** Interval arithmetic's refusal is its
 /// decoration, not a NaN pair, so a refused enclosure carries ordinary
 /// endpoints and `i.lo() > 0.0` can be TRUE of one — a quotient by a
 /// divisor not proven away from zero is the shape that reaches here.
@@ -261,8 +262,8 @@ impl core::error::Error for MeterError {}
 /// coefficient-hull *assembly* term and answers `0.0` for the same
 /// arithmetic reason. One spelling would have to pick one of the two
 /// docs, and the shared body is four comparisons.
-pub fn mig(i: RingInterval) -> f64 {
-    if i.is_poison() {
+pub fn mig(i: Interval) -> f64 {
+    if !i.is_certified() {
         return 0.0;
     }
     if i.lo() > 0.0 {
@@ -286,7 +287,7 @@ pub fn sqrt_up(x: f64) -> f64 {
 }
 
 /// Interval dot product, fixed ascending order (D9).
-fn dot(a: &[RingInterval; 3], b: &[RingInterval; 3]) -> RingInterval {
+fn dot(a: &[Interval; 3], b: &[Interval; 3]) -> Interval {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
@@ -298,7 +299,7 @@ fn dot(a: &[RingInterval; 3], b: &[RingInterval; 3]) -> RingInterval {
 /// borrow-shaped triple; if a third consumer ever wants them, the
 /// pair collapses into one `geom_core` home — noted at both sites so
 /// the duplication is a decision rather than an accident.
-fn cross(a: &[RingInterval; 3], b: &[RingInterval; 3]) -> [RingInterval; 3] {
+fn cross(a: &[Interval; 3], b: &[Interval; 3]) -> [Interval; 3] {
     [
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
@@ -309,7 +310,7 @@ fn cross(a: &[RingInterval; 3], b: &[RingInterval; 3]) -> [RingInterval; 3] {
 /// The enclosure of `‖v‖²` — the DEPENDENT square per component, so
 /// a component straddling zero cannot drag the lower end negative
 /// (`x·x` treats its factors as independent; `x.sqr()` does not).
-pub(crate) fn norm_sq(v: &[RingInterval; 3]) -> RingInterval {
+pub(crate) fn norm_sq(v: &[Interval; 3]) -> Interval {
     v[0].sqr() + v[1].sqr() + v[2].sqr()
 }
 
@@ -323,12 +324,12 @@ pub(crate) fn norm_sq(v: &[RingInterval; 3]) -> RingInterval {
 /// a norm calls this rather than re-spelling the fold.
 /// A poisoned enclosure answers `NaN` — no bound at all, which is what
 /// every consumer of this value already treats as unbounded. The
-/// refusal is asked by name because a poisoned ring carries ordinary
+/// refusal is asked by name because a refused enclosure carries ordinary
 /// endpoints and `sqrt_up` of one would be a plausible bound with
 /// nothing behind it.
-pub(crate) fn norm_sup(v: &[RingInterval; 3]) -> f64 {
+pub(crate) fn norm_sup(v: &[Interval; 3]) -> f64 {
     let sq = norm_sq(v);
-    if sq.is_poison() {
+    if !sq.is_certified() {
         return f64::NAN;
     }
     sqrt_up(sq.hi())
@@ -339,7 +340,7 @@ pub(crate) fn norm_sup(v: &[RingInterval; 3]) -> f64 {
 #[derive(Clone, Copy, Debug)]
 pub struct CellNormal {
     /// Componentwise enclosure of `m = S_u × S_v` on the cell.
-    pub m: [RingInterval; 3],
+    pub m: [Interval; 3],
     /// Certified LOWER bound on `‖m‖` over the cell, in
     /// [`PatchRegularity::floor`]'s units (m² per unit parameter
     /// area) — the regularity floor. Exactly `0.0` when neither
@@ -361,13 +362,13 @@ pub struct CellNormal {
 pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     let m = cross(&cell.s_u, &cell.s_v);
     // Assembly A: componentwise mignitude.
-    let sq = RingInterval::point(mig(m[0])).sqr()
-        + RingInterval::point(mig(m[1])).sqr()
-        + RingInterval::point(mig(m[2])).sqr();
+    let sq = Interval::point(mig(m[0])).sqr()
+        + Interval::point(mig(m[1])).sqr()
+        + Interval::point(mig(m[2])).sqr();
     // A refused enclosure separates nothing from zero, and `0.0` is
     // the floor's conservative answer — asked by name, because a
     // refusal here carries real endpoints.
-    let a = if sq.is_poison() {
+    let a = if !sq.is_certified() {
         0.0
     } else {
         sqrt_down(sq.lo())
@@ -377,15 +378,15 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // why this midpoint needs no refusal of its own); the division by
     // a certified upper bound on `‖d̂‖` is what keeps the projection a
     // bound when `d̂` is unit only to rounding.
-    let mid = |i: RingInterval| (i.lo() + i.hi()) * 0.5;
+    let mid = |i: Interval| (i.lo() + i.hi()) * 0.5;
     let dv = [mid(m[0]), mid(m[1]), mid(m[2])];
     let dn = sqrt_up(dv[0].mul_add(dv[0], dv[1].mul_add(dv[1], dv[2] * dv[2])));
     let b = if dn > 0.0 && dn.is_finite() {
-        let proj = RingInterval::point(dv[0]) * m[0]
-            + RingInterval::point(dv[1]) * m[1]
-            + RingInterval::point(dv[2]) * m[2];
-        // The quotient stays IN THE RING and `.lo()` is read once, so
-        // the outward rounding of the division is the ring's rather
+        let proj = Interval::point(dv[0]) * m[0]
+            + Interval::point(dv[1]) * m[1]
+            + Interval::point(dv[2]) * m[2];
+        // The quotient stays IN INTERVAL ARITHMETIC and `.lo()` is read once, so
+        // the outward rounding of the division is interval arithmetic's rather
         // than this function's: a bare `lo / dn` would be a
         // correctly-rounded f64 quotient, which is not a lower bound
         // on the real one. `dn` is a certified UPPER bound on `‖d̂‖`,
@@ -394,8 +395,12 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
         // The quotient's refusal is asked by name: `f64::max(NaN, 0.0)`
         // used to absorb a poisoned quotient, and a refused quotient
         // now carries real endpoints instead.
-        let q = proj / RingInterval::point(dn);
-        if q.is_poison() { 0.0 } else { q.lo().max(0.0) }
+        let q = proj / Interval::point(dn);
+        if !q.is_certified() {
+            0.0
+        } else {
+            q.lo().max(0.0)
+        }
     } else {
         0.0
     };
@@ -408,7 +413,7 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // the sphere-band fixture it is the assembly that moves the
     // certified curvature range from tens to fractions.
     let gram = norm_sq(&cell.s_u) * norm_sq(&cell.s_v) - dot(&cell.s_u, &cell.s_v).sqr();
-    let (c, gram_sup) = if gram.is_poison() {
+    let (c, gram_sup) = if !gram.is_certified() {
         (0.0, f64::NAN)
     } else {
         (sqrt_down(gram.lo()), sqrt_up(gram.hi()))
@@ -618,8 +623,8 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     }
     // The normalized normal, componentwise: `n_c = m_c / ‖m‖` with
     // `‖m‖ ∈ [floor, sup]` — meter 1's floor is exactly what makes
-    // this division legal (the ring refuses a zero-touching divisor).
-    let mag = RingInterval::from_bounds(n.floor, n.sup);
+    // this division legal (interval arithmetic refuses a zero-touching divisor).
+    let mag = Interval::from_bounds(n.floor, n.sup);
     let unit = [n.m[0] / mag, n.m[1] / mag, n.m[2] / mag];
     let (l, m, nn) = (
         dot(&unit, &cell.s_uu),
@@ -629,8 +634,8 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     let e = norm_sq(&cell.s_u);
     let f = dot(&cell.s_u, &cell.s_v);
     let g = norm_sq(&cell.s_v);
-    let two = RingInterval::point(2.0);
-    let a = RingInterval::from_bounds(n.floor, n.sup).sqr();
+    let two = Interval::point(2.0);
+    let a = Interval::from_bounds(n.floor, n.sup).sqr();
     // Assembly A — the closed form `κ± = H ± √(H² − K)`.
     let b = l * g - two * m * f + nn * e;
     let c = l * nn - m.sqr();
@@ -643,7 +648,7 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     // would pass on one. Worse, the joins below are `f64::min`/`max`,
     // which DROP a NaN operand — so one assembly's refusal would be
     // covered by the other assembly's number.
-    if h.is_poison() || k.is_poison() {
+    if !h.is_certified() || !k.is_certified() {
         return None;
     }
     // `H² − K` is nonnegative at every real point (the principal
@@ -662,7 +667,7 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     let w22 = (e * nn - f * m) / a;
     // The same refusal, for the same reason, over Gershgorin's four
     // entries.
-    if w11.is_poison() || w12.is_poison() || w21.is_poison() || w22.is_poison() {
+    if !w11.is_certified() || !w12.is_certified() || !w21.is_certified() || !w22.is_certified() {
         return None;
     }
     let b_hi = (w11.hi() + w12.mag()).max(w22.hi() + w21.mag());
