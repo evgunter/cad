@@ -310,6 +310,14 @@ refusals per ε, every one on a body a TEST inverted, corrupted or
 hand-built with a hand-set normal — none on a body a kernel verb
 produced. Table in ATREST-4's PR.
 
+That measurement is a snapshot, and nothing re-runs it: the
+instrument lived on a throwaway branch. What guards its conclusion
+going forward is weaker and indirect — every row that validates a
+verb's output asserts `Ok`, so a verb whose output starts refusing
+turns its suite red, and check 6's own rows pin the verdicts on the
+bodies above. A body a verb builds that no row validates, or that a
+row validates only for `is_err`, is not guarded.
+
 What remains: a planar loop riding an `Ellipse`, spiric or NURBS
 carrier — `work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`.
 
