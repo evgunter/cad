@@ -2,9 +2,11 @@
 id: ring-4-interval-feature-dropped
 kind: unit
 title: RING-4: the interval feature is dropped — the certified code compiles in every build, CI's lane axis collapses, Q1 says what is true
-status: dispatched
+status: review
 opened: 2026-09-24
 branch: scalar/ring-4
+pr: 3154
+needs_ev: true
 ---
 
 
