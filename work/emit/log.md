@@ -438,3 +438,24 @@ local at each site, because each site's discriminator would answer it
 trivially. The change is behaviour-preserving: the corpus name
 digests, the 304-cell probe and a reviewer-built ≥2-survivor
 placed-union tie are identical to main.
+
+## 2026-09-24 — name-ordered positions have one home (PR 3173)
+
+`names/canonical.rs` is now the one place a path's name-ordered
+positions are put in order:
+- `Merged` and `BandFace` sets;
+- `SideOf` partners (the collapse never sorted these before);
+- junction runs;
+- a union `Seam`'s sides, and the `OrderAlong` rank value that depends
+  on them.
+
+Mint, collapse and every rewrite (`rewrite_path`, `refactor::remap_*`)
+go through one core. The rank rule is derived inside it by comparing
+the name before and after, for every rank on a seam line, including
+one reached through a wrapper.
+
+Review round 1 caught a pair boolean's ranks along an embedded union
+seam re-binding silently under a reordering remap. On the reviewer's
+probe over every permutation there are now 0 wrong binds and 0
+dangling names; main had 990 dangling. Published names that move: 42
+`SideOf` partner-order rows, each binding the same geometry.
