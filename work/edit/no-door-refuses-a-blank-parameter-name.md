@@ -4,7 +4,7 @@ kind: issue
 title: No door refuses a blank parameter name — ParamName::new validates nothing and write_doc_param does not ask
 status: review
 branch: edit/param-name-door
-pr: 0
+pr: 3164
 opened: 2026-09-19
 priority: P1
 cost: E
