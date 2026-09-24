@@ -73,6 +73,7 @@ pub use role::{
     ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,
     band, band_pi, band_rim, carried, meridian_vertex,
 };
+pub(crate) use role::{SegRewrite, inert_seg, locator_seg};
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};
 

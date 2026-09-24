@@ -20,9 +20,9 @@ use editor_core::{
     EvalError, FrameFault, HitTestError, InputFault, InterrogateError, Lever, LeverRefusal,
     Maintenance, MateFault, MateSide, MeasureNodeFault, MeshPickError, MetaVersionError,
     MintRefusal, NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, PartFault,
-    PersistError, PlacementRuleFault, ProgramFault, RecipeNodeId, RecordedProgramError, RefusedRef,
-    ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
-    SnapshotError, StableName, StepArg, StepSegmentsError,
+    PersistError, PlacementRuleFault, ProgramFault, ProvenanceFault, RecipeNodeId,
+    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg,
+    RootFault, Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepSegmentsError,
 };
 use geom_core::BandError;
 
@@ -2178,7 +2178,7 @@ test_utils::f6_variants! {
 
 test_utils::f6_variants! {
     /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
-    const MAINTENANCE: Maintenance = [Cluster, Strand, StrandedAppearance, OrphanedDeclare];
+    const MAINTENANCE: Maintenance = [Cluster, Strand, StrandedAppearance, OrphanedDeclare, Rebound];
 }
 
 /// **Each registry act says what it did to the placement registry.**
@@ -2259,7 +2259,11 @@ fn maintenance_display_says_what_the_edit_did() {
             },
             vec![
                 "node 5 carries a face name minted by node 7",
-                "this edit deleted node 7",
+                // The row is made by two edits — a delete and a
+                // reshaping — and the sentence names what either
+                // removed without claiming which.
+                "this edit removed what it denoted",
+                "its minting node, or the profile segment it named",
                 "resolves to nothing until it is rebound",
             ],
         ),
@@ -2267,8 +2271,19 @@ fn maintenance_display_says_what_the_edit_did() {
             Maintenance::StrandedAppearance { name: face_name() },
             vec![
                 "the appearance store holds an attachment under a face name minted by node 7",
-                "this edit deleted node 7",
+                "this edit removed what it denoted",
                 "rebound or cleared",
+            ],
+        ),
+        (
+            Maintenance::Rebound {
+                from: face_name(),
+                to: face_name(),
+            },
+            vec![
+                "a face name minted by node 7 was rewritten in place",
+                "draws the same step's segment under the reshaped profile program",
+                "still denotes what it did",
             ],
         ),
         (
@@ -2350,6 +2365,121 @@ fn a_recorded_program_refusal_says_what_the_lift_could_not_take() {
         &cases,
         &RECORDED_PROGRAM_ERROR,
         &as_strs(&dimension_dump_words()),
+    );
+}
+
+test_utils::f6_variants! {
+    /// `ProvenanceFault`'s census — see [`NODE_PICK_ERROR`]. The
+    /// whole-program edit's shape faults: seven ways a provenance can
+    /// fail to describe its program, each naming the coordinate the
+    /// caller wrote in the caller's own terms.
+    const PROVENANCE_FAULT: ProvenanceFault = [
+        LoopCount,
+        StepCount,
+        NoSuchOldLoop,
+        NoSuchOldStep,
+        StepOfNewLoop,
+        OldLoopContinuedTwice,
+        OldStepContinuedTwice,
+    ];
+}
+
+/// **Every provenance shape fault states the coordinate it is about
+/// and the count it was checked against**, in the caller's terms — a
+/// NEW loop or step index where the entry sits, an OLD one where it
+/// points — and the edit's arm that carries one frames it with the
+/// node.
+#[test]
+fn a_provenance_fault_names_the_coordinate_and_the_count() {
+    let cases = [
+        (
+            ProvenanceFault::LoopCount {
+                loops: 2,
+                provenance: 3,
+            },
+            vec!["2 loops", "3 entries", "one entry per loop"],
+        ),
+        (
+            ProvenanceFault::StepCount {
+                loop_: 1,
+                steps: 5,
+                provenance: 4,
+            },
+            vec!["loop 1 authors 5 steps", "4 entries", "one entry per step"],
+        ),
+        (
+            ProvenanceFault::NoSuchOldLoop {
+                loop_: 0,
+                from: 3,
+                old_loops: 2,
+            },
+            vec!["loop 0 continues old loop 3", "has 2 loops"],
+        ),
+        (
+            ProvenanceFault::NoSuchOldStep {
+                loop_: 0,
+                step: 2,
+                from: 1,
+                old_step: 9,
+                old_steps: 5,
+            },
+            vec![
+                "loop 0 step 2 continues old step 9 of old loop 1",
+                "authors 5 steps",
+            ],
+        ),
+        (
+            ProvenanceFault::StepOfNewLoop {
+                loop_: 1,
+                step: 0,
+                old_step: 4,
+            },
+            vec![
+                "loop 1 is a new loop",
+                "step 0 continues old step 4",
+                "its steps are all new",
+            ],
+        ),
+        (
+            ProvenanceFault::OldLoopContinuedTwice {
+                from: 0,
+                first: 0,
+                again: 1,
+            },
+            vec!["old loop 0 is continued by loop 0 and again by loop 1"],
+        ),
+        (
+            ProvenanceFault::OldStepContinuedTwice {
+                loop_: 0,
+                from: 0,
+                old_step: 1,
+                first: 1,
+                again: 2,
+            },
+            vec![
+                "old step 1 of old loop 0 is continued by loop 0's step 1 and again by its \
+                 step 2",
+            ],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &PROVENANCE_FAULT, &[]);
+    assert_f6(
+        &EditError::ProvenanceMalformed {
+            node: RecipeNodeId(4),
+            fault: ProvenanceFault::LoopCount {
+                loops: 1,
+                provenance: 2,
+            },
+        },
+        &["node 4's program provenance", "1 loops", "2 entries"],
+        &["ProvenanceMalformed", "LoopCount"],
+    );
+    assert_f6(
+        &EditError::SetProgramOnNonProfile {
+            node: RecipeNodeId(4),
+        },
+        &["node 4 holds no profile program", "no program to set"],
+        &["SetProgramOnNonProfile"],
     );
 }
 

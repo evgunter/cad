@@ -921,9 +921,10 @@ impl<T: Real> Body<T> {
     /// same SET — the ownership partition and the back-pointers are
     /// validated against each other — and differ in ORDER, this door
     /// answering in arena order and a shell walk in shell-then-face-
-    /// list order. A caller that needs the shells kept apart walks
-    /// them; a caller that wants "the faces of this solid" to hand to
-    /// a key-taking verb asks here.
+    /// list order. A caller that needs the shells kept apart asks
+    /// [`Body::shells_of_solid`] and resolves them; a caller that
+    /// wants "the faces of this solid" to hand to a key-taking verb
+    /// asks here.
     ///
     /// **The empty list and the absent solid are different answers**,
     /// which is why this refuses rather than returning a bare `Vec`: a
@@ -943,6 +944,45 @@ impl<T: Real> Body<T> {
                 .map(|(k, _)| k)
                 .collect(),
         )
+    }
+
+    /// The shells of `solid`, **in the order the solid lists them**,
+    /// or `None` where the solid key does not resolve. A foreign key
+    /// is not caught, and the consequence
+    /// [`Body::faces_of_solid`] spells out for a `SolidKey` — a
+    /// foreign key landing on a live slot passes the resolution and
+    /// the caller is handed another solid's entities — holds here
+    /// identically, for the shells.
+    ///
+    /// This is a read of the STORED ownership list — [`Solid::shells`]
+    /// itself — so it borrows rather than building: no caller pays an
+    /// allocation to ask, and one that needs to own the list (because
+    /// it mutates the body while walking it) says `.to_vec()`. That is
+    /// the difference from [`Body::faces_of_solid`], which SELECTS on
+    /// the faces' back-pointers and therefore must build.
+    ///
+    /// **The order is the solid's own, and no arena determines it**:
+    /// an operator that moves a shell between solids appends to the
+    /// destination's list, so a solid's shells need not be
+    /// arena-ascending. [`Body::faces_of_solid`] states how that
+    /// differs from the order IT answers in; a caller comparing the
+    /// two reads it there rather than here.
+    ///
+    /// [`Shell::solid`] is the inverse back-pointer, and tier 1's
+    /// ownership pass validates the list and the back-pointers against
+    /// each other — so on a valid body the two agree about WHICH
+    /// shells, and only this one fixes their order.
+    ///
+    /// **`None` is the only refusal this door can make.** What that
+    /// costs a caller, and which callers therefore keep a hand-written
+    /// walk, is the question [`Body::solid_of_face`] answers at
+    /// length; the argument transfers, with one difference. This door
+    /// composes no second hop, so a caller distinguishing a stale
+    /// SOLID key from a stale SHELL key resolves the shells itself
+    /// rather than reading a second door for the second key.
+    #[must_use]
+    pub fn shells_of_solid(&self, solid: SolidKey) -> Option<&[ShellKey]> {
+        Some(&self.get_solid(solid)?.shells)
     }
 
     /// The face owning `he`'s loop — through the half-edge's
@@ -1469,6 +1509,33 @@ mod tests {
         assert_eq!(body.faces_of_solid(SolidKey::default()), None);
     }
 
+    /// Re-homes `minted`'s shell into `solid` at position `at` of that
+    /// solid's shell list, and retires the solid `mvfs` minted it with.
+    ///
+    /// **A solid with two shells is not constructible through the
+    /// public operators** — `mvfs` mints one solid per shell — so the
+    /// re-homing is a raw in-crate write. The arena removal is PAIRED
+    /// with its provenance removal the way `kvfs` pairs them: an arena
+    /// removal that leaves the provenance entry behind is
+    /// `LeakedProvenance`. Written once here because two rows below
+    /// need the body and the pairing is the easy half to forget; the
+    /// wider class, and whether it wants a home in `fixtures.rs`, is
+    /// `work/dup/the-same-solid-two-shell-body-is-hand-built-three-times.md`.
+    fn adopt_shell_into(
+        body: &mut Body<f64>,
+        solid: SolidKey,
+        minted: &crate::MvfsCreated,
+        at: usize,
+    ) {
+        body.get_shell_mut(minted.shell).unwrap().solid = solid;
+        body.get_solid_mut(solid)
+            .unwrap()
+            .shells
+            .insert(at, minted.shell);
+        body.solids.remove(minted.solid);
+        body.solid_provenance.remove(minted.solid);
+    }
+
     /// The door's ORDER is the ARENA's, not the shell walk's, and the
     /// two are only the same sequence while a solid has one shell.
     ///
@@ -1492,18 +1559,10 @@ mod tests {
         let mut body = t.body;
         let second = body.mvfs(origin()).unwrap();
 
-        // One solid, two shells: adopt the minted shell (its own solid
-        // goes, rather than staying behind empty), and move `face_b`
-        // into it so the shells interleave with the arena.
-        body.get_shell_mut(second.shell).unwrap().solid = t.solid;
-        body.get_solid_mut(t.solid)
-            .unwrap()
-            .shells
-            .push(second.shell);
-        // Paired, as `kvfs` pairs them: an arena removal that leaves
-        // the provenance entry behind is `LeakedProvenance`.
-        body.solids.remove(second.solid);
-        body.solid_provenance.remove(second.solid);
+        // One solid, two shells, the minted shell listed LAST; then
+        // move `face_b` into it so the shells interleave with the
+        // arena.
+        adopt_shell_into(&mut body, t.solid, &second, 1);
         body.get_shell_mut(t.shell)
             .unwrap()
             .faces
@@ -1539,6 +1598,37 @@ mod tests {
             walk.into_iter().collect::<std::collections::BTreeSet<_>>(),
             "same set, different sequence"
         );
+    }
+
+    /// [`Body::shells_of_solid`] answers the SOLID's list order,
+    /// which no arena determines: the fixture puts a solid's two
+    /// shells in the reverse of the order the shell arena holds them,
+    /// and the door follows the list. Its three answers — a list, the
+    /// empty list, and `None` — are kept apart, as at
+    /// [`Body::faces_of_solid`].
+    #[test]
+    fn shells_of_solid_answers_the_solids_own_list_order_not_the_arenas() {
+        let t = pillow(Tol::witness());
+        let mut body = t.body;
+        let second = body.mvfs(origin()).unwrap();
+
+        // The minted shell listed FIRST, so the solid's list runs
+        // against the arena's slot order.
+        adopt_shell_into(&mut body, t.solid, &second, 0);
+
+        let arena: Vec<ShellKey> = body.shells().map(|(k, _)| k).collect();
+        assert_eq!(arena, vec![t.shell, second.shell], "the arena's order");
+        assert_eq!(
+            body.shells_of_solid(t.solid).unwrap(),
+            [second.shell, t.shell],
+            "the solid's own order, reversed against the arena"
+        );
+
+        // A solid with no shells answers the empty list; a solid key
+        // the body does not hold answers `None`.
+        let barren = body.add_solid(Solid { shells: vec![] }, prov());
+        assert_eq!(body.shells_of_solid(barren).unwrap(), [] as [ShellKey; 0]);
+        assert_eq!(body.shells_of_solid(SolidKey::default()), None);
     }
 
     #[test]

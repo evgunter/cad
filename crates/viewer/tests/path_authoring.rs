@@ -465,8 +465,7 @@ fn a_path_authored_in_millimetres_remembers_its_notation() {
     assert_eq!(written(theta), Some("deg"));
     // A dimensionless argument is written the one way a dimensionless
     // literal is, whatever the form's notation says.
-    let plain = pncad::document::Expr::literal(1.0, pncad::document::Dimension::Scalar)
-        .expect("a finite scalar");
+    let plain = common::scl(1.0);
     for scalar in [dx, dy, b] {
         assert_eq!(written(scalar), written(&plain));
     }
