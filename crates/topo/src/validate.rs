@@ -8580,8 +8580,20 @@ mod tests {
                 RingNestingVerdict::Undecided(e) => format!("Undecided({e})"),
             };
             assert_eq!(
-                render(ring_nesting(body, f.outer, f.rings[0], normal, band)),
-                render(ring_nesting(body, f.outer, f.rings[0], -normal, band)),
+                render(ring_nesting(
+                    body,
+                    f.outer,
+                    f.rings[0],
+                    NestingRegion::Polygon { normal },
+                    band
+                )),
+                render(ring_nesting(
+                    body,
+                    f.outer,
+                    f.rings[0],
+                    NestingRegion::Polygon { normal: -normal },
+                    band,
+                )),
                 "{name}: the verdict moved with the chart normal's sign"
             );
         }
@@ -8731,7 +8743,7 @@ mod tests {
             let Some(&Surface::Plane { normal, .. }) = b.surfaces.get(f.surface) else {
                 panic!("a plane")
             };
-            let verdict = ring_nesting(&b, f.outer, lone, normal, band);
+            let verdict = ring_nesting(&b, f.outer, lone, NestingRegion::Polygon { normal }, band);
             if outside {
                 assert!(
                     matches!(
