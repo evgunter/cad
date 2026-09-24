@@ -18,6 +18,11 @@
 //! - [`ValuePayload::Split`] — both pieces, `above` then `below` (a
 //!   mold document wants both halves).
 //!
+//! Before any root is read, the recipe is checked for one body placed
+//! under two roots — two roots reaching one node through transforms
+//! and part selections alone, which would carry its names twice — and
+//! the gather refuses that shape as [`ProductError::PlacedUnderTwoRoots`].
+//!
 //! A root that denotes no body at all (a datum, a WIP profile tip, a
 //! declaration) contributes NOTHING and is not an error — A10 states
 //! that outright. An EMPTY boolean or split side is body-denoting and
@@ -125,12 +130,9 @@ pub enum ProductError {
     /// and the two select the same body of it (the whole value, or the
     /// same half or instance).
     ///
-    /// Neither a transform nor a part selection mints a name (N1), so
-    /// both roots carry `placed`'s names verbatim and the product would
-    /// hold two entities under each of them. Raised from the recipe
-    /// before any root's value is read, because the shape alone decides
-    /// it; `placed` is the node nearest the roots at which their chains
-    /// meet.
+    /// Raised from the recipe before any root's value is read, because
+    /// the shape alone decides it; why the shape cannot gather, and
+    /// which edges it follows, is `placed_under_two_roots`'s doc.
     PlacedUnderTwoRoots {
         /// The node whose body both roots place.
         placed: RecipeNodeId,
@@ -144,27 +146,39 @@ pub enum ProductError {
     },
     /// Name rows the gather carried would alias in the product table
     /// — the same STRICT name twice, or two names on one aggregate
-    /// entity. Usually two ROOTS' rows, which is the only way a
-    /// document reaches it; the tie merge below the roots can raise it
-    /// too, and there the colliding rows belong to no one root (see
-    /// `node` below). An emission-level bug surfaced, never resolved
-    /// by picking one.
+    /// entity. Raised by the per-root carry (`carry_names`, `node` a
+    /// root) or by the tie flush after the last source (`node` the
+    /// name's minter, since the colliding rows belong to no one root).
+    /// Never resolved by picking one.
     ///
     /// Two roots that place one body through transforms and part
     /// selections refuse earlier, as
-    /// [`ProductError::PlacedUnderTwoRoots`]. What still reaches this
-    /// arm from a document is sharing through a split's intact
-    /// pass-through, which the recipe cannot decide: whether a split
-    /// root and another root over the split's target share a name
-    /// depends on which of the target's entities the plane leaves
-    /// uncut.
+    /// [`ProductError::PlacedUnderTwoRoots`]. The routes a document
+    /// still has to this arm are three:
     ///
-    /// A name that descends from an N2 TIE is not this: its candidates
-    /// are equally admissible and stay so in the product, so rows
-    /// arriving under one tied name MERGE into one `Entry::Tied`
-    /// (`carry_names`) rather than colliding — including the
-    /// candidates a split separated into two halves the gather then
-    /// carries as two sources. What that costs is stated where it
+    /// - **A split's intact pass-through.** A split root beside another
+    ///   root over the split's target shares whichever of the target's
+    ///   entities the plane leaves uncut — geometry the recipe cannot
+    ///   see. The per-root carry refuses.
+    /// - **One instance index spelled two ways.** `Part` selections
+    ///   are compared as written, so `Instance(1)` beside
+    ///   `Instance(0 + 1)` passes the recipe check and the per-root
+    ///   carry refuses.
+    /// - **Two halves of one split taken as two `Part` roots, over a
+    ///   tie the plane separates.** Each `Part` narrows the tie to the
+    ///   candidates in its own half (`NameTable::project`), so a half
+    ///   holding one candidate carries the name STRICT. With one
+    ///   candidate per half both halves are strict and the per-root
+    ///   carry refuses; with one in one half and several in the other,
+    ///   the strict row meets the deferred tie at the flush. Both are
+    ///   FALSE refusals — no body is placed twice —
+    ///   (`work/gather/product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique.md`).
+    ///
+    /// Rows arriving under one tied name MERGE into one `Entry::Tied`
+    /// rather than colliding when every source carries the name as a
+    /// tie — which is what a split ROOT hands the gather for a tie its
+    /// plane separates, since the split's own table keeps the tie
+    /// across both output bodies. What that costs is stated where it
     /// lands: the product genuinely holds two entities under the one
     /// name, and a selection that matches both refuses
     /// (`SelectRefusal::TiedDisagrees`) instead of the gather refusing
@@ -282,9 +296,11 @@ impl core::fmt::Display for ProductError {
                     Some(crate::node::PartSelect::SplitHalf(SplitHalf::Below)) => {
                         format!("the below half of node {}", placed.0)
                     }
-                    Some(crate::node::PartSelect::Instance(_)) => {
-                        format!("one instance of node {}", placed.0)
-                    }
+                    Some(crate::node::PartSelect::Instance(i)) => format!(
+                        "instance `{}` of node {}",
+                        crate::expr::unparse(i),
+                        placed.0
+                    ),
                 };
                 write!(
                     f,
@@ -732,9 +748,11 @@ pub struct SolidOrigin {
 ///
 /// Every arm of [`ProductError`], including
 /// [`ProductError::EvaluationOfAnotherDocument`] when `evaluation` is
-/// not an evaluation of `doc`, and [`ProductError::Naming`] when two
-/// roots' rows would name one aggregate entity or collide on one name
-/// — an aliasing bug surfaced, never resolved silently.
+/// not an evaluation of `doc`; [`ProductError::PlacedUnderTwoRoots`],
+/// from the recipe before any root is read, when two roots place one
+/// body through transforms and part selections; and
+/// [`ProductError::Naming`] when two roots' rows would still name one
+/// aggregate entity or collide on one name — never resolved silently.
 pub fn product_named<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
@@ -892,11 +910,11 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     // rather than a root: the collision is between rows that arrived
     // from different sources, so no one root is its author.
     //
-    // No document reaches it. Two sources that share a tied name share
-    // a strict one too, so `carry_names` refuses first
-    // (`CarriedRows::finish` has the argument), and two roots that
-    // place one body refuse before that (`placed_under_two_roots`).
-    // The arm stays typed because this crate has no panic paths.
+    // A document reaches it when two `Part` roots take the two halves
+    // of one split over a tie the plane separates unevenly: the half
+    // holding one candidate carries the name strict, the other defers
+    // it, and they meet here. That refusal is false
+    // (`work/gather/product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique.md`).
     tie_rows
         .finish(&mut names)
         .map_err(|e| ProductError::Naming {
@@ -944,9 +962,10 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
 /// it carries (N1) or, for a split's intact entities, carries a subset
 /// only its geometry decides.
 ///
-/// Two chains that meet at one node with overlapping selections —
-/// either whole, or the same selection — carry that node's names
-/// twice. The node reported is the one nearest the later root, which
+/// Neither edge mints a name (N1), so two chains that meet at one node
+/// with overlapping selections — either whole, or the same selection —
+/// both carry that node's names verbatim, and the product would hold
+/// two entities under each of them. The node reported is the one nearest the later root, which
 /// is the one nearest both: below a meeting point the two chains are
 /// one chain.
 ///

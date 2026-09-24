@@ -223,6 +223,52 @@ fn a_whole_pattern_and_one_of_its_instances_refuse() {
     assert_eq!(placed_twice(&doc, &ev), (pattern, None, whole, one));
 }
 
+/// **One instance selected by two roots**: the refusal carries the
+/// selection, and the message says WHICH instance.
+#[test]
+fn one_instance_under_two_roots_refuses_naming_the_instance() {
+    let doc = ProfileDoc::empty_derived("gather-two-roots-instance", Tol::witness());
+    let (doc, extrude) = block(doc, 1.0, 1.0);
+    let (doc, pattern) = insert(
+        doc,
+        Node::Pattern {
+            input: extrude,
+            count: Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let pick = |doc| {
+        insert(
+            doc,
+            Node::Part {
+                of: pattern,
+                select: PartSelect::Instance(Expr::count(1)),
+            },
+        )
+    };
+    let (doc, first) = pick(doc);
+    let (doc, second) = pick(doc);
+    let ev = run(&doc);
+    let err = product(&doc, &ev, Tol::witness()).expect_err("instance 1 twice");
+    assert!(
+        err.to_string()
+            .contains(&format!("instance `1` of node {}", pattern.0)),
+        "{err}"
+    );
+    assert_eq!(
+        placed_twice(&doc, &ev),
+        (
+            pattern,
+            Some(PartSelect::Instance(Expr::count(1))),
+            first,
+            second
+        )
+    );
+}
+
 /// **The legal placements beside those shapes still gather.** One
 /// root over one transform; two transforms of one body unioned into
 /// one root; the two DIFFERENT halves of one split as two roots; and
@@ -388,4 +434,184 @@ fn one_instance_mated_through_two_transforms_solves_and_refuses_at_the_gather() 
     let (placed, select, first, second) = placed_twice(&doc, &ev);
     assert_eq!(placed, top, "the instance, not a base or a mate");
     assert_eq!((select, first, second), (None, t1, t2));
+}
+
+/// **The selection rides down through a transform below a part.**
+/// Instance 0 read through a transform of the pattern, beside instance
+/// 2 read off the pattern itself: two different instances, so two
+/// bodies. A walk that dropped the selection at the transform would
+/// read the first chain as taking the pattern WHOLE and refuse.
+#[test]
+fn rv_selection_rides_down_through_a_transform() {
+    let doc = ProfileDoc::empty_derived("rv-ride", Tol::witness());
+    let (doc, b) = block(doc, 1.0, 1.0);
+    let (doc, p) = insert(
+        doc,
+        Node::Pattern {
+            input: b,
+            count: Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(2.0),
+            },
+        },
+    );
+    let (doc, tp) = shifted(doc, p, 0.0);
+    let pick = |doc, of, i| {
+        insert(
+            doc,
+            Node::Part {
+                of,
+                select: PartSelect::Instance(Expr::count(i)),
+            },
+        )
+    };
+    let (doc, _) = pick(doc, tp, 0);
+    let (doc, _) = pick(doc, p, 2);
+    assert_eq!(
+        product(&doc, &run(&doc), Tol::witness())
+            .map(|b| b.faces().count())
+            .map_err(|e| e.to_string()),
+        Ok(12)
+    );
+}
+
+// ---- false refusals the recipe check does not cause, pinned ----
+//
+// Two halves of one split taken as two `Part` roots place no body
+// twice, yet the gather refuses them when the plane separates an N2
+// tie: each `Part` projects the split's table onto its half, and a half
+// holding ONE candidate carries the tied name strict. Measured here as
+// the current behaviour, to be flipped when
+// `work/gather/product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique.md`
+// is fixed.
+
+/// A 4×4×4 block less a cutter whose prongs, each `(y0, y1)`, cross the
+/// x = 4 wall at z ∈ [1, 3]: the prongs' far ends leave cap fragments
+/// no covariant qualifier separates, one tie candidate per prong.
+/// Answers the subtract.
+fn cutter(doc: ProfileDoc, prongs: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, a) = block(doc, 4.0, 4.0);
+    let lo = prongs.first().expect("a prong").0;
+    let hi = prongs.last().expect("a prong").1;
+    let mut pts = vec![(2.0, lo), (6.0, lo), (6.0, hi)];
+    let mut rev: Vec<(f64, f64)> = prongs.iter().rev().copied().collect();
+    let top = rev.remove(0);
+    pts.push((2.0, top.1));
+    pts.push((2.0, top.0));
+    let mut prev_lo = top.0;
+    for (l, h) in rev {
+        pts.push((5.0, prev_lo));
+        pts.push((5.0, h));
+        pts.push((2.0, h));
+        pts.push((2.0, l));
+        prev_lo = l;
+    }
+    pts.pop();
+    let (doc, profile) = on_frame(
+        doc,
+        [0.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        vec![pts],
+    );
+    let (doc, c) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(2.0),
+        },
+    );
+    insert(
+        doc,
+        Node::Boolean {
+            op: editor_core::BooleanOp::Subtract,
+            a,
+            b: c,
+            declare: None,
+        },
+    )
+}
+
+/// The cutter's subtract split at y = `y`, the split as the only root
+/// (which gathers: its own table keeps the tie across both halves),
+/// then both halves taken as `Part` roots. Answers (doc, subtract,
+/// above, below).
+fn halves_over_a_tie(
+    label: &str,
+    prongs: &[(f64, f64)],
+    y: f64,
+) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived(label, Tol::witness());
+    let (doc, sub) = cutter(doc, prongs);
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(y), len(0.0)],
+            normal: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
+    let (doc, split) = insert(
+        doc,
+        Node::Split {
+            target: sub,
+            tool: plane,
+        },
+    );
+    assert!(
+        product(&doc, &run(&doc), Tol::witness()).is_ok(),
+        "the premise: the split as one root gathers"
+    );
+    let (doc, above) = half(doc, split, SplitHalf::Above);
+    let (doc, below) = half(doc, split, SplitHalf::Below);
+    assert_eq!(
+        doc.roots(),
+        &[above, below][..],
+        "the premise: two Part roots"
+    );
+    (doc, sub, above, below)
+}
+
+/// **One candidate in each half: a false refusal at the per-root
+/// carry.** The U-cutter's two prongs, split between them at y = 2.
+/// Both `Part`s narrow the tie to `Unique`, so the later half's strict
+/// row collides with the earlier one's.
+#[test]
+fn split_halves_as_roots_over_a_one_one_tie_falsely_refuse_at_the_carry() {
+    let (doc, sub, _, below) =
+        halves_over_a_tie("gather-false-carry", &[(1.0, 1.5), (2.5, 3.0)], 2.0);
+    match product(&doc, &run(&doc), Tol::witness()) {
+        Err(ProductError::Naming { node, name }) => {
+            assert_eq!(node, below, "the later half's root");
+            assert_eq!(name.node, sub, "the tie the subtract minted");
+        }
+        other => panic!(
+            "the measured false refusal changed: {:?}",
+            other.map(|b| b.faces().count())
+        ),
+    }
+}
+
+/// **One candidate in one half, two in the other: a false refusal at
+/// the tie flush.** The E-cutter's three prongs, split at y = 1.5
+/// between the first and the second. The lower half's `Part` carries
+/// the name strict, the upper half's defers it as a tie, and the flush
+/// after the last source meets the two — naming the minter, not a root.
+#[test]
+fn split_halves_as_roots_over_a_one_two_tie_falsely_refuse_at_the_flush() {
+    let (doc, sub, above, below) = halves_over_a_tie(
+        "gather-false-flush",
+        &[(0.5, 1.0), (1.75, 2.25), (3.0, 3.5)],
+        1.5,
+    );
+    match product(&doc, &run(&doc), Tol::witness()) {
+        Err(ProductError::Naming { node, name }) => {
+            assert_eq!((node, name.node), (sub, sub), "the flush names the minter");
+            assert!(node != above && node != below, "and neither root");
+        }
+        other => panic!(
+            "the measured false refusal changed: {:?}",
+            other.map(|b| b.faces().count())
+        ),
+    }
 }

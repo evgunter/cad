@@ -102,8 +102,12 @@ change that; it only settled which layer's answer is right.
 
 The gather refuses the shape from the recipe, before any root is read,
 as `ProductError::PlacedUnderTwoRoots { placed, select, first, second }`
-(`product.rs`, `placed_under_two_roots`). The per-root `Naming` carry
-arm stays reachable through a split's intact pass-through (named in
-`wire_product_gather_tie`); the tie-flush arm is unreachable with its
-reason at the site. The solve's half is MSOLVE's:
+(`product.rs`, `placed_under_two_roots`). Both late `Naming` arms stay
+reachable. The per-root carry is reached through a split's intact
+pass-through (`wire_product_gather_tie`) and through one instance
+index spelled two ways. Both the carry and the tie flush are reached,
+FALSELY, by two `Part` roots over the halves of a split that separates
+a tie: `work/gather/product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique.md`,
+pinned as measurements in `gather_placed_under_two_roots`. The solve's
+half is MSOLVE's:
 `work/msolve/the-solve-accepts-a-body-placed-under-two-roots.md`.
