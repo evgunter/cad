@@ -1805,3 +1805,16 @@ builds at a time after the merge of main; the dual above holds both).
 
 One row re-homed: `census-witness-string-repeats-the-subject` moves to
 ATREST with `validate.rs`, the file it decides (logged there).
+
+## B5 slot 2 dispatched; the run-doors dual half in (2026-09-24)
+
+One of PR 2603's two reviews delivered (MERGEABLE-AFTER-FIXES; report
+archived privately) and freed a build target, so slot 2 —
+`a-null-edge-can-be-re-based-onto-a-distinct-point` with
+`the-re-basing-gate-refuses-m7-8-where-nothing-moves` — dispatched as
+an Opus implementer on `topo/rebasing-gate-null-edges-and-no-move`,
+review tier DUAL (recorded above). Its brief's shape 2 (a
+structural-identity door on `geom-core`) is built only if CLAUDE.md's
+ratification check clears the surface it would change; otherwise the
+lane writes it up for an `[ev]` PR. PR 2603's adjudication waits for
+its second review.
