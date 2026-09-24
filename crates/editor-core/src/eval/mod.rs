@@ -1507,6 +1507,13 @@ pub enum NodeErrorKind {
     /// body it cannot validate the node refuses, naming the lane. The
     /// base-scalar evaluation beside this one is where the shell is
     /// built and validated.
+    ///
+    /// **The NAME names the refusal, not a trait.** What the scalar
+    /// has no door for is read off `topo::AtRestPolicy::shell_door`,
+    /// the per-scalar policy seam; there is no `ShellLane` and the
+    /// variant is not renamed for the mechanism behind it — the
+    /// spelling crosses the Python boundary as the
+    /// `shell_lane_unsupported` tag.
     ShellLaneUnsupported {
         /// The scalar lane that has no door.
         lane: &'static str,
@@ -2295,9 +2302,11 @@ impl CancelToken {
 /// What a scalar must satisfy to be evaluated: decided predicates, the
 /// memo's content bits, the certification brackets the props lane
 /// needs, the scalar's at-rest gate policy (`topo::AtRestPolicy`,
-/// which carries the fitted-pcurve lane trait as its supertrait — the part
-/// seam gathers a referenced document's product, so evaluation owns a
-/// gate policy per scalar), the two per-scalar analysis capabilities
+/// which carries the fitted-pcurve lane trait as its supertrait and
+/// answers the two injected doors, the offset fit's and the shell
+/// verb's — the part seam gathers a referenced document's product, so
+/// evaluation owns a gate policy per scalar), the two per-scalar
+/// analysis capabilities
 /// (`crate::analysis::AxisScalar` for the parameter box,
 /// `crate::analysis::SeedScalar` for the E4 seed — both scalar-free
 /// options whose capability lives at the scalar), and `Send + Sync`
@@ -2317,7 +2326,6 @@ pub trait EvalScalar:
     + crate::analysis::SeedScalar
     + crate::measure::MinClearanceLane
     + SectionScalar
-    + crate::verbs::shell::ShellLane
 {
 }
 
@@ -2332,7 +2340,6 @@ impl<T> EvalScalar for T where
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
         + SectionScalar
-        + crate::verbs::shell::ShellLane
 {
 }
 
