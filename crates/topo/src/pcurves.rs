@@ -105,6 +105,19 @@
 //! or a bare Euler run in its own interior and still MAINTAIN, so long
 //! as it re-mints before it hands the body back.
 //!
+//! **No Euler operator returns a face half-minted.** The operators that
+//! add half-edges to an existing loop — [`crate::Body::mev`],
+//! [`crate::Body::mef`] and [`crate::Body::mekr`], with their sugar —
+//! mint the row of every half-edge they add to a face whose rows are
+//! COMPLETE, before they mutate ([`site_rows`], which states the rule
+//! and its two edges: a spline chart refuses typed, and a face the
+//! closed-form lane cannot mint as the surgery leaves it stores
+//! nothing). A face that stores no row is the minting pass's and stays
+//! rowless. So a producer's final pass is not
+//! repairing its operators' output: it is the pass that mints the faces
+//! the producer BUILT — which its operators leave unminted by design —
+//! and re-derives what its non-Euler doors staled or dropped.
+//!
 //! **Maintains the map** — runs [`mint_pcurves`] on the result, and
 //! that pass CLEARS the map before re-minting. [`mint_pcurves_of`] is
 //! the same posture over a SUBSET, **for a producer that kills no
@@ -214,7 +227,9 @@
 //! door's
 //! (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`).
 //!
-//! **Neither clears nor re-mints** — the remaining Euler operators and
+//! **Neither clears nor re-mints** — the Euler operators that add no
+//! half-edge to an existing loop (`mvfs`, `kemr`), the null-edge `mev`
+//! (whose scaffolding has no carrier to derive a row from), and the
 //! kill ops. These are primitives, and they are what the stale-row
 //! consequence below is about.
 //!
@@ -362,6 +377,18 @@ pub enum PcurveMintError {
     /// NO caches is legal everywhere (planar faces, frontier charts,
     /// and any body that never ran the minting pass); a half-minted
     /// one is a defect.
+    ///
+    /// **On the output of the half-edge-minting Euler operators this
+    /// is a kernel-bug detector**: `mev`, `mef` and `mekr` leave every
+    /// complete face they touch complete or rowless, or refuse
+    /// ([`site_rows`]), so none of them produces this state. The doors
+    /// that still can are the ones whose docs say so — a row dropped
+    /// onto a minted face by a door that moves a loop or run between
+    /// charts ([`crate::Body::drop_rows`]), `split_edge`'s
+    /// `Fitted`/`General` frontier ([`split_cache`]), `mev_null`'s
+    /// carrier-less scaffolding, and a caller's own
+    /// [`crate::Body::detach_pcurve`] — and on a face that arrives
+    /// half-minted, the operators leave it as found.
     MissingCache {
         /// The half-edge with no stored cache.
         half_edge: HalfEdgeKey,
@@ -2031,10 +2058,6 @@ pub enum SiteHalf {
 /// Why an Euler operator refused to add a half-edge to a face whose
 /// pcurve rows are complete — [`site_rows`]' refusal, raised before the
 /// operator mutates anything, so the body is untouched.
-///
-/// Each arm but the first is the refusal [`mint_pcurves`] would raise
-/// over the face the surgery leaves, named by [`SiteHalf`] because the
-/// half-edges the operator would add have no key yet.
 #[derive(Clone, Debug, PartialEq)]
 pub enum SiteRowRefusal {
     /// **The fitted frontier.** The face is on a SPLINE chart (a
@@ -2045,31 +2068,6 @@ pub enum SiteRowRefusal {
     /// `Decide`, so they refuse here rather than leave the face
     /// half-minted.
     SplineChart,
-    /// A chart image of the face failed certification — the new edge's
-    /// own (a carrier that does not lie on the face's surface is the
-    /// ordinary case), or a neighbour's re-derived beside it.
-    Certify {
-        /// The half-edge whose image was refused.
-        at: SiteHalf,
-        /// The typed certification failure, nested whole.
-        error: PcurveCertifyError,
-    },
-    /// The image of `at` meets its predecessor's in the chart on no
-    /// branch ([`PcurveMintError::LoopDiscontinuity`]).
-    LoopDiscontinuity {
-        /// The half-edge whose entry met no branch.
-        at: SiteHalf,
-    },
-    /// A loop of the face does not close in the chart
-    /// ([`PcurveMintError::LoopNotClosed`]).
-    LoopNotClosed,
-    /// A branch or continuity decision escalated.
-    Escalated {
-        /// The half-edge under classification.
-        at: SiteHalf,
-        /// The classifier's diagnostic.
-        cause: Indeterminate,
-    },
     /// A key the derivation reads did not resolve — tier 1's
     /// corruption, which the operator's own plan phase did not see.
     Corrupt,
@@ -2081,27 +2079,9 @@ impl core::fmt::Display for SiteRowRefusal {
             Self::SplineChart => write!(
                 f,
                 "the face is on a spline chart, where a new edge's pcurve row derives only \
-                 through the fitted lane; the Euler operators do not carry it. Recourse: run \
-                 the operator before the face is minted, and mint once the surgery is done"
+                 through the fitted lane, which the Euler operators do not carry. Recourse: \
+                 run the operator before the face is minted, and mint once the surgery is done"
             ),
-            Self::Certify { at, error } => write!(
-                f,
-                "the pcurve row of {at:?} does not certify on the face's chart: {error}. \
-                 Recourse: give the new edge a carrier that lies on the face's surface"
-            ),
-            Self::LoopDiscontinuity { at } => write!(
-                f,
-                "the pcurve row of {at:?} meets its predecessor's on no branch of the face's \
-                 chart. Recourse: re-mint the body if it was edited after minting"
-            ),
-            Self::LoopNotClosed => write!(
-                f,
-                "a loop of the face does not close in its chart. Recourse: re-mint the body if \
-                 it was edited after minting"
-            ),
-            Self::Escalated { at, cause } => {
-                write!(f, "the pcurve row of {at:?} escalated: {cause}")
-            }
             Self::Corrupt => write!(
                 f,
                 "the body is structurally corrupt (a key did not resolve); read the \
@@ -2151,9 +2131,8 @@ pub(crate) enum SiteRows<T: Real> {
     /// Every row of the face after the surgery, the two new halves'
     /// among them.
     Mint(Vec<(SiteHalf, PcurveCache<T>)>),
-    /// The new edge's carrier is outside the chart's closed-form
-    /// classes, so the face is not covered by the minting lane and
-    /// stores nothing — [`mint_pcurves`]' answer for such a face.
+    /// The face as the surgery leaves it has no closed-form row set
+    /// that certifies, so it stores nothing ([`site_rows`] says when).
     /// Every half-edge of the face after the surgery.
     Clear(Vec<SiteHalf>),
 }
@@ -2193,16 +2172,32 @@ pub(crate) enum SiteRows<T: Real> {
 /// chart refuses [`SiteRowRefusal::SplineChart`] — the frontier, typed,
 /// before any mutation.
 ///
-/// **Where the pass would leave a face uncovered, so does this**: a
-/// carrier outside the chart's closed-form classes
-/// ([`PcurveCertifyError::UnsupportedCarrier`]) makes the face store
-/// nothing ([`SiteRows::Clear`]), which is `mint_faces`' answer for it.
-/// Every other refusal the pass would raise is raised here, before the
-/// surgery, rather than by the pass after it.
+/// **Where the face as the surgery leaves it cannot be minted, it
+/// stores nothing** ([`SiteRows::Clear`]) — unminted, which is a legal
+/// at-rest state, and never half-minted. Two cases reach it:
+///
+/// - a carrier outside the chart's closed-form classes
+///   ([`PcurveCertifyError::UnsupportedCarrier`]): the face is not
+///   covered by the lane, which is exactly `mint_faces`' answer for it;
+/// - every refusal the pass would RAISE over that face — a
+///   certification, a branch that meets no neighbour, a loop that does
+///   not close, an escalation. The operators are called mid-surgery, on
+///   states the surgery has not finished describing (a scaffold chord
+///   `set_edge_curve` re-describes afterwards, a trim whose loop is
+///   closed by the next operator), and refusing there refuses the
+///   surgery rather than the state it ends in: measured, a refusal here
+///   stopped the fillet surgery's annulus trim and the splitting
+///   lane's chord split. So the operator leaves the face to the pass,
+///   and a producer's final pass is where such a face is minted — or
+///   refused, loudly, if the finished state is still wrong. What this
+///   costs a caller that runs no pass is the loud reading on that face:
+///   the tier-3 pass says nothing about a face that stores no row
+///   (`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`).
 ///
 /// # Errors
 ///
-/// [`SiteRowRefusal`].
+/// [`SiteRowRefusal`]: the spline frontier, or a key that did not
+/// resolve.
 pub(crate) fn site_rows<T: Decide>(
     body: &Body<T>,
     face: &SiteFace<T>,
@@ -2248,12 +2243,12 @@ pub(crate) fn site_rows<T: Decide>(
         });
     }
     let every_half = || loops.iter().flatten().copied().collect::<Vec<_>>();
-    let traversal = |at: SiteHalf| -> Result<(geom::Curve3<T>, T, T, bool), SiteRowRefusal> {
+    let traversal = |at: SiteHalf| -> Result<(geom::Curve3<T>, T, T, bool), ItemFail> {
         match at {
             SiteHalf::Existing(he) => {
                 let (carrier, t0, t1) =
-                    half_edge_carrier(body, he).map_err(|_| SiteRowRefusal::Corrupt)?;
-                let plus = is_plus(body, he).map_err(|_| SiteRowRefusal::Corrupt)?;
+                    half_edge_carrier(body, he).map_err(|_| ItemFail::Corrupt)?;
+                let plus = is_plus(body, he).map_err(|_| ItemFail::Corrupt)?;
                 Ok((carrier, t0, t1, plus))
             }
             SiteHalf::NewPlus | SiteHalf::NewMinus => {
@@ -2266,37 +2261,19 @@ pub(crate) fn site_rows<T: Decide>(
     let mut walked: Vec<(SiteHalf, geom::Curve3<T>, Pcurve<T>, T, T)> = Vec::new();
     for halves in &loops {
         let mut carriers: Vec<geom::Curve3<T>> = Vec::with_capacity(halves.len());
-        let item = |i: usize| -> Result<WalkItem<T>, SiteRowRefusal> {
-            let at = halves[i];
-            let (carrier, t0, t1, plus) = traversal(at)?;
-            let base = chart_pcurve(&carrier, &face.surface, band)
-                .map_err(|error| SiteRowRefusal::Certify { at, error })?;
+        let item = |i: usize| -> Result<WalkItem<T>, ItemFail> {
+            let (carrier, t0, t1, plus) = traversal(halves[i])?;
+            let base =
+                chart_pcurve(&carrier, &face.surface, band).map_err(|_| ItemFail::Derive)?;
             carriers.push(carrier);
             Ok(WalkItem { base, t0, t1, plus })
         };
         let pinned = match walk_cycle(&face.surface, halves.len(), item, band) {
             Ok(pinned) => pinned,
-            Err(WalkFail::Item(SiteRowRefusal::Certify {
-                error: PcurveCertifyError::UnsupportedCarrier,
-                ..
-            })) => return Ok(SiteRows::Clear(every_half())),
-            Err(WalkFail::Item(refusal)) => return Err(refusal),
-            Err(WalkFail::Miss {
-                index,
-                miss: PinMiss::Discontinuity,
-            }) => {
-                return Err(SiteRowRefusal::LoopDiscontinuity { at: halves[index] });
+            Err(WalkFail::Item(ItemFail::Corrupt)) => return Err(SiteRowRefusal::Corrupt),
+            Err(WalkFail::Item(ItemFail::Derive) | WalkFail::Miss { .. } | WalkFail::NotClosed) => {
+                return Ok(SiteRows::Clear(every_half()));
             }
-            Err(WalkFail::Miss {
-                index,
-                miss: PinMiss::Escalated(cause),
-            }) => {
-                return Err(SiteRowRefusal::Escalated {
-                    at: halves[index],
-                    cause,
-                });
-            }
-            Err(WalkFail::NotClosed) => return Err(SiteRowRefusal::LoopNotClosed),
         };
         for ((&at, carrier), (pcurve, t0, t1)) in halves.iter().zip(carriers).zip(pinned) {
             walked.push((at, carrier, pcurve, t0, t1));
@@ -2319,13 +2296,19 @@ pub(crate) fn site_rows<T: Decide>(
     for (at, carrier, pcurve, t0, t1) in walked {
         match PcurveCache::certify(pcurve, t0, t1, &carrier, &face.surface, window, band) {
             Ok(cache) => rows.push((at, cache)),
-            Err(PcurveCertifyError::UnsupportedCarrier) => {
-                return Ok(SiteRows::Clear(every_half()));
-            }
-            Err(error) => return Err(SiteRowRefusal::Certify { at, error }),
+            Err(_) => return Ok(SiteRows::Clear(every_half())),
         }
     }
     Ok(SiteRows::Mint(rows))
+}
+
+/// Why [`site_rows`] could not read or derive one half-edge of the
+/// walk.
+enum ItemFail {
+    /// A key did not resolve: refused, [`SiteRowRefusal::Corrupt`].
+    Corrupt,
+    /// The closed-form derivation refused: the face is cleared.
+    Derive,
 }
 
 /// Writes what [`site_rows`] decided, once the surgery has minted the
@@ -3037,7 +3020,11 @@ pub(crate) mod staleness_posture {
         /// or over exactly the faces it wrote. Read out of the source
         /// (a `mint_pcurves` or `mint_pcurves_of` call in the door's
         /// own body); an entry declares it only when the re-mint is one
-        /// delegation away, which a source read cannot see.
+        /// delegation away, which a source read cannot see, or is an
+        /// Euler operator's site mint: [`super::site_rows`] re-derives,
+        /// before the surgery, every row of each minted face the new
+        /// half-edges join — the subset pass's answer over the faces
+        /// the operator wrote, stated under `Decide`.
         Maintains,
         /// Disposes of every row whose KEY or MEANING the door
         /// changed, rather than leaving one behind: moves it onto the
@@ -3052,8 +3039,9 @@ pub(crate) mod staleness_posture {
         /// never does is return with a row that says something the
         /// body no longer holds. It says nothing about rows a door
         /// never HELD: whether a half-edge a door mints gets a row at
-        /// the mint site is the minting posture, decided elsewhere and
-        /// not by this bucket.
+        /// the mint site is the minting posture ([`super::site_rows`]),
+        /// and a door in this bucket that mints half-edges says so in
+        /// its note.
         Transfers,
         /// Leaves the map exactly as it found it — a primitive, or a
         /// write the map is not keyed on. What this bucket rests on is
@@ -3189,14 +3177,34 @@ pub(crate) mod staleness_posture {
              own; `cyl_wall_sheet` is the door that runs the pass over what it grew",
             ),
             ("mvfs", Neither, "Euler operator"),
-            ("mev", Neither, "Euler operator"),
-            ("mev_line", Neither, "Euler operator (sugar over `mev`)"),
-            ("mev_null", Neither, "Euler operator"),
-            ("mekr", Neither, "Euler operator"),
-            ("mekr_chord", Neither, "Euler operator (sugar over `mekr`)"),
+            (
+                "mev_null",
+                Neither,
+                "Euler operator minting a NULL edge: scaffolding with no carrier, so no row \
+             to derive; a minted face it joins is half-minted until the scaffolding is \
+             replaced, which is transient by construction (tier 2 refuses a null edge at \
+             rest) and ends at the producer's final pass",
+            ),
             ("kemr", Neither, "Euler operator"),
             ("kev", Neither, "kill op"),
             ("kvfs", Neither, "kill op"),
+            // ---- Maintains: the half-edge-minting Euler operators,
+            // whose re-mint is the site mint, not a pass call. ----
+            (
+                "mev",
+                Maintains,
+                "Euler operator: re-mints, before it mutates, every face whose rows were \
+             complete and that its two new halves join (`pcurves::site_rows`), so each \
+             leaves complete — or rowless, where the closed-form lane cannot mint it; an \
+             unminted or half-minted face is left as found, and a spline chart refuses typed",
+            ),
+            ("mev_line", Maintains, "Euler operator (sugar over `mev`)"),
+            (
+                "mekr",
+                Maintains,
+                "Euler operator: `mev`'s site mint over the one face whose ring it merges",
+            ),
+            ("mekr_chord", Maintains, "Euler operator (sugar over `mekr`)"),
             // ---- Transfers: the loop-re-parenting doors, which carry
             // a moved loop's rows onto the target face and drop them
             // when that face is on another CHART. ----
@@ -3237,9 +3245,9 @@ pub(crate) mod staleness_posture {
                 "Euler operator, and a run re-parenting: the run `[he1 .. he2)` it moves onto \
              the new face keeps its rows where that face is on the old face's chart \
              (`Body::same_chart`) and loses them where it is not (`Body::drop_rows`). The \
-             two halves it mints carry no row on either face — the minting posture \
-             (`work/topo/half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`), \
-             which this entry does not decide",
+             two halves it mints get their rows at the site, as `mev`'s do: the old face \
+             is re-minted when its rows were complete, and the new face when the run's \
+             rows stand on it",
             ),
             ("mef_chord", Transfers, "Euler operator (sugar over `mef`)"),
             (

@@ -968,21 +968,22 @@ fn mef_onto_a_second_key_the_body_records_as_one_surface_carries_the_runs_rows()
     assert!(s.body.pcurve(made.he_minus).is_some());
 }
 
-/// **A chord off the chart refuses, and the body is untouched.** A
-/// straight chord from `a` to `c` cuts through the cylinder rather than
-/// lying on it, so the lower panel — whose rows are complete — cannot
-/// carry the row of the half `mef` would add to it: the chord's image
-/// meets the loop on no branch of the chart. The pass would refuse the
-/// same face after the surgery; the operator refuses before it, typed
-/// and naming the face, rather than returning the panel half-minted.
+/// **A chord off the chart leaves both pieces unminted, and the pass
+/// refuses the result.** A straight chord from `a` to `c` cuts through
+/// the cylinder rather than lying on it, so neither piece of the lower
+/// panel has a closed-form row set that certifies: the chord's image
+/// meets its loop on no branch of the chart. The operator does not
+/// refuse — it is called mid-surgery on states a later door finishes
+/// describing — and it does not return a panel half-minted either: both
+/// pieces store nothing. The loud reading is the pass's, run over the
+/// result.
 #[test]
-fn mef_with_a_chord_off_a_minted_chart_refuses_and_leaves_the_body_untouched() {
+fn mef_with_a_chord_off_a_minted_chart_leaves_both_pieces_unminted() {
     let mut s = sheet();
     let (a, c) = (at(U0, V0), at(U1, VM));
     let he1 = he_at(&s.body, s.low, a);
     let he2 = he_at(&s.body, s.low, c);
-    let before = format!("{:?}", s.body);
-    let refused = s
+    let made = s
         .body
         .mef(
             MefSite::Chords { he1, he2 },
@@ -990,12 +991,15 @@ fn mef_with_a_chord_off_a_minted_chart_refuses_and_leaves_the_body_untouched() {
             FaceSurface::Inherit,
             tol(),
         )
-        .unwrap_err();
+        .unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (0, 3));
+    assert_eq!(rows_of(&s.body, made.face), (0, 3));
+    assert_eq!(rows_of(&s.body, s.up), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
     assert!(
-        matches!(refused, topo::EulerOpError::PcurveMint { face, .. } if face == s.low),
-        "{refused:?}"
+        topo::mint_pcurves(&mut s.body, tol()).is_err(),
+        "the pass refuses a panel whose chord leaves its chart"
     );
-    assert_eq!(format!("{:?}", s.body), before, "a refused mef mutated the body");
 }
 
 /// **`kef` into a face on a chart that mints nothing drops the

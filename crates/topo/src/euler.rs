@@ -826,11 +826,11 @@ pub enum EulerOpError {
     },
     /// [`Body::mev`], [`Body::mef`] or [`Body::mekr`] would add a
     /// half-edge to a face whose **pcurve rows are complete**, and the
-    /// row that half-edge needs cannot be minted
-    /// ([`crate::pcurves::SiteRowRefusal`]: a spline chart, the fitted
-    /// frontier; or an image the minting pass would refuse too). Raised
-    /// before any mutation, so the body is untouched — the operators
-    /// never return a face half-minted.
+    /// row that half-edge needs cannot be minted under the operators'
+    /// `Decide` bound ([`crate::pcurves::SiteRowRefusal`]: the face is
+    /// on a spline chart, the fitted frontier). Raised before any
+    /// mutation, so the body is untouched — the operators never return
+    /// a face half-minted.
     PcurveMint {
         /// The face the new half-edge would join; for `mef`'s new face,
         /// the face it is carved from.
@@ -1461,6 +1461,15 @@ impl<T: Decide> Body<T> {
     /// mutation; failure is [`EulerOpError::Certification`], body
     /// untouched. Chord-line sugar: [`Body::mev_line`].
     ///
+    /// **Pcurve rows** ([`crate::pcurves`]): no face the new halves
+    /// join is left half-minted. One whose rows are COMPLETE is
+    /// re-minted with the halves in it, before any mutation — the rows
+    /// the minting pass would store — or, where the closed-form lane
+    /// cannot mint it as the surgery leaves it, stores nothing; on a
+    /// spline chart the op refuses [`EulerOpError::PcurveMint`]. A face
+    /// storing no row stays rowless, and a half-minted one is left as
+    /// found (`crate::pcurves::site_rows` carries the rule).
+    ///
     /// **The moved run's carriers are re-certified, never
     /// re-described.** At a fan site the run `[he1 .. he2)` is
     /// re-based onto the new vertex `w`, and each of those edges keeps
@@ -1652,11 +1661,11 @@ impl<T: Decide> Body<T> {
     /// stand; under any other surface the run's rows are DROPPED, for
     /// the reasons and with the consequences [`Body::drop_rows`]
     /// states. The old face's remaining rows are untouched either way.
-    /// The two halves this op mints carry no row on either face: a
-    /// new edge's chart image would have to be derived, which these
-    /// `Decide` doors do not do, so a curved face this op touches is
-    /// left for the caller's re-mint
-    /// ([`crate::pcurves::mint_pcurves`]).
+    /// The two halves this op mints get their rows at the site, as
+    /// [`Body::mev`]'s do: the old face, when its rows were complete,
+    /// is re-minted with `he_plus` in it, and the new face — when the
+    /// run's rows stand on it — with `he_minus`, on the terms
+    /// [`Body::mev`] states.
     ///
     /// # Surgery (Chords, `he1 != he2`)
     ///

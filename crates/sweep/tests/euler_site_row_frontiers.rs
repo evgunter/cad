@@ -19,7 +19,7 @@
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
-use profile::ProfileVertex;
+use profile::{ProfileVertex, RawLoop};
 use sweep::Revolution;
 use sweep::test_support::{revolved_about_y, stacked_at};
 use topo::pcurves::{SiteRowRefusal, validate_pcurves};

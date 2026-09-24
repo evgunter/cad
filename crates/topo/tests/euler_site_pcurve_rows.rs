@@ -240,22 +240,18 @@ fn a_half_minted_face_is_left_as_found() {
     assert_eq!(missing, want);
 }
 
-/// **A carrier off the chart refuses, and the body is untouched.** A
-/// strut whose straight line leaves the cylinder has no chart image
-/// that certifies on the wall, so the op refuses — typed, naming the
-/// face — before it mutates, rather than returning the wall
-/// half-minted.
+/// **A carrier off the chart leaves the face unminted, never
+/// half-minted.** A strut whose straight line leaves the cylinder has
+/// no chart image that certifies on the wall, so the wall as the op
+/// leaves it has no closed-form row set: it stores nothing, and the
+/// pass, re-run over the result, refuses it loudly.
 #[test]
-fn a_mev_whose_carrier_leaves_the_chart_refuses_untouched() {
+fn a_mev_whose_carrier_leaves_the_chart_leaves_the_face_unminted() {
     let (mut body, face, m) = wall();
     let he = leaving(&body, face, m);
-    let before = format!("{body:?}");
-    let refused = body
-        .mev_line(MevSite::Fan { he1: he, he2: he }, at(1.2, 0.5), tol())
-        .unwrap_err();
-    assert!(
-        matches!(refused, topo::EulerOpError::PcurveMint { face: f, .. } if f == face),
-        "{refused:?}"
-    );
-    assert_eq!(format!("{body:?}"), before);
+    body.mev_line(MevSite::Fan { he1: he, he2: he }, at(1.2, 0.5), tol())
+        .unwrap();
+    assert_eq!(rows_of(&body, face), (0, 7));
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    assert!(topo::mint_pcurves(&mut body, tol()).is_err());
 }

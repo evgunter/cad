@@ -570,6 +570,10 @@ impl<T: Decide> Body<T> {
     /// Euler vector: `(v 0, e +1, f 0, h 0, r −1, s 0)` — arena deltas
     /// −1 loop, +2 half-edges, +1 edge.
     ///
+    /// **Pcurve rows**: as [`Body::mev`]'s — the face, when its rows
+    /// were complete, is re-minted with both halves in its merged loop
+    /// before any mutation, on the terms `mev` states.
+    ///
     /// **Minting order** (D9, exact): curve (placeholder, anchored at
     /// the target anchor vertex's coordinates), edge, `he_plus`,
     /// `he_minus`. **Kill order**: the ring loop (with its provenance
