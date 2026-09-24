@@ -4063,15 +4063,16 @@ pub(crate) fn tier3_local_checks_marked<
                 // `partial_cmp`, so the INCOMPARABLE case is an arm and
                 // not an accident. The first margin that fails is the
                 // one named: a cone's two margins name one datum.
-                let unrepresentable = surface
-                    .representability_margins()
-                    .into_iter()
-                    .find(|(_, margin)| {
-                        !matches!(
-                            geom_core::Bounds::lo(*margin).partial_cmp(&0.0),
-                            Some(core::cmp::Ordering::Greater)
-                        )
-                    });
+                let unrepresentable =
+                    surface
+                        .representability_margins()
+                        .into_iter()
+                        .find(|(_, margin)| {
+                            !matches!(
+                                geom_core::Bounds::lo(*margin).partial_cmp(&0.0),
+                                Some(core::cmp::Ordering::Greater)
+                            )
+                        });
                 if let Some((datum, _)) = unrepresentable {
                     errors.push(ValidationError::UnrepresentableSurfaceDatum {
                         face: face_key,
