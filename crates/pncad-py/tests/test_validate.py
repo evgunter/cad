@@ -456,8 +456,9 @@ class TestTheRefusalsShape(unittest.TestCase):
         script can mint one. `census_unsupported` and
         `census_lane_unsupported` — the two arms that carry the
         `subject_kind` / `entity_kind` half of a finding — want a
-        carrier outside the certifiable inventory or a scalar with no
-        certified chart-overlap lane, and neither is reachable through
+        carrier outside the certifiable inventory or a door that holds
+        no certified chart-overlap lane (the `_structural` ones, which
+        the binding does not expose), and neither is reachable through
         the doors this suite has: extruded boxes, cylinders and lofts
         all certify.
 
