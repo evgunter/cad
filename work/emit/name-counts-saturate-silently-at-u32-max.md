@@ -2,11 +2,13 @@
 id: name-counts-saturate-silently-at-u32-max
 kind: issue
 title: Three naming sites convert a usize count to u32 with unwrap_or(u32::MAX), saturating silently instead of refusing
-status: dispatched
+status: closed
 opened: 2026-09-23
 priority: P4
 cost: E
 branch: emit/small-rows
+closed: 2026-09-24
+pr: 3175
 ---
 
 

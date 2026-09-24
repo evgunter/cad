@@ -1,12 +1,13 @@
 ---
 id: tier-3-does-not-check-shell-roles-per-solid
 kind: issue
-title: tier 3 does not read where one shell of a solid sits relative to another, so a second Outer shell NESTED inside that solid's own void is unchecked
-status: open
+title: tier 3 does not check that a solid's shells bound a winding number of 0 or 1 everywhere, so a void outside every outer shell (or two overlapping outer shells) certifies when the solid's total volume is positive
+status: dispatched
 opened: 2026-09-08
 priority: P0
 cost: H
 refs: [validate-tier3-curved-boundary-containment, check-9-nesting-is-line-bounded-only, 2977]
+parent: ATREST-7
 ---
 
 
@@ -53,3 +54,44 @@ them is the design question this row opens.
 
 SHELL-5 pins its own grouping in its rows (`roles_by_solid` in
 `crates/sweep/tests/verbs_shell.rs`) rather than adding a check.
+
+## Re-stated again, 2026-09-24 (ATREST orchestrator) — the nested island is VALID
+
+The 2026-09-21 re-statement said the unchecked claim is "a second
+`Outer` NESTED inside that solid's own void". **That body is valid, and
+tier 3 must not refuse it.** Read by winding number, which is what a
+closed oriented boundary means: inside the island the shells contribute
+`+1` (the wall) `-1` (the cavity) `+1` (the island) `= 1`, so the island
+is material, and `work/zip/subtract-of-a-hollow-operand-files-the-island-under-one-solid`
+itself records the total volume as *"the correct number"*. What that
+ZIP row objects to is the GROUPING — the island filed under the wall's
+solid rather than a solid of its own — and the kernel deliberately
+files disconnected components under one solid elsewhere
+(`graft_disjoint`'s onto door; the boolean coplanar split's three
+prisms; `editor-core`'s placed union, counted against an authored
+`expected_components` under `CheckId::Connectedness`). That is the
+evidence that retracted check 10 (`work/atrest/log.md`, 2026-09-21), and
+it retracts this reading for the same reason. The grouping stays ZIP's
+output convention to pursue; it is not an at-rest invalidity.
+
+**The real invariant this family is missing**: a solid's shells bound a
+region whose winding number is `0` or `1` everywhere. Violations tier 3
+does not see today, all with a positive per-solid total (so check 7,
+now per solid, passes them):
+
+- a `Void` shell lying OUTSIDE every `Outer` of its solid (winding `-1`
+  inside the cavity — negative material);
+- an `Outer` shell inside another `Outer` of the same solid and not
+  inside a `Void` between them (winding `2` — doubly counted material);
+- a `Void` inside another `Void` with no `Outer` between them (winding
+  `-1`).
+
+Under the no-crossing premise the rest of tier 3 already assumes
+(global self-intersection is an explicit not-yet-checked item), one
+witness point per shell decides it: the winding of the OTHER shells of
+the solid at a point of shell `s` must be `0` if `s` is `Outer` and `1`
+if `s` is `Void`. `boolean::solid_contain::point_in_solid_faces` answers
+per shell selection, and refuses `KindUnsupported` on a curved face it
+cannot certify — where the check is silent and names the residue, the
+same posture as check 9's nesting arm (the false-refusal direction is
+the one this program must not add to).
