@@ -1529,7 +1529,11 @@ fn name_boolean_vertices<T: Decide>(
         };
         let Some(dir) = carrier else {
             let name = NameRef::new(base.clone());
-            rec.record_by_name(&base, verts.iter().map(|_| name.clone()).collect(), from_tie);
+            rec.record_by_name(
+                &base,
+                verts.iter().map(|_| name.clone()).collect(),
+                from_tie,
+            );
             let ents = verts
                 .iter()
                 .map(|&v| ent(0, EntityKey::Vertex(v)))
@@ -1888,7 +1892,11 @@ fn name_split_faces<T: Decide>(
 /// `side` half. One spelling for the group the split divides and for
 /// the face it passes through whole.
 fn split_base(node: RecipeNodeId, side: SplitHalf, parent: NameRef) -> StableName {
-    name1(EntityKind::Face, node, RoleSeg::SplitFragment { side, parent })
+    name1(
+        EntityKind::Face,
+        node,
+        RoleSeg::SplitFragment { side, parent },
+    )
 }
 
 #[cfg(test)]

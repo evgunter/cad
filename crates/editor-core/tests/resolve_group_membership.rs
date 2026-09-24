@@ -396,9 +396,11 @@ fn a_seam_group_tied_parents_share_is_not_counted() {
     let ev1 = silent(ev1);
     // A seam whose A face is one of the first cut's TIED rows.
     let tied = &ev1.value(sub).expect("the first cut evaluates").name_table;
-    let rows = vanished((&doc, &ev2), (&doc, &ev1), cut, |n, _| match n.path.first() {
-        Some(RoleSeg::Seam { a, .. }) => matches!(tied.lookup(a), Some(Entry::Tied(_))),
-        _ => false,
+    let rows = vanished((&doc, &ev2), (&doc, &ev1), cut, |n, _| {
+        match n.path.first() {
+            Some(RoleSeg::Seam { a, .. }) => matches!(tied.lookup(a), Some(Entry::Tied(_))),
+            _ => false,
+        }
     });
     assert!(
         !rows.is_empty(),
@@ -452,9 +454,12 @@ fn a_union_group_a_later_step_partly_swallows_counts_what_is_published() {
         let ev2 = silent(run(&doc2, Some(&ev1)));
         let ev1 = silent(ev1);
         // The plate's own entities: its top's fragments and its rim.
-        let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, _| {
-            matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == plate)
-        });
+        let rows = vanished(
+            (&doc, &ev2),
+            (&doc, &ev1),
+            u,
+            |n, _| matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == plate),
+        );
         assert!(
             !rows.is_empty(),
             "{label}: no fragment vanished, so the row pins nothing"

@@ -249,7 +249,9 @@ fn descendant_counts(steps: &[Arc<GroupRecord>]) -> Vec<BTreeMap<&StableName, Ve
                         g.members.len()
                     } else {
                         let rows: BTreeSet<&NameRef> = g.members.iter().collect();
-                        rows.iter().map(|r| carried.get(r).copied().unwrap_or(0)).sum()
+                        rows.iter()
+                            .map(|r| carried.get(r).copied().unwrap_or(0))
+                            .sum()
                     }
                 })
                 .collect();
