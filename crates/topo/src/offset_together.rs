@@ -774,6 +774,21 @@ pub(crate) fn faces_at_vertex<T: Real>(
 /// [`Scope::whole`] included. Such a body is tier-1 invalid (a shell's
 /// `solid` back-pointer and its owner's list are validated against
 /// each other), so no valid body has one.
+///
+/// **The same owner index, as a public door, is
+/// [`SolidOwners`](crate::SolidOwners)**, and the two stay separate
+/// because they refuse differently: that one indexes every solid of
+/// the body and SKIPS what does not resolve, so an absent entry is its
+/// answer; this one walks only the solids it names and REFUSES on an
+/// unresolved entity of one of them, because a door must not solve
+/// over a scope it could only partly read. Nor is
+/// [`Body::faces_of_solid`] a home for either walk's face half: it
+/// reads the faces' own back-pointers where both walks read the
+/// solids' shell lists, answers for one solid per whole-arena scan,
+/// and drops a face whose shell does not resolve where this walk
+/// refuses. On a tier-1-valid body the two indices agree
+/// about every face and vertex, lone vertices included, and
+/// `separation::owner_index` reds if they stop.
 #[derive(Clone)]
 pub(crate) struct Scope {
     /// The solids in scope. A `Vec` and a linear `contains`, like
@@ -882,7 +897,7 @@ impl Scope {
     /// instead of typed, so no caller has a wrong answer to mishandle.
     /// Nothing in the crate re-scopes UP today — the verb only narrows
     /// from [`Scope::whole`] — so the arm is exercised by its pin
-    /// alone, `shell10_r2_probes::r2_a_re_scope_up_holds_the_solid_it_was_aimed_at`,
+    /// alone, `scope_walks::a_re_scope_up_holds_the_solid_it_was_aimed_at`,
     /// which reds if this becomes a bare `Vec` swap. The `None` the two
     /// `shell.rs` callers map to `Corrupt` is likewise unreachable from
     /// them by construction, and honest by type.
@@ -952,8 +967,10 @@ pub(crate) fn scope_of_moves<T: Real>(
 
 #[cfg(test)]
 mod scope_walks {
-    //! The two walks SHELL-10 narrowed, pinned on a two-solid body:
-    //! the scope's construction and the doors' closing pcurve pass.
+    //! The scope walk and the doors over it, pinned on a two-solid
+    //! body: the scope's construction and re-scoping, the doors'
+    //! closing pcurve pass, and what a door does with a solid outside
+    //! its scope that is malformed or cannot be charted.
 
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -1050,8 +1067,9 @@ mod scope_walks {
     /// the staged clone when its surgery scope closes (a panic, not a
     /// refusal, and compiled into this workspace's release profile
     /// too), and the closing tier-2 check. Driving the door here would
-    /// measure those, not this. The narrowing is the pair of walks
-    /// above.
+    /// measure those, not this; the first is pinned by
+    /// `the_door_panics_on_an_out_of_scope_malformed_solid` below. The
+    /// narrowing is the pair of walks above.
     #[test]
     fn an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk() {
         let (mut body, first, second) = two_boxes();
@@ -1185,5 +1203,67 @@ mod scope_walks {
             matches!(err, ReplaceFaceError::Corrupt),
             "hop 2 is the body's own incoherence, not a stale argument: {err:?}"
         );
+    }
+
+    /// **The door PANICS, it does not refuse**, on a body whose
+    /// out-of-scope solid is structurally malformed: the scope walk
+    /// accepts it (`an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk`),
+    /// and the door's own whole-body tier-1 postcondition asserts.
+    /// Compiled into release too (`debug-assertions = true` in the
+    /// workspace profile).
+    ///
+    /// **Where it fires is the door, not the setter.** D1's tier-1
+    /// sweep runs once per public door (`crate::surgery`), so the
+    /// setters inside this door's surgery scope check their arena
+    /// deltas and nothing else; the whole-body re-derivation is the
+    /// close. The corruption is planted before the door is entered and
+    /// is caught before the door returns, which is the property this
+    /// row is about — and the typed `ResultNotClosed` gate after it is
+    /// NOT what catches it: a kernel bug still panics here rather than
+    /// becoming an error return.
+    #[test]
+    #[should_panic(expected = "postcondition: result is not tier-1 valid")]
+    fn the_door_panics_on_an_out_of_scope_malformed_solid() {
+        let (mut body, first, second) = two_boxes();
+        break_a_loop(&mut body, second);
+        let moves = moves_of(&body, first, 0.0);
+        let tol = Tol::witness();
+        let mut work = body.clone();
+        let _ = offset_planes_together(&mut work, &moves, Band::linear(tol).unwrap(), tol);
+    }
+
+    /// **A re-scope UP walks the difference** — the only path on which
+    /// a `re_scope` that merely swapped the `Vec` answers wrongly. The
+    /// verb only ever re-scopes DOWN from `Scope::whole`, so nothing
+    /// else in the crate reaches it.
+    #[test]
+    fn a_re_scope_up_holds_the_solid_it_was_aimed_at() {
+        let (body, first, second) = two_boxes();
+        let firsts = body.faces_of_solid(first).expect("a live solid");
+        let seconds = body.faces_of_solid(second).expect("a live solid");
+        let mut scope = Scope::of_solids(&body, &[first]).unwrap();
+        for &f in &seconds {
+            assert!(!scope.holds_face(f));
+            assert_eq!(scope.solid_of(f), None);
+        }
+        scope
+            .re_scope(&body, &[second])
+            .expect("the walk of the difference");
+        for &f in &seconds {
+            assert!(
+                scope.holds_face(f),
+                "a re-scope UP holds the new solid's faces"
+            );
+            assert_eq!(scope.solid_of(f), Some(second));
+        }
+        for &f in &firsts {
+            assert!(!scope.holds_face(f), "and no longer names the old one");
+            assert_eq!(
+                scope.solid_of(f),
+                Some(first),
+                "though its maps still hold it"
+            );
+        }
+        assert_eq!(scope.faces_in_scope(), seconds);
     }
 }
