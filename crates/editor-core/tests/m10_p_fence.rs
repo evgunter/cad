@@ -385,6 +385,20 @@
 //! carried by a suite nothing runs is not carried at all. The
 //! `probe`-gated code here therefore executes on the sweep's schedule
 //! rather than on the code tier's.
+//!
+//! RE-BLESSED, ALL THREE ROWS, WHEN THE CANONICAL START BECAME THE
+//! AUTHORED ONE (`profile::validate` keeps each loop's authored vertex
+//! 0 and normalizes only its sense). The digest hashes every body's
+//! points in ARENA order, and a loop's canonical start decides the
+//! order its walls, rims and vertices are minted in, so the stream
+//! moved in the four documents whose loops were not authored from their
+//! lexicographic-minimum vertex (`cut_cylinder`, `boss_union`,
+//! `measured_web`, `plate_param` — each through a circle or a hole).
+//! The POINT SETS did not move: a scratch dump of every node's sorted
+//! point set and its face and edge counts, taken before and after the
+//! change, differs in those four documents' arena order and nowhere
+//! else. The `interval` row moved for the same reason and was read off
+//! the hosted `interval` lane.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -598,7 +612,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x9b76_9fcc_95b7_40a8, 0x9df5_aab0_46b6_073c),
+        (0x94ea_1dcc_0dec_e41c, 0xd374_351f_cd58_81b0),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -649,7 +663,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x9b76_9fcc_95b7_40a8, 0x9df5_aab0_46b6_073c),
+        (0x94ea_1dcc_0dec_e41c, 0xd374_351f_cd58_81b0),
         "the corpus's Probe evaluation moved"
     );
 }

@@ -129,8 +129,8 @@ fn set_param_on_a_program_slot_moves_geometry() {
     let x = pv.validated.loops()[0].vertices()[0].pos().x;
     assert_eq!(
         x.to_bits(),
-        (-0.75_f64).to_bits(),
-        "canonical −x pole at the new radius"
+        0.75_f64.to_bits(),
+        "canonical vertex 0 is the circle's authored start, the +x pole, at the new radius"
     );
 }
 
