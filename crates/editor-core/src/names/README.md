@@ -33,8 +33,14 @@ enum grouped by op: extrude (`Cap`, `Lateral`, ...), revolve (`Band`, `Pole`,
 (`SectionFace`, `SectionEdge`, `SplitFragment`, ...), blend (shared by fillet and
 chamfer, told apart by the minting node), `InPart`, pattern `Instance { i, of }`
 with `i` recipe-structural. Role arguments are themselves names; profile locators
-(`ProfileEdgeRef`, `ProfileVertexRef`) are the profile crate's canonical
-combinatorial identities, never enumeration indices.
+(`ProfileEdgeRef`, `ProfileVertexRef`) address a piece of the profile by the
+authored step that drew it and the piece's role in that step — the incoming run,
+the arc, the outgoing run, the carrier — never by its position in the loop's
+segment chain. A step's segment count depends on its argument values (a corner
+fillet whose runs reach a `Zero` fit draws no run), so a positional index is an
+enumeration an ordinary parameter edit renumbers; a (step, role) address is not.
+A piece the current values suppress does not exist, and a name on it resolves
+`Vanished` until the values draw it again.
 Names contain no floats and no arena keys; a pass-through op (Transform,
 split-intact entity, a `Part`'s projection of one half or one instance) adds no
 segment, so `node` stays the original minter. Names
