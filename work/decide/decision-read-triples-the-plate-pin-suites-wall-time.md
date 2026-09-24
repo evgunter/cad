@@ -56,3 +56,30 @@ them, which is what makes this a follow-up and not a blocker.
 `crates/geom-core/src/sym/signed.rs` (`enclose_indet`, `enclose_deep`,
 `decision`), `crates/geom-core/src/sym.rs`'s `combine`. Filed by
 DECIDE-3's lane with the measurement above.
+
+
+## SYM-9 read this row and left it where it is (2026-09-22, re-taken 2026-09-24)
+
+SYM-9's A1 amendment made this row ride as far as that unit's cost
+table: if the decision read dominated the retry ladder's cost on any
+document, Phase 2 was to take this row's first cheap answer (the
+enclosability pre-pass) and re-baseline the suites' wall times.
+
+It does not, and that is now executed rather than argued. On the
+affordability line's instrument (one whole-box leaf, release, fastest
+of three takes), the shipped rules against `SymRules::without_the_reads`,
+each with `SymRetry::kept_atom` and without it:
+
+| document | read on: one attempt / ladder | read shut: one attempt / ladder |
+| --- | --- | --- |
+| R2's filleted bracket (`1e1·ε`) | 2.86 / 3.88 s | 2.82 / 3.85 s |
+| R2's link (`1e1·ε`) | 17.28 / 19.71 s | 17.57 / 19.81 s |
+| R2's rounded pad (`1e2·ε`) | 131.3 / 147.7 s | 132.8 / 148.6 s |
+
+On this instrument and these three documents the read costs nothing
+measurable, with or
+without a ladder. This row's own measurement is a different one — the
+pin SUITES' wall time in dev — and nothing here contradicts it; what it
+says is that the leaf a drive pays is not where the read's cost lands on
+these three documents. The row stays open at P2 with its three cheap
+answers in the order it names them.
