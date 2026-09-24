@@ -42,3 +42,8 @@ instrumenting `kev` across `cargo test -p topo` and
 re-certifies within band, including the zip's 58 ulp-distinct merges.
 The strut-undo kill in `boolean/rest.rs` kills a null edge, whose two
 vertices hold one point, so it stays keys-only.
+
+Also `crates/topo/src/merge_faces.rs`, which TOPO and ZIP both claim.
+The three new variants go into `OpPlacement::of`'s enum-verdict arm.
+The `kev` row of its site table now says the fan-merge refusals cannot
+fire at `strut_tip`'s site, whose far vertex has valence one.
