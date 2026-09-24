@@ -878,3 +878,66 @@ fn the_public_sense_door_inversion_of_an_arc_loft_is_refused_at_its_caps() {
         .expect_err("the same public door on the line-bounded control IS refused");
     assert_eq!(role_inversions(&errs), planar_arm_reaches(&square));
 }
+
+/// PROBE (temporary): the reviewer's C-shape.
+#[test]
+fn probe_c_shape_cap_orientation() {
+    let tol = Tol::witness();
+    let d = |deg: f64, r: f64| p2(r * deg.to_radians().cos(), r * deg.to_radians().sin());
+    let section = || {
+        vec![ProfileLoop::new(vec![
+            ProfileVertex::new(d(5.0, 1.0), 87.5f64.to_radians().tan()),
+            ProfileVertex::new(d(355.0, 1.0), 0.0),
+            ProfileVertex::new(d(355.0, 0.9), 0.0),
+            ProfileVertex::new(d(270.0, 0.9), 0.0),
+            ProfileVertex::new(d(180.0, 0.9), 0.0),
+            ProfileVertex::new(d(90.0, 0.9), 0.0),
+            ProfileVertex::new(d(5.0, 0.9), 0.0),
+        ])]
+    };
+    let mut report = String::new();
+    let caps = |body: &Body<f64>| -> String {
+        body.faces()
+            .filter_map(|(k, f)| match body.get_surface(f.surface) {
+                Some(Surface::Plane { origin, normal, .. }) => Some(format!(
+                    "{k:?} z0={:.3} nz={:.3} sense={}",
+                    origin.z, normal.z, f.sense
+                )),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("; ")
+    };
+    match Profile::new(SketchPlane::xy(), section()).validate(tol) {
+        Err(e) => report += &format!("PROFILE REFUSES: {e:?}\n"),
+        Ok(vp) => {
+            report += "profile ok\n";
+            match extrude(&vp, Extrusion::Distance(1.0), tol) {
+                Err(e) => report += &format!("EXTRUDE REFUSES: {e:?}\n"),
+                Ok(x) => {
+                    report += &format!(
+                        "extrude ok: caps [{}]; validate: {:?}\n",
+                        caps(&x.body),
+                        topo::validate_geometric(&x.body, tol)
+                    );
+                }
+            }
+        }
+    }
+    match sweep::loft_body::<f64>(
+        &[section(), section()],
+        &crate::common::stacked(&[0.0, 1.0], 1.0),
+        1,
+        tol,
+    ) {
+        Err(e) => report += &format!("LOFT REFUSES: {e:?}\n"),
+        Ok(l) => {
+            report += &format!(
+                "loft ok: caps [{}]; validate: {:?}\n",
+                caps(&l.body),
+                topo::validate_geometric(&l.body, tol)
+            );
+        }
+    }
+    panic!("PROBE REPORT\n{report}");
+}
