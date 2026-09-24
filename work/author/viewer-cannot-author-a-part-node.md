@@ -2,7 +2,7 @@
 id: viewer-cannot-author-a-part-node
 kind: issue
 title: The viewer has no AddPart op, so a Part { Instance(i) } node — the road to a nested copy the mate tool now admits — is reachable only from a file or the Python API
-status: open
+status: dispatched
 opened: 2026-09-06
 priority: P0
 cost: D
