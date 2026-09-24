@@ -34,7 +34,7 @@
 //! Every operand must be decomposed on ONE break list per direction
 //! ([`PatchSpans::decompose`] takes extra breaks for exactly that,
 //! and knot insertion is exact in ℝ). Two patches whose break lists
-//! disagree combine to **poison**, never to a silently misaligned
+//! disagree combine to a **refusal**, never to a silently misaligned
 //! answer.
 //!
 //! # Degree budget
@@ -43,7 +43,7 @@
 //! `super::bern_mul_row_with` for degree elevation) over the weight
 //! tables `super::bern_weights` serves, whose exactness cap
 //! (`BINOM_EXACT_MAX`) bounds the per-direction degree a product may
-//! reach; beyond it the binomial row is all-poison and every hull is
+//! reach; beyond it the binomial row is all-NaN and every hull is
 //! `NaN`, which fails every `≤ ε` certification loudly (D4 ¶2). Work
 //! per cell scales as `(a+1)(c+1)` row products of length `O(b + d)`.
 //!
@@ -53,7 +53,7 @@
 //! built for, so a table reaching the wrong direction announces
 //! itself rather than answering.
 //!
-//! # C6 and poison
+//! # C6 and refusal
 //!
 //! Structure (knots, degrees, break merges, cell counts) is `f64`;
 //! every coefficient is a [`Interval`]. Nothing here evaluates or
@@ -64,6 +64,7 @@ use super::{
     BernWeights, bern_mul_row_into, bern_mul_row_with, bern_weights, to_bezier_spans_extra,
 };
 use crate::interval::Interval;
+use crate::interval::certification::Certification;
 use std::borrow::Cow;
 
 /// One scalar channel of a tensor-product spline in per-cell Bernstein
@@ -98,13 +99,13 @@ impl PatchSpans {
 
     /// The certified enclosure of the channel's values on cell
     /// `(su, sv)` — the hull of its Bernstein coefficients (module
-    /// docs). Poison for an out-of-range cell. Fixed ascending fold
+    /// docs). Refused for an out-of-range cell. Fixed ascending fold
     /// order (D9).
     pub fn cell_hull(&self, su: usize, sv: usize) -> Interval {
         let Some(block) = self.cells.get(su).and_then(|r| r.get(sv)) else {
-            return Interval::poison();
+            return Interval::refused();
         };
-        let mut acc = Interval::poison();
+        let mut acc = Interval::refused();
         for (n, c) in block.iter().enumerate() {
             acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
         }
@@ -129,7 +130,7 @@ impl PatchSpans {
         let nu = ku.control_count();
         let nv = kv.control_count();
         if grid.len() != nu * nv {
-            return Self::poisoned(ku.degree(), kv.degree());
+            return Self::refused(ku.degree(), kv.degree());
         }
         // Stage 1 (u): one univariate decomposition per v-column;
         // identical structure across columns by construction.
@@ -201,9 +202,9 @@ impl PatchSpans {
         }
     }
 
-    /// A structurally poisoned channel of the given bidegree with no
+    /// A structurally refused channel of the given bidegree with no
     /// cells — the mismatch outcome of every combinator (total, D4).
-    fn poisoned(deg_u: usize, deg_v: usize) -> Self {
+    fn refused(deg_u: usize, deg_v: usize) -> Self {
         Self {
             deg_u,
             deg_v,
@@ -226,11 +227,11 @@ impl PatchSpans {
     /// elevation as multiplication by the constant `1` at the missing
     /// degree, which is exactly what `super::bern_mul_row_with`'s
     /// binomial-quotient product computes (and is exact in ℝ).
-    /// Returns `self` unchanged when it is already there; poison when
+    /// Returns `self` unchanged when it is already there; refused when
     /// asked to LOWER a degree.
     pub fn elevated(&self, du: usize, dv: usize) -> Self {
         if du < self.deg_u || dv < self.deg_v {
-            return Self::poisoned(du, dv);
+            return Self::refused(du, dv);
         }
         if du == self.deg_u && dv == self.deg_v {
             return self.clone();
@@ -258,20 +259,20 @@ impl PatchSpans {
     }
 
     /// Cellwise sum, both operands first raised to the common
-    /// bidegree. Poison on a structure mismatch.
+    /// bidegree. Refused on a structure mismatch.
     pub fn add(&self, other: &Self) -> Self {
         self.combine(other, false)
     }
 
     /// Cellwise difference (`self − other`), both operands first
-    /// raised to the common bidegree. Poison on a structure mismatch.
+    /// raised to the common bidegree. Refused on a structure mismatch.
     pub fn sub(&self, other: &Self) -> Self {
         self.combine(other, true)
     }
 
     fn combine(&self, other: &Self, subtract: bool) -> Self {
         if !self.aligned(other) {
-            return Self::poisoned(self.deg_u.max(other.deg_u), self.deg_v.max(other.deg_v));
+            return Self::refused(self.deg_u.max(other.deg_u), self.deg_v.max(other.deg_v));
         }
         let du = self.deg_u.max(other.deg_u);
         let dv = self.deg_v.max(other.deg_v);
@@ -305,10 +306,10 @@ impl PatchSpans {
     /// Cellwise tensor-product Bernstein product: bidegrees add, and
     /// the coefficients are the separable double convolution with the
     /// binomial quotient weights in each direction (module docs).
-    /// Poison on a structure mismatch.
+    /// Refused on a structure mismatch.
     pub fn mul(&self, other: &Self) -> Self {
         if !self.aligned(other) {
-            return Self::poisoned(self.deg_u + other.deg_u, self.deg_v + other.deg_v);
+            return Self::refused(self.deg_u + other.deg_u, self.deg_v + other.deg_v);
         }
         let (a, b) = (self.deg_u, self.deg_v);
         let (c, d) = (other.deg_u, other.deg_v);

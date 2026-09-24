@@ -219,6 +219,7 @@
 use geom::curves::fit::{FitError, interpolate_columns};
 use geom::surfaces::{NurbsSurface, Surface};
 use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotVector, SplineError};
 use geom_core::{Band, Interval, Point3, Tol};
@@ -1490,7 +1491,7 @@ fn measure(
     let comp = Composite::build(base, fit, d)?;
     let (nu, nv) = comp.x.cell_counts();
     if nu == 0 || nv == 0 {
-        // A misaligned or poisoned composite has no cells to bound,
+        // A misaligned or refused composite has no cells to bound,
         // and "no cells" must never read as "nothing exceeded the
         // tolerance" (D4 ¶2). The unbounded report refuses.
         return Ok(Report {
@@ -1879,8 +1880,8 @@ fn recentre_origin(base: &NurbsSurface<f64>) -> Origin {
     let mut out = [0.0; 3];
     for c in 0..3 {
         // A non-finite or empty net recentres on the origin: the
-        // composite's own poison handling is what reports it, and a
-        // NaN centre would silently poison every cell instead.
+        // composite's own refusal handling is what reports it, and a
+        // NaN centre would silently refuse every cell instead.
         let m = (lo[c] + hi[c]) * 0.5;
         out[c] = if m.is_finite() { m } else { 0.0 };
     }
@@ -2121,11 +2122,11 @@ impl Composite {
         let e_mig_sq = Interval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
             + Interval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
             + Interval::point(mig(self.e[2].cell_hull(su, sv))).sqr();
-        // The re-mint through `point` was poison-preserving only
+        // The re-mint through `point` was refusal-preserving only
         // while a refused square had NaN endpoints. It does not: the
         // refusal is asked by name and carried across by hand.
         let e_mig_iv = if !e_mig_sq.is_certified() {
-            Interval::poison()
+            Interval::refused()
         } else {
             Interval::point(sqrt_down(e_mig_sq.lo())) / wt
         };
@@ -2234,6 +2235,7 @@ mod tests {
     use super::{Composite, Refine, directional_mark, stall_verdict};
     use crate::offset_meters::{norm_sup, sqrt_up};
     use geom_core::Bounds;
+    use geom_core::interval::certification::Certification;
     use geom_core::spline::KnotVector;
     use geom_core::{Band, Interval, Point3, Tol};
 

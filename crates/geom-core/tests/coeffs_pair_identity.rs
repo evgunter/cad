@@ -17,6 +17,7 @@
 
 use geom_core::Bounds;
 use geom_core::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 
 fn cubic() -> KnotVector {

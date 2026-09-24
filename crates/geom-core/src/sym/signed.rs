@@ -27,7 +27,7 @@
 //! CONDITIONAL on the sign read, which is why such a discharge is
 //! counted `sign_gated` and never `symbolic_zero`: the two claims differ
 //! in kind, and the receipt keeps them apart. A bracket that straddles
-//! zero, or a poisoned one, folds nothing; the atom stays opaque and the
+//! zero, or a refused one, folds nothing; the atom stays opaque and the
 //! numeric channel answers, which is the conservative direction.
 //!
 //! # Where it runs
@@ -45,6 +45,7 @@ use super::form::{Form, Mono, Poly, exp_of};
 use super::rational::Rat;
 use super::{INDET_PI, IndetMap, SymBudget, SymOp};
 use crate::interval::Interval;
+use crate::interval::certification::Certification;
 
 /// The most terms a candidate root may grow to before `poly_sqrt` gives
 /// up: a real residual's root is a handful of terms, and the bound keeps
@@ -231,12 +232,12 @@ fn mono_poly(m: &Mono, e: u32) -> Poly {
 }
 
 /// A rational coefficient as a certification enclosure ([`Rat::f64_bracket`]):
-/// poison where the value is out of `f64`'s range rather than a flushed
+/// refused where the value is out of `f64`'s range rather than a flushed
 /// zero, which would not be conservative.
 fn rat_enclosure(c: &Rat) -> Interval {
     match c.f64_bracket() {
         Some((lo, hi)) => Interval::from_bounds(lo, hi),
-        None => Interval::poison(),
+        None => Interval::refused(),
     }
 }
 
@@ -262,7 +263,7 @@ fn enclose(p: &Poly, params: &IndetMap<(f64, f64)>) -> Option<Interval> {
 
 /// The certified sign of the quotient `num / den` over the brackets:
 /// `Some(true)` for strictly positive, `Some(false)` for strictly
-/// negative, `None` otherwise (straddling, poisoned, or not
+/// negative, `None` otherwise (straddling, refused, or not
 /// enclosable).
 fn certified_sign(num: &Poly, den: &Poly, params: &IndetMap<(f64, f64)>) -> Option<bool> {
     let n = enclose(num, params)?;

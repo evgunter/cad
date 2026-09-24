@@ -58,6 +58,7 @@ test_utils::gated_to![
 ];
 
 use geom::NurbsCurve3;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::compose::{CurveRingData, linear_composite};
 use geom_core::spline::{KnotVector, SplineError};
 use geom_core::{Interval, Point3};

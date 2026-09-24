@@ -16,6 +16,7 @@ use geom_brep::props::quad::nurbs_patch_face;
 use geom_core::Bounds;
 use geom_core::Tol;
 use geom_core::interval::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::KnotVector;
 use test_utils::vacuity;
 

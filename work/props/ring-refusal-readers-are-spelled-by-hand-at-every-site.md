@@ -24,7 +24,7 @@ independently.
 | site | name |
 | --- | --- |
 | `crates/geom-brep/src/offset_meters.rs` | `mig` |
-| `crates/geom-brep/src/ssi/certify.rs` | `zero_free_lower_bound` |
+| `crates/geom-brep/src/ssi/enclose.rs` | `zero_free_lower_bound` (moved from `ssi/certify.rs` by RING-5) |
 | `crates/geom-brep/src/props/quad.rs` | `norm_lo`'s `comp` closure |
 | `crates/geom-brep/src/ssi/exhaust.rs` | `excludes_zero` — the same comparison pair, answering `bool` |
 
@@ -75,3 +75,16 @@ the candidate home is in both. The sites in `ssi/*` (SSI), `mesh/*`
 above rather than filed separately, because one fold is one change and
 twelve rows would be twelve merge conflicts. Filed by RING-2 (SCALAR),
 which minted the copies and says so.
+
+## RING-5 (2026-09-24): the home has a name now
+
+`RingInterval` is gone (RING-3), and RING-5 (#3174) gave the
+certification doors a home: the sealed `Certification` trait in
+`crates/geom-core/src/interval/certification.rs`, beside `mag`. A
+`mignitude` door there is the natural fold of the three byte-identical
+copies — `ssi/enclose.rs`'s `zero_free_lower_bound` (moved there from
+`ssi/certify.rs` by that unit), `offset_meters.rs`'s `mig`,
+`props/quad.rs`'s `comp` closure in `norm_lo` — and of
+`ssi/exhaust.rs`'s zero-free predicate, which asks the same comparison
+pair. Both RING-5 reviews found the triplication again (R1 style S1);
+this row is where it is scheduled, so no second row was filed.

@@ -37,16 +37,16 @@
 //! [`TensorNet::diff_u`] and [`TensorNet::diff_v`] shrink one direction
 //! by exactly one, so a step handed a line of `n` coefficients owes
 //! `n - 1`. Anything else — short or long — is a structure error in the
-//! caller, and this module **poisons that whole line** rather than
+//! caller, and this module **refuses that whole line** rather than
 //! padding it or truncating it.
 //!
 //! Both spellings were tried and both are wrong. **Padding** a short
-//! answer with zeros turns one refusal into one poison plus `n - 2`
+//! answer with zeros turns one refusal into one refused entry plus `n - 2`
 //! finite zeros, which is a finite bound over a window nothing covered
 //! — the failure this module exists to make impossible, and the same
 //! shape the [`super::hull`] mint refuses for one dimension down when
 //! the coefficient count disagrees. **Truncating** a long answer hides a caller bug behind a
-//! plausible net. Poisoning the line is the only answer that reaches a
+//! plausible net. Refusing the line is the only answer that reaches a
 //! consumer as a refusal.
 //!
 //! *Measured reachability, so this is a guard and not a story about
@@ -61,10 +61,10 @@
 //! reaches today, and it is written that way rather than as a fill
 //! policy the callers choose between.
 //!
-//! # Poison (fail-loud, D4 ¶2)
+//! # Refusal (fail-loud, D4 ¶2)
 //!
-//! Every out-of-range read is [`Interval::poison`]; a shape that
-//! does not multiply out is a poisoned net rather than a panic or a
+//! Every out-of-range read is [`Interval::refused`]; a shape that
+//! does not multiply out is a refused net rather than a panic or a
 //! truncation. Nothing here compares anything.
 
 use core::ops::RangeInclusive;
@@ -72,6 +72,7 @@ use core::ops::RangeInclusive;
 use super::algebra::CurvePlan;
 use super::knots::KnotVector;
 use crate::interval::Interval;
+use crate::interval::certification::Certification;
 
 /// A rectangular tensor coefficient net of certification enclosures, stored
 /// **row-major** (`u`-major): entry `(i, j)` — `u` index `i`, `v` index
@@ -95,8 +96,8 @@ impl TensorNet {
     /// A net from a row-major coefficient vector.
     ///
     /// A length that is not `nu * nv` is a shape error, and it yields a
-    /// net of the DECLARED extent filled with poison rather than a
-    /// short one: a caller reading a bound off it gets poison, where a
+    /// net of the DECLARED extent filled with refusals rather than a
+    /// short one: a caller reading a bound off it gets a refusal, where a
     /// silently-truncated net would answer a finite bound over a window
     /// it never covered.
     #[must_use]
@@ -104,28 +105,28 @@ impl TensorNet {
         if c.len() == nu.saturating_mul(nv) {
             Self { nu, nv, c }
         } else {
-            Self::poisoned(nu, nv)
+            Self::refused(nu, nv)
         }
     }
 
-    /// A net of the given extent, every entry poison.
+    /// A net of the given extent, every entry refused.
     #[must_use]
-    pub fn poisoned(nu: usize, nv: usize) -> Self {
+    pub fn refused(nu: usize, nv: usize) -> Self {
         Self {
             nu,
             nv,
-            c: vec![Interval::poison(); nu.saturating_mul(nv)],
+            c: vec![Interval::refused(); nu.saturating_mul(nv)],
         }
     }
 
     /// A net from `u`-major nested rows (`rows[i][j]`). A ragged input
-    /// is a shape error and poisons, per [`TensorNet::from_flat`].
+    /// is a shape error and refuses, per [`TensorNet::from_flat`].
     #[must_use]
     pub fn from_rows(rows: &[Vec<Interval>]) -> Self {
         let nu = rows.len();
         let nv = rows.first().map_or(0, Vec::len);
         if rows.iter().any(|r| r.len() != nv) {
-            return Self::poisoned(nu, nv);
+            return Self::refused(nu, nv);
         }
         Self {
             nu,
@@ -170,16 +171,16 @@ impl TensorNet {
         &self.c
     }
 
-    /// Entry `(i, j)`; out of range is poison.
+    /// Entry `(i, j)`; out of range is refused.
     #[must_use]
     pub fn get(&self, i: usize, j: usize) -> Interval {
         if i >= self.nu || j >= self.nv {
-            return Interval::poison();
+            return Interval::refused();
         }
         self.c
             .get(i * self.nv + j)
             .copied()
-            .unwrap_or_else(Interval::poison)
+            .unwrap_or_else(Interval::refused)
     }
 
     /// The `v`-line at `u` index `i`, borrowed. Out of range is empty —
@@ -195,7 +196,7 @@ impl TensorNet {
     }
 
     /// The `u`-line at `v` index `j`, materialised (the layout stores
-    /// it strided). Out-of-range entries are poison.
+    /// it strided). Out-of-range entries are refused.
     #[must_use]
     pub fn column(&self, j: usize) -> Vec<Interval> {
         (0..self.nu).map(|i| self.get(i, j)).collect()
@@ -206,7 +207,7 @@ impl TensorNet {
     ///
     /// Fixed association (D9): accumulated `u`-major, `i` outer and `j`
     /// inner, hulling left to right from the first entry. An empty
-    /// window and an out-of-range index are both poison.
+    /// window and an out-of-range index are both refused.
     #[must_use]
     pub fn window_hull(&self, wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>) -> Interval {
         let mut acc: Option<Interval> = None;
@@ -219,7 +220,7 @@ impl TensorNet {
                 });
             }
         }
-        acc.unwrap_or_else(Interval::poison)
+        acc.unwrap_or_else(Interval::refused)
     }
 
     /// The hull of the WHOLE net — [`TensorNet::window_hull`] over
@@ -229,7 +230,7 @@ impl TensorNet {
     #[must_use]
     pub fn hull(&self) -> Interval {
         if self.nu == 0 || self.nv == 0 {
-            return Interval::poison();
+            return Interval::refused();
         }
         self.window_hull(&(0..=self.nu - 1), &(0..=self.nv - 1))
     }
@@ -238,7 +239,7 @@ impl TensorNet {
     /// each `u`-line (one per `v` index) and the results scattered back
     /// into a `(nu − 1) × nv` net.
     ///
-    /// A step that answers anything but `nu − 1` coefficients poisons
+    /// A step that answers anything but `nu − 1` coefficients refuses
     /// that whole line (module docs — it is a caller structure error,
     /// and neither padding nor truncating it can be sound).
     ///
@@ -250,7 +251,7 @@ impl TensorNet {
         if nu1 == 0 || self.nv == 0 {
             return Self::from_flat(nu1, self.nv, Vec::new());
         }
-        let mut c = vec![Interval::poison(); nu1 * self.nv];
+        let mut c = vec![Interval::refused(); nu1 * self.nv];
         for j in 0..self.nv {
             let d = step(&self.column(j));
             if d.len() != nu1 {
@@ -271,7 +272,7 @@ impl TensorNet {
 
     /// **Differences the net once along `v`**: the step is applied to
     /// each `v`-line (one per `u` index), yielding `nu × (nv − 1)`. A
-    /// step that answers anything but `nv − 1` coefficients poisons
+    /// step that answers anything but `nv − 1` coefficients refuses
     /// that line ([`TensorNet::diff_u`]).
     #[must_use]
     pub fn diff_v(&self, step: impl Fn(&[Interval]) -> Vec<Interval>) -> Self {
@@ -279,7 +280,7 @@ impl TensorNet {
         if nv1 == 0 || self.nu == 0 {
             return Self::from_flat(self.nu, nv1, Vec::new());
         }
-        let mut c = vec![Interval::poison(); self.nu * nv1];
+        let mut c = vec![Interval::refused(); self.nu * nv1];
         for i in 0..self.nu {
             let d = step(self.row(i));
             if d.len() != nv1 {
@@ -300,9 +301,9 @@ impl TensorNet {
 
     /// [`TensorNet::diff_u`] with the clamped-knot-vector step
     /// ([`KnotVector::difference_coeffs`]): a line this vector does
-    /// not admit — one the mint refuses — yields a poisoned derivative
+    /// not admit — one the mint refuses — yields a refused derivative
     /// rather than a widened one, because the step then short-answers
-    /// (one poison entry, never zero) and the line poisons.
+    /// (one refused entry, never zero) and the line is refused.
     #[must_use]
     pub fn diff_u_knots(&self, kv: &KnotVector) -> Self {
         self.diff_u(|c| kv.difference_coeffs(c))
@@ -331,7 +332,7 @@ impl TensorNet {
     /// ratio come from the knot structure alone, which the `u` direction
     /// shares across all `nv` lines. An empty chain is the identity.
     ///
-    /// **A net whose extent the schedule was not built for POISONS**, at
+    /// **A net whose extent the schedule was not built for REFUSES**, at
     /// the new extent, and the guard is on the extent rather than on the
     /// answer's length because the answer's length cannot report it.
     /// [`CurvePlan::apply_ring`] answers its own plan's control count
@@ -339,7 +340,7 @@ impl TensorNet {
     /// LONGER than the schedule expects comes back the right length with
     /// its tail silently dropped, which is a hull over fewer
     /// coefficients than the net has and therefore too NARROW. A shorter
-    /// line poisons on its own, through the missing sources. Neither is
+    /// line refuses on its own, through the missing sources. Neither is
     /// reachable from a caller that built the schedule from the same
     /// direction it is refining, and both are refused rather than
     /// argued: an insertion chain adds exactly one coefficient per plan,
@@ -351,9 +352,9 @@ impl TensorNet {
         };
         let nu_new = last.knots().control_count();
         if nu_new != self.nu + plans.len() {
-            return Self::poisoned(nu_new, self.nv);
+            return Self::refused(nu_new, self.nv);
         }
-        let mut c = vec![Interval::poison(); nu_new * self.nv];
+        let mut c = vec![Interval::refused(); nu_new * self.nv];
         for j in 0..self.nv {
             let mut line = self.column(j);
             for plan in plans {
@@ -381,9 +382,9 @@ impl TensorNet {
         };
         let nv_new = last.knots().control_count();
         if nv_new != self.nv + plans.len() {
-            return Self::poisoned(self.nu, nv_new);
+            return Self::refused(self.nu, nv_new);
         }
-        let mut c = vec![Interval::poison(); self.nu * nv_new];
+        let mut c = vec![Interval::refused(); self.nu * nv_new];
         for i in 0..self.nu {
             let mut line = self.row(i).to_vec();
             for plan in plans {
@@ -503,20 +504,20 @@ mod tests {
     }
 
     /// **A net whose extent the schedule was not built for comes back
-    /// POISONED at the new extent** — never short, and never silently
+    /// REFUSED at the new extent** — never short, and never silently
     /// finite over coefficients that are not this net's. The direction
     /// that needed the guard is the LONG one: the applier answers its
     /// plan's extent from whatever prefix it can source, so a long line
     /// would otherwise refine as if its tail did not exist, giving a hull
     /// too narrow rather than too wide.
     #[test]
-    fn refining_a_net_of_the_wrong_extent_poisons_rather_than_answers() {
+    fn refining_a_net_of_the_wrong_extent_refuses_rather_than_answers() {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let plans = chain(&kv, 2);
         let n_new = plans.last().unwrap().knots().control_count();
         // The schedule is for 3 coefficients per line. BOTH directions of
         // mismatch: 5 would be silently truncated by the applier, 2 would
-        // poison through its missing sources. Neither may answer finitely.
+        // refuse through its missing sources. Neither may answer finitely.
         for extent in [5usize, 2] {
             let net =
                 TensorNet::from_fn(extent, 2, |i, _| pt(f64::from(u32::try_from(i).unwrap())));
@@ -550,10 +551,10 @@ mod tests {
         assert_eq!(a.column(0)[1].lo(), 3.0);
     }
 
-    /// A shape that does not multiply out poisons rather than
+    /// A shape that does not multiply out refuses rather than
     /// truncating: the bound it yields fails every comparison.
     #[test]
-    fn a_bad_shape_poisons() {
+    fn a_bad_shape_refuses() {
         let n = TensorNet::from_flat(2, 3, vec![pt(1.0)]);
         assert!(!n.hull().is_certified());
         let ragged = TensorNet::from_rows(&[vec![pt(1.0)], vec![pt(1.0), pt(2.0)]]);
@@ -582,11 +583,11 @@ mod tests {
         assert!(holds(dv.diff_u_knots(&kv).get(0, 0), 2.0));
     }
 
-    /// A step that does not answer the direction's new extent poisons
+    /// A step that does not answer the direction's new extent refuses
     /// the line — short OR long, because neither padding nor
     /// truncating can be sound (module docs).
     #[test]
-    fn a_step_of_the_wrong_length_poisons_its_line() {
+    fn a_step_of_the_wrong_length_refuses_its_line() {
         let n = TensorNet::from_rows(&[vec![pt(1.0)], vec![pt(2.0)], vec![pt(3.0)]]);
         // Owes 2 coefficients per u-line.
         let nothing = |_: &[Interval]| Vec::new();

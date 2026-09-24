@@ -49,7 +49,7 @@
 //!    `num_d/den = S(P(t))_d − C_d(t)` **exactly** (the common factor
 //!    divides out). Per-span coefficient hulls of numerator and
 //!    denominator, the rational quotient per span (interval arithmetic refuses a
-//!    zero-touching divisor, so a degenerate denominator poisons
+//!    zero-touching divisor, so a degenerate denominator is refused
 //!    loudly), hulled across spans.
 //!
 //! # Why the cancellation survives composition-then-hull
@@ -87,7 +87,7 @@
 //! in use (`SSI_FIT_DEGREE` = 3 for carrier and pcurve) that is
 //! `m_u + m_v ≤ 17` — a bicubic×bicubic wall lands at degree 21 of the
 //! 54 budget, and even a degree (9,8) surface fits. Beyond the cap the
-//! binomial row is all-poison and the bound is `NaN`, which fails every
+//! binomial row is all-NaN and the bound is `NaN`, which fails every
 //! `≤ ε` certification loudly (D4 ¶2) — never a silently rounded
 //! weight. Work scales as
 //! `spans × cells-touched × (m_u+1)(m_v+1)` products of rows of length
@@ -114,13 +114,13 @@
 //! line is bounded on **every** cell it touches and hulled, which is
 //! sound on each cell's own territory and conservative off it.
 //!
-//! # C6 and the poison posture
+//! # C6 and the refusal posture
 //!
 //! Structure (knots, degrees, binomials, break merges, cell selection)
 //! is `f64`; everything coefficient-valued is [`Interval`].
 //! Checkable structural errors at the entry point are typed
 //! ([`ComposeError`], closed per D3); anything downstream (degenerate
-//! weights, budget overrun, zero-touching denominator) poisons the
+//! weights, budget overrun, zero-touching denominator) refuses the
 //! bound, which fails every `≤ ε` comparison (D4 ¶2).
 
 use super::super::knots::{KnotVector, SplineError};
@@ -128,6 +128,7 @@ use super::{
     BernsteinSpans, ComposeError, CurveRingData, bern_mul_row, binom_row, to_bezier_spans_extra,
 };
 use crate::interval::Interval;
+use crate::interval::certification::Certification;
 use crate::real::Bounds;
 
 // ---------------------------------------------------------------------
@@ -235,9 +236,9 @@ impl SurfaceResidual {
     }
 
     /// The whole-domain per-coordinate enclosure: the hull of the span
-    /// bounds (fixed ascending fold, D9). Poison if any span poisons.
+    /// bounds (fixed ascending fold, D9). Refused if any span is refused.
     pub fn bound(&self) -> [Interval; 3] {
-        let mut acc = [Interval::poison(); 3];
+        let mut acc = [Interval::refused(); 3];
         for (n, row) in self.spans.iter().enumerate() {
             for d in 0..3 {
                 acc[d] = if n == 0 {
@@ -252,7 +253,7 @@ impl SurfaceResidual {
 
     /// A certified upper bound on `sup_t |S(P(t)) − C(t)|` in meters —
     /// the three coordinate bounds folded Euclidean (`f64` squares of
-    /// nonnegative magnitudes; `NaN` on every poison path, which fails
+    /// nonnegative magnitudes; `NaN` on every refusal path, which fails
     /// every `≤ ε` comparison, D4 ¶2).
     pub fn sup_bound(&self) -> f64 {
         let b = self.bound();
@@ -365,7 +366,7 @@ fn row_sub(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
 
 /// The coefficient hull of one row (ascending fold, D9).
 fn row_hull(row: &[Interval]) -> Interval {
-    let mut acc = Interval::poison();
+    let mut acc = Interval::refused();
     for (n, c) in row.iter().enumerate() {
         acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
     }
@@ -402,8 +403,8 @@ struct SpanRows<'a> {
 
 /// The residual enclosure of one `t`-span against one surface cell:
 /// the module-docs composition, the difference formed at the
-/// coefficient level, then hull quotients. `[Interval; 3]`, poison
-/// entries wherever interval arithmetic poisons (budget, zero-touching
+/// coefficient level, then hull quotients. `[Interval; 3]`, refused
+/// entries wherever interval arithmetic refuses (budget, zero-touching
 /// denominator).
 fn cell_residual(
     surf: &[&TensorSpans; 4],
@@ -412,12 +413,12 @@ fn cell_residual(
     rows: &SpanRows<'_>,
 ) -> [Interval; 3] {
     let (mu, mv) = (surf[0].deg_u, surf[0].deg_v);
-    // The one budget case the automatic row poison cannot reach: a
+    // The one budget case the automatic NaN row cannot reach: a
     // degree-0 curve pair composes to degree-0 rows whose binomials
-    // never overflow, while `C(m_u,i)·C(m_v,j)` still could. Poison
+    // never overflow, while `C(m_u,i)·C(m_v,j)` still could. Refuse
     // explicitly rather than round silently.
     if mu + mv > super::BINOM_EXACT_MAX {
-        return [Interval::poison(); 3];
+        return [Interval::refused(); 3];
     }
     let (ua, ub) = (surf[0].breaks_u[su], surf[0].breaks_u[su + 1]);
     let (va, vb) = (surf[0].breaks_v[sv], surf[0].breaks_v[sv + 1]);
@@ -568,7 +569,7 @@ pub fn surface_curve_residual(
     //
     // A refused coefficient has no center to give, and it says so with
     // `NaN` — which `Interval::point` refuses, so the whole
-    // composition poisons. The refusal is asked by name because it
+    // composition is refused. The refusal is asked by name because it
     // lives in the decoration: reading `.lo()` off a refused
     // coefficient would hand back an ordinary number and shift every
     // channel by it, laundering the refusal out of the SURFACE's
@@ -636,7 +637,7 @@ pub fn surface_curve_residual(
         let wu = row_hull(rows.u) / wden;
         let wv = row_hull(rows.v) / wden;
         if !wu.is_certified() || !wv.is_certified() {
-            spans.push([Interval::poison(); 3]);
+            spans.push([Interval::refused(); 3]);
             continue;
         }
         // Located in the SAME break arrays `cell_residual` indexes
@@ -660,7 +661,7 @@ pub fn surface_curve_residual(
             }
         }
         // `cells_touched` always returns at least one cell.
-        spans.push(acc.unwrap_or([Interval::poison(); 3]));
+        spans.push(acc.unwrap_or([Interval::refused(); 3]));
     }
     Ok(SurfaceResidual { breaks, spans })
 }

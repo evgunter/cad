@@ -20,6 +20,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Interval;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::compose::CurveRingData;
 use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};
 use geom_core::spline::{KnotVector, basis};

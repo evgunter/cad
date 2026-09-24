@@ -15,6 +15,7 @@ use crate::shared::point::p3 as p;
 use geom::surfaces::nurbs::NurbsSurface;
 use geom_brep::patch_bound::{PatchCell, patch_cells};
 use geom_core::Bounds;
+use geom_core::interval::certification::Certification;
 use geom_core::spline::knots::KnotVector;
 use geom_core::{Point3, Vec3};
 

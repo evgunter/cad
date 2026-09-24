@@ -117,7 +117,9 @@ use geom_core::{
 use crate::certify::CERT_SAMPLES;
 use crate::dihedral::decide;
 
-use super::enclose::{Box3, NurbsBoxes, graph_margin};
+use super::enclose::{
+    Box3, NurbsBoxes, chart_transverse_margin, graph_margin, zero_free_lower_bound,
+};
 use super::{SsiError, SsiOperand, TubeScale};
 
 /// The **largest** tube radius tried, as a fraction of the caller's
@@ -582,7 +584,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // lifted: it is a value branch, which generic evaluation code
         // may not take (Q1), and it bought nothing. A degenerate span
         // (zero-length tangent) divided by zero poisons `e`, the graph
-        // margin's certification enclosure poisons with it, and
+        // margin's certification enclosure is refused with it, and
         // `zero_free_lower_bound` reports 0 — the same typed refusal
         // the guarded zero vector produced, reached without a branch.
         let t = fine.deriv(T::from_f64(0.5 * (a + b)));
@@ -603,7 +605,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
 ///
 /// Returns the chain's smallest zero-free margin (dimensionless, the
 /// `sin θ` scale) and the box count; `None` when the chain is broken or
-/// an enclosure poisoned, which is a definite structural refusal.
+/// an enclosure refused, which is a definite structural refusal.
 fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     chain: &[(Box3, Vec3<T>)],
     s1: &Surface<T>,
@@ -674,6 +676,11 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         // so the derivative boxes below would be an arbitrary cell's
         // and the margin would certify from them. The probe refuses —
         // no span of this pcurve can be bounded, so none is probed.
+        // The window hull maps any refusal to NaI, so on it
+        // `!is_certified()` and `Real::is_poison` agree today and no row
+        // can tell them apart; the check asks `is_certified` because that
+        // is the question that stays right if the hull ever hands a
+        // refusal on with real endpoints.
         if !hu.is_certified() || !hv.is_certified() {
             return None;
         }
@@ -683,7 +690,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         let dv = boxes.deriv_box(u0, u1, v0, v1, false);
         // The plane equation is what the whole limb certifies, so the
         // normal crosses through the CERTIFIED door: a component whose
-        // computation left its domain becomes poison and the
+        // computation left its domain is refused and the
         // transversality margin collapses to zero, rather than a
         // zero-free enclosure of an equation nobody evaluated.
         let n = [
@@ -691,8 +698,6 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
             Interval::from_certified(normal.y),
             Interval::from_certified(normal.z),
         ];
-        let phi_u = n[0] * du.x + n[1] * du.y + n[2] * du.z;
-        let phi_v = n[0] * dv.x + n[1] * dv.y + n[2] * dv.z;
         // The transverse chart direction is a DIRECTION — structure —
         // so it is selected through the bracket, exactly as the tube
         // ladder's radius is. `powi(2)`, never `t.x * t.x`.
@@ -702,38 +707,13 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         // refuse. An admitted `+∞` here does not certify a wrong
         // number today (`ex`/`ey` become `0` or NaN and the stretch
         // guard below catches the residue), but which guard answers
-        // would then depend on the poison's arithmetic path rather
+        // would then depend on the refusal's arithmetic path rather
         // than on this test saying what it means.
         if !tn.is_finite() || tn <= 0.0 {
             return None;
         }
         let (tx, ty) = (t.x.hi(), t.y.hi());
-        // e⊥ = (−t.y, t.x)/‖t‖; the transverse derivative of φ.
-        let ex = Interval::point(-ty / tn);
-        let ey = Interval::point(tx / tn);
-        // ∇φ·e⊥ is metres of plane-distance per CHART unit, so it is
-        // not yet a margin: multiplying it by a lever arm in metres
-        // would give metres² per chart unit (D4 ¶1 forbids exactly
-        // that). Dividing by the chart's own stretch along e⊥ —
-        // ‖S_u·ex + S_v·ey‖, metres per chart unit — cancels the chart
-        // units and leaves the dimensionless sine-like quantity the ℝ³
-        // lane's `(∇f₁×∇f₂)·e` already is. An UPPER bound on the
-        // stretch is used, which can only shrink the margin: the safe
-        // direction.
-        let vt = Box3 {
-            x: du.x * ex + dv.x * ey,
-            y: du.y * ex + dv.y * ey,
-            z: du.z * ex + dv.z * ey,
-        };
-        let stretch = vt.speed_sup();
-        // Positive FINITE only: an admitted `+∞` stretch divides the
-        // margin to an exact `0`, which the fold below then records as
-        // the certificate's worst transversality — a definite-looking
-        // number manufactured from an overflow, not a measurement.
-        if !stretch.is_finite() || stretch <= 0.0 {
-            return None;
-        }
-        let margin = zero_free_lower_bound(phi_u * ex + phi_v * ey) / stretch;
+        let margin = chart_transverse_margin(n, du, dv, (tx, ty, tn))?;
         if margin < worst {
             worst = margin;
         }
@@ -743,25 +723,6 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         None
     } else {
         Some((worst, count))
-    }
-}
-
-/// The certified distance of an enclosure from zero: `0` when it
-/// straddles (or is poison), which is exactly what makes the trilean
-/// land in the sliver band.
-/// (The mignitude. `offset_meters::mig` is the same arithmetic read
-/// as a coefficient-hull assembly term rather than a decision; noted
-/// at both sites.)
-fn zero_free_lower_bound(i: Interval) -> f64 {
-    if !i.is_certified() {
-        return 0.0;
-    }
-    if i.lo() > 0.0 {
-        i.lo()
-    } else if i.hi() < 0.0 {
-        -i.hi()
-    } else {
-        0.0
     }
 }
 
@@ -952,11 +913,12 @@ pub(crate) fn witness<T: Decide + Bounds + CertifiedEnclosure>(
 #[cfg(test)]
 mod tests {
     /// **The mignitude refuses a refusal that carries real endpoints.**
-    /// This file has `Real` in scope, so `Real::is_poison` — NaI or
-    /// empty only — would compile at `zero_free_lower_bound` and read
-    /// this quotient (`Trv`, a strictly positive lower end) as a sound
-    /// bracket, handing its lower end back as a certified margin. The
-    /// refusal is `!is_certified()`.
+    /// `zero_free_lower_bound` lives in `ssi::enclose`, a certification
+    /// file with no `Real` in scope, and refuses by `!is_certified()`;
+    /// this quotient (`Trv`, a strictly positive lower end) is the value
+    /// an `is_poison` check would read as a sound bracket, handing its
+    /// lower end back as a certified margin. The row pins that the
+    /// transversality margin this file reads is `0.0` on it.
     #[test]
     fn the_mignitude_refuses_a_refusal_with_real_endpoints() {
         use super::zero_free_lower_bound;

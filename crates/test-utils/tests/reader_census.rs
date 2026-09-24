@@ -198,7 +198,7 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/geom-core/tests/certified_endpoint_census.rs",
-        disposition: Shared, // certification endpoint-read census, code view + balanced_end
+        disposition: Shared, // certification endpoint-read census, code view + literal view
     },
     Entry {
         path: "crates/geom-core/tests/flagged_census.rs",

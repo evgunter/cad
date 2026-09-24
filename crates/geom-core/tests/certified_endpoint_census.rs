@@ -37,14 +37,19 @@
 //!
 //! Two parts, walked as one:
 //!
-//! * every `crates/*/src` file whose PRODUCTION code calls a
-//!   certification door ([`DOORS`]): it builds a certification bracket
-//!   (`Interval::from_certified`, `Interval::hull`, `Interval::poison`,
-//!   `.clamped_to(…)`) or refuses one (`.is_certified()`). The key is
-//!   what the code does, read off the same CODE view the counts are, so
-//!   a file enters when it starts building or refusing certification
-//!   brackets and leaves only when it stops — never because a comment
-//!   moved;
+//! * every `crates/*/src` file whose PRODUCTION code reaches the
+//!   certification arithmetic ([`reaches_certification`]): it names the
+//!   `geom_core::interval::certification` module — the only route to the
+//!   [`Certification`](geom_core::interval::certification::Certification)
+//!   doors, which are that trait's and are listed there, not here — or it
+//!   crosses into certification (`Interval::from_certified`) or refuses a
+//!   bracket (`.is_certified()`). The key is what the code does, read off
+//!   the same CODE view the counts are, so a file enters when it starts
+//!   building or refusing certification brackets and leaves only when it
+//!   stops — never because a comment moved. The module half of the key
+//!   is `scripts/gates/certification-doors.sh`'s key, and
+//!   [`the_door_importers_are_the_gate_s_allowlist`] holds the two
+//!   instruments to one population;
 //! * every file in [`HOLDERS`]: the files that hold certification
 //!   brackets, by name, whether or not they call a door. A file that
 //!   reads a bracket it was handed calls no door, and the door key alone
@@ -67,22 +72,33 @@
 //!    can follow it.
 //! 4. **A read inside a macro body, or split across two lines by
 //!    rustfmt**, is missed the same way.
-//! 5. The production/test cut: each `#[cfg(test)] mod` BLOCK is skipped
-//!    and the walk carries on past it. It runs over
-//!    `test_utils::source`'s CODE view — comments and string literals
-//!    blanked, newlines kept — and matches the block's brackets with that
-//!    module's own `balanced_end`, which is exact over a blanked view and
-//!    is why this row rolls no reader of its own
-//!    (`crates/test-utils/tests/reader_census.rs`).
+//! 5. The production/test cut is the GATE'S, `scripts/gates/lib.sh`'s,
+//!    so the two instruments cannot disagree on which files are
+//!    importers: a file a test-only `mod x;` mounts is dropped whole
+//!    ([`test_only_mounts`], rustc's placement, `#[path]` and inline
+//!    modules included), and inside a file every item under a test-only
+//!    `cfg` — a module, a function, a `use`, an `impl` — is dropped line
+//!    for line as the gate's reader drops it ([`production`]), which
+//!    shares that reader's one-line blind spot (a production item on the
+//!    same line as a test-only one's close is dropped with it; rustfmt
+//!    never writes one). The key is read per STATEMENT, as the gate
+//!    reads it ([`statements`]). It all runs over `test_utils::source`'s
+//!    CODE view — comments and string literals blanked, newlines kept —
+//!    so every brace and `;` it counts is a real one, and this row rolls
+//!    no lexer of its own (`crates/test-utils/tests/reader_census.rs`).
 //! 6. **A new holder is invisible until it is listed.** A file that
 //!    comes to hold a certification bracket without calling a door, and
 //!    is not in [`HOLDERS`], is outside the population: a read there
 //!    happens and nothing here counts it. No text key can find such a
 //!    file, because the bracket's type is also the evaluation scalar —
 //!    telling the two apart needs name resolution, a compiler, not a
-//!    lexer. The door match is textual too, so a door reached under
-//!    another name (`use geom_core::Interval as Cert;`) is outside it;
-//!    no such alias exists in the tree.
+//!    lexer. The module key is textual too, but it is the one route to
+//!    the doors: the trait is sealed, reached only through its module,
+//!    and re-exported nowhere — the gate's REEXPORT reds a `pub … use`
+//!    of it in any production file — so a door call cannot be written
+//!    without the module's name somewhere in the file. The routes the
+//!    gate states it cannot see (its KNOWN GAPs 4 and 5: a public
+//!    subtrait, a macro-written path) this census cannot see either.
 //!
 //! # Where it lives, and why here
 //!
@@ -94,26 +110,101 @@
 
 use test_utils::source;
 
+// Every crate the population walks — it reads every `crates/*/src` —
+// and the gate whose allowlist the cross-read row reads; held to the
+// walk by `the_suite_is_gated_to_every_crate_it_walks`.
 test_utils::gated_to![
-    "crates/geom-core/src/",
-    "crates/geom-brep/src/",
+    "crates/bvh/src/",
+    "crates/editor-core/src/",
     "crates/geom/src/",
+    "crates/geom-brep/src/",
+    "crates/geom-core/src/",
     "crates/mesh/src/",
+    "crates/pncad/src/",
+    "crates/pncad-py/src/",
+    "crates/profile/src/",
+    "crates/quantity/src/",
+    "crates/step-export/src/",
+    "crates/step-import/src/",
+    "crates/stl/src/",
+    "crates/sweep/src/",
+    "crates/test-utils/src/",
     "crates/topo/src/",
-    "crates/step-import/src/recognize_curve.rs",
+    "crates/verbs/src/",
+    "crates/viewer/src/",
+    "scripts/gates/certification-doors.sh",
 ];
 
-/// The certification doors whose call puts a file in the population:
-/// the constructors that build a certification bracket and the
-/// predicate that refuses one, as they are spelled at a call site in the
-/// CODE view.
-const DOORS: &[&str] = &[
-    "Interval::from_certified(",
-    "Interval::hull(",
-    "Interval::poison(",
-    ".clamped_to(",
-    ".is_certified()",
-];
+/// The inherent doors whose call puts a file in the population besides
+/// the module key: the crossing into certification arithmetic and the
+/// predicate that refuses a bracket, as they are spelled at a call site
+/// in the CODE view. The trait's doors need no entry: a file cannot call
+/// one without naming the module ([`names_the_certification_module`]).
+const INHERENT_DOORS: &[&str] = &["Interval::from_certified(", ".is_certified()"];
+
+/// The trait's home: it defines the doors rather than importing them.
+const TRAIT_HOME: &str = "crates/geom-core/src/interval/certification.rs";
+
+/// The gate that holds the importers, whose allowlist
+/// [`the_door_importers_are_the_gate_s_allowlist`] reads.
+const GATE: &str = "scripts/gates/certification-doors.sh";
+
+/// Whether a CODE-view statement names the certification module as a
+/// path — `certification::`, or `certification as` followed by
+/// whitespace, at an identifier boundary, with any whitespace between
+/// the word and what follows it. The gate's `CERT_KEY_RE`, over the
+/// same statement it reads ([`statements`]). The bare word is also a
+/// struct field elsewhere in the tree (`certification: …`), which is why
+/// the key is the path and not the word.
+fn names_the_certification_module(statement: &str) -> bool {
+    let mut rest = statement;
+    while let Some(at) = rest.find("certification") {
+        let after = rest[at + "certification".len()..].trim_start();
+        if source::boundary_before(rest, at)
+            && (after.starts_with("::")
+                || after
+                    .strip_prefix("as")
+                    .and_then(|a| a.chars().next())
+                    .is_some_and(char::is_whitespace))
+        {
+            return true;
+        }
+        rest = &rest[at + "certification".len()..];
+    }
+    false
+}
+
+/// A file's production lines as `lib.sh`'s STATEMENT view has them: cut
+/// at every `{`, `}` and `;`, each run of whitespace (newlines included)
+/// one space. This is the view the gate keys on, so a path split across
+/// lines — `certification` on one, `::Certification` on the next — is
+/// one statement to both instruments rather than a key the gate reads
+/// and this row does not.
+fn statements(lines: &[String]) -> Vec<String> {
+    lines
+        .join("\n")
+        .split(['{', '}', ';'])
+        .map(|s| s.split_whitespace().collect::<Vec<_>>().join(" "))
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// Whether a file's production statements reach certification
+/// arithmetic: the module key, or an inherent door.
+fn reaches_certification(lines: &[String]) -> bool {
+    // Every needle below holds one of these identifiers whole, and no
+    // identifier is split across lines, so a file without one cannot
+    // match and is not joined into statements at all.
+    if !lines
+        .iter()
+        .any(|l| l.contains("certification") || l.contains("_certified"))
+    {
+        return false;
+    }
+    statements(lines).iter().any(|s| {
+        names_the_certification_module(s) || INHERENT_DOORS.iter().any(|door| s.contains(door))
+    })
+}
 
 /// The files that hold certification brackets, walked whether or not
 /// their production code calls a door: every `crates/*/src` file that
@@ -154,12 +245,12 @@ const HOLDERS: &[&str] = &[
     "crates/mesh/src/chords.rs",
     "crates/mesh/src/nurbs_cert.rs",
     "crates/step-import/src/recognize_curve.rs",
-    "crates/topo/src/props.rs",
+    "crates/topo/src/props/quad_lane.rs",
 ];
 
 /// One entry per file walked with at least one endpoint read — every
-/// `crates/*/src` file whose production code calls a door in [`DOORS`],
-/// and every file in [`HOLDERS`]:
+/// `crates/*/src` file whose production code reaches certification
+/// arithmetic ([`reaches_certification`]), and every file in [`HOLDERS`]:
 /// the path, the production endpoint-read LINES, and how many of those
 /// sit in a function that asks `is_certified()`.
 ///
@@ -215,10 +306,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        16,
-        8,
-        "the 8 that ask are the mignitude (`zero_free_lower_bound`, 4), the \
-         transversality span-hull window (2: `probe_tube_chart` refuses either window \
+        12,
+        4,
+        "the 4 that ask are the transversality span-hull window (2: \
+         `probe_tube_chart` refuses either window \
          hull by name before reading it — a refused hull is NaI, and a NaN window end \
          would land on the first span), and two `T: Bounds` reads of the pcurve's \
          tangent that share that function and count only by blind spot 2. The other \
@@ -227,29 +318,35 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        6,
-        6,
-        "`Box3`'s disjointness, containment, centre and split all refuse by name",
+        10,
+        10,
+        "`Box3`'s disjointness, containment, centre and split all refuse by name, and \
+         so does the mignitude (`zero_free_lower_bound`, 4)",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
         "crates/geom-core/src/interval.rs",
-        19,
-        5,
-        "the type's own body. The 5 that ask are the certification doors that read \
-         an endpoint (`clamped_to`, `width`, `mag`) and the two refusal doors \
+        16,
+        2,
+        "the type's own body. The 2 that ask are the two refusal doors \
          (`certified_bracket`, `sign_within`). The other 14 are not certification \
          reads at all — blind spot 1: they are the evaluation scalar's own \
          implementation reads of the `DInterval` it wraps (the `Bounds` forwarders, \
          `repr_bits`, `copysign` and the kink selectors), which test NaI and empty \
          themselves and carry the decoration forward rather than certifying",
     ),
+    (
+        "crates/geom-core/src/interval/certification.rs",
+        3,
+        3,
+        "the doors that read an endpoint (`clamped_to`, `width`, `mag`), each refusing first",
+    ),
     ("crates/geom-core/src/spline/compose/tensor.rs", 3, 3, ""),
     ("crates/geom-core/src/sym/signed.rs", 2, 2, ""),
     ("crates/geom/src/curves/nurbs.rs", 4, 4, ""),
     ("crates/mesh/src/chords.rs", 2, 2, ""),
     ("crates/mesh/src/nurbs_cert.rs", 1, 1, ""),
-    ("crates/topo/src/props.rs", 8, 8, ""),
+    ("crates/topo/src/props/quad_lane.rs", 5, 5, ""),
 ];
 
 /// The repo root: this crate's directory, two levels up.
@@ -262,15 +359,33 @@ fn repo_root() -> std::path::PathBuf {
         .expect("crates/<name> sits two levels under the repo root")
 }
 
-/// Every `crates/*/src` file whose production code calls a door, and
-/// every file in [`HOLDERS`], with its production lines. **The shared lexer's CODE view**, not the raw
+/// Every `crates/*/src` file whose production code reaches certification
+/// arithmetic, and every file in [`HOLDERS`], with its production lines. **The shared lexer's CODE view**, not the raw
 /// text: a `.lo()` or a door inside a doc comment or a string literal is
 /// neither a read nor a call, and blanking keeps the newlines so a line
 /// count over this view is a line count over the file
 /// (`crates/test-utils/tests/reader_census.rs` is the ledger this entry
 /// sits in).
 fn population(root: &std::path::Path) -> Vec<(String, Vec<String>)> {
+    let sources = production_sources(root);
     let mut out = Vec::new();
+    for (rel, code) in sources {
+        let lines = production(&code);
+        if !reaches_certification(&lines) && !HOLDERS.contains(&rel.as_str()) {
+            continue;
+        }
+        out.push((rel, lines));
+    }
+    out.sort();
+    out
+}
+
+/// Every `crates/*/src` file, repo-relative with `/` separators, with
+/// its CODE view — less the files a test-only `mod x;` mounts
+/// ([`test_only_mounts`]), which are test code however they read: the
+/// production set `scripts/gates/lib.sh`'s `gate_production_sources`
+/// hands the gate.
+fn production_sources(root: &std::path::Path) -> Vec<(String, String)> {
     let crates = root.join("crates");
     let mut dirs: Vec<std::path::PathBuf> = std::fs::read_dir(&crates)
         .expect("crates/ is readable")
@@ -278,81 +393,226 @@ fn population(root: &std::path::Path) -> Vec<(String, Vec<String>)> {
         .filter(|p| p.join("src").is_dir())
         .collect();
     dirs.sort();
+    let mut all = Vec::new();
     for d in dirs {
         for path in source::rust_sources(&d.join("src")) {
             let raw = std::fs::read_to_string(&path).expect("a readable source file");
-            let lines = production(&source::code_only(&raw));
             let rel = path
                 .strip_prefix(root)
                 .expect("a walked file lies under the repo root")
                 .to_string_lossy()
                 .replace('\\', "/");
-            let calls_a_door = lines
-                .iter()
-                .any(|l| DOORS.iter().any(|door| l.contains(door)));
-            if !calls_a_door && !HOLDERS.contains(&rel.as_str()) {
-                continue;
-            }
-            out.push((rel, lines));
+            let code = source::code_only(&raw);
+            all.push((rel, raw, code));
         }
     }
-    out.sort();
+    let mut files = Vec::new();
+    let mut dirs = Vec::new();
+    for (rel, raw, code) in &all {
+        for (target, own) in test_only_mounts(rel, raw, code) {
+            if !own {
+                files.push(target.clone());
+            }
+            dirs.push(format!("{}/", target.trim_end_matches(".rs")));
+        }
+    }
+    all.into_iter()
+        .filter(|(rel, _, _)| {
+            !files.contains(rel) && !dirs.iter().any(|d| rel.starts_with(d.as_str()))
+        })
+        .map(|(rel, _, code)| (rel, code))
+        .collect()
+}
+
+/// Whether a CODE-view text carries a TEST-ONLY `cfg` attribute:
+/// `lib.sh`'s `GATE_CFG_TEST_RE` less its `GATE_CFG_TEST_NOT_RE`, one
+/// predicate in two languages. `test` counts alone or inside an
+/// `all(…)` — directly after `cfg(`, or after a `(` or a `,` and any
+/// whitespace, and followed by `,` or `)`, within the attribute's first
+/// `]` — and an attribute holding `any(` or `not(` anywhere in that
+/// span refuses the whole text: `not(test)` marks production code and
+/// `any(test, …)` an item that also exists without the test build.
+fn is_test_only_cfg(text: &str) -> bool {
+    let bodies: Vec<&str> = text
+        .match_indices("#[cfg(")
+        .map(|(at, open)| {
+            let body = &text[at + open.len()..];
+            &body[..body.find(']').unwrap_or(body.len())]
+        })
+        .collect();
+    let test_at = |body: &str| {
+        body.match_indices("test").any(|(q, _)| {
+            let closes = matches!(body[q + 4..].chars().next(), Some(',' | ')'));
+            let opens =
+                q == 0 || matches!(body[..q].trim_end().chars().next_back(), Some('(' | ','));
+            closes && opens
+        })
+    };
+    bodies.iter().any(|b| test_at(b))
+        && !bodies
+            .iter()
+            .any(|b| b.contains("any(") || b.contains("not("))
+}
+
+/// The production half of the CODE view, cut the way `lib.sh`'s reader
+/// cuts it under `--skip-cfg-test`, line for line: a line carrying a
+/// test-only attribute ([`is_test_only_cfg`]) opens a skip at the
+/// current brace depth, and the skip ends on the line where the braces
+/// it opened close again — or, if no brace opened, on the first line
+/// with a `;`. So a `#[cfg(test)]` module, function, `use`, `impl` or
+/// `const` is dropped whole, and so is anything that shares its last
+/// line (the reader's own property, and its one-line blind spot). Over
+/// a blanked view every brace is a real brace.
+fn production(code: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let (mut depth, mut skip_depth) = (0i64, 0i64);
+    let (mut skipping, mut seen_open) = (false, false);
+    for line in code.lines() {
+        let opens = i64::try_from(line.matches('{').count()).expect("a line's brace count");
+        let closes = i64::try_from(line.matches('}').count()).expect("a line's brace count");
+        if !skipping && is_test_only_cfg(line) {
+            skipping = true;
+            seen_open = false;
+            skip_depth = depth;
+        }
+        if skipping {
+            seen_open |= opens > 0;
+            depth += opens - closes;
+            if (seen_open && depth <= skip_depth) || (!seen_open && line.contains(';')) {
+                skipping = false;
+            }
+            continue;
+        }
+        depth += opens - closes;
+        out.push(line.to_string());
+    }
     out
 }
 
-/// The production half of the CODE view: every line outside a
-/// `#[cfg(test)] mod` BLOCK, whose extent comes from the shared
-/// lexer's [`source::balanced_end`] rather than from counting braces
-/// by hand — over a blanked view every brace is a real brace, which is
-/// exactly the precondition that helper states.
-fn production(code: &str) -> Vec<String> {
-    let mut skipped: Vec<(usize, usize)> = Vec::new();
-    let mut at = 0usize;
-    while let Some(off) = code[at..].find("#[cfg(test)]") {
-        let gate = at + off;
-        at = gate + "#[cfg(test)]".len();
-        // **The gate is not always adjacent to the item.** Further
-        // attributes may sit between them — `#[allow(clippy::…)]` on a
-        // test module is the tree's commonest spelling, and reading
-        // only the next token is what let a whole test module count as
-        // production. Each one is skipped through the shared lexer's
-        // bracket matcher, over the blanked view where that is exact.
-        let mut cursor = at;
-        loop {
-            cursor = source::skip_ws(code, cursor);
-            if !code[cursor..].starts_with("#[") {
-                break;
-            }
-            let Some(close) = source::balanced_end(code, cursor + 1) else {
-                break;
-            };
-            cursor = close + 1;
-        }
-        // Only a `mod` opens a block this walk carries on past; a
-        // `#[cfg(test)]` on a function or a `use` gates no block.
-        let item = &code[cursor..];
-        if !(item.starts_with("mod ")
-            || item.starts_with("pub mod ")
-            || item.starts_with("pub(crate) mod ")
-            || item.starts_with("pub(super) mod "))
-        {
-            continue;
-        }
-        let Some(open) = item.find('{') else { continue };
-        let Some(end) = source::balanced_end(code, cursor + open) else {
-            continue;
-        };
-        skipped.push((source::line(code, gate), source::line(code, end)));
-        at = end;
+/// Where each test-only `mod x;` in one file mounts its module, as
+/// `lib.sh`'s `gate_test_only_mounts` places it: the target file, and
+/// whether that file is the declarer itself (`mod lib;` in `lib.rs`,
+/// which excludes only the directory form). Read over the CODE view,
+/// cut at `{`, `}` and `;` like the statement view, so the attributes a
+/// declaration carries are the text since the last delimiter.
+///
+/// Rustc's resolution: `mod bar;` in a crate root or a `mod.rs` names
+/// the sibling `dir/bar.rs`, in any other `dir/foo.rs` it names
+/// `dir/foo/bar.rs`; each enclosing inline `mod y { … }` adds `y/`; and
+/// a `#[path = "P"]` names `P`, relative to the declaring file's
+/// directory at top level and to the inline module's directory inside
+/// one. A declaration under a brace that is not a module is refused
+/// loudly, as the gate refuses it: rustc mounts such a module only
+/// through `#[path]`, and a mount this row cannot place is a production
+/// set it does not know.
+fn test_only_mounts(rel: &str, raw: &str, code: &str) -> Vec<(String, bool)> {
+    if !code.contains("#[cfg(") {
+        return Vec::new();
     }
-    code.lines()
-        .enumerate()
-        .filter(|(i, _)| {
-            let ln = i + 1;
-            !skipped.iter().any(|&(a, b)| ln >= a && ln <= b)
-        })
-        .map(|(_, l)| l.to_string())
-        .collect()
+    let dir = rel.rsplit_once('/').map_or("", |(d, _)| d);
+    let file_name = rel.rsplit('/').next().unwrap_or(rel);
+    let positional = if matches!(file_name, "mod.rs" | "lib.rs" | "main.rs") {
+        dir.to_string()
+    } else {
+        rel.trim_end_matches(".rs").to_string()
+    };
+    let mut chain: Vec<Option<String>> = Vec::new();
+    let mut pending: Option<String> = None;
+    let mut start = 0usize;
+    let mut out = Vec::new();
+    let b = code.as_bytes();
+    let mut i = 0usize;
+    while i < b.len() {
+        match b[i] {
+            b'{' => {
+                chain.push(pending.take());
+                start = i + 1;
+            }
+            b'}' => {
+                chain.pop();
+                pending = None;
+                start = i + 1;
+            }
+            b';' => {
+                let stmt = &code[start..i];
+                if let Some(name) = pending.take()
+                    && is_test_only_cfg(stmt)
+                {
+                    let Some(names) = chain.iter().cloned().collect::<Option<Vec<String>>>() else {
+                        panic!(
+                            "{rel} declares a test-only `mod {name};` inside a brace that is not a \
+                             module, where rustc mounts a non-inline module only through #[path]; \
+                             where it lives was not decided, and neither is this row's production set"
+                        );
+                    };
+                    let inner = names.join("/");
+                    let target = if stmt.contains("#[path") {
+                        let lits = source::blanked(source::code_and_literals, rel, raw);
+                        let payload = path_payload(&lits[start..i]).unwrap_or_else(|| {
+                            panic!(
+                                "{rel}'s test-only `mod {name};` has a #[path] whose payload is \
+                                 not a plain literal"
+                            )
+                        });
+                        let base = if inner.is_empty() {
+                            dir.to_string()
+                        } else {
+                            format!("{positional}/{inner}")
+                        };
+                        normalized(&format!("{base}/{payload}"))
+                    } else if inner.is_empty() {
+                        format!("{positional}/{name}.rs")
+                    } else {
+                        format!("{positional}/{inner}/{name}.rs")
+                    };
+                    let own = target == rel;
+                    out.push((target, own));
+                }
+                pending = None;
+                start = i + 1;
+            }
+            b'm' if code[i..].starts_with("mod")
+                && source::boundary_before(code, i)
+                && code[i + 3..].starts_with(char::is_whitespace) =>
+            {
+                let after = source::skip_ws(code, i + 3);
+                let name = source::ident(code, after);
+                if !name.is_empty() {
+                    pending = Some(name.to_string());
+                    i = after + name.len();
+                    continue;
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    out
+}
+
+/// The payload of the first `#[path = "…"]` in a literal-keeping slice.
+fn path_payload(lits: &str) -> Option<&str> {
+    let at = lits.find("#[path")?;
+    let rest = lits[at + "#[path".len()..].trim_start().strip_prefix('=')?;
+    let end = rest.find(']')?;
+    source::plain_string_literal(&rest[..end])
+}
+
+/// A `/`-joined path with its `.` and `..` segments taken out, as
+/// `lib.sh`'s `gate_norm_path` has it: an exclusion is compared to the
+/// walked paths as text, and an unnormalised one excludes nothing.
+fn normalized(path: &str) -> String {
+    let mut seg: Vec<&str> = Vec::new();
+    for s in path.split('/') {
+        match s {
+            "" | "." => {}
+            ".." if seg.last().is_some_and(|l| *l != "..") => {
+                seg.pop();
+            }
+            s => seg.push(s),
+        }
+    }
+    seg.join("/")
 }
 
 /// Whether the line declares a function — the census's reading of
@@ -441,4 +701,151 @@ fn every_listed_holder_exists() {
          under its new path; a deleted one leaves the list, and the certification \
          brackets it held are either gone or now live somewhere that has to be listed"
     );
+}
+
+/// The census and the gate are two instruments over one population: the
+/// files whose production code names the certification module are
+/// exactly `scripts/gates/certification-doors.sh`'s `CERT_IMPORTERS`.
+/// Read out of the gate's own text, so neither list can gain or lose a
+/// file without the other — and read loudly: an array that parses to
+/// nothing is a broken reader, not an empty population.
+#[test]
+fn the_door_importers_are_the_gate_s_allowlist() {
+    let root = repo_root();
+    let gate = std::fs::read_to_string(root.join(GATE)).expect("the gate is readable");
+    let allowlist = gate_importers(&gate);
+    assert!(
+        allowlist.len() >= 10,
+        "read {} entries out of {GATE}'s CERT_IMPORTERS array — the array moved or its \
+         reader broke, and a cross-read over too few entries proves nothing",
+        allowlist.len()
+    );
+    let importers = importers(&root);
+    assert!(
+        importers.len() >= 10,
+        "the walk found {} files naming the certification module — it is reading the \
+         wrong tree",
+        importers.len()
+    );
+    assert_eq!(
+        importers, allowlist,
+        "the files whose production code names geom_core::interval::certification (left) \
+         are not {GATE}'s CERT_IMPORTERS (right). The two are one population: a file that \
+         imports the certification doors is added to the gate's list in the change that \
+         makes it import them, and leaves it in the change that stops"
+    );
+}
+
+/// This file, whose `gated_to!` [`the_suite_is_gated_to_every_crate_it_walks`]
+/// reads.
+const SELF: &str = "crates/geom-core/tests/certified_endpoint_census.rs";
+
+/// The `gated_to!` at the top of this file is a list kept by hand, and
+/// the change filter skips this suite on a pull request that touches
+/// nothing it names. The walk reads EVERY `crates/*/src`, so a crate
+/// added to the tree is walked from the day it lands — and, were the
+/// list trusted, not gated: a certification read written in it would
+/// wait for the nightly. So the list is held to the walk: exactly one
+/// `crates/<name>/src/` per crate directory the walk reads, plus the
+/// gate the cross-read row reads.
+#[test]
+fn the_suite_is_gated_to_every_crate_it_walks() {
+    let root = repo_root();
+    let text =
+        std::fs::read_to_string(root.join(SELF)).expect("this suite's own source is readable");
+    let code = source::blanked(source::code_only, SELF, &text);
+    let lits = source::blanked(source::code_and_literals, SELF, &text);
+    let marks: Vec<usize> = code.match_indices("gated_to!").map(|(at, _)| at).collect();
+    assert_eq!(
+        marks.len(),
+        1,
+        "{SELF} carries {} gated_to! invocations, not one",
+        marks.len()
+    );
+    let open = source::skip_ws(&code, marks[0] + "gated_to!".len());
+    let end = source::balanced_end(&code, open).expect("the gated_to! invocation closes");
+    let mut named: Vec<String> = source::top_level_split(&code[open + 1..end], ',')
+        .into_iter()
+        .map(|r| {
+            lits[open + 1 + r.start..open + 1 + r.end]
+                .trim()
+                .to_string()
+        })
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            source::plain_string_literal(&s)
+                .unwrap_or_else(|| panic!("a gated_to! entry that is not a plain literal: {s}"))
+                .to_string()
+        })
+        .collect();
+    named.sort();
+    let mut walked: Vec<String> = std::fs::read_dir(root.join("crates"))
+        .expect("crates/ is readable")
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.join("src").is_dir())
+        .map(|p| {
+            format!(
+                "crates/{}/src/",
+                p.file_name()
+                    .expect("a crate directory has a name")
+                    .to_string_lossy()
+            )
+        })
+        .chain(std::iter::once(GATE.to_string()))
+        .collect();
+    walked.sort();
+    assert!(
+        walked.len() > 10,
+        "the walk found {} crates — it is reading the wrong tree",
+        walked.len()
+    );
+    assert_eq!(
+        named, walked,
+        "{SELF}'s gated_to! list, on the left, is not every crates/*/src this census walks plus {GATE} \
+         (on the right). A crate the walk reads and the list does not name is walked on every run \
+         and gated on none that touches it: name it in the list"
+    );
+}
+
+/// `CERT_IMPORTERS=( … )`'s entries, sorted, from the gate's text, read
+/// as bash reads an array body: each line's words up to the first one
+/// that opens a `# comment`, with a quoted word's quotes taken off — so
+/// an entry carrying a trailing note, or quoted, is the path bash sees
+/// and not a false red. An unterminated array is a reader failure, not
+/// a short list.
+fn gate_importers(gate: &str) -> Vec<String> {
+    let start = gate
+        .lines()
+        .position(|l| l.trim_start().starts_with("CERT_IMPORTERS=("))
+        .expect("the gate declares CERT_IMPORTERS=(");
+    let mut out = Vec::new();
+    for line in gate.lines().skip(start + 1) {
+        if line.trim() == ")" {
+            out.sort();
+            return out;
+        }
+        out.extend(
+            line.split_whitespace()
+                .take_while(|w| !w.starts_with('#'))
+                .map(|w| w.trim_matches(|c| c == '\'' || c == '"').to_string()),
+        );
+    }
+    panic!("{GATE}'s CERT_IMPORTERS array is never closed");
+}
+
+/// Every `crates/*/src` file whose production code names the
+/// certification module, less the trait's home, sorted.
+fn importers(root: &std::path::Path) -> Vec<String> {
+    let mut out: Vec<String> = population(root)
+        .into_iter()
+        .filter(|(name, lines)| {
+            name != TRAIT_HOME
+                && statements(lines)
+                    .iter()
+                    .any(|s| names_the_certification_module(s))
+        })
+        .map(|(name, _)| name)
+        .collect();
+    out.sort();
+    out
 }

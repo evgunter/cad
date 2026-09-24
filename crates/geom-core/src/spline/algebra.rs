@@ -44,6 +44,7 @@
 
 use super::knots::{InteriorKnot, KnotVector, SplineError};
 use crate::interval::Interval;
+use crate::interval::certification::Certification;
 
 /// A typed knot-algebra refusal (fail-loud; the kernel never panics).
 #[derive(Clone, Debug, PartialEq)]
@@ -254,10 +255,11 @@ impl CurvePlan {
     /// rounded, and every coefficient the caller handed in is widened
     /// by it rather than re-rounded to `f64`.
     ///
-    /// **Total, and poison is the refusal** (D4): a plan step with no
-    /// insertion ratio — degree elevation, knot removal — poisons its
+    /// **Total, and NaI is the refusal** (D4): a plan step with no
+    /// insertion ratio — degree elevation, knot removal — refuses its
     /// target, as does a malformed plan or a channel of the wrong
-    /// length. Poison then flows through every hull the caller reads.
+    /// length. The refusal then flows through every hull the caller
+    /// reads.
     pub fn apply_ring(&self, old: &[Interval]) -> Vec<Interval> {
         let n_new = self.knots.control_count();
         let mut new: Vec<Option<Interval>> = vec![None; n_new];
@@ -289,7 +291,7 @@ impl CurvePlan {
                                 // `α = (u − U_j)/Δ` with `Δ = U_{j+p} − U_j`,
                                 // positive by the insertion precondition
                                 // (`insert_once`'s band comment), so the
-                                // quotients never poison on a valid plan.
+                                // quotients never refuse on a valid plan.
                                 //
                                 // **The convex form, not the lerp form, and
                                 // the difference is WIDTH.** `x + (y − x)·α`
@@ -330,7 +332,7 @@ impl CurvePlan {
             }
         }
         new.into_iter()
-            .map(|slot| slot.unwrap_or_else(Interval::poison))
+            .map(|slot| slot.unwrap_or_else(Interval::refused))
             .collect()
     }
 }
@@ -1029,7 +1031,7 @@ mod tests {
                 let ceiling_ulps = 8.0 * (add.len() + 1) as f64;
                 let slack = ceiling_ulps * scale * f64::EPSILON;
                 for (i, r) in ring_out.iter().enumerate() {
-                    assert!(r.is_certified(), "{tag}: slot {i} poisoned");
+                    assert!(r.is_certified(), "{tag}: slot {i} refused");
                     assert!(
                         r.lo() >= input_hull.lo() - slack && r.hi() <= input_hull.hi() + slack,
                         "{tag}: slot {i} = [{:.17e}, {:.17e}] is outside the described hull \
@@ -1123,7 +1125,7 @@ mod tests {
             let mut outside = 0usize;
             let mut worst = 0.0f64;
             for r in &out {
-                assert!(r.is_certified(), "p={p} c={c}: poisoned slot");
+                assert!(r.is_certified(), "p={p} c={c}: refused slot");
                 let excursion = (r.hi() - c).max(c - r.lo());
                 if excursion > 0.0 {
                     outside += 1;

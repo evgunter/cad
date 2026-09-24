@@ -1300,6 +1300,10 @@ jobs:
         run: |
           scripts/gates/evalscalar-allowlist.sh --selftest
           scripts/gates/evalscalar-allowlist.sh
+      - name: "certification doors: the importers and what they may not reach"
+        run: |
+          scripts/gates/certification-doors.sh --selftest
+          scripts/gates/certification-doors.sh
       - name: no ambient environment in the kernel
         run: |
           scripts/gates/no-ambient-env.sh --selftest
