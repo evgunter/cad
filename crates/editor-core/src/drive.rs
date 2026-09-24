@@ -291,12 +291,12 @@ pub struct SymbolicDials {
     /// (`editor-core/tests/m10_8_harness.rs`, `dials`).
     pub rules: geom_core::SymRules,
     /// **The RETRY LADDER a refused decision may take**
-    /// ([`geom_core::SymRetry`]): none by default ([`DEFAULT_SYM_RETRY`],
-    /// whose doc carries the measurement that chose it), which is the
-    /// tier making one attempt per rung exactly as it stood before
-    /// SYM-9; [`geom_core::SymRetry::kept_atom`] is the measured ladder,
-    /// so what a ladder buys a document is a differential taken through
-    /// this dial.
+    /// ([`geom_core::SymRetry`]): the measured ladder by default
+    /// ([`DEFAULT_SYM_RETRY`] = [`geom_core::SymRetry::kept_atom`], whose
+    /// doc carries the cost against the line and the trade), and
+    /// [`geom_core::SymRetry::none`] is the tier making one attempt per
+    /// rung — exactly as it stood before SYM-9 — so what the ladder buys
+    /// a document is a differential taken through this dial.
     ///
     /// It can only ADD: a retry is asked only where every rung of the
     /// first attempt declined, so no dial value here moves a decision
@@ -310,63 +310,68 @@ pub const DEFAULT_SYM_MAX_TERMS: usize = 4096;
 /// The shipped degree budget ([`SymbolicDials`]).
 pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
 
-/// **The shipped RETRY LADDER** ([`SymbolicDials::retry`]): NONE — a
-/// drive makes one attempt per rung unless its caller installs a ladder.
-/// [`geom_core::SymRetry::kept_atom`] is the ladder SYM-9 measured and
-/// the one a caller installs to have it.
+/// **The shipped RETRY LADDER** ([`SymbolicDials::retry`]):
+/// [`geom_core::SymRetry::kept_atom`] — two kept-atom attempts, rule G
+/// shut and then rule A's `sqrt(X)² = X` shut, and no wider-ring
+/// attempt. It SHIPS ACROSS THE 1.6 s LINE as a disclosed trade, the way
+/// rule E did (`geom_core::sym`'s rule-E section).
 ///
-/// **Chosen on the affordability line's own instrument**, as the unit's
-/// ruling set it: the measured ladder is the default only where it
-/// clears the 1.6 s line on the documents it acts on, and it clears it
-/// on none of them. One whole-box leaf
-/// (`m10_10_leaf_cost_with_and_without_the_algebra`), release, the
-/// fastest of three takes on a four-core box, the shipped rules at one
-/// attempt per rung against the same rules with a ladder:
+/// **The cost, on the affordability line's own instrument** — one
+/// whole-box leaf (`m10_10_leaf_cost_with_and_without_the_algebra`),
+/// release, the fastest of three takes on a four-core box, the shipped
+/// rules at one attempt per rung against the same rules with a ladder:
 ///
-/// | document (scale) | one attempt | `kept_atom` | rule-G mask alone | rule-A mask alone | what the ladder closes |
-/// | --- | --- | --- | --- | --- | --- |
-/// | two-hole plate (`1e2·ε`) | 0.35 s | 0.35 s | — | — | nothing |
-/// | R1's annulus (`1e1·ε`) | 0.37 s | 0.38 s | — | — | nothing |
-/// | R2's filleted bracket (`1e1·ε`) | 2.86 s | 3.88 s | 3.53 s | 3.25 s | 6 decisions, all `registered` (rule A's attempt) |
-/// | R2's link (`1e1·ε`) | 17.28 s | 19.71 s | 18.94 s | 17.93 s | 12 decisions, all `symbolic_zero` (rule G's attempt) |
-/// | R2's rounded pad (`1e2·ε`) | 131.3 s | 147.7 s | 144.0 s¹ | 139.2 s¹ | nothing |
+/// | document (scale) | M10-9 | one attempt | `kept_atom` | rule-G mask alone | rule-A mask alone | what the ladder closes |
+/// | --- | --- | --- | --- | --- | --- | --- |
+/// | two-hole plate (`1e2·ε`) | 0.09 s | 0.35 s | 0.35 s | 0.38 s¹ | 0.38 s¹ | nothing |
+/// | R1's annulus (`1e1·ε`) | 0.06 s | 0.37 s | 0.38 s | 0.40 s¹ | 0.39 s¹ | nothing |
+/// | R2's filleted bracket (`1e1·ε`) | 0.28 s | 2.86 s | 3.88 s | 3.53 s | 3.25 s | 6 decisions, all `registered` (rule A's attempt) |
+/// | R2's link (`1e1·ε`) | 0.23 s | 17.28 s | 19.71 s | 18.94 s | 17.93 s | 12 decisions, all `symbolic_zero` (rule G's attempt) |
+/// | R2's rounded pad (`1e2·ε`) | 0.75 s | 131.3 s | 147.7 s | 144.0 s¹ | 139.2 s¹ | nothing |
 ///
-/// ¹ One take, not three: the pad's two single-mask columns come from
-/// the run that also read each leaf's receipt.
+/// ¹ One take, not three.
 ///
-/// The three documents the ladder acts on or walks are over the line
-/// before it is installed, and it adds 14 % on the link, 12.5 % on the
-/// pad and 36 % on the bracket. With the decision read shut
-/// (`SymRules::without_the_reads`, the same instrument) every number in
-/// the first two columns moves by less than the takes' spread — bracket
-/// 2.82 → 3.85 s, link 17.57 → 19.81 s, pad 132.8 → 148.6 s — so the
-/// read is not what the ladder costs. It changes no certification on any of them
-/// (every leaf above certifies whole with the ladder and without it), and
-/// no ceiling the pins hold moved with it installed in the drive's
-/// dials (the pin suites were green that way at `7b3924cf1`, run
-/// 35767292223). What it buys is the link's twelve theorems — ten of
-/// them the ten rule G costs `carrier_on_surface_2`
+/// **The trade, on the balance.** The line is 1.6 s. The bracket, the
+/// link and the pad are over it at ONE attempt per rung — the shipped
+/// rules alone take the bracket to 10× and the link to 75× their M10-9
+/// leaf — and the ladder adds 1.0 s on the bracket (36 %), 2.4 s on the
+/// link (14 %) and 16 s on the pad (12.5 %). It takes no document from
+/// under the line to over it and changes no certification (every leaf
+/// above certifies whole with it and without it); with the decision read
+/// shut (`SymRules::without_the_reads`) the same columns move by less
+/// than the takes' spread, so the read is not what it costs. What it
+/// buys is the link's twelve theorems, ten of them exactly the ten
+/// rule G costs `carrier_on_surface_2` at one attempt per rung
 /// (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`)
-/// — and six registrations on the bracket, where the rule-A attempt
-/// moves decisions from `numeric` to an axiom and buys no theorem. That
-/// is a reach a caller may want and a default the line does not
-/// support, so it is the former.
+/// — so the rule-G attempt pays back what the default rule G takes.
+///
+/// **The rule-A attempt is the WEAKER half and is named as such.** On
+/// the only document it acts on it buys six REGISTRATIONS and no theorem
+/// — decisions moved from `numeric` to a constructor's axiom — for about
+/// 0.4 s of the bracket's 1.0 s (rule-A mask alone 3.25 s against 2.86).
+/// It ships with the rule-G attempt on the same balance, disclosed here
+/// rather than dropped.
 ///
 /// **The masks' order is a tie**: the other order recovers the same
-/// decisions on every document (both orders, the nominal replay, dev:
-/// bracket 1.47× against 1.44×, link 1.22× against 1.21×; the leaf above:
+/// decisions on every measured document (the nominal replay, dev:
+/// bracket 1.47× against 1.44×, link 1.22× against 1.21×; the leaf:
 /// 3.88 against 3.76 s and 19.71 against 19.51 s, inside the takes'
-/// spread), so `kept_atom` keeps rule G's attempt first — the one that
-/// buys theorems.
+/// spread), so rule G's attempt — the one that buys theorems — goes
+/// first.
 ///
-/// **The wider ring is measured and not in any ladder here**, which is
-/// the answer SYM-9 owes `work/sym/coefficient-ring-width-is-not-monotone-in-reach`:
+/// **One mask would not do**: rule A and rule G shut in ONE attempt
+/// keeps the bracket's six and recovers NONE of the link's twelve at
+/// the nominal (why is not executed; `geom_core::SymRetry::without`
+/// carries the hypothesis and what would confirm it).
+///
+/// **The wider ring is measured and not in the ladder**, which is the
+/// answer SYM-9 owes `work/sym/coefficient-ring-width-is-not-monotone-in-reach`:
 /// at 512 bits it recovers, predicate by predicate, no more than the
 /// kept-atom attempts do — the bracket's same six and eight of the
 /// link's twelve — at 4.50× the nominal replay on the bracket against
 /// the kept-atom ladder's 1.47×. At 1024 bits it recovers thirteen more
 /// on the bracket than the kept atom does, 19 in all, at 11.57×.
-pub const DEFAULT_SYM_RETRY: geom_core::SymRetry = geom_core::SymRetry::none();
+pub const DEFAULT_SYM_RETRY: geom_core::SymRetry = geom_core::SymRetry::kept_atom();
 
 impl SymbolicDials {
     /// The tier off — the numeric-only replay, bit for bit.
@@ -405,7 +410,7 @@ impl Default for SymbolicDials {
             max_degree: DEFAULT_SYM_MAX_DEGREE,
             // The shipped atom-algebra set ([`geom_core::SymRules::shipped`]).
             rules: geom_core::SymRules::default(),
-            // No retry ladder ([`DEFAULT_SYM_RETRY`] argues why).
+            // The measured retry ladder ([`DEFAULT_SYM_RETRY`]).
             retry: DEFAULT_SYM_RETRY,
         }
     }

@@ -220,12 +220,15 @@ recovers.** SYM-9's `geom-core/tests/sym_9_retry_rows.rs`
 residual above through a retry with rule E shut and it closes as a
 theorem; rule E shut as a retry recovers zero on the five documents.
 
-**What ships.** Nothing, by default: on the affordability line's
-instrument the ladder acts only on documents already over the 1.6 s
-line and adds 12.5–36 % there
-(`editor_core::drive::DEFAULT_SYM_RETRY` carries the table), so the
-drive makes one attempt per rung and `SymRetry::kept_atom` is the dial a
-caller installs.
+**What ships.** `SymRetry::kept_atom`, ON by default, across the 1.6 s
+line as a disclosed trade, the way rule E shipped: on the affordability
+line's instrument the ladder acts only on documents already over the line
+at one attempt per rung, adds 12.5–36 % there, changes no certification,
+and its rule-G attempt returns the ten theorems the default rule G costs
+R2's link (`editor_core::drive::DEFAULT_SYM_RETRY` carries the table;
+the rule-A attempt is the weaker half, six registrations and no theorem).
+The fix pass first set the default to none on the leaf line and the
+delta review reversed that; the leaf numbers stand either way.
 
 **What is left open here.** The pad's nominal replay is unmeasured
 (its own row), and the ring's non-monotonicity is now a DESIGN

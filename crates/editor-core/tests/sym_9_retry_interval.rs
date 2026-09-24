@@ -16,12 +16,15 @@
 //! question — it moves the FIRST attempt, which is the non-monotonicity
 //! this unit's item records.
 //!
-//! **One row here GATES** — [`sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`],
+//! **Two rows here GATE** — [`sym_9_the_drive_writes_the_ladders_receipt`],
+//! which drives one whole-box leaf of the bracket at the drive's default
+//! dials and reads both receipts' ladder clauses, and
+//! [`sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`],
 //! which pins what the measured ladder (`SymRetry::kept_atom`) recovers
 //! on the two documents that gain from it and pins ZERO on the three
-//! that do not. It costs about three minutes in a dev build and it is
-//! `gated_to!` the tier, its dials and those
-//! documents' fixture doors, so a change elsewhere does not pay it. The
+//! that do not. Together they cost about four minutes in a dev build
+//! and they are `gated_to!` the tier, its dials and those
+//! documents' fixture doors, so a change elsewhere does not pay them. The
 //! rest are `#[ignore]`d evidence probes that print and assert nothing
 //! a gate could read ([[test-suite-cost]]). Run one document's evidence:
 //!
@@ -469,4 +472,86 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
          moved UP is re-baselined and said; one that moved DOWN is a retry taking a decision \
          away, which `SymRetry` says cannot happen: {moved:?}"
     );
+}
+
+/// **The DRIVE carries the ladder, and its receipt says so**: one
+/// whole-box leaf of R2's filleted bracket at `1e1·ε` under
+/// `SymbolicDials::default()` — the shipped ladder, through the drive's
+/// own door (`sym::with_session_memo_retry`, with the drive's plain
+/// memo installed) — against the same leaf with `SymRetry::none()`.
+///
+/// It reads both receipts the drive writes: the goldening line carries
+/// `retried=6` after the discharge columns, and the human form names
+/// the six as discharges a second attempt reached, not as a clause of
+/// `registered`'s. Without the ladder neither appears and the line is
+/// the one a drive wrote before the ladder existed. The six themselves
+/// are the rule-A attempt's, and they are `registered` (144 → 150).
+#[test]
+fn sym_9_the_drive_writes_the_ladders_receipt() {
+    let tol = Tol::witness();
+    let doc = document("r2_filleted_bracket", 1.0e1 * tol.eps(), tol);
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let run = |symbolic: editor_core::drive::SymbolicDials| {
+        editor_core::drive::drive(
+            &doc,
+            &analyzed,
+            &editor_core::drive::DriveConfig {
+                max_depth: 0,
+                max_leaves: 1,
+                symbolic,
+                ..editor_core::drive::DriveConfig::default()
+            },
+            tol,
+        )
+        .expect("the bracket drives")
+    };
+    let shipped = run(editor_core::drive::SymbolicDials::default());
+    let bare = run(editor_core::drive::SymbolicDials {
+        retry: SymRetry::none(),
+        ..editor_core::drive::SymbolicDials::default()
+    });
+    let (line, human) = (shipped.serialize(), shipped.render(&analyzed));
+    println!("{line}\n{human}");
+    assert_eq!(shipped.receipt().certified, 1, "the leaf certifies whole");
+    assert_eq!(
+        bare.receipt().certified,
+        1,
+        "with the ladder and without it"
+    );
+    let d = shipped.decisions();
+    assert_eq!(
+        [
+            d.symbolic_zero,
+            d.sign_gated,
+            d.registered,
+            d.numeric,
+            d.retried
+        ],
+        [1104, 7, 150, 760, 6],
+        "the shipped ladder's leaf receipt"
+    );
+    assert!(
+        line.contains("registered=150 retried=6\n"),
+        "the goldening line carries `retried=` after the discharge columns: {line}"
+    );
+    assert!(
+        human.contains("; 6 of those discharges reached only by a second attempt"),
+        "the human form names the six as the ladder's: {human}"
+    );
+    let b = bare.decisions();
+    assert_eq!(
+        [
+            b.symbolic_zero,
+            b.sign_gated,
+            b.registered,
+            b.numeric,
+            b.retried
+        ],
+        [1104, 7, 144, 766, 0]
+    );
+    assert!(
+        !bare.serialize().contains("retried="),
+        "no ladder, no column"
+    );
+    assert!(!bare.render(&analyzed).contains("second attempt"));
 }

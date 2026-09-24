@@ -1,7 +1,7 @@
 ---
 id: rule-g-trades-sixteen-of-the-links-carrier-on-surface-2
 kind: issue
-title: rule G costs the link's carrier_on_surface_2 sixteen theorems - SYM-9's kept-atom retry recovers the ten when installed, and the six weakened to the registrant's axiom are what is left
+title: rule G costs the link's carrier_on_surface_2 sixteen theorems - SYM-9's kept-atom retry, shipped on, recovers the ten, and the six weakened to the registrant's axiom are what is left
 status: open
 opened: 2026-09-21
 priority: P2
@@ -99,8 +99,9 @@ in the comment, so any further drift reds and says which.
 
 **The ten are RECOVERED by the retry ladder, and the trade this row
 records still stands at one attempt per rung.** SYM-9's retry ladder
-(`geom_core::SymRetry::kept_atom`; the drive's default is no ladder,
-`editor_core::drive::DEFAULT_SYM_RETRY` argues why) re-asks
+(`geom_core::SymRetry::kept_atom`, the drive's default,
+`editor_core::drive::DEFAULT_SYM_RETRY`, shipped across the 1.6 s line
+as a disclosed trade) re-asks
 a decision every rung of the first attempt refused, with rule G shut for
 that attempt. The first attempt is untouched. Measured on the link at
 the nominal (`editor-core/tests/sym_9_retry_interval.rs`):
@@ -139,6 +140,15 @@ them `symbolic_zero`, because rule G's `sqrt(R²) = |R|` hands them to
 the rim registrant. No retry moves them back, and that is by
 construction: they are discharged on the first attempt (by the door), so
 the ladder is never entered for them.
+
+**Re-read against the default as it ships (the ladder ON).** The table's
+last row is what a drive at its default dials now reports, so in what
+ships this predicate loses NO decision to `numeric`: 98 of its 108
+discharged, as in the base, with six of them weakened from a theorem to
+the registrant's axiom. The six paragraph above holds unchanged — the
+ladder is never entered for a decision the first attempt's door closed —
+and so does the P2: what the row owed at P1 was ten decisions lost, and
+at the shipped default none are; what it still owes is the description.
 
 This row therefore stays **open at P2** for exactly one thing, shape 2
 of the untried list: render the residuals under both dial sets and read

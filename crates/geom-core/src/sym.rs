@@ -790,11 +790,18 @@
 //! the ladder takes no document from under it to over it; it adds 36 %,
 //! 14 % and 12.5 % on those three, and it recovers six decisions on the
 //! bracket (`registered`, the rule-A attempt), twelve on the link
-//! (`symbolic_zero`, the rule-G attempt) and nothing on the pad. So the
-//! drive ships with NO ladder and `kept_atom` is the dial a caller turns
-//! on — `editor_core::drive::DEFAULT_SYM_RETRY` carries the table per
-//! mask, the reads-off reading that says the decision read is not what
-//! the ladder costs, and the argument.
+//! (`symbolic_zero`, the rule-G attempt) and nothing on the pad. **It
+//! SHIPS ON ACROSS THE LINE as a disclosed trade, as rule E did** (the
+//! rule-E section above): the shipped rules alone put those three over
+//! the line — the bracket at 10× and the link at 75× their M10-9 leaf —
+//! the ladder adds 1.0 s, 2.4 s and 16 s there and changes no
+//! certification, and the rule-G attempt returns exactly the ten
+//! theorems the default rule G costs the link's `carrier_on_surface_2`.
+//! The rule-A attempt is the weaker half — six registrations and no
+//! theorem, for about 0.4 s of the bracket's 1.0 s — and ships on the
+//! same balance, named. `editor_core::drive::DEFAULT_SYM_RETRY` carries
+//! the table per mask, the reads-off reading that says the decision read
+//! is not what the ladder costs, and the argument.
 //!
 //! **What a ladder holds**, per attempt, as a session ends
 //! (`profile::SymProfile::retry_forms`), at the nominal: the segment
@@ -1950,12 +1957,15 @@ impl SymRules {
 /// as the rung that reached it, and lands in that rung's column;
 /// [`SymCounts::retried`] counts it beside, never instead of.
 ///
-/// **An attempt that cannot differ from the first is not walked**
-/// ([`Self::attempts`]): a mask that takes away only rules the session
-/// has already shut, or a ring no wider than the first attempt's, would
-/// build the first attempt's forms again for nothing. So a rules
-/// differential taken at a narrow tier with a ladder installed pays no
-/// ladder at all.
+/// **An attempt identical to one already made is not walked**
+/// ([`Self::attempts`]): one whose rules AND ring bound equal the first
+/// attempt's — a mask that takes away only rules the session has already
+/// shut, or a ring retry at exactly [`rational::COEFF_BITS`] — or equal
+/// an earlier retry's, would build the same forms again for nothing. So
+/// a rules differential taken at a narrow tier with a ladder installed
+/// pays no ladder at all. Only EQUAL attempts are dropped: a ring retry
+/// NARROWER than the first attempt's is a different attempt, sound and
+/// pointless, and is walked as the caller asked.
 ///
 /// **Not a field of [`SymBudget`]**, which is where the unit's spec put
 /// it: `SymBudget` is built as a struct literal at 53 sites in 39
@@ -2039,11 +2049,11 @@ impl SymRetry {
 
     /// **The kept-atom ladder SYM-9 measured**: two attempts, one with
     /// rule G shut and then one with rule A's `sqrt(X)² = X` shut, and no
-    /// wider-ring attempt. It is what a caller installs to have a ladder;
-    /// the drive's default is none. `editor_core::drive::DEFAULT_SYM_RETRY`
+    /// wider-ring attempt. It is the drive's default ladder;
+    /// `editor_core::drive::DEFAULT_SYM_RETRY`
     /// carries the measurement that chose the shapes, the order (a tie,
     /// so rule G's attempt — the one that buys theorems — goes first) and
-    /// the default.
+    /// the cost against the 1.6 s line it ships across.
     ///
     /// The rule-G mask spells rule G's two halves (`abs_square`,
     /// `root_magnitude`) shut with it, as every constructor that shuts
@@ -3504,7 +3514,22 @@ fn walk(
 ) -> Arc<Form> {
     let slot = MemoSlot::of(kind, attempt);
     let memo = core::mem::take(sess.memo_slot(slot));
-    let kept = core::mem::replace(&mut sess.rules, rules);
+    // **The first attempt swaps nothing and scopes nothing**: it runs
+    // under the session's own rules at the ring's own bound, which is
+    // what every caller hands it (`plain_form`, `early_form`,
+    // `door_form`, `rungs` at attempt 0). Only a retry swaps the rules
+    // in and widens the ring; the scope below still restores the memo
+    // on every attempt.
+    let first = attempt == 0;
+    debug_assert!(
+        !first || (rules == sess.rules && bits == rational::COEFF_BITS),
+        "the first attempt is the session's rules at COEFF_BITS"
+    );
+    let kept = if first {
+        sess.rules
+    } else {
+        core::mem::replace(&mut sess.rules, rules)
+    };
     #[cfg(feature = "sym-profile-testing")]
     let (t0, outer) = (profile::clock(), profile::set_attempt(attempt));
     let mut scope = WalkScope {
@@ -3521,7 +3546,11 @@ fn walk(
         WalkKind::Door => (true, true),
     };
     let WalkScope { sess, memo, .. } = &mut scope;
-    let out = rational::with_coeff_bound(bits, || form_in(sess, memo, root, early, registry));
+    let out = if first {
+        form_in(sess, memo, root, early, registry)
+    } else {
+        rational::with_coeff_bound(bits, || form_in(sess, memo, root, early, registry))
+    };
     #[cfg(feature = "sym-profile-testing")]
     profile::walk_done(
         match kind {
@@ -4679,8 +4708,10 @@ mod tests {
             walked.is_empty(),
             "no retry memo was ever made, because no attempt was: {walked:?}"
         );
-        // And a ring no wider than the first attempt's is the first
-        // attempt again too; so is a second mask identical to the first.
+        // And a ring retry at exactly the first attempt's bound is the
+        // first attempt again too; so is a second mask identical to the
+        // first. (A NARROWER ring is a different attempt and is kept —
+        // `attempts` drops only equal ones.)
         let same = SymRetry {
             bits: Some(rational::COEFF_BITS),
             without: [kept_atom().without[0], kept_atom().without[0]],
@@ -4691,6 +4722,15 @@ mod tests {
             .map(|(k, _, _)| k)
             .collect();
         assert_eq!(offered, [1], "one distinct attempt, numbered 1");
+        let narrower = SymRetry {
+            bits: Some(rational::COEFF_BITS - 1),
+            ..SymRetry::none()
+        };
+        assert_eq!(
+            narrower.attempts(SymRules::shipped()).count(),
+            1,
+            "a narrower ring is not the first attempt, so it is offered"
+        );
     }
 
     /// **THE GROWTH GUARD** (`SymRetry::max_forms`): an attempt whose

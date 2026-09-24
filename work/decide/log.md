@@ -335,3 +335,11 @@ three over the 1.6 s line before it — so the drive ships no ladder and
 `SymRetry::kept_atom` is the dial. The decision read measured at zero
 on that instrument for those three documents. One row filed on SYM's
 slate (the retry attempts' missing cross-check).
+
+## SYM-9 delta (2026-09-24)
+
+R1's delta on `7fd643159` MERGEABLE, recommending the default's reversal;
+ruled. `DEFAULT_SYM_RETRY` is `SymRetry::kept_atom()` again, shipped across
+the 1.6 s line as a disclosed trade with the rule-A attempt named the
+weaker half; the rules differentials stay at no ladder. A gated drive row
+now reads the ladder's `retried=` line and its sentence.

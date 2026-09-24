@@ -55,12 +55,14 @@ What changed at the fix pass: the rules differentials run with no
 ladder on both sides (the first cut had the ladder inside all of them),
 so DECIDE-3's link pin is rule G's trade again; an attempt identical to
 the first is not walked; the leaf instrument was taken with and without
-the ladder in release, and because the ladder acts only on documents
-already over the 1.6 s line and adds 12.5–36 % there, the drive's
-default is now NO ladder and `SymRetry::kept_atom` is the measured
-ladder a caller installs. With it: twelve theorems on R2's link (the
-ten rule G costs `carrier_on_surface_2`, and two), six registrations on
-R2's bracket, nothing on the other four.
+the ladder in release. The fix pass then set the drive's default to NO
+ladder on the leaf line (the ladder acts only on documents already over
+1.6 s and adds 12.5–36 % there); R1's delta was MERGEABLE and recommended
+reversing that, and the orchestrator ruled the reversal — a line the base
+already fails is not a test of the ladder, and SYM-5 shipped rule E across
+it as a disclosed trade. So `SymRetry::kept_atom` ships ON: twelve
+theorems on R2's link (the ten rule G costs `carrier_on_surface_2`, and
+two), six registrations on R2's bracket, nothing on the other four.
 
 `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`
 stays open at P2 for shape 2 (the render). Filed:
