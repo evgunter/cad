@@ -295,3 +295,78 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
         "no top-cap fragment vanished, so the pass-through is not pinned"
     );
 }
+
+/// **A union's fragment group is read through its fold.**
+///
+/// A 3×3×1 plate, a bar standing through its top in y (behind a
+/// `Transform`), and a block far away, united in every order: the bar
+/// divides the plate's top into two fragments at whichever fold step
+/// the plate and the bar meet, and every later step carries them
+/// through. Sliding the bar in y so it stops short of the far edge
+/// leaves the top whole. The union's record is each step's groups,
+/// followed to the published names: 2 → 1 in every order. The two runs
+/// are read without their verdict logs and against one document, for
+/// the split row's reason: the slide's own flip is diagnosed first.
+#[test]
+fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
+    let orders: [[usize; 3]; 6] = [
+        [0, 1, 2],
+        [0, 2, 1],
+        [1, 0, 2],
+        [1, 2, 0],
+        [2, 0, 1],
+        [2, 1, 0],
+    ];
+    for order in orders {
+        let doc = ProfileDoc::empty_derived("group-membership-union", Tol::witness());
+        let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+        let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+        let (doc, tr) = insert(
+            doc,
+            Node::Transform {
+                input: bar,
+                translation: [len(0.0), len(0.0), len(0.0)],
+                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+                rotation_angle: ang(0.0),
+            },
+        );
+        let (doc, far) = block(doc, (10.0, 11.0), (0.0, 1.0), 0.0, 1.0);
+        let m = [plate, tr, far];
+        let (doc, u) = insert(
+            doc,
+            Node::Union {
+                members: order.iter().map(|&i| m[i]).collect(),
+                declare: None,
+            },
+        );
+        let ev1 = run(&doc, None);
+        let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::Y), 2.5);
+        // The slide records a containment flip at the union, the answer
+        // above this rung; read the two real runs without that
+        // evidence, as the split row does.
+        let ev2 = silent(run(&doc2, Some(&ev1)));
+        let ev1 = silent(ev1);
+        let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, e| {
+            matches!(e, Entry::Unique(_))
+                && matches!(
+                    n.path.last(),
+                    Some(RoleSeg::Fragment(editor_core::Qualifier::SideOf(_)))
+                )
+        });
+        assert!(
+            !rows.is_empty(),
+            "{order:?}: no fragment vanished, so the row pins nothing"
+        );
+        for (n, d) in rows {
+            assert_eq!(
+                d,
+                Diagnosis::GroupResized {
+                    node: u,
+                    was: 2,
+                    now: 1,
+                },
+                "{order:?}: {n:?}"
+            );
+        }
+    }
+}

@@ -182,7 +182,9 @@ pub use program::{
 pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
-pub use refactor::{InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split};
+pub use refactor::{
+    InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, remap_name, split,
+};
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
 };

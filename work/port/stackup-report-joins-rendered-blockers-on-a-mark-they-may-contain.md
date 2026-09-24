@@ -2,7 +2,8 @@
 id: stackup-report-joins-rendered-blockers-on-a-mark-they-may-contain
 kind: issue
 title: the stackup report joins rendered Unavailable blockers flat on a "; " the elements may carry
-status: open
+status: review
+pr: 3178
 opened: 2026-09-16
 priority: P3
 cost: E
@@ -40,3 +41,30 @@ they are two marks"* section is the written-up version of both.
 ## Home
 
 PROPS's: `crates/editor-core/src/stackup.rs`.
+
+## Resolved (PORT, `port/wrap-a`)
+
+**There was only ever one such join.** At the filing commit
+(`c428b4596`) and today, `stackup.rs` holds one `"; "` join — the
+report body's rss row in `Stackup::render`. The "second in the summary
+above it" is `Stackup::serialize`'s rss line, which joins blocker
+parameter NAMES (not rendered sentences) on a bare `,`; nothing moved,
+merged or was removed.
+
+The answer taken is the startup-notices one, moved up a level: the
+rss row (`render_rss`) now writes `UNAVAILABLE — N blocker(s):` and one
+blocker per line under it, so the boundary is the report's own row
+mark rather than punctuation a sentence is entitled to. The
+AdmissionFault-style narrowing was not available — `Unavailable` is
+already a closed four-arm population, and what its sentences can carry
+beyond their templates is the parameter name, which is the document's.
+Held by `stackup::tests`: `every_blocker_renders_on_one_line`, over one
+example of every arm, the examples checked against a
+`test_utils::f6_variants!` weld of `Unavailable` (so a fifth arm with no
+example reds); `a_refused_rss_splits_back_into_its_blockers` (names
+carrying `"; "` and `", "`); and the singular count.
+
+What a name may contain is EDIT's in-flight name door
+(`work/edit/no-door-refuses-a-blank-parameter-name`); the serialize
+`,` join and `report.rs`'s `MassBasis::Forced` `", "` join rely on the
+same rule, and are recorded there as evidence.

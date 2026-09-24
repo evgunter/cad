@@ -14,6 +14,7 @@ use geom_core::{Decide, Margin, Point3, Sign, Vec3};
 use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
+use super::canonical;
 use super::defer::{TieRows, Upstream, mint_candidates, put, upstream_name};
 use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along, side_of_face};
 use super::emit::{
@@ -696,18 +697,21 @@ pub(crate) fn name_boolean<T: Decide>(
         }
         let parents: BTreeSet<OpSide<FaceKey>> = descents.iter().copied().collect();
         merged_descents.insert(*kept, descents);
-        constituents.sort_unstable();
-        // The constituent SET is the name (review R8): two merge
-        // groups with one set collide LOUDLY at insert
-        // (`DuplicateName` → typed `NamingError`; pinned by
+        // The constituent SET is the name (review R8), so the
+        // canonical form sorts and deduplicates it: two merge groups
+        // with one set collide LOUDLY at insert (`DuplicateName` →
+        // typed `NamingError`; pinned by
         // `merged_same_constituent_groups_collide_loudly`). With the
         // set flat, two groups collide whenever they list the same
         // faces — a merge over a merged face and a merge over that
         // face's constituents are ONE set, where nesting once kept
         // them apart — and a per-group discriminator is what would
         // upgrade the refusal to a success if that class ever matters.
-        constituents.dedup();
-        let merged = NameRef::new(name1(EntityKind::Face, node, RoleSeg::Merged(constituents)));
+        let merged = NameRef::new(canonical::minted(name1(
+            EntityKind::Face,
+            node,
+            RoleSeg::Merged(constituents),
+        )));
         for d in parents {
             merged_into.entry(d).or_default().push(merged.clone());
         }
@@ -870,7 +874,7 @@ fn name_fragment_group<T: Decide>(
     for (vector, faces) in by_vector {
         let mut name = base.clone();
         name.path.push(RoleSeg::Fragment(Qualifier::SideOf(vector)));
-        let name = NameRef::new(name);
+        let name = NameRef::new(canonical::minted(name));
         names.extend(faces.iter().map(|_| name.clone()));
         // Several with one sign vector are the N2 tie:
         // equally-admissible symmetric candidates.
@@ -1315,7 +1319,10 @@ fn name_boolean_vertices<T: Decide>(
         let mut b_edges: Vec<NameRef> = Vec::new();
         let mut a_faces: Vec<NameRef> = Vec::new();
         let mut b_faces: Vec<NameRef> = Vec::new();
-        let mut seam_lines: Vec<(NameRef, NameRef)> = Vec::new();
+        // The distinct seam LINES through this vertex: a set, because
+        // several incident seam edges lie on one line. The junction's
+        // name is these lines, and `names::canonical` orders them.
+        let mut seam_lines: BTreeSet<(NameRef, NameRef)> = BTreeSet::new();
         // B1: a seam vertex reads its parentage off the incident EDGE
         // names, so an edge name that is itself tied makes the vertex
         // name tie-descended too.
@@ -1336,7 +1343,7 @@ fn name_boolean_vertices<T: Decide>(
                 Some(RoleSeg::Seam { a: fa, b: fb }) => {
                     a_faces.push(fa.clone());
                     b_faces.push(fb.clone());
-                    seam_lines.push((fa.clone(), fb.clone()));
+                    seam_lines.insert((fa.clone(), fb.clone()));
                 }
                 _ => return Err(bug("seam vertex incident to an unexpected edge role")),
             }
@@ -1390,8 +1397,6 @@ fn name_boolean_vertices<T: Decide>(
         from_tie |= partner_a.as_ref().is_some_and(|u| u.tied);
         let partner_b_inner: Option<NameRef> = partner_b.map(|u| u.name);
         let partner_a_inner: Option<NameRef> = partner_a.map(|u| u.name);
-        seam_lines.sort_unstable();
-        seam_lines.dedup();
         // The A side of the pair is always an A-descended name and the
         // B side always a B-descended one: every arm draws its two
         // components from different sources, so `Seam{x, x}` — a
@@ -1419,23 +1424,22 @@ fn name_boolean_vertices<T: Decide>(
             ([], [be], Some(pa), _) => (pa.clone(), be.clone()),
             // A seam JUNCTION (M4 PR 5: declared merges can consume
             // every operand-descended edge at a crossing): the vertex
-            // where k ≥ 2 seam LINES meet. Its name is the sorted
-            // path of the lines' Seam segments — deterministic, and
-            // unique per line set (straight lines meet once).
+            // where k ≥ 2 seam LINES meet. Its name is the path of the
+            // lines' Seam segments, in the canonical form's order —
+            // deterministic, and unique per line set (straight lines
+            // meet once).
             ([], [], _, _) if seam_lines.len() >= 2 => {
-                let mut segs: Vec<RoleSeg> = seam_lines
-                    .iter()
-                    .map(|(fa, fb)| RoleSeg::Seam {
-                        a: fa.clone(),
-                        b: fb.clone(),
-                    })
-                    .collect();
-                segs.sort_unstable();
-                let name = StableName {
+                let name = canonical::minted(StableName {
                     kind: EntityKind::Vertex,
                     node,
-                    path: segs,
-                };
+                    path: seam_lines
+                        .iter()
+                        .map(|(fa, fb)| RoleSeg::Seam {
+                            a: fa.clone(),
+                            b: fb.clone(),
+                        })
+                        .collect(),
+                });
                 put(t, tie, from_tie, name, ent(0, EntityKey::Vertex(v)))?;
                 continue;
             }

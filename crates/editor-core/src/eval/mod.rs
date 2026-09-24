@@ -35,7 +35,7 @@ pub(crate) use wire::{
 };
 
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue};
-pub(crate) use anchor::{naming_of, replay_naming};
+pub(crate) use anchor::{naming_of, readable_naming, replay_naming};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::{DirectionRefusal, FramePlacement};
 

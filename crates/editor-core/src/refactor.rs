@@ -106,7 +106,7 @@ use crate::doc::{Doc, NameCarrier};
 use crate::edit::Maintenance;
 use crate::edit::{DocEdit, EditError, apply};
 use crate::ident::{DocRef, DocumentId};
-use crate::names::{FaceName, NameRef, RoleSeg, SegRewrite, StableName};
+use crate::names::{EntityKind, FaceName, NameRef, RoleSeg, SegRewrite, StableName};
 use crate::node::{InterfaceCrossing, InterfaceRecord, Node, PatternKind, RecipeNodeId};
 use crate::part::{PartResolver, ResolveFailure};
 use crate::persist::{PersistError, content_pin};
@@ -682,15 +682,22 @@ impl Recording {
 /// the id set [`derivation_nodes`] reads, because that is the set that
 /// belongs to THIS document's id space. `InPart` arguments cross
 /// VERBATIM (they name another document's nodes — the walk_names seam
-/// rule). Set-valued segments and `SideOf` verdict vectors are
-/// re-canonicalized after the rewrite (their canonical order is name
-/// order, which the rewrite may change).
+/// rule). The path is walked by `StableName::rewrite_path`, which
+/// puts it back in canonical form: the map need not preserve id order
+/// (it follows document order, and a loaded document's order is not
+/// its id order), so every name-ordered position may come out
+/// reordered.
+///
+/// Public because a name held outside the document — a caller's own
+/// reference into a split or inlined part — crosses the same map the
+/// split and the inline apply to the names they carry, and has to come
+/// out spelled the way theirs do.
 ///
 /// # Errors
 ///
 /// The first local id the map lacks.
-fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, RecipeNodeId> {
-    let (node, path) = remap_derivation(name.node, &name.path, map)?;
+pub fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, RecipeNodeId> {
+    let (node, path) = remap_derivation(name.kind, name.node, &name.path, map)?;
     Ok(StableName {
         kind: name.kind,
         node,
@@ -699,7 +706,9 @@ fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, RecipeNode
 }
 
 /// The half of [`remap_name`] that a name's KIND is not part of: the
-/// minting node and the role path, rewritten through `map`.
+/// minting node and the role path, rewritten through `map`. The kind
+/// is read, never written: the path's canonical form depends on it (a
+/// junction is a vertex's; a rank's rule is an edge's or a vertex's).
 ///
 /// Split out because that is exactly what a face name may have
 /// rewritten — `FaceName::map_derivation` hands this function the
@@ -710,17 +719,19 @@ fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, RecipeNode
 ///
 /// The first local id the map lacks.
 fn remap_derivation(
+    kind: EntityKind,
     node: RecipeNodeId,
     path: &[RoleSeg],
     map: &NodeMap,
 ) -> Result<(RecipeNodeId, crate::names::RolePath), RecipeNodeId> {
-    let node = *map.get(&node).ok_or(node)?;
-    let path = path
-        .iter()
-        .cloned()
-        .map(|seg| seg.rewrite(&mut Remapping(map)))
-        .collect::<Result<_, _>>()?;
-    Ok((node, path))
+    let to = *map.get(&node).ok_or(node)?;
+    let rewritten = StableName {
+        kind,
+        node,
+        path: path.to_vec(),
+    }
+    .rewrite_path(&mut Remapping(map))?;
+    Ok((to, rewritten.path))
 }
 
 /// **The split re-map as a [`SegRewrite`]**: every carried name is
@@ -764,7 +775,7 @@ impl SegRewrite for Remapping<'_> {
 ///
 /// The first local id the map lacks.
 fn remap_face(name: &FaceName, map: &NodeMap) -> Result<FaceName, RecipeNodeId> {
-    name.map_derivation(|node, path| remap_derivation(node, path, map))
+    name.map_derivation(|node, path| remap_derivation(EntityKind::Face, node, path, map))
 }
 
 /// What a payload rewrite could not map: a DAG input (unreachable
@@ -2183,5 +2194,155 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
             Err(RemapMiss::Input(id)) => panic!("a name miss is not an input miss, got {id:?}"),
             Ok(out) => panic!("INNER is unmapped, got {out:?}"),
         }
+    }
+}
+
+/// **A remap that reorders ids republishes the canonical form.**
+///
+/// The split's node map follows document order, which a loaded
+/// document need not keep in id order, so two ids can come out in the
+/// other order. Every name-ordered position then has to be put back in
+/// order, and a union seam whose sides swap reads its ranks from the
+/// other end — the form the emitters would mint for the same entity
+/// under the new ids.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod a_remap_that_reorders_ids_republishes_the_canonical_form {
+    use super::{NodeMap, remap_name};
+    use crate::names::{NameRef, Qualifier, RoleSeg, SideVerdict, StableName};
+    use crate::node::RecipeNodeId;
+    use crate::{CapEnd, EntityKind};
+
+    /// Union 9 → 20; members 1 and 2 swap order (→ 31, 30); 3 → 32.
+    fn map() -> NodeMap {
+        [(9, 20), (1, 31), (2, 30), (3, 32), (5, 25)]
+            .into_iter()
+            .map(|(a, b)| (RecipeNodeId(a), RecipeNodeId(b)))
+            .collect()
+    }
+
+    fn cap(kind: EntityKind, node: u64) -> StableName {
+        StableName {
+            kind,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::Cap(CapEnd::Start)],
+        }
+    }
+
+    /// Member `m`'s start cap in union `u`'s space.
+    fn member(kind: EntityKind, u: u64, m: u64) -> StableName {
+        StableName {
+            kind,
+            node: RecipeNodeId(u),
+            path: vec![RoleSeg::FromMember {
+                member: RecipeNodeId(m),
+                of: NameRef::new(cap(kind, m)),
+            }],
+        }
+    }
+
+    fn seam(a: StableName, b: StableName) -> RoleSeg {
+        RoleSeg::Seam {
+            a: NameRef::new(a),
+            b: NameRef::new(b),
+        }
+    }
+
+    fn rank(rank: u32, of: u32) -> RoleSeg {
+        RoleSeg::Fragment(Qualifier::OrderAlong { rank, of })
+    }
+
+    fn name(kind: EntityKind, node: u64, path: Vec<RoleSeg>) -> StableName {
+        StableName {
+            kind,
+            node: RecipeNodeId(node),
+            path,
+        }
+    }
+
+    /// A union seam edge between members 1 and 2, first of three.
+    fn union_edge(u: u64, (m1, m2): (u64, u64), r: u32) -> StableName {
+        let (x, y) = (
+            member(EntityKind::Face, u, m1),
+            member(EntityKind::Face, u, m2),
+        );
+        let (x, y) = if x <= y { (x, y) } else { (y, x) };
+        name(EntityKind::Edge, u, vec![seam(x, y), rank(r, 3)])
+    }
+
+    #[test]
+    fn a_union_seam_edge_swaps_its_sides_and_reverses_its_rank() {
+        let out = remap_name(&union_edge(9, (1, 2), 0), &map()).expect("covered");
+        assert_eq!(
+            out,
+            union_edge(20, (31, 30), 2),
+            "the pair in name order under the new ids, the rank from the other end"
+        );
+    }
+
+    #[test]
+    fn a_union_seam_vertex_follows_its_edge_parents_line() {
+        let vertex = |u: u64, edge: StableName, m3: u64, r: u32| {
+            let face = member(EntityKind::Face, u, m3);
+            let (x, y) = if edge <= face {
+                (edge, face)
+            } else {
+                (face, edge)
+            };
+            name(EntityKind::Vertex, u, vec![seam(x, y), rank(r, 2)])
+        };
+        let was = vertex(9, union_edge(9, (1, 2), 0), 3, 0);
+        let out = remap_name(&was, &map()).expect("covered");
+        assert_eq!(out, vertex(20, union_edge(20, (31, 30), 2), 32, 1));
+    }
+
+    #[test]
+    fn a_pair_booleans_sets_side_of_and_junction_are_resorted_and_its_seams_stay_sided() {
+        // Boolean 5 over operands 1 and 2, with 3 a third name.
+        let face = |n| cap(EntityKind::Face, n);
+        let was = name(
+            EntityKind::Face,
+            5,
+            vec![
+                RoleSeg::Merged(vec![face(1), face(2)]),
+                RoleSeg::Fragment(Qualifier::SideOf(vec![
+                    (face(1), SideVerdict::Positive),
+                    (face(2), SideVerdict::Negative),
+                ])),
+            ],
+        );
+        let out = remap_name(&was, &map()).expect("covered");
+        assert_eq!(
+            out.path,
+            vec![
+                RoleSeg::Merged(vec![face(30), face(31)]),
+                RoleSeg::Fragment(Qualifier::SideOf(vec![
+                    (face(30), SideVerdict::Negative),
+                    (face(31), SideVerdict::Positive),
+                ])),
+            ]
+        );
+        let junction = name(
+            EntityKind::Vertex,
+            5,
+            vec![seam(face(1), face(3)), seam(face(2), face(3))],
+        );
+        let out = remap_name(&junction, &map()).expect("covered");
+        assert_eq!(
+            out.path,
+            vec![seam(face(30), face(32)), seam(face(31), face(32))],
+            "the run re-sorted, each line A-first"
+        );
+        let sided = name(
+            EntityKind::Edge,
+            5,
+            vec![seam(face(1), face(2)), rank(0, 3)],
+        );
+        let out = remap_name(&sided, &map()).expect("covered");
+        assert_eq!(
+            out.path,
+            vec![seam(face(31), face(30)), rank(0, 3)],
+            "a pair boolean's seam is sided: no swap, no reversal"
+        );
     }
 }
