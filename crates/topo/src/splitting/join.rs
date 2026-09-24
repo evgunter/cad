@@ -36,7 +36,7 @@
 //! record promised to refuse here, typed
 //! [`SplitJoinError::DegenerateSection`] — refuses a positive-area
 //! polygon carrying that same residue as a zero-width spur, the same
-//! way (`split_section_spur`; [`Sweep::refuse_section_spur`]), and
+//! way (`split_section_spur`; `Sweep::refuse_section_spur`), and
 //! writes the F9 record.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign};
@@ -239,7 +239,6 @@ impl<T: Decide> Sweep<T> {
                 let outer_loop = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
                 let (above_loop, below_loop) = self.resolve_roles(body, face, outer_loop, ring)?;
                 self.certify_section_area(body, face, below_loop)?;
-                self.refuse_section_spur(body, face, below_loop)?;
                 body.set_null_face_pair(
                     face,
                     NullFacePair::Split {
@@ -388,7 +387,8 @@ impl<T: Decide> Sweep<T> {
         // stay separate, for the reasons written at that site.
         let margin = Margin::over_lever(twice_area.abs(), perimeter);
         match decide("split_section_area", margin, self.band) {
-            Ok(Sign::Positive) => Ok(()),
+            // A positive NET area can still carry a zero-area spur.
+            Ok(Sign::Positive) => self.refuse_section_spur(body, face, first),
             Ok(_) => Err(SplitJoinError::DegenerateSection { face }),
             Err(diag) => Err(SplitJoinError::Escalated { face, diag }),
         }
@@ -419,23 +419,15 @@ impl<T: Decide> Sweep<T> {
     /// decided only where BOTH of the tip's edges are straight, since
     /// two conic edges between one pair of points bound a lens, which
     /// has area.
+    ///
+    /// `first` is a half-edge of the below loop's cycle, as
+    /// [`Self::certify_section_area`] resolved it.
     fn refuse_section_spur(
         &self,
         body: &Body<T>,
         face: FaceKey,
-        below_loop: LoopKey,
+        first: HalfEdgeKey,
     ) -> Result<(), SplitJoinError> {
-        let LoopBoundary::Cycle { first } = body
-            .get_loop(below_loop)
-            .ok_or_else(|| corrupt_loop(below_loop))?
-            .boundary
-        else {
-            return Err(SplitJoinError::SectionInvariant {
-                face,
-                what: "a completed section polygon's below loop holds a lone vertex \
-                       instead of a cycle",
-            });
-        };
         let hes: Vec<HalfEdgeKey> = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
         let n = hes.len();
         if n < 3 {
