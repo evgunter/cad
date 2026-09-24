@@ -30,7 +30,6 @@
 
 use profile::{Profile, ProfileLoop, ValidatedProfile};
 
-
 /// One canonical loop's anchor: how canonical indices map back to the
 /// program's authored order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -1743,9 +1743,8 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
             (0..anchor.len)
                 .map(|k| {
                     let want = ProfileEdgeRef {
-                        loop_index: u32::try_from(canonical_loop).unwrap_or_else(|_| {
-                            unreachable!("a profile's loop count fits in u32")
-                        }),
+                        loop_index: u32::try_from(canonical_loop)
+                            .unwrap_or_else(|_| unreachable!("a profile's loop count fits in u32")),
                         segment: k,
                     };
                     // FIRST match: one segment carries at most one

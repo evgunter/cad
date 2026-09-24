@@ -55,14 +55,14 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKey, Entry, EvalOptions, Evaluation, Expr, LoopProgram, Node, ProfileDoc,
-    ProfileEdgeRef, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, StepSegmentsError, ValuePayload, eval::ProfileNaming, evaluate,
+    CancelToken, CapEnd, EntityKey, Entry, EvalOptions, Evaluation, Expr, LoopProgram, Node,
+    ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, RoleSeg, StepSegmentsError, ValuePayload, eval::ProfileNaming, evaluate,
 };
 use fixture::{insert, len, on_frame, tol};
 use geom_core::Point2;
 use profile::{CanonicalStructure, ProfileStructure, SketchPlane, Step, Target};
-use topo::{Body, FaceKey};
+use topo::{Body, EdgeKey, FaceKey};
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -406,7 +406,11 @@ fn perm_of(r: &Records, li: usize) -> Perm {
         canonical.start, 0,
         "canonicalization keeps the authored start, so it rotates nothing"
     );
-    if canonical.reversed { Perm::Reversed } else { Perm::Identity }
+    if canonical.reversed {
+        Perm::Reversed
+    } else {
+        Perm::Identity
+    }
 }
 
 /// The shared body of the anchoring rows: every step's refs name walls
@@ -521,6 +525,421 @@ fn a_reversed_loop_from_any_corner_names_the_walls_its_steps_bound() {
         "step-segments-cw-rot",
         vec![(0.0, 0.0), (-1.0, 1.0), (1.0, 2.0), (3.0, 1.0), (2.0, 0.0)],
         Perm::Reversed,
+    );
+}
+
+// ------------------------------------------------------------------
+// 2b. A loft: every section's steps name the walls they bound
+// ------------------------------------------------------------------
+//
+// A loft publishes ONE ref per wall, and the skin pairs canonical
+// segment `k` of every section into wall `k`. The canonical form keeps
+// each loop's authored start and hole order, so wall `k` is every
+// section's own canonical segment `k`, and the ordinary door — asked
+// with each section's OWN naming anchor — answers any section. The rows
+// author sections in both senses, with holes, with the hole first, and
+// with a section 0 whose anchor is not the identity; each fixture is a
+// straight prism, so a wall carries every section's segment at that
+// segment's plan position.
+
+/// A loft of `sections[i]`'s loops (outer and holes, in the order the
+/// section authors them), section `i` at `z = i`.
+fn loft_of_loops(
+    id: &str,
+    sections: &[Vec<Vec<(f64, f64)>>],
+) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
+    let mut doc = ProfileDoc::empty_derived(id, tol());
+    let mut ids = Vec::new();
+    for (i, loops) in sections.iter().enumerate() {
+        let (d, s) = on_frame(
+            doc,
+            [0.0, 0.0, i as f64],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            loops.clone(),
+        );
+        doc = d;
+        ids.push(s);
+    }
+    let (doc, loft) = insert(
+        doc,
+        Node::Loft {
+            profiles: ids.clone(),
+            v_degree: Expr::count(1),
+        },
+    );
+    (doc, ids, loft)
+}
+
+/// The edge a rim name addresses, `None` where the table has no such
+/// name.
+fn rim(
+    ev: &Evaluation<f64>,
+    node: RecipeNodeId,
+    end: CapEnd,
+    e: ProfileEdgeRef,
+) -> Option<EdgeKey> {
+    let name = fixture::ename(node, RoleSeg::RimEdge(end, e));
+    match ev.value(node)?.name_table.lookup(&name)? {
+        Entry::Unique(r) => match r.key {
+            EntityKey::Edge(k) => Some(k),
+            _ => None,
+        },
+        Entry::Tied(_) => None,
+    }
+}
+
+/// For EACH section of an evaluated straight-prism loft, every step of
+/// every program loop, asked through the ordinary door with the
+/// section's own program, records and naming anchor:
+///
+/// - names a loft wall that carries the step's segment — its placed
+///   endpoints on the first and last sections, whose segments are the
+///   walls' own corners; their plan positions on a middle one, whose
+///   segment endpoints are no vertex of the body;
+/// - on the first and last sections, names the `Start` / `End` rim
+///   whose two endpoints ARE that segment's, placed.
+///
+/// The segment a step produced is read off its own recorded span, never
+/// off the ref, so nothing here re-does the door's arithmetic. Between
+/// them each section's steps name every wall exactly once.
+fn assert_sections_bound_their_walls(
+    id: &str,
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+    ids: &[RecipeNodeId],
+    loft: RecipeNodeId,
+    want: &[Vec<Perm>],
+) {
+    let value = ev
+        .value(loft)
+        .unwrap_or_else(|| panic!("{id}: the loft evaluates: {:?}", ev.node_error(loft)));
+    let ValuePayload::Body(body) = &value.payload else {
+        panic!("{id}: the loft carries a body");
+    };
+    let last = ids.len() - 1;
+    let mut every_wall = BTreeSet::new();
+    for (si, &section) in ids.iter().enumerate() {
+        let Some(Node::Profile(program)) = doc.node(section) else {
+            panic!("{id}: section {si} is a program");
+        };
+        let ValuePayload::Profile(pv) = &ev.value(section).expect("the section evaluates").payload
+        else {
+            panic!("{id}: section {si} carries a profile");
+        };
+        let r = records(doc, program);
+        let placement = pv.validated.plane().placement;
+        let place =
+            |p: Point2<f64>| placement.transform_point(geom_core::Point3::new(p.x, p.y, 0.0));
+        let mut walls = BTreeSet::new();
+        for li in 0..r.verts.len() {
+            let found = perm_of(&r, li);
+            assert_eq!(
+                found, want[si][li],
+                "{id}: section {si} loop {li} is the {found:?} case, not the {:?} one it \
+                 is written to be",
+                want[si][li]
+            );
+            let n = r.verts[li].len();
+            let steps = r.structure.replay[li].steps.len();
+            let per_step = edges_by_step(program, &r.structure, &pv.naming, li as u32, steps, id);
+            for (step, edges) in per_step.iter().enumerate() {
+                let span = r.structure.replay[li].steps[step];
+                assert_eq!(
+                    edges.len(),
+                    span.iter().count(),
+                    "{id}: section {si} loop {li} step {step} answers one ref per segment"
+                );
+                for (e, s) in edges.iter().zip(span.iter()) {
+                    let face = lateral(ev, loft, *e).unwrap_or_else(|| {
+                        panic!("{id}: section {si} loop {li} step {step}: {e:?} names no wall")
+                    });
+                    walls.insert(face);
+                    let pts = face_vertex_points(body, face);
+                    let ends = [r.verts[li][s].0, r.verts[li][(s + 1) % n].0];
+                    for end in ends {
+                        let p = place(end);
+                        let bound = if si == 0 || si == last {
+                            touches(&pts, p, 1e-9)
+                        } else {
+                            pts.iter()
+                                .any(|q| (q.x - p.x).abs() <= 1e-9 && (q.y - p.y).abs() <= 1e-9)
+                        };
+                        assert!(
+                            bound,
+                            "{id}: section {si} loop {li} step {step}'s wall for {e:?} does \
+                             not carry {end:?}, an endpoint of the segment that step \
+                             produced (wall vertices {pts:?})"
+                        );
+                    }
+                    let cap = match si {
+                        0 => Some(CapEnd::Start),
+                        i if i == last => Some(CapEnd::End),
+                        _ => None,
+                    };
+                    if let Some(cap) = cap {
+                        let edge = rim(ev, loft, cap, *e).unwrap_or_else(|| {
+                            panic!(
+                                "{id}: section {si} step {step}'s ref {e:?} names no {cap:?} rim"
+                            )
+                        });
+                        let [a, b] = fixture::ends(body, edge);
+                        let got = [fixture::point(body, a), fixture::point(body, b)];
+                        for end in ends {
+                            assert!(
+                                touches(&got, place(end), 1e-9),
+                                "{id}: section {si} step {step}'s {cap:?} rim for {e:?} \
+                                 does not end at {end:?} (rim ends {got:?})"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        let total: usize = r.verts.iter().map(Vec::len).sum();
+        assert_eq!(
+            walls.len(),
+            total,
+            "{id}: section {si}'s steps name every wall exactly once"
+        );
+        every_wall.extend(walls);
+    }
+    assert_eq!(
+        every_wall.len(),
+        body.faces().count() - 2,
+        "{id}: every section names the same walls — the loft's, and no others"
+    );
+}
+
+/// [`assert_sections_bound_their_walls`] on a freshly evaluated loft.
+fn assert_loft_bounds_its_walls(id: &str, sections: &[Vec<Vec<(f64, f64)>>], want: &[Vec<Perm>]) {
+    let (doc, ids, loft) = loft_of_loops(id, sections);
+    let ev = run(&doc);
+    assert_sections_bound_their_walls(id, &doc, &ev, &ids, loft, want);
+}
+
+/// The 2 × 1 rectangle, counterclockwise from `(0, 0)`.
+fn rect_ccw() -> Vec<(f64, f64)> {
+    vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]
+}
+
+/// The same rectangle, CLOCKWISE from the same corner.
+fn rect_cw() -> Vec<(f64, f64)> {
+    vec![(0.0, 0.0), (0.0, 1.0), (2.0, 1.0), (2.0, 0.0)]
+}
+
+/// **A section authored CLOCKWISE**, from the same corner as a
+/// counterclockwise section 0: canonicalization reverses it and keeps
+/// its start, so its walls are section 0's, and the door answers its
+/// steps through its own anchor — the reflection — with no data about
+/// any other section.
+#[test]
+fn a_loft_section_authored_clockwise_names_the_walls_its_steps_bound() {
+    use Perm::{Identity as I, Reversed as R};
+    assert_loft_bounds_its_walls(
+        "loft-section-cw",
+        &[vec![rect_ccw()], vec![rect_cw()]],
+        &[vec![I], vec![R]],
+    );
+}
+
+/// **Section 0 clockwise, section 1 counterclockwise** — the case a
+/// table published in section 0's program numbering got wrong.
+#[test]
+fn a_loft_whose_first_section_is_clockwise_names_the_walls_every_section_bounds() {
+    use Perm::{Identity as I, Reversed as R};
+    assert_loft_bounds_its_walls(
+        "loft-section0-cw",
+        &[vec![rect_cw()], vec![rect_ccw()]],
+        &[vec![R], vec![I]],
+    );
+}
+
+/// **Three sections, a clockwise middle.** The middle section carries
+/// no rim and no body vertex, so it is the one whose answer only a wall
+/// can check; the last is the `End` cap's.
+#[test]
+fn a_three_section_loft_names_the_walls_every_section_bounds() {
+    use Perm::{Identity as I, Reversed as R};
+    assert_loft_bounds_its_walls(
+        "loft-three",
+        &[vec![rect_ccw()], vec![rect_cw()], vec![rect_cw()]],
+        &[vec![I], vec![R], vec![R]],
+    );
+}
+
+/// A 4 × 4 outer square counterclockwise from `(0, 0)`.
+fn outer_ccw() -> Vec<(f64, f64)> {
+    vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
+}
+/// The same square, clockwise from `(0, 0)`.
+fn outer_cw() -> Vec<(f64, f64)> {
+    vec![(0.0, 0.0), (0.0, 4.0), (4.0, 4.0), (4.0, 0.0)]
+}
+/// A triangular hole, counterclockwise from `(1, 1)` — against a
+/// hole's canonical (clockwise) sense.
+fn tri_ccw() -> Vec<(f64, f64)> {
+    vec![(1.0, 1.0), (3.0, 1.0), (2.0, 3.0)]
+}
+/// The same hole, clockwise from `(1, 1)` — in its canonical sense.
+fn tri_cw() -> Vec<(f64, f64)> {
+    vec![(1.0, 1.0), (2.0, 3.0), (3.0, 1.0)]
+}
+
+/// **A hole, in a later section that authors it FIRST and both loops
+/// against section 0's senses**: the section's program loop numbering
+/// differs from its canonical one (outer first), and every loop is
+/// answered through its own anchor.
+#[test]
+fn a_loft_with_a_hole_authored_first_in_a_later_section_names_its_walls() {
+    use Perm::{Identity as I, Reversed as R};
+    assert_loft_bounds_its_walls(
+        "loft-hole",
+        &[vec![outer_ccw(), tri_ccw()], vec![tri_cw(), outer_cw()]],
+        &[vec![I, R], vec![I, R]],
+    );
+}
+
+/// **Section 0 itself is not the identity** (the hole first, the outer
+/// clockwise), on three sections.
+#[test]
+fn a_loft_whose_first_section_is_not_the_identity_names_its_walls() {
+    use Perm::{Identity as I, Reversed as R};
+    assert_loft_bounds_its_walls(
+        "loft-s0-perm",
+        &[
+            vec![tri_ccw(), outer_cw()],
+            vec![outer_ccw(), tri_ccw()],
+            vec![outer_ccw(), tri_cw()],
+        ],
+        &[vec![R, R], vec![I, R], vec![I, I]],
+    );
+}
+
+/// **Memo: re-authoring a section re-derives its answer.** Section 1
+/// re-authored clockwise (the same point set) against a prior
+/// evaluation: its anchor changes, the loft is recomputed, and the door
+/// asked with the NEW section's naming names the walls its steps bound.
+#[test]
+fn a_reauthored_section_is_answered_after_a_memoized_reevaluation() {
+    let before = [vec![rect_ccw()], vec![rect_ccw()]];
+    let after = [vec![rect_ccw()], vec![rect_cw()]];
+    let (a, ids, loft) = loft_of_loops("loft-memo", &before);
+    let (b, ids_b, loft_b) = loft_of_loops("loft-memo", &after);
+    assert_eq!((&ids, loft), (&ids_b, loft_b));
+    let ea = run(&a);
+    let again = evaluate::<f64>(
+        &a,
+        Some(&ea),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol(),
+    );
+    assert!(again.reused > 0, "control: an unchanged document reuses");
+    let eb = evaluate::<f64>(
+        &b,
+        Some(&ea),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol(),
+    );
+    let naming = |ev: &Evaluation<f64>| match &ev.value(ids[1]).expect("section 1").payload {
+        ValuePayload::Profile(pv) => pv.naming.clone(),
+        _ => panic!("section 1 carries a profile"),
+    };
+    assert_ne!(
+        naming(&ea),
+        naming(&eb),
+        "the re-authoring changes section 1's anchor"
+    );
+    use Perm::{Identity as I, Reversed as R};
+    assert_sections_bound_their_walls("loft-memo", &b, &eb, &ids, loft, &[vec![I], vec![R]]);
+}
+
+/// `canonical_segment` inverts `segment` for every anchor shape and n.
+#[test]
+fn canonical_segment_inverts_segment_everywhere() {
+    for n in 1..=9u32 {
+        for offset in 0..n {
+            for reversed in [false, true] {
+                let a = editor_core::eval::LoopAnchor {
+                    program_loop: 0,
+                    offset,
+                    reversed,
+                    len: n,
+                };
+                for k in 0..n {
+                    assert_eq!(a.canonical_segment(a.segment(k)), k, "{a:?} k={k}");
+                    assert_eq!(a.segment(a.canonical_segment(k)), k, "{a:?} s={k}");
+                }
+            }
+        }
+    }
+}
+
+/// **The twist is the author's.** Section 0 is the centred square;
+/// section 1, one unit up, is the same square rotated +30° about its
+/// centre, written vertex for vertex as the images of section 0's. The
+/// loft pairs each vertex with its own image: every strut runs from a
+/// section-0 corner to that corner rotated +30°, and the volume is the
+/// +30° solid's.
+///
+/// The volume is exact for the ruled walls: a cross-section at height
+/// `t` is the polygon of the interpolated corners, so its area is
+/// quadratic in `t` and Simpson's rule is exact. The mid-section's
+/// corners are `(p + R₃₀ p) / 2 = cos 15° · R₁₅ p`, so
+/// `A(½) = 4 cos² 15°` and `V = (4 + 4 + 16 cos² 15°) / 6 ≈ 3.8214`. The
+/// −60° solid a geometric start pairs this fixture into has
+/// `A(½) = 4 cos² 30° = 3` and `V = 20 / 6 ≈ 3.3333`.
+#[test]
+fn a_twisted_loft_takes_the_twist_the_author_wrote() {
+    let square = vec![(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    let (sn, cs) = core::f64::consts::FRAC_PI_6.sin_cos();
+    let rotated: Vec<(f64, f64)> = square
+        .iter()
+        .map(|&(x, y)| (cs * x - sn * y, sn * x + cs * y))
+        .collect();
+    let (doc, _, loft) =
+        loft_of_loops("loft-twist", &[vec![square.clone()], vec![rotated.clone()]]);
+    let ev = run(&doc);
+    let ValuePayload::Body(body) = &ev
+        .value(loft)
+        .unwrap_or_else(|| panic!("the twisted loft builds: {:?}", ev.node_error(loft)))
+        .payload
+    else {
+        panic!("the loft carries a body");
+    };
+    for (k, (&(x0, y0), &(x1, y1))) in square.iter().zip(&rotated).enumerate() {
+        let name = fixture::ename(
+            loft,
+            RoleSeg::LateralEdge(editor_core::ProfileVertexRef {
+                loop_index: 0,
+                vertex: u32::try_from(k).unwrap(),
+            }),
+        );
+        let strut = fixture::edge_of(&ev.value(loft).unwrap().name_table, "strut", &name);
+        let [a, b] = fixture::ends(body, strut);
+        let got = [fixture::point(body, a), fixture::point(body, b)];
+        for want in [
+            geom_core::Point3::new(x0, y0, 0.0),
+            geom_core::Point3::new(x1, y1, 1.0),
+        ] {
+            assert!(
+                touches(&got, want, 1e-9),
+                "strut {k} runs {got:?}; the author paired corner {k} with its own image, \
+                 so it ends at {want:?}"
+            );
+        }
+    }
+    let volume = topo::mass_properties(body, tol())
+        .expect("mass properties")
+        .volume;
+    let c15 = (core::f64::consts::PI / 12.0).cos();
+    let want = (8.0 + 16.0 * c15 * c15) / 6.0;
+    assert!(
+        (volume - want).abs() <= 1e-6 * want,
+        "the +30° twisted loft's volume is {want}; measured {volume} (the −60° solid's is {})",
+        20.0 / 6.0
     );
 }
 
@@ -1744,7 +2163,10 @@ fn assert_rotated_arcs_are_answered(id: &str, side: profile::ArcSide, want_rever
     let c = &r.structure.canonical.loops[0];
     assert_eq!(c.reversed, want_reversed, "{id}: the winding case");
     assert_eq!(c.start, 0, "{id}: the authored start is kept");
-    assert_eq!(pv.naming.loops[0].offset, 0, "{id}: the anchor rotates nothing");
+    assert_eq!(
+        pv.naming.loops[0].offset, 0,
+        "{id}: the anchor rotates nothing"
+    );
     let answer = program
         .segment_radii(&r.structure, &pv.naming, 0)
         .unwrap_or_else(|e| panic!("{id}: the door answers: {e}"));
@@ -2306,7 +2728,10 @@ fn assert_rotated_fillet_is_answered(id: &str, s: f64, want_reversed: bool) {
     let c = &r.structure.canonical.loops[0];
     assert_eq!(c.reversed, want_reversed, "{id}: the winding case");
     assert_eq!(c.start, 0, "{id}: the authored start is kept");
-    assert_eq!(pv.naming.loops[0].offset, 0, "{id}: the anchor rotates nothing");
+    assert_eq!(
+        pv.naming.loops[0].offset, 0,
+        "{id}: the anchor rotates nothing"
+    );
     assert!(
         r.structure.replay[0].steps[3].is_empty(),
         "{id}: the binder emitted nothing"

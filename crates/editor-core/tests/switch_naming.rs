@@ -147,7 +147,11 @@ fn a_parameter_edit_that_moves_the_lex_min_corner_renumbers_nothing() {
     let (off_before, rev_b) = anchor_offset(&before);
     let (off_after, rev_a) = anchor_offset(&after);
     assert!(!rev_b && !rev_a, "CCW-authored rectangles never reverse");
-    assert_eq!((off_before, off_after), (0, 0), "the authored start is kept");
+    assert_eq!(
+        (off_before, off_after),
+        (0, 0),
+        "the authored start is kept"
+    );
     // …so the name set is identical…
     assert_eq!(names_of(&before, BODY), names_of(&after, BODY));
     // …AND (set equality alone is renumbering-blind for a full table)
