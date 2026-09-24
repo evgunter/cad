@@ -86,3 +86,21 @@ minting chart is a finding — which needs no new state and would have
 caught every row in the table above (the fixture's other curved panel
 keeps its four rows through all three). Whether that premise is the
 right one is this program's call.
+
+## A fourth door, same silence (2026-09-14, the `set_face_surface` unit)
+
+`Body::set_face_surface` joined the three doors above: a swap onto a
+chart the face's rows were not stated in drops them
+(`Body::drop_face_rows_on_chart_change`). Measured on the same sheet
+(`crates/topo/tests/loop_reparenting_pcurve_rows.rs`,
+`a_swap_onto_a_chart_that_mints_nothing_drops_the_faces_rows` and
+`a_swap_drops_the_rows_of_every_loop_of_the_face`): a minted cylinder
+panel swapped onto a plane reads `(0, 4)` and the pass reports `[]`,
+and with a demoted ring on it `(0, 8)` and `[]` again — a face the
+pass cannot tell from one nobody ever minted.
+
+It is also one more body for the whole-body premise this row proposes:
+the sheet's OTHER curved panel keeps its four rows across every swap
+above (the rows assert it), so a premise reading "once any face of a
+body stores a row, a rowless face on a minting chart is a finding"
+would name the emptied face in each.

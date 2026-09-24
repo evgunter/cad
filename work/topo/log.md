@@ -1731,6 +1731,37 @@ parses the prose. What it costs is the locus.
 
 Signed (FIX orchestrator).
 
+## `set_face_surface`'s fix pass (2026-09-14)
+
+PR 2594 at review, both blinded lanes MERGEABLE-AFTER-FIXES and
+converging. What the fix pass changed, beyond prose:
+
+- **The ordering duty is retired rather than documented.** The setter
+  now asks `Body::same_chart` where both keys still resolve and hands
+  the drop a decision; `Body::drop_face_rows` takes no keys and reads
+  no surface. R2's probe — a same-chart swap that ORPHANS the old key,
+  which no row in the suite could build — is now
+  `a_same_chart_swap_that_orphans_the_old_key_keeps_every_row`, and it
+  is the row that reds when the compare moves after the sweep (it does;
+  measured, 540 pass 1 fail).
+- **The face door walks `pcurves::stored_rows`** instead of a 34th copy
+  of `once(outer).chain(rings)`, evaluates the chart predicate once,
+  and announces a failed face lookup (`unreachable!`) the way its
+  caller does. `a-faces-loops-are-walked-by-hand-in-thirty-four-places`
+  is back to 33.
+- **`set_edge_curve` stays `Neither`, and its note is now true.** Both
+  spellings of "refused wherever the row exists at all" were false on a
+  HALF-MINTED face, where `validate_pcurves` re-certifies nothing
+  (TRIM's `validate-pcurves-never-recertifies-a-face-it-finds-incomplete`);
+  R1 measured it. Dropping the edge's rows would convert that one
+  silence into a `MissingCache` at the price of a re-mint on every swap
+  that certifies — including the description upgrades the door exists
+  for — so the door keeps its posture and names the blind spot, with
+  R1's probe adopted as a row.
+- Filed: `three-spellings-of-one-chart-answer-the-same-question-differently`
+  (this slate), `a-chart-swap-whose-carriers-cannot-certify-leaves-a-face-nothing-can-re-derive`
+  (mesh), `the-pcurves-module-header-restates-the-posture-table-below-it`
+  (trim).
 ## Set-face-surface dual concluded (ordinal 2712); fix pass dispatched (2026-09-14)
 
 Both reviews MERGEABLE-AFTER-FIXES on `71d846be4`, converging. The
@@ -1831,3 +1862,27 @@ MAJOR and the second MINOR, so they are bilateral. The implementer
 lane lost its tokens and wall time twice over, and they are recorded
 as missing data. Slot 1 is concluded. PR 2594 lands second and folds
 its face door onto `drop_rows` in its merge-forward.
+
+## The setter merged: PR 2594 closes `set-face-surface-leaves-…` (2026-09-24)
+
+The merged-forward head `29aa4b345` is green on the full matrix (run
+35962645677; the filter reads `CONFIG_SOURCE=lane:unsampled
+eps:unsampled klint:unsampled` at tier closure). It carries main
+through PR 2603 and the fold PR 2603 named: `drop_face_rows` hands its
+`stored_rows` walk to `drop_rows`. Every door that changes a row's
+chart now calls one removal after one `same_chart` at its own site.
+The fix pass took every adjudicated item, and none was refuted:
+- The setter decides the chart before the orphan sweep, which retires
+  the ordering duty. The orphaning row reds when the decision moves.
+- `set_edge_curve`'s note is corrected for the half-minted blind spot,
+  with its row.
+- The receipt reads nineteen sites in twelve files.
+- The mesh residue is filed (now TESS's).
+- The `Arc` rung is rowed in `mesh`.
+
+Two orchestrator commits reach code after the review: the VREV hazard
+row re-baselined (`b5d25ac44`, sixteen stranded pcurves become none)
+and the fold (`29aa4b345`). Both re-earned the gate. The ordinal-2712
+row rides as this PR's last commit. Its one unilateral MAJOR (the
+half-minted blind spot asserted away) is doc/claim class, recorded and
+excluded, so the tally is unchanged. Slot 0 is concluded.
