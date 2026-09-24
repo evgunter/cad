@@ -47,6 +47,8 @@ const U1: f64 = 1.4;
 const V0: f64 = -0.5;
 const VM: f64 = 0.0;
 const V1: f64 = 0.7;
+/// The ruling `mef`'s rows split the lower panel along.
+const UM: f64 = 0.8;
 
 fn axis() -> Vec3<f64> {
     Vec3::unit_z()
@@ -809,103 +811,126 @@ fn he_at(body: &Body<f64>, face: FaceKey, p: Point3<f64>) -> topo::HalfEdgeKey {
     hit[0]
 }
 
-/// Splits the lower panel with a chord from `c` to `a`: the run
-/// `[a→b, b→c]` — two rim-and-meridian rows — moves into the new
-/// face's loop with the minted `c→a`, and the old face keeps `c→f`,
-/// `f→a` and the minted `a→c`.
-fn split_low(s: &mut Sheet, surface: FaceSurface<f64>) -> topo::MefCreated {
+/// Splits both rims of the lower panel at the ruling `UM` —
+/// `split_edge` carries their rows — and returns the `mef` site that
+/// closes that ruling: `he1` leaves the bottom split vertex `m1`
+/// (`m1→b`), `he2` the top one `m2` (`m2→f`), and the chord `m1→m2`
+/// is the ruling itself, a line ON the cylinder.
+fn ruling_site(s: &mut Sheet) -> (topo::HalfEdgeKey, topo::HalfEdgeKey, EdgeCurveSpec<f64>) {
     let (a, c) = (at(U0, V0), at(U1, VM));
-    let he1 = he_at(&s.body, s.low, a);
-    let he2 = he_at(&s.body, s.low, c);
+    let bottom = s.body.get_half_edge(he_at(&s.body, s.low, a)).unwrap().edge;
+    let mid = s.body.get_half_edge(he_at(&s.body, s.low, c)).unwrap().edge;
+    // `a→b` runs forward in `u`; the mid rim `c→f` is `rim_back`, whose
+    // parameter runs from `U1` down.
+    let m1 = s.body.split_edge(bottom, UM, tol()).unwrap();
+    let m2 = s.body.split_edge(mid, U1 - UM, tol()).unwrap();
+    let point = |v: topo::VertexKey| {
+        *s.body
+            .get_point(s.body.get_vertex(v).unwrap().point)
+            .unwrap()
+    };
+    let chord = EdgeCurveSpec::line_between(point(m1.vertex), point(m2.vertex));
+    (m1.he_plus, m2.he_plus, chord)
+}
+
+/// Splits the lower panel along the ruling at `UM` ([`ruling_site`]):
+/// the run `[m1→b, b→c, c→m2]` — three rim-and-meridian rows — moves
+/// into the new face's loop with the minted `m2→m1`, and the old face
+/// keeps `m2→f`, `f→a`, `a→m1` and the minted `m1→m2`.
+fn split_low(s: &mut Sheet, surface: FaceSurface<f64>) -> topo::MefCreated {
+    let (he1, he2, chord) = ruling_site(s);
     s.body
-        .mef(
-            MefSite::Chords { he1, he2 },
-            EdgeCurveSpec::line_between(a, c),
-            surface,
-            tol(),
-        )
+        .mef(MefSite::Chords { he1, he2 }, chord, surface, tol())
         .unwrap()
 }
 
+/// The rows of `face` other than those of `made`'s two new halves —
+/// the rows a `mef` found rather than minted.
+fn found_rows(body: &Body<f64>, face: FaceKey, made: &topo::MefCreated) -> Vec<String> {
+    let minted = [
+        format!("{:?} ", made.he_plus),
+        format!("{:?} ", made.he_minus),
+    ];
+    rows_deep(body, face)
+        .into_iter()
+        .filter(|row| !minted.iter().any(|m| row.starts_with(m.as_str())))
+        .collect()
+}
+
 /// **`mef` onto a chart that mints nothing drops the moved run's
-/// rows.** The red-first row: before the door disposed of them, the
-/// two cylinder rows on `[a→b, b→c]` rode onto the new PLANAR face and
-/// the pass, which skips a planar face, said nothing about them — the
-/// one finding was the OLD face's minted half, and it still is. What
-/// the head changes is that the planar face holds no row about a
-/// chart it is not on.
+/// rows.** Before the door disposed of them, the three cylinder rows
+/// on the run rode onto the new PLANAR face, and the pass, which skips
+/// a planar face, said nothing about them. The planar face holds no
+/// row about a chart it is not on; the old face, still on the
+/// cylinder, gets the row of the half this door mints into it, so the
+/// pass has nothing to say about either.
 #[test]
 fn mef_onto_a_chart_that_mints_nothing_drops_the_moved_runs_rows() {
     let mut s = sheet();
     let made = split_low(&mut s, FaceSurface::New(flat()));
-    assert_eq!(rows_of(&s.body, made.face), (0, 3));
-    assert_eq!(rows_of(&s.body, s.low), (2, 1));
-    let findings = validate_pcurves(&s.body, band());
-    assert_eq!(
-        findings,
-        vec![PcurveMintError::MissingCache {
-            half_edge: made.he_plus
-        }],
-        "the one finding is the old face's minted half, which this door leaves rowless"
-    );
-    // The sheet's other curved panel is untouched.
-    assert_eq!(rows_of(&s.body, s.up), (4, 0));
+    assert_eq!(rows_of(&s.body, made.face), (0, 4));
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert!(s.body.pcurve(made.he_plus).is_some());
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    // The sheet's other curved panel lost nothing: its mid rim was
+    // split beside the lower panel's, and carried its rows.
+    assert_eq!(rows_of(&s.body, s.up), (5, 0));
 }
 
 /// **The loud-to-silent trade, through this door.** Onto a rowless
-/// CURVED chart the two moved rows used to leave the new face
-/// half-minted — its own minted half rowless beside them — and the
-/// pass reported that half; dropped, the new face stores no row at
-/// all and reads as one the pass has not minted, about which it says
-/// nothing (`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`).
-/// What the trade buys is the same as at the loop doors: the body no
-/// longer holds two curves stated in a chart the face is not on.
+/// CURVED chart the moved rows used to leave the new face half-minted —
+/// its own minted half rowless beside them — and the pass reported
+/// that half; dropped, the new face stores no row at all and reads as
+/// one the pass has not minted, about which it says nothing
+/// (`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`).
+/// Its minted half stays rowless with them: an unminted face is the
+/// minting pass's. What the trade buys is the same as at the loop
+/// doors: the body no longer holds curves stated in a chart the face
+/// is not on.
 #[test]
 fn mef_onto_a_rowless_curved_chart_drops_the_runs_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
     let made = split_low(&mut s, FaceSurface::New(other_cylinder()));
-    assert_eq!(rows_of(&s.body, made.face), (0, 3));
-    assert_eq!(rows_of(&s.body, s.low), (2, 1));
-    let findings = validate_pcurves(&s.body, band());
-    assert_eq!(
-        findings,
-        vec![PcurveMintError::MissingCache {
-            half_edge: made.he_plus
-        }]
-    );
+    assert_eq!(rows_of(&s.body, made.face), (0, 4));
+    assert!(s.body.pcurve(made.he_minus).is_none());
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
 
 /// **The controls: the same chart carries the run's rows byte for
 /// byte.** `Inherit` and a `Shared` naming the old key are the same
-/// chart by construction, so the two rows that move are the two rows
-/// that were there — interval, image and certificate — and the two
-/// that stay are the other two. **The carry is the `rows_deep`
-/// equality**; the `(2, 2)` reading beside it pins something else —
-/// the two findings are the minted halves, `he_plus` on the old face
-/// and `he_minus` on the new, which this door leaves rowless — and
-/// that count moves the day the operator mints its own halves' rows
-/// (`work/topo/half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`),
-/// without the carry having moved at all.
+/// chart by construction, so the three rows that move are the three
+/// rows that were there — interval, image and certificate — and the
+/// three that stay are the other three. **The carry is the
+/// `found_rows` equality.** Beside it, each face carries one row more:
+/// the minted half's, `he_plus` on the old face and `he_minus` on the
+/// new, which the operator mints at the site — so the pass reads both
+/// faces complete, where it used to report those two halves missing.
 #[test]
 fn mef_inheriting_or_sharing_the_chart_carries_the_runs_rows_byte_for_byte() {
     let base = sheet();
-    let before = rows_deep(&base.body, base.low);
-    assert_eq!(before.len(), 4);
     let cyl = base.body.get_face(base.low).unwrap().surface;
 
     for surface in [FaceSurface::Inherit, FaceSurface::Shared(cyl)] {
         let mut s = sheet();
-        let made = split_low(&mut s, surface);
-        let moved = rows_deep(&s.body, made.face);
-        let kept = rows_deep(&s.body, s.low);
-        assert_eq!((moved.len(), kept.len()), (2, 2));
+        let (he1, he2, chord) = ruling_site(&mut s);
+        let before = rows_deep(&s.body, s.low);
+        assert_eq!(before.len(), 6);
+        let made = s
+            .body
+            .mef(MefSite::Chords { he1, he2 }, chord, surface, tol())
+            .unwrap();
+        let moved = found_rows(&s.body, made.face, &made);
+        let kept = found_rows(&s.body, s.low, &made);
+        assert_eq!((moved.len(), kept.len()), (3, 3));
         let mut after: Vec<String> = moved.into_iter().chain(kept).collect();
         after.sort();
         let mut expected = before.clone();
         expected.sort();
         assert_eq!(after, expected, "a same-chart mef lost or restated a row");
-        let findings = validate_pcurves(&s.body, band());
-        assert_eq!((missing(&findings), findings.len()), (2, 2));
+        assert_eq!(rows_of(&s.body, made.face), (4, 0));
+        assert_eq!(rows_of(&s.body, s.low), (4, 0));
+        assert_eq!(validate_pcurves(&s.body, band()), vec![]);
     }
 }
 
@@ -916,7 +941,6 @@ fn mef_inheriting_or_sharing_the_chart_carries_the_runs_rows_byte_for_byte() {
 fn mef_onto_a_second_key_the_body_records_as_one_surface_carries_the_runs_rows() {
     let mut s = sheet();
     let cyl = s.body.get_face(s.low).unwrap().surface;
-    let before = rows_deep(&s.body, s.low);
     let second = s
         .body
         .set_face_surface(s.plane, FaceSurface::New(cylinder()))
@@ -925,12 +949,86 @@ fn mef_onto_a_second_key_the_body_records_as_one_surface_carries_the_runs_rows()
     s.body.set_surface_source(cyl, one_recipe()).unwrap();
     s.body.set_surface_source(second, one_recipe()).unwrap();
 
-    let made = split_low(&mut s, FaceSurface::Shared(second));
-    let moved = rows_deep(&s.body, made.face);
-    assert_eq!(moved.len(), 2);
+    let (he1, he2, chord) = ruling_site(&mut s);
+    let before = rows_deep(&s.body, s.low);
+    let made = s
+        .body
+        .mef(
+            MefSite::Chords { he1, he2 },
+            chord,
+            FaceSurface::Shared(second),
+            tol(),
+        )
+        .unwrap();
+    let moved = found_rows(&s.body, made.face, &made);
+    assert_eq!(moved.len(), 3);
     for row in &moved {
         assert!(before.contains(row), "restated across one chart: {row}");
     }
+    assert!(s.body.pcurve(made.he_minus).is_some());
+}
+
+/// **A face `mef` carves onto a chart the body cannot tell is the old
+/// one stays unminted.** A second key holding an equal cylinder with no
+/// recorded provenance reads as another chart (`Body::same_chart`), so
+/// the run's rows are dropped onto the new face — and the operator
+/// mints nothing there either, although the closed-form lane could: a
+/// face whose rows did not stand is the minting pass's, and a row
+/// minted onto it would claim a chart identity the body does not hold.
+#[test]
+fn mef_onto_an_unrecorded_equal_chart_mints_nothing_on_the_new_face() {
+    let mut s = sheet();
+    let second = s
+        .body
+        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
+        .unwrap();
+    let (he1, he2, chord) = ruling_site(&mut s);
+    let made = s
+        .body
+        .mef(
+            MefSite::Chords { he1, he2 },
+            chord,
+            FaceSurface::Shared(second),
+            tol(),
+        )
+        .unwrap();
+    assert_eq!(rows_of(&s.body, made.face), (0, 4));
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+/// **A chord off the chart leaves both pieces unminted, and the pass
+/// refuses the result.** A straight chord from `a` to `c` cuts through
+/// the cylinder rather than lying on it, so neither piece of the lower
+/// panel has a closed-form row set that certifies: the chord's image
+/// meets its loop on no branch of the chart. The operator does not
+/// refuse — it is called mid-surgery on states a later door finishes
+/// describing — and it does not return a panel half-minted either: both
+/// pieces store nothing. The loud reading is the pass's, run over the
+/// result.
+#[test]
+fn mef_with_a_chord_off_a_minted_chart_leaves_both_pieces_unminted() {
+    let mut s = sheet();
+    let (a, c) = (at(U0, V0), at(U1, VM));
+    let he1 = he_at(&s.body, s.low, a);
+    let he2 = he_at(&s.body, s.low, c);
+    let made = s
+        .body
+        .mef(
+            MefSite::Chords { he1, he2 },
+            EdgeCurveSpec::line_between(a, c),
+            FaceSurface::Inherit,
+            tol(),
+        )
+        .unwrap();
+    assert_eq!(rows_of(&s.body, s.low), (0, 3));
+    assert_eq!(rows_of(&s.body, made.face), (0, 3));
+    assert_eq!(rows_of(&s.body, s.up), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    assert!(
+        topo::mint_pcurves(&mut s.body, tol()).is_err(),
+        "the pass refuses a panel whose chord leaves its chart"
+    );
 }
 
 /// **`kef` into a face on a chart that mints nothing drops the

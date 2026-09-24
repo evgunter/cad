@@ -254,13 +254,21 @@ fn megascale_washer_matches_and_validates() {
 /// therefore stays at the scaffolding door, which U2's transience
 /// fence names at check 2.
 ///
-/// So the defect this row plants is now caught EARLIER and by name —
-/// three reports, all on entities the row itself minted: the fence on
-/// the chord, and check 8 (the pcurve-cache pass, deliberately UNGATED
-/// on the volume check) once per half-edge, both bounding a cylinder
-/// face whose chart mints caches. That is a strictly sharper statement
-/// than the single `VolumeUncomputable` it replaces: the old report
-/// named a face's volume, these name the chord.
+/// So the defect this row plants is now caught EARLIER and by name, on
+/// an entity the row itself minted: the fence on the chord. That is a
+/// strictly sharper statement than the single `VolumeUncomputable` it
+/// replaces: the old report named a face's volume, this one names the
+/// chord.
+///
+/// **Check 8 (the pcurve pass) no longer reads the chord.** It used to,
+/// once per half-edge, because `mef` left both pieces of the minted wall
+/// half-minted. `mef` now mints the row of each half it adds to a
+/// complete face, and a secant has no chart image that certifies, so
+/// neither piece has a closed-form row set: the operator leaves both
+/// storing nothing, the state the minting pass gives a face its lane
+/// does not cover. The pass says nothing about a face with no row, and
+/// the loud reading moves to where the pass RUNS — `mint_pcurves` over
+/// this body refuses, pinned below.
 ///
 /// The closed form's typed refusal — the actual subject — is untouched
 /// and still read directly from `mass_properties`. The tier-3
@@ -313,22 +321,16 @@ fn diagonal_chord_split_refuses_typed_not_silent() {
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert_eq!(
         errs,
-        vec![
-            ValidationError::ScaffoldAtRest { edge: split.edge },
-            ValidationError::Pcurve {
-                finding: topo::PcurveMintError::MissingCache {
-                    half_edge: split.he_plus,
-                },
-            },
-            ValidationError::Pcurve {
-                finding: topo::PcurveMintError::MissingCache {
-                    half_edge: split.he_minus,
-                },
-            },
-        ],
-        "tier 3 must name the planted chord — once for having no at-rest \
-         description, and once per half for bounding a minting chart \
-         with no cache — and nothing else; got {errs:?}"
+        vec![ValidationError::ScaffoldAtRest { edge: split.edge }],
+        "tier 3 must name the planted chord for having no at-rest description, \
+         and nothing else; got {errs:?}"
+    );
+    for he in [split.he_plus, split.he_minus] {
+        assert!(body.pcurve(he).is_none(), "{he:?} carries a row");
+    }
+    assert!(
+        topo::mint_pcurves(&mut body, Tol::witness()).is_err(),
+        "the minting pass refuses a wall a secant bounds"
     );
 }
 

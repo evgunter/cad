@@ -724,8 +724,11 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 
     // ---- Surfaces and senses first (attach.rs: attach surfaces
     // before upgrading edge descriptions), then every new edge's
-    // intrinsic description, then the pcurve re-mint (the input's
-    // caches are stale the moment the first strut lands). ----
+    // intrinsic description, then the pcurve re-mint: the faces the
+    // surgery builds carry no row until it runs, and the descriptions
+    // it upgrades are what every image derives from. The struts leave
+    // an input face they land on complete or rowless, never
+    // half-minted, and this pass re-derives that face with the rest. ----
     // **The sense bit is the band's, not the verb's.** A rolling-ball
     // band's chart normal is the radial one, which is outward exactly
     // on a convex chain — so it folds the stored convexity verdict. A
