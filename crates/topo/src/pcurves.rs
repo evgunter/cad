@@ -2603,10 +2603,9 @@ pub(crate) mod staleness_posture {
         /// `mef`'s chord surgery or `kef`'s unsplice moves between two
         /// faces' loops). What a door in this bucket never does is
         /// return with a row that says something the body no longer
-        /// holds. It says nothing about rows the door never HELD: a
-        /// half-edge a door in this bucket mints arrives rowless, and
-        /// whose that row is to mint is the minting posture, decided
-        /// elsewhere.
+        /// holds. It says nothing about rows a door never HELD: whether
+        /// a half-edge a door mints gets a row at the mint site is the
+        /// minting posture, decided elsewhere and not by this bucket.
         Transfers,
         /// Leaves the map exactly as it found it — a primitive, or a
         /// write the map is not keyed on. What this bucket rests on is
