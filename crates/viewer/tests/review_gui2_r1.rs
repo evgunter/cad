@@ -10,8 +10,9 @@
 //! resolution is. A fixture whose dimensions came from the same place
 //! the aim did would move with it, and nothing here could see it move.
 //! What carries no oracle is shared: `common::{xy_frame, rectangle,
-//! inserted, len, scl, gallery_ring_at}`. The blocks' own dimensions
-//! and the cursor positions aimed at them stay here, where the aim is
+//! inserted, len, scl, gallery_ring_at, index_of, down_from, ring_delta}`. The
+//! blocks' own dimensions, the height the rays start above them and
+//! the cursor positions aimed at them stay here, where the aim is
 //! written.
 //!
 //! Conventions per `memories/test-suite-cost.md`: the randomized rows
@@ -94,29 +95,14 @@ fn landed(doc: Doc<ProfileProgram>, tol: Tol) -> (DocSession, PickIndex) {
 }
 
 fn index_of(session: &DocSession) -> PickIndex {
-    index_at(session, delta())
+    common::index_of(session, delta())
 }
 
-fn index_at(session: &DocSession, delta: DisplayTolerance) -> PickIndex {
-    let (doc, eval) = session.landed_pair().expect("the inline seam lands");
-    PickIndex::build(
-        doc,
-        eval,
-        PictureKey::of(
-            session.landed_generation().expect("a landed generation"),
-            delta,
-        ),
-        session.tol(),
-    )
-    .expect("the fixture indexes")
-}
-
-/// A ray straight down at `(x, y)` from above everything here.
+/// A ray straight down at `(x, y)` from above everything here. The
+/// height is this suite's claim about its own fixture, so it stays in
+/// this file rather than riding the shared door's default.
 fn down(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, 0.5),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    }
+    common::down_from(x, y, 0.5)
 }
 
 // --- un-projection, this suite's own construction -------------------
@@ -512,12 +498,12 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     // this row tessellates it twice; picking semantics do not depend
     // on the facet count (`memories/test-suite-cost.md` — keep the
     // per-run cost where the claim needs it).
-    let ring_delta = DisplayTolerance::new(2.0e-3).expect("a positive delta");
+    let ring_delta = common::ring_delta();
     let loaded =
         pncad::document::load(&common::gallery_ring_at(tol), tol).expect("the gallery ring loads");
     let mut session = DocSession::inline(loaded.snapshot, tol);
     session.pump();
-    let index = index_at(&session, ring_delta);
+    let index = common::index_of(&session, ring_delta);
     assert!(!index.ids().is_empty(), "the ring draws pickable patches");
 
     let viewport = ViewportSize {
@@ -632,7 +618,7 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     session.perform(SessionOp::Undo);
     session.pump();
     assert!(session.standing().live(), "the un-deleted owner resolves");
-    let fresh = index_at(&session, ring_delta);
+    let fresh = common::index_of(&session, ring_delta);
     let re_hit = fresh
         .op_for(
             session.evaluation().expect("landed"),
