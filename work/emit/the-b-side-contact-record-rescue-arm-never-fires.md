@@ -2,10 +2,13 @@
 id: the-b-side-contact-record-rescue-arm-never-fires
 kind: issue
 title: The seam-vertex pass's B-side contact-record rescue arm fires at no vertex in the tree
-status: open
+status: closed
 opened: 2026-09-15
 priority: P0
 cost: D
+branch: emit/b-side-rescue
+closed: 2026-09-23
+pr: 3103
 ---
 
 

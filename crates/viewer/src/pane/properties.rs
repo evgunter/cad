@@ -10,8 +10,10 @@ use pncad::quantity::{self, UnitDef};
 use crate::app::{ViewerBehavior, chrome, indeterminate_wording};
 use crate::display::free_move_check;
 use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
+use crate::frame::Tone;
 use crate::props::{self, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::session::{BoundsTarget, Refusal, Selection, SessionOp, Standing, ValueGestureName};
+use crate::theme::Theme;
 use crate::widgets::{
     FieldShowing, FieldVocabulary, ProbeOps, UNIT_PICKER_WIDTH, angle_picker, delete_button,
     free_move_gesture, length_picker, number_field, pick_unit, unit_field, value_field_ops,
@@ -38,7 +40,12 @@ impl ViewerBehavior<'_> {
             Selection::Node(node) => {
                 let groups = self.session.slot_groups();
                 if groups.is_empty() {
-                    ui.weak("this feature carries no parameters");
+                    crate::widgets::message_toned(
+                        ui,
+                        "this feature carries no parameters",
+                        &self.theme,
+                        Tone::Advisory,
+                    );
                 }
                 self.feature_rows_ui(ui, node, &groups);
             }
@@ -51,7 +58,12 @@ impl ViewerBehavior<'_> {
             Selection::Face(_) | Selection::Edge(_) => {
                 let groups = self.session.slot_groups();
                 if groups.is_empty() && standing.live() {
-                    ui.weak("this feature carries no parameters");
+                    crate::widgets::message_toned(
+                        ui,
+                        "this feature carries no parameters",
+                        &self.theme,
+                        Tone::Advisory,
+                    );
                 }
                 // `Selection::node()` is the one inversion — always
                 // `Some` on these two arms, and read rather than
@@ -69,7 +81,10 @@ impl ViewerBehavior<'_> {
                     // The dimension in the common noun editor-core's
                     // `Display` spells, never the variant identifier:
                     // a label a person reads is prose.
-                    ui.label(format!("parameter {} ({})", row.name.0, row.dimension));
+                    crate::widgets::message(
+                        ui,
+                        format!("parameter {} ({})", row.name.0, row.dimension),
+                    );
                     // Shown, scrubbed and authored in the unit the
                     // parameter was DECLARED in, through the same
                     // value a slot field is written by — a parameter
@@ -97,7 +112,7 @@ impl ViewerBehavior<'_> {
                             FieldShowing {
                                 writing: field,
                                 dimension: row.dimension,
-                                number: field.shown(row.value.as_f64()),
+                                number: props::shown_value(field.unit, row.value.as_f64()),
                                 text: None,
                             },
                             value_gesture(ValueGestureName::Param(name.clone())),
@@ -126,14 +141,20 @@ impl ViewerBehavior<'_> {
                     });
                     self.param_bounds_ui(ui, &row);
                 } else {
-                    ui.weak("that parameter is gone");
+                    crate::widgets::message_toned(
+                        ui,
+                        "that parameter is gone",
+                        &self.theme,
+                        Tone::Advisory,
+                    );
                 }
             }
         }
         ui.separator();
         ui.label("document parameters");
         for row in crate::props::param_rows(self.session.doc()) {
-            if ui.link(row.name.0.clone()).clicked() {
+            // A name the user authored, so nothing bounds its width.
+            if crate::widgets::message_link(ui, row.name.0.clone()).clicked() {
                 self.ops
                     .push(SessionOp::Select(Selection::Param(row.name.clone())));
             }
@@ -159,9 +180,12 @@ impl ViewerBehavior<'_> {
             egui::CollapsingHeader::new("arguments")
                 .id_salt(("profile_arguments", node.0))
                 .show(ui, |ui| {
-                    ui.weak(
+                    crate::widgets::message_toned(
+                        ui,
                         "each argument as a slot: drive it by an expression, change the unit it \
                          is written in, or probe its range — an edit here reloads the editor above",
+                        &self.theme,
+                        Tone::Advisory,
                     );
                     for group in groups {
                         self.slot_group_ui(ui, node, group);
@@ -202,7 +226,12 @@ impl ViewerBehavior<'_> {
         // while the name field still says the offered name.
         if let Some(offered) = self.drafts.new_param_offer.clone() {
             if offered.0 == self.drafts.new_param_name.trim() {
-                ui.weak(Refusal::offer_wording(&offered));
+                crate::widgets::message_toned(
+                    ui,
+                    Refusal::offer_wording(&offered),
+                    &self.theme,
+                    Tone::Advisory,
+                );
             } else {
                 // The user typed past the offer; it is stale.
                 self.drafts.new_param_offer = None;
@@ -278,16 +307,10 @@ impl ViewerBehavior<'_> {
             self.session.doc().params().get(&ParamName::new(name))
         };
         if let Some(existing) = existing {
-            // The same sentence the session's refusal would show, and
-            // the edit door it offers instead — refuse-then-offer,
-            // ahead of the click.
             let name = ParamName::new(name);
-            ui.horizontal(|ui| {
-                ui.weak(Refusal::exists_wording(&name, existing.dim()));
-                if ui.link(format!("edit {}", name.0)).clicked() {
-                    self.ops.push(SessionOp::Select(Selection::Param(name)));
-                }
-            });
+            if exists_notice(ui, &self.theme, &name, existing.dim()) {
+                self.ops.push(SessionOp::Select(Selection::Param(name)));
+            }
             return;
         }
         let ready = !name.is_empty() && self.drafts.new_param_dimension.is_some();
@@ -368,9 +391,11 @@ impl ViewerBehavior<'_> {
             }
             Standing::Param { name, present } => {
                 if !present {
-                    ui.colored_label(
-                        chrome(self.theme.unresolved),
+                    crate::widgets::message_toned(
+                        ui,
                         format!("parameter {} is no longer declared", name.0),
+                        &self.theme,
+                        Tone::Actionable,
                     );
                 }
             }
@@ -424,15 +449,23 @@ impl ViewerBehavior<'_> {
         // else's refusal.
         match resolution {
             None => {
-                ui.weak("no evaluation yet to resolve this against");
+                crate::widgets::message_toned(
+                    ui,
+                    "no evaluation yet to resolve this against",
+                    &self.theme,
+                    Tone::Advisory,
+                );
             }
             Some(pncad::select::Resolution::Resolved(_)) => {}
             Some(pncad::select::Resolution::Failed(failure)) => {
-                ui.colored_label(
-                    chrome(self.theme.unresolved),
+                crate::widgets::message_toned(
+                    ui,
                     format!("this {noun} is gone: {}", failure.error),
+                    &self.theme,
+                    Tone::Actionable,
                 );
                 if !failure.offers.is_empty() {
+                    // A count and a fixed literal, so a name.
                     ui.weak(format!(
                         "{} rebind candidate(s) offered",
                         failure.offers.len()
@@ -440,9 +473,11 @@ impl ViewerBehavior<'_> {
                 }
             }
             Some(pncad::select::Resolution::Indeterminate(cause)) => {
-                ui.colored_label(
-                    chrome(self.theme.unresolved),
+                crate::widgets::message_toned(
+                    ui,
                     indeterminate_wording(noun, cause),
+                    &self.theme,
+                    Tone::Actionable,
                 );
             }
         }
@@ -487,7 +522,7 @@ impl ViewerBehavior<'_> {
                 // The typed ineligibility, shown where the control
                 // would be — the same sentence the op would refuse
                 // with.
-                ui.weak(fault.to_string());
+                crate::widgets::message_toned(ui, fault.to_string(), &self.theme, Tone::Advisory);
             }
             Ok(()) => {
                 let current = self
@@ -502,6 +537,18 @@ impl ViewerBehavior<'_> {
                 // and a bare `0.5` with nothing saying what unit they
                 // are in. Three components of one frame, one writing.
                 let field = FieldWriting::of(Dimension::Length, Some(quantity::MM.def()));
+                // **A conversion above the widget, and the one in this
+                // crate that cannot fail.** A millimetre value leaves
+                // `f64` above `f64::MAX * MILLI`
+                // ([`crate::props::written`]), which is why the panel's
+                // value fields ask before they convert. The translation
+                // here is not a document value: it is one this probe
+                // itself authored, either out of this field — bounded
+                // by what a finite millimetre text can spell, which is
+                // `1e305` m short of the overflow — or out of a pointer
+                // drag in world coordinates. A door that minted a frame
+                // from a document value would make this
+                // `crate::props::shown_value` like the other two.
                 let mut mm = current.map(|v| field.shown(v));
                 // The G1 gesture triple over DISPLAY state, through the
                 // one widget→gesture mapping (`drag_ops`) so the typed-
@@ -577,10 +624,9 @@ impl ViewerBehavior<'_> {
                 });
                 // The notes stay PER COMPONENT: an affordance names the
                 // parameters driving one component, and a range is one
-                // field's. Each names its axis.
-                for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
+                // field's. Each names its component's slot.
+                for row in rows.iter() {
                     self.slot_notes_ui(ui, node, row);
-                    let _ = axis;
                 }
                 ui.horizontal(|ui| {
                     ui.weak("range");
@@ -623,14 +669,21 @@ impl ViewerBehavior<'_> {
         // A slot that did not evaluate still has SOURCE to edit — it
         // is the slot most likely to need it — so the field is drawn
         // for it too, over the one number it does not have. The fault
-        // itself is said beside the field.
-        if let Err(ref error) = row.value {
-            ui.weak(format!("{error}"));
-        }
-        let number = field.shown(match row.value {
-            Ok(value) => value.as_f64(),
-            Err(_) => 0.0,
-        });
+        // itself is said UNDER the row ([`slot_notes`]): this field is
+        // drawn in its group's row, and a sentence there would be laid
+        // out from the field's right-hand edge.
+        // **The conversion is where the refusal is asked.** A slot the
+        // notation cannot name has no number for the field to show
+        // ([`crate::props::shown_value`]), and a slot that did not
+        // evaluate has no number at all — zero is what the widget
+        // holds for it, under the source text the row shows instead.
+        let number = props::shown_value(
+            field.unit,
+            match row.value {
+                Ok(value) => value.as_f64(),
+                Err(_) => 0.0,
+            },
+        );
         // What the field says, when that is not the dragged number:
         // the text a parse refusal handed back, else the slot's own
         // source. A LITERAL slot with a value shows no fixed text at
@@ -770,46 +823,31 @@ impl ViewerBehavior<'_> {
             });
     }
 
-    /// What a slot has to SAY, under its number: the expression-driven
-    /// refusal's affordance, the range reading when one has been taken
-    /// for this field, and the expression editor while it is open.
-    ///
-    /// The affordance is attached to the row rather than raised on
-    /// refusal alone so the user can see WHY the number will not move
-    /// before they fight it — the refusal itself still surfaces in the
-    /// status line when they try.
+    /// What a slot has to SAY, under its row ([`slot_notes`]), with the
+    /// session's range reading when one has been taken for this field.
     pub(crate) fn slot_notes_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
-        if let SlotDriver::Expression { params } = &row.driver {
-            ui.horizontal(|ui| {
-                // The ratified wording, from its one home — the same
-                // string the status line shows when the edit is
-                // actually attempted.
-                ui.weak(Refusal::affordance(
-                    params,
-                    row.value.as_ref().ok().copied(),
-                ));
-                for name in params {
-                    if ui.link(format!("edit {}", name.0)).clicked() {
-                        self.ops
-                            .push(SessionOp::Select(Selection::Param(name.clone())));
-                    }
-                }
-            });
-        }
         let target = BoundsTarget::Slot {
             node,
             slot: row.slot,
         };
-        // Written in the unit the SEARCH used, which the reading
-        // carries — not re-derived from the row beside it. One sentence
-        // for a slot's range and a parameter's alike
-        // (`BoundsReading::wording`); this row prefixes the slot's name
-        // because a node draws several of them.
-        if let Some(reading) = self.session.bounds()
-            && reading.target == target
-        {
-            ui.weak(format!("{}: {}", row.slot.label(), reading.wording()));
+        let reading = self.bounds_wording(&target);
+        if let Some(name) = slot_notes(ui, &self.theme, row, reading.as_deref()) {
+            self.ops.push(SessionOp::Select(Selection::Param(name)));
         }
+    }
+
+    /// **The session's range reading for `target`, as its sentence** —
+    /// `None` while no reading has been taken for that field.
+    ///
+    /// Written in the unit the SEARCH used, which the reading carries,
+    /// not re-derived from the row it is drawn under: one sentence for
+    /// a slot's range and a parameter's alike
+    /// (`BoundsReading::wording`).
+    fn bounds_wording(&self, target: &BoundsTarget) -> Option<String> {
+        self.session
+            .bounds()
+            .filter(|reading| reading.target == *target)
+            .map(|reading| reading.wording())
     }
 
     /// The button that asks for one slot's locally-valid range.
@@ -829,9 +867,7 @@ impl ViewerBehavior<'_> {
         let offered = !row.driver.is_driven() && row.value.is_ok();
         let button = ui.add_enabled(offered, egui::Button::new(label).small());
         let button = if offered {
-            button.on_hover_text(
-                "probe how far this can move before something new fails (tens of evaluations)",
-            )
+            button.on_hover_text(PROBE_HOVER)
         } else {
             button.on_disabled_hover_text("a computed slot has no range of its own to probe")
         };
@@ -858,22 +894,324 @@ impl ViewerBehavior<'_> {
         let target = BoundsTarget::Param {
             name: row.name.clone(),
         };
-        ui.horizontal(|ui| {
-            if let Some(reading) = self.session.bounds()
-                && reading.target == target
-            {
-                ui.weak(reading.wording());
-            }
-            if ui
-                .small_button("range?")
-                .on_hover_text(
-                    "probe how far this can move before something new fails \
-                     (tens of evaluations)",
-                )
-                .clicked()
-            {
-                self.ops.push(SessionOp::ProbeBounds { target });
-            }
+        let reading = self.bounds_wording(&target);
+        if bounds_notes(ui, &self.theme, reading.as_deref()) {
+            self.ops.push(SessionOp::ProbeBounds { target });
+        }
+    }
+}
+
+/// **The already-declared notice and the edit door it offers**, each
+/// on a line of its own.
+///
+/// Both are sentences: the wording quotes a name the user typed, and
+/// so does the door. Neither shares a row with anything, because a
+/// sentence beside a control is laid out from the control's right-hand
+/// edge and a sentence beside a sentence is drawn past the pane's.
+///
+/// Answers whether the door was clicked.
+fn exists_notice(ui: &mut egui::Ui, theme: &Theme, name: &ParamName, dimension: Dimension) -> bool {
+    // The same sentence the session's refusal would show, and the edit
+    // door it offers instead — refuse-then-offer, ahead of the click.
+    crate::widgets::message_toned(
+        ui,
+        Refusal::exists_wording(name, dimension),
+        theme,
+        Tone::Advisory,
+    );
+    crate::widgets::message_link(ui, format!("edit {}", name.0)).clicked()
+}
+
+/// **What a slot has to SAY, under its row**: the fault a slot that
+/// did not evaluate carries, the expression-driven refusal's
+/// affordance and its edit doors, and the range `reading` when one has
+/// been taken for this field.
+///
+/// Every one of them is drawn under the row rather than in it. The
+/// row holds the slot's fields — three, for a vector — and a sentence
+/// in it would be laid out from the last field's right-hand edge. Each
+/// note names the slot it is about, because a vector says them once per
+/// component.
+///
+/// The affordance is attached to the row rather than raised on
+/// refusal alone so the user can see WHY the number will not move
+/// before they fight it — the refusal itself still surfaces in the
+/// status line when they try. Its wording is the ratified one, from
+/// its one home, the same string the status line shows when the edit
+/// is actually attempted. Its doors share a WRAPPING row, one per
+/// parameter the expression reads, so a door too long for what is
+/// left of the line starts the next one.
+///
+/// Answers the parameter whose door was clicked.
+fn slot_notes(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    row: &SlotRow,
+    reading: Option<&str>,
+) -> Option<ParamName> {
+    if let Err(error) = &row.value {
+        crate::widgets::message_toned(
+            ui,
+            format!("{}: {error}", row.slot.label()),
+            theme,
+            Tone::Advisory,
+        );
+    }
+    let mut clicked = None;
+    if let SlotDriver::Expression { params } = &row.driver {
+        crate::widgets::message_toned(
+            ui,
+            format!(
+                "{}: {}",
+                row.slot.label(),
+                Refusal::affordance(params, row.value.as_ref().ok().copied())
+            ),
+            theme,
+            Tone::Advisory,
+        );
+        if !params.is_empty() {
+            ui.horizontal_wrapped(|ui| {
+                for name in params {
+                    if crate::widgets::message_link(ui, format!("edit {}", name.0)).clicked() {
+                        clicked = Some(name.clone());
+                    }
+                }
+            });
+        }
+    }
+    if let Some(reading) = reading {
+        crate::widgets::message_toned(
+            ui,
+            format!("{}: {reading}", row.slot.label()),
+            theme,
+            Tone::Advisory,
+        );
+    }
+    clicked
+}
+
+/// **A document parameter's range `reading` and the button that takes
+/// one** — the reading on its own line, the button under it, which is
+/// the order a slot's reading ([`slot_notes`]) and its range row are
+/// drawn in.
+///
+/// The reading is a sentence whose numbers are the search's, so it is
+/// not drawn beside the button: there it would be laid out from the
+/// button's edge rather than the pane's.
+///
+/// Answers whether the button was clicked.
+fn bounds_notes(ui: &mut egui::Ui, theme: &Theme, reading: Option<&str>) -> bool {
+    if let Some(reading) = reading {
+        crate::widgets::message_toned(ui, reading, theme, Tone::Advisory);
+    }
+    ui.small_button("range?")
+        .on_hover_text(PROBE_HOVER)
+        .clicked()
+}
+
+/// What a range button says on hover, for a slot's and a parameter's
+/// alike.
+const PROBE_HOVER: &str =
+    "probe how far this can move before something new fails (tens of evaluations)";
+
+/// **Where this pane's sentences LAND** — each measured in a pane
+/// narrower than the sentence, through `crate::pane::headless::landed`,
+/// as `crate::widgets::message_tests` measures the widget itself.
+///
+/// What each row holds is the layout, not only the widget: a sentence
+/// on a line of its own, every row of it inside the pane and starting
+/// at the pane's left edge, and the control it is about on a line
+/// above or below it rather than beside it. A sentence drawn beside a
+/// control in a `ui.horizontal` is laid out from the control's
+/// right-hand edge at infinite width, and fails the first of those.
+#[cfg(test)]
+mod layout_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
+
+    use eframe::egui;
+    use pncad::document::{Dimension, ParamName, SlotId};
+
+    use super::{bounds_notes, exists_notice, slot_notes};
+    use crate::pane::headless::{Landed, landed};
+    use crate::props::{SlotDriver, SlotFault, SlotRow, SlotValue};
+    use crate::session::Refusal;
+    use crate::theme::Theme;
+    use crate::widgets::message_tests::SLACK;
+
+    /// A narrow pane, and wider than `crate::widgets::message_floor`,
+    /// so these rows read the region and not the floor.
+    const REGION: f32 = 260.0;
+
+    fn param(name: &str) -> ParamName {
+        ParamName(name.to_owned())
+    }
+
+    /// An extrude distance row with `driver` and `value`.
+    fn distance_row(driver: SlotDriver, value: Result<SlotValue, SlotFault>) -> SlotRow {
+        SlotRow {
+            slot: SlotId::Distance,
+            dimension: Dimension::Length,
+            structural: false,
+            driver,
+            value,
+            unit: None,
+            source: None,
+        }
+    }
+
+    /// One headless frame of `draw` in a [`REGION`]-wide pane: the
+    /// pane's rect, and everything painted in it.
+    fn drawn(draw: impl FnOnce(&mut egui::Ui)) -> (egui::Rect, Vec<Landed>) {
+        let region = core::cell::Cell::new(egui::Rect::NOTHING);
+        let painted = landed(|ui| {
+            ui.allocate_ui(egui::vec2(REGION, 800.0), |ui| {
+                region.set(ui.max_rect());
+                let floor = crate::widgets::message_floor(ui);
+                assert!(
+                    REGION > floor,
+                    "a {REGION}-point pane is at or under the {floor}-point floor, \
+                     so these rows would read the floor rather than the region"
+                );
+                draw(ui);
+            });
         });
+        (region.get(), painted)
+    }
+
+    fn find<'a>(painted: &'a [Landed], text: &str) -> &'a Landed {
+        painted
+            .iter()
+            .find(|landed| landed.text == text)
+            .unwrap_or_else(|| panic!("`{text}` was never painted"))
+    }
+
+    /// Every row of `landed` inside the pane's right-hand edge.
+    fn assert_inside(region: egui::Rect, landed: &Landed) {
+        for row in &landed.rows {
+            assert!(
+                row.right() <= region.right() + SLACK,
+                "`{}` ends {} points past a {REGION}-point pane (rows {:?})",
+                landed.text,
+                row.right() - region.right(),
+                landed.rows
+            );
+        }
+    }
+
+    /// [`assert_inside`], and every row starting at the pane's left
+    /// edge: a line of its own, with nothing beside it.
+    fn assert_own_lines(region: egui::Rect, landed: &Landed) {
+        assert_inside(region, landed);
+        for row in &landed.rows {
+            assert!(
+                (row.left() - region.left()).abs() <= SLACK,
+                "`{}` has a row starting {} points into the pane rather than \
+                 at its edge (rows {:?})",
+                landed.text,
+                row.left() - region.left(),
+                landed.rows
+            );
+        }
+    }
+
+    /// `below` starts under the last row of `above`.
+    fn assert_under(above: &Landed, below: &Landed) {
+        let bottom = above
+            .rows
+            .iter()
+            .map(egui::Rect::bottom)
+            .fold(f32::NEG_INFINITY, f32::max);
+        let top = below
+            .rows
+            .iter()
+            .map(egui::Rect::top)
+            .fold(f32::INFINITY, f32::min);
+        assert!(
+            top >= bottom - SLACK,
+            "`{}` starts above the bottom of `{}` — beside it, not under it \
+             ({top} against {bottom})",
+            below.text,
+            above.text
+        );
+    }
+
+    #[test]
+    fn a_declared_names_notice_and_its_door_each_take_a_line_inside_the_pane() {
+        let name = param("outer_enclosure_wall_thickness");
+        let wording = Refusal::exists_wording(&name, Dimension::Length);
+        let door = format!("edit {}", name.0);
+        let (region, painted) = drawn(|ui| {
+            exists_notice(ui, &Theme::DEFAULT, &name, Dimension::Length);
+        });
+        let notice = find(&painted, &wording);
+        assert!(
+            notice.rows.len() > 1,
+            "the notice is longer than the pane, so it wraps ({:?})",
+            notice.rows
+        );
+        assert_own_lines(region, notice);
+        let edit = find(&painted, &door);
+        assert_own_lines(region, edit);
+        assert_under(notice, edit);
+    }
+
+    #[test]
+    fn a_driven_slots_affordance_and_its_doors_stay_inside_the_pane() {
+        let params = vec![
+            param("outer_enclosure_wall_thickness"),
+            param("lid_clearance"),
+            param("gasket_compression_allowance"),
+        ];
+        let value = SlotValue::of(Dimension::Length, 0.004).expect("a finite length");
+        let row = distance_row(
+            SlotDriver::Expression {
+                params: params.clone(),
+            },
+            Ok(value),
+        );
+        let (region, painted) = drawn(|ui| {
+            slot_notes(ui, &Theme::DEFAULT, &row, None);
+        });
+        let affordance = find(
+            &painted,
+            &format!(
+                "{}: {}",
+                SlotId::Distance.label(),
+                Refusal::affordance(&params, Some(value))
+            ),
+        );
+        assert_own_lines(region, affordance);
+        for name in &params {
+            let door = find(&painted, &format!("edit {}", name.0));
+            assert_inside(region, door);
+            assert_under(affordance, door);
+        }
+    }
+
+    #[test]
+    fn a_slots_fault_is_said_under_its_row_inside_the_pane() {
+        let row = distance_row(SlotDriver::Literal, Err(SlotFault::NoExpression));
+        let (region, painted) = drawn(|ui| {
+            slot_notes(ui, &Theme::DEFAULT, &row, None);
+        });
+        let fault = find(
+            &painted,
+            &format!("{}: {}", SlotId::Distance.label(), SlotFault::NoExpression),
+        );
+        assert_own_lines(region, fault);
+    }
+
+    #[test]
+    fn a_parameters_range_reading_is_said_over_its_button_inside_the_pane() {
+        let reading = "free from 0.0012345678901234567 m to 12.345678901234567 m \
+                       before something new fails";
+        let (region, painted) = drawn(|ui| {
+            bounds_notes(ui, &Theme::DEFAULT, Some(reading));
+        });
+        let said = find(&painted, reading);
+        assert_own_lines(region, said);
+        assert_under(said, find(&painted, "range?"));
     }
 }

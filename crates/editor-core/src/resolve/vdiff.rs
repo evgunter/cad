@@ -57,11 +57,9 @@
 //! re-derives the QUALIFIER on both sides through the emission's own
 //! rule and reports the partner whose side changed. An exchange
 //! records a population, and the same one in both runs, so the rung's
-//! trigger is false there by construction. Nor is the rung a general
-//! answer for the SideOf vanish: it recovers the PRUNED half, and the
-//! COLLAPSE half — the fragment group stops being multi-fragment
-//! while the partner walls stay where they were — has no changed
-//! verdict to find and stays here. This blind spot stays exactly as
+//! trigger is false there by construction. Nor is a fragment group
+//! that changes size this blind spot (`super::group_resized`'s docs).
+//! The cancelling exchange stays exactly as
 //! this paragraph states it, with the recorded-qualifier delta
 //! (`super::qualifier_delta`, which reads the names rather than the
 //! log) as its live partial answer.

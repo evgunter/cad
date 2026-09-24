@@ -930,9 +930,16 @@ fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), Step
 ///
 /// It returns the enclosure the gate itself computed. That is MORE
 /// returned and nothing filtered: the subject, the records, the
-/// tolerance and every verdict are what they were, and the value is the
-/// one check 7 decided on rather than a second quadrature over the same
-/// body.
+/// tolerance and every verdict are what they were.
+///
+/// **What the value is depends on the subject's solid count**, because
+/// check 7's subject is a solid: over a one-solid body it is the object
+/// check 7 decided on rather than a second quadrature over the same
+/// body, and over the multi-solid aggregate this door exists for the
+/// kernel takes a further arena-wide reporting read, since no one
+/// solid's read is the body's. Either way the verdicts are the check's
+/// and the import path adds nothing to them
+/// (`topo::validate_pseudomanifold_certificate` states the split).
 fn gate3(
     body: &topo::Body<f64>,
     records: &topo::ContactRecords,

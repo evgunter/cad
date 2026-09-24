@@ -565,20 +565,20 @@ impl From<FitError> for OffsetFitError {
 impl core::fmt::Display for OffsetFitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Meter(e) => write!(f, "fit_offset refused at a door meter: {e}"),
-            Self::PatchBound(e) => write!(f, "fit_offset: {e}"),
-            Self::Fit(e) => write!(f, "fit_offset: the interpolation stack refused: {e}"),
-            Self::Structure(e) => write!(f, "fit_offset: spline structure refused: {e}"),
+            Self::Meter(e) => write!(f, "the offset surface could not be fitted: {e}"),
+            Self::PatchBound(e) => write!(f, "{e}"),
+            Self::Fit(e) => write!(f, "the offset surface's interpolation refused: {e}"),
+            Self::Structure(e) => write!(f, "the offset surface's spline structure refused: {e}"),
             Self::InvalidRequest { d, tolerance } => write!(
                 f,
-                "fit_offset: the request is not fittable — offset distance {d} m must be \
+                "the offset request is not fittable — offset distance {d} m must be \
                  finite and non-zero, tolerance {tolerance} m finite and positive; both are \
                  this call's own arguments, so supply them from the request rather than \
                  from a derived quantity that went non-finite"
             ),
             Self::NonFiniteSample { uv } => write!(
                 f,
-                "fit_offset: the base surface evaluated to a non-finite offset point at \
+                "the base surface evaluated to a non-finite offset point at \
                  (u, v) = ({}, {}) — poison in, refusal out: the door meters admitted this \
                  sample in bound, so the base's own description is what to repair, not the \
                  offset request",
@@ -591,7 +591,7 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "fit_offset: the round budget of {budget} refinement rounds ran out on a \
+                "the offset fit's round budget of {budget} refinement rounds ran out on a \
                  {}x{} sample grid with the bound still converging — the achieved sup \
                  bound is {achieved} m against a tolerance of {tolerance} m; the lever is \
                  OFFSET_FIT_BUDGET; nothing uncertified is returned",
@@ -605,7 +605,7 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "fit_offset: the per-direction sample cap of {cap} stopped the refinement \
+                "the offset fit's per-direction sample cap of {cap} stopped the refinement \
                  loop on a {}x{} sample grid after {rounds} of {OFFSET_FIT_BUDGET} rounds — \
                  the next round's schedule would exceed the cap — with an achieved sup \
                  bound of {achieved} m against a tolerance of {tolerance} m; the lever is \
@@ -621,7 +621,7 @@ impl core::fmt::Display for OffsetFitError {
                 last_finite: None,
             } => write!(
                 f,
-                "fit_offset: the refinement loop stopped on a {}x{} sample grid after \
+                "the offset fit's refinement loop stopped on a {}x{} sample grid after \
                  {rounds} rounds without any round producing a finite sup bound, at \
                  d = {d} m against a tolerance of {tolerance} m — the certifying limb \
                  answered +∞ on every grid reached, so there is no achieved bound to \
@@ -640,7 +640,7 @@ impl core::fmt::Display for OffsetFitError {
                 last_finite: Some(b),
             } => write!(
                 f,
-                "fit_offset: the refinement loop stopped on a {}x{} sample grid after \
+                "the offset fit's refinement loop stopped on a {}x{} sample grid after \
                  {rounds} rounds with a non-finite sup bound on its last grid, at d = {d} m \
                  against a tolerance of {tolerance} m — a coarser grid reached {b} m and \
                  the finer one lost it, so the schedule is the lever and {b} m is the \
@@ -654,7 +654,7 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "fit_offset: the refinement loop STALLED on a {}x{} sample grid after \
+                "the offset fit's refinement loop STALLED on a {}x{} sample grid after \
                  {rounds} rounds — bisecting every failing cell in both directions did \
                  not lower the achieved sup bound of {achieved} m, against a tolerance \
                  of {tolerance} m, so the remaining round budget cannot reach it and \
@@ -677,7 +677,7 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "fit_offset: {} measured {bound} m against a tolerance of {tolerance} m \
+                "the offset fit's {} measured {bound} m against a tolerance of {tolerance} m \
                  — a fit handed in does not certify at the tolerance asked (an on-locus \
                  max above it is a fit wrong where the samples looked; a hull sup above it \
                  is a bound too weak between them), so re-fit through fit_offset at this \

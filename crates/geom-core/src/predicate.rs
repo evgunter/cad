@@ -296,24 +296,22 @@ impl fmt::Display for BandError {
         match self {
             Self::InvalidValue { field, value } => write!(
                 f,
-                "invalid band: {} = {value:e} (must be finite and > 0) — a derived band takes \
-                 zero from the run's tolerance ε and escalate from K·ε, so \
-                 lower whichever of the two is not finite and positive; a band built directly \
-                 wants finite positive thresholds at the call site",
+                "the band's {} threshold is {value:e}, and must be finite and positive. \
+                 Recourse: set a finite, positive tolerance, from which a derived band \
+                 takes both thresholds; a band built directly wants finite, positive ones",
                 field.name()
             ),
             Self::InvalidLeverArm { value } => write!(
                 f,
-                "invalid band: lever arm = {value:e} (must be finite and > 0) — name the lever \
-                 arm the decision actually turns on (the local radius of relative curvature, \
-                 the face extent, or the session-box extent), or classify a linear margin \
-                 instead"
+                "the band's lever arm is {value:e}, and must be finite and positive. \
+                 Recourse: name the lever arm the decision turns on (a radius of curvature \
+                 or an extent), or classify a linear margin instead"
             ),
             Self::Empty { zero, escalate } => write!(
                 f,
-                "invalid band: zero = {zero:e} must be strictly below escalate = {escalate:e} \
-                 (the ambiguity band is a nonempty open interval) — raise escalate above zero; \
-                 a band derived from the run's tolerance does this with its ambiguity \
+                "the band's zero threshold {zero:e} is not below its escalate threshold \
+                 {escalate:e}, so the band is empty. Recourse: raise the escalate threshold \
+                 above the zero threshold; a band derived from the tolerance does, with its \
                  multiplier K > 1"
             ),
         }
@@ -989,6 +987,26 @@ pub struct Indeterminate {
 pub const COINCIDENCE_RECOURSE: &str =
     "declare the coincidence, move the geometry, or lower the tolerance";
 
+/// The one recourse for a quantity the floating-point format cannot
+/// hold — a length that overflows the norm or underflows to zero while
+/// its direction is good. No tolerance reaches it, so it never rides
+/// with [`COINCIDENCE_RECOURSE`]; every site that refuses on the
+/// format's range composes this fragment, and message-pinning tests pin
+/// it with `contains`.
+pub const RANGE_RECOURSE: &str = "scale the geometry into the session's range";
+
+/// [`COINCIDENCE_RECOURSE`] at a door that takes no declaration: the
+/// two levers left, the geometry and the tolerance. The chord join
+/// that a split and a Boolean share composes it, since the join cannot
+/// know whether its caller declares; the Boolean's own wrapper adds the
+/// declaration back (`topo::BooleanError::Join`).
+pub const NO_DECLARATION_RECOURSE: &str = "move the geometry, or lower the tolerance";
+
+/// [`NO_DECLARATION_RECOURSE`] at a split, whose plane is the first
+/// lever: a split takes no declarations (`topo::split`'s signature).
+pub const SPLIT_PLANE_RECOURSE: &str =
+    "move the split plane or the geometry, or lower the tolerance";
+
 /// The one answer a refusal gives when the table that routes its
 /// recourse by predicate name does not carry the name that escalated:
 /// it NAMES the hole. Never a category asserted over the unknown name,
@@ -1018,13 +1036,9 @@ pub struct MissingRecourse<'a>(pub Option<&'a str>);
 impl fmt::Display for MissingRecourse<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.0 {
-            Some(name) => write!(f, "no recourse specific to predicate '{name}' is recorded")?,
-            None => f.write_str("no recourse is recorded for this unnamed decision")?,
+            Some(name) => write!(f, "no recourse specific to predicate '{name}' is recorded"),
+            None => f.write_str("no recourse is recorded for this unnamed decision"),
         }
-        f.write_str(
-            ": the shared clause above is all this door can say about it, and that absence \
-             is a gap in the error table rather than a finding that nothing further applies",
-        )
     }
 }
 
@@ -1048,18 +1062,17 @@ impl fmt::Display for IndeterminatePayload<'_> {
         match self.0.margin {
             MarginDiag::Value(m) => write!(
                 f,
-                "margin {m:e} lies inside the ambiguity band (zero = {zero:e}, \
-                 escalate = {escalate:e})"
+                "margin {m:e} lies inside the ambiguity band ({zero:e}, {escalate:e})"
             ),
             MarginDiag::Enclosure { lo, hi } => write!(
                 f,
-                "enclosure [{lo:e}, {hi:e}] cannot be classified against the band \
-                 (zero = {zero:e}, escalate = {escalate:e})"
+                "enclosure [{lo:e}, {hi:e}] cannot be classified against the ambiguity \
+                 band ({zero:e}, {escalate:e})"
             ),
             MarginDiag::Invalid => write!(
                 f,
-                "margin is invalid (NaN or a poisoned enclosure); band \
-                 (zero = {zero:e}, escalate = {escalate:e})"
+                "margin is invalid (NaN or a poisoned enclosure) against the ambiguity \
+                 band ({zero:e}, {escalate:e})"
             ),
         }
     }
@@ -1097,16 +1110,11 @@ impl fmt::Display for Indeterminate {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.payload())?;
         match self.margin {
-            MarginDiag::Value(_) => write!(
-                f,
-                " — coincident at any precision you could care about, too close \
-                 to build sound geometry from; {COINCIDENCE_RECOURSE} (D4)"
-            ),
+            MarginDiag::Value(_) => write!(f, " — a near-coincidence; {COINCIDENCE_RECOURSE}"),
             MarginDiag::Enclosure { .. } => write!(
                 f,
-                " — it straddles a decision boundary or lies inside the ambiguity \
-                 band; subdivide the parameter box for a tighter enclosure, or \
-                 {COINCIDENCE_RECOURSE} (D4)"
+                " — subdivide the parameter box for a tighter enclosure, or \
+                 {COINCIDENCE_RECOURSE}"
             ),
             // Poison explains WHY the sign is indeterminate, but the
             // user's levers at a coincidence site are unchanged — the
@@ -1114,8 +1122,7 @@ impl fmt::Display for Indeterminate {
             // (S6 review, MINOR-1).
             MarginDiag::Invalid => write!(
                 f,
-                " — a poisoned computation can never take a branch; check the \
-                 operation's inputs upstream, then {COINCIDENCE_RECOURSE} (D4)"
+                " — check the operation's inputs upstream, then {COINCIDENCE_RECOURSE}"
             ),
         }
     }
@@ -1369,24 +1376,21 @@ mod tests {
     fn band_error_display() {
         assert_eq!(
             Band::new(-1e-9, 1e-8).unwrap_err().to_string(),
-            "invalid band: zero = -1e-9 (must be finite and > 0) — a derived band takes zero \
-             from the run's tolerance ε and escalate from K·ε, so lower whichever of the two is \
-             not finite and positive; a band built directly wants finite positive thresholds \
-             at the call site"
+            "the band's zero threshold is -1e-9, and must be finite and positive. Recourse: \
+             set a finite, positive tolerance, from which a derived band takes both \
+             thresholds; a band built directly wants finite, positive ones"
         );
         assert_eq!(
             Band::new(1e-9, f64::INFINITY).unwrap_err().to_string(),
-            "invalid band: escalate = inf (must be finite and > 0) — a derived band takes zero \
-             from the run's tolerance ε and escalate from K·ε, so lower whichever of the two is \
-             not finite and positive; a band built directly wants finite positive thresholds \
-             at the call site"
+            "the band's escalate threshold is inf, and must be finite and positive. Recourse: \
+             set a finite, positive tolerance, from which a derived band takes both \
+             thresholds; a band built directly wants finite, positive ones"
         );
         assert_eq!(
             Band::new(1e-8, 1e-9).unwrap_err().to_string(),
-            "invalid band: zero = 1e-8 must be strictly below escalate = 1e-9 \
-             (the ambiguity band is a nonempty open interval) — raise escalate above zero; \
-             a band derived from the run's tolerance does this with its ambiguity \
-             multiplier K > 1"
+            "the band's zero threshold 1e-8 is not below its escalate threshold 1e-9, so the \
+             band is empty. Recourse: raise the escalate threshold above the zero threshold; \
+             a band derived from the tolerance does, with its multiplier K > 1"
         );
         // The lever-arm variant (an invalid arm returns before the global
         // tolerance is read, so this stays pure).
@@ -1394,9 +1398,9 @@ mod tests {
             Band::angular_at(Tol::witness(), f64::NEG_INFINITY)
                 .unwrap_err()
                 .to_string(),
-            "invalid band: lever arm = -inf (must be finite and > 0) — name the lever arm the \
-             decision actually turns on (the local radius of relative curvature, the face \
-             extent, or the session-box extent), or classify a linear margin instead"
+            "the band's lever arm is -inf, and must be finite and positive. Recourse: name \
+             the lever arm the decision turns on (a radius of curvature or an extent), or \
+             classify a linear margin instead"
         );
     }
 
@@ -1625,9 +1629,7 @@ mod tests {
             bare.to_string(),
             format!(
                 "sign indeterminate: margin 5e-9 lies inside the ambiguity band \
-                 (zero = 1e-9, escalate = 1e-8) — coincident at any precision \
-                 you could care about, too close to build sound geometry from; \
-                 {COINCIDENCE_RECOURSE} (D4)"
+                 (1e-9, 1e-8) — a near-coincidence; {COINCIDENCE_RECOURSE}"
             )
         );
 
@@ -1639,9 +1641,8 @@ mod tests {
             named.to_string(),
             format!(
                 "predicate 'side_of_plane' indeterminate: margin -5e-9 lies inside \
-                 the ambiguity band (zero = 1e-9, escalate = 1e-8) — coincident at \
-                 any precision you could care about, too close to build sound \
-                 geometry from; {COINCIDENCE_RECOURSE} (D4)"
+                 the ambiguity band (1e-9, 1e-8) — a near-coincidence; \
+                 {COINCIDENCE_RECOURSE}"
             )
         );
         // The payload view is the same message minus the shared tail —
@@ -1649,7 +1650,7 @@ mod tests {
         assert_eq!(
             named.payload().to_string(),
             "predicate 'side_of_plane' indeterminate: margin -5e-9 lies inside \
-             the ambiguity band (zero = 1e-9, escalate = 1e-8)"
+             the ambiguity band (1e-9, 1e-8)"
         );
 
         let invalid = f64::NAN
@@ -1660,9 +1661,8 @@ mod tests {
             invalid.to_string(),
             format!(
                 "predicate 'transversality' indeterminate: margin is invalid (NaN \
-                 or a poisoned enclosure); band (zero = 1e-9, escalate = 1e-8) — a \
-                 poisoned computation can never take a branch; check the \
-                 operation's inputs upstream, then {COINCIDENCE_RECOURSE} (D4)"
+                 or a poisoned enclosure) against the ambiguity band (1e-9, 1e-8) — \
+                 check the operation's inputs upstream, then {COINCIDENCE_RECOURSE}"
             )
         );
 
@@ -1681,10 +1681,9 @@ mod tests {
             enclosure.to_string(),
             format!(
                 "predicate 'side_of_plane' indeterminate: enclosure [-2e-9, 5e-9] \
-                 cannot be classified against the band (zero = 1e-9, escalate = 1e-8) \
-                 — it straddles a decision boundary or lies inside the ambiguity \
-                 band; subdivide the parameter box for a tighter enclosure, or \
-                 {COINCIDENCE_RECOURSE} (D4)"
+                 cannot be classified against the ambiguity band (1e-9, 1e-8) — \
+                 subdivide the parameter box for a tighter enclosure, or \
+                 {COINCIDENCE_RECOURSE}"
             )
         );
     }

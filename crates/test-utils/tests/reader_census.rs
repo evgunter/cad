@@ -161,6 +161,11 @@ const LEDGER: &[Entry] = &[
                              // mate/member.rs and mate/solve.rs, code view
     },
     Entry {
+        path: "crates/editor-core/tests/refusal_concision_chains.rs",
+        disposition: Shared, // blend raise-site details over sweep/src/blend,
+                             // code and code-and-literals views
+    },
+    Entry {
         path: "crates/editor-core/tests/wire_entity_door.rs",
         disposition: Shared, // entity-door and entity-kind-carrier census over
                              // eval/wire.rs and eval/mod.rs, code view
@@ -198,6 +203,11 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/geom-core/tests/ring_endpoint_census.rs",
         disposition: Shared, // ring endpoint-read census, code view + balanced_end
+    },
+    Entry {
+        path: "crates/geom-core/tests/sym_rule_f_rows.rs",
+        disposition: Shared, // `copysign` mint-site register over crates/*/src,
+                             // code view, each file cut at its test module
     },
     Entry {
         path: "crates/geom/tests/all.rs",
@@ -405,6 +415,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/viewer/src/gpu.rs",
         disposition: Shared, // pipeline census over its own source, code view
+    },
+    Entry {
+        path: "crates/viewer/src/widgets.rs",
+        disposition: Shared, // the helper roster and the message roster, code view
     },
     Entry {
         path: "crates/viewer/tests/all.rs",

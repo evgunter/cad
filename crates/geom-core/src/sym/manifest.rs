@@ -2,36 +2,66 @@
 //! [`SymRules::manifest_sign`](super::SymRules::manifest_sign): in the
 //! early walk a `copysign(Y, X)` node becomes `abs(Y)` and an
 //! `abs(X)` node becomes `X` wherever the FORM of `X` already shows
-//! `X` positive. Nothing here reads a value: the condition is a fact
-//! about the form's syntax, and both rewrites are equalities of reals
-//! at every point clause 1 admits, so a zero reached through this rule
-//! is a THEOREM and lands in `symbolic_zero`.
+//! `X` positive, and `copysign(Y, X)` becomes `−abs(Y)` and `abs(X)`
+//! becomes `−X` wherever the form shows `X` NEGATIVE. Nothing here
+//! reads a value: the condition is a fact about the form's syntax, and
+//! all four rewrites are equalities of reals at every point clause 1
+//! admits, so a zero reached through this rule is a THEOREM and lands
+//! in `symbolic_zero`. One rule with two arms under one dial: the
+//! negative arm is the positive one reflected, term for term, and a
+//! reader who wants them apart reads the argument's leading sign.
 //!
 //! # The invariant, and then where the atoms come from
 //!
-//! **An `abs` or `copysign` atom over a form the SYNTAX shows positive
+//! **An `abs` or `copysign` atom over a form the SYNTAX shows signed
 //! is not an unknown function: it is the number the form already
-//! denotes.** That is the whole rule, and it is a fact about the
-//! functions `|·|` and `copysign` rather than about any construction
-//! that happens to call them. A kernel that spells a sign decision at
-//! all mints such an atom, and every one it mints over a positive form
-//! is an indeterminate the tier carries into every product above it for
-//! no information at all.
+//! denotes, or its negation.** That is the whole rule, and it is a
+//! fact about the functions `|·|` and `copysign` rather than about any
+//! construction that happens to call them. A kernel that spells a sign
+//! decision at all mints such an atom, and every one it mints over a
+//! signed form is an indeterminate the tier carries into every product
+//! above it for no information at all.
 //!
 //! **Where they come from today.** The measured mint site is
 //! [`Vec3::orthonormal_basis`](crate::Vec3::orthonormal_basis), whose
 //! `s = 1.copysign(n.z)` and `r = 1/(1 + |n.z|)` take a `copysign` and
 //! an `abs` of one quantity, the frame normal's `z`: on a `FaceFrame`
-//! over a body extruded from a frame tilted about `u`, that `z` is
-//! `1/sqrt(P(t))` for a polynomial `P` in the document's parameter — an
-//! `Inv` of a `sqrt` atom, positive wherever it has a value at all.
-//! That construction is not permanent: PROPS' sign-hull work replaces
-//! it, and the replacement frame's own `|n.z|` is the next `abs` of the
-//! same shape, so the rule outlives the spelling that motivated it.
-//! The `copysign` arm is not orphaned by that change either — `copysign`
-//! reaches the DAG from `implicit.rs`, `curved.rs`, `sugar.rs`,
-//! `path.rs` and `svd.rs` as well — though the reach this unit MEASURED
-//! is the `abs` arm's alone (`sym.rs`'s rule-F section).
+//! over the END cap of a body extruded from a frame tilted about `u`,
+//! that `z` is `1/sqrt(P(t))` for a polynomial `P` in the document's
+//! parameter — an `Inv` of a `sqrt` atom, positive wherever it has a
+//! value at all — and on the same body's START cap, or with the frame's
+//! `v` flipped, it is `−1/sqrt(P(t))`, the same atom negated, which is
+//! what the negative arm is for. That construction is not permanent:
+//! PROPS' sign-hull work replaces it, and the replacement frame's own
+//! `|n.z|` is the next `abs` of the same shape, so the rule outlives
+//! the spelling that motivated it.
+//!
+//! **What the census proves, and what the list is.** Two different
+//! claims, kept apart. (1) The EMPIRICAL claim, which covers every
+//! mint site whether named below or not: on the seven measured
+//! documents whose nominal replay the shape report can take (the
+//! plate, the annulus, the link, the bracket, R1's segment boss, both
+//! D-tabs), no `copysign` atom from ANY site stands in any residual
+//! the tier is asked to decide, with rule F on or shut
+//! (`m10_10_evidence_interval`'s
+//! `sym12_the_copysign_census_at_the_nominal`, and its gating half
+//! `sym12_no_copysign_atom_reaches_a_decision_on_the_cheap_documents`);
+//! so the reach either arm has MEASURED is the orthonormal basis's
+//! atoms alone. (2) The sites the tree holds at this commit, outside
+//! this module and the scalar impls that merely forward the function:
+//! `linalg/vec.rs`'s basis; `linalg/svd.rs`'s Householder (`f64`
+//! only); `geom-brep/src/implicit.rs`'s cone gradient;
+//! `geom-brep/src/props/curved.rs`'s sphere-meridian pole margins;
+//! `profile/src/sugar.rs`'s arc-leg fillet trims (two);
+//! `profile/src/path.rs`'s line×line fillet turn side;
+//! `sweep/src/revolve/axis.rs`'s radial extent;
+//! `sweep/src/blend/arms.rs`'s cone nappe;
+//! `topo/src/boolean/solid_contain.rs`'s `cbrt`. That list is not
+//! prose: `sym_rule_f_rows`'s
+//! `the_copysign_mint_sites_the_tree_holds_are_these` greps the
+//! shipped sources and reds when a site appears or goes, so the day a
+//! new site is minted the census is re-asked rather than the sentence
+//! silently overclaiming.
 //!
 //! # The predicate: manifestly POSITIVE
 //!
@@ -83,12 +113,37 @@
 //! returns a constant, its argument, or an indeterminate. So `D > 0`
 //! and `N > 0` wherever the form has a value, hence `N/D > 0` there.
 //!
-//! **What is never folded**: a sum of squares alone (`x² + y²` is zero
-//! at the origin); a bare even power; a form carrying a parameter, an
-//! opaque real or a frozen node at an odd power, or a negative
-//! coefficient on any term; the zero form; poison.
+//! **What is never folded by the positive arm**: a sum of squares
+//! alone (`x² + y²` is zero at the origin); a bare even power; a form
+//! carrying a parameter, an opaque real or a frozen node at an odd
+//! power, or a negative coefficient on any term; the zero form;
+//! poison.
 //!
-//! # The two identities, and why each is unconditional
+//! # The predicate reflected: manifestly NEGATIVE
+//!
+//! A form `N / D` is **manifestly negative** exactly when `(−N) / D`
+//! is manifestly positive — `negative` is `positive` of the negated
+//! numerator, and that is the whole of its definition, so the two arms
+//! cannot drift apart. Spelled out: every term of `N` has a
+//! non-positive coefficient (a `Poly` holds no zero-coefficient term,
+//! so non-positive is negative there) and a non-negative monomial, at
+//! least one term has a strictly negative coefficient and a monomial
+//! whose every indeterminate is manifestly positive (the empty
+//! monomial included: a negative constant term carries a sum), and `D`
+//! is manifestly non-negative — which is enough for the same reason as
+//! above, `D ≠ 0` at every point clause 1 admits, and the arm mints no
+//! denominator of its own. Then `N = −(a positive term) − (non-negative
+//! terms) < 0` and `D > 0` wherever the form has a value, so
+//! `N / D < 0` there. The perfect-square branch is not carried into
+//! `N` for the reflected reason: `−r²` vanishes at every zero of `r`.
+//!
+//! **What the negative arm never folds**: a negated sum of squares
+//! (`−(x² + y²)` is zero at the origin); a form with any non-negative
+//! term beside its negative ones (`t² − 1/sqrt(…)` has no sign the
+//! syntax can read); a negated parameter, opaque real or frozen node
+//! at an odd power; a negated perfect square; the zero form; poison.
+//!
+//! # The four identities, and why each is unconditional
 //!
 //! For a manifestly positive `X`, at every point of the box:
 //!
@@ -99,7 +154,18 @@
 //!
 //! The first is `|x| = x` for `x > 0`; the second is `copysign`'s
 //! definition, `|y|` with the sign of the second argument, at a second
-//! argument whose sign is `+`.
+//! argument whose sign is `+`. For a manifestly NEGATIVE `X`:
+//!
+//! ```text
+//! abs(X)         = −X,
+//! copysign(Y, X) = −|Y|  (and = −1 when Y is the constant 1).
+//! ```
+//!
+//! The first is `|x| = −x` for `x < 0`; the second is the same
+//! definition at a second argument whose sign is `−`. `−|Y|` is
+//! `magnitude`'s form negated — a constant, `Y` itself, or the `Abs`
+//! atom over `Y` — and the negation of a form is exact, so the arm
+//! adds no coefficient the positive one would not.
 //!
 //! **The signed-zero edge, and why strict positivity closes it.**
 //! `copysign` reads a SIGN BIT, not a sign: IEEE gives
@@ -113,8 +179,12 @@
 //! excludes the point: a manifestly positive `X` is `> 0` at every
 //! point of the box where the form has a value, and clause 1 has
 //! already refused every point where it does not, so the sign is `+`
-//! there unambiguously. The tier's own premise carries the rest —
-//! every node denotes a real-valued function of its indeterminates and
+//! there unambiguously. The negative arm closes the same edge the same
+//! way: a manifestly negative `X` is `< 0` at every such point, so the
+//! sign is `−` there, and the real zero — the one point where the two
+//! spellings of zero part — is on neither side of either predicate.
+//! The tier's own premise carries the rest — every node denotes a
+//! real-valued function of its indeterminates and
 //! every operation's value channel encloses that same real — so a
 //! value channel that answered `−0.0` for a form this predicate calls
 //! positive would be one that failed to enclose, which is a break of
@@ -155,10 +225,14 @@
 //! a recorded bracket, and `abs(2/t²)` likewise
 //! (`geom-core`'s `sym_rule_f_rows`,
 //! `the_order_against_rule_c_is_pinned_by_a_residual_rule_c_would_take`
-//! and `a_shape_both_rules_take_is_what_pins_the_order`). Each is a
-//! `theorem` at the shipped order and `sign_gated` with rule F shut,
-//! and planting C before F reds both. A residual rule C cannot reach —
-//! one built with `Sym::param`, which records no bracket, or one whose
+//! and `a_shape_both_rules_take_is_what_pins_the_order`), and for the
+//! negative arm `abs(−(1 + t²))` and `abs(−2/t²)` over the same
+//! brackets
+//! (`the_negative_arms_order_against_rule_c_is_pinned_the_same_way`).
+//! Each is a `theorem` at the shipped order and `sign_gated` with rule
+//! F shut, and planting C before F reds every one of them. A residual
+//! rule C cannot reach — one built with `Sym::param`, which records no
+//! bracket, or one whose
 //! argument carries a `sqrt` atom `signed::fold` will not enclose — is
 //! green under either order and pins nothing.
 
@@ -269,20 +343,62 @@ pub(super) fn positive(f: &Form, sess: &Session) -> bool {
     positive_at(f, sess, 0)
 }
 
-/// **`abs(X) → X`** for a manifestly positive `X`; `None` otherwise.
-pub(super) fn fold_abs(arg: &Form, sess: &Session) -> Option<Form> {
-    positive(arg, sess).then(|| arg.clone())
+/// **A manifestly NEGATIVE form**: `< 0` at every point of the box
+/// where it has a value. The reflection of [`positive`], stated once:
+/// `N / D` is manifestly negative exactly when `(−N) / D` is manifestly
+/// positive. The module header carries the spelled-out predicate and
+/// the argument; nothing here adds to either.
+pub(super) fn negative(f: &Form, sess: &Session) -> bool {
+    if f.poisoned || f.num.is_zero() {
+        return false;
+    }
+    // Test before allocating. `positive(−N / D)` needs every coefficient
+    // of `−N` non-negative, so every coefficient of `N` must be negative
+    // — a scan that declines the common case, an argument the positive
+    // arm has just declined, without materialising `−N`; only a
+    // numerator that passes it is negated and read by the predicate.
+    if !f.num.terms().iter().all(|(_, c)| c.is_negative()) {
+        return false;
+    }
+    f.neg().is_some_and(|n| positive(&n, sess))
 }
 
-/// **`copysign(Y, X) → |Y|`** for a manifestly positive `X`: the
-/// magnitude of `Y` as a form.
+/// **`abs(X) → X`** for a manifestly positive `X` and **`abs(X) → −X`**
+/// for a manifestly negative one; `None` otherwise. The positive arm
+/// is asked first; a form is never both, so the order between the two
+/// arms decides nothing.
+///
+/// **The one home of a signed magnitude.** [`magnitude`] — what a
+/// `copysign(Y, X)` node's `|Y|` becomes — reads this first and mints
+/// its `Abs` atom only where this declines, so the two spellings of
+/// `|Y|` the DAG can hold, an `abs(Y)` node and a `copysign(Y, X)`
+/// node's magnitude, fold to the same form or to the same atom and
+/// cannot drift apart (they did, for a manifestly negative `Y`, when
+/// the negative arm was first cut into this function alone:
+/// `sym_rule_f_rows`'s
+/// `the_two_spellings_of_a_negative_magnitude_meet`).
+pub(super) fn fold_abs(arg: &Form, sess: &Session) -> Option<Form> {
+    if positive(arg, sess) {
+        return Some(arg.clone());
+    }
+    if negative(arg, sess) {
+        return arg.neg();
+    }
+    None
+}
+
+/// **`copysign(Y, X) → |Y|`** for a manifestly positive `X`, and the
+/// negative arm's `−|Y|` is this negated: the magnitude of `Y` as a
+/// form.
 ///
 /// A constant `Y` folds to its exact rational magnitude — the case the
-/// orthonormal basis mints, `copysign(1, n.z)` — and a `Y` the form
-/// already shows non-negative is its own magnitude. Anything else mints
+/// orthonormal basis mints, `copysign(1, n.z)` — then [`fold_abs`]
+/// answers a manifestly signed `Y` (`Y` or `−Y`), and a `Y` the form
+/// shows only non-negative is its own magnitude. Anything else mints
 /// the `Abs` ATOM over `Y`, which is the same indeterminate an
 /// `abs(Y)` node elsewhere in the DAG mints (same op tag, same zero
-/// payload, same argument digest), so the rewrite trades one opaque
+/// payload, same argument digest) — and only where [`fold_abs`] would
+/// have left that node an atom too, so the rewrite trades one opaque
 /// atom for another the tier may already hold rather than for a new
 /// one.
 pub(super) fn magnitude(y: &Form, sess: &mut Session) -> Option<Form> {
@@ -291,6 +407,9 @@ pub(super) fn magnitude(y: &Form, sess: &mut Session) -> Option<Form> {
         && let Some(c) = n.mul(&d.recip()?)
     {
         return Some(Form::poly(Poly::constant(c.abs())));
+    }
+    if let Some(m) = fold_abs(y, sess) {
+        return Some(m);
     }
     if nonneg(y, sess) {
         return Some(y.clone());

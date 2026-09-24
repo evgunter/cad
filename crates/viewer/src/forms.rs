@@ -420,7 +420,7 @@ pub(crate) fn drag_tick(dimension: Dimension) -> f64 {
 /// this module, which holds the four constants and [`drag_tick`]
 /// beside this type; what is still open is those hand-picked call
 /// sites, which sit in `widgets`, [`crate::pane::create`] and
-/// [`crate::pane::properties`] (`work/chrome/drag-tick-has-three-homes.md`).
+/// [`crate::pane::properties`] (`work/forms/drag-tick-has-three-homes.md`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FieldWriting {
     /// The unit the field shows and authors in — [`props::rendering_unit`]'s
