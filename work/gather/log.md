@@ -40,3 +40,18 @@ slate.
 Load is 31/30. It is not split: this wave takes about 16 points off the
 dispatchable count, which leaves a slate one session can hold.
 `parallel-node-map-loses-the-funnel-and-the-symbolic-session` is next.
+
+## 2026-09-24 — the parallel node map is ruled and dispatched
+
+The orchestrator ruled the row's open question. **The recordings** are
+handled by a per-node `k_stats::detached` frame, spliced back in level
+order. **The session** is handled by a serial fallback while one is
+installed, using the test `topo::props` already uses
+(`decisions_are_thread_portable`). Per-node sessions were rejected: they
+would re-scope what a session's table covers, which is a design change
+this row does not need, and the fallback makes a parallel run decide
+exactly as the serial one does. The lane hoists the idiom into one home
+rather than minting a second copy. **Single FULL review**: concurrency
+and the D9 bit claims have to be believed, not just read. It runs
+alongside the first wave; its only ground in common with the others is
+`editor-core`.
