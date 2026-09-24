@@ -12,10 +12,12 @@ refs: [ring-3-ring-dissolves-into-interval, H5]
 ## What
 
 RING-3 dissolves `RingInterval` into `Interval` inside its fence
-(`docs/RING-3-SPEC.md` §5). Its sweep for the retired name and the
-prose that describes it without naming it found four sites on ground
-the fence does not reach; each still states something about the
-retired type, and none is forced by a gate today.
+(`docs/RING-3-SPEC.md` §5, extended for comments and docs at the fix
+pass to `geom-brep/src/{pcurve_cache,certify,edge_nurbs}.rs`,
+`geom-core/src/dual.rs` and `interval-transcendentals/tests/review_fuzz_exact.rs`,
+all re-worded there, as were the TCOST/TINT test files' comments). What its sweeps found on ground the fence still
+does not reach is below; each states something about the retired type
+as current, and none is forced by a gate today.
 
 - `crates/geom-brep/src/intersect.rs` (GERM/REACH/TANG) — three
   refusal messages (the `route`-side cone/torus arm near `:318`, and
@@ -41,6 +43,28 @@ retired type, and none is forced by a gate today.
 - `crates/geom-core/Cargo.toml` `:99` (a manifest; RING-4 rewrites this
   paragraph with the feature) names `tests/ring_interval_differential.rs`,
   renamed to `tests/interval_backend_differential.rs` by RING-3.
+- `crates/geom-brep/src/pcurve_cache.rs` (PCERT) — the
+  `FittedLaneUnsupported` `Display` message (`PcurveCertifyError`'s
+  `fmt`, near `:921`) says the bound is "an exact-arithmetic-ring hull".
+  It is runtime text, so the fix pass's comments-only extension did not
+  reach it; "a certification hull bound (C9)" is what is true. Check
+  first that no row matches the old substring (none did at the fix
+  pass: `grep -rn 'arithmetic-ring' crates`).
+- `crates/topo/src/validate.rs` (ATREST) near `:3961` — "the C9 ring
+  the plane × NURBS certificate lives in": certification arithmetic
+  (C9), as `edge_nurbs.rs` now says.
+- `crates/topo/src/{census.rs:2783, validate.rs:1346, instance.rs:62}`
+  (CONTACT, ATREST, unowned) name "the C9-ring conformal-rest / partial-embedding class". Whether
+  "C9-ring" there means the certification arithmetic or the exclusion
+  ring the same sentence names is the owner's to say; if the former,
+  it wants the same re-word.
+
+Past-tense mentions are true as written and need nothing:
+`topo/tests/{m6_3_chart_completion.rs:275, review_ssiflat_r1_probes.rs:40}`
+("re-measured when the C9 ring became a newtype"),
+`mesh/tests/budget_meter.rs:95` ("the C9 ring padded"),
+`geom-core/tests/ring2_r2_probes.rs:117` (a port pinned at a sha), and
+`docs/GENERICS-BUILD-COST.md`'s dated measurements.
 
 ## Fix
 

@@ -185,7 +185,7 @@ pub struct SsiCertificate<T: Real> {
     /// residual on the interval lane.
     pub on_locus_max: T,
     /// Limb 2: the certified **sup-norm** bound over the whole span, in
-    /// meters. This is the number that certifies. **Ring-derived**: the
+    /// meters. This is the number that certifies. **Certification-derived**: the
     /// certification produces an `f64` upper bound (that is what a hull bound
     /// IS), lifted here so consumers band one scalar; at the interval
     /// scalar it is a thin enclosure of that bound, and the widening of

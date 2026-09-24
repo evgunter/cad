@@ -441,7 +441,7 @@ fn sweep(rng: &mut fuzz::Rng) {
     // count was the whole coverage there would ever be and it had to be
     // large. With a varying seed, successive runs explore different
     // patterns, and `CAD_FUZZ_EFFORT` buys depth deliberately when a
-    // change to `ring_interval.rs` actually wants it.
+    // change to `interval.rs` actually wants it.
     for _ in 0..fuzz::scaled(23_437) {
         let (a, b) = (f64_raw(rng), f64_raw(rng));
         if !a.is_finite() || !b.is_finite() {
@@ -481,7 +481,7 @@ fn sweep(rng: &mut fuzz::Rng) {
     // Lane 4: signed zeros, exact dyadics, and targeted edges.
     //
     // A third list of this shape lives in
-    // `ring_interval_differential.rs` (`CORNERS`, which adds the
+    // `interval_backend_differential.rs` (`CORNERS`, which adds the
     // infinities and the overflowing magnitudes its verdict classes
     // need) and a fourth in `interval-transcendentals`'
     // `review_fuzz_exact.rs` (`EDGE_MAGNITUDES`, which adds the 2Prod

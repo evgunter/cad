@@ -3,7 +3,7 @@
 //! description after its scratch worktree was collected.
 //!
 //! Its regression value is that it is an **independent derivation**: it
-//! shares no *comparator* code with `ring_interval_fuzz.rs`. (It used to
+//! shares no *comparator* code with `interval_exact_fuzz.rs`. (It used to
 //! carry its own SplitMix64 as a second axis of independence; since the
 //! 2026-08-13 fuzz audit both suites draw from the shared
 //! `test_utils::fuzz` stream, which varies its seed per run — a moving

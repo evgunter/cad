@@ -1,6 +1,6 @@
 //! **Hand-built rows beside interval arithmetic differential.**
 //!
-//! `ring_interval_differential.rs` sweeps: its corner corpus is
+//! `interval_backend_differential.rs` sweeps: its corner corpus is
 //! exhaustive and its fuzz lanes hunt for an operation that stopped
 //! forwarding. What it does not do is write down, in one readable
 //! place, the rows a reader has to take on trust — the sentences its

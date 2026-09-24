@@ -809,7 +809,7 @@ where
 /// # This grants no certification right
 ///
 /// [`crate::CertifiedEnclosure`] is deliberately unimplemented for `Dual`
-/// and this impl does not change that: every C9-ring door is bounded by it
+/// and this impl does not change that: every C9 certification door is bounded by it
 /// and stays uninstantiable at a dual. What opens is the bracket half —
 /// boxes, pruning, the `f64` margin payloads a typed refusal reports,
 /// and **selections**, which are the ones with a condition on them: a

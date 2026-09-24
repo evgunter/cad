@@ -65,10 +65,11 @@ in metres for an analytic operand (`implicit.rs`); for a NURBS operand
 `|C(t) − S(u*,v*)|` at a certified foot point whose orthogonality
 residual is banded too, so a bad projection cannot launder a bad cache.
 (2) Sup-norm honesty between samples, by control-coefficient hull bounds
-in the C9 ring: `geom_core::spline::compose` composes the implicit form
-with the carrier (converted to metres exactly for plane, cylinder and
-sphere; cone and torus need a root the ring lacks, which is why their
-rung-3 arms are unretired), and `compose::tensor` encloses
+in certification arithmetic (C9): `geom_core::spline::compose` composes
+the implicit form with the carrier (converted to metres exactly for
+plane, cylinder and sphere; cone and torus need a root, and certification
+arithmetic takes none, which is why their rung-3 arms are unretired),
+and `compose::tensor` encloses
 `S(P(t)) − C(t)` as one composite for a NURBS operand so the
 cancellation that is the whole content of the claim survives into the
 bound. (3) The uniqueness tube: over a chain of boxes of certified radius
@@ -306,7 +307,7 @@ closes its chart's full period refuses. (6) Curved tessellation
 boundary walk with certified chordal bounds from hull-bounded jets
 (`nurbs_cert.rs`); general trimmed faces with pcurve-driven trim loops
 are not implemented (`UnsupportedCurvedShape`). (7) Mass properties on
-curved-cut faces are certified quadrature in the ring (`props/quad.rs`):
+curved-cut faces are certified quadrature (C9, `props/quad.rs`):
 harmonic pcurve boundaries, polynomial and rational patch flux; rational
 pcurve channels refuse `QuadratureUnsupported`; exhaustion is
 `QuadratureBudget`, never a silent Gaussian. (8) In-house SVD and

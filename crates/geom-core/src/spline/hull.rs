@@ -123,7 +123,7 @@
 //! therefore asks `is_certified()` before it compares, or reads through an
 //! accessor that carries the refusal out as `NaN`
 //! ([`Interval::mag`], [`Interval::width`]);
-//! `crates/geom-core/tests/ring_endpoint_census.rs` is the row that
+//! `crates/geom-core/tests/certified_endpoint_census.rs` is the row that
 //! holds them to it. A coefficient/weight count mismatch is not a
 //! poison route: it is refused at the mint, before there is a door to
 //! answer.
