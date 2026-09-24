@@ -273,8 +273,7 @@ pub struct TreeRow {
 }
 
 /// The kind name of a recipe node — the node vocabulary's own
-/// spelling, one arm per variant so a new node type cannot fall into a
-/// wildcard and draw as something it is not.
+/// spelling.
 ///
 /// **The datum FLAVOURS are named apart** (`Datum plane`, not
 /// `Datum`), which is the same rule one level down: a plane and a
@@ -635,9 +634,6 @@ fn repair_of(id: RecipeNodeId, ev: &Evaluation<f64>) -> Option<RecipeNodeId> {
 /// **Which node a mate refusal names as the one an author repairs,
 /// where that is not the blamed mate** — the module header's second
 /// section, one arm per fault.
-///
-/// Exhaustive, as [`blamed_mates`] is: a fault arm the kernel grows
-/// decides here whether its words send the reader to another node.
 fn repaired_at(fault: &MateFault) -> Option<RecipeNodeId> {
     match fault {
         // The kernel's own doc: "the node an author goes and fixes".
@@ -688,10 +684,6 @@ fn poisoned_through(through: RecipeNodeId, ev: &Evaluation<f64>) -> RowStatus {
 
 /// The mates a solve refusal BLAMES — the nodes the fault's own words
 /// point the user at.
-///
-/// Exhaustive on purpose: a fault arm the kernel grows must decide
-/// here whether it names a mate, rather than falling into a wildcard
-/// and silently drawing every reached row as downstream of nothing.
 ///
 /// Every arm that names a mate blames it, whatever else it names; why
 /// that holds for an arm naming a node an author may repair is stated
@@ -774,18 +766,6 @@ fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<RowStatus> 
 /// oracle silent about a state lets every one of those gates keep
 /// passing on documents broken in the new way.
 ///
-/// **An exhaustive `match` rather than a `matches!`, and that is the
-/// point.** A subset pattern answers `false` for everything it does
-/// not name, so a fifth [`RowStatus`] would be silently not-a-fault
-/// and those gates would stay green over it. It reds HERE — at the
-/// policy the new state has to answer — rather than a schedule away
-/// from it. (Not nowhere: `pane::features`'s badge draw and its link
-/// decision, `tree::rows`' decision of which rows carry a
-/// [`TreeRow::repair_at`], and `frame::badge_site`'s guard, are
-/// exhaustive too, so a fifth state is a compile error in five
-/// places. What none of them
-/// is, is this policy.)
-///
 /// **Every arm is this chrome's own policy, and none of it is read off
 /// the kernel.** A [`RowStatus`] is already a viewer reading of an
 /// evaluation, so there is no upstream rule to cite here the way
@@ -796,8 +776,7 @@ fn downstream_of_mate(id: RecipeNodeId, error: &NodeError) -> Option<RowStatus> 
 /// - [`RowStatus::Failed`] and [`RowStatus::Poisoned`] are faults. A
 ///   poisoned row's failure is someone else's, but the document it
 ///   belongs to is no more building for that.
-/// - [`RowStatus::Unevaluated`] is **not** a fault, and it is stated
-///   rather than left to the complement of a pattern: an absent
+/// - [`RowStatus::Unevaluated`] is **not** a fault: an absent
 ///   measurement is not a bad one, and a tree drawn before the first
 ///   result would otherwise report every document as broken. That is
 ///   the reading the tests pin, not recovered intent — the function

@@ -503,15 +503,11 @@ pub enum StatusUpdate {
 /// which is the defect [`apply`]'s docs describe and this door removes
 /// for the policies.
 ///
-/// **Every arm is written out**, and a wildcard for the three
-/// non-`Show` ones would defeat the whole door: it would route a
-/// variant added later to the field by default, which is exactly the
-/// defect this exists to stop, and it would be added at a diff where
-/// nothing looked wrong. The variant that most wants that treatment is
-/// the one it would be most wrong for — a future `Show`-shaped arm is
-/// news by construction. So the compiler carries the rule, and the
-/// three arms below say which side each of today's is on rather than
-/// leaving it to be read off a binding's name.
+/// **The variant that would most want the field by default is the one
+/// it would be most wrong for**: a future `Show`-shaped arm is news by
+/// construction. So the three arms below say which side each of
+/// today's is on rather than leaving it to be read off a binding's
+/// name.
 pub fn deliver(notices: &mut Vec<Message>, status: &mut Option<Message>, update: StatusUpdate) {
     match update {
         // News: it competes, so it must be ranked.
@@ -1787,12 +1783,6 @@ enum BadgeSite {
 
 /// Which channel reports a refusal of this class, if any.
 ///
-/// A `match` rather than a predicate, and that is the point: it is
-/// exhaustive over [`ProductErrorKind`], so an eleventh class reds
-/// this crate — where a reader sees the consequence — instead of being
-/// silently badged or silently declined by whichever way an expression
-/// happened to be written.
-///
 /// **The local policy is the three the feature tree owns.**
 /// [`crate::tree::RowStatus`] has exactly three non-`Ok` states —
 /// `Failed`, `Poisoned`, `Unevaluated` — and
@@ -1823,10 +1813,8 @@ enum BadgeSite {
 /// `false` does and does not appoint: a class the tree already badges
 /// is the tree's, whichever way the cited rule answers it.
 ///
-/// **What the compiler buys here is exhaustiveness over the classes,
-/// not liveness of the citation.** A new class cannot dodge this
-/// `match`. Moving [`ProductErrorKind::NoBodyRoots`] into the first
-/// arm would instead leave a call that can never answer `true` — a
+/// **The match does not hold the citation live.** Moving
+/// [`ProductErrorKind::NoBodyRoots`] into the first arm would leave a call that can never answer `true` — a
 /// dead citation, which nothing reds on and only
 /// `the_gather_verdict_badges_only_the_faults_nothing_else_carries`
 /// catches.
@@ -1879,7 +1867,7 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
 ///
 /// # The arms that stay silent, and why
 ///
-/// [`badge_site`] decides it, exhaustively over the error class: a
+/// [`badge_site`] decides it: a
 /// refusal another channel already carries, and a class that is no
 /// fault at all, are both `None` here, and the argument for each is
 /// there. What is left is what this channel is FOR — the

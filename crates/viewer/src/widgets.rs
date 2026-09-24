@@ -643,9 +643,8 @@ pub(crate) fn drag_ops<Value: Copy>(
 /// **Every gesture vocabulary has a cancel**, so
 /// [`GestureVocabulary::cancel`] is a `SessionOp` rather than an
 /// `Option`: `gesture_table.rs`'s
-/// `every_gesture_cancel_has_a_chrome_door` matches exhaustively over
-/// [`SessionOp`], so a gesture that joined the enum with no cancel
-/// would red there first.
+/// `every_gesture_cancel_has_a_chrome_door` names every [`SessionOp`],
+/// and is where a gesture with no cancel reds.
 pub(crate) fn drag_gesture_ops<Value>(
     widget: &egui::Response,
     value: Value,
@@ -1149,8 +1148,6 @@ pub(crate) fn target_fields(
     if kind != before {
         *target = sketch::fresh_target(kind);
     }
-    // Exhaustive, so a form that grows a payload has to be given its
-    // fields here before this compiles.
     match target {
         Target::Point(point) => point_fields(ui, unit, point),
         Target::Start | Target::StartArriving => {}
@@ -1340,10 +1337,9 @@ pub(crate) fn new_row_step(at: usize) -> Step<f64> {
 
 /// **One authoring verb's own fields.**
 ///
-/// Exhaustive on the kernel's [`Step`]: a verb the transition table
-/// gains has to be given a row here before this compiles, as it has
-/// to be given a starting step in [`sketch::fresh_step`] — a verb in
-/// the menu with no fields would be a verb nobody can use.
+/// Every [`Step`] has its row here, as every verb has a starting step
+/// in [`sketch::fresh_step`]: a verb in the menu with no fields would
+/// be a verb nobody can use.
 pub(crate) fn path_step_fields(
     ui: &mut egui::Ui,
     salt: &str,

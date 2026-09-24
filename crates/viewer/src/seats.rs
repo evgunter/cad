@@ -132,9 +132,6 @@ impl Seat {
     /// this table and the door's are two readings of one fact, and
     /// two spellings of it would let a tool route a pick into a seat
     /// the door rejects.
-    ///
-    /// Exhaustive on purpose — a new seat has to say what it is for
-    /// before it can be routed to.
     pub fn wants(self) -> NodeKindWanted {
         match self {
             Self::RevolveProfile => NodeKindWanted::Profile,

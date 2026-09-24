@@ -122,11 +122,8 @@ pub enum ProfileShape {
 /// **A step of `verb` with the path form's starting numbers** — what
 /// a row becomes when its verb is picked.
 ///
-/// Exhaustive on the kernel's [`Verb`], and that is what holds the
-/// form to the algebra: the form offers [`Verb::ALL`], so a verb the
-/// transition table gains reaches the menu by itself, and it has no
-/// starting step until this match gives it one — a compile error, not
-/// a verb that is silently missing.
+/// The form offers [`Verb::ALL`], so a verb the transition table gains
+/// reaches the menu by itself, and its starting step from this match.
 ///
 /// **Millimetre-scale, never zero.** A leg of length zero and a
 /// fillet of radius zero are both geometry refusals, so a fresh step
@@ -179,8 +176,7 @@ pub fn fresh_step(verb: Verb) -> Step<f64> {
 
 /// **An arc spec of `mode` with the form's starting numbers** —
 /// millimetre-scale and never degenerate, for the reason
-/// [`fresh_step`]'s are; exhaustive on the kernel's [`ArcMode`] for
-/// the reason that one is on [`Verb`].
+/// [`fresh_step`]'s are.
 pub fn fresh_arc(mode: ArcMode) -> ArcData<f64> {
     let target = fresh_target(TargetKind::Point);
     match mode {

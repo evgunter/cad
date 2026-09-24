@@ -623,10 +623,7 @@ pub fn unindexed<'a>(
         .any(|action| match action {
             // An ACT: the user asked for something and did not get it.
             PickAction::Select(_) => true,
-            // Observations. Exhaustive on purpose, the way
-            // `ToolKind::pick_kinds` is: a fifth action added to the
-            // stream must be classified here rather than falling into
-            // "not news" because a wildcard put it there.
+            // Observations.
             PickAction::Hover(_) | PickAction::ClearHover => false,
         })
         .then_some(match (held, indexing) {

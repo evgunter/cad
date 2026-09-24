@@ -576,9 +576,8 @@ const POINT_ARM_PX: f64 = 14.0;
 /// **A partition of the datum VALUES by how they are drawn**, which is
 /// why four members cover `DatumValue`'s five arms: `AxisInPlane` is a
 /// line in space and is drawn as the axis it is, so it carries this
-/// same tag as `Axis`. Growth is held at `draw_one`'s exhaustive match
-/// — a sixth datum value cannot reach a drawing without an arm
-/// saying which tag it draws under.
+/// same tag as `Axis`. `draw_one` is where each datum value is given
+/// its tag.
 ///
 /// **Not the add-datum form's `forms::DatumKindChoice`**, which names
 /// what that form OFFERS rather than what a drawing IS, and which owns

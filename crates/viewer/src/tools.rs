@@ -14,14 +14,12 @@
 //! written down. A tool added to the set cannot be forgotten by an
 //! exclusivity rule that no longer exists.
 //!
-//! **The four per-tool rules here dispatch through an exhaustive
-//! match** — the pick routing, the survival step, the cursor
-//! narrowing, the close-on-commit edit — for the same reason: an
-//! eighth tool must not be able to compile while three of its four
-//! obligations are silently unmet. The READ door is not one of them:
-//! each typed accessor on [`Tools`] matches its own variant and
-//! answers `None` to every other, so an eighth tool that never gets
-//! an accessor compiles clean. [`ToolKind::ALL`] is not a list a
+//! **The four per-tool rules here are policy and name every tool** —
+//! the pick routing, the survival step, the cursor narrowing, the
+//! close-on-commit edit. The READ door is not one of them: each typed
+//! accessor on [`Tools`] matches its own variant and answers `None` to
+//! every other, which is identity rather than policy, so an eighth
+//! tool that never gets an accessor compiles clean. [`ToolKind::ALL`] is not a list a
 //! compiler has to be asked to force either: it is projected from the
 //! enum's own declaration by the crate's `vocabulary!` macro, so an
 //! eighth kind reaches it by construction. Nothing outside the test

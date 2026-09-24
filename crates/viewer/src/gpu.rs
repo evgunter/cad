@@ -340,9 +340,7 @@ const EDGE_FLAG_PROBE: u32 = EDGE_LANE_MASK + 1;
 /// **The WGSL expression one lane's colour is**, over `base` — the body
 /// colour, probe-tinted where the instance is free-moved.
 ///
-/// An exhaustive match, so a lane added to `EdgeLane` does not compile
-/// until it is given a colour; [`lane_colour_switch`] writes one arm
-/// per lane from it.
+/// [`lane_colour_switch`] writes one arm per lane from this.
 fn lane_colour_wgsl(lane: EdgeLane) -> &'static str {
     match lane {
         // The picked marks: the theme's own mark, composited over the

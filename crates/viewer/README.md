@@ -1964,6 +1964,48 @@ is a red rather than a silent second ratification — and why two lists
 that a module and a name cannot tell apart need one of them moved or
 renamed, not a second row.
 
+### A policy over an enum names every variant
+
+This is the one statement of why the crate's decisions are spelled the
+way they are; the sites carry only their local reasons.
+
+**Where this crate decides something over an enum, the decision is a
+`match` with an arm for every variant and no `_`.** Which tool an
+operation closes, which refusal offers to create a parameter, which
+node a seat admits, whether a row is a fault. A subset pattern —
+`matches!(x, A | B)`, `!matches!(x, C)`, a `_ =>` arm, a bare binding
+standing for "the rest" — answers for every variant it does not name,
+including the ones nobody has written yet, and nothing goes red when
+the enum grows. Named arms turn that growth into `E0004` at the
+decision, so whoever adds a variant writes its answer where the policy
+lives. The variants whose answer is the common one are grouped into
+one arm, and the comment on an arm says why its variants get that
+answer, never why the arm is there.
+
+**Four shapes keep their wildcard, because none of them is a policy:**
+
+- *Identity* — the question is the variant itself, so a new variant
+  correctly answers no: `bounds::Bound::is_edge`, the read doors on
+  `tools::Tools`, `app`'s "was this op an `Open`".
+- *A downcast* — the pattern extracts the payload only one variant
+  carries: `frame::retype_draft`'s search for the expression op,
+  `drafts`' profile edit.
+- *A guard-forced catch-all* — named arms carrying `if` guards need a
+  catch-all whatever the enum does: `Refusal::preferred`,
+  `pickcache`'s attempt step.
+- *Not a closed enum* — tuples, slices, strings, numbers,
+  `Option`/`Result` shapes, and `egui::Shape`, whose variants are the
+  toolkit's to add.
+
+**A decision asked in several places has one home, and the places
+call it** — otherwise each copy is a separate subset waiting to
+disagree: `session::refuse::admits` (the commit door, the tool seats,
+and `sketch`'s frame list and frame placement), `session::select::resolves`
+(a live selection, an unresolved one, and a mate pick that survives a
+landing), `sketch::PreviewError::unfinished` (the preview's retry and
+the profile pane's tone), and `tools::committed_by` behind
+`ToolKind::commits`.
+
 ### What the boundary does not decide
 
 The rule says where things live. It does not say the wording family

@@ -411,26 +411,16 @@ impl Refusal {
             | Self::ProfileEditOrderCapped { .. }
             | Self::ProfileEditStale { .. }
             | Self::Io(_) => 1,
-            // The ONE arm whose rank is a per-payload decision, so it
-            // is matched exhaustively rather than defaulted: the
+            // The ONE arm whose rank is a per-payload decision: the
             // three gesture-order faults rank with their document
-            // twins,
-            // and the substantive ones rank with the real failures,
-            // because "this instance is mate-constrained" is a
-            // decision about what the user tried. A fifth
-            // `DisplayFault` reds here until its rank is chosen —
-            // which is the obligation every other arm on this table
-            // gets from `Refusal`'s own variants. `Edit` and
+            // twins, and the substantive ones rank with the real
+            // failures, because "this instance is mate-constrained" is
+            // a decision about what the user tried. `Edit` and
             // `SlotUnit` forward whole vocabularies at one rank each
             // and that IS a default: every condition either raises is
             // a real failure, so no payload of theirs ranks
-            // differently.
-            //
-            // The admission family is walked arm by arm for the same
-            // reason and not folded into one `Admission(_)`: that
-            // spelling would be the default this arm exists to
-            // refuse, one level further down, and a fifth admission
-            // fault would take rank 1 unchosen.
+            // differently. The admission family is walked arm by arm
+            // too, rather than folded into one `Admission(_)`.
             Self::Display(fault) => match fault {
                 DisplayFault::NoFreeMove
                 | DisplayFault::FreeMoveInFlight
