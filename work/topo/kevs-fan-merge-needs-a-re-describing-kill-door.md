@@ -385,3 +385,26 @@ shape. The blend's two sites and the generator's roundtrip inverse
 take the describing door; the generator's other kills supply a chord
 spec or keep their filter. Kernel answer: a block slot; this row is
 now the unit, and `S93` closes with it.
+
+## Evidence from TOPO-B5 slot 2 (branch `topo/rebasing-gate-null-edges-and-no-move`)
+
+`Body::certify_rebased_run` now refuses a **null edge** in the run
+full stop (`EulerOpError::RebasedNullEdge`), because asking whether a
+move keeps a null edge one point needs the exact `p_new == p_old`
+comparison `Point3<T>` does not offer
+(`work/topo/the-re-basing-gate-refuses-m7-8-where-nothing-moves.md`
+carries the `[ev]` proposal). Two consequences for this unit:
+
+- **`kev`'s fan merge carries the same null-edge hole, unchecked**: a
+  `kev` of a real edge whose far fan holds a null edge re-bases that
+  null edge onto a distinct point, exactly as the certified `mev` fan
+  did before the slot-2 fix.
+- **Reusing the gate as it stands would over-refuse the pipelines'
+  kills.** `boolean/zip.rs`'s vertex merges, `boolean/rest.rs`'s
+  strut undo and `splitting/reassembly.rs`'s zip each `kev` a pair of
+  COINCIDENT copies, where nothing moves; a far fan there that holds
+  another null edge would be refused. The kill has a structural
+  answer the `mev` gate lacks — when the killed edge is itself a null
+  edge, its two ends are `mev_null`'s coincident copies unless
+  something re-based one of them — so this unit decides whether the
+  null arm asks that, rather than inheriting the full stop.
