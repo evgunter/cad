@@ -444,6 +444,10 @@ fn member_edge_piece(name: &StableName) -> Option<(RecipeNodeId, StableName, boo
 /// fold rank too, and the vertices that then share a name are ranked
 /// along the edge they cite ([`insert_ranked_or_tied`]). A vertex citing
 /// two member edges has no one carrier, and several of them refuse.
+///
+/// The rewrite is [`StableName::rewrite_path`], which ends in the
+/// canonical form (`names::canonical::rewritten`), so a moved name's
+/// name-ordered positions are in order again.
 fn cite_member_edges<T: geom_core::Decide>(
     t: NameTable,
     body: &topo::Body<T>,
@@ -459,9 +463,6 @@ fn cite_member_edges<T: geom_core::Decide>(
             .clone()
             .rewrite_path(&mut WholeMemberEdges { union: name.node })?;
         if cited == *name || cited.kind != EntityKind::Vertex {
-            if !seams_in_name_order(&cited) {
-                return Err(bug(SEAM_REORDERED));
-            }
             put_entry(&mut out, cited, entry)?;
             continue;
         }
@@ -473,9 +474,6 @@ fn cite_member_edges<T: geom_core::Decide>(
             )
         {
             base.path.pop();
-        }
-        if !seams_in_name_order(&base) {
-            return Err(bug(SEAM_REORDERED));
         }
         vertices.entry(base).or_default().push(entry.clone());
     }
@@ -489,9 +487,9 @@ fn cite_member_edges<T: geom_core::Decide>(
         let (member, edge, _) = match base.path.as_slice() {
             [RoleSeg::Seam { a, b }] => match (whole(a), whole(b)) {
                 (Some(m), None) | (None, Some(m)) => m,
-                _ => return Err(bug(SIDED_VERTEX_RANK)),
+                _ => return Err(bug(Unrankable::SidedVertexRank.what())),
             },
-            _ => return Err(bug(SIDED_VERTEX_RANK)),
+            _ => return Err(bug(Unrankable::SidedVertexRank.what())),
         };
         let (member_body, member_edge) = member_edge(members, member, &edge)?;
         let seg = Segment::of_edge(member_body, member_edge)?;
@@ -520,20 +518,6 @@ fn cite_member_edges<T: geom_core::Decide>(
     }
     tie.flush(&mut out)?;
     Ok(out)
-}
-
-/// A seam's sides came out of [`cite_member_edges`] out of name order.
-const SEAM_REORDERED: &str = "citing a member edge whole reordered the two sides of a union's seam";
-
-/// Whether every `Seam` segment of `name` has its sides in name order,
-/// the order `collapse` put them in. Stripping a rank cannot reorder
-/// them — the sides differ at their first segment and the rank is after
-/// it — and this checks that.
-fn seams_in_name_order(name: &StableName) -> bool {
-    name.path.iter().all(|s| match s {
-        RoleSeg::Seam { a, b } => **a <= **b,
-        _ => true,
-    })
 }
 
 /// The [`SegRewrite`] of [`cite_member_edges`]: an embedded ranked piece
@@ -613,7 +597,7 @@ const FOREIGN: &str = "a union fold's table carries a segment the boolean emitte
 const JUNCTION_LINES_COLLIDE: &str =
     "two lines of a union's seam junction collapse to one member-space line";
 
-use super::canonical::{self, Stop, is_junction};
+use super::canonical::{self, Stop, Unrankable, is_junction};
 use super::merged::NESTED_MERGED;
 
 /// One fold-table name, keyed by member.
