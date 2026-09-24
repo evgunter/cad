@@ -4,9 +4,58 @@
 reference** — nothing here binds kernel design; it moves out of
 `docs/` when the experiment concludes.
 
+**THE PROTOCOL IS SUSPENDED (Ev, in-chat, 2026-09-23)** — see the
+suspension entry at the head of the amendments below. Nothing draws an
+arm, claims an ordinal or records a row while it stands; every phase
+runs on Opus, and a unit that would have entered the protocol gets two
+independent Opus reviewers instead.
+
+## What bound agents outside this log
+
+Moved here from the memory that used to carry it
+(`memories/model-ab-experiment.md`), when the protocol was suspended
+and the memory became `memories/experiments.md`. It applies to a unit
+still finishing under the protocol, or once Ev reinstates it.
+
+**Why the experiment exists:** Ev wants to know whether Opus
+implementation produces more bugs / worse code than Fable at lower
+cost — measured, not vibed.
+
+- **This log is the single normative source**, and every live number
+  of the experiment (protocol version, block, slot, ordinal band, dual
+  tally, sample number) is claimed from it ON MAIN at dispatch. Read it
+  before dispatching an implementer.
+- **Not every unit enters the protocol.** Triage is per unit and the
+  orchestrator's call at spec time; what a unit gets on either side of
+  it, and how the call is recorded, are the v7 entry below.
+- **Blinding vs the merge-only convention**: the harness's
+  Co-Authored-By trailer NAMES THE MODEL, so implementer briefs say
+  "NO Co-Authored-By trailer in lane commits (blinding overrides the
+  harness convention); if one lands in a PUSHED commit, note it in the
+  PR body and CARRY ON — never rewrite history, never stop the unit
+  over it." Orchestrator and reviewer commits keep the trailer.
+- **Any reviewer-visible surface that names, or determines, an arm is a
+  leak** — a unit's log entry, a block record naming unstarted slots
+  (each remaining slot follows by arithmetic), and **a warning about a
+  leak posted where the blinded party reads**. Route protocol warnings
+  to a surface reviewers do not read, and re-read the PR thread
+  immediately before briefing reviewers. Flag contamination on the
+  EXPOSURE, not on whether a reviewer discloses noticing it.
+- **Readouts are deliberately not summarised anywhere agents read**
+  (standing rule, Ev): a directional arm result creates expectancy
+  effects on difficulty logging, adjudication and dispatch sequencing.
+  They live on branch `ev/ab-bayes-analysis` under `analysis/model-ab/`
+  — **an orchestrator with a dispatch in flight should not read them.**
+- **The unit's row rides its own PR LAST**, after both reviews are
+  delivered: the row names the implementer's arm, and reviewers read
+  `git log`.
+
+## Protocol
+
 Standing experiment (Ev, in-chat, 2026-07-25, Opus 5 release
 day). This document is the SINGLE normative source of the protocol
-(`memories/model-ab-experiment.md` is a pointer here). Protocol, as
+(`memories/experiments.md` lists it; the section above holds what
+bound agents outside this text). Protocol, as
 amended:
 
 - **Protocol v2 (Ev, 2026-07-25): blocked randomization** — the
@@ -322,6 +371,47 @@ amended:
      cross-model dual, R1/R2 assignment is still randomized per dual
      by a recorded byte, the stopping rule and the adjudication
      instrument are unchanged.
+
+- **PROTOCOL SUSPENDED (Ev, in-chat, 2026-09-23): EVERYTHING RUNS ON
+  OPUS, and the units v7 would have triaged IN get a DUAL OPUS REVIEW
+  instead.**
+  1. **Every phase runs on Opus** — implementers, fix passes,
+     reviewers, and the orchestrator's own design, specs and rulings,
+     which until now stayed Fable. No block is drawn, no slot is
+     spent, no ordinal is claimed and no row is recorded here.
+  2. **The v7 triage survives as a REVIEW-DEPTH call, not an arm
+     call.** A unit whose logic is especially tricky, or which makes an
+     architectural or design decision with broad or hard-to-reverse
+     impact (v7 item 1's test, unchanged), gets **two independent Opus
+     reviewers on the same frozen head**: identical brief and claims to
+     falsify, each also pointed at `docs/prompts/reviewer-style-lane.md`,
+     own lanes, neither with access to the other's report; the fix
+     pass runs off the orchestrator-adjudicated UNION of their
+     findings (the tiers themselves now live in
+     `memories/orchestration-model.md`). **Every such pair is recorded in
+     `docs/DUAL-REVIEW-LOG.md`** under `docs/DUAL-REVIEW-PROTOCOL.md`,
+     which carries this log's v6
+     concordance instrument over to measure what the second review
+     buys (Ev, same day). Every other unit keeps v7 item 2 as written — one Opus
+     reviewer (style, or full where correctness is at risk), or the
+     orchestrator's own read for a mechanical change.
+  3. **No blinding obligations while suspended.** With no arm to hide,
+     the Co-Authored-By trailer rule for lane commits, the leak rules
+     and the record-last ordering exist for the protocol and lapse with
+     it; lane commits keep the harness trailer like any other.
+  4. **In flight at the suspension**: a unit whose implementer already
+     dispatched under a drawn arm finishes under the protocol it
+     started in and records its row, so no data is half-taken. Nothing
+     new draws. Open blocks stop where they are, with their unspent
+     slots unconsumed; a block record says so when it next closes.
+  5. **The triage call is still recorded where the unit lives** (v7
+     item 5), naming the tier — orchestrator's read, single review, or
+     dual — and its one-line reason.
+  6. **Bands stay claimed** and `ab_band` in a program's frontmatter
+     keeps its meaning; nothing is renumbered, so the protocol can
+     resume without a migration. Resuming is Ev's call and is a new
+     entry here; any readout spanning the suspension reports the eras
+     either side of it separately.
 
 - **Instrument note (Ev, in-chat, 2026-09-22): OPUS 5.5 RELEASE
   BOUNDARY.** Opus 5.5 released 2026-09-22. The fable 5.1 note below,

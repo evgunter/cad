@@ -161,6 +161,11 @@ const LEDGER: &[Entry] = &[
                              // mate/member.rs and mate/solve.rs, code view
     },
     Entry {
+        path: "crates/editor-core/tests/refusal_concision_chains.rs",
+        disposition: Shared, // blend raise-site details over sweep/src/blend,
+                             // code and code-and-literals views
+    },
+    Entry {
         path: "crates/editor-core/tests/wire_entity_door.rs",
         disposition: Shared, // entity-door and entity-kind-carrier census over
                              // eval/wire.rs and eval/mod.rs, code view

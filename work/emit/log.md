@@ -264,6 +264,25 @@ Filed from the review:
 - P2 `group-resized-does-not-name-the-cutter-that-stopped-cutting`.
 - P4 `name-counts-saturate-silently-at-u32-max`.
 
+## 2026-09-23 — the global flip lanes are scoped to ancestors
+
+The lane stopped on a definitional fork: what the global lanes may
+report as a vanish's cause. The two candidates:
+
+- (a) N1's derivation path, under which the global lanes disappear;
+- (b) the transitive ancestors of the minting node, with sentences
+  saying "upstream of", not "on the path".
+
+The measurement: the digest corpus and the whole suite are identical
+under both. The two differ in a cutter-union scene, where a recorded
+flip sits upstream of the cut but not in the vanished name.
+
+The orchestrator chose (b) without asking Ev. It applies the
+cause-before-effect principle Ev approved on 3115. An upstream flip is
+a candidate cause and outranks the `GroupResized` effect, as long as
+its sentence claims only what is known. Under (a), GroupResized's "no
+flip was found" would be false. A flip on a non-ancestor node is never
+reported, which closes the live wrong answer.
 ## 2026-09-23 — union seam-chain ranks close (PR 3121)
 
 A union's `Seam` canonicalization swapped the pair into name order
@@ -282,3 +301,23 @@ chain along the edge's own direction. `collapse` flattens both to one
 spelling. Filed P0 as `union-seam-edge-ranks-follow-which-step-split-the-seam`.
 It goes to the same lane next, aimed at one orientation rule for both
 rankers.
+
+## 2026-09-23 — merged-face chords close (PR 3120)
+
+A seam edge whose two crossing faces were both merged faces refused as
+`Emission`, a kernel bug, on legal declared unions of blocks. Measured
+cause: the edge was never a crossing. It was a piece of one member's
+rim edge that a slab had split, lying between two merged faces. The
+merged-face read-through needed a partner face that did not exist.
+
+The key now says which side to look at. A certified geometric check,
+`chord_on_rim` under predicate `name_chord_on_rim`, decides whether
+the chord is that side's rim piece; if it is not, it refuses typed as
+a missing rule. Whole-table diffs over 924 cells: 0 fused names moved,
+82 of 89 former `Emission` refusals now fuse, and none remain.
+
+Filed from the unit and its reviews:
+- P0 `shared-rim-several-is-a-missing-rule-legal-declared-unions-reach`,
+  re-banded: the commonest refusal on legal unions.
+- P0 `split-of-a-fused-declared-union-refuses-duplicate-vertex-name`.
+- P4 `opside-unit-respells-topo-operand`.

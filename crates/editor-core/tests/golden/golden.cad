@@ -1225,17 +1225,20 @@ id: 7ddec231df0049f879136a2f7624647d
   },
   "edits": [
     {
-      "SetParam": {
-        "node": 2,
-        "slot": "Distance",
-        "expr": {
-          "Literal": {
-            "value": 0.5,
-            "dim": "Length",
-            "unit": "mm"
+      "edit": {
+        "SetParam": {
+          "node": 2,
+          "slot": "Distance",
+          "expr": {
+            "Literal": {
+              "value": 0.5,
+              "dim": "Length",
+              "unit": "mm"
+            }
           }
         }
-      }
+      },
+      "maintenance": []
     }
   ]
 }

@@ -70,3 +70,14 @@ binding-census tests, red without them), while the stub's docstring
 and the guide's bullet list are forced by nothing and were already
 stale before the unit; bringing them current is a documentation pass
 over the whole refusal surface, not an arm of this change.
+
+## A second arm, same shape (TESS-5, 2026-09-22)
+
+TESS-5 added `TessellateError::SingleColumnCurvedFace` (tag
+`single_column_curved_face`, `note` = the bare kind word). The compiler
+and the roster tests forced the same four sites again and TESS-5 took
+them; the two hand-kept enumerations this row is about are now short by
+two arms, not one. Nothing new to say about the cause — the second
+occurrence is the evidence that the lag is structural, and the fix
+should be the one this row already proposes rather than a third
+hand-edit.

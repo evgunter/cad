@@ -4,13 +4,14 @@
 //! it asks whether a meridian traversal exists, and these loops have
 //! one.
 //!
-//! * **Zero-width loops** — meridians only, all on one column: the
-//!   one-face sphere whose loop is a single seam walked both ways, and
-//!   a torus face bounded by one meridian circle. The walk gives them a
-//!   domain of zero width, the face emits nothing, and the cross-face
-//!   census reports it. The sphere member has BOTH poles on its loop,
-//!   so "no rim and no pole" would not close this class either
-//!   (`work/tess/rim-free-loop-on-a-poleless-chart-meshes-as-a-hole.md`).
+//! The zero-width loops that used to be measured here — meridians only,
+//! all on one column — are refused typed by the walk's other premise, on
+//! the EDGES their iso sides open
+//! ([`mesh::TessellateError::SingleColumnCurvedFace`]), and their rows
+//! live with that guard's class in `loops_with_no_rim.rs`. What is left
+//! here is the one shape the meridian guard admits and nothing else
+//! refuses structurally:
+//!
 //! * **A rim-only cap wearing a spur** — a meridian strut from the rim
 //!   toward the pole, walked up and back. A spur that reaches the pole
 //!   is the one-face seamed statement of the cap, and meshes; one that
@@ -26,11 +27,11 @@
 
 use crate::common;
 use common::witness_bodies::one_circle_cut;
-use core::f64::consts::{FRAC_PI_2, PI};
+use core::f64::consts::FRAC_PI_2;
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, SurfaceKind};
 use geom_core::{Point3, Tol, Vec3};
-use topo::{Body, FaceSurface, MevSite};
+use topo::{Body, MevSite};
 
 fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
@@ -42,17 +43,6 @@ fn unit_sphere() -> Surface<f64> {
         radius: 1.0,
         axis: Vec3::new(0.0, 0.0, 1.0),
         u_ref: Vec3::new(1.0, 0.0, 0.0),
-    }
-}
-
-/// The great circle in the xz plane from the north pole:
-/// `eval(t) = (sin t, 0, cos t)`.
-fn meridian_from_the_pole() -> Curve3<f64> {
-    Curve3::Circle {
-        center: p3(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 1.0, 0.0),
-        radius: 1.0,
-        u_ref: Vec3::new(0.0, 0.0, 1.0),
     }
 }
 
@@ -113,67 +103,6 @@ fn disposition(body: &Body<f64>, kind: SurfaceKind, delta: f64) -> String {
             )
         }
     }
-}
-
-/// **The one-face, one-seam sphere** (V2 / E1 / F1): one meridian from
-/// pole to pole, walked down one side and back up the other. Both poles
-/// are junctions of the loop and every traversal is a meridian, on one
-/// column. Tier 3 refuses the body, so it is outside the input
-/// `tessellate` is specified on; handed over anyway, the face emits
-/// nothing and the cross-face census reports its seam unused.
-#[test]
-fn the_one_seam_sphere_is_a_zero_width_band_the_census_reports() {
-    let tol = Tol::witness();
-    let seam = meridian_from_the_pole();
-    let mut body = Body::<f64>::new();
-    let start = body.mvfs(seam.eval(0.0)).unwrap();
-    body.set_face_surface(start.face, FaceSurface::New(unit_sphere()))
-        .unwrap();
-    body.mev(
-        MevSite::Lone {
-            r#loop: start.r#loop,
-        },
-        seam.eval(PI),
-        EdgeCurveSpec::arc_of_circle(seam, 0.0, PI).unwrap(),
-        tol,
-    )
-    .unwrap();
-    assert!(
-        topo::validate_geometric(&body, tol).is_err(),
-        "a sphere stated as one face on one seam is not tier-3 valid"
-    );
-    assert_eq!(
-        disposition(&body, SurfaceKind::Sphere, 0.05),
-        "panic: chord segment"
-    );
-}
-
-/// **The torus face bounded by one meridian circle**, and its
-/// complement: two half arcs of the minor circle at `u = 0`, nothing
-/// else. No pole exists on this chart for a meridian to end on. Tier 3
-/// refuses it (the flux lane has no rim to read); both doors the curved
-/// lane cites admit it; the walk gives it zero width.
-#[test]
-fn a_torus_face_bounded_by_one_meridian_circle_is_a_zero_width_band() {
-    let torus = Surface::Torus {
-        center: p3(0.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, 0.0, 1.0),
-        major_radius: 2.0,
-        minor_radius: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
-    let minor = Curve3::Circle {
-        center: p3(2.0, 0.0, 0.0),
-        axis: Vec3::new(0.0, -1.0, 0.0),
-        radius: 0.5,
-        u_ref: Vec3::new(1.0, 0.0, 0.0),
-    };
-    let body = one_circle_cut(&minor, torus, None);
-    assert!(topo::validate_geometric(&body, Tol::witness()).is_err());
-    assert_eq!(
-        disposition(&body, SurfaceKind::Torus, 0.05),
-        "panic: chord segment"
-    );
 }
 
 /// The rim-only cap above `z = ½` closed by its disc, with a meridian

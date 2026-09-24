@@ -73,6 +73,10 @@
 //! - **a pole at a RIM junction** is a D2-row-5 state re-derived by the
 //!   pole-membership guard in [`loop_polygon`] (issue 896), which is a
 //!   `debug_assert` and so runs only where debug assertions do;
+//! - **a rim-free loop whose iso sides all open on one edge** is
+//!   refused in every profile by [`require_two_columns`], before the
+//!   band arm below runs
+//!   ([`TessellateError::SingleColumnCurvedFace`] carries the argument);
 //! - **a meridian that stops short of the pole** — a spur into a face
 //!   whose pole is still interior — is not checked here at all. The
 //!   walk traces the spur as a column, and the face is refused
@@ -100,6 +104,9 @@
 //!   half (interior-left + the face's OUTWARD normal; verified
 //!   derivation in the PR log), and each meridian takes the branch
 //!   nearest `atan2(A·v_ref, A·u_ref)`.
+//!
+//!   `A` disambiguates the BRANCH; it says nothing about the extent,
+//!   which is [`require_two_columns`]' premise instead.
 //!
 //!   Only `A`'s DIRECTION is read, and that direction is the band's own
 //!   only because the fold is anchored on the loop rather than on the
@@ -147,6 +154,9 @@ pub(crate) use topo::chart_iso::{TAU, TravKind, unwrap_near};
 /// `ids` field is why — a chord-id list is a mesh, and a mesh is what
 /// the body-side consumer of that classification does not have.
 pub(crate) struct Trav {
+    /// The body edge this traversal walks, read by
+    /// [`require_two_columns`] and by nothing else.
+    pub edge: EdgeKey,
     /// Chord ids, traversal order (endpoints included).
     pub ids: Vec<u32>,
     /// Rim (`v = const`) or meridian (`u = const`) data.
@@ -224,7 +234,11 @@ pub(crate) fn traversals(
             ids.reverse();
         }
         let kind = classify(chart, curve, ek)?;
-        out.push(Trav { ids, kind });
+        out.push(Trav {
+            edge: ek,
+            ids,
+            kind,
+        });
     }
     Ok(out)
 }
@@ -656,9 +670,9 @@ fn iso_side_starts(
 }
 
 /// Which iso kinds a loop's traversals carry — the one structural
-/// summary of the classified list. The walk's premise
-/// ([`require_a_meridian`]), its anchor ([`walk_anchor`]) and its
-/// rimless-band arm all read this value rather than each re-scanning
+/// summary of the classified list. Its four readers —
+/// [`require_a_meridian`], [`require_two_columns`], [`walk_anchor`] and
+/// the rimless-band arm — take this value rather than each re-scanning
 /// the traversals.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct LoopKinds {
@@ -705,6 +719,53 @@ fn require_a_meridian(
         Ok(())
     } else {
         Err(TessellateError::MeridianFreeCurvedFace { face, surface })
+    }
+}
+
+/// Whether every position `starts` marks selects the same element of
+/// `keys` — [`require_two_columns`]' question over the key type rather
+/// than over a `Trav`, so the rule is exercised on its own
+/// (`tests::one_opening_key_asks_for_two_distinct_openings`).
+///
+/// Vacuously `true` on no opening at all. `loop_polygon` forces
+/// `starts[0]`, so its caller never asks that question.
+fn one_opening_key<K: PartialEq + Copy>(keys: &[K], starts: &[bool]) -> bool {
+    let mut opened = keys.iter().zip(starts).filter(|&(_, &s)| s).map(|(k, _)| k);
+    let Some(first) = opened.next() else {
+        return true;
+    };
+    opened.all(|k| k == first)
+}
+
+/// The rim-free arm's extent premise: a loop with no rim opens at least
+/// two iso sides, on at least two DISTINCT edges. Without that it
+/// refuses [`TessellateError::SingleColumnCurvedFace`], whose doc is the
+/// one home of the state, the argument, the ε and the recourse.
+///
+/// The two readings of THIS module the premise rests on, since the doc
+/// over there cannot cite line by line: a continuation repeats `prev_u`
+/// bitwise (#653), so only an opening can put a new column in the
+/// polygon; and [`iso_side_starts`] continues a rim-free loop at every
+/// junction off the chart axis, so the openings are the axis junctions.
+///
+/// # Precondition
+///
+/// `starts` is [`iso_side_starts`]' answer for these `travs` with
+/// `starts[0]` forced, i.e. exactly what the emission loop reads. A loop
+/// WITH a rim is admitted whatever its openings: its u-extent comes from
+/// its rim rows' chord azimuths and not from this arm.
+fn require_two_columns(
+    travs: &[Trav],
+    starts: &[bool],
+    kinds: LoopKinds,
+    face: FaceKey,
+    surface: SurfaceKind,
+) -> Result<(), TessellateError> {
+    let edges: Vec<EdgeKey> = travs.iter().map(|t| t.edge).collect();
+    if kinds.rim || !one_opening_key(&edges, starts) {
+        Ok(())
+    } else {
+        Err(TessellateError::SingleColumnCurvedFace { face, surface })
     }
 }
 
@@ -825,12 +886,15 @@ fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
 ///    meridian. `starts[0]` is then forced `true`.
 /// 4. [`closing_side`] — the opening index of the LAST iso side, which
 ///    is what the closure rule and the pole-band seed key on.
-/// 5. `band_u` — for a rimless pole-to-pole band only, every column
+/// 5. [`require_two_columns`] — the rim-free arm's extent premise, on
+///    the openings step 2 computed. Ahead of the two D2-row-5
+///    re-derivations, which presuppose a walkable loop.
+/// 6. `band_u` — for a rimless pole-to-pole band only, every column
 ///    precomputed from the loop's 3-D area vector.
-/// 6. the emission loop — per traversal, take the run's coordinate (a
+/// 7. the emission loop — per traversal, take the run's coordinate (a
 ///    continuation repeats it bitwise, discarding its own) and unwrap
 ///    the other axis by continuity.
-/// 7. the closure assertion — a revert detector, not a runtime guard.
+/// 8. the closure assertion — a revert detector, not a runtime guard.
 pub(crate) fn loop_polygon(
     body: &Body<f64>,
     chart: &Chart,
@@ -850,7 +914,8 @@ pub(crate) fn loop_polygon(
         .ok_or(TessellateError::MissingEntity {
             what: "face surface",
         })?;
-    require_a_meridian(kinds, face, SurfaceKind::of(surface))?;
+    let surface_kind = SurfaceKind::of(surface);
+    require_a_meridian(kinds, face, surface_kind)?;
     let m = travs.len();
     // ISO-SIDE RUNS (#653): which traversals open a side, and so take
     // a fresh constant coordinate rather than the running one.
@@ -869,6 +934,11 @@ pub(crate) fn loop_polygon(
     }
     let closing_side = closing_side(&starts);
     let no_rim = !kinds.rim;
+    // The rim-free arm's own premise, asked on the openings the emission
+    // loop below will read, and ahead of the two D2-row-5 re-derivations
+    // for [`require_a_meridian`]'s reason: those presuppose a loop this
+    // walk can walk.
+    require_two_columns(&travs, &starts, kinds, face, surface_kind)?;
     // The face's S10 orientation sense (module docs, the pole-to-pole
     // band). Consumed at exactly one site below, as a conditional
     // negation of the loop's area vector.
@@ -1014,7 +1084,8 @@ pub(crate) fn loop_polygon(
         );
     }
     // Pole-to-pole bands: precompute every column from the loop's 3-D
-    // area vector (module docs).
+    // area vector (module docs). Reached only for a loop whose openings
+    // stand on two distinct edges (`require_two_columns` above).
     let band_u: Option<Vec<f64>> = if no_rim {
         let pts: Vec<Point3<f64>> = travs
             .iter()
@@ -1437,8 +1508,19 @@ mod tests {
 
     // ---- iso-side runs (#653) -----------------------------------
 
+    // THE TRAP, named because it is invisible: every traversal built here
+    // carries the SAME (null) edge key, so `require_two_columns` reads
+    // any rim-free list from this helper as one edge's openings and
+    // refuses it. The rows below ask `iso_side_starts`, `walk_anchor` and
+    // `require_a_meridian`, none of which reads the edge. A row that
+    // wants the rim-free arm walked needs distinct keys here, and minting
+    // them needs `slotmap` (not a dependency of this crate) — which is
+    // why the rim-free premise is rowed over plain keys
+    // (`one_opening_key_asks_for_two_distinct_openings`) and over whole
+    // bodies (`mesh/tests/loops_with_no_rim.rs`) and not here.
     fn trav(kind: TravKind, ids: &[u32]) -> Trav {
         Trav {
+            edge: EdgeKey::default(),
             ids: ids.to_vec(),
             kind,
         }
@@ -1583,6 +1665,24 @@ mod tests {
             assert!(kinds.meridian);
             assert_eq!(require_a_meridian(kinds, face, SurfaceKind::Cone), Ok(()));
         }
+    }
+
+    /// **The opening rule, over keys.** The question
+    /// [`require_two_columns`] asks is "do two DISTINCT openings exist",
+    /// and these rows say what that means positionally: only positions
+    /// `starts` marks count, a key repeated at two openings is one
+    /// opening, and a second key anywhere among them answers yes.
+    #[test]
+    fn one_opening_key_asks_for_two_distinct_openings() {
+        // One opening; the continuation's own key is not read.
+        assert!(one_opening_key(&[7_u32, 9], &[true, false]));
+        // Two openings on one key — a seam walked down and back.
+        assert!(one_opening_key(&[7_u32, 7], &[true, true]));
+        // Two openings on two keys — a band's two meridians.
+        assert!(!one_opening_key(&[7_u32, 9], &[true, true]));
+        // The distinct key must be at an OPENING to count.
+        assert!(one_opening_key(&[7_u32, 9, 7], &[true, false, true]));
+        assert!(!one_opening_key(&[7_u32, 9, 7], &[true, true, false]));
     }
 
     /// **The rim-anchor row** (#653). The walk must start at a rim
