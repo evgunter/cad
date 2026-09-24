@@ -2016,7 +2016,11 @@ mod tests {
         let curve = body.get_edge(seg.edge).unwrap().curve;
         let certified = body.get_curve_geom(curve).unwrap().certified().unwrap();
         let (t0, t1) = certified.params();
-        assert_eq!(certified.carrier().eval(t1).x, 2.0, "the chord runs to the tip");
+        assert_eq!(
+            certified.carrier().eval(t1).x,
+            2.0,
+            "the chord runs to the tip"
+        );
         let split = body
             .split_edge(seg.edge, 0.5f64.mul_add(t1 - t0, t0), tol)
             .unwrap();
@@ -2201,7 +2205,10 @@ mod tests {
         body.kev_describing(
             strut.he_minus,
             &[
-                (other.edge, EdgeCurveSpec::line_between(p(2.0), Point3::new(1.0, 1.0, 0.0))),
+                (
+                    other.edge,
+                    EdgeCurveSpec::line_between(p(2.0), Point3::new(1.0, 1.0, 0.0)),
+                ),
                 (seg.edge, EdgeCurveSpec::line_between(p(0.0), p(2.0))),
             ],
             tol,
@@ -2214,7 +2221,10 @@ mod tests {
         for (edge, was) in [(seg.edge, old[0]), (other.edge, old[1])] {
             let now = body.get_edge(edge).unwrap().curve;
             assert_ne!(now, was);
-            assert!(body.get_curve_geom(was).is_none(), "the old curve is reaped");
+            assert!(
+                body.get_curve_geom(was).is_none(),
+                "the old curve is reaped"
+            );
             assert!(carrier_is_coherent_here(&body, edge, tol));
         }
     }

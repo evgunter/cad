@@ -927,10 +927,9 @@ impl fmt::Display for EulerOpError {
                 "kev_describing: edge {edge:?} is not a member of the merged fan, so the \
                  merge gives it nothing to re-describe"
             ),
-            Self::DuplicateRedescription { edge } => write!(
-                f,
-                "kev_describing: edge {edge:?} is re-described twice"
-            ),
+            Self::DuplicateRedescription { edge } => {
+                write!(f, "kev_describing: edge {edge:?} is re-described twice")
+            }
             Self::DescriptionNotAdjacent { edge } => write!(
                 f,
                 "edge {edge:?}'s intrinsic/seam description names surfaces that are not \

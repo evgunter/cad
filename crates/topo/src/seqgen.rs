@@ -1029,7 +1029,9 @@ fn chord_redescriptions(body: &Body<f64>, he: HalfEdgeKey) -> Vec<(EdgeKey, Edge
         if fan.contains(&h) {
             v
         } else {
-            body.get_half_edge(h).expect("valid body: a half resolves").start
+            body.get_half_edge(h)
+                .expect("valid body: a half resolves")
+                .start
         }
     };
     let mut out: Vec<(EdgeKey, EdgeCurveSpec<f64>)> = Vec::new();

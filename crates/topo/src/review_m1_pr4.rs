@@ -663,7 +663,10 @@ fn kev_mirror_has_no_single_op_remake() {
     let before = canonical_form(&body);
     body.kev_describing(
         strut.he_minus,
-        &[(seg.edge, geom_brep::EdgeCurveSpec::line_between(p(0.0), p(2.0)))],
+        &[(
+            seg.edge,
+            geom_brep::EdgeCurveSpec::line_between(p(0.0), p(2.0)),
+        )],
         tol,
     )
     .unwrap();
