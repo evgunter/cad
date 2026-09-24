@@ -2,10 +2,11 @@
 id: census-lane-unsupported-display-names-the-scalar-not-the-door
 kind: issue
 title: The _structural doors' verdicts moved to the door at every scalar, and CensusLaneUnsupported's Display still names the scalar and the wrong arm
-status: open
+status: dispatched
 priority: P3
 cost: E
 opened: 2026-09-21
+parent: ATREST-8
 ---
 
 ## Finding
