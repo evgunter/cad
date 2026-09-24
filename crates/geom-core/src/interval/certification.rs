@@ -5,14 +5,29 @@
 //! A file opts into certification arithmetic by importing the trait by
 //! name — `use geom_core::interval::certification::Certification;` — and
 //! a file that does so has no [`crate::Real`] in scope in its production
-//! code, so an `Interval` there reaches neither `Real::is_poison` (NaI or
-//! empty, which answers `false` on a `Trv` bracket with real endpoints)
-//! nor a transcendental (which certification does not call —
-//! `crates/geom-brep/README.md` C9). `scripts/gates/certification-doors.sh`
-//! holds that separation over its allowlist of importers. The trait is
-//! not re-exported at the crate root or beside [`Interval`], so no glob
-//! import carries it in, and this module is the one place it is defined
-//! with `Real` in scope.
+//! code, so a value typed `Interval` there reaches neither
+//! `Real::is_poison` (NaI or empty, which answers `false` on a `Trv`
+//! bracket with real endpoints) nor a transcendental (which
+//! certification does not call — `crates/geom-brep/README.md` C9).
+//! `scripts/gates/certification-doors.sh` holds that separation over its
+//! allowlist of importers. The trait is not re-exported at the crate
+//! root or beside [`Interval`], so no glob import carries it in; the
+//! gate reds a `pub` re-export of it anywhere; and this module is the one
+//! place it is defined with `Real` in scope.
+//!
+//! **What the separation does not cover, by design.** [`crate::Bounds`],
+//! [`crate::CertifiedBounds`] and [`crate::Decide`] are `Real`
+//! subtraits, so generic code over a lane `T` in an importing file calls
+//! every `Real` method without naming `Real`, and does so at
+//! `T = Interval` too. That is lane evaluation — the quadrature lane's
+//! norms, the chord ladder — and its result crosses into certification
+//! arithmetic only through [`Interval::from_certified`], whose
+//! `Def`/`Trv` cap carries the lane's verdict across. The gate reads
+//! tokens and cannot tell lane evaluation at `T = Interval` from
+//! certification arithmetic written generically over the same bound; its
+//! header states this as a known gap. What holds the line is the type: a
+//! value typed `Interval` in an importing file has no `sqrt` and no
+//! `is_poison` to call.
 //!
 //! What stays inherent on [`Interval`]: [`Interval::from_bounds`] (the
 //! driver's door in), [`Interval::repr_bits`] (the identity channel),

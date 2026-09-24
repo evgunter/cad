@@ -263,15 +263,18 @@ refusal by name, and the certification doors refuse it whatever its
 endpoints say. The doors are the `Certification` trait's
 (`geom_core::interval::certification`), sealed to `Interval` and
 imported by name: a file that imports them has no `Real` in its
-production code, so an `Interval` there reaches neither evaluation's
-weaker `is_poison` nor a transcendental, and
+production code, so a value typed `Interval` there reaches neither
+evaluation's weaker `is_poison` nor a transcendental, and
 `scripts/gates/certification-doors.sh` holds that over its list of
-importers. A lane scalar crosses into certification arithmetic through
-`Interval::from_certified` — inherent, since the crossing is written
-where a lane scalar is held — which carries the certified door's verdict
-as a `Def`/`Trv` cap on the decoration. No copyleft dependency
-exists in any build configuration. Certification code reads brackets
-through `Bounds` and asks admission through `CertifiedEnclosure`.
+importers. Generic code over a lane scalar in the same file (`Bounds`,
+`CertifiedBounds` and `Decide` are `Real` subtraits) evaluates on that
+lane, at `T = Interval` too, and crosses into certification arithmetic
+only through `Interval::from_certified` — inherent, since the crossing
+is written where a lane scalar is held — which carries the certified
+door's verdict as a `Def`/`Trv` cap on the decoration. No copyleft
+dependency exists in any build configuration. Certification code reads
+brackets through `Bounds` and asks admission through
+`CertifiedEnclosure`.
 
 **C10 — One deterministic AABB tree, conservative-superset contract.**
 `crates/bvh`: arena-order build, median split on the longest centroid
