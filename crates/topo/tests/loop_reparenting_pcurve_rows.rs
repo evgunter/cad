@@ -469,7 +469,7 @@ fn mfkrh_inheriting_the_chart_carries_every_row() {
 /// tessellator and `chart_boundary` to read; the caller's re-mint is
 /// what restores the face. That `validate_pcurves` cannot tell a
 /// never-minted face from one a door emptied is filed as
-/// `work/trim/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
+/// `work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
 #[test]
 fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
@@ -653,7 +653,7 @@ fn mfkrh_onto_a_second_key_the_body_records_as_one_surface_carries_every_row() {
 /// an identity channel that can be absent but never wrong. Deciding
 /// those two keys equal means reading the surfaces' scalars
 /// structurally, which needs a bound these doors do not carry:
-/// `work/topo/two-provenance-free-keys-holding-one-surface-read-as-two-charts`.
+/// `work/origin/two-provenance-free-keys-holding-one-surface-read-as-two-charts`.
 #[test]
 fn two_keys_holding_one_surface_with_no_provenance_read_as_two_charts() {
     let mut s = sheet();
@@ -747,4 +747,350 @@ fn an_empty_boundary_ring_moves_with_the_map_untouched() {
     s.body.ring_move(ring, s.plane).unwrap();
     assert_eq!(rows_deep(&s.body, s.low), before_low);
     assert_eq!(rows_total(&s.body), before_total);
+}
+
+// ---------------------------------------------------------------
+// One level down: the doors that move a RUN of half-edges between
+// loops of two faces — `mef`'s chord surgery and `kef`'s unsplice.
+// ---------------------------------------------------------------
+//
+// The loop doors above move a whole loop. `mef` moves the run
+// `[he1 .. he2)` into the loop of a face it mints, and `kef` moves the
+// dying loop's remnant into the mate's loop on the face that survives;
+// the rows on that run change chart exactly as a re-parented loop's
+// do, and take the same answer: carried where the two faces are on one
+// chart, dropped where they are not, with the destination read by
+// `Body::same_chart` and nothing derived.
+
+/// A plane nothing on the sheet is stated in.
+fn flat() -> Surface<f64> {
+    Surface::Plane {
+        origin: at(U0, V0),
+        normal: axis(),
+        u_ref: u_ref(),
+    }
+}
+
+/// The outer loop of `face` in cycle order.
+fn cycle_of(body: &Body<f64>, face: FaceKey) -> Vec<topo::HalfEdgeKey> {
+    body.loop_cycle(first_he(body, face)).unwrap()
+}
+
+/// The half-edge of `face`'s outer loop that starts at the vertex
+/// sitting at `p` — one per vertex per loop, so the point names it.
+fn he_at(body: &Body<f64>, face: FaceKey, p: Point3<f64>) -> topo::HalfEdgeKey {
+    let hit: Vec<_> = cycle_of(body, face)
+        .into_iter()
+        .filter(|&he| {
+            let v = body.get_half_edge(he).unwrap().start;
+            let q = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+            (q - p).norm() == 0.0
+        })
+        .collect();
+    assert_eq!(hit.len(), 1, "one half-edge of the loop starts at {p:?}");
+    hit[0]
+}
+
+/// Splits the lower panel with a chord from `c` to `a`: the run
+/// `[a→b, b→c]` — two rim-and-meridian rows — moves into the new
+/// face's loop with the minted `c→a`, and the old face keeps `c→f`,
+/// `f→a` and the minted `a→c`.
+fn split_low(s: &mut Sheet, surface: FaceSurface<f64>) -> topo::MefCreated {
+    let (a, c) = (at(U0, V0), at(U1, VM));
+    let he1 = he_at(&s.body, s.low, a);
+    let he2 = he_at(&s.body, s.low, c);
+    s.body
+        .mef(
+            MefSite::Chords { he1, he2 },
+            EdgeCurveSpec::line_between(a, c),
+            surface,
+            tol(),
+        )
+        .unwrap()
+}
+
+/// **`mef` onto a chart that mints nothing drops the moved run's
+/// rows.** The red-first row: before the door disposed of them, the
+/// two cylinder rows on `[a→b, b→c]` rode onto the new PLANAR face and
+/// the pass, which skips a planar face, said nothing about them — the
+/// one finding was the OLD face's minted half, and it still is. What
+/// the head changes is that the planar face holds no row about a
+/// chart it is not on.
+#[test]
+fn mef_onto_a_chart_that_mints_nothing_drops_the_moved_runs_rows() {
+    let mut s = sheet();
+    let made = split_low(&mut s, FaceSurface::New(flat()));
+    assert_eq!(rows_of(&s.body, made.face), (0, 3));
+    assert_eq!(rows_of(&s.body, s.low), (2, 1));
+    let findings = validate_pcurves(&s.body, band());
+    assert_eq!(
+        findings,
+        vec![PcurveMintError::MissingCache {
+            half_edge: made.he_plus
+        }],
+        "the one finding is the old face's minted half, which this door leaves rowless"
+    );
+    // The sheet's other curved panel is untouched.
+    assert_eq!(rows_of(&s.body, s.up), (4, 0));
+}
+
+/// **The loud-to-silent trade, through this door.** Onto a rowless
+/// CURVED chart the two moved rows used to leave the new face
+/// half-minted — its own minted half rowless beside them — and the
+/// pass reported that half; dropped, the new face stores no row at
+/// all and reads as one the pass has not minted, about which it says
+/// nothing (`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`).
+/// What the trade buys is the same as at the loop doors: the body no
+/// longer holds two curves stated in a chart the face is not on.
+#[test]
+fn mef_onto_a_rowless_curved_chart_drops_the_runs_rows_and_the_pass_goes_quiet() {
+    let mut s = sheet();
+    let made = split_low(&mut s, FaceSurface::New(other_cylinder()));
+    assert_eq!(rows_of(&s.body, made.face), (0, 3));
+    assert_eq!(rows_of(&s.body, s.low), (2, 1));
+    let findings = validate_pcurves(&s.body, band());
+    assert_eq!(
+        findings,
+        vec![PcurveMintError::MissingCache {
+            half_edge: made.he_plus
+        }]
+    );
+}
+
+/// **The controls: the same chart carries the run's rows byte for
+/// byte.** `Inherit` and a `Shared` naming the old key are the same
+/// chart by construction, so the two rows that move are the two rows
+/// that were there — interval, image and certificate — and the two
+/// that stay are the other two. **The carry is the `rows_deep`
+/// equality**; the `(2, 2)` reading beside it pins something else —
+/// the two findings are the minted halves, `he_plus` on the old face
+/// and `he_minus` on the new, which this door leaves rowless — and
+/// that count moves the day the operator mints its own halves' rows
+/// (`work/topo/half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`),
+/// without the carry having moved at all.
+#[test]
+fn mef_inheriting_or_sharing_the_chart_carries_the_runs_rows_byte_for_byte() {
+    let base = sheet();
+    let before = rows_deep(&base.body, base.low);
+    assert_eq!(before.len(), 4);
+    let cyl = base.body.get_face(base.low).unwrap().surface;
+
+    for surface in [FaceSurface::Inherit, FaceSurface::Shared(cyl)] {
+        let mut s = sheet();
+        let made = split_low(&mut s, surface);
+        let moved = rows_deep(&s.body, made.face);
+        let kept = rows_deep(&s.body, s.low);
+        assert_eq!((moved.len(), kept.len()), (2, 2));
+        let mut after: Vec<String> = moved.into_iter().chain(kept).collect();
+        after.sort();
+        let mut expected = before.clone();
+        expected.sort();
+        assert_eq!(after, expected, "a same-chart mef lost or restated a row");
+        let findings = validate_pcurves(&s.body, band());
+        assert_eq!((missing(&findings), findings.len()), (2, 2));
+    }
+}
+
+/// A second key the body records as one description is one chart, so
+/// a `Shared` naming it carries the run's rows too — decided by the
+/// chart, not the key.
+#[test]
+fn mef_onto_a_second_key_the_body_records_as_one_surface_carries_the_runs_rows() {
+    let mut s = sheet();
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    let before = rows_deep(&s.body, s.low);
+    let second = s
+        .body
+        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
+        .unwrap();
+    assert_ne!(second, cyl);
+    s.body.set_surface_source(cyl, one_recipe()).unwrap();
+    s.body.set_surface_source(second, one_recipe()).unwrap();
+
+    let made = split_low(&mut s, FaceSurface::Shared(second));
+    let moved = rows_deep(&s.body, made.face);
+    assert_eq!(moved.len(), 2);
+    for row in &moved {
+        assert!(before.contains(row), "restated across one chart: {row}");
+    }
+}
+
+/// **`kef` into a face on a chart that mints nothing drops the
+/// remnant's rows.** The red-first row: killing the lower panel's
+/// edge `a→b` from the panel's side sends the dying loop's remnant —
+/// three cylinder rows — into the PLANAR face's loop, where the pass
+/// never looks. Before the door disposed of them the planar face read
+/// `(3, 5)` and the pass was silent; now it is rowless and the pass
+/// is silent for the right reason. A re-mint leaves the plane
+/// rowless and the sheet's other panel whole.
+#[test]
+fn kef_into_a_face_on_a_chart_that_mints_nothing_drops_the_remnants_rows() {
+    let mut s = sheet();
+    let he = he_at(&s.body, s.low, at(U0, V0));
+    let killed = s.body.kef(he).unwrap();
+    assert_eq!(killed.killed_face, s.low);
+    assert_eq!(rows_of(&s.body, s.plane), (0, 8));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (0, 8));
+    assert_eq!(rows_of(&s.body, s.up), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+/// The trade through the other run door: into a rowless CURVED face
+/// the three rows used to arrive beside five rowless halves and the
+/// pass reported those five; dropped, the face reads as never minted
+/// and the pass goes quiet.
+#[test]
+fn kef_into_a_rowless_curved_face_drops_the_remnants_rows_and_the_pass_goes_quiet() {
+    let mut s = sheet();
+    s.body
+        .set_face_surface(s.plane, FaceSurface::New(other_cylinder()))
+        .unwrap();
+    let he = he_at(&s.body, s.low, at(U0, V0));
+    s.body.kef(he).unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (0, 8));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+/// **The control: two faces on one chart carry the remnant's rows
+/// byte for byte.** Killing the rim edge `c→f` between the two curved
+/// panels from the lower one's side sends its remnant — `f→a`, `a→b`,
+/// `b→c` — into the upper panel's loop, and the rows that arrive are
+/// the rows that left; the upper panel is complete and the pass
+/// accepts it. (The killed edge's own two rows die with their keys.)
+#[test]
+fn kef_between_faces_on_one_chart_carries_the_remnants_rows_byte_for_byte() {
+    let mut s = sheet();
+    let he = he_at(&s.body, s.low, at(U1, VM));
+    let remnant_rows: Vec<String> = rows_deep(&s.body, s.low)
+        .into_iter()
+        .filter(|row| !row.starts_with(&format!("{he:?} ")))
+        .collect();
+    assert_eq!(remnant_rows.len(), 3);
+    let killed = s.body.kef(he).unwrap();
+    assert_eq!(killed.killed_face, s.low);
+    assert_eq!(rows_of(&s.body, s.up), (6, 0));
+    let after = rows_deep(&s.body, s.up);
+    for row in &remnant_rows {
+        assert!(
+            after.contains(row),
+            "kef lost or restated a row across one chart: {row}"
+        );
+    }
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
+/// And onto a second key the body records as the same description:
+/// the remnant's rows are carried. **The carry is the `rows_deep`
+/// count** — the three rows that arrive are three that left. The
+/// `(5, 5)` reading beside it is the surviving face's own five
+/// halves, which this fixture re-charted without minting; it pins the
+/// fixture's state, not the door's.
+#[test]
+fn kef_into_a_second_key_the_body_records_as_one_surface_carries_the_remnants_rows() {
+    let mut s = sheet();
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    let second = s
+        .body
+        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
+        .unwrap();
+    s.body.set_surface_source(cyl, one_recipe()).unwrap();
+    s.body.set_surface_source(second, one_recipe()).unwrap();
+    let before = rows_deep(&s.body, s.low);
+
+    let he = he_at(&s.body, s.low, at(U0, V0));
+    s.body.kef(he).unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (3, 5));
+    let after = rows_deep(&s.body, s.plane);
+    let carried = before.iter().filter(|row| after.contains(row)).count();
+    assert_eq!(carried, 3, "the remnant's three rows arrive verbatim");
+    let findings = validate_pcurves(&s.body, band());
+    assert_eq!((missing(&findings), findings.len()), (5, 5));
+}
+
+/// The sheet's cylinder charted with a rotated `u_ref`: the same point
+/// set, a different chart. A face put on it MINTS, and its rows are
+/// not the rows of the sheet's chart — which is what a destination
+/// that is both minted and on another chart needs.
+fn rotated_cylinder() -> Surface<f64> {
+    Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: axis(),
+        radius: 1.0,
+        u_ref: Vec3::new((-0.3f64).cos(), (-0.3f64).sin(), 0.0),
+    }
+}
+
+/// **`kef` drops the remnant's rows and no others.** The surviving
+/// face is MINTED on a different chart (the sheet's cylinder,
+/// re-charted), so the remnant's three rows go — and the surviving
+/// loop's own three, stated in its own chart already, stay byte for
+/// byte, with the pass naming exactly the three rowless arrivals. A
+/// `kef` that disposed of the destination LOOP's rows (the loop doors'
+/// walk) would read `(0, 6)` and be silent; no other row here reaches
+/// a minted survivor on another chart.
+#[test]
+fn kef_into_a_minted_face_on_another_chart_keeps_the_survivors_own_rows() {
+    let mut s = sheet();
+    s.body
+        .set_face_surface(s.up, FaceSurface::New(rotated_cylinder()))
+        .unwrap();
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.up), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    let up_before = rows_deep(&s.body, s.up);
+
+    let he = he_at(&s.body, s.low, at(U1, VM));
+    let killed = s.body.kef(he).unwrap();
+    assert_eq!(killed.killed_face, s.low);
+    assert_eq!(rows_of(&s.body, s.up), (3, 3));
+    for row in rows_deep(&s.body, s.up) {
+        assert!(
+            up_before.contains(&row),
+            "kef restated a surviving row: {row}"
+        );
+    }
+    let findings = validate_pcurves(&s.body, band());
+    assert_eq!((missing(&findings), findings.len()), (3, 3));
+}
+
+/// **The chart is decided where both keys resolve.** The dying face is
+/// the ONLY holder of its key — the sheet's back, put on a second key
+/// tied to the panel's by one recipe and minted — so this kill reaps
+/// that key. The remnant still carries by provenance: a decision read
+/// after the orphan sweep would find the dying key gone, read two
+/// charts, and drop five rows that were right.
+#[test]
+fn kef_carries_the_remnant_by_provenance_when_it_reaps_the_dying_key() {
+    let mut s = sheet();
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    let second = s
+        .body
+        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
+        .unwrap();
+    s.body.set_surface_source(cyl, one_recipe()).unwrap();
+    s.body.set_surface_source(second, one_recipe()).unwrap();
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (6, 0));
+    let back_before = rows_deep(&s.body, s.plane);
+
+    // The back's half of the edge `a-b` starts at `b`.
+    let he = he_at(&s.body, s.plane, at(U1, V0));
+    let killed = s.body.kef(he).unwrap();
+    assert_eq!(killed.killed_face, s.plane);
+    assert_eq!(
+        killed.killed_surface,
+        Some(second),
+        "the dying key had one holder, and this kill reaps it"
+    );
+    assert_eq!(rows_of(&s.body, s.low), (8, 0));
+    let low_after = rows_deep(&s.body, s.low);
+    let carried = back_before
+        .iter()
+        .filter(|row| low_after.contains(row))
+        .count();
+    assert_eq!(carried, 5, "every surviving back row arrives verbatim");
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }
