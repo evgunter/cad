@@ -18,7 +18,8 @@ use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 use super::defer::{TieRows, Upstream, put, upstream_name};
 use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along, side_of_face};
 use super::emit::{
-    Incidence, NamingError, Rim, edge_ends, ent, face_half_edges, name1, rim_between,
+    Incidence, NamingError, Rim, RimShare, edge_ends, ent, face_half_edges, name1, rim_between,
+    rims_between,
 };
 use super::merged::{self, NESTED_MERGED};
 use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
@@ -879,10 +880,11 @@ fn name_boolean_edges<T: Decide>(
     // SAME-operand faces (the collinear channel-cut lane re-mints a
     // sub-edge of an operand edge as a chord) descends instead to an
     // operand edge its two parent faces share — combinatorial adjacency
-    // of emitted anchors, not matching. That the pair shares EXACTLY
-    // ONE is a guess, not a property: a later member splitting a merged
-    // face refutes it, and `NamingError::SharedRim` is what the arm
-    // below says when it does. ----
+    // of emitted anchors, not matching, while the pair shares one edge.
+    // When it shares SEVERAL — collinear pieces of one line, left by an
+    // earlier union step — the chord's geometry picks the piece it lies
+    // within (`rim_holding`); when nothing picks one,
+    // `NamingError::SharedRim` is what the arm below says. ----
     enum ChordKind {
         Cross(Upstream, Upstream),
         SameA(EdgeKey),
@@ -926,6 +928,32 @@ fn name_boolean_edges<T: Decide>(
     // zip-listed edge — refuses as the missing rule it is
     // (`NamingError::MergedChordOffRim`, `NamingError::MergedChord`).
     let chord_kind = |e: EdgeKey, own: Option<OpSide<()>>| -> Result<ChordKind, NamingError> {
+        // The premise this caller is asking under: it did not build
+        // these bodies, it DESCENDED two result faces into one of them
+        // and guesses the pair carries this chord's rim. One shared
+        // edge is that rim; several are the pieces of one line, and
+        // the chord picks the piece it lies within ([`rim_holding`]).
+        // A pair with no rim, or pieces the chord does not pick one
+        // of, refutes the guess, not the body — so the answer is
+        // classified here rather than at the walk.
+        let same_side_rim = |op: &OperandCtx<'_, T>, f0: FaceKey, f1: FaceKey| {
+            let found = match rim_between(op.body, f0, f1)? {
+                Rim::One(rim) => return Ok(rim),
+                Rim::NotOne(RimShare::Several) => {
+                    if let Some(rim) = rim_holding(body, e, op.body, f0, f1, bnd)? {
+                        return Ok(rim);
+                    }
+                    RimShare::Several
+                }
+                Rim::NotOne(found) => found,
+            };
+            Err(NamingError::SharedRim {
+                node: op.node,
+                face: f0,
+                other: f1,
+                found,
+            })
+        };
         let faces = inc
             .edge_faces
             .get(&e)
@@ -965,6 +993,20 @@ fn name_boolean_edges<T: Decide>(
                         node: op.node,
                         rim,
                     }),
+                    Rim::NotOne(RimShare::Several) => {
+                        match rim_holding(body, e, op.body, f0, f1, bnd)? {
+                            Some(rim) => Ok(match side {
+                                OpSide::A(()) => ChordKind::SameA(rim),
+                                OpSide::B(()) => ChordKind::SameB(rim),
+                            }),
+                            None => Err(NamingError::SharedRim {
+                                node: op.node,
+                                face: f0,
+                                other: f1,
+                                found: RimShare::Several,
+                            }),
+                        }
+                    }
                     Rim::NotOne(found) => Err(NamingError::SharedRim {
                         node: op.node,
                         face: f0,
@@ -981,34 +1023,10 @@ fn name_boolean_edges<T: Decide>(
             (OpSide::B(_), OpSide::A(_)) => {
                 ChordKind::Cross(operand_face_name(d1)?, operand_face_name(d0)?)
             }
-            // The premise this caller is asking under: it did not
-            // build these bodies, it DESCENDED two result faces into
-            // one of them and guesses the pair carries this chord's
-            // rim. A pair that turns out not to have one rim refutes
-            // the guess, not the body — so the answer is classified
-            // here rather than at the walk.
-            (OpSide::A(fa0), OpSide::A(fa1)) => match rim_between(a.body, fa0, fa1)? {
-                Rim::One(e) => ChordKind::SameA(e),
-                Rim::NotOne(found) => {
-                    return Err(NamingError::SharedRim {
-                        node: a.node,
-                        face: fa0,
-                        other: fa1,
-                        found,
-                    });
-                }
-            },
-            (OpSide::B(fb0), OpSide::B(fb1)) => match rim_between(b.body, fb0, fb1)? {
-                Rim::One(e) => ChordKind::SameB(e),
-                Rim::NotOne(found) => {
-                    return Err(NamingError::SharedRim {
-                        node: b.node,
-                        face: fb0,
-                        other: fb1,
-                        found,
-                    });
-                }
-            },
+            // Two faces of one operand: the rim they share
+            // (`same_side_rim`).
+            (OpSide::A(fa0), OpSide::A(fa1)) => ChordKind::SameA(same_side_rim(a, fa0, fa1)?),
+            (OpSide::B(fb0), OpSide::B(fb1)) => ChordKind::SameB(same_side_rim(b, fb0, fb1)?),
         })
     };
     let seam_pair = |e: EdgeKey| -> Result<(Upstream, Upstream), NamingError> {
@@ -1549,6 +1567,40 @@ fn chord_on_rim<T: Decide>(
         }
     }
     Ok(true)
+}
+
+/// Of the SEVERAL edges operand faces `f0` and `f1` share in
+/// `op_body`, the one result edge `chord` lies within
+/// ([`chord_on_rim`]) — `None` unless exactly one does.
+///
+/// Two faces of one operand share several edges when their common
+/// line is cut into pieces: a union step before this one met the pair
+/// along one rim and left it in collinear pieces, split at the
+/// vertices where the members' ends meet it. "The rim they share" is
+/// then not one edge, and adjacency cannot say which piece a chord
+/// derived on that line belongs to; its geometry can. The pieces are
+/// disjoint but for their shared ends, so a chord strictly inside one
+/// lies within no other, and the answer is one piece or none. None,
+/// or more than one, and the caller refuses the pair as it did
+/// before: the chord does not pick a piece, and no other rule does.
+fn rim_holding<T: Decide>(
+    body: &Body<T>,
+    chord: EdgeKey,
+    op_body: &Body<T>,
+    f0: FaceKey,
+    f1: FaceKey,
+    bnd: geom_core::Band,
+) -> Result<Option<EdgeKey>, NamingError> {
+    let mut holding = None;
+    for rim in rims_between(op_body, f0, f1)? {
+        if chord_on_rim(body, chord, op_body, rim, bnd)? {
+            if holding.is_some() {
+                return Ok(None);
+            }
+            holding = Some(rim);
+        }
+    }
+    Ok(holding)
 }
 
 /// The oriented direction of an operand edge (he_plus start → end).

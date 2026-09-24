@@ -799,7 +799,24 @@ pub(crate) fn rim_between<T: geom_core::Real>(
     f: FaceKey,
     g: FaceKey,
 ) -> Result<Rim, NamingError> {
-    let mut found: Option<EdgeKey> = None;
+    Ok(match rims_between(body, f, g)?.as_slice() {
+        [] => Rim::NotOne(RimShare::NotAdjacent),
+        [e] => Rim::One(*e),
+        _ => Rim::NotOne(RimShare::Several),
+    })
+}
+
+/// EVERY edge face `f` and face `g` share, each once, in `f`'s
+/// half-edge order — the walk [`rim_between`] classifies, for a caller
+/// whose premise lets it choose among several by something else (the
+/// boolean pass's chord, [`crate::names::emit_topo`]). Structural
+/// corruption refuses exactly as [`rim_between`] documents.
+pub(crate) fn rims_between<T: geom_core::Real>(
+    body: &Body<T>,
+    f: FaceKey,
+    g: FaceKey,
+) -> Result<Vec<EdgeKey>, NamingError> {
+    let mut found: Vec<EdgeKey> = Vec::new();
     for he in face_half_edges(body, f)? {
         let mate = body.mate(he).ok_or(UNMATED)?;
         let mate_he = body.get_half_edge(mate).ok_or(DANGLING_MATE)?;
@@ -807,18 +824,11 @@ pub(crate) fn rim_between<T: geom_core::Real>(
             .get_loop(mate_he.parent_loop)
             .ok_or(DANGLING_LOOP)?
             .face;
-        if other == g {
-            let edge = mate_he.edge;
-            if found.is_some_and(|e| e != edge) {
-                return Ok(Rim::NotOne(RimShare::Several));
-            }
-            found = Some(edge);
+        if other == g && !found.contains(&mate_he.edge) {
+            found.push(mate_he.edge);
         }
     }
-    Ok(match found {
-        Some(e) => Rim::One(e),
-        None => Rim::NotOne(RimShare::NotAdjacent),
-    })
+    Ok(found)
 }
 
 /// All half-edges of a face (outer loop + rings), deterministic

@@ -115,3 +115,11 @@ The order sweep for `seam-junction-vertex-name-cannot-be-collapsed-by-the-union-
 widened by PR 3112's review.
 `crates/editor-core/tests/emit_seam_junction.rs` asserts that only the
 junction rows are equal across orders, for this reason.
+
+## Correction (EMIT, 2026-09-23)
+
+The "zero cases of a name rebinding" measurement above compared vertex
+points only. With edges compared by their end points, 18 of the 162
+pairs of fused orders in PR 3112's review corpus rebind a name on main
+(24 names, all `FromMember` rim-edge pieces). That is its own P0 row:
+`work/emit/union-rim-piece-ranks-follow-fold-order-so-rim-names-rebind.md`.
