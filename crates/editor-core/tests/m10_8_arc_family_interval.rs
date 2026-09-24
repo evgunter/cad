@@ -397,10 +397,7 @@ fn m10_8_ceilings_per_rule_set() {
     ];
     for (name, doc_at) in docs {
         for (label, rules) in sets {
-            let dials = SymbolicDials {
-                rules,
-                ..SymbolicDials::default()
-            };
+            let dials = crate::m10_8_harness::dials(rules);
             let (lo, hi, set) = ceiling(doc_at, dials, tol);
             println!(
                 "   {name} rules={label:<6} certifies x{lo:e}, refuses x{hi:e} of the real study"

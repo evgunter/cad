@@ -10,7 +10,7 @@
 //! the ladder installed and without it, and the difference between two
 //! replays IS "what the retry recovers", per decision, with nothing to
 //! subtract. A whole-tier re-run at a wider ring cannot answer the same
-//! question — it moves the FIRST attempt, which is thenon-monotonicity
+//! question — it moves the FIRST attempt, which is the non-monotonicity
 //! this unit's item records.
 //!
 //! **One row here GATES** — [`sym_9_the_ladder_recovers_what_it_was_shipped_for`],
@@ -36,6 +36,7 @@ test_utils::gated_to![
     "crates/geom-core/src/sym.rs",
     "crates/geom-core/src/sym/",
     "crates/editor-core/src/drive.rs",
+    "crates/editor-core/src/eval/mod.rs",
     "crates/editor-core/tests/m10_7_r2_probes_interval.rs",
     "crates/editor-core/tests/m10_8_arc_family_interval.rs",
     "crates/editor-core/tests/m10_8_harness.rs",
@@ -78,8 +79,8 @@ fn shapes() -> Vec<(&'static str, SymRetry)> {
         let mut m = all;
         f(&mut m);
         SymRetry {
-            bits: None,
             without: [Some(m), None],
+            ..SymRetry::none()
         }
     };
     vec![
@@ -105,9 +106,8 @@ fn shapes() -> Vec<(&'static str, SymRetry)> {
         ("no_rule_g", without(|m| m.canonical_root = false)),
         // **The two that recover, together** — rule A off (the
         // bracket's six) and rule G off (the link's twelve) in ONE
-        // kept-atom attempt, which is what a shipped ladder can spell:
-        // `SymRetry::without` is one mask, so a ladder that wants both
-        // shuts both on the same attempt.
+        // kept-atom attempt: the joint mask, measured beside the two
+        // single ones to say whether one attempt can carry both.
         (
             "no_rule_a_g",
             without(|m| {
@@ -115,9 +115,20 @@ fn shapes() -> Vec<(&'static str, SymRetry)> {
                 m.canonical_root = false;
             }),
         ),
-        // **The shipped ladder**: rule G shut, then rule A shut, two
-        // attempts (`geom_core::SymRetry::kept_atom`).
+        // **The shipped ladder** (`geom_core::SymRetry::kept_atom`),
+        // and the same two masks in the other order — the order is a
+        // cost, paid on every refusal the first mask does not close.
         ("kept_atom_ladder", SymRetry::kept_atom()),
+        (
+            "kept_atom_reversed",
+            SymRetry {
+                without: [
+                    SymRetry::kept_atom().without[1],
+                    SymRetry::kept_atom().without[0],
+                ],
+                ..SymRetry::kept_atom()
+            },
+        ),
         // The shipped ladder with a 512-bit ring attempt behind it.
         (
             "kept_atom_then_512",
@@ -159,11 +170,23 @@ fn document(name: &str, scale: f64, tol: Tol) -> ProfileDoc {
 }
 
 /// One replay at `Sym<Interval>` over `box_` with `retry`'s ladder
-/// installed and the shape report on.
+/// installed, the shape report on when `report` is.
+///
+/// The gating row runs with the report off: it reads the receipt and
+/// nothing else, and the report renders the plain and early forms of
+/// every blocked residual. The evidence rows run with it on unless
+/// `CAD_SYM_9_NO_REPORT` is set — the door for R2's rounded pad, whose
+/// report the unit's dispatch recorded as exhausting a four-core box's
+/// memory (this lane's own two pad runs did not return a first replay
+/// with the report on or off:
+/// `work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`).
+/// The counts are the same either way: the report is a recorder, the
+/// receipt is the session's own.
 fn replay(
     doc: &ProfileDoc,
     box_: &ParamBox,
     retry: SymRetry,
+    report: bool,
     tol: Tol,
 ) -> (Vec<DecisionShape>, SymCounts) {
     for name in box_.axes().keys() {
@@ -174,15 +197,7 @@ fn replay(
         profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     };
-    // **`CAD_SYM_9_NO_REPORT` runs the replay with the shape report
-    // OFF**, and the receipt is then the whole of what the row prints.
-    // The report renders the PLAIN and EARLY forms of every blocked
-    // residual, and on R2's rounded pad — 991 of them, at the sizes
-    // this tier's forms reach — that rendering exhausts the measuring
-    // box's memory. The counts are the same either way: the report is
-    // a recorder, the receipt is the session's own.
-    let reported = std::env::var("CAD_SYM_9_NO_REPORT").is_err();
-    if reported {
+    if report {
         start_shape_report();
     }
     let (_, counts) = with_session_retry(budget(), SymRules::shipped(), retry, || {
@@ -195,13 +210,19 @@ fn replay(
         });
     });
     (
-        if reported {
+        if report {
             take_shape_report()
         } else {
             Vec::new()
         },
         counts,
     )
+}
+
+/// Whether an evidence row renders the shape report
+/// (`CAD_SYM_9_NO_REPORT` unset).
+fn reported() -> bool {
+    std::env::var("CAD_SYM_9_NO_REPORT").is_err()
 }
 
 /// The receipt's four decision columns, in the split's order — the
@@ -264,7 +285,7 @@ fn sym_9_where_the_refusals_are() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = nominal_box(&analyzed);
     geom_core::sym::profile::start_profile();
-    let (shapes, counts) = replay(&doc, &box_, SymRetry::none(), tol);
+    let (shapes, counts) = replay(&doc, &box_, SymRetry::none(), reported(), tol);
     println!("== {name} at the nominal, the shipped tier, no ladder");
     println!(
         "   totals (theorem/gated/registered/numeric) {:?} (report {:?})",
@@ -300,7 +321,12 @@ fn sym_9_what_each_retry_recovers() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = nominal_box(&analyzed);
     let t0 = Instant::now();
-    let (base_shapes, base_counts) = replay(&doc, &box_, SymRetry::none(), tol);
+    // The profile is installed on EVERY replay here, the base included,
+    // so its hooks cost both sides of each ratio alike; what it is read
+    // for is `retry_forms`, the retry memos' size.
+    geom_core::sym::profile::start_profile();
+    let (base_shapes, base_counts) = replay(&doc, &box_, SymRetry::none(), reported(), tol);
+    let dag = geom_core::sym::profile::take_profile().nodes;
     let base_time = t0.elapsed();
     let base = split(&base_shapes);
     println!("== {name} at the nominal");
@@ -314,9 +340,19 @@ fn sym_9_what_each_retry_recovers() {
         "   the numeric column (definite/numeric-zero/indeterminate/invalid) {:?}",
         asked(&base_shapes)
     );
+    // `CAD_SYM_9_SHAPES` names a comma-separated subset of [`shapes`].
+    let only = std::env::var("CAD_SYM_9_SHAPES").ok();
     for (label, retry) in shapes() {
+        if only
+            .as_deref()
+            .is_some_and(|l| !l.split(',').any(|n| n.trim() == label))
+        {
+            continue;
+        }
         let t0 = Instant::now();
-        let (shapes, counts) = replay(&doc, &box_, retry, tol);
+        geom_core::sym::profile::start_profile();
+        let (shapes, counts) = replay(&doc, &box_, retry, reported(), tol);
+        let held = geom_core::sym::profile::take_profile().retry_forms;
         let dt = t0.elapsed();
         let table = split(&shapes);
         let moved: BTreeMap<&str, ([u64; 4], [u64; 4])> = table
@@ -325,7 +361,7 @@ fn sym_9_what_each_retry_recovers() {
             .map(|(p, row)| (*p, (*base.get(p).unwrap_or(&[0; 4]), *row)))
             .collect();
         println!(
-            "   {label:<18} totals {:?}  retried {}  {:?} ({:.2}x)",
+            "   {label:<18} totals {:?}  retried {}  {:?} ({:.2}x)  retry memos {held:?} (DAG {dag})",
             receipt(&counts),
             counts.retried,
             dt,
@@ -338,7 +374,11 @@ fn sym_9_what_each_retry_recovers() {
 }
 
 /// **THE LADDER'S PIN**: what `drive::DEFAULT_SYM_RETRY` recovers, per
-/// document, asserted on both sides.
+/// document, asserted on both sides — and on R2's link, the two
+/// predicates it recovers, at their rows: `carrier_on_surface_2`
+/// `[82, 0, 6, 20]` → `[92, 0, 6, 10]` (the ten decisions rule G costs,
+/// `decide_3_split_rows_interval` pins that trade one attempt per rung)
+/// and `witness_on_surface_2` `[14, 0, 0, 2]` → `[16, 0, 0, 0]`.
 ///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
@@ -375,8 +415,24 @@ fn sym_9_the_ladder_recovers_what_it_was_shipped_for() {
         let doc = document(name, 1.0, tol);
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let box_ = nominal_box(&analyzed);
-        let (_, off) = replay(&doc, &box_, SymRetry::none(), tol);
-        let (_, on) = replay(&doc, &box_, ladder, tol);
+        let (_, off) = replay(&doc, &box_, SymRetry::none(), false, tol);
+        // The shape report is on for ONE replay, the link's with the
+        // ladder: the predicate rule G trades is pinned here at the row
+        // the ladder recovers it to, and a split is read off the report.
+        let link = name == "r2_link";
+        let (shapes, on) = replay(&doc, &box_, ladder, link, tol);
+        if link {
+            let t = split(&shapes);
+            for (pred, want) in [
+                ("carrier_on_surface_2", [92, 0, 6, 10]),
+                ("witness_on_surface_2", [16, 0, 0, 0]),
+            ] {
+                let got = t.get(pred).copied().unwrap_or([0; 4]);
+                if got != want {
+                    moved.push(format!("{name}/{pred} with the ladder {want:?} -> {got:?}"));
+                }
+            }
+        }
         println!(
             "== {name}: {:?} -> {:?} (retried {})",
             receipt(&off),

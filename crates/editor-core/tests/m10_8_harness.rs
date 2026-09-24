@@ -17,10 +17,23 @@ use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use geom_core::sym::report::{DecisionShape, ShapeOutcome};
 use geom_core::{SymRules, Tol};
 
-/// The dials with a chosen rule set, the tier on at the shipped budget.
+/// **The dials of a RULES differential**: the tier on at the shipped
+/// budget, `rules` as chosen, and NO retry ladder
+/// (`geom_core::SymRetry::none`).
+///
+/// A rules differential measures what one rule set reaches against
+/// another, and the shipped ladder (`drive::DEFAULT_SYM_RETRY`, in
+/// `SymbolicDials::default()`) is a second rule set run into each
+/// side's refusals — its first attempt shuts rule G, so a row comparing
+/// rule G on against rule G off with the ladder on both sides would
+/// read rule G's cost as recovered and stay green. So every
+/// differential in this crate's suites takes its dials from here, and
+/// [`split_at_the_nominal`] is the same principle for a replay. A row
+/// that wants the tier a drive ships sets `retry` itself and says so.
 pub(crate) fn dials(rules: SymRules) -> SymbolicDials {
     SymbolicDials {
         rules,
+        retry: geom_core::SymRetry::none(),
         ..SymbolicDials::default()
     }
 }

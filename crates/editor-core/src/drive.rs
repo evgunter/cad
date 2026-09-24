@@ -281,6 +281,14 @@ pub struct SymbolicDials {
     /// stood before the algebra, so the effect of each rule on a
     /// document is a measurement taken through this dial rather than
     /// an assumption.
+    ///
+    /// **That premise needs [`Self::retry`] at
+    /// [`geom_core::SymRetry::none`]**: the shipped ladder is a second
+    /// rule set run into each side's refusals — its first attempt shuts
+    /// rule G — so a rules differential taken with it on both sides
+    /// reads a rule's cost as recovered. The suites' differentials take
+    /// their dials from one place that sets it so
+    /// (`editor-core/tests/m10_8_harness.rs`, `dials`).
     pub rules: geom_core::SymRules,
     /// **The RETRY LADDER a refused decision may take**
     /// ([`geom_core::SymRetry`]): the shipped ladder by default
@@ -365,16 +373,11 @@ impl SymbolicDials {
         }
     }
 
-    /// The retry ladder as the scalar's own type.
-    fn retry(self) -> geom_core::SymRetry {
-        self.retry
-    }
-
     /// The replay lane these dials name — the currency every
     /// certified-leaf consumer takes ([`crate::eval::LeafLane`]).
     pub(crate) fn lane(self) -> crate::eval::LeafLane {
         if self.enabled {
-            crate::eval::LeafLane::Symbolic(self.budget(), self.rules, self.retry())
+            crate::eval::LeafLane::Symbolic(self.budget(), self.rules, self.retry)
         } else {
             crate::eval::LeafLane::Numeric
         }
@@ -928,10 +931,10 @@ impl ParamBoxVerdict {
             // **How many of the discharges above a RETRY carried**
             // (`geom_core::SymCounts::retried`, SYM-9), by the same
             // present-only-when-nonzero rule: the ladder is entered
-            // only on a refusal and closes something on two of the
-            // measured documents, so every drive that never enters it
-            // — which is most of the corpus — serializes the line it
-            // serialized before the ladder existed.
+            // only on a refusal, so a drive it closes nothing on
+            // serializes the line it serialized before the ladder
+            // existed. At the nominal it closes something on two of the
+            // five documents SYM-9 measured (R2's link and bracket).
             //
             // It is not a fourth discharge column: those three are
             // where a retry's answer lands, and this says how many of
@@ -1004,11 +1007,19 @@ impl ParamBoxVerdict {
                     d.registered
                 );
             }
+            // How many of the discharges named above a retry carried —
+            // a clause of its own and not a parenthesis on the last
+            // column, because a retry's zero lands in whichever column
+            // its rung writes (`geom_core::SymCounts::retried`).
+            if d.retried != 0 {
+                let _ = write!(
+                    s,
+                    "; {} of those discharges reached only by a second attempt",
+                    d.retried
+                );
+            }
             // A refusal is louder than a count: it says a constructor
             // stated something this box contradicts.
-            if d.retried != 0 {
-                let _ = write!(s, " ({} of them reached by a second attempt)", d.retried);
-            }
             if d.registrations_refused != 0 {
                 let _ = write!(
                     s,
@@ -1559,7 +1570,7 @@ fn classify(
         let (leaf, counts) = sym::with_session_memo_retry(
             symbolic.budget(),
             symbolic.rules,
-            symbolic.retry(),
+            symbolic.retry,
             memo,
             || {
                 let leaf: Evaluation<Sym<Interval>> =
@@ -1960,7 +1971,7 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
         let _ = geom_core::sym::with_session_retry(
             symbolic.budget(),
             symbolic.rules,
-            symbolic.retry(),
+            symbolic.retry,
             || {
                 let ev: Evaluation<Sym<geom_core::Probe>> =
                     evaluate(doc, None, &CancelToken::new(), &opts, tol);

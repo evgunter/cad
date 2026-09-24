@@ -295,6 +295,13 @@ pub struct SymProfile {
     /// keyed by the id could have answered from another leaf. The
     /// ratio is the ceiling of a drive-scoped plain memo's win.
     pub plain_ids: BTreeSet<u128>,
+    /// **The retry memos' size, per attempt** — for the `k`th retry
+    /// (index `k − 1`), the most forms its early and door memos held
+    /// together at the end of any session recorded. The measurement
+    /// `sym::RETRY_FORMS` is set against: what a ladder actually costs a
+    /// leaf in held forms, beside [`Self::nodes`] (the DAG that bounds
+    /// one attempt's walk).
+    pub retry_forms: Vec<usize>,
     /// **Every decision, in the order it was answered** — the rung and
     /// attempt that answered it and the freezes it computed
     /// ([`DecisionRecord`]).
@@ -548,6 +555,19 @@ pub(super) fn walk_done(walk: Walk, t0: Option<Instant>) {
     });
 }
 
+/// Records the forms each retry attempt's memos hold as a session
+/// ends, keeping the largest per attempt ([`SymProfile::retry_forms`]).
+pub(super) fn retry_memos(sizes: &[usize]) {
+    with(|p| {
+        if p.retry_forms.len() < sizes.len() {
+            p.retry_forms.resize(sizes.len(), 0);
+        }
+        for (acc, n) in p.retry_forms.iter_mut().zip(sizes) {
+            *acc = (*acc).max(*n);
+        }
+    });
+}
+
 /// One `Rat` addition or multiplication.
 #[inline]
 pub(super) fn rat_op() {
@@ -728,34 +748,31 @@ impl SymProfile {
     #[must_use]
     pub fn rung_table(&self) -> String {
         use core::fmt::Write as _;
-        let mut answered: BTreeMap<(String, String, u8), u64> = BTreeMap::new();
-        let mut refused: BTreeMap<String, u64> = BTreeMap::new();
-        let mut causes: BTreeMap<(String, FreezeCause), u64> = BTreeMap::new();
+        let mut answered: BTreeMap<(Origin, Rung, u8), u64> = BTreeMap::new();
+        let mut refused: BTreeMap<Origin, u64> = BTreeMap::new();
+        let mut causes: BTreeMap<(Origin, FreezeCause), u64> = BTreeMap::new();
         for d in &self.decisions {
-            let origin = format!("{:?}", d.origin);
             match d.answered {
                 Some((rung, attempt)) => {
-                    *answered
-                        .entry((origin, format!("{rung:?}"), attempt))
-                        .or_default() += 1;
+                    *answered.entry((d.origin, rung, attempt)).or_default() += 1;
                 }
                 None => {
-                    *refused.entry(origin.clone()).or_default() += 1;
+                    *refused.entry(d.origin).or_default() += 1;
                     for (cause, n) in &d.causes {
-                        *causes.entry((origin.clone(), *cause)).or_default() += n;
+                        *causes.entry((d.origin, *cause)).or_default() += n;
                     }
                 }
             }
         }
         let mut f = String::new();
         for ((origin, rung, attempt), n) in &answered {
-            let _ = writeln!(f, "{origin}/{rung}/attempt {attempt} answered {n}");
+            let _ = writeln!(f, "{origin:?}/{rung:?}/attempt {attempt} answered {n}");
         }
         for (origin, n) in &refused {
-            let _ = writeln!(f, "{origin}/refused {n}");
+            let _ = writeln!(f, "{origin:?}/refused {n}");
         }
         for ((origin, cause), n) in &causes {
-            let _ = writeln!(f, "{origin}/refused froze {cause:?} {n}");
+            let _ = writeln!(f, "{origin:?}/refused froze {cause:?} {n}");
         }
         f
     }

@@ -137,6 +137,8 @@ mod span_hull_window;
 mod span_newtype;
 #[path = "spline_hull.rs"]
 mod spline_hull;
+#[path = "sym_9_retry_rows.rs"]
+mod sym_9_retry_rows;
 #[path = "sym_drive_memo.rs"]
 mod sym_drive_memo;
 #[path = "sym_root_rows.rs"]

@@ -272,13 +272,15 @@ fn sqrt_poly(p: &Poly, sess: &mut Session) -> Option<Form> {
     let (content, primitive) = content_split(p)?;
     let (s, f) = content.split_square()?;
     // `sqrt(R²) = |R|` — step 3, behind its own dial
-    // (`SymRules::root_magnitude`) so a retry can keep the root's atom
-    // closed where opening it into a magnitude costs the walk a
-    // cancellation. With the step off the primitive part stays under a
-    // `Sqrt` atom and the content split above it is unchanged.
-    let base = match sess
-        .rules
-        .root_magnitude
+    // (`SymRules::root_magnitude`), read as its conjunction with rule
+    // G's so that it can only take the step AWAY. With the step off the
+    // primitive part stays under a `Sqrt` atom and the content split
+    // above it is unchanged. It is a dial because it is the half of
+    // rule G that hands six of R2's link's theorems to the rim
+    // registrant's axiom; shut as a RETRY it recovered nothing on the
+    // five documents SYM-9 measured, so no shipped ladder shuts it.
+    let magnitude = sess.rules.canonical_root && sess.rules.root_magnitude;
+    let base = match magnitude
         .then(|| signed::poly_sqrt(&primitive, sess.budget))
         .flatten()
     {

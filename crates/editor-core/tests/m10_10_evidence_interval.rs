@@ -443,7 +443,7 @@ fn m10_10_what_stands_rendered() {
 #[test]
 #[ignore = "evidence-only: the stackup hulls with the algebra on and off"]
 fn m10_10_the_stackup_hulls_under_both_rule_sets() {
-    use editor_core::drive::{DriveConfig, SymbolicDials, drive};
+    use editor_core::drive::{DriveConfig, drive};
     use editor_core::stackup::stackup;
 
     let tol = Tol::witness();
@@ -471,10 +471,7 @@ fn m10_10_the_stackup_hulls_under_both_rule_sets() {
                 &analyzed,
                 &DriveConfig {
                     max_leaves: 1024,
-                    symbolic: SymbolicDials {
-                        rules,
-                        ..SymbolicDials::default()
-                    },
+                    symbolic: crate::m10_8_harness::dials(rules),
                     ..DriveConfig::default()
                 },
                 tol,
@@ -661,17 +658,52 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
             .1;
         let doc = at(scale);
         // The "on" column is `CAD_M10_10_RULES` (the shipped set unset),
-        // so the cost of each rule alone is one env var away.
-        for (label, rules) in [
-            ("algebra OFF (M10-9)", SymRules::without_the_algebra()),
-            ("algebra ON  (rules) ", rules_from_env()),
+        // so the cost of each rule alone is one env var away. The two
+        // rules columns run one attempt per rung (`m10_8_harness::dials`,
+        // `SymRetry::none()`); the LADDER columns run the "on" rules with
+        // the shipped retry ladder (`drive::DEFAULT_SYM_RETRY`) and with
+        // its two masks in the other order, so what the ladder costs a
+        // leaf is its own differential. `CAD_M10_10_TAKES` (default 1)
+        // times each column that many times and prints the fastest.
+        let takes: usize = std::env::var("CAD_M10_10_TAKES")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(1);
+        let ladder = editor_core::drive::DEFAULT_SYM_RETRY;
+        let reversed = geom_core::SymRetry {
+            without: [ladder.without[1], ladder.without[0]],
+            ..ladder
+        };
+        let on = rules_from_env();
+        for (label, dials) in [
+            (
+                "algebra OFF (M10-9)",
+                crate::m10_8_harness::dials(SymRules::without_the_algebra()),
+            ),
+            ("algebra ON  (rules) ", crate::m10_8_harness::dials(on)),
+            (
+                "ON + the ladder     ",
+                editor_core::drive::SymbolicDials {
+                    retry: ladder,
+                    ..crate::m10_8_harness::dials(on)
+                },
+            ),
+            (
+                "ON + ladder reversed",
+                editor_core::drive::SymbolicDials {
+                    retry: reversed,
+                    ..crate::m10_8_harness::dials(on)
+                },
+            ),
         ] {
-            let t = std::time::Instant::now();
-            let ok = crate::m10_8_harness::certifies_whole(&doc, rules, tol);
-            println!(
-                "   {name:<20} x{scale:<10.3e} {label}: certifies_whole={ok} in {:.3}s",
-                t.elapsed().as_secs_f64()
-            );
+            let mut best = f64::INFINITY;
+            let mut ok = false;
+            for _ in 0..takes.max(1) {
+                let t = std::time::Instant::now();
+                ok = crate::m10_8_harness::certifies_whole_with(&doc, dials, tol);
+                best = best.min(t.elapsed().as_secs_f64());
+            }
+            println!("   {name:<20} x{scale:<10.3e} {label}: certifies_whole={ok} in {best:.3}s");
         }
     }
 }
