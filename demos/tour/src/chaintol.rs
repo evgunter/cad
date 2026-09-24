@@ -589,7 +589,7 @@ mod tests {
 
     /// **The cell's own row, so it EXECUTES on hosted CI.**
     ///
-    /// The narration runs in a tour WALK (`cargo run`), which asserts
+    /// The narration runs in `demo-tour certified`, which asserts
     /// nothing. This row is what puts the cell inside
     /// `ci.yml`'s `demos tour suite` step, and it asserts the
     /// findings the header claims rather than merely running the code.

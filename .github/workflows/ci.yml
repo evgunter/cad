@@ -3983,8 +3983,10 @@ jobs:
       # The tolerance cell (`src/tolerance.rs`) and the chain's certified
       # half (`src/chaintol.rs`), whose subject is the E6 driver's
       # certified leaves and the E5 stackup over them, are compiled and
-      # their rows executed here. A tour WALK runs their narration too,
-      # but asserts nothing.
+      # their rows executed here. Their narration is `demo-tour
+      # certified`, which `eps_regression` runs at every ε here and which
+      # asserts nothing; the scene walk the render and budget lanes run
+      # does not narrate them.
       - name: demos tour suite (the #99 ε pin + the tour's own probes)
         if: matrix.row == 'release-default'
         run: cd demos/tour && cargo test --release

@@ -8,11 +8,6 @@
 //! about it. A second transcription of the chain would let the two
 //! drift into being about two different studies.
 //!
-//! The split is also what makes the density cell REACHABLE: the
-//! Monte-Carlo lane is pure `f64` replay and is ungated on purpose
-//! (`crates/pncad/src/analysis.rs`), so the document it replays cannot
-//! sit inside an `interval`-gated module.
-//!
 //! # The kinematics, and the door that expresses it
 //!
 //! Joint `k` carries a parameter `joint_k` at [`Dimension::Angle`],

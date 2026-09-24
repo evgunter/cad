@@ -4375,17 +4375,13 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   advisory estimator. The entry that stood here said the curated
 ///   face "is the REPORTING surface — persisted, goldened stackups —
 ///   which is where the façade row lands", and M10-6 built it, so the
-///   row landed. What that cost is a conditional door on a surface
-///   that had none, and `crate::analysis` states the trade at its own
-///   head rather than here.
+///   row landed; `crate::analysis` states why at its own head rather
+///   than here.
 ///
 ///   **`SeedError` left this family**, with `ParamBoxError` beside it:
-///   they are `NodeErrorKind`'s `Seed` and `ParamBox` payloads, and
-///   those arms exist on every build, so both are carried
-///   UNCONDITIONALLY — `ParamBoxError` moved out of the driver's
-///   `interval` block for that reason. A payload a default-feature
-///   consumer can match and cannot name is the defect; the seams that
-///   MINT them stay interior below.
+///   they are `NodeErrorKind`'s `Seed` and `ParamBox` payloads, so
+///   both are carried: a payload a consumer can match and cannot name
+///   is the defect. The seams that MINT them stay interior below.
 ///
 ///   What stays interior is what a consumer of the REPORTS does not
 ///   hold: the flip evidence a refusal carries (read through the

@@ -133,8 +133,7 @@ fn the_minted_magnitude_is_the_same_indeterminate_an_abs_node_mints() {
 /// the identity, correctly. Gating, because nothing here panics. The
 /// form is R2's adversary `E`, spelled once as
 /// `sym11_witness_kind_rows::adversary_of`; this row keeps its own
-/// spelling only because it predates that home and lives in the
-/// interval-gated file.
+/// spelling only because it predates that home.
 #[test]
 fn the_adversary_at_the_interval_lift_is_a_plain_theorem() {
     let tiny = 1.0e-30;

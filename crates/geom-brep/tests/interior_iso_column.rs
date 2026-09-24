@@ -4,7 +4,7 @@
 //! than a boundary row's copy, at the certifier's own door.
 //!
 //! Every row runs at BOTH scalar lanes through one generic body: `f64`
-//! always, `Interval` under the feature. The fixtures are static
+//! and `Interval`. The fixtures are static
 //! witnesses at millimetre scale, chosen so the collapse is genuine
 //! arithmetic (a `u*` strictly between knots on a degree-2 net: three
 //! live rows, none a copy) rather than the Kronecker row a knot would

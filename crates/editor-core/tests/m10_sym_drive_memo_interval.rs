@@ -21,8 +21,6 @@
 //!    same drive with the memo on and off — every verdict, every leaf
 //!    and every decision column identical, and the serialization a byte
 //!    comparison rather than a filtered one.
-//!
-//! The basename carries `interval` so `ci-filter.py` pins the lane.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the code it measures: the tier itself, the memo, the

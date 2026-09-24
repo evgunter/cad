@@ -129,11 +129,6 @@ struct Lane {
 }
 
 /// One (ε, `d`) point at all four lanes.
-///
-/// `exact` is read only on the `interval` legs, where the row that
-/// drives that lane compiles; `#[allow(dead_code)]` says so rather
-/// than the field being dropped, because the table is one measurement
-/// and a column that exists in half the builds is a second table.
 struct Cell {
     bare: Lane,
     inexact: Lane,

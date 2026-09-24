@@ -2,11 +2,14 @@
 id: tour-walk-runs-the-certified-narrations-in-the-render-and-budget-lanes
 kind: issue
 title: The tour walk runs the certified narrations in the render lane and the tess-budget sweep since RING-4, minutes per walk
-status: open
+status: closed
 opened: 2026-09-24
 priority: P4
 cost: D
 refs: [ring-4-interval-feature-dropped]
+closed: 2026-09-24
+pr: 3154
+branch: scalar/ring-4
 ---
 
 ## What
@@ -43,3 +46,15 @@ steps on RING-4's PR run are the first measurement of record.
 - `scripts/tess_budget_sweep.sh`: `cargo run --release --features budget --
   tess-budget`.
 - `.github/workflows/render.yml`: the kernel lane's tour step.
+
+## Closed
+
+Fixed in RING-4's fix pass (PR 3154), not left to CIW: the walk no longer
+narrates the two certified cells. They run in their own mode,
+`demo-tour certified` (`demos/tour/src/main.rs`, `certified_cells`), and
+`demos/tour/tests/eps_regression.rs` runs that mode at every ε row beside
+the scene walk, so `demos tour suite` keeps running them as it always did
+(and their `#[test]` rows keep asserting them). The render lane and the
+tess-budget sweep walk scenes only again. Local reading: the
+`--sizing-only` sweep's run step 9.2 s at the fix, CSV bit-identical to the
+pre-fix head's (1605 rows + header). Hosted readings are in the PR body.

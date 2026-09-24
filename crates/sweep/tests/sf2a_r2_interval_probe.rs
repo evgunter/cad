@@ -1,8 +1,7 @@
 //! VERBS-SHELLFIX PR-2a R2 probe, interval lane: the simultaneous door
 //! instantiated at the certified scalar. No shipped row does this — the
-//! PR's interval drawn point re-runs the f64-typed suites under the
-//! interval BUILD, which never instantiates `offset_planes_together`
-//! at `T = Interval`. This row does, on a box and on an oblique
+//! f64-typed suites never instantiate `offset_planes_together` at
+//! `T = Interval`. This row does, on a box and on an oblique
 //! hexagonal prism, and reads the volume enclosure.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

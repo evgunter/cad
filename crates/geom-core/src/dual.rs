@@ -1787,7 +1787,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Dual<Interval> (feature-gated)
+    // Dual<Interval>
     // ------------------------------------------------------------------
 
     /// `Dual<Interval>` through the public API only ([`crate::real::Bounds`]

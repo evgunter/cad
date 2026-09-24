@@ -4826,8 +4826,8 @@ def selftest() -> None:
     _case("has a step named", marker_wrong_job)
     _case("has a step named", marker_step_renamed)
     _case("below the", markers_deleted)
-    _case(f"declared {'local' if _one_local is not None else 'hosted'}-only in MIRROR_EXEMPT",
-          exemption_inverted)
+    _case(f"declared {'local' if _one_local is not None else 'hosted'}-only in MIRROR_EXEMPT but is "
+          f"invoked by the {'hosted' if _one_local is not None else 'local'} half", exemption_inverted)
     # THE SITING RULE, both halves. These are the cases the reviewer's
     # experiment plants: hollow `mirror`, move the steps back into a job that
     # skips on docs tier; and, locally, move the row below the docs exit.

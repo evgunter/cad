@@ -645,8 +645,8 @@ fn guided_validation_runs_no_canonicalization_decide() {
 /// comparisons would have to be asked of overlapping enclosures.
 #[test]
 fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
-    // Used ONLY by this interval-gated row, so imported here rather
-    // than at module scope, where the default build carries them unused.
+    // Used ONLY by this row, so imported here rather than at module
+    // scope.
     use common::lift;
     use geom_core::Interval;
     use geom_core::k_stats::Bracket;

@@ -1730,7 +1730,7 @@ pub enum NodeErrorKind {
     },
     /// The clearance engine refused a `min_clearance` measurement,
     /// typed and by its own class name (E7's refusal vocabulary,
-    /// carried across the feature boundary by
+    /// carried into the document vocabulary by
     /// [`crate::measure::MinClearanceRefusal`]).
     MeasureClearanceRefused(crate::measure::MinClearanceRefusal),
     /// An `Assertion`'s bound is dimensioned differently from the
@@ -2355,9 +2355,8 @@ pub(crate) mod leaf {
 
     // ------------------------------------------- the certified-leaf replay
     //
-    // Gated on `interval` for the driver's own reason (`crate::drive`'s
-    // module gate): a leaf replays at the certified scalar, so without it
-    // there is no leaf and nothing to replay.
+    // A leaf replays at the certified scalar, the one `crate::drive`
+    // certified it at.
 
     /// **Which lane a certified leaf is replayed on** (ERROR-DESIGN E12).
     ///
@@ -5960,9 +5959,8 @@ mod alignment_key {
 ///
 /// It lives HERE, beside [`KeyHasher`], rather than in
 /// [`crate::report`] where its callers are, because
-/// [`crate::mc`] needs it and that lane is pure `f64`: a helper in an
-/// `interval`-gated module was the only thing keeping the advisory
-/// estimator out of a default build (M10-6, R2's MINOR-9).
+/// [`crate::mc`] needs it too, and that lane is the pure-`f64` advisory
+/// estimator rather than a part of the certified reporting layer.
 pub fn key_of(tag: u8, serialized: &str) -> ContentKey {
     let mut h = KeyHasher::new();
     h.write_tag(tag);

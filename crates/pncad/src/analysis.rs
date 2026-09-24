@@ -24,11 +24,12 @@
 //!
 //! Everything above is scalar-free: a box and its masses are `f64`
 //! arithmetic over a document. The CERTIFIED half below — the E6
-//! driver, the E5 stackup, E10's reports and E11.1's advisory lane —
-//! answers at the certified scalar, and a door that answered `f64` in
-//! its place would be a sampler. What the façade's own census said
-//! while these doors were interior is that the curated face of the
-//! analysis lane "is the REPORTING surface — persisted, goldened
+//! driver, the E5 stackup and E10's reports — answers at the certified
+//! scalar, and a door that answered `f64` in its place would be a
+//! sampler. E11.1's advisory estimator is carried beside it and is not
+//! part of it: it is pure `f64` replay, as its entry says. What the
+//! façade's own census said while these doors were interior is that
+//! the curated face of the analysis lane "is the REPORTING surface — persisted, goldened
 //! stackups — which is where the façade row lands"; M10-6 builds that
 //! surface, so this is that landing. The alternative was to leave a
 //! consumer — the tour's tolerance cell is the first — reaching past

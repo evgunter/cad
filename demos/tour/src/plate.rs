@@ -9,13 +9,6 @@
 //! of the plate would let the picture and the report drift into being
 //! about two different studies, which is the one failure a density
 //! picture cannot survive.
-//!
-//! The split is also what keeps the two cells' subjects apart. The
-//! tolerance cell's whole subject is the certified scalar's leaves; the
-//! Monte-Carlo lane is pure `f64` replay
-//! (`crates/pncad/src/analysis.rs`, and the reason is written there),
-//! so its cell must be too — and it cannot be if the only spelling of
-//! the document sits inside a gated module.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

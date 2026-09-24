@@ -232,7 +232,7 @@ def _all_jobs(root: str) -> dict[str, tuple[str, list[str]]]:
     return out
 
 
-def check(root: str) -> list[str]:
+def check(root: str, pairs: tuple[tuple[str, str], ...] = PAIRS) -> list[str]:
     errs: list[str] = []
     _WF_ENV.clear()
     found = _all_jobs(root)
@@ -240,7 +240,7 @@ def check(root: str) -> list[str]:
     where = {n: f for n, (f, _) in found.items()}
 
     claimed: dict[str, str] = {}
-    for consumer, primer in PAIRS:
+    for consumer, primer in pairs:
         for name in (consumer, primer):
             if name not in jobs:
                 errs.append(
@@ -325,7 +325,7 @@ def check(root: str) -> list[str]:
             # A pair member is not a third job on its own key, whichever file
             # it is written in. Keyed on the NAME alone now that a pair can
             # span files.
-            if name in {n for p in PAIRS for n in p}:
+            if name in {n for p in pairs for n in p}:
                 continue
             for k in _shared_keys(block):
                 if k in claimed:
@@ -381,7 +381,7 @@ def _root_of_record() -> str:
 def _selftest() -> int:
     failures = []
 
-    def case(label, mutate, want_fire, target=HOSTED, want_msg=None, split=False):
+    def case(label, mutate, want_fire, target=HOSTED, want_msg=None, split=False, pairs=PAIRS):
         with tempfile.TemporaryDirectory() as d:
             _fixture(d)
             if split:
@@ -394,7 +394,7 @@ def _selftest() -> int:
                 with open(p, "w", encoding="utf-8") as fh:
                     fh.write(mutate(before))
             try:
-                errs = check(d)
+                errs = check(d, pairs)
                 fired = bool(errs)
             except Bail as e:
                 fired = True
@@ -483,6 +483,34 @@ def _selftest() -> int:
     def no_jobs(t):
         return t.replace("\njobs:\n", "\nnot-jobs:\n", 1)
 
+    # A SECOND PAIR. The tree of record has one, so "no two pairs share a
+    # key" has nothing to compare there; these cases hand `check` a second
+    # pair — a verbatim twin of `build`/`cache-prime` under new job names —
+    # so that arm runs. Sharing the key must red; the same twin on a key of
+    # its own must pass, or the red would be any second pair at all.
+    TWIN = (("build-twin", "cache-prime-twin"),)
+
+    def _twin(t, key):
+        lines = t.split("\n")
+        added = []
+        for job, twin in (("build", "build-twin"), ("cache-prime", "cache-prime-twin")):
+            start = lines.index(f"  {job}:")
+            end = next(
+                (i for i in range(start + 1, len(lines)) if JOB_RE.match(lines[i])
+                 or (lines[i] and not lines[i].startswith(" "))),
+                len(lines),
+            )
+            block = [f"  {twin}:"] + lines[start + 1:end]
+            added += [ln.replace("shared-key: build-default", f"shared-key: {key}") for ln in block]
+        at = lines.index("jobs:") + 1
+        return "\n".join(lines[:at] + added + lines[at:])
+
+    def twin_pair_shares_key(t):
+        return _twin(t, "build-default")
+
+    def twin_pair_own_key(t):
+        return _twin(t, "build-twin")
+
     case("clean tree passes", None, False)
     case("an env knob moved on one side only", drift_env, True)
     case("the primer's shared-key renamed", rename_key, True)
@@ -506,6 +534,10 @@ def _selftest() -> int:
     case("a third job claiming the key", third_job, True)
     case("the primer job renamed away", lose_primer, True)
     case("a workflow with no jobs: mapping", no_jobs, True)
+    case("a second pair on a key of its own passes", twin_pair_own_key, False,
+         pairs=PAIRS + TWIN)
+    case("a second pair on the first pair's key", twin_pair_shares_key, True,
+         want_msg="pair both use `shared-key: build-default`", pairs=PAIRS + TWIN)
 
     if failures:
         for f in failures:
@@ -517,8 +549,8 @@ def _selftest() -> int:
         "to another runner class, a third job claiming a key, a primer renamed away, and — on a "
         "pair SPLIT across two files, which passes clean — a primer renamed away, an env knob "
         "moved, a runner class changed, and a rust-cache-hashed name set at one file's "
-        "WORKFLOW level (while an unhashed one there stays quiet), and a "
-        "workflow it cannot read"
+        "WORKFLOW level (while an unhashed one there stays quiet), a second pair on the first "
+        "pair's key (while one on its own key passes), and a workflow it cannot read"
     )
     return 0
 

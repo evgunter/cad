@@ -1252,7 +1252,7 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Interval instantiation (feature-gated)
+    // Interval instantiation
     // ------------------------------------------------------------------
 
     mod interval {
