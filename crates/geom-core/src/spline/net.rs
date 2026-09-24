@@ -612,4 +612,36 @@ mod tests {
         assert_eq!((all.lo(), all.hi()), (-4.0, 3.0));
         assert!(!n.window_hull(&(0..=2), &(0..=0)).is_certified());
     }
+
+    /// A member that divided by an exact zero is EMPTY — decoration
+    /// `Trv`, NaN endpoints — and reaches a net through the public
+    /// constructor like any other coefficient. The backend's hull treats
+    /// the empty set as an identity and would answer the other members'
+    /// hull, certified, so a refused coefficient would vanish from the
+    /// bound; the net's hulls refuse instead, on either side of the fold.
+    #[test]
+    fn an_empty_member_refuses_every_hull_it_is_in() {
+        let empty = Interval::from_bounds(1.0, 2.0) / pt(0.0);
+        assert!(
+            !empty.is_certified() && empty.lo().is_nan() && empty.hi().is_nan(),
+            "fixture drifted: {empty:?}"
+        );
+        let n = TensorNet::from_flat(
+            1,
+            3,
+            vec![
+                Interval::from_bounds(1.0, 2.0),
+                empty,
+                Interval::from_bounds(3.0, 4.0),
+            ],
+        );
+        assert!(!n.hull().is_certified(), "{:?}", n.hull());
+        assert!(!n.window_hull(&(0..=0), &(0..=1)).is_certified());
+        assert!(!n.window_hull(&(0..=0), &(1..=2)).is_certified());
+        // The control: the window that does not hold it certifies, so the
+        // rows above pin the refused member and not a net that fails on
+        // everything.
+        let clean = n.window_hull(&(0..=0), &(2..=2));
+        assert!(clean.is_certified() && (clean.lo(), clean.hi()) == (3.0, 4.0));
+    }
 }
