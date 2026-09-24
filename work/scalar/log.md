@@ -1601,3 +1601,27 @@ at `1cc54df7ce`; the plan's LANE-4 row split and its ground corrected
 there). LANE-4 proper (tier DUAL) waits on RING-3, RING-4 and #3160; the
 alternative, one unit, was declined (LANE-4P is independent and small;
 LANE-4 is blocked on three PRs).
+
+## LANE-4P in review (single) (2026-09-24)
+
+LANE-4P's implementer (Opus, 259,931 tokens, 67 min harness) opened
+#3165: head `f240f0c14f`, run 35999417655 green (36 success, 3 skips:
+two cache primers and the interval oracle). Each door has one
+`Result`-returning helper called per scalar (`holds_the_offset_fit` new
+at `f64`; `holds_the_certified_shell_door` new; the two existing kept
+by name — `props.rs` holds two doors and the census finds helpers by
+name); `ROSTERS` is four `Roster { door, file, helper, formed }` with
+`formed` = certifying set or `F64Only(reason)`; a new row enumerates
+door values (inherent zero-arg `Self` constructors under a
+`CertifiedBounds`/`CertifiedEnclosure` bound, concrete at `f64`, or
+named `certified`/`fit`) and reds on a door without a roster (and the
+reverse); the census's line reader swapped for `test_utils::source`
+with a fail-loud cross-check. Red-first by plants a–d incl. a
+`where`-clause door and a multi-line `cfg`'d impl. Deviations: the
+roster is a struct not a triple; `bounds-allowlist.sh`'s `props.rs`
+count 28 → 29 (the shell helper's compound bound; GUARD line, LANE-3's
+precedent); one pointer comparison kept in the policy gate rows (it
+catches a literal door in a policy arm, which the helper cannot). One
+Opus full reviewer dispatched on the frozen head
+(`lane4p-review-brief.md`, nine claims led by "nothing pinned before is
+unpinned" and a plant battery on the door matcher).
