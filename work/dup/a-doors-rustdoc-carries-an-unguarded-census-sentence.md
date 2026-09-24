@@ -8,6 +8,7 @@ priority: P4
 cost: E
 closed: 2026-09-24
 branch: dup/topo-fixture-batch
+pr: 3152
 ---
 
 
@@ -163,7 +164,7 @@ The rest of the population is outside this row's two doors and is
 filed as
 `work/dup/rustdoc-count-sentences-outside-the-two-doors-are-unguarded.md`.
 
-## Closed (2026-09-24, `dup/topo-fixture-batch`)
+## Closed (2026-09-24, PR #3152)
 
 Both doors now make no census claim, and neither does any other door
 in the two files this row names. The population outside them is the

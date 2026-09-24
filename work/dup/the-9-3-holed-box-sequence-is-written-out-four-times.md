@@ -9,6 +9,7 @@ priority: P4
 cost: E
 closed: 2026-09-24
 branch: dup/topo-fixture-batch
+pr: 3152
 ---
 
 
@@ -140,7 +141,7 @@ cube and on the holed box, `holed_box_geometric`, the rings box at
 `f64` and at `Interval`, and the untouched f7 prism as a control. All
 twelve identical.
 
-## Closed (2026-09-24, `dup/topo-fixture-batch`)
+## Closed (2026-09-24, PR #3152)
 
 The §9.3 surgery has one home, `test_support_fixtures`, in two levels:
 `plant_ring_face` (steps (f)–(i)) and `drill_hole` (f)–(l) on top of

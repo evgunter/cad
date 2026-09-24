@@ -8,6 +8,7 @@ priority: P4
 cost: E
 closed: 2026-09-24
 branch: dup/topo-fixture-batch
+pr: 3152
 ---
 
 
@@ -97,7 +98,7 @@ item of `tests` resolves from every sibling block and from
 further files, one or two each. Those are one- and two-line locals in
 unrelated suites, not the quad sheet; not this row's class.
 
-## Closed (2026-09-24, `dup/topo-fixture-batch`)
+## Closed (2026-09-24, PR #3152)
 
 All six helpers live once, in `chart_region`'s `tests` module, as
 `pub(super)`; `inf_arms`, `inf_arms_interval`, `r2_mate8_probes` and

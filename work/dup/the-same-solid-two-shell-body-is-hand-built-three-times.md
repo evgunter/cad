@@ -8,6 +8,7 @@ priority: P4
 cost: E
 closed: 2026-09-24
 branch: dup/topo-fixture-batch
+pr: 3152
 ---
 
 
@@ -165,7 +166,7 @@ shell under the minted solid, so the minted solid's own shell is first
 restores the leave-it-standing spelling inside the shared body and
 reads which rows see it.
 
-## Closed (2026-09-24, `dup/topo-fixture-batch`)
+## Closed (2026-09-24, PR #3152)
 
 `fixtures::refile_shells(body, donor, keeper)` is the one spelling,
 with the pairing comment; `body.rs`, `euler_ring.rs` and
