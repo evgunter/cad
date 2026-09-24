@@ -1427,3 +1427,23 @@ module cfgs), CHROME (viewer manifest, `GUI-DESIGN.md`), PROPS
 Mooted at merge: `ciw/interval-only-selection-premise-restored`,
 `ciw/interval-cfg-gate-names-the-wrong-cause-for-an-attribute-order`,
 SCALAR's `gate-on-the-type-in-prose-outside-geom-core`.
+
+## RING-3 in review (dual); RING-4's PR open (2026-09-24)
+
+RING-3's PR is #3153 (`[ev]`: C9 and DL4). The hosted run on
+`4a29d75258` (run 35958491485, queued ~1 h behind other programs'
+runs) is green: 37 success, 2 skipped. That head is frozen for the
+dual review under `docs/DUAL-REVIEW-PROTOCOL.md` at `c3129311bd`: R1
+and R2 dispatched concurrently on Opus ~07:10Z, identical brief
+(`/home/user/scalar-briefs/ring3-review-brief.frozen.md`, sha256
+`7bf1e2eb…`; the two copies differ only in the report path), twelve
+claims (refusal bodies, the predicate at the three `Real`-importing
+files, `hull`'s empty case, `from_certified`'s bit identity, deleted
+pins, the census re-key's blind spot, bit identity, C9/DL4 against the
+code, gate counts, sweep, renamed/deleted tests, CI), plus an end-to-end
+certification run base vs head. No relaxation to either. The PR
+thread held only the fence comment when the reviewers were briefed.
+RING-4's PR is #3154 (`[ev]`: Q1, `DESIGN.md:266`, one `memories/`
+example); the §0 cost gate did not stop it; the fence and the SHELL-3
+seam (CLEAR's engine was planned "behind `interval`") are posted on
+the PR. Its implementer is on CI.
