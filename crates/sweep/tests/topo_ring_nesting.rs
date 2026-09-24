@@ -23,7 +23,7 @@
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, FaceKey, FaceSurface, LoopBoundary, LoopKey, MevSite, ValidationError};
+use topo::{Body, FaceKey, FaceSurface, LoopKey, ValidationError};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -258,91 +258,24 @@ fn an_annular_face_is_decided() {
     nested_then_inverted("square hole in a round plate", &body);
 }
 
-/// A lone-vertex ring — `kemr`'s mint — planted on `face` at the
-/// in-plane point `(x, y)`: a strut grown from the face's outer loop,
-/// then its edge killed, both through public Euler doors.
-fn plant_lone_vertex(body: &Body<f64>, face: FaceKey, x: f64, y: f64) -> (Body<f64>, LoopKey) {
-    let mut out = body.clone();
-    let outer = out.get_face(face).unwrap().outer;
-    let LoopBoundary::Cycle { first } = out.get_loop(outer).unwrap().boundary else {
-        panic!("the outer loop is a cycle")
-    };
-    let start = out.get_half_edge(first).unwrap().start;
-    let z = out
-        .get_point(out.get_vertex(start).unwrap().point)
-        .unwrap()
-        .z;
-    let strut = out
-        .mev_line(
-            MevSite::Fan {
-                he1: first,
-                he2: first,
-            },
-            geom_core::Point3::new(x, y, z),
-            tol(),
-        )
-        .expect("the strut");
-    let ring = out
-        .kemr(strut.he_plus, strut.he_minus)
-        .expect("the lone vertex")
-        .ring;
-    (out, ring)
-}
-
-/// **A lone-vertex ring on a disc outer loop is decided on its one
-/// point**, in all three outcomes the radial decide has: inside is
-/// silent, outside is refused naming the ring, and a vertex whose
-/// radial margin lands between the band's coincidence and escalation
-/// thresholds is reported UNDECIDED rather than read as nested. The
-/// last is reachable only through a lone vertex: on a cycle ring the
-/// contact arms decide the same radial gap first and report the pair
-/// as meeting or escalated before the nesting arm runs.
-#[test]
-fn a_lone_vertex_ring_on_a_disc_outer_loop() {
-    let body = plate(&[&circle(0.0, 0.0, 2.0), &circle(0.0, 0.0, 0.5)], 0.3);
-    let (face, _, _) = first_ringed(&body);
-    let (inside, _) = plant_lone_vertex(&body, face, 1.2, 0.4);
-    let words = check_9_words(&inside);
-    assert!(words.is_empty(), "a lone vertex inside: {words:?}");
-    let (outside, ring) = plant_lone_vertex(&body, face, 3.0, 0.4);
-    let words = check_9_words(&outside);
-    assert!(
-        words.iter().any(|w| w.contains("RingOutsideOuter")
-            && w.contains(&format!("{face:?}"))
-            && w.contains(&format!("{ring:?}"))),
-        "a lone vertex outside must be refused by name; got {words:?}"
-    );
-    // Inside the circle by the geometric mean of the band's two
-    // thresholds (ε and K·ε), which is strictly between them for any
-    // K > 1 at every ε row.
-    let margin = tol().eps() * tol().k().sqrt();
-    let (in_band, ring) = plant_lone_vertex(&body, face, 0.0, 2.0 - margin);
-    let words = check_9_words(&in_band);
-    assert!(
-        words.iter().any(|w| w.contains("RingNestingUndecided")
-            && w.contains(&format!("{face:?}"))
-            && w.contains(&format!("{ring:?}"))),
-        "an in-band lone vertex must be reported undecided; got {words:?}"
-    );
-}
-
 /// **The two classes the arm is silent on stay silent, in both
 /// directions.** A rectangular plate carrying a hole whose loop bears
 /// arcs and is not one circle: the honest body is decided (its outer
 /// loop is the rectangle) and validates; its inversion's outer loop is
 /// the hole, whose region no exact instrument expresses, so the ring
 /// lying outside it draws no check-9 word. A half-disc (an arc and its
-/// chord, two vertices) is `NoWalk`; a slot (two semicircular ends of
-/// two different circles, four vertices) is `ArcParity`. What closes
+/// chord, two vertices) is `NoWalk`; a slot (two bowed ends, arcs of two
+/// different circles meeting the flanks at a corner, four vertices) is
+/// `ArcParity`. What closes
 /// both is `work/atrest/check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk`.
 #[test]
 fn the_silent_classes_are_silent_in_both_directions() {
     let half_disc = vec![(-1.0, 0.0, 0.0), (1.0, 0.0, 1.0)];
     let slot = vec![
         (-0.5, -0.2, 0.0),
-        (0.5, -0.2, 1.0),
+        (0.5, -0.2, 0.5),
         (0.5, 0.2, 0.0),
-        (-0.5, 0.2, 1.0),
+        (-0.5, 0.2, 0.5),
     ];
     for (name, hole) in [("NoWalk: half-disc", half_disc), ("ArcParity: slot", slot)] {
         let body = plate(&[&rect(-2.0, -2.0, 2.0, 2.0), &hole], 0.3);

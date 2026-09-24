@@ -8789,6 +8789,85 @@ mod tests {
         }
     }
 
+    /// **A lone-vertex ring on a DISC outer loop is decided on its one
+    /// point, in all three outcomes the radial decide has.** Crate-side
+    /// because no public door can put it there: tier 2 refuses an empty
+    /// loop at rest (`ScaffoldingEmptyLoop`), so this is the arm's own
+    /// contract on a ring the arm is written to read. The outer loop is
+    /// re-carried as arcs of one circle (centre (5, 5), radius 1) so the
+    /// gate reads the `Disc` class; inside is `Inside`, outside names
+    /// the lone vertex, and a margin strictly between the band's
+    /// coincidence and escalation thresholds is `Undecided` — never read
+    /// as nested. On a CYCLE ring that third outcome is shadowed: the
+    /// contact arms decide the same radial gap first
+    /// ([`ring_nesting`]'s doc).
+    #[test]
+    fn an_empty_ring_on_a_disc_outer_loop_is_decided_three_ways() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the run's band");
+        let p = Point3::new;
+        let outer = vec![
+            p(0.0, 0.0, 0.0),
+            p(10.0, 0.0, 0.0),
+            p(10.0, 10.0, 0.0),
+            p(0.0, 10.0, 0.0),
+        ];
+        let ring = vec![
+            p(4.0, 4.0, 0.0),
+            p(6.0, 4.0, 0.0),
+            p(6.0, 6.0, 0.0),
+            p(4.0, 6.0, 0.0),
+        ];
+        let (mut body, face) = lamina_with_ring(&outer, &ring, tol);
+        let outer_loop = body.get_face(face).unwrap().outer;
+        let LoopBoundary::Cycle { first } = body.get_loop(outer_loop).unwrap().boundary else {
+            panic!("a cycle")
+        };
+        for he in body.loop_cycle(first).unwrap() {
+            let edge = body.get_half_edge(he).unwrap().edge;
+            let curve = body.get_edge(edge).unwrap().curve;
+            // `test_curve` is the unit circle about `anchor + x`.
+            *body.curves.get_mut(curve).unwrap() =
+                CurveGeom::Certified(crate::fixtures::test_curve(p(4.0, 5.0, 0.0), tol));
+        }
+        let f = body.get_face(face).unwrap();
+        let region = nesting_region(&body, f.surface, f.outer, band).expect("the gate opens");
+        assert!(
+            matches!(region, NestingRegion::Disc(_)),
+            "one circle on every outer edge is the disc class"
+        );
+        // Strictly between ε and K·ε for any K > 1.
+        let in_band = tol.eps() * tol.k().sqrt();
+        for (name, at) in [
+            ("inside", p(5.3, 5.2, 0.0)),
+            ("outside", p(100.0, 100.0, 0.0)),
+            ("in band", p(5.0, 6.0 - in_band, 0.0)),
+        ] {
+            let mut b = body.clone();
+            let point = b.add_point(at);
+            let vertex = b.vertices.insert(Vertex {
+                point,
+                emanating: None,
+            });
+            let lone = b.loops.insert(Loop {
+                boundary: LoopBoundary::Empty { vertex },
+                face,
+            });
+            b.faces.get_mut(face).unwrap().rings.push(lone);
+            let outer = b.get_face(face).unwrap().outer;
+            let verdict = ring_nesting(&b, outer, lone, region, band);
+            let ok = match name {
+                "inside" => matches!(verdict, RingNestingVerdict::Inside),
+                "outside" => matches!(
+                    verdict,
+                    RingNestingVerdict::Outside { ring_vertex } if ring_vertex == vertex
+                ),
+                _ => matches!(verdict, RingNestingVerdict::Undecided(_)),
+            };
+            assert!(ok, "{name}: wrong verdict");
+        }
+    }
+
     /// **A ring that CROSSES its outer loop passes**, which check 9's
     /// banner states as a residue rather than a guarantee: the walk
     /// stops at the first definite verdict, so a crossing whose first
