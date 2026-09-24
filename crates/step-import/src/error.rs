@@ -345,6 +345,24 @@ pub enum StepImportError {
         /// The tier-1/2/3 verdicts, verbatim.
         errors: Vec<topo::ValidationError>,
     },
+    /// The assembled body PASSED the at-rest gate, and the enclosure a
+    /// [`crate::StepImport::Solid`] carries could not be measured: the
+    /// gate's check 7 decides the SIGN of each solid's volume, and the
+    /// gate's certificate, continued to the reporting target
+    /// (`topo::SignCertificate::refine_to_target`), refused.
+    ///
+    /// This is **not a validity refusal** — the body is valid at rest,
+    /// and the verdict vector was empty. It is the reader declining to
+    /// ship a `Solid` without the enclosure that variant promises,
+    /// naming the kernel's own measurement refusal verbatim: typically
+    /// a rational wall whose certified quadrature cannot reach `1024·ε`
+    /// of mean boundary displacement within its schedule
+    /// (`QuadratureBudget`), which is a property of the body at this ε
+    /// and not of the file.
+    EnclosureUncomputable {
+        /// The measurement door's refusal, verbatim.
+        source: topo::MassPropsError,
+    },
 }
 
 impl fmt::Display for StepImportError {
@@ -493,6 +511,13 @@ impl fmt::Display for StepImportError {
                     verdicts.join("; ")
                 )
             }
+            Self::EnclosureUncomputable { source } => write!(
+                f,
+                "step import: the assembled body passes the kernel's at-rest gate, but \
+                 its volume enclosure is not measurable at this tolerance ({source}) — \
+                 the gate decides the SIGN of each solid's volume, and a solid import \
+                 ships the measured enclosure beside the body"
+            ),
             Self::Placement { transform, source } => write!(
                 f,
                 "step import: the assembly placement stated at #{transform} refused \

@@ -5309,6 +5309,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "assembly",
             "dangling_reference",
             "declaration_unresolved",
+            "enclosure_uncomputable",
             "instance",
             "invalid_eps_override",
             "malformed_real",

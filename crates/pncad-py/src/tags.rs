@@ -1896,6 +1896,7 @@ pub fn step_import_error_tag(err: &StepImportError) -> &'static str {
         StepImportError::Placement { .. } => "placement",
         StepImportError::Instance { .. } => "instance",
         StepImportError::TierInvalid { .. } => "tier_invalid",
+        StepImportError::EnclosureUncomputable { .. } => "enclosure_uncomputable",
     }
 }
 

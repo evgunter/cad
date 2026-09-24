@@ -553,9 +553,14 @@ class StepImportError(PncadError):
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
-    `placement`, `instance` or
-    `tier_invalid` — or `wireframe`, which is not a refusal at all:
-    the file parsed, to something this door does not adopt.
+    `placement`, `instance`, `tier_invalid` or
+    `enclosure_uncomputable` — or `wireframe`, which is not a refusal
+    at all: the file parsed, to something this door does not adopt.
+
+    `enclosure_uncomputable` is not a validity refusal: the body passed
+    the at-rest gate, whose volume check decides a sign, and the volume
+    enclosure the report carries could not be measured at this
+    tolerance.
 
     `recognition_ambiguous` neither forwards nor withholds. The word
     names the CONDITION — a face that cannot import without promotion

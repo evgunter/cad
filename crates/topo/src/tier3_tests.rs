@@ -1276,16 +1276,17 @@ fn two_ordinary_solids_in_one_body_certify() {
     assert_eq!(validate_geometric(&body, tol), Ok(()));
 }
 
-/// **The number a multi-solid body's certificate door hands back is
+/// **The number a multi-solid body's certificate door continues to is
 /// the whole-body measurement, bit for bit.**
 ///
-/// Check 7's subject is a SOLID, so over several solids no subject's
-/// read is the body's and the tier-3′ door takes a further arena-wide
-/// reporting read for its return value
-/// (`work/atrest/the-multi-solid-reporting-quadrature-is-unscheduled`).
-/// That read carries exactly one promise — that it is the number
-/// [`crate::mass_properties`] would give — and this row is what reds if
-/// the two ever diverge.
+/// Check 7's subject is a SOLID, so the tier-3′ door's certificate is
+/// the per-solid walks assembled into face-arena order, and the number
+/// a caller asks of it is that assembly continued to the reporting
+/// target. The continuation carries exactly one promise — that it is
+/// the number [`crate::mass_properties`] would give — and this row is
+/// what reds if the two ever diverge. (That no further arena-wide read
+/// is taken is a COUNT, and it lives where a quadrature body can be
+/// built: `sweep`'s `tcost_k3_certificate`.)
 #[test]
 fn a_multi_solid_certificate_is_the_whole_body_measurement() {
     let tol = Tol::witness();
@@ -1295,7 +1296,9 @@ fn a_multi_solid_certificate_is_the_whole_body_measurement() {
     assert_eq!(solids_of(&body).len(), 2, "two cubes are two solids");
     let certified =
         crate::validate_pseudomanifold_certificate(&body, &crate::ContactRecords::default(), tol)
-            .expect("two ordinary cubes certify");
+            .expect("two ordinary cubes certify")
+            .refine_to_target()
+            .expect("two ordinary cubes measure");
     let measured = crate::mass_properties(&body, tol).expect("the cubes measure");
     assert_eq!(
         (
@@ -1310,7 +1313,7 @@ fn a_multi_solid_certificate_is_the_whole_body_measurement() {
             measured.volume_pad.to_bits(),
             measured.area_pad.to_bits()
         ),
-        "the door's reporting read is the measurement door's"
+        "the door's certificate, continued, is the measurement door's"
     );
 }
 

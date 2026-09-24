@@ -5,17 +5,18 @@
 //! import are gated through), and [`ValidationError`].
 //!
 //! Each certifying tier has a **certificate form** beside it —
-//! [`validate_geometric_certificate`], its `_declared` twin, and
-//! [`validate_pseudomanifold_certificate`] — which runs the same pass
-//! and returns a whole-body [`crate::MassProperties`] instead of
-//! dropping what check 7 derived. Same verdicts, and one certified
-//! quadrature per SOLID, check 7's subject: on the overwhelmingly
-//! common one-solid body that is one quadrature for the pass and the
-//! returned value IS the object check 7 decided on, while a body
-//! holding several solids pays a further arena-wide reporting read for
-//! the body-level number, because no one solid's read is the body's
-//! (`check7_subjects`). The `()`-returning doors above ARE those calls
-//! with the value mapped away.
+//! [`validate_geometric_certificate`], its `_declared` twin,
+//! [`validate_pseudomanifold_certificate`] and its `_structural` twin —
+//! which runs the same pass and returns the [`crate::SignCertificate`]
+//! check 7 decided on instead of dropping it. Every tier-3 door makes
+//! check 7 the same way (`plus_v_by_sign`): one walk per SOLID, check
+//! 7's subject, each stopped at the round where that solid's sign is
+//! certain, assembled into one body certificate over the face arena —
+//! one read of each face, whatever the solid count. A caller that wants
+//! the number continues the certificate
+//! ([`crate::SignCertificate::refine_to_target`]) and pays only the
+//! rounds the check did not. The `()`-returning doors above ARE those
+//! calls with the value mapped away.
 //!
 //! # The two validity tiers (ratified via the M1-PLAN conversation)
 //!
@@ -2850,7 +2851,7 @@ pub fn validate_geometric<
 /// computation again. This door returns what the gate computed.
 ///
 /// **A SIGN, and the number on request.** What comes back is a
-/// [`crate::SignCertificate`]: the enclosure `plus_v_invariant`
+/// [`crate::SignCertificate`]: the enclosure `plus_v_decide`
 /// decided on, refined exactly as far as THIS check's certification
 /// needed and no further. There is no volume to read off it, by
 /// construction — a quadrature stopped at the round its caller was
@@ -2865,7 +2866,7 @@ pub fn validate_geometric<
 /// about agreement: this door's certified quadrature and the
 /// measurement door's lane quadrature are the same computation for
 /// every scalar that can reach here (the measurement door's lane IS
-/// `quad_lane::cut_face`), against the same
+/// `quad_lane::cut_face_rounds`), against the same
 /// `Band::linear(tol)`, over the same face-arena order, over the same
 /// rounds — a face left open at round `k` resumes at `k + 1`, and the
 /// lanes' rounds are independent recomputations, so a window changes
@@ -2879,7 +2880,7 @@ pub fn validate_geometric<
 /// genuinely split the rounds between them. At the other certifying
 /// scalars it rests on one fact about one value: the measurement door
 /// hands its walk [`crate::QuadLane::certified`], whose one field is
-/// `quad_lane::cut_face` — pinned by pointer identity in `props.rs`'s
+/// `quad_lane::cut_face_rounds` — pinned by pointer identity in `props.rs`'s
 /// `wiring_rows` — and a scalar with no certification rights cannot
 /// construct that value, so it cannot form this call at all. That pin
 /// covers the WIRING; it does not re-prove what the quadrature
@@ -5495,12 +5496,13 @@ pub fn validate_pseudomanifold_structural<
 ///
 /// As [`validate_pseudomanifold`].
 pub fn validate_pseudomanifold_certificate<
+    'b,
     T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
 >(
-    body: &Body<T>,
+    body: &'b Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
-) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     pseudomanifold_certificate_via(
         body,
         contacts,
@@ -5531,12 +5533,13 @@ pub fn validate_pseudomanifold_certificate<
 ///
 /// As [`validate_pseudomanifold_structural`].
 pub fn validate_pseudomanifold_certificate_structural<
+    'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
-    body: &Body<T>,
+    body: &'b Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
-) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     pseudomanifold_certificate_via(body, contacts, tol, None, None, None)
 }
 
