@@ -5,6 +5,8 @@ title: topo: the at-rest validation findings are too long for the checks window 
 status: open
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
+priority: P1
+cost: D
 ---
 
 

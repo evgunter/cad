@@ -2,10 +2,11 @@
 id: check-9-nesting-is-line-bounded-only
 kind: issue
 title: check 9's nesting half is silent on every ARC-BEARING outer loop: an annular rim between two circles (every shelled vessel of revolution) still accepts a ring outside its outer loop
-status: open
+status: dispatched
 opened: 2026-09-13
 priority: P0
 cost: H
+parent: ATREST-5
 ---
 
 

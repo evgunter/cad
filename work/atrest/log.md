@@ -590,3 +590,56 @@ no position" has no spelling) landed on TOPO on 2026-09-20 while
 `validate.rs` was still TOPO's; the cut the same day made it ATREST's.
 Moved by `git mv` with its id and body; the two defective sites stay
 REACH's and CHART's as FIX's section says. Signed (TOPO orchestrator).
+
+## 2026-09-24 — resumed after the suspension; wave 1 dispatched
+
+**What changed on main.** The A/B protocol is SUSPENDED (Ev,
+2026-09-23; `docs/MODEL-AB-LOG.md`'s head): every phase runs on Opus,
+nothing draws an arm or claims an ordinal, and a unit v7 would have
+triaged IN gets two independent Opus reviewers under
+`docs/DUAL-REVIEW-PROTOCOL.md`, recorded in `docs/DUAL-REVIEW-LOG.md`.
+The tiers now live in `memories/orchestration-model.md`: orchestrator's
+read / single / dual. RING-4 deleted the `interval` feature, so a
+code-tier run is now SIX `test (eps = …)` jobs, not twelve. ATREST's
+band 6400–6499 stays claimed and unused. Ev's direction for this
+sitting: finish the program.
+
+**The slate grew to 40.5/30** while the program was idle: four rows
+filed onto `validate.rs` by other programs, including
+`atrest-refusal-prose-outgrows-the-viewer` — Ev's concision request,
+now banded **P1** (a GUI defect Ev reported) and priced D, with
+`census-witness-string-repeats-the-subject` riding along (the same
+arms' prose).
+
+**Re-homed**: `validate-passes-a-body-with-a-zero-width-slit-face` to
+TQUERY. The tiers answered correctly on those halves; what the row
+asks for is `split` validating its own outputs, which is `split.rs`'s
+posture and TQUERY's ground.
+
+**Re-stated, again: `tier-3-does-not-check-shell-roles-per-solid`.** The
+2026-09-21 reading — "a second `Outer` nested inside the solid's own
+void is unchecked" — asked tier 3 to refuse a VALID body. By winding
+number the island is material (wall `+1`, cavity `-1`, island `+1`),
+and the ZIP row it came from records the total as correct; what ZIP
+objects to is the grouping, and the kernel deliberately files
+disconnected components under one solid (the evidence that retracted
+check 10). This is the third time on this row that a headline was read
+in place of its evidence, and the same retraction applies. The real
+at-rest invariant is that a solid's shells bound winding number 0 or 1
+everywhere — a void outside every outer, or overlapping outers,
+certifies today with a positive per-solid total. Re-titled and
+re-stated to that.
+
+**Wave 1**, four lanes concurrently, on four different regions of
+`validate.rs`:
+
+| unit | carries | tier | reason |
+|---|---|---|---|
+| ATREST-3 | tier3-prime + multi-solid quadrature | **dual** | a public return-type change across crates; what every tier-3 door promises |
+| ATREST-4 | sense-inversion | single, full | a new refusal whose risk is the refusal surface; measured before landing, stop clause on any verb's output |
+| ATREST-5 | check 9 disc class | single, full | a new refusal reading CONTACT's exact decide; `ArcParity`/`NoWalk` split to a parked row on #1076 |
+| ATREST-6 | quadric datums | single, full | named refusals at check 1; the torus's representability reason extended to three kinds |
+
+CONTACT never answered the `disc_side` note of 2026-09-21; the note
+said the unit would land the `pub(crate)` itself and announce the seam
+if CONTACT did not object, and that is what ATREST-5 does.
