@@ -373,3 +373,24 @@ edges, so a rewired recipe could reach a node that was an ancestor in
 neither run. The fix pass walks each run separately, through the
 shared `roots::walk_strict_ancestors`. Two ShadowExec sentences that
 claimed per-pair evidence now state their node-level trigger.
+
+## 2026-09-24 — the split spur closes (PR 3133)
+
+A split plane touching the target along an edge while cutting it
+elsewhere used to "succeed" with a zero-area spur on the section face.
+That left two null-pair copies of one vertex, and the naming layer
+reported the result as a truthful `Duplicate`. Review corrected the
+mechanism: the direct join refused, and the D7 pinch lane's mirrored
+rerun laundered that refusal into a spurred success. The join now
+refuses a spur tip as `SplitJoinError::SectionSpur`, with its own
+message. Following Ev's ruling in chat, that message says an exact
+tangency would need to be declared. Rows now name which predicate
+refused, so an area refusal substituting for the spur refusal goes
+red.
+
+Filed:
+- REACH P1 `split-cannot-declare-an-exact-tangency-with-its-target`;
+- REACH P3 `split-section-spur-guard-skips-curved-spurs`;
+- ATREST `validate-passes-a-body-with-a-zero-width-slit-face`,
+  rewritten and re-banded P3: `split` runs no validation tier on its
+  own outputs.
