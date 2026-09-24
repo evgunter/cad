@@ -521,7 +521,20 @@ BOUNDS_ALLOWLIST=(
   # restates that constructor's bound (its `Decide` implied by
   # `AtRestPolicy`) and nothing wider, in a `#[cfg(test)]` module that
   # reads no bracket.
-  'crates/topo/src/props.rs 29 M5 PR 11, the certified-quadrature plumbing'
+  # 29 -> 23 (ATREST-3): the sign-level walk stopped being a
+  # certified-only door. It takes the caller's lane as an argument, as
+  # the reporting walk always has, so its header (`sign_walk`, was
+  # `sign_certified`) and `SignCertificate`'s two impl headers (`Debug`
+  # and the inherent block) are plain `Decide`: a `_structural`
+  # certificate is continued with the closed form it was derived
+  # through, and no bracket is read on either path. `certified_hook`
+  # went with it — `QuadLane` now holds the windowed entry itself — and
+  # so did `quad_lane::cut_face` (`Decide + Bounds + CertifiedEnclosure`,
+  # two occurrences), whose body is `QuadLane::cut_face`'s reading of
+  # that one pointer over the whole schedule. The seam itself is
+  # unmoved: `QuadLane::certified` and the `quad_lane` module still
+  # carry the certification right, at the same headers.
+  'crates/topo/src/props.rs 23 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
