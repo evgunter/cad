@@ -163,7 +163,7 @@ orchestrator ratified the ship-on as a spec deviation on 2026-09-21
 red rather than living in a comment.
 
 
-## What SYM-9 answered, and what closes here (2026-09-22)
+## What SYM-9 answered (2026-09-22, fix pass 2026-09-24)
 
 This row's thesis — that the ring's width is not monotone in reach, and
 neither is opening an atom — is what SYM-9 built a RETRY LADDER on
@@ -174,9 +174,10 @@ identical with the ladder installed and without it, so `numeric` can
 only fall and no discharge can be lost. That is the row's mechanism
 turned into a design constraint rather than worked around.
 
-**The measurement, per shape, on five of the six documents** (R2's
-rounded pad did not finish a single nominal replay on the measuring
-box — `work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`):
+**The measurement, per shape, as a RETRY at the nominal, on five of the
+six documents** (the dev nominal replay; R2's rounded pad does not
+return one on the measuring box —
+`work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`):
 
 | shape, as a RETRY | plate | annulus | boss | bracket | link |
 | --- | --- | --- | --- | --- | --- |
@@ -184,37 +185,51 @@ box — `work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`):
 | the ring at 1024 bits | 0 | 0 | 0 | **19** (11.57x) | 8 (1.28x) |
 | rule A shut | 0 | 0 | 0 | **6** (1.11x) | 0 (1.04x) |
 | rule G shut | 0 | 0 | 0 | 0 (1.25x) | **12** (1.14x) |
+| rule A and rule G shut in ONE mask | 0 | 0 | 0 | 6 (1.05x) | **0** (1.07x) |
 | rule E shut / rule F shut | 0 | 0 | 0 | 0 | 0 |
 | the companion rewrite shut / the magnitude door shut | 0 | 0 | 0 | 0 | 0 |
 
 The ratio is one whole nominal replay against the same replay with the
-ladder off, a dev build on a four-core box.
+ladder off, a dev build on a four-core box. The pad is measured on the
+OTHER instrument, one whole-box leaf in release at `1e2·ε`, where its
+receipt is `[890, 6, 150, 907]` with the kept-atom ladder and without
+it: nothing recovered, at 131.3 → 147.7 s.
 
-**The ring's width buys nothing that keeping an atom closed does not
-buy more cheaply.** At 512 bits the ring recovers a strict subset of
-what the two kept-atom shapes recover, at four times the cost on the
-bracket; at 1024 it reaches four more decisions on the bracket at
-eleven times. So SYM-9 ships the two kept-atom attempts and NOT the
-ring, and `editor_core::drive::DEFAULT_SYM_RETRY` carries that table
-beside the constant.
+**At 512 bits the ring recovers, predicate by predicate, no more than
+the kept-atom attempts do**, at four times the cost on the bracket. At
+1024 bits it recovers THIRTEEN more decisions on the bracket than the
+kept-atom attempts (19 in all, `tangent_on_surface_2` `[9, 0, 0, 9]`
+-> `[18, 0, 0, 0]` among them), at 11.57x — reach the ring has and the
+kept atom does not, at a price no default pays.
 
-**A finding this row did not have: the two kept-atom shapes are not
-composable.** Rule A shut and rule G shut, in ONE attempt, keeps the
-bracket's six and loses every one of the link's twelve — those twelve
-are cancellations rule A performs once rule G has stopped re-keying the
-atom. The ladder therefore carries a mask per shape (`SymRetry::MASKS`),
-and a single "the kept-atom retry" would have measured worse than
-either half.
+**The two kept-atom shapes are not composable in one mask** — rule A
+and rule G shut together keep the bracket's six and lose all twelve of
+the link's — so `SymRetry` carries one mask per shape (the free const
+`geom_core::sym::MASKS`). Why the joint mask loses the twelve is not
+executed on the link; the working hypothesis is that they close
+through rule A's `sqrt(X)² = X` once rule G has stopped re-keying the
+atom, and the render of those residuals under both masks is what would
+confirm it
+(`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`,
+shape 2).
 
-**And the second mechanism — rule E's scale step — costs no measured
-document a decision the ladder can recover**: rule E shut as a retry
-recovers zero on all five. The demonstration on this row is still a
-hand-built residual at a 200-bit coefficient and still has no document
-behind it.
+**Rule E's scale step — the second mechanism above — is RECOVERABLE by
+a retry at the scalar and costs no measured document anything a retry
+recovers.** SYM-9's `geom-core/tests/sym_9_retry_rows.rs`
+(`a_fewer_rules_retry_closes_the_rule_e_loss`) drives the hand-built
+residual above through a retry with rule E shut and it closes as a
+theorem; rule E shut as a retry recovers zero on the five documents.
 
-**What is left open here.** The pad is unmeasured (its own row above),
-so the tables are five documents; and the ring's non-monotonicity is
-now a DESIGN CONSTRAINT the ladder respects rather than a defect
-anything closes — the row stays open as the record the next unit that
-reaches for `COEFF_BITS` reads its own split against, which is what it
-was filed as.
+**What ships.** Nothing, by default: on the affordability line's
+instrument the ladder acts only on documents already over the 1.6 s
+line and adds 12.5–36 % there
+(`editor_core::drive::DEFAULT_SYM_RETRY` carries the table), so the
+drive makes one attempt per rung and `SymRetry::kept_atom` is the dial a
+caller installs.
+
+**What is left open here.** The pad's nominal replay is unmeasured
+(its own row), and the ring's non-monotonicity is now a DESIGN
+CONSTRAINT the ladder respects rather than a defect anything closes —
+the row stays open as the record the next unit that reaches for
+`COEFF_BITS` reads its own split against, which is what it was filed
+as.

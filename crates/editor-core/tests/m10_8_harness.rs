@@ -22,14 +22,14 @@ use geom_core::{SymRules, Tol};
 /// (`geom_core::SymRetry::none`).
 ///
 /// A rules differential measures what one rule set reaches against
-/// another, and the shipped ladder (`drive::DEFAULT_SYM_RETRY`, in
-/// `SymbolicDials::default()`) is a second rule set run into each
-/// side's refusals — its first attempt shuts rule G, so a row comparing
-/// rule G on against rule G off with the ladder on both sides would
-/// read rule G's cost as recovered and stay green. So every
-/// differential in this crate's suites takes its dials from here, and
+/// another, and a retry ladder (`SymRetry::kept_atom`) is a second rule
+/// set run into each side's refusals — its first attempt shuts rule G,
+/// so a row comparing rule G on against rule G off with the ladder on
+/// both sides would read rule G's cost as recovered and stay green. So
+/// every differential in this crate's suites takes its dials from here,
+/// whatever `SymbolicDials::default()` carries, and
 /// [`split_at_the_nominal`] is the same principle for a replay. A row
-/// that wants the tier a drive ships sets `retry` itself and says so.
+/// that wants a ladder sets `retry` itself and says so.
 pub(crate) fn dials(rules: SymRules) -> SymbolicDials {
     SymbolicDials {
         rules,
@@ -41,6 +41,16 @@ pub(crate) fn dials(rules: SymRules) -> SymbolicDials {
 /// Whether `doc` certifies its WHOLE analyzed box in one leaf under
 /// `dials` — `max_depth = 0`, one leaf, the receipt's `certified == 1`.
 pub(crate) fn certifies_whole_with(doc: &ProfileDoc, dials: SymbolicDials, tol: Tol) -> bool {
+    whole_box_leaf(doc, dials, tol).0
+}
+
+/// [`certifies_whole_with`] with the leaf's decision receipt beside the
+/// answer (`SymCounts::default()` where the drive refused to run).
+pub(crate) fn whole_box_leaf(
+    doc: &ProfileDoc,
+    dials: SymbolicDials,
+    tol: Tol,
+) -> (bool, geom_core::SymCounts) {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     drive(
         doc,
@@ -53,7 +63,9 @@ pub(crate) fn certifies_whole_with(doc: &ProfileDoc, dials: SymbolicDials, tol: 
         },
         tol,
     )
-    .is_ok_and(|v| v.receipt().certified == 1)
+    .map_or((false, geom_core::SymCounts::default()), |v| {
+        (v.receipt().certified == 1, v.decisions())
+    })
 }
 
 /// [`certifies_whole_with`] at the shipped budget under `rules`.

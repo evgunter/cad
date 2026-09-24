@@ -14,7 +14,7 @@ Opened 2026-09-20 by SYM's priority-seam cut
 | P1 | `SYM-9` | H | what a refused decision may retry: the wider ring and the kept atom, measured first on the six documents |
 | P1 | `declared-tangency-needs-the-registered-identity-door` | H | a constructor-declared tangency (Fillet's carrier_line_circle) is a live consumer for the registered-identity door M10-8 left unbuilt |
 | P1 | `revolve-carriers-state-only-the-rim` | H | the revolve latitude carriers register the rim identity but cannot state the span one: the builder is never handed the far endpoint |
-| P1 | `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` | H | rule G costs the link's carrier_on_surface_2 sixteen theorems — ten to the companion rewrite opening abs node squares, six to sqrt(R²)=|R| and the registrant's axiom (SYM-9's) |
+| P2 | `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` | H | rule G costs the link's carrier_on_surface_2 sixteen theorems - SYM-9's kept-atom retry recovers the ten when installed, and the six weakened to the registrant's axiom are what is left |
 | P2 | `decision-read-triples-the-plate-pin-suites-wall-time` | D | the decision read's deep enclosure runs at every select and min/max node, and the plate's pin suite goes 142s to 535s in the dev profile |
 | P1 | `rule-d-reaches-the-unit-bulge-only` | D | rule D's reach is the unit bulge: a parameter bulge is outside the mechanism and a literal bulge other than 1 leaves residue — the next ceiling class after M10-10 |
 

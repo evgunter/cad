@@ -572,7 +572,12 @@
 //! parameter brackets.
 //!
 //! **The PLAIN memo is the exception, and it is per DRIVE when a drive
-//! installs one** ([`DriveMemo`], [`with_session_memo`]). A node's
+//! installs one** ([`DriveMemo`], [`with_session_memo`] and
+//! [`with_session_memo_retry`]). It serves the plain walk and nothing
+//! else — never the early or door walk, and never a retry's: a retry's
+//! forms live in the session's own retry tables ([`SymRetry`]) and are
+//! dropped with the leaf, and the plain rung a drive memo serves is the
+//! one rung no retry re-asks. A node's
 //! plain form is a function of its id, the budget and the two dials the
 //! plain walk consults, and of nothing else: the walk reads no value,
 //! every atom in it is opaque, and rule A0 is the only rule. So a form
@@ -768,31 +773,47 @@
 //! Phase 1 tables are in the unit's PR). A retry is paid ONLY on a
 //! decision every rung of the first attempt refused, so the cost is a
 //! second walk per refusal and nothing at all where there are none.
-//! **On four of the six measured documents there are none to speak of**
-//! — at the nominal the two-hole plate and R1's annulus refuse ZERO
-//! decisions the tier is asked (their whole `numeric` column is the
-//! numeric channel certifying a non-zero sign, where the tier is never
-//! consulted), and R1's segment boss refuses one. R2's filleted bracket
-//! refuses 74 of 1,947 and R2's link 107 of 1,102.
+//! **At the nominal, two of the five documents measured there refuse
+//! nothing the tier is asked** — the two-hole plate and R1's annulus,
+//! whose whole `numeric` column is the numeric channel certifying a
+//! non-zero sign, where the tier is never consulted; R1's segment boss
+//! refuses one decision; R2's filleted bracket refuses 74 of 2,021 and
+//! R2's link 107 of 1,102.
 //!
-//! One nominal replay, dev profile, one box, the shipped ladder against
-//! the same replay with `SymRetry::none()`: plate 2.22 → 2.40 s,
-//! annulus 2.53 → 2.42 s and boss 1.48 → 1.63 s — the three that never
-//! enter the ladder, so what those readings show is the measurement's
-//! noise — bracket 17.4 → 23.6 s (1.36×) and link 59.3 → 68.2 s
-//! (1.15×). What that buys is twelve decisions on the link and six on
-//! the bracket, and nothing anywhere else;
-//! `editor_core::drive::DEFAULT_SYM_RETRY` carries the table per shape
-//! and the argument for the two the ladder takes.
+//! **On the affordability line's instrument** — one whole-box leaf
+//! (`m10_10_leaf_cost_with_and_without_the_algebra`), release, the
+//! fastest of three takes — the shipped rules at one attempt per rung
+//! against the same rules with `SymRetry::kept_atom`: plate at `1e2·ε`
+//! 0.35 → 0.35 s, annulus 0.37 → 0.38, bracket 2.86 → 3.88, link
+//! 17.28 → 19.71, pad at `1e2·ε` 131.3 → 147.7. The line is 1.6 s. The
+//! bracket, the link and the pad are over it at the first attempt, and
+//! the ladder takes no document from under it to over it; it adds 36 %,
+//! 14 % and 12.5 % on those three, and it recovers six decisions on the
+//! bracket (`registered`, the rule-A attempt), twelve on the link
+//! (`symbolic_zero`, the rule-G attempt) and nothing on the pad. So the
+//! drive ships with NO ladder and `kept_atom` is the dial a caller turns
+//! on — `editor_core::drive::DEFAULT_SYM_RETRY` carries the table per
+//! mask, the reads-off reading that says the decision read is not what
+//! the ladder costs, and the argument.
+//!
+//! **What a ladder holds**, per attempt, as a session ends
+//! (`profile::SymProfile::retry_forms`), at the nominal: the segment
+//! boss 80 forms an attempt against a DAG of 12,638 nodes, the bracket
+//! 2,716 against 28,996, the link 5,259 against 19,564; the plate and the
+//! annulus none, because no attempt is made. [`RETRY_FORMS`] is set
+//! against those numbers.
 //!
 //! **The freeze causes under the refusals** are what the ladder's
 //! shapes were chosen against, and the instrument is the per-decision
 //! attribution ([`profile::DecisionRecord`], `rung_table`). On the
 //! bracket's 74 refused decisions their own walks froze 204 nodes on
 //! the coefficient bound, 161 on degree and 35 on terms; on the link's
-//! 107, 90 / 154 / 152. The ring is a leading cause on both — and a
-//! wider ring is still not what the measurement chose, because keeping
-//! an atom closed reaches more of them for a fraction of the cost.
+//! 107, 90 / 154 / 152. The ring is a leading cause on both, and a
+//! 512-bit ring retry recovers, predicate by predicate, no more than the
+//! kept-atom attempts do (the bracket's same six, eight of the link's
+//! twelve) at 4.50× the bracket's nominal replay where the kept-atom
+//! ladder is 1.47× — so the freeze cause is not the shape the retry
+//! that recovers it takes.
 //!
 //! # The census: which identity-shaped predicates this tier reaches
 //!
@@ -1330,8 +1351,8 @@ pub struct SymCounts {
     /// the sample's vocabulary is about what a decision CLAIMS, and a
     /// retry claims nothing new.
     ///
-    /// Zero under every session door but [`with_session_retry`], which
-    /// is the only one that installs a ladder.
+    /// Zero under every session door but [`with_session_retry`] and
+    /// [`with_session_memo_retry`], the two that install a ladder.
     pub retried: u64,
     /// **Nodes this session's plain walk froze** into indeterminates (a
     /// budget or an overflow) — a count of THIS leaf's work, unlike the
@@ -1983,8 +2004,9 @@ pub struct SymRetry {
     ///
     /// **The check is BEFORE an attempt is walked**, so it bounds the
     /// memo to the cap plus ONE attempt's walk: a walk adds at most one
-    /// form per DAG node to each of the two memos, so an attempt's
-    /// memos never exceed `max_forms + 2 × (the session's node count)`.
+    /// form per node id to each of the two memos, so an attempt's memos
+    /// never exceed `max_forms` plus twice the ids the session's walks
+    /// can visit.
     pub max_forms: usize,
 }
 
@@ -2015,10 +2037,13 @@ impl SymRetry {
         }
     }
 
-    /// **The kept-atom ladder SYM-9 measured and ships**: two attempts,
-    /// one with rule G shut and one with rule A's `sqrt(X)² = X` shut,
-    /// and no wider-ring attempt. `editor_core::drive::DEFAULT_SYM_RETRY`
-    /// carries the measurement that chose the shapes AND the order.
+    /// **The kept-atom ladder SYM-9 measured**: two attempts, one with
+    /// rule G shut and then one with rule A's `sqrt(X)² = X` shut, and no
+    /// wider-ring attempt. It is what a caller installs to have a ladder;
+    /// the drive's default is none. `editor_core::drive::DEFAULT_SYM_RETRY`
+    /// carries the measurement that chose the shapes, the order (a tie,
+    /// so rule G's attempt — the one that buys theorems — goes first) and
+    /// the default.
     ///
     /// The rule-G mask spells rule G's two halves (`abs_square`,
     /// `root_magnitude`) shut with it, as every constructor that shuts
@@ -2138,7 +2163,7 @@ struct Session {
     rules: SymRules,
     /// **The retry ladder this session offers a refused decision**
     /// ([`SymRetry`]) — [`SymRetry::none`] under every door but
-    /// [`with_session_retry`].
+    /// [`with_session_retry`] and [`with_session_memo_retry`].
     retry: SymRetry,
     /// **The retry attempts' memos, one entry per attempt beyond the
     /// first** — the `(id, attempt)` keying [`SymRetry`]'s ladder
@@ -2253,18 +2278,29 @@ impl RetryMemo {
     }
 }
 
-/// **The GROWTH GUARD on one retry attempt's memos**: past this many
-/// forms the attempt is not offered again for the rest of the leaf, and
-/// the decisions that would have asked it stay numeric.
+/// **The GROWTH GUARD's default** ([`SymRetry::max_forms`]): past this
+/// many forms in one attempt's two memos the attempt is not offered
+/// again for the rest of the leaf, and the decisions that would have
+/// asked it stay numeric.
 ///
 /// A retry pays a second walk of the DAG per refused decision, and the
 /// forms it builds are a second population beside the first attempt's —
 /// so without a cap a leaf whose refusals are many and whose DAG is
-/// large would hold two of everything. The number is a CEILING and not
-/// a target: it is set above what the widest measured document's retry
-/// memos come to (this unit's PR carries the per-document sizes), so no
-/// measured document reaches it and a document that does degrades into
-/// missed cancellations rather than into memory.
+/// large would hold two of everything. **Measured**, the most one
+/// attempt of `SymRetry::kept_atom` holds as a session ends
+/// (`profile::SymProfile::retry_forms`): R2's rounded pad 7,465 forms
+/// against a DAG of 32,698 nodes (one whole-box leaf at `1e2·ε`), R2's
+/// link 5,259 against 19,564 and R2's bracket 2,716 against 28,996 (the
+/// nominal), R1's segment boss 80; the plate and the annulus none. And
+/// an attempt holds at most one form per node id in each of its two
+/// memos — about 65,000 on the pad. The cap sits above both, so no measured
+/// document reaches it, and a document that does degrades into missed
+/// cancellations rather than into memory.
+///
+/// **The check is before the walk** (`ladder`), so an attempt admitted
+/// just under the cap can add one walk's worth past it: the bound on an
+/// attempt's memos is this plus two forms per node id. The row that
+/// reaches it is `the_growth_guard_withholds_an_attempt_at_its_cap`.
 const RETRY_FORMS: usize = 200_000;
 
 impl Session {
@@ -2420,7 +2456,8 @@ pub fn with_session_rules<R>(
 /// a decision every rung of the first attempt refuses is re-asked at a
 /// wider ring, or with a rule that opens an atom shut, or both.
 ///
-/// The one door that installs one. Every other door here runs
+/// One of the two doors that install one — this and, with a drive's
+/// plain memo, [`with_session_memo_retry`]. Every other door here runs
 /// [`SymRetry::none`], so a caller that has not asked for the ladder
 /// builds the session it built before this unit — which is what makes
 /// the ladder's effect on a document a differential and not an
@@ -4496,7 +4533,7 @@ mod tests {
         six - cubed * cubed
     }
 
-    /// The shipped ladder (`drive::DEFAULT_SYM_RETRY`).
+    /// The measured ladder.
     fn kept_atom() -> SymRetry {
         SymRetry::kept_atom()
     }
@@ -4623,7 +4660,7 @@ mod tests {
     /// **An attempt that cannot differ from the first is not walked.** A
     /// session whose rules are already narrower than every mask — M10-9's
     /// `without_the_algebra`, which has rule A and rule G shut — offered
-    /// the shipped ladder: both masks reduce to the session's own rules,
+    /// the measured ladder: both masks reduce to the session's own rules,
     /// so both attempts are the first attempt again and neither is made.
     #[test]
     fn an_attempt_identical_to_the_first_is_not_walked() {
@@ -4779,11 +4816,11 @@ mod tests {
         }
     }
 
-    /// **Each of the shipped ladder's two masks closes a decision the
+    /// **Each of the measured ladder's two masks closes a decision the
     /// other cannot, at the scalar** — the reason there are two. The
     /// rule-G shape: rule G shut, the rewrite shut or rule A shut each
     /// close it (all three keep `|X|²` from opening), the ring cannot
-    /// (the freeze is on terms), and the shipped ladder closes it on its
+    /// (the freeze is on terms), and the measured ladder closes it on its
     /// first attempt.
     #[test]
     fn a_decision_that_closes_only_with_rule_g_off() {
@@ -4803,7 +4840,7 @@ mod tests {
     }
 
     /// And the rule-A shape: only rule A shut closes it; rule G shut
-    /// does not, nor the ring; the shipped ladder closes it on the
+    /// does not, nor the ring; the measured ladder closes it on the
     /// attempt that shuts rule A.
     #[test]
     fn a_decision_that_closes_only_with_rule_a_off() {

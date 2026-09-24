@@ -279,6 +279,9 @@ fn rules_named(name: &str) -> SymRules {
         // SYM-8's differential: the shipped set with rule F (the
         // manifest sign) SHUT, which is SYM-5's tier bit for bit.
         "no_f" => SymRules::without_rule_f(),
+        // DECIDE-3's differential for the decision read: the shipped set
+        // with the read shut and rule G on.
+        "no_reads" => SymRules::without_the_reads(),
         // The cost breakdown: rule D alone, and rules A/B per node alone.
         "d_only" => SymRules {
             trig_of_atan: true,
@@ -314,7 +317,7 @@ fn rules_named(name: &str) -> SymRules {
         },
         other => panic!(
             "unknown rule set {other:?}: shipped | none | all | shut | off | no_e | no_f \
-             | d_only | ab_only | top_only | d_top_only"
+             | no_reads | d_only | ab_only | top_only | d_top_only"
         ),
     }
 }
@@ -661,7 +664,7 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
         // so the cost of each rule alone is one env var away. The two
         // rules columns run one attempt per rung (`m10_8_harness::dials`,
         // `SymRetry::none()`); the LADDER columns run the "on" rules with
-        // the shipped retry ladder (`drive::DEFAULT_SYM_RETRY`) and with
+        // the measured retry ladder (`SymRetry::kept_atom`) and with
         // its two masks in the other order, so what the ladder costs a
         // leaf is its own differential. `CAD_M10_10_TAKES` (default 1)
         // times each column that many times and prints the fastest.
@@ -669,7 +672,7 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(1);
-        let ladder = editor_core::drive::DEFAULT_SYM_RETRY;
+        let ladder = geom_core::SymRetry::kept_atom();
         let reversed = geom_core::SymRetry {
             without: [ladder.without[1], ladder.without[0]],
             ..ladder
@@ -695,15 +698,60 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
                     ..crate::m10_8_harness::dials(on)
                 },
             ),
+            (
+                "ON + rule-G mask only",
+                editor_core::drive::SymbolicDials {
+                    retry: geom_core::SymRetry {
+                        without: [ladder.without[0], None],
+                        ..ladder
+                    },
+                    ..crate::m10_8_harness::dials(on)
+                },
+            ),
+            (
+                "ON + rule-A mask only",
+                editor_core::drive::SymbolicDials {
+                    retry: geom_core::SymRetry {
+                        without: [ladder.without[1], None],
+                        ..ladder
+                    },
+                    ..crate::m10_8_harness::dials(on)
+                },
+            ),
         ] {
+            // `CAD_M10_10_PROFILE` installs the tier's cost profile
+            // around each take and prints what the retry memos held
+            // (`SymProfile::retry_forms`) beside the DAG — the growth
+            // guard's measurement. Its hooks cost time, so a timing
+            // table is taken with it unset.
+            let profiled = std::env::var("CAD_M10_10_PROFILE").is_ok();
             let mut best = f64::INFINITY;
-            let mut ok = false;
+            let mut leaf = (false, geom_core::SymCounts::default());
+            let mut held = (Vec::new(), 0);
             for _ in 0..takes.max(1) {
+                if profiled {
+                    geom_core::sym::profile::start_profile();
+                }
                 let t = std::time::Instant::now();
-                ok = crate::m10_8_harness::certifies_whole_with(&doc, dials, tol);
+                leaf = crate::m10_8_harness::whole_box_leaf(&doc, dials, tol);
                 best = best.min(t.elapsed().as_secs_f64());
+                if profiled {
+                    let p = geom_core::sym::profile::take_profile();
+                    held = (p.retry_forms, p.nodes / p.sessions.max(1));
+                }
             }
-            println!("   {name:<20} x{scale:<10.3e} {label}: certifies_whole={ok} in {best:.3}s");
+            if profiled {
+                println!(
+                    "   {name:<20} {label}: retry memos {:?} (DAG {} nodes a session)",
+                    held.0, held.1
+                );
+            }
+            let d = leaf.1;
+            println!(
+                "   {name:<20} x{scale:<10.3e} {label}: certifies_whole={} in {best:.3}s \
+                 [{}, {}, {}, {}] retried {}",
+                leaf.0, d.symbolic_zero, d.sign_gated, d.registered, d.numeric, d.retried
+            );
         }
     }
 }

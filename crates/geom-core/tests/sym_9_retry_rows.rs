@@ -79,9 +79,9 @@ fn a_product_past_256_that_fits_at_512_is_closed_by_the_ring_retry() {
     assert_eq!(c512.retried, 1, "`retried` says the ladder carried it");
     assert_eq!(c512.numeric, 0);
 
-    // The SHIPPED ladder has no ring attempt at all.
+    // The measured ladder has no ring attempt at all.
     let (shipped, cs) = through(SymRetry::kept_atom(), || two_spellings(5, 2));
-    println!("shipped ladder : {shipped} {cs:?}");
+    println!("kept_atom      : {shipped} {cs:?}");
     assert_eq!(cs.numeric, 1, "`kept_atom` offers no wider ring");
     assert_eq!(cs.retried, 0);
 }
@@ -224,11 +224,11 @@ fn a_fewer_rules_retry_closes_the_rule_e_loss() {
     assert_eq!(c.symbolic_zero, 1);
     assert_eq!(c.retried, 1);
 
-    // **The SHIPPED ladder does not reach it.** `SymRetry::kept_atom`
+    // **The measured ladder does not reach it.** `SymRetry::kept_atom`
     // carries rule G and rule A only, so a loss demonstrated at the
     // scalar and not paid by any measured document stays numeric.
     let (l, c) = through(SymRetry::kept_atom(), rule_e_residual);
-    println!("shipped ladder     : {l} {c:?}");
+    println!("kept_atom          : {l} {c:?}");
     assert_ne!(l, "theorem");
     assert_eq!(c.retried, 0);
 }
@@ -275,13 +275,13 @@ fn a_plain_theorem_is_the_same_receipt_at_every_shape() {
     }
 }
 
-/// **The shipped ladder's masks, applied to the shipped set, are the
+/// **The measured ladder's masks, applied to the shipped set, are the
 /// shipped set minus one rule each** — and the rule-G attempt is ONE
 /// `SymRules` value, `SymRules::without_canonical_root()`, rule G's two
 /// halves shut with it as every constructor that shuts rule G spells
 /// them.
 #[test]
-fn the_shipped_ladders_masks_are_the_shipped_set_minus_one_rule() {
+fn the_measured_ladders_masks_are_the_shipped_set_minus_one_rule() {
     let s = SymRules::shipped();
     let [g, a] = SymRetry::kept_atom().without;
     let g = s.masked_by(g.unwrap());

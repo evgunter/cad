@@ -1,7 +1,10 @@
 //! **SYM-9's measurement: where the refusals are, and what a retry
 //! recovers** — the two Phase 1 tables of
 //! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s unit,
-//! taken on the six measured documents.
+//! taken at the nominal on five of the six measured documents (R2's
+//! rounded pad does not return a nominal replay on a four-core box:
+//! `work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`;
+//! the leaf instrument in `m10_10_evidence_interval` takes it).
 //!
 //! The instrument is the RETRY LADDER itself (`geom_core::sym::SymRetry`)
 //! at its dials, not a reverted patch, and the reason is what a ladder
@@ -13,10 +16,11 @@
 //! question — it moves the FIRST attempt, which is the non-monotonicity
 //! this unit's item records.
 //!
-//! **One row here GATES** — [`sym_9_the_ladder_recovers_what_it_was_shipped_for`],
-//! which pins what the shipped ladder recovers on the two documents
-//! that gain from it and pins ZERO on the three that do not. It costs
-//! about 160 s and it is `gated_to!` the tier, its dials and those
+//! **One row here GATES** — [`sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`],
+//! which pins what the measured ladder (`SymRetry::kept_atom`) recovers
+//! on the two documents that gain from it and pins ZERO on the three
+//! that do not. It costs about three minutes in a dev build and it is
+//! `gated_to!` the tier, its dials and those
 //! documents' fixture doors, so a change elsewhere does not pay it. The
 //! rest are `#[ignore]`d evidence probes that print and assert nothing
 //! a gate could read ([[test-suite-cost]]). Run one document's evidence:
@@ -30,7 +34,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the ladder and to the documents it is measured on: the tier
-// and its rules, the dial that installs the shipped ladder, and the
+// and its rules, the drive's retry dial, the leaf lane that carries it, and the
 // fixture doors the two documents that gain from it are built through.
 test_utils::gated_to![
     "crates/geom-core/src/sym.rs",
@@ -115,7 +119,7 @@ fn shapes() -> Vec<(&'static str, SymRetry)> {
                 m.canonical_root = false;
             }),
         ),
-        // **The shipped ladder** (`geom_core::SymRetry::kept_atom`),
+        // **The measured ladder** (`geom_core::SymRetry::kept_atom`),
         // and the same two masks in the other order — the order is a
         // cost, paid on every refusal the first mask does not close.
         ("kept_atom_ladder", SymRetry::kept_atom()),
@@ -129,7 +133,7 @@ fn shapes() -> Vec<(&'static str, SymRetry)> {
                 ..SymRetry::kept_atom()
             },
         ),
-        // The shipped ladder with a 512-bit ring attempt behind it.
+        // The measured ladder with a 512-bit ring attempt behind it.
         (
             "kept_atom_then_512",
             SymRetry {
@@ -373,7 +377,7 @@ fn sym_9_what_each_retry_recovers() {
     }
 }
 
-/// **THE LADDER'S PIN**: what `drive::DEFAULT_SYM_RETRY` recovers, per
+/// **THE LADDER'S PIN**: what `SymRetry::kept_atom` recovers, per
 /// document, asserted on both sides — and on R2's link, the two
 /// predicates it recovers, at their rows: `carrier_on_surface_2`
 /// `[82, 0, 6, 20]` → `[92, 0, 6, 10]` (the ten decisions rule G costs,
@@ -394,9 +398,9 @@ fn sym_9_what_each_retry_recovers() {
 /// (`geom_core::SymRetry`). A row here that moved the other way is a
 /// defect in the ladder, not a re-baseline.
 #[test]
-fn sym_9_the_ladder_recovers_what_it_was_shipped_for() {
+fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let tol = Tol::witness();
-    let ladder = editor_core::drive::DEFAULT_SYM_RETRY;
+    let ladder = SymRetry::kept_atom();
     // `(document, the receipt without the ladder, with it, retried)`.
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
         ("two_hole_plate", [811, 0, 140, 462], [811, 0, 140, 462], 0),

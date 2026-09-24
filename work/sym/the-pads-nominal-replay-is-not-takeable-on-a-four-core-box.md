@@ -62,6 +62,31 @@ and R2's filleted bracket is a claim about five documents.
    the measurement belongs in a dispatched run rather than inside a
    lane's turn.
 
+## What the OTHER instrument does take (SYM-9's fix pass, 2026-09-24)
+
+The pad is NOT unmeasurable on this box: the affordability line's own
+instrument, one whole-box leaf at `1e2·ε`
+(`m10_10_leaf_cost_with_and_without_the_algebra`), runs in RELEASE in
+about two minutes a take, and it reads the leaf's receipt. With the
+shipped rules the pad's leaf is `[890, 6, 150, 907]` (A1's pad row, to
+the decision), in 131.3 s at one attempt per rung and 147.7 s with
+`SymRetry::kept_atom`, which recovers nothing there (`retried` 0 with
+either mask alone, either order, and both together). So SYM-9's claim
+about the ladder covers six documents on the leaf and five at the
+nominal, and what is still missing is the NOMINAL replay in dev — the
+instrument Phase 1's rung funnel and per-shape table are taken on.
+
+The pad's leaf itself moved a long way since SYM-8's reading of the
+same instrument (18.8 s at rule F on); the decision read is not why —
+with it shut (`SymRules::without_the_reads`) the leaf is 132.8 s — and
+this row does not say what is.
+
+## Who takes it
+
+No unit does yet. It sits on SYM's slate unscheduled; the next unit that
+needs a claim about the pad at its nominal owes this row first, and a
+unit that states a six-document result owes it before stating it.
+
 ## Home
 
 `crates/editor-core/tests/m10_8_r2_probes_interval.rs` (the `pad`

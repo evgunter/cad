@@ -1,6 +1,9 @@
 //! **The coefficients are arbitrary-precision dyadic-scaled rationals**
 //! ([`Rat`], over `num-bigint`), bounded at [`rational::COEFF_BITS`]
-//! bits. The readings that argued for the bound, none of them pinned
+//! bits on every walk of every first attempt, and at a WIDER bound only
+//! inside a retry attempt that asks for one (`sym::SymRetry::bits`,
+//! scoped by `with_coeff_bound`, which puts the bound back however the
+//! attempt ends). The readings that argued for the bound, none of them pinned
 //! and none of them a claim about today's tree: the i128-era whole-box
 //! replays reported `frozen: 0` on the bracket, because the `Decide`
 //! impl's DECISION PATH never asks the form of a margin the numeric

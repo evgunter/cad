@@ -109,9 +109,9 @@ fn decide_3_no_predicate_loses_a_decision() {
             // from a theorem to an axiom. Both sides here run one attempt
             // per rung (`split_at_the_nominal`, no retry ladder), because
             // this is rule G's trade and a ladder on the `on` side would
-            // read it as recovered. What the shipped retry ladder does
+            // read it as recovered. What the measured retry ladder does
             // about it is pinned where the ladder is:
-            // `sym_9_retry_interval::sym_9_the_ladder_recovers_what_it_was_shipped_for`
+            // `sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`
             // (the ten back, `[92, 0, 6, 10]`; the six still weakened).
             if *name == "r2_link" && *p == "carrier_on_surface_2" {
                 assert_eq!(

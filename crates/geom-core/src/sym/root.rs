@@ -278,7 +278,7 @@ fn sqrt_poly(p: &Poly, sess: &mut Session) -> Option<Form> {
     // above it is unchanged. It is a dial because it is the half of
     // rule G that hands six of R2's link's theorems to the rim
     // registrant's axiom; shut as a RETRY it recovered nothing on the
-    // five documents SYM-9 measured, so no shipped ladder shuts it.
+    // five documents SYM-9 measured, so no measured ladder shuts it.
     let magnitude = sess.rules.canonical_root && sess.rules.root_magnitude;
     let base = match magnitude
         .then(|| signed::poly_sqrt(&primitive, sess.budget))
