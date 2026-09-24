@@ -90,7 +90,7 @@ fn curve3_ring_coords_refuses_a_violated_coefficient_per_channel() {
     .unwrap();
     let coords = c.ring_coords();
     assert!(
-        coords[0][0].is_poison(),
+        !coords[0][0].is_certified(),
         "the violated coefficient crossed as {:?} — the lift read the \
          BRACKET door, so a clamped `sqrt` certifies a composite bound \
          for an expression that was never evaluated",
@@ -116,7 +116,7 @@ fn curve2_ring_coords_refuses_a_violated_coefficient_per_channel() {
     .unwrap();
     let coords = c.ring_coords();
     assert!(
-        coords[1][0].is_poison(),
+        !coords[1][0].is_certified(),
         "the violated coefficient crossed as {:?}",
         coords[1][0]
     );
@@ -144,7 +144,7 @@ fn a_certified_net_crosses_unchanged() {
     .unwrap();
     for ch in c.ring_coords() {
         for r in ch {
-            assert!(!r.is_poison(), "a certified net must cross whole");
+            assert!(r.is_certified(), "a certified net must cross whole");
         }
     }
 }

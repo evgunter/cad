@@ -31,7 +31,7 @@ fn a_trv_scalar_with_real_endpoints_crosses_as_poison_with_its_endpoints() {
     assert!(x.certified_bracket().is_none(), "the fixture is a refusal");
     assert_eq!(x.crossing_bracket(), (0.0, 2.0));
     let r = RingInterval::from_certified(x);
-    assert!(r.is_poison(), "the crossing must refuse: {r:?}");
+    assert!(!r.is_certified(), "the crossing must refuse: {r:?}");
     assert_eq!(
         (r.lo(), r.hi()),
         (0.0, 2.0),
@@ -42,18 +42,18 @@ fn a_trv_scalar_with_real_endpoints_crosses_as_poison_with_its_endpoints() {
 
     // Every guard the spec keeps refuses it by name.
     let ok = ri(1.0, 2.0);
-    assert!(RingInterval::hull(r, ok).is_poison());
-    assert!(RingInterval::hull(ok, r).is_poison());
-    assert!(r.clamped_to(0.5, 1.5).is_poison());
+    assert!(!RingInterval::hull(r, ok).is_certified());
+    assert!(!RingInterval::hull(ok, r).is_certified());
+    assert!(!r.clamped_to(0.5, 1.5).is_certified());
     assert!(
-        r.clamped_to(-10.0, 10.0).is_poison(),
+        !r.clamped_to(-10.0, 10.0).is_certified(),
         "a window that changes nothing still refuses"
     );
     assert!(!r.contains(1.0));
     assert!(r.width().is_nan());
     assert!(r.mag().is_nan());
-    assert!(r.powi(0).is_poison(), "x^0 of a refusal is a refusal");
-    assert!(r.powi(2).is_poison() && r.sqr().is_poison() && (-r).is_poison());
+    assert!(!r.powi(0).is_certified(), "x^0 of a refusal is a refusal");
+    assert!(!r.powi(2).is_certified() && !r.sqr().is_certified() && !(-r).is_certified());
     for y in [
         r + ok,
         ok + r,
@@ -64,22 +64,22 @@ fn a_trv_scalar_with_real_endpoints_crosses_as_poison_with_its_endpoints() {
         r / ok,
         ok / r,
     ] {
-        assert!(y.is_poison(), "{y:?}");
+        assert!(!y.is_certified(), "{y:?}");
     }
     // A ring crossing into a ring keeps the endpoints and the refusal.
     let rr = RingInterval::from_certified(r);
-    assert!(rr.is_poison() && (rr.lo(), rr.hi()) == (0.0, 2.0), "{rr:?}");
+    assert!(!rr.is_certified() && (rr.lo(), rr.hi()) == (0.0, 2.0), "{rr:?}");
     // The empty set and NaI cross as NaN-endpoint poison.
     let e = RingInterval::from_certified(
         Interval::from_bounds(1.0, 2.0) / Interval::from_bounds(0.0, 0.0),
     );
-    assert!(e.is_poison() && e.lo().is_nan());
+    assert!(!e.is_certified() && e.lo().is_nan());
     // A certified scalar crosses clean, and its infinite side stays a bound.
     let c = RingInterval::from_certified(Interval::from_bounds(1.0, f64::INFINITY));
-    assert!(!c.is_poison() && c.hi().is_infinite(), "{c:?}");
+    assert!(c.is_certified() && c.hi().is_infinite(), "{c:?}");
     // A certified f64 at +inf is not a real: poison (the merge base's answer too).
-    assert!(RingInterval::from_certified(f64::INFINITY).is_poison());
-    assert!(!RingInterval::from_certified(2.5f64).is_poison());
+    assert!(!RingInterval::from_certified(f64::INFINITY).is_certified());
+    assert!(RingInterval::from_certified(2.5f64).is_certified());
 }
 
 // ------------------------------------------------ 2. the hazard
@@ -87,7 +87,7 @@ fn a_trv_scalar_with_real_endpoints_crosses_as_poison_with_its_endpoints() {
 #[test]
 fn a_refused_quotient_answers_true_to_the_unguarded_comparison() {
     let q = ri(-2.0, -1.0) / ri(0.0, 5e-324);
-    assert!(q.is_poison());
+    assert!(!q.is_certified());
     // The consumer spelling the register lists at 20 sites: TRUE on a
     // value that refuses. This is what every `is_poison()`-first
     // rewrite exists for.
@@ -96,13 +96,13 @@ fn a_refused_quotient_answers_true_to_the_unguarded_comparison() {
     // `f64::max(lo, 0.0)` no longer absorbs it either.
     let p = ri(1.0, 2.0) / ri(0.0, 5e-324);
     assert!(
-        p.is_poison() && p.lo().max(0.0) > 0.0 && p.lo().is_finite(),
+        !p.is_certified() && p.lo().max(0.0) > 0.0 && p.lo().is_finite(),
         "{p:?}"
     );
     // A finite two-sided refusal: the midpoint hazard.
     let f = (ri(-2.0, -1.0) / ri(-1.0, 1.0)) * RingInterval::zero();
     assert!(
-        f.is_poison() && ((f.lo() + f.hi()) * 0.5).is_finite(),
+        !f.is_certified() && ((f.lo() + f.hi()) * 0.5).is_finite(),
         "{f:?}"
     );
 }
@@ -299,7 +299,7 @@ struct Count {
 }
 
 fn classify(c: &mut Count, new: RingInterval, o: Old, a: (f64, f64), b: (f64, f64)) {
-    match (new.is_poison(), o.is_poison()) {
+    match (!new.is_certified(), o.is_poison()) {
         (true, true) => c.both_poison += 1,
         (true, false) | (false, true) => c.verdict_differs += 1,
         (false, false) => {

@@ -526,7 +526,7 @@ mod tests {
             let refined = net.refine_u(&plans);
             assert_eq!((refined.nu(), refined.nv()), (n_new, 2));
             assert!(
-                refined.as_flat().iter().all(|r| r.is_poison()),
+                refined.as_flat().iter().all(|r| !r.is_certified()),
                 "a {extent}-coefficient line refined by a 3-coefficient schedule answered \
                  a finite slot — a hull over coefficients that are not this net's"
             );
@@ -535,7 +535,7 @@ mod tests {
         let net = TensorNet::from_fn(2, 5, |_, j| pt(f64::from(u32::try_from(j).unwrap())));
         let refined = net.refine_v(&plans);
         assert_eq!((refined.nu(), refined.nv()), (2, n_new));
-        assert!(refined.as_flat().iter().all(|r| r.is_poison()));
+        assert!(refined.as_flat().iter().all(|r| !r.is_certified()));
     }
 
     /// The two constructors agree, and the layout is `u`-major.
@@ -558,9 +558,9 @@ mod tests {
     #[test]
     fn a_bad_shape_poisons() {
         let n = TensorNet::from_flat(2, 3, vec![pt(1.0)]);
-        assert!(n.hull().is_poison());
+        assert!(!n.hull().is_certified());
         let ragged = TensorNet::from_rows(&[vec![pt(1.0)], vec![pt(1.0), pt(2.0)]]);
-        assert!(ragged.hull().is_poison());
+        assert!(!ragged.hull().is_certified());
     }
 
     /// Differencing a bilinear net along each direction, against the
@@ -598,10 +598,10 @@ mod tests {
         let right = |_: &[RingInterval]| vec![pt(9.0), pt(8.0)];
         for bad in [n.diff_u(nothing), n.diff_u(short), n.diff_u(long)] {
             assert_eq!((bad.nu(), bad.nv()), (2, 1));
-            assert!(bad.get(0, 0).is_poison() && bad.get(1, 0).is_poison());
+            assert!(!bad.get(0, 0).is_certified() && !bad.get(1, 0).is_certified());
         }
         let ok = n.diff_u(right);
-        assert!(!ok.get(0, 0).is_poison() && ok.get(0, 0).lo() == 9.0);
+        assert!(ok.get(0, 0).is_certified() && ok.get(0, 0).lo() == 9.0);
     }
 
     /// The window hull is the hull of exactly the window, and the
@@ -613,6 +613,6 @@ mod tests {
         assert_eq!((h.lo(), h.hi()), (1.0, 1.0));
         let all = n.hull();
         assert_eq!((all.lo(), all.hi()), (-4.0, 3.0));
-        assert!(n.window_hull(&(0..=2), &(0..=0)).is_poison());
+        assert!(!n.window_hull(&(0..=2), &(0..=0)).is_certified());
     }
 }

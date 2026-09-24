@@ -203,7 +203,7 @@ fn the_ring_door_refuses_exactly_its_poison() {
         let ok = door_certifies(&tag, r);
         assert_eq!(
             ok,
-            !r.is_poison(),
+            r.is_certified(),
             "{tag} = {r:?}: the ring door and `is_poison` disagree"
         );
         if ok {
@@ -246,7 +246,7 @@ fn ring_poison_is_reached_by_arithmetic_not_only_by_construction() {
         ),
     ];
     for (tag, r) in derived {
-        assert!(r.is_poison(), "{tag} was expected to poison, got {r:?}");
+        assert!(!r.is_certified(), "{tag} was expected to poison, got {r:?}");
         assert!(
             r.certified_bracket().is_none(),
             "{tag}: arithmetic poison certified"
@@ -297,13 +297,13 @@ fn a_backend_refusal_can_carry_real_endpoints() {
     // the brackets above and `is_poison` becomes the only thing that
     // says no.
     assert!(
-        (RingInterval::from_bounds(-2.0, -1.0) / RingInterval::from_bounds(0.0, 5e-324))
-            .is_poison()
+        !(RingInterval::from_bounds(-2.0, -1.0) / RingInterval::from_bounds(0.0, 5e-324))
+            .is_certified()
     );
     assert!(
-        ((RingInterval::from_bounds(-2.0, -1.0) / RingInterval::from_bounds(-1.0, 1.0))
+        !((RingInterval::from_bounds(-2.0, -1.0) / RingInterval::from_bounds(-1.0, 1.0))
             * RingInterval::from_bounds(0.0, 0.0))
-        .is_poison()
+        .is_certified()
     );
 }
 
@@ -322,13 +322,13 @@ fn every_refused_ring_crosses_as_poison() {
         let crossed = RingInterval::from_certified(r);
         if r.certified_bracket().is_none() {
             assert!(
-                crossed.is_poison(),
+                !crossed.is_certified(),
                 "{tag}: a refused operand crossed as {crossed:?}"
             );
             refused += 1;
         } else {
             assert!(
-                !crossed.is_poison(),
+                crossed.is_certified(),
                 "{tag}: a CERTIFIED operand crossed as poison. The ring \
                  cannot hold a closed side at infinity, so nothing it \
                  certifies may be rejected by `from_bounds`."
@@ -355,7 +355,7 @@ fn the_f64_crossing_admits_exactly_the_finite() {
     for (tag, x) in f64_corpus() {
         let r = RingInterval::from_certified(x);
         assert_eq!(
-            !r.is_poison(),
+            r.is_certified(),
             x.is_finite(),
             "{tag} = {x} crossed as {r:?}"
         );

@@ -165,7 +165,7 @@ fn enclosures_contain_every_sampled_residual_hence_exclusion_cannot_lie() {
         let es = sph_enclosure(*center, *radius, b);
         let ec = cyl_enclosure_good(*origin, *axis, *cr, b);
         assert!(
-            !es.is_poison() && !ec.is_poison(),
+            es.is_certified() && ec.is_certified(),
             "enclosure poisoned on box centre {c:?} — {}",
             fuzz::replay()
         );

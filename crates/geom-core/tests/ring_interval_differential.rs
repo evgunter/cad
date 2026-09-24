@@ -427,11 +427,11 @@ impl Tally {
     fn verdict(&mut self, op: Op, a: Ends, b: Ends, ring: RingInterval, oracle_refuses: bool) {
         self.verdicts[op.slot()] += 1;
         assert_eq!(
-            ring.is_poison(),
+            !ring.is_certified(),
             oracle_refuses,
             "{op}: ring {} but backend {} on a = {a}{} — the ring's poison IS the backend's \
              decoration, so this operation is no longer forwarding — {}",
-            if ring.is_poison() {
+            if !ring.is_certified() {
                 "poisons"
             } else {
                 "certifies"
@@ -469,7 +469,7 @@ impl Tally {
     /// forwarding that flipped it would be a change to the value the
     /// ring hands its consumers.
     fn check_ends(&mut self, r: RingInterval, olo: f64, ohi: f64, what: &str) {
-        if r.is_poison() || olo.is_nan() || ohi.is_nan() {
+        if !r.is_certified() || olo.is_nan() || ohi.is_nan() {
             self.skipped += 1;
             return;
         }
@@ -715,7 +715,7 @@ fn the_subnormal_and_overflow_corners_are_where_the_newtype_gives_width_back() {
     let tiny = RingInterval::from_bounds(t, t);
 
     let product = tiny * tiny;
-    assert!(!product.is_poison(), "{product:?}");
+    assert!(product.is_certified(), "{product:?}");
     assert_eq!(
         (product.lo(), product.hi()),
         (-5e-324, 5e-324),
@@ -724,7 +724,7 @@ fn the_subnormal_and_overflow_corners_are_where_the_newtype_gives_width_back() {
     );
 
     for (what, got) in [("sqr", tiny.sqr()), ("powi(4)", tiny.powi(4))] {
-        assert!(!got.is_poison(), "{what}: {got:?}");
+        assert!(got.is_certified(), "{what}: {got:?}");
         assert_eq!(
             (got.lo(), got.hi()),
             (0.0, 1e-323),
@@ -734,7 +734,7 @@ fn the_subnormal_and_overflow_corners_are_where_the_newtype_gives_width_back() {
     }
 
     let recip = RingInterval::from_bounds(t, 1e-160).powi(-1);
-    assert!(!recip.is_poison(), "{recip:?}");
+    assert!(recip.is_certified(), "{recip:?}");
     assert_eq!(
         (recip.lo(), recip.hi()),
         (9.999_999_999_999_999e159, 4.494_232_837_155_792e307),

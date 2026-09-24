@@ -287,7 +287,7 @@ fn nurbs_chord_count(
         // `is_finite` test below reads as "unbounded/poisoned", and
         // the refusal is asked by name because the ring carries it in
         // the decoration rather than in the endpoints.
-        if sum_sq.is_poison() {
+        if !sum_sq.is_certified() {
             f64::NAN
         } else {
             sum_sq.hi().sqrt().next_up()
@@ -505,7 +505,7 @@ fn rational_carrier_m_bound(
     }
     // Same contract, same reason: a refused hull answers `NaN`.
     Ok(sq_acc.map_or(f64::NAN, |s| {
-        if s.is_poison() {
+        if !s.is_certified() {
             f64::NAN
         } else {
             s.hi().sqrt().next_up()

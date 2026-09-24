@@ -96,7 +96,7 @@ fn near_collapse_weights_never_escape_the_hull() {
             };
             let domain = pair.domain_hull_rational();
             assert!(
-                !domain.is_poison(),
+                domain.is_certified(),
                 "positive weights must not poison — {}",
                 fuzz::replay()
             );
@@ -182,7 +182,7 @@ fn derivative_coefficients_are_exact_by_i128_cross_multiplication() {
                 .collect();
             for (i, q) in qs.iter().enumerate() {
                 assert!(
-                    !q.is_poison(),
+                    q.is_certified(),
                     "degree {degree}, i {i}: poisoned — {}",
                     fuzz::replay()
                 );

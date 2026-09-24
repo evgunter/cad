@@ -267,7 +267,7 @@ fn certified_sign(num: &Poly, den: &Poly, params: &IndetMap<(f64, f64)>) -> Opti
     let n = enclose(num, params)?;
     let d = enclose(den, params)?;
     let sign = |r: RingInterval| -> Option<bool> {
-        if r.is_poison() {
+        if !r.is_certified() {
             None
         } else if r.lo() > 0.0 {
             Some(true)
@@ -422,6 +422,6 @@ mod tests {
         let c = Rat::new(1, 3, 0).unwrap();
         let e = rat_enclosure(&c);
         assert!(e.lo() < 1.0 / 3.0 && e.hi() > 1.0 / 3.0);
-        assert!(rat_enclosure(&Rat::new(1, 1, 2000).unwrap()).is_poison());
+        assert!(!rat_enclosure(&Rat::new(1, 1, 2000).unwrap()).is_certified());
     }
 }

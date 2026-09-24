@@ -262,7 +262,7 @@ impl core::error::Error for MeterError {}
 /// arithmetic reason. One spelling would have to pick one of the two
 /// docs, and the shared body is four comparisons.
 pub fn mig(i: RingInterval) -> f64 {
-    if i.is_poison() {
+    if !i.is_certified() {
         return 0.0;
     }
     if i.lo() > 0.0 {
@@ -328,7 +328,7 @@ pub(crate) fn norm_sq(v: &[RingInterval; 3]) -> RingInterval {
 /// nothing behind it.
 pub(crate) fn norm_sup(v: &[RingInterval; 3]) -> f64 {
     let sq = norm_sq(v);
-    if sq.is_poison() {
+    if !sq.is_certified() {
         return f64::NAN;
     }
     sqrt_up(sq.hi())
@@ -367,7 +367,7 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // A refused enclosure separates nothing from zero, and `0.0` is
     // the floor's conservative answer — asked by name, because a
     // refusal here carries real endpoints.
-    let a = if sq.is_poison() {
+    let a = if !sq.is_certified() {
         0.0
     } else {
         sqrt_down(sq.lo())
@@ -395,7 +395,7 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
         // used to absorb a poisoned quotient, and a refused quotient
         // now carries real endpoints instead.
         let q = proj / RingInterval::point(dn);
-        if q.is_poison() { 0.0 } else { q.lo().max(0.0) }
+        if !q.is_certified() { 0.0 } else { q.lo().max(0.0) }
     } else {
         0.0
     };
@@ -408,7 +408,7 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
     // the sphere-band fixture it is the assembly that moves the
     // certified curvature range from tens to fractions.
     let gram = norm_sq(&cell.s_u) * norm_sq(&cell.s_v) - dot(&cell.s_u, &cell.s_v).sqr();
-    let (c, gram_sup) = if gram.is_poison() {
+    let (c, gram_sup) = if !gram.is_certified() {
         (0.0, f64::NAN)
     } else {
         (sqrt_down(gram.lo()), sqrt_up(gram.hi()))
@@ -643,7 +643,7 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     // would pass on one. Worse, the joins below are `f64::min`/`max`,
     // which DROP a NaN operand — so one assembly's refusal would be
     // covered by the other assembly's number.
-    if h.is_poison() || k.is_poison() {
+    if !h.is_certified() || !k.is_certified() {
         return None;
     }
     // `H² − K` is nonnegative at every real point (the principal
@@ -662,7 +662,7 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     let w22 = (e * nn - f * m) / a;
     // The same refusal, for the same reason, over Gershgorin's four
     // entries.
-    if w11.is_poison() || w12.is_poison() || w21.is_poison() || w22.is_poison() {
+    if !w11.is_certified() || !w12.is_certified() || !w21.is_certified() || !w22.is_certified() {
         return None;
     }
     let b_hi = (w11.hi() + w12.mag()).max(w22.hi() + w21.mag());

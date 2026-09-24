@@ -19,18 +19,18 @@ fn the_mignitude_refuses_a_zero_touching_quotient_by_name() {
     // A refused quotient whose every endpoint would pass the
     // comparison `mig` writes.
     let q = ri(1.0, 2.0) / ri(0.0, 5e-324);
-    assert!(q.is_poison(), "{q:?}");
+    assert!(!q.is_certified(), "{q:?}");
     assert!(
         q.lo() > 0.0,
         "the hazard: an unguarded `lo() > 0` is TRUE here ({q:?})"
     );
     assert_eq!(mig(q), 0.0, "the mignitude must answer the refusing 0");
     let n = ri(-2.0, -1.0) / ri(0.0, 5e-324);
-    assert!(n.is_poison() && n.hi() < 0.0, "{n:?}");
+    assert!(!n.is_certified() && n.hi() < 0.0, "{n:?}");
     assert_eq!(mig(n), 0.0);
     // And the finite two-sided refusal, through a multiply.
     let f = (ri(1.0, 2.0) / ri(-1.0, 1.0)) * RingInterval::zero();
-    assert!(f.is_poison(), "{f:?}");
+    assert!(!f.is_certified(), "{f:?}");
     assert_eq!(mig(f), 0.0);
     // A clean enclosure still reads its mignitude.
     assert_eq!(mig(ri(2.0, 3.0)), 2.0);

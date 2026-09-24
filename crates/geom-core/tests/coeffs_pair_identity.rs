@@ -133,7 +133,7 @@ fn the_minimal_degree_one_pair_has_one_derivative_coefficient() {
             1,
             "a refused mint answers one poison entry, never zero"
         );
-        assert!(short[0].is_poison());
+        assert!(!short[0].is_certified());
     }
 }
 

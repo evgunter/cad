@@ -244,7 +244,7 @@ fn cmp_f64_vs_quot(x: f64, a: f64, b: f64) -> Ordering {
 /// Asserts `[r.lo(), r.hi()]` brackets the exact value `v`.
 fn assert_brackets(r: RingInterval, v: &Big, what: &str) {
     assert!(
-        !r.is_poison(),
+        r.is_certified(),
         "{what}: unexpected poison — {}",
         fuzz::replay()
     );
@@ -294,14 +294,14 @@ fn check_point_ops(a: f64, b: f64) {
     let quo = pa / pb;
     if b == 0.0 {
         assert!(
-            quo.is_poison(),
+            !quo.is_certified(),
             "division by zero must poison — {}",
             fuzz::replay()
         );
         return;
     }
     assert!(
-        !quo.is_poison(),
+        quo.is_certified(),
         "{a:e} / {b:e}: unexpected poison — {}",
         fuzz::replay()
     );
@@ -353,7 +353,7 @@ fn check_interval_ops(a0: f64, a1: f64, b0: f64, b1: f64) {
             assert_brackets(pro, &big_prod(x, y), "interval mul");
             if blo > 0.0 || bhi < 0.0 {
                 assert!(
-                    !quo.is_poison(),
+                    quo.is_certified(),
                     "interval div: unexpected poison — {}",
                     fuzz::replay()
                 );
@@ -369,7 +369,7 @@ fn check_interval_ops(a0: f64, a1: f64, b0: f64, b1: f64) {
                 );
             } else {
                 assert!(
-                    quo.is_poison(),
+                    !quo.is_certified(),
                     "zero-straddling divisor must poison — {}",
                     fuzz::replay()
                 );
@@ -542,7 +542,7 @@ fn check_powi(v: f64, neg: bool, m: u128, e: i32, n: i32) {
     // n < 0: truth is 1 / (±mp·2^(e·k)). Compare a bound x against it by
     // cross-multiplication with the (nonzero, sign-known) denominator.
     assert!(
-        !r.is_poison(),
+        r.is_certified(),
         "{v:e}^{n}: unexpected poison — {}",
         fuzz::replay()
     );
@@ -598,7 +598,7 @@ fn powi_is_sound_against_exact_arithmetic() {
         let x = RingInterval::from_bounds(lo, hi);
         for n in [2i32, 4, 6, 8, 10] {
             let p = x.powi(n);
-            if p.is_poison() {
+            if !p.is_certified() {
                 continue; // overflow to an indeterminate corner: honest
             }
             assert!(
@@ -623,24 +623,24 @@ fn poison_paths_are_total() {
         // Non-finite points are poison, and poison flows.
         if !a.is_finite() {
             let p = RingInterval::point(a);
-            assert!(p.is_poison(), "{}", fuzz::replay());
+            assert!(!p.is_certified(), "{}", fuzz::replay());
             let q = RingInterval::point(if b.is_finite() { b } else { 1.0 });
             for r in [p + q, q + p, p - q, p * q, p / q, q / p, -p, p.sqr()] {
-                assert!(r.is_poison(), "poison must flow — {}", fuzz::replay());
+                assert!(!r.is_certified(), "poison must flow — {}", fuzz::replay());
             }
             n += 1;
         }
         // Inverted or NaN brackets are poison.
         if a.is_finite() && b.is_finite() && a > b {
             assert!(
-                RingInterval::from_bounds(a, b).is_poison(),
+                !RingInterval::from_bounds(a, b).is_certified(),
                 "inverted bracket must poison — {}",
                 fuzz::replay()
             );
             n += 1;
         }
         assert!(
-            RingInterval::from_bounds(f64::NAN, b).is_poison(),
+            !RingInterval::from_bounds(f64::NAN, b).is_certified(),
             "NaN bracket must poison — {}",
             fuzz::replay()
         );
@@ -650,7 +650,7 @@ fn poison_paths_are_total() {
             if lo <= 0.0 && hi >= 0.0 {
                 let d = RingInterval::from_bounds(lo, hi);
                 assert!(
-                    (RingInterval::point(1.0) / d).is_poison(),
+                    !(RingInterval::point(1.0) / d).is_certified(),
                     "divisor [{lo:e}, {hi:e}] touches zero and must poison — {}",
                     fuzz::replay()
                 );

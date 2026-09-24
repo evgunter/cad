@@ -160,7 +160,7 @@ impl Box3 {
     /// disjoint (poison excludes nothing).
     pub(crate) fn definitely_disjoint(self, o: Self) -> bool {
         let sep = |a: RingInterval, b: RingInterval| {
-            !a.is_poison() && !b.is_poison() && (a.hi() < b.lo() || b.hi() < a.lo())
+            a.is_certified() && b.is_certified() && (a.hi() < b.lo() || b.hi() < a.lo())
         };
         sep(self.x, o.x) || sep(self.y, o.y) || sep(self.z, o.z)
     }
@@ -169,7 +169,7 @@ impl Box3 {
     /// Poison contains nothing and is contained in nothing.
     pub(crate) fn contained_in(self, o: Self) -> bool {
         let inside = |a: RingInterval, b: RingInterval| {
-            !a.is_poison() && !b.is_poison() && b.lo() <= a.lo() && a.hi() <= b.hi()
+            a.is_certified() && b.is_certified() && b.lo() <= a.lo() && a.hi() <= b.hi()
         };
         inside(self.x, o.x) && inside(self.y, o.y) && inside(self.z, o.z)
     }
@@ -188,7 +188,7 @@ impl Box3 {
     /// ordinary endpoints.
     pub(crate) fn center(self) -> Point3<f64> {
         let mid = |i: RingInterval| {
-            if i.is_poison() {
+            if !i.is_certified() {
                 f64::NAN
             } else {
                 0.5 * (i.lo() + i.hi())
@@ -207,7 +207,7 @@ impl Box3 {
         // refusal away — which is what the certified door exists to
         // prevent.
         let half = |i: RingInterval| {
-            if i.is_poison() {
+            if !i.is_certified() {
                 return (RingInterval::poison(), RingInterval::poison());
             }
             let m = 0.5 * (i.lo() + i.hi());
@@ -836,7 +836,7 @@ mod tests {
         for along_u in [true, false] {
             let d = boxes.deriv_box(u0, u1, v0, v1, along_u);
             assert!(
-                !d.x.is_poison() && !d.y.is_poison() && !d.z.is_poison(),
+                d.x.is_certified() && d.y.is_certified() && d.z.is_certified(),
                 "deriv box (along_u = {along_u}) poisoned across the empty cell"
             );
         }
@@ -851,7 +851,7 @@ mod tests {
         };
         for s in [sphere(), cylinder()] {
             let e = implicit_enclosure(&s, b);
-            assert!(!e.is_poison());
+            assert!(e.is_certified());
             for i in 0..5 {
                 for j in 0..5 {
                     for k in 0..5 {
@@ -891,7 +891,7 @@ mod tests {
         let b = Box3::around(Point3::new(1.1, 0.0, 0.5), 0.02);
         let e = Vec3::new(0.0, 1.0, 0.0);
         let m = graph_margin(&sphere(), &cylinder(), b, e);
-        assert!(!m.is_poison());
+        assert!(m.is_certified());
         assert!(
             m.lo() > 0.0 || m.hi() < 0.0,
             "expected a zero-free margin, got [{}, {}]",
@@ -910,9 +910,9 @@ mod tests {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         };
         let b = Box3::around(Point3::new(1.0, 0.0, 0.0), 0.1);
-        assert!(implicit_enclosure(&torus, b).is_poison());
-        assert!(implicit_gradient_enclosure(&torus, b)[0].is_poison());
-        assert!(graph_margin(&torus, &sphere(), b, Vec3::new(1.0, 0.0, 0.0)).is_poison());
+        assert!(!implicit_enclosure(&torus, b).is_certified());
+        assert!(!implicit_gradient_enclosure(&torus, b)[0].is_certified());
+        assert!(!graph_margin(&torus, &sphere(), b, Vec3::new(1.0, 0.0, 0.0)).is_certified());
     }
 
     #[test]
@@ -958,7 +958,7 @@ mod tests {
         let origin = Point3::new(0.0, 0.0, 0.0);
         let nan_pad = Box3::around(origin, f64::NAN);
         assert!(
-            nan_pad.x.is_poison() && nan_pad.y.is_poison() && nan_pad.z.is_poison(),
+            !nan_pad.x.is_certified() && !nan_pad.y.is_certified() && !nan_pad.z.is_certified(),
             "a NaN radius padded to {:?}",
             nan_pad.x
         );
@@ -970,14 +970,14 @@ mod tests {
         );
 
         let bad_centre = Box3::around(Point3::new(f64::NAN, 0.0, 0.0), 0.5);
-        assert!(bad_centre.x.is_poison(), "a NaN centre built a box");
+        assert!(!bad_centre.x.is_certified(), "a NaN centre built a box");
         assert!(
-            !bad_centre.y.is_poison(),
+            bad_centre.y.is_certified(),
             "the healthy coordinates must still build: poison is per-axis here"
         );
         let good = Box3::around(origin, 0.5);
         assert!(
-            !good.x.is_poison() && good.x.contains(-0.5) && good.x.contains(0.5),
+            good.x.is_certified() && good.x.contains(-0.5) && good.x.contains(0.5),
             "the healthy pad must still build, or the row proves nothing: {:?}",
             good.x
         );
@@ -1069,7 +1069,7 @@ mod tests {
                     let c = operand(a);
                     let e = cross(c);
                     assert_eq!(
-                        e.is_poison(),
+                        !e.is_certified(),
                         !c.is_certified(),
                         "{name}: sqrt([{a}, 4]) is {} but crossed as {e:?}",
                         if c.is_certified() {
@@ -1107,7 +1107,7 @@ mod tests {
             for (name, cross) in crossings() {
                 let e = cross(c);
                 assert!(
-                    e.is_poison(),
+                    !e.is_certified(),
                     "{name} consumed the BRACKET answer {bracket:?} and produced \
                      {e:?}. It is reading `Bounds`, not `CertifiedEnclosure` — the \
                      crossing's bound must require the certified door."
@@ -1123,9 +1123,9 @@ mod tests {
         fn a_violated_radius_poisons_the_pad() {
             let c = Point3::new(h(0.0), h(0.0), h(0.0));
             let bad = Box3::around(c, operand(-1.0));
-            assert!(bad.x.is_poison() && bad.y.is_poison() && bad.z.is_poison());
+            assert!(!bad.x.is_certified() && !bad.y.is_certified() && !bad.z.is_certified());
             let good = Box3::around(c, operand(1.0));
-            assert!(!good.x.is_poison(), "the healthy half must still build");
+            assert!(good.x.is_certified(), "the healthy half must still build");
         }
     }
 }

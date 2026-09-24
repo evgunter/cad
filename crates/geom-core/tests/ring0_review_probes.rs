@@ -68,7 +68,7 @@ fn division_touching_zero_refuses_on_both_sides() {
     for (name, (alo, ahi), (blo, bhi)) in cases {
         let r = ri(alo, ahi) / ri(blo, bhi);
         let d = di(alo, ahi) / di(blo, bhi);
-        assert!(r.is_poison(), "{name}: the quotient should refuse");
+        assert!(!r.is_certified(), "{name}: the quotient should refuse");
         assert!(d_refuses(d), "{name}: backend should refuse, got {d:?}");
         if blo == 0.0 && bhi == 0.0 {
             assert!(d.is_empty(), "{name}: the [0,0] divisor is the empty set");
@@ -83,13 +83,13 @@ fn division_touching_zero_refuses_on_both_sides() {
     // The divisor that is exactly one subnormal away from zero is
     // proven one-signed, and certifies.
     let r = ri(1.0, 2.0) / ri(5e-324, 1.0);
-    assert!(!r.is_poison() && r.hi().is_infinite());
+    assert!(r.is_certified() && r.hi().is_infinite());
     // Unbounded over unbounded is NOT a refusal: the `inf / inf` corner
     // is dropped by the backend's min/max fold, which leaves a sound
     // bracket built from the remaining corners at `Dac`.
     let r = ri(1.0, INF) / ri(1.0, INF);
     let d = di(1.0, INF) / di(1.0, INF);
-    assert!(!r.is_poison() && !d_refuses(d), "{d:?}");
+    assert!(r.is_certified() && !d_refuses(d), "{d:?}");
     assert_eq!(d.decoration(), Decoration::Dac);
 }
 
@@ -124,17 +124,17 @@ fn division_touching_zero_refuses_at_the_interval_scalar() {
 /// executed.
 #[test]
 fn point_at_infinity_and_inf_minus_inf_are_agreements() {
-    assert!(RingInterval::point(INF).is_poison());
+    assert!(!RingInterval::point(INF).is_certified());
     assert!(DInterval::point(INF).is_nai());
-    assert!(RingInterval::point(NINF).is_poison() && DInterval::point(NINF).is_nai());
+    assert!(!RingInterval::point(NINF).is_certified() && DInterval::point(NINF).is_nai());
     // Both constructors refuse a closed side at infinity, so inf - inf
     // cannot form: [-inf, 1] - [-inf, 1] is [-inf, +inf].
     let r = ri(NINF, 1.0) - ri(NINF, 1.0);
     let d = di(NINF, 1.0) - di(NINF, 1.0);
-    assert!(!r.is_poison() && !d_refuses(d));
+    assert!(r.is_certified() && !d_refuses(d));
     assert_eq!((r.lo(), r.hi()), (NINF, INF));
     assert_eq!((d.lo(), d.hi()), (NINF, INF));
-    assert!(ri(INF, INF).is_poison() && di(INF, INF).is_nai());
+    assert!(!ri(INF, INF).is_certified() && di(INF, INF).is_nai());
 }
 
 /// Overflow saturates to `±inf` and is honest about the unbounded
@@ -144,7 +144,7 @@ fn point_at_infinity_and_inf_minus_inf_are_agreements() {
 fn overflow_agrees_on_every_ring_op_including_powi() {
     let r = ri(1e300, 1e300) * ri(1e300, 1e300);
     let d = di(1e300, 1e300) * di(1e300, 1e300);
-    assert!(!r.is_poison() && !d_refuses(d));
+    assert!(r.is_certified() && !d_refuses(d));
     assert!(r.hi().is_infinite() && d.hi().is_infinite());
     assert_eq!(d.decoration(), Decoration::Dac);
     // An overflow INSIDE a `powi` chain pairs a zero endpoint with an
@@ -154,7 +154,7 @@ fn overflow_agrees_on_every_ring_op_including_powi() {
     // bracket.
     let r = ri(-f64::MAX, -0.0).powi(3);
     let d = di(-f64::MAX, -0.0).powi(3);
-    assert!(!r.is_poison() && !d_refuses(d), "{d:?}");
+    assert!(r.is_certified() && !d_refuses(d), "{d:?}");
     assert_eq!((r.lo(), r.hi()), (NINF, 0.0));
 }
 
@@ -184,20 +184,20 @@ fn a_negative_power_can_refuse_where_the_division_by_hand_does_not() {
 
     let r = ri(a.0, a.1).powi(-1);
     let d = di(a.0, a.1).powi(-1);
-    assert!(r.is_poison() && d_refuses(d));
+    assert!(!r.is_certified() && d_refuses(d));
     assert_eq!(d.decoration(), Decoration::Trv);
     // And it carries real endpoints, which is the hazard shape.
     assert!(!r.lo().is_nan() && !r.hi().is_nan(), "{r:?}");
 
     // The same reciprocal spelled as a division certifies.
     let by_hand = RingInterval::point(1.0) / ri(a.0, a.1);
-    assert!(!by_hand.is_poison(), "{by_hand:?}");
+    assert!(by_hand.is_certified(), "{by_hand:?}");
     assert!(!d_refuses(DInterval::point(1.0) / di(a.0, a.1)));
 
     // One squaring in, the same story: a base whose square lands in the
     // deep subnormal range refuses at `n = -2`.
     let b = (3.045_808_901_121_822e-162, 2.994_982_710_385_136_5e-31);
-    assert!(ri(b.0, b.1).powi(-2).is_poison());
+    assert!(!ri(b.0, b.1).powi(-2).is_certified());
 }
 
 // ------------------------- the corners where the ring's answer moved
@@ -212,9 +212,9 @@ fn the_characterised_corners_the_swap_moved() {
     // propagated — `mul_lo`/`mul_hi` answer `0` for a zero operand and
     // the min/max fold drops nothing. The product certifies.
     let r = ri(0.0, 1.0) * ri(0.0, INF);
-    assert!(!r.is_poison() && (r.lo(), r.hi()) == (0.0, INF), "{r:?}");
+    assert!(r.is_certified() && (r.lo(), r.hi()) == (0.0, INF), "{r:?}");
     // `[1,2] / [0,0]` still refuses: it is the empty set.
-    assert!((ri(1.0, 2.0) / RingInterval::point(0.0)).is_poison());
+    assert!(!(ri(1.0, 2.0) / RingInterval::point(0.0)).is_certified());
 
     // (2) THE SIGN CLAMP IS GONE. A product of two opposite-signed
     // subnormals has no exactness witness below the 2Prod floor, so the
@@ -226,7 +226,7 @@ fn the_characterised_corners_the_swap_moved() {
     let (a, b) = (2.2250738585072014e-308, -1.8669573922462645e-308);
     let p = RingInterval::point(a) * RingInterval::point(b);
     assert_eq!(p.hi(), 5e-324);
-    assert!(!p.is_poison());
+    assert!(p.is_certified());
     // The same-sign `lo` arm moves the same way.
     let c = 1.902e-308;
     assert_eq!(
@@ -251,14 +251,14 @@ fn the_characterised_corners_the_swap_moved() {
     // (4) The zero annihilator is not a rule any more, and it does not
     // need to be: the backend resolves the same corner.
     let r = ri(0.0, 0.0) * ri(NINF, INF);
-    assert!(!r.is_poison() && (r.lo(), r.hi()) == (0.0, 0.0));
+    assert!(r.is_certified() && (r.lo(), r.hi()) == (0.0, 0.0));
 
     // (5) Production-shaped weight hulls under `powi(3)`, the shape
     // `props/quad.rs` runs: every one of them certifies, including the
     // one whose chain reaches both zero and infinity.
     for (lo, hi) in [(0.5, 2.0), (0.0, 1.0), (1e-200, 1e200), (0.0, INF)] {
         assert!(
-            !ri(lo, hi).powi(3).is_poison(),
+            ri(lo, hi).powi(3).is_certified(),
             "[{lo:e}, {hi:e}].powi(3) refused"
         );
     }

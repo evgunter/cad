@@ -61,7 +61,7 @@ fn the_fixture_is_a_finite_bracket_that_cannot_certify() {
 fn surface_ring_coords_refuses_a_violated_coefficient_per_channel() {
     let coords = patch(trv()).ring_coords();
     assert!(
-        coords[0][0].is_poison(),
+        !coords[0][0].is_certified(),
         "the violated coefficient crossed as {:?} — the lift read the \
          BRACKET door, so a clamped `sqrt` reaches the tensor composite \
          bound as a healthy control coordinate",
@@ -78,7 +78,7 @@ fn surface_ring_coords_refuses_a_violated_coefficient_per_channel() {
 fn a_certified_net_crosses_unchanged() {
     for ch in patch(healthy()).ring_coords() {
         for r in ch {
-            assert!(!r.is_poison(), "a certified net must cross whole");
+            assert!(r.is_certified(), "a certified net must cross whole");
         }
     }
     let coords = patch(healthy()).ring_coords();

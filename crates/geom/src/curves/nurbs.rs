@@ -453,7 +453,7 @@ macro_rules! nurbs_curve {
                     let Some(q) = dw.get(i) else {
                         return poison;
                     };
-                    if q.is_poison() {
+                    if !q.is_certified() {
                         return poison;
                     }
                     #[allow(clippy::neg_cmp_op_on_partial_ord)]

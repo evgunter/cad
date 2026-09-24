@@ -525,7 +525,7 @@ fn cell_component(sq: RingInterval) -> f64 {
     // The refusal is asked by name: the ring keeps it in the
     // decoration, so a refused enclosure carries an ordinary `hi` and
     // the NaN the contract above promises has to be spelled here.
-    if sq.is_poison() {
+    if !sq.is_certified() {
         return f64::NAN;
     }
     let hi = sq.hi();

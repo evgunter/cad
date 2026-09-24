@@ -579,7 +579,7 @@ pub fn surface_curve_residual(
     // coefficients (the carrier's own would still carry it).
     let center: [f64; 3] = core::array::from_fn(|d| {
         let c = carrier.coords[d][0];
-        if c.is_poison() { f64::NAN } else { c.lo() }
+        if !c.is_certified() { f64::NAN } else { c.lo() }
     });
 
     // Homogeneous channels on the shared breaks, the weight channel
@@ -644,7 +644,7 @@ pub fn surface_curve_residual(
         let wden = row_hull(rows.wp);
         let wu = row_hull(rows.u) / wden;
         let wv = row_hull(rows.v) / wden;
-        if wu.is_poison() || wv.is_poison() {
+        if !wu.is_certified() || !wv.is_certified() {
             spans.push([RingInterval::poison(); 3]);
             continue;
         }

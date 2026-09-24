@@ -182,7 +182,7 @@ fn the_hull_bound_refuses_exactly_where_the_decoration_degrades() {
         let c = Interval::from_bounds(a, 4.0).sqrt();
         let bound = hull_bound(c);
         assert_eq!(
-            bound.is_poison(),
+            !bound.is_certified(),
             !c.is_certified(),
             "sqrt([{a}, 4]) is {} but its hull bound is {bound:?}",
             if c.is_certified() {
@@ -219,7 +219,7 @@ fn the_crossing_follows_the_certified_door_not_the_bracket() {
 
     let bound = hull_bound(x);
     assert!(
-        bound.is_poison(),
+        !bound.is_certified(),
         "the hull crossing reproduced the BRACKET answer {bracket_answer:?} \
          as {bound:?} — it is reading `Bounds`, not `CertifiedEnclosure`. \
          The crossing's bound must require the certified door."

@@ -234,7 +234,7 @@ fn cmp_x_vs_sum(x: f64, a: f64, b: f64) -> Ordering {
 fn assert_sum_bracket(r: RingInterval, a: f64, b: f64, sub: bool, what: &str) {
     let b = if sub { -b } else { b };
     assert!(
-        !r.is_poison(),
+        r.is_certified(),
         "{what}: unexpected poison ({a:e}, {b:e}) — {}",
         fuzz::replay()
     );
@@ -255,7 +255,7 @@ fn assert_sum_bracket(r: RingInterval, a: f64, b: f64, sub: bool, what: &str) {
 /// Asserts `r` brackets the exact `a · b`.
 fn assert_prod_bracket(r: RingInterval, a: f64, b: f64, what: &str) {
     assert!(
-        !r.is_poison(),
+        r.is_certified(),
         "{what}: unexpected poison ({a:e}, {b:e}) — {}",
         fuzz::replay()
     );
@@ -327,13 +327,13 @@ fn lane_boundary_pool(rng: &mut fuzz::Rng, cases: usize) -> u64 {
         let quo = ri / si;
         if b == 0.0 {
             assert!(
-                quo.is_poison(),
+                !quo.is_certified(),
                 "divisor {b:e} (signed zero) must poison — {}",
                 fuzz::replay()
             );
         } else {
             assert!(
-                !quo.is_poison(),
+                quo.is_certified(),
                 "pool div: unexpected poison — {}",
                 fuzz::replay()
             );
@@ -393,7 +393,7 @@ fn lane_tiny_div(rng: &mut fuzz::Rng, cases: usize) -> u64 {
         };
         let q = RingInterval::point(num) / RingInterval::point(den);
         assert!(
-            !q.is_poison(),
+            q.is_certified(),
             "tiny divisor {den:e} must not poison — {}",
             fuzz::replay()
         );
@@ -418,7 +418,7 @@ fn lane_tiny_div(rng: &mut fuzz::Rng, cases: usize) -> u64 {
         ] {
             let d = RingInterval::from_bounds(lo, hi);
             assert!(
-                (RingInterval::point(num) / d).is_poison(),
+                !(RingInterval::point(num) / d).is_certified(),
                 "divisor [{lo:e}, {hi:e}] touches zero and must refuse"
             );
         }
@@ -459,7 +459,7 @@ fn lane_chains(rng: &mut fuzz::Rng, cases: usize) -> u64 {
         // comparator on the two factors of the product instead: bound
         // the product's endpoints against (a+b) scaled by c.
         let chain1 = (ri + si) * ti;
-        assert!(!chain1.is_poison(), "(a+b)*c poisoned — {}", fuzz::replay());
+        assert!(chain1.is_certified(), "(a+b)*c poisoned — {}", fuzz::replay());
         // exact (a+b): align the two dyadics to the common exponent.
         let Some((sneg, sm, se)) = add_dyadic(an, am, ae, bn, bm, be) else {
             continue;
@@ -482,7 +482,7 @@ fn lane_chains(rng: &mut fuzz::Rng, cases: usize) -> u64 {
         }
         // a·b + c
         let chain2 = ri * si + ti;
-        assert!(!chain2.is_poison(), "a*b+c poisoned — {}", fuzz::replay());
+        assert!(chain2.is_certified(), "a*b+c poisoned — {}", fuzz::replay());
         if let Some(abm) = am.checked_mul(bm)
             && let Some((tneg, tm, te)) = add_dyadic(an != bn, abm, ae + be, cn, cm, ce)
         {
@@ -565,7 +565,7 @@ fn lane_powi(rng: &mut fuzz::Rng, cases: usize) -> u64 {
             let tneg = neg && (k % 2 == 1);
             let r = x.powi(n_i);
             assert!(
-                !r.is_poison(),
+                r.is_certified(),
                 "{base:e}^{n_i}: unexpected poison — {}",
                 fuzz::replay()
             );
@@ -584,7 +584,7 @@ fn lane_powi(rng: &mut fuzz::Rng, cases: usize) -> u64 {
             if k > 0 && k <= 20 {
                 let rn = x.powi(-n_i);
                 assert!(
-                    !rn.is_poison(),
+                    rn.is_certified(),
                     "{base:e}^-{k} poisoned — {}",
                     fuzz::replay()
                 );
@@ -667,7 +667,7 @@ fn lane_powi_pins(rng: &mut fuzz::Rng, cases: usize) -> u64 {
         let x = RingInterval::from_bounds(lo, hi);
         for k in [2i32, 4, 6, 8, 10, 12, 14, 16] {
             let p = x.powi(k);
-            if p.is_poison() {
+            if !p.is_certified() {
                 continue;
             }
             assert_eq!(
@@ -684,7 +684,7 @@ fn lane_powi_pins(rng: &mut fuzz::Rng, cases: usize) -> u64 {
         for k in 2i32..=16 {
             naive = naive * x;
             let p = x.powi(k);
-            if p.is_poison() || naive.is_poison() {
+            if !p.is_certified() || !naive.is_certified() {
                 continue;
             }
             assert!(
@@ -735,16 +735,16 @@ fn lane_edges(rng: &mut fuzz::Rng, cases: usize) -> u64 {
         (f64::INFINITY, f64::NEG_INFINITY),
     ] {
         assert!(
-            RingInterval::from_bounds(lo, hi).is_poison(),
+            !RingInterval::from_bounds(lo, hi).is_certified(),
             "[{lo:e}, {hi:e}] contains no real number and must poison"
         );
         n += 1;
     }
     // The open-sided brackets stay legal.
-    assert!(!RingInterval::from_bounds(f64::NEG_INFINITY, 0.0).is_poison());
-    assert!(!RingInterval::from_bounds(0.0, f64::INFINITY).is_poison());
+    assert!(RingInterval::from_bounds(f64::NEG_INFINITY, 0.0).is_certified());
+    assert!(RingInterval::from_bounds(0.0, f64::INFINITY).is_certified());
     // And an infinite-sided divisor still refuses when it touches zero.
-    assert!((RingInterval::point(1.0) / RingInterval::from_bounds(0.0, f64::INFINITY)).is_poison());
+    assert!(!(RingInterval::point(1.0) / RingInterval::from_bounds(0.0, f64::INFINITY)).is_certified());
     n + 3
 }
 

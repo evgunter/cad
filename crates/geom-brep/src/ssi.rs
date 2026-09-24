@@ -1110,7 +1110,7 @@ fn pcurve_windows(p: &NurbsCurve2<f64>, pad_u: f64, pad_v: f64) -> Vec<UvRect> {
         };
         let hu = wu.hull();
         let hv = wv.hull();
-        if hu.is_poison() || hv.is_poison() {
+        if !hu.is_certified() || !hv.is_certified() {
             // A window this pass cannot bound is not banked. Dropping
             // it only ever SHRINKS the accounted set, so the accounting
             // pass gets strictly harder: the failure direction is the

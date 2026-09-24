@@ -193,7 +193,7 @@ impl RingInterval {
     /// backend's `hull` treats the empty set as an identity, which is a
     /// different operation from this one.
     pub fn hull(a: Self, b: Self) -> Self {
-        if a.is_poison() || b.is_poison() {
+        if !a.is_certified() || !b.is_certified() {
             return Self::poison();
         }
         Self(a.0.hull(b.0))
@@ -219,7 +219,7 @@ impl RingInterval {
     /// poison every clamp in the tree, which is a change to what the
     /// door says rather than to what the arithmetic computes.
     pub fn clamped_to(self, lo: f64, hi: f64) -> Self {
-        if self.is_poison() || lo.is_nan() || hi.is_nan() {
+        if !self.is_certified() || lo.is_nan() || hi.is_nan() {
             return Self::poison();
         }
         let narrowed = DInterval::from_bounds(self.0.lo().max(lo), self.0.hi().min(hi));
@@ -253,20 +253,20 @@ impl RingInterval {
     /// Whether this may not certify: the backend's decoration is below
     /// `Def`, which covers NaI, the empty set, and every refusal that
     /// carries real endpoints.
-    pub fn is_poison(self) -> bool {
-        self.0.decoration() < Decoration::Def
+    pub fn is_certified(self) -> bool {
+        self.0.decoration() >= Decoration::Def
     }
 
     /// Whether `x` lies in the enclosure. False for poison and for NaN
     /// `x` (nothing is known to lie in an unknown bracket).
     pub fn contains(self, x: f64) -> bool {
-        !self.is_poison() && self.0.contains(x)
+        self.is_certified() && self.0.contains(x)
     }
 
     /// The bracket's width, rounded **up** (`NaN` for poison). An
     /// infinite side gives `+inf`.
     pub fn width(self) -> f64 {
-        if self.is_poison() {
+        if !self.is_certified() {
             return f64::NAN;
         }
         let (lo, hi) = (self.0.lo(), self.0.hi());
@@ -281,7 +281,7 @@ impl RingInterval {
     /// `max(|lo|, |hi|)` is exact under negation (sign-bit only), so no
     /// widening is needed.
     pub fn mag(self) -> f64 {
-        if self.is_poison() {
+        if !self.is_certified() {
             return f64::NAN;
         }
         let (a, b) = (self.0.lo().abs(), self.0.hi().abs());
@@ -330,7 +330,7 @@ impl RingInterval {
 /// certify with, not a pair it has to re-check.
 impl CertifiedEnclosure for RingInterval {
     fn certified_bracket(self) -> Option<(f64, f64)> {
-        (!self.is_poison()).then_some((self.0.lo(), self.0.hi()))
+        (self.is_certified()).then_some((self.0.lo(), self.0.hi()))
     }
 
     /// The ring's refusal lives in the decoration, so a refused ring
@@ -409,18 +409,18 @@ mod tests {
 
     #[test]
     fn construction_poison_paths() {
-        assert!(RingInterval::point(f64::NAN).is_poison());
-        assert!(RingInterval::point(f64::INFINITY).is_poison());
-        assert!(RingInterval::point(f64::NEG_INFINITY).is_poison());
-        assert!(ri(1.0, 0.0).is_poison());
-        assert!(ri(f64::NAN, 1.0).is_poison());
-        assert!(ri(0.0, f64::NAN).is_poison());
-        assert!(!ri(f64::MAX, f64::INFINITY).is_poison());
-        assert!(!ri(f64::NEG_INFINITY, f64::MIN).is_poison());
+        assert!(!RingInterval::point(f64::NAN).is_certified());
+        assert!(!RingInterval::point(f64::INFINITY).is_certified());
+        assert!(!RingInterval::point(f64::NEG_INFINITY).is_certified());
+        assert!(!ri(1.0, 0.0).is_certified());
+        assert!(!ri(f64::NAN, 1.0).is_certified());
+        assert!(!ri(0.0, f64::NAN).is_certified());
+        assert!(ri(f64::MAX, f64::INFINITY).is_certified());
+        assert!(ri(f64::NEG_INFINITY, f64::MIN).is_certified());
         // Brackets that contain no real number at all.
-        assert!(ri(f64::INFINITY, f64::INFINITY).is_poison());
-        assert!(ri(f64::NEG_INFINITY, f64::NEG_INFINITY).is_poison());
-        assert!(ri(f64::INFINITY, f64::NEG_INFINITY).is_poison());
+        assert!(!ri(f64::INFINITY, f64::INFINITY).is_certified());
+        assert!(!ri(f64::NEG_INFINITY, f64::NEG_INFINITY).is_certified());
+        assert!(!ri(f64::INFINITY, f64::NEG_INFINITY).is_certified());
         assert!(ri(f64::NEG_INFINITY, f64::INFINITY).width().is_infinite());
         assert!(RingInterval::point(0.0).contains(0.0));
         assert!(!RingInterval::poison().contains(0.0));
@@ -432,12 +432,12 @@ mod tests {
         let p = RingInterval::poison();
         let x = ri(1.0, 2.0);
         for r in [p + x, x + p, p - x, x - p, p * x, x * p, p / x, x / p, -p] {
-            assert!(r.is_poison());
+            assert!(!r.is_certified());
         }
-        assert!(p.powi(0).is_poison(), "NaN^0 is not 1");
-        assert!(p.powi(3).is_poison());
-        assert!(p.sqr().is_poison());
-        assert!(RingInterval::hull(p, x).is_poison());
+        assert!(!p.powi(0).is_certified(), "NaN^0 is not 1");
+        assert!(!p.powi(3).is_certified());
+        assert!(!p.sqr().is_certified());
+        assert!(!RingInterval::hull(p, x).is_certified());
         assert!(p.width().is_nan());
         assert!(p.mag().is_nan());
     }
@@ -446,12 +446,12 @@ mod tests {
     fn division_refuses_zero_straddling_divisors() {
         let x = ri(1.0, 2.0);
         for d in [ri(-1.0, 1.0), ri(0.0, 1.0), ri(-1.0, 0.0), ri(0.0, 0.0)] {
-            assert!((x / d).is_poison(), "divisor touching zero must poison");
+            assert!(!(x / d).is_certified(), "divisor touching zero must poison");
         }
-        assert!(!(x / ri(1.0, 2.0)).is_poison());
-        assert!(!(x / ri(-2.0, -1.0)).is_poison());
+        assert!((x / ri(1.0, 2.0)).is_certified());
+        assert!((x / ri(-2.0, -1.0)).is_certified());
         // Negative powers inherit the refusal.
-        assert!(ri(-1.0, 1.0).powi(-1).is_poison());
+        assert!(!ri(-1.0, 1.0).powi(-1).is_certified());
     }
 
     /// The shape a NaN-endpoint poison rule cannot see: the refusal is
@@ -460,7 +460,7 @@ mod tests {
     #[test]
     fn a_refusal_can_carry_real_endpoints() {
         let q = ri(-2.0, -1.0) / ri(0.0, 5e-324);
-        assert!(q.is_poison());
+        assert!(!q.is_certified());
         assert!(q.lo().is_finite() || q.hi().is_finite(), "{q:?}");
         // The whole hazard in one line: the comparison a consumer writes
         // is TRUE on a value that refuses.
@@ -468,7 +468,7 @@ mod tests {
         // And a finite one, through a multiply that annihilates the
         // unbounded side.
         let f = (ri(-2.0, -1.0) / ri(-1.0, 1.0)) * RingInterval::zero();
-        assert!(f.is_poison());
+        assert!(!f.is_certified());
         assert!(f.lo() == 0.0 && f.hi() == 0.0, "{f:?}");
     }
 
@@ -516,7 +516,7 @@ mod tests {
         // the honest `[MAX, +inf]` rather than poison, so its
         // reciprocal is a finite underflowed bracket of zero.
         let tiny = x.powi(i32::MIN);
-        assert!(!tiny.is_poison(), "{tiny:?}");
+        assert!(tiny.is_certified(), "{tiny:?}");
         assert!(tiny.contains(0.0) && tiny.hi() < 1e-300, "{tiny:?}");
     }
 
@@ -525,8 +525,8 @@ mod tests {
     /// without becoming a NaN bracket.
     #[test]
     fn the_crossing_carries_the_refusal_in_the_decoration() {
-        assert!(!RingInterval::from_certified(1.5).is_poison());
-        assert!(RingInterval::from_certified(f64::NAN).is_poison());
+        assert!(RingInterval::from_certified(1.5).is_certified());
+        assert!(!RingInterval::from_certified(f64::NAN).is_certified());
         let crossed = RingInterval::from_certified(2.0f64);
         assert!(crossed.lo() == 2.0 && crossed.hi() == 2.0);
     }

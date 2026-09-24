@@ -129,13 +129,13 @@ fn span_and_domain_bounds_contain_every_sample() {
                     .with_coeffs(&coeffs)
                     .expect("minted against its own vector");
                 let domain = pair.domain_hull();
-                assert!(!domain.is_poison());
+                assert!(domain.is_certified());
                 for index in kv.first_span()..=kv.last_span() {
                     let Some(win) = pair.span(index) else {
                         continue;
                     };
                     let b = win.hull();
-                    assert!(!b.is_poison());
+                    assert!(b.is_certified());
                     // Non-vacuity: the bound IS the coefficient hull —
                     // over exactly the window's own span.
                     let (lo, hi) = naive_hull(&coeffs[win.window()]);
@@ -189,7 +189,7 @@ fn rational_bounds_contain_every_sample_under_adversarial_weights() {
                     .with_rational_coeffs(&coeffs, &weights)
                     .expect("minted against its own vector");
                 let domain = pair.domain_hull_rational();
-                assert!(!domain.is_poison());
+                assert!(domain.is_certified());
                 for index in kv.first_span()..=kv.last_span() {
                     let Some(win) = pair.span(index) else {
                         continue;
@@ -218,10 +218,10 @@ fn rational_bounds_contain_every_sample_under_adversarial_weights() {
                         .expect("its own vector")
                         .domain_hull_rational()
                 };
-                assert!(rational(&bad).is_poison());
+                assert!(!rational(&bad).is_certified());
                 let mut worse = weights.clone();
                 worse[rng.below(n)] = f64::NAN;
-                assert!(rational(&worse).is_poison());
+                assert!(!rational(&worse).is_certified());
             }
         }
     }
@@ -344,7 +344,7 @@ fn derivative_coefficient_bounds_contain_the_slope() {
             let qs = pair.derivative_coeffs();
             assert_eq!(qs.len(), n - 1);
             assert!(
-                qs.iter().all(|q| !q.is_poison()),
+                qs.iter().all(|q| q.is_certified()),
                 "knot differences positive"
             );
             let dom = pair.derivative_domain_hull();
@@ -353,7 +353,7 @@ fn derivative_coefficient_bounds_contain_the_slope() {
                     continue;
                 };
                 let b = win.derivative_hull();
-                assert!(!b.is_poison());
+                assert!(b.is_certified());
                 let (u0, u1) = (kv.knots()[index], kv.knots()[index + 1]);
                 let h = (u1 - u0) * 1e-4;
                 if h <= 0.0 {
@@ -448,18 +448,18 @@ fn structural_errors_poison_rather_than_panic() {
     let mut poisoned: Vec<RingInterval> = coeffs.iter().map(|c| RingInterval::point(*c)).collect();
     poisoned[0] = RingInterval::poison();
     let pp = kv.with_coeffs(&poisoned).expect("its own vector");
-    assert!(pp.domain_hull().is_poison());
+    assert!(!pp.domain_hull().is_certified());
     assert!(
-        pp.span(kv.first_span())
+        !pp.span(kv.first_span())
             .expect("the first span is nonempty")
             .hull()
-            .is_poison()
+            .is_certified()
     );
     // A NaN f64 coefficient is the same poison through the Enclosure seam.
     let mut nans = coeffs.clone();
     nans[n - 1] = f64::NAN;
     let pn = kv.with_coeffs(&nans).expect("its own vector");
-    assert!(pn.domain_hull().is_poison());
+    assert!(!pn.domain_hull().is_certified());
     assert!(pn.sup_norm_bound().is_nan());
     // Weight-count mismatch is refused at the rational mint too, and a
     // valid weight vector mints. A rational claim on a pair minted
@@ -471,7 +471,7 @@ fn structural_errors_poison_rather_than_panic() {
     let rational = kv
         .with_rational_coeffs(&coeffs, &ones)
         .expect("its own vector");
-    assert!(!rational.domain_hull_rational().is_poison());
+    assert!(rational.domain_hull_rational().is_certified());
 }
 
 /// A certification helper written against `Enclosure` only — the seam

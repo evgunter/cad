@@ -1030,7 +1030,7 @@ mod tests {
                 let ceiling_ulps = 8.0 * (add.len() + 1) as f64;
                 let slack = ceiling_ulps * scale * f64::EPSILON;
                 for (i, r) in ring_out.iter().enumerate() {
-                    assert!(!r.is_poison(), "{tag}: slot {i} poisoned");
+                    assert!(r.is_certified(), "{tag}: slot {i} poisoned");
                     assert!(
                         r.lo() >= input_hull.lo() - slack && r.hi() <= input_hull.hi() + slack,
                         "{tag}: slot {i} = [{:.17e}, {:.17e}] is outside the described hull \
@@ -1124,7 +1124,7 @@ mod tests {
             let mut outside = 0usize;
             let mut worst = 0.0f64;
             for r in &out {
-                assert!(!r.is_poison(), "p={p} c={c}: poisoned slot");
+                assert!(r.is_certified(), "p={p} c={c}: poisoned slot");
                 let excursion = (r.hi() - c).max(c - r.lo());
                 if excursion > 0.0 {
                     outside += 1;

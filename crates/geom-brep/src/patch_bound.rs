@@ -752,7 +752,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
         for j in 0..nv {
             let w = w_grid.get(i, j);
             #[allow(clippy::neg_cmp_op_on_partial_ord)]
-            if w.is_poison() || !(w.lo() > 0.0) || !w.lo().is_finite() {
+            if !w.is_certified() || !(w.lo() > 0.0) || !w.lo().is_finite() {
                 return Err(PatchBoundError::RefinedWeightLostPositivity);
             }
         }

@@ -745,7 +745,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
 /// as a coefficient-hull assembly term rather than a decision; noted
 /// at both sites.)
 fn zero_free_lower_bound(i: RingInterval) -> f64 {
-    if i.is_poison() {
+    if !i.is_certified() {
         return 0.0;
     }
     if i.lo() > 0.0 {

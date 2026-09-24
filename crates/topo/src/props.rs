@@ -2588,7 +2588,7 @@ mod quad_lane {
     /// average would be a plausible mass property with nothing behind
     /// it.
     pub(super) fn mid_pad(x: RingInterval) -> (f64, f64) {
-        if x.is_poison() {
+        if !x.is_certified() {
             return (f64::NAN, f64::NAN);
         }
         ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
@@ -2608,7 +2608,7 @@ mod quad_lane {
         // endpoints it is handed, so a refused operand would come back
         // clean. The refusal is carried across by hand.
         let clamp = |x: RingInterval, pad: f64| {
-            if x.is_poison() {
+            if !x.is_certified() {
                 return RingInterval::poison();
             }
             RingInterval::from_bounds(x.lo() - pad, x.hi() + pad).clamped_to(-1.0, 1.0)
@@ -2840,7 +2840,7 @@ mod quad_lane {
             // The refusal first: a refused crossing carries the
             // scalar's own endpoints, so a point bracket that may not
             // certify passes both tests below.
-            if !x.is_poison() && x.lo() == x.hi() && x.lo().is_finite() {
+            if x.is_certified() && x.lo() == x.hi() && x.lo().is_finite() {
                 Ok(x.lo())
             } else {
                 Err(PropsError::QuadratureUnsupported {
@@ -3077,8 +3077,8 @@ mod quad_lane {
                     // bound rather than a refusal.
                     // The refusal first, for the reason the
                     // `exact` closure above gives.
-                    if r0.is_poison()
-                        || r1.is_poison()
+                    if !r0.is_certified()
+                        || !r1.is_certified()
                         || !(r0.lo() == r0.hi()
                             && r1.lo() == r1.hi()
                             && r0.lo() == d0
@@ -3215,7 +3215,7 @@ mod quad_lane {
             fn the_certified_door_refuses_a_violated_scalar() {
                 let r = RingInterval::from_certified(trv_pos());
                 assert!(
-                    r.is_poison(),
+                    !r.is_certified(),
                     "a domain-violated scalar crossed into the ring as {r:?} — \
                      the bracket door does not read decorations, so the \
                      quadrature lane certifies a flux built from it"
@@ -3254,7 +3254,7 @@ mod quad_lane {
                         v.norm().certified_bracket().is_some(),
                         "a norm certified nothing for {v:?}"
                     );
-                    assert!(!RingInterval::from_certified(v.norm()).is_poison());
+                    assert!(RingInterval::from_certified(v.norm()).is_certified());
                 }
             }
 
@@ -3265,9 +3265,9 @@ mod quad_lane {
             fn chan_poisons_only_the_violated_coefficient() {
                 let one = Interval::from_f64(1.0);
                 let c = chan(one, trv_pos(), one, one).expect("channel builds");
-                assert!(c.ca.is_poison(), "the violated coefficient survived");
+                assert!(!c.ca.is_certified(), "the violated coefficient survived");
                 for (tag, r) in [("c0", c.c0), ("cb", c.cb), ("cl", c.cl)] {
-                    assert!(!r.is_poison(), "{tag} poisoned a certified coefficient");
+                    assert!(r.is_certified(), "{tag} poisoned a certified coefficient");
                 }
             }
         }

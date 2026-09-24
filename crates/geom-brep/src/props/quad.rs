@@ -591,19 +591,19 @@ fn edge_metric_length(e: &TrimEdgeQ, radius: RingInterval) -> f64 {
 /// knot-collapse windows all refuse on it — so this is the one door
 /// that turns the decoration back into the value those readers expect.
 fn lo_or_refuse(x: RingInterval) -> f64 {
-    if x.is_poison() { f64::NAN } else { x.lo() }
+    if !x.is_certified() { f64::NAN } else { x.lo() }
 }
 
 /// [`lo_or_refuse`] for the upper end.
 fn hi_or_refuse(x: RingInterval) -> f64 {
-    if x.is_poison() { f64::NAN } else { x.hi() }
+    if !x.is_certified() { f64::NAN } else { x.hi() }
 }
 
 /// Midpoint of a bracket (structure selection for integration limits;
 /// the bracket's width is repaid by the endpoint pad). A refused
 /// bracket has no midpoint, and says so.
 fn mid(x: RingInterval) -> f64 {
-    if x.is_poison() {
+    if !x.is_certified() {
         return f64::NAN;
     }
     (x.lo() + x.hi()) * 0.5
@@ -616,7 +616,7 @@ trait AbsEnclosure {
 
 impl AbsEnclosure for RingInterval {
     fn abs_enclosure(self) -> RingInterval {
-        if self.is_poison() {
+        if !self.is_certified() {
             return self;
         }
         if self.lo() >= 0.0 {
@@ -1180,7 +1180,7 @@ fn sqrt_enclosure(x: RingInterval) -> RingInterval {
     // The early-out is what makes the `.max(0.0)` clamps below safe: past
     // it the endpoints are non-NaN, so no `f64::max` can absorb poison
     // into a plausible magnitude. Callers do pass poisonable sums.
-    if x.is_poison() {
+    if !x.is_certified() {
         return x;
     }
     let lo = x.lo().max(0.0).sqrt();
@@ -1190,7 +1190,7 @@ fn sqrt_enclosure(x: RingInterval) -> RingInterval {
 
 /// Widens both ends by a nonnegative pad (the honesty-pad fold).
 fn widen(x: RingInterval, pad: f64) -> RingInterval {
-    if x.is_poison() {
+    if !x.is_certified() {
         return x;
     }
     RingInterval::from_bounds(x.lo() - pad, x.hi() + pad)
@@ -3504,7 +3504,7 @@ fn rational_patch_face<T: Decide>(
             }
         }
         let flux = widen(flux, boundary_defect * p_bound);
-        if flux.is_poison() || area.is_poison() {
+        if !flux.is_certified() || !area.is_certified() {
             return Err(PropsError::QuadratureUnsupported {
                 what: "a rational patch enclosure poisoned (a weight hull straddling \
                        zero, or a non-finite net) — refusing rather than answering wide",
@@ -4204,7 +4204,7 @@ fn block_box(block: &[RPt2]) -> (RingInterval, RingInterval) {
 /// this is read.
 fn norm_lo(v: RVec3) -> f64 {
     let comp = |x: RingInterval| -> f64 {
-        if x.is_poison() {
+        if !x.is_certified() {
             return 0.0;
         }
         if x.lo() > 0.0 {
