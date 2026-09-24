@@ -19,11 +19,11 @@
 //! close-on-commit edit. The READ door is not one of them: each typed
 //! accessor on [`Tools`] matches its own variant and answers `None` to
 //! every other, which is identity rather than policy, so an eighth
-//! tool that never gets an accessor compiles clean. [`ToolKind::ALL`] is not a list a
-//! compiler has to be asked to force either: it is projected from the
-//! enum's own declaration by the crate's `vocabulary!` macro, so an
-//! eighth kind reaches it by construction. Nothing outside the test
-//! suites reads it.
+//! tool that never gets an accessor compiles clean. [`ToolKind::ALL`]
+//! is not a list a compiler has to be asked to force either: it is
+//! projected from the enum's own declaration by the crate's
+//! `vocabulary!` macro, so an eighth kind reaches it by construction.
+//! Nothing outside the test suites reads it.
 //!
 //! The value is renderer-free on purpose: the pick routing, the
 //! survival step and the exclusivity are all properties a headless row
@@ -125,18 +125,28 @@ impl ToolKind {
 
     /// **Whether this operation is this tool's one committed edit** —
     /// the rule that closes the tool that authored it, once the edit
-    /// has actually landed, read off `committed_by`.
+    /// has actually landed. Which op belongs to which tool is
+    /// `committed_by`'s; whether a tool closes on its op at all is
+    /// this match's.
     pub fn commits(self, op: &SessionOp) -> bool {
-        committed_by(op) == Some(self)
+        match self {
+            // The mate tool closes at its own click, before the op is
+            // performed, which is the shipped GUI-4 behaviour and not
+            // this rule's to change.
+            Self::Mate => false,
+            Self::Revolve
+            | Self::Boolean
+            | Self::Split
+            | Self::Transform
+            | Self::Pattern
+            | Self::Blend => committed_by(op) == Some(self),
+        }
     }
 }
 
 /// **Which tool an operation is the committed edit of**, or `None` for
-/// an operation no tool closes on.
-///
-/// The mate tool is nobody's answer, deliberately: it closes at its own
-/// click, before the op is performed, which is the shipped GUI-4
-/// behaviour and not this rule's to change.
+/// an operation no tool closes on. `AddMate` is nobody's: the mate
+/// tool does not close on it ([`ToolKind::commits`]).
 fn committed_by(op: &SessionOp) -> Option<ToolKind> {
     match op {
         SessionOp::AddRevolve { .. } => Some(ToolKind::Revolve),

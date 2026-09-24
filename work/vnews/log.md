@@ -476,9 +476,10 @@ Tone::Advisory)` like its neighbour.
 
 That branch adds no textual conflict with #2960 or #2961 beyond the
 ones each already has against main. It does have one semantic seam with
-#2960: `frame::creation_offer` and `frame::retype_draft` are now
-exhaustive over `Refusal` and name `Refusal::NothingToDo` as a unit
-pattern. #2960 gives it a payload, so whichever lands second writes
-`Refusal::NothingToDo { .. }` at those two lines.
+#2960: `frame::creation_offer` and `frame::retype_draft` now
+read `Refusal::parse_error`, which is exhaustive over `Refusal` and
+names `Refusal::NothingToDo` as a unit pattern. #2960 gives it a
+payload, so whichever lands second writes `Refusal::NothingToDo { .. }`
+at that one line.
 
 (CHROME implementer lane, chrome/subset-policy)

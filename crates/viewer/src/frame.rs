@@ -708,8 +708,13 @@ pub fn frame_status(
 ) -> StatusUpdate {
     match batch_status(ops, refusal) {
         refused @ StatusUpdate::Show(_) => refused,
-        verdict if notices.is_empty() => verdict,
-        _ => StatusUpdate::Show(Message::joined(joined_subject(notices), notices)),
+        verdict @ (StatusUpdate::Keep | StatusUpdate::Expire(_) | StatusUpdate::Clear) => {
+            if notices.is_empty() {
+                verdict
+            } else {
+                StatusUpdate::Show(Message::joined(joined_subject(notices), notices))
+            }
+        }
     }
 }
 
@@ -1075,7 +1080,12 @@ impl core::fmt::Display for Withdrawal<'_> {
             kind: which,
             withdrawn,
         } = self;
-        let fused = |w: &Withdrawn| matches!(w.cause, AdmissionFault::FusedGeometry { .. });
+        let fused = |w: &Withdrawn| match w.cause {
+            AdmissionFault::FusedGeometry { .. } => true,
+            AdmissionFault::NoSuchNode { .. }
+            | AdmissionFault::NotAnInstance { .. }
+            | AdmissionFault::MateConstrained { .. } => false,
+        };
         // The two kinds that are over a SET word themselves by
         // counting it. The third is over the one gesture that can be
         // in flight, so it has no plural and is NOT given one: a
@@ -1791,8 +1801,9 @@ enum BadgeSite {
 /// the gather. That count is a MEASUREMENT of another module's enum,
 /// so it does not stand on this `match` being exhaustive:
 /// `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`
-/// is its guard, and a fourth non-`Ok` state reds there. The tree badges each AT the node and carries the typed
-/// cause with it, so a frame badge would say strictly less, in a
+/// is its guard, and a fourth non-`Ok` state reds there. The tree
+/// badges each AT the node and carries the typed cause with it, so a
+/// frame badge would say strictly less, in a
 /// louder colour, one row above a status line already reporting the
 /// same root's tessellation refusal. The Features pane goes further
 /// and draws a poisoned row deliberately QUIET, reserving
@@ -1814,8 +1825,9 @@ enum BadgeSite {
 /// is the tree's, whichever way the cited rule answers it.
 ///
 /// **The match does not hold the citation live.** Moving
-/// [`ProductErrorKind::NoBodyRoots`] into the first arm would leave a call that can never answer `true` — a
-/// dead citation, which nothing reds on and only
+/// [`ProductErrorKind::NoBodyRoots`] into the first arm would leave a
+/// call that can never answer `true` — a dead citation, which nothing
+/// reds on and only
 /// `the_gather_verdict_badges_only_the_faults_nothing_else_carries`
 /// catches.
 fn badge_site(kind: ProductErrorKind) -> BadgeSite {
@@ -2137,49 +2149,21 @@ pub fn progress(outstanding: Outstanding, indexing: bool) -> Option<Progress> {
 /// DIMENSION, so that stays the user's explicit pick there). `None`
 /// for every other refusal and for a clean batch.
 pub fn creation_offer(refusal: Option<&Refusal>) -> Option<ParamName> {
-    match refusal {
-        Some(Refusal::Parse(error)) => match error.as_ref() {
-            // The parse error carries the identifier as text (it is a
-            // fact about the SOURCE); the offer mints the name the
-            // create door would declare.
-            ParseError::UnknownParam { name, .. } => Some(ParamName::new(name.as_str())),
-            ParseError::UnexpectedChar { .. }
-            | ParseError::UnexpectedEnd { .. }
-            | ParseError::UnexpectedToken { .. }
-            | ParseError::TrailingInput { .. }
-            | ParseError::MalformedNumber { .. }
-            | ParseError::IntegerOverflow { .. }
-            | ParseError::UnknownUnit { .. }
-            | ParseError::UnknownFunction { .. }
-            | ParseError::WrongArity { .. }
-            | ParseError::Dimension { .. } => None,
-        },
-        None
-        | Some(
-            Refusal::DrivenByExpression { .. }
-            | Refusal::NoSuchSlot { .. }
-            | Refusal::NoSuchParam(_)
-            | Refusal::ParamNotANumber { .. }
-            | Refusal::ParamExists { .. }
-            | Refusal::EmptyName
-            | Refusal::WrongNodeKind { .. }
-            | Refusal::Edit(_)
-            | Refusal::Dimension(_)
-            | Refusal::NoGesture
-            | Refusal::GestureInFlight
-            | Refusal::WrongGesture
-            | Refusal::Io(_)
-            | Refusal::NothingToDo
-            | Refusal::Display(_)
-            | Refusal::SlotUnit(_)
-            | Refusal::NoDocumentDirectory
-            | Refusal::Workspace(_)
-            | Refusal::SelfInstance { .. }
-            | Refusal::ProfileRestructure { .. }
-            | Refusal::ProfileEditOrder { .. }
-            | Refusal::ProfileEditOrderCapped { .. }
-            | Refusal::ProfileEditStale { .. },
-        ) => None,
+    match refusal.and_then(Refusal::parse_error)? {
+        // The parse error carries the identifier as text (it is a
+        // fact about the SOURCE); the offer mints the name the create
+        // door would declare.
+        ParseError::UnknownParam { name, .. } => Some(ParamName::new(name.as_str())),
+        ParseError::UnexpectedChar { .. }
+        | ParseError::UnexpectedEnd { .. }
+        | ParseError::UnexpectedToken { .. }
+        | ParseError::TrailingInput { .. }
+        | ParseError::MalformedNumber { .. }
+        | ParseError::IntegerOverflow { .. }
+        | ParseError::UnknownUnit { .. }
+        | ParseError::UnknownFunction { .. }
+        | ParseError::WrongArity { .. }
+        | ParseError::Dimension { .. } => None,
     }
 }
 
@@ -2197,35 +2181,7 @@ pub fn retype_draft(
     ops: &[SessionOp],
     refusal: Option<&Refusal>,
 ) -> Option<(RecipeNodeId, SlotId, String)> {
-    match refusal {
-        Some(Refusal::Parse(_)) => {}
-        None
-        | Some(
-            Refusal::DrivenByExpression { .. }
-            | Refusal::NoSuchSlot { .. }
-            | Refusal::NoSuchParam(_)
-            | Refusal::ParamNotANumber { .. }
-            | Refusal::ParamExists { .. }
-            | Refusal::EmptyName
-            | Refusal::WrongNodeKind { .. }
-            | Refusal::Edit(_)
-            | Refusal::Dimension(_)
-            | Refusal::NoGesture
-            | Refusal::GestureInFlight
-            | Refusal::WrongGesture
-            | Refusal::Io(_)
-            | Refusal::NothingToDo
-            | Refusal::Display(_)
-            | Refusal::SlotUnit(_)
-            | Refusal::NoDocumentDirectory
-            | Refusal::Workspace(_)
-            | Refusal::SelfInstance { .. }
-            | Refusal::ProfileRestructure { .. }
-            | Refusal::ProfileEditOrder { .. }
-            | Refusal::ProfileEditOrderCapped { .. }
-            | Refusal::ProfileEditStale { .. },
-        ) => return None,
-    }
+    refusal.and_then(Refusal::parse_error)?;
     ops.iter().rev().find_map(|op| match op {
         SessionOp::SetSlotExpression { node, slot, text } => Some((*node, *slot, text.clone())),
         _ => None,

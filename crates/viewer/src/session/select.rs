@@ -335,15 +335,10 @@ impl Standing {
     /// render distinctly, for a face and for an edge alike.
     pub fn unresolved(&self) -> Option<&Resolution> {
         match self {
-            Self::Face {
-                resolution: Some(resolution),
-                ..
-            }
-            | Self::Edge {
-                resolution: Some(resolution),
-                ..
-            } if !resolves(resolution) => Some(resolution),
-            _ => None,
+            Self::Face { resolution, .. } | Self::Edge { resolution, .. } => resolution
+                .as_deref()
+                .filter(|resolution| !resolves(resolution)),
+            Self::Empty | Self::Node { .. } | Self::Param { .. } => None,
         }
     }
 }

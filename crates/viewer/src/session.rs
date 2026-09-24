@@ -2383,10 +2383,10 @@ impl DocSession {
                 doc.params().get(name),
                 Some(DocParam::Continuous { display_unit, .. }) if display_unit == unit
             ),
-            // Every other edit submits. The structure of the recipe and the shape of the
-            // product: a node inserted, deleted, re-parented or
-            // re-pointed has no standing value of its own for an
-            // offered one to equal.
+            // Every other edit submits. The structure of the recipe and
+            // the shape of the product: a node inserted, deleted,
+            // re-parented or re-pointed has no standing value of its
+            // own for an offered one to equal.
             DocEdit::InsertNode { .. }
             | DocEdit::DeleteNode { .. }
             | DocEdit::SetMembers { .. }

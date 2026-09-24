@@ -179,8 +179,12 @@ places call it:
 - the `Transition { verb: None }` pair → `sketch::PreviewError::unfinished`.
   The preview's retry asks it of the converted refusal rather than of
   `ReplayErrorKind`, so the two enums are one question asked once;
-- `ToolKind::commits`' six → `tools::committed_by`, one exhaustive map
-  from `SessionOp` to the tool it closes;
+- `ToolKind::commits`' six → `commits` still matches every tool, and
+  reads `tools::committed_by`, one exhaustive map from `SessionOp` to
+  the tool it closes. A new tool and a new op each red; the first draft
+  held only the op side, and review caught it;
+- `sketch::committed` and `pane::properties`' profile check now ask
+  `admits(…, NodeKindWanted::Profile)` rather than spelling the subset;
 - `bounds::Verdict::of`, `refuse::is_one_body` and `frame::acts` are
   converted in place.
 

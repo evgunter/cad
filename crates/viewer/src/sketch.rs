@@ -123,7 +123,8 @@ pub enum ProfileShape {
 /// a row becomes when its verb is picked.
 ///
 /// The form offers [`Verb::ALL`], so a verb the transition table gains
-/// reaches the menu by itself, and its starting step from this match.
+/// reaches the menu by itself; this match is where it is given its
+/// starting step.
 ///
 /// **Millimetre-scale, never zero.** A leg of length zero and a
 /// fillet of radius zero are both geometry refusals, so a fresh step
@@ -991,13 +992,13 @@ pub fn preview(
             //
             // An unfinished refusal ([`PreviewError::unfinished`]) is
             // the only one that means "not yet" rather than "wrong".
-            // So that one, and only it, is retried under a PROVISIONAL closing leg
-            // — `line_to Start`, appended here and never recorded
-            // anywhere — which is enough to make the driver hand back
-            // the geometry it already walked. The leg itself is not
-            // drawn: it contributes no vertex, so a consumer that
-            // declines to wrap an open polyline draws exactly the legs
-            // that were authored and nothing else.
+            // So that one, and only it, is retried under a PROVISIONAL
+            // closing leg — `line_to Start`, appended here and never
+            // recorded anywhere — which is enough to make the driver
+            // hand back the geometry it already walked. The leg itself
+            // is not drawn: it contributes no vertex, so a consumer
+            // that declines to wrap an open polyline draws exactly the
+            // legs that were authored and nothing else.
             //
             // Nothing about the lattice is re-implemented to do it.
             // The provisional close goes through the same `replay` as
@@ -1112,7 +1113,7 @@ pub fn committed(
 ) -> CommittedProfiles {
     let mut out = CommittedProfiles::default();
     for &node in doc.order() {
-        if Some(node) == except || !matches!(doc.node(node), Some(Node::Profile(_))) {
+        if Some(node) == except || !admits(doc.node(node), NodeKindWanted::Profile) {
             continue;
         }
         let Some(value) = evaluation.value(node) else {

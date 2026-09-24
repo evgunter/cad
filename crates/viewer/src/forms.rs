@@ -90,7 +90,8 @@ pub(crate) fn boolean_op_label(op: BooleanOp) -> &'static str {
 vocabulary! {
     /// The add-datum form's kind choice — one form, and **every arm of
     /// [`crate::session::DatumSpec`]**. An enum rather than an index
-    /// into a label list, so every consumer can match on it.
+    /// into a label list, because a consumer can match an enum and name
+    /// every kind, and cannot do that with an index.
     ///
     /// Two kinds need a PICK as well as numbers, and they pick from
     /// different places. `AxisInPlane`'s frame is a document node,

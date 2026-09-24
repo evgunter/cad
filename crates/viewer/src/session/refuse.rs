@@ -54,7 +54,8 @@ pub enum NodeKindWanted {
     SketchAxis,
     /// A `Node::Datum(Datum::Plane)`.
     Plane,
-    /// A `Node::Datum(Datum::Frame)` — what a profile is drawn on.
+    /// A `Node::Datum(Datum::Frame)` or a `Node::Datum(Datum::FaceFrame)`
+    /// — what a profile is drawn on. Both evaluate to a frame value.
     Frame,
     /// A node whose value is ONE body — the combining seats' kind
     /// ([`combine::denotes_body`] carries the admissible set and why a
@@ -375,6 +376,40 @@ pub enum Refusal {
 }
 
 impl Refusal {
+    /// **The parse error, when the refusal is the expression door's
+    /// parse refusal** — the text an author typed did not parse, so
+    /// nothing reached the document and the typed source is still the
+    /// author's. The one reading `frame::creation_offer` and
+    /// `frame::retype_draft` both take.
+    pub fn parse_error(&self) -> Option<&ParseError> {
+        match self {
+            Self::Parse(error) => Some(&**error),
+            Self::DrivenByExpression { .. }
+            | Self::NoSuchSlot { .. }
+            | Self::NoSuchParam(_)
+            | Self::ParamNotANumber { .. }
+            | Self::ParamExists { .. }
+            | Self::EmptyName
+            | Self::WrongNodeKind { .. }
+            | Self::Edit(_)
+            | Self::Dimension(_)
+            | Self::NoGesture
+            | Self::GestureInFlight
+            | Self::WrongGesture
+            | Self::Io(_)
+            | Self::NothingToDo
+            | Self::Display(_)
+            | Self::SlotUnit(_)
+            | Self::NoDocumentDirectory
+            | Self::Workspace(_)
+            | Self::SelfInstance { .. }
+            | Self::ProfileRestructure { .. }
+            | Self::ProfileEditOrder { .. }
+            | Self::ProfileEditOrderCapped { .. }
+            | Self::ProfileEditStale { .. } => None,
+        }
+    }
+
     /// How much this refusal has to say, lower being more.
     ///
     /// **A frame performs a BATCH of operations**, and a batch can hold

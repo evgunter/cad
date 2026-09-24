@@ -1146,5 +1146,17 @@ semantic:
   → `Duplicate` are two arms there. `frame::acts` is exhaustive over
   `SessionOp` too, so the new ops will not compile until they are
   listed. That is the intent.
+- `session/refuse.rs`, a second hunk: CHROME's `is_one_body` is an
+  exhaustive `match` over `ValuePayload`, and #3052 replaces it with
+  `one_body(&ValuePayload) -> Option<&Body<f64>>`, whose last arm is
+  `_ => None`. **Taking #3052's side of that hunk silently puts the
+  wildcard back.** The merge wants `one_body` with the same named arms:
+  `Body`, and `Boolean(BooleanValue::Body)` answer `Some`, and every
+  other payload is listed against `None`.
+- #3052's new `Refusal::Duplicate` raises E0004 at
+  `Refusal::parse_error` (the one home `frame::creation_offer` and
+  `frame::retype_draft` read, added in the fix pass), alongside
+  `rank` and `Display`, which #3052 already answers. It belongs in the
+  `None` group there.
 
 (CHROME implementer lane, chrome/subset-policy)

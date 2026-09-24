@@ -128,3 +128,16 @@ ClassAdmission::NotAdmitted`, now a match. It also found one fenced out
 of this lane, filed as `create-pane-words-mate-admission-through-a-binding-catch-all`.
 The full 40-line census, the second pass and what it still cannot see
 are in the PR body.
+
+**At review, the "guard-forced catch-all" exemption was found to let
+policy through**, and it is tightened in the README: a guard's `_` may
+stand only for the guard's `false` case. Where the arms name variants,
+the fallback names them again. Converted under it: `frame::frame_status`
+(`StatusUpdate`), `Standing::unresolved` (`Standing`) and `pickcache`'s
+attempt step (`Attempt`). `Withdrawal`'s `fused` test over
+`AdmissionFault` was also reclassified from identity to policy and
+converted. The two `Refusal` lists in `frame.rs` became one home,
+`Refusal::parse_error`. Two more are filed rather than fixed because
+they sit on other lanes' ground:
+`create-pane-hides-one-face-frame-fault-through-a-not-equal` and
+`assembly-shaped-reads-a-document-as-an-assembly-off-one-node-kind`.

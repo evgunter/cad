@@ -351,7 +351,8 @@ impl PickCache {
             // is the per-frame rebuild loop; the error is already
             // recorded and the caller has already seen it.
             Some(Attempt::Answered(key)) if key == wanted => return CacheStep::Held,
-            _ => {}
+            // Nothing asked yet, or asked for another picture.
+            Some(Attempt::Asked(_) | Attempt::Answered(_)) | None => {}
         }
         self.attempt = Some(Attempt::Asked(wanted));
         // **Dropped before the answer, not after it.** What is held
