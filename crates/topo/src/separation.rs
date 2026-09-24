@@ -605,6 +605,7 @@ mod owner_index {
     use crate::euler::MevSite;
     use crate::offset_together::Scope;
     use crate::splitting::reassembly::quad_prism;
+    use crate::test_support_fixtures::UNIT_SQUARE;
     use geom_core::{Point3, Tol};
 
     /// Three solids of one tier-1-valid body: a unit box; a bare `mvfs`
@@ -614,8 +615,7 @@ mod owner_index {
     /// Returns the body, the three solids, and the two lone vertices.
     fn lone_vertices() -> (Body<f64>, [SolidKey; 3], [VertexKey; 2]) {
         let tol = Tol::witness();
-        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
-        let mut body = quad_prism(&square, 1.0, tol);
+        let mut body = quad_prism(&UNIT_SQUARE, 1.0, tol);
         let brick = body.solids().next().expect("the box's solid").0;
 
         let bare = body.mvfs(Point3::new(5.0, 0.0, 0.0)).unwrap();

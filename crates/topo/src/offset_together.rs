@@ -979,18 +979,17 @@ mod scope_walks {
     use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey};
     use crate::replace_face::ReplaceFaceError;
     use crate::splitting::reassembly::quad_prism;
+    use crate::test_support_fixtures::UNIT_SQUARE;
     use geom_core::{Affine3, Band, Point3, Tol, Vec3};
-
-    const SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
 
     /// Two unit boxes, ten apart, as two solids of one body — grafted
     /// through the public disjoint-graft door, so the operand is one a
     /// caller could hold.
     fn two_boxes() -> (Body<f64>, SolidKey, SolidKey) {
         let tol = Tol::witness();
-        let mut body = quad_prism(&SQUARE, 1.0, tol);
+        let mut body = quad_prism(&UNIT_SQUARE, 1.0, tol);
         let first = body.solids().next().unwrap().0;
-        let other = quad_prism(&SQUARE, 1.0, tol);
+        let other = quad_prism(&UNIT_SQUARE, 1.0, tol);
         let placed = crate::transform_rigid(
             &other,
             &Affine3::translation(Vec3::new(10.0, 0.0, 0.0)),

@@ -75,10 +75,9 @@ orchestrator at merge. It is named here only because it is what a
 reader of THIS item will otherwise measure and misattribute, and
 because it is why SHELL-10's structural-corruption row stops at the
 scope walk: on a body whose out-of-scope solid is malformed the door
-panics inside the first setter, before either the mint or the closure
-check is reached (`crates/topo/src/shell10_r2_probes.rs`,
-`r2_the_door_panics_in_the_first_setter_on_an_out_of_scope_malformed_solid`,
-and the doc of `offset_together.rs`'s
+panics in its whole-body tier-1 postcondition rather than refusing
+(`offset_together::scope_walks::the_door_panics_on_an_out_of_scope_malformed_solid`,
+and the doc of the same module's
 `an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk`).
 
 What would close this item: a tier-1 entry that takes a shell subset
