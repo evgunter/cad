@@ -77,3 +77,27 @@ S-BOOL's `keep_out` names issues 1076/1077 as VERBS' ground, even though the sit
 **Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
 in-chat direction): the plan's lane that carries this item is in
 `work/curved/plan.md`.
+
+## Sibling sites, from ATREST-5's sweep (2026-09-24)
+
+ATREST-5 swept every caller of `splitting::point_in_loop` for the
+shape "a loop's region read off the polygon walk with no `loop_shape`
+dispatch" and found one site this issue did not list:
+
+- **`chord_join::rehome_rings`** (the `laringmv` ring re-homing after
+  a face-dividing join) tests each bystander ring's anchor against the
+  RUN — `newf`'s outer loop — with `point_in_loop` and no shape
+  dispatch. The run's chords are minted through `Body::mef` with a
+  curved spec whenever the section is curved, so the run can bear
+  arcs; on a `Disc` or `NoWalk` run the polygon has zero area and a
+  ring inside the run reads `Out` and stays on the old face,
+  silently. Unmeasured — no row mints a curved face-dividing join with
+  a bystander ring inside the run — and the `OnBoundary` arm there
+  refuses (`RingHomingAmbiguous`), so only the `Out` direction is
+  silent.
+
+And one note on the site already listed: `solid_contain::point_in_face`'s
+`Disc` class no longer needs this issue's walk. `boolean::contain::disc_side`
+is `pub(crate)` as of ATREST-5 (tier 3's check 9 decides its disc class
+through it), so that third can close by the same dispatch `contfp` does,
+independently of the arc-aware walk.
