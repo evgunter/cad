@@ -2,8 +2,10 @@
 id: the-rectangle-profile-is-still-written-longhand-beside-its-door
 kind: issue
 title: Six longhand axis-aligned rectangle polygons beside common::rectangle, one of them in viewer/src
-status: open
+status: closed
+branch: dup/viewer-insert-doors
 opened: 2026-09-20
+closed: 2026-09-24
 priority: P4
 cost: E
 ---
@@ -53,3 +55,37 @@ sixth is `crates/viewer/src/scene.rs`, which is `view`'s. It sits here
 because the class is one construction spelled six times and because the
 unit that minted the door found it. `view` is the right claimant if the
 home moves into `src`, by `git mv`.
+
+## Disposition (2026-09-24, `dup/viewer-insert-doors`)
+
+- **Census re-taken at `6db5b87f2`**: seven, not six. A balanced-paren
+  scan of every `polygon(` call in `git ls-files crates/viewer` (20
+  calls) for four corner tuples over exactly two distinct x and two
+  distinct y expressions found the row's six plus
+  `crates/viewer/src/widgets.rs`'s `value_field_tests` (a 0.04 m
+  square) and the door itself. `scene.rs`'s member has moved to
+  `plate_with_hole`'s first line.
+- **Folded**: `combine_ops` (`square(lifted, 0.02)`), `doc_io`
+  (`square(plane, 1.0)`), `docm9_range_vs_probe` (`square(f, 1.0)`)
+  and `docm1_face_frame`, whose rectangle is a
+  `SessionOp::AddProfile` loop rather than a node: the door is split
+  into `common::rectangle_loop` and `rectangle`, which draws it.
+- **Kept, `creation_ops`**: `the_rectangle_template_is_the_centred_polygon`
+  asserts the chrome's template lowers to `(±w/2, ±h/2)` counter-
+  clockwise from lower-left. The literal corners ARE that row's
+  oracle; routing them through a test door would make the expectation
+  a second computation of the thing under test.
+- **Kept, `scene.rs`**: `plate_with_hole` is authored from a user's
+  seat through the public doors, and the public door for a rectangle
+  is `LoopProgram::polygon`. A `src` home would be a helper minted for
+  one caller, or public API minted for tests; neither earns it. The
+  library-side question (a rectangle constructor on `LoopProgram`) is
+  the vocabulary's, beside the polygon/circle asymmetry the site
+  already records.
+- **Kept, `widgets.rs`**: a `#[cfg(test)]` module in `src` cannot reach
+  `tests/common`; added as evidence to
+  `viewer-src-test-modules-restate-the-literal-doors`, which holds the
+  same home question.
+- **Outside `viewer`**: the same scan with no path argument finds 256
+  such polygons over 11 roots. They cannot reach this door; the class
+  is `the-box-extrusion-written-inline-inside-test-bodies`'s ground.

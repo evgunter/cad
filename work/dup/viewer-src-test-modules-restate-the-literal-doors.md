@@ -25,6 +25,13 @@ cost: D
 
   Every one is a private re-spelling of `tests/common`'s `len` / `scl`
   / `ang`, and every one sits after its file's first `#[cfg(test)]`.
+- **The same home question, one module wider** (added 2026-09-24 by
+  the unit closing `the-rectangle-profile-is-still-written-longhand-beside-its-door`):
+  `widgets.rs`'s `value_field_tests` also re-spells `tests/common`'s
+  `edited` and `inserted` (its own doc says so), a longhand xy frame,
+  and a 0.04 m square as a corner-by-corner `LoopProgram::polygon` —
+  `common::{xy_frame, square}` in a module that cannot import them.
+  A `src` test-support home would take those too.
   The `?`-shaped and `map_err`-shaped calls in the same tree
   (`drafts.rs`, `session/author.rs`, `props.rs`, `scene.rs`) are
   production code doing its job, not members.
