@@ -2220,10 +2220,10 @@ pub(crate) fn site_rows<T: Decide>(
     if stored.window.is_none() {
         return Ok(SiteRows::Leave);
     }
-    let complete = stored
-        .loops
-        .iter()
-        .all(|lp| lp.as_ref().is_some_and(|c| c.iter().all(|&he| body.pcurve(he).is_some())));
+    let complete = stored.loops.iter().all(|lp| {
+        lp.as_ref()
+            .is_some_and(|c| c.iter().all(|&he| body.pcurve(he).is_some()))
+    });
     if !complete {
         return Ok(SiteRows::Leave);
     }
@@ -2263,8 +2263,7 @@ pub(crate) fn site_rows<T: Decide>(
         let mut carriers: Vec<geom::Curve3<T>> = Vec::with_capacity(halves.len());
         let item = |i: usize| -> Result<WalkItem<T>, ItemFail> {
             let (carrier, t0, t1, plus) = traversal(halves[i])?;
-            let base =
-                chart_pcurve(&carrier, &face.surface, band).map_err(|_| ItemFail::Derive)?;
+            let base = chart_pcurve(&carrier, &face.surface, band).map_err(|_| ItemFail::Derive)?;
             carriers.push(carrier);
             Ok(WalkItem { base, t0, t1, plus })
         };
@@ -3204,7 +3203,11 @@ pub(crate) mod staleness_posture {
                 Maintains,
                 "Euler operator: `mev`'s site mint over the one face whose ring it merges",
             ),
-            ("mekr_chord", Maintains, "Euler operator (sugar over `mekr`)"),
+            (
+                "mekr_chord",
+                Maintains,
+                "Euler operator (sugar over `mekr`)",
+            ),
             // ---- Transfers: the loop-re-parenting doors, which carry
             // a moved loop's rows onto the target face and drop them
             // when that face is on another CHART. ----

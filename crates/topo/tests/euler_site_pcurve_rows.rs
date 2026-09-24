@@ -93,7 +93,10 @@ fn leaving(body: &Body<f64>, face: FaceKey, v: VertexKey) -> HalfEdgeKey {
 /// `(rows stored, half-edges with no row)` over every loop of `face`.
 fn rows_of(body: &Body<f64>, face: FaceKey) -> (usize, usize) {
     let halves = halves_of(body, face);
-    let stored = halves.iter().filter(|&&he| body.pcurve(he).is_some()).count();
+    let stored = halves
+        .iter()
+        .filter(|&&he| body.pcurve(he).is_some())
+        .count();
     (stored, halves.len() - stored)
 }
 

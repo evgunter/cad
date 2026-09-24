@@ -228,9 +228,9 @@ use crate::entity::{
 use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::euler::FaceSurface;
-use crate::pcurves::{SiteHalf, SiteRows};
 use crate::geometry::{CurveKey, SurfaceKey};
 use crate::live::{Live, require_key};
+use crate::pcurves::{SiteHalf, SiteRows};
 use crate::provenance::Provenance;
 use geom_core::Tol;
 
@@ -1469,8 +1469,7 @@ impl<T: Decide> Body<T> {
         )?;
 
         // ---- Mutation (infallible from here on). ----
-        let (curve, edge, he_plus, he_minus) =
-            self.mekr_mint(site, u, w, target, certified, rows);
+        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified, rows);
         for &moved in &ring_members {
             let Some(he) = self.get_half_edge_mut(moved.key()) else {
                 unreachable!(
@@ -1547,8 +1546,7 @@ impl<T: Decide> Body<T> {
         )?;
 
         // ---- Mutation (infallible from here on). ----
-        let (curve, edge, he_plus, he_minus) =
-            self.mekr_mint(site, u, w, target, certified, rows);
+        let (curve, edge, he_plus, he_minus) = self.mekr_mint(site, u, w, target, certified, rows);
         // The two halves form the whole cycle: u → w → u (the segment
         // loop — inverse of kemr's both-empty case).
         self.link_half_edges(he_plus, he_minus);

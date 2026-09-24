@@ -2402,12 +2402,8 @@ impl<T: Decide> Body<T> {
         let rows = self.plan_site_rows(
             |body| {
                 let old = body.site_face(face_key, &[(loop_key, vec![SiteHalf::NewPlus])], None)?;
-                let new = body.mef_new_site_face(
-                    face_key,
-                    &surface,
-                    carried,
-                    vec![SiteHalf::NewMinus],
-                )?;
+                let new =
+                    body.mef_new_site_face(face_key, &surface, carried, vec![SiteHalf::NewMinus])?;
                 Ok(vec![old, new])
             },
             &certified,
@@ -2847,12 +2843,12 @@ impl<T: Decide> Body<T> {
         let face_data = self.get_face(face).ok_or(EulerOpError::StaleKey {
             key: EntityId::Face(face),
         })?;
-        let surface = self
-            .get_surface(face_data.surface)
-            .cloned()
-            .ok_or(EulerOpError::StaleGeometry {
-                key: GeomRef::Surface(face_data.surface),
-            })?;
+        let surface =
+            self.get_surface(face_data.surface)
+                .cloned()
+                .ok_or(EulerOpError::StaleGeometry {
+                    key: GeomRef::Surface(face_data.surface),
+                })?;
         let loops = core::iter::once(face_data.outer)
             .chain(face_data.rings.iter().copied())
             .filter(|&lk| Some(lk) != killed)
