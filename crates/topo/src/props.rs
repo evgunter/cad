@@ -479,11 +479,6 @@ fn round_hook<T: Decide>(
 /// # Errors
 ///
 /// [`MassPropsError`], as [`mass_properties`].
-// Seven parameters, and each is one the caller must state: the subject
-// (`body`, `faces`), the level it is read at (`band`, `tol`), the lane
-// that reads it (`quad`), and the decision that stops the walk
-// (`settle`, `last_word`).
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn sign_walk<'b, T: Decide, V>(
     body: &'b Body<T>,
     faces: &[FaceKey],

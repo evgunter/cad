@@ -2,7 +2,7 @@
 id: tier3-prime-still-couples-plus-v-to-the-reporting-target
 kind: issue
 title: tier 3' still couples its +V check to the reporting target, so it refuses bodies tier 3 admits
-status: dispatched
+status: review
 opened: 2026-09-11
 priority: P0
 cost: D
