@@ -78,11 +78,14 @@ use crate::theme::Theme;
 /// egui answers three ways: from the cursor to the right-hand edge in an
 /// ordinary row; the whole row in a wrapping one, where the galley is
 /// then too wide for what is left and moves whole to the next line; and
-/// **last frame's content in an auto-sized container** —
-/// `egui::Resize::begin` ratchets to it, so the wrap never fires and the
-/// container grows instead. A caller in one gives it a width, as the
-/// Checks window (`crate::app`'s `checks_window`) does with
-/// `default_width`.
+/// **in a container that sizes itself, the width it began at or the
+/// widest content it has held since** — `egui::Resize::begin` ratchets
+/// up to last frame's content and never back, so a sentence wraps at
+/// that width and a wider row beside it widens the container rather
+/// than the other way round. An `egui::Window` begins at egui's own
+/// default unless it is given a width; the Checks window
+/// (`crate::app`'s `checks_window`) and the part chooser
+/// (`crate::pane::create`'s `part_window`) each give theirs one.
 ///
 /// # A floor, and then the pane scrolls
 ///
@@ -1687,6 +1690,7 @@ mod roster_tests {
             callers,
             [
                 "app.rs",
+                "pane/create.rs",
                 "pane/features.rs",
                 "pane/profile.rs",
                 "pane/properties.rs",
