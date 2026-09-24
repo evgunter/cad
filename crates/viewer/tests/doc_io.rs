@@ -340,8 +340,7 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
             &mut doc,
             pncad::document::Node::Extrude {
                 profile,
-                distance: pncad::document::Expr::literal(1.0, pncad::document::Dimension::Length)
-                    .expect("a length"),
+                distance: common::len(1.0),
             },
             tol,
         ));

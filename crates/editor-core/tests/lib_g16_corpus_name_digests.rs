@@ -165,6 +165,11 @@ const PINNED: &[(&str, u64)] = &[
     ("tube_arc", 0xb4e7_8002_f2ea_4ebc),
     ("hollow_tube_elbow", 0x98e4_97a0_679c_33ad),
     ("hollow_tube_ring", 0xbdb5_5092_7bb6_1e80),
+    // EDIT-PROGRAM: the one document whose log reshapes a profile
+    // under a fillet. Its table is minted over the crease name the
+    // door REBOUND, which is the fact this row makes golden; its
+    // arrival moved no other row.
+    ("reshaped_rod", 0x4230_f042_d025_9e01),
 ];
 
 #[test]

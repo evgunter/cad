@@ -7018,6 +7018,151 @@ implementer's head. Shared-box note applying to BOTH arms equally: one
 are stale builds from before a large merge of main — wall-clock
 asymmetry only.
 
+Mef/kef-runs row, recorded AT MERGE (2026-09-24, PR #2603;
+`work/topo/mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows.md`
+CLOSED at this merge): `mef`'s chord surgery and `kef`'s unsplice
+carry or drop the rows of the run they move. One `same_chart` per
+decision site over one predicate-free removal, `Body::drop_rows`.
+`kef` resolves the surviving face and decides the chart in its plan
+phase. `mef`/`kef` are declared `Transfers`. Difficulty **M**, task
+class STRUCTURAL (logged before the block draw — clean). Implementer
+arm **FABLE** (block TOPO-B5 slot 1, byte 7). **DUAL: ordinal 2713;
+sample #241 (main's highest at this writing #240; main's merge order
+rules on a collision); byte 61 parity 1 ⇒ R1 FABLE + R2 OPUS;
+CONCURRENT same-head on frozen `2216e0c00`; briefs stored with sha256
+before dispatch, identical modulo lane paths (diff 4 lines).**
+**ARM-EXPOSED** per the disclosure above: the implementer's arm had
+been named on main since 2026-09-14. Both briefs barred this log, the
+program log and the block branch. Both reviewers disclosed glimpses:
+R1 the head commit's co-author trailer and the PR body's footer; R2 a
+line of main's git log naming sibling review lanes' models, and the
+orchestrator merge commit's trailer. Neither saw the other's review.
+R1 MERGEABLE-AFTER-FIXES, counts 2/4/7, rubric idiom 4 / tests 2 /
+docs 3. R2 MERGEABLE-AFTER-FIXES, counts 0/5/11; its rubric was lost
+with its report (the harness refused its scratch write; the returned
+message was archived as a summary), so it is missing data. **No
+unilateral MAJOR.** CONVERGED, severity divergent, both by execution:
+(1) `kef` through the LOOP door after the splice survives both suites,
+the run door's reason for existing unpinned (R1 MAJOR, R2 MINOR; both
+wrote the survivor-rows probe); (2) the drop after the orphan sweep
+survives both suites, with `same_chart` reading a reaped key as two
+charts (R1 MAJOR, R2 MINOR; both wrote the reaped-key probe). Both
+MINOR: (3) the PCERT evidence the body claimed was never filed;
+(4) the precondition-order paragraph was still out of order on
+`SameFace`; (5) the new surviving-face resolution changes the typed
+refusal on multi-fault corrupt input, undisclosed (R1 one plant, R2 a
+table of three). Style, both: (6) `same_chart` evaluated twice on the
+loop path; (7) `Neither` false for doors that now drop rows; (8) dead
+`work/` paths in doc comments; (9) the run door trusts caller-supplied
+keys; (10) a second `Vec` for the keys. Notes, both: drop-always reds
+`sweep` `review_m2_pr7`; `set_surface_source`'s unchecked stamp
+licenses a carry. R1 unique: `mef`'s red-first row goes red only in
+the count (MINOR). R2 unique: the body's "face → loops → run"
+composition with PR 2594 is false (MINOR; R1 noted it untested); the
+`sense` reset under `Shared(second key)` (style); `killed_rows`
+misnamed (style). Fix pass (same arm, one lane): every item taken,
+none refuted; four rows filed (TOPO `sense`/`same_chart`, ORIGIN
+`set_surface_source`, META tracker-path rot, the PCERT evidence). The
+lane died on its arm's usage limit after its last push and before
+posting the body; the orchestrator posted the lane's drafted body
+verbatim, changing one gendered reference. No orchestrator code
+commit after review; the frozen head was itself the orchestrator's
+merge of main (tracker conflicts only). Pair COUNTS (neither review
+interrupted; the implementer lane's two deaths are missing data, not
+a review interruption), flagged arm-exposed. CI: impl run 34877183170
+green on `e36af64a4`; fix head `8de0718b4` run 35952065552 GREEN on
+the full matrix (`CONFIG_SOURCE=lane:unsampled eps:unsampled
+klint:unsampled`, `gate ok`). Tokens: impl missing data, fix missing
+data, R1 ≈375k, R2 ≈270k (self-reported). Wall: impl missing data,
+fix missing data, R1 ≈95 min, R2 ≈80 min (concurrent). Tally after
+this entry: candidates unchanged.
+
+Set-face-surface row, recorded AT MERGE (2026-09-24, PR #2594;
+`work/topo/set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left.md`
+CLOSED at this merge): `Body::set_face_surface` decides the chart once
+with `same_chart`, after minting the new surface and before its orphan
+sweep, and drops the face's rows through `drop_face_rows`, which hands
+the validator's `stored_rows` walk to the one removal
+`Body::drop_rows` (folded onto PR #2603's primitive at the
+merge-forward). The setter is `Transfers`; `set_edge_curve` stays
+`Neither`, with its half-minted blind spot stated. Difficulty **S**,
+task class STRUCTURAL (logged before the block draw — clean).
+Implementer arm **OPUS** (block TOPO-B5 slot 0, byte 7). **DUAL:
+ordinal 2712; sample #242 (main's highest at this writing #241, PR
+#2603's; main's merge order rules on a collision); byte 72 parity 0 ⇒
+R1 OPUS + R2 FABLE; CONCURRENT same-head on frozen `71d846be4`; briefs
+stored with sha256 before dispatch (template 14cb3598…, R1 f54bd8ad…,
+R2 d31d1c48…), identical modulo lane paths (diff 4 lines).**
+**ARM-EXPOSED** per the disclosure above (the block's draw entry on
+main named slot 0's arm before the dual dispatched); no reviewer
+disclosed a glimpse. R1 MERGEABLE-AFTER-FIXES, counts 1/5/5, rubric
+idiom 3 / tests 4 / docs 2, 2 silent deviations. R2
+MERGEABLE-AFTER-FIXES, counts 0/5/5, rubric 4/4/3, 1 silent.
+**One unilateral MAJOR, R1's, executed and EXCLUDED as doc/claim
+class (6(b)):** the `set_edge_curve` note this PR added ("refused …
+wherever the row exists at all") is false on a half-minted minting
+face, where `validate_pcurves` skips passes 2 and 3. R1's probe
+detached one unrelated row, and the staled row went unreported. This
+is a pre-existing blind spot the note asserted away in two places, and
+it was load-bearing for the `Neither` posture. CONVERGED:
+(1) the ordering duty (drop before the orphan sweep) is prose with no
+pin: both swapped the order and every suite stayed green, the failure
+being a silent over-drop (R1 MINOR, R2 MINOR; R2's orphaning probe
+reds it); (2) the receipt's "twelve production call sites" is 19 in 12
+files (both MINOR); (3) the `mesh` re-attach residue is disclosed on a
+log, not filed (both MINOR); (4) the own-key control never enters the
+door (R1 NOTE, R2 MINOR); (5) the face door hand-writes the loop walk
+and evaluates `same_chart` twice (both, Q1). R1 unique: the `Arc`
+rung is unrowed; the red-first row's `[]` half carries no signal. R2
+unique: `attach.rs`'s "every producer re-mints" is false for `extrude`;
+a brief correction (`MissingCache` fires only on a half-minted face).
+Fix pass (same arm, one lane): every item taken, none refuted. The
+decision moved before the write (the duty retired, R2's probe the
+row), R1's probe adopted as the half-minted row, the `Arc` rung rowed
+in `mesh`, the walk routed through `stored_rows`, three rows filed.
+**Post-review orchestrator commits reaching code, each re-earning the
+gate:** `b5d25ac44` re-baselined VREV's hazard row (added to main
+2026-09-15, after this PR's green; sixteen stranded pcurves become
+none, the four stale edge descriptions stand) and re-worded
+`reversed_v`'s doc; `29aa4b345` merged main forward through PR #2603
+and folded `drop_face_rows` onto `drop_rows`. Tracker-only merges
+`920134175` and `3ec9def74` sit between them. Pair COUNTS (neither
+review interrupted), flagged arm-exposed. CI: impl run 34868100811
+green on `71d846be4`; final head `29aa4b345` run 35962645677 GREEN on
+the full matrix (`CONFIG_SOURCE=lane:unsampled eps:unsampled
+klint:unsampled`, `gate ok`). Tokens (harness): impl 262,516, fix
+241,489, R1 245,605, R2 286,982. Wall (harness): impl 48 min, fix
+40 min, R1 34 min, R2 24 min (R2's self-report said ≈110 min; the
+harness figure is the record). Tally after this entry: candidates
+unchanged (the one MAJOR is doc class).
+
+Block TOPO-B5 — CONCLUDED record (published from the orchestrator's
+branch-side record `topo/b5-block` at the last slot's conclusion,
+2026-09-24). Protocol: three slots {opus, opus, fable}, with fable at
+position byte mod 3. Pre-draw fields for all three slots were
+committed to `work/topo/log.md` at `41eb35f5c` BEFORE the draw. Draw
+2026-09-14: `/dev/urandom` byte **7** ⇒ 7 mod 3 = **1** ⇒ fable at
+slot 1. Slots:
+- 0 = `set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left`
+  (OPUS; S / STRUCTURAL; PR #2594, ordinal 2712, sample #242). One
+  unilateral MAJOR, doc class, was excluded, so there is no tally
+  candidate. Concluded 2026-09-24.
+- 1 = `mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`
+  (FABLE; M / STRUCTURAL; PR #2603, ordinal 2713, sample #241, no tally
+  candidate). The implementer lane's tokens and wall are missing data.
+  Concluded 2026-09-24.
+- 2 = `a-null-edge-can-be-re-based-onto-a-distinct-point` (+ the m7-8
+  row) was drawn OPUS but **dispatched only after the suspension**. It
+  therefore ran as an ordinary Opus unit, claimed no ordinal and drew
+  no sample. Its review is `docs/DUAL-REVIEW-LOG.md`'s DR-1 (PR #3148,
+  merged 2026-09-24). The slot is recorded as unconsumed by this
+  protocol.
+
+Every row of this block is flagged arm-exposed per the disclosure
+above. Both A/B pairs COUNT; neither review was interrupted. The block
+closes the TOPO band's use of the A/B protocol: no further TOPO block
+will be drawn under the suspension.
+
 ## SYM program rows (work/sym/; band 4700–4799; blocks named SYM-B<n>)
 
 SYM-4 review ordinal fixed at dispatch (2026-09-14, PR #2565 open —
@@ -8086,6 +8231,67 @@ derived bound; two instruments exist; the closed-boundary pins
 re-stated). Slot 1 = OPUS per the draw above.
 
 
+Block EDIT-B2 pre-draw fields (2026-09-17, logged before the draw):
+slot 0 = EDIT-DECL (docs/EDIT-DECL-SPEC.md, `a-declared-union-has-no-one-pass-authoring-path`,
+ruled by Ev on `[ev]` #2795) — difficulty M, task-class STRUCTURAL
+(a payload shape change on `Node::Declare` to sited pairs, the
+resolver's side pick replaced by the site, the union's routing by
+site with the member-space rewrite ahead of the shared look-through,
+two `DeclSite` variants and their rows retired by type, the persisted
+form and five declaring documents re-authored, the façades following
+mechanically). Slots 1–2 bank for the program's next kernel units in
+dispatch order (none spec'd yet; the middle-tier units — the tie
+refusal among them — run outside the protocol per the band record),
+pre-draw fields at their specs.
+
+
+Block EDIT-B2 draw (2026-09-17T05:24:55Z, after the pre-draw fields
+above; the 2026-09-04 ratio {opus, opus, fable}, one /dev/urandom
+byte, reject ≥252): byte **131**, 131 mod 3 = 2 = fable's position ⇒
+**fable at slot 2**. So: slot 0 EDIT-DECL = OPUS, slot 1 = OPUS, slot 2
+= FABLE. Recorded branch-side (`edit/b2-block`, the EDIT-B1 shape):
+this record reaches main when the block's last slot's reviews
+conclude; each ordinal claim at review dispatch goes to main on its
+own. Dispatch order: slot 0 when a lane frees (three middle-tier lanes
+are live at the draw).
+
+
+Block EDIT-B2 slot 0 concluded (2026-09-19): EDIT-DECL, PR #2809,
+implementer OPUS per the draw above, ordinals 4804/4805, sample #216
+(R1 fable 1/7/3 rubric 4/3/2 NOT-MERGEABLE-AS-IS; R2 opus 1/4/5 rubric
+4/3/3 APPROVE-WITH-FIXES; 1 bilateral MAJOR — a union refusal against
+a merged row degraded to an emission bug — 0 unilateral; tally +0).
+The sample row is on main with the merge. Slots 1 (OPUS) and 2 (FABLE)
+bank for the program's next kernel units; pre-draw fields at their
+specs.
+
+
+Block EDIT-B2 slot 1 concluded (2026-09-20): EDIT-RADIUS, PR #2892,
+implementer OPUS per the draw above, ordinals 4806/4807, sample #223
+(R1 fable 0/4/6 rubric 4/4/4 APPROVE-WITH-FIXES; R2 opus 0/5/3 rubric
+4/4/3 APPROVE-WITH-FIXES; 0 bilateral MAJOR, 0 unilateral; tally +0;
+convergent on five findings, R2 alone on the carrier arm's skipped
+span check). Pre-draw fields (M / STRUCTURAL) were logged at the spec
+after the block byte — disclosed at the ordinal claim. The sample row
+is on main with the merge (numbered #223: EDIT-DECL's "#216" above was
+written against a stale count, disclosed on the EDIT-RADIUS row). Slot
+2 (FABLE) banks for the program's next kernel unit; pre-draw fields at
+its spec.
+
+
+Block EDIT-B2 slot 2 concluded (2026-09-24): EDIT-PROGRAM, PR #2927,
+implementer FABLE per the draw above, ordinals 4808/4809, sample #243
+(R1 opus 1/5/4 rubric 4/4/3 APPROVE-WITH-FIXES; R2 fable 0/2/3 rubric
+4/4/3 APPROVE-WITH-FIXES; 0 bilateral MAJOR, 1 unilateral by execution
+— R1's retired coordinate revived by a slot edit; tally +1 candidate,
+opus arm). Pre-draw fields (L / STRUCTURAL) were logged at the spec
+after the block byte — disclosed at the ordinal claim. The fix lane
+was interrupted by a usage limit and resumed from its transcript, no
+work lost. **Block EDIT-B2 CONCLUDED**: all three slots run (OPUS,
+OPUS, FABLE per byte 131); tally across the block +1 candidate. This
+record reaches main with the slot-2 merge.
+
+
 ## EDIT-PICK2 review ordinal fixed at dispatch (2026-09-16)
 
 EDIT-PICK2 (`pick-accepts-uncertified-barycentrics-on-a-certified-determinant`,
@@ -8230,6 +8436,8 @@ the last three specs carried a false premise) is put to both reviewers
 as a standing hazard: every premise a hypothesis, the corrections
 included.
 
+
+EDIT-PROGRAM RECORDED AT MERGE (2026-09-24, PR #2927; sample #243 — main's highest at this writing #242 (TOPO's ordinal 2712); written as #241 and then #242, renumbered each time a TOPO row merged first; main's merge order rules on a collision; block EDIT-B2 slot 2 concluded, which concludes the block; the block record reaches main from `edit/b2-block` with this merge). Ordinals 4808/4809. Pre-draw L / STRUCTURAL (at the spec, after the block byte — disclosed at the claim). Implementer arm FABLE (block EDIT-B2 slot 2; byte 131). `DocEdit::SetProgram { node, loops, provenance }`: a live profile's program replaced whole under a stated provenance — the provenance's shape refused first (`ProvenanceMalformed`, seven typed faults), the insert door's own checks, a segment map read off both replay records through DM8's checked door (kept = continued and equal span length; a vertex carried by the segment ARRIVING at it), one carrier roster driving both the read and the rewrite walk, `Maintenance::Rebound`, persisted (`reshaped_rod` the corpus's first), `DocEdit.set_program` in Python; DM7 and V2 re-worded to exactly Ev's (B) on `[ev]` #2904. Two spec premises fell before the build (premise 3's vertex convention; premise 4's carrier filter `name.node == profile`, which finds nothing — a profile mints no name) — the third EDIT spec in a row with a false premise, disclosed and put to both reviewers. Dual: byte 254, parity 0 ⇒ R1 OPUS, R2 FABLE, concurrent same-head on frozen `1a3359122`, briefs stored with sha256 before dispatch (identical modulo lane names and paths). R1 APPROVE-WITH-FIXES 1/5/4, rubric 4/4/3, devs 6 reported / 0 silent; R2 APPROVE-WITH-FIXES 0/2/3, rubric 4/4/3, devs 6 / 0. **R1's MAJOR, UNILATERAL and demonstrated by execution — a red probe: a stranded name retired one past its loop's end goes LIVE under a plain `SetParam` that moves a corner fillet through a `Zero` fit (the loop's segment count depends on its arguments), silently denoting a real wall — the DI1 aliasing class one slot edit later. R2 exercised the retirement under a second RESHAPING only (re-retired correctly) and did not reach a slot edit. v6 TALLY CANDIDATE +1 (opus arm), correctness-class, pending blinded coding.** Convergent: the carrier walk re-spelled beside `name_carriers`, a second step→segment reader with `unreachable!` beside DM8's typed door, a third `RoleSeg` walk, the retirement argued at length and disclosed-not-scheduled (DM7 reading as ruled), the loft's second section reshaping silently, every carrier kind rebinding and stranding, the Python first-head mismatch the row's provenance (both twinned it in Rust), every golden additive (both diffed). R2 alone: a re-retirement reported as a fresh strand; the PR's sweep sentence false (`node.rs`, `anchor.rs`). R1 alone: the VIEW row's sweep incomplete; `SetProgram`'s rustdoc omitting the rewrite; the `Unreadable` row's loose line assertion. Pair FAIR: private cold targets, one box, no glimpse either side, both complete, neither interrupted. Fix pass implementer-inherited (FABLE), fifteen rulings: `RETIRED_FLOOR = u32::MAX / 2` (no program draws there under any edit; resolver, Python and evaluation measured `Vanished`, no panic; R1's probe green), an already-retired name untouched and unreported, the retirement off DM7 and onto its own `needs_ev` row (`stranded-names-are-retired-to-an-undrawable-coordinate`), `Doc::rewrite_names` the `&mut` twin over `Carrier::ALL`, the map through `CheckedRecords`, one `SegRewrite` walk for the anchor, split and program rewrites (three matches deleted), the live-name renumbering filed with a row pinned as measured (`a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names`), both probe suites merged authorship-preserving then folded by name. **The fix lane was cut off by a usage limit on 2026-09-20 with four unpushed commits and resumed from its transcript on 2026-09-24** (no work lost; it then merged ~1,400 commits of main: three content conflicts, VIEW's directory gone so the viewer row went to AUTHOR, the wire pin re-baselined for main's #3123, one compile-forced viewer arm). CI: impl run 35495029547 GREEN on `1a3359122`; fix run 35948920293 GREEN on `7ee8b9f02` (twelve `test` jobs, five k-lint, python, rustdoc, clippies, render lanes), after reds on the way (a viewer exhaustive match from main; two intra-doc links and a `collapsible_if`). Tokens (harness): impl ~192k, R1 ~307k, R2 ~319k, fix ~735k (the resumed session). Wall-clock: impl ~130 min, R1 ~32 min / R2 ~21 min concurrent, fix ~189 min active after the resume (plus the four-day outage). The orchestrating session changed arm at the resume (after the fix dispatch, before the close-out) — a covariate on the close-out only, disclosed.
 ## EDIT-PICK3 review ordinals fixed at dispatch (2026-09-16)
 
 EDIT-PICK3 (`pick-door-answers-a-t-interval`, PR #2786 open — frozen
