@@ -1392,3 +1392,38 @@ rows, the conclusion with its method notes (the Opus 5.5 boundary, the
 orchestrator's switch to Opus 5.5 before LANE-3's state-sync, the
 restarts and overloads, the idle) — lands on main with this PR. This is
 the program's last A/B block while the suspension stands.
+
+## RING-4 surveyed, specified and dispatched in parallel (2026-09-24)
+
+The RING-4 survey (Opus, `/home/user/scalar-briefs/survey-ring4.md` at
+`5a34a6342d`): 69 code lines carry the feature (54 in `crates/*/src`,
+25 of them production — nine lane impls, five public editor-core
+modules, `eval::leaf`, ~40 pncad re-exports), 251 gated test files, 16
+manifests; the interval CI lane is already the superset, so the fold
+deletes the DEFAULT rows (saving ~11–19 job-min per run on three
+samples) and keeps the backend and oracle jobs; deleting the feature
+fails loud on every stray `--features interval`, a no-op would silently
+mean nothing. The one local build measurement (+66 %–+103 % on
+`editor-core --lib`, other lanes compiling) reads above the ratified
+~+36 % ceiling while the hosted build rows read no slower — so the spec
+opens with a cost gate: measure, and stop above +50 % (Ev's call).
+RING-4 is independent of RING-3 in code (the feature gates
+instantiations and modules, not the ring); they meet in C9's feature
+sentence and a few shared files, so it runs in parallel (sequencing,
+the orchestrator's call; the alternative — wait for RING-3's `[ev]` PR
+to merge — would idle the program on Ev's sign-off). **Tier: SINGLE,
+full** — the decision is Ev's and made; the risk is coverage silently
+lost in the CI fold, checked against before/after listings. Implementer
+dispatched ~03:45Z on Opus (branch `scalar/ring-4` at `ca2b296faf`);
+the plan's RING-3 row is split into RING-3 and RING-4 on that branch.
+Fences, announced here and on the PR: CIW (workflows, lane scripts),
+TCOST/TINT (`ci-filter.py`, the test files), MIRROR (`ci-local.sh`,
+mirror parity), GUARD, LIB/BIND, CLEAR/PROPS/EDIT/STACK/WIRE (editor-core
+module cfgs), CHROME (viewer manifest, `GUI-DESIGN.md`), PROPS
+(geom-core's manifest and test cfgs), the unowned editor-core `lib.rs`/
+`report.rs`, `topo/src/props.rs`, seven manifests, `demos/tour`,
+`DESIGN.md`; one `memories/` example (Ev's). CLEAR's SHELL-3 plans a
+"behind `interval`" landing this unit removes — announced to CLEAR.
+Mooted at merge: `ciw/interval-only-selection-premise-restored`,
+`ciw/interval-cfg-gate-names-the-wrong-cause-for-an-attribute-order`,
+SCALAR's `gate-on-the-type-in-prose-outside-geom-core`.
