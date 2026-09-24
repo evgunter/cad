@@ -21,6 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Bounds;
 use geom_core::spline::KnotVector;
 use geom_core::spline::basis::basis_funs;
 

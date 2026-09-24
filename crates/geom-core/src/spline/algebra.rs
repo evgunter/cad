@@ -43,7 +43,7 @@
 //! `λ` is needed.
 
 use super::knots::{InteriorKnot, KnotVector, SplineError};
-use crate::ring_interval::RingInterval;
+use crate::interval::Interval;
 
 /// A typed knot-algebra refusal (fail-loud; the kernel never panics).
 #[derive(Clone, Debug, PartialEq)]
@@ -258,10 +258,10 @@ impl CurvePlan {
     /// insertion ratio — degree elevation, knot removal — poisons its
     /// target, as does a malformed plan or a channel of the wrong
     /// length. Poison then flows through every hull the caller reads.
-    pub fn apply_ring(&self, old: &[RingInterval]) -> Vec<RingInterval> {
+    pub fn apply_ring(&self, old: &[Interval]) -> Vec<Interval> {
         let n_new = self.knots.control_count();
-        let mut new: Vec<Option<RingInterval>> = vec![None; n_new];
-        let fetch = |new: &[Option<RingInterval>], s: Src| -> Option<RingInterval> {
+        let mut new: Vec<Option<Interval>> = vec![None; n_new];
+        let fetch = |new: &[Option<Interval>], s: Src| -> Option<Interval> {
             match s {
                 Src::Old(i) => old.get(i).copied(),
                 Src::New(i) => new.get(i).copied().flatten(),
@@ -316,9 +316,8 @@ impl CurvePlan {
                                 // it is not is variation-diminishing in the
                                 // exact sense the reals give.
                                 // Fixed association (D9): `β·x + α·y`.
-                                let (lo, hi) =
-                                    (RingInterval::point(r.lo), RingInterval::point(r.hi));
-                                let u = RingInterval::point(r.inserted);
+                                let (lo, hi) = (Interval::point(r.lo), Interval::point(r.hi));
+                                let u = Interval::point(r.inserted);
                                 let span = hi - lo;
                                 let alpha = (u - lo) / span;
                                 let beta = (hi - u) / span;
@@ -331,7 +330,7 @@ impl CurvePlan {
             }
         }
         new.into_iter()
-            .map(|slot| slot.unwrap_or_else(RingInterval::poison))
+            .map(|slot| slot.unwrap_or_else(Interval::poison))
             .collect()
     }
 }
@@ -416,7 +415,7 @@ pub fn insert_knot_plan(
 /// **The Boehm structure is shared with [`super::compose`]'s
 /// `insert_once_ring`, and the two are now a FILED duplication rather
 /// than an argued one.** That function's own docs still argue the split
-/// on the ground that it "folds `RingInterval` coefficients with an
+/// on the ground that it "folds `Interval` coefficients with an
 /// outward-rounding quotient and has no weights to form `λ` from" —
 /// which is a description of [`CurvePlan::apply_ring`], so the argument
 /// no longer separates them. What still does is the SHAPE of the
@@ -901,6 +900,7 @@ fn elevate_bezier_stage(kv: &KnotVector, weights: &[f64]) -> CurvePlan {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::real::Bounds;
     use crate::spline::basis::basis_funs;
 
     /// 1-D rational evaluation oracle: x(t) = Σ N w x / Σ N w — the
@@ -991,12 +991,11 @@ mod tests {
             let coeffs: Vec<f64> = (0..n)
                 .map(|i| if i % 2 == 0 { i as f64 } else { -(i as f64) })
                 .collect();
-            let input: Vec<RingInterval> =
-                coeffs.iter().copied().map(RingInterval::point).collect();
+            let input: Vec<Interval> = coeffs.iter().copied().map(Interval::point).collect();
             let input_hull = input
                 .iter()
                 .copied()
-                .reduce(RingInterval::hull)
+                .reduce(Interval::hull)
                 .expect("a clamped vector has control points");
             let scale = coeffs.iter().fold(0.0f64, |m, c| m.max(c.abs())).max(1.0);
             for splits in [2usize, 3, 8, 16] {
@@ -1117,7 +1116,7 @@ mod tests {
                 }
             }
             let plans = refine_plan_homogeneous(&kv, &add).unwrap();
-            let mut out: Vec<RingInterval> = vec![RingInterval::point(c); kv.control_count()];
+            let mut out: Vec<Interval> = vec![Interval::point(c); kv.control_count()];
             for plan in &plans {
                 out = plan.apply_ring(&out);
             }

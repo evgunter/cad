@@ -5,7 +5,7 @@
 //! cylinder cancellation claim is real.
 //!
 //! Reimplements the cylinder/sphere implicit enclosures from the same
-//! formulas `ssi::enclose` uses (RingInterval is public) and checks,
+//! formulas `ssi::enclose` uses (Interval is public) and checks,
 //! on dense samples over random and adversarial boxes, that the
 //! enclosure always CONTAINS the pointwise linearized residual — the
 //! soundness fact "excluded cell has no locus" reduces to.
@@ -24,7 +24,7 @@
 
 test_utils::gated_to![
     "crates/geom-brep/src/implicit.rs",
-    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
     "crates/geom/src/surfaces/",
     "crates/geom/src/surfaces.rs",
     "crates/geom-brep/src/ssi/enclose.rs",
@@ -32,7 +32,8 @@ test_utils::gated_to![
 
 use geom::Surface;
 use geom_brep::implicit_residual;
-use geom_core::{Point3, RingInterval, Vec3};
+use geom_core::Bounds;
+use geom_core::{Interval, Point3, Vec3};
 use test_utils::fuzz;
 
 /// Uniform in `[-1, 1)`, the shape the reviewer's probe drew.
@@ -40,18 +41,18 @@ fn signed_unit(rng: &mut fuzz::Rng) -> f64 {
     rng.range(-1.0, 1.0)
 }
 
-fn ring(v: f64) -> RingInterval {
-    RingInterval::point(v)
+fn ring(v: f64) -> Interval {
+    Interval::point(v)
 }
 
 #[derive(Clone, Copy)]
 struct B3 {
-    x: RingInterval,
-    y: RingInterval,
-    z: RingInterval,
+    x: Interval,
+    y: Interval,
+    z: Interval,
 }
 
-fn cyl_enclosure_good(origin: Point3<f64>, axis: Vec3<f64>, r: f64, b: B3) -> RingInterval {
+fn cyl_enclosure_good(origin: Point3<f64>, axis: Vec3<f64>, r: f64, b: B3) -> Interval {
     // The shipped form: w = q − â(q·â), then (|w|² − r²)/2r.
     let q = [
         b.x - ring(origin.x),
@@ -64,7 +65,7 @@ fn cyl_enclosure_good(origin: Point3<f64>, axis: Vec3<f64>, r: f64, b: B3) -> Ri
     (w[0].sqr() + w[1].sqr() + w[2].sqr() - ring(r * r)) / ring(2.0 * r)
 }
 
-fn cyl_enclosure_naive(origin: Point3<f64>, axis: Vec3<f64>, r: f64, b: B3) -> RingInterval {
+fn cyl_enclosure_naive(origin: Point3<f64>, axis: Vec3<f64>, r: f64, b: B3) -> Interval {
     // The algebraically-equal form the module docs warn about:
     // |q|² − (q·â)².
     let q = [
@@ -79,7 +80,7 @@ fn cyl_enclosure_naive(origin: Point3<f64>, axis: Vec3<f64>, r: f64, b: B3) -> R
 }
 
 /// Containment of the sample's own one-ulp rounding bracket. The
-/// enclosure's contract (`RingInterval` module docs) binds the REAL
+/// enclosure's contract (`Interval` module docs) binds the REAL
 /// residual of points in the box; the f64 sample is itself a rounded
 /// evaluation, so its final rounding may step across the enclosure's
 /// endpoint (Lemma P1: a correctly rounded result lies within one
@@ -87,11 +88,11 @@ fn cyl_enclosure_naive(origin: Point3<f64>, axis: Vec3<f64>, r: f64, b: B3) -> R
 /// that the enclosure meets `[next_down(sample), next_up(sample)]` —
 /// no relative slack: a genuinely lying enclosure misses by the
 /// geometry's scale, orders of magnitude, never by one step.
-fn brackets(e: RingInterval, sample: f64) -> bool {
+fn brackets(e: Interval, sample: f64) -> bool {
     e.lo() <= sample.next_up() && sample.next_down() <= e.hi()
 }
 
-fn sph_enclosure(center: Point3<f64>, r: f64, b: B3) -> RingInterval {
+fn sph_enclosure(center: Point3<f64>, r: f64, b: B3) -> Interval {
     let q = [
         b.x - ring(center.x),
         b.y - ring(center.y),
@@ -146,9 +147,9 @@ fn enclosures_contain_every_sampled_residual_hence_exclusion_cannot_lie() {
     }
     for (c, r) in boxes {
         let b = B3 {
-            x: RingInterval::from_bounds(c.x - r, c.x + r),
-            y: RingInterval::from_bounds(c.y - r, c.y + r),
-            z: RingInterval::from_bounds(c.z - r, c.z + r),
+            x: Interval::from_bounds(c.x - r, c.x + r),
+            y: Interval::from_bounds(c.y - r, c.y + r),
+            z: Interval::from_bounds(c.z - r, c.z + r),
         };
         let (
             Surface::Sphere { center, radius, .. },
@@ -219,9 +220,9 @@ fn the_cylinder_cancellation_claim_is_real_on_the_doc_fixture() {
     let axis = Vec3::new(0.0, 0.0, 1.0);
     let r = 0.08;
     let b = B3 {
-        x: RingInterval::from_bounds(0.10, 0.12),
-        y: RingInterval::from_bounds(-0.01, 0.01),
-        z: RingInterval::from_bounds(0.95, 1.05),
+        x: Interval::from_bounds(0.10, 0.12),
+        y: Interval::from_bounds(-0.01, 0.01),
+        z: Interval::from_bounds(0.95, 1.05),
     };
     let good = cyl_enclosure_good(origin, axis, r, b);
     let naive = cyl_enclosure_naive(origin, axis, r, b);
@@ -235,9 +236,9 @@ fn the_cylinder_cancellation_claim_is_real_on_the_doc_fixture() {
     // And the good form can exclude while the naive form cannot: a box
     // clearly off the cylinder wall.
     let off = B3 {
-        x: RingInterval::from_bounds(0.5, 0.52),
-        y: RingInterval::from_bounds(0.5, 0.52),
-        z: RingInterval::from_bounds(0.95, 1.05),
+        x: Interval::from_bounds(0.5, 0.52),
+        y: Interval::from_bounds(0.5, 0.52),
+        z: Interval::from_bounds(0.95, 1.05),
     };
     let g2 = cyl_enclosure_good(origin, axis, r, off);
     assert!(g2.lo() > 0.0, "the shipped form must exclude here");

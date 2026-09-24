@@ -57,7 +57,8 @@
 //! the pruning does.
 
 use geom::{NurbsSurface, Surface};
-use geom_core::{Point3, RingInterval, SupSpeed, Vec3};
+use geom_core::Bounds;
+use geom_core::{Interval, Point3, SupSpeed, Vec3};
 
 use super::SsiError;
 use super::enclose::{Box3, NurbsBoxes, implicit_enclosure};
@@ -572,7 +573,7 @@ fn sweep_r3(
     })
 }
 
-fn excludes_zero(i: RingInterval) -> bool {
+fn excludes_zero(i: Interval) -> bool {
     i.is_certified() && (i.lo() > 0.0 || i.hi() < 0.0)
 }
 
@@ -725,9 +726,9 @@ fn sweep_chart_plane(
     let boxes = NurbsBoxes::new(surface);
     sweep(root, duty, floor_uv, |cell| {
         let b = boxes.rect_box(cell.u.0, cell.u.1, cell.v.0, cell.v.1);
-        let phi = RingInterval::point(plane_normal.x) * (b.x - RingInterval::point(plane_origin.x))
-            + RingInterval::point(plane_normal.y) * (b.y - RingInterval::point(plane_origin.y))
-            + RingInterval::point(plane_normal.z) * (b.z - RingInterval::point(plane_origin.z));
+        let phi = Interval::point(plane_normal.x) * (b.x - Interval::point(plane_origin.x))
+            + Interval::point(plane_normal.y) * (b.y - Interval::point(plane_origin.y))
+            + Interval::point(plane_normal.z) * (b.z - Interval::point(plane_origin.z));
         if !phi.is_certified() {
             // The one measured route here is weight underflow: the
             // seeding guard refuses every net whose homogeneous

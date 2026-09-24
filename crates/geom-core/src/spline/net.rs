@@ -63,7 +63,7 @@
 //!
 //! # Poison (fail-loud, D4 ¶2)
 //!
-//! Every out-of-range read is [`RingInterval::poison`]; a shape that
+//! Every out-of-range read is [`Interval::poison`]; a shape that
 //! does not multiply out is a poisoned net rather than a panic or a
 //! truncation. Nothing here compares anything.
 
@@ -71,7 +71,7 @@ use core::ops::RangeInclusive;
 
 use super::algebra::CurvePlan;
 use super::knots::KnotVector;
-use crate::ring_interval::RingInterval;
+use crate::interval::Interval;
 
 /// A rectangular tensor coefficient net of ring enclosures, stored
 /// **row-major** (`u`-major): entry `(i, j)` — `u` index `i`, `v` index
@@ -88,7 +88,7 @@ use crate::ring_interval::RingInterval;
 pub struct TensorNet {
     nu: usize,
     nv: usize,
-    c: Vec<RingInterval>,
+    c: Vec<Interval>,
 }
 
 impl TensorNet {
@@ -100,7 +100,7 @@ impl TensorNet {
     /// silently-truncated net would answer a finite bound over a window
     /// it never covered.
     #[must_use]
-    pub fn from_flat(nu: usize, nv: usize, c: Vec<RingInterval>) -> Self {
+    pub fn from_flat(nu: usize, nv: usize, c: Vec<Interval>) -> Self {
         if c.len() == nu.saturating_mul(nv) {
             Self { nu, nv, c }
         } else {
@@ -114,14 +114,14 @@ impl TensorNet {
         Self {
             nu,
             nv,
-            c: vec![RingInterval::poison(); nu.saturating_mul(nv)],
+            c: vec![Interval::poison(); nu.saturating_mul(nv)],
         }
     }
 
     /// A net from `u`-major nested rows (`rows[i][j]`). A ragged input
     /// is a shape error and poisons, per [`TensorNet::from_flat`].
     #[must_use]
-    pub fn from_rows(rows: &[Vec<RingInterval>]) -> Self {
+    pub fn from_rows(rows: &[Vec<Interval>]) -> Self {
         let nu = rows.len();
         let nv = rows.first().map_or(0, Vec::len);
         if rows.iter().any(|r| r.len() != nv) {
@@ -136,7 +136,7 @@ impl TensorNet {
 
     /// A net built entrywise from its indices.
     #[must_use]
-    pub fn from_fn(nu: usize, nv: usize, f: impl Fn(usize, usize) -> RingInterval) -> Self {
+    pub fn from_fn(nu: usize, nv: usize, f: impl Fn(usize, usize) -> Interval) -> Self {
         let mut c = Vec::with_capacity(nu.saturating_mul(nv));
         for i in 0..nu {
             for j in 0..nv {
@@ -166,27 +166,27 @@ impl TensorNet {
 
     /// The whole net, row-major.
     #[must_use]
-    pub fn as_flat(&self) -> &[RingInterval] {
+    pub fn as_flat(&self) -> &[Interval] {
         &self.c
     }
 
     /// Entry `(i, j)`; out of range is poison.
     #[must_use]
-    pub fn get(&self, i: usize, j: usize) -> RingInterval {
+    pub fn get(&self, i: usize, j: usize) -> Interval {
         if i >= self.nu || j >= self.nv {
-            return RingInterval::poison();
+            return Interval::poison();
         }
         self.c
             .get(i * self.nv + j)
             .copied()
-            .unwrap_or_else(RingInterval::poison)
+            .unwrap_or_else(Interval::poison)
     }
 
     /// The `v`-line at `u` index `i`, borrowed. Out of range is empty —
     /// a caller differencing it gets the step's own answer for an empty
     /// line, which the fill then covers.
     #[must_use]
-    pub fn row(&self, i: usize) -> &[RingInterval] {
+    pub fn row(&self, i: usize) -> &[Interval] {
         if i >= self.nu {
             return &[];
         }
@@ -197,7 +197,7 @@ impl TensorNet {
     /// The `u`-line at `v` index `j`, materialised (the layout stores
     /// it strided). Out-of-range entries are poison.
     #[must_use]
-    pub fn column(&self, j: usize) -> Vec<RingInterval> {
+    pub fn column(&self, j: usize) -> Vec<Interval> {
         (0..self.nu).map(|i| self.get(i, j)).collect()
     }
 
@@ -208,22 +208,18 @@ impl TensorNet {
     /// inner, hulling left to right from the first entry. An empty
     /// window and an out-of-range index are both poison.
     #[must_use]
-    pub fn window_hull(
-        &self,
-        wu: &RangeInclusive<usize>,
-        wv: &RangeInclusive<usize>,
-    ) -> RingInterval {
-        let mut acc: Option<RingInterval> = None;
+    pub fn window_hull(&self, wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>) -> Interval {
+        let mut acc: Option<Interval> = None;
         for i in wu.clone() {
             for j in wv.clone() {
                 let e = self.get(i, j);
                 acc = Some(match acc {
                     None => e,
-                    Some(h) => RingInterval::hull(h, e),
+                    Some(h) => Interval::hull(h, e),
                 });
             }
         }
-        acc.unwrap_or_else(RingInterval::poison)
+        acc.unwrap_or_else(Interval::poison)
     }
 
     /// The hull of the WHOLE net — [`TensorNet::window_hull`] over
@@ -231,9 +227,9 @@ impl TensorNet {
     /// spelled once so it is visibly the same assembly as the per-cell
     /// one rather than a second differencing.
     #[must_use]
-    pub fn hull(&self) -> RingInterval {
+    pub fn hull(&self) -> Interval {
         if self.nu == 0 || self.nv == 0 {
-            return RingInterval::poison();
+            return Interval::poison();
         }
         self.window_hull(&(0..=self.nu - 1), &(0..=self.nv - 1))
     }
@@ -249,12 +245,12 @@ impl TensorNet {
     /// A net with fewer than two `u` indices has no `u` derivative and
     /// yields the empty net.
     #[must_use]
-    pub fn diff_u(&self, step: impl Fn(&[RingInterval]) -> Vec<RingInterval>) -> Self {
+    pub fn diff_u(&self, step: impl Fn(&[Interval]) -> Vec<Interval>) -> Self {
         let nu1 = self.nu.saturating_sub(1);
         if nu1 == 0 || self.nv == 0 {
             return Self::from_flat(nu1, self.nv, Vec::new());
         }
-        let mut c = vec![RingInterval::poison(); nu1 * self.nv];
+        let mut c = vec![Interval::poison(); nu1 * self.nv];
         for j in 0..self.nv {
             let d = step(&self.column(j));
             if d.len() != nu1 {
@@ -278,12 +274,12 @@ impl TensorNet {
     /// step that answers anything but `nv − 1` coefficients poisons
     /// that line ([`TensorNet::diff_u`]).
     #[must_use]
-    pub fn diff_v(&self, step: impl Fn(&[RingInterval]) -> Vec<RingInterval>) -> Self {
+    pub fn diff_v(&self, step: impl Fn(&[Interval]) -> Vec<Interval>) -> Self {
         let nv1 = self.nv.saturating_sub(1);
         if nv1 == 0 || self.nu == 0 {
             return Self::from_flat(self.nu, nv1, Vec::new());
         }
-        let mut c = vec![RingInterval::poison(); self.nu * nv1];
+        let mut c = vec![Interval::poison(); self.nu * nv1];
         for i in 0..self.nu {
             let d = step(self.row(i));
             if d.len() != nv1 {
@@ -357,7 +353,7 @@ impl TensorNet {
         if nu_new != self.nu + plans.len() {
             return Self::poisoned(nu_new, self.nv);
         }
-        let mut c = vec![RingInterval::poison(); nu_new * self.nv];
+        let mut c = vec![Interval::poison(); nu_new * self.nv];
         for j in 0..self.nv {
             let mut line = self.column(j);
             for plan in plans {
@@ -387,7 +383,7 @@ impl TensorNet {
         if nv_new != self.nv + plans.len() {
             return Self::poisoned(self.nu, nv_new);
         }
-        let mut c = vec![RingInterval::poison(); self.nu * nv_new];
+        let mut c = vec![Interval::poison(); self.nu * nv_new];
         for i in 0..self.nu {
             let mut line = self.row(i).to_vec();
             for plan in plans {
@@ -411,9 +407,10 @@ impl TensorNet {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use crate::real::Bounds;
 
-    fn pt(x: f64) -> RingInterval {
-        RingInterval::point(x)
+    fn pt(x: f64) -> Interval {
+        Interval::point(x)
     }
 
     /// The refinement schedule for one direction: every nonempty span of
@@ -572,7 +569,7 @@ mod tests {
         let n = TensorNet::from_rows(&[vec![pt(0.0), pt(1.0)], vec![pt(2.0), pt(5.0)]]);
         // The ring rounds outward, so each answer is ENCLOSED, not
         // equalled (D4 ¶2: a bound, never an estimate).
-        let holds = |iv: RingInterval, x: f64| iv.lo() <= x && x <= iv.hi();
+        let holds = |iv: Interval, x: f64| iv.lo() <= x && x <= iv.hi();
         let du = n.diff_u_knots(&kv);
         assert_eq!((du.nu(), du.nv()), (1, 2));
         assert!(holds(du.get(0, 0), 2.0) && holds(du.get(0, 1), 4.0));
@@ -592,10 +589,10 @@ mod tests {
     fn a_step_of_the_wrong_length_poisons_its_line() {
         let n = TensorNet::from_rows(&[vec![pt(1.0)], vec![pt(2.0)], vec![pt(3.0)]]);
         // Owes 2 coefficients per u-line.
-        let nothing = |_: &[RingInterval]| Vec::new();
-        let short = |_: &[RingInterval]| vec![pt(9.0)];
-        let long = |_: &[RingInterval]| vec![pt(9.0), pt(9.0), pt(9.0)];
-        let right = |_: &[RingInterval]| vec![pt(9.0), pt(8.0)];
+        let nothing = |_: &[Interval]| Vec::new();
+        let short = |_: &[Interval]| vec![pt(9.0)];
+        let long = |_: &[Interval]| vec![pt(9.0), pt(9.0), pt(9.0)];
+        let right = |_: &[Interval]| vec![pt(9.0), pt(8.0)];
         for bad in [n.diff_u(nothing), n.diff_u(short), n.diff_u(long)] {
             assert_eq!((bad.nu(), bad.nv()), (2, 1));
             assert!(!bad.get(0, 0).is_certified() && !bad.get(1, 0).is_certified());

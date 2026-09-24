@@ -15,7 +15,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::RingInterval;
+use geom_core::Bounds;
+use geom_core::Interval;
 use geom_core::spline::KnotVector;
 
 fn cubic() -> KnotVector {
@@ -106,7 +107,7 @@ fn the_minimal_degree_one_pair_has_one_derivative_coefficient() {
     let q = pair.derivative_coeffs();
     assert_eq!(q.len(), 1);
     // The ring widens every op by an ulp, so containment, not equality.
-    let encloses = |r: RingInterval| r.lo() <= 3.0 && 3.0 <= r.hi() && r.hi() - r.lo() < 1e-12;
+    let encloses = |r: Interval| r.lo() <= 3.0 && 3.0 <= r.hi() && r.hi() - r.lo() < 1e-12;
     assert!(encloses(q[0]), "{:?}", (q[0].lo(), q[0].hi()));
     assert!(encloses(pair.derivative_domain_hull()));
     let win = pair.span(1).unwrap();
@@ -120,7 +121,7 @@ fn the_minimal_degree_one_pair_has_one_derivative_coefficient() {
         knots.extend(vec![1.0; p + 1]);
         let k = KnotVector::clamped(knots, p).unwrap();
         assert_eq!(k.control_count(), p + 1);
-        let c = vec![RingInterval::point(1.0); p + 1];
+        let c = vec![Interval::point(1.0); p + 1];
         assert_eq!(k.with_coeffs(&c).unwrap().derivative_coeffs().len(), p);
         assert_eq!(
             k.difference_coeffs(&c).len(),

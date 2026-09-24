@@ -45,8 +45,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use geom::{Curve3, NurbsCurve3};
+use geom_core::Bounds;
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface};
-use geom_core::{Point3, RingInterval, Vec3};
+use geom_core::{Interval, Point3, Vec3};
 
 const SQRT2_2: f64 = core::f64::consts::FRAC_1_SQRT_2;
 const RADIUS: f64 = 2.5;
@@ -156,7 +157,7 @@ fn arc_bounds(curve: &NurbsCurve3<f64>) -> Vec<ArcBound> {
 
     let sphere_bounds = sphere.span_bounds();
     let plane_bounds = plane.span_bounds();
-    let w2_hulls: Vec<RingInterval> = sphere.den.span_hulls();
+    let w2_hulls: Vec<Interval> = sphere.den.span_hulls();
     (0..sphere_bounds.len())
         .map(|arc| ArcBound {
             sphere: sphere_bounds[arc].mag(),

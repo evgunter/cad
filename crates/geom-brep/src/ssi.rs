@@ -124,6 +124,7 @@ pub mod system;
 
 use geom::{Curve3, FitError, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
+use geom_core::Bounds;
 use geom_core::{Band, Indeterminate, Margin, Point3};
 
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb};

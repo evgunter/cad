@@ -16,7 +16,7 @@
 //! `domain_hull`, `domain_hull_rational`, every `derivative_coeffs`
 //! entry, `derivative_domain_hull`, `sup_norm_bound` and
 //! `sup_norm_bound_rational`. Two coefficient lanes here: `f64` brackets
-//! and `RingInterval` brackets (what the consumers actually hand in);
+//! and `Interval` brackets (what the consumers actually hand in);
 //! the `Interval`-bracket lane is `coeffs_bit_identity_interval.rs`,
 //! whole-file gated on the feature and sharing this corpus. Every `f64`
 //! that comes out is recorded by its bits.
@@ -37,8 +37,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza; the helpers serve `coeffs_bit_identity_interval` too
 
+use geom_core::Bounds;
 use geom_core::spline::KnotVector;
-use geom_core::{CertifiedEnclosure, RingInterval};
+use geom_core::{CertifiedBounds, Interval};
 
 pub type Rows = Vec<(String, u64)>;
 
@@ -99,7 +100,7 @@ pub fn weights(n: usize, rational: bool) -> Vec<f64> {
         .collect()
 }
 
-pub fn ri(o: &mut Rows, tag: &str, r: RingInterval) {
+pub fn ri(o: &mut Rows, tag: &str, r: Interval) {
     o.push((format!("{tag}.lo"), r.lo().to_bits()));
     o.push((format!("{tag}.hi"), r.hi().to_bits()));
 }
@@ -108,7 +109,7 @@ pub fn ri(o: &mut Rows, tag: &str, r: RingInterval) {
 /// vector — one pair minted non-rationally and one rationally, each
 /// asked for every window. The labels are the ones the free
 /// `(coeffs, span)` and `(kv, coeffs)` spellings produced.
-pub fn drive<E: CertifiedEnclosure>(
+pub fn drive<E: CertifiedBounds>(
     o: &mut Rows,
     name: &str,
     kv: &KnotVector,
@@ -154,17 +155,17 @@ pub fn drive<E: CertifiedEnclosure>(
     ));
 }
 
-/// The default-lane corpus: `f64` and `RingInterval` brackets.
+/// The default-lane corpus: `f64` and `Interval` brackets.
 fn rows() -> Rows {
     let mut o = Vec::new();
     for (vname, kv) in vectors() {
         let n = kv.control_count();
         let c = values(n);
         #[allow(clippy::cast_precision_loss)]
-        let rings: Vec<RingInterval> = c
+        let rings: Vec<Interval> = c
             .iter()
             .enumerate()
-            .map(|(i, x)| RingInterval::from_bounds(x - 0.01 * i as f64, x + 0.005))
+            .map(|(i, x)| Interval::from_bounds(x - 0.01 * i as f64, x + 0.005))
             .collect();
         for rational in [false, true] {
             let w = weights(n, rational);

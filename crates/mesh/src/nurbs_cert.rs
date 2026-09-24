@@ -177,7 +177,8 @@
 
 use geom::NurbsSurface;
 use geom_brep::patch_bound::{self, PatchBoundError};
-use geom_core::ring_interval::RingInterval;
+use geom_core::Bounds;
+use geom_core::interval::Interval;
 use topo::FaceKey;
 
 use crate::types::TessellateError;
@@ -203,7 +204,7 @@ fn face_err(fk: FaceKey, e: PatchBoundError) -> TessellateError {
 /// used to carry alongside the signed one applied the triangle
 /// inequality to the quotient rule and could not see its cancellations
 /// (issue 1006).
-fn cell_readings(c: &patch_bound::PatchCell) -> [RingInterval; 5] {
+fn cell_readings(c: &patch_bound::PatchCell) -> [Interval; 5] {
     [
         patch_bound::sq_norm(c.s_uu),
         patch_bound::sq_norm(c.s_uv),
@@ -513,7 +514,7 @@ pub(crate) struct CellBound {
 ///
 /// **The zero reaches here exact because the ring's arithmetic keeps
 /// it.** `patch_bound::sq_norm` folds `acc + c.sqr()` from
-/// `RingInterval::zero()`, and the backend pads only where an
+/// `Interval::zero()`, and the backend pads only where an
 /// operation was inexact: `0 · 0` is exact by the zero-factor corner
 /// convention and `0 + 0` by the TwoSum witness
 /// (`interval_transcendentals`' `mul_lo`/`mul_hi`, `add_lo`/`add_hi`),
@@ -521,7 +522,7 @@ pub(crate) struct CellBound {
 /// `[0, 0]` and takes the arm below. An enclosure that is merely
 /// NARROW does not, and must not: it is an enclosure of something the
 /// assembly could not prove zero.
-fn cell_component(sq: RingInterval) -> f64 {
+fn cell_component(sq: Interval) -> f64 {
     // The refusal is asked by name: the ring keeps it in the
     // decoration, so a refused enclosure carries an ordinary `hi` and
     // the NaN the contract above promises has to be spelled here.
@@ -3621,12 +3622,12 @@ pub(crate) mod tests {
             .transpose()
             .ok()?;
         let (nu, nv) = s.control_counts();
-        let zero = RingInterval::zero();
+        let zero = Interval::zero();
         let mut sq = [zero; 5];
         for c in 0..3 {
             let base = TensorNet::from_fn(nu, nv, |i, j| {
                 let p = s.control()[i * nv + j];
-                RingInterval::point(match c {
+                Interval::point(match c {
                     0 => p.x,
                     1 => p.y,
                     _ => p.z,

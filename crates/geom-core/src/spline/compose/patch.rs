@@ -56,14 +56,14 @@
 //! # C6 and poison
 //!
 //! Structure (knots, degrees, break merges, cell counts) is `f64`;
-//! every coefficient is a [`RingInterval`]. Nothing here evaluates or
+//! every coefficient is a [`Interval`]. Nothing here evaluates or
 //! samples anything.
 
 use super::super::knots::KnotVector;
 use super::{
     BernWeights, bern_mul_row_into, bern_mul_row_with, bern_weights, to_bezier_spans_extra,
 };
-use crate::ring_interval::RingInterval;
+use crate::interval::Interval;
 use std::borrow::Cow;
 
 /// One scalar channel of a tensor-product spline in per-cell Bernstein
@@ -76,7 +76,7 @@ pub struct PatchSpans {
     deg_v: usize,
     breaks_u: Vec<f64>,
     breaks_v: Vec<f64>,
-    cells: Vec<Vec<Vec<RingInterval>>>,
+    cells: Vec<Vec<Vec<Interval>>>,
 }
 
 impl PatchSpans {
@@ -100,17 +100,13 @@ impl PatchSpans {
     /// `(su, sv)` — the hull of its Bernstein coefficients (module
     /// docs). Poison for an out-of-range cell. Fixed ascending fold
     /// order (D9).
-    pub fn cell_hull(&self, su: usize, sv: usize) -> RingInterval {
+    pub fn cell_hull(&self, su: usize, sv: usize) -> Interval {
         let Some(block) = self.cells.get(su).and_then(|r| r.get(sv)) else {
-            return RingInterval::poison();
+            return Interval::poison();
         };
-        let mut acc = RingInterval::poison();
+        let mut acc = Interval::poison();
         for (n, c) in block.iter().enumerate() {
-            acc = if n == 0 {
-                *c
-            } else {
-                RingInterval::hull(acc, *c)
-            };
+            acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
         }
         acc
     }
@@ -126,7 +122,7 @@ impl PatchSpans {
     pub fn decompose(
         ku: &KnotVector,
         kv: &KnotVector,
-        grid: &[RingInterval],
+        grid: &[Interval],
         extra_u: &[f64],
         extra_v: &[f64],
     ) -> Self {
@@ -140,9 +136,9 @@ impl PatchSpans {
         let mut breaks_u = Vec::new();
         let mut deg_u = ku.degree();
         // stage1[su][a][jv]
-        let mut stage1: Vec<Vec<Vec<RingInterval>>> = Vec::new();
+        let mut stage1: Vec<Vec<Vec<Interval>>> = Vec::new();
         for jv in 0..nv {
-            let col: Vec<RingInterval> = (0..nu).map(|iu| grid[iu * nv + jv]).collect();
+            let col: Vec<Interval> = (0..nu).map(|iu| grid[iu * nv + jv]).collect();
             let bs = to_bezier_spans_extra(ku, &col, extra_u);
             if jv == 0 {
                 breaks_u = bs.breaks().to_vec();
@@ -163,9 +159,9 @@ impl PatchSpans {
         // Stage 2 (v): per u-cell and u-index, decompose the v-row.
         let mut breaks_v = Vec::new();
         let mut deg_v = kv.degree();
-        let mut cells: Vec<Vec<Vec<RingInterval>>> = Vec::new();
+        let mut cells: Vec<Vec<Vec<Interval>>> = Vec::new();
         for span_rows in &stage1 {
-            let mut row_cells: Vec<Vec<RingInterval>> = Vec::new();
+            let mut row_cells: Vec<Vec<Interval>> = Vec::new();
             for (a, vrow) in span_rows.iter().enumerate() {
                 let bs = to_bezier_spans_extra(kv, vrow, extra_v);
                 if a == 0 {
@@ -191,7 +187,7 @@ impl PatchSpans {
     /// A constant channel on this patch's cell structure — the
     /// degree-`(0, 0)` form of `c`, used both as a literal and as the
     /// degree-elevation multiplicand ([`Self::elevated`]).
-    pub fn constant(&self, c: RingInterval) -> Self {
+    pub fn constant(&self, c: Interval) -> Self {
         Self {
             deg_u: 0,
             deg_v: 0,
@@ -342,7 +338,7 @@ impl PatchSpans {
 
     /// Cellwise scaling by a ring constant (exact bidegree, one ring
     /// product per coefficient).
-    pub fn scale(&self, c: RingInterval) -> Self {
+    pub fn scale(&self, c: Interval) -> Self {
         Self {
             deg_u: self.deg_u,
             deg_v: self.deg_v,
@@ -369,7 +365,7 @@ impl PatchSpans {
 /// patch rather than once per cell (and not at all in an unpadded
 /// direction). Nothing about the arithmetic moves: the same rows and
 /// the same table entries reach the same fold in the same order.
-type ElevationPad = Option<(Vec<RingInterval>, Cow<'static, BernWeights>)>;
+type ElevationPad = Option<(Vec<Interval>, Cow<'static, BernWeights>)>;
 
 /// The two directions' multipliers for one elevation.
 struct ElevationPads {
@@ -380,7 +376,7 @@ struct ElevationPads {
 impl ElevationPads {
     fn new((deg_u, deg_v): (usize, usize), (pad_u, pad_v): (usize, usize)) -> Self {
         let dir = |deg: usize, pad: usize| {
-            (pad > 0).then(|| (vec![RingInterval::one(); pad + 1], bern_weights(deg, pad)))
+            (pad > 0).then(|| (vec![Interval::one(); pad + 1], bern_weights(deg, pad)))
         };
         Self {
             u: dir(deg_u, pad_u),
@@ -392,14 +388,14 @@ impl ElevationPads {
 /// One cell's Bernstein degree elevation, `u` then `v`, each as a
 /// product with the all-ones row of the padding degree.
 fn elevate_block(
-    block: &[RingInterval],
+    block: &[Interval],
     deg_u: usize,
     deg_v: usize,
     pads: &ElevationPads,
-) -> Vec<RingInterval> {
+) -> Vec<Interval> {
     let nv = deg_v + 1;
     // v-direction first, per u index.
-    let mut rows: Vec<Vec<RingInterval>> = (0..=deg_u)
+    let mut rows: Vec<Vec<Interval>> = (0..=deg_u)
         .map(|i| {
             let row = &block[i * nv..(i + 1) * nv];
             match &pads.v {
@@ -412,10 +408,9 @@ fn elevate_block(
         let width = rows.first().map_or(0, Vec::len);
         // `ones.len() == pad_u + 1`, so the elevated u-extent is
         // `deg_u + pad_u + 1`.
-        let mut out: Vec<Vec<RingInterval>> =
-            vec![vec![RingInterval::zero(); width]; deg_u + ones.len()];
+        let mut out: Vec<Vec<Interval>> = vec![vec![Interval::zero(); width]; deg_u + ones.len()];
         for k in 0..width {
-            let col: Vec<RingInterval> = rows.iter().map(|r| r[k]).collect();
+            let col: Vec<Interval> = rows.iter().map(|r| r[k]).collect();
             let elevated = bern_mul_row_with(&col, ones, w);
             for (j, e) in elevated.iter().enumerate() {
                 out[j][k] = *e;
@@ -431,19 +426,19 @@ fn elevate_block(
 /// u-convolution slot `r = i + k` with the u-binomial quotient weight,
 /// both read out of the tables the whole product shares.
 fn mul_block(
-    ba: &[RingInterval],
-    bb: &[RingInterval],
+    ba: &[Interval],
+    bb: &[Interval],
     (a, b): (usize, usize),
     (c, d): (usize, usize),
     wu: &BernWeights,
     wv: &BernWeights,
-) -> Vec<RingInterval> {
+) -> Vec<Interval> {
     let (nb, nd) = (b + 1, d + 1);
     let out_v = b + d + 1;
-    let mut out = vec![RingInterval::zero(); (a + c + 1) * out_v];
+    let mut out = vec![Interval::zero(); (a + c + 1) * out_v];
     // One row buffer for the whole block: the v-product overwrites it
     // per `(i, k)` pair and is consumed before the next pair runs.
-    let mut prod: Vec<RingInterval> = Vec::with_capacity(out_v);
+    let mut prod: Vec<Interval> = Vec::with_capacity(out_v);
     // Fixed ascending order throughout (D9).
     for i in 0..=a {
         let row_a = &ba[i * nb..(i + 1) * nb];
@@ -468,6 +463,7 @@ mod tests {
     use super::super::binom_row;
     use super::super::tests::{bern_mul_row_base, same_bits};
     use super::*;
+    use crate::real::Bounds;
 
     /// A patch of bidegree `(du, dv)` with one interior break in each
     /// direction, decomposed. Every operand here shares the same two
@@ -482,10 +478,10 @@ mod tests {
         let ku = clamped(du, 0.4);
         let kv = clamped(dv, 0.6);
         let (nu, nv) = (ku.control_count(), kv.control_count());
-        let grid: Vec<RingInterval> = (0..nu * nv)
+        let grid: Vec<Interval> = (0..nu * nv)
             .map(|n| {
                 let c = (n as f64 - 5.0) * seed / 3.0;
-                RingInterval::from_bounds(c - 2e-14, c + 5e-14)
+                Interval::from_bounds(c - 2e-14, c + 5e-14)
             })
             .collect();
         PatchSpans::decompose(&ku, &kv, &grid, &[], &[])
@@ -497,24 +493,24 @@ mod tests {
     /// spelling, verbatim, so the rows below pin the hoisted tables
     /// against the code they replaced.
     fn mul_block_base(
-        ba: &[RingInterval],
-        bb: &[RingInterval],
+        ba: &[Interval],
+        bb: &[Interval],
         (a, b): (usize, usize),
         (c, d): (usize, usize),
-    ) -> Vec<RingInterval> {
+    ) -> Vec<Interval> {
         let bin_a = binom_row(a);
         let bin_c = binom_row(c);
         let bin_ac = binom_row(a + c);
         let (nb, nd) = (b + 1, d + 1);
         let out_v = b + d + 1;
-        let mut out = vec![RingInterval::zero(); (a + c + 1) * out_v];
+        let mut out = vec![Interval::zero(); (a + c + 1) * out_v];
         for i in 0..=a {
             let row_a = &ba[i * nb..(i + 1) * nb];
             for k in 0..=c {
                 let row_b = &bb[k * nd..(k + 1) * nd];
                 let prod = bern_mul_row_base(row_a, row_b);
                 let r = i + k;
-                let w = RingInterval::point(bin_a[i] * bin_c[k]) / RingInterval::point(bin_ac[r]);
+                let w = Interval::point(bin_a[i] * bin_c[k]) / Interval::point(bin_ac[r]);
                 for (t, p) in prod.iter().enumerate() {
                     out[r * out_v + t] = out[r * out_v + t] + *p * w;
                 }
@@ -525,15 +521,15 @@ mod tests {
 
     /// [`elevate_block`] as it was before the weight tables existed.
     fn elevate_block_base(
-        block: &[RingInterval],
+        block: &[Interval],
         deg_u: usize,
         deg_v: usize,
         pad_u: usize,
         pad_v: usize,
-    ) -> Vec<RingInterval> {
-        let one = RingInterval::one();
+    ) -> Vec<Interval> {
+        let one = Interval::one();
         let nv = deg_v + 1;
-        let mut rows: Vec<Vec<RingInterval>> = (0..=deg_u)
+        let mut rows: Vec<Vec<Interval>> = (0..=deg_u)
             .map(|i| {
                 let row = &block[i * nv..(i + 1) * nv];
                 if pad_v == 0 {
@@ -546,10 +542,10 @@ mod tests {
         if pad_u > 0 {
             let width = rows.first().map_or(0, Vec::len);
             let ones = vec![one; pad_u + 1];
-            let mut out: Vec<Vec<RingInterval>> =
-                vec![vec![RingInterval::zero(); width]; deg_u + pad_u + 1];
+            let mut out: Vec<Vec<Interval>> =
+                vec![vec![Interval::zero(); width]; deg_u + pad_u + 1];
             for k in 0..width {
-                let col: Vec<RingInterval> = rows.iter().map(|r| r[k]).collect();
+                let col: Vec<Interval> = rows.iter().map(|r| r[k]).collect();
                 let elevated = bern_mul_row_base(&col, &ones);
                 for (j, e) in elevated.iter().enumerate() {
                     out[j][k] = *e;
@@ -659,10 +655,10 @@ mod tests {
         let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.4, 1.0, 1.0, 1.0], du).unwrap();
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.6, 1.0, 1.0, 1.0], dv).unwrap();
         let (nu, nv) = (ku.control_count(), kv.control_count());
-        let grid: Vec<RingInterval> = (0..nu * nv)
+        let grid: Vec<Interval> = (0..nu * nv)
             .map(|n| {
                 let c = (n as f64 - 5.0) * seed / 3.0;
-                RingInterval::from_bounds(c - 2e-14, c + 5e-14)
+                Interval::from_bounds(c - 2e-14, c + 5e-14)
             })
             .collect();
         PatchSpans::decompose(&ku, &kv, &grid, &[], &[])

@@ -35,6 +35,7 @@ use geom_brep::offset_fit::{
 };
 use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, patch_regularity};
 use geom_brep::patch_bound::patch_cells_refined;
+use geom_core::Bounds;
 use geom_core::Point3;
 use geom_core::spline::KnotVector;
 
@@ -316,7 +317,7 @@ fn the_collapse_meter_brackets_the_sphere_s_known_curvature() {
     }
     let cells = patch_cells_refined(&base, OFFSET_METER_LADDER[1]).unwrap();
     {
-        use geom_core::ring_interval::RingInterval as RI;
+        use geom_core::interval::Interval as RI;
         let dot3 = |a: &[RI; 3], b: &[RI; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
         let nsq = |a: &[RI; 3]| a[0].sqr() + a[1].sqr() + a[2].sqr();
         let mut worst: Option<(f64, String)> = None;

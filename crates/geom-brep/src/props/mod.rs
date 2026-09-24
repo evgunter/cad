@@ -429,7 +429,7 @@ pub enum PropsError {
     /// bound, which `scripts/gates/bounds-allowlist.sh` does not
     /// ratify for `props/curved.rs`. Every arm of this enum that
     /// carries a measured `f64` gets it from a concrete scalar
-    /// ([`Self::QuadratureBudget`], from a `RingInterval`); the
+    /// ([`Self::QuadratureBudget`], from a `Interval`); the
     /// generic arms are name-only, exactly as
     /// [`Self::NotIsoRectangle`] is. Issue 1602 is the ratification
     /// that would let this arm carry the number.

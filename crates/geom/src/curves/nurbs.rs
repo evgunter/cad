@@ -156,8 +156,9 @@
 //! with `λ` lifted once per combination.
 
 use core::num::NonZeroUsize;
+use geom_core::Bounds;
 use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
-use geom_core::{Point2, Point3, Real, RingInterval, Vec2, Vec3};
+use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
 
 use crate::net;
 
@@ -354,7 +355,7 @@ macro_rules! nurbs_curve {
             /// and the raw knot slice is read from the same borrow
             /// rather than handed in beside it. `dw` holds the weight
             /// spline's derivative coefficient enclosures.
-            fn rational_span_bound(self, dw: &[RingInterval], origin: $Point<T>) -> T {
+            fn rational_span_bound(self, dw: &[Interval], origin: $Point<T>) -> T {
                 let poison = T::from_f64(f64::NAN);
                 let p = self.span.degree();
                 let knots = self.span.knots().knots();
@@ -1628,7 +1629,7 @@ impl<T: geom_core::CertifiedBounds> NurbsCurve3<T> {
     /// [`Self::knots`] and [`Self::weights`] to build a `CurveRingData`
     /// for composite bounds. The bracket seam this reads the net
     /// through is the shared one (`net::ring_coords`).
-    pub fn ring_coords(&self) -> Vec<Vec<RingInterval>> {
+    pub fn ring_coords(&self) -> Vec<Vec<Interval>> {
         net::ring_coords(&self.control)
     }
 }
@@ -1637,7 +1638,7 @@ impl<T: geom_core::CertifiedBounds> NurbsCurve2<T> {
     /// [`NurbsCurve3::ring_coords`] at two channels: `[x, y]` channels
     /// of ring enclosures, through the same bracket seam and the same
     /// body.
-    pub fn ring_coords(&self) -> Vec<Vec<RingInterval>> {
+    pub fn ring_coords(&self) -> Vec<Vec<Interval>> {
         net::ring_coords(&self.control)
     }
 }

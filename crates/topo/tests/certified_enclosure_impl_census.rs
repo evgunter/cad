@@ -41,7 +41,7 @@ const ROSTERS: [(&str, &str); 2] = [
 /// The impls that are not door scalars, each with the reason no wiring
 /// row is owed. An entry here is an exemption and has to earn it.
 const NOT_A_DOOR_SCALAR: [(&str, &str); 1] = [(
-    "RingInterval",
+    "Interval",
     "a bracket currency (the ring the certified reads hand back), not a scalar: it \
      implements no `Decide`, so no door forms at it",
 )];

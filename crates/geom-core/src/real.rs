@@ -1136,7 +1136,7 @@ pub mod bounds_allowlist {
     //! funnel needs while the bracket half is still what the C9 ring reads.
     //! The weakest bound that works is unchanged and so is the evidence
     //! that the next tighter one fails: drop the bracket term and the
-    //! windowed walk cannot form `RingInterval::from_certified`; drop
+    //! windowed walk cannot form `Interval::from_certified`; drop
     //! `Decide` and no round can be accepted. The certificate type is
     //! PUBLIC and carries the bound for the same reason its walk does —
     //! it resumes that walk, so what it may read and what it may decide
@@ -1359,80 +1359,6 @@ pub mod bounds_allowlist {
     //! fire.
 }
 
-/// **Bracket access without the `Real` obligation** — the certification
-/// seam (M5 PR 2, `crates/geom-brep/README.md` C9).
-///
-/// [`Bounds`] is a subtrait of [`Real`], which is right for *evaluation
-/// scalars* that also carry a bracket (`f64`, the interval scalar): they
-/// are things geometry recipes are replayed at. But the C9 interval ring
-/// ([`crate::ring_interval::RingInterval`]) is deliberately **not** an
-/// evaluation scalar — it has no transcendentals and must never appear in
-/// an evaluation signature — so it cannot implement `Real`, and therefore
-/// cannot implement `Bounds`.
-///
-/// `Enclosure` is the smaller trait both sides can meet at: just the two
-/// bracket readers, no arithmetic obligation at all. Every `Bounds`
-/// implementor gets it by blanket impl (so `f64` and the interval scalar
-/// are covered without a line of change), and the ring implements it
-/// directly. A helper that only needs to READ a bracket takes
-/// `T: Enclosure` and works for all three: an `f64` coefficient is a
-/// degenerate bracket, an interval-scalar coefficient is the replayed
-/// enclosure, a ring coefficient is the certification arithmetic's own.
-///
-/// **Not a "certification helper" trait**, and the word matters since D1
-/// (2026-08-19): `Enclosure` is a bracket accessor, and the certification
-/// door is [`CertifiedEnclosure`] — which is why the spline hull bounds in
-/// [`crate::spline::hull`] are bounded by that trait and not by this one.
-/// See the blanket impl below for the consequence: a `Dual` is an
-/// `Enclosure`, so a new compound `T: Enclosure` bound is gated exactly as
-/// a `Bounds` one.
-///
-/// # Semantics
-///
-/// Identical to [`Bounds`]: `[lo(), hi()]` brackets every real number the
-/// value stands for, and **poison surfaces as NaN from both accessors**
-/// rather than narrowing — a NaN bracket fails every `residual <= eps`
-/// check loudly (D4 ¶2). Implementors owe that convention.
-///
-/// # Style note (method-name shadowing)
-///
-/// The two traits share method names `lo`/`hi`. Generic code bounded by
-/// `T: Bounds` resolves through its own bound and is unaffected, but
-/// calling `x.lo()` on a **concrete** `Bounds` type with both traits in
-/// scope is ambiguous (E0034). Import one trait, or disambiguate with
-/// `Enclosure::lo(x)`. The names are worth the friction: a second spelling
-/// for "the bottom of the bracket" would be worse.
-pub trait Enclosure: Copy {
-    /// The lower end of the bracket (NaN if poisoned).
-    fn lo(self) -> f64;
-
-    /// The upper end of the bracket (NaN if poisoned).
-    fn hi(self) -> f64;
-}
-
-/// Every [`Bounds`] scalar is an [`Enclosure`] — the one-line seam that
-/// keeps `f64` and the interval scalar usable by helpers written against
-/// the smaller trait.
-///
-/// **This blanket impl means [`Dual`](crate::Dual) is an `Enclosure` too,
-/// since the D1 ruling of 2026-08-19 gave it [`Bounds`].** A compound
-/// `Enclosure` bound is therefore the same class of decide-and-bracket
-/// parameter as a compound `Bounds` one, and it is gated the same way:
-/// `scripts/gates/bounds-allowlist.sh` greps `Enclosure` exactly as it
-/// greps `Bounds`, against the same file allowlist (DUAL-DESIGN DL4 —
-/// the resolution of the issue-701 gap), so a new `T: Enclosure` bound
-/// on certifying code fails CI until it is ratified into the `Bounds`
-/// scope rule here.
-impl<T: Bounds> Enclosure for T {
-    fn lo(self) -> f64 {
-        Bounds::lo(self)
-    }
-
-    fn hi(self) -> f64 {
-        Bounds::hi(self)
-    }
-}
-
 /// **"May this value enter certified code?"** — the other half of what
 /// [`Bounds`] used to mean, given a name of its own.
 ///
@@ -1481,7 +1407,7 @@ impl<T: Bounds> Enclosure for T {
 ///   threshold [`crate::predicate::Decide::sign_within`] refuses at, and
 ///   for the same reason. Empty and NaI sit below it, so the NaN
 ///   brackets they store never leave the door.
-/// - [`crate::RingInterval`] — refuses on poison, which it reads off
+/// - [`crate::Interval`] — refuses on poison, which it reads off
 ///   the decoration it carries (`dec < Def`, with NaI and empty below
 ///   that): `is_poison` is its whole domain-violation channel, and a
 ///   refused ring still has endpoints, which is what
@@ -1513,33 +1439,6 @@ pub trait CertifiedEnclosure: Copy {
     /// through `f64` combinators (`f64::max` returns the non-NaN operand),
     /// whereas a `None` the caller must destructure cannot be ignored.
     fn certified_bracket(self) -> Option<(f64, f64)>;
-
-    /// The endpoints this value carries, refused or not — **for a
-    /// consumer whose own refusal channel is a decoration** rather than
-    /// an absence, so the refusal travels in that channel instead of
-    /// erasing the bracket that came with it.
-    ///
-    /// This is **not** a second certified door and promises nothing:
-    /// the pair brackets the reals the value stands for and says
-    /// nothing about the computation behind it, exactly as
-    /// [`Bounds`] does. A caller that may ACT on the bracket asks
-    /// [`Self::certified_bracket`], whose `None` it cannot ignore; a
-    /// caller that reads this one is obliged to carry the refusal
-    /// itself, and the C9 ring's crossing
-    /// (`RingInterval::from_certified`) is the one in the tree — it
-    /// pairs this with the certified door's verdict and caps the
-    /// decoration at `Trv` when the verdict is a refusal, which keeps
-    /// the refusal readable at a type where NaN endpoints would not be.
-    ///
-    /// The default is the honest answer for a scalar whose refusal has
-    /// no bracket to report: `f64`'s refusal IS its NaN, so the pair is
-    /// `(NaN, NaN)` and nothing is lost. A scalar that records a domain
-    /// violation *beside* a sound bracket — the interval scalar's `Trv`
-    /// after a clamp, the ring's zero-touching quotient — overrides
-    /// this and reports those endpoints.
-    fn crossing_bracket(self) -> (f64, f64) {
-        self.certified_bracket().unwrap_or((f64::NAN, f64::NAN))
-    }
 }
 
 /// `f64` refuses on NaN and only on NaN: the bracket is the value, so

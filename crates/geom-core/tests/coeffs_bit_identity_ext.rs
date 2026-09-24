@@ -17,19 +17,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Bounds;
 use geom_core::spline::KnotVector;
-use geom_core::{CertifiedEnclosure, RingInterval};
+use geom_core::{CertifiedBounds, Interval};
 
 use crate::coeffs_bit_identity::{Rows, digest};
 
 /// Every door, with the labels the retired free spellings produced.
-fn drive<E: CertifiedEnclosure>(
-    o: &mut Rows,
-    name: &str,
-    kv: &KnotVector,
-    coeffs: &[E],
-    w: &[f64],
-) {
+fn drive<E: CertifiedBounds>(o: &mut Rows, name: &str, kv: &KnotVector, coeffs: &[E], w: &[f64]) {
     let pair = kv.with_coeffs(coeffs).expect("its own vector");
     let rational = kv.with_rational_coeffs(coeffs, w).expect("its own vector");
     for index in kv.first_span()..=kv.last_span() {
@@ -139,7 +134,7 @@ fn weights(n: usize, lane: usize) -> Vec<f64> {
     w
 }
 
-fn ri(o: &mut Rows, tag: &str, r: RingInterval) {
+fn ri(o: &mut Rows, tag: &str, r: Interval) {
     o.push((format!("{tag}.lo"), r.lo().to_bits()));
     o.push((format!("{tag}.hi"), r.hi().to_bits()));
 }
@@ -154,15 +149,15 @@ fn rows() -> Rows {
             let w = weights(n, lane);
             drive(&mut o, &format!("{vname}.f64.w{lane}"), &kv, &vals, &w);
         }
-        // RingInterval brackets of NONZERO width
+        // Interval brackets of NONZERO width
         #[allow(clippy::cast_precision_loss)]
-        let wide: Vec<RingInterval> = vals
+        let wide: Vec<Interval> = vals
             .iter()
             .enumerate()
             .map(|(i, x)| {
-                RingInterval::hull(
-                    RingInterval::point(*x - 0.01 * (i as f64 + 1.0)),
-                    RingInterval::point(*x + 0.02),
+                Interval::hull(
+                    Interval::point(*x - 0.01 * (i as f64 + 1.0)),
+                    Interval::point(*x + 0.02),
                 )
             })
             .collect();

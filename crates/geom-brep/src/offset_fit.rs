@@ -218,9 +218,10 @@
 
 use geom::curves::fit::{FitError, interpolate_columns};
 use geom::surfaces::{NurbsSurface, Surface};
+use geom_core::Bounds;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotVector, SplineError};
-use geom_core::{Band, Point3, Tol, ring_interval::RingInterval};
+use geom_core::{Band, Interval, Point3, Tol};
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, norm_sup, sqrt_down};
 use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
@@ -1797,18 +1798,18 @@ struct Composite {
 /// The ring's outward rounding of `P − centre` is one ulp of the
 /// DIFFERENCE, i.e. of the patch's extent, where the unrecentred net
 /// carried one ulp of the coordinate.
-fn channel(n: &NurbsSurface<f64>, c: usize, form: NetForm, origin: &Origin) -> Vec<RingInterval> {
+fn channel(n: &NurbsSurface<f64>, c: usize, form: NetForm, origin: &Origin) -> Vec<Interval> {
     n.control()
         .iter()
         .zip(n.weights().iter())
         .map(|(p, w)| {
-            let x = RingInterval::point(match c {
+            let x = Interval::point(match c {
                 0 => p.x,
                 1 => p.y,
                 _ => p.z,
-            }) - RingInterval::point(origin.0[c]);
+            }) - Interval::point(origin.0[c]);
             match form {
-                NetForm::Homogeneous => RingInterval::point(*w) * x,
+                NetForm::Homogeneous => Interval::point(*w) * x,
                 NetForm::Spatial => x,
             }
         })
@@ -1940,7 +1941,7 @@ impl Composite {
         extra_u.extend(fit.knots_u().interior_knots().map(|(t, _)| t));
         let mut extra_v: Vec<f64> = kv.interior_knots().map(|(t, _)| t).collect();
         extra_v.extend(fit.knots_v().interior_knots().map(|(t, _)| t));
-        let dec = |kku: &KnotVector, kkv: &KnotVector, grid: &[RingInterval]| {
+        let dec = |kku: &KnotVector, kkv: &KnotVector, grid: &[Interval]| {
             PatchSpans::decompose(kku, kkv, grid, &extra_u, &extra_v)
         };
         // The FIT's homogeneous net `F̃ = w_fit·P_fit` and its weight
@@ -1957,26 +1958,22 @@ impl Composite {
             dec(fit.knots_u(), fit.knots_v(), &fc(2)),
         ];
         let wf = (fit_form == NetForm::Homogeneous).then(|| {
-            let g: Vec<RingInterval> = fit
-                .weights()
-                .iter()
-                .map(|x| RingInterval::point(*x))
-                .collect();
+            let g: Vec<Interval> = fit.weights().iter().map(|x| Interval::point(*x)).collect();
             dec(fit.knots_u(), fit.knots_v(), &g)
         });
         // The base's homogeneous nets and their first derivatives.
-        let a_grid: Vec<Vec<RingInterval>> = (0..3)
+        let a_grid: Vec<Vec<Interval>> = (0..3)
             .map(|c| channel(base, c, NetForm::of(base), &ctr))
             .collect();
         let ku1 = derived_knots(ku)?;
         let kv1 = derived_knots(kv)?;
-        let du = |g: &[RingInterval]| {
+        let du = |g: &[Interval]| {
             Net::from_flat(nu, nv, g.to_vec())
                 .diff_u_knots(ku)
                 .as_flat()
                 .to_vec()
         };
-        let dv = |g: &[RingInterval]| {
+        let dv = |g: &[Interval]| {
             Net::from_flat(nu, nv, g.to_vec())
                 .diff_v_knots(kv)
                 .as_flat()
@@ -1997,15 +1994,11 @@ impl Composite {
             dec(ku, &kv1, &dv(&a_grid[1])),
             dec(ku, &kv1, &dv(&a_grid[2])),
         ];
-        let w_grid: Vec<RingInterval> = base
-            .weights()
-            .iter()
-            .map(|x| RingInterval::point(*x))
-            .collect();
+        let w_grid: Vec<Interval> = base.weights().iter().map(|x| Interval::point(*x)).collect();
         let w = if rational {
             dec(ku, kv, &w_grid)
         } else {
-            a[0].constant(RingInterval::one())
+            a[0].constant(Interval::one())
         };
         // Ẽ = F̃·w − A·w_fit = w·w_fit·(S_fit − S). The composite is
         // homogeneous in the PRODUCT of the two weights, which is
@@ -2048,7 +2041,7 @@ impl Composite {
         } else {
             auav
         };
-        let x = dot_spans(&e, &e).sub(&wt.mul(&wt).scale(RingInterval::point(d).sqr()));
+        let x = dot_spans(&e, &e).sub(&wt.mul(&wt).scale(Interval::point(d).sqr()));
         let y = cross_spans(&e, &m_tilde);
         let dd = dot_spans(&e, &m_tilde);
         let (bu, bv) = x.breaks();
@@ -2123,24 +2116,24 @@ impl Composite {
     /// selects between these two intervals rather than re-spelling
     /// either: the reading under test is the only thing that differs
     /// between the row and production.
-    fn e_floors(&self, su: usize, sv: usize) -> (RingInterval, RingInterval) {
+    fn e_floors(&self, su: usize, sv: usize) -> (Interval, Interval) {
         let wt = self.wt.cell_hull(su, sv);
-        let e_mig_sq = RingInterval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
-            + RingInterval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
-            + RingInterval::point(mig(self.e[2].cell_hull(su, sv))).sqr();
+        let e_mig_sq = Interval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
+            + Interval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
+            + Interval::point(mig(self.e[2].cell_hull(su, sv))).sqr();
         // The re-mint through `point` was poison-preserving only
         // while a refused square had NaN endpoints. It does not: the
         // refusal is asked by name and carried across by hand.
         let e_mig_iv = if !e_mig_sq.is_certified() {
-            RingInterval::poison()
+            Interval::poison()
         } else {
-            RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt
+            Interval::point(sqrt_down(e_mig_sq.lo())) / wt
         };
         let m_sup = self.m_tilde_sup(su, sv);
         let e_proj_iv = if m_sup > 0.0 && m_sup.is_finite() {
-            RingInterval::point(mig(self.dd.cell_hull(su, sv))) / (RingInterval::point(m_sup) * wt)
+            Interval::point(mig(self.dd.cell_hull(su, sv))) / (Interval::point(m_sup) * wt)
         } else {
-            RingInterval::zero()
+            Interval::zero()
         };
         (e_mig_iv, e_proj_iv)
     }
@@ -2151,7 +2144,7 @@ impl Composite {
     ///
     /// **The whole assembly stays in the ring**, with `.hi()` read
     /// exactly once at the end: every intermediate is a
-    /// [`RingInterval`], so the outward rounding of each quotient,
+    /// [`Interval`], so the outward rounding of each quotient,
     /// product and sum is the ring's. An `f64` fold of ring endpoints
     /// would round to nearest at each step and under-cover the real
     /// bound by ulps, which "certified" does not permit.
@@ -2189,7 +2182,7 @@ impl Composite {
         {
             return f64::INFINITY;
         }
-        let abs_d = RingInterval::point(d.abs());
+        let abs_d = Interval::point(d.abs());
         let (e_mig_iv, e_proj_iv) = self.e_floors(su, sv);
         // The larger of two sound lower bounds on the same norm is a
         // sound lower bound, and the only thing either is read for is
@@ -2200,12 +2193,12 @@ impl Composite {
         }
         let e_hull_lo = e_mig_iv.lo().max(e_proj_iv.lo());
         // | ‖E‖ − |d| | = |X| / (w̃²·(‖E‖ + |d|)).
-        let x_mag = RingInterval::from_bounds(0.0, self.x.cell_hull(su, sv).mag());
-        let dist_iv = x_mag / (wt.sqr() * (RingInterval::point(e_hull_lo) + abs_d));
+        let x_mag = Interval::from_bounds(0.0, self.x.cell_hull(su, sv).mag());
+        let dist_iv = x_mag / (wt.sqr() * (Interval::point(e_hull_lo) + abs_d));
         // τ = ‖Y‖ / (w̃·‖M̃‖) ≤ sup‖Y‖ / (floor·w̃·w³), using
         // ‖M̃‖ = w³·‖m‖ ≥ w³·floor. `‖Y‖` from above is the ring's
         // own fold, for the reason [`norm_sup`] gives.
-        let y_mag = RingInterval::from_bounds(
+        let y_mag = Interval::from_bounds(
             0.0,
             norm_sup(&[
                 self.y[0].cell_hull(su, sv),
@@ -2213,7 +2206,7 @@ impl Composite {
                 self.y[2].cell_hull(su, sv),
             ]),
         );
-        let tau_iv = y_mag / (RingInterval::point(floor) * wt * w.powi(3));
+        let tau_iv = y_mag / (Interval::point(floor) * wt * w.powi(3));
         // `‖E‖` from below once more, for the `τ²/‖E‖` term: the
         // better of the two hull readings above, or `|d| − dist` when
         // that is larger. The three are lower bounds on the same
@@ -2226,7 +2219,7 @@ impl Composite {
         if !(e_floor > 0.0) {
             return f64::INFINITY;
         }
-        let bound = dist_iv + tau_iv + tau_iv.sqr() / RingInterval::point(e_floor);
+        let bound = dist_iv + tau_iv + tau_iv.sqr() / Interval::point(e_floor);
         if !bound.is_certified() {
             return f64::INFINITY;
         }
@@ -2240,8 +2233,9 @@ impl Composite {
 mod tests {
     use super::{Composite, Refine, directional_mark, stall_verdict};
     use crate::offset_meters::{norm_sup, sqrt_up};
+    use geom_core::Bounds;
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point3, Tol, ring_interval::RingInterval};
+    use geom_core::{Band, Interval, Point3, Tol};
 
     /// One cell's certificate, split into the terms the module doc
     /// names, with the lower bound on `‖E‖` selectable: `Witness`
@@ -2289,7 +2283,7 @@ mod tests {
         {
             return unproved;
         }
-        let abs_d = RingInterval::point(d.abs());
+        let abs_d = Interval::point(d.abs());
         // THE one expression the two modes differ in: both readings
         // come out of the shipped `e_floors`, and the mode chooses
         // which of them the rest of this decomposition runs on.
@@ -2298,9 +2292,9 @@ mod tests {
             ELow::Componentwise => e_mig_iv.lo(),
             ELow::Witness => e_mig_iv.lo().max(e_proj_iv.lo()),
         };
-        let x_mag = RingInterval::from_bounds(0.0, comp.x.cell_hull(su, sv).mag());
-        let dist_iv = x_mag / (wt.sqr() * (RingInterval::point(e_hull_lo) + abs_d));
-        let y_mag = RingInterval::from_bounds(
+        let x_mag = Interval::from_bounds(0.0, comp.x.cell_hull(su, sv).mag());
+        let dist_iv = x_mag / (wt.sqr() * (Interval::point(e_hull_lo) + abs_d));
+        let y_mag = Interval::from_bounds(
             0.0,
             norm_sup(&[
                 comp.y[0].cell_hull(su, sv),
@@ -2308,18 +2302,18 @@ mod tests {
                 comp.y[2].cell_hull(su, sv),
             ]),
         );
-        let tau_iv = y_mag / (RingInterval::point(floor) * wt * w.powi(3));
+        let tau_iv = y_mag / (Interval::point(floor) * wt * w.powi(3));
         let e_floor = e_hull_lo.max(d.abs() - dist_iv.hi());
         if !(e_floor > 0.0) {
             return unproved;
         }
-        let t3 = (tau_iv.sqr() / RingInterval::point(e_floor)).hi();
+        let t3 = (tau_iv.sqr() / Interval::point(e_floor)).hi();
         (
             dist_iv.hi(),
             tau_iv.hi(),
             t3,
             e_hull_lo,
-            (dist_iv + tau_iv + tau_iv.sqr() / RingInterval::point(e_floor)).hi(),
+            (dist_iv + tau_iv + tau_iv.sqr() / Interval::point(e_floor)).hi(),
         )
     }
 

@@ -37,7 +37,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::RingInterval;
+use geom_core::Bounds;
+use geom_core::Interval;
 use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};
 use geom_core::spline::compose::{ComposeError, CurveRingData};
 use geom_core::spline::{KnotVector, basis};
@@ -94,10 +95,10 @@ fn surf_eval(
     [num[0] / den, num[1] / den, num[2] / den]
 }
 
-fn lift(coords: &[Vec<f64>]) -> Vec<Vec<RingInterval>> {
+fn lift(coords: &[Vec<f64>]) -> Vec<Vec<Interval>> {
     coords
         .iter()
-        .map(|ch| ch.iter().map(|x| RingInterval::point(*x)).collect())
+        .map(|ch| ch.iter().map(|x| Interval::point(*x)).collect())
         .collect()
 }
 
@@ -665,7 +666,7 @@ fn the_entry_points_refuse_typed() {
 
     // A carrier on a different knot domain refuses (the OQ4 identity).
     let kv2 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 2.0, 2.0, 2.0, 2.0], 3).unwrap();
-    let cx4: Vec<Vec<RingInterval>> = cx.iter().map(|ch| ch[..4].to_vec()).collect();
+    let cx4: Vec<Vec<Interval>> = cx.iter().map(|ch| ch[..4].to_vec()).collect();
     let cd2 = CurveRingData::new(&kv2, &c.1[..4], &cx4).unwrap();
     match surface_curve_residual(&s, &pd, &cd2, &[]) {
         Err(ComposeError::DomainMismatch { .. }) => {}

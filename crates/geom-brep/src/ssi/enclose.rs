@@ -3,7 +3,7 @@
 //!
 //! Everything the SSI *proof* obligations need is transcendental-free
 //! (C9's whole argument), so it is computed here in
-//! [`RingInterval`]: outward-rounded, always compiled, no feature gate,
+//! [`Interval`]: outward-rounded, always compiled, no feature gate,
 //! no LGPL. Nothing in this module evaluates at a `Real` scalar and
 //! nothing in it decides — it produces enclosures which the named
 //! trileans upstairs classify.
@@ -39,13 +39,13 @@
 //! Every function is **conservative or poison**: a widened enclosure
 //! costs a refusal, never a wrong answer, and any structural surprise
 //! (unsupported kind, malformed net, zero-touching divisor) yields
-//! [`RingInterval::poison`], which fails every downstream test. There is
+//! [`Interval::poison`], which fails every downstream test. There is
 //! no path here that narrows an enclosure on a value branch.
 //!
 //! # The M6-2 seam: generic scalars in, ring out
 //!
 //! [`Box3`] stays a **C9-ring object** — its fields are
-//! [`RingInterval`]s, and `RingInterval` deliberately does not implement
+//! [`Interval`]s, and `Interval` deliberately does not implement
 //! `Real` (`geom_core::real`'s `Enclosure` rationale), so there is no
 //! "`Box3<T>`" to want. What M6-2 lifted is the **seam**: every
 //! constructor and entry point here now takes the caller's own scalar
@@ -66,17 +66,18 @@
 //! ring's outward rounding of the pad itself.
 
 use geom::{NurbsSurface, Surface, SurfaceWindow};
-use geom_core::{CertifiedBounds, CertifiedEnclosure, Point3, RingInterval, Vec3};
+use geom_core::Bounds;
+use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, Vec3};
 
 /// An axis-aligned ring box in ℝ³.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Box3 {
     /// The x extent.
-    pub x: RingInterval,
+    pub x: Interval,
     /// The y extent.
-    pub y: RingInterval,
+    pub y: Interval,
     /// The z extent.
-    pub z: RingInterval,
+    pub z: Interval,
 }
 
 impl Box3 {
@@ -85,27 +86,18 @@ impl Box3 {
     pub(crate) fn around<T: CertifiedBounds>(c: Point3<T>, r: T) -> Self {
         let g = pad_interval(r);
         Self {
-            x: RingInterval::from_certified(c.x) + g,
-            y: RingInterval::from_certified(c.y) + g,
-            z: RingInterval::from_certified(c.z) + g,
+            x: Interval::from_certified(c.x) + g,
+            y: Interval::from_certified(c.y) + g,
+            z: Interval::from_certified(c.z) + g,
         }
     }
 
     /// The box spanned by two corners (componentwise hull).
     pub(crate) fn between<T: CertifiedBounds>(a: Point3<T>, b: Point3<T>) -> Self {
         Self {
-            x: RingInterval::hull(
-                RingInterval::from_certified(a.x),
-                RingInterval::from_certified(b.x),
-            ),
-            y: RingInterval::hull(
-                RingInterval::from_certified(a.y),
-                RingInterval::from_certified(b.y),
-            ),
-            z: RingInterval::hull(
-                RingInterval::from_certified(a.z),
-                RingInterval::from_certified(b.z),
-            ),
+            x: Interval::hull(Interval::from_certified(a.x), Interval::from_certified(b.x)),
+            y: Interval::hull(Interval::from_certified(a.y), Interval::from_certified(b.y)),
+            z: Interval::hull(Interval::from_certified(a.z), Interval::from_certified(b.z)),
         }
     }
 
@@ -139,9 +131,9 @@ impl Box3 {
     /// Componentwise hull.
     pub(crate) fn hull(self, o: Self) -> Self {
         Self {
-            x: RingInterval::hull(self.x, o.x),
-            y: RingInterval::hull(self.y, o.y),
-            z: RingInterval::hull(self.z, o.z),
+            x: Interval::hull(self.x, o.x),
+            y: Interval::hull(self.y, o.y),
+            z: Interval::hull(self.z, o.z),
         }
     }
 
@@ -159,7 +151,7 @@ impl Box3 {
     /// exclusion test for the ℝ⁴ image-separation lane. Poison is never
     /// disjoint (poison excludes nothing).
     pub(crate) fn definitely_disjoint(self, o: Self) -> bool {
-        let sep = |a: RingInterval, b: RingInterval| {
+        let sep = |a: Interval, b: Interval| {
             a.is_certified() && b.is_certified() && (a.hi() < b.lo() || b.hi() < a.lo())
         };
         sep(self.x, o.x) || sep(self.y, o.y) || sep(self.z, o.z)
@@ -168,7 +160,7 @@ impl Box3 {
     /// Whether `self` is contained in `o` — the "accounted" test.
     /// Poison contains nothing and is contained in nothing.
     pub(crate) fn contained_in(self, o: Self) -> bool {
-        let inside = |a: RingInterval, b: RingInterval| {
+        let inside = |a: Interval, b: Interval| {
             a.is_certified() && b.is_certified() && b.lo() <= a.lo() && a.hi() <= b.hi()
         };
         inside(self.x, o.x) && inside(self.y, o.y) && inside(self.z, o.z)
@@ -187,7 +179,7 @@ impl Box3 {
     /// its refusal in the decoration and a refused axis carries
     /// ordinary endpoints.
     pub(crate) fn center(self) -> Point3<f64> {
-        let mid = |i: RingInterval| {
+        let mid = |i: Interval| {
             if !i.is_certified() {
                 f64::NAN
             } else {
@@ -206,14 +198,14 @@ impl Box3 {
         // re-minting a refused axis through it would launder the
         // refusal away — which is what the certified door exists to
         // prevent.
-        let half = |i: RingInterval| {
+        let half = |i: Interval| {
             if !i.is_certified() {
-                return (RingInterval::poison(), RingInterval::poison());
+                return (Interval::poison(), Interval::poison());
             }
             let m = 0.5 * (i.lo() + i.hi());
             (
-                RingInterval::from_bounds(i.lo(), m),
-                RingInterval::from_bounds(m, i.hi()),
+                Interval::from_bounds(i.lo(), m),
+                Interval::from_bounds(m, i.hi()),
             )
         };
         if wx >= wy && wx >= wz {
@@ -236,21 +228,21 @@ impl Box3 {
 ///
 /// An operand that cannot certify is refused at the door and yields
 /// poison here; a bracket whose upper end is negative is admitted by the
-/// door and yields poison at [`RingInterval::from_bounds`] (`−hi ≤ hi`
+/// door and yields poison at [`Interval::from_bounds`] (`−hi ≤ hi`
 /// fails). Either way the pad fails every downstream test rather than
 /// shrinking a box, and the two refusals stay distinct because only one
 /// of them is about the operand's right to certify anything. Stated
 /// precisely because the weaker claim is the true one: a bracket that
 /// merely STRADDLES zero has `hi ≥ 0` and pads by its upper end, which
 /// is sound — it is only an entirely-negative radius that poisons.
-fn pad_interval<T: CertifiedEnclosure>(r: T) -> RingInterval {
+fn pad_interval<T: CertifiedEnclosure>(r: T) -> Interval {
     match r.certified_bracket() {
-        Some((_, hi)) => RingInterval::from_bounds(-hi, hi),
-        None => RingInterval::poison(),
+        Some((_, hi)) => Interval::from_bounds(-hi, hi),
+        None => Interval::poison(),
     }
 }
 
-fn dot3(a: [RingInterval; 3], b: [RingInterval; 3]) -> RingInterval {
+fn dot3(a: [Interval; 3], b: [Interval; 3]) -> Interval {
     // Ascending association (D9), matching `Vec3::dot`.
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
@@ -258,7 +250,7 @@ fn dot3(a: [RingInterval; 3], b: [RingInterval; 3]) -> RingInterval {
 /// (Component-for-component `offset_meters::cross`, which is the
 /// borrow-shaped twin one crate module over; noted at both sites so
 /// the duplication is a decision. A third consumer collapses them.)
-fn cross3(a: [RingInterval; 3], b: [RingInterval; 3]) -> [RingInterval; 3] {
+fn cross3(a: [Interval; 3], b: [Interval; 3]) -> [Interval; 3] {
     [
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
@@ -266,27 +258,27 @@ fn cross3(a: [RingInterval; 3], b: [RingInterval; 3]) -> [RingInterval; 3] {
     ]
 }
 
-fn constv<T: CertifiedBounds>(v: Vec3<T>) -> [RingInterval; 3] {
+fn constv<T: CertifiedBounds>(v: Vec3<T>) -> [Interval; 3] {
     [
-        RingInterval::from_certified(v.x),
-        RingInterval::from_certified(v.y),
-        RingInterval::from_certified(v.z),
+        Interval::from_certified(v.x),
+        Interval::from_certified(v.y),
+        Interval::from_certified(v.z),
     ]
 }
 
-fn subp<T: CertifiedBounds>(b: Box3, p: Point3<T>) -> [RingInterval; 3] {
+fn subp<T: CertifiedBounds>(b: Box3, p: Point3<T>) -> [Interval; 3] {
     [
-        b.x - RingInterval::from_certified(p.x),
-        b.y - RingInterval::from_certified(p.y),
-        b.z - RingInterval::from_certified(p.z),
+        b.x - Interval::from_certified(p.x),
+        b.y - Interval::from_certified(p.y),
+        b.z - Interval::from_certified(p.z),
     ]
 }
 
-/// `|q|²` with **tight** squares — [`RingInterval::sqr`], not `q*q`:
+/// `|q|²` with **tight** squares — [`Interval::sqr`], not `q*q`:
 /// a straddling coordinate multiplied by itself as two independent
 /// operands would report a spurious negative lower bound (the
 /// `norm_squared` rationale, M2 PR 3).
-fn norm_sq(q: [RingInterval; 3]) -> RingInterval {
+fn norm_sq(q: [Interval; 3]) -> Interval {
     q[0].sqr() + q[1].sqr() + q[2].sqr()
 }
 
@@ -303,11 +295,8 @@ fn norm_sq(q: [RingInterval; 3]) -> RingInterval {
 /// wanted to would have to land that conversion first, which is
 /// exactly the per-arm retirement rule (C12.1). [`Surface::Nurbs`] has
 /// no implicit form at all.
-pub(crate) fn implicit_enclosure<T: CertifiedBounds>(
-    surface: &Surface<T>,
-    b: Box3,
-) -> RingInterval {
-    let two = RingInterval::point(2.0);
+pub(crate) fn implicit_enclosure<T: CertifiedBounds>(surface: &Surface<T>, b: Box3) -> Interval {
+    let two = Interval::point(2.0);
     match *surface {
         Surface::Plane { origin, normal, .. } => dot3(subp(b, origin), constv(normal)),
         Surface::Sphere { center, radius, .. } => {
@@ -315,7 +304,7 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(
             // operand, and squaring it as two independent ones widens
             // it (the interval-square rule). One crossing, bound once,
             // for the same reason.
-            let r = RingInterval::from_certified(radius);
+            let r = Interval::from_certified(radius);
             (norm_sq(subp(b, center)) - r.sqr()) / (two * r)
         }
         Surface::Cylinder {
@@ -341,13 +330,13 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(
             // cancellation inside one expression, and for an
             // axis-aligned cylinder it is exact.
             let w = [q[0] - a[0] * h, q[1] - a[1] * h, q[2] - a[2] * h];
-            let r = RingInterval::from_certified(radius);
+            let r = Interval::from_certified(radius);
             (norm_sq(w) - r.sqr()) / (two * r)
         }
         // `Approx` with the no-enclosure group: the implicit forms this
         // module encloses do not exist for a spline stand-in.
         Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            RingInterval::poison()
+            Interval::poison()
         }
     }
 }
@@ -358,13 +347,13 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(
 pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
     surface: &Surface<T>,
     b: Box3,
-) -> [RingInterval; 3] {
-    let poison = [RingInterval::poison(); 3];
+) -> [Interval; 3] {
+    let poison = [Interval::poison(); 3];
     match *surface {
         Surface::Plane { normal, .. } => constv(normal),
         Surface::Sphere { center, radius, .. } => {
             let q = subp(b, center);
-            let r = RingInterval::from_certified(radius);
+            let r = Interval::from_certified(radius);
             [q[0] / r, q[1] / r, q[2] / r]
         }
         Surface::Cylinder {
@@ -376,7 +365,7 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
             let q = subp(b, origin);
             let h = dot3(q, constv(axis));
             let a = constv(axis);
-            let r = RingInterval::from_certified(radius);
+            let r = Interval::from_certified(radius);
             [
                 (q[0] - a[0] * h) / r,
                 (q[1] - a[1] * h) / r,
@@ -400,7 +389,7 @@ pub(crate) fn graph_margin<T: CertifiedBounds>(
     s2: &Surface<T>,
     b: Box3,
     e: Vec3<T>,
-) -> RingInterval {
+) -> Interval {
     let g1 = implicit_gradient_enclosure(s1, b);
     let g2 = implicit_gradient_enclosure(s2, b);
     dot3(cross3(g1, g2), constv(e))
@@ -501,7 +490,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         &self,
         win: SurfaceWindow<'_, T>,
         along_u: bool,
-    ) -> (Box3, RingInterval, RingInterval) {
+    ) -> (Box3, Interval, Interval) {
         // As in `cell_point_box`: everything is read through the
         // window's own borrow.
         let s = win.surface();
@@ -511,8 +500,8 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
         let wts = s.weights();
         let (ku, kv) = (s.knots_u().knots(), s.knots_v().knots());
         let mut abox: Option<Box3> = None;
-        let mut wd: Option<RingInterval> = None;
-        let mut w: Option<RingInterval> = None;
+        let mut wd: Option<Interval> = None;
+        let mut w: Option<Interval> = None;
         // The derivative spline in direction d has degree p−1 and its
         // local block on this cell is the divided differences over the
         // Cartesian block shifted by one index in d.
@@ -537,39 +526,36 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 let (Some(p0), Some(p1), Some(&w0), Some(&w1)) =
                     (ctl.get(idx0), ctl.get(idx1), wts.get(idx0), wts.get(idx1))
                 else {
-                    return (poison_box(), RingInterval::poison(), RingInterval::poison());
+                    return (poison_box(), Interval::poison(), Interval::poison());
                 };
                 // Homogeneous coefficients A = w·P. The weight is `f64`
                 // structure and the control point is the caller's
                 // scalar, so the product is formed IN THE RING — the
                 // seam, not a collapse.
-                let (rw0, rw1) = (
-                    RingInterval::from_certified(w0),
-                    RingInterval::from_certified(w1),
-                );
+                let (rw0, rw1) = (Interval::from_certified(w0), Interval::from_certified(w1));
                 let a0 = [
-                    rw0 * RingInterval::from_certified(p0.x),
-                    rw0 * RingInterval::from_certified(p0.y),
-                    rw0 * RingInterval::from_certified(p0.z),
+                    rw0 * Interval::from_certified(p0.x),
+                    rw0 * Interval::from_certified(p0.y),
+                    rw0 * Interval::from_certified(p0.z),
                 ];
                 let a1 = [
-                    rw1 * RingInterval::from_certified(p1.x),
-                    rw1 * RingInterval::from_certified(p1.y),
-                    rw1 * RingInterval::from_certified(p1.z),
+                    rw1 * Interval::from_certified(p1.x),
+                    rw1 * Interval::from_certified(p1.y),
+                    rw1 * Interval::from_certified(p1.z),
                 ];
                 let (deg, span_lo, span_hi) = if along_u {
                     let Some((&lo, &hi)) = ku.get(iu + 1).zip(ku.get(iu + pu + 1)) else {
-                        return (poison_box(), RingInterval::poison(), RingInterval::poison());
+                        return (poison_box(), Interval::poison(), Interval::poison());
                     };
                     (pu as f64, lo, hi)
                 } else {
                     let Some((&lo, &hi)) = kv.get(iv + 1).zip(kv.get(iv + pv + 1)) else {
-                        return (poison_box(), RingInterval::poison(), RingInterval::poison());
+                        return (poison_box(), Interval::poison(), Interval::poison());
                     };
                     (pv as f64, lo, hi)
                 };
-                let denom = RingInterval::from_certified(span_hi - span_lo);
-                let scale = RingInterval::from_certified(deg) / denom;
+                let denom = Interval::from_certified(span_hi - span_lo);
+                let scale = Interval::from_certified(deg) / denom;
                 let d = Box3 {
                     x: (a1[0] - a0[0]) * scale,
                     y: (a1[1] - a0[1]) * scale,
@@ -579,27 +565,23 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                     None => d,
                     Some(acc) => acc.hull(d),
                 });
-                let dw =
-                    (RingInterval::from_certified(w1) - RingInterval::from_certified(w0)) * scale;
+                let dw = (Interval::from_certified(w1) - Interval::from_certified(w0)) * scale;
                 wd = Some(match wd {
                     None => dw,
-                    Some(acc) => RingInterval::hull(acc, dw),
+                    Some(acc) => Interval::hull(acc, dw),
                 });
-                for wv in [
-                    RingInterval::from_certified(w0),
-                    RingInterval::from_certified(w1),
-                ] {
+                for wv in [Interval::from_certified(w0), Interval::from_certified(w1)] {
                     w = Some(match w {
                         None => wv,
-                        Some(acc) => RingInterval::hull(acc, wv),
+                        Some(acc) => Interval::hull(acc, wv),
                     });
                 }
             }
         }
         (
             abox.unwrap_or_else(poison_box),
-            wd.unwrap_or_else(RingInterval::poison),
-            w.unwrap_or_else(RingInterval::poison),
+            wd.unwrap_or_else(Interval::poison),
+            w.unwrap_or_else(Interval::poison),
         )
     }
 
@@ -693,21 +675,21 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
             .eval_in_span(T::from_f64(um), T::from_f64(vm));
         let du = self.deriv_box(u0, u1, v0, v1, true);
         let dv = self.deriv_box(u0, u1, v0, v1, false);
-        let ru = RingInterval::from_bounds(-hu, hu);
-        let rv = RingInterval::from_bounds(-hv, hv);
+        let ru = Interval::from_bounds(-hu, hu);
+        let rv = Interval::from_bounds(-hv, hv);
         Box3 {
-            x: RingInterval::from_certified(c.x) + du.x * ru + dv.x * rv,
-            y: RingInterval::from_certified(c.y) + du.y * ru + dv.y * rv,
-            z: RingInterval::from_certified(c.z) + du.z * ru + dv.z * rv,
+            x: Interval::from_certified(c.x) + du.x * ru + dv.x * rv,
+            y: Interval::from_certified(c.y) + du.y * ru + dv.y * rv,
+            z: Interval::from_certified(c.z) + du.z * ru + dv.z * rv,
         }
     }
 }
 
 fn poison_box() -> Box3 {
     Box3 {
-        x: RingInterval::poison(),
-        y: RingInterval::poison(),
-        z: RingInterval::poison(),
+        x: Interval::poison(),
+        y: Interval::poison(),
+        z: Interval::poison(),
     }
 }
 
@@ -845,9 +827,9 @@ mod tests {
     #[test]
     fn implicit_enclosure_contains_the_residual_at_every_sampled_point() {
         let b = Box3 {
-            x: RingInterval::from_bounds(0.1, 0.9),
-            y: RingInterval::from_bounds(-0.4, 0.3),
-            z: RingInterval::from_bounds(-0.2, 0.7),
+            x: Interval::from_bounds(0.1, 0.9),
+            y: Interval::from_bounds(-0.4, 0.3),
+            z: Interval::from_bounds(-0.2, 0.7),
         };
         for s in [sphere(), cylinder()] {
             let e = implicit_enclosure(&s, b);
@@ -928,9 +910,9 @@ mod tests {
     #[test]
     fn splitting_covers_the_parent() {
         let b = Box3 {
-            x: RingInterval::from_bounds(0.0, 2.0),
-            y: RingInterval::from_bounds(0.0, 1.0),
-            z: RingInterval::from_bounds(0.0, 0.5),
+            x: Interval::from_bounds(0.0, 2.0),
+            y: Interval::from_bounds(0.0, 1.0),
+            z: Interval::from_bounds(0.0, 0.5),
         };
         let (l, r) = b.split();
         // Widest axis is x.
@@ -945,7 +927,7 @@ mod tests {
     /// takes a different branch through both of them. The `f64` lane is
     /// where that is reachable without a feature: NaN is its poison, and
     /// the door stops it here rather than leaving it to
-    /// `RingInterval::from_bounds`.
+    /// `Interval::from_bounds`.
     ///
     /// **An infinite radius is a different case and deliberately not
     /// poison** — ∞ is not `f64` poison (D4's Q1 residue), so the door
@@ -990,7 +972,7 @@ mod tests {
 
     /// **The M6-2 seam requires the certified door.**
     ///
-    /// [`RingInterval::from_certified`] is the only way an evaluation
+    /// [`Interval::from_certified`] is the only way an evaluation
     /// scalar enters the C9 ring here, and it is the one place the
     /// operand's own verdict is read — an operand whose bracket is sound
     /// but whose computation left a domain arrives capped at the ring's
@@ -1005,10 +987,10 @@ mod tests {
     mod decoration_seam {
         use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};
 
-        use super::{Box3, Point3, RingInterval, Surface, Vec3, implicit_enclosure};
+        use super::{Box3, Point3, Surface, Vec3, implicit_enclosure};
 
         /// One named entry point from an evaluation scalar into the ring.
-        type Crossing = (&'static str, fn(Interval) -> RingInterval);
+        type Crossing = (&'static str, fn(Interval) -> Interval);
 
         /// `sqrt([a, 4])`: `Trv` with finite endpoints when `a < 0` forces
         /// a clamp, certified otherwise.
@@ -1022,9 +1004,9 @@ mod tests {
 
         fn unit_box() -> Box3 {
             Box3 {
-                x: RingInterval::from_bounds(0.1, 0.9),
-                y: RingInterval::from_bounds(-0.4, 0.3),
-                z: RingInterval::from_bounds(-0.2, 0.7),
+                x: Interval::from_bounds(0.1, 0.9),
+                y: Interval::from_bounds(-0.4, 0.3),
+                z: Interval::from_bounds(-0.2, 0.7),
             }
         }
 

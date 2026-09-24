@@ -14,6 +14,7 @@
 use crate::shared::point::p3 as p;
 use geom::surfaces::nurbs::NurbsSurface;
 use geom_brep::patch_bound::{PatchCell, patch_cells};
+use geom_core::Bounds;
 use geom_core::spline::knots::KnotVector;
 use geom_core::{Point3, Vec3};
 
@@ -569,7 +570,7 @@ struct FaceBound {
 
 /// `sqrt(sum_c sup_c^2)`, rounded up — `mesh::nurbs_cert::cell_component`
 /// applied to `patch_bound::sq_norm`.
-fn component(v: [geom_core::RingInterval; 3]) -> f64 {
+fn component(v: [geom_core::Interval; 3]) -> f64 {
     let sq = geom_brep::patch_bound::sq_norm(v);
     let hi = sq.hi();
     if hi == 0.0 { 0.0 } else { hi.sqrt().next_up() }

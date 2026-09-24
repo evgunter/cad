@@ -80,12 +80,12 @@
 //! forms, with no randomness at all.
 
 test_utils::gated_to![
-    "crates/geom-core/src/ring_interval.rs",
     "crates/geom-core/src/interval.rs",
     "interval-transcendentals/src/",
 ];
 
-use geom_core::RingInterval;
+use geom_core::Bounds;
+use geom_core::Interval;
 use interval_transcendentals::{DInterval, Decoration};
 use test_utils::fuzz;
 
@@ -424,7 +424,7 @@ impl Tally {
     /// There is no allowlist and no exception. The ring's poison is the
     /// backend's `dec < Def` read through one accessor, so a
     /// disagreement means an operation stopped forwarding.
-    fn verdict(&mut self, op: Op, a: Ends, b: Ends, ring: RingInterval, oracle_refuses: bool) {
+    fn verdict(&mut self, op: Op, a: Ends, b: Ends, ring: Interval, oracle_refuses: bool) {
         self.verdicts[op.slot()] += 1;
         assert_eq!(
             !ring.is_certified(),
@@ -468,7 +468,7 @@ impl Tally {
     /// a zero endpoint is part of what the backend returns, and a
     /// forwarding that flipped it would be a change to the value the
     /// ring hands its consumers.
-    fn check_ends(&mut self, r: RingInterval, olo: f64, ohi: f64, what: &str) {
+    fn check_ends(&mut self, r: Interval, olo: f64, ohi: f64, what: &str) {
         if !r.is_certified() || olo.is_nan() || ohi.is_nan() {
             self.skipped += 1;
             return;
@@ -535,11 +535,11 @@ impl Tally {
 /// subsume. One body for all four lanes, so the two oracles and the two
 /// corpora cannot drift apart.
 fn compare_ops<O: Oracle>(t: &mut Tally, a: Ends, b: Ends) {
-    let r = RingInterval::from_bounds(a.lo, a.hi);
-    let s = RingInterval::from_bounds(b.lo, b.hi);
+    let r = Interval::from_bounds(a.lo, a.hi);
+    let s = Interval::from_bounds(b.lo, b.hi);
     let d = O::from_bounds(a.lo, a.hi);
     let e = O::from_bounds(b.lo, b.hi);
-    let shared: [(Op, RingInterval, O); 6] = [
+    let shared: [(Op, Interval, O); 6] = [
         (Op::Add, r + s, d.add(e)),
         (Op::Sub, r - s, d.sub(e)),
         (Op::Mul, r * s, d.mul(e)),
@@ -712,7 +712,7 @@ fn assert_the_corner_corpus_agrees<O: Oracle>() {
 #[test]
 fn the_subnormal_and_overflow_corners_are_where_the_newtype_gives_width_back() {
     let t = f64::MIN_POSITIVE;
-    let tiny = RingInterval::from_bounds(t, t);
+    let tiny = Interval::from_bounds(t, t);
 
     let product = tiny * tiny;
     assert!(product.is_certified(), "{product:?}");
@@ -733,7 +733,7 @@ fn the_subnormal_and_overflow_corners_are_where_the_newtype_gives_width_back() {
         );
     }
 
-    let recip = RingInterval::from_bounds(t, 1e-160).powi(-1);
+    let recip = Interval::from_bounds(t, 1e-160).powi(-1);
     assert!(recip.is_certified(), "{recip:?}");
     assert_eq!(
         (recip.lo(), recip.hi()),

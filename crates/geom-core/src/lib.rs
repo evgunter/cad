@@ -24,7 +24,6 @@ pub mod k_stats;
 pub mod linalg;
 pub mod predicate;
 pub mod real;
-pub mod ring_interval;
 pub mod spline;
 pub mod sym;
 pub mod tolerance;
@@ -43,10 +42,9 @@ pub use predicate::{
     RANGE_RECOURSE, SPLIT_PLANE_RECOURSE, Sign, SupSpeed,
 };
 pub use real::{
-    Bounds, CertifiedBounds, CertifiedEnclosure, Enclosure, Real, Witness, is_finite_length,
+    Bounds, CertifiedBounds, CertifiedEnclosure, Real, Witness, is_finite_length,
     is_underflowed_length,
 };
-pub use ring_interval::RingInterval;
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
 pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRules};
 pub use tolerance::{

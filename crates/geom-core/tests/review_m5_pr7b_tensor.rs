@@ -19,7 +19,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::RingInterval;
+use geom_core::Interval;
 use geom_core::spline::compose::CurveRingData;
 use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};
 use geom_core::spline::{KnotVector, basis};
@@ -68,10 +68,10 @@ fn surf_eval(s: &Surf, u: f64, v: f64) -> [f64; 3] {
     [num[0] / den, num[1] / den, num[2] / den]
 }
 
-fn lift(coords: &[Vec<f64>]) -> Vec<Vec<RingInterval>> {
+fn lift(coords: &[Vec<f64>]) -> Vec<Vec<Interval>> {
     coords
         .iter()
-        .map(|ch| ch.iter().map(|x| RingInterval::point(*x)).collect())
+        .map(|ch| ch.iter().map(|x| Interval::point(*x)).collect())
         .collect()
 }
 

@@ -19,19 +19,19 @@
 //! consumer reading a certificate needs.
 
 test_utils::gated_to![
-    "crates/geom-core/src/ring_interval.rs",
     "crates/geom-core/src/interval.rs",
     "interval-transcendentals/src/",
 ];
 
-use geom_core::RingInterval;
+use geom_core::Bounds;
+use geom_core::Interval;
 use interval_transcendentals::{DInterval, Decoration};
 
 const INF: f64 = f64::INFINITY;
 const NINF: f64 = f64::NEG_INFINITY;
 
-fn ri(lo: f64, hi: f64) -> RingInterval {
-    RingInterval::from_bounds(lo, hi)
+fn ri(lo: f64, hi: f64) -> Interval {
+    Interval::from_bounds(lo, hi)
 }
 
 fn di(lo: f64, hi: f64) -> DInterval {
@@ -39,7 +39,7 @@ fn di(lo: f64, hi: f64) -> DInterval {
 }
 
 /// The backend's refusal, as the differential spells it — and, read
-/// through the ring's own accessor, as `RingInterval::is_poison`.
+/// through the ring's own accessor, as `Interval::is_poison`.
 fn d_refuses(d: DInterval) -> bool {
     d.is_nai() || d.is_empty() || d.decoration() < Decoration::Def
 }
@@ -124,9 +124,9 @@ fn division_touching_zero_refuses_at_the_interval_scalar() {
 /// executed.
 #[test]
 fn point_at_infinity_and_inf_minus_inf_are_agreements() {
-    assert!(!RingInterval::point(INF).is_certified());
+    assert!(!Interval::point(INF).is_certified());
     assert!(DInterval::point(INF).is_nai());
-    assert!(!RingInterval::point(NINF).is_certified() && DInterval::point(NINF).is_nai());
+    assert!(!Interval::point(NINF).is_certified() && DInterval::point(NINF).is_nai());
     // Both constructors refuse a closed side at infinity, so inf - inf
     // cannot form: [-inf, 1] - [-inf, 1] is [-inf, +inf].
     let r = ri(NINF, 1.0) - ri(NINF, 1.0);
@@ -190,7 +190,7 @@ fn a_negative_power_can_refuse_where_the_division_by_hand_does_not() {
     assert!(!r.lo().is_nan() && !r.hi().is_nan(), "{r:?}");
 
     // The same reciprocal spelled as a division certifies.
-    let by_hand = RingInterval::point(1.0) / ri(a.0, a.1);
+    let by_hand = Interval::point(1.0) / ri(a.0, a.1);
     assert!(by_hand.is_certified(), "{by_hand:?}");
     assert!(!d_refuses(DInterval::point(1.0) / di(a.0, a.1)));
 
@@ -214,7 +214,7 @@ fn the_characterised_corners_the_swap_moved() {
     let r = ri(0.0, 1.0) * ri(0.0, INF);
     assert!(r.is_certified() && (r.lo(), r.hi()) == (0.0, INF), "{r:?}");
     // `[1,2] / [0,0]` still refuses: it is the empty set.
-    assert!(!(ri(1.0, 2.0) / RingInterval::point(0.0)).is_certified());
+    assert!(!(ri(1.0, 2.0) / Interval::point(0.0)).is_certified());
 
     // (2) THE SIGN CLAMP IS GONE. A product of two opposite-signed
     // subnormals has no exactness witness below the 2Prod floor, so the
@@ -224,22 +224,19 @@ fn the_characterised_corners_the_swap_moved() {
     // `hi <= 0`, which was a fact about the reals imposed on top of the
     // arithmetic rather than one the arithmetic proves.
     let (a, b) = (2.2250738585072014e-308, -1.8669573922462645e-308);
-    let p = RingInterval::point(a) * RingInterval::point(b);
+    let p = Interval::point(a) * Interval::point(b);
     assert_eq!(p.hi(), 5e-324);
     assert!(p.is_certified());
     // The same-sign `lo` arm moves the same way.
     let c = 1.902e-308;
-    assert_eq!(
-        (RingInterval::point(c) * RingInterval::point(c)).lo(),
-        -5e-324
-    );
+    assert_eq!((Interval::point(c) * Interval::point(c)).lo(), -5e-324);
 
     // (3) THE EXACTNESS WITNESSES FIRE. An exact residual
     // `0.5 + 0.25 - 0.75` collapses to exactly `[0, 0]` rather than
     // carrying a pad either side — which is why a test that sampled the
     // same expression in `f64` and demanded the certified bound contain
     // its own rounding error stopped holding.
-    let e = RingInterval::point(0.5) + RingInterval::point(0.25) - RingInterval::point(0.75);
+    let e = Interval::point(0.5) + Interval::point(0.25) - Interval::point(0.75);
     assert_eq!((e.lo(), e.hi()), (0.0, 0.0));
     assert!(!e.contains(5e-324), "the exact bound admits no slack");
     assert_eq!(

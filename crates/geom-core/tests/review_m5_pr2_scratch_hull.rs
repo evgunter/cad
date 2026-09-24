@@ -21,9 +21,10 @@
 
 test_utils::gated_to![
     "crates/geom-core/src/spline/",
-    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
 ];
 
+use geom_core::Bounds;
 use geom_core::spline::{KnotVector, basis};
 use test_utils::fuzz;
 

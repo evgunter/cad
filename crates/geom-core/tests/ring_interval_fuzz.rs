@@ -49,11 +49,12 @@
 //! ```
 
 test_utils::gated_to![
-    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/real.rs"
 ];
 
-use geom_core::RingInterval;
+use geom_core::Bounds;
+use geom_core::Interval;
 use std::cmp::Ordering;
 use test_utils::fuzz;
 
@@ -242,7 +243,7 @@ fn cmp_f64_vs_quot(x: f64, a: f64, b: f64) -> Ordering {
 }
 
 /// Asserts `[r.lo(), r.hi()]` brackets the exact value `v`.
-fn assert_brackets(r: RingInterval, v: &Big, what: &str) {
+fn assert_brackets(r: Interval, v: &Big, what: &str) {
     assert!(
         r.is_certified(),
         "{what}: unexpected poison — {}",
@@ -265,7 +266,7 @@ fn assert_brackets(r: RingInterval, v: &Big, what: &str) {
 /// The four ring operations on degenerate points, against exact truth
 /// and against the (correctly rounded) `f64` result.
 fn check_point_ops(a: f64, b: f64) {
-    let (pa, pb) = (RingInterval::point(a), RingInterval::point(b));
+    let (pa, pb) = (Interval::point(a), Interval::point(b));
     let ba = big_of(a);
     let bb = big_of(b);
 
@@ -332,8 +333,8 @@ fn check_point_ops(a: f64, b: f64) {
 fn check_interval_ops(a0: f64, a1: f64, b0: f64, b1: f64) {
     let (alo, ahi) = if a0 <= a1 { (a0, a1) } else { (a1, a0) };
     let (blo, bhi) = if b0 <= b1 { (b0, b1) } else { (b1, b0) };
-    let a = RingInterval::from_bounds(alo, ahi);
-    let b = RingInterval::from_bounds(blo, bhi);
+    let a = Interval::from_bounds(alo, ahi);
+    let b = Interval::from_bounds(blo, bhi);
     let mid = |lo: f64, hi: f64| {
         let m = lo + (hi - lo) * 0.5;
         if m.is_finite() && lo <= m && m <= hi {
@@ -527,7 +528,7 @@ fn sweep(rng: &mut fuzz::Rng) {
 /// `±m·2^e`, so `(±m)^n · 2^(en)` is exact in `u128` for `|n| ≤ 12`;
 /// negative exponents are checked by cross-multiplication against 1.
 fn check_powi(v: f64, neg: bool, m: u128, e: i32, n: i32) {
-    let r = RingInterval::point(v).powi(n);
+    let r = Interval::point(v).powi(n);
     let k = n.unsigned_abs();
     let mut mp: u128 = 1;
     for _ in 0..k {
@@ -595,7 +596,7 @@ fn powi_is_sound_against_exact_arithmetic() {
         if !(lo.is_finite() && hi.is_finite()) || !(lo < 0.0 && hi > 0.0) {
             continue;
         }
-        let x = RingInterval::from_bounds(lo, hi);
+        let x = Interval::from_bounds(lo, hi);
         for n in [2i32, 4, 6, 8, 10] {
             let p = x.powi(n);
             if !p.is_certified() {
@@ -622,9 +623,9 @@ fn poison_paths_are_total() {
         let b = f64_raw(&mut rng);
         // Non-finite points are poison, and poison flows.
         if !a.is_finite() {
-            let p = RingInterval::point(a);
+            let p = Interval::point(a);
             assert!(!p.is_certified(), "{}", fuzz::replay());
-            let q = RingInterval::point(if b.is_finite() { b } else { 1.0 });
+            let q = Interval::point(if b.is_finite() { b } else { 1.0 });
             for r in [p + q, q + p, p - q, p * q, p / q, q / p, -p, p.sqr()] {
                 assert!(!r.is_certified(), "poison must flow — {}", fuzz::replay());
             }
@@ -633,14 +634,14 @@ fn poison_paths_are_total() {
         // Inverted or NaN brackets are poison.
         if a.is_finite() && b.is_finite() && a > b {
             assert!(
-                !RingInterval::from_bounds(a, b).is_certified(),
+                !Interval::from_bounds(a, b).is_certified(),
                 "inverted bracket must poison — {}",
                 fuzz::replay()
             );
             n += 1;
         }
         assert!(
-            !RingInterval::from_bounds(f64::NAN, b).is_certified(),
+            !Interval::from_bounds(f64::NAN, b).is_certified(),
             "NaN bracket must poison — {}",
             fuzz::replay()
         );
@@ -648,9 +649,9 @@ fn poison_paths_are_total() {
         if a.is_finite() && b.is_finite() {
             let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
             if lo <= 0.0 && hi >= 0.0 {
-                let d = RingInterval::from_bounds(lo, hi);
+                let d = Interval::from_bounds(lo, hi);
                 assert!(
-                    !(RingInterval::point(1.0) / d).is_certified(),
+                    !(Interval::point(1.0) / d).is_certified(),
                     "divisor [{lo:e}, {hi:e}] touches zero and must poison — {}",
                     fuzz::replay()
                 );

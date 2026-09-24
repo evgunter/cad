@@ -12,7 +12,7 @@
 use core::ops::{Mul, Sub};
 
 use geom_core::spline::SplineError;
-use geom_core::{CertifiedBounds, Point2, Point3, Real, RingInterval, Vec2, Vec3};
+use geom_core::{CertifiedBounds, Interval, Point2, Point3, Real, Vec2, Vec3};
 
 /// A control point as the rank-blind net helpers see it: coordinates
 /// addressed by index, and the displacement algebra the perturbation
@@ -173,19 +173,19 @@ pub(crate) fn any_poison<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
 /// a lifted payload honest.
 pub(crate) fn ring_coords<T: CertifiedBounds, P: ControlPoint<T>>(
     control: &[P],
-) -> Vec<Vec<RingInterval>> {
+) -> Vec<Vec<Interval>> {
     // One lane per channel. The lane count is read off the channel
     // array of a point this impl mints itself, so it is the SAME
     // statement of the count every `channels()` below makes — one
     // array type, one length — and the zip cannot drop or pad.
-    let mut lanes: Vec<Vec<RingInterval>> = P::splat(T::zero())
+    let mut lanes: Vec<Vec<Interval>> = P::splat(T::zero())
         .channels()
         .into_iter()
         .map(|_| Vec::with_capacity(control.len()))
         .collect();
     for p in control {
         for (lane, c) in lanes.iter_mut().zip(p.channels()) {
-            lane.push(RingInterval::from_certified(c));
+            lane.push(Interval::from_certified(c));
         }
     }
     lanes

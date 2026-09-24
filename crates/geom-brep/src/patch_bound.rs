@@ -92,10 +92,11 @@
 //! failures are ring poison, and a poisoned hull fails every `≤ ε`
 //! comparison it reaches.
 
+use geom_core::Bounds;
 use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
-use geom_core::ring_interval::RingInterval;
+use geom_core::interval::Interval;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{CurvePlan, KnotVector};
 
@@ -243,15 +244,15 @@ pub struct PatchCell {
     /// Signed componentwise enclosure of `S_u` on the cell — of the
     /// DESCRIBED patch (see the type's docs, "What the enclosure
     /// encloses").
-    pub s_u: [RingInterval; 3],
+    pub s_u: [Interval; 3],
     /// Signed componentwise enclosure of `S_v` on the cell.
-    pub s_v: [RingInterval; 3],
+    pub s_v: [Interval; 3],
     /// Signed componentwise enclosure of `S_uu` on the cell.
-    pub s_uu: [RingInterval; 3],
+    pub s_uu: [Interval; 3],
     /// Signed componentwise enclosure of `S_uv` on the cell.
-    pub s_uv: [RingInterval; 3],
+    pub s_uv: [Interval; 3],
     /// Signed componentwise enclosure of `S_vv` on the cell.
-    pub s_vv: [RingInterval; 3],
+    pub s_vv: [Interval; 3],
 }
 
 /// Whether a patch is rational under the kernel's definition (any
@@ -446,21 +447,21 @@ pub type Net = TensorNet;
 pub fn window_tilde_hull(
     a: &Net,
     w: &Net,
-    c: RingInterval,
+    c: Interval,
     wu: &RangeInclusive<usize>,
     wv: &RangeInclusive<usize>,
-) -> RingInterval {
-    let mut acc: Option<RingInterval> = None;
+) -> Interval {
+    let mut acc: Option<Interval> = None;
     for i in wu.clone() {
         for j in wv.clone() {
             let e = a.get(i, j) - c * w.get(i, j);
             acc = Some(match acc {
                 None => e,
-                Some(h) => RingInterval::hull(h, e),
+                Some(h) => Interval::hull(h, e),
             });
         }
     }
-    acc.unwrap_or_else(RingInterval::poison)
+    acc.unwrap_or_else(Interval::poison)
 }
 
 /// The signed hull of `net[i][j]` over the window `wu × wv` —
@@ -471,11 +472,7 @@ pub fn window_tilde_hull(
 /// that spelling computes `a − 0·w`, and the ring's outward rounding
 /// makes the subtraction widen the answer by an ulp — enough to put a
 /// CELL's bound above the whole-patch hull it is a subset of.
-pub fn window_hull(
-    net: &Net,
-    wu: &RangeInclusive<usize>,
-    wv: &RangeInclusive<usize>,
-) -> RingInterval {
+pub fn window_hull(net: &Net, wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>) -> Interval {
     net.window_hull(wu, wv)
 }
 
@@ -487,8 +484,8 @@ pub fn window_hull(
 /// Fixed association (D9): channel order `x, y, z`, accumulated left
 /// to right from the ring zero. Poison in one channel poisons the sum.
 #[must_use]
-pub fn sq_norm(v: [RingInterval; 3]) -> RingInterval {
-    v.iter().fold(RingInterval::zero(), |acc, c| acc + c.sqr())
+pub fn sq_norm(v: [Interval; 3]) -> Interval {
+    v.iter().fold(Interval::zero(), |acc, c| acc + c.sqr())
 }
 
 /// A span's `[knot, next knot]` extent (the caller has already
@@ -537,13 +534,13 @@ fn comp_nets(n: &NurbsSurface<f64>, weighted: bool) -> Vec<Net> {
             Net::from_fn(nu, nv, |i, j| {
                 // Row-major layout: control[iu·nv + iv] — the net's own.
                 let p = n.control()[i * nv + j];
-                let x = RingInterval::point(match c {
+                let x = Interval::point(match c {
                     0 => p.x,
                     1 => p.y,
                     _ => p.z,
                 });
                 if weighted {
-                    RingInterval::point(n.weights()[i * nv + j]) * x
+                    Interval::point(n.weights()[i * nv + j]) * x
                 } else {
                     x
                 }
@@ -596,7 +593,7 @@ struct CellWindows {
 
 /// Assembles a cell from the five signed componentwise enclosures
 /// (`S_u, S_v, S_uu, S_uv, S_vv`, in that order).
-fn cell_from(uv: ((f64, f64), (f64, f64)), signed: [[RingInterval; 3]; 5]) -> PatchCell {
+fn cell_from(uv: ((f64, f64), (f64, f64)), signed: [[Interval; 3]; 5]) -> PatchCell {
     PatchCell {
         u: uv.0,
         v: uv.1,
@@ -660,7 +657,7 @@ fn integral_cells_on(
         .iter()
         .map(|base| DNets::build(base, kv_u, kv_v, kv_u1.as_ref(), kv_v1.as_ref()))
         .collect();
-    let zero = RingInterval::zero();
+    let zero = Interval::zero();
     let mut cells = Vec::new();
     for su in kv_u.first_span()..=kv_u.last_span() {
         let Some(span_u) = kv_u.span(su) else {
@@ -739,7 +736,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     let (nu0, nv0) = n.control_counts();
     let refine = |net: &Net| net.refine_u(&plans_u).refine_v(&plans_v);
     let w_grid = refine(&Net::from_fn(nu0, nv0, |i, j| {
-        RingInterval::point(n.weights()[i * nv0 + j])
+        Interval::point(n.weights()[i * nv0 + j])
     }));
     let (nu, nv) = (w_grid.nu(), w_grid.nv());
     // Positivity survives insertion in ℝ (convex combinations); this
@@ -781,8 +778,8 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
         .iter()
         .map(|a| Net::from_fn(nu, nv, |i, j| a.get(i, j) / w_grid.get(i, j)))
         .collect();
-    let zero = RingInterval::zero();
-    let two = RingInterval::point(2.0);
+    let zero = Interval::zero();
+    let two = Interval::point(2.0);
     let mut cells: Vec<PatchCell> = Vec::new();
     for su in kv_u.first_span()..=kv_u.last_span() {
         for sv in kv_v.first_span()..=kv_v.last_span() {
@@ -804,7 +801,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
             let point_at = |comp: usize, i: usize, j: usize| {
                 p_nets
                     .get(comp)
-                    .map_or_else(RingInterval::poison, |p| p.get(i, j))
+                    .map_or_else(Interval::poison, |p| p.get(i, j))
             };
             // The cell centroid — a translation CHOICE, so ANY finite
             // value is sound and none of it has to be enclosed. Taken
@@ -849,22 +846,22 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
             let mut s_uv = [zero; 3];
             let mut s_vv = [zero; 3];
             for (comp, a) in a_nets.iter().enumerate() {
-                let cc = RingInterval::point(c[comp]);
+                let cc = Interval::point(c[comp]);
                 // The rational VALUE hull on the cell: positive
                 // weights make the rational basis a nonnegative
                 // partition of unity over the ACTIVE control points,
                 // so `S − c` lies in the hull of `P − c`.
-                let mut v0h: Option<RingInterval> = None;
+                let mut v0h: Option<Interval> = None;
                 for i in *w.u_val.start()..=*w.u_val.end() {
                     for j in *w.v_val.start()..=*w.v_val.end() {
                         let e = point_at(comp, i, j) - cc;
                         v0h = Some(match v0h {
                             None => e,
-                            Some(h) => RingInterval::hull(h, e),
+                            Some(h) => Interval::hull(h, e),
                         });
                     }
                 }
-                let v0s = v0h.unwrap_or_else(RingInterval::poison);
+                let v0s = v0h.unwrap_or_else(Interval::poison);
                 // Recentred homogeneous derivative hulls
                 // `Ã_kl = A_kl − c·w_kl` on the cell.
                 let at =

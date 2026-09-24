@@ -63,7 +63,7 @@
 //! * **INV-C3 (zero-radius cylinder → distance to the LINE).** The
 //!   cylinder composite is `(|Q|² − (Q·â)² − r²)` with `Q = P − p₀`
 //!   and `â` the unit axis; at `r = 0` (an exact ring value —
-//!   `compose` forms `r²` as `RingInterval::point(0).sqr()`, the zero
+//!   `compose` forms `r²` as `Interval::point(0).sqr()`, the zero
 //!   interval, and refuses no radius) it is exactly `dist(P, line)²`,
 //!   meters². Conversion: `δ_line = √S` — no divisor, no hypothesis.
 //! * **INV-C4 (coverage — the locus is the WHOLE segment).** The

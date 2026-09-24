@@ -34,7 +34,7 @@
 
 use geom::NurbsCurve3;
 use geom_core::spline::KnotVector;
-use geom_core::{Point3, RingInterval, Vec3};
+use geom_core::{Interval, Point3, Vec3};
 
 /// The plane `n · P = 1.5`. Both are dyadic: `n = (0.5, 0.5, 0.75)`,
 /// offset `1.5`, so `n·P` is exact for dyadic `P` with modest exponents.
@@ -83,17 +83,17 @@ fn planar_curve() -> NurbsCurve3<f64> {
 /// The residual composite's coefficients, built **in the ring**:
 /// `r_j = n·P_j − 1.5`, fixed association (ascending coordinate, then
 /// the offset subtracted last).
-fn residual_coeffs(curve: &NurbsCurve3<f64>) -> Vec<RingInterval> {
+fn residual_coeffs(curve: &NurbsCurve3<f64>) -> Vec<Interval> {
     let n = plane_normal();
     curve
         .control()
         .iter()
         .map(|p| {
-            let mut acc = RingInterval::zero();
+            let mut acc = Interval::zero();
             for (nd, pd) in [(n.x, p.x), (n.y, p.y), (n.z, p.z)] {
-                acc = acc + RingInterval::point(nd) * RingInterval::point(pd);
+                acc = acc + Interval::point(nd) * Interval::point(pd);
             }
-            acc - RingInterval::point(OFFSET)
+            acc - Interval::point(OFFSET)
         })
         .collect()
 }

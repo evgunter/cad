@@ -30,14 +30,14 @@
 
 test_utils::gated_to![
     "crates/geom-core/src/spline/",
-    "crates/geom-core/src/ring_interval.rs",
     "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/real.rs",
 ];
 
 use core::num::NonZeroUsize;
+use geom_core::Bounds;
+use geom_core::Interval;
 use geom_core::spline::{KnotVector, basis};
-use geom_core::{Enclosure, RingInterval};
 use test_utils::fuzz;
 
 /// A random clamped knot vector of the given degree with `interior`
@@ -90,7 +90,7 @@ fn eval_rational(kv: &KnotVector, coeffs: &[f64], weights: &[f64], t: f64) -> f6
 /// allowance is proportional to the bound's own magnitude; the largest
 /// overshoot actually observed is returned so the tests can report it
 /// instead of hiding behind the tolerance.
-fn overshoot_ulps(b: RingInterval, v: f64) -> f64 {
+fn overshoot_ulps(b: Interval, v: f64) -> f64 {
     let mag = b.mag().max(v.abs()).max(f64::MIN_POSITIVE);
     let over = (b.lo() - v).max(v - b.hi()).max(0.0);
     over / (mag * f64::EPSILON)
@@ -401,7 +401,7 @@ fn bounds_are_bit_identical_across_repeats_and_coefficient_types() {
             let kv = random_kv(&mut rng, degree, interior);
             let n = kv.control_count();
             let coeffs: Vec<f64> = (0..n).map(|_| rng.range(-1e6, 1e6)).collect();
-            let rings: Vec<RingInterval> = coeffs.iter().map(|c| RingInterval::point(*c)).collect();
+            let rings: Vec<Interval> = coeffs.iter().map(|c| Interval::point(*c)).collect();
             let (pf, pr) = (
                 kv.with_coeffs(&coeffs).expect("its own vector"),
                 kv.with_coeffs(&rings).expect("its own vector"),
@@ -445,8 +445,8 @@ fn structural_errors_poison_rather_than_panic() {
     // coefficients (the `compile_fail` rows on `SplineCoeffs`), so
     // neither has a poison row here.
     // A poisoned coefficient poisons every bound it participates in.
-    let mut poisoned: Vec<RingInterval> = coeffs.iter().map(|c| RingInterval::point(*c)).collect();
-    poisoned[0] = RingInterval::poison();
+    let mut poisoned: Vec<Interval> = coeffs.iter().map(|c| Interval::point(*c)).collect();
+    poisoned[0] = Interval::poison();
     let pp = kv.with_coeffs(&poisoned).expect("its own vector");
     assert!(!pp.domain_hull().is_certified());
     assert!(
@@ -472,38 +472,4 @@ fn structural_errors_poison_rather_than_panic() {
         .with_rational_coeffs(&coeffs, &ones)
         .expect("its own vector");
     assert!(rational.domain_hull_rational().is_certified());
-}
-
-/// A certification helper written against `Enclosure` only — the seam
-/// under test. Shared by the two rows below so each carrier is measured
-/// by the identical generic code.
-fn widest<E: Enclosure>(cs: &[E]) -> f64 {
-    cs.iter().map(|c| c.hi() - c.lo()).fold(0.0, f64::max)
-}
-
-/// The seam itself: a certification helper written against `Enclosure`
-/// accepts `f64` and `RingInterval` without either implementing the
-/// other's traits.
-///
-/// The interval carrier is a SEPARATE row rather than a
-/// `#[cfg(feature = "interval")]` block inside this one. That is load-
-/// bearing, not cosmetic: the interval CI legs run exactly the tests the
-/// feature ADDS (see the `test-interval` job), which is sound only while
-/// a test present in both builds runs identical code. An inner cfg block
-/// would make this row mean two different things under one name, and its
-/// interval half would go unrun. scripts/check-interval-cfg-additive.py
-/// gates the rule.
-#[test]
-fn enclosure_seam_accepts_every_bracket_carrier() {
-    assert_eq!(widest(&[1.0f64, 2.0, 3.0]), 0.0);
-    assert_eq!(widest(&[RingInterval::from_bounds(1.0, 3.0)]), 2.0);
-}
-
-/// The same seam at the certified interval scalar — the third carrier,
-/// as its own row (see the note above).
-#[cfg(feature = "interval")]
-#[test]
-fn enclosure_seam_accepts_the_interval_carrier() {
-    use geom_core::Interval;
-    assert!(widest(&[Interval::from_bounds(1.0, 3.0)]) >= 2.0);
 }

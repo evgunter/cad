@@ -58,12 +58,13 @@
 //!
 //! Refusal is not free-standing: what a refusal *does* is cross into the
 //! ring as poison. The last rows pin that, per corpus member, at
-//! [`RingInterval::from_certified`] — the one body every lane scalar
+//! [`Interval::from_certified`] — the one body every lane scalar
 //! reaches the C9 ring through.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{CertifiedEnclosure, RingInterval};
+use geom_core::Bounds;
+use geom_core::{CertifiedEnclosure, Interval};
 use interval_transcendentals::{DInterval, Decoration};
 
 /// The trait's postcondition, in one body: a `Some` is a real bracket.
@@ -153,27 +154,23 @@ fn the_f64_door_refuses_exactly_its_nans() {
     assert_non_vacuous("f64", certified, refused);
 }
 
-// -------------------------------------------------------- RingInterval
+// -------------------------------------------------------- Interval
 
 /// Seeds spanning both ring states and both infinite sides, plus every
 /// value the ring's own operations reach from them. `x / [0, 0]` and
 /// `[0, 0] * [−∞, ∞]` are how ring poison arrives without being written
 /// down.
-fn ring_corpus() -> Vec<(String, RingInterval)> {
+fn ring_corpus() -> Vec<(String, Interval)> {
     let seeds = [
-        ("[0,0]", RingInterval::point(0.0)),
-        ("[1,2]", RingInterval::from_bounds(1.0, 2.0)),
-        ("[-1,1]", RingInterval::from_bounds(-1.0, 1.0)),
-        (
-            "[-inf,0]",
-            RingInterval::from_bounds(f64::NEG_INFINITY, 0.0),
-        ),
-        ("[0,inf]", RingInterval::from_bounds(0.0, f64::INFINITY)),
-        ("poison", RingInterval::poison()),
-        ("inverted", RingInterval::from_bounds(1.0, -1.0)),
+        ("[0,0]", Interval::point(0.0)),
+        ("[1,2]", Interval::from_bounds(1.0, 2.0)),
+        ("[-1,1]", Interval::from_bounds(-1.0, 1.0)),
+        ("[-inf,0]", Interval::from_bounds(f64::NEG_INFINITY, 0.0)),
+        ("[0,inf]", Interval::from_bounds(0.0, f64::INFINITY)),
+        ("poison", Interval::poison()),
+        ("inverted", Interval::from_bounds(1.0, -1.0)),
     ];
-    let mut out: Vec<(String, RingInterval)> =
-        seeds.iter().map(|&(t, r)| (t.to_string(), r)).collect();
+    let mut out: Vec<(String, Interval)> = seeds.iter().map(|&(t, r)| (t.to_string(), r)).collect();
     for &(ta, a) in &seeds {
         out.push((format!("-{ta}"), -a));
         out.push((format!("{ta}.sqr()"), a.sqr()));
@@ -185,7 +182,7 @@ fn ring_corpus() -> Vec<(String, RingInterval)> {
             out.push((format!("{ta}-{tb}"), a - b));
             out.push((format!("{ta}*{tb}"), a * b));
             out.push((format!("{ta}/{tb}"), a / b));
-            out.push((format!("hull({ta},{tb})"), RingInterval::hull(a, b)));
+            out.push((format!("hull({ta},{tb})"), Interval::hull(a, b)));
         }
     }
     out
@@ -217,7 +214,7 @@ fn the_ring_door_refuses_exactly_its_poison() {
             refused += 1;
         }
     }
-    assert_non_vacuous("RingInterval", certified, refused);
+    assert_non_vacuous("Interval", certified, refused);
 }
 
 /// Poison has to be **reachable by arithmetic**, or the refusing half of
@@ -234,15 +231,15 @@ fn ring_poison_is_reached_by_arithmetic_not_only_by_construction() {
     let derived = [
         (
             "[1,2]/[0,0]",
-            RingInterval::from_bounds(1.0, 2.0) / RingInterval::point(0.0),
+            Interval::from_bounds(1.0, 2.0) / Interval::point(0.0),
         ),
         (
             "[-2,-1]/[0,5e-324]",
-            RingInterval::from_bounds(-2.0, -1.0) / RingInterval::from_bounds(0.0, 5e-324),
+            Interval::from_bounds(-2.0, -1.0) / Interval::from_bounds(0.0, 5e-324),
         ),
         (
             "[5e-324,1].powi(-1)",
-            RingInterval::from_bounds(5e-324, 1.0).powi(-1),
+            Interval::from_bounds(5e-324, 1.0).powi(-1),
         ),
     ];
     for (tag, r) in derived {
@@ -297,12 +294,11 @@ fn a_backend_refusal_can_carry_real_endpoints() {
     // the brackets above and `is_poison` becomes the only thing that
     // says no.
     assert!(
-        !(RingInterval::from_bounds(-2.0, -1.0) / RingInterval::from_bounds(0.0, 5e-324))
-            .is_certified()
+        !(Interval::from_bounds(-2.0, -1.0) / Interval::from_bounds(0.0, 5e-324)).is_certified()
     );
     assert!(
-        !((RingInterval::from_bounds(-2.0, -1.0) / RingInterval::from_bounds(-1.0, 1.0))
-            * RingInterval::from_bounds(0.0, 0.0))
+        !((Interval::from_bounds(-2.0, -1.0) / Interval::from_bounds(-1.0, 1.0))
+            * Interval::from_bounds(0.0, 0.0))
         .is_certified()
     );
 }
@@ -319,7 +315,7 @@ fn a_backend_refusal_can_carry_real_endpoints() {
 fn every_refused_ring_crosses_as_poison() {
     let (mut certified, mut refused) = (0, 0);
     for (tag, r) in ring_corpus() {
-        let crossed = RingInterval::from_certified(r);
+        let crossed = Interval::from_certified(r);
         if r.certified_bracket().is_none() {
             assert!(
                 !crossed.is_certified(),
@@ -353,7 +349,7 @@ fn every_refused_ring_crosses_as_poison() {
 fn the_f64_crossing_admits_exactly_the_finite() {
     let (mut crossed, mut poisoned) = (0, 0);
     for (tag, x) in f64_corpus() {
-        let r = RingInterval::from_certified(x);
+        let r = Interval::from_certified(x);
         assert_eq!(
             r.is_certified(),
             x.is_finite(),

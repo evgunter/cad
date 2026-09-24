@@ -11,7 +11,7 @@
 //! ([`Sym::param_over`](super::Sym::param_over) — the caller that mints
 //! a parameter axis already holds `(lo, hi)` as two `f64`s), and the
 //! candidate `R` is enclosed over those brackets in the always-compiled,
-//! outward-rounded [`RingInterval`](crate::ring_interval::RingInterval). No type is punned, no feature is
+//! outward-rounded [`Interval`](crate::interval::Interval). No type is punned, no feature is
 //! gated, no bound is added: `R` is a polynomial in the parameters and
 //! `π`, evaluated in the ring; a form with any other indeterminate (an
 //! opaque real, an atom, a frozen node) is not enclosable and the fold
@@ -38,12 +38,13 @@
 //! which is where the arc family's `sqrt` of a perfect square sits
 //! (`‖q − c‖ = r` has `(a + 2r)²` under its root on the plate).
 
+use crate::real::Bounds;
 use core::f64::consts::PI;
 
 use super::form::{Form, Mono, Poly, exp_of};
 use super::rational::Rat;
 use super::{INDET_PI, IndetMap, SymBudget, SymOp};
-use crate::ring_interval::RingInterval;
+use crate::interval::Interval;
 
 /// The most terms a candidate root may grow to before `poly_sqrt` gives
 /// up: a real residual's root is a handful of terms, and the bound keeps
@@ -232,25 +233,25 @@ fn mono_poly(m: &Mono, e: u32) -> Poly {
 /// A rational coefficient as a ring enclosure ([`Rat::f64_bracket`]):
 /// poison where the value is out of `f64`'s range rather than a flushed
 /// zero, which would not be conservative.
-fn rat_enclosure(c: &Rat) -> RingInterval {
+fn rat_enclosure(c: &Rat) -> Interval {
     match c.f64_bracket() {
-        Some((lo, hi)) => RingInterval::from_bounds(lo, hi),
-        None => RingInterval::poison(),
+        Some((lo, hi)) => Interval::from_bounds(lo, hi),
+        None => Interval::poison(),
     }
 }
 
 /// The enclosure of `p` over the parameter brackets, or `None` where
 /// `p` carries an indeterminate no bracket is known for.
-fn enclose(p: &Poly, params: &IndetMap<(f64, f64)>) -> Option<RingInterval> {
-    let mut acc = RingInterval::zero();
+fn enclose(p: &Poly, params: &IndetMap<(f64, f64)>) -> Option<Interval> {
+    let mut acc = Interval::zero();
     for (m, c) in p.terms() {
         let mut term = rat_enclosure(c);
         for &(id, e) in m {
             let x = if id == INDET_PI {
-                RingInterval::from_bounds(PI.next_down(), PI.next_up())
+                Interval::from_bounds(PI.next_down(), PI.next_up())
             } else {
                 let &(lo, hi) = params.get(&id)?;
-                RingInterval::from_bounds(lo, hi)
+                Interval::from_bounds(lo, hi)
             };
             term = term * x.powi(i32::try_from(e).ok()?);
         }
@@ -266,7 +267,7 @@ fn enclose(p: &Poly, params: &IndetMap<(f64, f64)>) -> Option<RingInterval> {
 fn certified_sign(num: &Poly, den: &Poly, params: &IndetMap<(f64, f64)>) -> Option<bool> {
     let n = enclose(num, params)?;
     let d = enclose(den, params)?;
-    let sign = |r: RingInterval| -> Option<bool> {
+    let sign = |r: Interval| -> Option<bool> {
         if !r.is_certified() {
             None
         } else if r.lo() > 0.0 {

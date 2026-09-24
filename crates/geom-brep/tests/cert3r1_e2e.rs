@@ -63,7 +63,7 @@ fn r1_f64_nested_restrict_round_trip() {
 mod interval_lane {
     use super::*;
     use crate::shared::interval::iv;
-    use geom_core::{Bounds, Interval, Real};
+    use geom_core::{Bounds, Interval};
 
     fn w3(p: Point3<Interval>) -> f64 {
         let w = |e: Interval| e.hi() - e.lo();

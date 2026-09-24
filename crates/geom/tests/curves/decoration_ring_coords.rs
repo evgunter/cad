@@ -1,11 +1,11 @@
 //! **The control-net bracket seam follows the certified door.**
 //!
 //! `ring_coords` lifts a carrier's control net into the C9 ring, one
-//! `RingInterval` per coefficient. The lift reads each coefficient's
+//! `Interval` per coefficient. The lift reads each coefficient's
 //! bracket, and at the `Interval` scalar a bracket can be *sound but
 //! inadmissible*: `sqrt([−1, 4])` clamps to `[0, 2]` and records the
 //! domain violation only in its decoration (`Trv`). Nothing downstream
-//! of the ring can see that — `RingInterval` has no decoration channel
+//! of the ring can see that — `Interval` has no decoration channel
 //! — so a coefficient that may not certify has to be refused **here**,
 //! at the crossing, or it certifies a composite bound for an expression
 //! nobody asked for.

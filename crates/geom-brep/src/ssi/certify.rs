@@ -110,8 +110,7 @@ use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface, tensor};
 use geom_core::{
-    Band, Bounds, CertifiedEnclosure, Decide, Margin, Point3, Real, RingInterval, Sign, SupSpeed,
-    Vec3,
+    Band, Bounds, CertifiedEnclosure, Decide, Interval, Margin, Point3, Real, Sign, SupSpeed, Vec3,
 };
 
 use crate::certify::CERT_SAMPLES;
@@ -679,9 +678,9 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         // transversality margin collapses to zero, rather than a
         // zero-free enclosure of an equation nobody evaluated.
         let n = [
-            RingInterval::from_certified(normal.x),
-            RingInterval::from_certified(normal.y),
-            RingInterval::from_certified(normal.z),
+            Interval::from_certified(normal.x),
+            Interval::from_certified(normal.y),
+            Interval::from_certified(normal.z),
         ];
         let phi_u = n[0] * du.x + n[1] * du.y + n[2] * du.z;
         let phi_v = n[0] * dv.x + n[1] * dv.y + n[2] * dv.z;
@@ -701,8 +700,8 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         }
         let (tx, ty) = (t.x.hi(), t.y.hi());
         // e⊥ = (−t.y, t.x)/‖t‖; the transverse derivative of φ.
-        let ex = RingInterval::point(-ty / tn);
-        let ey = RingInterval::point(tx / tn);
+        let ex = Interval::point(-ty / tn);
+        let ey = Interval::point(tx / tn);
         // ∇φ·e⊥ is metres of plane-distance per CHART unit, so it is
         // not yet a margin: multiplying it by a lever arm in metres
         // would give metres² per chart unit (D4 ¶1 forbids exactly
@@ -744,7 +743,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
 /// (The mignitude. `offset_meters::mig` is the same arithmetic read
 /// as a coefficient-hull assembly term rather than a decision; noted
 /// at both sites.)
-fn zero_free_lower_bound(i: RingInterval) -> f64 {
+fn zero_free_lower_bound(i: Interval) -> f64 {
     if !i.is_certified() {
         return 0.0;
     }
@@ -1008,7 +1007,7 @@ mod tests {
     /// The three components of the plane normal enter the C9 ring through
     /// their own brackets, and at `Interval` a bracket can be sound and
     /// still inadmissible: `sqrt([−1, 4]) + 1` is `[1, 3]` with decoration
-    /// `Trv`. `RingInterval` has no decoration channel, so a normal that
+    /// `Trv`. `Interval` has no decoration channel, so a normal that
     /// cannot certify has to be refused at the crossing — otherwise the
     /// transversality margin is a positive number computed from a plane
     /// equation that was never evaluated where it was asked for.

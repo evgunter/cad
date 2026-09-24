@@ -1368,7 +1368,7 @@ impl<T: geom_core::CertifiedBounds> NurbsSurface<T> {
     /// `SurfaceRingData` for composite residual bounds. The rank does
     /// not enter the lift, so this is the same body the curves use
     /// (`net::ring_coords`).
-    pub fn ring_coords(&self) -> Vec<Vec<geom_core::RingInterval>> {
+    pub fn ring_coords(&self) -> Vec<Vec<geom_core::Interval>> {
         net::ring_coords(&self.control)
     }
 }

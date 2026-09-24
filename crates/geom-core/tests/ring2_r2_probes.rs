@@ -14,11 +14,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{CertifiedEnclosure, Interval, Real, RingInterval};
+use geom_core::Bounds;
+use geom_core::{CertifiedEnclosure, Interval, Real};
 use test_utils::fuzz;
 
-fn ri(lo: f64, hi: f64) -> RingInterval {
-    RingInterval::from_bounds(lo, hi)
+fn ri(lo: f64, hi: f64) -> Interval {
+    Interval::from_bounds(lo, hi)
 }
 
 // ------------------------------------------------ 1. the crossing
@@ -29,8 +30,8 @@ fn a_trv_scalar_with_real_endpoints_crosses_as_poison_with_its_endpoints() {
     // computation is not entitled to.
     let x = Interval::from_bounds(-1.0, 4.0).sqrt();
     assert!(x.certified_bracket().is_none(), "the fixture is a refusal");
-    assert_eq!(x.crossing_bracket(), (0.0, 2.0));
-    let r = RingInterval::from_certified(x);
+    assert_eq!((x.lo(), x.hi()), (0.0, 2.0));
+    let r = Interval::from_certified(x);
     assert!(!r.is_certified(), "the crossing must refuse: {r:?}");
     assert_eq!(
         (r.lo(), r.hi()),
@@ -38,12 +39,12 @@ fn a_trv_scalar_with_real_endpoints_crosses_as_poison_with_its_endpoints() {
         "and keep the endpoints: {r:?}"
     );
     assert!(r.certified_bracket().is_none());
-    assert_eq!(r.crossing_bracket(), (0.0, 2.0));
+    assert_eq!((r.lo(), r.hi()), (0.0, 2.0));
 
     // Every guard the spec keeps refuses it by name.
     let ok = ri(1.0, 2.0);
-    assert!(!RingInterval::hull(r, ok).is_certified());
-    assert!(!RingInterval::hull(ok, r).is_certified());
+    assert!(!Interval::hull(r, ok).is_certified());
+    assert!(!Interval::hull(ok, r).is_certified());
     assert!(!r.clamped_to(0.5, 1.5).is_certified());
     assert!(
         !r.clamped_to(-10.0, 10.0).is_certified(),
@@ -67,19 +68,21 @@ fn a_trv_scalar_with_real_endpoints_crosses_as_poison_with_its_endpoints() {
         assert!(!y.is_certified(), "{y:?}");
     }
     // A ring crossing into a ring keeps the endpoints and the refusal.
-    let rr = RingInterval::from_certified(r);
-    assert!(!rr.is_certified() && (rr.lo(), rr.hi()) == (0.0, 2.0), "{rr:?}");
-    // The empty set and NaI cross as NaN-endpoint poison.
-    let e = RingInterval::from_certified(
-        Interval::from_bounds(1.0, 2.0) / Interval::from_bounds(0.0, 0.0),
+    let rr = Interval::from_certified(r);
+    assert!(
+        !rr.is_certified() && (rr.lo(), rr.hi()) == (0.0, 2.0),
+        "{rr:?}"
     );
+    // The empty set and NaI cross as NaN-endpoint poison.
+    let e =
+        Interval::from_certified(Interval::from_bounds(1.0, 2.0) / Interval::from_bounds(0.0, 0.0));
     assert!(!e.is_certified() && e.lo().is_nan());
     // A certified scalar crosses clean, and its infinite side stays a bound.
-    let c = RingInterval::from_certified(Interval::from_bounds(1.0, f64::INFINITY));
+    let c = Interval::from_certified(Interval::from_bounds(1.0, f64::INFINITY));
     assert!(c.is_certified() && c.hi().is_infinite(), "{c:?}");
     // A certified f64 at +inf is not a real: poison (the merge base's answer too).
-    assert!(!RingInterval::from_certified(f64::INFINITY).is_certified());
-    assert!(RingInterval::from_certified(2.5f64).is_certified());
+    assert!(!Interval::from_certified(f64::INFINITY).is_certified());
+    assert!(Interval::from_certified(2.5f64).is_certified());
 }
 
 // ------------------------------------------------ 2. the hazard
@@ -100,7 +103,7 @@ fn a_refused_quotient_answers_true_to_the_unguarded_comparison() {
         "{p:?}"
     );
     // A finite two-sided refusal: the midpoint hazard.
-    let f = (ri(-2.0, -1.0) / ri(-1.0, 1.0)) * RingInterval::zero();
+    let f = (ri(-2.0, -1.0) / ri(-1.0, 1.0)) * Interval::zero();
     assert!(
         !f.is_certified() && ((f.lo() + f.hi()) * 0.5).is_finite(),
         "{f:?}"
@@ -109,7 +112,7 @@ fn a_refused_quotient_answers_true_to_the_unguarded_comparison() {
 
 // --------------------------------- 3. the retired ring, ported
 
-/// The merge base's `RingInterval` arithmetic (`ed93c4cde`'s
+/// The merge base's `Interval` arithmetic (`ed93c4cde`'s
 /// `ring_interval.rs`), ported verbatim onto a bare pair so the
 /// newtype can be measured against the arithmetic it replaced.
 mod old {
@@ -298,7 +301,7 @@ struct Count {
     worst_looser: Option<(f64, f64, f64, f64, f64, f64)>,
 }
 
-fn classify(c: &mut Count, new: RingInterval, o: Old, a: (f64, f64), b: (f64, f64)) {
+fn classify(c: &mut Count, new: Interval, o: Old, a: (f64, f64), b: (f64, f64)) {
     match (!new.is_certified(), o.is_poison()) {
         (true, true) => c.both_poison += 1,
         (true, false) | (false, true) => c.verdict_differs += 1,
@@ -372,7 +375,7 @@ fn the_newtype_against_the_retired_ring_op_by_op() {
             let b = draw(&mut rng, edge);
             let (na, nb) = (ri(a.0, a.1), ri(b.0, b.1));
             let (oa, ob) = (Old::from_bounds(a.0, a.1), Old::from_bounds(b.0, b.1));
-            let pairs: [(RingInterval, Old); 10] = [
+            let pairs: [(Interval, Old); 10] = [
                 (na + nb, oa.add(ob)),
                 (na - nb, oa.sub(ob)),
                 (na * nb, oa.mul(ob)),

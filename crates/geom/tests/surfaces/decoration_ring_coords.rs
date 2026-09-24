@@ -2,10 +2,10 @@
 //! surface half of `tests/curves/decoration_ring_coords.rs`.
 //!
 //! `NurbsSurface::ring_coords` lifts the control net into the C9 ring,
-//! one `RingInterval` per coefficient, by reading each coefficient's
+//! one `Interval` per coefficient, by reading each coefficient's
 //! bracket. At the `Interval` scalar a bracket can be sound and still
 //! inadmissible: `sqrt([−1, 4])` clamps to `[0, 2]` and records the
-//! domain violation only in its decoration. `RingInterval` has no
+//! domain violation only in its decoration. `Interval` has no
 //! decoration channel, so a coefficient that cannot certify must be
 //! refused at the crossing or the composite residual bound built from
 //! it describes an expression nobody evaluated.

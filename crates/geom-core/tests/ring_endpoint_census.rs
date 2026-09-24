@@ -1,5 +1,5 @@
 //! **The endpoint-read census: every production read of one side of a
-//! `RingInterval` bracket, counted and dispositioned.**
+//! `Interval` bracket, counted and dispositioned.**
 //!
 //! # Why this row exists
 //!
@@ -12,7 +12,7 @@
 //! negative integer power, or a crossing from a scalar that may not
 //! certify. At each of those reads the same code now takes the
 //! certifying branch on a value that does not certify, unless the
-//! site asks [`geom_core::RingInterval::is_poison`] by name.
+//! site asks [`geom_core::Interval::is_poison`] by name.
 //!
 //! A hand sweep found 31 such sites and missed five on its first
 //! pass. This row is the sweep, executed: it walks the same file set
@@ -25,7 +25,7 @@
 //! # What the two numbers mean
 //!
 //! * `reads` — production lines carrying `.lo()` or `.hi()` in a file
-//!   that names `RingInterval`. It is a LINE count, not a site count:
+//!   that names `Interval`. It is a LINE count, not a site count:
 //!   a site spelled over two lines counts twice, and two reads on one
 //!   line count once. That is the same reading the register was
 //!   classified from, kept deliberately so the two are comparable.
@@ -67,7 +67,7 @@
 //!    hand command read raw lines and skipped a line beginning `//`;
 //!    the two agree file for file on this tree, which is the
 //!    cross-check that made the conversion safe.
-//! 6. **The population is keyed on the TEXT `RingInterval`.** A file
+//! 6. **The population is keyed on the TEXT `Interval`.** A file
 //!    that reads a ring bracket without naming the type is outside it,
 //!    and a file LEAVES it when a prose mention is deleted — which is
 //!    an edit no reviewer reads as a census change. The two files in
@@ -88,7 +88,6 @@ use test_utils::source;
 
 test_utils::gated_to![
     "crates/geom-core/src/interval.rs",
-    "crates/geom-core/src/ring_interval.rs",
     "crates/geom-brep/src/",
     "crates/geom/src/",
     "crates/mesh/src/",
@@ -109,16 +108,16 @@ test_utils::gated_to![
 /// them still reds.
 const ALSO_WALKED: &[&str] = &[
     // The SSI driver's transversality read: `wu.hull()` is a
-    // `RingInterval` and the file names only the window it came from.
+    // `Interval` and the file names only the window it came from.
     "crates/geom-brep/src/ssi.rs",
     // The crossing's other end. `Interval`'s endpoints are what
-    // `RingInterval::from_certified` carries into the ring, and the
+    // `Interval::from_certified` carries into the ring, and the
     // file left the text-keyed population the moment its prose mention
     // of the ring went away.
     "crates/geom-core/src/interval.rs",
 ];
 
-/// One entry per file walked — every file that names `RingInterval`
+/// One entry per file walked — every file that names `Interval`
 /// under `crates/*/src`, plus [`ALSO_WALKED`]:
 /// the path, the production endpoint-read LINES, and how many of
 /// those sit in a function that asks `is_poison()`.
@@ -182,7 +181,7 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
          all — blind spot 1 — and two are the transversality span-hull window, safe \
          because `KnotVector::clamped` refuses degree 0: a window therefore holds at \
          least two coefficients, and `CoeffWindow::hull` folds every one after the \
-         first through `RingInterval::hull`, whose refusing guard mints NaI. (The \
+         first through `Interval::hull`, whose refusing guard mints NaI. (The \
          hull guard alone would not do it — the fold seeds `acc` with the first \
          coefficient and would hand a one-coefficient window's refusal straight out \
          with its endpoints intact.)",
@@ -228,7 +227,7 @@ fn repo_root() -> std::path::PathBuf {
         .expect("crates/<name> sits two levels under the repo root")
 }
 
-/// Every `crates/*/src` file whose text names `RingInterval`.
+/// Every `crates/*/src` file whose text names `Interval`.
 fn consumer_files(root: &std::path::Path) -> Vec<(String, String)> {
     let mut out = Vec::new();
     let crates = root.join("crates");
@@ -246,7 +245,7 @@ fn consumer_files(root: &std::path::Path) -> Vec<(String, String)> {
                 .expect("a walked file lies under the repo root")
                 .to_string_lossy()
                 .replace('\\', "/");
-            if !raw.contains("RingInterval") && !ALSO_WALKED.contains(&rel.as_str()) {
+            if !raw.contains("Interval") && !ALSO_WALKED.contains(&rel.as_str()) {
                 continue;
             }
             // **The shared lexer's CODE view**, not the raw text: a

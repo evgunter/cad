@@ -31,13 +31,13 @@ fn bf<T: Real>(s: Span<'_>, t: T) -> Vec<T> {
 fn dbf<T: Real>(s: Span<'_>, t: T, n: usize) -> Vec<Vec<T>> {
     basis::ders_basis_funs(s, t, n)
 }
-fn sh(w: CoeffWindow<'_, f64>) -> geom_core::RingInterval {
+fn sh(w: CoeffWindow<'_, f64>) -> geom_core::Interval {
     w.hull()
 }
-fn shr(w: RationalWindow<'_, f64>) -> geom_core::RingInterval {
+fn shr(w: RationalWindow<'_, f64>) -> geom_core::Interval {
     w.hull_rational()
 }
-fn dsh(w: CoeffWindow<'_, f64>) -> geom_core::RingInterval {
+fn dsh(w: CoeffWindow<'_, f64>) -> geom_core::Interval {
     w.derivative_hull()
 }
 fn snb(w: CoeffWindow<'_, f64>) -> f64 {
@@ -127,7 +127,7 @@ fn vd(o: &mut Rows, t: &str, p: Vec3<Dual64>) {
         o.push((format!("{t}.{n}.d"), c.deriv.to_bits()));
     }
 }
-fn ri(o: &mut Rows, t: &str, r: geom_core::RingInterval) {
+fn ri(o: &mut Rows, t: &str, r: geom_core::Interval) {
     o.push((format!("{t}.lo"), r.lo().to_bits()));
     o.push((format!("{t}.hi"), r.hi().to_bits()));
 }

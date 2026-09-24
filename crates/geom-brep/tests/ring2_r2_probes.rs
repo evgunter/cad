@@ -8,10 +8,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::offset_meters::mig;
-use geom_core::RingInterval;
+use geom_core::Bounds;
+use geom_core::Interval;
 
-fn ri(lo: f64, hi: f64) -> RingInterval {
-    RingInterval::from_bounds(lo, hi)
+fn ri(lo: f64, hi: f64) -> Interval {
+    Interval::from_bounds(lo, hi)
 }
 
 #[test]
@@ -29,7 +30,7 @@ fn the_mignitude_refuses_a_zero_touching_quotient_by_name() {
     assert!(!n.is_certified() && n.hi() < 0.0, "{n:?}");
     assert_eq!(mig(n), 0.0);
     // And the finite two-sided refusal, through a multiply.
-    let f = (ri(1.0, 2.0) / ri(-1.0, 1.0)) * RingInterval::zero();
+    let f = (ri(1.0, 2.0) / ri(-1.0, 1.0)) * Interval::zero();
     assert!(!f.is_certified(), "{f:?}");
     assert_eq!(mig(f), 0.0);
     // A clean enclosure still reads its mignitude.
