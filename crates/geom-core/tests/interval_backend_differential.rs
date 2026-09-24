@@ -12,8 +12,22 @@
 //! The oracle is [`interval_transcendentals::DInterval`] — the rigorous
 //! unit (issue #115) the scalar is a newtype over, a normal dependency
 //! of `geom-core` and read here as a dev oracle. It carries decorations
-//! and exactness witnesses, and the certification surface (`sqr`,
+//! and exactness witnesses, and the surface this lane compares (`sqr`,
 //! `powi`, the operators) is a re-spelling of them.
+//!
+//! # What it can and cannot see
+//!
+//! Its agreements hold BY CONSTRUCTION: every operator it compares is
+//! `Self(self.0 op rhs.0)`, and the two certification doors it reaches —
+//! `Certification::sqr` and `Certification::powi` — are delegates of
+//! `Real::powi`, which forwards to the same backend call. So it is a
+//! forwarding regression guard: a pad, an algebraic rule or an
+//! association introduced on top of the backend reds here. It is not
+//! evidence about the certification doors that are more than a
+//! delegate — `hull`, `clamped_to`, `contains`, `width` and `mag` each
+//! add a refusal or a reading of their own, and none of them is compared
+//! here or anywhere differentially; their rows are
+//! `certified_door.rs`'s and the doors' own unit rows.
 //!
 //! # What is asserted
 //!

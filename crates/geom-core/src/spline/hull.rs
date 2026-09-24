@@ -106,26 +106,26 @@
 //!   [`Interval::from_certified`] — so nothing here can accidentally
 //!   decide anything about an evaluation scalar.
 //!
-//! # Poison (fail-loud, D4 ¶2)
+//! # Refusal (fail-loud, D4 ¶2)
 //!
 //! Every checkable structural error — a non-positive weight, a
-//! non-positive knot difference — yields a **poisoned bound**, and a
-//! poisoned coefficient poisons every bound it participates in.
+//! non-positive knot difference — yields a **refused bound**, and a
+//! refused coefficient refuses every bound it participates in.
 //!
-//! **A poisoned bound is refused by NAME, not by comparison.** Interval arithmetic
-//! carries its refusal in the decoration, so a poisoned bound can hand
-//! back ordinary endpoints and `residual.hi() <= eps` can be true of
-//! one: a non-positive knot difference makes `deriv_coeff`'s quotient a
+//! **A refused bound is asked for by NAME, not by comparison.** Interval
+//! arithmetic carries its refusal in the decoration, so a refused bound
+//! can hand back ordinary endpoints and `residual.hi() <= eps` can be
+//! true of one: a non-positive knot difference makes `deriv_coeff`'s quotient a
 //! refusal with real ends, and the two doors that return a single
 //! coefficient unhulled — [`SplineCoeffs::derivative_domain_hull`] and
 //! [`CoeffWindow::derivative_hull`] at degree 1 — pass it out without
-//! meeting [`Interval::hull`]'s NaI-minting guard. Every reader
+//! meeting [`Certification::hull`]'s NaI-minting guard. Every reader
 //! therefore asks `is_certified()` before it compares, or reads through an
 //! accessor that carries the refusal out as `NaN`
-//! ([`Interval::mag`], [`Interval::width`]);
+//! ([`Certification::mag`], [`Certification::width`]);
 //! `crates/geom-core/tests/certified_endpoint_census.rs` is the row that
 //! holds them to it. A coefficient/weight count mismatch is not a
-//! poison route: it is refused at the mint, before there is a door to
+//! refusal route: it is refused at the mint, before there is a door to
 //! answer.
 
 use super::knots::{KnotVector, Span};

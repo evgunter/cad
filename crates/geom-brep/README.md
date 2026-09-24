@@ -30,7 +30,7 @@ escalated typed refusal, never a raw comparison.
 | C6 f64 structure vs generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`; marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
-| C9 certification arithmetic | `crates/geom-core/src/interval.rs` (the certification doors), `spline/hull.rs`, `spline/compose/{tensor,patch}.rs` |
+| C9 certification arithmetic | `crates/geom-core/src/interval/certification.rs` (the certification doors), `interval.rs`, `spline/hull.rs`, `spline/compose/{tensor,patch}.rs`; the importers in `scripts/gates/certification-doors.sh` |
 | C10 BVH | `crates/bvh` |
 | C11 NURBS substrate | `crates/geom/src/{curves,surfaces}/nurbs.rs`, `curves/fit.rs`, `*/projection.rs`; lofts in `crates/sweep/src/{loft,skin}.rs` |
 | C12 consumers | `crates/topo/src/splitting/`, `boolean/`, `merge_faces.rs`; `crates/mesh/src/curved.rs`; `crates/geom-brep/src/props/quad.rs`; `crates/geom-core/src/linalg/{svd,lsq}.rs` |
@@ -259,11 +259,17 @@ so certification arithmetic is `±`, `×`, `÷` and integer powers over
 operation is inexact, always compiled, MIT-clean. Its refusal is the
 backend's decoration (`dec < Def`), read as `!is_certified()`: a bracket
 that may not certify carries ordinary endpoints, so a consumer asks the
-refusal by name, and the certification doors (`Interval::hull`,
-`clamped_to`, `contains`, `width`, `mag`) refuse it whatever its
-endpoints say. A lane scalar crosses into certification arithmetic
-through `Interval::from_certified`, which carries the certified door's
-verdict as a `Def`/`Trv` cap on the decoration. No copyleft dependency
+refusal by name, and the certification doors refuse it whatever its
+endpoints say. The doors are the `Certification` trait's
+(`geom_core::interval::certification`), sealed to `Interval` and
+imported by name: a file that imports them has no `Real` in its
+production code, so an `Interval` there reaches neither evaluation's
+weaker `is_poison` nor a transcendental, and
+`scripts/gates/certification-doors.sh` holds that over its list of
+importers. A lane scalar crosses into certification arithmetic through
+`Interval::from_certified` — inherent, since the crossing is written
+where a lane scalar is held — which carries the certified door's verdict
+as a `Def`/`Trv` cap on the decoration. No copyleft dependency
 exists in any build configuration. Certification code reads brackets
 through `Bounds` and asks admission through `CertifiedEnclosure`.
 
