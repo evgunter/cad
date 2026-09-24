@@ -1818,3 +1818,30 @@ structural-identity door on `geom-core`) is built only if CLAUDE.md's
 ratification check clears the surface it would change; otherwise the
 lane writes it up for an `[ev]` PR. PR 2603's adjudication waits for
 its second review.
+
+## The run-doors dual concluded (ordinal 2713); fix pass dispatched (2026-09-24)
+
+Both reviews of PR 2603 MERGEABLE-AFTER-FIXES on `2216e0c00`,
+converging; no unilateral MAJOR. Every executable claim held
+(red-first rows reproduced on the merge base; carry-always and
+drop-always red what the PR says; `review_d18` holds `kef` at 40).
+Bilateral, both by execution: the two invariants the PR argues in
+prose — `kef` keeping the surviving face's own rows (the run door's
+reason for existing) and the drop running before the orphan sweep —
+each survive a mutant across `topo` and `sweep` (one reviewer rated
+both MAJOR, the other MINOR); the claimed evidence filing on the PCERT
+row was never made; the precondition-order paragraph is still out of
+order on `SameFace`; the new surviving-face resolution changes which
+typed error multi-fault corrupt inputs see, undisclosed; `Neither`'s
+definition is now false for two doors that drop rows. One reviewer
+alone: the PR body's "face → loops → run" composition with PR 2594 is
+false (two removal loops, `same_chart` at three sites once both
+merge). Ruled for the fix pass: decide the chart in `kef`'s plan phase
+and carry the decision (the ordering then does not exist), one
+predicate-free removal primitive with one `same_chart` per decision
+site, `mef`/`kef` to `Transfers` with the minting posture explicitly
+left to its ruled unit, the filing made, the refusal change disclosed
+and the paragraph made true. Fix pass dispatched as a fresh lane on
+the inherited branch, the implementer's arm (the unit finishes under
+the protocol it started in); reports archived privately. Row recorded
+at merge.
