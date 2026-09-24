@@ -9,10 +9,9 @@
 //! what must hold for the printed numbers to mean anything.
 //!
 //! ```sh
-//! cargo test --release -p editor-core --features interval --test all -- \
+//! cargo test --release -p editor-core --test all -- \
 //!   m10_10_r2_probes_interval:: --ignored --nocapture --test-threads 1
 //! ```
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;

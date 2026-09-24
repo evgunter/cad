@@ -381,7 +381,6 @@ fn every_box_door_builds_one_body() {
 /// a corner recomputed rather than carried, a witness taken from the
 /// wrong end — moves one door and not the other here and nowhere else
 /// in this file.
-#[cfg(feature = "interval")]
 #[test]
 fn the_generic_box_doors_agree_at_an_interval_scalar() {
     use geom_core::Interval;
@@ -522,7 +521,6 @@ fn every_door_builds_the_prism_its_inputs_name() {
 /// not `f64`, over the same off-rectangle profiles. The shear is left
 /// at `f64`: what the mapped doors add here is the map, and the lane is
 /// what the rows above it carry.
-#[cfg(feature = "interval")]
 #[test]
 fn every_generic_door_builds_the_prism_its_inputs_name_at_an_interval_scalar() {
     use geom_core::Interval;

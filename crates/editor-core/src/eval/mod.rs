@@ -1507,6 +1507,13 @@ pub enum NodeErrorKind {
     /// body it cannot validate the node refuses, naming the lane. The
     /// base-scalar evaluation beside this one is where the shell is
     /// built and validated.
+    ///
+    /// **The NAME names the refusal, not a trait.** What the scalar
+    /// has no door for is read off `topo::AtRestPolicy::shell_door`,
+    /// the per-scalar policy seam; there is no `ShellLane` and the
+    /// variant is not renamed for the mechanism behind it — the
+    /// spelling crosses the Python boundary as the
+    /// `shell_lane_unsupported` tag.
     ShellLaneUnsupported {
         /// The scalar lane that has no door.
         lane: &'static str,
@@ -1723,7 +1730,7 @@ pub enum NodeErrorKind {
     },
     /// The clearance engine refused a `min_clearance` measurement,
     /// typed and by its own class name (E7's refusal vocabulary,
-    /// carried across the feature boundary by
+    /// carried into the document vocabulary by
     /// [`crate::measure::MinClearanceRefusal`]).
     MeasureClearanceRefused(crate::measure::MinClearanceRefusal),
     /// An `Assertion`'s bound is dimensioned differently from the
@@ -2295,9 +2302,11 @@ impl CancelToken {
 /// What a scalar must satisfy to be evaluated: decided predicates, the
 /// memo's content bits, the certification brackets the props lane
 /// needs, the scalar's at-rest gate policy (`topo::AtRestPolicy`,
-/// which carries the fitted-pcurve lane trait as its supertrait — the part
-/// seam gathers a referenced document's product, so evaluation owns a
-/// gate policy per scalar), the two per-scalar analysis capabilities
+/// which carries the fitted-pcurve lane trait as its supertrait and
+/// answers the two injected doors, the offset fit's and the shell
+/// verb's — the part seam gathers a referenced document's product, so
+/// evaluation owns a gate policy per scalar), the two per-scalar
+/// analysis capabilities
 /// (`crate::analysis::AxisScalar` for the parameter box,
 /// `crate::analysis::SeedScalar` for the E4 seed — both scalar-free
 /// options whose capability lives at the scalar), and `Send + Sync`
@@ -2317,7 +2326,6 @@ pub trait EvalScalar:
     + crate::analysis::SeedScalar
     + crate::measure::MinClearanceLane
     + SectionScalar
-    + crate::verbs::shell::ShellLane
 {
 }
 
@@ -2332,23 +2340,13 @@ impl<T> EvalScalar for T where
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
         + SectionScalar
-        + crate::verbs::shell::ShellLane
 {
 }
 
-/// **The certified-leaf replay door** (ERROR-DESIGN E12) — one module
-/// rather than a handful of gated items, because
-/// `scripts/check-interval-cfg-additive.py` admits a gated `mod` and
-/// nothing smaller: the `interval` feature must not be able to change
-/// the default build, and a module is the granularity that keeps that
-/// checkable.
-///
-/// Gated for the driver's own reason (`crate::drive`'s module gate): a
-/// leaf replays at the certified scalar, so without it there is no leaf
-/// and nothing to replay. It lives inside `eval/mod.rs` because it names
+/// **The certified-leaf replay door** (ERROR-DESIGN E12): a leaf
+/// replays at the certified scalar. It lives inside `eval/mod.rs` because it names
 /// `EvalScalar`, which the evaluation-service seam confines to this file
 /// and `parts.rs`.
-#[cfg(feature = "interval")]
 pub(crate) mod leaf {
     use super::{
         CancelToken, ContentKey, EvalOptions, EvalScalar, Evaluation, NodeResult, ValuePayload,
@@ -2357,9 +2355,8 @@ pub(crate) mod leaf {
 
     // ------------------------------------------- the certified-leaf replay
     //
-    // Gated on `interval` for the driver's own reason (`crate::drive`'s
-    // module gate): a leaf replays at the certified scalar, so without it
-    // there is no leaf and nothing to replay.
+    // A leaf replays at the certified scalar, the one `crate::drive`
+    // certified it at.
 
     /// **Which lane a certified leaf is replayed on** (ERROR-DESIGN E12).
     ///
@@ -2540,7 +2537,6 @@ pub(crate) mod leaf {
     }
 }
 
-#[cfg(feature = "interval")]
 pub(crate) use leaf::{LeafLane, LeafPrior, LeafRequest, replay_leaf};
 
 /// Evaluation options (spec D5/D6).
@@ -2668,7 +2664,6 @@ impl SectionScalar for geom_core::Probe {
     }
 }
 
-#[cfg(feature = "interval")]
 impl SectionScalar for geom_core::Interval {
     fn pinned_f64(self) -> Option<f64> {
         None
@@ -5963,10 +5958,9 @@ mod alignment_key {
 /// text that IS the report.
 ///
 /// It lives HERE, beside [`KeyHasher`], rather than in
-/// `report` where its callers are, because
-/// [`crate::mc`] needs it and that lane is pure `f64`: a helper in an
-/// `interval`-gated module was the only thing keeping the advisory
-/// estimator out of a default build (M10-6, R2's MINOR-9).
+/// [`crate::report`] where its callers are, because
+/// [`crate::mc`] needs it too, and that lane is the pure-`f64` advisory
+/// estimator rather than a part of the certified reporting layer.
 pub fn key_of(tag: u8, serialized: &str) -> ContentKey {
     let mut h = KeyHasher::new();
     h.write_tag(tag);

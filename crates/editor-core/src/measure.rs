@@ -521,8 +521,7 @@ pub trait MinClearanceLane: crate::lane::Lane {
     /// # Errors
     ///
     /// The engine's own typed refusal, carried by class name and
-    /// payload ([`MinClearanceRefusal`]) rather than by its own type,
-    /// which lives behind the `interval` feature this door does not.
+    /// payload ([`MinClearanceRefusal`]) rather than by its own type.
     fn min_separation(
         a: &MinClearanceOperand<'_, Self>,
         b: &MinClearanceOperand<'_, Self>,
@@ -548,11 +547,9 @@ pub struct MinClearanceOperand<'b, T: geom_core::Real> {
     pub faces: Vec<topo::entity::FaceKey>,
 }
 
-/// The clearance engine's refusal, carried across the feature boundary
-/// by class name and payload.
+/// The clearance engine's refusal, carried by class name and payload.
 ///
-/// The engine's own `ClearanceRefusal` lives behind the `interval`
-/// feature and this door does not, so the two halves it renders — the
+/// The two halves the engine's own `ClearanceRefusal` renders — the
 /// stable class name and the evidence — travel instead of the enum.
 /// They are the same two halves the goldening form prints, through the
 /// engine's own `name()` and `payload()`, so a refusal reads the same
@@ -620,7 +617,6 @@ where
 
 /// The interval lane, and the only one that answers: the engine's own
 /// bracket, at the shipped dials.
-#[cfg(feature = "interval")]
 impl MinClearanceLane for geom_core::Interval {
     fn min_separation(
         a: &MinClearanceOperand<'_, Self>,

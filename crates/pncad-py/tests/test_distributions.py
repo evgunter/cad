@@ -41,11 +41,10 @@ the reason rather than an exception to it: it takes a name and a law
 and no third thing for them to disagree with, so there is no pairing
 to get wrong. `tests/test_monte_carlo.py` is its suite, with the
 advisory estimator built on it. The E6 driver, the E4/E5 stackup and
-the E10 reports do not cross at all: they are behind
-`#[cfg(feature = "interval")]` on `crates/pncad/src/analysis.rs` and
-the wheel is built from the default feature set, so they are absent
-from the artifact a user installs. The three doors the E1 charter
-names are all on that page's one ungated list.
+the E10 reports do not cross at all: they answer at the certified
+scalar, which this binding never evaluates at. The three doors the E1
+charter names are all on `crates/pncad/src/analysis.rs`'s one
+scalar-free list.
 """
 
 import math

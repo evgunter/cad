@@ -264,6 +264,25 @@ Filed from the review:
 - P2 `group-resized-does-not-name-the-cutter-that-stopped-cutting`.
 - P4 `name-counts-saturate-silently-at-u32-max`.
 
+## 2026-09-23 — the global flip lanes are scoped to ancestors
+
+The lane stopped on a definitional fork: what the global lanes may
+report as a vanish's cause. The two candidates:
+
+- (a) N1's derivation path, under which the global lanes disappear;
+- (b) the transitive ancestors of the minting node, with sentences
+  saying "upstream of", not "on the path".
+
+The measurement: the digest corpus and the whole suite are identical
+under both. The two differ in a cutter-union scene, where a recorded
+flip sits upstream of the cut but not in the vanished name.
+
+The orchestrator chose (b) without asking Ev. It applies the
+cause-before-effect principle Ev approved on 3115. An upstream flip is
+a candidate cause and outranks the `GroupResized` effect, as long as
+its sentence claims only what is known. Under (a), GroupResized's "no
+flip was found" would be false. A flip on a non-ancestor node is never
+reported, which closes the live wrong answer.
 ## 2026-09-23 — union seam-chain ranks close (PR 3121)
 
 A union's `Seam` canonicalization swapped the pair into name order
@@ -282,3 +301,96 @@ chain along the edge's own direction. `collapse` flattens both to one
 spelling. Filed P0 as `union-seam-edge-ranks-follow-which-step-split-the-seam`.
 It goes to the same lane next, aimed at one orientation rule for both
 rankers.
+
+## 2026-09-23 — merged-face chords close (PR 3120)
+
+A seam edge whose two crossing faces were both merged faces refused as
+`Emission`, a kernel bug, on legal declared unions of blocks. Measured
+cause: the edge was never a crossing. It was a piece of one member's
+rim edge that a slab had split, lying between two merged faces. The
+merged-face read-through needed a partner face that did not exist.
+
+The key now says which side to look at. A certified geometric check,
+`chord_on_rim` under predicate `name_chord_on_rim`, decides whether
+the chord is that side's rim piece; if it is not, it refuses typed as
+a missing rule. Whole-table diffs over 924 cells: 0 fused names moved,
+82 of 89 former `Emission` refusals now fuse, and none remain.
+
+Filed from the unit and its reviews:
+- P0 `shared-rim-several-is-a-missing-rule-legal-declared-unions-reach`,
+  re-banded: the commonest refusal on legal unions.
+- P0 `split-of-a-fused-declared-union-refuses-duplicate-vertex-name`.
+- P4 `opside-unit-respells-topo-operand`.
+
+## 2026-09-24 — Ev rules the loft unit global
+
+On 3102's thread, Ev chose the global canonical start (V3's lex-min
+start retired) and canonical numbering for every verb's published
+profile refs. That means migrating the names of clockwise-authored
+extrudes and revolves. Re-baselining is not a cost against a correct
+change. The loft unit's `needs_ev` is cleared, and the unit is
+re-dispatched with the wider scope.
+
+The weekly usage limit stopped all lanes on 2026-09-23 at about 09:30
+UTC. They were resumed on 2026-09-24 from their pushed branches and
+worktrees.
+
+## 2026-09-24 — a second usage-limit stop
+
+The weekly limit stopped every lane again at about 05:00 UTC. At 12:10
+every branch was fully pushed and every worktree was clean, so nothing
+was lost except in-flight edits the lanes re-derive. The four lanes
+and the review of 3133 were resumed:
+
+- loft correspondence, whose PR is about to open;
+- the 3125 fix pass;
+- the 3124 fix pass;
+- 3133, the split spur, in review.
+
+## 2026-09-24 — Ev on tangent splits
+
+Ev, in chat: a split plane that grazes the target within the sliver
+band refuses, and an exact tangency has to be declared. Both are
+unlikely to happen by coincidence when the cut elsewhere does not
+depend on them. So refusing, as 3133's guard does, is the correct
+posture, not a P0. What remains is verb breadth: `split` has no way to
+declare an exact tangency, with the boolean's declared contacts as the
+precedent. That is filed P1 on REACH's slate from 3133.
+## 2026-09-24 — the global flip lanes close (PR 3124)
+
+A vanished name's diagnosis now reads two scopes, through one lane
+table (flip, then structural parameter, then recipe edit):
+
+1. its derivation path;
+2. its minting node's strict ancestors in either run, each walked
+   within its own run's document, minus the path. Answers from this
+   scope are reported as `Diagnosis::Upstream`.
+
+A node the name does not depend on is never read. The ladder runs:
+path lanes, `qualifier_delta`, `Upstream`, `GroupResized`, fallback.
+Review caught a MAJOR: the first ancestor walk mixed the two runs'
+edges, so a rewired recipe could reach a node that was an ancestor in
+neither run. The fix pass walks each run separately, through the
+shared `roots::walk_strict_ancestors`. Two ShadowExec sentences that
+claimed per-pair evidence now state their node-level trigger.
+
+## 2026-09-24 — the split spur closes (PR 3133)
+
+A split plane touching the target along an edge while cutting it
+elsewhere used to "succeed" with a zero-area spur on the section face.
+That left two null-pair copies of one vertex, and the naming layer
+reported the result as a truthful `Duplicate`. Review corrected the
+mechanism: the direct join refused, and the D7 pinch lane's mirrored
+rerun laundered that refusal into a spurred success. The join now
+refuses a spur tip as `SplitJoinError::SectionSpur`, with its own
+message. Following Ev's ruling in chat, that message says an exact
+tangency would need to be declared. Rows now name which predicate
+refused, so an area refusal substituting for the spur refusal goes
+red.
+
+Filed:
+- REACH P1 `split-cannot-declare-an-exact-tangency-with-its-target`;
+- REACH P3 `split-section-spur-guard-skips-curved-spurs`;
+- ATREST `validate-passes-a-body-with-a-zero-width-slit-face`,
+  rewritten and re-banded P3: `split` runs no validation tier on its
+  own outputs.

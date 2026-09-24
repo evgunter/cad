@@ -201,7 +201,6 @@ fn probe_nurbs_ders1_is_the_pair_on_adversarial_curves_f64_and_dual() {
     assert!(checked > 400, "probe corpus shrank: {checked}");
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn probe_nurbs_ders1_is_the_pair_on_adversarial_curves_interval() {
     use geom_core::{Bounds, Interval};

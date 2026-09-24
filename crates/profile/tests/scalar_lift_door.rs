@@ -137,7 +137,6 @@ fn the_lift_to_f64_is_the_identity_down_to_the_sign_of_a_zero() {
 /// At `Interval` every lifted scalar is a POINT enclosure of its
 /// source: the lift performs no arithmetic, so there is nothing to
 /// round outward.
-#[cfg(feature = "interval")]
 #[test]
 fn the_lift_to_interval_is_point_wide() {
     use geom_core::{Bounds, Interval};

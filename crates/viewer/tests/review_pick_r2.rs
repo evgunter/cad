@@ -42,32 +42,14 @@
 
 use bvh::{Aabb, Bvh, Ray};
 use editor_core::resolve::{crossing, ray_triangle};
-use editor_core::{Dimension, DocEdit, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse};
+use editor_core::{DocEdit, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse};
 use pncad::geom_core::{Point3, Tol, Vec3};
-use viewer::pickindex::{PickIndex, PictureKey};
-use viewer::scene::DisplayTolerance;
+use viewer::pickindex::PickIndex;
 use viewer::session::{DocSession, SessionOp};
 
 use crate::common;
+use crate::common::corpus_index;
 use crate::corpus;
-
-fn delta() -> DisplayTolerance {
-    DisplayTolerance::new(2.0e-3).expect("a positive delta")
-}
-
-fn fresh_index(session: &DocSession) -> PickIndex {
-    let (doc, eval) = session.landed_pair().expect("a landed pair");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    PickIndex::build(
-        doc,
-        eval,
-        PictureKey::of(generation, delta()),
-        session.tol(),
-    )
-    .expect("the document indexes")
-}
 
 fn bump_op(c: &corpus::CorpusDoc) -> Option<SessionOp> {
     let DocEdit::SetParam { node, slot, expr } = c.bump.clone() else {
@@ -87,17 +69,11 @@ fn ring_bump(doc: &ProfileDoc) -> SessionOp {
         let (slot, expr): (SlotId, Expr) = match doc.node(node).expect("a node") {
             editor_core::Node::Extrude { distance, .. } => {
                 let value = editor_core::eval(distance, &env).expect("a literal distance");
-                (
-                    SlotId::Distance,
-                    Expr::literal(value * 1.03125, Dimension::Length).expect("a length literal"),
-                )
+                (SlotId::Distance, common::len(value * 1.03125))
             }
             editor_core::Node::Revolve { angle, .. } => {
                 let value = editor_core::eval(angle, &env).expect("a literal angle");
-                (
-                    SlotId::RevolveAngle,
-                    Expr::literal(value * 0.96875, Dimension::Angle).expect("an angle literal"),
-                )
+                (SlotId::RevolveAngle, common::ang(value * 0.96875))
             }
             _ => continue,
         };
@@ -168,7 +144,7 @@ struct Tally {
 
 /// The pinned tally over the aim below (docs: re-derive with
 /// `--nocapture`).
-const PINNED: (usize, usize, usize, usize) = (441_126, 141_106, 20_016, 10_536);
+const PINNED: (usize, usize, usize, usize) = (442_782, 141_992, 20_016, 10_536);
 
 fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
     let parts = flatten(index);
@@ -265,14 +241,14 @@ fn the_certified_determinant_refuses_no_genuine_crossing_over_the_corpus() {
         let bump = ring_bump(&doc);
         let mut session = DocSession::inline(doc, tol);
         session.pump();
-        sweep("gallery_ring", "open", &fresh_index(&session), &mut tally);
+        sweep("gallery_ring", "open", &corpus_index(&session), &mut tally);
         let outcome = session.perform(bump);
         assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
         session.pump();
         sweep(
             "gallery_ring",
             "the first edit",
-            &fresh_index(&session),
+            &corpus_index(&session),
             &mut tally,
         );
     }
@@ -285,13 +261,18 @@ fn the_certified_determinant_refuses_no_genuine_crossing_over_the_corpus() {
         if session.evaluation().is_none() {
             continue;
         }
-        sweep(c.name, "open", &fresh_index(&session), &mut tally);
+        sweep(c.name, "open", &corpus_index(&session), &mut tally);
         let outcome = session.perform(bump);
         if outcome.refusal.is_some() {
             continue;
         }
         session.pump();
-        sweep(c.name, "the first edit", &fresh_index(&session), &mut tally);
+        sweep(
+            c.name,
+            "the first edit",
+            &corpus_index(&session),
+            &mut tally,
+        );
     }
     let counts = (
         tally.rays,

@@ -1328,7 +1328,6 @@ fn c5_every_checked_in_document_loads_with_no_store_and_re_saves_identically() {
 /// the upper end of its reach bracket (an upper bound by definition),
 /// it bounds the `f64` lane's reach, and the mate over it evaluates
 /// `Ok` with the part evaluated once.
-#[cfg(feature = "interval")]
 #[test]
 fn a5_at_interval_the_doors_reach_is_the_brackets_hi_bit_for_bit() {
     use geom_core::{Bounds, Interval};

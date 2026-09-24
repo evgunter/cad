@@ -1219,7 +1219,6 @@ mod tests {
     /// the orthonormality residuals (dot products, norm² − 1) enclose 0
     /// for a point-enclosure unit input — the containment form of the
     /// f64 properties above.
-    #[cfg(feature = "interval")]
     #[test]
     fn orthonormal_basis_interval_residuals() {
         use crate::interval::Interval;
@@ -1268,7 +1267,6 @@ mod tests {
     /// the old spelling directly and requires it to be unbounded at
     /// `n.z = [0, 1]`. If someone respells the denominator back, this
     /// reds instead of going quiet.
-    #[cfg(feature = "interval")]
     #[test]
     fn orthonormal_basis_is_bounded_over_z_enclosures() {
         use crate::interval::Interval;
@@ -1349,7 +1347,6 @@ mod tests {
     /// hull of the two is the honest answer. It is asserted as the hull,
     /// so a future spelling that narrowed it by DECIDING the sign would
     /// red here.
-    #[cfg(feature = "interval")]
     #[test]
     fn orthonormal_basis_at_a_vertical_plane_is_bounded_and_certified() {
         use crate::interval::Interval;

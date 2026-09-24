@@ -756,7 +756,6 @@ fn r1_measure_at_dual64_value_channel_is_bit_identical_tangent_zero() {
 
 /// The gap and the angle contain their f64 values at `Interval` (the
 /// PR's own containment row covers only the web distance).
-#[cfg(feature = "interval")]
 #[test]
 fn r1_gap_and_angle_at_interval_contain_the_f64_values() {
     use geom_core::{Bounds, Interval};

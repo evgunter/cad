@@ -917,7 +917,7 @@ mod rational;
 #[path = "sym/report.rs"]
 pub mod report;
 /// Rule C: the polynomial square root and the clause-3 fold, with the
-/// one value read the tier makes (a parameter bracket in the ring).
+/// one value read the tier makes (a parameter bracket in certification arithmetic).
 #[path = "sym/signed.rs"]
 mod signed;
 /// Rule D: trig of `atan`, exact — the closed forms of `sin`/`cos` at
@@ -3359,7 +3359,7 @@ impl<T> Sym<T> {
     /// mints a parameter axis already holds. The bracket is recorded in
     /// the installed session for rule C's sign read ([`signed`]); it is
     /// the ONLY value the symbolic tier ever reads, and it is read as
-    /// two floats through a ring enclosure, never as the lane scalar.
+    /// two floats through a certification enclosure, never as the lane scalar.
     /// Outside a session the bracket is dropped and this is `param`.
     #[must_use]
     pub fn param_over(symbol: ParamSymbol, value: T, lo: f64, hi: f64) -> Self {
@@ -3718,10 +3718,6 @@ impl<T: Bounds> Bounds for Sym<T> {
 impl<T: CertifiedEnclosure> CertifiedEnclosure for Sym<T> {
     fn certified_bracket(self) -> Option<(f64, f64)> {
         self.value.certified_bracket()
-    }
-
-    fn crossing_bracket(self) -> (f64, f64) {
-        self.value.crossing_bracket()
     }
 }
 

@@ -23,7 +23,6 @@
 //! it only ever moves a cell from `In`/`Out` into `Near`, which the
 //! comparison then declines to judge.
 
-#![cfg(feature = "interval")]
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,

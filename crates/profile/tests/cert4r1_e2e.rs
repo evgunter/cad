@@ -160,7 +160,6 @@ fn cert4r1_my_fused_tangency_replays_at_f64() {
 /// The interval lane: same profile, and every emitted enclosure is a
 /// hairline rather than a period. This is the consumer-visible claim —
 /// before the unit, a profile of this shape came back refused.
-#[cfg(feature = "interval")]
 #[test]
 fn cert4r1_my_fused_tangency_is_input_width_at_interval() {
     use geom_core::{Bounds, Interval};
@@ -200,7 +199,6 @@ fn cert4r1_my_fused_tangency_is_input_width_at_interval() {
 /// the profile, so the headroom under that ceiling is a property of the
 /// fixtures' size, not of the fix. This row walks the same construction
 /// over four decades of scale and REPORTS the widths.
-#[cfg(feature = "interval")]
 #[test]
 fn cert4r1_the_enclosure_width_scales_with_the_profile() {
     use geom_core::{Bounds, Interval};

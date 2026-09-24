@@ -4087,6 +4087,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `tests/test_union.py` and `TestTheVDegreeParamBinding`
         # above.
         #
+        # `set_program` JOINED it at EDIT-PROGRAM: the whole-program
+        # edit over a live profile, the fourth door this roster sees
+        # that the census cannot. The positive form is
+        # `TestTheWholeProgramEdit` in `tests/test_document.py`.
+        #
         # `datum_point` and `datum_frame` JOINED it at LIB-GAPS-1,
         # which closed B-DATUM-DOORS: all six arms of the kernel's
         # `Datum` now have a constructor, so a Python author builds
@@ -4137,8 +4142,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "set_doc_param_distribution", "set_doc_param_unit",
                 "set_doc_param_value",
                 "set_members", "set_param",
-                "set_placement", "set_roots", "set_tolerance",
-                "update_reference",
+                "set_placement", "set_program", "set_roots",
+                "set_tolerance", "update_reference",
             ],
         )
 

@@ -375,6 +375,92 @@ pub enum TessellateError {
         /// The kind of surface the face lies on.
         surface: geom_brep::SurfaceKind,
     },
+    /// A curved face's single boundary loop has **no rim traversal and
+    /// opens every one of its iso sides on ONE edge**, so it stands on a
+    /// single chart column and bounds no domain. This doc is the one
+    /// home of what the state is and why it refuses; the guard
+    /// (`walk::require_two_columns`) and the other sites point here.
+    ///
+    /// **What is asked, exactly.** Not how wide the walked domain is:
+    /// no width, area or triangle count is read, and the two columns are
+    /// never compared. What is read is the loop's own incidence, as the
+    /// walk's rim-free arm already reads it — which traversals OPEN an
+    /// iso side (`walk::iso_side_starts`) and which EDGE each opening
+    /// belongs to — and the question is whether two distinct edges open
+    /// one. That is the arm's extent premise stated as a predicate:
+    ///
+    /// * a meridian holds one column along its whole length, and an
+    ///   edge states one column (`topo::chart_iso::mid_azimuth` of its
+    ///   carrier, bitwise the same value in either direction), so two
+    ///   traversals of one edge are two traversals of one column;
+    /// * two consecutive meridians meeting OFF the chart axis continue a
+    ///   single iso side, which carries one column bitwise (#653), so a
+    ///   junction away from the axis cannot move the column either.
+    ///
+    /// A rim-free loop's u-extent is therefore the spread of the columns
+    /// of the distinct edges that open its iso sides, and a loop opening
+    /// them all on one edge has an extent of exactly zero. Walked, it
+    /// gives a domain of zero width every entry lies on — which
+    /// `curved::require_swept_rectangle` admits — and the CDT has no
+    /// inner face, so the face would come back as a hole. The refusal is
+    /// raised before anything is emitted for the face, in every profile.
+    ///
+    /// **Where the ε is, and where it is not.** The openings come from
+    /// the iso-side rule, whose second half is a band: a junction within
+    /// ε of the chart axis breaks the run. So this guard is exact to the
+    /// same resolution as the extent computation it guards, and no
+    /// further — which is the most a premise check can be. On a cylinder
+    /// or a torus chart the axis lies off the surface entirely, so every
+    /// junction's `radial` is at least the chart's radius: `Eps::separates`
+    /// is still called there and cannot answer `false` for any ε below
+    /// that radius, the whole rim-free loop is one iso side, and the
+    /// verdict is the band's only in form.
+    ///
+    /// **Reachable by input, and invalid (D2 addendum row 1).** A loop
+    /// of meridians on one column is a slit, not a boundary: it encloses
+    /// no domain of the chart. The name is accordingly not
+    /// `Unsupported*`, which row 2 reserves for valid input. Bodies
+    /// carrying such a face are refused by tier 3 today — for a reason
+    /// of tier 3's own, never for this one — and `tessellate` does not
+    /// re-validate, so the Euler doors and any caller that meshes
+    /// without validating reach it, which is why this lane refuses it
+    /// itself.
+    ///
+    /// Row 0 (can the state be made unrepresentable?) is answered no,
+    /// for [`Self::MeridianFreeCurvedFace`]'s reason: which column an
+    /// edge stands on is a geometric classification of its carrier
+    /// against the face's chart, not a fact the `Loop` or `Edge` types
+    /// carry.
+    ///
+    /// **The recourse depends on the kind.** A sphere or cone face
+    /// restates as a band bounded by two meridians on DIFFERENT columns
+    /// meeting at the pole or apex — the form this lane meshes, which
+    /// `mesh/tests/loops_with_no_rim.rs` pins on the rimless lune and
+    /// the ball's two bands. A cylinder or torus chart has no
+    /// singularity for a meridian to end on, so no meridian pair bounds
+    /// anything there and the face needs a RIM.
+    ///
+    /// **What it does NOT claim.** That an admitted rim-free loop has
+    /// width. Two DISTINCT edges sharing one carrier state one column
+    /// too, and such a body is reachable through the Euler doors; that
+    /// residue, and the rung above edge identity it wants, are
+    /// `work/tess/two-coincident-edges-open-two-columns-that-are-one.md`.
+    ///
+    /// Not [`Self::MeridianFreeCurvedFace`]: that arm is the same lane's
+    /// mirror question — whether a meridian exists at all — and its
+    /// recourse is a meridian, where this one's is a second column or a
+    /// rim. A loop with no traversal of either kind is impossible (it
+    /// would be an empty cycle, [`Self::EmptyLoop`]), so the two arms
+    /// never contend for one face. Not
+    /// [`Self::UnsupportedCurvedDomain`]: that arm reports a walk that
+    /// left its own box, and this walk does not — its box is
+    /// degenerate and it stays on it.
+    SingleColumnCurvedFace {
+        /// The offending face.
+        face: FaceKey,
+        /// The kind of surface the face lies on.
+        surface: geom_brep::SurfaceKind,
+    },
     /// The run's tolerance cannot form props' linear decision band —
     /// K·ε overflows. A configuration failure of the run rather than a
     /// statement about the body (the twin of
@@ -529,6 +615,33 @@ impl core::fmt::Display for TessellateError {
                      face is a vertex of it, so a loop of rims only does not bound a \
                      face of this kernel, and the swept-rectangle lane refuses it \
                      rather than mesh a hole; {recourse}",
+                    surface.name(),
+                )
+            }
+            Self::SingleColumnCurvedFace { surface, .. } => {
+                use geom_brep::SurfaceKind as K;
+                let recourse = match *surface {
+                    K::Sphere | K::Cone => {
+                        "restate it as a band bounded by two meridians on DIFFERENT \
+                         columns, meeting at a vertex on the pole or apex — which this \
+                         lane meshes"
+                    }
+                    K::Cylinder | K::Torus => {
+                        "this chart has no pole or apex for a meridian to end on, so no \
+                         pair of meridians bounds anything on it — the face needs a rim"
+                    }
+                    K::Plane | K::Nurbs | K::Approx => {
+                        "restate the face so that its loop carries a rim, or two \
+                         meridians on different columns"
+                    }
+                };
+                write!(
+                    f,
+                    "tessellate: a {} face's boundary loop has no rim, and every iso \
+                     side it opens is carried by one edge — so every meridian of it \
+                     stands on a single column of the face's chart. A loop on one \
+                     column is a slit and encloses no domain, and the swept-rectangle \
+                     lane refuses it rather than mesh a hole; {recourse}",
                     surface.name(),
                 )
             }

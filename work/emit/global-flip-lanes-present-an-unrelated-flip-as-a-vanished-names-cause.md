@@ -2,10 +2,13 @@
 id: global-flip-lanes-present-an-unrelated-flip-as-a-vanished-names-cause
 kind: issue
 title: The Vanished ladder's global flip lanes report a flip anywhere in the document as the cause of a name's vanish, and its sentence says the flip was on the name's derivation path
-status: open
+status: closed
 opened: 2026-09-23
 priority: P0
 cost: D
+branch: emit/local-flip-lanes
+closed: 2026-09-24
+pr: 3124
 ---
 
 

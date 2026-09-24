@@ -5,7 +5,6 @@
 //! enclosure IS the certified bound, so containment failure is
 //! unsoundness, not inaccuracy.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2};

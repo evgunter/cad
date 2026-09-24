@@ -16,7 +16,6 @@
 //! skips the residual pass would hand `certify` exactly the operand its
 //! own crossing now refuses.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::interval::iv;

@@ -232,7 +232,6 @@ fn r1_mirror_identity_structural_f64() {
     mirror_identity_scenario::<f64>();
 }
 
-#[cfg(feature = "interval")]
 mod interval_r1 {
     use super::*;
 
@@ -686,7 +685,6 @@ fn r7_closure_reversed_rows_loud() {
     }
 }
 
-#[cfg(feature = "interval")]
 mod interval_r5 {
     use super::*;
 

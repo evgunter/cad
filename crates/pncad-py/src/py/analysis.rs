@@ -58,18 +58,18 @@
 //! get a plausible number rather than a refusal, and Python has no
 //! compile step that would catch it. The kernel keeps the free doors
 //! for the driver, which prices intervals that are deliberately NOT
-//! the analyzed ones; the driver is behind `interval` and has no
-//! Python surface, so nothing on this side wants them.
+//! the analyzed ones; the driver has no Python surface, so nothing on
+//! this side wants them.
 //!
-//! # The advisory lane, which is on this side of the gate
+//! # The advisory lane
 //!
 //! `monte_carlo` replays the document at `f64` over draws from its own
 //! distributions and answers an [`McReport`] — every number an
 //! ESTIMATE, with the sample count and the seed that produced it on
 //! the report and on every rendered line. It is bound here because it
-//! is UNGATED in the kernel, and it is ungated for exactly this
-//! caller: a consumer with no certified scalar still gets the labeled
-//! estimate, which is the whole point of an advisory lane.
+//! is pure `f64` replay: a consumer that never evaluates at the
+//! certified scalar still gets the labeled estimate, which is the whole
+//! point of an advisory lane.
 //!
 //! [`sample_offset`] is the same lane one rung down — the single draw
 //! the replay is built from, crossing as a free function beside it
@@ -79,20 +79,17 @@
 //! sampling the parameters it can, because a mean over a subset of
 //! them is an estimate of a different document.
 //!
-//! # What is NOT bound, and why it is a measurement rather than a gap
+//! # What is NOT bound
 //!
 //! `pncad::analysis` carries a second half — the E6 subdivision
 //! driver and its `ParamBox`, the E4/E5 sensitivity and stackup, the
-//! E10 reporting layer, `assertion_at` — behind
-//! `#[cfg(feature = "interval")]`. The wheel is built from the default
-//! feature set, so those names do not exist in the crate this module
-//! compiles into and binding them would mean shipping a door that is
-//! absent from the artifact a user installs. Everything this module
-//! DOES bind is on the ungated list, so the whole of it compiles on
-//! the default build; the gate is a boundary this module stops at, not
-//! one it works around. `crates/pncad/src/analysis.rs` is read by the
-//! binding census, so a name crossing that boundary in either
-//! direction owes a row there rather than passing unremarked.
+//! E10 reporting layer, `assertion_at` — that this module does not
+//! bind. Those names compile into the crate this module compiles into
+//! on every build; whether the wheel binds them is an open decision
+//! (`work/bind/certified-analysis-half-compiles-into-the-wheel-unbound.md`).
+//! `crates/pncad/src/analysis.rs` is read by the binding census, so a
+//! name crossing into the bound set owes a row there rather than
+//! passing unremarked.
 
 use pyo3::prelude::*;
 use pyo3::types::PyString;

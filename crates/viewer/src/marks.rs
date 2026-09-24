@@ -662,8 +662,8 @@ mod tests {
     use crate::scene;
 
     /// Coarse enough to keep the row cheap, fine enough that the
-    /// plate's hole is a ring of facets — `tests/edge_pick.rs`'s
-    /// reading, for the same reason.
+    /// plate's hole is a ring of facets — the plate-scale suites'
+    /// reading (`tests/common`'s `plate_delta`), for the same reason.
     fn delta() -> scene::DisplayTolerance {
         scene::DisplayTolerance::new(2.0e-4).expect("a positive delta")
     }

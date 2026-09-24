@@ -653,7 +653,6 @@ fn revert_oracle_extended_corpus() {
 // Interval lane: the new constructive fixtures decide identically.
 // =====================================================================
 
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use geom_core::Interval;

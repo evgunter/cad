@@ -15,23 +15,6 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-# Forwards geom-core's certified interval scalar to every re-exported
-# crate that has the feature, so CI's interval lane builds the façade
-# uniformly with the rest of the workspace. `bvh` has no such feature
-# and is not re-exported here (see lib.rs).
-interval = [
-    "editor-core/interval",
-    "geom-brep/interval",
-    "geom-core/interval",
-    "geom/interval",
-    "mesh/interval",
-    "profile/interval",
-    "step-export/interval",
-    "step-import/interval",
-    "stl/interval",
-    "sweep/interval",
-    "topo/interval",
-]
 # Forwards `topo`'s per-operator postcondition scalpel so a consumer of
 # the façade — the demos, the GUI, a Python caller through `pncad-py` —
 # can localize a door-level tier-1 failure to the operator that caused
@@ -46,8 +29,7 @@ per-op-postcondition = ["topo/per-op-postcondition"]
 # exactly one entry and stays that shape.
 budget = ["mesh/budget"]
 # Forwards geom-core's K-telemetry recording scalar so the
-# workspace-wide `--features probe` lane builds uniformly. Same shape
-# and same reason as the `interval` row above; see geom-core's manifest
+# workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
 # for why Probe is opt-in (it is a `Real` instantiation, so it
 # monomorphizes every generic-over-`Real` body, and only the K
 # experiment consumes it).

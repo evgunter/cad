@@ -2,7 +2,8 @@
 id: no-door-refuses-a-blank-parameter-name
 kind: issue
 title: No door refuses a blank parameter name — ParamName::new validates nothing and write_doc_param does not ask
-status: open
+status: spec
+branch: edit/param-name-door
 opened: 2026-09-19
 priority: P1
 cost: E
@@ -83,3 +84,42 @@ EDIT's: `crates/editor-core/src/doc.rs` and
 `crates/editor-core/src/edit.rs`. `crates/viewer/src/session.rs` and
 `crates/viewer/src/pane/properties.rs` are VSEAM's and VNEWS's, and the
 chrome side of this is a hand-off that lands after the door exists.
+
+## Ruled and spec'd (2026-09-24, EDIT orchestrator) — middle tier, one opus style review, branch `edit/param-name-door`
+
+**What a parameter name is.** A document parameter exists to be
+referenced from an expression, so a name is admissible exactly when
+the expression parser reads it back as a reference to that same
+parameter: parsing the name alone yields `Param(name)` and nothing
+else. That answers the row's question without a second grammar. Blank
+fails it, `"1 2"` fails it, and a name the lexer would take as a
+function or constant word fails it in whatever way the parser already
+decides. The rule is the parser's, stated once, and the door asks it.
+
+1. **One predicate, beside `ParamName`.** The admissibility check is
+   one function in `doc.rs` (or `parse.rs`, whichever owns the lexer's
+   identifier rule without a cycle), returning a typed fault that
+   names what failed. Prefer making it structural: `ParamName`'s field
+   private and its constructor fallible, if the call-site ripple is
+   mechanical (test literals through one helper). If the ripple is not
+   mechanical, the door-level refusal below is the floor and the PR
+   says what stopped the type.
+2. **Both doors refuse the same declarations.** `write_doc_param`
+   refuses an inadmissible name with a typed `EditError` arm whose
+   sentence quotes the name (`quoted-parameter-name-in-error-prose-has-no-decision`
+   settled how a refusal frames a name). The load door refuses the
+   same name typed, so the header's "the edit door and the load door
+   refuse the same declarations" stays true. Measure the corpus and
+   the test tree for any stored name the rule would now refuse; any
+   hit is reported, not silently re-authored.
+3. **Rows.** Blank, whitespace, a leading digit, an embedded operator,
+   and a function or constant word each refused at the edit door and at
+   the load door with the same fault; a legal name accepted; the
+   document `bit_eq` after each refusal; the F6 census gains the arm.
+4. **The chrome side is a hand-off.** `properties.rs`'s silent
+   `!name.is_empty()` conjunct and `Session::create_param` are not this
+   unit's. File one row on the owning program's slate (whoever claims
+   `crates/viewer/src/pane/properties.rs` today) naming the door's new
+   sentence as the one the control should show.
+
+Pre-draw not applicable (middle tier, outside the protocol).

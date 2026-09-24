@@ -56,7 +56,7 @@
 #
 # Usage: local-scripts/test-fast.sh [cargo test args...]
 #   e.g. local-scripts/test-fast.sh --workspace
-#        local-scripts/test-fast.sh --workspace --features interval
+#        local-scripts/test-fast.sh --workspace --features probe
 #        CAD_TOLERANCE_EPS=1e-9 local-scripts/test-fast.sh --workspace
 set -euo pipefail
 # Queue through the machine-wide build-slot semaphore (width-1 mutex

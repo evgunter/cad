@@ -445,6 +445,7 @@ test_utils::f6_variants! {
         ParamExists,
         EmptyName,
         WrongNodeKind,
+        Duplicate,
         Edit,
         Dimension,
         Parse,
