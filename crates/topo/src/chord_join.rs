@@ -397,9 +397,10 @@ impl SplitJoinError {
             ),
             Self::SectionSpur { .. } => write!(
                 f,
-                "a section doubles back on itself: the plane only touches the solid along \
-                 an edge, and that contact runs out of a real section and straight back, \
-                 which would leave a zero-width slit in both pieces. Recourse: {recourse}"
+                "the plane touches the solid along an edge — within the sliver band of it, \
+                 or exactly tangent to it — while cutting it elsewhere; a grazing contact \
+                 is refused, and an exact tangency would need to be declared. Recourse: \
+                 {recourse}"
             ),
             Self::RingHoming(e) => match e {
                 crate::splitting::PointInLoopError::Escalated { diag, .. } => write!(
@@ -2624,9 +2625,16 @@ mod tests {
         assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
         assert!(!msg.contains("declare"), "{msg}");
 
+        // The spur arm carries the same recourse. It names a declaration
+        // only as what an EXACT tangency would need (Ev, 2026-09-24),
+        // not as a lever the join offers, and it does not claim the
+        // zero area its section does not have.
         let msg = SplitJoinError::SectionSpur { face }.to_string();
         assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
-        assert!(!msg.contains("declare"), "{msg}");
+        assert!(
+            msg.contains("exact tangency would need to be declared"),
+            "{msg}"
+        );
         assert!(!msg.contains("zero area"), "{msg}");
 
         let msg = SplitJoinError::Escalated {
