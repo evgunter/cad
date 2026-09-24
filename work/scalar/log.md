@@ -1322,3 +1322,48 @@ header (naming-only; announced on the PR); the `Sym` pin taken; the
 rest is body corrections and doc voice. Rubric 4/3/3 and 4/4/3. Pair
 COUNTS (neither arm interrupted; nothing glimpsed). Fix pass dispatched
 on the OPUS arm (nine items, `lane3-fix-pass.md`). One lane live.
+
+## Resumed; RING-3 cut in two and dispatched on Opus (2026-09-24)
+
+The box sat idle from ~03:50Z on 09-22 to ~01:30Z on 09-24 (the
+account's usage limit; the first RING-3 survey lane died on it). Ev's
+2026-09-23 rulings now bind this program: the model A/B protocol is
+suspended (`docs/MODEL-AB-LOG.md`, the suspension entry); every phase
+runs on Opus; units get a review tier at spec time
+(`memories/orchestration-model.md`) and a dual is recorded under
+`docs/DUAL-REVIEW-PROTOCOL.md`; the doc ledger is one note per deleted
+doc under `docs/doc-ledger/`. LANE-3, dispatched under a drawn arm,
+finishes under the protocol and records its row (suspension item 4);
+block B6 closes with slot 2 unspent. RING-3 and LANE-4 run outside it.
+
+The RING-3 survey (Opus, `/home/user/scalar-briefs/survey-ring3.md` at
+`a7c5f611cb`) measured the plan's row against the tree: 829 `src`
+references in 25 files (not 535 in 15); 55 `src` cfg sites (not 62);
+122 whole-file plus 127 item-gated test files (not 111); 10 interval
+workflow jobs plus a prime job (not 14); DL4's "gate line" is a suffix
+match that carries 24 `CertifiedEnclosure` counts across six ratified
+entries; bit preservation holds only if the ring's refusal surface
+survives (the corpora cannot see a refusal change); C9, Q1 and DL4 each
+retire a decision rather than re-word one, and `DESIGN.md:266` is also
+reached. **Sequencing (orchestrator's call, logged per the standing
+rule):** ruling 1 (iii) is cut into RING-3 — the kernel dissolution
+(the refusal surface lands on `Interval` as named inherent doors with
+the ring's bodies, `!is_certified()` as the predicate, `from_certified`
+to a sole `CertifiedBounds` bound so `crossing_bracket` goes,
+`Enclosure` goes, the census re-keys, C9 and DL4 re-written) — and
+RING-4 — the feature drop (cfg sites, gated tests, manifests, CI's lane
+axis, Q1 and `DESIGN.md:266`). The alternative, one unit, was declined:
+two independent reach sets (PROPS's kernel files vs CIW's workflows and
+TCOST's 249 test files), each large enough to swamp a review, and RING-4
+depends on RING-3 but not the reverse. Both PRs are `[ev]` (Ev's
+ratified text). RING-3's tier: **DUAL** (architectural, broad, hard to
+reverse). Implementer dispatched ~01:55Z on Opus (branch
+`scalar/ring-3` at `efcd021f84`). Fences, announced here and on the PR:
+PROPS (`geom-core/src/{interval,ring_interval,real,lib,sym,k_stats}.rs`,
+`spline/*`, `props/*`, `geom/src/*`, `DUAL-DESIGN.md`), SSI
+(`ssi/{certify,enclose,exhaust}.rs`), ENCL/OFFSET/SHELL
+(`offset_fit.rs`, `patch_bound.rs`, `offset_meters.rs`), CHORD+TESS
+(`mesh/src/*`), GUARD (`bounds-allowlist.sh`), TCOST/TINT (test files),
+the unowned `topo/src/props.rs` and `geom-brep/README.md`; prose only in
+`interval-transcendentals/`. The two open ring rows (`ring-nan-poison…`,
+`ring-2-red-rows…`) and PROPS' `ring-refusal-readers…` defer to it.
