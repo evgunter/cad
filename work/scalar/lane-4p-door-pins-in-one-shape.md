@@ -2,9 +2,10 @@
 id: lane-4p-door-pins-in-one-shape
 kind: unit
 title: LANE-4P: the four door values' pins in one shape; the certified-enclosure census counts doors as well as scalars
-status: dispatched
+status: review
 opened: 2026-09-24
 branch: scalar/lane-4p
+pr: 3165
 ---
 
 
