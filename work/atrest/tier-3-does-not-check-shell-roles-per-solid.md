@@ -6,7 +6,7 @@ status: dispatched
 opened: 2026-09-08
 priority: P0
 cost: H
-refs: [validate-tier3-curved-boundary-containment, check-9-nesting-is-line-bounded-only, 2977]
+refs: [validate-tier3-curved-boundary-containment, check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk, 2977]
 parent: ATREST-7
 ---
 
