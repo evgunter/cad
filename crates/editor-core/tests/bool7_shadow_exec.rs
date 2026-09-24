@@ -20,9 +20,9 @@ use std::sync::Arc;
 use editor_core::eval::WitnessSlot;
 use editor_core::{
     Axis3, BooleanOp, CancelToken, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
-    EvalOutcome, Evaluation, FlipSource, FragmentGroups, NameTable, NamingKey, Node, ProfileDoc, Qualifier,
-    RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SHADOW_EXEC_MAX_PAIRS, SideVerdict,
-    SlotId, StableName, diff_verdicts, evaluate, resolve_with_prior,
+    EvalOutcome, Evaluation, FlipSource, FragmentGroups, NameTable, NamingKey, Node, ProfileDoc,
+    Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SHADOW_EXEC_MAX_PAIRS,
+    SideVerdict, SlotId, StableName, diff_verdicts, evaluate, resolve_with_prior,
 };
 use fixture::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
@@ -559,7 +559,13 @@ fn hand_diagnosis(h: &Hand, prior_log: Vec<Verdict>, new_log: Vec<Verdict>) -> D
         t_prior.insert(inner.clone(), ent).unwrap();
         t_new.insert(inner.clone(), ent).unwrap();
     }
-    let prior_ev = one_node_eval(h.doc.id(), h.node, t_prior, prior_log, FragmentGroups::new());
+    let prior_ev = one_node_eval(
+        h.doc.id(),
+        h.node,
+        t_prior,
+        prior_log,
+        FragmentGroups::new(),
+    );
     let new_ev = one_node_eval(h.doc.id(), h.node, t_new, new_log, FragmentGroups::new());
     let res = resolve_with_prior(
         RunCtx {
@@ -996,11 +1002,15 @@ fn sibling(h: &Hand, v: SideVerdict) -> StableName {
 /// run's fragment-group record holding the groups `(base, size)` its
 /// run lists; every name embedded in `h.frag` resolves in both runs,
 /// so no Cascade.
+/// One run for [`group_diagnosis`]: its rows `(name, entities)` and
+/// its recorded groups `(base, size)`.
+type Run = (Vec<(StableName, usize)>, Vec<(StableName, u32)>);
+
 fn group_diagnosis(
     h: &Hand,
     name: &StableName,
-    (prior, prior_groups): (Vec<(StableName, usize)>, Vec<(StableName, u32)>),
-    (now, now_groups): (Vec<(StableName, usize)>, Vec<(StableName, u32)>),
+    (prior, prior_groups): Run,
+    (now, now_groups): Run,
 ) -> editor_core::ResolutionFailure {
     let record = |groups: Vec<(StableName, u32)>| {
         let mut r = FragmentGroups::new();
@@ -1039,7 +1049,13 @@ fn group_diagnosis(
         }
         t
     };
-    let prior_ev = one_node_eval(h.doc.id(), h.node, table(prior), vec![], record(prior_groups));
+    let prior_ev = one_node_eval(
+        h.doc.id(),
+        h.node,
+        table(prior),
+        vec![],
+        record(prior_groups),
+    );
     let new_ev = one_node_eval(h.doc.id(), h.node, table(now), vec![], record(now_groups));
     let res = resolve_with_prior(
         RunCtx {

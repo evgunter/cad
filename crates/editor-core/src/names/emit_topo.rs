@@ -15,11 +15,11 @@ use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
 use super::defer::{TieRows, Upstream, put, upstream_name};
-use super::groups::{Emitted, FragmentGroups};
 use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along, side_of_face};
 use super::emit::{
     Incidence, NamingError, Rim, edge_ends, ent, face_half_edges, name1, rim_between,
 };
+use super::groups::{Emitted, FragmentGroups};
 use super::merged::{self, NESTED_MERGED};
 use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
 use super::seam_pair;
@@ -739,7 +739,13 @@ pub(crate) fn name_boolean<T: Decide>(
             [one] => {
                 let name = NameRef::new(base.clone());
                 names.push(name.clone());
-                put(&mut t, &mut tie, from_tie, name, ent(0, EntityKey::Face(*one)))?;
+                put(
+                    &mut t,
+                    &mut tie,
+                    from_tie,
+                    name,
+                    ent(0, EntityKey::Face(*one)),
+                )?;
             }
             _ => names.extend(name_fragment_group(
                 &mut t,

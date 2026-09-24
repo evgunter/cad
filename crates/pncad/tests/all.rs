@@ -4235,7 +4235,10 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   by field access already.
 /// - **Evaluation interior** (`EvalScalar`, `RunStatus`,
 ///   `ContentKey`, `apply_with_names`, `derivation_nodes`): the
-///   service's own machinery behind `evaluate`.
+///   service's own machinery behind `evaluate`. `FragmentGroups` beside
+///   them: the fragment-group record a node value carries for the
+///   diagnosis ladder, read by `resolve` and answered to a consumer as
+///   `Diagnosis::GroupResized`'s two counts, never as the record.
 ///
 ///   **`eval`, `eval_count` and `EvalError` used to be in this family
 ///   and were wrong to be.** They are not machinery behind
@@ -4402,7 +4405,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-const NOT_CARRIED: [&str; 92] = [
+const NOT_CARRIED: [&str; 93] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4429,6 +4432,7 @@ const NOT_CARRIED: [&str; 92] = [
     "FlipEvidence",
     "FlipSet",
     "FlipSource",
+    "FragmentGroups",
     "Implicated",
     "Lane",
     "MeshPatchKey",

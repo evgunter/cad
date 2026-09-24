@@ -70,7 +70,6 @@
 //! correspondence is re-worded, the other when the word stops reaching
 //! the user.
 
-
 use geom_core::{Decide, Tol, Vec3};
 use topo::query::DatumValue;
 use topo::splitting::SplitNaming;

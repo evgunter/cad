@@ -17,9 +17,9 @@
 use crate::fixture;
 
 use editor_core::{
-    Axis3, BooleanOp, CancelToken, Datum, Diagnosis, DocEdit, Entry, EvalOptions, Evaluation,
-    Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId,
-    StableName, evaluate, resolve_with_prior,
+    Axis3, BooleanOp, CancelToken, Datum, Diagnosis, DocEdit, Entry, EvalOptions, Evaluation, Node,
+    ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName,
+    evaluate, resolve_with_prior,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -169,10 +169,16 @@ fn two_tied_parents_each_cut_in_two_are_two_groups_of_two() {
     let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::Z), 3.2);
     let ev2 = run(&doc2, Some(&ev1));
     // The tied parents' fragments: tied rows of the cut's own groups.
-    let rows = vanished((&doc2, &ev2), (&doc, &ev1), cut, |_, e| {
-        matches!(e, Entry::Tied(c) if c.len() == 2)
-    });
-    assert!(!rows.is_empty(), "no tied fragment vanished, so the row pins nothing");
+    let rows = vanished(
+        (&doc2, &ev2),
+        (&doc, &ev1),
+        cut,
+        |_, e| matches!(e, Entry::Tied(c) if c.len() == 2),
+    );
+    assert!(
+        !rows.is_empty(),
+        "no tied fragment vanished, so the row pins nothing"
+    );
     for (n, d) in rows {
         assert_eq!(
             d,
@@ -254,7 +260,10 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
     let rows = vanished((&doc, &ev2), (&doc, &ev1), split, |n, _| {
         matches!(n.path.first(), Some(RoleSeg::SplitFragment { .. }))
     });
-    assert!(!rows.is_empty(), "no split fragment vanished, so the row pins nothing");
+    assert!(
+        !rows.is_empty(),
+        "no split fragment vanished, so the row pins nothing"
+    );
     let mut top = 0;
     for (n, d) in rows {
         // The top cap stays on the upper side, whole; the bottom cap
@@ -262,7 +271,10 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
         let Some(RoleSeg::SplitFragment { parent, .. }) = n.path.first() else {
             unreachable!("picked by that head");
         };
-        let now = if parent.path.contains(&RoleSeg::Cap(editor_core::CapEnd::End)) {
+        let now = if parent
+            .path
+            .contains(&RoleSeg::Cap(editor_core::CapEnd::End))
+        {
             top += 1;
             1
         } else {
@@ -278,5 +290,8 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
             "{n:?}"
         );
     }
-    assert!(top > 0, "no top-cap fragment vanished, so the pass-through is not pinned");
+    assert!(
+        top > 0,
+        "no top-cap fragment vanished, so the pass-through is not pinned"
+    );
 }

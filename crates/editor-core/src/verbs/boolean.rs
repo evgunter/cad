@@ -34,7 +34,6 @@
 //! instance, no match over the kernel's verb vocabulary anywhere in this file, so
 //! a future verb never has to open it.
 
-
 use geom_core::{Decide, Tol};
 use topo::{
     Body, BooleanDeclarations, BooleanNaming, BooleanOp, BooleanResultKind, ContactRecords,

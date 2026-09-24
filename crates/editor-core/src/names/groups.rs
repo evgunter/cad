@@ -92,7 +92,10 @@ impl FragmentGroups {
 
     fn push(&mut self, base: StableName, size: u32, members: Vec<NameRef>) {
         match &mut self.0 {
-            Record::Minted(groups) => groups.entry(base).or_default().push(Group { size, members }),
+            Record::Minted(groups) => groups
+                .entry(base)
+                .or_default()
+                .push(Group { size, members }),
             // A fold's record is assembled whole; nothing is added to it.
             Record::Folded { .. } => {}
         }
