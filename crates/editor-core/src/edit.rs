@@ -2766,7 +2766,7 @@ impl SegmentMap {
 /// that decides, for every `StableName` a carrier holds, whether the
 /// edit left it alone, moved it, or stranded it — and what it is
 /// spelled as now. The walk over a name's shape is
-/// [`RoleSeg::rewrite`]'s, shared with the anchor rewrite and the
+/// `RoleSeg::rewrite`'s, shared with the anchor rewrite and the
 /// split re-map; what this rewriter adds is the locator's image and
 /// the descent into every carried name.
 struct ProgramRemap<'a> {

@@ -311,7 +311,7 @@ fn remap_vertex(naming: &ProfileNaming, v: ProfileVertexRef) -> ProfileVertexRef
 /// rewritten canonical → program; a carried name is left as it is —
 /// wrapped upstream names are already program-anchored, so this
 /// rewriter keeps the trait's identity `name` and never descends. The
-/// walk over [`RoleSeg`]'s shape is [`RoleSeg::rewrite`]'s, shared
+/// walk over `RoleSeg`'s shape is `RoleSeg::rewrite`'s, shared
 /// with the split re-map and the whole-program edit.
 struct Anchoring<'a>(&'a ProfileNaming);
 

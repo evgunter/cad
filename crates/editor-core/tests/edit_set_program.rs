@@ -2155,13 +2155,13 @@ fn carried_names_of(name: &StableName, node: RecipeNodeId) -> Vec<StableName> {
     fn visit(v: &serde_json::Value, node: RecipeNodeId, out: &mut Vec<StableName>) {
         match v {
             serde_json::Value::Object(map) => {
-                if map.contains_key("kind") && map.contains_key("node") && map.contains_key("path")
+                if map.contains_key("kind")
+                    && map.contains_key("node")
+                    && map.contains_key("path")
+                    && let Ok(inner) = serde_json::from_value::<StableName>(v.clone())
+                    && inner.node == node
                 {
-                    if let Ok(inner) = serde_json::from_value::<StableName>(v.clone())
-                        && inner.node == node
-                    {
-                        out.push(inner);
-                    }
+                    out.push(inner);
                 }
                 for child in map.values() {
                     visit(child, node, out);
@@ -2179,10 +2179,10 @@ fn carried_names_of(name: &StableName, node: RecipeNodeId) -> Vec<StableName> {
     let mut out = Vec::new();
     // The name itself is minted by another node; only what it CARRIES
     // is asked for.
-    if let serde_json::Value::Object(map) = &json {
-        if let Some(path) = map.get("path") {
-            visit(path, node, &mut out);
-        }
+    if let serde_json::Value::Object(map) = &json
+        && let Some(path) = map.get("path")
+    {
+        visit(path, node, &mut out);
     }
     out
 }
