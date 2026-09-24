@@ -226,8 +226,18 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
         .find(|e| matches!(e, topo::ValidationError::TangentNotIntrinsic { .. }))
         .map(|e| format!("{e}"))
         .unwrap();
-    assert!(msg.contains("jet-determinate"), "{msg}");
-    assert!(msg.contains("G2"), "{msg}");
+    assert!(
+        msg.contains(
+            "its two faces meet tangentially and their surfaces determine where the edge runs"
+        ),
+        "{msg}"
+    );
+    assert!(
+        msg.ends_with(
+            "Recourse: describe it as the TangentIntersection of its two faces' surfaces"
+        ),
+        "{msg}"
+    );
 }
 
 #[test]
