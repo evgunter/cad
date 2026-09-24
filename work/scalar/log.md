@@ -1367,3 +1367,15 @@ PROPS (`geom-core/src/{interval,ring_interval,real,lib,sym,k_stats}.rs`,
 the unowned `topo/src/props.rs` and `geom-brep/README.md`; prose only in
 `interval-transcendentals/`. The two open ring rows (`ring-nan-poison…`,
 `ring-2-red-rows…`) and PROPS' `ring-refusal-readers…` defer to it.
+## LANE-3 merged (2026-09-24)
+
+PR 3049, block SCALAR-B6 slot 1, ordinal 4116. What landed: the item's
+§Closed. The spec is deleted per the ledger. No MAJOR on either
+reviewing arm; the fix pass took all nine items, the fence extended
+for two naming-only corrections. The box sat idle from ~03:50Z on
+09-22 to ~01:30Z on 09-24 (the account's usage limit; the RING-3 survey
+lane died on it and was re-dispatched). From this entry on the
+orchestrating session runs on a different model than the one it was
+configured with (the session reports `claude-opus-5-5`, switched by the
+user; configured `claude-fable-5-1`) — the block rows record it as a
+method note, since the orchestrator writes the specs and adjudicates.

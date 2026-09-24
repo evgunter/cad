@@ -6969,6 +6969,55 @@ and every claim followed the slot line branch-side. Block TOPO-B5 was
 cut and drawn before this record published (pre-draw fields at
 `41eb35f5c`, byte 7 ⇒ fable at slot 1; record on `topo/b5-block`).
 
+**Disclosure — arm exposure in TOPO's program log (TOPO orchestrator,
+audit of 2026-09-24).** `work/topo/log.md`, on main, named the
+implementer's ARM at dispatch for most TOPO units from block TOPO-B2
+on: a block's draw-and-dispatch entry said which slot ran which arm
+(for example "slot 1 (`revert-leaves-…`, …, FABLE)"), and several
+later entries repeated it. This log's own rule names "a unit's log
+entry, a block record naming unstarted slots" as a leak, and the
+orchestrator wrote them anyway. No reviewer brief directed a reviewer
+to `work/topo/log.md`, and no reviewer disclosed reading it, but the
+rule flags contamination on the EXPOSURE, not on a disclosure: the
+rows of ordinals **2704, 2705 and 2707–2712** are flagged
+arm-exposed from this entry (2702, 2703 and 2706 were dispatched
+before any entry naming their own arm reached main, and are re-checked
+by whoever codes the readout). **2713**, claimed below, carries the
+same exposure — its arm has been named on main since 2026-09-14 — and
+both of its reviewers' briefs forbid reading the log, this file and
+the block branch. Nothing is re-ordered or re-drawn; the readout
+decides what a flagged pair counts for. The log names no arm from
+here on.
+
+Mef/kef-runs review ordinal fixed at dispatch (2026-09-24, PR #2603
+open — frozen head `2216e0c00`, a merge of `origin/main` onto the
+unit's green head `e36af64a4`; unit
+`work/topo/mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows.md`):
+**ordinal 2713** (TOPO band) — finishing under v6 by the suspension
+entry's item 4 (the implementer dispatched under block TOPO-B5's
+drawn arm on 2026-09-14, before the suspension). Pre-draw fields
+(logged in `work/topo/log.md` at `41eb35f5c` BEFORE block TOPO-B5
+was drawn — clean): difficulty **M**, task class **STRUCTURAL**.
+Implementer arm per block TOPO-B5 slot 1 (record branch-side on
+`topo/b5-block`). Disclosed: the implementer lane died on its arm's
+usage limit after pushing its PR and while its run was going green
+(run 34877183170, success on `e36af64a4`); its final report was lost,
+so its tokens and wall are missing data, never zeros. Protocol v6
+dual: draw = `/dev/urandom` byte **61**, parity 1 ⇒ **R1 = FABLE,
+R2 = OPUS**. Method, recorded before either review runs: CONCURRENT
+same-head on frozen `2216e0c00`, both briefs authored and STORED with
+sha256 before either dispatches (identical text modulo lane name,
+target and scratch paths, verified by diff: 4 lines), neither
+reviewer sees the other's report, v6 item 5 isolation in both briefs
+plus an explicit bar on this log, the program log and the block
+branch (the exposure above). Disclosed seams: the orchestrator ran on
+Fable until the suspension and on Opus (5.5 era) from here, for the
+adjudication of this pair; the pair dispatches ten days after the
+implementer's head. Shared-box note applying to BOTH arms equally: one
+4-core cloud box, no other lane live at dispatch, `-j2`; both targets
+are stale builds from before a large merge of main — wall-clock
+asymmetry only.
+
 ## SYM program rows (work/sym/; band 4700–4799; blocks named SYM-B<n>)
 
 SYM-4 review ordinal fixed at dispatch (2026-09-14, PR #2565 open —
