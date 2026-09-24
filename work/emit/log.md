@@ -334,3 +334,15 @@ re-dispatched with the wider scope.
 The weekly usage limit stopped all lanes on 2026-09-23 at about 09:30
 UTC. They were resumed on 2026-09-24 from their pushed branches and
 worktrees.
+
+## 2026-09-24 — a second usage-limit stop
+
+The weekly limit stopped every lane again at about 05:00 UTC. At 12:10
+every branch was fully pushed and every worktree was clean, so nothing
+was lost except in-flight edits the lanes re-derive. The four lanes
+and the review of 3133 were resumed:
+
+- loft correspondence, whose PR is about to open;
+- the 3125 fix pass;
+- the 3124 fix pass;
+- 3133, the split spur, in review.
