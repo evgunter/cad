@@ -28,7 +28,7 @@ use crate::common;
 
 use core::f64::consts::TAU;
 
-use common::{ang, body_volume, insert, len, len2, len3, near, scl2, scl3, shape};
+use common::{ang, body_volume, insert, len, len2, len3, near, scl, scl2, scl3, shape};
 use pncad::document::{
     Datum, Dimension, DimensionError, Doc, DocumentId, Expr, LoopProgram, Node, ProfileProgram,
     RecipeNodeId, RecordedProgramError, SlotId,
@@ -447,8 +447,6 @@ fn new_document_refuses_a_blank_name_and_a_gesture_in_flight() {
 fn each_datum_form_inserts_its_variant_with_literal_slots() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
 
     let plane = insert(
         &mut session,

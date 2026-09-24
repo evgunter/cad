@@ -27,9 +27,7 @@ use crate::common;
 
 use std::sync::Arc;
 
-use pncad::document::{
-    Dimension, Doc, Expr, Node, ProductError, ProfileProgram, gathers_on_this_thread,
-};
+use pncad::document::{Doc, Node, ProductError, ProfileProgram, gathers_on_this_thread};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::evalseam::EvalDone;
@@ -271,7 +269,7 @@ fn a_body_under_two_roots_lands_with_a_fault_and_no_report() {
                 input: extrude,
                 translation: [common::len(dx), common::len(0.0), common::len(0.0)],
                 rotation_axis: [common::scl(0.0), common::scl(0.0), common::scl(1.0)],
-                rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+                rotation_angle: common::ang(0.0),
             },
             tol,
         )
