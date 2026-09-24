@@ -449,18 +449,17 @@ fn m10_10_ceilings_and_the_over_band_set() {
         if !wanted {
             continue;
         }
-        let (lo, hi, per) =
-            crate::m10_8_harness::ceiling_with(
-                &*at,
-                editor_core::drive::SymbolicDials {
-                    retry: retry_from_env(),
-                    ..crate::m10_8_harness::dials(rules)
-                },
-                tol,
-                1.0e-1 * eps,
-                1.0e1,
-                16,
-            );
+        let (lo, hi, per) = crate::m10_8_harness::ceiling_with(
+            &*at,
+            editor_core::drive::SymbolicDials {
+                retry: retry_from_env(),
+                ..crate::m10_8_harness::dials(rules)
+            },
+            tol,
+            1.0e-1 * eps,
+            1.0e1,
+            16,
+        );
         println!(
             "   {name:<20}: certifies x{lo:e}, refuses x{hi:e} ({per:.2}s/probe) \
              [= {:.4e}·eps .. {:.4e}·eps]",
