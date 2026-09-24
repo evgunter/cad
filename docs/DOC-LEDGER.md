@@ -1,3 +1,28 @@
+## Per-merge deletion — LANE-3's spec (2026-09-24)
+
+Recoverable at `git show 43fab29311:docs/LANE-3-SPEC.md` (the fix-pass
+head). Its sentences that did not survive: "`witness` becomes `pub fn
+fold_shell_error_at`" — `pub(crate)`, the workspace's `unreachable_pub`
+refusing a `pub` item inside a private module; "with the `f64` arm's
+`Some` replaced by `None` … the shell documents' rows go red
+(`lib_g17_shell_node.rs`, the tour's shell scenes if they run in tests,
+`verbs/tests/run_door.rs`'s shell rows)" — the set that notices is
+twenty-five rows across four crates (the two `lib_g17` probe suites and
+the M4 golden among them), and the tour does author shell nodes
+(`teapot.rs`; its own cargo root is why no tour row is counted) — the
+survey's pattern could not match `Node::shell(`; the fence "GUARD's
+`evalscalar-allowlist.sh` (header, naming-only)" — `bounds-allowlist.sh`
+was reached too (three per-file counts moved, no seam widened, true by
+inspection and unguarded by that gate); "the `at_rest_policy_tests`
+roster gains the shell arm in its shape" — the roster had no `Sym` arm
+for any policy method, so the new door shipped unpinned at the symbolic
+tier until the fix pass added the row; the census premise that a third
+roster could not be added without that `Sym` arm (corrected on the
+SCALAR row, whose remaining work is LANE-4's). Recorded in the PR body
+and the unit's `## Closed` section.
+
+- `LANE-3-SPEC.md` — LANE-3, `ShellLane` folds into `AtRestPolicy`: the shell door is a value the policy answers, the verb takes it, the witness is a function (#3049)
+
 ## Per-merge deletion — RING-2's spec (2026-09-22)
 
 Recoverable at `git show 4cb762495d:docs/RING-2-SPEC.md` (the fix-pass
