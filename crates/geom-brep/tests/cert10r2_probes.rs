@@ -21,12 +21,13 @@
 use core::num::NonZeroUsize;
 use geom::NurbsSurface;
 use geom_brep::patch_bound::{self, PatchCell};
+use geom_core::Bounds;
 use geom_core::Point3;
-use geom_core::ring_interval::RingInterval;
+use geom_core::interval::Interval;
 use geom_core::spline::KnotVector;
 use geom_core::spline::net::TensorNet;
 
-fn contains(iv: RingInterval, x: f64) -> bool {
+fn contains(iv: Interval, x: f64) -> bool {
     iv.lo() <= x && x <= iv.hi()
 }
 
@@ -54,7 +55,7 @@ fn assert_cells_enclose(name: &str, s: &NurbsSurface<f64>, cells: &[PatchCell], 
                 let u = c.u.0 + (c.u.1 - c.u.0) * fu;
                 let v = c.v.0 + (c.v.1 - c.v.0) * fv;
                 let jet = s.ders(u, v);
-                let per: [(&str, [f64; 3], [RingInterval; 3]); 5] = [
+                let per: [(&str, [f64; 3], [Interval; 3]); 5] = [
                     ("s_u", [jet.du.x, jet.du.y, jet.du.z], c.s_u),
                     ("s_v", [jet.dv.x, jet.dv.y, jet.dv.z], c.s_v),
                     ("s_uu", [jet.duu.x, jet.duu.y, jet.duu.z], c.s_uu),
@@ -232,7 +233,7 @@ fn probe1_quarter_cylinder_signed_cells_enclose_densely() {
 fn probe1_quarter_cylinder_fold_norms_dominate() {
     let s = quarter_cylinder();
     let cells = patch_bound::patch_cells(&s).expect("covered");
-    let comp = |f: fn(&PatchCell) -> [RingInterval; 3]| -> f64 {
+    let comp = |f: fn(&PatchCell) -> [Interval; 3]| -> f64 {
         cells
             .iter()
             .map(|c| patch_bound::sq_norm(f(c)).hi())
@@ -335,7 +336,7 @@ fn probe3_cell_windows_cover_the_net_at_multiplicity_p_minus_one() {
                 } else {
                     0.0
                 };
-            RingInterval::point(x)
+            Interval::point(x)
         });
         let kv_u1 = patch_bound::derived_knots(&kv_u).unwrap();
         let kv_v1 = patch_bound::derived_knots(&kv_v).unwrap();
@@ -345,7 +346,7 @@ fn probe3_cell_windows_cover_the_net_at_multiplicity_p_minus_one() {
         let d20 = d10.diff_u_knots(&kv_u1);
         let d02 = d01.diff_v_knots(&kv_v1);
         // Union-of-window hull per net, over nonempty span pairs.
-        let mut hulls: [Option<RingInterval>; 5] = [None; 5];
+        let mut hulls: [Option<Interval>; 5] = [None; 5];
         for su in kv_u.first_span()..=kv_u.last_span() {
             if !kv_u.span_is_nonempty(su) {
                 continue;
@@ -366,15 +367,15 @@ fn probe3_cell_windows_cover_the_net_at_multiplicity_p_minus_one() {
                     d11.window_hull(&w_ud1, &w_vd1),
                     span_u
                         .derived_window(2)
-                        .map_or(RingInterval::zero(), |w2| d20.window_hull(&w2, &w_vval)),
+                        .map_or(Interval::zero(), |w2| d20.window_hull(&w2, &w_vval)),
                     span_v
                         .derived_window(2)
-                        .map_or(RingInterval::zero(), |w2| d02.window_hull(&w_uval, &w2)),
+                        .map_or(Interval::zero(), |w2| d02.window_hull(&w_uval, &w2)),
                 ];
                 for (slot, h) in hulls.iter_mut().zip(reads) {
                     *slot = Some(match *slot {
                         None => h,
-                        Some(a) => RingInterval::hull(a, h),
+                        Some(a) => Interval::hull(a, h),
                     });
                 }
             }

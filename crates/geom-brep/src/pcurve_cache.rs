@@ -52,7 +52,9 @@
 //! image on a NURBS chart, the envelope bounds *that same displacement*
 //! over the whole span. For a fitted image on a periodic ANALYTIC chart
 //! it cannot: `S ∘ P` is transcendental in the pcurve's azimuth channel
-//! and the C9 ring has no transcendentals by construction, so the
+//! and certification arithmetic takes no transcendental — C9's rule
+//! about what certification does, not a lack in `Interval`, the type it
+//! runs on — so the
 //! between-samples statement there is the carrier's incidence with the
 //! chart's own surface (`sup |f_S(C(t))|`) together with limb 3's
 //! uniqueness tube — [`EnvelopeStatement::OnLocusHull`] carries the
@@ -348,7 +350,7 @@ fn iso_arc_g<T: SpanLocate>(t: T, t0: T, angle: T, breaks: &KnotVector) -> T {
     #[allow(clippy::cast_precision_loss)]
     let m = T::from_f64(spans as f64);
     let h = angle / m;
-    // tan(h/4) through sin/cos — no transcendental beyond the ring's
+    // tan(h/4) through sin/cos — no transcendental beyond the scalar's
     // own `sin_cos` (the same door every harmonic pcurve uses).
     let (s_q, c_q) = (h * T::from_f64(0.25)).sin_cos();
     let tan_q = s_q / c_q;
@@ -765,8 +767,8 @@ pub enum PcurveCertifyError {
     UnsupportedCarrier,
     /// A [`Pcurve::Fitted`] cache was offered to a scalar with **no
     /// certified fitted lane** — [`PcurveFittedLane`]'s refusing side.
-    /// A dual scalar may not certify (D1, 2026-08-19), so the C9 ring
-    /// is not reachable from it and the C2.2 hull bound does not exist
+    /// A dual scalar may not certify (D1, 2026-08-19), so certification
+    /// arithmetic (C9) is not reachable from it and the C2.2 hull bound does not exist
     /// there; the refusal is typed and static rather than a silent
     /// success.
     FittedLaneUnsupported {
@@ -1038,8 +1040,9 @@ pub enum EnvelopeStatement {
     /// Read this one carefully, because it is a different sup from the
     /// other two and the difference is the honest content of the fitted
     /// analytic lane. `S ∘ P` on a periodic analytic chart is
-    /// transcendental in the pcurve's own azimuth channel, so the C9
-    /// ring — which has no transcendentals by construction — cannot
+    /// transcendental in the pcurve's own azimuth channel, so
+    /// certification arithmetic — which takes no transcendental, by C9's
+    /// rule rather than for want of one in `Interval` — does not
     /// enclose `S(P(t)) − C(t)` between samples at all. What it CAN
     /// enclose, exactly and tightly, is the carrier's incidence with
     /// the chart's own surface: `f_S ∘ C` is a polynomial composite.
@@ -1120,7 +1123,7 @@ pub struct PcurveCertificate<T: Real> {
 ///
 /// What it carries is the **fitted-pcurve derivations**
 /// ([`Self::fitted_certificate`], [`Self::general_image`],
-/// [`Self::chart_foot`]): a C9-ring hull bound reached through a
+/// [`Self::chart_foot`]): a C9 certification hull bound reached through a
 /// scalar's bracket, and building one is **certification**. `f64`, the
 /// telemetry probe and the interval scalar may certify;
 /// [`geom_core::Dual`] may not — Ev's D1 ruling, 2026-08-19: a dual
@@ -1140,7 +1143,7 @@ pub struct PcurveCertificate<T: Real> {
 /// door the passes take ([`crate::OffsetFitLane`]), answered by the
 /// per-scalar policy seam `topo::AtRestPolicy::offset_fit_lane`. The
 /// probe and interval arms here are what make the difference visible:
-/// they delegate the pcurve derivations through the C9 ring and still
+/// they delegate the pcurve derivations through certification arithmetic and still
 /// have no fit to offer.
 ///
 /// The trait is also what keeps `Bounds` out of `topo`'s signatures:
@@ -1189,7 +1192,7 @@ pub trait PcurveFittedLane: Decide {
     ///
     /// It sits on THIS trait rather than beside its producer because
     /// the derivation and the certificate are the same static split —
-    /// both need the C9 ring, both are absent at [`geom_core::Dual`] —
+    /// both need certification arithmetic (C9), both are absent at [`geom_core::Dual`] —
     /// and a mint that had to name two lane traits for one image would
     /// carry the split twice. The plane × NURBS lane
     /// ([`crate::plane_nurbs_limbs`]) keeps its own door for the ADOPT
@@ -1980,7 +1983,7 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
     ///   verdict), [`PcurveCertifyError::FittedMateMissing`] (no
     ///   operand pair to state a tube about), or
     ///   [`PcurveCertifyError::FittedLaneUnsupported`] (a scalar with
-    ///   no exact-ring hull).
+    ///   no certification hull).
     ///
     /// # Errors
     ///

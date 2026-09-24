@@ -35,8 +35,9 @@ use crate::node::RecipeNodeId;
 ///    [`Self::Band`], whose own doc draws the line the two below
 ///    stand on — *nothing about the result body is wrong here*.
 /// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
-///    [`Self::SharedRim`], [`Self::MergedChord`] and
-///    [`Self::MergedChordOffRim`], reached from recipes nothing is wrong with,
+///    [`Self::SharedRim`], [`Self::MergedChord`],
+///    [`Self::MergedChordOffRim`] and [`Self::SeamLineSides`], reached
+///    from recipes nothing is wrong with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
 ///    because telling an author to file a kernel bug over their own
@@ -243,6 +244,32 @@ pub enum NamingError {
         /// The rim the read-through offered, in that operand's body.
         rim: EdgeKey,
     },
+    /// A chain along a seam line whose direction cannot be read: the
+    /// two faces of the seam edge, as `node`'s table names them, do not
+    /// settle which of them is the `a` side of the pair the edge's name
+    /// records.
+    ///
+    /// A ranker that knows a seam only by its name orients it by that
+    /// pair's `n_a × n_b`, finding the pair's faces BY NAME through the
+    /// pass-through wrappers (`names::seam_pair`). Two causes leave the
+    /// sides unsettled:
+    /// - neither assignment fits: a face renamed by a node the wrapper
+    ///   list does not see through descends from neither side;
+    /// - both fit: each face is a merged face with constituents from
+    ///   both sides.
+    ///
+    /// A pair whose two sides carry the same NAME (two placements of one
+    /// prototype) is not this: it names no side, and its pieces rank
+    /// along their own carrier. The body is sound and the recipe legal;
+    /// what is missing is a rule, which is why this is not an
+    /// [`Self::Emission`].
+    SeamLineSides {
+        /// The node whose body holds `edge` — the boolean's own result
+        /// or one of its operands.
+        node: RecipeNodeId,
+        /// The seam edge, a key in that node's body.
+        edge: EdgeKey,
+    },
     /// The N2 classification band could not be built from the ambient
     /// tolerance, so no discriminator below it can be decided.
     ///
@@ -388,6 +415,13 @@ impl core::fmt::Display for NamingError {
                 f,
                 "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces and is \
                  the join's own edge, so neither face nor key says which operand's rim it is"
+            ),
+            Self::SeamLineSides { node, edge } => write!(
+                f,
+                "{UNRULED_FRAMING}: seam edge {edge:?} of node {}'s body has faces whose names do \
+                 not settle which is each side of its recorded pair (neither face descends from \
+                 a side, or both faces descend from both), so no direction orders a chain along it",
+                node.0
             ),
             Self::MergedChordOffRim { edge, node, rim } => write!(
                 f,
@@ -1508,6 +1542,13 @@ mod display_tests {
                 vec!["merged faces", "29", "does not lie within"],
             ),
             (
+                NamingError::SeamLineSides {
+                    node: RecipeNodeId(31),
+                    edge: two_edges().0,
+                },
+                vec!["31", "each side of its recorded pair"],
+            ),
+            (
                 // The band's subject is the pair of thresholds that
                 // could not separate: which end of the axis the ambient
                 // tolerance landed on is what tells the reader whether
@@ -1543,7 +1584,8 @@ mod display_tests {
                 NamingError::SeamVertexParentage { .. }
                 | NamingError::SharedRim { .. }
                 | NamingError::MergedChord { .. }
-                | NamingError::MergedChordOffRim { .. } => Some(UNRULED_FRAMING),
+                | NamingError::MergedChordOffRim { .. }
+                | NamingError::SeamLineSides { .. } => Some(UNRULED_FRAMING),
                 NamingError::Band(_) | NamingError::Escalated { .. } => None,
             }
         };
@@ -1561,6 +1603,7 @@ mod display_tests {
                 NamingError::MergedChord { .. } => 9,
                 NamingError::MergedChordOffRim { .. } => 10,
                 NamingError::Band(_) => 11,
+                NamingError::SeamLineSides { .. } => 12,
             }
         };
         let covered: std::collections::BTreeSet<usize> =

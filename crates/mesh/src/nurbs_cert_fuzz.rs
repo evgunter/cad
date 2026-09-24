@@ -14,7 +14,7 @@ test_utils::gated_to![
     "crates/mesh/src/curved.rs",
     "crates/mesh/src/tessellate.rs",
     "crates/geom-brep/src/patch_bound.rs",
-    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
     "crates/geom-core/src/spline/",
     "crates/geom/src/surfaces/",
     "crates/geom/src/surfaces.rs",

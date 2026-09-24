@@ -312,19 +312,20 @@ class ValidationError(PncadError):
     failure_count: int
     findings: list[ValidationFinding]
 
-class DimensionError(PncadError):
+class QuantityOpMismatch(PncadError):
     """An operator applied to two QUANTITIES whose dimensions do not
     admit it — `1 * m + 1 * rad`.
 
-    The quantity boundary only, and not the library's only dimension
-    check. The document layer's own refusal type reaches Python three
-    other ways: through literal construction (as LiteralError),
-    through `Doc.parse_expr` (as ParseError with `variant ==
-    "dimension"` and the mismatch's own tag as `kind` — the one of the
-    three that keeps it branchable), and through `load`, where a save
-    file's ill-dimensioned expression arrives as PersistError with
-    `variant == "parse"` rather than as any dimension class (issue
-    #694)."""
+    The class is the Rust type's own name. This is the quantity
+    boundary only, and not the library's only dimension check: the
+    document layer's own refusal type reaches Python at SIX doors
+    under four DOOR names rather than one type name — LiteralError
+    (literal construction, the MeasureExpr arithmetic constructors,
+    and the recorded-program lift), ParseError with `variant ==
+    "dimension"` (`Doc.parse_expr`), EditError (`Doc.apply`), and
+    PersistError with `variant == "dimension"` (`load`). Each carries
+    the failing check's own tag, so which check refused is branchable
+    at every one."""
 
     op: str
     left: str
@@ -352,11 +353,13 @@ class LiteralError(PncadError):
     """A value the expression layer refused (`Expr::literal`'s own
     curated error). `value` is the offending number.
 
-    Not DimensionError, which is the quantity boundary's operator
-    check. The expression layer's refusal type has dimension-mismatch
-    arms too, and three other doors reach them: `load` does, from a
-    hand-edited save file, and they arrive as PersistError with
-    `variant == "parse"` (issue #694); `Doc.parse_expr` does, and they
+    Not QuantityOpMismatch, which is the quantity boundary's operator
+    check and a different type. The expression layer's refusal type has
+    dimension-mismatch arms too, and reaches Python at six doors under
+    four class names in all: `load` does, from a hand-edited save file,
+    and they arrive as PersistError with `variant == "dimension"` and
+    the check's own tag as `inner_variant`; `Doc.apply` does, as
+    EditError; `Doc.parse_expr` does, and they
     arrive as ParseError; and the MEASUREMENT sublanguage's arithmetic
     constructors do (`MeasureExpr.add` and its siblings), arriving on
     THIS class with the mismatch's own tag as `kind` — the same kernel
@@ -427,19 +430,22 @@ class PersistError(PncadError):
 
     `variant` is the refusing arm's tag — `non_finite`,
     `profile_program`, `distribution`, `display_unit`, `serialize`,
-    `header_id`, `id_mismatch`, `parse`, `unreadable`, `snapshot`,
-    `edit_replay`, `maintenance_frame`, `tolerance_conflict` or
+    `header_id`, `id_mismatch`, `parse`, `unreadable`, `dimension`,
+    `snapshot`, `edit_replay`, `maintenance_frame`, `tolerance_conflict`
+    or
     `tolerance_invalid`.
 
     Five arms wrap a refusal of their own, and its word rides beside
     the carrier's on `inner_variant`: a profile-program fault, a
     distribution fault, a snapshot invariant, the `EditError` a
-    replayed edit raised, or what a recorded maintenance row's frame
-    fails to be a placement (`non_finite`, `improper` — the
-    `SetPlacement` door's own rule, applied to the log's rows at load;
-    `index` is the entry's, and the row within it is in the message).
-    The nested refusal's own payload is the inner door's surface and
-    stays in the message.
+    replayed edit raised, what a recorded maintenance row's frame fails
+    to be a placement (`non_finite`, `improper` — the `SetPlacement`
+    door's own rule, applied to the log's rows at load; `index` is the
+    entry's, and the row within it is in the message), or the dimension
+    check a saved expression failed. The nested refusal's own payload is
+    the inner door's surface and stays in the message.
+
+    `dimension` is
 
     Two names are shared by arms that carry one concept under
     different spellings: `detail` is the underlying reporter's own
@@ -1121,7 +1127,7 @@ class AnalysisPolicyError(PncadError):
 # --- quantities -------------------------------------------------------
 # Canonical metres and radians underneath. The arithmetic is
 # exactly `crates/quantity`'s infallible subset; anything else raises
-# DimensionError.
+# QuantityOpMismatch.
 
 class Length:
     """A length. Construct as `25 * mm`.
@@ -2507,7 +2513,7 @@ class ParamName:
 # analysis doors below are its ONE interpreter. Offsets are typed
 # quantities in the PARAMETER's dimension — the annotation carries no
 # dimension of its own, so it borrows the one the parameter declares,
-# and a mismatch is a DimensionError at the door rather than a
+# and a mismatch is a QuantityOpMismatch at the door rather than a
 # plausible number later.
 
 _Offset: TypeAlias = Length | Angle | float
@@ -2526,7 +2532,7 @@ class Distribution:
 
     Every offset in one distribution must be the same dimension, and
     the wrapper remembers which: `Distribution.band(-0.1 * mm, 1 * deg)`
-    is a DimensionError. Construction also runs the kernel's own E2
+    is a QuantityOpMismatch. Construction also runs the kernel's own E2
     check, so a broken invariant refuses here as `DistributionFault`
     rather than at the edit."""
 
@@ -2658,7 +2664,7 @@ class AnalyzedBox:
         `(lo, hi)` — the leaf-pricing door.
 
         The offsets are quantities in the axis's own dimension; another
-        dimension is a DimensionError. `None` when the document
+        dimension is a QuantityOpMismatch. `None` when the document
         declares no such continuous parameter. An unannotated axis is a
         point mass at its nominal, so it answers `1.0` for any interval
         containing offset zero and `0.0` otherwise. A band raises
@@ -2823,7 +2829,7 @@ class DocParam:
 
     The three continuous constructors take an optional `distribution`
     (ERROR-DESIGN E1/E2) whose offsets must be in the dimension the
-    constructor declares — a mismatch is a DimensionError. `count`
+    constructor declares — a mismatch is a QuantityOpMismatch. `count`
     takes none and cannot: a structural count is fixed under any error
     analysis."""
 
