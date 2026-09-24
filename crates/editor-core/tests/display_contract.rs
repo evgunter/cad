@@ -847,6 +847,35 @@ test_utils::f6_variants! {
 /// two placement-frame arms forward the frame rule's clause — so each
 /// case below asks for the payload's words, which is what proves the
 /// forwarding happened.
+/// A node refusal that names a slot names it through [`SlotId::label`],
+/// never its `Debug`: a profile slot is a struct variant, and its braces
+/// are what the binding's prose predicate refuses — so a dumped slot
+/// would panic the binding at the arm meant to refuse gracefully.
+#[test]
+fn a_node_refusal_names_its_slot_by_its_label() {
+    let slot = SlotId::Profile {
+        loop_: 0,
+        step: 2,
+        arg: StepArg::CenterX,
+    };
+    let dumps = ["Profile", "CenterX", "loop_", "{", "}"];
+    assert_f6(
+        &NodeErrorKind::Expr {
+            slot,
+            source: EvalError::ContinuousExprInCountEval {
+                found: Dimension::Length,
+            },
+        },
+        &["the expression at slot loop 0 step 2 · centre x failed"],
+        &dumps,
+    );
+    assert_f6(
+        &NodeErrorKind::MissingSlot { slot },
+        &["expected its loop 0 step 2 · centre x input"],
+        &dumps,
+    );
+}
+
 #[test]
 fn snapshot_error_display_names_its_content_not_its_struct() {
     let node = RecipeNodeId(5);

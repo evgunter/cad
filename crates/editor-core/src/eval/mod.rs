@@ -1874,7 +1874,8 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Expr { slot, source } => {
                 write!(
                     f,
-                    "the expression at slot {slot:?} failed to evaluate: {source}"
+                    "the expression at slot {} failed to evaluate: {source}",
+                    slot.label()
                 )
             }
             Self::Profile(e) => write!(f, "the replayed profile failed validation: {e}"),
@@ -2014,8 +2015,8 @@ impl core::fmt::Display for NodeErrorKind {
             Self::MissingSlot { slot } => {
                 write!(
                     f,
-                    "the node's wiring expected its {slot:?} input, which is absent (a kernel \
-                     bug)"
+                    "the node's wiring expected its {} input, which is absent (a kernel bug)",
+                    slot.label()
                 )
             }
             // The sentence is single-homed at the run doors' own

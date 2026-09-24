@@ -1700,15 +1700,6 @@ fn local_binding_span(
 /// some of them leaves the guard green over the rest.
 const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[
     (
-        "crates/editor-core/src/eval/mod.rs",
-        "NodeErrorKind",
-        "slot",
-        2,
-        "`SlotId::Profile` is a struct variant, and `SlotId::label` is \
-         the prose spelling this site does not use — WIRE's, filed at \
-         work/wire/node-error-kind-renders-the-slot-id-through-debug.md",
-    ),
-    (
         "crates/topo/src/boolean/voids.rs",
         "VoidInsertError",
         "e",
