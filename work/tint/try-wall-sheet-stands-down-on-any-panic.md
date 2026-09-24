@@ -4,6 +4,8 @@ kind: issue
 title: try_wall_sheet cannot tell an unmintable fixture from a broken builder, so its two rows pass over both
 status: open
 opened: 2026-09-20
+priority: P3
+cost: D
 ---
 
 

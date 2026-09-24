@@ -812,11 +812,11 @@ impl CylFrame {
 
     /// The radial unit vector at azimuth `u`.
     ///
-    /// Read from the frame's own fields rather than by projecting a
-    /// chart point back onto the plane through the axis: the
-    /// projection cancels catastrophically for a tilted frame or a
-    /// small radius, and the direction it yields is then not the one
-    /// the chart names.
+    /// Read from the frame's own fields — a combination of two
+    /// orthogonal unit vectors — rather than by projecting a chart
+    /// point back onto the plane through the axis, which subtracts the
+    /// point's axial component and carries that subtraction's rounding
+    /// into a direction the chart already names exactly.
     pub fn radial(&self, u: f64) -> Vec3<f64> {
         let w = self.axis.cross(self.u_ref);
         self.u_ref * u.cos() + w * u.sin()

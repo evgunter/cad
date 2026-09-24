@@ -141,7 +141,7 @@ swallow the planted break through `try_wall_sheet`'s `catch_unwind` and
 report ok. Row: `work/tint/try-wall-sheet-stands-down-on-any-panic.md`.
 
 The canonical-cylinder residue this unit turned up is evidence on
-`work/tint/geom-brep-inline-canonical-frame-surfaces`, not a row of its
+`work/fixture/geom-brep-inline-canonical-frame-surfaces`, not a row of its
 own (see the fix pass below).
 
 ## Fix pass, 2026-09-20 — the guard reach the first cut removed
@@ -201,7 +201,7 @@ directions rather than one.
 
 `the-canonical-unit-cylinder-literal-has-no-reachable-home` was
 **deleted before it reached the board**: the class is already
-`work/tint/geom-brep-inline-canonical-frame-surfaces`, open since
+`work/fixture/geom-brep-inline-canonical-frame-surfaces`, open since
 2026-09-03. Its evidence — the in-`src` `#[cfg(test)]` half that row's
 `crates/geom-brep/tests/` scope never covered, the 204/17 denominators,
 and the second candidate home `CylFrame` is — went into that row

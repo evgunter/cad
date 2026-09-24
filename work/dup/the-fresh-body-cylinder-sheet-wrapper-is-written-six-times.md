@@ -4,6 +4,8 @@ kind: issue
 title: The fresh-body cylinder-sheet wrapper is written six times across two probe suites
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 

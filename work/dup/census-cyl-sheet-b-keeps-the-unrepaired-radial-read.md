@@ -10,7 +10,6 @@ closed: 2026-09-20
 branch: dup/src-cyl-sheet
 parent: topo-src-cyl-sheet-is-one-construction-twice-and-not-the-tests-one
 pr: 2925
-refs: [the-radial-repairs-catastrophic-cancellation-claim-is-unmeasured]
 ---
 
 
@@ -104,13 +103,17 @@ empty**. The conclusion stands. The count under it was wrong: a row
 closing on "one window" having measured one of two, in the program
 whose subject is counts that do not survive re-taking.
 
-**The declined row is filed after all**, and the reasoning above was
-half right. Not guessing a threshold was right. Leaving the question
-unowned was not: this row is closed and the ledger deletes it at
-program close, the projection read is now gone from the tree, and what
-remains is `CylFrame::radial`'s rustdoc asserting that the projection
-*"cancels catastrophically for a tilted frame or a small radius"* with
-nothing under it. That is the row —
-`work/tint/the-radial-repairs-catastrophic-cancellation-claim-is-unmeasured`
-— and it carries **no number**, which is what item 8 asks for when a
-lane has no measurement: the file, not a guess in it.
+**Owning the question: a doc line, not a row.** Not guessing a
+threshold was right. Leaving the question unowned was not: this row is
+closed and goes with the program's directory when it closes, the projection read is now
+gone from the tree, and what remained was `CylFrame::radial`'s rustdoc
+asserting that the projection *"cancels catastrophically for a tilted
+frame or a small radius"* with nothing under it. The fix pass first
+filed that as an S-TINT row. Under the tracker's since-ratified rule
+that a small thing fixable where you stand is fixed, not filed
+(`work/README.md`, "The tracker is not comprehensive"), it is instead
+**a doc edit in this PR**: the rustdoc now states only what its own
+code holds — the frame read combines two orthogonal unit vectors,
+where the projection subtracts an axial component and carries that
+rounding — and makes no claim about when the projection fails. Nothing
+unmeasured is asserted, so nothing is left to own.
