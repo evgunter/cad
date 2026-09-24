@@ -4069,6 +4069,7 @@ mod tests {
     use crate::boolean::PatchContact;
     use crate::entity::FaceKey;
     use crate::euler::{FaceSurface, MefSite, MevSite};
+    use crate::test_support_fixtures::{CylFrame, CylKey, cyl_wall_sheet_keyed, unit_cyl_sheet};
     use geom::Surface;
     use geom_core::Tol;
     use geom_core::Vec3;
@@ -4077,137 +4078,25 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
-    fn cyl_surface() -> Surface<f64> {
-        Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        }
-    }
-
-    fn cyl_pt(u: f64, z: f64) -> Point3<f64> {
-        Point3::new(u.cos(), u.sin(), z)
-    }
-
-    /// An open cylinder-wall sheet `u ∈ [u0, u1] × z ∈ [z0, z1]` on
-    /// the shared key, with the wall face's sense set.
-    fn cyl_sheet(
-        body: &mut Body<f64>,
-        cyl: Option<crate::geometry::SurfaceKey>,
-        u0: f64,
-        u1: f64,
-        z0: f64,
-        z1: f64,
-        sense: bool,
-    ) -> (FaceKey, crate::geometry::SurfaceKey) {
-        use geom::Curve3;
-        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
-        let (p00, p10, p11, p01) = (
-            cyl_pt(u0, z0),
-            cyl_pt(u1, z0),
-            cyl_pt(u1, z1),
-            cyl_pt(u0, z1),
-        );
-        let seed = body.mvfs(p00).unwrap();
-        let cyl = cyl.unwrap_or_else(|| body.add_surface(cyl_surface()));
-        let rim = |body: &mut Body<f64>, z: f64, ccw: bool| {
-            let plane = body.add_surface(Surface::Plane {
-                origin: Point3::new(0.0, 0.0, z),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
-            });
-            let (carrier, t0, t1) = if ccw {
-                (
-                    Curve3::Circle {
-                        center: Point3::new(0.0, 0.0, z),
-                        axis: Vec3::unit_z(),
-                        radius: 1.0,
-                        u_ref: Vec3::unit_x(),
-                    },
-                    u0,
-                    u1,
-                )
-            } else {
-                (
-                    Curve3::Circle {
-                        center: Point3::new(0.0, 0.0, z),
-                        axis: Vec3::new(0.0, 0.0, -1.0),
-                        radius: 1.0,
-                        u_ref: Vec3::new(u1.cos(), u1.sin(), 0.0),
-                    },
-                    0.0,
-                    u1 - u0,
-                )
-            };
-            EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection {
-                    s1: cyl,
-                    s2: plane,
-                    witness: cyl_pt((u0 + u1) * 0.5, z),
-                },
-                carrier,
-                param_start: t0,
-                param_end: t1,
-            }
-        };
-        let bottom = rim(body, z0, true);
-        let e_b = body
-            .mev(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p10,
-                bottom,
-                Tol::witness(),
-            )
-            .unwrap();
-        let e_r = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: e_b.he_minus,
-                    he2: e_b.he_minus,
-                },
-                p11,
-                Tol::witness(),
-            )
-            .unwrap();
-        let top = rim(body, z1, false);
-        let e_t = body
-            .mev(
-                MevSite::Fan {
-                    he1: e_r.he_minus,
-                    he2: e_r.he_minus,
-                },
-                p01,
-                top,
-                Tol::witness(),
-            )
-            .unwrap();
-        let he = body
-            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
-            .unwrap();
-        let face = body
-            .mef(
-                MefSite::Chords {
-                    he1: he,
-                    he2: e_b.he_plus,
-                },
-                EdgeCurveSpec::line_between(p01, p00),
-                FaceSurface::Shared(cyl),
-                Tol::witness(),
-            )
-            .unwrap()
-            .face;
-        body.set_face_sense(face, sense).unwrap();
-        (face, cyl)
-    }
-
     /// Two overlapping opposed-sense wall sheets on one cylinder key.
     fn conformal_pair() -> (Body<f64>, FaceKey, FaceKey) {
         let mut body = Body::<f64>::new();
-        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, false);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
+        let (w2, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (1.0, 2.4),
+            (0.3, 0.7),
+            false,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         (body, w1, w2)
     }
@@ -4305,8 +4194,22 @@ mod tests {
     fn a_placeholder_seed_leaves_the_containing_extent_unclaimable() {
         let refusals = |z0: f64, z1: f64| -> Vec<String> {
             let mut body = Body::<f64>::new();
-            let (_w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-            let (_w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, z0, z1, false);
+            let (_w1, cyl) = unit_cyl_sheet(
+                &mut body,
+                None,
+                (0.2, 1.6),
+                (0.0, 1.0),
+                true,
+                Tol::witness(),
+            );
+            let (_w2, _) = unit_cyl_sheet(
+                &mut body,
+                Some(cyl),
+                (1.0, 2.4),
+                (z0, z1),
+                false,
+                Tol::witness(),
+            );
             crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
             census_and_certify(
                 &body,
@@ -4458,8 +4361,22 @@ mod tests {
     #[test]
     fn a_disjoint_patch_record_is_stale_typed() {
         let mut body = Body::<f64>::new();
-        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-        let (w3, _) = cyl_sheet(&mut body, Some(cyl), 3.0, 4.0, 0.0, 1.0, false);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
+        let (w3, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (3.0, 4.0),
+            (0.0, 1.0),
+            false,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
         records.patches.push(PatchContact {
@@ -4691,8 +4608,22 @@ mod tests {
         let mut body = Body::<f64>::new();
         // Overlap region u ∈ [0.4, 1.4] × z ∈ [0.5, 0.5 + 5e-9]:
         // mean width ≈ 5e-9 m, inside Band{1e-9, 1e-8}.
-        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 0.5 + 5e-9, true);
-        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.4, 1.4, 0.5, 1.0, false);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 0.5 + 5e-9),
+            true,
+            Tol::witness(),
+        );
+        let (w2, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (0.4, 1.4),
+            (0.5, 1.0),
+            false,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let arm = census_and_certify(
             &body,
@@ -4753,10 +4684,24 @@ mod tests {
     fn r1_probe_next_branch_windows_still_find_the_overlap() {
         let tau = core::f64::consts::TAU;
         let mut body = Body::<f64>::new();
-        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
         // Same locus, next periodic branch; u-nested and z-nested so
         // no strut/vertex coincidences muddy the face-pair question.
-        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.5 + tau, 1.2 + tau, 0.3, 0.7, false);
+        let (w2, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (0.5 + tau, 1.2 + tau),
+            (0.3, 0.7),
+            false,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let arm = census_and_certify(
             &body,
@@ -4799,8 +4744,22 @@ mod tests {
         // Same key, SAME sense: aligned coincidence is containment or
         // flush material, never contact (C1) — the record lies.
         let mut body = Body::<f64>::new();
-        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, true);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
+        let (w2, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (1.0, 2.4),
+            (0.3, 0.7),
+            true,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
         records.patches.push(PatchContact {
@@ -4855,6 +4814,11 @@ mod tests {
     /// A wall sheet over the DIVERGENT description of the unit
     /// cylinder: `θ_world = 0.7 − u_B`, `z_world = 0.25 − v_B`. Takes
     /// the WORLD window and converts.
+    ///
+    /// The frame is [`CylFrame::opposed`] at seam `0.7` — the same
+    /// locus as [`unit_cyl_sheet`]'s and not one field in common with
+    /// it — so the pair this seeds disagrees on every field of the
+    /// description while naming one cylinder.
     fn cyl_sheet_b(
         body: &mut Body<f64>,
         th0: f64,
@@ -4863,117 +4827,17 @@ mod tests {
         z1: f64,
         sense: bool,
     ) -> FaceKey {
-        use geom::Curve3;
-        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
         let d = 0.7_f64;
-        let origin = Point3::new(0.0, 0.0, 0.25);
-        let axis = -Vec3::unit_z();
-        let u_ref = Vec3::new(d.cos(), d.sin(), 0.0);
         let (u0, u1, v0, v1) = (d - th1, d - th0, 0.25 - z1, 0.25 - z0);
-        let at = |u: f64, v: f64| -> Point3<f64> {
-            let w = axis.cross(u_ref);
-            origin + (u_ref * u.cos() + w * u.sin()) * 1.0 + axis * v
-        };
-        let (p00, p10, p11, p01) = (at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1));
-        let seed = body.mvfs(p00).unwrap();
-        let cyl = body.add_surface(Surface::Cylinder {
-            origin,
-            axis,
-            radius: 1.0,
-            u_ref,
-        });
-        body.set_surface_source(cyl, crate::GeomSource::minted(7102, 0))
-            .unwrap();
-        let rim = |body: &mut Body<f64>, v: f64, ccw: bool| {
-            let center = origin + axis * v;
-            let plane = body.add_surface(Surface::Plane {
-                origin: center,
-                normal: axis,
-                u_ref,
-            });
-            let (carrier, t0, t1) = if ccw {
-                (
-                    Curve3::Circle {
-                        center,
-                        axis,
-                        radius: 1.0,
-                        u_ref,
-                    },
-                    u0,
-                    u1,
-                )
-            } else {
-                let s = at(u1, v) - center - axis * ((at(u1, v) - center).dot(axis));
-                (
-                    Curve3::Circle {
-                        center,
-                        axis: -axis,
-                        radius: 1.0,
-                        u_ref: s.normalize(),
-                    },
-                    0.0,
-                    u1 - u0,
-                )
-            };
-            EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection {
-                    s1: cyl,
-                    s2: plane,
-                    witness: at((u0 + u1) * 0.5, v),
-                },
-                carrier,
-                param_start: t0,
-                param_end: t1,
-            }
-        };
-        let bottom = rim(body, v0, true);
-        let e_b = body
-            .mev(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p10,
-                bottom,
-                Tol::witness(),
-            )
-            .unwrap();
-        let e_r = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: e_b.he_minus,
-                    he2: e_b.he_minus,
-                },
-                p11,
-                Tol::witness(),
-            )
-            .unwrap();
-        let top = rim(body, v1, false);
-        let e_t = body
-            .mev(
-                MevSite::Fan {
-                    he1: e_r.he_minus,
-                    he2: e_r.he_minus,
-                },
-                p01,
-                top,
-                Tol::witness(),
-            )
-            .unwrap();
-        let he = body
-            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
-            .unwrap();
-        let face = body
-            .mef(
-                MefSite::Chords {
-                    he1: he,
-                    he2: e_b.he_plus,
-                },
-                EdgeCurveSpec::line_between(p01, p00),
-                FaceSurface::Shared(cyl),
-                Tol::witness(),
-            )
-            .unwrap()
-            .face;
+        let (face, _) = cyl_wall_sheet_keyed(
+            body,
+            CylFrame::opposed(d),
+            CylKey::Bare,
+            Some(7102),
+            (u0, u1),
+            (v0, v1),
+            Tol::witness(),
+        );
         body.set_face_sense(face, sense).unwrap();
         face
     }
@@ -4988,7 +4852,14 @@ mod tests {
         z1: f64,
     ) -> (Body<f64>, FaceKey, FaceKey) {
         let mut body = Body::<f64>::new();
-        let (w1, cyl_a) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (w1, cyl_a) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
         body.set_surface_source(cyl_a, crate::GeomSource::minted(7101, 0))
             .unwrap();
         let w2 = cyl_sheet_b(&mut body, th0, th1, z0, z1, false);
@@ -5098,8 +4969,22 @@ mod tests {
     fn n2r2_class7_face_reach_partial_box_and_census_decision() {
         let run = |z0: f64, z1: f64| -> (Vec<String>, Vec<String>) {
             let mut body = Body::<f64>::new();
-            let (_w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-            let (_w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, z0, z1, false);
+            let (_w1, cyl) = unit_cyl_sheet(
+                &mut body,
+                None,
+                (0.2, 1.6),
+                (0.0, 1.0),
+                true,
+                Tol::witness(),
+            );
+            let (_w2, _) = unit_cyl_sheet(
+                &mut body,
+                Some(cyl),
+                (1.0, 2.4),
+                (z0, z1),
+                false,
+                Tol::witness(),
+            );
             crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
             let seeds = swap_placeholders(&mut body);
             assert_eq!(seeds.len(), 2);
@@ -5137,7 +5022,14 @@ mod tests {
     #[test]
     fn n2r2_face_box_partial_poison_prunes_on_finite_axes() {
         let mut body = Body::<f64>::new();
-        let (_w1, _cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (_w1, _cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let seeds = swap_placeholders(&mut body);
         let b = crate::boolean::boxes::face_box(&body, seeds[0], 1e-9).unwrap();
@@ -5296,7 +5188,7 @@ mod tests {
             normal: Vec3::unit_z(),
             u_ref: Vec3::unit_x(),
         });
-        let cyl = body.add_surface(cyl_surface());
+        let cyl = body.add_surface(CylFrame::canonical(1.0).surface());
         let arc = body
             .mev(
                 MevSite::Lone {
