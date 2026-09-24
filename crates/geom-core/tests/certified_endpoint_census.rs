@@ -37,14 +37,19 @@
 //!
 //! Two parts, walked as one:
 //!
-//! * every `crates/*/src` file whose PRODUCTION code calls a
-//!   certification door ([`DOORS`]): it builds a certification bracket
-//!   (`Interval::from_certified`, `Interval::hull`, `Interval::refused`,
-//!   `.clamped_to(…)`) or refuses one (`.is_certified()`). The key is
-//!   what the code does, read off the same CODE view the counts are, so
-//!   a file enters when it starts building or refusing certification
-//!   brackets and leaves only when it stops — never because a comment
-//!   moved;
+//! * every `crates/*/src` file whose PRODUCTION code reaches the
+//!   certification arithmetic ([`reaches_certification`]): it names the
+//!   `geom_core::interval::certification` module — the only route to the
+//!   [`Certification`](geom_core::interval::certification::Certification)
+//!   doors, which are that trait's and are listed there, not here — or it
+//!   crosses into certification (`Interval::from_certified`) or refuses a
+//!   bracket (`.is_certified()`). The key is what the code does, read off
+//!   the same CODE view the counts are, so a file enters when it starts
+//!   building or refusing certification brackets and leaves only when it
+//!   stops — never because a comment moved. The module half of the key
+//!   is `scripts/gates/certification-doors.sh`'s key, and
+//!   [`the_door_importers_are_the_gate_s_allowlist`] holds the two
+//!   instruments to one population;
 //! * every file in [`HOLDERS`]: the files that hold certification
 //!   brackets, by name, whether or not they call a door. A file that
 //!   reads a bracket it was handed calls no door, and the door key alone
@@ -80,9 +85,12 @@
 //!    happens and nothing here counts it. No text key can find such a
 //!    file, because the bracket's type is also the evaluation scalar —
 //!    telling the two apart needs name resolution, a compiler, not a
-//!    lexer. The door match is textual too, so a door reached under
-//!    another name (`use geom_core::Interval as Cert;`) is outside it;
-//!    no such alias exists in the tree.
+//!    lexer. The module key is textual too, but it is the one route to
+//!    the doors: the trait is sealed, reached only through its module,
+//!    and re-exported nowhere, so a door call cannot be written without
+//!    the module's name somewhere in the file (a `pub use` of the trait
+//!    under another name is the gate's KNOWN GAP 4, and the census
+//!    shares it).
 //!
 //! # Where it lives, and why here
 //!
@@ -94,26 +102,71 @@
 
 use test_utils::source;
 
+// Every crate the population walks — it reads every `crates/*/src` —
+// and the gate whose allowlist the cross-read row reads.
 test_utils::gated_to![
-    "crates/geom-core/src/",
-    "crates/geom-brep/src/",
+    "crates/bvh/src/",
+    "crates/editor-core/src/",
     "crates/geom/src/",
+    "crates/geom-brep/src/",
+    "crates/geom-core/src/",
     "crates/mesh/src/",
+    "crates/pncad/src/",
+    "crates/pncad-py/src/",
+    "crates/profile/src/",
+    "crates/quantity/src/",
+    "crates/step-export/src/",
+    "crates/step-import/src/",
+    "crates/stl/src/",
+    "crates/sweep/src/",
+    "crates/test-utils/src/",
     "crates/topo/src/",
-    "crates/step-import/src/recognize_curve.rs",
+    "crates/verbs/src/",
+    "crates/viewer/src/",
+    "scripts/gates/certification-doors.sh",
 ];
 
-/// The certification doors whose call puts a file in the population:
-/// the constructors that build a certification bracket and the
-/// predicate that refuses one, as they are spelled at a call site in the
-/// CODE view.
-const DOORS: &[&str] = &[
-    "Interval::from_certified(",
-    "Interval::hull(",
-    "Interval::refused(",
-    ".clamped_to(",
-    ".is_certified()",
-];
+/// The inherent doors whose call puts a file in the population besides
+/// the module key: the crossing into certification arithmetic and the
+/// predicate that refuses a bracket, as they are spelled at a call site
+/// in the CODE view. The trait's doors need no entry: a file cannot call
+/// one without naming the module ([`names_the_certification_module`]).
+const INHERENT_DOORS: &[&str] = &["Interval::from_certified(", ".is_certified()"];
+
+/// The trait's home: it defines the doors rather than importing them.
+const TRAIT_HOME: &str = "crates/geom-core/src/interval/certification.rs";
+
+/// The gate that holds the importers, whose allowlist
+/// [`the_door_importers_are_the_gate_s_allowlist`] reads.
+const GATE: &str = "scripts/gates/certification-doors.sh";
+
+/// Whether a CODE-view line names the certification module as a path —
+/// `certification::` or `certification as`, at an identifier boundary.
+/// The gate's `CERT_KEY_RE`, over one line. The bare word is also a
+/// struct field elsewhere in the tree (`certification: …`), which is why
+/// the key is the path and not the word.
+fn names_the_certification_module(line: &str) -> bool {
+    let mut rest = line;
+    while let Some(at) = rest.find("certification") {
+        let before = rest[..at].chars().next_back();
+        let after = rest[at + "certification".len()..].trim_start();
+        if before.is_none_or(|c| !c.is_alphanumeric() && c != '_')
+            && (after.starts_with("::") || after.starts_with("as "))
+        {
+            return true;
+        }
+        rest = &rest[at + "certification".len()..];
+    }
+    false
+}
+
+/// Whether a file's production lines reach certification arithmetic:
+/// the module key, or an inherent door.
+fn reaches_certification(lines: &[String]) -> bool {
+    lines.iter().any(|l| {
+        names_the_certification_module(l) || INHERENT_DOORS.iter().any(|door| l.contains(door))
+    })
+}
 
 /// The files that hold certification brackets, walked whether or not
 /// their production code calls a door: every `crates/*/src` file that
@@ -158,8 +211,8 @@ const HOLDERS: &[&str] = &[
 ];
 
 /// One entry per file walked with at least one endpoint read — every
-/// `crates/*/src` file whose production code calls a door in [`DOORS`],
-/// and every file in [`HOLDERS`]:
+/// `crates/*/src` file whose production code reaches certification
+/// arithmetic ([`reaches_certification`]), and every file in [`HOLDERS`]:
 /// the path, the production endpoint-read LINES, and how many of those
 /// sit in a function that asks `is_certified()`.
 ///
@@ -215,10 +268,10 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/certify.rs",
-        16,
-        8,
-        "the 8 that ask are the mignitude (`zero_free_lower_bound`, 4), the \
-         transversality span-hull window (2: `probe_tube_chart` refuses either window \
+        12,
+        4,
+        "the 4 that ask are the transversality span-hull window (2: \
+         `probe_tube_chart` refuses either window \
          hull by name before reading it — a refused hull is NaI, and a NaN window end \
          would land on the first span), and two `T: Bounds` reads of the pcurve's \
          tangent that share that function and count only by blind spot 2. The other \
@@ -227,29 +280,35 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
     ),
     (
         "crates/geom-brep/src/ssi/enclose.rs",
-        6,
-        6,
-        "`Box3`'s disjointness, containment, centre and split all refuse by name",
+        10,
+        10,
+        "`Box3`'s disjointness, containment, centre and split all refuse by name, and \
+         so does the mignitude (`zero_free_lower_bound`, 4)",
     ),
     ("crates/geom-brep/src/ssi/exhaust.rs", 1, 1, ""),
     (
         "crates/geom-core/src/interval.rs",
-        19,
-        5,
-        "the type's own body. The 5 that ask are the certification doors that read \
-         an endpoint (`clamped_to`, `width`, `mag`) and the two refusal doors \
+        16,
+        2,
+        "the type's own body. The 2 that ask are the two refusal doors \
          (`certified_bracket`, `sign_within`). The other 14 are not certification \
          reads at all — blind spot 1: they are the evaluation scalar's own \
          implementation reads of the `DInterval` it wraps (the `Bounds` forwarders, \
          `repr_bits`, `copysign` and the kink selectors), which test NaI and empty \
          themselves and carry the decoration forward rather than certifying",
     ),
+    (
+        "crates/geom-core/src/interval/certification.rs",
+        3,
+        3,
+        "the doors that read an endpoint (`clamped_to`, `width`, `mag`), each refusing first",
+    ),
     ("crates/geom-core/src/spline/compose/tensor.rs", 3, 3, ""),
     ("crates/geom-core/src/sym/signed.rs", 2, 2, ""),
     ("crates/geom/src/curves/nurbs.rs", 4, 4, ""),
     ("crates/mesh/src/chords.rs", 2, 2, ""),
     ("crates/mesh/src/nurbs_cert.rs", 1, 1, ""),
-    ("crates/topo/src/props.rs", 8, 8, ""),
+    ("crates/topo/src/props/quad_lane.rs", 5, 5, ""),
 ];
 
 /// The repo root: this crate's directory, two levels up.
@@ -262,8 +321,8 @@ fn repo_root() -> std::path::PathBuf {
         .expect("crates/<name> sits two levels under the repo root")
 }
 
-/// Every `crates/*/src` file whose production code calls a door, and
-/// every file in [`HOLDERS`], with its production lines. **The shared lexer's CODE view**, not the raw
+/// Every `crates/*/src` file whose production code reaches certification
+/// arithmetic, and every file in [`HOLDERS`], with its production lines. **The shared lexer's CODE view**, not the raw
 /// text: a `.lo()` or a door inside a doc comment or a string literal is
 /// neither a read nor a call, and blanking keeps the newlines so a line
 /// count over this view is a line count over the file
@@ -287,10 +346,7 @@ fn population(root: &std::path::Path) -> Vec<(String, Vec<String>)> {
                 .expect("a walked file lies under the repo root")
                 .to_string_lossy()
                 .replace('\\', "/");
-            let calls_a_door = lines
-                .iter()
-                .any(|l| DOORS.iter().any(|door| l.contains(door)));
-            if !calls_a_door && !HOLDERS.contains(&rel.as_str()) {
+            if !reaches_certification(&lines) && !HOLDERS.contains(&rel.as_str()) {
                 continue;
             }
             out.push((rel, lines));
@@ -441,4 +497,75 @@ fn every_listed_holder_exists() {
          under its new path; a deleted one leaves the list, and the certification \
          brackets it held are either gone or now live somewhere that has to be listed"
     );
+}
+
+/// The census and the gate are two instruments over one population: the
+/// files whose production code names the certification module are
+/// exactly `scripts/gates/certification-doors.sh`'s `CERT_IMPORTERS`.
+/// Read out of the gate's own text, so neither list can gain or lose a
+/// file without the other — and read loudly: an array that parses to
+/// nothing is a broken reader, not an empty population.
+#[test]
+fn the_door_importers_are_the_gate_s_allowlist() {
+    let root = repo_root();
+    let gate = std::fs::read_to_string(root.join(GATE)).expect("the gate is readable");
+    let allowlist = gate_importers(&gate);
+    assert!(
+        allowlist.len() >= 10,
+        "read {} entries out of {GATE}'s CERT_IMPORTERS array — the array moved or its \
+         reader broke, and a cross-read over too few entries proves nothing",
+        allowlist.len()
+    );
+    let importers = importers(&root);
+    assert!(
+        importers.len() >= 10,
+        "the walk found {} files naming the certification module — it is reading the \
+         wrong tree",
+        importers.len()
+    );
+    assert_eq!(
+        importers, allowlist,
+        "the files whose production code names geom_core::interval::certification (left) \
+         are not {GATE}'s CERT_IMPORTERS (right). The two are one population: a file that \
+         imports the certification doors is added to the gate's list in the change that \
+         makes it import them, and leaves it in the change that stops"
+    );
+}
+
+/// `CERT_IMPORTERS=( … )`'s entries, in order, from the gate's text: one
+/// path per line, comments and blank lines skipped. An unterminated
+/// array is a reader failure, not a short list.
+fn gate_importers(gate: &str) -> Vec<String> {
+    let start = gate
+        .lines()
+        .position(|l| l.trim_start().starts_with("CERT_IMPORTERS=("))
+        .expect("the gate declares CERT_IMPORTERS=(");
+    let mut out = Vec::new();
+    for line in gate.lines().skip(start + 1) {
+        let t = line.trim();
+        if t == ")" {
+            let mut sorted = out.clone();
+            sorted.sort();
+            return sorted;
+        }
+        if t.is_empty() || t.starts_with('#') {
+            continue;
+        }
+        out.push(t.to_string());
+    }
+    panic!("{GATE}'s CERT_IMPORTERS array is never closed");
+}
+
+/// Every `crates/*/src` file whose production code names the
+/// certification module, less the trait's home, sorted.
+fn importers(root: &std::path::Path) -> Vec<String> {
+    let mut out: Vec<String> = population(root)
+        .into_iter()
+        .filter(|(name, lines)| {
+            name != TRAIT_HOME && lines.iter().any(|l| names_the_certification_module(l))
+        })
+        .map(|(name, _)| name)
+        .collect();
+    out.sort();
+    out
 }
