@@ -377,3 +377,34 @@ suspended the A/B protocol on 2026-09-23, so it finishes under it and
 its row is recorded on `main`; the orchestrator field spans Fable →
 Opus 5.5. **Block DECIDE-B1 closes** with slot 2 (DECIDE-4) unconsumed,
 per the suspension; DECIDE-4 runs on Opus under the review tiers.
+
+## 2026-09-24 — DECIDE-4 spec'd: rule D past the unit bulge, DUAL
+
+`rule-d-reaches-the-unit-bulge-only` is cut as DECIDE-4
+(`docs/DECIDE-4-SPEC.md`, branch `decide/4-bulge-reach` from
+`props/sign-hull` at `7f3c0cc3f`, the PR targeting `props/sign-hull`).
+Opus implementer.
+
+**Review tier: DUAL**, class M / NUMERIC. The reason: the unit changes
+what the tier decides across a family (every fillet, `Via` and tangent
+arc, `CircleSplit(n ≠ 2)` and every `restrict`-minted sub-arc — a
+third of the tour). The change is also a value-free rewrite over
+`abs`, which is where the record has found unsound folds before
+(SYM-8's `copysign` narrowing; DECIDE-3's side-condition source). If
+the unit closes at its Phase 1 measurement, the tier drops to a single
+STYLE review, and this log will say so when it happens.
+
+**The DR row's home, decided here:** `docs/DUAL-REVIEW-LOG.md` lives
+on `main` and not on `props/sign-hull`, so rule 8's "the row rides the
+unit's own PR as its last commit" cannot hold for a unit whose PR
+targets a props branch. The row rides the orchestrator's carry PR to
+`main` instead, as its last commit, and takes its DR number when that
+PR merges. The alternative, merging `main` into the unit's branch to
+carry the log, was rejected. It would bring `main` into
+`props/sign-hull` ahead of PROPS's own merge, which DECIDE-3 and SYM-9
+both avoided.
+
+**The route A / route B fork on the bulge's sign** is not decided here.
+The item leaves it to Ev with the orchestrator. The spec has Phase 1
+count both routes on today's tree, and stops before either is
+implemented. The sign-free part (Phase 2a) does not wait on it.
