@@ -41,7 +41,7 @@
 use core::num::NonZeroUsize;
 use geom_core::exact::two_sum;
 use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Point3, Readable, Real, Vec3};
 
 use crate::net;
 
@@ -583,7 +583,9 @@ impl core::fmt::Display for KnotMirrorError {
         match self {
             KnotMirrorError::ReflectionNotFinite { lo, hi } => write!(
                 f,
-                "knot mirror: the domain [{lo}, {hi}] has no finite reflection sum"
+                "knot mirror: the domain [{}, {}] has no finite reflection sum",
+                Readable(*lo),
+                Readable(*hi)
             ),
             KnotMirrorError::AsymmetricPair {
                 index,
@@ -594,8 +596,11 @@ impl core::fmt::Display for KnotMirrorError {
                 hi,
             } if index == mirror_index => write!(
                 f,
-                "knot mirror: the middle knot {index} ({knot}) is not the midpoint \
-                 of [{lo}, {hi}]"
+                "knot mirror: the middle knot {index} ({}) is not the midpoint \
+                 of [{}, {}]",
+                Readable(*knot),
+                Readable(*lo),
+                Readable(*hi)
             ),
             KnotMirrorError::AsymmetricPair {
                 index,
@@ -606,9 +611,11 @@ impl core::fmt::Display for KnotMirrorError {
                 hi,
             } => write!(
                 f,
-                "knot mirror: knots {index} and {mirror_index} ({knot}, {mirror_knot}) \
+                "knot mirror: knots {index} and {mirror_index} ({}, {}) \
                  do not sum to {} exactly",
-                lo + hi
+                Readable(*knot),
+                Readable(*mirror_knot),
+                Readable(lo + hi)
             ),
         }
     }
@@ -1822,6 +1829,11 @@ mod reversal_tests {
             s.reversed_v().unwrap_err(),
             KnotMirrorError::ReflectionNotFinite { lo, hi },
             "the door refuses a reflection it cannot compute"
+        );
+        assert_eq!(
+            s.reversed_v().unwrap_err().to_string(),
+            "knot mirror: the domain [1e308, 1.5e308] has no finite reflection sum",
+            "the refusal names a domain at the ceiling of the range readably"
         );
         // And it refuses a vector that IS its own reflection in ℝ, for
         // the same reason: the test that would admit it cannot be run.
