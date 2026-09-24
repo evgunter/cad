@@ -1,7 +1,7 @@
 # Inventory: transcendental entry points of the kernel's interval lane
 
 The interval lane is the `Real` trait's `Interval` instantiation
-(`crates/geom-core/src/interval.rs`, behind the `interval` feature).
+(`crates/geom-core/src/interval.rs`, compiled in every build).
 Everything generic over `T: Real` runs at `T = Interval`, so the consumed
 surface is the `Real` trait's transcendental methods, weighted by which
 generic code calls them. This document fixes the SCOPE of the crate; it

@@ -20,7 +20,7 @@ $ local-scripts/render-hosted.sh                           # + montage images (i
 
 ```console
 $ cargo test -p editor-core --test all m4_pr8_corpus              # corpus rows
-$ cargo test -p editor-core --test all --features interval        # certified lane
+$ cargo test -p editor-core --test all interval                   # certified lane
 ```
 
 ```console

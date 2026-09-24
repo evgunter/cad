@@ -15,7 +15,7 @@ is the failure mode this whole track is about. `scripts/gates/`'s own roster
 argument (see `gate-roster.sh`) is that the directory means `lib.sh`'s two-mode
 bash contract, and that a python check either reimplements it or meets none of
 it — so this lives in `scripts/` beside its sibling
-`scripts/check-interval-cfg-additive.py`, is named by hand in BOTH halves like
+`scripts/check-cache-prime-parity.py`, is named by hand in BOTH halves like
 every other check out here, and is covered by its own claim 1.
 
 Stdlib only, no YAML library: the runner image is not asked for one, matching
@@ -303,17 +303,6 @@ REACH_SELFTEST = "scripts/ci-reach.py --selftest"
 # Declared asymmetries in claim 1. `path: (half, reason)`. An entry is a
 # confession, not a disposition: it says a check runs in one half only.
 MIRROR_EXEMPT = {
-    "scripts/interval-only-selection.py": (
-        "local",
-        "the interval lane's set difference against the default build's test "
-        "list. Its hosted mirror was retired 2026-08-22 with configuration "
-        "sampling: a sampled run draws ONE lane, so on an interval draw the "
-        "default legs the selection subtracts are not running and their 93% "
-        "of the suite would be gated by nothing. The local half still runs "
-        "both lanes on one tree, where the overlap is the pure re-execution "
-        "it always was, so the script keeps exactly one caller; ci-local.sh "
-        "says so at the row",
-    ),
     # (`demos/render-uv.sh` was declared local-only here until 2026-08-22.
     # The entry described the ci.yml gate row that was retired 2026-08-17 —
     # true of ci.yml, and false of the tree: render.yml's `uv` lane composes
@@ -664,12 +653,11 @@ def semantic_env(name: str) -> bool:
 # in this file makes — and not an entry smuggled in under one of the two
 # spellings above.
 #
-# THE FLAG ENTRIES: three of them, two facts. The two `--partition` entries
-# are the same fact on two archives — hosted shards each test row across a
-# pair of jobs and the local half runs one row on one tree. The `--features`
-# entry is the other: hosted's interval row executes an ARCHIVE that was
-# already compiled with the feature, so the selection is written on a
-# different command. Both are the shape a per-pair confession is for — not
+# THE FLAG ENTRY: one, and one fact — hosted shards each test row across a
+# pair of jobs and the local half runs one row on one tree. (There were three
+# while the `interval` feature made a second archive: the same `--partition`
+# fact on it, and a `--features` entry for the feature baked into it; both
+# went with the feature.) It is the shape a per-pair confession is for — not
 # that a half forgot a token, but that the token has nothing to mean there.
 PAIR_EXEMPT = {
     ("test / run archived tests", "--partition"): (
@@ -679,21 +667,6 @@ PAIR_EXEMPT = {
         "partition locally: the shards exist to buy wall-clock on a runner "
         "billed by the minute, and a developer box running half the suite "
         "would be a worse gate, not a faster one",
-    ),
-    ("test-interval / run archived tests", "--partition"): (
-        "hosted",
-        "the same sharding, on the interval archive. Same reason as the "
-        "default row above",
-    ),
-    ("test-interval / run archived tests", "--features"): (
-        "local",
-        "the feature selection is baked into hosted's ARCHIVE, not written on "
-        "the row that runs it: the `build-interval` job compiles "
-        "nextest-interval.tar.zst with `cargo nextest archive --features "
-        "interval`, and this row only unpacks and runs it. The local half "
-        "compiles from the tree in front of you, so the selection has to be "
-        "on the row itself. Both halves select the same feature; what differs "
-        "is which command carries the flag",
     ),
     # THE ENV ENTRIES. Four, over two pairs and two facts.
     ("scene-inputs / demo tour (STL + STEP + UV SVGs + scenes.json)",
@@ -2446,8 +2419,8 @@ def marker_row(raw: list[str], at: int, funcs: dict[str, tuple[int, int]]) -> li
     prose and blank lines) is either a shell function definition — then the row
     is that function's body — or a command, and then the row is THAT COMMAND
     AND NOTHING AFTER IT. The looser reading, "every line down to the next
-    comment", swallows the three rows that follow `run_row "clippy (interval)"`
-    and hands the interval clippy pair the interval TEST rows' flags.
+    comment", swallowed the three rows that followed a clippy row in the
+    retired interval block and handed that clippy pair the TEST rows' flags.
 
     Then the shell functions the row calls are folded in, transitively:
     `run_row "wasm32 check (#807)" wasm_check` is a row whose whole argv lives
@@ -3311,8 +3284,8 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
         # THE UNWATCHED-ABSENCE DIRECTION, first for both arms and the one
         # MIRROR_EXEMPT has had all along at its "NEITHER half names it"
         # branch. Without it an exemption is not a watched asymmetry but an
-        # UNWATCHED ABSENCE: delete `--features interval` from the local
-        # interval row and the entry excusing it stops matching anything, so
+        # UNWATCHED ABSENCE: delete a flag an entry excuses from both halves
+        # and the entry excusing it stops matching anything, so
         # the flag is gone from both halves and nothing says a word — this
         # claim's own headline defect, reintroduced by its exemption table.
         for flag in sorted(f for (m, f) in PAIR_EXEMPT if m == marker and f.startswith("-")):
