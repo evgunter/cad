@@ -33,8 +33,9 @@ What IS covered today, so the gap is stated precisely:
   ring's vertices. Added by `tier3-accepts-a-ring-outside-its-outer-loop`. It
   reaches a face on a `Plane` whose outer loop is in `boolean::contain`'s
   `Polygon` class (no arc anywhere, so the walked polygon IS the loop's
-  region) and is silent on every arc-bearing class and on any non-planar face
-  (`work/atrest/check-9-nesting-is-line-bounded-only.md`).
+  region) or its `Disc` class (one circle, decided by `disc_side`), and is
+  silent on the other arc-bearing classes and on any non-planar face
+  (`work/atrest/check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk.md`).
 
 What remains uncovered:
 
