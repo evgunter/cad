@@ -158,6 +158,10 @@ mod edit_ruled_carve;
 mod edit_set_program;
 #[path = "edit_step_segments.rs"]
 mod edit_step_segments;
+#[path = "emit_boolean_vertex_keys.rs"]
+mod emit_boolean_vertex_keys;
+#[path = "emit_union_member_order.rs"]
+mod emit_union_member_order;
 #[path = "eval10_section_reads_the_nominal.rs"]
 mod eval10_section_reads_the_nominal;
 #[path = "eval4_accept_funnel.rs"]
@@ -172,6 +176,10 @@ mod eval9_nominal_in_the_key;
 mod fix_loop_polygon_expr;
 #[path = "fix_pattern_mate_crossing.rs"]
 mod fix_pattern_mate_crossing;
+#[path = "refusal_concision.rs"]
+mod refusal_concision;
+#[path = "refusal_concision_chains.rs"]
+mod refusal_concision_chains;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 
@@ -533,6 +541,7 @@ mod lib_tube_r2_probes;
 
 #[path = "m10_7_r2_probes_interval.rs"]
 mod m10_7_r2_probes_interval;
+
 #[path = "m10_8_arc_family_interval.rs"]
 mod m10_8_arc_family_interval;
 #[path = "m10_8_harness.rs"]
@@ -578,6 +587,8 @@ mod m10_derived_frame_tilted_interval;
 mod m10_sym_drive_memo_interval;
 #[path = "m10_sym_profile_interval.rs"]
 mod m10_sym_profile_interval;
+#[path = "sym11_exact_channel_rows.rs"]
+mod sym11_exact_channel_rows;
 
 #[path = "wire_band_cause.rs"]
 mod wire_band_cause;
@@ -595,3 +606,10 @@ mod wire_product_gather_tie;
 mod wire_rv_bytes;
 #[path = "wire_rv_unknown.rs"]
 mod wire_rv_unknown;
+
+#[path = "decide_1_self_dot_interval.rs"]
+mod decide_1_self_dot_interval;
+#[path = "emit_seam_edge_merged.rs"]
+mod emit_seam_edge_merged;
+#[path = "emit_seam_junction.rs"]
+mod emit_seam_junction;

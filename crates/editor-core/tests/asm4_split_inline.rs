@@ -1191,9 +1191,14 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         Tol::witness(),
         None,
     ) {
-        Err(SplitError::NameStraddlesCut { name }) => {
+        Err(SplitError::NameStraddlesCut { name, missing }) => {
             assert_eq!(*name, straddler);
-            let msg = format!("{}", SplitError::NameStraddlesCut { name });
+            assert_eq!(
+                missing, None,
+                "the straddle classification weighs the whole derivation set, so it singles \
+                 out no one node"
+            );
+            let msg = format!("{}", SplitError::NameStraddlesCut { name, missing });
             assert!(
                 msg.contains("both sides"),
                 "the message states the fault: {msg}"
@@ -1242,10 +1247,26 @@ fn split_name_refusals_fire_typed_and_name_their_subjects() {
         Tol::witness(),
         None,
     ) {
-        Err(SplitError::PartNameReachesRemainder { node, name }) => {
+        Err(SplitError::PartNameReachesRemainder {
+            node,
+            name,
+            missing,
+        }) => {
             assert_eq!(node, decl);
             assert_eq!(*name, reaching);
-            let msg = format!("{}", SplitError::PartNameReachesRemainder { node, name });
+            assert_eq!(
+                missing, kept_e,
+                "and the node outside the cut that it reaches, which the carrier id does not \
+                 say"
+            );
+            let msg = format!(
+                "{}",
+                SplitError::PartNameReachesRemainder {
+                    node,
+                    name,
+                    missing
+                }
+            );
             assert!(
                 msg.contains(&format!("node {}", decl.0)) && msg.contains("outside the cut"),
                 "the message names the site and the fault: {msg}"
@@ -1434,53 +1455,89 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
 
     // StrandedPartName: the referenced document carries an N5-stranded
     // Declare reference (its node deleted after authoring) — there is
-    // no node to remap it onto.
-    let mut store = PartStore::default();
-    let part_doc = part("asm4-min2-stranded-part", 0.0, 1.0);
-    let (part_doc, extra) = on_frame(
-        part_doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![square(10.0, 0.0, 0.5)],
-    );
-    let stranded = StableName {
-        kind: EntityKind::Edge,
-        node: extra,
-        path: vec![RoleSeg::OutputBody],
-    };
-    let anchor = StableName {
-        kind: EntityKind::Edge,
-        node: part_doc.order()[BODY_POSITION],
-        path: vec![RoleSeg::OutputBody],
-    };
-    let (part_doc, _) = insert(
-        part_doc,
-        // Both sides are READ at the surviving body; the stranded
-        // side's NAME is the extra node's, which is what the delete
-        // below strands.
-        Node::declare_rest(vec![(
-            SitedRef::new(anchor.node, stranded.clone()),
-            SitedRef::at_mint(anchor),
-        )]),
-    );
-    let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
-    let doc_ref = store.insert(part_doc, Tol::witness());
-    let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
-    let host = ProfileDoc::empty(
-        DocumentId::derive("asm4-min2-stranded-host"),
-        Tol::witness(),
-    );
-    let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
-    match inline(&host, inst, &resolver, Tol::witness()) {
-        Err(InlineError::StrandedPartName { name }) => {
-            assert_eq!(*name, stranded);
-            let msg = format!("{}", InlineError::StrandedPartName { name });
-            assert!(
-                msg.contains("no longer has"),
-                "the message states the fault: {msg}"
-            );
+    // no node to remap it onto. BOTH shapes run. The FLAT name is
+    // minted AT the deleted node, so the node the refusal carries is
+    // the name's own mint; the NESTED name is minted at the SURVIVING
+    // body and embeds the deleted node's name in a path segment, so
+    // the node that stranded is a segment DOWN from the name the
+    // refusal can report. The pair is the property: the two coincide
+    // in the flat case and come apart in the nested one, which is why
+    // the name alone does not answer "which node stranded".
+    for nested in [false, true] {
+        let mut store = PartStore::default();
+        let part_doc = part("asm4-min2-stranded-part", 0.0, 1.0);
+        let (part_doc, extra) = on_frame(
+            part_doc,
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![square(10.0, 0.0, 0.5)],
+        );
+        let body = part_doc.order()[BODY_POSITION];
+        let at_extra = StableName {
+            kind: EntityKind::Edge,
+            node: extra,
+            path: vec![RoleSeg::OutputBody],
+        };
+        let stranded = if nested {
+            StableName {
+                kind: EntityKind::Edge,
+                node: body,
+                path: vec![RoleSeg::FromA(at_extra.into())],
+            }
+        } else {
+            at_extra
+        };
+        let anchor = StableName {
+            kind: EntityKind::Edge,
+            node: body,
+            path: vec![RoleSeg::OutputBody],
+        };
+        let (part_doc, _) = insert(
+            part_doc,
+            // Both sides are READ at the surviving body; the stranded
+            // side's NAME derives from the extra node, which is what
+            // the delete below strands.
+            Node::declare_rest(vec![(
+                SitedRef::new(anchor.node, stranded.clone()),
+                SitedRef::at_mint(anchor),
+            )]),
+        );
+        let (part_doc, _) = step(part_doc, DocEdit::DeleteNode { id: extra });
+        let doc_ref = store.insert(part_doc, Tol::witness());
+        let resolver: Arc<dyn editor_core::PartResolver> = Arc::new(store);
+        let host = ProfileDoc::empty(
+            DocumentId::derive("asm4-min2-stranded-host"),
+            Tol::witness(),
+        );
+        let (host, inst) = insert(host, Node::instantiate_part(doc_ref));
+        match inline(&host, inst, &resolver, Tol::witness()) {
+            Err(InlineError::StrandedPartName { name, missing }) => {
+                assert_eq!(*name, stranded);
+                assert_eq!(
+                    missing, extra,
+                    "the refusal carries the deleted node, nested={nested}"
+                );
+                if nested {
+                    assert_ne!(
+                        missing, name.node,
+                        "nested: the node that stranded is inside a path segment, so the name \
+                         alone does not name it"
+                    );
+                } else {
+                    assert_eq!(
+                        missing, name.node,
+                        "flat: the name IS minted at the stranded node, so the two coincide — \
+                         the case that cannot tell the id from the name"
+                    );
+                }
+                let msg = format!("{}", InlineError::StrandedPartName { name, missing });
+                assert!(
+                    msg.contains("no longer has"),
+                    "the message states the fault: {msg}"
+                );
+            }
+            other => panic!("expected StrandedPartName, got {other:?}"),
         }
-        other => panic!("expected StrandedPartName, got {other:?}"),
     }
 }

@@ -13,8 +13,10 @@
 
 use crate::common;
 
-use pncad::document::{DocEdit, SlotId};
+use pncad::document::{DocEdit, DocParam, ParamName, SlotId};
 use pncad::geom_core::Tol;
+use pncad::prelude::MM;
+use pncad::quantity::WrittenLength;
 use viewer::props::{SlotDriver, SlotValue};
 use viewer::session::{DocSession, Refusal, Selection, SessionOp};
 use viewer::{props, tree};
@@ -439,6 +441,7 @@ test_utils::f6_variants! {
         DrivenByExpression,
         NoSuchSlot,
         NoSuchParam,
+        ParamNotANumber,
         ParamExists,
         EmptyName,
         WrongNodeKind,
@@ -850,4 +853,396 @@ fn the_create_door_refuses_an_existing_name_and_setparam_still_replaces() {
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
+}
+
+/// **`50 mm` sets the value AND the notation, as one undo step.**
+///
+/// The text door reads both out of one literal — `parse_expr` applies
+/// the unit factor once, on the way in — and commits them as one
+/// action, so the history gains exactly one state and an undo puts
+/// both halves back.
+#[test]
+fn a_unit_bearing_text_sets_the_value_and_the_notation_as_one_undo() {
+    let tol = Tol::witness();
+    let name = ParamName::new("base_r");
+    let mut session = DocSession::inline(
+        common::declared(
+            "auth2-written",
+            &name,
+            DocParam::written_length(WrittenLength::in_unit(20.0, MM)),
+        ),
+        tol,
+    );
+    let before = session.history().len();
+
+    let outcome = session.perform(SessionOp::SetParamText {
+        name: name.clone(),
+        text: "50 mm".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(session.history().len(), before + 1, "one undo step");
+    assert_eq!(
+        outcome.committed.len(),
+        1,
+        "one action, whatever it is made of"
+    );
+
+    let row = param_row(&session, &name);
+    assert_eq!(
+        row.value,
+        SlotValue::Continuous(0.05),
+        "fifty millimetres is 0.05 m — applied once, by the parser"
+    );
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
+    assert_eq!(
+        props::in_written(row.value.as_f64(), row.unit.expect("a length row")),
+        50.0,
+        "and the row reads back as 50 beside mm"
+    );
+
+    // One action, so ONE undo takes both halves back.
+    session.perform(SessionOp::Undo);
+    let row = param_row(&session, &name);
+    assert_eq!(row.value, SlotValue::Continuous(0.02));
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
+}
+
+/// **A number that changes only the notation moves only the
+/// notation**, and the same text a second time is not an edit at all:
+/// the door submits the edits that change something and nothing else.
+#[test]
+fn text_that_says_what_the_declaration_already_says_is_not_an_edit() {
+    let tol = Tol::witness();
+    let name = ParamName::new("base_r");
+    let mut session = DocSession::inline(
+        common::declared(
+            "auth2-noop",
+            &name,
+            DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+        ),
+        tol,
+    );
+    let before = session.history().len();
+    let outcome = session.perform(SessionOp::SetParamText {
+        name: name.clone(),
+        text: "50 mm".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(outcome.committed.is_empty(), "nothing changed, so no edit");
+    assert_eq!(session.history().len(), before, "and no undo step");
+
+    // The same value, said in another notation: the notation moves and
+    // the value does not.
+    let outcome = session.perform(SessionOp::SetParamText {
+        name: name.clone(),
+        text: "0.05 m".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(matches!(
+        outcome.committed.as_slice(),
+        [DocEdit::SetDocParamUnit { .. }]
+    ));
+    let row = param_row(&session, &name);
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("m"));
+    assert_eq!(row.value, SlotValue::Continuous(0.05));
+}
+
+/// **A document parameter holds a number, not an expression** — the
+/// refusal says so, by name, and nothing moves.
+///
+/// **Two spellings, because the layer that refuses differs.**
+/// `base_r * 2` does not reach this door at all: `2` is a count and
+/// the expression vocabulary refuses a count times a length without an
+/// explicit promotion, so what a user reads there is the parser's
+/// sentence about the multiply. `base_r * 2.0` and a bare `base_r`
+/// both parse, and those are the texts this door has to answer for.
+#[test]
+fn an_expression_typed_into_a_parameter_is_refused_with_a_sentence() {
+    let tol = Tol::witness();
+    let name = ParamName::new("base_r");
+    let mut session = DocSession::inline(
+        common::declared(
+            "auth2-expression",
+            &name,
+            DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+        ),
+        tol,
+    );
+    let before = session.history().len();
+    for text in ["base_r * 2.0", "base_r"] {
+        let outcome = session.perform(SessionOp::SetParamText {
+            name: name.clone(),
+            text: text.to_owned(),
+        });
+        let refusal = outcome.refusal.expect("a parameter takes no expression");
+        assert!(
+            matches!(refusal, Refusal::ParamNotANumber { .. }),
+            "{text}: {refusal:?}"
+        );
+        let shown = refusal.to_string();
+        assert!(
+            shown.contains("holds a number, not an expression"),
+            "the sentence says what a parameter is: {shown}"
+        );
+    }
+    // The count-promotion spelling is refused one layer earlier, by
+    // the parser, and carries the parser's own sentence.
+    let refusal = session
+        .perform(SessionOp::SetParamText {
+            name: name.clone(),
+            text: "base_r * 2".to_owned(),
+        })
+        .refusal
+        .expect("a count times a length needs an explicit promotion");
+    assert!(matches!(refusal, Refusal::Parse(_)), "{refusal:?}");
+    assert_eq!(session.history().len(), before, "and nothing moved");
+    assert_eq!(
+        param_row(&session, &name).value,
+        SlotValue::Continuous(0.05)
+    );
+}
+
+/// **An unknown unit carries the parser's own refusal**, which names
+/// the token and its offset — not a sentence re-composed at this door.
+#[test]
+fn an_unknown_unit_carries_the_parsers_own_wording() {
+    let tol = Tol::witness();
+    let name = ParamName::new("base_r");
+    let mut session = DocSession::inline(
+        common::declared(
+            "auth2-unknown-unit",
+            &name,
+            DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+        ),
+        tol,
+    );
+    let outcome = session.perform(SessionOp::SetParamText {
+        name: name.clone(),
+        text: "50 furlong".to_owned(),
+    });
+    let refusal = outcome.refusal.expect("furlong is not a table row");
+    assert!(matches!(refusal, Refusal::Parse(_)), "{refusal:?}");
+    let shown = refusal.to_string();
+    assert!(
+        shown.contains("furlong") && shown.contains("is not a unit symbol"),
+        "the parser's own sentence, naming the token: {shown}"
+    );
+    assert!(
+        !shown.contains("holds a number, not an expression"),
+        "and not this door's: {shown}"
+    );
+    assert_eq!(
+        param_row(&session, &name).value,
+        SlotValue::Continuous(0.05)
+    );
+}
+
+/// **A unit that does not measure the declared dimension is refused by
+/// the edit door**, in the door's words, and the all-or-nothing action
+/// means the value it was paired with does not land either.
+#[test]
+fn a_wrong_dimension_unit_refuses_the_whole_action() {
+    let tol = Tol::witness();
+    let name = ParamName::new("sweep");
+    let mut session = DocSession::inline(
+        common::declared(
+            "auth2-mismatch",
+            &name,
+            DocParam::continuous(pncad::document::Dimension::Angle, 1.0),
+        ),
+        tol,
+    );
+    let before = session.history().len();
+    let outcome = session.perform(SessionOp::SetParamText {
+        name: name.clone(),
+        text: "50 mm".to_owned(),
+    });
+    let refusal = outcome
+        .refusal
+        .expect("millimetres do not measure an angle");
+    assert!(matches!(refusal, Refusal::Edit(_)), "{refusal:?}");
+    let shown = refusal.to_string();
+    assert!(
+        shown.contains("declared angle") && shown.contains("measures length"),
+        "the edit door names both dimensions: {shown}"
+    );
+    assert_eq!(session.history().len(), before, "nothing was recorded");
+    let row = param_row(&session, &name);
+    assert_eq!(
+        row.value,
+        SlotValue::Continuous(1.0),
+        "and the value the action carried did not land either"
+    );
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("rad"));
+}
+
+/// **The row's unit picker moves the notation and nothing else** — one
+/// `SetDocParamUnit`, and the stored value bit-identical.
+#[test]
+fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
+    let tol = Tol::witness();
+    let name = ParamName::new("base_r");
+    let mut session = DocSession::inline(
+        common::declared(
+            "auth2-picker",
+            &name,
+            DocParam::continuous(pncad::document::Dimension::Length, 0.05),
+        ),
+        tol,
+    );
+    let outcome = session.perform(SessionOp::SetParamUnit {
+        name: name.clone(),
+        unit: MM.def(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert!(matches!(
+        outcome.committed.as_slice(),
+        [DocEdit::SetDocParamUnit { .. }]
+    ));
+    let row = param_row(&session, &name);
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("mm"));
+    assert_eq!(row.value, SlotValue::Continuous(0.05));
+
+    // A count names no notation, and the door says so rather than
+    // this one guessing.
+    let holes = ParamName::new("holes");
+    let mut counted = DocSession::inline(
+        common::declared("auth2-picker-count", &holes, DocParam::Count { value: 6 }),
+        tol,
+    );
+    let refusal = counted
+        .perform(SessionOp::SetParamUnit {
+            name: holes,
+            unit: MM.def(),
+        })
+        .refusal
+        .expect("a count has no display unit");
+    assert!(
+        refusal.to_string().contains("no display unit to change"),
+        "{refusal}"
+    );
+}
+
+/// **A refusal names the half the user was editing.**
+///
+/// `8 mm` typed into a COUNT parameter's field is a value edit with a
+/// notation on it. The notation half has nothing to say about a count
+/// — a count is an integer and names no unit under any declaration —
+/// so the door submits the value edit alone and what the user reads
+/// is the refusal of the thing they did: a count declared where a
+/// continuous value was typed. Answering it in the notation's words
+/// ("it has no display unit to change") would describe a change
+/// nobody asked for.
+#[test]
+fn a_count_refuses_a_unit_bearing_value_in_the_values_words() {
+    let tol = Tol::witness();
+    let holes = ParamName::new("holes");
+    let mut session = DocSession::inline(
+        common::declared("auth2-count-text", &holes, DocParam::Count { value: 6 }),
+        tol,
+    );
+    let before = session.history().len();
+    let refusal = session
+        .perform(SessionOp::SetParamText {
+            name: holes.clone(),
+            text: "8 mm".to_owned(),
+        })
+        .refusal
+        .expect("a count takes no continuous value");
+    let shown = refusal.to_string();
+    assert!(
+        shown.contains("declared count") && shown.contains("value edit"),
+        "the sentence names the value half: {shown}"
+    );
+    assert!(
+        !shown.contains("display unit"),
+        "and not a notation change nobody asked for: {shown}"
+    );
+    assert_eq!(session.history().len(), before, "and nothing moved");
+    assert_eq!(param_row(&session, &holes).value, SlotValue::Count(6));
+}
+
+/// The panel row for `name`, as the panel reads it.
+fn param_row(session: &DocSession, name: &ParamName) -> props::ParamRow {
+    props::param_rows(session.doc())
+        .into_iter()
+        .find(|row| &row.name == name)
+        .expect("the parameter row")
+}
+
+/// **A typed `NaN` or `inf` in a Count slot is refused, by the name
+/// the props module promises names it.**
+///
+/// `props::field_edit` reads `inf` and `NaN` as Numbers deliberately,
+/// and says what pays for it: `Expr::literal`'s refusal names the
+/// problem where the parser would only say the word is not a
+/// parameter. That promise had a hole exactly one dimension wide.
+/// `SlotValue::of` splits on the dimension BEFORE any expression is
+/// built, and `value as i64` is a saturating cast, not a conversion —
+/// `NaN` is `0` and `inf` is `i64::MAX` — so a structural slot
+/// committed an ordinary integer and the literal door was never asked.
+///
+/// **The error is read from BOTH sides rather than restated here.**
+/// The claim is that the Count arm refuses what the continuous arm's
+/// literal door refuses, so the expected value is that door's own
+/// answer, taken by calling it. A row spelling `NonFiniteLiteral` as
+/// a literal would be a third copy, agreeing with whichever side it
+/// was written from.
+///
+/// **And the pair**: refusing everything would satisfy the first half.
+/// The second is every legitimate count — the truncation toward zero
+/// the door documents, at both signs and at zero — which has to come
+/// back as the count it names.
+#[test]
+fn a_count_slot_refuses_a_value_that_is_not_a_number() {
+    use pncad::document::{Dimension, Expr};
+
+    let literal_door = Expr::literal(f64::NAN, Dimension::Length)
+        .expect_err("a non-finite continuous literal is refused at construction");
+    for poison in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let refused = SlotValue::of(Dimension::Count, poison).expect_err(
+            "a Count slot took a value that is not a number; the saturating cast \
+             commits an ordinary integer past the finiteness refusal",
+        );
+        assert_eq!(
+            refused, literal_door,
+            "a Count slot refused {poison} as {refused}, where the continuous \
+             half's literal door says {literal_door}"
+        );
+    }
+    // Every Count-dimensioned slot, so the refusal is the DIMENSION's
+    // and not one slot's: `SlotId::is_structural` is defined as this
+    // dimension, so these are exactly the structural slots.
+    for slot in [
+        SlotId::Count,
+        SlotId::VDegree,
+        SlotId::Stations,
+        SlotId::Instance,
+    ] {
+        assert!(slot.is_structural(), "{slot:?} is not a structural slot");
+        assert!(
+            SlotValue::of(slot.dimension(), f64::INFINITY).is_err(),
+            "{slot:?} took an infinite count"
+        );
+    }
+    // The other half: a count the cast can carry comes back as itself,
+    // truncated toward zero as the door documents.
+    for (value, expected) in [(0.0, 0), (3.0, 3), (3.7, 3), (-3.7, -3), (-0.5, 0)] {
+        assert_eq!(
+            SlotValue::of(Dimension::Count, value).expect("a finite value is a count"),
+            SlotValue::Count(expected),
+            "a Count slot read {value} as something other than {expected}"
+        );
+    }
+    // And the continuous arm is untouched: its value reaches the
+    // literal door intact and is refused THERE, which is the
+    // arrangement the Count arm has been brought into line with.
+    // Compared by matching rather than by equality: `NaN` is equal to
+    // nothing, itself included, so an `assert_eq!` here would be red
+    // on a door that is right.
+    let carried = SlotValue::of(Dimension::Length, f64::NAN).expect("the continuous arm carries");
+    assert!(
+        matches!(carried, SlotValue::Continuous(v) if v.is_nan()),
+        "the continuous arm answered {carried:?} instead of carrying its value          to the literal door"
+    );
 }

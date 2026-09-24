@@ -4,6 +4,19 @@ Newest entries at the bottom; the tail is the program's live status.
 Plan: `work/sym/plan.md`. A/B band 4700–4799
 (`docs/MODEL-AB-LOG.md` owns every live experiment number).
 
+## SYM-13 dispatched (2026-09-22): the leaf receipt's `frozen` column as the leaf's NEED — block SYM-B3 slot 2
+
+Spec `docs/SYM-13-SPEC.md` on `main` (the orchestrator's tracker PR);
+item `leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
+(P0, SYM-7's residue). Pre-draw D / STRUCTURAL on `sym/b3-block`; arm
+OPUS by the block's draw (byte 178). Protocol v7 IN — a receipt-contract
+decision — the full v6 dual, ordinal claimed on `main` at the dual's
+dispatch. Phase 1 measures the race (an adversary document where two
+leaves race for a node, the cross-schedule row red today), the column
+under three schedules, the consumers and NEED's cost; Phase 2 makes the
+column NEED with the adversary as a gating row; "drop" only by Ev's
+call if NEED's cost is above the line. Branch `sym/13-leaf-need`.
+
 ## Opening state (2026-09-13)
 
 Opened at M10's exit sweep, on Ev's call in chat that day: M10's walk
@@ -959,3 +972,377 @@ on #2468 decides, and SYM proceeds on the first shape meanwhile.
 **Where SYM runs now.** The remote box is gone; the program runs on the
 shared local machine (8 cores, load ~30 today, four orchestrators).
 SYM-8's dual first, SYM-10's Phase 1 after; lanes seed one at a time.
+
+## The fork, reconciled (2026-09-21)
+
+The session that wrote this log since 2026-09-19 was the LOCAL copy of
+a forked orchestrator; the cloud copy returned on 2026-09-21 and the
+two reconciled on `[ev]` #2949 — the record is in `work/decide/log.md`
+(SYM-8 and SYM-10 live there after the 09-20 cut). The cloud copy is
+the orchestrator of SYM's remainder going forward; the local copy's one
+unmerged docs commit (`mngr/sym` @ `8dfe5c1fb`, SYM-10's dispatch) is
+folded here rather than merged.
+
+## SYM-11 spec'd and dispatched (2026-09-21): the point channel is not a proof — block SYM-B3 opens
+
+The orchestrator returns to SYM's own slate with DECIDE's remainder
+waiting on Ev (#2970) and on SYM-10. The plan's order puts
+`sym-f64-far-placement-trips-the-theorem-vs-numeric-assert` first — the
+one row that is a live crash rather than a refusal or a freeze — and
+its two mechanisms (the far placement's rounding, rule F's sign
+amplification) share one cause: the theorem-vs-numeric `debug_assert!`
+assumes its numeric channel is a certified enclosure, which is true at
+`Interval` and false at `f64`/`Probe`. SYM-6 drew exactly this
+partition for the registered-identity door (`Contradicted` from an
+exact witness, `Disputed` from an inexact one); SYM-11 draws it for the
+theorem channels — declared on the lane scalar, asserted at an exact
+witness, counted and never panicking at an inexact one, the numeric
+answer kept. Spec `docs/SYM-11-SPEC.md`; unit `work/sym/SYM-11.md`;
+branch `sym/11-witness-kind`. **Triaged IN under v7** (an architectural
+decision on the door; H / STRUCTURAL, pre-draw). **Block SYM-B3 opens**
+on `sym/b3-block` with slot 0 = SYM-11, slot 1 = SYM-12 (the
+derived-frame freeze's next shape, H / NUMERIC) and slot 2 = SYM-13
+(the leaf's `frozen` column under the drive memo, D / STRUCTURAL); the
+pre-draw fields for all three are logged there before the draw, the
+specs for slots 1 and 2 are written at their dispatch (recorded as the
+block's one deviation from SYM-B2's "all three specs on main first").
+The draw: byte 178, 178 mod 3 = 1 ⇒ fable at slot 1. SYM-11's
+implementer arm is therefore OPUS. The
+ordinal is claimed on main at the dual's dispatch in SYM's band
+(4700–4799, next 4705; the 2026-09-20 roster line that says SYM keeps
+"5800–5899" collides with ENCL's band and is a roster error to correct
+at that claim).
+
+## SYM-11 merged (2026-09-21): the point channel is not a proof — block SYM-B3 slot 0
+
+PR #3028 merged at `the merge commit` (fix-pass head `c6addfa56`, run
+35639015619 green on the full matrix). The theorem-vs-numeric
+`debug_assert!` in `Decide for Sym<T>` assumed a certified enclosure;
+the unit charges the contradiction by WITNESS KIND, the partition
+`Real::register_equal` already draws: `Real::WITNESS: Witness`
+(`Exact` | `Inexact`, required, no default — `Interval` the only
+`Exact`; `f64` and `Probe` `Inexact`; `Dual<T>` and `Sym<T>` forward),
+asserted at an exact witness exactly as before, COUNTED at an inexact
+one (`SymCounts::theorems_disputed`, a refusal column declared on the
+DECIDE-2 pins' non-discharge side, both theorem kinds) with the numeric
+answer kept and nothing panicking. Phase 1: both mechanisms reproduced
+and counted (the far placement at (1e-9, 1e9), (1e-12, 1e6), (1e-12,
+1e9) on the stadium and the washer; rule F's adversary 6 of 6 at `f64`
+and `Probe`); the pole recorded (the inexact channel has no clause 1,
+which is why it keeps the numeric answer); the exact channel never
+trips it — zero on the five measured documents past their ceilings at
+three ε (stop clause not triggered); the partition written down. No
+decision at `Sym<Interval>` moves; every pin bit-identical; the
+serialized receipt byte-identical (the column is present only when
+non-zero, and no reader exists). The far-placement rows and the
+adversary are gating; the `Sym<Probe>` rows rostered in the probe
+census's executed floor.
+
+Review: the v6 dual on `df23fca26` (ordinal 4705; R1 FABLE
+MERGEABLE-AFTER-FIXES 0/3/5 + 8 style, R2 OPUS MERGEABLE-AFTER-FIXES
+1/4/6, rubrics 4/3/3 both); both found the same first defect — the
+two-contract pin was a hand roster a mis-declared `Probe` walked
+through — so no unilateral MAJOR. Fix pass A–K: the pin made generic
+over `T: Real` with ten instantiations and three plants shown to red;
+`SignGated` ruled into the one column with its doc corrected and a
+gated-dispute row; the rotted prose and the hoisted contradiction
+predicate; the undisclosed `probe-suite-census.sh` edit announced; the
+unnamed-predicate deviation filed
+(`a-dispute-names-no-predicate-on-the-receipt`); the far-placement rows
+assert their whole table (R2's triangle at `3.7e7` added: the point
+lanes build where the bare lift refuses, and the certified lane is a
+superset of neither); the past-ceiling receipts asserted; one home for
+the own-thread helper (`test-utils`); the cost number (~1.7 %, inside
+run-to-run spread, and zero in every profile this workspace builds).
+Delta by R1: MERGEABLE (every item CLOSED but two citation PARTIALs and three non-blocking notes, taken in the state-sync commit: the profile row's comment explaining its guard by the wrong arm, the filed row cited on the item and the unit, the one remaining uncited copy of `E`). Row at ordinal 4705, sample #230. The box
+restarted once during the fix pass (18:35Z); every commit was on disk
+and pushed, the cost measurement had completed, and the agent was
+resumed. Spec deleted with its ledger entry; item
+`sym-f64-far-placement-trips-the-theorem-vs-numeric-assert` closed;
+unit closed.
+
+## SYM-12 spec'd and dispatched (2026-09-21): the derived-frame freeze's next shape — block SYM-B3 slot 1
+
+With SYM-11 merged (#3028, sample #230) a lane is free and block
+SYM-B3's slot 1 dispatches per its pre-draw fields (H / NUMERIC, FABLE
+by the draw's byte 178). The unit takes the derived-frame item's own
+"whoever takes the next unit on this row should render it first":
+Phase 1 renders `tiltUV` (the fold never fires, or fires into a frozen
+node, or fires where no decision is asked — one of three, recorded),
+counts the five other `copysign` mint sites against the eight measured
+documents, and hand-plants the manifest-NEGATIVE arm against the ring
+item's acceptance; Phase 2 takes the arm only if no split or ceiling
+moves down anywhere. The Newell wall after rule F is DECIDE-3's ground
+and is read-only here. Spec `docs/SYM-12-SPEC.md`; unit
+`work/sym/SYM-12.md`; branch `sym/12-negative-arm`. Triaged IN under v7
+by the program's default for a unit that changes what the tier decides
+on a document (the block record says so; re-asked here: IN).
+
+## SYM-12 at its PR (2026-09-21): the negative arm earned and taken
+
+Phase 1 first, all three tables committed before Phase 2. `tiltUV`
+rendered: the fold never fires — that document's `n.z` is not
+`1/sqrt(P)` in the DAG but a degree-20/22 quotient in the parameter's
+offset carrying odd powers beside three `sqrt` atoms (one over a frozen
+node), and a size-frozen `Sub` refuses it at both dials; not the
+budget. The `copysign` census: no mint site other than the orthonormal
+basis reaches a decision on any takeable measured document, rule F on
+or shut. The negative arm, hand-planted: the tilt-`u` START cap and
+`FlipZ` read the END cap's rule-F-on numbers to the digit at both
+lifts, nothing else moves, the eight documents' splits and ceilings and
+the walk ledger are bit-identical — the ring item's acceptance met
+without a second payment of its class. Phase 2 taken:
+`manifest::negative` as `positive` of the negated numerator, both arms
+under `manifest_sign`, the rows and the ordering pin, the gating
+document row. Sample and ordinal at the dual's dispatch.
+
+## SYM-12 fix pass (2026-09-22): the union of both reviews
+
+Both reviews MERGEABLE-AFTER-FIXES (R1 one MAJOR: the mint-site census
+incomplete and presented as exhaustive; R2 one demonstrated MINOR: the
+two spellings of a negative magnitude parted). Taken, A–W: `magnitude`
+reads `fold_abs` first, R2's row the pin; the tree's ten `copysign`
+sites registered by a source-census row with the empirical claim
+gated on the five cheap documents and measured on the revolved cap
+(no atom reaches a decision); `negative` tests before it allocates;
+each document's own numbers (the start cap 108 out of `numeric`,
+`FlipZ` 122); the census table's totals printed by the row (three
+hand sums were off by one to four); the release leaf instrument run
+(the arm inside the run-to-run spread on all six leaves; the bracket,
+link and pad over the line since rule E); the two forced rows
+reflected; the render width restored by `take_shape_report`; the pad's
+pins stated exactly (bracket pinned, nominal split by no row, over-band
+set evidence-only); the reach narrowed to the tilt-`u` family (R1's
+`FlipV` folds and moves nothing; R2's `FlipX` reads the end cap); the
+one-dial reason's false half dropped; the negatives row's poison and
+`copysign` cases; the fold row's F-shut arm said in full; the helpers
+one home; the DECIDE-3 seam filed
+(`the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`).
+Frozen again for the delta.
+
+## SYM-12 merged (2026-09-22): the derived-frame freeze's next shape — block SYM-B3 slot 1
+
+PR #3046 (fix-pass head `47e5a0a64` green on the full matrix, run
+35672457048; the state-sync commit on top). Rule F's NEGATIVE arm:
+`manifest::negative` as `positive` of the negated numerator, both folds
+under `manifest_sign`; the reach the tilt-`u` family, either cap, either
+sign (the start cap 108 out of `numeric`, `FlipZ` 122, both to the end
+cap's state by name and by count; `FlipV` folds and moves nothing);
+`tiltUV` rendered — the fold never fires on a 21-over-23-term quotient
+with odd powers of `t`, not the budget; the `copysign` census — no atom
+reaches a decision on the seven takeable documents or the revolved cap,
+ten mint sites registered by a source-census row; `magnitude`'s two
+spellings meet; the leaf cost measured (cheaper on five of six leaves,
+the link +4.8 %); the eight
+documents' splits, ceilings and the walk ledger bit-identical.
+
+Review: the dual on `c6cf72319` (R1 OPUS MERGEABLE-AFTER-FIXES 1/5/5 —
+the mint-site census incomplete and presented as exhaustive; R2 FABLE
+MERGEABLE-AFTER-FIXES 0/4/5 — the two spellings of a negative
+magnitude parted, demonstrated). Fix pass A–W (the register row and
+its reader-ledger line, the census gate, the leaf instrument run, the
+reflected rows, the reach narrowed, the seam filed as
+`the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`).
+Delta by R1: MERGEABLE with F1 (must-fix: the render width per pass),
+F2, F3 — taken in the state-sync commit. Spec deleted with its ledger
+entry; the unit closed. Next: SYM-13 (block SYM-B3 slot 2, Opus); the
+seam row is the `props/sign-hull` merge's.
+
+
+## SYM-14 spec'd and dispatched (2026-09-22): the chain demo Ev asked for
+
+Ev, in chat: "a demo of error propagation like with the two holed
+plate but it's a chain of 4ish elements joined with some error in the
+angle at each join and so it will be visibly be more and more
+dispersed going down the chain" — "if it is possible ... take it on as
+a unit; if it isn't possible, mark it and its prerequisites down in the
+appropriate track ... p1 specifically requested". Surveyed: possible
+today on the advisory lane (the plate's own picture lane — `f64`
+replays over `Angle`-dimensioned parameters with a `Distribution`,
+`Node::Transform`, the built bodies read back, the tour's SVG); NOT
+today on the certified lane (a widened rotation angle unmeasured; the
+derived-frame walls; the drive's cost). So: **SYM-14** takes the demo
+and measures the certified lane on the same document; the certified
+picture's prerequisites are on
+`a-widened-rotation-angle-is-unmeasured-on-the-certified-lane` (P1,
+requested), which the unit answers or leaves with the walls named,
+each filed at P1. Spec `docs/SYM-14-SPEC.md`; v7 OUT (a demo and a
+measurement, no kernel change): OPUS implementer, one OPUS style
+review, no draw, no ordinal, no row. Lane `/home/user/lanes/sym-14`,
+branch `sym/14-chain-demo`, cut from the spec commit; the seams
+announced to CIW (`demos/render-mc.sh`) and PROPS (the analysis lane,
+read only) in the PR. Runs beside SYM-13's fix pass.
+
+
+## SYM-14 implemented (2026-09-22): the chain disperses, and the certified lane reaches its tip
+
+**Phase 1.** `demos/tour/src/chain.rs` authors the document once (four
+12 mm bars, a joint pin at each end, a fixed target pin at the nominal
+tip); `mcchain.rs` replays 512 draws and draws the fan;
+`demos/renders-mc/chain-density.svg` is published and `render-mc.sh`
+now takes a list of sheets. The placement door is `Node::Transform`
+nested over the downstream sub-chain — joint `k`'s node BELOW joint
+`k−1`'s, so "joint `j` moves links `j..4`" is a property of the graph
+and not of four hand-written partial sums; the `Datum::Frame`
+alternative was declined because a frame's axes are orthonormalised at
+evaluation and on intervals `cos² + sin²` is not 1, which is a `sqrt`
+and two divides per link on top of the study. Straight nominal, one
+Normal law at σ = 0.01 rad at every joint. Measured lateral σ at the
+four pins: 0.1209, 0.2760, 0.4731, 0.6954 mm — `1 : 2.28 : 3.91 : 5.75`
+against the accumulation law's `1 : 2.24 : 3.74 : 5.48`. The plate's
+sheet is byte-identical.
+
+**Phase 2, and the row it answers.** A widened rotation angle is now
+measured. The plain `Interval` lane does not carry one AT ALL, at any
+link count: `transform_rigid_col0_unit` refuses at the first transform
+because `cos² + sin²` is a bracket around 1. `Sym<Interval>` discharges
+exactly that and CERTIFIES the one-link chain whole over the study
+(0.16 s); at 2–4 links the wall MOVES, to a transversality margin
+during a mapped edge's re-certification (over the WHOLE study the first
+refusal is `dihedral_wedge`, poisoned, at 2 and `dihedral_arm` with
+`[0, 7.34e-3]` at 3 and 4 — but see the fix-pass entry below: what
+bounds the BOX is the wedge at every link count).
+Costs are 0.16–0.73 s per leaf, not the derived-frame family's minutes
+— the chain never touches a `FaceFrame`.
+
+**The certified picture exists.** The widest box that certifies whole
+is `1.000`, `0.370`, `0.185`, `0.111` of the study at 1–4 links — one
+number in four spellings, since the tip's certified lateral half-width
+is `3.998e-4` m at every one of them — which is half the PIN RADIUS,
+not a property of the tier (see the fix-pass entry below).
+At the four-link box (`CERTIFIABLE_FRACTION`) the drive certifies and
+the tip assertion HOLDS on every certified leaf. So the enclosure per joint is drawn on the sheet
+beside the cloud: `0.0400, 0.1199, 0.2398, 0.3996` mm across the chain,
+growing `1 : 3 : 6 : 10` — the worst-case lever sum — against the
+advisory σ's quadrature `1 : 2.24 : 3.74 : 5.48`. E11's trade in one
+picture, which the plate's sheet could not draw (`7.81e-7` of its
+study). `a-widened-rotation-angle-is-unmeasured-on-the-certified-lane`
+CLOSES on that.
+
+**Filed** (all P1, Ev's request carried):
+`a-widened-rotation-angle-refuses-on-the-plain-interval-lane`,
+`a-two-joint-chain-poisons-its-transversality-margin` (re-filed at the
+review as `a-chain-of-two-or-more-joints-poisons-its-transversality-margin`,
+below — the poison is not the two-link chain's alone),
+`a-chain-of-three-joints-straddles-dihedral-arm`,
+`the-drivers-symbolic-dials-have-no-name-on-the-facade`.
+
+
+## SYM-13 merged (2026-09-22): the leaf's NEED — block SYM-B3 slot 2; the block concludes
+
+PR #3054 (polished head `dc88037b3`, run 35715970767 green on the full
+matrix; the state-sync commit on top). A leaf receipt's `frozen` column
+is the leaf's NEED: the closure of its plain-walk roots over its table,
+intersected with the drive's frozen set and unioned with the leaf's own
+side read from its TABLE (`Session::foreign`, reconciled at leaf end;
+the freezes it could not publish) — the same under every schedule but
+for one reading, a taint-induced freeze under a hit, pinned by name and
+filed at P2. The race built (the slab at eight leaves with the budget
+cut: leaves' own column `0:1613 6:369 7:1061` sequential against a
+different draw in parallel, every decision column and the drive's 4,847
+agreeing) and gated as
+`every_leaf_reports_one_column_under_every_schedule_and_both_dials`
+(three drives, one of them certifying nine leaves); the column today
+measured EMPTY on the plate with the memo on (the root leaf paid for
+every freeze) and 50,112 with it off — 50,112 on and off now; the
+consumers censused (none read a leaf's `decisions` outside `drive.rs`
+and the memo suite; the serialized receipt writes the drive's column
+only); NEED's cost 2.3 ms a leaf against the 1.6 s line, 0.6 % of a
+48-leaf plate drive; the `decisions_of` mask deleted and the rows
+comparing receipts whole; the unrecorded census five drives, 0
+unrecorded; `Session::closure` and `SymNode::kids()` the one spelling
+of the DAG walk (six sites).
+
+Review: the dual on `47ae64a4e` (R1 OPUS MERGEABLE-AFTER-FIXES 0/4/5;
+R2 FABLE MERGEABLE-AFTER-FIXES 0/3/5 — both found the orphaned mask doc
+and the unrecorded branch's order-dependence, each by its own row).
+Fix pass A–S. Delta by R1: NOT MERGEABLE — the fix pass had argued the
+inherit branch away ("the decisions move first") and R1 falsified it
+by execution; fix pass 2 traced the cause to the walk-side count and
+read the leaf's side from its table instead (`Session::foreign`),
+leaving the taint-induced reading filed. Delta 2 by R1: MERGEABLE with
+two demonstrated MINORs (a foreign id the leaf later mints itself; the
+drive bullet), polished at `dc88037b3`. Spec deleted with its ledger
+entry; the item and the unit closed. Block SYM-B3 concludes (SYM-11,
+SYM-12, SYM-13); its record reaches `main` with the A/B row. SYM-14
+(the chain demo) runs beside.
+
+## SYM-14 review + fix pass (2026-09-22): the code held, three causal stories did not
+
+One OPUS style review with a correctness arm, on `1380c803b`:
+MERGEABLE-AFTER-FIXES, 3 MAJOR / 4 MINOR / 5 NOTE / 8 style; correctness
+of the shipped code 5, design 4, **evidence discipline 2**. It
+reproduced every number, both sheets byte-identical, the certified
+table and the enclosures, and it found that three HEADLINE CAUSAL
+CLAIMS had been enshrined in P1 rows and module headers without being
+executed. Each is now measured, and each measurement is a CI row:
+
+- **What bounds the certifiable box is `dihedral_wedge`, not
+  `dihedral_arm`.** The arm's straddle is the first refusal over the
+  WHOLE study at 3 and 4 links — evaluation order. Just above the wall
+  (`1.02×`, `1.10×`, default ε and `1e-6`) the first refusal is the
+  wedge's poisoned margin, `EdgeKey(1v1)` sample 4, at 2, 3 and 4 links.
+  The bounding claim moved to the (re-titled) wedge row; the arm row
+  keeps its own finding, which is that its bracket is ε-INDEPENDENT.
+- **The "one number" is the PIN RADIUS, not the tier.** The certified
+  tip half-width is `0.500 × PIN_RADIUS` at every link count the wall
+  sets; doubling the radius moves the fractions to
+  `1.0000/0.73841/0.36921/0.22192` and the swing to `3.81°`. "1.9° of
+  accumulated swing, however many joints" was the shipped radius in
+  disguise. `chain::CERTIFIED_TIP_OVER_PIN_RADIUS` pins it.
+- **The three-link chain carries the same poison**, same edge and
+  sample, just not reported first. "The shorter chain is the poisoned
+  one" was evaluation order read as a fact about the chain.
+
+Also fixed: the self-check absorbed ±10 ulp and read none of the
+10,752 DRAWN coordinates — the sheet is now parsed back and every
+polygon and pin dot un-mapped and compared to the replay
+(`check_drawn`, run against the review's own planted 1 mm
+displacements, both red); `summarize` was a third transcription of
+`editor_core`'s private reduction with its guards dropped, and is now a
+door on the façade used by both cells with both sheets byte-identical;
+the façade row moved to **`work/lib/`**, where `crates/pncad` is; the
+sheet no longer claims a certified box at an ε where the cell on the
+same walk declares a frontier; `render-mc.sh`'s `SHEETS` census is
+guarded in the direction that was silent.
+
+The class, not the instance: a causal sentence in a row, a header or a
+PR body is a claim, and the fix pass' rule is that each one names the
+execution that shows it or is re-worded as the question it actually is.
+
+## SYM-14 merged (2026-09-22): the chain demo Ev asked for
+
+PR #3073 (head `aea96608e`, run 35741468541 green on the full matrix and the
+render lanes; the state-sync commit on top). Four 12 mm links, a pin at
+every joint and a fixed target pin at the nominal tip, σ = 0.01 rad at
+every joint, 512 draws: the cloud widens joint by joint (lateral σ
+0.12 / 0.28 / 0.47 / 0.70 mm at pins 2–5, against the quadrature law
+1 : 2.24 : 3.74 : 5.48), 68 of 512 break a 1 mm true-position tolerance
+at the tip; the sheet `demos/renders-mc/chain-density.svg` beside the
+plate's, the plate's byte-identical. The certified lane: the plain
+interval scalar refuses at every link count (`transform_rigid_col0_unit`
+— `cos² + sin²` of a widened angle is a bracket around 1); the symbolic
+tier certifies one link whole, refuses two and more at `dihedral_wedge`'s
+poisoned margin, and certifies the four-link chain whole at 0.111 of the
+study — the enclosure per joint drawn beside the cloud (0.04 / 0.12 /
+0.24 / 0.40 mm, the lever sum 1 : 3 : 6 : 10), the certified tip box HALF
+THE PIN RADIUS at every link count (a property of this document; the
+radius doubled doubles the swing). The row
+`a-widened-rotation-angle-is-unmeasured-on-the-certified-lane` CLOSED on
+its condition. Rows filed at P1 with Ev's request: the wedge wall (now
+also home to why the box moves with ε, 0.1110 → 0.1083, unestablished),
+the arm straddle, the plain-interval refusal, the façade row (on LIB);
+and, from Ev on #3073, `the-chain-demo-detects-no-self-intersection`.
+
+Review (v7 OUT, one OPUS style review with a correctness arm, no row):
+MERGEABLE-AFTER-FIXES 3/4/5 — the picture reproduced to the byte; three
+causal claims enshrined without execution. Fix pass A–O; delta NOT
+MERGEABLE (four copies of the retracted sentence survived — grep the
+claim, not the sentence); fix pass 2 (seven sites; the monotonicity
+assumption with its ladder check; the ε question left open); delta 2 NOT MERGEABLE on the last copy in `demos/README.md`, taken
+in the state-sync commit with its source's wording. The box restarted mid fix pass 2 with the edits uncommitted;
+the lane resumed from its transcript and re-ran every check. Seams:
+`demos/render-mc.sh` (CIW, a `SHEETS` list with a glob guard),
+`pncad::analysis` and the binding census (LIB, `summarize` re-exported
+and registered behind a door), `editor-core/src/mc.rs` (PROPS, one
+`fn` → `pub fn`). Spec deleted with its note; the unit closed.

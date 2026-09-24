@@ -9,8 +9,8 @@ conversation, because each is the same defect: a held value with no
 witness of which world it belongs to. Ev ratified DI1–DI5 in chat on
 2026-09-04, DI5 in the stronger reading stated below. The page was
 `docs/DOCM-IDENTITY-DESIGN.md` until DOCM's exit on 2026-09-13, when it
-moved beside the code it governs; `docs/DOC-LEDGER.md` carries the
-history. The reference vocabulary is the companion page
+moved beside the code it governs. The reference vocabulary is the
+companion page
 `crates/editor-core/REFERENCES.md`. Mechanics here are measured, not
 assumed; where a file:line has drifted, the name beside it is the
 stable half.
@@ -89,8 +89,7 @@ segments the loop draws, so every live name after that step denotes a
 different wall with no refusal and no report —
 `work/edit/a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names.md`,
 pinned as measured by
-`edit_set_program::a_slot_edit_through_a_zero_fit_renumbers_a_live_name_and_reports_nothing`.
-History in `docs/DOC-LEDGER.md`.*
+`edit_set_program::a_slot_edit_through_a_zero_fit_renumbers_a_live_name_and_reports_nothing`.*
 
 ## DI2 — The memo is a pure function of the document; the store is the session's
 
@@ -130,8 +129,7 @@ Consequences:
 
 *Record: the memo half and A4's narrowed sentence are DOCM-4 (PR
 1808), with DI3; the re-mount door is open at
-`document-seam-no-in-session-change-detection`. History in
-`docs/DOC-LEDGER.md`.*
+`document-seam-no-in-session-change-detection`.*
 
 ## DI3 — An evaluation carries its document's identity
 
@@ -151,8 +149,7 @@ id check, so a prior from another document is refused rather than
 mined for coincidental hits.
 
 *Record: built by DOCM-4 (PR 1808); which doors read the stamp is
-`crates/editor-core/ASSEMBLY.md` A2a. History in
-`docs/DOC-LEDGER.md`.*
+`crates/editor-core/ASSEMBLY.md` A2a.*
 
 ## DI4 — Saving at a path never forks identity; forking is its own act
 
@@ -179,8 +176,7 @@ typed:
 `crates/pncad/src/workspace.rs` — the two acts are `Workspace::save_at`
 and `Workspace::save_as_new_document`, the refusal
 `WorkspaceError::SaveWouldDuplicateId { id, existing }` — closing
-`save-a-copy-duplicate-id-bricks-store`. History in
-`docs/DOC-LEDGER.md`.*
+`save-a-copy-duplicate-id-bricks-store`.*
 
 ## DI5 — Releasing a free-move gesture is the placement edit
 
@@ -209,7 +205,7 @@ which is what a user expects of a part they placed. Consequences:
 *Record: the build is CHROME's and is not in the tree —
 `no-persistent-setplacement-session-op` is open, the whole free-move
 family in `SessionOp` is still display-only, and `display.rs` still
-states the old boundary. History in `docs/DOC-LEDGER.md`.*
+states the old boundary.*
 
 ## What this doc does not touch
 

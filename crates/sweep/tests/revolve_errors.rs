@@ -115,10 +115,7 @@ fn an_axis_direction_with_no_finite_length_is_typed() {
         // The sentence names the cause and a recourse that can work.
         let msg = e.to_string();
         assert!(msg.contains("no finite length"), "{msg}");
-        assert!(
-            msg.contains("scale the geometry into the session's range"),
-            "{msg}"
-        );
+        assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
     }
 }
 
@@ -151,10 +148,7 @@ fn an_axis_direction_whose_length_underflowed_is_typed() {
         // recourse that can work — not a coincidence band.
         let msg = e.to_string();
         assert!(msg.contains("underflowed out of the format"), "{msg}");
-        assert!(
-            msg.contains("scale the geometry into the session's range"),
-            "{msg}"
-        );
+        assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
         assert_eq!(
             msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
             0,

@@ -1,88 +1,45 @@
-# CHART — the chart-side residue (plan)
+# CHART — the plan
 
-**STATUS: OPEN, awaiting its first sitting.** Opened 2026-09-20 by
-TRIM's cut (Ev, in-chat: leave in TRIM only what closes this session).
-Live state is `work/chart/log.md`'s tail and the item files beside
-this plan, never this file.
+the chart-side residue: pcurve certification, the chart boundary and its consumers, the plane×NURBS SSI
 
-Branch prefix: **`chart/`** — unit branches `chart/<unit>-<slug>`,
-orchestrator branch `chart/orchestrator`. Away-channel tag
-`(CHART orchestrator)`. A/B ordinal band **CHART = 6200–6299**,
-recorded in `docs/MODEL-AB-LOG.md`'s banding entry in the opening
-commit.
+Re-scoped 2026-09-20 by CHART's priority-seam cut
+(`work/README.md`, Track size). Nothing dispatched.
 
-## Charter
+## The slate
 
-Every claim the chart side makes is one a row can go red on: a pcurve
-certificate's envelope is the bound it says; a chart boundary
-description is read by every consumer that could use it (round holes,
-the curved charts, `min_separation`); the SSI's chart-form guards are
-upper bounds. TRIM delivered the extractor, the trimmed quadrature and
-tessellation, and the clearance seam (TRIM-1/2/3, all ledgered) and
-left these findings, most of which wait on a producer or another
-program's file.
+**28 budget points** of dispatchable work against a ceiling of 30.
 
-## Ratified ground (cited, not re-litigated)
+| pri | item | cost | title |
+|---|---|---|---|
+| P0 | `chart-boundary-refuses-pole-crossing-sphere-loops` | H | a chart singularity has no boundary polygon — sphere and cone faces meeting one are refused, and the polar description is unbuilt |
+| P1 | `angular-arms-are-an-untagged-lever-beside-a-typed-rate` | E | The angular chart arms are untagged metres-per-radian levers beside a typed rate pair |
+| P1 | `certified-arms-are-an-untagged-inf-rate-beside-a-typed-pair` | E | chart_region::certified_arms is an inf rate per kind with no InfSpeed tag, the rate pair's next member |
+| P1 | `clearance-window-cone-sphere-torus` | H | Cone, sphere and torus clearance windows keep M10-5's whole-carrier rectangles |
+| P1 | `exact-region-cells-for-lower-bound-only` | H | Certified::LowerBoundOnly retires only with exact-region cells, not with a tightened window |
+| P1 | `min-separation-tightening-crosses-the-drive` | D | min_separation cannot mint a chart boundary: the walk's rows are recorded on one lane only and every drive leaf refuses |
+| P1 | `round-holes-get-no-chart-bound-benefit` | D | A circular hole's two half-arc envelope boxes cover the whole disc - no cell inside a round hole is ever certified outside the face |
+| P1 | `three-tables-of-the-chart-arms` | D | Three tables of the chart metring arms in three crates, two of them copies |
+| P3 | `a-refused-chart-boundary-has-no-reachable-window` | E | window_of's chart_boundary Err arm is unreachable from any fixture on this tree |
+| P3 | `revolved-bands-reach-no-clearance-row` | D | No revolve replays at Interval over an epsilon box, so a revolved band never reaches window_of |
 
-TRIM-1, TRIM-2 and TRIM-3's §Rulings and Amendments (ledgered at
-#2095, #2863, #2554); PCURVE's exit walk; the C6 read
-(`chart_region.rs:exact_zero`) as the structural-compare precedent;
-`work/README.md`'s 2026-09-20 shared-ground rule.
+## Order
 
-## Order (a first cut; the first sitting re-cuts)
+`chart-boundary-refuses-pole-crossing-sphere-loops` first. A chart
+singularity has no boundary polygon at all, so sphere and cone faces
+meeting at a pole — every revolved body with a closed top — give the
+clearance window nothing to read. Everything else in this track is a
+boundary that is loose; that one is a boundary that is absent.
 
-1. **Chart-boundary consumers** (TRIM-3's residue, its own files):
-   `three-tables-of-the-chart-arms` (E: a `pub` door in `topo`) →
-   `round-holes-get-no-chart-bound-benefit` →
-   `clearance-window-cone-sphere-torus` →
-   `exact-region-cells-for-lower-bound-only` →
-   `min-separation-tightening-crosses-the-drive` (the f64 lane's
-   `None` / a description walk recorded inside an evaluation) →
-   `revolved-bands-reach-no-clearance-row` and
-   `a-refused-chart-boundary-has-no-reachable-window` (both wait on a
-   fixture that reaches the door) →
-   `chart-boundary-refuses-pole-crossing-sphere-loops`.
-2. **Certification lane** (`pcurve_cache.rs`):
-   `pcurve-chart-box-is-looser-than-harmonic-extent`,
-   `rational-gates-test-unit-weights-not-constancy` (the `mesh` copy
-   was fixed by TRIM-2 PR-2; the cap class remains),
-   `placeholder-chart-sup-arms-are-not-a-bound`,
-   `angular-arms-are-an-untagged-lever-beside-a-typed-rate`,
-   `certified-arms-are-an-untagged-inf-rate-beside-a-typed-pair`,
-   `pcurve-posture-guard-is-blind-to-body-producing-doors`,
-   `pcurve-fit-refusal-drops-the-domain-doors-reason`,
-   `iso-derivation-arms-assume-an-edge-spans-the-charts-whole-domain`,
-   `validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`,
-   `validate-pcurves-never-recertifies-a-face-it-finds-incomplete`,
-   `non-separable-rational-interior-column`; riders `D36`, `D305`,
-   `S331`, `S351`, `S83` land with the unit that opens their file.
-3. **Plane×NURBS SSI guards** (`ssi.rs`, `ssi/certify.rs`):
-   `ssi-certify-stretch-divides-by-a-norm-with-no-sqrt-up`,
-   `limb-3-chart-tube-speed-has-neither-guard-its-sibling-site-has`,
-   `ssi-tube-pad-folds-both-axes-by-max-speed-where-limb-3-proved-per-axis`,
-   `plane-nurbs-certificate-bound-does-not-refine-with-eps`,
-   `plane-nurbs-ssi-misblames-control-net`,
-   `ssi-lever-arm-min-fold-hides-poison`,
-   `ssi-chart-speed-usability-boundary` (the last three came to CURVED
-   from VERBS as drive-bys and belong to this file).
-4. **Waits on a producer**: `curved-trim-e2e-fixture-waits-for-a-producer`
-   (a `General` image with curvature — #264's degree raise or a STEP
-   producer), `trimmed-quadrature-composite-rounds` (QUAD's file, by
-   seam), `loft-seam-carrier-exact-knot-compare` (ENCL's file today —
-   S-CERT's successor; by announced seam or after its exit).
+Then `clearance-window-cone-sphere-torus` (still M10-5's whole-carrier
+rectangles) and `exact-region-cells-for-lower-bound-only`, which is
+what would retire `Certified::LowerBoundOnly`. The three metring-arm
+rows (`three-tables-of-the-chart-arms` and the two untagged-rate rows)
+are one unit, not three.
 
 ## Review posture
 
-Protocol v7 (`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the chart-boundary
-consumer units and the certification-lane units whose enclosures move
-are protocol candidates; the E riders and the SSI guards run opus/opus
-outside it; mechanical rows merge on the orchestrator's read. Blocks
-draw from 6200 on.
-
-## Exit shape
-
-The chart-boundary description has a consumer at every site the walk
-names (round holes, the curved charts, `min_separation`), the
-certification lane's envelopes are the bounds their docs claim, and
-the SSI's guards are upper bounds; the producer-gated items are
-re-homed to their producers' programs; the walk convention applies.
+OPEN, for this program's first dispatch. CHART inherits protocol v7
+(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
+only, opus/opus outside it. Nobody has re-asked the triage question for
+this slate, so the first orchestrator answers it here rather than
+inheriting an answer.

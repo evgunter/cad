@@ -5,6 +5,8 @@ title: the apt guard is 1770 lines against an item that estimated a few, and onl
 status: open
 opened: 2026-09-11
 refs: [apt-preamble-bypass-is-unguarded]
+priority: P4
+cost: E
 ---
 
 

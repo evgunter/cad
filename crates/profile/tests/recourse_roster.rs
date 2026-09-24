@@ -269,7 +269,7 @@ fn the_dispatch_order_owns_each_name_in_exactly_one_layer() {
         answered.insert(name);
         let text = rendered(name);
         assert!(
-            text.starts_with("resolving the fillet at this corner,") && text.contains(sentence),
+            text.starts_with("the fillet at this corner is undecided:") && text.contains(sentence),
             "`{name}` is answered by the map but does not render its sentence: {text}"
         );
     }

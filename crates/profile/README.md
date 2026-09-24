@@ -275,7 +275,7 @@ point) remains as the closed form's sign rule, unit-pinned and
 unreachable by any door. No construction is known to reach
 `NoCornerReason::NoCornerSideCandidate` since the class refuses earlier;
 the item that owned that reading was deleted with its program's tracker
-directory and is recoverable at the SHA `docs/DOC-LEDGER.md` names. The pins are
+directory and is recoverable in git history. The pins are
 `tests/review_s2.rs`'s `the_lattice_door_never_emits_an_enclosing_tangency`,
 `enclosing_fillet_swallows_both_leg_carriers` and
 `an_enclosing_leg_forces_an_equally_enclosing_partner`. The 3-D blend

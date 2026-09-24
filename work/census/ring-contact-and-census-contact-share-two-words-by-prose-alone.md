@@ -4,6 +4,8 @@ kind: issue
 title: ring_contact_tag and census_contact_tag share two words, held equal by a doc sentence
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 

@@ -399,8 +399,12 @@ fn fused_vertex_scenario(
         // on a recipe edit or structural parameter that did not
         // happen. Under the realized sweep the recorded evidence can
         // honestly be ABSENT (the disjoint prior pruned every pair —
-        // module comment above), in which case exactly the documented
-        // evidence-free fallback naming the MINTING node is admitted.
+        // module comment above), in which case the answers that claim
+        // no cause are admitted, both at the MINTING node: the
+        // documented evidence-free fallback, and the group-size table
+        // fact. This is a closed list of `Diagnosis` arms — when N5
+        // gains an arm, decide here whether it is honest without a
+        // recorded flip.
         let honest_flip = matches!(
             diagnosis,
             Diagnosis::PredicateFlip { .. } | Diagnosis::Cascade { .. }
@@ -409,7 +413,7 @@ fn fused_vertex_scenario(
             diagnosis,
             Diagnosis::RecipeEdit {
                 edit: editor_core::RecipeEditRef::NodeChanged { node }
-            } if *node == name.node
+            } | Diagnosis::GroupResized { node, .. } if *node == name.node
         );
         match strategy {
             topo::SweepStrategy::Idealized => assert!(

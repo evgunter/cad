@@ -6,6 +6,8 @@ status: review
 branch: edit/program-edit
 pr: 2927
 opened: 2026-09-18
+priority: P0
+cost: D
 ---
 
 
@@ -206,7 +208,7 @@ measurement (the PR body is the record):
   `rebound` maintenance row with `rebound_to`; V2 and DM7 re-worded on
   #2904; `SlotId::Profile`'s doc cites V2.
 
-Filed: `work/view/the-viewer-keeps-its-profile-lock-and-order-search-after-set-program.md`
+Filed: `work/author/the-viewer-keeps-its-profile-lock-and-order-search-after-set-program.md`
 (VIEW's follow-up, every survey site listed) and
 `work/edit/an-unknown-edit-tag-in-a-log-refuses-without-naming-it.md`
 (the log wrapper's untagged miss, measured by the persisted-spelling

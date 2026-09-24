@@ -5,6 +5,8 @@ title: prose_census cannot see a Display that delegates, nor a Debug that spells
 status: open
 opened: 2026-09-06
 refs: [the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused, 2053]
+priority: P4
+cost: E
 ---
 
 

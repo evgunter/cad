@@ -26,10 +26,10 @@
 //!   beyond `MAX` and its sign decides against any finite bound; if the
 //!   expansion's leading term overflows, its sign is the answer.
 //!
-//! Lanes: sign-clamp boundary pool, catastrophic-alignment `±`,
-//! tiny-divisor `÷` with signed-zero refusal, exact dyadic chains,
-//! `powi` exact oracle plus structural pins, and the zero-annihilator /
-//! infinite-bracket edge probe.
+//! Lanes: boundary pool, catastrophic-alignment `±`, tiny-divisor `÷`
+//! with signed-zero refusal, exact dyadic chains, `powi` exact oracle
+//! plus structural pins, and the exact-zero / infinite-bracket edge
+//! probe.
 //!
 //! The shipped run is a smoke-level subset. `CAD_FUZZ_EFFORT=64` restores
 //! roughly the review's full counts, which is what the `#[ignore]`d
@@ -276,8 +276,9 @@ fn assert_prod_bracket(r: RingInterval, a: f64, b: f64, what: &str) {
 // ------------------------------------------------------------- lanes
 
 /// The boundary pool: signed zeros, the smallest subnormal, the
-/// normal/subnormal frontier, and the overflow frontier — every place a
-/// one-step outward pad or a sign clamp can change the answer.
+/// normal/subnormal frontier, and the overflow frontier — every place
+/// an outward pad can change the answer, and the range where a pad is
+/// an absolute `5e-324` rather than a relative step.
 fn pool(rng: &mut fuzz::Rng) -> Vec<f64> {
     let mut v = vec![
         0.0,
@@ -298,12 +299,23 @@ fn pool(rng: &mut fuzz::Rng) -> Vec<f64> {
     v
 }
 
-/// Lane 1 — sign-clamp boundary fuzz. Every pair drawn from the boundary
-/// pool, checked for exact containment AND for the clamp's own claim:
-/// a product/quotient of two same-signed enclosures may not have a
-/// lower bound below zero, and of opposite-signed ones may not have an
-/// upper bound above zero.
-fn lane_sign_clamp(rng: &mut fuzz::Rng, cases: usize) -> u64 {
+/// Lane 1 — boundary-pool fuzz. Every pair drawn from the boundary
+/// pool, checked for exact containment: the bracket the arithmetic
+/// returns must enclose the true product or quotient of the two exact
+/// operands, compared against exact arithmetic rather than against a
+/// re-evaluation at `f64`.
+///
+/// **The sign rule is not asserted here and is not a claim the
+/// arithmetic makes.** `sign(a·b) = sign(a)·sign(b)` is a fact about
+/// the reals, and the retired ring imposed it on the endpoints after
+/// widening, so a provably-nonpositive product's upper bound was
+/// pulled back to exactly `0`. The backend pads where the operation is
+/// inexact and nowhere else, so below the 2Prod floor an
+/// opposite-signed product reports `hi = 5e-324` — a sound bound of a
+/// negative true value, one representable step wide. Containment is
+/// what this lane can assert about it, and containment is what it
+/// asserts.
+fn lane_boundary_pool(rng: &mut fuzz::Rng, cases: usize) -> u64 {
     let p = pool(rng);
     let mut n = 0;
     for _ in 0..cases {
@@ -311,24 +323,6 @@ fn lane_sign_clamp(rng: &mut fuzz::Rng, cases: usize) -> u64 {
         let (ri, si) = (RingInterval::point(a), RingInterval::point(b));
         let prod = ri * si;
         assert_prod_bracket(prod, a, b, "pool mul");
-        let nonneg = (a >= 0.0 && b >= 0.0) || (a <= 0.0 && b <= 0.0);
-        let nonpos = (a >= 0.0 && b <= 0.0) || (a <= 0.0 && b >= 0.0);
-        if nonneg {
-            assert!(
-                prod.lo() >= 0.0,
-                "clamp: {a:e}*{b:e} lo {:e} — {}",
-                prod.lo(),
-                fuzz::replay()
-            );
-        }
-        if nonpos {
-            assert!(
-                prod.hi() <= 0.0,
-                "clamp: {a:e}*{b:e} hi {:e} — {}",
-                prod.hi(),
-                fuzz::replay()
-            );
-        }
         // Signed zeros must not survive as a "nonzero" divisor.
         let quo = ri / si;
         if b == 0.0 {
@@ -353,22 +347,6 @@ fn lane_sign_clamp(rng: &mut fuzz::Rng, cases: usize) -> u64 {
                 "pool div HI BELOW TRUTH: {a:e}/{b:e} — {}",
                 fuzz::replay()
             );
-            if nonneg {
-                assert!(
-                    quo.lo() >= 0.0,
-                    "clamp: {a:e}/{b:e} lo {:e} — {}",
-                    quo.lo(),
-                    fuzz::replay()
-                );
-            }
-            if nonpos {
-                assert!(
-                    quo.hi() <= 0.0,
-                    "clamp: {a:e}/{b:e} hi {:e} — {}",
-                    quo.hi(),
-                    fuzz::replay()
-                );
-            }
         }
         n += 2;
     }
@@ -730,10 +708,15 @@ fn lane_edges(rng: &mut fuzz::Rng, cases: usize) -> u64 {
         let ea = rng.below(2000) as i32 - 1000;
         let a = at_exp(rng, ea);
         let x = RingInterval::point(a);
+        // An exact zero operand gives an exactly-zero bracket with no
+        // pad either side. The SIGN of that zero is IEEE's — a quotient
+        // by a negative divisor is `[-0.0, -0.0]` — and `-0.0` and
+        // `+0.0` are the same real, so the claim is the width and not
+        // the bit pattern.
         for r in [z * x, x * z, z / x] {
             assert!(
-                r.lo().to_bits() == 0.0f64.to_bits() && r.hi().to_bits() == 0.0f64.to_bits(),
-                "zero annihilator did not give exact +0.0 for {a:e} — {}",
+                r.lo() == 0.0 && r.hi() == 0.0,
+                "an exact zero operand did not give an exactly-zero bracket for {a:e} — {}",
                 fuzz::replay()
             );
         }
@@ -775,8 +758,8 @@ fn review_scratch_ring_lanes() {
     // low-effort run is a prefix-compatible subset of a high-effort one.
     let totals = [
         (
-            "sign-clamp pool",
-            lane_sign_clamp(&mut rng, fuzz::scaled(9_375)),
+            "boundary pool",
+            lane_boundary_pool(&mut rng, fuzz::scaled(9_375)),
         ),
         (
             "catastrophic align",

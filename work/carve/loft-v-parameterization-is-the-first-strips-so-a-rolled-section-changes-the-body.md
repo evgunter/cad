@@ -4,6 +4,8 @@ kind: issue
 title: loft_geometry takes the whole surface's v from the first strip, so a section rolled about its own normal builds a different body
 status: open
 opened: 2026-09-12
+priority: P0
+cost: H
 ---
 
 

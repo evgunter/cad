@@ -4,6 +4,8 @@ kind: issue
 title: A PR whose merge ref cannot be computed gets ZERO check runs, which reads as green unless you count jobs
 status: open
 opened: 2026-09-16
+priority: P4
+cost: E
 ---
 
 

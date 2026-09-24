@@ -294,7 +294,7 @@ class TestEvaluation(unittest.TestCase):
         # problem and the two-armed recourse, not Debug guts.
         message = str(caught.exception)
         self.assertIn("Boolean refused an undeclared contact", message)
-        self.assertIn("declare that finding", message)
+        self.assertIn("declare the candidate pair", message)
         for guts in ("UndeclaredCoincidence", "UndeclaredContact", "{", "NodeError"):
             self.assertNotIn(guts, message)
 

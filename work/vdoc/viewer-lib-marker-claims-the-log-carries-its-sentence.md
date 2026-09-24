@@ -4,6 +4,8 @@ kind: issue
 title: viewer/src/lib.rs's loud-skip marker says to read it as a sentence the log carries; the gating log carries its name, not its sentence
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

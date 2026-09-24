@@ -4,6 +4,8 @@ kind: issue
 title: sweep messages built eagerly once per iteration, so the EFFORT dial buys formatting nobody reads
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 

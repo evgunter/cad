@@ -117,6 +117,27 @@ pub fn edited(
     (applied.doc, applied.record.minted)
 }
 
+/// **A document holding one declared parameter and nothing else** —
+/// the fixture both panel suites build their parameter rows on.
+///
+/// `label` is the document's derived name, so two fixtures in one
+/// binary cannot share an identity. No oracle: it is the spelling of
+/// `Doc::empty_derived` plus one `SetDocParam`, and what each row
+/// asserts is about the `value` it handed in.
+pub fn declared(label: &str, name: &ParamName, value: DocParam) -> Doc<ProfileProgram> {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
+    edited(
+        &doc,
+        DocEdit::SetDocParam {
+            name: name.clone(),
+            value,
+        },
+        tol,
+    )
+    .0
+}
+
 /// Insert a node, answering the new document and the minted id.
 pub fn inserted(
     doc: &Doc<ProfileProgram>,
@@ -377,15 +398,17 @@ use viewer::session::{DocSession, SessionOp};
 
 /// Add the world xy frame through the session, answering its id — the
 /// pick every `SessionOp::AddProfile` below hands over.
+///
+/// Through the vocabulary's own numbers (`ProfilePlane::world_xy`)
+/// rather than a second spelling of them here: the add-profile form's
+/// `NewXy` choice mints that frame, so a suite that hand-wrote the
+/// components would stop testing the frame the chrome authors the
+/// moment either moved.
 pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
     insert(
         session,
         SessionOp::AddDatum {
-            datum: viewer::session::DatumSpec::Frame {
-                origin: len3([0.0; 3]),
-                u: scl3([1.0, 0.0, 0.0]),
-                v: scl3([0.0, 1.0, 0.0]),
-            },
+            datum: viewer::session::ProfilePlane::world_xy().expect("the world xy frame lowers"),
         },
     )
 }

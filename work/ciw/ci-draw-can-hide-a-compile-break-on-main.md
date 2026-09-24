@@ -4,7 +4,6 @@ kind: issue
 title: The ci.yml filter draw can hide a hard compile break on main for an unbounded number of merges
 status: closed
 opened: 2026-09-04
-refs: [blamed-mates-lost-its-exhaustive-arm]
 closed: 2026-09-07
 ---
 
@@ -62,10 +61,15 @@ owes.
 
 ## Note for whoever takes it
 
-`main` compiles at this lane today: the arm is present at
-`crates/viewer/src/tree.rs:325`
+`main` compiles at this lane today: the arm is present in
+`crates/viewer/src/tree.rs`
 (`| MateFault::Unleverable { mate, .. } => vec![*mate]`). This issue is
 about the hole, not about the instance, and the instance is closed.
+
+(The line number this sentence used to carry, `:325`, named a different
+alternative of the same or-pattern and was already off when the row
+closed; the quoted arm was what carried the meaning, so the number is
+dropped rather than re-derived.)
 
 Signed: (VIEW orchestrator)
 
