@@ -1,4 +1,4 @@
-//! An `f64` as a refusal sentence can carry it.
+//! An `f64` as a sentence or a field can carry it.
 //!
 //! `f64`'s `Display` is positional at every magnitude: `1e308` renders
 //! as a 309-digit integer and `1e-300` as three hundred zeros after the
@@ -15,7 +15,12 @@
 //! exactly as the bare `{}` it replaces, and `1e308` reads `1e308`.
 //! Both arms are shortest round-trip, so no digit the value carries is
 //! lost either way. Non-finite values render as `Display` spells them
-//! (`inf`, `-inf`, `NaN`).
+//! (`inf`, `-inf`, `NaN`). The whole is `{:?}` with a trailing `.0`
+//! dropped.
+//!
+//! The viewer's field text (`viewer::props::render_number`) is this
+//! rendering. `quantity::fmt`'s `render_shortest` is the same rendering,
+//! kept as a copy because neither crate depends on the other.
 
 use core::fmt;
 
@@ -26,10 +31,10 @@ const POSITIONAL_FLOOR: f64 = 1e-4;
 /// for `f64`).
 const POSITIONAL_CEILING: f64 = 1e16;
 
-/// An `f64` rendered for a refusal message: positional where that is
-/// short, scientific where it is not (the module docs give the
-/// boundary). Width and precision flags on the placeholder pass through
-/// to whichever of `Display` / `LowerExp` renders the value.
+/// An `f64` rendered for a message: positional where that is short,
+/// scientific where it is not (the module docs give the boundary).
+/// Formatter flags are not honoured: the rendering is always the
+/// shortest round-trip one.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Readable(pub f64);
 
@@ -41,9 +46,9 @@ impl fmt::Display for Readable {
             || magnitude == 0.0
             || (POSITIONAL_FLOOR..POSITIONAL_CEILING).contains(&magnitude);
         if positional {
-            fmt::Display::fmt(&x, f)
+            write!(f, "{x}")
         } else {
-            fmt::LowerExp::fmt(&x, f)
+            write!(f, "{x:e}")
         }
     }
 }
@@ -112,9 +117,22 @@ mod tests {
         }
     }
 
+    /// The rendering is `{:?}` less a trailing `.0`, which is what
+    /// the two other copies of it in the tree spell by hand.
     #[test]
-    fn precision_flags_reach_the_rendering() {
-        assert_eq!(format!("{:.2}", Readable(0.126)), "0.13");
-        assert_eq!(format!("{:.1}", Readable(1.26e300)), "1.3e300");
+    fn the_rendering_is_debug_without_its_integral_tail() {
+        let mut x = f64::from_bits(1);
+        while x.is_finite() {
+            for v in [x, -x, x * 1.5, x.next_up(), 3.0 * x / 7.0] {
+                let debug = format!("{v:?}");
+                let want = debug.strip_suffix(".0").unwrap_or(&debug);
+                assert_eq!(show(v), want, "{v:e}");
+            }
+            x *= 2.0;
+        }
+        for v in [0.0, -0.0, f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            let debug = format!("{v:?}");
+            assert_eq!(show(v), debug.strip_suffix(".0").unwrap_or(&debug));
+        }
     }
 }

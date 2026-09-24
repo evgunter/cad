@@ -82,11 +82,11 @@ impl core::fmt::Display for ProjectionInconclusive {
         write!(
             f,
             "projection inconclusive after {} iterations at t = {} \
-             (orthogonality {:e}, distance {:e})",
+             (orthogonality {}, distance {})",
             self.iterations,
             Readable(self.last_t),
-            self.last_orthogonality,
-            self.last_distance
+            Readable(self.last_orthogonality),
+            Readable(self.last_distance)
         )
     }
 }

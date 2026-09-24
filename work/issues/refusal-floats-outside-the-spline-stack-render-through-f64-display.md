@@ -62,6 +62,33 @@ outside the spline stack. Swept with a heuristic scan: an `f64` (or
   `CameraError::SceneRadiusOverflowsZoomBand`), which is the class
   answered per arm.
 
+Two more, outside refusal `Display`s but the same rendering question:
+
+- `crates/editor-core/src/stackup.rs`, `render_sensitivity`'s
+  `Derivative` arm (`{value}`). It is shared by the human form AND the
+  goldening form (`Stackup::serialize`, which `Stackup::content_key`
+  keys), so routing it moves the goldening form's spelling of a
+  derivative outside the band — a decision about that form, not a
+  drive-by. (`Stackup::render`'s own floats — worst case, nominal,
+  σ, contribution — went through `Readable` with the `port/wrap-a`
+  change.) The tour's tolerance stop prints it too
+  (`demos/tour/src/tolerance.rs`).
+- `crates/geom-core/src/sym/report.rs`, the `SymOp::Lit` payload
+  (`format!(" {}", f64::from_bits(node.payload))`) in the Sym report.
+
+## The `{:e}` sites are a second spelling of the same thing
+
+Many refusals already render their measured numbers with `{:e}` —
+`geom-brep`'s `PlaneNurbsRefusal` and `SsiError`, `geom-core`'s
+`BandError` and `ToleranceError`, `geom`'s `FitError::BudgetExhausted`,
+the viewer's two hand-switched arms. 63 files under `crates/*/src`
+carry a `:e}` placeholder (not all of them in refusals). That is not the bug this row names (nothing
+reads as three hundred digits), but it is a second spelling of one
+concept: `Readable` renders those values identically outside the band
+and reads `0.5` rather than `5e-1` inside it. It is the one home both
+spellings would converge on, and a pass over this row should decide
+per crate whether to take the `{:e}` sites with it.
+
 Not hits: sites whose value is non-finite by construction
 (`quantity`'s `FmtQuantityError`, `step-export`'s "no Part 21 real
 representation", the viewer's "not a finite number" arms) — `Readable`

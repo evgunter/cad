@@ -58,9 +58,11 @@ mark rather than punctuation a sentence is entitled to. The
 AdmissionFault-style narrowing was not available — `Unavailable` is
 already a closed four-arm population, and what its sentences can carry
 beyond their templates is the parameter name, which is the document's.
-Held by `stackup::tests`: `every_blocker_renders_on_one_line` (a census
-exhaustive over the arms), `a_refused_rss_splits_back_into_its_blockers`
-(names carrying `"; "` and `", "`), and the singular count.
+Held by `stackup::tests`: `every_blocker_renders_on_one_line`, over one
+example of every arm, the examples checked against a
+`test_utils::f6_variants!` weld of `Unavailable` (so a fifth arm with no
+example reds); `a_refused_rss_splits_back_into_its_blockers` (names
+carrying `"; "` and `", "`); and the singular count.
 
 What a name may contain is EDIT's in-flight name door
 (`work/edit/no-door-refuses-a-blank-parameter-name`); the serialize

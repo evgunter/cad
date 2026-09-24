@@ -309,7 +309,7 @@ pub fn no_reading(unit: UnitDef) -> String {
 /// does not exist it is [`no_reading`], never `inf`.
 ///
 /// `render_number` is deliberately not the render here. That one is a
-/// FIELD's — `{:?}`'s exact round-tripping digits, because the text a
+/// FIELD's — exact round-tripping digits, because the text a
 /// field shows is the text an edit starts from — and a sentence is not
 /// a commit path.
 pub fn written_text(canonical: f64, unit: UnitDef) -> String {
@@ -601,10 +601,11 @@ pub fn field_text(row: &SlotRow) -> String {
     }
 }
 
-/// A number as the chrome writes it: `{:?}`'s shortest round-tripping
-/// digits, with a bare integral form (`8.0` → `8`) — a field showing
-/// `8` and a field showing `8.0` say the same thing, and the shorter
-/// one is what a user typed.
+/// A number as the chrome writes it: [`geom_core::Readable`]'s
+/// shortest round-tripping digits, positional at modelling magnitudes
+/// with a bare integral form (`8`, not `8.0`) and scientific past them
+/// — a field showing `8` and a field showing `8.0` say the same thing,
+/// and the shorter one is what a user typed.
 ///
 /// One of the crate's TWO number policies, and the one for a number
 /// in an editable field or in a sentence quoting one: the value fields
@@ -615,11 +616,7 @@ pub fn field_text(row: &SlotRow) -> String {
 /// wrong for a coordinate a reader compares against what the panel
 /// shows.
 pub fn render_number(value: f64) -> String {
-    let repr = format!("{value:?}");
-    match repr.strip_suffix(".0") {
-        Some(integral) => integral.to_string(),
-        None => repr,
-    }
+    geom_core::Readable(value).to_string()
 }
 
 /// What text typed into a value field MEANS.
@@ -1269,7 +1266,7 @@ mod written_tests {
 
     /// **A field's text is what an edit starts from**, so the one
     /// thing it must not be is a value the document does not hold.
-    /// `render_number` is `{:?}`, which spells an overflowed quotient
+    /// `render_number` spells an overflowed quotient
     /// `inf`; the marker is what stands there instead.
     ///
     /// **The pair**: the same row a decade below the overflow shows an

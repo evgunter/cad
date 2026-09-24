@@ -139,13 +139,13 @@ impl core::fmt::Display for SurfaceProjectionInconclusive {
         write!(
             f,
             "surface projection inconclusive after {} iterations at \
-             (u, v) = ({}, {}) (orthogonality {:e}/{:e}, distance {:e})",
+             (u, v) = ({}, {}) (orthogonality {}/{}, distance {})",
             self.iterations,
             Readable(self.last_u),
             Readable(self.last_v),
-            self.last_orthogonality_u,
-            self.last_orthogonality_v,
-            self.last_distance
+            Readable(self.last_orthogonality_u),
+            Readable(self.last_orthogonality_v),
+            Readable(self.last_distance)
         )
     }
 }

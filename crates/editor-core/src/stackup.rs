@@ -123,15 +123,14 @@
 //! `f64` report sums. No ε is consulted and no funnel predicate is
 //! minted.
 //!
-//! Nothing here persists, and the goldening form is M10-6's: it will
-//! want a `serialize()` shaped like `ParamBoxVerdict`'s (floats as
-//! exact bits, one line per row). The door is visible; nothing is built
-//! behind it.
+//! Nothing here persists. The goldening form is [`Stackup::serialize`]
+//! (floats as exact bits, one line per row) and [`Stackup::content_key`]
+//! keys it, derived on demand; [`Stackup::render`] is the human form.
 
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use geom_core::{Dual64, Tol};
+use geom_core::{Dual64, Readable, Tol};
 use topo::Body;
 
 use crate::analysis::{AnalyzedBox, BoxAxis, MeasureUnavailable, ParamBox};
@@ -1351,13 +1350,16 @@ impl Stackup {
             s,
             "  CERTIFIED WORST CASE (the only gating number): [{}, {}] over {} certified \
              leaf/leaves",
-            self.worst_case.lo, self.worst_case.hi, self.worst_case.leaves
+            Readable(self.worst_case.lo),
+            Readable(self.worst_case.hi),
+            self.worst_case.leaves
         );
         match &self.nominal {
             Ok(v) => {
                 let _ = writeln!(
                     s,
-                    "  nominal (f64 build): {v}  [{}]",
+                    "  nominal (f64 build): {}  [{}]",
+                    Readable(*v),
                     match &self.chamber {
                         Chamber::ChamberCertified { .. } =>
                             "the nominal sits in a certified chamber",
@@ -1384,7 +1386,7 @@ impl Stackup {
                 row.param.0,
                 render_sensitivity(&row.sensitivity),
                 match &row.contribution {
-                    Ok(v) => format!("{v}"),
+                    Ok(v) => Readable(*v).to_string(),
                     Err(u) => format!("[{u}]"),
                 }
             );
@@ -1398,28 +1400,26 @@ impl Stackup {
     }
 }
 
-/// The human form's rss row, and under a refused column one line per
-/// blocker, counted.
+/// The human form's rss row; under a refused column, a count and then
+/// one line per blocker.
 ///
-/// **The boundary between two blockers is the report's own row mark,
-/// the line break**, not a mark inside a line: a blocker is a
-/// sentence, a sentence is entitled to any punctuation, and a flat
-/// join on one reads a blocker whose sentence writes it as one item
-/// more than it is. What a blocker's sentence does not write is a line
-/// break — `every_blocker_renders_on_one_line` holds that over every
-/// [`Unavailable`] arm through a census the compiler keeps exhaustive —
-/// so the lines under the count are exactly the blockers, which
-/// `a_refused_rss_splits_back_into_its_blockers` holds. The one text in
-/// a blocker its arm does not write is the parameter name it frames,
-/// and a name is on one line for the reason every `∂m/∂name` row of
-/// this report is: it is the document's, and what a name may contain is
-/// the declaration door's to decide rather than this join's.
+/// The boundary between blockers is the line break, not punctuation a
+/// blocker's sentence may itself write. No [`Unavailable`] arm writes
+/// a line break (`every_blocker_renders_on_one_line`, over every arm),
+/// so the lines under the count are exactly the blockers
+/// (`a_refused_rss_splits_back_into_its_blockers`). The parameter name
+/// a blocker frames is the document's, not the arm's; what a name may
+/// contain is the declaration door's to decide.
 fn render_rss(rss: &Rss) -> String {
     use core::fmt::Write as _;
     let mut s = String::new();
     match rss {
         Rss::Advisory { sigma } => {
-            let _ = writeln!(s, "    rss σ ≈ {sigma} (linearized, first-order)");
+            let _ = writeln!(
+                s,
+                "    rss σ ≈ {} (linearized, first-order)",
+                Readable(*sigma)
+            );
         }
         Rss::UnavailableBecause { blockers } => {
             let _ = writeln!(
@@ -1878,20 +1878,21 @@ mod tests {
     use super::{RSS_BLOCKER_LEAD, Rss, Unavailable, render_rss};
     use crate::ParamName;
 
-    /// One blocker of every arm, for `param`. The match is the census:
-    /// it names every arm with no wildcard, so an arm added to
-    /// [`Unavailable`] does not compile here until it has an example
-    /// below, and a missing example fails the count.
+    test_utils::f6_variants! {
+        /// Every [`Unavailable`] arm, welded to the enum by the match
+        /// the macro writes; [`every_arm`] must produce each of them.
+        const UNAVAILABLE: Unavailable = [
+            TangentDegraded,
+            MeasureRefused,
+            Unliftable,
+            BandHasNoMeasure,
+        ];
+    }
+
+    /// One blocker of every arm, for `param` — checked against the
+    /// weld, so an arm with no example here fails every row that reads
+    /// this.
     fn every_arm(param: &str) -> Vec<Unavailable> {
-        fn arm(u: &Unavailable) -> usize {
-            match u {
-                Unavailable::TangentDegraded { .. } => 0,
-                Unavailable::MeasureRefused { .. } => 1,
-                Unavailable::Unliftable { .. } => 2,
-                Unavailable::BandHasNoMeasure { .. } => 3,
-            }
-        }
-        const ARMS: usize = 4;
         let param = ParamName::new(param);
         let all = vec![
             Unavailable::TangentDegraded {
@@ -1905,9 +1906,15 @@ mod tests {
             },
             Unavailable::BandHasNoMeasure { param },
         ];
-        let mut seen: Vec<usize> = all.iter().map(arm).collect();
-        seen.sort_unstable();
-        assert_eq!(seen, (0..ARMS).collect::<Vec<_>>(), "one example per arm");
+        let mut made: Vec<String> = all.iter().map(test_utils::f6::variant_identifier).collect();
+        made.sort();
+        let mut welded: Vec<String> = UNAVAILABLE
+            .identifiers()
+            .iter()
+            .map(|s| (*s).to_owned())
+            .collect();
+        welded.sort();
+        assert_eq!(made, welded, "one example per Unavailable arm, no more");
         all
     }
 
