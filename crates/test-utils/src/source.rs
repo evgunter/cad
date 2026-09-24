@@ -2001,11 +2001,10 @@ mod tests {
     #[test]
     fn a_required_needle_that_matches_nothing_refuses_at_the_scan() {
         assert_eq!(super::required_matches("a b a", "t", "a"), vec![0, 4]);
-        let refusal = std::panic::catch_unwind(|| super::required_matches("a b", "the.rs", "zz"))
-            .expect_err("an absent required needle refuses");
-        let said = refusal
-            .downcast_ref::<String>()
-            .expect("the refusal is formatted");
+        let said = crate::panic_capture::caught(|| {
+            let _ = super::required_matches("a b", "the.rs", "zz");
+        })
+        .expect("an absent required needle refuses");
         assert!(said.contains("the.rs") && said.contains("`zz`"), "{said}");
     }
 
