@@ -123,3 +123,18 @@ decides. The rule is the parser's, stated once, and the door asks it.
    sentence as the one the control should show.
 
 Pre-draw not applicable (middle tier, outside the protocol).
+
+## Three more consumers relying on the rule (PORT, `port/wrap-a`)
+
+Added as evidence, not as a second row. Each renders a name into text
+whose structure assumes the name carries none of its marks, and an
+identifier-shaped name is what makes each assumption true:
+
+- `crates/editor-core/src/stackup.rs`, `render_rss`: a refused RSS
+  column now lists its blockers one per line, so a name carrying a line
+  break would split one blocker in two (the same assumption every
+  `∂m/∂name` row of that report already makes).
+- `crates/editor-core/src/stackup.rs`, `Stackup::serialize`'s `rss`
+  line: the blocking names joined on a bare `,`, the content key's input.
+- `crates/editor-core/src/report.rs`, `MassBasis::Forced`'s `Display`:
+  the forcing names joined on `", "`.
