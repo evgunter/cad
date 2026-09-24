@@ -21,14 +21,14 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-type Bx = ((f64, f64), (f64, f64), (f64, f64));
+pub(crate) type Bx = ((f64, f64), (f64, f64), (f64, f64));
 
 const A: Bx = ((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
 const B: Bx = ((0.5, 1.5), (0.0, 1.0), (0.0, 1.0));
 /// A slab through both y-walls and out the top, over x = 0.3..0.4.
 const G: Bx = ((0.3, 0.4), (-1.0, 2.0), (0.5, 3.0));
 
-fn permutations(items: &[usize]) -> Vec<Vec<usize>> {
+pub(crate) fn permutations(items: &[usize]) -> Vec<Vec<usize>> {
     if items.len() <= 1 {
         return vec![items.to_vec()];
     }
@@ -45,7 +45,7 @@ fn permutations(items: &[usize]) -> Vec<Vec<usize>> {
 }
 
 /// The blocks in creation order `creation`; `ids[i]` is block `i`'s node.
-fn document(blocks: &[Bx], creation: &[usize]) -> (ProfileDoc, Vec<RecipeNodeId>) {
+pub(crate) fn document(blocks: &[Bx], creation: &[usize]) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let mut doc = ProfileDoc::empty_derived("emit_shared_rim_several", Tol::witness());
     let mut ids = vec![RecipeNodeId(0); blocks.len()];
     for &i in creation {
@@ -55,6 +55,22 @@ fn document(blocks: &[Bx], creation: &[usize]) -> (ProfileDoc, Vec<RecipeNodeId>
         ids[i] = id;
     }
     (doc, ids)
+}
+
+/// A published piece of member `m`'s edge `edge`: the member-keyed
+/// name, ranked `(rank, of)` when the edge is in several pieces.
+pub(crate) fn rim_piece(
+    union: RecipeNodeId,
+    m: RecipeNodeId,
+    edge: &StableName,
+    rank: Option<(u32, u32)>,
+) -> StableName {
+    let mut n = member_entity(union, m, edge.clone(), EntityKind::Edge);
+    if let Some((rank, of)) = rank {
+        n.path
+            .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of }));
+    }
+    n
 }
 
 /// The x-span of a published edge that runs along y = z = 1.
@@ -119,13 +135,13 @@ fn every_member_edge_lies_on_its_source(
     }
 }
 
-/// **`[a, b, g]`: the chord x = 0.0..0.3 is named as the piece of
-/// `a`'s top/y = 1 rim it lies on**, and every other piece of that rim
-/// keeps the name its own ranks give it. The rim runs from x = 1 to
-/// x = 0 (segment 2 of `a`'s profile), so its first union step ranks
-/// x = 0.5..1.0 first and x = 0.0..0.5 second, and `g` then splits the
-/// second piece, ranked along the same direction. On main this order
-/// refused `SharedRim { found: Several }`.
+/// **`[a, b, g]`: the chord x = 0.0..0.3 is named as a piece of `a`'s
+/// top/y = 1 rim**, ranked with that rim's other pieces. The rim runs
+/// from x = 1 to x = 0 (segment 2 of `a`'s profile), and the body's
+/// vertices cut it at 0.5, 0.4 and 0.3 into four cells, numbered along
+/// that direction (`emit_union::rank_member_edges`). `a` holds cells 0, 1
+/// and 3; cell 2 lies inside `g`. On main this order refused
+/// `SharedRim { found: Several }`.
 #[test]
 fn the_chord_is_named_as_the_rim_piece_it_lies_on() {
     let (doc, ids) = document(&[A, B, G], &[0, 1, 2]);
@@ -144,23 +160,11 @@ fn the_chord_is_named_as_the_rim_piece_it_lies_on() {
             },
         )],
     };
-    let piece = |ranks: &[u32]| {
-        let mut n = member_entity(union, a, rim.clone(), EntityKind::Edge);
-        for &rank in ranks {
-            n.path
-                .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }));
-        }
-        n
-    };
     let near =
         |(p, q): (f64, f64), (r, s): (f64, f64)| (p - r).abs() < 1e-12 && (q - s).abs() < 1e-12;
-    for (ranks, want) in [
-        (&[1, 1][..], (0.0, 0.3)),
-        (&[1, 0][..], (0.4, 0.5)),
-        (&[0][..], (0.5, 1.0)),
-    ] {
-        let got = x_span(&ev, union, &piece(ranks));
-        assert!(near(got, want), "{ranks:?}: {got:?}, wanted {want:?}");
+    for (rank, want) in [(0, (0.5, 1.0)), (1, (0.4, 0.5)), (3, (0.0, 0.3))] {
+        let got = x_span(&ev, union, &rim_piece(union, a, &rim, Some((rank, 4))));
+        assert!(near(got, want), "#{rank} of 4: {got:?}, wanted {want:?}");
     }
 }
 
@@ -172,8 +176,9 @@ fn the_chord_is_named_as_the_rim_piece_it_lies_on() {
 /// `SharedRim(Several)`; every chord there lay within exactly one
 /// piece. What the other orders refuse with (a declaration that no
 /// longer resolves, an undeclared contact) is other rows' subject.
-#[test]
-fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
+/// PR 3112's review corpus: `a` and `b` declared flush on all four
+/// families, plus one to three slabs; `(label, blocks, creation order)`.
+pub(crate) fn probe_corpus() -> Vec<(String, Vec<Bx>, Vec<usize>)> {
     let g = ((0.3, 0.4), (-1.0, 2.0), (0.5, 3.0));
     let glow = ((0.3, 0.4), (-1.0, 2.0), (-0.5, 1.0));
     let h = ((1.0, 1.1), (-1.0, 2.0), (0.5, 3.0));
@@ -204,6 +209,12 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
             }
         }
     }
+    docs
+}
+
+#[test]
+fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
+    let docs = probe_corpus();
     let mut fused = 0;
     for (label, blocks, creation) in docs {
         let (doc, ids) = document(&blocks, &creation);

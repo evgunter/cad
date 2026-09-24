@@ -20,7 +20,7 @@ use super::defer::{TieRows, Upstream, mint_candidates, put, upstream_name};
 use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along, side_of_face};
 use super::emit::{
     Incidence, NamingError, Rim, RimShare, edge_ends, ent, face_half_edges, name1, rim_between,
-    rims_between,
+    rims_between, vertex_point,
 };
 use super::merged::{self, NESTED_MERGED};
 use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
@@ -91,10 +91,7 @@ fn face_extent<T: Decide>(
             .get_half_edge(he)
             .ok_or_else(|| bug("face_extent: dangling half-edge"))?
             .start;
-        let p = *body
-            .get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point))
-            .ok_or_else(|| bug("face_extent: vertex without point"))?;
+        let p = vertex_point(body, v)?;
         let t = Vec3::new(p.x, p.y, p.z).dot(dir);
         min = Some(match min {
             None => t,
@@ -928,17 +925,37 @@ fn name_boolean_edges<T: Decide>(
     // zip-listed edge — refuses as the missing rule it is
     // (`NamingError::MergedChordOffRim`, `NamingError::MergedChord`).
     let chord_kind = |e: EdgeKey, own: Option<topo::Operand>| -> Result<ChordKind, NamingError> {
-        // The premise this caller is asking under: it did not build
-        // these bodies, it DESCENDED two result faces into one of them
-        // and guesses the pair carries this chord's rim. One shared
-        // edge is that rim; several are the pieces of one line, and
-        // the chord picks the piece it lies within ([`rim_holding`]).
-        // A pair with no rim, or pieces the chord does not pick one
-        // of, refutes the guess, not the body — so the answer is
-        // classified here rather than at the walk.
-        let same_side_rim = |op: &OperandCtx<'_, T>, f0: FaceKey, f1: FaceKey| {
+        // **One rule for a chord between two faces of ONE operand**,
+        // merged or not. The premise this caller asks under: it did not
+        // build these bodies, it DESCENDED two result faces into one of
+        // them and guesses the pair carries this chord's rim. One shared
+        // edge is that rim, when the chord lies within it
+        // ([`chord_on_rim`]); several are the pieces of one line, and the
+        // chord picks the piece it lies within ([`rim_holding`]). A pair
+        // with no rim, or pieces the chord picks none of, refutes the
+        // guess, not the body — so the answer is classified here rather
+        // than at the walk. `off_rim` says what a chord off its one rim
+        // is, which depends on why the faces were paired.
+        //
+        // `chord_on_rim` is a straight-segment test, so a CURVED rim
+        // (an arc between a cylinder's side and a cap) is taken without
+        // it. Only unmerged faces can meet along one: merged faces are
+        // planar (F7), and two planes meet in a line.
+        let same_side_rim = |op: &OperandCtx<'_, T>,
+                             f0: FaceKey,
+                             f1: FaceKey,
+                             off_rim: &dyn Fn(EdgeKey) -> NamingError|
+         -> Result<EdgeKey, NamingError> {
             let found = match rim_between(op.body, f0, f1)? {
-                Rim::One(rim) => return Ok(rim),
+                Rim::One(rim) => {
+                    let straight = topo::query::edge_carrier_kind(op.body, rim)
+                        == Some(topo::query::CurveKind::Line);
+                    return if !straight || chord_on_rim(body, e, op.body, rim, bnd)? {
+                        Ok(rim)
+                    } else {
+                        Err(off_rim(rim))
+                    };
+                }
                 Rim::NotOne(RimShare::Several) => {
                     if let Some(rim) = rim_holding(body, e, op.body, f0, f1, bnd)? {
                         return Ok(rim);
@@ -953,6 +970,12 @@ fn name_boolean_edges<T: Decide>(
                 other: f1,
                 found,
             })
+        };
+        // Two UNMERGED faces of one operand whose closures meet at the
+        // chord meet along their one shared rim, so a chord off it is a
+        // body the emitter cannot read — a kernel fact, not a rule.
+        let unmerged_off_rim = |_| NamingError::Emission {
+            what: "a chord between two unmerged faces of one operand lies off the rim they share",
         };
         let faces = inc
             .edge_faces
@@ -983,37 +1006,15 @@ fn name_boolean_edges<T: Decide>(
                 );
                 let (op, f0) = d0.of(a, b);
                 let (_, f1) = d1.of(a, b);
-                return match rim_between(op.body, f0, f1)? {
-                    Rim::One(rim) if chord_on_rim(body, e, op.body, rim, bnd)? => Ok(match side {
-                        topo::Operand::A => ChordKind::SameA(rim),
-                        topo::Operand::B => ChordKind::SameB(rim),
-                    }),
-                    Rim::One(rim) => Err(NamingError::MergedChordOffRim {
-                        edge: e,
-                        node: op.node,
-                        rim,
-                    }),
-                    Rim::NotOne(RimShare::Several) => {
-                        match rim_holding(body, e, op.body, f0, f1, bnd)? {
-                            Some(rim) => Ok(match side {
-                                topo::Operand::A => ChordKind::SameA(rim),
-                                topo::Operand::B => ChordKind::SameB(rim),
-                            }),
-                            None => Err(NamingError::SharedRim {
-                                node: op.node,
-                                face: f0,
-                                other: f1,
-                                found: RimShare::Several,
-                            }),
-                        }
-                    }
-                    Rim::NotOne(found) => Err(NamingError::SharedRim {
-                        node: op.node,
-                        face: f0,
-                        other: f1,
-                        found,
-                    }),
-                };
+                let rim = same_side_rim(op, f0, f1, &|rim| NamingError::MergedChordOffRim {
+                    edge: e,
+                    node: op.node,
+                    rim,
+                })?;
+                return Ok(match side {
+                    topo::Operand::A => ChordKind::SameA(rim),
+                    topo::Operand::B => ChordKind::SameB(rim),
+                });
             }
         };
         Ok(match (d0, d1) {
@@ -1025,8 +1026,12 @@ fn name_boolean_edges<T: Decide>(
             }
             // Two faces of one operand: the rim they share
             // (`same_side_rim`).
-            (OpSide::A(fa0), OpSide::A(fa1)) => ChordKind::SameA(same_side_rim(a, fa0, fa1)?),
-            (OpSide::B(fb0), OpSide::B(fb1)) => ChordKind::SameB(same_side_rim(b, fb0, fb1)?),
+            (OpSide::A(fa0), OpSide::A(fa1)) => {
+                ChordKind::SameA(same_side_rim(a, fa0, fa1, &unmerged_off_rim)?)
+            }
+            (OpSide::B(fb0), OpSide::B(fb1)) => {
+                ChordKind::SameB(same_side_rim(b, fb0, fb1, &unmerged_off_rim)?)
+            }
         })
     };
     let seam_pair = |e: EdgeKey| -> Result<(Upstream, Upstream), NamingError> {
@@ -1491,11 +1496,7 @@ fn name_boolean_vertices<T: Decide>(
         let extents = verts
             .iter()
             .map(|&v| {
-                let p = body
-                    .get_vertex(v)
-                    .and_then(|vd| body.get_point(vd.point))
-                    .copied()
-                    .ok_or_else(|| bug("seam vertex without point"))?;
+                let p = vertex_point(body, v)?;
                 let tv = Vec3::new(p.x, p.y, p.z).dot(dir);
                 Ok(Extent { min: tv, max: tv })
             })
@@ -1557,20 +1558,13 @@ fn resolve_edge_carrier<T: Decide>(
 }
 
 /// An edge's endpoint-extent along `dir`.
-fn edge_extent<T: Decide>(
+pub(super) fn edge_extent<T: Decide>(
     body: &Body<T>,
     e: EdgeKey,
     dir: Vec3<T>,
 ) -> Result<Extent<T>, NamingError> {
-    let bug = |what| NamingError::Emission { what };
     let (v0, v1) = edge_ends(body, e)?;
-    let p = |v: VertexKey| -> Result<Point3<T>, NamingError> {
-        body.get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point))
-            .copied()
-            .ok_or_else(|| bug("edge_extent: vertex without point"))
-    };
-    let (p0, p1) = (p(v0)?, p(v1)?);
+    let (p0, p1) = (vertex_point(body, v0)?, vertex_point(body, v1)?);
     let t0 = Vec3::new(p0.x, p0.y, p0.z).dot(dir);
     let t1 = Vec3::new(p1.x, p1.y, p1.z).dot(dir);
     Ok(Extent {
@@ -1579,12 +1573,83 @@ fn edge_extent<T: Decide>(
     })
 }
 
+/// Where a point lies against a [`Segment`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum OnSegment {
+    /// Off the segment's line, or on it past one of its ends.
+    Off,
+    /// At its start.
+    AtStart,
+    /// At its end.
+    AtEnd,
+    /// On the line, strictly between the ends.
+    Inside,
+}
+
+/// **An edge's closed segment, start to end** — the one place a point's
+/// position against an edge is read: [`Segment::place`] says whether it
+/// lies on the segment, [`Segment::along`] how far along it.
+pub(super) struct Segment<T: Decide> {
+    q0: Point3<T>,
+    q1: Point3<T>,
+    d: Vec3<T>,
+    len: T,
+}
+
+impl<T: Decide> Segment<T> {
+    /// Edge `e` of `body`, from its `he_plus` start to its end.
+    pub(super) fn of_edge(body: &Body<T>, e: EdgeKey) -> Result<Self, NamingError> {
+        let (v0, v1) = edge_ends(body, e)?;
+        let (q0, q1) = (vertex_point(body, v0)?, vertex_point(body, v1)?);
+        let d = q1 - q0;
+        Ok(Segment {
+            q0,
+            q1,
+            d,
+            len: d.norm(),
+        })
+    }
+
+    /// The signed length from the start to `p`'s foot on the line.
+    pub(super) fn along(&self, p: Point3<T>) -> T {
+        (p - self.q0).dot(self.d) / self.len
+    }
+
+    /// Where `p` lies, decided through `predicate` over lengths: first
+    /// its distance off the line, and only for a point ON it the
+    /// distances past each end (a `Negative` one is off the segment, a
+    /// `Zero` one at that end). A point off the line costs one verdict.
+    /// An in-band margin escalates typed.
+    pub(super) fn place(
+        &self,
+        p: Point3<T>,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<OnSegment, NamingError> {
+        let sign = |m: Margin<T>| {
+            decide(predicate, m, bnd).map_err(|source| NamingError::Escalated { predicate, source })
+        };
+        let off = sign(Margin::over_lever(
+            (p - self.q0).cross(self.d).norm(),
+            self.len,
+        ))?;
+        if off != Sign::Zero {
+            return Ok(OnSegment::Off);
+        }
+        let past0 = sign(Margin::over_lever((p - self.q0).dot(self.d), self.len))?;
+        let past1 = sign(Margin::over_lever((self.q1 - p).dot(self.d), self.len))?;
+        Ok(match (past0, past1) {
+            (Sign::Zero, Sign::Zero | Sign::Positive) => OnSegment::AtStart,
+            (Sign::Positive, Sign::Zero) => OnSegment::AtEnd,
+            (Sign::Positive, Sign::Positive) => OnSegment::Inside,
+            _ => OnSegment::Off,
+        })
+    }
+}
+
 /// Whether result edge `chord` lies on operand edge `rim` of
-/// `op_body`: both of its ends on the rim's line and between the rim's
-/// ends. Three margins per end, each a length and each decided through
-/// [`CHORD_ON_RIM`]: the distance off the line (must be `Zero`), and
-/// the signed distances past each rim end along it (must not be
-/// `Negative`). An in-band margin escalates typed.
+/// `op_body`: both of its ends on the rim's closed [`Segment`], through
+/// [`CHORD_ON_RIM`].
 fn chord_on_rim<T: Decide>(
     body: &Body<T>,
     chord: EdgeKey,
@@ -1592,30 +1657,10 @@ fn chord_on_rim<T: Decide>(
     rim: EdgeKey,
     bnd: geom_core::Band,
 ) -> Result<bool, NamingError> {
-    let bug = |what| NamingError::Emission { what };
-    let point = |b: &Body<T>, v: VertexKey| -> Result<Point3<T>, NamingError> {
-        b.get_vertex(v)
-            .and_then(|vd| b.get_point(vd.point))
-            .copied()
-            .ok_or_else(|| bug("chord_on_rim: vertex without point"))
-    };
-    let (r0, r1) = edge_ends(op_body, rim)?;
-    let (q0, q1) = (point(op_body, r0)?, point(op_body, r1)?);
-    let d = q1 - q0;
-    let len = d.norm();
-    let sign = |m: Margin<T>| {
-        decide(CHORD_ON_RIM, m, bnd).map_err(|source| NamingError::Escalated {
-            predicate: CHORD_ON_RIM,
-            source,
-        })
-    };
+    let seg = Segment::of_edge(op_body, rim)?;
     let (c0, c1) = edge_ends(body, chord)?;
     for v in [c0, c1] {
-        let p = point(body, v)?;
-        let off = sign(Margin::over_lever((p - q0).cross(d).norm(), len))?;
-        let past0 = sign(Margin::over_lever((p - q0).dot(d), len))?;
-        let past1 = sign(Margin::over_lever((q1 - p).dot(d), len))?;
-        if off != Sign::Zero || past0 == Sign::Negative || past1 == Sign::Negative {
+        if seg.place(vertex_point(body, v)?, CHORD_ON_RIM, bnd)? == OnSegment::Off {
             return Ok(false);
         }
     }
@@ -1657,16 +1702,9 @@ fn rim_holding<T: Decide>(
 }
 
 /// The oriented direction of an operand edge (he_plus start → end).
-fn edge_dir<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<Vec3<T>, NamingError> {
-    let bug = |what| NamingError::Emission { what };
+pub(super) fn edge_dir<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<Vec3<T>, NamingError> {
     let (v0, v1) = edge_ends(body, e)?;
-    let p = |v: VertexKey| -> Result<Point3<T>, NamingError> {
-        body.get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point))
-            .copied()
-            .ok_or_else(|| bug("edge_dir: vertex without point"))
-    };
-    Ok(p(v1)? - p(v0)?)
+    Ok(vertex_point(body, v1)? - vertex_point(body, v0)?)
 }
 
 /// A ranked group's size as its names' `OrderAlong { of }`, through
@@ -1735,7 +1773,7 @@ fn seam_line_dir<T: Decide>(
 /// Inserts a same-name group ranked by order-along, or tied when
 /// genuinely unordered.
 #[allow(clippy::too_many_arguments)]
-fn insert_ranked_or_tied<T: Decide, K: Copy>(
+pub(super) fn insert_ranked_or_tied<T: Decide, K: Copy>(
     t: &mut NameTable,
     tie: &mut TieRows,
     from_tie: bool,

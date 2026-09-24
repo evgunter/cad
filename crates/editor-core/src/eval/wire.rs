@@ -3435,9 +3435,15 @@ fn wire_union<
         // The accumulation is presented COLLAPSED. Its own rows are
         // `FromA`/`FromB`-headed, which is the fold's internal space and
         // denotes nothing outside it; a declaration answers what this
-        // node's refusal named, and a refusal names published rows
+        // node's refusal named, and a refusal names collapsed rows
         // (`union_refusal`). So the door reads the accumulation in the
-        // one space a caller can write.
+        // one space a caller can write. The collapse is not the whole of
+        // what the published table gets: `names::name_union` then
+        // renumbers the pieces of member EDGES over the finished body,
+        // which a step that has not finished does not have. A declared
+        // pair cannot name an edge at all: `declared_step` admits face
+        // and vertex pairs only, and refuses any other
+        // (`DeclareUnsupportedPair`).
         //
         // A member-space name the fold has already merged away is
         // rewritten to the accumulation's `Merged` row that holds it
@@ -3513,7 +3519,28 @@ fn wire_union<
             }
         }
     }
-    let table = names::name_union(id, &acc_body, &acc_table).map_err(NodeErrorKind::Naming)?;
+    // The members' own bodies and tables: where each member edge the
+    // published table ranks pieces of is defined (`name_union`).
+    let member_bodies = members
+        .iter()
+        .map(|&m| {
+            Ok((
+                m,
+                body_operand(results, m)?,
+                &value_of(results, m)?.name_table,
+            ))
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+    let member_views: Vec<names::UnionMember<'_, T>> = member_bodies
+        .iter()
+        .map(|(node, body, table)| names::UnionMember {
+            node: *node,
+            body,
+            table,
+        })
+        .collect();
+    let table = names::name_union(id, &acc_body, &acc_table, &member_views, tol)
+        .map_err(NodeErrorKind::Naming)?;
     let mut body = (*acc_body).clone();
     // ONCE, over the finished body, and not per fold step: the stamp
     // numbers a node's minted descriptions from zero, so a second pass
@@ -3851,9 +3878,18 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 /// internal space: no published table holds it, [`mod@crate::resolve`]
 /// cannot look it up, and a selector written against it matches
 /// nothing. Every name the refusal carries is therefore put through
-/// [`names::collapse_name`], the same rewrite the node's own table gets
-/// from `name_union`, so a refusal denotes member-space entities and
-/// nothing else.
+/// [`names::collapse_name`], the collapse the node's own table gets from
+/// `name_union`, so a refusal denotes member-space entities and nothing
+/// else.
+///
+/// The collapse is not all `name_union` does: it then numbers the
+/// pieces of each member EDGE by the cells the finished body cuts it
+/// into, and has seam vertices cite member edges whole. A refusal is
+/// raised before there is a finished body, so a member-edge piece it
+/// carried would keep the fold's rank, which no published table holds.
+/// So one refuses as an emission bug ([`UNION_REFUSAL_FOLD_RANKED_EDGE`])
+/// rather than being handed out; today none reaches it, since
+/// `refusal_menu` resolves face keys and a flush finding names faces.
 ///
 /// A name that will not collapse is an emission bug in the fold's own
 /// table, and it is raised as one rather than swallowed: the union was
@@ -3911,6 +3947,15 @@ fn union_refusal<T: crate::lane::Lane>(
     // so there is nothing for the sited arm below to carry.
     for subject in [&a, &b] {
         if let DeclarationSubject::FoldMinted(row) = subject {
+            // A piece of a member edge here carries the FOLD's rank,
+            // which the published table renumbers over the finished
+            // body: handing it out would name nothing. No flush finding
+            // names an edge today; if one ever does, it refuses loudly.
+            if names::is_fold_ranked_member_edge(row) {
+                return NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: UNION_REFUSAL_FOLD_RANKED_EDGE,
+                });
+            }
             return NodeErrorKind::UndeclarableContact {
                 row: Box::new(row.clone()),
                 diag,
@@ -4032,6 +4077,10 @@ fn sited_member(
         _ => DeclarationSubject::FoldMinted(collapsed),
     })
 }
+
+/// A union's refusal named a piece of a member edge by the fold's rank.
+const UNION_REFUSAL_FOLD_RANKED_EDGE: &str = "a union fold's refusal names a piece of a member \
+     edge by the fold's rank, which no published table holds";
 
 /// A union's refusal named a row its own fold table cannot collapse.
 const UNION_REFUSAL_FOREIGN: &str =

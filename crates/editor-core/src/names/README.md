@@ -63,8 +63,18 @@ the seam pair's `n_a × n_b` (the pair's `a` face first, one orientation
 whichever step cut the line; a union reading the pair in name order reads a
 swapped pair's rank from the other end), and otherwise — any other edge, or a
 seam between two same-named faces (two placements of one prototype) — the
-parent's own oriented carrier. Both run through `k_stats`, so fragment identity changes only at a
-recorded flip; an in-band margin refuses (`NamingError::Escalated`), never a
+parent's own oriented carrier. One case counts CELLS rather than fragments:
+a union's piece of a member edge, `FromMember(m, e)` + `OrderAlong { rank, of }`.
+The finished body's vertices on `e`'s segment (`name_frag_on_member_edge`)
+cut it into cells numbered along `e`'s oriented carrier in `m`'s body; `of`
+counts cells, not pieces — cells held by another member or by none count too,
+so some ranks below `of` index a cell no piece of `m` holds — and `rank` is
+the first cell the piece covers. That is an ordinal along the parent's
+oriented carrier, and it moves with neither member order nor which member
+keeps a flush stretch, as far as the boolean's output is itself order-free
+(`emit_union::rank_member_edges`). A seam vertex cites such an edge whole,
+`FromMember(m, e)`, never a piece. The verdicts run through `k_stats`,
+so fragment identity changes only at a recorded flip; an in-band margin refuses (`NamingError::Escalated`), never a
 silent pick, and an ambient tolerance that forms no classification band at all
 refuses (`NamingError::Band`) carrying the band constructor's own diagnostic —
 the overflow and the collapse want opposite repairs, so the refusal says which

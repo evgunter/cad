@@ -23,7 +23,7 @@ author reorders the members.
 ## Measured (EMIT, 2026-09-23; scratch probe over PR 3112's review corpus)
 
 `fam010` (`a` = x∈(0,1), `b` = x∈(0.5,1.5), declared flush on all
-four families; third member x∈(0.3,0.4), y∈(-1,0.5), z∈(-0.5,1)).
+four families; third member x∈(0.3,0.4), y∈(-1,0.5), z∈(0.5,3.5)).
 Both orders fuse on main.
 
 | order | `FromMember(a, RimEdge(End, seg 0))#OrderAlong{1 of 2}` binds |
@@ -38,9 +38,12 @@ Both orders fuse on main.
 
 Counted as names present in two fused orders of one document but bound
 to different geometry. Edges were compared by their end points and
-vertices by their point, over the corpus's 350 pairs of fused orders:
+vertices by their point, over the corpus's 350 pairs of fused orders at
+`emit/shared-rim-several`'s first head (EMIT's own probe). "Rebinds"
+counts (pair, name) rebinds, so a name rebound in three pairs counts
+three times:
 
-| pairs of orders | pairs | pairs with a rebind | rebound names |
+| pairs of orders | pairs | pairs with a rebind | rebinds |
 |---|---|---|---|
 | both fused on main | 162 | 18 | 24 |
 | one fused on main, one fuses with `emit/shared-rim-several` | 124 | 42 | 60 |
@@ -61,3 +64,25 @@ with no refusal. `declared-flush-union-edge-and-vertex-names-follow-member-order
 and does not hold for rim edges. The seam-edge sibling is
 `union-seam-edge-ranks-follow-which-step-split-the-seam` (P0). Both
 mechanisms are the same: pieces ranked by whichever step cut them.
+
+## The fix in review: PR #3168 (EMIT, 2026-09-24)
+
+PR #3168 (`emit/rim-piece-ranks`, stacked on #3167) adds two passes over
+the finished body at the end of `emit_union::name_union`:
+- `rank_member_edges`: the vertices lying on member `m`'s edge `e` cut it
+  into cells, numbered along `e` in `m`'s body. A piece publishes
+  `FromMember(m, e)#k of n`, where `k` is its first cell and `n` counts
+  every cell, including cells another member holds or no member does.
+- `cite_member_edges`: a seam vertex that cites a ranked piece of a
+  member edge cites the whole edge.
+
+Its measurements, from #3168's review probes over the corpus and the
+review fixtures, every order: 0 pairs of fused orders rebind a name,
+and no cell that fuses on main refuses. On main (498de1ae6d, the review's
+first probe): over the corpus plus the r1–r3 fixtures, 25 of 305 pairs
+rebind, 56 (pair, name) rebinds of 20 distinct names; over the corpus
+alone, 18 of 158 pairs, 24 rebinds of 8 names. (EMIT's probe above
+fuses 162 corpus pairs on main to the review's 158; the 18 and 24
+agree.) Ranking over the pieces a member keeps, an earlier draft,
+still rebound `r2ends`, `r2endsg` and `r4tri`. The rows are in
+`crates/editor-core/tests/emit_union_rim_piece_ranks.rs`.
