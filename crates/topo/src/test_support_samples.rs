@@ -17,7 +17,7 @@
 //! than one such string has a sample per string, because the budget
 //! is a claim about what a reader sees. Arena keys are the default
 //! (null) keys: a key renders as one word whatever its index.
-#![allow(clippy::too_many_lines)]
+#![allow(clippy::expect_used)] // two fixed bands, well-formed and inverted by construction
 
 use geom_brep::MaterialWedge;
 use geom_core::{Band, Indeterminate, MarginDiag};
