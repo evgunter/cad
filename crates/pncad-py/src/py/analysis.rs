@@ -183,7 +183,7 @@ pub(crate) fn dimension_mismatch(
     let text = |s: &str| PyString::new(py, s).unbind().into_any();
     typed_err(
         py,
-        ErrorClass::Dimension,
+        ErrorClass::QuantityOp,
         QuantityOpMismatch::new(door, left, right).to_string(),
         &[
             ("op", text(door)),
