@@ -67,12 +67,14 @@ spelling a head carries in the assembling document. `reference` is
 used when the face's pose carries no `u_ref` and refused, typed, when
 neither is present; when the face carries one, an authored
 `reference` is refused as a second spelling of one fact (so the arm
-never stores a duplicate). On the wire: untagged over the two arms,
-each inner struct `deny_unknown_fields` (the shape `LoggedEdit`
-established), so every existing document reads as `Authored`
-unchanged — C5's row holds bit for bit — and a stray key on either
-arm refuses. `MateFrame::authored(origin, axis, reference)` is the
-constructor every present literal moves to.
+never stores a duplicate). On the wire: EXTERNALLY tagged —
+`{"Authored": {…}}` / `{"FromFace": {…}}` — each inner struct
+`deny_unknown_fields`, so a stray key on either arm refuses and an
+untagged frame refuses as the pre-arm shape it is. No reader accepts
+the old bare-vector frame: every tracked document that carries a mate
+is regenerated with the repo's own tooling in this unit, and what it
+moved is said (discipline §3). `MateFrame::authored(origin, axis,
+reference)` is the constructor every present literal moves to.
 
 **2. The resolution, on the reach road.** `MateReach` gains a second
 method, `face_pose(&self, part: &DocRef, face: &StableName) ->
@@ -150,7 +152,9 @@ mate, side and part; a face with no `u_ref` (a sphere) refuses
 `u_ref` beside an authored reference refuses; a vanished name refuses
 `NoSuchName`; an unresolvable part faults in the resolver's voice;
 the memo-key row (§4); the wire round-trip of both arms and the
-stray-key refusal on each; C5 over the tracked `.pncad` files. One
+stray-key refusal on each; the pre-arm bare frame refusing; C5 over
+the tracked documents (each loads; each that holds a mate was
+regenerated and moved only by the tag). One
 viewer row: the tool authors `FromFace` and the badge names the face
 on a refusal. One Python row on `from_face` and the tag.
 
@@ -163,7 +167,8 @@ on a refusal. One Python row on `from_face` and the tag.
   for bit; NURBS refuses typed; the `sense` bit is not folded.
 - **A3** No verdict moves for `Authored` frames: every mate row in the
   workspace passes unchanged after the literal sweep, and every
-  tracked `.pncad` loads bit-identically (C5).
+  tracked document loads; those that carry a mate are regenerated and
+  differ from their prior bytes by the arm's tag alone (C5).
 - **A4** The memo key moves iff the face moves.
 - **A5** The A11 sentence, the module docs, the type doc, the `.pyi`,
   the guide and the tour agree; the Python surface and census agree.
@@ -231,7 +236,8 @@ One style review plus a correctness arm, claims verbatim:
   face with `sense: false` resolves to the chart axis, and the mate's
   `AxisSense` alone decides the direction).
 - **C3** A3: enumerate the mate suites and confirm no verdict moved;
-  every tracked `.pncad` loads bit-identically.
+  every tracked document loads, and a regenerated one differs from its
+  prior bytes by the tag alone.
 - **C4** A4: the mate's key moves under an edit that moves the face and
   is unchanged under one that does not; the solve is not re-run for
   the latter.
@@ -239,3 +245,18 @@ One style review plus a correctness arm, claims verbatim:
   ladder's) are typed at the mate, the side, the instance and the
   part, and every arm is reachable through a door or its
   unreachability is stated at the arm.
+
+## Amendment (orchestrator, 2026-09-24)
+
+§1's wire changed from untagged to externally tagged, and with it
+A3, C3 and the rows' C5 clause. Two things moved under the old
+sentence after this spec was written. Ev's ruling on PR 3123 retired
+`LoggedEdit`'s two-shape untagged wire, the precedent the sentence
+cited: backward compatibility with older files is a reason to remove
+code, not keep it. And PR 2702 lands `scripts/gates/persist-no-backtracking.sh`,
+which fails CI on any `#[serde(untagged)]` under
+`crates/editor-core/src`, because the load door's structured refusal
+rides a first-refusal-wins premise an untagged enum breaks. Filed by
+PORT as `work/msolve/msolve-9-spec-prescribes-an-untagged-wire.md`,
+which this unit closes.
+
