@@ -590,11 +590,12 @@ fn a_dropped_loop_strands_and_a_moved_loop_rebinds_every_name_on_it() {
 
 /// **A program that no longer replays has no spans, so every name on
 /// it strands.** A hole whose radius a document parameter drives is
-/// driven to zero — legal at rest (V1 class 2) — and the program is
-/// then replaced by one whose radius is a literal, under the identity
-/// provenance. The old program's spans cannot be read, so the
-/// provenance cannot be honoured: the hole's name strands, reported,
-/// never guessed kept.
+/// driven to zero — legal at rest (V1 class 2). The profile's numbering
+/// cannot be read there, so the value edit that parks it strands the
+/// hole's name, reported, never guessed kept. The program is then
+/// replaced by one whose radius is a literal, under the identity
+/// provenance; the name is already retired, so that edit has nothing
+/// left to report.
 #[test]
 fn a_program_that_no_longer_replays_has_no_spans_so_every_name_on_it_strands() {
     let square = LoopProgram::Chain(square_steps());
@@ -627,13 +628,28 @@ fn a_program_that_no_longer_replays_has_no_spans_so_every_name_on_it_strands() {
         },
     );
     let (doc, on_hole) = frame_on(doc, ext, wall_of(ext, 1, 0));
-    let (doc, _) = fixture::step(
-        doc,
-        DocEdit::SetDocParam {
+    let parked = apply(
+        &doc,
+        &DocEdit::SetDocParam {
             name: radius,
             value: DocParam::continuous(Dimension::Length, 0.0),
         },
+        tol(),
+        &editor_core::RefusingReach,
+    )
+    .expect("a radius of zero is legal at rest");
+    // The profile's numbering cannot be read at radius zero, so the
+    // name is filed by its own coordinates: loop `RETIRED_FLOOR + 1`,
+    // segment 0.
+    assert_eq!(
+        parked.maintenance,
+        vec![Maintenance::Strand {
+            node: on_hole,
+            name: wall_of(ext, RETIRED_FLOOR + 1, 0),
+        }],
+        "one strand at the retired spelling and nothing else"
     );
+    let doc = parked.doc;
     let applied = accepted(
         &doc,
         profile,
@@ -649,18 +665,10 @@ fn a_program_that_no_longer_replays_has_no_spans_so_every_name_on_it_strands() {
             },
         ],
     );
-    // The old program does not replay, so neither its spans nor its
-    // canonical numbering can be read — not even which of its loops the
-    // name's canonical loop 1 is — and the retired coordinate is filed
-    // by the name's own coordinates: loop `RETIRED_FLOOR + 1`,
-    // segment 0.
     assert_eq!(
         applied.maintenance,
-        vec![Maintenance::Strand {
-            node: on_hole,
-            name: wall_of(ext, RETIRED_FLOOR + 1, 0),
-        }],
-        "one strand at the retired spelling and nothing else"
+        Vec::new(),
+        "the name was retired when the value parked the profile, and stays retired"
     );
 }
 
@@ -2725,4 +2733,256 @@ fn a_slot_edit_that_flips_a_loops_sense_rebinds_and_reports() {
         has_corner3(&old_spelling, (1.0, -1.0, 0.0)) && has_corner3(&old_spelling, (0.0, 0.0, 0.0)),
         "the base's old spelling now denotes the side (1,−1)→(0,0): {old_spelling:?}"
     );
+}
+
+/// A document parameter's value written through the value door.
+fn set_value(doc: &ProfileDoc, name: &str, v: f64) -> editor_core::Applied<ProfileProgram> {
+    apply(
+        doc,
+        &DocEdit::SetDocParamValue {
+            name: ParamName::new(name),
+            value: editor_core::DocParamValue::Continuous(v),
+        },
+        tol(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the value lands")
+}
+
+fn declared(label: &str, name: &str, v: f64) -> ProfileDoc {
+    let (doc, _) = fixture::step(
+        ProfileDoc::empty_derived(label, tol()),
+        DocEdit::SetDocParam {
+            name: ParamName::new(name),
+            value: DocParam::continuous(Dimension::Length, v),
+        },
+    );
+    doc
+}
+
+fn param_len(name: &str) -> Expr {
+    Expr::param(ParamName::new(name), Dimension::Length)
+}
+
+/// The axis-aligned square `(x0,y0)–(x1,y1)`, counterclockwise or
+/// clockwise, from `(x0, y0)`.
+fn fixed_square(x0: f64, y0: f64, x1: f64, y1: f64, ccw: bool) -> LoopProgram {
+    let v = if ccw {
+        [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+    } else {
+        [(x0, y0), (x0, y1), (x1, y1), (x1, y0)]
+    };
+    LoopProgram::polygon(v).unwrap()
+}
+
+/// The square of half-size `name` about `(cx, cy)`, from its
+/// `(−, −)` corner, counterclockwise or clockwise.
+fn driven_square(cx: f64, cy: f64, name: &str, ccw: bool) -> LoopProgram {
+    let at = |c: f64, sign: f64| {
+        if sign > 0.0 {
+            Expr::add(len(c), param_len(name)).unwrap()
+        } else {
+            Expr::sub(len(c), param_len(name)).unwrap()
+        }
+    };
+    let corners = if ccw {
+        [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
+    } else {
+        [(-1.0, -1.0), (-1.0, 1.0), (1.0, 1.0), (1.0, -1.0)]
+    };
+    let pt = |(sx, sy): (f64, f64)| [at(cx, sx), at(cy, sy)];
+    let mut steps = vec![ProgramStep::At(pt(corners[0]))];
+    for c in &corners[1..] {
+        steps.push(ProgramStep::LineTo(ProgramTarget::Point(pt(*c))));
+    }
+    steps.push(ProgramStep::LineTo(ProgramTarget::Start));
+    LoopProgram::Chain(steps)
+}
+
+/// A profile of `loops` extruded, in `doc`.
+fn extrude_of(doc: ProfileDoc, loops: Vec<LoopProgram>) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(doc, Node::Profile(ProfileProgram { plane, loops }));
+    insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    )
+}
+
+/// **Two value edits through a state that does not replay never
+/// rename.** `hole_r` 0.3 → 0.0 → 1.5. At zero the profile does not
+/// replay, so its numbering cannot be read, and the edit that parks it
+/// strands the hole's name there, reported. The next edit lands the
+/// circle as the OUTER loop — a different numbering — and the retired
+/// name is untouched by it: it neither follows into a numbering nobody
+/// read it in nor silently becomes the square's side, which is what the
+/// spelling `Lateral{1,0}` denotes at 1.5.
+#[test]
+fn two_value_edits_through_a_state_that_does_not_replay_strand_and_never_rename() {
+    let doc = declared("value-through-nonreplay", "hole_r", 0.3);
+    let (doc, ext) = extrude_of(
+        doc,
+        vec![
+            LoopProgram::Chain(square_steps()),
+            LoopProgram::Circle {
+                centre: [len(1.0), len(1.0)],
+                radius: param_len("hole_r"),
+            },
+        ],
+    );
+    let (doc, on_hole) = frame_on(doc, ext, wall_of(ext, 1, 0));
+    let mid = set_value(&doc, "hole_r", 0.0);
+    assert_eq!(
+        mid.maintenance,
+        vec![Maintenance::Strand {
+            node: on_hole,
+            name: wall_of(ext, RETIRED_FLOOR + 1, 0),
+        }],
+        "the parking edit strands the hole's name, reported"
+    );
+    let end = set_value(&mid.doc, "hole_r", 1.5);
+    assert_eq!(
+        end.maintenance,
+        Vec::new(),
+        "a retired name is not reported twice"
+    );
+    assert_eq!(
+        frame_face(&end.doc, on_hole),
+        wall_of(ext, RETIRED_FLOOR + 1, 0),
+        "the name stays retired rather than denoting the square's side"
+    );
+}
+
+/// **Two value edits through a state whose loops cannot be ordered
+/// never rename.** A 4 × 4 outer square and a clockwise hole square of
+/// half-size `s` about its centre: at `s = 2` the hole coincides with
+/// the outer loop — two loops tied for the largest area, so no loop is
+/// the outer one and no numbering can be read. The parking edit strands
+/// the outer wall's name, reported; the next edit (`s = 3`, the hole now
+/// ENCLOSING the square) leaves it retired.
+#[test]
+fn two_value_edits_through_a_tie_strand_and_never_rename() {
+    let doc = declared("value-through-tie", "s", 0.3);
+    let (doc, ext) = extrude_of(
+        doc,
+        vec![
+            fixed_square(0.0, 0.0, 4.0, 4.0, true),
+            driven_square(2.0, 2.0, "s", false),
+        ],
+    );
+    let (doc, side) = frame_on(doc, ext, wall_of(ext, 0, 0));
+    let mid = set_value(&doc, "s", 2.0);
+    assert_eq!(
+        mid.maintenance,
+        vec![Maintenance::Strand {
+            node: side,
+            name: wall_of(ext, RETIRED_FLOOR, 0),
+        }],
+        "the tie strands the outer wall's name, reported"
+    );
+    let end = set_value(&mid.doc, "s", 3.0);
+    assert_eq!(end.maintenance, Vec::new());
+    assert_eq!(frame_face(&end.doc, side), wall_of(ext, RETIRED_FLOOR, 0));
+}
+
+/// **A round trip through a zero-area loop strands, and the name does
+/// not come back** — the cost of the last published numbering not being
+/// recipe state
+/// (`work/emit/a-value-edits-last-published-numbering-is-not-recipe-state.md`).
+/// A diamond hole of half-height `h` inside the square: at `h = 0` the
+/// hole encloses no area and the profile's numbering cannot be read, so
+/// both framed names strand, reported. Back at `h = 0.2` the geometry is
+/// exactly what it was, and both names stay retired: pinned so that the
+/// day the numbering is recipe state, this row is the one that turns.
+#[test]
+fn a_round_trip_through_a_zero_area_loop_strands_the_loops_names() {
+    let doc = declared("value-zero-area", "h", 0.2);
+    let off = |sign: f64| {
+        if sign > 0.0 {
+            Expr::add(len(1.0), param_len("h")).unwrap()
+        } else {
+            Expr::sub(len(1.0), param_len("h")).unwrap()
+        }
+    };
+    let diamond = LoopProgram::Chain(vec![
+        ProgramStep::At([len(0.5), len(1.0)]),
+        ProgramStep::LineTo(ProgramTarget::Point([len(1.0), off(-1.0)])),
+        ProgramStep::LineTo(ProgramTarget::Point([len(1.5), len(1.0)])),
+        ProgramStep::LineTo(ProgramTarget::Point([len(1.0), off(1.0)])),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let (doc, ext) = extrude_of(doc, vec![LoopProgram::Chain(square_steps()), diamond]);
+    let (doc, on_hole) = frame_on(doc, ext, wall_of(ext, 1, 0));
+    let (doc, on_outer) = frame_on(doc, ext, wall_of(ext, 0, 0));
+    let mid = set_value(&doc, "h", 0.0);
+    assert_eq!(
+        mid.maintenance,
+        vec![
+            Maintenance::Strand {
+                node: on_hole,
+                name: wall_of(ext, RETIRED_FLOOR + 1, 0),
+            },
+            Maintenance::Strand {
+                node: on_outer,
+                name: wall_of(ext, RETIRED_FLOOR, 0),
+            },
+        ],
+        "both names strand where the numbering cannot be read"
+    );
+    let end = set_value(&mid.doc, "h", 0.2);
+    assert_eq!(end.maintenance, Vec::new());
+    assert_eq!(
+        frame_face(&end.doc, on_hole),
+        wall_of(ext, RETIRED_FLOOR + 1, 0)
+    );
+    assert_eq!(
+        frame_face(&end.doc, on_outer),
+        wall_of(ext, RETIRED_FLOOR, 0)
+    );
+}
+
+/// **Two sweeps of one expression-driven profile both follow the jump.**
+/// The hole's radius is `2·p`; `p` 0.15 → 0.75 makes the circle enclose
+/// the square, and the square side framed on each of two extrudes of the
+/// profile is carried to its new spelling on both.
+#[test]
+fn both_sweeps_of_a_profile_follow_its_renumbering() {
+    let doc = declared("value-two-sweeps", "p", 0.15);
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let radius = Expr::mul(param_len("p"), scl(2.0)).unwrap();
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![
+                LoopProgram::Chain(square_steps()),
+                LoopProgram::Circle {
+                    centre: [len(1.0), len(1.0)],
+                    radius,
+                },
+            ],
+        }),
+    );
+    let (doc, a) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let (doc, b) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(2.0),
+        },
+    );
+    let (doc, fa) = frame_on(doc, a, wall_of(a, 0, 2));
+    let (doc, fb) = frame_on(doc, b, wall_of(b, 0, 2));
+    let applied = set_value(&doc, "p", 0.75);
+    assert_eq!(frame_face(&applied.doc, fa), wall_of(a, 1, 1));
+    assert_eq!(frame_face(&applied.doc, fb), wall_of(b, 1, 1));
 }

@@ -307,11 +307,8 @@ the die's chain unnecessary.*
 
 ## DM7 — A stranded name is reported at the edit that removes its referent, never refused
 
-The edit that removes a name's referent — `DeleteNode`, `SetProgram`
-for the steps it drops or changes, and a value edit (`SetParam`,
-`SetExpression`, `SetStructuralParam`, `SetDocParam`,
-`SetDocParamValue`) that moves a profile's canonical numbering —
-stays legal when a
+The edit that removes a name's referent — `DeleteNode`, and
+`SetProgram` for the steps it drops or changes — stays legal when a
 payload name (`Node::payload_names`) names what is being removed: a
 name is not a DAG edge, and the carve-out in §0 stands. What the door
 owes is a report: every `(node, name)` pair whose referent the edit
@@ -324,11 +321,15 @@ the diagnosis and the repair. A reshaping has one more thing to say, which a del
 never has: a name on a step it KEPT is rewritten in place to the
 coordinates the segment sits at now and reported `Rebound { from, to
 }`, so a moved name is visible in the accepted edit and never silently
-re-denotes (`crates/profile/README.md` V2). A value edit that changes
-which loop is outer or a loop's sense is that reshaping with every step
-kept: the names spelled in the profile's numbering are carried through
-the same map and reported the same way (`reanchor_report` in
-`edit.rs`).
+re-denotes (`crates/profile/README.md` V2). The same holds for an edit
+that moves the numbering a name is spelled in rather than its referent:
+a value edit (`SetParam`, `SetExpression`, `SetStructuralParam`,
+`SetDocParam`, `SetDocParamValue`) that changes which loop of a profile
+is outer or which way a loop runs is a reshaping with every step kept.
+The names spelled in that profile's numbering are rewritten and reported
+`Rebound` through the same map, and where either side's numbering cannot
+be read they are reported stranded, as a reshaping reports a program
+whose spans cannot be read (`reanchor_report` in `edit.rs`).
 
 The report covers every reference the document holds under N5
 semantics, not only the node payloads: an appearance attachment is

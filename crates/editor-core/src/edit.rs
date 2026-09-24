@@ -3912,10 +3912,9 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // (`eval::anchor::replay_naming`), stranding only the loops
             // whose sense or order that cannot decide.
             let old_replayed = payload.replay_records(&env, tol).ok();
-            let old_checked = old_replayed.as_ref().and_then(|(loops, records)| {
-                let checked = checked_replay(old_loops, loops, records).ok()?;
-                Some((checked, crate::eval::readable_naming(loops, tol)))
-            });
+            let old_checked = old_replayed
+                .as_ref()
+                .and_then(|replayed| read_side(old_loops, replayed));
             let Some(new_naming) = crate::eval::naming_of(&new_loops, tol) else {
                 unreachable!(
                     "the new program validated at this door a moment ago, and its naming \
@@ -3944,20 +3943,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             )
             .map_err(refused)?;
             new.nodes.insert(*node, probe);
-            // Whose locators are spelled in this profile's coordinates:
-            // the sweeps over it. Every other node's names hold them
-            // only inside carried names, which the walk descends.
-            let anchored = new
-                .order
-                .iter()
-                .copied()
-                .filter(|id| {
-                    new.nodes
-                        .get(id)
-                        .is_some_and(|n| n.anchoring_profile() == Some(*node))
-                })
-                .collect();
-            reported = reshape_report(&mut new, &mut ProgramRemap::new(&map, anchored))?;
+            reported = carry_names(&mut new, *node, &map)?;
             // Structural whatever moved: the edit's class is a
             // rewrite of program structure — verbs, order, count —
             // and the record classifies the edit, as
@@ -4413,9 +4399,13 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
 /// reads the value it writes. A slot edit reaches the node it names —
 /// a profile only where that node is one; a document-parameter edit
 /// that moves a value reaches every profile whose program references
-/// the parameter. Every other edit writes no value a program reads (a
-/// notation or an annotation moves no nominal), or is `SetProgram`,
-/// which carries its own names.
+/// the parameter ([`crate::ProfilePayload::references`]).
+///
+/// Exhaustive with no wildcard arm, so an edit that begins to write a
+/// value a program reads has to say so here or stop compiling. Every
+/// other arm writes no value a program reads — a notation or an
+/// annotation moves no nominal — or is `SetProgram`, which carries its
+/// own names.
 fn value_edit_profiles<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
@@ -4432,20 +4422,25 @@ fn value_edit_profiles<P: crate::ProfilePayload>(
             .order
             .iter()
             .copied()
-            .filter(|id| {
-                doc.nodes.get(id).is_some_and(|n| {
-                    matches!(n, Node::Profile(_))
-                        && n.slots().into_iter().any(|slot| {
-                            n.expr(slot).is_some_and(|e| {
-                                let mut refs = Vec::new();
-                                e.param_refs(&mut refs);
-                                refs.iter().any(|(r, _)| r == name)
-                            })
-                        })
-                })
-            })
+            .filter(|id| matches!(doc.nodes.get(id), Some(Node::Profile(p)) if p.references(name)))
             .collect(),
-        _ => Vec::new(),
+        DocEdit::InsertNode { .. }
+        | DocEdit::DeleteNode { .. }
+        | DocEdit::SetMembers { .. }
+        | DocEdit::SetProgram { .. }
+        | DocEdit::SetDocParamUnit { .. }
+        | DocEdit::SetDocParamDistribution { .. }
+        | DocEdit::Rebind { .. }
+        | DocEdit::ReWitness { .. }
+        | DocEdit::ReWitnessBulk { .. }
+        | DocEdit::SetAppearance { .. }
+        | DocEdit::ClearAppearance { .. }
+        | DocEdit::SetTolerance { .. }
+        | DocEdit::SetAppearanceMeta { .. }
+        | DocEdit::ClearAppearanceMeta { .. }
+        | DocEdit::SetRoots { .. }
+        | DocEdit::SetPlacement { .. }
+        | DocEdit::UpdateReference { .. } => Vec::new(),
     }
 }
 
@@ -4462,47 +4457,104 @@ fn value_edit_profiles<P: crate::ProfilePayload>(
 /// what it drew; what changed is which canonical locator each drawn
 /// segment answers to. That is a [`SegmentMap`] under the identity
 /// provenance, read through each side's own anchor, and the names are
-/// carried and reported by [`reshape_report`] — the door
-/// `SetProgram` reports through — rather than left spelling what the
-/// numbering now gives to another segment.
+/// carried and reported by [`carry_names`] — the door `SetProgram`
+/// reports through — rather than left spelling what the numbering now
+/// gives to another segment.
 ///
 /// A profile whose numbering the edit did not move is untouched, so
-/// the ordinary value edit reports nothing. Where either side does not
-/// replay, or its loop order cannot be read at all, there is nothing
-/// to translate between and the profile is left as it is: an old side
-/// that does not replay has no spans (the same answer `SetProgram`
-/// gives), and a new side that does not replay has no evaluation for
-/// a name to denote anything in. A loop one side cannot read the sense
-/// of strands the names on it (`eval::anchor::replay_naming`).
+/// the ordinary value edit reports nothing. A side whose numbering
+/// cannot be read — it does not replay, its record does not describe
+/// it, or its loops cannot be ordered — takes `SetProgram`'s rule for
+/// an unreadable old program on either side: every name spelled in the
+/// profile's numbering strands, reported, and nothing is guessed kept.
+/// A loop one side cannot read the sense of strands the names on it
+/// alone (`eval::anchor::replay_naming`). A name already retired is
+/// untouched, so an edit between two unreadable states reports nothing
+/// it has already reported. The last numbering the profile was
+/// published in is not recipe state, so a round trip through an
+/// unreadable state strands rather than restoring
+/// (`work/emit/a-value-edits-last-published-numbering-is-not-recipe-state.md`).
 fn reanchor_report<P: Clone + crate::ProfilePayload>(
     old: &Doc<P>,
     new: &mut Doc<P>,
     profiles: &[RecipeNodeId],
     tol: Tol,
 ) -> Result<Vec<Maintenance>, EditError> {
+    // Which nodes' own locators each profile's numbering spells, read
+    // once: a profile nothing sweeps is one this edit cannot renumber a
+    // name of, and is passed over before either side is replayed.
+    let mut sweeps: std::collections::BTreeMap<
+        RecipeNodeId,
+        std::collections::BTreeSet<RecipeNodeId>,
+    > = std::collections::BTreeMap::new();
+    for id in &new.order {
+        if let Some(profile) = new.nodes.get(id).and_then(Node::anchoring_profile) {
+            sweeps.entry(profile).or_default().insert(*id);
+        }
+    }
     let mut rows = Vec::new();
     for &node in profiles {
+        let Some(anchored) = sweeps.remove(&node) else {
+            continue;
+        };
         let Some(map) = numbering_move(old, new, node, tol)? else {
             continue;
         };
-        let anchored = new
-            .order
-            .iter()
-            .copied()
-            .filter(|id| {
-                new.nodes
-                    .get(id)
-                    .is_some_and(|n| n.anchoring_profile() == Some(node))
-            })
-            .collect();
         rows.extend(reshape_report(new, &mut ProgramRemap::new(&map, anchored))?);
     }
     Ok(rows)
 }
 
+/// The nodes whose OWN locators are spelled in `profile`'s numbering:
+/// the sweeps over it ([`Node::anchoring_profile`]). Every other
+/// node's names hold them only inside carried names, which
+/// [`reshape_report`]'s walk descends.
+fn anchored_on<P>(doc: &Doc<P>, profile: RecipeNodeId) -> std::collections::BTreeSet<RecipeNodeId> {
+    doc.order
+        .iter()
+        .copied()
+        .filter(|id| {
+            doc.nodes
+                .get(id)
+                .is_some_and(|n| n.anchoring_profile() == Some(profile))
+        })
+        .collect()
+}
+
+/// **Carry every name spelled in `profile`'s numbering through `map`**
+/// and report what moved or stranded — the one tail `SetProgram` and a
+/// value edit that moved the numbering share.
+fn carry_names<P>(
+    doc: &mut Doc<P>,
+    profile: RecipeNodeId,
+    map: &SegmentMap,
+) -> Result<Vec<Maintenance>, EditError> {
+    let anchored = anchored_on(doc, profile);
+    reshape_report(doc, &mut ProgramRemap::new(map, anchored))
+}
+
+/// One side of a numbering change, read: each loop's checked records
+/// and the naming anchor per canonical loop
+/// ([`crate::eval::readable_naming`]). `None` where the record does not
+/// describe the programs; the anchor is empty where the loops cannot
+/// be ordered. The one reader of an old program `SetProgram` and a
+/// value edit share.
+fn read_side<'p, 'r>(
+    programs: &'p [crate::program::LoopProgram],
+    replayed: &'r crate::program::Replayed,
+) -> Option<(
+    Vec<CheckedRecords<'p, 'r>>,
+    Vec<Option<crate::eval::LoopAnchor>>,
+)> {
+    let (loops, records) = replayed;
+    let checked = checked_replay(programs, loops, records).ok()?;
+    Some((checked, crate::eval::readable_naming(loops)))
+}
+
 /// The [`SegmentMap`] carrying `node`'s names from `old`'s numbering
-/// to `new`'s, or `None` where the numbering did not move or cannot be
-/// read on both sides ([`reanchor_report`]).
+/// to `new`'s; `None` where the numbering did not move
+/// ([`reanchor_report`]). A side that cannot be read gives the map
+/// that strands every name.
 fn numbering_move<P: Clone + crate::ProfilePayload>(
     old: &Doc<P>,
     new: &Doc<P>,
@@ -4517,14 +4569,27 @@ fn numbering_move<P: Clone + crate::ProfilePayload>(
     let (Some(old_programs), Some(new_programs)) = (before.loops(), after.loops()) else {
         return Ok(None);
     };
-    let (Ok((old_loops, old_records)), Ok((new_loops, new_records))) = (
-        before.replay_records(&old.param_env::<f64>(), tol),
-        after.replay_records(&new.param_env::<f64>(), tol),
-    ) else {
-        return Ok(None);
+    let old_replayed = before.replay_records(&old.param_env::<f64>(), tol).ok();
+    let new_replayed = after.replay_records(&new.param_env::<f64>(), tol).ok();
+    let old_side = old_replayed
+        .as_ref()
+        .and_then(|r| read_side(old_programs, r))
+        .filter(|(_, naming)| !naming.is_empty());
+    let new_side = new_replayed
+        .as_ref()
+        .and_then(|r| read_side(new_programs, r))
+        .filter(|(_, naming)| !naming.is_empty());
+    let refused = |refusal| EditError::ProfileProgramRefused {
+        node,
+        refusal: Box::new(refusal),
     };
-    let old_naming = crate::eval::readable_naming(&old_loops, tol);
-    let new_naming = crate::eval::readable_naming(&new_loops, tol);
+    let (Some((old_checked, old_naming)), Some((new_checked, new_naming))) = (old_side, new_side)
+    else {
+        // An unreadable side: every name strands, `SetProgram`'s rule.
+        return SegmentMap::build(None, old_programs.len(), (&[], Vec::new()), &[])
+            .map(Some)
+            .map_err(refused);
+    };
     // What a name's spelling reads: which program loop each canonical
     // loop is, and whether it is reversed. A segment count a slot edit
     // moves is another question
@@ -4534,18 +4599,9 @@ fn numbering_move<P: Clone + crate::ProfilePayload>(
             .map(|a| a.map(|a| (a.program_loop, a.reversed)))
             .collect()
     };
-    if old_naming.is_empty()
-        || new_naming.is_empty()
-        || numbering(&old_naming) == numbering(&new_naming)
-    {
+    if numbering(&old_naming) == numbering(&new_naming) {
         return Ok(None);
     }
-    let (Ok(old_checked), Ok(new_checked)) = (
-        checked_replay(old_programs, &old_loops, &old_records),
-        checked_replay(new_programs, &new_loops, &new_records),
-    ) else {
-        return Ok(None);
-    };
     SegmentMap::build(
         Some((&old_checked, old_naming)),
         old_programs.len(),
@@ -4553,10 +4609,7 @@ fn numbering_move<P: Clone + crate::ProfilePayload>(
         &LoopProvenance::identity(new_programs),
     )
     .map(Some)
-    .map_err(|refusal| EditError::ProfileProgramRefused {
-        node,
-        refusal: Box::new(refusal),
-    })
+    .map_err(refused)
 }
 
 /// A witness edit's site check: the store's key rule
