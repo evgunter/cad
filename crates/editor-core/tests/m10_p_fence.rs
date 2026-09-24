@@ -231,6 +231,16 @@
 //!   back GREEN against them. `lib_g16_corpus_name_digests` agrees
 //!   the finer way — every pre-existing per-document row unchanged.
 //!
+//! - EDIT-PROGRAM added `reshaped_rod`, the one document whose log
+//!   holds a `SetProgram` — a profile reshaped under a fillet, the
+//!   fillet's name rebound by the door. Removing it alone returns the
+//!   `f64` constant `9b769fcc95b740a8, 9df5aab046b6073c`, the
+//!   committed constant of the tree it landed on, and
+//!   `lib_g16_corpus_name_digests` agrees the finer way — every
+//!   pre-existing per-document row unchanged, one row added. The
+//!   `interval` and `probe` constants below were read off the hosted
+//!   lanes that build those backends, as the azimuth paragraph's were.
+//!
 //! - DOCM-1 added `face_sketch`, the first document drawing on a
 //!   frame DERIVED from a face (`Datum::FaceFrame`), so the derived
 //!   frame's placement-at-the-lane path (DM1c) is walked by the
@@ -597,7 +607,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x9b76_9fcc_95b7_40a8, 0x9df5_aab0_46b6_073c),
+        (0xbc0a_ef50_e441_b10d, 0x71bd_25b4_7def_35d9),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -623,7 +633,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xd9b9_1f6d_8585_513d, 0x0f4e_3d18_31f7_4221),
+        (0xfbe1_faff_7ba7_a3dd, 0xdb18_6b3e_288e_aac1),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -647,7 +657,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x9b76_9fcc_95b7_40a8, 0x9df5_aab0_46b6_073c),
+        (0xbc0a_ef50_e441_b10d, 0x71bd_25b4_7def_35d9),
         "the corpus's Probe evaluation moved"
     );
 }

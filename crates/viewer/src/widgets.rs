@@ -78,11 +78,14 @@ use crate::theme::Theme;
 /// egui answers three ways: from the cursor to the right-hand edge in an
 /// ordinary row; the whole row in a wrapping one, where the galley is
 /// then too wide for what is left and moves whole to the next line; and
-/// **last frame's content in an auto-sized container** —
-/// `egui::Resize::begin` ratchets to it, so the wrap never fires and the
-/// container grows instead. A caller in one gives it a width, as the
-/// Checks window (`crate::app`'s `checks_window`) does with
-/// `default_width`.
+/// **in a container that sizes itself, the width it began at or the
+/// widest content it has held since** — `egui::Resize::begin` ratchets
+/// up to last frame's content and never back, so a sentence wraps at
+/// that width and a wider row beside it widens the container rather
+/// than the other way round. An `egui::Window` begins at egui's own
+/// default unless it is given a width; the Checks window
+/// (`crate::app`'s `checks_window`) and the part chooser
+/// (`crate::pane::create`'s `part_window`) each give theirs one.
 ///
 /// # A floor, and then the pane scrolls
 ///
@@ -1649,7 +1652,9 @@ mod roster_tests {
     /// paragraph, which enumerates them.
     ///
     /// Derived from the crate's own source, by the one spelling every
-    /// call site uses: the qualified path. That spelling is what
+    /// call site uses: the qualified path, called — so a file that
+    /// only measures the floor (`message_floor`) is not a message
+    /// site. That spelling is what
     /// makes this mechanical, so a site that imported the name
     /// instead would be invisible here — which is why there is no
     /// such site and why this row's failure message says so.
@@ -1672,7 +1677,14 @@ mod roster_tests {
                 let text = test_utils::source::code_only(
                     &std::fs::read_to_string(&path).expect("a source file"),
                 );
-                if text.contains("widgets::message") {
+                if [
+                    "widgets::message(",
+                    "widgets::message_link(",
+                    "widgets::message_toned(",
+                ]
+                .iter()
+                .any(|call| text.contains(call))
+                {
                     callers.push(
                         path.strip_prefix(&src)
                             .expect("a path under src")
@@ -1687,6 +1699,7 @@ mod roster_tests {
             callers,
             [
                 "app.rs",
+                "pane/create.rs",
                 "pane/features.rs",
                 "pane/profile.rs",
                 "pane/properties.rs",
@@ -1728,6 +1741,7 @@ pub(crate) mod message_tests {
     #![allow(clippy::expect_used)]
 
     use super::{message, wrapped_in_region};
+    use crate::pane::headless::SLACK;
     use eframe::egui;
 
     /// A refusal-length sentence: longer than [`REGION`] at the
@@ -1754,10 +1768,6 @@ pub(crate) mod message_tests {
 
     /// The region the single-width rows use.
     const REGION: f32 = REGIONS[1];
-
-    /// Rows are placed at whole pixels, so two readings of one edge
-    /// can differ by less than one.
-    pub(crate) const SLACK: f32 = 1.0;
 
     /// The widest row of a laid-out galley — what the sentence
     /// actually asked the layout for.

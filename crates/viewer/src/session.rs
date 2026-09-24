@@ -69,7 +69,7 @@ use pncad::select::{Resolution, RunCtx, resolve};
 use pncad::topo::Body;
 
 use crate::blend::BlendKindChoice;
-use crate::combine::{self, PatternOutputChoice};
+use crate::combine::{self, DuplicateFault, PatternOutputChoice};
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver};
 use crate::evalseam::{EvalRequest, EvalService, InlineEvaluator};
@@ -89,7 +89,7 @@ pub mod probe;
 pub mod refuse;
 pub mod select;
 
-pub use author::{DatumSpec, PatternRuleSpec, ProfilePlane, ProfileShape};
+pub use author::{DatumSpec, PartSelectSpec, PatternRuleSpec, ProfilePlane, ProfileShape};
 pub use delete::DeleteAffordance;
 pub use op::{CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName};
 pub use probe::{BoundsReading, BoundsTarget};
@@ -1320,6 +1320,8 @@ impl DocSession {
                 distance,
                 selection,
             } => self.add_blend(target, distance, selection, BlendKindChoice::Chamfer),
+            SessionOp::AddPart { of, select } => self.add_part(of, select),
+            SessionOp::Duplicate { input } => self.add_duplicate(input),
             SessionOp::AddInstance { id } => self.add_instance(id),
         }
     }
@@ -2293,6 +2295,92 @@ impl DocSession {
         self.commit(DocEdit::InsertNode { node })
     }
 
+    /// Insert one projection of a multi-body value
+    /// ([`SessionOp::AddPart`]).
+    ///
+    /// **The seat is the SELECTION's**, not one kind for both arms: a
+    /// half reads a split and an index reads a pattern, and which of
+    /// the two a node is, is a fact about the committed document. The
+    /// refusal therefore names the kind the chosen selector wanted,
+    /// which is what a user can act on — "that is a pattern, and a
+    /// half comes out of a split".
+    fn add_part(&mut self, of: RecipeNodeId, select: PartSelectSpec) -> OpOutcome {
+        let wanted = match select {
+            PartSelectSpec::SplitHalf(_) => NodeKindWanted::Split,
+            PartSelectSpec::Instance(_) => NodeKindWanted::Instances,
+        };
+        if let Err(refusal) = self.require_kind(of, wanted) {
+            return OpOutcome::refused(refusal);
+        }
+        self.commit(DocEdit::InsertNode {
+            node: combine::part_node(of, select),
+        })
+    }
+
+    /// Duplicate one body ([`SessionOp::Duplicate`]): a pattern of two
+    /// over it, and one projection per instance.
+    ///
+    /// **Three inserts as ONE action and therefore one undo**, the
+    /// shape [`Self::add_profile_on_new_xy`] takes and for its reason:
+    /// the projections name the id the pattern insert MINTED, so each
+    /// edit is built from what its predecessor produced rather than
+    /// from a predicted id, and all-or-nothing comes free — a refusal
+    /// anywhere leaves no half-built duplicate behind.
+    ///
+    /// **Why the projections are part of the gesture and not a
+    /// follow-up.** The viewport draws `Doc::roots`, and `roots`
+    /// maintenance drops a new node's inputs: the pattern alone is one
+    /// root holding two bodies, which cannot be hidden, placed or
+    /// blended one copy at a time, and the first `Part` authored
+    /// afterwards would consume the pattern and leave the other copy
+    /// undrawn. Committing both projections is what leaves two roots,
+    /// so the copy is movable and the original stays on screen.
+    fn add_duplicate(&mut self, input: RecipeNodeId) -> OpOutcome {
+        if let Err(refusal) = self.require_kind(input, NodeKindWanted::Body) {
+            return OpOutcome::refused(refusal);
+        }
+        // The kind gate above is the document's; this is the VALUE's —
+        // one body, with a width to clear — and the value must be the
+        // CURRENT document's. `busy` is the authority on that: it is
+        // the session's own comparison of the landed generation against
+        // the committed one, so an edit or a document replacement that
+        // has not landed yet is refused here rather than measured off
+        // the value it replaced.
+        let step = match self.landed_pair() {
+            None => Err(DuplicateFault::NotLanded),
+            Some(_) if self.busy() => Err(DuplicateFault::Stale),
+            Some((_, eval)) => combine::duplicate_step(eval, input, self.tol),
+        };
+        let step = match step {
+            Ok(step) => step,
+            Err(fault) => return OpOutcome::refused(Refusal::Duplicate(fault)),
+        };
+        let pattern = match combine::duplicate_rule(step) {
+            Ok(rule) => combine::pattern_node(input, combine::DUPLICATE_COUNT, rule),
+            Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
+        };
+        // Position 0 is the pattern; position `1 + i` projects instance
+        // `i`, for every `i` below the pattern's own count. Instance 0
+        // — the original, where it already stood — goes first, so it
+        // takes the root slot the pattern took from the body it
+        // replicates; each later projection's input has stopped being a
+        // root by then, so it is APPENDED to the root list.
+        self.commit_run(|minted| match minted.split_first() {
+            None => Some(DocEdit::InsertNode {
+                node: pattern.clone(),
+            }),
+            Some((Some(pattern), projections)) => i64::try_from(projections.len())
+                .ok()
+                .filter(|index| *index < combine::DUPLICATE_COUNT)
+                .map(|index| DocEdit::InsertNode {
+                    node: combine::part_node(*pattern, PartSelectSpec::Instance(index)),
+                }),
+            Some((None, _)) => {
+                unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)")
+            }
+        })
+    }
+
     /// Insert one blend — fillet or chamfer — on a set of an existing
     /// body's edges ([`SessionOp::AddFillet`],
     /// [`SessionOp::AddChamfer`]).
@@ -2407,6 +2495,11 @@ impl DocSession {
             DocEdit::InsertNode { .. }
             | DocEdit::DeleteNode { .. }
             | DocEdit::SetMembers { .. }
+            // A profile's program replaced whole, with the names its
+            // reshaping moves rebound at the door: structure, not a
+            // panel field's value — and the identity program under
+            // the identity provenance is the door's own no-op.
+            | DocEdit::SetProgram { .. }
             | DocEdit::SetRoots { .. }
             | DocEdit::Rebind { .. }
             | DocEdit::UpdateReference { .. }
