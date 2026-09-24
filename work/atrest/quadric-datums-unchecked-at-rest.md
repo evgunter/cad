@@ -102,3 +102,31 @@ a `geom` question and a DESIGN.md one. The poison half likely wants a
 `geom`-side door of the shape `NurbsSurface::net_state` now has
 (`crates/geom/src/surfaces/nurbs.rs`), which is S-CERT's territory and
 a seam to announce.
+
+## Answered (ATREST-6, PR 3183)
+
+Both halves refuse at check 1, by name. The poison half is
+`ValidationError::PoisonedSurfaceDatum` (a datum that is not a finite
+number, or a plane's zero normal); the convention half is
+`ValidationError::UnrepresentableSurfaceDatum`, on the torus's
+representability reason, reading the bounds from
+`geom::Surface::representability_margins`. Each names the face, the
+kind and the datum. `NonpositiveTorusTube` folded into the second.
+
+The measurement re-taken on the same fixture (the two
+`DescriptionNotAdjacent` elided as before). The named refusal is the
+FIRST finding in every case; the downstream escalations still fire
+unchanged, because the coarse gate is tiers 1–2 only:
+
+| swapped surface | first finding | then |
+| --- | --- | --- |
+| `Plane { origin: (NaN,0,0) }` | `PoisonedSurfaceDatum(plane, origin)` | `PlanarFaceEscalated` ×2, `PlanarBoundaryEscalated` ×2 |
+| `Plane { normal: (0,0,0) }` | `PoisonedSurfaceDatum(plane, normal)` | `SliverDihedral` ×2 (`dihedral_wedge`) |
+| `Plane { normal: (NaN,NaN,NaN) }` | `PoisonedSurfaceDatum(plane, normal)` | `PlanarFaceEscalated` ×2, `PlanarBoundaryEscalated` ×2, `SliverDihedral` ×2 |
+| `Cylinder { radius: NaN }` | `PoisonedSurfaceDatum(cylinder, radius)` | `SliverDihedral` ×2 (`dihedral_arm`) |
+| `Sphere { radius: 0.0 }` | `UnrepresentableSurfaceDatum(sphere, radius)` | `SliverDihedral` ×2 (`dihedral_arm`) |
+| `Cone { half_angle: NaN }` | `PoisonedSurfaceDatum(cone, half_angle)` | `SliverDihedral` ×2 (`dihedral_wedge`) |
+
+The pin is `check_1_names_the_analytic_datum_that_describes_no_locus`
+(`crates/topo/src/tier3_tests.rs`), which asserts the first finding
+and the one datum verdict and not the escalations after it.
