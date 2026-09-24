@@ -1433,16 +1433,10 @@ fn res_step<T: Decide>(
         ProgramStep::Cusp => Step::Cusp,
         ProgramStep::Turn(e) => Step::Turn(res(e, env, loop_, i, A::TurnVal)?),
         ProgramStep::Line(e) => Step::Line(res(e, env, loop_, i, A::Length)?),
-        ProgramStep::LineTo(t) => {
-            Step::LineTo(res_target(t, env, loop_, i, false)?)
-        }
-        ProgramStep::ContinueTo(t) => {
-            Step::ContinueTo(res_target(t, env, loop_, i, false)?)
-        }
+        ProgramStep::LineTo(t) => Step::LineTo(res_target(t, env, loop_, i, false)?),
+        ProgramStep::ContinueTo(t) => Step::ContinueTo(res_target(t, env, loop_, i, false)?),
         ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, env, loop_, i, false)?),
-        ProgramStep::TangentArcTo(t) => {
-            Step::TangentArcTo(res_target(t, env, loop_, i, false)?)
-        }
+        ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, env, loop_, i, false)?),
         ProgramStep::Fillet(e) => Step::Fillet {
             radius: res(e, env, loop_, i, A::Radius)?,
         },

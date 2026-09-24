@@ -5087,10 +5087,12 @@ fn wire_sweep<T: Decide + geom_core::Bounds + super::SectionScalar>(
     lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let _stations = need_count(vals, SlotId::Stations)?;
-    let _v_degree = need_count(vals, SlotId::VDegree)?;
-    let _ = section_of::<T>(doc, results, profile, lane, tol)?;
-    let _ = section_of::<T>(doc, results, path, lane, tol)?;
+    // Each door runs for its refusal alone; what it answers has no
+    // reader, because the geometry that would read it does not exist.
+    need_count(vals, SlotId::Stations)?;
+    need_count(vals, SlotId::VDegree)?;
+    section_of::<T>(doc, results, profile, lane, tol)?;
+    section_of::<T>(doc, results, path, lane, tol)?;
     Err(NodeErrorKind::CurvedSolidFrontier {
         what: SWEEP_FRONTIER,
     })

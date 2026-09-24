@@ -1173,12 +1173,13 @@ fn every_enumerated_slot_is_where_its_refusal_reports() {
         *expr = Expr::param(unbound.clone(), expr.dim());
         match broken.resolve(&ParamEnv::<f64>::default()) {
             Err((reported, _)) if reported == *slot => {}
-            Err((reported, _)) => misplaced.push(format!(
-                "{} refuses at {}",
-                slot.label(),
-                reported.label()
+            Err((reported, _)) => {
+                misplaced.push(format!("{} refuses at {}", slot.label(), reported.label()))
+            }
+            Ok(_) => misplaced.push(format!(
+                "{} resolved over an unbound parameter",
+                slot.label()
             )),
-            Ok(_) => misplaced.push(format!("{} resolved over an unbound parameter", slot.label())),
         }
     }
     assert!(
