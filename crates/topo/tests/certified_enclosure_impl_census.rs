@@ -650,10 +650,9 @@ fn compared_fields(definition: &str) -> BTreeSet<String> {
         };
         let args = &body[open + 1..close];
         for arg in top_level_split(args, ',') {
-            if let Some((_, field)) = args[arg].trim().rsplit_once('.') {
-                if !field.is_empty() && ident(field, 0) == field {
-                    out.insert(field.to_string());
-                }
+            let field = args[arg].trim().rsplit_once('.').map(|(_, field)| field);
+            if let Some(field) = field.filter(|f| !f.is_empty() && ident(f, 0) == *f) {
+                out.insert(field.to_string());
             }
         }
     }
