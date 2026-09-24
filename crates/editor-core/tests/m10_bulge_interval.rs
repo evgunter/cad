@@ -54,11 +54,13 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// `witness_on_surface_1` 1 on the same ring and, on the parameter,
 /// the radius's `abs(R(b))`. At the dyadic control `bulge = 0.5`
 /// (evidence only) the ring is out of the way on the on-surface
-/// residuals — `carrier_on_surface_2` 27 → 18, `carrier_on_surface_1`
-/// 9 → 0, `witness_on_surface_2` 3 → 2, `witness_on_surface_1` 1 → 0,
+/// residuals — on the parameter control `carrier_on_surface_2` 27 → 6
+/// (all six frozen on terms and degree), `carrier_on_surface_1` 9 → 0,
+/// `witness_on_surface_2` 3 → 0, `witness_on_surface_1` 1 → 0,
 /// `carrier_endpoint_start` 4 → 0 — and `carrier_matches_mapped_source`
-/// is 16 on the parameter control, where the sign of `b` stands in
-/// the open. At 512 bits the literal's `carrier_on_surface_2` is 18
+/// is 16 there: four of them stand on the sign of `b` in the open and
+/// twelve are frozen, eight of those on the bulk of the sign's second
+/// atom (`m10_bulge_renders.txt` attributes each). At 512 bits the literal's `carrier_on_surface_2` is 18
 /// and its `carrier_on_surface_1` 0; `carrier_endpoint_start` stays
 /// 24/0/8/4. The literal's shipped CEILING is not the residue: 0.56 of
 /// its real study, bounded by `arc_diameter_clearance` (the annulus's
