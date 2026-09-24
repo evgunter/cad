@@ -4235,7 +4235,11 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   by field access already.
 /// - **Evaluation interior** (`EvalScalar`, `RunStatus`,
 ///   `ContentKey`, `apply_with_names`, `derivation_nodes`): the
-///   service's own machinery behind `evaluate`.
+///   service's own machinery behind `evaluate`. `remap_name` beside
+///   them: the split's and the inline's id rewrite of one name, for a
+///   Rust caller carrying its own names across a `NodeMap`; the
+///   Python surface holds no `NodeMap`, and the names a split or an
+///   inline carries reach it already rewritten.
 ///
 ///   **`eval`, `eval_count` and `EvalError` used to be in this family
 ///   and were wrong to be.** They are not machinery behind
@@ -4402,7 +4406,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-const NOT_CARRIED: [&str; 92] = [
+const NOT_CARRIED: [&str; 93] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4488,6 +4492,7 @@ const NOT_CARRIED: [&str; 92] = [
     "from_value",
     "param_env_over",
     "rebind_suggestions",
+    "remap_name",
     "resolve_with_prior",
     "seed_env",
     "sensitivities",

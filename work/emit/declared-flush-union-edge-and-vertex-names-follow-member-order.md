@@ -64,6 +64,13 @@ across the fused orders of a third-member family over the same pair:
   orders and a lone `FromMember` face in others. Whether the declared
   merge happens depends on the order.
 
+Remeasured 2026-09-24 once `names::canonical` sorts `SideOf` in the
+collapse, over the same probe: `abys` is now the same in both fused
+orders. The rest is unchanged. In `fam012` (10 rows), `fam212` (8) and
+`fam022` (4), the differing faces list different PARTNERS: a member's
+cap, or the merged cap, depending on which step cut the face. None of
+them lists the same partners in a different order.
+
 **The same happens without a declaration, once there are three
 members.** Measured 2026-09-23 while fixing
 `seam-chain-ranks-are-oriented-a-first-so-an-operand-swap-may-reverse-them`.

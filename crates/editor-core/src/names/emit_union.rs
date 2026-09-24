@@ -23,13 +23,12 @@
 //! the two end passes below): a fold-table name is rewritten by descending its
 //! `FromA`/`FromB` chain to the [`RoleSeg::FromMember`] at its foot —
 //! one wrapper, whatever the depth. The names a segment embeds are
-//! collapsed by the same rule, and what happens to their ORDER differs
-//! by segment: a `Seam`'s two sides are put in name order (a union has
-//! no A and B), and a junction's run of lines is re-sorted; a
-//! `Merged` set is re-sorted and deduplicated; a `Fragment`'s `SideOf`
-//! partners keep the order the pair emitter wrote them in, which is
-//! fold-space name order and not re-established here
-//! (`work/emit/name-ordered-positions-in-a-path-have-no-single-home.md`).
+//! collapsed by the same rule. The result is then put in canonical
+//! form by `names::canonical`, the one list of a path's name-ordered
+//! positions, which the pair emitter's mint and every rewrite of a
+//! published name also end in: a `Merged` set and a `SideOf` vector
+//! are sorted, a junction's run of lines is sorted, and a `Seam`'s two
+//! sides are put in name order, because a union has no A and B.
 //!
 //! Putting a `Seam`'s sides in name order can also rewrite a VALUE in
 //! the tail. The pair emitter ranks every chain along a seam line along
@@ -38,11 +37,11 @@
 //! later step cut, and a seam-vertex group ranked along a seam edge.
 //! Which ranks lie on a seam line, and which pair's line, is ONE answer,
 //! `names::seam_pair`, read by the pair emitter to pick the direction
-//! and by this collapse to decide the rule. For each `OrderAlong` the
-//! collapse finds that pair from the fold-space name, through any depth
-//! of `FromA`/`FromB` wrapping, and reads the rank from the other end
-//! (`of − 1 − rank`) exactly where the pair comes out swapped in name
-//! order. See [`RankRule`].
+//! and by the canonical form (`names::canonical`) to decide what the
+//! ordering does. The line is found in the fold-space name, through any
+//! depth of `FromA`/`FromB` wrapping, and in the collapsed one, and the
+//! rank reads from the other end (`of − 1 − rank`) exactly where the
+//! pair comes out swapped in name order.
 //!
 //! Two more rewrites happen at the END, on the published table only,
 //! because they read the finished body. The pieces of each member EDGE
@@ -614,8 +613,8 @@ const FOREIGN: &str = "a union fold's table carries a segment the boolean emitte
 const JUNCTION_LINES_COLLIDE: &str =
     "two lines of a union's seam junction collapse to one member-space line";
 
+use super::canonical::{self, Stop, is_junction};
 use super::merged::NESTED_MERGED;
-use super::seam_pair::seam_line_pair;
 
 /// One fold-table name, keyed by member.
 ///
@@ -624,11 +623,49 @@ use super::seam_pair::seam_line_pair;
 /// [`RoleSeg::Seam`], [`RoleSeg::Merged`] or [`RoleSeg::OutputBody`]
 /// head followed by the `Fragment` discriminators the fold
 /// accumulated, outermost step last — or, for a seam JUNCTION vertex,
-/// a sorted run of two or more `Seam` lines and nothing else.
+/// a run of two or more `Seam` lines and nothing else.
 ///
-/// The tail keeps its segments, but not always their values: an
-/// `OrderAlong` rank is rewritten by the name's [`RankRule`].
+/// Two halves. [`orient`] rewrites every name the path holds into this
+/// node's space and keeps the fold's order, so every seam pair is still
+/// A-first and every rank is still along the A-first line. The
+/// canonical form (`names::canonical::collapsed`) then puts the
+/// name-ordered positions in order, and re-reads each rank against the
+/// line as the fold-space name and the collapsed one write it. Each
+/// name the path embeds comes out of this function whole, so it is
+/// canonical before the path holding it is ordered.
 fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingError> {
+    let name = canonical::collapsed(name, orient(node, name)?, &mut |n| collapse(node, n))
+        .map_err(|stop| match stop {
+            Stop::Image(e) => e,
+            Stop::Unrankable(u) => NamingError::Emission { what: u.what() },
+        })?;
+    // The junction's run is NOT deduplicated, unlike a `Merged` set.
+    // The pair emitter deduplicates the lines before it mints, so the
+    // run holds k DISTINCT fold-space lines; two collapsing to one
+    // would make the rewrite many-to-one on lines, and dropping one
+    // would publish a name for a vertex with fewer lines than it has.
+    // A `Merged` set is a set of FACES whose name is the set (N3), so
+    // there a repeat is the same constituent reached twice, and two
+    // merges that collapse to one set collide at insert instead.
+    if is_junction(&name) && name.path.windows(2).any(|w| w[0] == w[1]) {
+        return Err(NamingError::Emission {
+            what: JUNCTION_LINES_COLLIDE,
+        });
+    }
+    Ok(name)
+}
+
+/// [`collapse`]'s rewrite half: the fold-table name with every name it
+/// holds collapsed into this node's space, in the fold's order.
+///
+/// A `FromA`/`FromB` head is descended through by this same half, so
+/// the inner name's own positions stay in fold order, and its ranks
+/// along the fold's A-first line, until the one canonicalization at the
+/// top. Every rank the flattened path carries lies along the one line
+/// the canonical form finds through the same wrapping: an edge's
+/// pieces all lie on its seam line, and a seam vertex's rank on its
+/// edge parent's.
+fn orient(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingError> {
     let bug = |what| NamingError::Emission { what };
     if name.node != node {
         return Err(bug(
@@ -649,29 +686,19 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
         // space, so a `FromA`/`FromB` argument is always an earlier
         // step's row: descended THROUGH, carrying its own
         // discriminators out with it.
-        RoleSeg::FromA(inner) | RoleSeg::FromB(inner) => collapse(node, inner)?.path,
-        // A seam: one line, collapsed by [`seam_line`], with any
-        // `Fragment` tail after it.
+        RoleSeg::FromA(inner) | RoleSeg::FromB(inner) => orient(node, inner)?.path,
+        // A seam: one line, each side collapsed, with any `Fragment`
+        // tail after it.
         //
         // Or a seam JUNCTION: the pair emitter names the VERTEX where
-        // k ≥ 2 seam lines meet by the sorted run of those lines'
-        // `Seam` segments and nothing after them, so a run is admitted
-        // in exactly that shape — a vertex, the whole path — and any
+        // k ≥ 2 seam lines meet by the run of those lines' `Seam`
+        // segments and nothing after them, so a run is admitted in
+        // exactly that shape — a vertex, the whole path — and any
         // other run (an edge's, or one followed by a discriminator) is
-        // a shape the pair emitter does not mint. Each line is
-        // collapsed, then the run re-sorted: the pair emitter sorted
-        // it in the fold's space, and a name stable under member
-        // reordering is ordered by the member-space lines.
-        //
-        // The run is NOT deduplicated, unlike a `Merged` set. The pair
-        // emitter deduplicates the lines before it mints, so the run
-        // holds k DISTINCT fold-space lines; two collapsing to one
-        // would make the rewrite many-to-one on lines, and dropping one
-        // would publish a name for a vertex with fewer lines than it
-        // has. A `Merged` set is a set of FACES whose name is the set
-        // (N3), so there a repeat is the same constituent reached
-        // twice, and two merges that collapse to one set collide at
-        // insert instead.
+        // a shape the pair emitter does not mint. The pair emitter
+        // ordered the run in the fold's space; a name stable under
+        // member reordering is ordered by the member-space lines,
+        // which the canonicalization does.
         RoleSeg::Seam { a, b }
             if tail
                 .first()
@@ -686,10 +713,6 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
                     return Err(bug(FOREIGN));
                 };
                 lines.push(seam_line(node, a, b)?);
-            }
-            lines.sort_unstable();
-            if lines.windows(2).any(|w| w[0] == w[1]) {
-                return Err(bug(JUNCTION_LINES_COLLIDE));
             }
             lines
         }
@@ -714,12 +737,11 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
         // emission bug it is, never flattened. A fragment of a merged
         // face is a fragment, not a merge (`RoleSeg::Merged`'s doc).
         //
-        // The sort-and-dedup makes the constituent SET the name, the
-        // same choice the pair emitter's twin makes (`emit_topo.rs`,
-        // review R8): two merge groups collapsing to ONE constituent
-        // set collide LOUDLY at insert (`DuplicateName` → typed
-        // `NamingError`), never silently aliasing two faces onto one
-        // name.
+        // The canonical form makes the constituent SET the name, the
+        // form the pair emitter's mint gives it too (review R8): two
+        // merge groups collapsing to ONE constituent set collide
+        // LOUDLY at insert (`DuplicateName` → typed `NamingError`),
+        // never silently aliasing two faces onto one name.
         RoleSeg::Merged(constituents) => {
             let mut set = Vec::with_capacity(constituents.len());
             for c in constituents {
@@ -729,8 +751,6 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
                 }
                 set.push(c);
             }
-            set.sort();
-            set.dedup();
             vec![RoleSeg::Merged(set)]
         }
         // A `Fragment` is a TAIL segment — it discriminates a head,
@@ -756,11 +776,9 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
                     .collect::<Result<Vec<_>, NamingError>>()?;
                 RoleSeg::Fragment(Qualifier::SideOf(partners))
             }
-            // The rank is a place along a direction; the head's rule says
-            // whether canonicalizing the head moved that direction.
-            RoleSeg::Fragment(Qualifier::OrderAlong { rank, of }) => {
-                RoleSeg::Fragment(RankRule::of(node, name)?.apply(*rank, *of)?)
-            }
+            // The rank is a place along the fold's direction; the
+            // canonicalization re-reads it.
+            RoleSeg::Fragment(Qualifier::OrderAlong { .. }) => seg.clone(),
             // Only a `Fragment` follows the head in a boolean table;
             // anything else in the tail is an emission bug — the head
             // segments above included, which are heads and not
@@ -787,107 +805,20 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
     })
 }
 
-/// What the collapse does to a name's `Fragment(OrderAlong)` rank. A
-/// rank is a place along a direction, so this depends on whether
-/// putting the pair of the line it lies on in canonical order reversed
-/// that direction ([`RankRule::of`]).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum RankRule {
-    /// The rank lies along a direction the collapse does not change:
-    /// an edge on no seam line (it ranks along its own carrier), an edge
-    /// on a seam line whose pair stays in minted order, a seam vertex
-    /// group whose edge parent is such an edge, a group with no edge
-    /// parent, and every face.
-    Keep,
-    /// An edge on a seam line whose pair canonicalization swapped, or a
-    /// seam vertex group whose edge parent is one. The pair emitter
-    /// ranks along `n_a × n_b`, with the minted `a` face's outward
-    /// normal first. With the sides swapped that line is negated, and
-    /// the rank reads from the other end: `of − 1 − rank`.
-    Reverse,
-    /// A seam VERTEX group whose two parents are both edges. The pair
-    /// emitter ranks it along the A side's edge, so which carrier was
-    /// used depends on operand order and there is no canonical one.
-    /// Two straight edges cross at most once, so such a group needs
-    /// curved edges, and none is known. It refuses rather than publish
-    /// a rank a member reorder could rebind.
-    Refuse,
-}
-
-/// A seam vertex group ranked along a carrier the pair emitter chose by
-/// side, where either side's edge could have served.
-const SIDED_VERTEX_RANK: &str =
-    "a union's seam vertex group is ranked along one of two edge parents, chosen by operand side";
-
-impl RankRule {
-    /// The rule for fold-space name `name`'s `OrderAlong` rank.
-    ///
-    /// An EDGE's rank lies along the seam line [`seam_line_pair`] finds
-    /// for it — the edge's own pair, or the pair of the seam it is a
-    /// piece of, through any `FromA`/`FromB` wrapping — which is the
-    /// line the pair emitter ranked it along (`emit_topo`'s
-    /// `seam_line_dir`, the same answer). A seam VERTEX group's rank
-    /// lies along its edge parent's line. What the collapse changes is
-    /// only the pair's order, so the rule is `Reverse` exactly where
-    /// that line's pair comes out swapped.
-    fn of(node: RecipeNodeId, name: &StableName) -> Result<Self, NamingError> {
-        match (name.kind, name.path.first()) {
-            (EntityKind::Edge, _) => Self::of_line(node, name),
-            (EntityKind::Vertex, Some(RoleSeg::Seam { a, b })) => {
-                match (a.kind == EntityKind::Edge, b.kind == EntityKind::Edge) {
-                    (true, true) => Ok(Self::Refuse),
-                    (true, false) => Self::of_line(node, a),
-                    (false, true) => Self::of_line(node, b),
-                    (false, false) => Ok(Self::Keep),
-                }
-            }
-            (EntityKind::Vertex, _) | (EntityKind::Face | EntityKind::Body, _) => Ok(Self::Keep),
-        }
-    }
-
-    /// The rule for a rank along EDGE `edge`'s line.
-    fn of_line(node: RecipeNodeId, edge: &StableName) -> Result<Self, NamingError> {
-        Ok(match seam_line_pair(edge) {
-            None => Self::Keep,
-            Some((a, b)) if collapse(node, a)? > collapse(node, b)? => Self::Reverse,
-            Some(_) => Self::Keep,
-        })
-    }
-
-    /// The tail's `OrderAlong` rank, rewritten against the canonical head.
-    fn apply(self, rank: u32, of: u32) -> Result<Qualifier, NamingError> {
-        let bug = |what| NamingError::Emission { what };
-        match self {
-            Self::Keep => Ok(Qualifier::OrderAlong { rank, of }),
-            Self::Reverse => of
-                .checked_sub(1)
-                .and_then(|last| last.checked_sub(rank))
-                .map(|rank| Qualifier::OrderAlong { rank, of })
-                .ok_or_else(|| bug(RANK_OUTSIDE_COUNT)),
-            Self::Refuse => Err(bug(SIDED_VERTEX_RANK)),
-        }
-    }
-}
-
-/// A seam chain's rank at or beyond its count.
-const RANK_OUTSIDE_COUNT: &str = "a seam chain's rank lies outside its count";
-
-/// One seam line between two members, in the union's space.
+/// One seam line between two members, in the union's space and in the
+/// fold's order.
 ///
 /// The pair emitter's `a`/`b` are the crossing entities in the two
 /// OPERANDS' tables, which are this node's space on both sides, so
-/// each is collapsed the same way every other row is. The pair is
-/// then CANONICALIZED by name order: a union is commutative, so
-/// "which side" would record only which of the two members the fold
-/// reached first, which is the position this node exists not to
-/// record. A rank the pair emitter oriented by side follows the swap
-/// through [`RankRule`].
+/// each is collapsed the same way every other row is. The pair keeps
+/// the fold's A-first order here, and the canonicalization puts it in
+/// name order: a union is commutative, so "which side" would record
+/// only which of the two members the fold reached first, which is the
+/// position this node exists not to record.
 fn seam_line(node: RecipeNodeId, a: &StableName, b: &StableName) -> Result<RoleSeg, NamingError> {
-    let (x, y) = (collapse(node, a)?, collapse(node, b)?);
-    let (a, b) = if x <= y { (x, y) } else { (y, x) };
     Ok(RoleSeg::Seam {
-        a: NameRef::new(a),
-        b: NameRef::new(b),
+        a: NameRef::new(collapse(node, a)?),
+        b: NameRef::new(collapse(node, b)?),
     })
 }
 
@@ -902,6 +833,7 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
+    use crate::names::canonical::Unrankable;
     use crate::names::role::{CapEnd, EntityKind};
 
     fn face(node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
@@ -1166,7 +1098,7 @@ mod tests {
         let line = seam(through_a(member_edge(union, 5)), member_edge(union, 2));
         let err = collapse(union, &ranked(EntityKind::Vertex, union, line, 1, 2)).unwrap_err();
         assert!(
-            matches!(err, NamingError::Emission { what } if what == SIDED_VERTEX_RANK),
+            matches!(err, NamingError::Emission { what } if what == Unrankable::SidedVertexRank.what()),
             "{err:?}"
         );
     }
@@ -1233,7 +1165,7 @@ mod tests {
             )
             .unwrap_err();
             assert!(
-                matches!(err, NamingError::Emission { what } if what == RANK_OUTSIDE_COUNT),
+                matches!(err, NamingError::Emission { what } if what == Unrankable::RankOutsideCount.what()),
                 "rank {rank} of {of}: {err:?}"
             );
         }
