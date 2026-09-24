@@ -2,9 +2,10 @@
 id: an-unknown-edit-tag-in-a-log-refuses-without-naming-it
 kind: issue
 title: An unknown edit tag in a saved log refuses Unreadable without naming the tag: LoggedEdit's untagged wrapper swallows the variant error
-status: open
+status: closed
 opened: 2026-09-20
 refs: [a-committed-profile-program-has-no-whole-program-edit]
+closed: 2026-09-24
 ---
 
 ## The finding
@@ -55,3 +56,19 @@ the inner error — so the miss reported is `DocEdit`'s own. The
 persisted bytes do not move. The row is EDIT's (`persist/*`); PORT
 announces on `persist/wire.rs` for the load door's structured refusals
 and should be told when this lands.
+
+## Closed (2026-09-24, lane `program-fix`) — the wrapper went with the log's one wire shape
+
+PR #3123 (`editor-core: the edit log has one wire shape, and the
+pre-rows migration doors are gone`) removed `LoggedEdit`'s untagged
+`Wire` reader: an entry is `{"edit": …, "maintenance": […]}` and
+nothing else, so the miss serde reports is `DocEdit`'s own. Measured at
+the fix pass's merge of `main` by
+`edit_set_program::the_persisted_spelling_is_pinned_and_a_build_without_it_refuses_typed`
+(`crates/editor-core/tests/edit_set_program.rs`): a log entry whose
+tag is re-spelled `SetProgramme` refuses `Unreadable` with "unknown
+variant `SetProgramme`, expected one of `InsertNode`, …" at the
+entry's `edit` key line — the tag named, the entry's index
+recoverable. The row now pins that, so a wrapper that swallowed the
+name again would red it. Nothing here was built by this program; the
+finding was answered by PORT's change.

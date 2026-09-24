@@ -1084,14 +1084,16 @@ fn a_log_holding_a_set_program_saves_loads_and_replays_identically() {
 /// place, and the load door refuses `Unreadable`, which is the row
 /// spelled by a tag THIS build cannot place either.
 ///
-/// The refusal's `detail` does NOT name the tag: a log entry reads
-/// through `LoggedEdit`'s untagged wrapper (bare edit, or edit with
-/// rows), and serde reports an untagged miss as "data did not match
-/// any variant of untagged enum Wire" at the entry's line, whichever
-/// tag inside it was unknown. That is measured here and filed —
-/// `work/edit/an-unknown-edit-tag-in-a-log-refuses-without-naming-it.md`
-/// — rather than asserted away; what this row pins is the typed arm
-/// and the line, which is the entry's.
+/// The refusal's `detail` NAMES the tag, and its line is the entry's
+/// `edit` key — the line before the tag's, inside the entry's braces
+/// — measured: the log has one wire shape (`{"edit": …,
+/// "maintenance": […]}`), so the miss serde reports is `DocEdit`'s
+/// own "unknown variant `SetProgramme`". A log entry used to read
+/// through an untagged wrapper whose miss named no tag
+/// (`work/edit/an-unknown-edit-tag-in-a-log-refuses-without-naming-it.md`,
+/// closed when the wrapper went); this row pins the typed arm, the
+/// line and the named tag, so a wrapper that swallowed the name again
+/// would red here.
 #[test]
 fn the_persisted_spelling_is_pinned_and_a_build_without_it_refuses_typed() {
     let edit: DocEdit<ProfileProgram> = DocEdit::SetProgram {
@@ -1105,7 +1107,7 @@ fn the_persisted_spelling_is_pinned_and_a_build_without_it_refuses_typed() {
     let wire = serde_json::to_string(&LoggedEdit::bare(edit)).expect("serializes");
     assert_eq!(
         wire,
-        r#"{"SetProgram":{"node":1,"loops":[{"Circle":{"centre":[{"Literal":{"value":0.0,"dim":"Length","unit":"m"}},{"Literal":{"value":0.0,"dim":"Length","unit":"m"}}],"radius":{"Literal":{"value":1.0,"dim":"Length","unit":"m"}}}}],"provenance":[{"from":0,"steps":[null]}]}}"#
+        r#"{"edit":{"SetProgram":{"node":1,"loops":[{"Circle":{"centre":[{"Literal":{"value":0.0,"dim":"Length","unit":"m"}},{"Literal":{"value":0.0,"dim":"Length","unit":"m"}}],"radius":{"Literal":{"value":1.0,"dim":"Length","unit":"m"}}}}],"provenance":[{"from":0,"steps":[null]}]}},"maintenance":[]}"#
     );
 
     let (empty, mut log) = rod_log();
@@ -1118,36 +1120,41 @@ fn the_persisted_spelling_is_pinned_and_a_build_without_it_refuses_typed() {
     let text = save(&empty, &log, tol()).expect("saves");
     assert!(text.contains("\"SetProgram\""), "the file carries the tag");
     let older = text.replace("\"SetProgram\"", "\"SetProgramme\"");
-    let entry_line = older
+    let tag_line = older
         .lines()
         .position(|l| l.contains("\"SetProgramme\""))
         .expect("the mutated tag is in the file")
         + 1;
-    // The bad entry runs from its tag's line to the line before the
-    // next entry opens.
+    // The bad entry runs from the `{` that opens it to the line before
+    // the next entry opens.
+    let opens = older
+        .lines()
+        .enumerate()
+        .filter(|(i, l)| i + 1 < tag_line && *l == "    {")
+        .map(|(i, _)| i + 1)
+        .last()
+        .expect("the bad entry opens");
     let next = older
         .lines()
         .enumerate()
-        .position(|(i, l)| i + 1 > entry_line && l == "    {")
+        .position(|(i, l)| i + 1 > tag_line && l == "    {")
         .expect("the entry after the bad one opens")
         + 1;
     match load(&older, tol()) {
         Err(PersistError::Unreadable { line, detail, .. }) => {
             assert!(
-                entry_line <= line && line < next,
-                "the refusal sits inside the bad entry's span {entry_line}..{next}: {line} \
-                 ({detail})"
+                opens <= line && line < next,
+                "the refusal sits inside the bad entry's span {opens}..{next}: {line} ({detail})"
             );
             assert_eq!(
                 line,
-                next - 1,
-                "measured: the line is the entry's LAST line, not the tag's — so the index of \
-                 the entry is recoverable from it and the tag is not \
-                 (`an-unknown-edit-tag-in-a-log-refuses-without-naming-it`)"
+                tag_line - 1,
+                "measured: the line is the entry's `edit` key, the line before the tag's — the \
+                 index of the entry is recoverable from it ({detail})"
             );
             assert!(
-                detail.contains("untagged enum"),
-                "the log wrapper's own miss, the tag unnamed (filed): {detail}"
+                detail.contains("unknown variant `SetProgramme`"),
+                "the refusal names the tag this build lacks: {detail}"
             );
         }
         other => panic!("a tag this build lacks refuses Unreadable, got {other:?}"),
