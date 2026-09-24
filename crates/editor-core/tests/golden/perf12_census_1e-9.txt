@@ -209,8 +209,8 @@ CensusUndecidable { a: Solid(SolidKey(4v1)), b: Solid(SolidKey(1v1)), what: "eve
 solids=2 faces=8 edges=12 vertices=8
 assemble: Err(AtRest)
 census: 11 findings
-UndeclaredContact { contact: VertexVertex { a: VertexKey(3v1), b: VertexKey(7v1) }, witness: "(-0.5, 0.0, 0.6546681248048116)" }
-UndeclaredContact { contact: VertexVertex { a: VertexKey(4v1), b: VertexKey(8v1) }, witness: "(0.5, 0.0, 0.3453318751951884)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(3v1), b: VertexKey(7v1) }, witness: "(0.5, 0.0, 0.3453318751951884)" }
+UndeclaredContact { contact: VertexVertex { a: VertexKey(4v1), b: VertexKey(8v1) }, witness: "(-0.5, 0.0, 0.6546681248048116)" }
 CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(6v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
 CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(7v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }
 CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(8v1)), what: "cross-solid faces within reach, at least one of them with a curved carrier or a curved boundary — the conformal-rest / proximity / partial-embedding class the exclusion ring will examine" }

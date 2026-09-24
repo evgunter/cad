@@ -141,7 +141,7 @@ fn an_authored_roll_loft_faces_out_at_every_level() {
         );
 
         let wall = lofted.side_faces[0][0];
-        let roll = theta - FRAC_PI_2;
+        let roll = theta;
         let n0 = wall_outward_at(&lofted.body, wall, 0.5, 0.0).1;
         let n1 = wall_outward_at(&lofted.body, wall, 0.5, 1.0).1;
         assert!(
