@@ -1082,3 +1082,13 @@ is gone (`clearance` is an ungated module), so `MinClearanceRefusal`'s
 in `drive.rs`'s `box_independent_measure_class` (the reader the row called
 `decide_assertion`). `pncad::document` curates the enum and its `Budget` /
 `Selection` payloads; the rendered text is unchanged.
+
+Review pass on #3188: the carrier's one producer, `clearance::min_separation`,
+refuses with four arms (`EmptyScope`, `NoAdmittedPair`, `Unsupported`,
+`PoisonEnclosure`), so the fixtures are rebuilt from those, and
+`box_independent_measure_class` says which arms reach it. `Selection` moves to
+the bisecting side and `ToleranceHasNoBand` to the terminal side, by what each
+means; neither reaches the measure path. The PROPS duplicate
+`min-clearance-refusal-carried-by-name-across-a-boundary-that-is-gone` is closed
+against this row, and `measure-refused-reduces-the-typed-refusal-to-its-name`
+is filed on PROPS's slate.

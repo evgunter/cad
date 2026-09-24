@@ -125,12 +125,13 @@ pub(crate) const FILED: &[(&str, &str)] = &[
 /// `EllipseInvalid` entries).
 pub(crate) const FILED_DECLARE: &[&str] = &["Split/Join/Section(Carrier)"];
 
-/// The rows that render a `Debug` struct from a file an open PR is
-/// reworking, by exact row id, each filed with its owner.
+/// The rows that render a `Debug` form — a struct, or an arena key —
+/// by exact row id, each filed with its owner.
 pub(crate) const FILED_DEBUG: &[&str] = &[
     // `ClearanceRefusal::payload` (`editor-core/src/clearance.rs`)
-    // renders the engine's budget and face evidence through `Debug`,
-    // and this arm prints it; PROPS's:
+    // renders the faces of `Unsupported` and `PoisonEnclosure`, the two
+    // arms `min_separation` refuses with that carry evidence, as
+    // `FaceKey` `Debug`, and this arm prints it; PROPS's:
     // work/props/props-refusal-prose-outgrows-the-viewer.md
     "MeasureClearanceRefused",
 ];
@@ -146,7 +147,10 @@ pub(crate) fn over_budget(rows: &[(String, String)]) -> Vec<String> {
         eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
         let mut allowed = ALLOWED_LABELS.to_vec();
         allowed.extend(FILED.iter().filter(|(row, _)| row == name).map(|(_, l)| *l));
-        let debug_filed = format!("{name} renders a Debug struct");
+        let debug_filed = [
+            format!("{name} renders a Debug struct"),
+            format!("{name} dumps an arena key"),
+        ];
         problems.extend(
             test_utils::refusal::problems(
                 name,
@@ -155,7 +159,10 @@ pub(crate) fn over_budget(rows: &[(String, String)]) -> Vec<String> {
                 KERNEL_KEYED.contains(&name.as_str()),
             )
             .into_iter()
-            .filter(|p| !(FILED_DEBUG.contains(&name.as_str()) && p.starts_with(&debug_filed))),
+            .filter(|p| {
+                !(FILED_DEBUG.contains(&name.as_str())
+                    && debug_filed.iter().any(|d| p.starts_with(d.as_str())))
+            }),
         );
     }
     problems
@@ -1972,7 +1979,7 @@ fn doc_ref() -> editor_core::DocRef {
 
 /// The contact, frame, witness, part and measure arms.
 fn document_arms() -> Vec<(String, NodeErrorKind)> {
-    use editor_core::clearance::{CellBudget, ClearanceRefusal};
+    use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
         BifurcationKind, BranchMarginEvidence, ContactClass, DirectionRefusal, EntityKind,
         FaceName, FlushEvidence, FlushFinding, FlushRung, Implicated, InterrogateError,
@@ -2060,9 +2067,10 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         ),
         row(
             "MeasureClearanceRefused",
-            NodeErrorKind::MeasureClearanceRefused(ClearanceRefusal::Budget(CellBudget::Depth {
-                max_cell_depth: 20,
-            })),
+            NodeErrorKind::MeasureClearanceRefused(ClearanceRefusal::Unsupported {
+                carrier: "a free-form face",
+                face: FaceKey::default(),
+            }),
         ),
     ];
     for (n, error) in [

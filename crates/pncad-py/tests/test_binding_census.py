@@ -2788,8 +2788,10 @@ NOT_BOUND = {
     # as `EvaluationError.kind == "measure_clearance_refused"`
     # (`src/tags.rs`), which is this bullet's ordinary shape. What is
     # NOT ordinary is that no Python evaluation can produce one: the
-    # refusal's only producer is
-    # `impl MinClearanceLane for geom_core::Interval`, and the binding
+    # refusal's only producer on the measure path is
+    # `impl MinClearanceLane for geom_core::Interval` (the leaf-level
+    # query engine refuses with it too, and the façade does not carry
+    # that engine at all), and the binding
     # evaluates at `f64` alone (`src/py/value.rs`), so the SCALAR is
     # what gates it. That is `profile_lift`'s
     # sentence above arriving on the refusal side: the door starts
@@ -2802,8 +2804,8 @@ NOT_BOUND = {
     # Its SIBLING went the other way and the pair is the measurement:
     # `MeasureUnavailableAt` is what the `f64` lane answers a
     # `min_clearance` WITH, so it is reachable today and is bound
-    # top-level under rule 1. One kernel file, one verb, two refusals,
-    # and the lane decides which of them a Python caller can ever see.
+    # top-level under rule 1. One verb, two refusals, and the lane
+    # decides which of them a Python caller can ever see.
     "ClearanceRefusal": SHAPE,
     # Its `Budget` and `Selection` payloads, curated beside it so a
     # Rust consumer can read the arm it matched. They cross exactly as
@@ -2884,10 +2886,16 @@ NOT_BOUND = {
     #     `MeasureUnavailableAt` as exception classes keeping their
     #     Rust types' own names.
     #   - TWO stay here and are RETAGGED `SHAPE` — `SitedRef` and
-    #     `ClearanceRefusal`, each argued at its own entry above.
+    #     `MinClearanceRefusal`, each argued at its own entry above.
     #     Neither is a debt any more and neither is reach: one is a
     #     type whose two halves are what the doors take, the other a
     #     refusal flattened to a tag no `f64` evaluation can raise.
+    #
+    #     (2026-09-24, PR #3188: `MinClearanceRefusal` is deleted — the
+    #     measure path carries the engine's own `ClearanceRefusal` — and
+    #     its entry is now `ClearanceRefusal`'s, with the two payloads
+    #     curated beside it, `CellBudget` and `SelectionRefusal`, all
+    #     three `SHAPE` for the same reason.)
     #
     # THE CHARTER NAMED A SPELLING THIS FILE HAD ALREADY TAKEN. The
     # analysis lane's `MeasureUnavailable` bound at LIB-B-DISTRIBUTIONS
@@ -2902,7 +2910,8 @@ NOT_BOUND = {
     # every name this family owns is curated in
     # `crates/pncad/src/document.rs`, which carries NO `cfg`. The limit is a
     # LANE — see the `ClearanceRefusal` entry — and it bites one
-    # refusal out of the family's whole surface.
+    # refusal, with the two payloads curated beside it, out of the
+    # family's whole surface.
     #
     # WHAT THIS FILE COULD NOT SEE, in both directions. `Node::Measure`
     # and `Node::Assertion` are ARMS of `Node`, which rule 1 accounts

@@ -2050,12 +2050,26 @@ pub fn assertion_at(
 /// The measure-refusal classes a smaller box cannot change
 /// ([`RefusalReason::MeasureRefused`]).
 ///
-/// Conservative by construction: a class is here only when refinement
-/// PROVABLY cannot alter it, and everything else keeps bisecting. The
-/// cost of being wrong in this direction is a leaf refused early
-/// (visible, priced under its own name); the cost of being wrong the
-/// other way is a leaf that could have certified and did not, which is
-/// why the list is enumerated rather than defaulted.
+/// Conservative by construction: a class is terminal only when
+/// refinement PROVABLY cannot alter it, and everything else keeps
+/// bisecting. The two mistakes are not priced alike. A class wrongly
+/// kept bisecting costs budget: the driver re-derives the same refusal
+/// down to its depth limit and prices the mass as `Budget`, visibly and
+/// under the symptom's name. A class wrongly made terminal costs a leaf
+/// that a smaller box would have certified. So the terminal classes are
+/// enumerated, and every refusal not listed bisects.
+///
+/// The clearance arm matches every [`ClearanceRefusal`] arm, but its
+/// carrier's one producer — `clearance::min_separation`, through
+/// [`MinClearanceLane`]'s interval impl — refuses with four of them:
+/// `EmptyScope`, `NoAdmittedPair`, `Unsupported` and `PoisonEnclosure`.
+/// The other seven are classed by what they mean, so the match stays
+/// exhaustive and an arm added to the enum does not compile unclassed;
+/// the carrier narrows to the measure path's own arms when the enum
+/// splits (`work/clear/SHELL-3.md`).
+///
+/// [`ClearanceRefusal`]: crate::clearance::ClearanceRefusal
+/// [`MinClearanceLane`]: crate::measure::MinClearanceLane
 fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<&'static str> {
     match kind {
         // The selection resolved to the wrong KIND of entity. Document
@@ -2064,23 +2078,29 @@ fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::MeasureClearanceRefused(r) => {
             use crate::clearance::ClearanceRefusal as C;
             match r {
-                // Which faces are admitted, whether the two scopes pair at
-                // all, and whether the carrier has an implementation: all
-                // decided by the document's own topology and the engine's
-                // support table, not by the box.
-                C::NoAdmittedPair
-                | C::Unsupported { .. }
-                | C::Selection(_)
-                | C::EmptyScope
-                | C::NotADistance { .. } => Some(r.name()),
-                // Every one of these can differ over a smaller box, so
-                // refinement is the right answer.
+                // Reached: which faces are in scope, whether the two
+                // scopes pair at all, and whether the carrier has an
+                // implementation are decided by the document's own
+                // topology and the engine's support table, not by the box.
+                C::EmptyScope | C::NoAdmittedPair | C::Unsupported { .. } => Some(r.name()),
+                // Not reached from `min_separation`. The bound and the
+                // run's tolerance are fixed for the whole drive, so no
+                // sub-box changes them either.
+                C::NotADistance { .. } | C::ToleranceHasNoBand => Some(r.name()),
+                // Reached: an enclosure that did not evaluate over this
+                // box (NaI, or empty) may evaluate over a smaller one, so
+                // nothing proves it box-independent.
+                C::PoisonEnclosure { .. } => None,
+                // Not reached from `min_separation`. Each is a function
+                // of the box — a budget, an in-band decision, a witness,
+                // a certified leaf, or a selection read at one leaf's
+                // replay (a node that did not build there) — and can
+                // differ over a smaller one.
                 C::Budget(_)
+                | C::Selection(_)
                 | C::Sliver { .. }
-                | C::PoisonEnclosure { .. }
                 | C::WitnessUnverified { .. }
-                | C::NothingCertified { .. }
-                | C::ToleranceHasNoBand => None,
+                | C::NothingCertified { .. } => None,
             }
         }
         _ => None,
