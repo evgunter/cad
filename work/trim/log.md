@@ -689,3 +689,24 @@ One finding filed on this slate while placing `kef`'s killed halves:
 `pcurves-docs-claim-a-recycled-slot-can-read-another-half-edges-row`
 (the stale-row consequence's recycled-slot arm is one `SecondaryMap`'s
 version check forecloses). Signed (TOPO, the mef/kef run lane).
+
+## The run doors' posture seam, fix pass (2026-09-24): `mef` and `kef` read `Transfers`
+
+The dual on `topo/mef-kef-runs-carry-or-drop-rows` (PR 2603) found
+`Posture::Neither`'s definition — "leaves the map exactly as it found
+it" — false for two doors that now drop rows whose chart moved, and
+`Transfers` literally describing them. So in `crates/topo/src/pcurves.rs`:
+`mef`, `mef_chord` and `kef` move to the `Transfers` section of
+`staleness_posture::DECLARED`, in a section of their own; the
+`Transfers` variant doc names the run beside the loop, and says the
+bucket is silent about rows a door never HELD (a minted half arrives
+rowless — the minting posture, decided elsewhere, not by the entry);
+the `Neither` variant doc loses its "dispose of those rows themselves
+now" history; the header's per-door paragraph on the two doors is a
+one-sentence pointer at `DECLARED` rather than a restatement of it
+(`the-pcurves-module-header-restates-the-posture-table-below-it` is
+the class and this does not grow it). The run door
+`Body::drop_run_rows_on_chart_change` is gone: one predicate-free
+primitive `Body::drop_rows` sits under every decision site, and the
+header's two references to the doors follow it. Signed (TOPO, the
+mef/kef fix pass).
