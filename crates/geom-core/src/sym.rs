@@ -551,6 +551,14 @@
 //! rule G's dial, because nothing mints an `Abs` where a root used to
 //! stand until rule G does.
 //!
+//! **Rule G's exact quotient** ([`SymRules::root_quotient`]): a root
+//! whose argument's denominator divides its numerator exactly is
+//! minted over the polynomial quotient — rule E's cancellation carried
+//! past the monomial, at the one door every root goes through. It is
+//! what meets R1's boss's `arc_span` identity, whose root carries the
+//! chord's polynomial to the fourth power in both halves; [`root`]
+//! carries the argument and what it does not reach.
+//!
 //! **The decision read** ([`SymRules::decision_read`]): a `Select`
 //! whose decision is certified one-signed over the leaf's box takes
 //! that arm, and so does a `min`/`max` whose comparison is — `max(A,
@@ -1615,6 +1623,22 @@ pub struct SymRules {
     /// `registered` (the row above). The kept-atom retry's second
     /// shape.
     pub root_magnitude: bool,
+    /// **Rule G's EXACT QUOTIENT** ([`root`]'s `exact_quotient`): a
+    /// root whose argument `N/D` has a denominator that divides its
+    /// numerator EXACTLY — `N = Q·D` as polynomials, verified by the
+    /// product — is minted over the polynomial `Q`. It is rule E's
+    /// quotient carried past the monomial at the one door every root
+    /// goes through: a factor both halves share that is a POLYNOMIAL
+    /// (a chord's `(a + x)⁴`) is invisible to rule E and keeps the
+    /// root keyed on a quotient nothing else is keyed on. Read as
+    /// `canonical_root && root_quotient`, so like [`Self::abs_square`]
+    /// it only ever takes the step AWAY from a tier that has rule G.
+    ///
+    /// An equality of reals wherever `D ≠ 0`, which clause 1 grants
+    /// ([`quotient`]'s four-source argument), and no value is read, so
+    /// a zero through it is a THEOREM. [`root`]'s header carries the
+    /// argument and what it does not reach.
+    pub root_quotient: bool,
     /// **The DECISION READ** ([`signed::decision`], [`signed::order`]):
     /// in the early walk a `Select` whose decision is certified
     /// one-signed over the leaf's box takes that arm, and a `min`/`max`
@@ -1664,6 +1688,7 @@ impl SymRules {
             canonical_root: true,
             abs_square: true,
             root_magnitude: true,
+            root_quotient: true,
             decision_read: true,
             registered: true,
         }
@@ -1690,6 +1715,7 @@ impl SymRules {
     /// | E, the quotient's common factor (`common_factor`, SYM-5) | none on the five; R1's boss at bulge 2 `8.2611e2 → 9.3559e2 · ε` (1.13×), and a derived frame whose AXES carry a parameter certifies where its authored twin does, which no dial reached before | one whole-box leaf, release: plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70, link 3.31 → 2.43, pad 3.85 → 14.40 | **yes**, with the bracket, the pad and the link over the 1.6 s line disclosed |
     /// | F, the manifest sign (`manifest_sign`, SYM-8) | none, on all EIGHT measured documents, to the digit; the tilt-`u` derived frame's `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 and its `Pinned` replay 122 decisions out of `numeric` at a sixth of the cost | free to the measurement's noise and cheaper on most — the six leaf numbers live once, in the module header's rule-F section | **yes**, with the pad's four `symbolic_zero` → `registered` ratified as a spec deviation |
     /// | G, the canonical root (`canonical_root`, DECIDE-3) | the tilted derived boss certifies at both halves and both lifts and the tilt-`u` one outright; the link, the bracket and the pad gain theorems and the plate's ledger loses its `Early/Assertion` and `Door/Decision` freezes | the differential is `without_canonical_root`; the numbers live in the PR that shipped it and in [`root`] | **yes** |
+    /// | G's exact quotient (`root_quotient`, DECIDE-4) | R1's boss at bulge 2 `1.0309e3 → CEILING_TBD · ε`, its `arc_span` 5/0/0/1 → 6/0/0/0; no other split moves at the nominal on the plate, bracket, annulus, link, both D-tabs or the two controls | COST_TBD | **yes** |
     /// | the decision read (`decision_read`, DECIDE-3) | the frame's conditioning comparisons, which no form settles: `sign_gated` where it fires and never `symbolic_zero` | the deep enclosure runs at every `Select` and `min`/`max`; the pin suites' wall time is the cost row `work/decide/decision-read-triples-the-plate-pin-suites-wall-time` | **yes**, with that cost disclosed |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`
@@ -1710,6 +1736,7 @@ impl SymRules {
             canonical_root: true,
             abs_square: true,
             root_magnitude: true,
+            root_quotient: true,
             decision_read: true,
             registered: true,
         }
@@ -1732,6 +1759,7 @@ impl SymRules {
             canonical_root: false,
             abs_square: false,
             root_magnitude: false,
+            root_quotient: false,
             decision_read: false,
             registered: false,
         }
@@ -1768,6 +1796,7 @@ impl SymRules {
             // compare them.
             abs_square: false,
             root_magnitude: false,
+            root_quotient: false,
             decision_read: false,
             ..Self::shipped()
         }
@@ -1816,6 +1845,7 @@ impl SymRules {
             // compare them.
             abs_square: false,
             root_magnitude: false,
+            root_quotient: false,
             decision_read: false,
             ..Self::shipped()
         }
@@ -1838,6 +1868,19 @@ impl SymRules {
             // compare them.
             abs_square: false,
             root_magnitude: false,
+            root_quotient: false,
+            ..Self::shipped()
+        }
+    }
+
+    /// **The shipped set with rule G's EXACT QUOTIENT shut** — every
+    /// root keyed on its argument's quotient as the walk left it: the
+    /// differential what [`Self::root_quotient`] buys and costs is
+    /// measured against, and the tier SYM-9 shipped bit for bit.
+    #[must_use]
+    pub const fn without_root_quotient() -> Self {
+        Self {
+            root_quotient: false,
             ..Self::shipped()
         }
     }
@@ -1874,6 +1917,7 @@ impl SymRules {
             // compare them.
             abs_square: false,
             root_magnitude: false,
+            root_quotient: false,
             decision_read: false,
             ..Self::shipped()
         }
@@ -1909,6 +1953,7 @@ impl SymRules {
             canonical_root: self.canonical_root && mask.canonical_root,
             abs_square: self.abs_square && mask.abs_square,
             root_magnitude: self.root_magnitude && mask.root_magnitude,
+            root_quotient: self.root_quotient && mask.root_quotient,
             decision_read: self.decision_read && mask.decision_read,
             registered: self.registered && mask.registered,
         }
@@ -2055,8 +2100,8 @@ impl SymRetry {
     /// so rule G's attempt — the one that buys theorems — goes first) and
     /// the cost against the 1.6 s line it ships across.
     ///
-    /// The rule-G mask spells rule G's two halves (`abs_square`,
-    /// `root_magnitude`) shut with it, as every constructor that shuts
+    /// The rule-G mask spells rule G's conjunct dials (`abs_square`,
+    /// `root_magnitude`, `root_quotient`) shut with it, as every constructor that shuts
     /// `canonical_root` does, so the attempt it runs is ONE `SymRules`
     /// value — [`SymRules::without_canonical_root`] on the shipped set.
     #[must_use]
@@ -2068,6 +2113,7 @@ impl SymRetry {
                     canonical_root: false,
                     abs_square: false,
                     root_magnitude: false,
+                    root_quotient: false,
                     ..SymRules::all()
                 }),
                 Some(SymRules {

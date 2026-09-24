@@ -408,7 +408,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
     let expected: [(&str, [u64; 4], [u64; 4], u64); 5] = [
         ("two_hole_plate", [811, 0, 140, 462], [811, 0, 140, 462], 0),
         ("r1_annulus", [328, 0, 140, 209], [328, 0, 140, 209], 0),
-        ("r1_segment_boss", [374, 2, 96, 234], [374, 2, 96, 234], 0),
+        ("r1_segment_boss", [375, 2, 96, 233], [375, 2, 96, 233], 0),
         (
             "r2_filleted_bracket",
             [1104, 7, 144, 766],

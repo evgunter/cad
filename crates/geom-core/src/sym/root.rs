@@ -96,6 +96,68 @@
 //! order-dependence disclosure: a proof from the form does not depend
 //! on what the walk minted first.
 //!
+//! # The exact quotient: a polynomial factor the halves share
+//!
+//! **The invariant.** A root whose argument `N/D` has a denominator
+//! that divides its numerator EXACTLY is minted over the polynomial
+//! quotient `Q`, `N = Q·D`, before the split above is asked
+//! ([`super::SymRules::root_quotient`], read with rule G's dial).
+//!
+//! **Why it is needed.** Rule E ([`quotient`]) divides out the
+//! MONOMIAL both halves share, and says of itself that it is not a
+//! polynomial GCD: `(x + 1)` dividing both halves stays. A root keyed
+//! on such a quotient is keyed on a form nothing else is keyed on, and
+//! rule G's content split over it runs on the uncancelled halves,
+//! whose rational content is the product of both — past the ring
+//! first. R1's boss at `bulge = 2` carries exactly that at its
+//! `arc_span` identity: `2^-59·sqrt(5)·|c + 2^59·h| − sqrt(P/Q)` with
+//! `Q = (1 + h/a)⁴`, `a = c·2^-59`, and `P = 5a²(1 + h/a)⁶` — the
+//! chord's own polynomial to the fourth power in both halves. With
+//! the factor divided out the root is `sqrt(5(a + h)²)`, whose
+//! canonical form is the first term's atom, and the residual is zero.
+//!
+//! **Why it is an equality of reals, with no value read.** `Q` is
+//! accepted only when the product `Q·D` is, term for term, the
+//! polynomial `N` — exact rational arithmetic in the ring, the same
+//! test every form in this tier is compared by. So `N/D = Q` as
+//! rational functions, and at every point where `D ≠ 0` the two denote
+//! one real; `sqrt(N/D) = sqrt(Q)` there, on both sides of zero and
+//! at a zero of `Q` (both roots are `0`). `D ≠ 0` at every point
+//! clause 1 admits is [`quotient`]'s four-source argument, which this
+//! step inherits whole and extends by nothing: it mints no denominator
+//! (its output has none), so no fifth source appears. Nothing here
+//! consults the box, the atom table or a bracket, so a zero reached
+//! through it is a THEOREM.
+//!
+//! **The sign of `D` stops mattering, and that is correct.** The split
+//! `sqrt(N/D) = sqrt(N)/sqrt(D)` needs `D > 0`; the quotient does not,
+//! because it never separates the halves. A negative `D` with `D | N`
+//! gives a `Q` that is the argument's own value, and whether `sqrt(Q)`
+//! has a real value is clause 1's question exactly as it was for
+//! `sqrt(N/D)`.
+//!
+//! **The `abs` and `copysign` hazard does not reach it.** It rewrites
+//! no `abs` and no `copysign` node, and reads no predicate rule F
+//! reads: the magnitude a perfect-square `Q` then yields goes through
+//! step 3 above (`sqrt(R²) = |R|`), which folds `|R| = R` only for an
+//! `R` the form shows non-negative and otherwise keys the `Abs` atom —
+//! a sign-carrying `R` stays opaque, and `geom-core`'s
+//! `decide_4_root_quotient_rows` pins that row.
+//!
+//! **What it does not reach.** A factor shared by the halves when
+//! neither divides the other (`(x + 1)(x + 2)/((x + 1)(x + 3))`) —
+//! that is a GCD, and a GCD is not taken here. Only `D | N` is tried,
+//! not `N | D`. It runs at the root door only: an `abs` over the same
+//! quotient, or a quotient that is not under a root, is untouched.
+//!
+//! **The division.** Multivariate division by the leading term under
+//! the graded-lexicographic order (`grlex`): each step cancels the
+//! remainder's leading term against `D`'s, and a step whose leading
+//! monomial `D`'s does not divide declines. The order is only how `Q`
+//! is FOUND; what makes it sound is the verified product, so a
+//! division that finds nothing, or runs past its step cap, is a missed
+//! cancellation and never a wrong one.
+//!
 //! # One door
 //!
 //! [`root::mint`] is the only place a `Sqrt` atom is built. The
@@ -105,9 +167,10 @@
 //! registrant's `‖q − c‖` and the walk's meet by construction rather
 //! than by coincidence.
 
+use std::cmp::Ordering;
 use std::sync::Arc;
 
-use super::form::{Form, Poly};
+use super::form::{Form, Mono, Poly, exp_of};
 use super::rational::Rat;
 use super::{AtomInfo, Session, SymOp, indet_atom, manifest, mint_atom, signed};
 
@@ -345,11 +408,99 @@ fn denominator_sign(d: &Poly, sess: &Session) -> Option<Sign> {
     None
 }
 
+/// The most division steps [`exact_quotient`] takes — one per term of
+/// the quotient it builds. A quotient past it is a form the size cap
+/// of the per-node walk would not reduce either.
+const QUOTIENT_STEPS: usize = 512;
+
+/// **The graded-lexicographic order on monomials**: total degree first,
+/// then the exponent at the smallest indeterminate id where the two
+/// differ. A monomial order — `a > b` implies `a·m > b·m` — which is
+/// all [`exact_quotient`]'s division asks of it.
+fn grlex(a: &Mono, b: &Mono) -> Ordering {
+    let degree = |m: &Mono| m.iter().map(|&(_, e)| u64::from(e)).sum::<u64>();
+    degree(a).cmp(&degree(b)).then_with(|| {
+        let (mut i, mut j) = (0, 0);
+        loop {
+            match (a.get(i), b.get(j)) {
+                (None, None) => return Ordering::Equal,
+                (Some(_), None) => return Ordering::Greater,
+                (None, Some(_)) => return Ordering::Less,
+                (Some(&(ia, ea)), Some(&(ib, eb))) => match ia.cmp(&ib) {
+                    Ordering::Equal if ea == eb => {
+                        i += 1;
+                        j += 1;
+                    }
+                    Ordering::Equal => return ea.cmp(&eb),
+                    // `a` carries `ia` and `b` does not: `a` is larger.
+                    Ordering::Less => return Ordering::Greater,
+                    Ordering::Greater => return Ordering::Less,
+                },
+            }
+        }
+    })
+}
+
+/// `m / d` for a monomial `d` dividing `m`; `None` where it does not.
+fn mono_div(m: &Mono, d: &Mono) -> Option<Mono> {
+    if d.iter().any(|&(id, e)| exp_of(m, id) < e) {
+        return None;
+    }
+    Some(
+        m.iter()
+            .filter_map(|&(id, e)| {
+                let k = e - exp_of(d, id);
+                (k > 0).then_some((id, k))
+            })
+            .collect(),
+    )
+}
+
+/// The leading term of a non-zero polynomial under [`grlex`].
+fn leading(p: &Poly) -> Option<&(Mono, Rat)> {
+    p.terms().iter().max_by(|a, b| grlex(&a.0, &b.0))
+}
+
+/// **`Q` with `N = Q·D` exactly**, for a non-constant `D`; `None`
+/// wherever `D` does not divide `N` or the search declines. The module
+/// header's "exact quotient" section carries the argument: the answer
+/// is returned only once `Q·D` is verified equal to `N`.
+fn exact_quotient(n: &Poly, d: &Poly, budget: super::SymBudget) -> Option<Poly> {
+    if n.is_zero() || d.as_constant().is_some() || d.degree() > n.degree() {
+        return None;
+    }
+    let (dm, dc) = leading(d)?;
+    let inverse = dc.recip()?;
+    let mut rest = n.clone();
+    let mut q = Poly::zero();
+    for _ in 0..QUOTIENT_STEPS {
+        let Some((rm, rc)) = leading(&rest) else {
+            // The remainder is zero: verify the product, which is the
+            // whole of the soundness argument.
+            return (q.mul(d, budget)? == *n).then_some(q);
+        };
+        let t = Poly::term(mono_div(rm, dm)?, rc.mul(&inverse)?);
+        rest = rest.add(&t.mul(d, budget)?.neg()?)?;
+        q = q.add(&t)?;
+    }
+    None
+}
+
 /// The canonical form of `sqrt(arg)`, or `None` where the rule
 /// declines and the caller keeps the opaque atom.
 pub(super) fn canonical(arg: &Form, sess: &mut Session) -> Option<Form> {
     if arg.poisoned || arg.is_zero() {
         return None;
+    }
+    // The exact quotient (module header): a denominator that divides
+    // the numerator leaves the polynomial, and the split below is not
+    // asked.
+    if sess.rules.root_quotient
+        && let Some(q) = exact_quotient(&arg.num, &arg.den, sess.budget)
+        && let Some(mut out) = sqrt_poly(&q, sess)
+    {
+        out.gated |= arg.gated;
+        return Some(out);
     }
     if arg.den.as_constant().is_some_and(|c| c == Rat::one()) {
         let mut out = sqrt_poly(&arg.num, sess)?;

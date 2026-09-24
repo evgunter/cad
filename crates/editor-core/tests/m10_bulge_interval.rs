@@ -136,6 +136,17 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
 /// those exactly — the fix
 /// `work/decide/a0-leaves-max-and-min-of-constants-opaque` asked for.
 /// The other four carry a parameter and no form settles them.
+///
+/// **Rule G's exact quotient takes the last of `arc_span`**, 5/0/0/1
+/// -> 6/0/0/0, a THEOREM. It was the one value-free residual on the
+/// boss and the decision that bounds its ceiling:
+/// `2^-59·sqrt(5)·|c + 2^59·h| − sqrt(P/Q)` with `Q = (1 + h/a)⁴`
+/// dividing `P = 5a²(1 + h/a)⁶` exactly (`a = c·2^-59` the chord half,
+/// `h` its deviation) — a polynomial factor both halves share, which
+/// rule E's monomial cancellation does not see. Minted over the
+/// quotient `5(a + h)²`, the root is the first term's atom
+/// (`m10_bulge_renders.txt` carries the form uncut). Nothing else on
+/// the boss, either D-tab or either control moves.
 #[test]
 fn m10_bulge_the_bosss_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -146,7 +157,7 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
         &[
             ("arc_apex_identity", [0, 0, 0, 1]),
             ("arc_diameter_clearance", [0, 0, 0, 6]),
-            ("arc_span", [5, 0, 0, 1]),
+            ("arc_span", [6, 0, 0, 0]),
             ("assert_bound", [0, 0, 0, 1]),
             ("carrier_circles_identity", [3, 0, 0, 0]),
             ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),

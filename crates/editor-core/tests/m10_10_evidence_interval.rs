@@ -382,6 +382,9 @@ fn rules_named(name: &str) -> SymRules {
         // DECIDE-3's differential for the decision read: the shipped set
         // with the read shut and rule G on.
         "no_reads" => SymRules::without_the_reads(),
+        // DECIDE-4's differential: the shipped set with rule G's exact
+        // quotient shut, which is SYM-9's tier bit for bit.
+        "no_q" => SymRules::without_root_quotient(),
         // The cost breakdown: rule D alone, and rules A/B per node alone.
         "d_only" => SymRules {
             trig_of_atan: true,
@@ -417,7 +420,7 @@ fn rules_named(name: &str) -> SymRules {
         },
         other => panic!(
             "unknown rule set {other:?}: shipped | none | all | shut | off | no_e | no_f \
-             | no_reads | d_only | ab_only | top_only | d_top_only"
+             | no_reads | no_q | d_only | ab_only | top_only | d_top_only"
         ),
     }
 }

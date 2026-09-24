@@ -308,6 +308,16 @@ const SLAB_LEDGER: [&str; 3] = [
 /// comparisons of two rational CONSTANTS, and A0 decides those exactly
 /// now (`work/decide/a0-leaves-max-and-min-of-constants-opaque`), so
 /// there is nothing left for the instrument to report.
+///
+/// **What rule G's exact quotient moves** (`SymRules::root_quotient`,
+/// the only change between the two captures): the plate's
+/// `Early/Decision` digest, and nothing else — every count on every
+/// line identical, the slab's ledger and both largest forms unmoved.
+/// The rewrite fires on a root the plate's decision walk mints over a
+/// quotient whose denominator divides its numerator, so the form that
+/// root is keyed on changes and no decision does (the plate's split
+/// and receipt are unmoved: `sym_9_retry_interval`'s pin reads
+/// `[811, 0, 140, 462]` either way).
 const SLAB_MAX_TERMS: usize = 6;
 const PLATE_MAX_TERMS: usize = 252;
 
@@ -317,7 +327,7 @@ const PLATE_MAX_TERMS: usize = 252;
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 951 forms 15030 frozen 672 digest aa581ad9960b7ef704f978c1bb2d7ce3\n\
      Plain/Assertion calls 462 forms 2594 frozen 372 digest 702ce928fd05aeeb766afa8c0ae157bb\n\
-     Early/Decision calls 320 forms 7979 frozen 8 digest 5274cafc352ceecaf7e8fef294baa3f0\n\
+     Early/Decision calls 320 forms 7979 frozen 8 digest 2a62023a371bd4aacf1017c8e9f8029e\n\
      Early/Assertion calls 462 forms 3406 frozen 0 digest 4bcf903191f8a0a9db825a2798908440\n\
      Door/Decision calls 330 forms 11884 frozen 0 digest 90c99c9e033c9e0adf0032dacb84aee1\n\
      Door/Assertion calls 190 forms 0 frozen 0 digest 00000000000000000000000000000000";
