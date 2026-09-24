@@ -1,6 +1,6 @@
-//! Kill-direction Euler duals — [`Body::kvfs`], [`Body::kev`],
-//! [`Body::kef`] — and the ring-promotion inverse [`Body::mfkrh`]
-//! (M1 PR 4).
+//! Kill-direction Euler duals — [`Body::kvfs`], [`Body::kev`] (with
+//! its describing door [`Body::kev_describing`]), [`Body::kef`] — and
+//! the ring-promotion inverse [`Body::mfkrh`] (M1 PR 4).
 //!
 //! These complete the ten-operator catalog (Mäntylä ch. 9): every
 //! make-direction operator now has its exact inverse in-tree, which is
@@ -112,6 +112,20 @@
 //! the strut case's `next(m)` (which starts at `v`), else `None`
 //! (segment kill — `v` is lone again).
 //!
+//! **The merged fan's geometry.** The merge moves an end of every
+//! merged member from `w`'s point to `v`'s, and each keeps the carrier
+//! it was certified with. [`Body::kev`] is keys-only and ε-free: it
+//! carries a merge that moves nothing — an empty fan, or a killed null
+//! edge, whose two vertices hold one point — and otherwise refuses a
+//! merge that would move a certified member
+//! ([`EulerOpError::MergeRebasesCarriers`], naming every one) or one end
+//! of a null edge ([`EulerOpError::RebasedNullEdge`]).
+//! [`Body::kev_describing`] is the same kill with a band and the
+//! members' re-descriptions: a listed member is certified with its spec
+//! at the merged endpoints, an unlisted one passes the re-basing gate
+//! `mev`'s fan site passes. The two doors' docs carry the argument,
+//! including why the keys-only door reads no band.
+//!
 //! # `kef` — inverse of `mef` (the loop splice)
 //!
 //! [`Body::kef`] kills `he`'s edge and **the face of `he`'s loop** —
@@ -208,7 +222,7 @@
 //! | make | exact inverse | degenerate cases |
 //! |---|---|---|
 //! | `mvfs` | `kvfs(created.solid)` | — |
-//! | `mev(site)` | `kev(created.he_plus)` | `Fan{he1==he2}` ↔ strut kill; `Lone` ↔ segment kill |
+//! | `mev(site)` | `kev(created.he_plus)` — `kev_describing(created.he_plus, &[], tol)` where the run is non-empty and the new edge certified | `Fan{he1==he2}` ↔ strut kill; `Lone` ↔ segment kill |
 //! | `mef(site)` | `kef(created.he_minus)` | `Chords{he1==he2}` ↔ dying-loop-alone; `Lone` ↔ both-alone |
 //! | `mekr(site)` | `kemr(created.he_plus, created.he_minus)` | per-site, see [`crate::euler_ring`] |
 //! | `kfmrh(f1, f2)` | `mfkrh(result.ring)` | empty-outer `f2` ↔ empty-ring promotion |

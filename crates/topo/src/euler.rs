@@ -555,8 +555,9 @@ pub enum EulerOpError {
         /// The typed re-certification failure.
         error: CertifyError,
     },
-    /// [`Body::mev`]'s fan site, or [`Body::kev`]'s fan merge, would
-    /// move one end of a **null edge**
+    /// [`Body::mev`]'s fan site, or either kill door's fan merge
+    /// ([`Body::kev`], [`Body::kev_describing`]), would move one end of
+    /// a **null edge**
     /// ([`crate::CurveGeom::NullScaffold`]) onto another vertex and not
     /// the other: the moved run holds exactly one of its half-edges.
     /// The re-basing gate refuses it because it cannot ask whether the
@@ -564,8 +565,9 @@ pub enum EulerOpError {
     /// door that would ask, are stated once, in the crate-internal
     /// `Body::certify_rebased_run`'s docs). Raised in the plan phase,
     /// so the body is untouched. A run holding both halves moves both
-    /// ends onto the one new vertex and is not refused; a fan split
-    /// that moves nothing is [`Body::mev_null`].
+    /// ends onto the one vertex and is not refused; a fan split that
+    /// moves nothing is [`Body::mev_null`], and a merge that moves
+    /// nothing is a kill of a null edge.
     ///
     /// Not [`EulerOpError::NullScaffoldCurve`], which is an operation
     /// that needs a carrier meeting an edge that has none: this arm is
@@ -1498,9 +1500,8 @@ impl<T: Decide> Body<T> {
     /// MOVE is what makes the answer no — body untouched, like every
     /// other precondition. A carrier that already missed its own
     /// endpoint before the call is carried rather than refused: it
-    /// names a defect this operation did not create, and the operator
-    /// that does is [`Body::kev`]'s fan merge. Re-describing a run is
-    /// [`Body::set_edge_curve`]'s decision, with the caller's own
+    /// names a defect this operation did not create. Re-describing a
+    /// run is [`Body::set_edge_curve`]'s decision, with the caller's own
     /// spec; the gate's own docs carry the argument for why an
     /// operator re-certifies exactly rather than re-fitting. A **null
     /// edge** the run moves one end of (one of its halves in the run,
@@ -1516,6 +1517,13 @@ impl<T: Decide> Body<T> {
     /// [`Body::set_edge_curve`], which can fail on its own and leave
     /// the null edge in place. The two calls are the no-move split, not
     /// one atomic door.
+    ///
+    /// **The variant family.** `mev` takes the new edge's spec;
+    /// [`Body::mev_line`] derives the chord; [`Body::mev_null`] takes no
+    /// geometry and moves nothing. The kill side mirrors it: [`Body::kev`]
+    /// is keys-only and refuses a merge that would strand a carrier, and
+    /// [`Body::kev_describing`] takes the merged fan's re-descriptions
+    /// and a band, as this door takes its spec and band.
     ///
     /// **Minting order** (D9, exact): point, curve (the certified
     /// [`EdgeCurve`]), vertex, edge, `he_plus`, `he_minus`.
@@ -2462,12 +2470,13 @@ impl<T: Decide> Body<T> {
     /// the same question of the endpoints the edge has NOW; where that
     /// fails the same way, the carrier already missed its own endpoint
     /// and this move is not what made it false. Refusing there would
-    /// name another operator's defect on an edge this one may not even
-    /// touch — [`Body::kev`]'s fan merge leaves exactly that state
-    /// (`work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`),
-    /// tier 3 reports it at rest, and this operator's claim is the
-    /// narrow one: no edge's carrier is made false BY THIS MOVE. Every
-    /// other refusal is unconditional.
+    /// name a defect this operation did not create, on an edge it may
+    /// not even touch; tier 3 reports such a carrier at rest, and the
+    /// gate's claim is the narrow one: no edge's carrier is made false
+    /// BY THIS MOVE. (No re-basing door leaves one — this gate refuses,
+    /// and both kill doors refuse or re-describe what a merge would
+    /// strand — so the arm is fed only by a body that arrives with
+    /// one.) Every other refusal is unconditional.
     ///
     /// **A null edge is refused where the run moves one of its ends and
     /// not the other** ([`EulerOpError::RebasedNullEdge`]). It carries

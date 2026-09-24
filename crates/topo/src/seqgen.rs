@@ -99,32 +99,28 @@
 //!
 //! - `kev(he)` wherever the far vertex carries a fan — the general
 //!   merge and the "mirror" adjacency (`next(mate(he)) == he`) alike.
-//!   The kill itself is fine and runs in the walk; what has no re-make
-//!   is the site. Restoring it needs a `mev` that moves the merged fan
-//!   back onto a vertex at the dead one's coordinates, and `mev`'s
-//!   re-basing gate refuses to start an edge at a vertex its chord
-//!   does not run to — which the merge made true of every merged
-//!   member. Before that gate existed the general merge DID re-make,
-//!   by leaving every one of those members describing a locus it no
-//!   longer ran to, so what the taxonomy gained here is the earlier
-//!   silence: the row the re-make used to prove was proving a
-//!   restoration of the topology over geometry that had quietly
-//!   moved. (Killing the same edge from a valence-1 far vertex is the
-//!   segment or strut kill, which IS exactly invertible.)
+//!   The kill itself runs in the walk, through the describing door
+//!   with every merged member re-stated where it lands
+//!   ([`chord_redescriptions`]); what has no re-make is the site.
+//!   Restoring it needs a `mev` that moves the merged fan back onto a
+//!   vertex at the dead one's coordinates, and `mev`'s re-basing gate
+//!   refuses to start an edge at a vertex its chord does not run to —
+//!   which the merge made true of every merged member, re-described
+//!   to run to the survivor. (Killing the same edge from a valence-1
+//!   far vertex is the segment or strut kill, which IS exactly
+//!   invertible.)
 //!
-//!   **What the widening cost, measured** on the 64 × 32 stream set
-//!   [`tests::selection_is_pinned_over_a_fixed_stream_set`] pins: 136
-//!   `Kev` selections, of which 39 execute the roundtrip (the strut
-//!   and segment kills) and 97 skip — 28 the mirror adjacency, which
-//!   skipped before, and **69 the general fan merge, newly skipped**.
-//!   Property (c) therefore no longer runs on a little over half of
-//!   this walk's kills of an edge into a fan, and what it stopped
-//!   proving there is a topological restoration laid over geometry
-//!   that had quietly moved. The other side of the same narrowing:
-//!   [`mev_fan_candidates`] now offers 374 strut sites and **0
-//!   run-moving fan sites** on those streams (225 before), and
-//!   [`assert_run_site_refuses`] fires 237 times over them, so the
-//!   refusal that replaced those steps is itself fuzzed.
+//!   **Measured** on the 64 × 32 stream set
+//!   [`tests::selection_is_pinned_over_a_fixed_stream_set`] pins: 138
+//!   `Kev` selections, of which 41 execute the roundtrip (the strut
+//!   and segment kills) and 97 skip — 28 the mirror adjacency and 69
+//!   the general fan merge. [`mev_fan_candidates`] offers strut sites
+//!   only (370 selected on those streams), and
+//!   [`assert_run_site_refuses`] reaches its refusal 283 times over
+//!   them, so the refusal that replaced the run-moving steps is itself
+//!   fuzzed. No step of those streams holds an edge whose carrier its
+//!   own endpoints left, which [`split_site`] and
+//!   [`assert_run_site_refuses`] now assert rather than filter on.
 //! - `kef(he)` where the mate's loop is `[mate]` alone (the killed edge
 //!   is then necessarily a self-loop, tol) AND the surviving singleton loop
 //!   is a ring — or the outer of a face that has rings. The one-op
@@ -931,9 +927,9 @@ const SPLIT_FRACTION: f64 = 0.618_033_988_749_895;
 /// **Why the spec comes back with it.** `split_edge` is the only
 /// catalog member that REPLACES existing geometry rather than only
 /// minting: the parent survives as the first child, carrying the
-/// `[t₀, t]` restriction. `kev` undoes the topology and leaves that
-/// restriction on an edge spanning the whole original again, so the
-/// captured spec is what completes the inverse — exactly, for any
+/// `[t₀, t]` restriction. The inverse kill merges the parent back over
+/// the whole original span, so the captured spec is what it hands the
+/// describing door to complete the inverse — exactly, for any
 /// carrier (the self-loop circles `mef_chord` mints included), which
 /// a `line_between` guess would not be.
 fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCurveSpec<f64>)> {
@@ -1441,8 +1437,9 @@ pub(crate) fn roundtrip(
                 // A fan merges. Every re-make is a `mev` that moves that
                 // fan back onto a vertex at `w_coords`, and `mev`'s
                 // re-basing gate refuses to put an edge on a vertex its
-                // chord does not run to — which is what the merge made
-                // true of every merged member (module docs).
+                // chord does not run to — which is what the merge makes
+                // true of every merged member, re-described to run to
+                // the survivor (module docs).
                 return RoundtripOutcome::SkippedIrreversible;
             }
             let l1 = he_data.parent_loop;
@@ -1879,7 +1876,7 @@ mod tests {
     /// never adjust a filter to bring the old number back.
     #[test]
     fn selection_is_pinned_over_a_fixed_stream_set() {
-        const FINGERPRINT: u64 = 4_401_414_259_635_546_876;
+        const FINGERPRINT: u64 = 8_153_169_425_937_027_252;
         let mut hash = 0xcbf2_9ce4_8422_2325_u64;
         let mut fold = |bytes: &[u8]| {
             for b in bytes {

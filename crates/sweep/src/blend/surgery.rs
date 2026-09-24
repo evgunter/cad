@@ -2889,11 +2889,12 @@ fn rim_phase<T: Decide + Bounds>(
     // (`props`' inventory; the donut's own representation): so the
     // strut dies by a fan-merging kev that re-anchors the remnant to
     // the trim foot, leaving the remnant as the band's SLIT — a
-    // double-traversed torus meridian, exactly the donut's shape. Its
-    // carrier is re-described as that meridian arc in the final pass
-    // (the kev leaves it spanning foot → split point with a stale
-    // sphere-meridian carrier; nothing validates between here and
-    // there). ----
+    // double-traversed torus meridian, exactly the donut's shape. The
+    // kill re-describes it as it merges it: the remnant would keep a
+    // sphere-meridian carrier to the dying rim vertex, so the kill is
+    // handed that meridian arc, foot → split point, as scaffolding (the
+    // band's surface does not exist yet), and the final pass states it
+    // as the band's seam. ----
     let remnant_at = |v: VertexKey| -> Option<(EdgeKey, EdgeKey)> {
         remnants
             .iter()
@@ -2948,12 +2949,14 @@ fn rim_phase<T: Decide + Bounds>(
             } else {
                 hp
             };
-            body.kev(dying).map_err(|e| op("rim closure kev", e))?;
             // The slit's true carrier: the torus minor circle at this
             // vertex's azimuth (radial read off the foot, which lies
             // on the trim circle).
             let fp = strut_hes[idx].1;
             let radial = (fp - ca) / sa;
+            let meridian = merged_meridian_spec(body, mr, dying, tc + radial * tmaj, tmin)?;
+            body.kev_describing(dying, &[(mr, meridian)], tol)
+                .map_err(|e| op("rim closure kev", e))?;
             // The slit SURVIVES as the band's own double-traversed
             // meridian: a birth row, not a death.
             rec.slits.push((mr, msrc));
@@ -3654,7 +3657,19 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         } else {
             hp
         };
-        body.kev(dying).map_err(|e| op("annulus closure kev", e))?;
+        // The merge re-bases the mate seam's rim-side piece from the
+        // crossing onto the host foot, where it spans the two feet: the
+        // band's meridian at this crossing's azimuth, read off the host
+        // foot and the circle of the arc that starts here, exactly as
+        // the slit's final description reads it below. The kill is
+        // handed that arc as scaffolding; the closure's piece survives
+        // as the slit, every other one dies by the `kef` after.
+        let (cc, cr) = arcs[starters[ix]].host_circle;
+        let center = tc + ((feet_targets[ix].host - cc) / cr) * tmaj;
+        let member = mate_feet[ix].1;
+        let meridian = merged_meridian_spec(body, member, dying, center, tmin)?;
+        body.kev_describing(dying, &[(member, meridian)], tol)
+            .map_err(|e| op("annulus closure kev", e))?;
         if ix == ann.closure {
             continue;
         }
@@ -4002,21 +4017,7 @@ fn attach_contact<T: Decide + Bounds>(
         // to say so.
         ContactCarrier::CornerArc { center, radius }
         | ContactCarrier::TransverseArc { center, radius }
-        | ContactCarrier::SeamArc { center, radius } => {
-            let u = (p0 - center).normalize();
-            let w = (p1 - center).normalize();
-            let turn = u.cross(w);
-            (
-                Curve3::Circle {
-                    center,
-                    axis: turn.normalize(),
-                    radius,
-                    u_ref: u,
-                },
-                T::zero(),
-                turn.norm().atan2(u.dot(w)),
-            )
-        }
+        | ContactCarrier::SeamArc { center, radius } => short_arc(center, radius, p0, p1),
         ContactCarrier::Exact(curve, t0, t1) => (curve, t0, t1),
     };
     let description = if is_seam {
@@ -4119,6 +4120,73 @@ fn attach_contact<T: Decide + Bounds>(
     // operator refusal that raised it.
     .map_err(|e| op("surgery contact edge", e))?;
     Ok(())
+}
+
+/// The short arc about `center` of radius `radius` from `p0` to `p1`
+/// (sweep < π, so the `atan2` turn is unambiguous): the carrier and
+/// interval every arc kind of the description pass takes, and the one
+/// a closure kill re-describes its merged meridian with.
+fn short_arc<T: Decide>(
+    center: Point3<T>,
+    radius: T,
+    p0: Point3<T>,
+    p1: Point3<T>,
+) -> (Curve3<T>, T, T) {
+    let u = (p0 - center).normalize();
+    let w = (p1 - center).normalize();
+    let turn = u.cross(w);
+    (
+        Curve3::Circle {
+            center,
+            axis: turn.normalize(),
+            radius,
+            u_ref: u,
+        },
+        T::zero(),
+        turn.norm().atan2(u.dot(w)),
+    )
+}
+
+/// What a closure kill hands [`Body::kev_describing`] for the one
+/// member its merge re-bases: the member as the short arc about
+/// `center` between the endpoints the merge gives it — `dying`'s start
+/// where the member now starts at the vertex `dying` kills — under the
+/// arc scaffolding description
+/// ([`EdgeCurveSpec::arc_of_circle`]), since the surface the arc will
+/// be described on at rest is attached after the surgery.
+fn merged_meridian_spec<T: Decide>(
+    body: &Body<T>,
+    member: EdgeKey,
+    dying: HalfEdgeKey,
+    center: Point3<T>,
+    radius: T,
+) -> Result<EdgeCurveSpec<T>, BlendError> {
+    let (Some(kept), Some(dead)) = (
+        body.get_half_edge(dying).map(|h| h.start),
+        body.half_edge_end(dying),
+    ) else {
+        return Err(not_intact(
+            EntityId::HalfEdge(dying),
+            "a closure kill's half-edge and its two ends",
+        ));
+    };
+    let (hp, hm) = halves_of(body, member)
+        .ok_or_else(|| not_intact(EntityId::Edge(member), "the meridian a closure kill merges"))?;
+    let merged_end = |he: HalfEdgeKey| {
+        let start = body.get_half_edge(he)?.start;
+        point_of(body, if start == dead { kept } else { start })
+    };
+    let (Some(p0), Some(p1)) = (merged_end(hp), merged_end(hm)) else {
+        return Err(not_intact(
+            EntityId::Edge(member),
+            "the endpoints a closure kill's merge gives its meridian",
+        ));
+    };
+    let (curve, t0, t1) = short_arc(center, radius, p0, p1);
+    let Some(spec) = EdgeCurveSpec::arc_of_circle(curve, t0, t1) else {
+        unreachable!("merged_meridian_spec: `short_arc` builds a circle carrier")
+    };
+    Ok(spec)
 }
 
 #[cfg(test)]
