@@ -2036,6 +2036,22 @@ mod certification_door_tests {
         assert!(p.mag().is_nan());
     }
 
+    /// The hull's refusing guard, where it differs from the backend's
+    /// hull. A `Trv` operand is refused either way (the backend's hull
+    /// carries the minimum decoration); an EMPTY one is not — the backend
+    /// treats the empty set as a hull identity, so without the guard
+    /// `hull(∅, x)` is `x`, certified, and a refused member has vanished.
+    #[test]
+    fn hull_refuses_an_empty_operand_the_backend_would_absorb() {
+        let x = ri(1.0, 2.0);
+        let empty = x / Interval::zero();
+        assert!(!empty.is_certified(), "{empty:?}");
+        assert!(!Interval::hull(empty, x).is_certified());
+        assert!(!Interval::hull(x, empty).is_certified());
+        let trv = ri(-2.0, -1.0) / ri(0.0, 1.0);
+        assert!(!Interval::hull(trv, x).is_certified());
+    }
+
     #[test]
     fn division_refuses_zero_straddling_divisors() {
         let x = ri(1.0, 2.0);
