@@ -217,6 +217,90 @@ fn an_unminted_face_stays_rowless() {
     assert_eq!(validate_pcurves(&body, band()), vec![]);
 }
 
+/// **The same on a body that stores rows elsewhere.** Only the wall's
+/// own rows are detached; the seed face on the same cylinder keeps
+/// its. The op reads the face it touches, not the body: the wall stays
+/// rowless and the seed face's rows are exactly as they were.
+#[test]
+fn an_unminted_face_beside_a_minted_one_stays_rowless() {
+    let (mut body, face, m) = wall();
+    for he in halves_of(&body, face) {
+        body.detach_pcurve(he);
+    }
+    let elsewhere = rows_deep(&body);
+    assert!(!elsewhere.is_empty(), "the seed face keeps its rows");
+    strut(&mut body, face, m);
+    assert_eq!(rows_of(&body, face), (0, 7));
+    assert_eq!(rows_deep(&body), elsewhere);
+}
+
+/// **A strut spliced before the loop's `first` is minted too.** Halves
+/// inserted before `first` are the last ones the walk from `first`
+/// reaches; the face is complete afterwards, with the pass's rows.
+#[test]
+fn a_strut_at_the_loops_first_half_edge_is_minted() {
+    let (mut body, face, _) = wall();
+    let outer = body.get_face(face).unwrap().outer;
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
+        panic!("the wall is bounded by a cycle")
+    };
+    let v = body.get_half_edge(first).unwrap().start;
+    let p = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    // Along the ruling through `first`'s start, into the sheet.
+    let rise = if p.z > 0.5 { -0.3 } else { 0.3 };
+    let made = body
+        .mev_line(
+            MevSite::Fan {
+                he1: first,
+                he2: first,
+            },
+            p + geom_core::Vec3::new(0.0, 0.0, rise),
+            tol(),
+        )
+        .unwrap();
+    assert!(body.pcurve(made.he_plus).is_some());
+    assert!(body.pcurve(made.he_minus).is_some());
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    let minted = rows_deep(&body);
+    topo::mint_pcurves(&mut body, tol()).unwrap();
+    assert_eq!(rows_deep(&body), minted);
+}
+
+/// **A carrier whose ends meet the chart and whose middle leaves it.**
+/// An arc from the split vertex up the ruling, bowing radially outward
+/// in the plane of the axis: its chart image is the vertical segment
+/// between its ends, so the branch walk accepts it, and the
+/// certification — the image mapped back through the cylinder against
+/// the arc — refuses it. The face is left storing nothing, as for a
+/// carrier the walk refuses, and never half-minted.
+#[test]
+fn a_strut_that_bows_off_the_chart_between_its_ends_leaves_the_face_unminted() {
+    let (mut body, face, m) = wall();
+    let he = leaving(&body, face, m);
+    let pm = *body.get_point(body.get_vertex(m).unwrap().point).unwrap();
+    let outward = geom_core::Vec3::new(UM.cos(), UM.sin(), 0.0);
+    let up = geom_core::Vec3::unit_z();
+    let (half, inset) = (0.25, 0.2);
+    let centre = pm + up * half - outward * inset;
+    let (from_c, to_c) = (pm - centre, (pm + up * (2.0 * half)) - centre);
+    let radius = from_c.norm();
+    let axis = from_c.cross(to_c).normalize();
+    let theta = 2.0 * (half / inset).atan();
+    let carrier = geom::Curve3::Circle {
+        center: centre,
+        axis,
+        radius,
+        u_ref: from_c / radius,
+    };
+    let end = carrier.eval(theta);
+    let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, 0.0, theta).unwrap();
+    body.mev(MevSite::Fan { he1: he, he2: he }, end, spec, tol())
+        .unwrap();
+    assert_eq!(rows_of(&body, face), (0, 7));
+    assert_eq!(validate_pcurves(&body, band()), vec![]);
+    assert!(topo::mint_pcurves(&mut body, tol()).is_err());
+}
+
 /// **A half-minted face is left as found.** It is already the defect
 /// the pass reports; the op cannot pin its new rows against a
 /// neighbour with none, so it mints nothing on it and moves no row it
