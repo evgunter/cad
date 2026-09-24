@@ -78,3 +78,14 @@ on its planar faces.
 A row on any instance is a row the others can share the fixture of;
 what the class needs is one reversed planar face on a body the
 boolean's front door admits.
+
+## Re-homed to ZIP, 2026-09-24 (ATREST orchestrator)
+
+Moved from `work/atrest/` by `git mv`, id and body unchanged. All three
+consumers this row wants guarded are on ZIP's ground —
+`merge_faces.rs` (TOPO and ZIP), `boolean/join.rs` (ZIP),
+`boolean/rest.rs` (TANG and ZIP) — and the owed rows are tests of
+those consumers, not of the at-rest validator. It sat on ATREST's slate
+from TOPO's cut, where the planar door it names
+(`face_normal::plane_outward_normal`) was the anchor; the door is fine,
+its downstream readers are what go unexercised.

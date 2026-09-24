@@ -1,10 +1,10 @@
 ---
 id: rule-g-trades-sixteen-of-the-links-carrier-on-surface-2
 kind: issue
-title: rule G costs the link's carrier_on_surface_2 sixteen theorems - ten to the companion rewrite opening abs node squares, six to sqrt(R2)=|R| and the registrant's axiom
+title: rule G costs the link's carrier_on_surface_2 sixteen theorems - SYM-9's kept-atom retry, shipped on, recovers the ten, and the six weakened to the registrant's axiom are what is left
 status: open
 opened: 2026-09-21
-priority: P1
+priority: P2
 cost: H
 ---
 
@@ -95,11 +95,66 @@ measured numbers on both sides — `[98, 0, 0, 10]` with rule G shut
 against `[82, 0, 6, 20]` shipped — with the reason and this row's name
 in the comment, so any further drift reds and says which.
 
-This row stays **open at P1 for SYM-9** (block DECIDE-B1 slot 1). The
-remedy record above is what that unit starts from: the provenance shape
-is measured and rejected with its numbers, the size guard is recorded
-and not taken, and the six the registrant closes still want a render of
-the residual under both dial sets with the two atom keys read off.
+## What SYM-9 measured, and what it recovered (2026-09-22, fix pass 2026-09-24)
+
+**The ten are RECOVERED by the retry ladder, and the trade this row
+records still stands at one attempt per rung.** SYM-9's retry ladder
+(`geom_core::SymRetry::kept_atom`, the drive's default,
+`editor_core::drive::DEFAULT_SYM_RETRY`, shipped across the 1.6 s line
+as a disclosed trade) re-asks
+a decision every rung of the first attempt refused, with rule G shut for
+that attempt. The first attempt is untouched. Measured on the link at
+the nominal (`editor-core/tests/sym_9_retry_interval.rs`):
+
+| tier | `carrier_on_surface_2` | document total | retried |
+| --- | --- | --- | --- |
+| rule G and the read off (the base) | `[98, 0, 0, 10]` | `[515, 0, 90, 497]` | — |
+| shipped, one attempt per rung | `[82, 0, 6, 20]` | `[541, 0, 96, 465]` | 0 |
+| **shipped, with the ladder** | **`[92, 0, 6, 10]`** | **`[553, 0, 96, 453]`** | **12** |
+
+Ten theorems back on this predicate and two more on
+`witness_on_surface_2` (`[14, 0, 0, 2]` -> `[16, 0, 0, 0]`), every other
+predicate bit-identical. The predicate's pin in
+`decide_3_split_rows_interval` keeps THIS row's trade —
+`([98, 0, 0, 10], [82, 0, 6, 20])`, one attempt per rung on both sides,
+because it is a rules differential and a ladder on one side of it would
+read rule G's cost as recovered (SYM-9's first cut did exactly that and
+both of its reviews caught it). What the ladder recovers is pinned
+where the ladder is:
+`sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`.
+
+**The two narrow shapes this row left untried are measured, as retries,
+and recover NOTHING** on any of the five documents SYM-9 measured: the
+companion rewrite alone shut, 0; rule G's magnitude door alone shut, 0.
+Only the whole of rule G shut for one attempt reaches the ten. WHY the
+rewrite alone does not is not executed on the link: at the scalar,
+`geom-core`'s `a_decision_that_closes_only_with_rule_g_off` builds the
+row's shape (a document `abs` whose square the rewrite opens past the
+term budget) and there the rewrite alone DOES close it, so the link's
+ten are a different residual from that one, and shape 2 below is what
+would say which. The size guard (shape 1) stays untaken.
+
+**What is left is the SIX, and in the gate's own words they are claims
+WEAKENED from a theorem to an axiom** — `registered` where the base has
+them `symbolic_zero`, because rule G's `sqrt(R²) = |R|` hands them to
+the rim registrant. No retry moves them back, and that is by
+construction: they are discharged on the first attempt (by the door), so
+the ladder is never entered for them.
+
+**Re-read against the default as it ships (the ladder ON).** The table's
+last row is what a drive at its default dials now reports, so in what
+ships this predicate loses NO decision to `numeric`: 98 of its 108
+discharged, as in the base, with six of them weakened from a theorem to
+the registrant's axiom. The six paragraph above holds unchanged — the
+ladder is never entered for a decision the first attempt's door closed —
+and so does the P2: what the row owed at P1 was ten decisions lost, and
+at the shipped default none are; what it still owes is the description.
+
+This row therefore stays **open at P2** for exactly one thing, shape 2
+of the untried list: render the residuals under both dial sets and read
+the atom keys off — the six the registrant closes, and the ten the
+rule-G attempt recovers — so that both are a described mechanism rather
+than an observed count.
 
 ## Home
 
