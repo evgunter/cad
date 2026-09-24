@@ -941,11 +941,11 @@ fn name_boolean_edges<T: Decide>(
             (false, false) => (descend_face(faces[0])?, descend_face(faces[1])?),
             (true, false) => {
                 let d1 = descend_face(faces[1])?;
-                (chord_descent(faces[0], d1.operand().opposite())?, d1)
+                (chord_descent(faces[0], d1.operand().other())?, d1)
             }
             (false, true) => {
                 let d0 = descend_face(faces[0])?;
-                (d0, chord_descent(faces[1], d0.operand().opposite())?)
+                (d0, chord_descent(faces[1], d0.operand().other())?)
             }
             (true, true) => {
                 let Some(side) = own else {
@@ -1617,16 +1617,15 @@ fn edge_dir<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<Vec3<T>, NamingErro
     Ok(p(v1)? - p(v0)?)
 }
 
-/// A ranked group's size as its names' `OrderAlong { of }`. A group
-/// larger than the field holds refuses rather than saturating: a
-/// saturated `of` would be a wrong count in every name of the group,
-/// and two different oversized groups would spell one. No body this
-/// crate can hold has such a group, so reaching it means a count
-/// no mint-time fact supports — an emission bug.
+/// A ranked group's size as its names' `OrderAlong { of }`, through
+/// [`super::emit::to_u32`]: a saturated `of` would be a wrong count in
+/// every name of the group, and two different oversized groups would
+/// spell one.
 fn group_count(n: usize) -> Result<u32, NamingError> {
-    u32::try_from(n).map_err(|_| NamingError::Emission {
-        what: "a ranked group has more members than a name's rank count holds",
-    })
+    super::emit::to_u32(
+        n,
+        "a ranked group has more members than a name's rank count holds",
+    )
 }
 
 /// The direction a chain along a seam line is ranked in: the pair's

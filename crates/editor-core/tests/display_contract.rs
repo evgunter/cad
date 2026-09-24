@@ -2098,9 +2098,26 @@ fn naming_error_display_names_its_content_not_its_struct() {
         (
             NamingError::SeamVertexPartners {
                 vertex,
-                candidates: Vec::new(),
+                candidates: [3, 4]
+                    .map(|node| StableName {
+                        kind: EntityKind::Vertex,
+                        node: RecipeNodeId(node),
+                        path: vec![RoleSeg::CapVertex(
+                            CapEnd::End,
+                            editor_core::ProfileVertexRef {
+                                loop_index: 0,
+                                vertex: 0,
+                            },
+                        )],
+                    })
+                    .to_vec(),
             },
-            vec!["seam vertex", "differently named vertices"],
+            vec![
+                "seam vertex",
+                "2 differently named vertices",
+                "vertex name minted by node 3",
+                "vertex name minted by node 4",
+            ],
         ),
         (
             NamingError::MergedChordOffRim {

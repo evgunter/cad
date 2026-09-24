@@ -432,9 +432,14 @@ impl core::fmt::Display for NamingError {
             Self::SeamVertexPartners { vertex, candidates } => write!(
                 f,
                 "{UNRULED_FRAMING}: seam vertex {vertex:?} coincides, in the boolean's contact \
-                 records, with {} differently named vertices of the other operand, and no \
-                 rule chooses which one names it",
-                candidates.len()
+                 records, with {} differently named vertices of the other operand ({}), and \
+                 no rule chooses which one names it",
+                candidates.len(),
+                candidates
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("; ")
             ),
             Self::MergedChord { edge } => write!(
                 f,
@@ -519,9 +524,21 @@ pub(crate) fn empty() -> Arc<NameTable> {
 /// placers and `Node::Part`, the emitters, the mate walk's `Part`
 /// agreement) and not a number silently narrowed.
 pub(crate) fn output_body(index: usize) -> Result<u32, NamingError> {
-    u32::try_from(index).map_err(|_| NamingError::Emission {
-        what: "an output-body index exceeds the table's u32 row width",
-    })
+    to_u32(
+        index,
+        "an output-body index exceeds the table's u32 row width",
+    )
+}
+
+/// **A count or index, narrowed to the `u32` the name vocabulary and
+/// the table store**, or [`NamingError::Emission`] with `what` when it
+/// does not fit. The one spelling of that narrowing in `names/`: a
+/// saturating or truncating cast would hand two different values one
+/// stored number, so a name or row would silently alias another. No
+/// body this crate can hold reaches the bound, so meeting it is a
+/// kernel bug, reported loudly.
+pub(crate) fn to_u32(n: usize, what: &'static str) -> Result<u32, NamingError> {
+    u32::try_from(n).map_err(|_| NamingError::Emission { what })
 }
 
 /// **The placement-major layout**, the one home of its arithmetic:
@@ -1472,7 +1489,19 @@ mod display_tests {
         // renders a constant where its subject belongs fails here.
         let vtx = two_vertices().0;
         let vtx_shown = format!("{vtx:?}");
-        let partner = name.clone();
+        // Two DIFFERENTLY named partners, as the refusal's premise has
+        // them: the same cap vertex of two different operands' sweeps.
+        let partner = |node| StableName {
+            kind: EntityKind::Vertex,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::CapVertex(
+                super::super::role::CapEnd::End,
+                super::super::role::ProfileVertexRef {
+                    loop_index: 0,
+                    vertex: 0,
+                },
+            )],
+        };
         let pair = two_faces();
         assert_ne!(
             pair.0, pair.1,
@@ -1546,9 +1575,14 @@ mod display_tests {
             (
                 NamingError::SeamVertexPartners {
                     vertex: vtx,
-                    candidates: vec![partner.clone(), partner],
+                    candidates: vec![partner(3), partner(4)],
                 },
-                vec![vtx_shown.as_str(), "2 differently named vertices"],
+                vec![
+                    vtx_shown.as_str(),
+                    "2 differently named vertices",
+                    "vertex name minted by node 3",
+                    "vertex name minted by node 4",
+                ],
             ),
             (
                 NamingError::MergedChord {

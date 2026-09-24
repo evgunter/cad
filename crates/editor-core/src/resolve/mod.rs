@@ -1252,7 +1252,9 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             // The group-size rung (`group_resized`'s docs).
             .or_else(|| prior.group_resized(new, name))
             // Every rung above came up empty: no verdict flip, no doc
-            // delta, no recorded qualifier delta, no group-size change.
+            // delta, no recorded qualifier delta, and no group-size
+            // change the rung could state (unchanged, or too large to
+            // count).
             .unwrap_or_else(|| Diagnosis::cause_not_in_evidence(name.node))
     };
     let last_good = prior.tombstone(new, name);
@@ -1649,8 +1651,10 @@ fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option
 /// prior count is at least two, since the name carries a qualifier.
 /// It declines, to the evidence-free fallback, when the name has no
 /// fragment tail, when either run has no value at the minting node,
-/// and when the size did NOT change: a group that re-qualified at the
-/// same size is a different event, about which the tables say nothing.
+/// when either count does not fit the diagnosis's `u32` (a saturated
+/// size could make two different groups read as one), and when the
+/// size did NOT change: a group that re-qualified at the same size is
+/// a different event, about which the tables say nothing.
 ///
 /// # Why it sits last: cause before effect
 ///
