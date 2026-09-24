@@ -144,13 +144,23 @@ last_good: Option<Tombstone> }`, `Ambiguous { name, candidates, tie: TieWitness 
 or `NodeGone { name, edit }`. `Diagnosis` is `PredicateFlip { predicate, from,
 to }`, `StructuralParam { node, param }`, `RecipeEdit { edit }`, `Cascade
 { through }` (an embedded operand name vanished first), `GroupResized { node,
-was, now }` (the rows spelling the fragment's group changed in number) or `WitnessBifurcation`
-(SOLVER-DESIGN W3). Diagnosis is computable because every node evaluation
-records its verdict log (`k_stats`); `resolve/vdiff.rs` diffs two runs per
-predicate by sign population (permutation-invariant) and is shared with
-`SetTolerance`'s ε-audit. When the diff is silent the ladder is `Cascade`, then
-the qualifier-delta rung (a `PredicateFlip` recovered from `SideOf` verdicts
-stored in the names), then the GROUP-SIZE rung, then
+was, now }` (the rows spelling the fragment's group changed in number), `Upstream
+{ node, cause }` (evidence upstream of the minting node, off the derivation
+path) or `WitnessBifurcation` (SOLVER-DESIGN W3). Diagnosis is computable
+because every node evaluation records its verdict log (`k_stats`);
+`resolve/vdiff.rs` diffs two runs per predicate by sign population
+(permutation-invariant) and is shared with `SetTolerance`'s ε-audit. The
+with-history lanes — recorded flips, structural parameters, recipe edits — read
+two scopes (`resolve::upstream_nodes` states the rule): first the name's
+derivation path (N1: the nodes the name mentions), answering `PredicateFlip`,
+`StructuralParam` or `RecipeEdit`; then, below the qualifier-delta rung, the
+nodes that were strict ancestors of the minting node in the last-good document
+or in the current one, each walked within its own document, minus the path,
+answering `Upstream { node, cause }` — a candidate cause that fed the name
+without deciding it. A node in neither set is never read. When the path is
+silent the ladder is `Cascade`, then the qualifier-delta rung (a
+`PredicateFlip` recovered from `SideOf` verdicts stored in the names), then
+the upstream scope, then the GROUP-SIZE rung, then
 `Diagnosis::cause_not_in_evidence` = `RecipeEdit {
 NodeChanged(minting node) }`, a site rather than a claim that an edit happened —
 reached in particular when the evidence lived on a pair the boolean's BVH sweep
@@ -170,9 +180,9 @@ with one `Fragment` qualifier, a tie counting each candidate — number `was`
 entities there and `now ≠ was` in the current table, the diagnosis is
 `GroupResized { node, was, now }`. That is a statement about two recorded
 tables, not a claimed flip and not a claim about where the parent entity
-went. The ladder orders cause before effect: the flips, the qualifier delta
-and the doc-diff lanes name a cause, the group-size change is an effect whose
-cause the evidence does not hold, so it runs after every cause-naming rung
+went. The ladder orders cause before effect: the flips, the qualifier delta,
+the doc-diff lanes and `Upstream` name a cause, the group-size change is an
+effect whose cause the evidence does not hold, so it runs after every cause-naming rung
 and before the fallback. A collapsed fragment's undivided base, when it
 resolves, rides in the offers for either qualifier kind. `Tombstone`
 carries the last-good entry for ghost rendering; selection tools hold name plus

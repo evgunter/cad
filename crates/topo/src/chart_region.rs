@@ -631,7 +631,6 @@ mod wiring_rows {
         );
     }
 
-    #[cfg(feature = "interval")]
     #[test]
     fn interval_is_wired_to_the_certified_region_doors() {
         assert_eq!(
@@ -5216,7 +5215,6 @@ mod inf_arms {
 /// rows check exactly that.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-#[cfg(feature = "interval")]
 mod inf_arms_interval {
     use super::certified_arms;
     use geom::{NurbsSurface, Surface};

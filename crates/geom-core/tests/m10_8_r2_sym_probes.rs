@@ -15,13 +15,13 @@
 //! nothing needs a seed ([[test-suite-cost]]).
 //!
 //! NO TEST IN THIS FILE IS EXECUTED BY CI — the whole file is behind
-//! `#![cfg(all(feature = "interval", feature = "probe"))]` and nothing
+//! `#![cfg(feature = "probe")]` and nothing
 //! in `scripts/k_probe_sweep.sh` rosters it. That is the disposition
 //! this reviewer's suite asks for: the rows are a review artifact,
 //! quoted in the report, and the branch is not proposed for merge as
 //! it carries an experimental patch to `geom-core::sym`.
 
-#![cfg(all(feature = "interval", feature = "probe"))]
+#![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
 use geom_core::interval::Interval;

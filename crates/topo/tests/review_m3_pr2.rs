@@ -519,7 +519,6 @@ fn r8_determinism_byte_identical_replay() {
 /// interval interpolation) still reduces, its constructed vertex
 /// declared ON; (c) an in-band vertex escalates typed under interval
 /// exactly like f64 (straddling enclosure ⇒ SliverVertex).
-#[cfg(feature = "interval")]
 #[test]
 fn r9_interval_lane_equivariance_and_nondyadic_crossing() {
     use geom_core::Interval;

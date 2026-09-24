@@ -15,7 +15,7 @@ is the failure mode this whole track is about. `scripts/gates/`'s own roster
 argument (see `gate-roster.sh`) is that the directory means `lib.sh`'s two-mode
 bash contract, and that a python check either reimplements it or meets none of
 it — so this lives in `scripts/` beside its sibling
-`scripts/check-interval-cfg-additive.py`, is named by hand in BOTH halves like
+`scripts/check-cache-prime-parity.py`, is named by hand in BOTH halves like
 every other check out here, and is covered by its own claim 1.
 
 Stdlib only, no YAML library: the runner image is not asked for one, matching
@@ -303,17 +303,6 @@ REACH_SELFTEST = "scripts/ci-reach.py --selftest"
 # Declared asymmetries in claim 1. `path: (half, reason)`. An entry is a
 # confession, not a disposition: it says a check runs in one half only.
 MIRROR_EXEMPT = {
-    "scripts/interval-only-selection.py": (
-        "local",
-        "the interval lane's set difference against the default build's test "
-        "list. Its hosted mirror was retired 2026-08-22 with configuration "
-        "sampling: a sampled run draws ONE lane, so on an interval draw the "
-        "default legs the selection subtracts are not running and their 93% "
-        "of the suite would be gated by nothing. The local half still runs "
-        "both lanes on one tree, where the overlap is the pure re-execution "
-        "it always was, so the script keeps exactly one caller; ci-local.sh "
-        "says so at the row",
-    ),
     # (`demos/render-uv.sh` was declared local-only here until 2026-08-22.
     # The entry described the ci.yml gate row that was retired 2026-08-17 —
     # true of ci.yml, and false of the tree: render.yml's `uv` lane composes
@@ -664,12 +653,11 @@ def semantic_env(name: str) -> bool:
 # in this file makes — and not an entry smuggled in under one of the two
 # spellings above.
 #
-# THE FLAG ENTRIES: three of them, two facts. The two `--partition` entries
-# are the same fact on two archives — hosted shards each test row across a
-# pair of jobs and the local half runs one row on one tree. The `--features`
-# entry is the other: hosted's interval row executes an ARCHIVE that was
-# already compiled with the feature, so the selection is written on a
-# different command. Both are the shape a per-pair confession is for — not
+# THE FLAG ENTRY: one, and one fact — hosted shards each test row across a
+# pair of jobs and the local half runs one row on one tree. (There were three
+# while the `interval` feature made a second archive: the same `--partition`
+# fact on it, and a `--features` entry for the feature baked into it; both
+# went with the feature.) It is the shape a per-pair confession is for — not
 # that a half forgot a token, but that the token has nothing to mean there.
 PAIR_EXEMPT = {
     ("test / run archived tests", "--partition"): (
@@ -679,21 +667,6 @@ PAIR_EXEMPT = {
         "partition locally: the shards exist to buy wall-clock on a runner "
         "billed by the minute, and a developer box running half the suite "
         "would be a worse gate, not a faster one",
-    ),
-    ("test-interval / run archived tests", "--partition"): (
-        "hosted",
-        "the same sharding, on the interval archive. Same reason as the "
-        "default row above",
-    ),
-    ("test-interval / run archived tests", "--features"): (
-        "local",
-        "the feature selection is baked into hosted's ARCHIVE, not written on "
-        "the row that runs it: the `build-interval` job compiles "
-        "nextest-interval.tar.zst with `cargo nextest archive --features "
-        "interval`, and this row only unpacks and runs it. The local half "
-        "compiles from the tree in front of you, so the selection has to be "
-        "on the row itself. Both halves select the same feature; what differs "
-        "is which command carries the flag",
     ),
     # THE ENV ENTRIES. Four, over two pairs and two facts.
     ("scene-inputs / demo tour (STL + STEP + UV SVGs + scenes.json)",
@@ -2446,8 +2419,8 @@ def marker_row(raw: list[str], at: int, funcs: dict[str, tuple[int, int]]) -> li
     prose and blank lines) is either a shell function definition — then the row
     is that function's body — or a command, and then the row is THAT COMMAND
     AND NOTHING AFTER IT. The looser reading, "every line down to the next
-    comment", swallows the three rows that follow `run_row "clippy (interval)"`
-    and hands the interval clippy pair the interval TEST rows' flags.
+    comment", swallowed the three rows that followed a clippy row in the
+    retired interval block and handed that clippy pair the TEST rows' flags.
 
     Then the shell functions the row calls are folded in, transitively:
     `run_row "wasm32 check (#807)" wasm_check` is a row whose whole argv lives
@@ -3311,8 +3284,8 @@ def check(root: str, floor: int = MIRROR_MARKER_FLOOR) -> list[str]:
         # THE UNWATCHED-ABSENCE DIRECTION, first for both arms and the one
         # MIRROR_EXEMPT has had all along at its "NEITHER half names it"
         # branch. Without it an exemption is not a watched asymmetry but an
-        # UNWATCHED ABSENCE: delete `--features interval` from the local
-        # interval row and the entry excusing it stops matching anything, so
+        # UNWATCHED ABSENCE: delete a flag an entry excuses from both halves
+        # and the entry excusing it stops matching anything, so
         # the flag is gone from both halves and nothing says a word — this
         # claim's own headline defect, reintroduced by its exemption table.
         for flag in sorted(f for (m, f) in PAIR_EXEMPT if m == marker and f.startswith("-")):
@@ -4108,15 +4081,30 @@ def selftest() -> None:
     # these two cases went red against a clean fixture — reporting the fixture
     # where the finding was the entry. An exemption's own list is the only
     # honest source for "an exemption".
-    _one_local = _exempt_side("local")[0]
+    #
+    # THE LOCAL-ONLY DIRECTION MAY HAVE NO LIVE ENTRY, and today it has none:
+    # its one entry, `scripts/interval-only-selection.py`, retired with the
+    # `interval` feature (RING-4). The ORPHAN and INVERSION arms are
+    # side-blind — they read `want` off the entry and compare it with the
+    # half that names the path — so with no local-only entry they run on the
+    # hosted-only one instead, planted from the other side. Only the local
+    # EXPIRY case needs a local-only entry, and without one it is skipped
+    # and says so; its hosted twin below exercises the same arm.
+    _locals = _exempt_side("local")
+    _one_local = _locals[0] if _locals else None
     _one_hosted = _exempt_side("hosted")[0]
+    _hosted_row = f"      - name: hosted only 0\n        run: {_one_hosted}\n"
     def exemption_expired(t):
         _append(HOSTED_HALF, f"      - name: x\n        run: {_one_local}\n")(t)
     def exemption_expired_hosted(t):
         _append(LOCAL_HALF, f"{_one_hosted}\n")(t)
     def exemption_orphaned(t):
-        _sub(t, LOCAL_HALF, f"{_one_local}\n", "")
-        os.remove(os.path.join(t, _one_local))
+        if _one_local is not None:
+            _sub(t, LOCAL_HALF, f"{_one_local}\n", "")
+            os.remove(os.path.join(t, _one_local))
+        else:
+            _sub(t, HOSTED_HALF, _hosted_row, "")
+            os.remove(os.path.join(t, _one_hosted))
     def marker_wrong_job(t):   _sub(t, LOCAL_HALF, "# HOSTED MIRROR: discipline / mirrored step 0", "# HOSTED MIRROR: k-lint / mirrored step 0")
     def marker_step_renamed(t): _sub(t, HOSTED_HALF, "- name: mirrored step 0", "- name: mirrored step zero")
     def markers_deleted(t):    _sub(t, LOCAL_HALF, "# HOSTED MIRROR: ", "# was: ")
@@ -4148,8 +4136,12 @@ def selftest() -> None:
                      "      - name: archived\n        run: echo hi\n")
 
     def exemption_inverted(t):
-        _sub(t, LOCAL_HALF, f"{_one_local}\n", "")
-        _append(HOSTED_HALF, f"      - name: x\n        run: {_one_local}\n")(t)
+        if _one_local is not None:
+            _sub(t, LOCAL_HALF, f"{_one_local}\n", "")
+            _append(HOSTED_HALF, f"      - name: x\n        run: {_one_local}\n")(t)
+        else:
+            _sub(t, HOSTED_HALF, _hosted_row, "")
+            _append(LOCAL_HALF, f"{_one_hosted}\n")(t)
 
     # CLAIM 10. One case per allowlisted flag, DERIVED from `SEMANTIC_FLAGS`
     # rather than listed again: a hand-written list of cases beside a
@@ -4821,7 +4813,11 @@ def selftest() -> None:
     _case("carries the key `runn`", unknown_step_key)
     _case("a TAB character", tabbed)
     _case("looks like a shell function definition", bad_func_spelling)
-    _case("BOTH halves now name it", exemption_expired)
+    if _one_local is not None:
+        _case("BOTH halves now name it", exemption_expired)
+    else:
+        print("check-ci-mirror-parity selftest: no local-only MIRROR_EXEMPT entry exists, so the "
+              "local expiry case is skipped; the hosted expiry case covers the arm", file=sys.stderr)
     # The same expiry from the other side: a hosted-only exemption whose row
     # came back locally. Symmetric because the widening above made
     # `want=hosted` a live value rather than a hypothetical one.
@@ -4830,7 +4826,8 @@ def selftest() -> None:
     _case("has a step named", marker_wrong_job)
     _case("has a step named", marker_step_renamed)
     _case("below the", markers_deleted)
-    _case("declared local-only in MIRROR_EXEMPT", exemption_inverted)
+    _case(f"declared {'local' if _one_local is not None else 'hosted'}-only in MIRROR_EXEMPT but is "
+          f"invoked by the {'hosted' if _one_local is not None else 'local'} half", exemption_inverted)
     # THE SITING RULE, both halves. These are the cases the reviewer's
     # experiment plants: hollow `mirror`, move the steps back into a job that
     # skips on docs tier; and, locally, move the row below the docs exit.

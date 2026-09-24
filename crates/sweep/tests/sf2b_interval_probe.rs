@@ -1,11 +1,8 @@
 //! VERBS-SHELLFIX PR-2b, interval lane: the AXIAL door instantiated at
 //! the certified scalar.
 //!
-//! The door lives in `crates/topo/src/offset_axial.rs`, an ordinarily
-//! named file, so `scripts/ci-filter.py`'s path rule does not match it
-//! and the interval lane is left to the run's own draw. A drawn
-//! interval point re-runs the f64-typed suites under the interval
-//! BUILD, which never instantiates `offset_charts_together` at
+//! The door lives in `crates/topo/src/offset_axial.rs`. The f64-typed
+//! suites never instantiate `offset_charts_together` at
 //! `T = Interval` — so this row does, and every new decide site the
 //! unit added is executed at the scalar that can escalate rather than
 //! at the one that cannot:
@@ -33,7 +30,6 @@
 //! revolve, where two surfaces meet at a corner) and the SOLVED one (a
 //! partial revolve, whose meridian caps contain the axis).
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Bounds, Interval, Point2, Real, Tol, Vec2};

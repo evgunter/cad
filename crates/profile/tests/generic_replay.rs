@@ -217,7 +217,6 @@ fn the_corpus_replays_at_dual_with_bit_identical_values() {
 /// backed by a census rather than left to be trusted — see
 /// [`no_corpus_row_escalates_at_interval`], which pins the escalating
 /// set as EMPTY and says what a row joining it would mean.
-#[cfg(feature = "interval")]
 #[test]
 fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
     use geom_core::{Bounds, Interval};
@@ -334,7 +333,6 @@ fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
 /// The census therefore keeps its teeth where its subject is: the
 /// escalations that are NOT the door relaying a stored-form
 /// classification are pinned EMPTY, exactly as before.
-#[cfg(feature = "interval")]
 #[test]
 fn no_corpus_row_escalates_at_interval() {
     use geom_core::Interval;
@@ -446,7 +444,6 @@ fn no_corpus_row_escalates_at_interval() {
 /// safe: an input-width answer is ~1e-16 relative, and a regression to
 /// the composed fold returns a whole period — at unit scale ~6.3, i.e.
 /// sixteen orders up. Any constant in between distinguishes them.
-#[cfg(feature = "interval")]
 #[test]
 fn the_anchor_coincident_corner_reduces_to_input_width_at_interval() {
     use geom_core::{Bounds, Interval};

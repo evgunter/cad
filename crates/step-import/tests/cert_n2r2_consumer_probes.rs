@@ -131,7 +131,6 @@ fn n2r2_class3_chart_stretch_sup_inf_f64() {
     );
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn n2r2_class3_chart_stretch_sup_inf_interval() {
     // Adoption fix (CERT-N2 fix pass): `from_f64` and `is_poison` are

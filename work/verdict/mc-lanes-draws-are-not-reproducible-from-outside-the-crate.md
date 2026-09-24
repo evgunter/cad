@@ -103,3 +103,12 @@ lane and arrives with it. The second half of the row is `crates/pncad/src/analys
 unconditional re-export, which is LIB's territory and is named in the body.
 
 From `work/m10/` at M10's close (`docs/DOC-LEDGER.md` sweep 13; the walk and the directory are recoverable at the SHA it names). The id is unchanged.
+
+## Half 2 is moot (2026-09-24)
+
+RING-4 (PR 3154) deleted the `interval` feature: `ParamBox` and `BoxAxis`
+are default façade API (`crates/pncad/src/analysis.rs`, the E6 driver
+re-export), so a consumer reaches the degenerate-box door in every build.
+Half 1 (the private `Rng::unit`) stands, and so does the cell's
+workaround (`demos/tour/src/mcplate.rs`), which no longer has a gating
+reason and is now only a spelling choice.

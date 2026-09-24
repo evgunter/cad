@@ -241,7 +241,6 @@ fn donut_two_arc_profile_shares_one_torus() {
 /// attributed by NECESSITY. Here the inner radius is a parameter over a
 /// narrow box, so the residual is a genuine identity IN the parameters
 /// and only the registration answers it.
-#[cfg(feature = "interval")]
 #[test]
 fn m10_9_the_revolve_carriers_state_their_rim_identity() {
     use geom_core::sym::with_session_rules;

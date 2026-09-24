@@ -18,8 +18,8 @@ build alone can outlast the whole hosted matrix. A local run is
 justified exactly when it is likely to surface a failure faster than
 pushing — that is the whole calculus.
 
-- Feature work: the touched-crate suites at default ε (plus the
-  Interval lane when the change is scalar-generic). That is the
+- Feature work: the touched-crate suites at default ε (their Interval
+  lane rows included — every build compiles them). That is the
   standard implementer brief.
 - Cross-cutting mechanical sweeps: "touched crates" ≈ the workspace and
   per-suite failure probability is tiny — workspace `cargo check` + the

@@ -1221,6 +1221,7 @@ fn a_recovered_predicate_flip_names_its_partner_and_says_it_was_recovered() {
             "flipped from positive to negative",
             &face_name().to_string(),
             "recovered by re-running the pair at diagnosis time",
+            "one of the two runs recorded no side verdict at the name's minting node",
         ],
         &[
             sign_words.as_slice(),
@@ -1243,7 +1244,7 @@ fn the_shadow_exec_refusal_states_which_wall_it_hit() {
                 ceiling: 32,
             },
         },
-        &["no verdict", "33", "32", "re-execute"],
+        &["no side verdict", "minting node", "33", "32", "re-execute"],
         &["ShadowExecDeclined", "PairTooWide", "ShadowExecRefusal"],
     );
     assert_f6(
@@ -1280,6 +1281,96 @@ fn a_resized_group_states_the_table_fact_and_claims_no_flip() {
             )
         );
         assert_f6(&d, &[], &["GroupResized"]);
+    }
+}
+
+/// The two scopes of the with-history lanes say which one answered,
+/// in exact sentences: a path arm claims the name's derivation path,
+/// and the upstream arm claims only that its node feeds the minting
+/// node without being on the path. Exact, so a scope cannot quietly
+/// claim the other's relation.
+#[test]
+fn the_path_and_upstream_scopes_state_which_one_answered() {
+    use editor_core::{RecipeEditRef, UpstreamCause};
+    use geom_core::predicate::Sign;
+    let count = SlotId::Count.label();
+    let path = [
+        (
+            Diagnosis::PredicateFlip {
+                predicate: "bool_point_in_solid_plane",
+                from: Sign::Negative,
+                to: Sign::Positive,
+                source: editor_core::FlipSource::VerdictLog,
+            },
+            "predicate bool_point_in_solid_plane flipped from negative to positive on the \
+             name's derivation path"
+                .to_owned(),
+        ),
+        (
+            Diagnosis::StructuralParam {
+                node: RecipeNodeId(9),
+                param: SlotId::Count,
+            },
+            format!("a structural parameter changed on the derivation path (node 9, slot {count})"),
+        ),
+        (
+            Diagnosis::RecipeEdit {
+                edit: RecipeEditRef::NodeDeleted {
+                    node: RecipeNodeId(4),
+                },
+            },
+            "the recorded reference disagrees with the recipe as it stands on the derivation \
+             path (node 4 was deleted)"
+                .to_owned(),
+        ),
+    ];
+    let upstream = |cause| Diagnosis::Upstream {
+        node: RecipeNodeId(11),
+        cause,
+    };
+    let tail = ", upstream of node 11, the name's minting node, but not on its derivation path";
+    let up = [
+        (
+            upstream(UpstreamCause::PredicateFlip {
+                predicate: "bool_point_in_solid_plane",
+                at: RecipeNodeId(10),
+                from: Sign::Negative,
+                to: Sign::Positive,
+            }),
+            format!(
+                "predicate bool_point_in_solid_plane flipped from negative to positive at node \
+                 10{tail}"
+            ),
+        ),
+        (
+            upstream(UpstreamCause::StructuralParam {
+                node: RecipeNodeId(10),
+                param: SlotId::Count,
+            }),
+            format!("a structural parameter changed at node 10 (slot {count}){tail}"),
+        ),
+        (
+            upstream(UpstreamCause::RecipeEdit {
+                edit: RecipeEditRef::NodeDeleted {
+                    node: RecipeNodeId(4),
+                },
+            }),
+            format!("the recipe changed (node 4 was deleted){tail}"),
+        ),
+    ];
+    for (d, want) in path.into_iter().chain(up) {
+        assert_eq!(d.to_string(), want);
+        assert_f6(
+            &d,
+            &[],
+            &[
+                "Upstream",
+                "UpstreamCause",
+                "PredicateFlip",
+                "StructuralParam",
+                "RecipeEdit",
+            ],
+        );
     }
 }
 
@@ -2575,11 +2666,8 @@ fn step_segments_error_display_names_its_content_not_its_struct() {
 /// of the door, and an arm added to one of these enums inherits
 /// whichever spelling its neighbours use.
 ///
-/// The certified-range and stackup doors compile in the interval build
-/// only, so they are censused by
-/// [`a_parameter_name_renders_unquoted_at_the_interval_only_doors`]
-/// rather than by a branch inside this one: a test that exists in both
-/// builds runs identical code in both.
+/// The certified-range and stackup doors are censused by
+/// [`a_parameter_name_renders_unquoted_at_the_interval_only_doors`].
 #[test]
 fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
     use editor_core::{
@@ -2690,7 +2778,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
 /// Each sentence names the parameter and does not quote it — the shared
 /// predicate of
 /// [`a_parameter_name_renders_unquoted_at_every_door_but_parse`] and its
-/// interval-only sibling, so the two lanes cannot drift into asking
+/// certified-lane sibling, so the two cannot drift into asking
 /// different questions of the same rule.
 fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) {
     let quoted = format!("{:?}", name.0);
@@ -2707,11 +2795,8 @@ fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) 
     }
 }
 
-/// The two doors [`a_parameter_name_renders_unquoted_at_every_door_but_parse`]
-/// cannot reach: `range.rs` and `stackup.rs` compile in the interval
-/// build only, so their spelling is censused in that lane — which every
-/// code-tier run gates, not a lane nobody runs.
-#[cfg(feature = "interval")]
+/// The two certified-lane doors, `range.rs` and `stackup.rs`, beside
+/// [`a_parameter_name_renders_unquoted_at_every_door_but_parse`]'s.
 #[test]
 fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
     use editor_core::{RangeRefusal, Unavailable};

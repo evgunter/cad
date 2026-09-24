@@ -523,7 +523,6 @@ fn crossing_split_arrangement() {
 /// rule-(b) discriminating fixture is exercised at Interval through the
 /// tip-vertex census (2 null edges, distinct copies), per the F4
 /// requirement.
-#[cfg(feature = "interval")]
 #[test]
 fn interval_lane_notched_and_wedge() {
     use geom_core::Interval;

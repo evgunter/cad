@@ -24,7 +24,6 @@
 //!   NaN, indistinguishable from NaI. The certification test below
 //!   asserts the *fixed* behavior.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 // The laundering table's closure type is the review artifact's shape; the
 // negated `hi() <= eps` IS the certification check under test (its NaN

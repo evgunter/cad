@@ -263,7 +263,7 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    self-intersection / minimum clearance is the interval clearance
    engine's: its body-level half — cell subdivision over
    `Body<Interval>` — lives in `editor-core` today and moves into
-   `topo` behind `interval` (SHELL-3, ruled at #1737), with the
+   `topo` (SHELL-3, ruled at #1737), with the
    parameter-box outer half above it in `editor-core`, so a verb that
    must certify a boundary embedded (`shell`'s cavity clone) runs the
    same engine at a certifying scalar and refuses typed at the door.
@@ -1306,8 +1306,7 @@ Cross-milestone commitments; each binds at the layer named.
 - Evaluation code (evaluators, derivatives, transforms, measurements)
   is generic over a `Real` trait we define. Instantiations: `f64`,
   `Interval` (the in-house `interval-transcendentals` backend; the
-  `interval` feature gates the kernel's lane-trait impls at it and the
-  interval test files, not the type, which compiles in every build),
+  scalar and the kernel's lane impls at it compile in every build),
   `Dual<T>` (one in-house generic type; `num-dual` is a dev-only oracle
   because its std-backed transcendentals cannot satisfy the
   value-channel bit-identity contract), and `Sym`.

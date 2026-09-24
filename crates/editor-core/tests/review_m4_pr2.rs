@@ -916,7 +916,6 @@ fn datum_kind_is_key_separated() {
 /// behave exactly like the f64 lane: full reuse on an identical
 /// re-evaluation, full invalidation of the edited cone, enclosures
 /// bracketing the f64 result.
-#[cfg(feature = "interval")]
 #[test]
 fn interval_memo_reuses_and_invalidates_like_f64() {
     use geom_core::{Bounds, Interval};
