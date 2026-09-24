@@ -1030,15 +1030,13 @@ mod layout_tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use eframe::egui;
     use pncad::document::{Dimension, ParamName, SlotId};
 
     use super::{bounds_notes, exists_notice, slot_notes};
-    use crate::pane::headless::{Landed, landed};
+    use crate::pane::headless::{assert_inside, assert_own_lines, assert_under, drawn_in, find};
     use crate::props::{SlotDriver, SlotFault, SlotRow, SlotValue};
     use crate::session::Refusal;
     use crate::theme::Theme;
-    use crate::widgets::message_tests::SLACK;
 
     /// A narrow pane, and wider than `crate::widgets::message_floor`,
     /// so these rows read the region and not the floor.
@@ -1061,88 +1059,12 @@ mod layout_tests {
         }
     }
 
-    /// One headless frame of `draw` in a [`REGION`]-wide pane: the
-    /// pane's rect, and everything painted in it.
-    fn drawn(draw: impl FnOnce(&mut egui::Ui)) -> (egui::Rect, Vec<Landed>) {
-        let region = core::cell::Cell::new(egui::Rect::NOTHING);
-        let painted = landed(|ui| {
-            ui.allocate_ui(egui::vec2(REGION, 800.0), |ui| {
-                region.set(ui.max_rect());
-                let floor = crate::widgets::message_floor(ui);
-                assert!(
-                    REGION > floor,
-                    "a {REGION}-point pane is at or under the {floor}-point floor, \
-                     so these rows would read the floor rather than the region"
-                );
-                draw(ui);
-            });
-        });
-        (region.get(), painted)
-    }
-
-    fn find<'a>(painted: &'a [Landed], text: &str) -> &'a Landed {
-        painted
-            .iter()
-            .find(|landed| landed.text == text)
-            .unwrap_or_else(|| panic!("`{text}` was never painted"))
-    }
-
-    /// Every row of `landed` inside the pane's right-hand edge.
-    fn assert_inside(region: egui::Rect, landed: &Landed) {
-        for row in &landed.rows {
-            assert!(
-                row.right() <= region.right() + SLACK,
-                "`{}` ends {} points past a {REGION}-point pane (rows {:?})",
-                landed.text,
-                row.right() - region.right(),
-                landed.rows
-            );
-        }
-    }
-
-    /// [`assert_inside`], and every row starting at the pane's left
-    /// edge: a line of its own, with nothing beside it.
-    fn assert_own_lines(region: egui::Rect, landed: &Landed) {
-        assert_inside(region, landed);
-        for row in &landed.rows {
-            assert!(
-                (row.left() - region.left()).abs() <= SLACK,
-                "`{}` has a row starting {} points into the pane rather than \
-                 at its edge (rows {:?})",
-                landed.text,
-                row.left() - region.left(),
-                landed.rows
-            );
-        }
-    }
-
-    /// `below` starts under the last row of `above`.
-    fn assert_under(above: &Landed, below: &Landed) {
-        let bottom = above
-            .rows
-            .iter()
-            .map(egui::Rect::bottom)
-            .fold(f32::NEG_INFINITY, f32::max);
-        let top = below
-            .rows
-            .iter()
-            .map(egui::Rect::top)
-            .fold(f32::INFINITY, f32::min);
-        assert!(
-            top >= bottom - SLACK,
-            "`{}` starts above the bottom of `{}` — beside it, not under it \
-             ({top} against {bottom})",
-            below.text,
-            above.text
-        );
-    }
-
     #[test]
     fn a_declared_names_notice_and_its_door_each_take_a_line_inside_the_pane() {
         let name = param("outer_enclosure_wall_thickness");
         let wording = Refusal::exists_wording(&name, Dimension::Length);
         let door = format!("edit {}", name.0);
-        let (region, painted) = drawn(|ui| {
+        let (region, painted) = drawn_in(REGION, |ui| {
             exists_notice(ui, &Theme::DEFAULT, &name, Dimension::Length);
         });
         let notice = find(&painted, &wording);
@@ -1171,7 +1093,7 @@ mod layout_tests {
             },
             Ok(value),
         );
-        let (region, painted) = drawn(|ui| {
+        let (region, painted) = drawn_in(REGION, |ui| {
             slot_notes(ui, &Theme::DEFAULT, &row, None);
         });
         let affordance = find(
@@ -1193,7 +1115,7 @@ mod layout_tests {
     #[test]
     fn a_slots_fault_is_said_under_its_row_inside_the_pane() {
         let row = distance_row(SlotDriver::Literal, Err(SlotFault::NoExpression));
-        let (region, painted) = drawn(|ui| {
+        let (region, painted) = drawn_in(REGION, |ui| {
             slot_notes(ui, &Theme::DEFAULT, &row, None);
         });
         let fault = find(
@@ -1207,7 +1129,7 @@ mod layout_tests {
     fn a_parameters_range_reading_is_said_over_its_button_inside_the_pane() {
         let reading = "free from 0.0012345678901234567 m to 12.345678901234567 m \
                        before something new fails";
-        let (region, painted) = drawn(|ui| {
+        let (region, painted) = drawn_in(REGION, |ui| {
             bounds_notes(ui, &Theme::DEFAULT, Some(reading));
         });
         let said = find(&painted, reading);

@@ -66,6 +66,7 @@ pub mod loft_prism;
 pub mod measured_web;
 pub mod part_select;
 pub mod plate_param;
+pub mod reshaped_rod;
 pub mod sink;
 pub mod slots;
 pub mod table;
@@ -254,6 +255,13 @@ pub fn documents() -> Vec<CorpusDoc> {
         tube_arc::document(),
         hollow_tube_elbow::document(),
         hollow_tube_ring::document(),
+        // `reshaped_rod` (EDIT-PROGRAM): the one document whose log
+        // holds a `SetProgram` — a rod's section on a block, its
+        // crease filleted, then the block's program reshaped under
+        // the fillet with the crease's name rebound by the door. The
+        // registry battery is what makes the reshaping's rewrite a
+        // persisted, replayed, name-digested fact rather than a row's.
+        reshaped_rod::document(),
     ]
 }
 
@@ -378,7 +386,9 @@ pub const NODE_KINDS: [&str; 21] = [
 /// It is a SUBSET, deliberately and visibly: `SetMembers`, `SetRoots`,
 /// `SetPlacement` and `UpdateReference` are arms of `DocEdit` that no
 /// corpus document authors, and listing them here would report four
-/// permanent misses rather than covering anything. What guards the
+/// permanent misses rather than covering anything. `SetProgram` is
+/// listed: `reshaped_rod` authors one, the first persisted in the
+/// tree. What guards the
 /// vocabulary itself is not this list but [`edit_kind`]'s match, which
 /// is exhaustive with no wildcard: a further `DocEdit` arm fails the
 /// BUILD there and its author then decides whether the corpus should
@@ -387,9 +397,10 @@ pub const NODE_KINDS: [&str; 21] = [
 /// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
 /// the tally in both directions, so a kind listed and never exercised
 /// is as red as a kind exercised and never listed.
-pub const EDIT_KINDS: [&str; 17] = [
+pub const EDIT_KINDS: [&str; 18] = [
     "InsertNode",
     "DeleteNode",
+    "SetProgram",
     "SetParam",
     "SetStructuralParam",
     "SetExpression",
@@ -573,6 +584,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::InsertNode { .. } => "InsertNode",
         DocEdit::DeleteNode { .. } => "DeleteNode",
         DocEdit::SetMembers { .. } => "SetMembers",
+        DocEdit::SetProgram { .. } => "SetProgram",
         DocEdit::SetParam { .. } => "SetParam",
         DocEdit::SetStructuralParam { .. } => "SetStructuralParam",
         DocEdit::SetExpression { .. } => "SetExpression",

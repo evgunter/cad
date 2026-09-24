@@ -182,6 +182,9 @@ const PINNED: &[(&str, u64, u64)] = &[
         0x8b51_65bd_2a3d_89c3,
         0xc2b6_c5f9_eb37_f948,
     ),
+    // The first persisted `SetProgram` in the tree: its text digest
+    // is the first taken over a log holding one.
+    ("reshaped_rod", 0x480d_3fba_a01b_e397, 0x9e25_c74c_af93_f81f),
 ];
 
 #[test]

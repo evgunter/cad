@@ -64,11 +64,15 @@ pinned for every closing verb the suites author
 `Expr`: coordinates, lengths and radii are Length; `angle`, `turn` and
 the `circle_split` phase are Angle; bulges and `toward` director
 components are Scalar. Structural data (the verb tag, `Start`,
-side/winding tags, the `circle_split` count) stays literal; changing it
-is re-authoring. An expression is addressed
+side/winding tags, the `circle_split` count) stays literal; no slot
+edit changes it. An expression is addressed
 `SlotId::Profile { loop_, step, arg: StepArg }`, `StepArg` being the
-closed per-verb role enum; step indices are stable because structure
-changes only by re-authoring. Evaluation resolves the program at f64
+closed per-verb role enum; step indices are stable under every slot
+edit because structure changes only by `DocEdit::SetProgram`, which
+replaces a live profile's program whole under a stated provenance and
+reports every name its reshaping strands and rebinds every name it
+moves (`crates/editor-core/REFERENCES.md` DM7; *ruled by Ev on EDIT's
+`[ev]` PR #2904, 2026-09-20*). Evaluation resolves the program at f64
 (`ProfileProgram::resolve`), replays it, embeds the loops into the lane
 scalar and validates there. Structure (junction classes, fillet fits and
 candidate picks, canonical start, loop roles) is selected once, at f64,

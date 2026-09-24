@@ -9,9 +9,16 @@
 //! parameter edit CANNOT renumber: the start is the author's, and the
 //! one thing canonicalization decides — each loop's traversal sense —
 //! cannot flip under a continuous edit without passing through a
-//! sliver, which validation refuses. Structural edits (re-authoring the
-//! program) may renumber; the freeze doctrine (stale selections refuse
-//! Vanished, M6-5) remains that backstop, as everywhere.
+//! sliver, which validation refuses. What a parameter edit CAN still
+//! do is change how many segments a step draws — a corner fillet whose
+//! runs reach a `Zero` fit emits nothing, so a radius written through
+//! `SetParam` grows or shrinks the loop and every live name after that
+//! step renumbers, reported by nothing
+//! (`work/edit/a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names.md`).
+//! Structure changes by `DocEdit::SetProgram`, which rebinds every kept
+//! name and retires the rest (DM7); the freeze doctrine (stale
+//! selections refuse `Vanished`, M6-5) backstops what a reshaping
+//! strands, as everywhere.
 //!
 //! # Mechanism
 //!
@@ -70,6 +77,17 @@ impl LoopAnchor {
             (self.offset + 2 * n - (k % n) - 1) % n
         } else {
             (self.offset + k) % n
+        }
+    }
+
+    /// Program vertex `p` → canonical vertex: the inverse of
+    /// [`LoopAnchor::vertex`].
+    pub fn canonical_vertex(&self, p: u32) -> u32 {
+        let n = self.len;
+        if self.reversed {
+            (self.offset + n - (p % n)) % n
+        } else {
+            (p % n + n - self.offset % n) % n
         }
     }
 
@@ -286,4 +304,16 @@ pub(crate) fn derive_naming(
         anchors.push(found?);
     }
     Some(ProfileNaming { loops: anchors })
+}
+
+/// **A program's naming anchor, from its replayed loops**: validate
+/// them (at the conventional plane — validation is 2-D and the anchor
+/// is loop-derived) and bit-match the canonical form against them, the
+/// derivation the evaluation's pre-pass makes. `None` where the loops
+/// do not validate, or the match fails.
+pub(crate) fn naming_of(loops: &[ProfileLoop<f64>], tol: geom_core::Tol) -> Option<ProfileNaming> {
+    let validated = Profile::new(profile::SketchPlane::xy(), loops.to_vec())
+        .validate(tol)
+        .ok()?;
+    derive_naming(&validated, loops)
 }
