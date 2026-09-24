@@ -196,25 +196,25 @@ impl core::fmt::Display for ReadbackError {
                 what: DanglingRef::Entity(key),
             } => write!(
                 f,
-                "read-back: {key} does not resolve in this body — the handle is \
+                "{key} does not resolve in this body — the handle is \
                  stale, or it belongs to another body's lineage"
             ),
             Self::Dangling {
                 what: DanglingRef::Geometry(key),
             } => write!(
                 f,
-                "read-back: a live entity names {key}, which does not resolve — \
+                "a live entity names {key}, which does not resolve — \
                  the body's own geometry reference is dangling"
             ),
             Self::NoCanonicalFrame { carrier } => write!(
                 f,
-                "read-back: a {carrier} carrier stores no canonical frame, so \
+                "a {carrier} carrier stores no canonical frame, so \
                  there is none to report — it has no distinguished origin or \
                  axis, and picking one would fabricate a convention the model \
                  never chose"
             ),
             Self::NoCarrier => f.write_str(
-                "read-back: the edge carries null-edge scaffolding rather than a \
+                "the edge carries null-edge scaffolding rather than a \
                  certified carrier — a transient state tier 2 refuses at rest; \
                  let the body reach rest before reading it back",
             ),

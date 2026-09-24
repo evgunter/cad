@@ -19,9 +19,9 @@
 //! # One reading
 //!
 //! Every cell reports **signed componentwise enclosures**
-//! ([`PatchCell::s_u`] … [`PatchCell::s_vv`]) — of the patch this
-//! module actually assembled, which on the rational arm is the
-//! REFINED net, not the described one ([`PatchCell`], "What the
+//! ([`PatchCell::s_u`] … [`PatchCell::s_vv`]) of the DESCRIBED patch
+//! — on both arms and with no carve-out, because the refinement an arm
+//! performs is itself part of the enclosure ([`PatchCell`], "What the
 //! enclosure encloses"). An inf-side consumer
 //! needs them as such — a magnitude sup cannot bound `‖S_u × S_v‖`
 //! from below, because the cross product's sign structure is exactly
@@ -29,17 +29,12 @@
 //! reads a vector magnitude off them with [`sq_norm`], whose
 //! `√hi` is a sup bound on the norm.
 //!
-//! There used to be a second, MAGNITUDE reading alongside: the
-//! rational arm applied the triangle inequality to the quotient rule
-//! (all `+`, divide by the smallest weight) where the signed one
-//! evaluates the quotient rule itself in the ring (the true `−` signs,
-//! divide by the whole weight hull). Both were sound and the signed
-//! one is strictly tighter, so the magnitude one is gone. What it cost
-//! to keep is what it now saves: per rational cell, five ring
-//! recurrences and five extra hull passes on the SHIPPED tessellation
-//! sizing path. What its removal buys the consumer is a tighter grid —
-//! the cancellation the triangle inequality could not see is real, and
-//! on a quarter cylinder `sup‖S_uv‖` falls by an order of magnitude.
+//! **The signed reading is the only one**, and it is a reading of the
+//! quotient rule itself: the true `−` signs, divided by the whole
+//! weight hull. The cancellations that survive that are real — on a
+//! quarter cylinder they are worth an order of magnitude on
+//! `sup‖S_uv‖` — so a consumer wanting a magnitude takes [`sq_norm`]
+//! of a signed enclosure and never a magnitude recurrence.
 //!
 //! # The rational arm
 //!
@@ -72,16 +67,23 @@
 //! CROSS terms survive — a rational degree-1 direction genuinely
 //! curves in parameter — and the recurrences carry that.
 //!
+//! **The refinement the arm performs first is itself part of the
+//! enclosure.** The homogeneous nets are refined IN THE RING from ring
+//! points of the described net
+//! ([`geom_core::spline::net::TensorNet::refine_u`]), each Boehm ratio
+//! an outward-rounded quotient of the knots it is made of, so what the
+//! cells enclose is the described patch and not a rounded neighbour of
+//! it. There is no refined `f64` surface on this arm: the cell extents
+//! come from the refined knot vectors, which are exact (the inserted
+//! knots are the `f64`s the schedule chose), and a refined control
+//! point is the ring quotient `A / w`.
+//!
 //! # Conservatism
 //!
 //! The answer is a bound, not an estimate. Ordinary walls measure
 //! within a small factor of the true sup; extreme weight ratios can
 //! leave it orders above, because the product terms lose the sign
-//! correlation a steep ramp lives in — the residue of that loss, not
-//! the whole of it: what the retired magnitude reading additionally
-//! threw away was the quotient rule's OWN signs, and recovering those
-//! is worth an order of magnitude on `sup‖S_uv‖` for an arc-walled
-//! patch. The cost is only how finely a
+//! correlation a steep ramp lives in. The cost is only how finely a
 //! consumer must subdivide; the bound is never wrong.
 //!
 //! # Poison (fail-loud, D4 ¶2)
@@ -94,8 +96,8 @@ use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
 use geom_core::ring_interval::RingInterval;
-use geom_core::spline::KnotVector;
 use geom_core::spline::net::TensorNet;
+use geom_core::spline::{CurvePlan, KnotVector};
 
 /// The fixed refinement schedule of the RATIONAL arm: every nonempty
 /// span of every direction splits into this many equal pieces before
@@ -105,6 +107,14 @@ use geom_core::spline::net::TensorNet;
 /// insertion is evaluation-invariant in ℝ, so it changes no geometry;
 /// it only shrinks every hull the bound is assembled from, which is
 /// what keeps the `sup‖S − c‖·sup|w_dd|` cross terms cell-sized.
+///
+/// **The schedule is not free of the arithmetic, which is why it is
+/// applied in the ring.** Each insertion the count buys is one more
+/// affine combination, and the count therefore also sets how much
+/// outward rounding the refined net carries. That width grows with the
+/// NUMBER of insertions rather than by a factor per insertion, which is
+/// what makes 16 affordable ([`geom_core::spline::CurvePlan::apply_ring`]
+/// argues the form that buys it).
 pub const RATIONAL_CERT_SPLITS: usize = 16;
 
 /// A typed refusal of the patch-bound assembly (fail-loud). Each
@@ -160,11 +170,14 @@ impl PatchBoundError {
                  carrying one is worth reporting too"
             }
             Self::RefinedWeightLostPositivity => {
-                "rational NURBS face whose refined weights lost positivity — outside the \
-                 certified inventory: positivity survives knot insertion in ℝ, so what \
-                 lost it is the f64 rounding of the fixed refinement on an extreme weight \
-                 ratio; describe the face with a ratio the refinement can hold, or report \
-                 the description, which is what sizes RATIONAL_CERT_SPLITS"
+                "rational NURBS face whose refined weight ENCLOSURE reaches zero — outside \
+                 the certified inventory: positivity survives knot insertion in ℝ, and the \
+                 refinement's two barycentric ratios are both non-negative, so no weight \
+                 RATIO can reach this; what does is a weight so small that its product with \
+                 a ratio UNDERFLOWS to zero, which needs a subnormal near the bottom of the \
+                 f64 range. Describe the face at a weight scale f64 can hold — scaling \
+                 every weight by one constant describes the same surface — or report the \
+                 description"
             }
             Self::RefinementFailed => {
                 "NURBS face whose refinement fails to materialise — outside the certified \
@@ -193,39 +206,34 @@ impl core::error::Error for PatchBoundError {}
 /// One knot-span cell's certified bounds on the patch's partials, with
 /// the UV rectangle they hold on.
 ///
-/// # What the enclosure encloses (the rational arm's caveat, stated)
+/// # What the enclosure encloses
 ///
-/// The INTEGRAL arm assembles on the described control net, so its
-/// enclosures are enclosures of the described patch, full stop.
+/// **The DESCRIBED patch, on both arms, with no carve-out.** Refinement
+/// is part of the enclosure: where an arm inserts knots it inserts them
+/// into ring enclosures of the described homogeneous net
+/// ([`geom_core::spline::net::TensorNet::refine_u`]), each Boehm ratio
+/// an outward-rounded quotient of the knots it is made of, so the
+/// insertion widens like every later step instead of rounding the net
+/// to a nearby one.
 ///
-/// The RATIONAL arm first inserts [`RATIONAL_CERT_SPLITS`] knots per
-/// span. Knot insertion is evaluation-invariant **in ℝ**, but the
-/// refined control net is materialised in `f64` and therefore rounded:
-/// what these cells enclose is the refined-`f64` patch, which differs
-/// from the described one by insertion rounding. The gap is dust — at
-/// the scale of an ulp of the coordinate — and it is NOT bounded here.
+/// That makes a STRUCTURAL predicate sound to read off these cells. A
+/// component whose true value is identically zero comes back as an
+/// enclosure CONTAINING zero on every cell, which is what a
+/// `contains(0)` or an exact-sign test needs and what a bound on a
+/// nearby patch could never give. The witnessed case is a quarter
+/// cylinder's `S_vv`: degree 1 in `v` with the weights CONSTANT along
+/// `v` and the control points affine in it, which together make the
+/// described surface affine in `v`. Degree 1 alone does not — a
+/// degree-1 direction whose weights vary is a Möbius
+/// reparameterization and genuinely curves in parameter, as the module
+/// header says of the cross terms.
 ///
-/// **It is visible, and it matters at exactly one place: a component
-/// whose true value is structurally zero.** On a ruled (degree-1 in
-/// `v`) rational face the true `S_vv` is identically zero, and 6 of
-/// the quarter cylinder's 256 cells report a `z` enclosure of
-/// `[-4.1e-15, -3.4e-15]` — sound about the refined patch, and it
-/// EXCLUDES the described patch's zero. A consumer that reads these
-/// as "the described surface's partial lies in here" is right to
-/// within insertion dust and wrong beyond it, and a consumer testing a
-/// STRUCTURAL predicate (`contains(0)`, an exact sign) must not use
-/// them on the rational arm.
-///
-/// This is not new with the signed reading — the rational arm has
-/// always refined — but the retired magnitude reading could never
-/// exhibit it: `[0, m]` contains zero by construction, so the sup
-/// spelling hid the gap rather than being free of it. Making the
-/// signed reading the only one is what puts the caveat in the
-/// contract, which is where it belongs.
-///
-/// Closing the gap needs an enclosure of the insertion rounding
-/// itself, carried through the refinement — a real piece of work with
-/// its own cost, deliberately not done here.
+/// What it costs is width, and the width is the honest one. On that
+/// same ruled face the zero `S_vv` is reported as dust at the scale the
+/// insertion contributed rather than as an exact zero, because that is
+/// all an enclosure of the refinement can say. A consumer sizing a grid
+/// pays that in the last decades of a bound; a consumer asking whether
+/// zero is in there gets the right answer.
 #[derive(Clone, Copy, Debug)]
 pub struct PatchCell {
     /// The cell's `u` extent, `[lo, hi]`.
@@ -233,20 +241,16 @@ pub struct PatchCell {
     /// The cell's `v` extent, `[lo, hi]`.
     pub v: (f64, f64),
     /// Signed componentwise enclosure of `S_u` on the cell — of the
-    /// assembled patch, refined-`f64` on the rational arm (see the
-    /// type's docs, "What the enclosure encloses").
+    /// DESCRIBED patch (see the type's docs, "What the enclosure
+    /// encloses").
     pub s_u: [RingInterval; 3],
-    /// Signed componentwise enclosure of `S_v` on the cell (the
-    /// provenance caveat on [`PatchCell::s_u`] applies to every field).
+    /// Signed componentwise enclosure of `S_v` on the cell.
     pub s_v: [RingInterval; 3],
-    /// Signed componentwise enclosure of `S_uu` on the cell (the
-    /// provenance caveat on [`PatchCell::s_u`] applies to every field).
+    /// Signed componentwise enclosure of `S_uu` on the cell.
     pub s_uu: [RingInterval; 3],
-    /// Signed componentwise enclosure of `S_uv` on the cell (the
-    /// provenance caveat on [`PatchCell::s_u`] applies to every field).
+    /// Signed componentwise enclosure of `S_uv` on the cell.
     pub s_uv: [RingInterval; 3],
-    /// Signed componentwise enclosure of `S_vv` on the cell (the
-    /// provenance caveat on [`PatchCell::s_u`] applies to every field).
+    /// Signed componentwise enclosure of `S_vv` on the cell.
     pub s_vv: [RingInterval; 3],
 }
 
@@ -307,12 +311,38 @@ pub fn patch_cells_refined(
     if is_rational(n) {
         rational_cells(n, splits)
     } else {
-        let refined = n
-            .refine_knots_u(&split_points(n.knots_u(), splits))
-            .and_then(|r| r.refine_knots_v(&split_points(r.knots_v(), splits)))
-            .map_err(|_| PatchBoundError::RefinementFailed)?;
-        integral_cells(&refined)
+        integral_cells_refined(n, splits)
     }
+}
+
+/// The refinement schedule of one direction and the knot vector it
+/// lands on: the plan chain that cuts every nonempty span into `splits`
+/// equal pieces, built from STRUCTURE alone
+/// ([`geom_core::spline::algebra::refine_plan_homogeneous`] — the
+/// homogeneous nets this module refines are polynomial, so their weights
+/// are unit).
+///
+/// One schedule, two arithmetics: this is the same plan the `f64`
+/// surface refinement applies through
+/// [`geom_core::spline::CurvePlan::apply_points`], and the ring applier
+/// re-derives each insertion ratio from the knots it is made of instead
+/// of widening the plan's `f64` `λ`.
+///
+/// # Errors
+///
+/// [`PatchBoundError::RefinementFailed`] — insertion into a direction
+/// that already passed the C¹ gate is total, so a refusal here is a
+/// description worth reporting rather than one to repair.
+fn refine_chain(
+    kv: &KnotVector,
+    splits: usize,
+) -> Result<(KnotVector, Vec<CurvePlan>), PatchBoundError> {
+    let plans = geom_core::spline::algebra::refine_plan_homogeneous(kv, &split_points(kv, splits))
+        .map_err(|_| PatchBoundError::RefinementFailed)?;
+    let refined = plans
+        .last()
+        .map_or_else(|| kv.clone(), |p| p.knots().clone());
+    Ok((refined, plans))
 }
 
 /// The C¹ gate per direction: degree 0 refuses; degree 1 must be
@@ -582,14 +612,51 @@ fn cell_from(uv: ((f64, f64), (f64, f64)), signed: [[RingInterval; 3]; 5]) -> Pa
 /// assembly on the spatial nets — no quotient rule intervenes, so the
 /// enclosure IS the coefficient hull.
 fn integral_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundError> {
-    let (kv_u, kv_v) = (n.knots_u(), n.knots_v());
+    integral_cells_on(&comp_nets(n, false), n.knots_u(), n.knots_v())
+}
+
+/// [`integral_cells`] after refining every nonempty span into `splits`
+/// equal pieces, IN THE RING: an integral net's weights are unit, so the
+/// net is already homogeneous and [`refine_chain`]'s schedule applies to
+/// it directly. The cells therefore enclose the described patch, where an
+/// `f64` refinement would have them enclose the refined-`f64` one.
+///
+/// # Errors
+///
+/// As [`integral_cells`], plus [`PatchBoundError::RefinementFailed`].
+fn integral_cells_refined(
+    n: &NurbsSurface<f64>,
+    splits: usize,
+) -> Result<Vec<PatchCell>, PatchBoundError> {
+    let (kv_u, plans_u) = refine_chain(n.knots_u(), splits)?;
+    let (kv_v, plans_v) = refine_chain(n.knots_v(), splits)?;
+    let nets: Vec<Net> = comp_nets(n, false)
+        .iter()
+        .map(|net| net.refine_u(&plans_u).refine_v(&plans_v))
+        .collect();
+    integral_cells_on(&nets, &kv_u, &kv_v)
+}
+
+/// The integral arm's per-cell assembly over ALREADY-BUILT spatial nets
+/// and their directions — the one body [`integral_cells`] and
+/// [`integral_cells_refined`] share, so refinement changes what is
+/// assembled and nothing about how.
+///
+/// # Errors
+///
+/// [`PatchBoundError::DerivedKnots`].
+fn integral_cells_on(
+    base_nets: &[Net],
+    kv_u: &KnotVector,
+    kv_v: &KnotVector,
+) -> Result<Vec<PatchCell>, PatchBoundError> {
     let kv_u1 = (kv_u.degree() >= 2)
         .then(|| derived_knots(kv_u))
         .transpose()?;
     let kv_v1 = (kv_v.degree() >= 2)
         .then(|| derived_knots(kv_v))
         .transpose()?;
-    let nets: Vec<DNets> = comp_nets(n, false)
+    let nets: Vec<DNets> = base_nets
         .iter()
         .map(|base| DNets::build(base, kv_u, kv_v, kv_u1.as_ref(), kv_v1.as_ref()))
         .collect();
@@ -658,21 +725,38 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     if n.weights().iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
         return Err(PatchBoundError::NonPositiveWeight);
     }
-    let refined = n
-        .refine_knots_u(&split_points(n.knots_u(), splits))
-        .and_then(|r| r.refine_knots_v(&split_points(r.knots_v(), splits)))
-        .map_err(|_| PatchBoundError::RefinementFailed)?;
-    let r = &refined;
-    // Positivity survives insertion in ℝ (convex combinations); this
-    // code may not assume floating point did (the speed meter's rule).
-    #[allow(clippy::neg_cmp_op_on_partial_ord)]
-    if r.weights().iter().any(|w| !(*w > 0.0) || !w.is_finite()) {
-        return Err(PatchBoundError::RefinedWeightLostPositivity);
-    }
-    let (kv_u, kv_v) = (r.knots_u(), r.knots_v());
+    // THE REFINEMENT IS PART OF THE ENCLOSURE. The homogeneous nets `w`
+    // and `w·P` are refined IN THE RING from point intervals of the
+    // DESCRIBED net, so insertion widens outward like every later step
+    // and the cells enclose the described patch. An `f64` refinement
+    // here would make them enclose the refined-`f64` patch instead, and
+    // the described one escapes that by insertion rounding amplified by
+    // the knot differencing.
+    let (kv_u, plans_u) = refine_chain(n.knots_u(), splits)?;
+    let (kv_v, plans_v) = refine_chain(n.knots_v(), splits)?;
+    let (kv_u, kv_v) = (&kv_u, &kv_v);
     let (pu, pv) = (kv_u.degree(), kv_v.degree());
-    let (nu, nv) = r.control_counts();
-    let w_grid = Net::from_fn(nu, nv, |i, j| RingInterval::point(r.weights()[i * nv + j]));
+    let (nu0, nv0) = n.control_counts();
+    let refine = |net: &Net| net.refine_u(&plans_u).refine_v(&plans_v);
+    let w_grid = refine(&Net::from_fn(nu0, nv0, |i, j| {
+        RingInterval::point(n.weights()[i * nv0 + j])
+    }));
+    let (nu, nv) = (w_grid.nu(), w_grid.nv());
+    // Positivity survives insertion in ℝ (convex combinations); this
+    // code may not assume the ARITHMETIC proved it, so the refined
+    // licence is read off the enclosure's own `lo` — a weight hull that
+    // touches or straddles zero voids the convex-combination licence
+    // just as a described non-positive weight does, and poison is not a
+    // proof of positivity either.
+    for i in 0..nu {
+        for j in 0..nv {
+            let w = w_grid.get(i, j);
+            #[allow(clippy::neg_cmp_op_on_partial_ord)]
+            if w.is_poison() || !(w.lo() > 0.0) || !w.lo().is_finite() {
+                return Err(PatchBoundError::RefinedWeightLostPositivity);
+            }
+        }
+    }
     // Second derivatives along a degree-1 direction are EXACTLY zero
     // in ℝ for the polynomial nets A and w (the direction is a single
     // linear span pre-refinement — the C¹ gate — and refinement's
@@ -681,21 +765,34 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     let kv_u1 = (pu >= 2).then(|| derived_knots(kv_u)).transpose()?;
     let kv_v1 = (pv >= 2).then(|| derived_knots(kv_v)).transpose()?;
     let w_nets = DNets::build(&w_grid, kv_u, kv_v, kv_u1.as_ref(), kv_v1.as_ref());
-    let a_nets: Vec<DNets> = comp_nets(r, true)
+    let a_base: Vec<Net> = comp_nets(n, true).iter().map(refine).collect();
+    let a_nets: Vec<DNets> = a_base
         .iter()
         .map(|g| DNets::build(g, kv_u, kv_v, kv_u1.as_ref(), kv_v1.as_ref()))
+        .collect();
+    // The refined control points, `P = A / w` per channel, ONCE for the
+    // whole net. Each is read by every cell whose window covers it —
+    // `(pu + 1)(pv + 1)` cells at the interior, twice over (the centroid
+    // and the value hull) — so computing it per cell paid the same ring
+    // division up to `2(pu + 1)(pv + 1)` times for one coefficient.
+    // Entrywise, so each point is enclosed at its own weight rather than
+    // at the cell's weight hull.
+    let p_nets: Vec<Net> = a_base
+        .iter()
+        .map(|a| Net::from_fn(nu, nv, |i, j| a.get(i, j) / w_grid.get(i, j)))
         .collect();
     let zero = RingInterval::zero();
     let two = RingInterval::point(2.0);
     let mut cells: Vec<PatchCell> = Vec::new();
     for su in kv_u.first_span()..=kv_u.last_span() {
         for sv in kv_v.first_span()..=kv_v.last_span() {
-            // Emptiness skip, span validation and window construction
-            // in one operation, both directions.
-            let Some(win) = r.window(su, sv) else {
+            // Emptiness skip and span validation, both directions. The
+            // spans come from the REFINED knot vectors rather than from
+            // a refined surface: there is no refined `f64` surface on
+            // this arm any more, only refined ring nets.
+            let (Some(span_u), Some(span_v)) = (kv_u.span(su), kv_v.span(sv)) else {
                 continue;
             };
-            let (span_u, span_v) = (win.span_u(), win.span_v());
             let w = CellWindows {
                 u_val: span_u.window(),
                 v_val: span_v.window(),
@@ -704,21 +801,32 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 u_d2: span_u.derived_window(2),
                 v_d2: span_v.derived_window(2),
             };
-            // The cell centroid — a translation CHOICE (any finite c
-            // is sound), computed on f64 structure, fixed order.
-            let mut csum = [0.0f64; 3];
-            let mut count = 0.0f64;
-            for i in 0..=span_u.degree() {
-                let row = win.row(i);
-                for j in 0..=span_v.degree() {
-                    let p = r.control()[row + j];
-                    csum[0] += p.x;
-                    csum[1] += p.y;
-                    csum[2] += p.z;
-                    count += 1.0;
+            let point_at = |comp: usize, i: usize, j: usize| {
+                p_nets
+                    .get(comp)
+                    .map_or_else(RingInterval::poison, |p| p.get(i, j))
+            };
+            // The cell centroid — a translation CHOICE, so ANY finite
+            // value is sound and none of it has to be enclosed. Taken
+            // from the midpoint of each enclosed control point, in a
+            // fixed order; a non-finite midpoint (an overflowed or
+            // poisoned enclosure) contributes `0`, which is still a
+            // finite centre and leaves the widened hulls to report the
+            // trouble.
+            let mut c = [0.0f64; 3];
+            for (comp, slot) in c.iter_mut().enumerate() {
+                let mut sum = 0.0f64;
+                let mut count = 0.0f64;
+                for i in *w.u_val.start()..=*w.u_val.end() {
+                    for j in *w.v_val.start()..=*w.v_val.end() {
+                        let p = point_at(comp, i, j);
+                        let mid = (p.lo() + p.hi()) / 2.0;
+                        sum += if mid.is_finite() { mid } else { 0.0 };
+                        count += 1.0;
+                    }
                 }
+                *slot = sum / count;
             }
-            let c = [csum[0] / count, csum[1] / count, csum[2] / count];
             // The cell's weight hull — the divisor (module docs).
             let w_cell = window_hull(&w_grid, &w.u_val, &w.v_val);
             // Weight-net hulls on the cell.
@@ -747,15 +855,9 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 // partition of unity over the ACTIVE control points,
                 // so `S − c` lies in the hull of `P − c`.
                 let mut v0h: Option<RingInterval> = None;
-                for i in 0..=span_u.degree() {
-                    let row = win.row(i);
-                    for j in 0..=span_v.degree() {
-                        let p = r.control()[row + j];
-                        let e = RingInterval::point(match comp {
-                            0 => p.x,
-                            1 => p.y,
-                            _ => p.z,
-                        }) - cc;
+                for i in *w.u_val.start()..=*w.u_val.end() {
+                    for j in *w.v_val.start()..=*w.v_val.end() {
+                        let e = point_at(comp, i, j) - cc;
                         v0h = Some(match v0h {
                             None => e,
                             Some(h) => RingInterval::hull(h, e),
@@ -800,8 +902,55 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
 }
 
 #[cfg(test)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
+
+    /// **`RefinedWeightLostPositivity` is reachable, and only by
+    /// underflow.** The arm's prose claims a weight RATIO cannot reach
+    /// it, which is a claim about the refinement's arithmetic: both
+    /// barycentric ratios are non-negative, so a convex combination of
+    /// positive weights is positive unless one of the PRODUCTS rounds to
+    /// zero. That needs a weight within a few ulps of the smallest
+    /// subnormal, whatever the other weights are.
+    ///
+    /// So this row walks the weight scale beside a fixed `1e2` — a ratio
+    /// of 1e304 at the bottom end — and demands the refusal at the
+    /// minimum subnormal and coverage everywhere a real description
+    /// could sit. It is the row that would catch the arm becoming
+    /// unreachable (a refusal nothing can produce is not a refusal) or
+    /// becoming reachable from an ordinary extreme-weight face, which is
+    /// what its prose tells a caller it is not.
+    #[test]
+    fn refined_weight_lost_positivity_is_reached_only_by_underflow() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("kv");
+        let control: Vec<geom_core::Point3<f64>> = (0..9)
+            .map(|i| geom_core::Point3::new(f64::from(i), 0.0, 0.0))
+            .collect();
+        let refuse = |w: f64| {
+            let mut weights = vec![w; 9];
+            weights[4] = 1.0e2;
+            let s = NurbsSurface::new(kv.clone(), kv.clone(), control.clone(), weights)
+                .expect("the door admits any positive finite weight");
+            matches!(
+                patch_cells(&s),
+                Err(PatchBoundError::RefinedWeightLostPositivity)
+            )
+        };
+        assert!(
+            refuse(f64::from_bits(1)),
+            "the minimum subnormal weight beside 1e2 must refuse: a product of it with a \
+             ratio below 1 underflows, and the weight hull's `lo` reaches zero"
+        );
+        for w in [1.0e-320, 1.0e-300, 1.0e-200, 1.0e-30, 1.0e-2, 1.0, 1.0e2] {
+            assert!(
+                !refuse(w),
+                "weight {w:e} beside 1e2 is a ratio of {:e} and must still certify: \
+                 a ratio cannot reach this refusal, only an underflow can",
+                1.0e2 / w
+            );
+        }
+    }
 
     /// Every patch-bound refusal names what the caller changes in the
     /// description, not only which structural fact refused. Nothing

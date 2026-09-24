@@ -28,8 +28,8 @@ work/
 ```
 
 A program's directory name is its id. An item's file name is its id.
-`scripts/work.py lint` enforces every rule on this page and runs on
-every CI tier; an item that lint rejects does not merge.
+`scripts/work.py lint` enforces every checkable rule on this page and
+runs on every CI tier; an item that lint rejects does not merge.
 
 ## The header
 
@@ -69,7 +69,7 @@ in `docs/MODEL-AB-LOG.md`), `paths` (territory globs), `keep_out`
 allocates from). **No open program carries `blocks`, and none should**:
 an item's id comes from its name, not from a per-track number block.
 The block scheme belonged to the 2026-08 findings register and left the
-tree with it (`docs/DOC-LEDGER.md`, sweep 11).
+tree with it (`docs/doc-ledger/code-quality-leaves-the-tracker.md`).
 
 Unknown keys are lint errors. Add a key by adding it to the script's
 schema in the same PR that first uses it.
@@ -244,11 +244,12 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   keeping the id, and sets `parent:` to the unit that carries it. This
   is how a finding reaches its owner. `work/code-quality/` used to be
   where one waited for a claim; it left the tracker on 2026-09-11
-  (`docs/DOC-LEDGER.md`, sweep 11) once all 110 of its live rows had
-  gone to the eleven programs opened for them, so **a finding now goes
-  straight onto the slate of the program whose ground it lands on**, and
-  `work/issues/` is the last resort it always was. A `keep_out` clause
-  saying a claimed row stays where it was is the thing to delete.
+  (`docs/doc-ledger/code-quality-leaves-the-tracker.md`) once all 110 of
+  its live rows had gone to the eleven programs opened for them, so **a
+  finding now goes straight onto the slate of the program whose ground
+  it lands on**, and `work/issues/` is the last resort it always was. A
+  `keep_out` clause saying a claimed row stays where it was is the thing
+  to delete.
 - **Ids are stable.** An item keeps its id for life; a program keeps
   its directory for as long as it is open. The rows migrated from the
   2026-08 findings register keep the ids they were cited by (`D102`,
@@ -256,11 +257,15 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   shape.
 - **A closed program's directory is deleted.** `work/` tracks work
   still to be done, not work that has been done, so once a program
-  closes — its exit walk ratified, or Ev's ruling that it needs none —
-  `program.md`, `plan.md` and `log.md` go, and so does the ratified
-  exit walk; the deletion is recorded in `docs/DOC-LEDGER.md` with the
-  SHA they are recoverable at, and that ledger entry is the program's
-  done-state of record. Residue is re-homed before the sweep, never
+  closes, `program.md`, `plan.md` and `log.md` go, and so does its
+  exit walk if it had one. **A walk is owed when the plan set
+  acceptance criteria** (its `## Exit criteria`): the walk is what
+  checks the finished program against them, so such a program closes
+  when its walk is ratified, or on Ev's ruling that it needs none. A
+  plan that set no criteria leaves a walk nothing to check, and its
+  program closes without one. The deletion is recorded in a note
+  under `docs/doc-ledger/` with the SHA they are recoverable at, and
+  that note is the program's done-state of record. Residue is re-homed before the sweep, never
   left behind in the closed directory: to a live program whose charter
   it fits, or to a new program opened for it when the residue coheres
   into a track of its own (a dozen items on one territory are a
@@ -354,12 +359,12 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   records the ruling and what was built.
 - **No plan or log outside `work/`.** `docs/*-PLAN.md` and
   `docs/*-LOG.md` are lint errors, so a session writing to the old
-  path fails loudly. (`docs/MODEL-AB-LOG.md` is an experiment log, not
-  a program's, and is the one named exemption; it leaves `docs/` when
-  the experiment concludes.)
+  path fails loudly. (`docs/MODEL-AB-LOG.md` and `docs/DUAL-REVIEW-LOG.md` are
+  experiment logs, not a program's, and are the named exemptions; each
+  leaves `docs/` when its experiment concludes.)
 - **Specs keep their lifecycle.** `docs/<ID>-SPEC.md` binds an
-  implementer for one unit and is deleted at merge per
-  `docs/DOC-LEDGER.md`; the item file is the record that survives.
+  implementer for one unit and is deleted at merge, with a note under
+  `docs/doc-ledger/`; the item file is the record that survives.
 - **`STATUS.md` is written by CI only.** A workflow regenerates it on
   every push to main and commits it from the Actions token. Nothing
   else writes it, so no branch conflicts on it; if you want the view
@@ -367,22 +372,40 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
 
 ## Ev's channel
 
-Ev does not edit files. Anything that needs Ev — a design fork, a
-ruling, a plan ratification, a question — is a PR whose title starts
-with **`[ev]`**, and the item that asked sets `needs_ev: true`. The PR
-is not named in the item: which PR carries the question is one
-`git log` away, and the item usually exists before the PR does. Ev
-answers in the PR's comments; the agent edits the item and the docs,
-merges, and clears the flag. Whoever opens an `[ev]` PR arranges to be
-woken by comments on it — the away-channel monitor locally, a PR
-subscription on a remote box — because the answer arrives as a comment
-and a question nobody is listening to has not been asked.
-`STATUS.md` lists every open `needs_ev` oldest first, so the two views
-(the PR list filtered on `[ev]`, and the tracker) always name the same
-set.
+Ev does not edit files. Anything that needs Ev is a PR whose title
+starts with **`[ev]`**; how to write one is "Asking Ev" in
+`CLAUDE.md`. The tracker's half: the item that asked sets
+`needs_ev: true`. The PR is not named in the item: which PR carries the
+question is one `git log` away, and the item usually exists before the
+PR does. Once Ev answers, the agent edits the item and the docs,
+merges, and clears the flag. `STATUS.md` lists every open `needs_ev`
+oldest first, so the two views (the PR list filtered on `[ev]`, and the
+tracker) always name the same set.
 
-State-sync rides the unit's PR as before (item header updates, log
-entries); conversations for Ev get their own `[ev]` PR.
+## The log merges by union
+
+Every lane appends its entry at the end of its program's `log.md`, so
+two branches that each add one collide at the same line, and neither
+is wrong. `.gitattributes` gives `work/*/log.md` git's `union` merge
+driver: a merge keeps both sides' lines, in order, with no conflict.
+That is only sound because the log is append-only; an edit to an
+earlier entry on one side would come out duplicated rather than
+flagged.
+
+GitHub's own merge ignores the attribute (measured on PR 3109, with it
+on both sides). A PR whose log has diverged from main's therefore
+shows as conflicting on GitHub, and a conflicting PR gets no CI run,
+until a local base merge, which the attribute does cover, brings main
+in.
+
+The conflict used to be the one place another program's note on a log
+surfaced, and it was a poor one: it fired only when the owner had
+appended too, among its own lanes' collisions. The read is explicit
+instead. `work.py incoming` lists every commit on `origin/main` that
+touches `work/<program>/` and is not yet in the current branch; an
+orchestrator runs it at each check-in and before bringing main into its
+branch. It is keyed to what main carries, not to a merge, so a note
+stays listed until it reaches the branch by any route.
 
 ## The script
 
@@ -393,6 +416,7 @@ python3 scripts/work.py render                the render, to work/STATUS.md
 python3 scripts/work.py new <id> --kind K --title T [--program P] [--set k=v]
 python3 scripts/work.py set <id> key=value [key=value ...]
 python3 scripts/work.py territory --base <ref> [--branch <name>]
+python3 scripts/work.py incoming [--program P] [--base <ref>]
 python3 scripts/work.py --selftest
 ```
 

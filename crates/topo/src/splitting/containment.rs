@@ -108,16 +108,19 @@ pub enum PointInLoopError {
 impl core::fmt::Display for PointInLoopError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Escalated { r#loop, diag } => {
-                write!(f, "point_in_loop: escalated at loop {loop:?}: {diag}")
+            Self::Escalated { diag, .. } => {
+                write!(
+                    f,
+                    "whether a point lies in a loop is too close to call: {diag}"
+                )
             }
-            Self::RayExhausted { r#loop } => write!(
+            Self::RayExhausted { .. } => write!(
                 f,
-                "point_in_loop: every schedule ray grazed loop {loop:?} — \
-                 ill-conditioned containment query at this tolerance"
+                "every test ray grazed the loop, so containment is ill-conditioned at \
+                 this tolerance"
             ),
             Self::CorruptLoop { r#loop } => {
-                write!(f, "point_in_loop: loop {loop:?} is not walkable")
+                write!(f, "loop {loop:?} is not walkable")
             }
         }
     }

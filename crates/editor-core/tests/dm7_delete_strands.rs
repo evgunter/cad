@@ -1131,7 +1131,7 @@ fn cascading_a_declare_away_reports_the_orphan_and_then_removes_it() {
 /// `apply` is a function of `(document, edit)` and answers what one
 /// delete did; the NET over an action is the cascade door's answer,
 /// and nothing in the tree computes it today
-/// (`work/chrome/cascade-delete-shows-the-strand-count.md` is where
+/// (`work/offer/cascade-delete-shows-the-strand-count.md` is where
 /// that affordance is owed). This row is the other half of the
 /// transient: the information needed to cancel exists one level up,
 /// at `cascade_delete_order`'s caller.

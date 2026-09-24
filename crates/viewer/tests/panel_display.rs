@@ -883,12 +883,12 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
 /// over the band where it has something to refuse.
 ///
 /// The band is the render's, not the parser's: `readout::number`
-/// spells the shortest text that reads back within
-/// `readout::REL_TOLERANCE` of the value, so a field can be showing a
-/// text that names its value only to 5·10⁻⁴. That text is also what an
-/// `egui::DragValue` commits when focus leaves it, so a field that
-/// took its own render for an edit would move the value by up to that
-/// much and charge an undo step for a click nobody meant as one.
+/// spells the shortest text that reads back on the render's own grid,
+/// so a field can be showing a text that names its value only to
+/// within that grid. That text is also what an `egui::DragValue`
+/// commits when focus leaves it, so a field that took its own render
+/// for an edit would move the value by up to that much and charge an
+/// undo step for a click nobody meant as one.
 ///
 /// **Each row is built on a value whose render is NOT exact**, which
 /// is what lets it go red: the `assert_ne!` below is the fixture's own
@@ -899,9 +899,9 @@ fn a_fields_own_render_typed_back_is_not_an_edit() {
     // Canonical values, one per dimension that has a notation, each
     // chosen so the shortest text that reads back is not the value.
     let cases: [(Dimension, f64); 3] = [
-        (Dimension::Length, 0.040_000_019),
-        (Dimension::Angle, 1.000_000_4),
-        (Dimension::Scalar, 7.000_002_5),
+        (Dimension::Length, 1.234_567_890_123_456_7),
+        (Dimension::Angle, 2.345_678_901_234_567),
+        (Dimension::Scalar, 12.345_678_901_234_567),
     ];
     for (dimension, canonical) in cases {
         let unit = rendering_unit(dimension, None);

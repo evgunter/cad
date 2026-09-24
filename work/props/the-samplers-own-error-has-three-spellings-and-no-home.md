@@ -62,3 +62,48 @@ has to be there for `mesh/src` to reach it. The consumers are TESS
 (`nurbs_cert.rs`) and TCOST/TINT (the two test files); they are named
 here rather than filed separately because one home is one change.
 Filed by RING-2 (SCALAR), which minted all three spellings.
+
+## A measurement for the `nurbs_cert.rs` site (TESS orchestrator, 2026-09-21)
+
+The sampler's error at that site HAS been measured, in exact rational
+arithmetic (`work/tess/rational-cells-hull-the-f64-refined-net-so-the-
+described-patch-escapes.md`): ≤ 6e-17 absolute per channel on a
+second-partial norm of 2.66 — about 0.1 ulp relative — on the sweep's
+own failing surface. The 64-ulp house figure is ~50× that, and what it
+absorbs there is a proven certificate escape (+3.07e-16 relative), not
+sampler rounding. TESS-2 (`docs/TESS-2-SPEC.md`) fixes the certificate
+and measures the sampler error over a bilinear census so this row can
+size the allowance from data; the falsifier-side consequence is
+`work/chord/soundness-sweep-allowance-is-fifty-times-the-measured-
+sampler-error.md`.
+
+## A measured number for the rule, from TESS-2 (2026-09-22)
+
+TESS-2 refereed `crates/mesh/src/nurbs_cert.rs`'s sampler exactly, so
+the `SAMPLER_ULPS = 64` row now has a measurement beside the
+rehearsal's. Over 400 random bilinear rational patches, `sample_worst`
+against the exact rational truth at the sampler's own argmax,
+`|sampled − truth|` in ulps of the certified figure: median 0.13–0.30,
+p99 1.07–1.47, max 1.39–2.75 across three independent draws (the full
+table and the draws are on
+`work/chord/soundness-sweep-allowance-is-fifty-times-the-measured-sampler-error`).
+The house 64 is 23x to 43x that — the same order as the factor the
+rehearsal site measured by a different route, which is the sharper form
+of this row's point: two independent measurements of the same obligation
+both land near a quarter of an ulp at the median and both sit far under a
+house figure of 64.
+
+Two things the measurement adds to the "how to size it" bullet. The
+median is not the number to size from — the MAXIMUM over draws is, and it
+moves between draws (1.39 to 2.75), so a re-sizing wants a tail over
+several runs rather than one run's worst. And the apparatus is committed,
+so this is a re-runnable method and not only a number:
+
+```
+cargo test --release -p mesh --lib sampler_error_dump -- --ignored --nocapture \
+  | python3 crates/mesh/tests/sampler_error.py
+```
+
+with `crates/mesh/tests/nurbs_exact_referee.py` as the exact engine
+(rational arithmetic, no `Decimal` in the rounding, shares no code with
+the kernel).

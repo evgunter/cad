@@ -58,6 +58,70 @@
 //! counts `FreezeCause::Unrecorded` over both documents and pins it at
 //! zero. Both directions are rows in `geom-core`'s `sym_drive_memo`.
 //!
+//! # A LEAF's NEED, and the one reading that is still the schedule's
+//!
+//! A leaf receipt's `frozen` column is that leaf's NEED: the frozen
+//! nodes its own reasoning rested on ([`super::SymCounts::frozen`] says
+//! what the column means on each receipt). `super::leaf_need` reads it
+//! as a union of three sets, all inside the closure of the leaf's
+//! plain-walk roots — this memo's frozen ids, the ids the leaf's own
+//! table does not hold, and the freezes the leaf made and could not
+//! publish.
+//!
+//! **The leaf's side is its box.** Its hash-consing table is the DAG
+//! its replay built and its roots are the decisions it asked a plain
+//! form of; a drive-memo hit changes how much of that closure the walk
+//! WALKS but not what is in it, which is why the count is taken over
+//! the table and not over `Session::forms`.
+//!
+//! **The drive's side is the drive's.** By the argument this header
+//! opens with, a node's plain form — and therefore the budget's
+//! verdict on it — is a function of its id, so every leaf that
+//! computes a node freezes it or none does and the set says nothing
+//! about who got there first.
+//!
+//! **The set is complete when the leaf reads it.** Take a frozen node
+//! in the closure. Either this leaf computed it, froze it and
+//! published — the count is taken after the leaf's own publish — or it
+//! took a form for that node or for an ancestor, and the leaf that
+//! published that form published its freezes in the same call:
+//! [`DriveMemo::publish`] takes ONE write lock for the whole
+//! publication, so no reader sees a form without the freezes that came
+//! with it, and the induction carries through a publisher that was
+//! itself served by an earlier one. (The order inside that lock is a
+//! separate promise, for poison recovery; [`DriveMemo::read`] is where
+//! it is argued.)
+//!
+//! **What the leaf cannot resolve is counted from its TABLE, not from
+//! its walk.** A node absent from the table freezes when the walk
+//! reaches it and that freeze never leaves the leaf — but whether the
+//! walk reaches it is this memo's business, because a hit at a
+//! recorded ancestor skips the subtree under it. Counting the freezes
+//! made would therefore read 1 when the leaf ran first and 0 when it
+//! ran after a leaf that recorded the node, with every decision
+//! standing still; counting the ids the table does not hold
+//! (`Session::foreign`) reads the same in both orders, because the
+//! table is the leaf's own. The freezes it could not publish are
+//! unioned in beside them, so a node another leaf froze and published
+//! is counted once however the two ran.
+//!
+//! **What is left is one reading, and it is the schedule's.** A freeze
+//! the TAINT caused — a recorded node whose form the leaf built out of
+//! an unrecorded one, which fits the budget for a leaf that records
+//! that node and does not for this one — is in no drive's set and is
+//! not in the leaf's table either, so it is counted exactly where the
+//! walk made it, which a hit above it can take away. Both readings are
+//! true of what the leaf did: in the second order its reasoning really
+//! is the stronger one this header calls sound but not
+//! order-independent. The row that pins the reading is `geom-core`'s
+//! `sym_drive_memo::a_taint_induced_freeze_under_a_hit_is_read_by_order`
+//! and the residue is
+//! `work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order`;
+//! the branch itself is pinned at zero over every drive measured
+//! (`editor-core`'s
+//! `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`, five
+//! drives), because a drive mints every node inside its own session.
+//!
 //! # What it holds, and what it does not
 //!
 //! The plain forms, the `AtomInfo`s the plain walk minted for them, and
@@ -188,6 +252,47 @@ impl DriveMemo {
     #[must_use]
     pub fn frozen(&self) -> u64 {
         self.read().frozen.len() as u64
+    }
+
+    /// Whether the drive has frozen nothing at all — the door a leaf
+    /// asks before it walks its own DAG, because a leaf's NEED is zero
+    /// over an empty frozen set whatever the leaf reached.
+    pub(super) fn frozen_is_empty(&self) -> bool {
+        self.read().frozen.is_empty()
+    }
+
+    /// **A leaf's NEED**: the DISTINCT nodes of the drive's frozen set
+    /// that lie in `reached` — the plain closure of the leaf's own walk
+    /// roots — TOGETHER WITH the freezes the leaf could not publish
+    /// (`unpublished`, which the closure contains). The header argues
+    /// why that number is the same under every schedule;
+    /// `super::leaf_need` builds both sets.
+    ///
+    /// A union, counted without materialising one: the drive's side is
+    /// walked from the FROZEN end, which is the smaller of the two on
+    /// every document measured (1,044 ids against a 17,624-node closure
+    /// on the plate), and the leaf's own side counts only what the
+    /// drive's does not already hold. That choice is a rounding error
+    /// in the column's cost and is made because it is also the simpler
+    /// code: measured over a 48-leaf plate drive, the whole column
+    /// costs 222 ms and this counting is 1.2 ms of it — what a leaf's
+    /// NEED actually pays for is `Session::closure`, which materialises
+    /// the walk it counts over.
+    ///
+    /// Both counts under ONE read lock, so the two halves are read
+    /// against one state of the memo rather than two.
+    pub(super) fn need(&self, reached: &IdSet, unpublished: &IdSet) -> u64 {
+        let inner = self.read();
+        let shared = inner
+            .frozen
+            .keys()
+            .filter(|id| reached.contains_key(id))
+            .count();
+        let own = unpublished
+            .keys()
+            .filter(|id| !inner.frozen.contains_key(id))
+            .count();
+        (shared + own) as u64
     }
 
     /// What the memo came to at the drive's end.

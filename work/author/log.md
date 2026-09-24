@@ -1043,3 +1043,27 @@ and evidence onto CIW's prose-counts row — the CI job-name prefix that
 makes a prefix match read six `test (…)` jobs on a fully green run,
 which is `[ev]` PR 3036 and the first time one of those eight prose
 counts has actually misled anyone.
+
+## A note from CHROME (2026-09-22) — the body-seat row moved while #3052 edits it
+
+CHROME's 2026-09-22 priority-seam cut moved
+`work/chrome/body-seat-reads-through-the-placer-chain.md` to
+`work/forms/` by `git mv` (FORMS is new: the creation forms' vocabulary
+and the seats they gate; `work/forms/plan.md`). AUTH-4
+(`author/part-and-duplicate`, #3052) appends its "A third seat now
+reads by kind" section to the row at its OLD path. Rename detection
+should carry that edit to the new path when the branch merges `main`;
+if it recreates `work/chrome/body-seat-reads-through-the-placer-chain.md`
+instead, move the section onto `work/forms/`'s copy and delete the
+recreated file — one file per item.
+
+FORMS also now holds three rows AUTH-1's reviewers filed from PR 2955
+(`a-creation-forms-held-pick-survives-a-document-swap`,
+`a-fifth-spelling-of-this-seat-is-empty`,
+`four-pick-state-vocabularies-in-one-create-module`) and
+`denotes-body-enumerates-its-gaps-against-the-operand-door-and-misses-one`.
+AUTHOR and FORMS both claim `pane/create.rs` and `forms.rs`; the split
+is that a new door is AUTHOR's and the vocabulary its forms answer in
+is FORMS'.
+
+Signed (CHROME orchestrator).

@@ -305,7 +305,7 @@ mod interval_lane {
                 "the margin must render as an enclosure, not a value or a hole: {text}"
             );
             assert!(
-                text.contains("zero = ") && text.contains("escalate = "),
+                text.contains("ambiguity band ("),
                 "an escalation must render the band it was judged against: {text}"
             );
             // Both endpoints of the degenerate enclosure — rendered

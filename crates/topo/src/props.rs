@@ -341,8 +341,27 @@ pub(crate) fn mass_properties_with<T: Decide>(
     tol: Tol,
     quad: Option<QuadLane<T>>,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
-    mass_properties_impl(body, &faces, band, &reporting_hook(quad), tol)
+    let faces = crate::query::all_faces(body);
+    mass_properties_of(body, &faces, band, tol, quad)
+}
+
+/// [`mass_properties_with`] restricted to `faces` — the same lane at
+/// the same level, summed over exactly the faces named and in the order
+/// given. [`mass_properties_with`] is this door over the face arena, so
+/// a caller handing the whole arena pays it term for term.
+///
+/// [`sign_certified`]'s reporting-level twin, for the doors that
+/// dispatch through the scalar's own lane instead of certifying: tier
+/// 3's check 7 asks it about ONE solid's faces, because a body's total
+/// volume is a sum and a sum hides a sign.
+pub(crate) fn mass_properties_of<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+    tol: Tol,
+    quad: Option<QuadLane<T>>,
+) -> Result<MassProperties<T>, MassPropsError> {
+    mass_properties_impl(body, faces, band, &reporting_hook(quad), tol)
 }
 
 /// **The hook at the REPORTING level, one home**: the lane the caller
@@ -443,21 +462,39 @@ fn certified_hook<T: Decide + geom_core::CertifiedBounds>(
 /// unconditionally, so there is no undecided state for a caller to
 /// forget: the type has no arm for one.
 ///
+/// **The subject is `faces`, and it is an argument.** An enclosure is
+/// a claim about whatever its faces bound, so a caller asking whether
+/// ONE solid's volume is positive, or whether one shell bounds
+/// material or a cavity, is asking a question no other solid's faces
+/// enter — [`classify_shells_of`]'s argument, made at SIGN level
+/// instead of at the reporting one. Handing the face arena in arena
+/// order is the whole-body walk, term for term and round for round;
+/// the restriction is which faces are visited and nothing else.
+///
+/// **This family is a single door where its three neighbours are
+/// pairs** — [`mass_properties_with`]/[`mass_properties_of`],
+/// [`mass_properties_closed_form`]/[`mass_properties_closed_form_of`],
+/// [`classify_shells`]/[`classify_shells_of`] each keep a whole-body
+/// wrapper beside the restricted spelling, and this one has none. That
+/// is deliberate: the only caller certifies per solid, so a wrapper
+/// handing [`crate::query::all_faces`] would be dead code carrying a
+/// whole-body claim nothing exercises.
+///
 /// # Errors
 ///
 /// [`MassPropsError`], as [`mass_properties`].
 pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds, V>(
     body: &'b Body<T>,
+    faces: &[FaceKey],
     band: Band,
     tol: Tol,
     settle: impl Fn(VolumeEnclosure<T>) -> Option<V>,
     last_word: impl Fn(Option<MassPropsError>) -> V,
 ) -> Result<(V, SignCertificate<'b, T>), MassPropsError> {
     // Round 0 over every face, then the rounds after it over the faces
-    // still open — both idiom 1 into arena-order slots, both composed
-    // sequentially in that order ([`mass_properties_impl`]'s note).
-    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
-    let mut runs = decide_faces(&faces, |&face_key| {
+    // still open — both idiom 1 into slots in the caller's order, both
+    // composed sequentially in it ([`mass_properties_impl`]'s note).
+    let mut runs = decide_faces(faces, |&face_key| {
         face_flux(
             body,
             face_key,
@@ -634,7 +671,65 @@ impl<T: Decide + geom_core::CertifiedBounds> fmt::Debug for SignCertificate<'_, 
     }
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> SignCertificate<'_, T> {
+impl<'b, T: Decide + geom_core::CertifiedBounds> SignCertificate<'b, T> {
+    /// **The body's certificate, assembled from its parts'** — the
+    /// runs of certificates taken over disjoint face sets, re-ordered
+    /// into FACE-ARENA order.
+    ///
+    /// Arena order is the vocabulary every claim on this type is stated
+    /// in: [`SignCertificate`]'s refusal rule names the first refusing
+    /// face in it, and [`Self::refine_to_target`]'s bit-identity with
+    /// [`mass_properties`] is identity of the same terms summed in it.
+    /// So the parts are re-ordered rather than concatenated, and a
+    /// single part covering the whole arena — which is what a body
+    /// holding one solid hands here — comes back unchanged, run for
+    /// run and round for round.
+    ///
+    /// # Panics
+    ///
+    /// When the parts do not cover the face arena exactly once — and
+    /// all three ways of failing that are separate reads, because two
+    /// of them cancel in any one of the others. A face handed in twice
+    /// raises the count handed in above the count placed; a face no
+    /// solid of `body` owns is left over; and a face NO part named is
+    /// neither, so the count of placed runs is read against the arena's
+    /// own length, which is the only thing a subset walk disagrees
+    /// with. Every caller partitions the arena by an ownership relation
+    /// tier 1 has already validated, so a gap is a bug in the
+    /// composition above rather than a body state (D9's bug-state
+    /// half).
+    pub(crate) fn assembled(body: &'b Body<T>, band: Band, tol: Tol, parts: Vec<Self>) -> Self {
+        let mut by_face: slotmap::SecondaryMap<FaceKey, FaceRun<T>> = slotmap::SecondaryMap::new();
+        let mut handed = 0usize;
+        for part in parts {
+            for run in part.runs {
+                handed += 1;
+                by_face.insert(run.face, run);
+            }
+        }
+        let runs: Vec<FaceRun<T>> = body
+            .faces
+            .iter()
+            .filter_map(|(face_key, _)| by_face.remove(face_key))
+            .collect();
+        assert!(
+            handed == runs.len() && by_face.is_empty() && runs.len() == body.faces.len(),
+            "a sign certificate assembled from parts that do not partition the face arena: \
+             {handed} runs handed in, {} of them in the arena of {}, {} left over",
+            runs.len(),
+            body.faces.len(),
+            by_face.len(),
+        );
+        let refused = fold_runs(&runs).1;
+        Self {
+            body,
+            band,
+            tol,
+            runs,
+            refused,
+        }
+    }
+
     /// The certified volume bracket and its lever, at the round the
     /// walk stopped on.
     #[must_use]
@@ -802,7 +897,7 @@ pub(crate) fn mass_properties_closed_form<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<MassProperties<T>, MassPropsError> {
-    let faces: Vec<FaceKey> = body.faces.iter().map(|(face_key, _)| face_key).collect();
+    let faces = crate::query::all_faces(body);
     mass_properties_closed_form_of(body, &faces, band, tol)
 }
 
@@ -3468,6 +3563,69 @@ mod face_list_door_tests {
                 listed.surface_area.to_bits(),
                 whole.surface_area.to_bits(),
                 "{name}"
+            );
+        }
+    }
+
+    /// **The body certificate assembled from PER-SOLID parts is
+    /// bitwise the whole-body read** — check 7 certifies one solid at a
+    /// time and [`SignCertificate::assembled`] re-orders those parts
+    /// into arena order, so the continuation has to land on
+    /// [`crate::mass_properties`]'s own bits in all four fields. The
+    /// corpus's `pair` and `trio` are the two- and three-solid
+    /// subjects, where the re-ordering does work; the single-solid rows
+    /// are the same claim where the part IS the arena.
+    #[test]
+    fn the_assembled_per_solid_certificate_is_bitwise_the_whole_body_read() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let bodies = corpus();
+        assert_eq!(
+            bodies
+                .iter()
+                .filter(|(_, b)| b.solids().count() > 1)
+                .count(),
+            2,
+            "the claim is about several solids; the corpus must carry some"
+        );
+        for (name, body) in bodies {
+            let parts: Vec<SignCertificate<'_, f64>> = body
+                .solids()
+                .map(|(solid, _)| {
+                    let faces = body
+                        .faces_of_solid(solid)
+                        .expect("a solid the body yielded");
+                    let (positive, part) = sign_certified(
+                        &body,
+                        &faces,
+                        band,
+                        tol,
+                        |e: VolumeEnclosure<f64>| (e.volume_lo > 0.0).then_some(true),
+                        |_| false,
+                    )
+                    .unwrap();
+                    assert!(positive, "{name}: {solid:?} encloses positive volume");
+                    part
+                })
+                .collect();
+            let assembled = SignCertificate::assembled(&body, band, tol, parts)
+                .refine_to_target()
+                .unwrap();
+            let whole = crate::mass_properties(&body, tol).unwrap();
+            assert_eq!(
+                (
+                    assembled.volume.to_bits(),
+                    assembled.surface_area.to_bits(),
+                    assembled.volume_pad.to_bits(),
+                    assembled.area_pad.to_bits()
+                ),
+                (
+                    whole.volume.to_bits(),
+                    whole.surface_area.to_bits(),
+                    whole.volume_pad.to_bits(),
+                    whole.area_pad.to_bits()
+                ),
+                "{name}: the assembled certificate is not the whole-body read"
             );
         }
     }

@@ -111,7 +111,7 @@
 //!
 //! Nothing in `crates/viewer` asks for one on a user's behalf yet —
 //! the affordance is
-//! `work/chrome/certify-affordance-on-the-bounds-panel.md`, and
+//! `work/offer/certify-affordance-on-the-bounds-panel.md`, and
 //! `crates/viewer/tests/docm9_range_vs_probe.rs` (the `interval`
 //! feature) is where the two answers are measured against each other.
 //!
@@ -154,6 +154,14 @@ use pncad::quantity::UnitDef;
 /// consequence of an ancestor's failure, so counting it would make one
 /// failure register as many and make the verdict depend on how deep the
 /// recipe happens to be below the break.
+///
+/// **[`crate::tree::has_faults`] counts a poisoned row, and answers a
+/// different question**: whether the document is building at all — a
+/// boolean, which nothing inflates — where this is a SET whose size
+/// decides whether a value got worse. They disagree about whether
+/// anything is wrong only on a poisoned row whose chain ends at no
+/// failure, which that reading calls not building and over which this
+/// verdict is empty.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Verdict(BTreeSet<RecipeNodeId>);
 
@@ -283,8 +291,8 @@ impl Bounds {
     /// **A bound may be zero or negative, and the render is right about
     /// both.** The rule is that a text reads back as the value, not that
     /// it is non-zero: a bound that IS zero reads `0`, and a sign is not
-    /// a distance ([`crate::readout::REL_TOLERANCE`] is relative to the
-    /// magnitude). This is what stops the rule being
+    /// a distance ([`crate::readout::reads_back`] measures how far a
+    /// text reads FROM the value). This is what stops the rule being
     /// [`crate::scene::DisplayTolerance::render_mm`] with the δ taken
     /// out — δ is strictly positive and a probed field is not.
     ///

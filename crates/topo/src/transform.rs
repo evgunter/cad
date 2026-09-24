@@ -177,48 +177,40 @@ pub enum TransformError {
 impl core::fmt::Display for TransformError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Pcurve { source } => write!(f, "transform pcurve pass: {source}"),
-            Self::Band(e) => write!(f, "transform could not form a band: {e}"),
-            Self::Certify { edge, source } => write!(
-                f,
-                "transform: mapped edge {edge:?} failed re-certification: {source}"
-            ),
+            Self::Pcurve { source } => write!(f, "{source}"),
+            Self::Band(e) => write!(f, "{e}"),
+            Self::Certify { edge, source } => {
+                write!(f, "mapped edge {edge:?} failed re-certification: {source}")
+            }
             Self::NotRigid { check } => write!(
                 f,
-                "transform: the map's linear part is not an isometry at tolerance — \
-                 predicate {check} refused, definitely or in-band"
+                "the map is not rigid at tolerance (check {check}). Recourse: use only a \
+                 rotation and a translation"
             ),
-            Self::NonFiniteMap { check } => write!(
-                f,
-                "transform: the map has a non-finite component — predicate {check} refused"
-            ),
+            Self::NonFiniteMap { check } => {
+                write!(f, "the map has a non-finite component (check {check})")
+            }
             Self::NullScaffold { edge } => write!(
                 f,
-                "transform: edge {edge:?} carries a transient null-scaffold curve; bodies at \
-                 rest never do"
+                "edge {edge:?} carries a transient null-scaffold curve, which a body at rest \
+                 never does"
             ),
             Self::ApproxLaneUnsupported { lane } => write!(
                 f,
-                "transform: an approximating surface's certificate must be re-derived on the \
-                 mapped description and fit, and the {lane} lane has no fit derivation to do \
-                 it with — a certificate is never carried across a geometry change"
+                "an approximating surface cannot be moved on the {lane} lane, which has no \
+                 fit to re-certify it with"
             ),
             Self::ApproxRecertify { source } => write!(
                 f,
-                "transform: re-deriving a mapped approximating surface's certificate refused: \
-                 {source}"
+                "re-certifying a moved approximating surface refused: {source}"
             ),
             Self::NurbsPlaceholder => f.write_str(
-                "transform: a Nurbs surface or carrier is refused, and the refusal is by \
-                 VARIANT: the placeholder payload evaluates to poison, so mapping it would \
-                 launder poison as geometry, but a DESCRIBED net evaluates for real and would \
-                 map exactly — narrowing this arm to the placeholder state is unbuilt work, \
-                 not a property of the geometry",
+                "a spline (NURBS) surface or carrier cannot be transformed yet; there is no \
+                 way through yet",
             ),
-            Self::Corrupt { what } => write!(
-                f,
-                "transform: the body's topology references a missing {what} — a corrupt body"
-            ),
+            Self::Corrupt { what } => {
+                write!(f, "the body references a missing {what} (a corrupt body)")
+            }
         }
     }
 }

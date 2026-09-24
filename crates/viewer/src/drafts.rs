@@ -147,7 +147,7 @@ pub(crate) struct Drafts {
     /// against a second document whose ids coincide. That is true of
     /// [`Self::datum_frame`] and of every other held pick on this
     /// struct, so it is the form's class rather than this seat's:
-    /// `work/chrome/a-creation-forms-held-pick-survives-a-document-swap`
+    /// `work/forms/a-creation-forms-held-pick-survives-a-document-swap`
     /// carries it.
     pub(crate) datum_face: Option<FaceSelection>,
     /// The frame-on-face form's spin, radians — sketch +x's rotation

@@ -828,7 +828,7 @@ gate() {
   # and only the `app`-gated ones (which drag ~140 eframe/wgpu crates in)
   # are skipped. Ev's viewer-CI-posture ruling, 2026-08-27, recorded in the
   # closed GUI program's log, which left the tracker with that program's
-  # directory in DOC-LEDGER sweep 5 and reads at
+  # directory and reads at
   # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`;
   # the caller decides, this script only obeys, and the
   # hosted caller passes the flag off the change filter's seed-keyed

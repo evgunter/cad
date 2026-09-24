@@ -2,10 +2,13 @@
 id: loft-anchors-every-section-with-section-zeros-map
 kind: issue
 title: wire_loft anchors the whole emitted name table on section 0's LoopAnchor, so a section authored rotated or reversed relative to section 0 is named by section 0's permutation
-status: open
+status: review
 opened: 2026-09-16
 priority: P0
 cost: H
+branch: emit/loft-anchors
+pr: 3102
+needs_ev: true
 ---
 
 Filed by EDIT's DM8 unit

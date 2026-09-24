@@ -369,7 +369,7 @@ fn hollow_wall_and_shared_refusal_doors() {
         TubeError::WallGapCollapsed { eps: 1e-9 },
     ] {
         let msg = e.to_string();
-        assert!(msg.starts_with("tube_along_arc_hollow: "), "{msg}");
+        assert!(msg.starts_with("the hollow tube's "), "{msg}");
     }
 
     // The solid door's own doors, unchanged through the hollow one.

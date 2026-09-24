@@ -7,11 +7,13 @@ tree it repairs.
 
 ## 1. A unit that closes a hand-written mirror mints a fresh one inside its own fix
 
-**Five instances across four of the five units run so far — TINT-5
-produced two. The outside reader caught four of them;
-the fifth was caught by a sibling lane's base merge. Every spec that
-warned against the trap got the warning obeyed and the trap sprung
-anyway, one shape sideways.**
+**Seven instances across five of the six units run so far — TINT-5
+produced two and TINT-6 produced six at once. The outside reader caught
+four; a sibling lane's base merge caught one; and on TINT-6 **the lane
+caught its own, all six, before it pushed**. Every spec that warned
+against the trap got the warning obeyed and the trap sprung anyway, one
+shape sideways — until a lane stopped relying on the warning and read
+its own diff cold instead.**
 
 **TINT-1** (`assert_f6` ban lists). The spec devoted a section to
 refusing a source-scanning census because it would mint an instance of
@@ -67,7 +69,25 @@ detection in this program that no amount of reviewing would have
 produced: neither unit's diff contains the defect — it exists only in
 their union, and only after both landed.
 
-**What did work, four times out of five: a reader who did not write the fix.** That
+**TINT-6** (the interrogate ladder), and this one breaks the pattern.
+The lane minted six: a `READ_DOORS` table typing each door's NAME as a
+string beside its path — TINT-1's exact defect, in the unit that
+inherits TINT-1's mechanism; a hand-written array length plus two prose
+sentences restating it, **in the unit whose subject is a header that
+counted and counted wrong**; a helper shadowing a fixture of the same
+name in the same file; an `assert_ne!` over two `&'static str`s, fixed
+at compile time; a doc citing `work/tint` by a path that is deleted when
+the program closes — TINT-4's dangling-citation shape; and "two of its
+arms' payloads" where there is one arm and two payloads.
+
+**All six were caught by the lane, not the reviewer**, on two cold reads
+of its own diff — three on the first pass and three more on a second
+read taken off `git diff --cached`. That the second read found as many
+as the first is the part worth keeping: one pass is not the method, two
+passes at different framings is.
+
+**What did work, four times out of five, and what finally worked once
+without one: a reader who did not write the fix.** That
 is `docs/prompts/reviewer-style-lane.md` §1's standing claim
 (*"Only a reader who did not write the fix has ever caught it, which is
 you"*), and this program has now paid for it on four of the five units it

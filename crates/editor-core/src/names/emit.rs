@@ -34,35 +34,35 @@ use crate::node::RecipeNodeId;
 /// 3. An ambient tolerance no discriminator can be built from:
 ///    [`Self::Band`], whose own doc draws the line the two below
 ///    stand on — *nothing about the result body is wrong here*.
-/// 4. A MISSING RULE: [`Self::SeamVertexParentage`] and
-///    [`Self::SharedRim`], reached from recipes nothing is wrong with,
+/// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
+///    [`Self::SharedRim`], [`Self::MergedChord`] and
+///    [`Self::MergedChordOffRim`], reached from recipes nothing is wrong with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
 ///    because telling an author to file a kernel bug over their own
 ///    legal document fails in the expensive direction.
 ///
-/// **The categories are not uniformly readable off the opening words,
-/// and the exceptions are named.** Two framings are written once each
-/// — [`EMISSION_FRAMING`] and [`UNRULED_FRAMING`] — and they cover
-/// category 4 completely and category 1 only in part: [`Self::Emission`],
-/// [`Self::SplitLineage`] and [`Self::FragmentLineage`] speak the
-/// emission framing, while [`Self::Duplicate`], [`Self::Unnamed`] and
-/// [`Self::MissingUpstream`] are emission bugs too and each has its own
-/// older sentence, as do categories 2 and 3. So a reader can tell a
-/// MISSING RULE from everything else by the first clause — the
-/// distinction this list exists to make — and cannot read category 1
-/// off it. That residue is
-/// `work/wire/three-emission-bugs-do-not-speak-the-framing-written-once-for-them.md`.
+/// **Two of the four categories are readable off the opening words.**
+/// Two framings are written once each — [`EMISSION_FRAMING`] and
+/// [`UNRULED_FRAMING`] — and each opens every refusal of its category:
+/// every category-1 variant opens with the emission framing, every
+/// category-4 variant with the missing-rule one. Categories 2 and 3
+/// each have one variant and a sentence of their own, and borrow
+/// neither framing. So a reader tells a kernel bug from a MISSING RULE
+/// from everything else by the clause a refusal opens with: the first
+/// clause of this type's `Display`, which the node-level refusal
+/// (`NodeErrorKind::Naming`) renders after its own `name emission
+/// failed: `.
 ///
 /// What is machine-checked, measured rather than asserted — by adding
 /// a probe variant and watching what each guard did.
 /// `display_tests`' `every_variant_names_its_subject` maps every
 /// variant to its framing through an exhaustive match, so a new variant
-/// must CHOOSE a category to compile, and asserts each sample speaks
-/// that framing and not the other's. Its coverage check compares
-/// sampled indices against `0..rows.len()`, which catches a row deleted
-/// from the middle and **stays green for a variant appended past the
-/// end** — measured. `crates/editor-core/tests/display_contract.rs`'s
+/// must CHOOSE a category to compile, and asserts each sample OPENS
+/// with that framing and does not speak the other's. Its coverage
+/// check compares sampled indices against `0..rows.len()`, which
+/// catches a row deleted from the middle and **stays green for a
+/// variant appended past the end** — measured. `crates/editor-core/tests/display_contract.rs`'s
 /// `NAMING_ERROR` census closes exactly that: the `f6_variants!` ident
 /// list writes the wildcard-free `match` AND the roster, so the probe
 /// stops that file compiling, the only fix is to add the ident, adding
@@ -216,6 +216,33 @@ pub enum NamingError {
         /// What the walk found instead of one edge.
         found: RimShare,
     },
+    /// A boolean's chord between two MERGED faces that no rule names.
+    ///
+    /// Each merged face has a constituent on both sides, so the faces
+    /// do not say which side the chord belongs to. The rule that exists
+    /// reads the chord through to the side its own key descends to and
+    /// names it as the rim that side's two constituents share — when
+    /// the chord lies within that rim, which is checked geometrically
+    /// (`emit_topo`'s `chord_on_rim`). This is the refusal for a chord
+    /// with no key side to read through to: a zip-listed edge, which
+    /// the join minted. It does not say the body is wrong; what is
+    /// missing is a rule for the chord.
+    MergedChord {
+        /// The result-body edge.
+        edge: EdgeKey,
+    },
+    /// A boolean's chord between two MERGED faces that does not lie
+    /// within the rim its key's side reads it through to — the other
+    /// case [`Self::MergedChord`]'s rule does not cover, a sibling word
+    /// because its subject carries the offered rim as well.
+    MergedChordOffRim {
+        /// The result-body edge.
+        edge: EdgeKey,
+        /// The operand node whose body holds `rim`.
+        node: RecipeNodeId,
+        /// The rim the read-through offered, in that operand's body.
+        rim: EdgeKey,
+    },
     /// The N2 classification band could not be built from the ambient
     /// tolerance, so no discriminator below it can be decided.
     ///
@@ -240,20 +267,20 @@ pub enum NamingError {
     },
 }
 
-/// **The one sentence every emission-inconsistency refusal opens
-/// with**, written once. THREE variants speak it —
-/// [`NamingError::Emission`] with a fact, [`NamingError::SplitLineage`]
-/// with the record it caught, [`NamingError::FragmentLineage`] with the
-/// face — and a reworded copy would let refusals of one category read as
-/// several.
-///
-/// **It is not spoken by every variant of that category.**
-/// [`NamingError::Duplicate`], [`NamingError::Unnamed`] and
-/// [`NamingError::MissingUpstream`] are emission bugs too and each has
-/// its own older sentence, so "which category" cannot be read off the
-/// opening words for those three. That residue is
-/// `work/wire/three-emission-bugs-do-not-speak-the-framing-written-once-for-them.md`.
-const EMISSION_FRAMING: &str = "a mint-time emission fact was inconsistent with the result body";
+/// **The one sentence every emission-bug refusal opens with**, written
+/// once, and true of each of them: every category-1 variant of
+/// [`NamingError`] reports an invariant the emitter relies on — its own
+/// injectivity and totality, an upstream table's totality, a mint-time
+/// fact's consistency with the body, an acyclic lineage — found broken.
+/// Each speaks it followed by what it caught —
+/// [`NamingError::Duplicate`] the name minted twice,
+/// [`NamingError::Unnamed`] the entity left uncovered,
+/// [`NamingError::MissingUpstream`] the upstream table that missed,
+/// [`NamingError::Emission`] a fact, [`NamingError::SplitLineage`] the
+/// record it caught, [`NamingError::FragmentLineage`] the face — and a
+/// reworded copy would let refusals of one category read as several.
+const EMISSION_FRAMING: &str =
+    "name emission found a kernel bug — an invariant it relies on does not hold";
 
 /// **The one sentence every missing-rule refusal opens with**, written
 /// once, and deliberately NOT a reworded copy of [`EMISSION_FRAMING`]:
@@ -305,19 +332,19 @@ impl core::fmt::Display for NamingError {
             // from every other name the node minted.
             Self::Duplicate { name } => write!(
                 f,
-                "the {name} (role path {:?}) was minted twice — names alias silently only \
-                 over the kernel's dead body",
+                "{EMISSION_FRAMING}: the {name} (role path {:?}) was minted twice — names \
+                 alias silently only over the kernel's dead body",
                 name.path
             ),
             Self::Unnamed { kind, body } => write!(
                 f,
-                "a live {} of output body {body} was left unnamed — a kernel-emission \
-                 gap, not a naming choice",
+                "{EMISSION_FRAMING}: a live {} of output body {body} was left unnamed",
                 kind.noun()
             ),
             Self::MissingUpstream { node } => write!(
                 f,
-                "the name table of upstream node {} lacks an entity the emission needed",
+                "{EMISSION_FRAMING}: the name table of upstream node {} lacks an entity the \
+                 emission needed",
                 node.0
             ),
             Self::Emission { what } => write!(f, "{EMISSION_FRAMING}: {what}"),
@@ -357,10 +384,22 @@ impl core::fmt::Display for NamingError {
                  exactly one",
                 node.0
             ),
+            Self::MergedChord { edge } => write!(
+                f,
+                "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces and is \
+                 the join's own edge, so neither face nor key says which operand's rim it is"
+            ),
+            Self::MergedChordOffRim { edge, node, rim } => write!(
+                f,
+                "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces, and \
+                 does not lie within the rim {rim:?} of operand node {}'s body its key reads \
+                 through to",
+                node.0
+            ),
             Self::Band(error) => write!(
                 f,
-                "the N2 classification band could not be built from the ambient tolerance, so \
-                 no discriminator below it can be decided: {error}"
+                "the naming band could not be built from the ambient tolerance, so no \
+                 name can be decided: {error}"
             ),
             Self::Escalated { predicate, source } => write!(
                 f,
@@ -1445,6 +1484,20 @@ mod display_tests {
                 vec![face0.as_str(), face1.as_str(), "23", "more than one edge"],
             ),
             (
+                NamingError::MergedChord {
+                    edge: two_edges().0,
+                },
+                vec!["merged faces", "the join's own edge"],
+            ),
+            (
+                NamingError::MergedChordOffRim {
+                    edge: two_edges().0,
+                    node: RecipeNodeId(29),
+                    rim: two_edges().1,
+                },
+                vec!["merged faces", "29", "does not lie within"],
+            ),
+            (
                 // The band's subject is the pair of thresholds that
                 // could not separate: which end of the axis the ambient
                 // tolerance landed on is what tells the reader whether
@@ -1471,17 +1524,17 @@ mod display_tests {
         // into one of them reds.
         let expected_framing = |err: &NamingError| -> Option<&'static str> {
             match err {
-                NamingError::Emission { .. }
-                | NamingError::SplitLineage(_)
-                | NamingError::FragmentLineage { .. } => Some(EMISSION_FRAMING),
-                NamingError::SeamVertexParentage { .. } | NamingError::SharedRim { .. } => {
-                    Some(UNRULED_FRAMING)
-                }
                 NamingError::Duplicate { .. }
                 | NamingError::Unnamed { .. }
                 | NamingError::MissingUpstream { .. }
-                | NamingError::Band(_)
-                | NamingError::Escalated { .. } => None,
+                | NamingError::Emission { .. }
+                | NamingError::SplitLineage(_)
+                | NamingError::FragmentLineage { .. } => Some(EMISSION_FRAMING),
+                NamingError::SeamVertexParentage { .. }
+                | NamingError::SharedRim { .. }
+                | NamingError::MergedChord { .. }
+                | NamingError::MergedChordOffRim { .. } => Some(UNRULED_FRAMING),
+                NamingError::Band(_) | NamingError::Escalated { .. } => None,
             }
         };
         let sampled = |err: &NamingError| -> usize {
@@ -1495,7 +1548,9 @@ mod display_tests {
                 NamingError::FragmentLineage { .. } => 6,
                 NamingError::SeamVertexParentage { .. } => 7,
                 NamingError::SharedRim { .. } => 8,
-                NamingError::Band(_) => 9,
+                NamingError::MergedChord { .. } => 9,
+                NamingError::MergedChordOffRim { .. } => 10,
+                NamingError::Band(_) => 11,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
@@ -1525,7 +1580,7 @@ mod display_tests {
             };
             if let Some(f) = mine {
                 assert!(
-                    shown.contains(f),
+                    shown.starts_with(&format!("{f}: ")),
                     "{err:?} does not open with its framing: {shown}"
                 );
             }
@@ -1577,7 +1632,7 @@ mod display_tests {
     fn the_framings_are_the_sentences_they_are_written_as() {
         assert_eq!(
             EMISSION_FRAMING,
-            "a mint-time emission fact was inconsistent with the result body"
+            "name emission found a kernel bug — an invariant it relies on does not hold"
         );
         assert_eq!(
             UNRULED_FRAMING,
@@ -1600,29 +1655,12 @@ mod display_tests {
     /// each is speaking about its own premise.
     ///
     /// The control is the pair that DOES share one rim: without it this
-    /// row would pass if the walk had stopped finding rims at all.
+    /// row would pass if the walk had stopped finding rims at all. The
+    /// corruption the walk does refuse is driven hop by hop in
+    /// `walk_tests`.
     #[test]
-    fn the_rim_walk_reports_cardinality_and_refuses_only_corruption() {
-        use geom_core::Point2;
-        use profile::RawLoop;
-        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
-            geom_core::Point3::new(0.0, 0.0, 0.0),
-        ));
-        let square = profile::ProfileLoop::polygon(
-            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
-                .into_iter()
-                .map(|(x, y)| Point2::new(x, y)),
-        );
-        let prof = profile::Profile::new(plane, vec![square])
-            .validate(geom_core::Tol::witness())
-            .expect("a unit square validates");
-        let cube = sweep::extrude(
-            &prof,
-            sweep::Extrusion::Distance(1.0_f64),
-            geom_core::Tol::witness(),
-        )
-        .expect("a unit cube extrudes");
-        topo::validate_closed(&cube.body).expect("the cube is a sound closed body");
+    fn the_rim_walk_reports_cardinality_as_a_fact() {
+        let cube = super::walk_tests::cube();
 
         let wall = cube.side_faces[0][0];
         let Rim::One(rim) = rim_between(&cube.body, cube.top, wall)
@@ -1684,6 +1722,202 @@ mod display_tests {
         assert!(
             shown.contains("split naming across boolean-minted faces"),
             "the emitter's diagnostic must reach Display consumers: {shown}"
+        );
+    }
+}
+
+/// **Each hop of the hand-written walks refuses in its own words**,
+/// driven through a real body with that hop's entity removed
+/// (`Body::with_entity_removed_for_tests`, `topo`'s `sweep-testing`
+/// failure-injection door) and asserted by the sentence it refuses with.
+///
+/// The walks: [`rim_between`] and `emit_topo`'s `chord_faces` (half-edge
+/// → mate → mate's loop → face), [`face_half_edges`] (face → loop →
+/// cycle) and [`edge_ends`] (edge → half-edge → end).
+/// `topo::Body::face_of_half_edge` answers the last two hops of the first
+/// two walks as one `None`, so a walk folded onto it names one hop where
+/// there were two, and the row for the other hop reds.
+#[cfg(test)]
+mod walk_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use std::collections::BTreeSet;
+
+    use topo::EntityId;
+    use topo::splitting::PlaneSide;
+
+    use super::*;
+    use crate::names::emit_topo::chord_faces;
+
+    /// A unit cube that `topo::validate_closed` accepts.
+    pub(super) fn cube() -> sweep::Extruded<f64> {
+        use geom_core::Point2;
+        use profile::RawLoop;
+        let plane = profile::SketchPlane::from_frame(geom_core::OrthoFrame::axes_xy(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+        ));
+        let square = profile::ProfileLoop::polygon(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                .into_iter()
+                .map(|(x, y)| Point2::new(x, y)),
+        );
+        let prof = profile::Profile::new(plane, vec![square])
+            .validate(geom_core::Tol::witness())
+            .expect("a unit square validates");
+        let cube = sweep::extrude(
+            &prof,
+            sweep::Extrusion::Distance(1.0_f64),
+            geom_core::Tol::witness(),
+        )
+        .expect("a unit cube extrudes");
+        topo::validate_closed(&cube.body).expect("the cube is a sound closed body");
+        cube
+    }
+
+    /// The cube's top cap, one wall, and the rim between them: the rim
+    /// edge and its half in the wall.
+    struct Rim1 {
+        cube: sweep::Extruded<f64>,
+        top: FaceKey,
+        wall: FaceKey,
+        mate: HalfEdgeKey,
+        edge: EdgeKey,
+    }
+
+    fn rim1() -> Rim1 {
+        let cube = cube();
+        let (top, wall) = (cube.top, cube.side_faces[0][0]);
+        let body = &cube.body;
+        let (he, mate) = face_half_edges(body, top)
+            .unwrap()
+            .into_iter()
+            .map(|he| (he, body.mate(he).unwrap()))
+            .find(|&(_, m)| body.face_of_half_edge(m) == Some(wall))
+            .expect("a cap and a wall of a box share a rim");
+        let edge = body.get_half_edge(he).unwrap().edge;
+        Rim1 {
+            cube,
+            top,
+            wall,
+            mate,
+            edge,
+        }
+    }
+
+    impl Rim1 {
+        fn body(&self) -> &Body<f64> {
+            &self.cube.body
+        }
+
+        /// The body with `entity` removed and every reference to it
+        /// dangling.
+        fn without(&self, entity: EntityId) -> Body<f64> {
+            self.body()
+                .with_entity_removed_for_tests(entity)
+                .expect("the removed entity is live")
+        }
+
+        /// The wall's loop, which the rim's mate half-edge names.
+        fn wall_loop(&self) -> EntityId {
+            EntityId::Loop(self.body().get_half_edge(self.mate).unwrap().parent_loop)
+        }
+    }
+
+    /// The sentence a walk refused with.
+    fn refusal<V>(walk: &str, r: Result<V, NamingError>) -> &'static str {
+        match r {
+            Err(NamingError::Emission { what }) => what,
+            Err(other) => panic!("{walk}: wanted an emission refusal, got {other}"),
+            Ok(_) => panic!("{walk}: a body with a dangling link must refuse"),
+        }
+    }
+
+    #[test]
+    fn the_rim_walk_refuses_each_hop_in_its_own_words() {
+        let r = rim1();
+        match rim_between(r.body(), r.top, r.wall) {
+            Ok(Rim::One(e)) => assert_eq!(e, r.edge, "the control finds the rim"),
+            _ => panic!("a cap and a wall of a sound box share exactly one rim"),
+        }
+        let walk = |body: &Body<f64>| refusal("rim_between", rim_between(body, r.top, r.wall));
+        // The half-edge's edge is gone: it has no mate.
+        assert_eq!(
+            walk(&r.without(EntityId::Edge(r.edge))),
+            "rim walk: unmated half-edge"
+        );
+        // The mate is named but gone: the first hop.
+        assert_eq!(
+            walk(&r.without(EntityId::HalfEdge(r.mate))),
+            "rim walk: dangling mate"
+        );
+        // The mate is live and its loop is gone: the second hop.
+        assert_eq!(walk(&r.without(r.wall_loop())), "rim walk: dangling loop");
+    }
+
+    #[test]
+    fn the_chord_walk_refuses_each_hop_in_its_own_words() {
+        let r = rim1();
+        let sections = [(r.top, PlaneSide::Above)];
+        let keys = BTreeSet::from([r.top]);
+        let control = chord_faces(r.body(), &sections, &keys).unwrap();
+        assert_eq!(
+            control.get(&r.edge),
+            Some(&r.wall),
+            "the control carries the rim edge to the wall across it"
+        );
+        let walk = |body: &Body<f64>| refusal("chord_faces", chord_faces(body, &sections, &keys));
+        assert_eq!(
+            walk(&r.without(EntityId::Edge(r.edge))),
+            "chord mate missing"
+        );
+        assert_eq!(
+            walk(&r.without(EntityId::HalfEdge(r.mate))),
+            "chord mate dangling"
+        );
+        assert_eq!(walk(&r.without(r.wall_loop())), "chord loop dangling");
+    }
+
+    #[test]
+    fn the_face_walk_refuses_each_hop_in_its_own_words() {
+        let r = rim1();
+        let hes = face_half_edges(r.body(), r.top).unwrap();
+        assert_eq!(hes.len(), 4, "the control walks the square cap");
+        let walk = |body: &Body<f64>| refusal("face_half_edges", face_half_edges(body, r.top));
+        assert_eq!(
+            walk(&r.without(EntityId::Face(r.top))),
+            "face walk: dangling face"
+        );
+        let outer = r.body().get_face(r.top).unwrap().outer;
+        assert_eq!(
+            walk(&r.without(EntityId::Loop(outer))),
+            "face walk: dangling loop"
+        );
+        // A live loop whose cycle runs through a removed half-edge.
+        assert_eq!(
+            walk(&r.without(EntityId::HalfEdge(hes[1]))),
+            "face walk: unwalkable loop"
+        );
+    }
+
+    #[test]
+    fn edge_ends_refuses_each_hop_in_its_own_words() {
+        let r = rim1();
+        let he_plus = r.body().get_edge(r.edge).unwrap().he_plus;
+        let next = r.body().get_half_edge(he_plus).unwrap().next;
+        let (start, end) = edge_ends(r.body(), r.edge).unwrap();
+        assert_ne!(start, end, "the control reads two ends");
+        let walk = |body: &Body<f64>| refusal("edge_ends", edge_ends(body, r.edge));
+        assert_eq!(
+            walk(&r.without(EntityId::Edge(r.edge))),
+            "edge ends: dangling edge"
+        );
+        assert_eq!(
+            walk(&r.without(EntityId::HalfEdge(he_plus))),
+            "edge ends: dangling he_plus"
+        );
+        assert_eq!(
+            walk(&r.without(EntityId::HalfEdge(next))),
+            "edge ends: he_plus has no end"
         );
     }
 }

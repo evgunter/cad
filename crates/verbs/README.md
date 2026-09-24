@@ -108,7 +108,7 @@ layer whose types it serves (`topo/src/query.rs`):
   ask it, including the ones below this one.
 - **`rim_of(&Body<T>, EdgeKey) -> Result<Vec<EdgeKey>, RimError>`** is a
   fourth EXACT door: the rim an arc belongs to, whole
-  (FILLET-RIM, retired into `docs/DOC-LEDGER.md`). It reads stored tags
+  (built by FILLET-RIM, PR 1821). It reads stored tags
   and stored carrier fields bit for bit, no funnel and no margin — but it
   returns a SET, so it refuses typed at every point a predicate would
   answer NO: an empty set and a partial set are both answers a caller
