@@ -2,10 +2,11 @@
 id: coefficient-ring-width-is-not-monotone-in-reach
 kind: issue
 title: widening the coefficient ring can lose discharges: a frozen node matches itself as one opaque indeterminate, and the same node expanded may not close
-status: open
+status: closed
 opened: 2026-09-14
 priority: P0
 cost: D
+closed: 2026-09-24
 ---
 
 
@@ -236,3 +237,16 @@ CONSTRAINT the ladder respects rather than a defect anything closes —
 the row stays open as the record the next unit that reaches for
 `COEFF_BITS` reads its own split against, which is what it was filed
 as.
+
+## Closed (2026-09-24)
+
+Closed at SYM-9's merge (#3083, into `props/sign-hull`). The row's
+second way to settle it — "the walk keeps an atom opaque where opening
+it buys nothing" — is what shipped: a retry ladder that leaves the first
+attempt exactly as it was and asks a kept-atom attempt only into its
+silence, so the non-monotonicity this row measured can no longer lose
+a discharge. The ring's width stays a dial (`SymRetry::ring`) with its
+table above: at 1024 bits it reaches thirteen bracket decisions the
+kept atom does not, at a price no default pays. A unit that reaches for
+`COEFF_BITS` still owes the full per-document split and the bracket;
+this closed row is the record it reads.

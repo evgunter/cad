@@ -2,12 +2,13 @@
 id: SYM-9
 kind: unit
 title: what a refused decision may retry: the wider ring and the kept atom, measured first on the six documents
-status: review
+status: closed
 opened: 2026-09-14
 branch: sym/9-retry-ladder
 refs: [coefficient-ring-width-is-not-monotone-in-reach]
 priority: P1
 cost: H
+closed: 2026-09-24
 ---
 
 
@@ -67,3 +68,33 @@ two), six registrations on R2's bracket, nothing on the other four.
 `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`
 stays open at P2 for shape 2 (the render). Filed:
 `work/sym/a-retrys-zero-has-no-cross-check-against-the-numeric-channel`.
+
+## Closed (2026-09-24)
+
+Merged as #3083 into `props/sign-hull` (head `32efb3abc`, run
+36026935338). A refused decision may retry on the early, top-residual
+and door rungs, and nothing about the first attempt moves: the drive
+ships `SymRetry::kept_atom()` — rule G shut, then rule A shut — ON by
+default across the 1.6 s line as a disclosed trade, as rule E did (the
+link `[541,0,96,465] → [553,0,96,453]`, twelve theorems, among them the
+ten rule G's default costs its `carrier_on_surface_2`; the bracket six
+registrations; +1.0 s, +2.4 s and +16 s on the three documents already
+over the line). Every rules differential runs at `SymRetry::none()` on
+both sides, so DECIDE-3's gate still records rule G's own trade. The
+dual on `7b3924cf1`: R1 (OPUS) MERGEABLE-AFTER-FIXES 2/7/7, R2 (FABLE)
+MERGEABLE-AFTER-FIXES 1/8/5 — both found, by execution, the ladder
+riding every rules differential; the union fix pass A–U; the delta by
+R1 MERGEABLE with the default reversed (the fix pass had set it to none
+on the orchestrator's leaf-line ruling, a test the base already fails)
+and D1–D4, taken at `32efb3abc`. The spec's sentences that did not
+survive: a retry "on the early and door rungs only" (the top-residual
+rung is retried too); `retry_without` as one mask (two, not composable);
+the dials on `SymBudget` (their own session door); six documents at the
+nominal (five; the pad on the leaf instrument only); "the cost on the
+leaf instrument" read as a gate on the default (it is a disclosure; the
+line was failed by the shipped rules before the ladder). Spec deleted
+with its note (`docs/doc-ledger/sym-9-spec.md`). Rows left open:
+`rule-g-trades-sixteen…` (P2, shape 2's render),
+`the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`,
+`a-retrys-zero-has-no-cross-check-against-the-numeric-channel`,
+`decision-read-triples-the-plate-pin-suites-wall-time` (P2).
