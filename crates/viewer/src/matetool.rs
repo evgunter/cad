@@ -99,6 +99,7 @@ use pncad::select::{
     ContactClass, InterrogateError, Resolution, RoleSeg, RunCtx, face_frame, resolve,
 };
 
+use crate::session::select::resolves;
 use crate::session::{FaceSelection, SessionOp};
 
 /// One contact class and how far the vocabulary carries it — the
@@ -498,7 +499,7 @@ impl MateTool {
         let mut events = Vec::new();
         let mut lost = |side: MateSide, pick: &FaceSelection| -> bool {
             let verdict = resolve(RunCtx { doc, eval }, &pick.name);
-            if matches!(verdict, Resolution::Resolved(_)) {
+            if resolves(&verdict) {
                 false
             } else {
                 events.push(MateToolEvent::PickLost {
@@ -563,10 +564,16 @@ impl MateTool {
         // refuses before any geometry is read, with the kernel's own
         // sentence.
         let admission = class_admission(choice.class);
-        if admission == ClassAdmission::NotAdmitted {
-            return Err(MateToolError::ClassRefused {
-                class: choice.class,
-            });
+        match admission {
+            ClassAdmission::NotAdmitted => {
+                return Err(MateToolError::ClassRefused {
+                    class: choice.class,
+                });
+            }
+            // The solve door takes both; a missing at-rest record is
+            // the mint door's refusal and the tree's caveat, not this
+            // door's.
+            ClassAdmission::Mints | ClassAdmission::NoAtRestRecord { .. } => {}
         }
         // The table door SECOND, still before any geometry: a
         // primitive-and-rider pair the table has no row for is a fact

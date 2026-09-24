@@ -296,6 +296,20 @@ pub enum Standing {
     },
 }
 
+/// **Whether a picked name's verdict still denotes its entity** — the
+/// one reading of a [`Resolution`] every surface that holds a pick
+/// makes: a live selection, an unresolved one, and a mate tool pick
+/// that survives a landing.
+///
+/// A name that no longer denotes and a run that cannot say are both
+/// "no": only a pick that resolves may be acted on.
+pub fn resolves(resolution: &Resolution) -> bool {
+    match resolution {
+        Resolution::Resolved(_) => true,
+        Resolution::Failed(_) | Resolution::Indeterminate(_) => false,
+    }
+}
+
 impl Standing {
     /// Whether the selection denotes something the chrome may edit
     /// against.
@@ -309,7 +323,7 @@ impl Standing {
             Self::Empty => false,
             Self::Node { present, .. } | Self::Param { present, .. } => *present,
             Self::Face { resolution, .. } | Self::Edge { resolution, .. } => {
-                matches!(resolution.as_deref(), Some(Resolution::Resolved(_)))
+                resolution.as_deref().is_some_and(resolves)
             }
         }
     }
@@ -328,7 +342,7 @@ impl Standing {
             | Self::Edge {
                 resolution: Some(resolution),
                 ..
-            } if !matches!(**resolution, Resolution::Resolved(_)) => Some(resolution),
+            } if !resolves(resolution) => Some(resolution),
             _ => None,
         }
     }

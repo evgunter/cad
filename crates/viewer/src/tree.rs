@@ -373,7 +373,34 @@ pub fn frame_pose(node: &Node<ProfileProgram>) -> Option<String> {
             })
         }
         Node::Datum(Datum::FaceFrame { at, .. }) => Some(format!("on {}'s face", node_number(*at))),
-        _ => None,
+        Node::Datum(
+            Datum::Plane { .. }
+            | Datum::Axis { .. }
+            | Datum::Point { .. }
+            | Datum::AxisInPlane { .. },
+        )
+        | Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Split { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Transform { .. }
+        | Node::Pattern { .. }
+        | Node::Part { .. }
+        | Node::PlacedUnion { .. }
+        | Node::Declare { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Mate { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. } => None,
     }
 }
 
@@ -523,9 +550,33 @@ fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
     match node {
         Node::Mate { class, .. } => match pncad::document::class_admission(*class) {
             pncad::document::ClassAdmission::Mints => None,
-            other => Some(format!("{}: {}", class.name(), other.no_record_reason())),
+            caveat @ (pncad::document::ClassAdmission::NoAtRestRecord { .. }
+            | pncad::document::ClassAdmission::NotAdmitted) => {
+                Some(format!("{}: {}", class.name(), caveat.no_record_reason()))
+            }
         },
-        _ => None,
+        Node::Datum(_)
+        | Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Split { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Transform { .. }
+        | Node::Pattern { .. }
+        | Node::Part { .. }
+        | Node::PlacedUnion { .. }
+        | Node::Declare { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. } => None,
     }
 }
 

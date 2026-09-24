@@ -569,7 +569,52 @@ pub fn apply(status: &mut Option<Message>, update: StatusUpdate) {
 /// expression-driven affordance off the screen the instant the mouse
 /// drifts over the viewport.
 pub fn acts(op: &SessionOp) -> bool {
-    !matches!(op, SessionOp::Hover(_))
+    match op {
+        SessionOp::Hover(_) => false,
+        SessionOp::Select(_)
+        | SessionOp::DeleteNode { .. }
+        | SessionOp::SetSlot { .. }
+        | SessionOp::ProbeBounds { .. }
+        | SessionOp::SetSlotUnit { .. }
+        | SessionOp::SetSlotExpression { .. }
+        | SessionOp::SetParam { .. }
+        | SessionOp::SetParamUnit { .. }
+        | SessionOp::SetParamText { .. }
+        | SessionOp::CreateParam { .. }
+        | SessionOp::BeginGesture { .. }
+        | SessionOp::BeginParamGesture { .. }
+        | SessionOp::PreviewGesture { .. }
+        | SessionOp::CommitGesture { .. }
+        | SessionOp::PreviewParamGesture { .. }
+        | SessionOp::CommitParamGesture { .. }
+        | SessionOp::CancelGesture
+        | SessionOp::Undo
+        | SessionOp::Redo
+        | SessionOp::CancelEvaluation
+        | SessionOp::Reevaluate
+        | SessionOp::Open(_)
+        | SessionOp::Save(_)
+        | SessionOp::SetInstanceHidden { .. }
+        | SessionOp::BeginFreeMove { .. }
+        | SessionOp::PreviewFreeMove { .. }
+        | SessionOp::CommitFreeMove { .. }
+        | SessionOp::CancelFreeMove
+        | SessionOp::AddMate { .. }
+        | SessionOp::NewDocument { .. }
+        | SessionOp::AddDatum { .. }
+        | SessionOp::AddProfile { .. }
+        | SessionOp::EditProfile { .. }
+        | SessionOp::AddExtrude { .. }
+        | SessionOp::AddRevolve { .. }
+        | SessionOp::AddBoolean { .. }
+        | SessionOp::AddSplit { .. }
+        | SessionOp::AddTransform { .. }
+        | SessionOp::AddPattern { .. }
+        | SessionOp::AddPlacedUnion { .. }
+        | SessionOp::AddFillet { .. }
+        | SessionOp::AddChamfer { .. }
+        | SessionOp::AddInstance { .. } => true,
+    }
 }
 
 /// The status line after a batch: the refusal worth showing, or the
@@ -2110,9 +2155,43 @@ pub fn creation_offer(refusal: Option<&Refusal>) -> Option<ParamName> {
             // fact about the SOURCE); the offer mints the name the
             // create door would declare.
             ParseError::UnknownParam { name, .. } => Some(ParamName::new(name.as_str())),
-            _ => None,
+            ParseError::UnexpectedChar { .. }
+            | ParseError::UnexpectedEnd { .. }
+            | ParseError::UnexpectedToken { .. }
+            | ParseError::TrailingInput { .. }
+            | ParseError::MalformedNumber { .. }
+            | ParseError::IntegerOverflow { .. }
+            | ParseError::UnknownUnit { .. }
+            | ParseError::UnknownFunction { .. }
+            | ParseError::WrongArity { .. }
+            | ParseError::Dimension { .. } => None,
         },
-        _ => None,
+        None
+        | Some(
+            Refusal::DrivenByExpression { .. }
+            | Refusal::NoSuchSlot { .. }
+            | Refusal::NoSuchParam(_)
+            | Refusal::ParamNotANumber { .. }
+            | Refusal::ParamExists { .. }
+            | Refusal::EmptyName
+            | Refusal::WrongNodeKind { .. }
+            | Refusal::Edit(_)
+            | Refusal::Dimension(_)
+            | Refusal::NoGesture
+            | Refusal::GestureInFlight
+            | Refusal::WrongGesture
+            | Refusal::Io(_)
+            | Refusal::NothingToDo
+            | Refusal::Display(_)
+            | Refusal::SlotUnit(_)
+            | Refusal::NoDocumentDirectory
+            | Refusal::Workspace(_)
+            | Refusal::SelfInstance { .. }
+            | Refusal::ProfileRestructure { .. }
+            | Refusal::ProfileEditOrder { .. }
+            | Refusal::ProfileEditOrderCapped { .. }
+            | Refusal::ProfileEditStale { .. },
+        ) => None,
     }
 }
 
@@ -2130,8 +2209,34 @@ pub fn retype_draft(
     ops: &[SessionOp],
     refusal: Option<&Refusal>,
 ) -> Option<(RecipeNodeId, SlotId, String)> {
-    if !matches!(refusal, Some(Refusal::Parse(_))) {
-        return None;
+    match refusal {
+        Some(Refusal::Parse(_)) => {}
+        None
+        | Some(
+            Refusal::DrivenByExpression { .. }
+            | Refusal::NoSuchSlot { .. }
+            | Refusal::NoSuchParam(_)
+            | Refusal::ParamNotANumber { .. }
+            | Refusal::ParamExists { .. }
+            | Refusal::EmptyName
+            | Refusal::WrongNodeKind { .. }
+            | Refusal::Edit(_)
+            | Refusal::Dimension(_)
+            | Refusal::NoGesture
+            | Refusal::GestureInFlight
+            | Refusal::WrongGesture
+            | Refusal::Io(_)
+            | Refusal::NothingToDo
+            | Refusal::Display(_)
+            | Refusal::SlotUnit(_)
+            | Refusal::NoDocumentDirectory
+            | Refusal::Workspace(_)
+            | Refusal::SelfInstance { .. }
+            | Refusal::ProfileRestructure { .. }
+            | Refusal::ProfileEditOrder { .. }
+            | Refusal::ProfileEditOrderCapped { .. }
+            | Refusal::ProfileEditStale { .. },
+        ) => return None,
     }
     ops.iter().rev().find_map(|op| match op {
         SessionOp::SetSlotExpression { node, slot, text } => Some((*node, *slot, text.clone())),

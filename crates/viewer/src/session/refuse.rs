@@ -75,20 +75,54 @@ pub enum NodeKindWanted {
 /// would then reject.
 pub fn admits(held: Option<&Node<ProfileProgram>>, wanted: NodeKindWanted) -> bool {
     match wanted {
-        NodeKindWanted::Profile => matches!(held, Some(Node::Profile(_))),
-        NodeKindWanted::Axis => matches!(held, Some(Node::Datum(Datum::Axis { .. }))),
-        NodeKindWanted::SketchAxis => {
-            matches!(held, Some(Node::Datum(Datum::AxisInPlane { .. })))
-        }
-        NodeKindWanted::Plane => matches!(held, Some(Node::Datum(Datum::Plane { .. }))),
-        // Both frame kinds: a profile is drawn on a frame VALUE, and a
-        // derived frame evaluates to the same value an authored one
-        // does.
-        NodeKindWanted::Frame => matches!(
-            held,
-            Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
-        ),
         NodeKindWanted::Body => held.is_some_and(combine::denotes_body),
+        NodeKindWanted::Profile
+        | NodeKindWanted::Axis
+        | NodeKindWanted::SketchAxis
+        | NodeKindWanted::Plane
+        | NodeKindWanted::Frame => held.and_then(seat_kind) == Some(wanted),
+    }
+}
+
+/// **Which non-body kind a node is**, or `None` for a node no
+/// profile, axis, plane or frame seat takes — the one classification
+/// [`admits`] reads for every kind but [`NodeKindWanted::Body`], whose
+/// rule is [`combine::denotes_body`]'s.
+fn seat_kind(node: &Node<ProfileProgram>) -> Option<NodeKindWanted> {
+    match node {
+        Node::Profile(_) => Some(NodeKindWanted::Profile),
+        Node::Datum(datum) => match datum {
+            Datum::Axis { .. } => Some(NodeKindWanted::Axis),
+            Datum::AxisInPlane { .. } => Some(NodeKindWanted::SketchAxis),
+            Datum::Plane { .. } => Some(NodeKindWanted::Plane),
+            // Both frame kinds: a profile is drawn on a frame VALUE,
+            // and a derived frame evaluates to the same value an
+            // authored one does.
+            Datum::Frame { .. } | Datum::FaceFrame { .. } => Some(NodeKindWanted::Frame),
+            // No seat asks for a point.
+            Datum::Point { .. } => None,
+        },
+        Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Split { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Transform { .. }
+        | Node::Pattern { .. }
+        | Node::Part { .. }
+        | Node::PlacedUnion { .. }
+        | Node::Declare { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Mate { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. } => None,
     }
 }
 
@@ -768,8 +802,17 @@ pub fn face_frame_seat(
 /// before any value exists. A seat that has an evaluation in hand can
 /// ask the door's own question instead of a predicate that tracks it.
 fn is_one_body(payload: &ValuePayload<f64>) -> bool {
-    matches!(
-        payload,
-        ValuePayload::Body(_) | ValuePayload::Boolean(BooleanValue::Body { .. })
-    )
+    match payload {
+        ValuePayload::Body(_) | ValuePayload::Boolean(BooleanValue::Body { .. }) => true,
+        ValuePayload::Boolean(BooleanValue::Empty)
+        | ValuePayload::Datum(_)
+        | ValuePayload::Profile(_)
+        | ValuePayload::Split { .. }
+        | ValuePayload::Instances(_)
+        | ValuePayload::Declarations(_)
+        | ValuePayload::Mate(_)
+        | ValuePayload::Measure { .. }
+        | ValuePayload::MeasureUnavailable { .. }
+        | ValuePayload::Assertion(_) => false,
+    }
 }
