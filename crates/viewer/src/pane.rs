@@ -41,7 +41,7 @@ pub(crate) mod headless {
 
     use eframe::egui;
 
-    use crate::widgets::message_tests::SLACK;
+    use crate::widgets::{message_floor, message_tests::SLACK};
 
     /// Everything one pass of `draw` painted, joined by newlines.
     pub(crate) fn painted_text(draw: impl FnOnce(&mut egui::Ui)) -> String {
@@ -197,8 +197,7 @@ pub(crate) mod headless {
     /// pane's rect, and everything painted in it — the region a
     /// pane's `layout_tests` measure a sentence against.
     ///
-    /// Panics when `width` is at or under
-    /// `crate::widgets::message_floor`, where a row would read the
+    /// Panics when `width` is at or under [`message_floor`], where a row would read the
     /// floor rather than the region.
     pub(crate) fn drawn_in(
         width: f32,
@@ -208,7 +207,7 @@ pub(crate) mod headless {
         let painted = landed(|ui| {
             ui.allocate_ui(egui::vec2(width, 800.0), |ui| {
                 region.set(ui.max_rect());
-                let floor = crate::widgets::message_floor(ui);
+                let floor = message_floor(ui);
                 assert!(
                     width > floor,
                     "a {width}-point pane is at or under the {floor}-point floor, \
