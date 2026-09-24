@@ -451,6 +451,12 @@ macro_rules! nurbs_curve {
                     // coefficient that may not certify carries
                     // ordinary endpoints and would widen the hull by a
                     // number instead of collapsing the whole bound.
+                    // No public path hands this a refusal — the only
+                    // caller passes the weight spline's own derivative,
+                    // whose knot differences `KnotVector::clamped` keeps
+                    // positive and whose weights `new` keeps finite and
+                    // positive — so the branch is pinned white-box
+                    // (`span_bound_tests`), not through the curve.
                     let Some(q) = dw.get(i) else {
                         return poison;
                     };
@@ -1669,5 +1675,57 @@ impl<T: Real> NurbsCurve3<T> {
     /// the surface and curve halves answer it identically.
     pub fn is_placeholder(&self) -> bool {
         net::is_placeholder(&self.control)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod span_bound_tests {
+    use super::*;
+
+    /// `rational_span_bound` asks `w′`'s refusal by NAME. A coefficient
+    /// that left its domain carries real endpoints — `sqrt([−1, 4]) − 1`
+    /// is `[−1, 1]` at `Trv` — so a check that read only NaI or empty
+    /// would take it as a bracket and answer a finite bound; the span
+    /// bound is poison instead. The control is the same span with a
+    /// certified coefficient of the same magnitude.
+    #[test]
+    fn a_refused_weight_derivative_coefficient_poisons_the_span_bound() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid knots");
+        let curve = NurbsCurve3::<f64>::new(
+            kv,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+                Point3::new(2.0, 0.0, 0.0),
+            ],
+            vec![1.0, 2.0, 1.0],
+        )
+        .expect("valid curve");
+        let index = curve.knots().first_span();
+        let origin = Point3::new(0.0, 0.0, 0.0);
+        let certified = [
+            Interval::from_bounds(1.9, 2.1),
+            Interval::from_bounds(-2.1, -1.9),
+        ];
+        let control = curve
+            .span(index)
+            .expect("a nonempty span")
+            .rational_span_bound(&certified, origin);
+        assert!(control.is_finite(), "control: {control}");
+        let refused = Real::sqrt(Interval::from_bounds(-1.0, 4.0)) - Interval::one();
+        assert!(
+            !refused.is_certified() && (refused.lo(), refused.hi()) == (-1.0, 1.0),
+            "fixture drifted: {refused:?}"
+        );
+        let bound = curve
+            .span(index)
+            .expect("a nonempty span")
+            .rational_span_bound(&[refused, certified[1]], origin);
+        assert!(
+            bound.is_nan(),
+            "a `Trv` w\u{2032} coefficient with real endpoints produced the span bound \
+             {bound} — the refusal was not asked by name"
+        );
     }
 }
