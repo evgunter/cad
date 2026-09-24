@@ -3,6 +3,8 @@ id: stranded-names-are-retired-to-an-undrawable-coordinate
 kind: issue
 title: SetProgram retires a stranded name to an undrawable coordinate rather than leaving it in place: Ev's call
 status: open
+priority: P1
+cost: E
 opened: 2026-09-20
 needs_ev: true
 refs: [a-committed-profile-program-has-no-whole-program-edit]

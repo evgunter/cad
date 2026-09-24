@@ -3,6 +3,8 @@ id: a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names
 kind: issue
 title: A slot edit through a Zero fit renumbers a loop's live names and reports nothing
 status: open
+priority: P0
+cost: H
 opened: 2026-09-20
 refs: [a-committed-profile-program-has-no-whole-program-edit, stranded-names-are-retired-to-an-undrawable-coordinate]
 ---

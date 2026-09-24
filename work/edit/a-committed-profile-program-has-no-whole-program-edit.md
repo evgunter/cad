@@ -2,7 +2,8 @@
 id: a-committed-profile-program-has-no-whole-program-edit
 kind: issue
 title: A committed profile's program can be edited only one argument at a time; no edit reshapes it or writes it whole
-status: review
+status: closed
+closed: 2026-09-24
 branch: edit/program-edit
 pr: 2927
 opened: 2026-09-18
@@ -249,3 +250,26 @@ the corpus module's. New rows: the retired name through the resolver
 door and a Python `resolve`, a frame on a dropped wall refusing
 `Vanished`, and one row per sweep kind tying `Node::anchoring_profile`
 to what the evaluation publishes.
+
+## Closed (2026-09-24, EDIT orchestrator) — kernel unit, v6 dual, merged on green CI
+
+`DocEdit::SetProgram` replaces a live profile's program whole under a
+stated provenance: the provenance's shape refuses first and typed, the
+new program walks the insert door's own checks, the segment map is
+read off both replay records through DM8's checked door, and the one
+carrier roster drives the report — strands, stranded keys, rebounds —
+with every kept name rewritten to where its segment sits now. Ev's
+(B) on `[ev]` #2904 is what DM7 and V2 now say. The dual (ordinals
+4808/4809) was APPROVE-WITH-FIXES on both arms; R1's MAJOR — a
+retired coordinate one past the loop's end goes live under a plain
+slot edit through a `Zero` fit — was closed by retiring to
+`RETIRED_FLOOR`, which no program draws under any edit. What the
+build does beyond the ruling is put to Ev on its own row,
+`stranded-names-are-retired-to-an-undrawable-coordinate`; the
+slot-edit renumbering R1's finding exposed on LIVE names is
+`a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names`; the
+viewer's follow-up is AUTHOR's
+`the-viewer-keeps-its-profile-lock-and-order-search-after-set-program`.
+Spec deleted at merge (`docs/doc-ledger/edit-program-spec.md`); the
+record is this row, the unit's row in `docs/MODEL-AB-LOG.md` and the
+MERGED entry in `work/edit/log.md`.
