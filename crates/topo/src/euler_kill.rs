@@ -2151,6 +2151,24 @@ mod tests {
     }
 
     #[test]
+    fn kev_describing_refuses_a_spec_whose_description_is_not_the_members() {
+        // A chart image must name one of the member's own faces'
+        // surfaces: the attachment gate's adjacency rule, asked in the
+        // plan phase against the faces the merge leaves the member on
+        // (the kill moves no half-edge between loops).
+        let (mut body, seg, strut, _other) = two_member_merge();
+        let before = deep_snapshot(&body);
+        let mut spec = EdgeCurveSpec::line_between(p(0.0), p(2.0));
+        spec.description = geom_brep::EdgeDescriptionSpec::chart(SurfaceKey::default());
+        assert_eq!(
+            body.kev_describing(strut.he_minus, &[(seg.edge, spec)], Tol::witness())
+                .map(|_| ()),
+            Err(EulerOpError::DescriptionNotAdjacent { edge: seg.edge })
+        );
+        assert_eq!(deep_snapshot(&body), before);
+    }
+
+    #[test]
     fn kev_describing_refuses_an_unlisted_member_the_gate_refuses() {
         // Only `seg` is re-described; `other` keeps a chord to the dying
         // vertex's point and the re-basing gate names it.
