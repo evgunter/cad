@@ -657,9 +657,16 @@ fn kev_mirror_has_no_single_op_remake() {
         )
         .unwrap();
     // seg.vertex carries fan [seg−, strut+]; strut.he_minus starts at
-    // the valence-1 tip and points at it — the mirror kill.
+    // the valence-1 tip and points at it — the mirror kill. `seg` would
+    // keep a chord to the dying vertex's point, so the kill re-describes
+    // it as the chord it runs along after the merge.
     let before = canonical_form(&body);
-    body.kev(strut.he_minus).unwrap();
+    body.kev_describing(
+        strut.he_minus,
+        &[(seg.edge, geom_brep::EdgeCurveSpec::line_between(p(0.0), p(2.0)))],
+        tol,
+    )
+    .unwrap();
     assert_eq!(validate(&body), Ok(()));
     let coords = [p(0.0), p(1.0), p(2.0)];
     assert!(
@@ -1693,8 +1700,37 @@ fn same_face_bridge_edge_kef_refuses_and_kev_kills() {
     assert!(matches!(err, EulerOpError::SameFace { .. }));
     assert_eq!(deep_snapshot(&body), before);
     // kev (the error text's advice): endpoints are distinct cube
-    // corners, so it kills the edge (and the far vertex, fan merged).
-    body.kev(bridge).unwrap();
+    // corners, so the kill is well-formed — but the far corner's two
+    // other edges would merge onto the near one keeping chords to the
+    // far corner, so the keys-only kill refuses, naming both, and the
+    // describing kill, handed the chords they run along after the
+    // merge, kills the edge (and the far vertex, fan merged).
+    let before = deep_snapshot(&body);
+    let err = body.kev(bridge).map(|_| ()).unwrap_err();
+    let EulerOpError::MergeRebasesCarriers { edges } = err else {
+        panic!("{err:?}")
+    };
+    assert_eq!(edges.len(), 2, "a cube corner's two other edges");
+    assert_eq!(deep_snapshot(&body), before);
+    let near = body.get_half_edge(bridge).unwrap().start;
+    let point = |body: &Body<f64>, v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+    let far_vertex = body.half_edge_end(bridge).unwrap();
+    let chords: Vec<_> = edges
+        .iter()
+        .map(|&e| {
+            let ed = body.get_edge(e).unwrap();
+            let at = |he| match body.get_half_edge(he).unwrap().start {
+                v if v == far_vertex => near,
+                v => v,
+            };
+            let spec = geom_brep::EdgeCurveSpec::line_between(
+                point(&body, at(ed.he_plus)),
+                point(&body, at(ed.he_minus)),
+            );
+            (e, spec)
+        })
+        .collect();
+    body.kev_describing(bridge, &chords, tol).unwrap();
     assert_eq!(validate(&body), Ok(()));
 }
 

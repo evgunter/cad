@@ -2768,6 +2768,12 @@ pub(crate) mod staleness_posture {
             ("mekr_chord", Neither, "Euler operator (sugar over `mekr`)"),
             ("kemr", Neither, "Euler operator"),
             ("kev", Neither, "kill op"),
+            (
+                "kev_describing",
+                Neither,
+                "kill op; the members it re-describes keep their rows, as \
+             `set_edge_curve` leaves them",
+            ),
             ("kvfs", Neither, "kill op"),
             // ---- Transfers: the loop-re-parenting doors, which carry
             // a moved loop's rows onto the target face and drop them

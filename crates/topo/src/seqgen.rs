@@ -912,23 +912,21 @@ const SPLIT_FRACTION: f64 = 0.618_033_988_749_895;
 /// rebuilt from the certified curve — `None` when the edge is not
 /// splittable.
 ///
-/// **Why the re-certification.** This lane fuzzes STRUCTURE, and one
-/// fan-rebasing op still moves a run of half-edges onto a different
-/// vertex without re-describing the survivors' carriers: `kev`'s fan
-/// merge (`euler_kill`'s own docs, and
-/// `work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`).
-/// `mev`'s fan site no longer does — its gate refuses — so this filter
-/// now guards ONE cause where it used to guard two, and it retires
-/// with that row. Tier 1 does not constrain a stale carrier and the
-/// isomorphism oracle ignores carriers, but `split_edge` certifies
-/// both children against the CURRENT endpoint points and refuses. So
-/// the candidate test re-derives the parent's certificate against
-/// those points through [`geom_brep::EdgeCurve::recertify`] — the door
-/// `split_edge` itself certifies through, not tier 3's
-/// `recertify_nurbs_lane`, which admits a strictly wider class and so
-/// would let candidates past this gate that the operator then refuses.
-/// Its consequence is a real coverage limit, stated where it is
-/// caused: **only carrier-coherent edges are ever split here.**
+/// **Why the re-certification is an assertion.** `split_edge`
+/// certifies both children against the CURRENT endpoint points, so a
+/// carrier its own endpoint left is one it refuses on — and tier 1
+/// does not constrain such a carrier and the isomorphism oracle
+/// ignores carriers, so nothing else in this lane would see one. No
+/// op this walk applies leaves one: `mev`'s fan site refuses to move a
+/// run its chords do not follow, and every `kev` goes through the
+/// describing door with [`chord_redescriptions`], which states the
+/// merged members where they land. So the parent's certificate is
+/// re-derived here through [`geom_brep::EdgeCurve::recertify`] — the
+/// door `split_edge` itself certifies through, not tier 3's
+/// `recertify_nurbs_lane`, which admits a strictly wider class — and
+/// ASSERTED rather than filtered on: every edge of a generated body is
+/// a split candidate as far as its carrier goes, and one that is not
+/// is a walk that left a stale carrier behind.
 ///
 /// **Why the spec comes back with it.** `split_edge` is the only
 /// catalog member that REPLACES existing geometry rather than only
@@ -947,9 +945,9 @@ fn split_site(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> Option<(f64, EdgeCur
     let p1 = *body.get_point(body.get_vertex(end)?.point)?;
     let curve = body.get_curve_geom(edge_data.curve)?.certified()?;
     let band = Band::linear(tol).ok()?;
-    curve
-        .recertify(p0, p1, |k| body.get_surface(k).cloned(), band)
-        .ok()?;
+    if let Err(error) = curve.recertify(p0, p1, |k| body.get_surface(k).cloned(), band) {
+        panic!("edge {edge:?} carries a carrier its own endpoints left: {error:?}");
+    }
     let (t0, t1) = curve.params();
     let t = SPLIT_FRACTION.mul_add(t1 - t0, t0);
     // **The generator's coordinate-distinctness policy, enforced.**
@@ -999,6 +997,61 @@ fn kev_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
         .filter(|&(he, he_data)| body.half_edge_end(he) != Some(he_data.start))
         .map(|(he, _)| OpChoice::Kev(he))
         .collect()
+}
+
+/// What this walk hands [`Body::kev_describing`] when it kills `he`:
+/// every merged member, re-described as the straight chord between the
+/// endpoints the merge gives it — or, where the merge closes it onto
+/// one vertex, the canonical self-loop circle there
+/// ([`EdgeCurveSpec::self_loop_circle_at`], what `mef_chord` mints at a
+/// self-loop site).
+///
+/// **Why every member and not only the ones that need it.** The walk
+/// states its own loci — every edge it mints is a chord or that circle,
+/// by the minting policy ([`apply`]) — and on the counter lattice two
+/// distinct vertices never share a point, so a member's stored carrier,
+/// pinned to the dying vertex's point, never describes it at the
+/// survivor's: the keys-only [`Body::kev`] names every certified member
+/// here ([`crate::EulerOpError::MergeRebasesCarriers`]). Re-describing
+/// them is the walk speaking as the modeler, which is what a
+/// describing kill is for, and it keeps every carrier the walk leaves
+/// behind certified against its own endpoints — which is what lets
+/// [`split_site`] and [`assert_run_site_refuses`] assert coherence
+/// rather than filter on it.
+fn chord_redescriptions(body: &Body<f64>, he: HalfEdgeKey) -> Vec<(EdgeKey, EdgeCurveSpec<f64>)> {
+    let v = body.get_half_edge(he).expect("a kev site resolves").start;
+    let mate = body.mate(he).expect("valid body: mate resolves");
+    let orbit = body.vertex_orbit(mate).expect("valid body: orbit closes");
+    let fan = &orbit[1..];
+    let point_of = |vertex| {
+        *body
+            .get_vertex(vertex)
+            .and_then(|vd| body.get_point(vd.point))
+            .expect("valid body: a vertex's point resolves")
+    };
+    let end = |h: HalfEdgeKey| {
+        if fan.contains(&h) {
+            v
+        } else {
+            body.get_half_edge(h).expect("valid body: a half resolves").start
+        }
+    };
+    let mut out: Vec<(EdgeKey, EdgeCurveSpec<f64>)> = Vec::new();
+    for &moved in fan {
+        let edge = body.get_half_edge(moved).expect("resolves").edge;
+        if out.iter().any(|(e, _)| *e == edge) {
+            continue;
+        }
+        let e = body.get_edge(edge).expect("valid body: an edge resolves");
+        let (start, stop) = (end(e.he_plus), end(e.he_minus));
+        let spec = if start == stop {
+            EdgeCurveSpec::self_loop_circle_at(point_of(start))
+        } else {
+            EdgeCurveSpec::line_between(point_of(start), point_of(stop))
+        };
+        out.push((edge, spec));
+    }
+    out
 }
 
 fn kef_candidates(body: &Body<f64>, _tol: Tol) -> Vec<OpChoice> {
@@ -1111,9 +1164,11 @@ fn carrier_is_coherent(body: &Body<f64>, edge: EdgeKey, tol: Tol) -> bool {
 /// would have to be excluded from each in turn, and what the walk would
 /// learn from applying it is exactly what this assertion already says.
 ///
-/// Skipped where the moved edge's carrier is ALREADY stale — `kev`'s
-/// fan merge leaves exactly that, and the gate carries a defect this
-/// move does not create (`euler`'s `certify_rebased_run`).
+/// The moved edge's carrier is asserted coherent first: the gate
+/// carries a carrier that ALREADY missed its endpoint
+/// (`euler`'s `certify_rebased_run`), so this assertion would read
+/// nothing on one, and no op this walk applies leaves one
+/// ([`split_site`] says why).
 fn assert_run_site_refuses(body: &Body<f64>, he1: HalfEdgeKey, point: Point3<f64>, tol: Tol) {
     let orbit = body.vertex_orbit(he1).expect("valid body: orbit closes");
     if orbit.len() < 2 {
@@ -1125,9 +1180,10 @@ fn assert_run_site_refuses(body: &Body<f64>, he1: HalfEdgeKey, point: Point3<f64
         .expect("the orbit contains its own seed");
     let he2 = orbit[(i + 1) % orbit.len()];
     let edge = body.get_half_edge(he1).expect("resolves").edge;
-    if !carrier_is_coherent(body, edge, tol) {
-        return;
-    }
+    assert!(
+        carrier_is_coherent(body, edge, tol),
+        "edge {edge:?} carries a carrier its own endpoints left"
+    );
     let err = body
         .clone()
         .mev_line(MevSite::Fan { he1, he2 }, point, tol)
@@ -1178,7 +1234,8 @@ pub(crate) fn apply(body: &mut Body<f64>, choice: OpChoice, counter: &mut u32, t
             body.movefac(shell).unwrap();
         }
         OpChoice::Kev(he) => {
-            body.kev(he).unwrap();
+            let redescribed = chord_redescriptions(body, he);
+            body.kev_describing(he, &redescribed, tol).unwrap();
         }
         OpChoice::Kef(he) => {
             body.kef(he).unwrap();
@@ -1285,15 +1342,17 @@ pub(crate) fn roundtrip(
             body.ring_move(ring, old_face).unwrap();
         }
         OpChoice::SplitEdge(e) => {
-            // Two-op inverse, and the second op is not bookkeeping:
-            // `split_edge` replaces the parent's description with the
-            // `[t₀, t]` child, so `kev` restores the topology and the
-            // re-attach restores the geometry (see `split_site`).
+            // The inverse is a kill that re-describes: `split_edge`
+            // replaced the parent's description with the `[t₀, t]`
+            // child, so the kill that merges the parent back over the
+            // whole span hands it the parent's own spec (see
+            // `split_site`), and topology and geometry come back in one
+            // step.
             let (t, spec) =
                 split_site(body, e, tol).expect("a split candidate has a splittable carrier");
             let created = body.split_edge(e, t, tol).unwrap();
-            body.kev(created.he_minus).unwrap();
-            body.set_edge_curve(e, spec, tol).unwrap();
+            body.kev_describing(created.he_minus, &[(e, spec)], tol)
+                .unwrap();
         }
         // ---- kill ∘ make: the re-make site is derived pre-kill. ----
         OpChoice::Kemr(he1, he2) => {
@@ -1481,7 +1540,8 @@ pub(crate) fn teardown(body: &mut Body<f64>, tol: Tol) {
             continue;
         }
         if let Some(OpChoice::Kev(he)) = kev_candidates(body, tol).first().copied() {
-            body.kev(he).unwrap();
+            let redescribed = chord_redescriptions(body, he);
+            body.kev_describing(he, &redescribed, tol).unwrap();
             continue;
         }
         if let Some(OpChoice::Kemr(he1, he2)) = kemr_candidates(body, tol).first().copied() {

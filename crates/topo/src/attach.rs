@@ -316,7 +316,6 @@ impl<T: Decide> Body<T> {
         })?;
         let old = edge_data.curve;
         let he_plus = edge_data.he_plus;
-        let he_minus = edge_data.he_minus;
         let plus_data = self.resolve_half_edge(he_plus)?;
         let end_vertex = self.half_edge_end(he_plus).ok_or(EulerOpError::StaleKey {
             key: EntityId::HalfEdge(he_plus),
@@ -324,8 +323,47 @@ impl<T: Decide> Body<T> {
         let p_start = self.resolve_vertex_point(plus_data.start)?;
         let p_end = self.resolve_vertex_point(end_vertex)?;
 
-        // Adjacency coherence (module docs): resolvable now that both
-        // faces exist.
+        self.check_description_adjacent(edge, &curve.description)?;
+
+        let certified = certify(self, curve, p_start, p_end, tol)?;
+
+        // ---- Mutation (infallible from here on). ----
+        let new = self.add_curve(certified);
+        let Some(e) = self.get_edge_mut(edge) else {
+            unreachable!(
+                "set_edge_curve: `edge` resolved in the plan phase and adding a curve \
+                 kills no edge"
+            )
+        };
+        e.curve = new;
+        self.remove_curve_if_orphaned(old);
+
+        #[cfg(debug_assertions)]
+        self.assert_tier1_postcondition("set_edge_curve");
+        Ok(new)
+    }
+
+    /// The **description-adjacency coherence** check (module docs) for
+    /// a spec about to describe `edge`: an intrinsic description's two
+    /// surfaces are exactly the edge's two faces' surfaces, a chart
+    /// image names one of them, a chart seam names the one surface on
+    /// both sides, and a scaffold names none. Pure — the plan-phase
+    /// half of every door that re-describes an existing edge.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::StaleKey`] when the edge, a half, a loop or a
+    /// face does not resolve; [`EulerOpError::DescriptionNotAdjacent`]
+    /// when the description names surfaces that are not the edge's.
+    pub(crate) fn check_description_adjacent(
+        &self,
+        edge: EdgeKey,
+        description: &geom_brep::EdgeDescriptionSpec<T>,
+    ) -> Result<(), EulerOpError> {
+        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
+            key: EntityId::Edge(edge),
+        })?;
+        let (he_plus, he_minus) = (edge_data.he_plus, edge_data.he_minus);
         let face_surface = |body: &Self, he: crate::entity::HalfEdgeKey| {
             let he_data = body.resolve_half_edge(he)?;
             let loop_data = body
@@ -342,7 +380,7 @@ impl<T: Decide> Body<T> {
         };
         let fs_plus = face_surface(self, he_plus)?;
         let fs_minus = face_surface(self, he_minus)?;
-        match curve.description {
+        match *description {
             // Both intrinsic variants carry the same adjacency
             // obligation: the described pair IS the faces' pair
             // (M5 PR 9 — TangentIntersection mirrors Intersection).
@@ -374,22 +412,6 @@ impl<T: Decide> Body<T> {
             // The scaffolding door names no surface — there is none.
             geom_brep::EdgeDescriptionSpec::Scaffold(_) => {}
         }
-
-        let certified = certify(self, curve, p_start, p_end, tol)?;
-
-        // ---- Mutation (infallible from here on). ----
-        let new = self.add_curve(certified);
-        let Some(e) = self.get_edge_mut(edge) else {
-            unreachable!(
-                "set_edge_curve: `edge` resolved in the plan phase and adding a curve \
-                 kills no edge"
-            )
-        };
-        e.curve = new;
-        self.remove_curve_if_orphaned(old);
-
-        #[cfg(debug_assertions)]
-        self.assert_tier1_postcondition("set_edge_curve");
-        Ok(new)
+        Ok(())
     }
 }

@@ -2030,7 +2030,10 @@ fn zip_folded<T: Decide>(
             FaceSurface::Inherit,
             tol,
         )?;
-        body.kev(made.he_plus)
+        // The fuse merges the b copy into the a copy across a certified
+        // circle: the merged fan keeps its carriers, re-certified at the
+        // a copy under the run's band.
+        body.kev_describing(made.he_plus, &[], tol)
             .map_err(|_| desync("REST lane: slit fuse kev refused"))?;
         report.vertex_merges.push((eb, sa));
         report.seam_edges.push(edge_of(body, ha)?);
