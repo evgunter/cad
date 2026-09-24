@@ -552,7 +552,7 @@ fn survives_sliver_join_reports_canonical_index_both_directions() {
         p2(0.0, 1.0),
     ]);
     let vp = validated(vec![lp]);
-    // Canonical start is (0,0) (lex-min), CCW as written: the shallow
+    // Canonical start is (0,0) (the authored one), CCW as written: the shallow
     // corner is canonical vertex 1.
     assert_eq!(vp.loops()[0].vertices()[1].pos().x, 1.0);
     for d in [1.0e-3, -1.0e-3] {

@@ -2075,13 +2075,15 @@ fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
 }
 
 /// A closed chain whose lexicographic-minimum vertex is NOT its
-/// program start, so canonicalization ROTATES it; `side` reverses it as
-/// well. `Right` mirrors the whole chain in y, so its arcs close the
+/// program start — the start a geometric canonical form would move it
+/// to, and the one the authored-start form keeps; `side` reverses it
+/// as well. `Right` mirrors the whole chain in y, so its arcs close the
 /// same shape the `Left` ones do.
 ///
-/// [`arc_prism`]'s chains all begin at their own minimum, which makes
-/// their anchor hop a pure reversal or the identity. This one adds the
-/// other half of the permutation.
+/// [`arc_prism`]'s chains all begin at their own minimum, so a door
+/// that re-started a loop at its minimum could not be told apart from
+/// one that kept the author's start on them. This one tells them
+/// apart.
 fn rotated_arc_prism(
     id: &str,
     side: profile::ArcSide,
