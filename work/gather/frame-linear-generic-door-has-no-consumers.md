@@ -430,32 +430,45 @@ list or warning would survive it.
 
 **Left open. The remaining half needs a decision this row does not own.**
 Re-measured on PR 3141's branch with instrument level B (make both rungs
-`pub(crate)`, then run `cargo check --workspace --all-targets`):
-`ProfileLoop::map_scalar` and `Profile::map_scalar` in
-`crates/profile/src/lib.rs` each report `warning: method 'map_scalar' is
-never used`. The `E0624`s land only in `profile/tests/`: `bool9_probes`
-×2, `bool9r1_probes` ×2, `r2_bool9_review_probes` ×2 and
-`scalar_lift_door` ×3. So both rungs are unchanged since 2026-09-12:
-their only consumers are tests. This row's own adjudication says what
-decides them: `scalar_lift.rs`'s convention against `pncad`'s
-mint-on-demand rule. That question is
+`pub(crate)`). The run is `cargo check --keep-going --workspace
+--all-targets --features interval`, for the reason in the next section.
+`ProfileLoop::map_scalar` and `Profile::map_scalar`
+(`crates/profile/src/lib.rs`) each report `warning: method 'map_scalar'
+is never used`, and every `E0624` is in a test:
+
+- `profile/tests/`: `bool9_probes` ×2, `bool9r1_probes` ×3,
+  `r2_bool9_review_probes` ×3, `scalar_lift_door` ×4
+- `sweep/tests/wire_loft_end_profile_lift.rs` ×1
+
+Only `--keep-going` shows that last one, because without it cargo stops
+at the first failing crate. So both rungs are still consumed by tests
+only. This row's own adjudication says what decides them:
+`scalar_lift.rs`'s convention against `pncad`'s mint-on-demand rule. That
+question is
 `work/verdict/the-scalar-lift-convention-mints-doors-faster-than-consumers.md`
-(cost D), which already names both rungs. Deciding it here would settle
-that row's question from one of its instances. **Recommend parking this
-row on that one.**
+(cost D), which already names both rungs. **Recommend parking this row on
+that one.**
+
+**The instrument has a feature-shaped blind spot, and this lane walked
+into it.** A run at default features cannot see a consumer behind
+`#[cfg(feature = "interval")]`. `AssertionVerdict::map`
+(`editor-core/src/measure.rs`) gave `warning: method 'map' is never used`
+and no errors at level A under default features, so the first cut of PR
+3141 deleted it. The `interval` clippy lane then failed:
+`eval/mod.rs`'s leaf replay calls it (`a.clone().map(&project)`). **It is
+live, and the deletion was reverted in the same PR.** Every verdict in
+this section was re-taken with `--features interval` and `--keep-going`.
+Any earlier negative row in this file taken at default features alone
+(`Vec2::map`, and the `geom` rungs) has the same gap. That ground belongs
+to VERDICT's row, and the gap has been added there.
 
 **Class sweep.** The pattern was
 `pub fn (map_scalar|map|try_map|lift|linear|affine)<` outside `tests/`.
-A second pass looked for any `pub fn` generic over `U`/`V`/`S`. Each hit
-was measured with the instrument, not by grep:
+A second pass looked for any `pub fn` generic over `U`/`V`/`S`:
 
-- `AssertionVerdict::map` (`editor-core/src/measure.rs`): **deleted in
-  PR 3141.** Level A (drop `pub`) gave `warning: method 'map' is never
-  used` and no errors anywhere, so there are no consumers at all, tests
-  included. It is not a geometry type, so `scalar_lift.rs`'s convention
-  does not reach it, and it has `Frame::linear`'s disposition.
-- `ProfileLoop::map_scalar`, `Profile::map_scalar`: test-only, as above.
-  Waits on VERDICT's row.
+- `AssertionVerdict::map`: **live** under `interval`, as above. Kept.
+- `ProfileLoop::map_scalar`, `Profile::map_scalar`: test-only. Waits on
+  VERDICT's row.
 - `ValidatedProfile::lift_onto` (`profile/src/validate.rs`): **live.**
   Level B gives `E0624` at `crates/sweep/src/loft.rs`.
 - `SketchPlane::try_map`: **live** (`eval/wire.rs`'s `pinned_plane`).
@@ -464,9 +477,7 @@ was measured with the instrument, not by grep:
   (`geom-brep/src/props/quad.rs`).
 - `Frame::affine`, `SketchPlane::map`, `Point2`/`Point3`/`Affine3::map`:
   live, per the table above.
-- The `geom` rungs (`Curve3`, `Surface`, `NurbsCurve*`,
-  `SurfaceDescription`, `ApproxSurface`) and `Vec2::map`: VERDICT's row.
-  Not re-measured.
+- The `geom` rungs and `Vec2::map`: VERDICT's row. Not re-measured.
 - `viewer`'s `ProfileDoors::map` is `pub(crate)`, so it is outside the
   class.
 
