@@ -322,6 +322,13 @@ never has: a name on a step it KEPT is rewritten in place to the
 coordinates the segment sits at now and reported `Rebound { from, to
 }`, so a moved name is visible in the accepted edit and never silently
 re-denotes (`crates/profile/README.md` V2).
+A name on a step it dropped or changed is retired: its locator is
+rewritten to a coordinate at or above `RETIRED_FLOOR`
+(`u32::MAX / 2`, beside `SegmentMap` in `edit.rs`), which no program
+draws under any edit, reshaping or slot edit. The name resolves
+`Vanished` at every evaluation until `Rebind` repairs it from the
+spelling its `Strand` row carries, and no later edit moves it or
+reports it again.
 
 The report covers every reference the document holds under N5
 semantics, not only the node payloads: an appearance attachment is
