@@ -3011,7 +3011,7 @@ fn structural_declared_via<
         band,
         &mut marks,
         tol,
-        &|_, _, _, _| None,
+        PlusVCheck::NotMade,
         nurbs_lane,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
@@ -3038,26 +3038,65 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
-    // ONE certified quadrature PER SOLID, held and then handed on: the
-    // check decides on these objects and the caller receives the body
-    // certificate they assemble to — each refined to the round where
-    // THIS check's certification is complete, which is where that
-    // solid's enclosure's sign stops being in doubt, and continuable
-    // from there by a caller who wants the number.
-    //
-    // ONE decision per solid, too, and that is load-bearing rather
-    // than tidy: each walk stops on the verdict it returns, so no
-    // second reading of a different round's enclosure can disagree
-    // with the round it stopped at, and the check's predicates are
-    // metered once per round rather than twice.
+    let (errors, certificate) =
+        plus_v_by_sign(body, band, tol, Some(crate::props::QuadLane::certified()));
+    if errors.is_empty() {
+        Ok(certificate_of_a_clean_verdict(certificate))
+    } else {
+        Err(errors)
+    }
+}
+
+/// **Check 7, the whole of it, at SIGN level** — one walk per solid
+/// through the lane the door holds, each stopped at the round where
+/// that solid's enclosure's sign stops being in doubt, and the body
+/// certificate those walks assemble to.
+///
+/// Every door that makes check 7 makes it here — [`validate_geometric`]
+/// with [`crate::QuadLane::certified`], the tier-3′ battery with
+/// whatever lane its door holds — so no body is admitted by one tier-3
+/// door and refused by another on check 7 at the same scalar: the doors
+/// differ in the lane they hand in, and a `None` lane is the closed
+/// form, which refuses typed on every face that needed the quadrature
+/// exactly as the reporting read over the same lane does.
+///
+/// ONE walk per solid, held and then handed on: the check decides on
+/// these objects and the caller receives the body certificate they
+/// assemble to, continuable from there by a caller who wants the
+/// number ([`crate::SignCertificate::refine_to_target`]). So a body of
+/// several solids pays one read of each face, never a further
+/// arena-wide one.
+///
+/// ONE decision per solid, too, and that is load-bearing rather than
+/// tidy: each walk stops on the verdict it returns, so no second reading
+/// of a different round's enclosure can disagree with the round it
+/// stopped at, and the check's predicates are metered once per round
+/// rather than twice.
+///
+/// The certificate is `Some` exactly when every solid's walk produced
+/// one — the parts then partition the face arena, which is what
+/// [`crate::SignCertificate::assembled`] asserts. A walk that refused
+/// outright has already put its `VolumeUncomputable` in the vector, so
+/// an absent certificate never co-occurs with a clean verdict.
+fn plus_v_by_sign<'b, T: geom_core::Decide>(
+    body: &'b Body<T>,
+    band: Band,
+    tol: Tol,
+    quad: Option<crate::props::QuadLane<T>>,
+) -> (
+    Vec<ValidationError>,
+    Option<crate::props::SignCertificate<'b, T>>,
+) {
     let mut errors = Vec::new();
     let mut parts = Vec::new();
+    let mut every_solid_derived = true;
     for (solid, faces) in check7_subjects(body) {
-        match crate::props::sign_certified(
+        match crate::props::sign_walk(
             body,
             &faces,
             band,
             tol,
+            quad,
             |e| match plus_v_decide(e, band) {
                 PlusVOutcome::Pass => Some(PlusVVerdict::Pass),
                 PlusVOutcome::Refuse => Some(PlusVVerdict::Refuse),
@@ -3069,53 +3108,31 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
                 errors.extend(plus_v_errors(solid, &verdict));
                 parts.push(certificate);
             }
-            Err(source) => errors.push(ValidationError::VolumeUncomputable { solid, source }),
+            Err(source) => {
+                every_solid_derived = false;
+                errors.push(ValidationError::VolumeUncomputable { solid, source });
+            }
         }
     }
-    if errors.is_empty() {
-        Ok(crate::props::SignCertificate::assembled(
-            body, band, tol, parts,
-        ))
-    } else {
-        Err(errors)
-    }
+    let certificate = every_solid_derived
+        .then(|| crate::props::SignCertificate::assembled(body, band, tol, quad, parts));
+    (errors, certificate)
 }
-
-/// A tier-3 door's own check-7 certificate: the
-/// [`crate::MassProperties`] the +V invariant decided on, or that
-/// check's typed refusal. `None` is the check not being made — the
-/// structural half's answer, and the honest one: that door computes no
-/// certificate.
-pub(crate) type Check7Certificate<T> =
-    Option<Result<crate::props::MassProperties<T>, crate::props::MassPropsError>>;
 
 /// The certificate a CLEAN tier-3 verdict implies.
 ///
 /// INVARIANT: check 7 reports every refusal it can derive as
-/// [`ValidationError::VolumeUncomputable`] and every door that reaches
-/// here gates this call on its own empty verdict vector, so an empty
-/// verdict and an absent certificate cannot co-occur. Either other
-/// state is a bug in the composition above, not a reachable input —
-/// D9's bug-state half, announced rather than papered over with a
+/// [`ValidationError::VolumeUncomputable`] ([`plus_v_by_sign`] withholds
+/// the certificate exactly when one of its walks did), and every door
+/// that reaches here gates this call on its own empty verdict vector,
+/// so an empty verdict and an absent certificate cannot co-occur. The
+/// other state is a bug in the composition above, not a reachable input
+/// — D9's bug-state half, announced rather than papered over with a
 /// fabricated value.
-///
-/// **The `Some(Err(..))` arm needs its own argument, because the object
-/// handed here is not always the object the verdicts were made on.**
-/// Check 7 decides per SOLID, while a body of several solids reports
-/// through a read over the whole face arena, so those are two reads.
-/// They are not independent ones: tier 1 partitions the arena into the
-/// solids (`check7_subjects` carries that argument), every face belongs
-/// to exactly one subject, and a face refuses the same way in whichever
-/// read visits it — so the arena read's failure set is exactly the
-/// UNION of the per-solid reads'. An empty verdict vector says every
-/// per-solid read came back clean, and an empty union cannot contain
-/// the refusal this arm would be handed.
-fn certificate_of_a_clean_verdict<C>(
-    certificate: Option<Result<C, crate::props::MassPropsError>>,
-) -> C {
+fn certificate_of_a_clean_verdict<C>(certificate: Option<C>) -> C {
     match certificate {
-        Some(Ok(props)) => props,
-        Some(Err(_)) | None => unreachable!(
+        Some(certificate) => certificate,
+        None => unreachable!(
             "a clean tier-3 verdict with no certificate: check 7 is gated on a clean \
              battery and reports its own refusal as VolumeUncomputable"
         ),
@@ -3245,43 +3262,19 @@ pub fn validate_geometric_certificate_declared<
     validate_geometric_certified(body, tol)
 }
 
-/// **Check 7's derivation at the REPORTING level** — the [`PlusVCheck`]
-/// every door that holds a quadrature lane, or none, hands the battery:
-/// the reporting walk over `quad_lane`, which is the certified
-/// quadrature from a door whose bound names the right
-/// (`Some(QuadLane::certified())`) or `None` from a `_structural` door,
-/// where the closed form answers and a face that needs the quadrature
-/// refuses typed. Either way the check IS made; only
-/// [`validate_geometric_structural`] hands the battery no certificate at
-/// all. [`validate_geometric`] wires the battery's hook to the certified
-/// quadrature at SIGN level instead, which is why its check 7 is a claim
-/// rather than a reporting read.
-///
-/// One home, because it was two: [`tier3_local_checks`] and
-/// [`contact_marks_declared`] each spelled this closure out, and two
-/// spellings of one derivation are two places for what a gate derives,
-/// and over which faces, to drift apart.
-fn reporting_certificate<T: geom_core::Decide>(
-    quad_lane: Option<crate::props::QuadLane<T>>,
-) -> impl Fn(&Body<T>, &[FaceKey], Band, Tol) -> Check7Certificate<T> {
-    move |body, faces, band, tol| {
-        Some(crate::props::mass_properties_of(
-            body, faces, band, tol, quad_lane,
-        ))
-    }
-}
-
 /// Tier 3's local check battery (checks 1–6 + the +V invariant, check
 /// 7), shared verbatim between [`validate_pseudomanifold`] and
 /// [`contact_marks`] (M3 PR 6a: the tier-3′ validator runs the SAME
 /// local passes — extraction, not copy-paste). Assumes the tier-1/2
 /// coarse gate already passed.
 ///
-/// Check 7 arrives as the hook `tier3_local_checks_marked` takes, wired
-/// here to [`reporting_certificate`] over `quad_lane` — which is what
-/// keeps this battery callable at every [`crate::AtRestPolicy`] scalar,
-/// a dual included, with the certified door and its `_structural` twin
-/// differing in exactly the lane they hand in.
+/// Check 7 is made through `quad_lane` at SIGN level
+/// ([`PlusVCheck::Through`]) — the certified quadrature from a door
+/// whose bound names the right, the closed form from a `_structural`
+/// door — which is what keeps this battery callable at every
+/// [`crate::AtRestPolicy`] scalar, a dual included, with the certified
+/// door and its `_structural` twin differing in exactly the lane they
+/// hand in.
 ///
 /// `nurbs_lane` is check 2's plane × NURBS derivation, taken as an
 /// argument for the same reason and with the same discipline: the
@@ -3289,15 +3282,19 @@ fn reporting_certificate<T: geom_core::Decide>(
 /// certified body, and what a `None` costs is written at
 /// [`validate_pseudomanifold_structural`].
 pub(crate) fn tier3_local_checks<
+    'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
-    body: &Body<T>,
+    body: &'b Body<T>,
     declarations: &[DeclaredContact],
     band: Band,
     tol: Tol,
     nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
     quad_lane: Option<crate::props::QuadLane<T>>,
-) -> (Vec<ValidationError>, Check7Certificate<T>) {
+) -> (
+    Vec<ValidationError>,
+    Option<crate::props::SignCertificate<'b, T>>,
+) {
     let mut marks = slotmap::SecondaryMap::new();
     tier3_local_checks_marked(
         body,
@@ -3305,7 +3302,7 @@ pub(crate) fn tier3_local_checks<
         band,
         &mut marks,
         tol,
-        &reporting_certificate(quad_lane),
+        PlusVCheck::Through(quad_lane),
         nurbs_lane,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     )
@@ -3399,32 +3396,10 @@ fn plus_v_decide<T: geom_core::Decide>(
     PlusVOutcome::Undecided
 }
 
-/// **Check 7's verdict**, given the volume enclosure however it was
-/// derived — the +V global orientation invariant's whole decision, in
-/// one place, so the lane-dispatched and the certified derivations are
-/// two ways of getting the argument and not two copies of the check.
-fn plus_v_invariant<T: geom_core::Decide>(
-    solid: SolidKey,
-    subject: &Result<crate::props::MassProperties<T>, crate::props::MassPropsError>,
-    band: Band,
-) -> Vec<ValidationError> {
-    match subject {
-        Ok(subject) => plus_v_errors(
-            solid,
-            &plus_v_at_target(plus_v_decide(subject.enclosure(), band), None),
-        ),
-        Err(source) => vec![ValidationError::VolumeUncomputable {
-            solid,
-            source: source.clone(),
-        }],
-    }
-}
-
 /// **What an enclosure reading means once there is nothing left to
-/// refine** — the one place the undecided arm is resolved, shared by
-/// the lane-dispatched derivation (which reads only the target-level
-/// enclosure, so `refusal` is `None` and its walk already refused for
-/// it) and by the sign-level walk's `last_word`.
+/// refine** — the one place the undecided arm is resolved: the
+/// sign-level walk's `last_word`, handed the outstanding target
+/// refusal.
 fn plus_v_at_target(
     outcome: PlusVOutcome,
     refusal: Option<crate::props::MassPropsError>,
@@ -3713,16 +3688,16 @@ fn contact_marks_declared_via<
     let mut marks = slotmap::SecondaryMap::new();
     // This pass's product is the MARKS channel; its check-7 certificate
     // has no consumer here and is dropped at the one site that could
-    // hand it on, so the pass runs exactly the certificates it always
-    // did (`crate::validate_geometric_certificate` is the returning
-    // door).
+    // hand it on (`crate::validate_geometric_certificate` and
+    // `crate::validate_pseudomanifold_certificate` are the returning
+    // doors).
     let (errors, _) = tier3_local_checks_marked(
         body,
         declarations,
         band,
         &mut marks,
         tol,
-        &reporting_certificate(quad_lane),
+        PlusVCheck::Through(quad_lane),
         nurbs_lane,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
@@ -3733,34 +3708,36 @@ fn contact_marks_declared_via<
     }
 }
 
-/// **Check 7's DERIVATION, as the battery takes it**: the certificate
-/// the +V invariant reads, derived however the caller can derive it, so
-/// the one check of the battery that CERTIFIES is a parameter rather
-/// than a dispatch. `None` is the check not being made, never a
-/// refusal — a refusal is `Some(Err(..))` and the battery turns it into
-/// the [`ValidationError`] in the vector.
+/// **Whether the battery makes check 7, and through which lane** — the
+/// one check of the battery that CERTIFIES is a parameter rather than a
+/// dispatch, so a caller that names it says which derivation it meant.
 ///
-/// The hook yields the DERIVATION and not the verdict so that each of
-/// check 7's subjects is derived exactly once per gate — one per solid,
-/// `check7_subjects` being what the battery iterates — and the battery
-/// can hand a derivation on: `plus_v_invariant` — the whole decision,
-/// in one place — is
-/// applied by the battery to whatever the hook derived, which is what
-/// keeps the lane-dispatched and the certified derivations two ways of
-/// getting the argument rather than two copies of the check.
-type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, &[FaceKey], Band, Tol) -> Check7Certificate<T>;
+/// [`PlusVCheck::NotMade`] is [`validate_geometric_structural`]'s answer
+/// and is not a refusal — the battery run without a check that caller
+/// does not make, which returns no certificate. Every other door makes
+/// check 7 through [`plus_v_by_sign`] with the lane it holds, so the
+/// battery and [`validate_geometric`] decide the same question the same
+/// way and differ only in which lane they could name.
+#[derive(Clone, Copy)]
+pub(crate) enum PlusVCheck<T: geom_core::Decide> {
+    /// Check 7 is not made.
+    NotMade,
+    /// Check 7 is made at SIGN level through this lane — `None` being
+    /// the closed form, which refuses typed on a face that needed the
+    /// quadrature.
+    Through(Option<crate::props::QuadLane<T>>),
+}
 
 /// [`tier3_local_checks`] with the check-4 contact marks KEPT (the
 /// same pass — never classifying twice; the mark is the verdict the
 /// dihedral/jet loop derives anyway).
 ///
-/// `plus_v` is check 7, handed in rather than dispatched, for the same
-/// reason `mass_properties_impl` takes its quadrature as an argument:
-/// the one check of this battery that CERTIFIES is the one whose
-/// availability differs by scalar, and a caller that names it directly
-/// says which of the two it meant. The empty closure is
-/// [`validate_geometric_structural`]'s answer and is not a refusal —
-/// it is the battery run without a check that caller does not make.
+/// `plus_v` is check 7, handed in rather than dispatched ([`PlusVCheck`]
+/// says why): the one check of this battery that CERTIFIES is the one
+/// whose availability differs by scalar. What comes back beside the
+/// verdicts is the [`crate::SignCertificate`] check 7 decided on —
+/// `None` when the check was not made or a subject could not be derived
+/// at all, which the vector then says.
 ///
 /// `nurbs_lane` is check 2's second derivation, handed in for the same
 /// reason and with the same discipline. The M7-8 carrier class
@@ -3787,19 +3764,23 @@ type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, &[FaceKey], Band, Tol) -> Check7Ce
 // caller state.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn tier3_local_checks_marked<
+    'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
-    body: &Body<T>,
+    body: &'b Body<T>,
     declarations: &[DeclaredContact],
     band: Band,
     marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
     tol: Tol,
-    plus_v: PlusVCheck<'_, T>,
+    plus_v: PlusVCheck<T>,
     nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
     offset_fit: Option<geom_brep::OffsetFitLane<T>>,
-) -> (Vec<ValidationError>, Check7Certificate<T>) {
+) -> (
+    Vec<ValidationError>,
+    Option<crate::props::SignCertificate<'b, T>>,
+) {
     let mut errors = Vec::new();
-    let mut certificate: Check7Certificate<T> = None;
+    let mut certificate = None;
 
     // ------------------------------------------------------------------
     // Tier 3, check 1: surface implementedness (face-arena order).
@@ -4752,35 +4733,14 @@ pub(crate) fn tier3_local_checks_marked<
     // the face the check-6 curved arm must exempt as Unencoded.
     // ------------------------------------------------------------------
     if errors.is_empty() {
-        // The DERIVATION and the DECISION, in that order and once
-        // each: the hook computes the certificate this door can
-        // compute, `plus_v_invariant` reads it, and the object stays
-        // alive for the caller that asked for it. A door with no
-        // check-7 derivation answers `None` and makes no verdict.
-        let subjects = check7_subjects(body);
-        for (solid, faces) in &subjects {
-            if let Some(derived) = plus_v(body, faces, band, tol) {
-                errors.extend(plus_v_invariant(*solid, &derived, band));
-                // **The body's certificate, when the check's subject
-                // already IS the body.** With one solid, `faces` is
-                // the face arena in arena order, so this derivation is
-                // the whole-body one bit for bit and the door hands
-                // back the object check 7 decided on, computed once.
-                // (`check7_subjects` carries the tier-1 argument.)
-                if subjects.len() == 1 {
-                    certificate = Some(derived);
-                }
-            }
-        }
-        if subjects.len() != 1 {
-            // More than one solid (or none): no subject's derivation
-            // is the body's, so the certificate this door hands back
-            // is a SEPARATE reporting read of the whole boundary. It
-            // is the number the door promises and not a second copy of
-            // the check — the verdicts above are the check, and they
-            // were made per solid.
-            let arena = crate::query::all_faces(body);
-            certificate = plus_v(body, &arena, band, tol);
+        // The DERIVATION and the DECISION, once each and per solid, and
+        // the object they were made on kept for the caller that asked
+        // for it — the same function `validate_geometric` makes check 7
+        // through, so the two tiers cannot disagree on it at one lane.
+        if let PlusVCheck::Through(quad) = plus_v {
+            let (verdicts, derived) = plus_v_by_sign(body, band, tol, quad);
+            errors.extend(verdicts);
+            certificate = derived;
         }
     }
 
@@ -5510,26 +5470,26 @@ pub fn validate_pseudomanifold_structural<
     validate_pseudomanifold_certificate_structural(body, contacts, tol).map(|_| ())
 }
 
-/// **[`validate_pseudomanifold`], handing back a whole-body
-/// enclosure** — the tier-3′ door's certificate form, and
+/// **[`validate_pseudomanifold`], handing back the certificate its
+/// check 7 decided on** — the tier-3′ door's certificate form, and
 /// [`validate_geometric_certificate`]'s claim verbatim one tier up: the
-/// same pass, the same verdicts, and one certified quadrature per
-/// SOLID, which is check 7's subject.
+/// same pass, the same verdicts, and one certified walk per SOLID,
+/// which is check 7's subject, each stopped at the round where that
+/// solid's SIGN is certain.
 ///
-/// **Whether the value IS the object check 7 decided on depends on how
-/// many solids the body holds.** Over one solid it is: that solid's
-/// faces are the face arena in arena order, so the check's own read is
-/// the whole-body read and nothing is recomputed. Over several, no one
-/// subject's read is the body's, so the number comes back from a
-/// further arena-wide REPORTING read taken in the same pass — the value
-/// this door promises, and not a second copy of the check, whose
-/// verdicts were made per solid and are unchanged by it.
+/// **A SIGN, and the number on request.** What comes back is a
+/// [`crate::SignCertificate`], the per-solid walks assembled into
+/// face-arena order, whatever the body's solid count — so a body of
+/// several solids pays one read of each face and no further
+/// arena-wide one. A caller that wants the number calls
+/// [`crate::SignCertificate::refine_to_target`], which pays only the
+/// rounds the check did not, and whose `Ok` is bit-identical to
+/// [`crate::mass_properties`] on the same body at the same `tol`.
 ///
-/// **This door is the one the import path pays.** A single-solid
-/// `step-import` skips the per-solid tier-3 gate as an identity at one
-/// instance and gates the aggregate here, so a reader that gates a body
-/// and then measures it pays its two quadratures through 3′, not
-/// through [`validate_geometric`].
+/// **This door is the one the import path pays.** `step-import`'s
+/// aggregate gate runs it over every assembled body and continues the
+/// certificate for the enclosure it ships, so the cost of the number is
+/// spelled at that call site rather than folded into the gate.
 ///
 /// # Errors
 ///
@@ -5540,7 +5500,7 @@ pub fn validate_pseudomanifold_certificate<
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
-) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
     pseudomanifold_certificate_via(
         body,
         contacts,
@@ -5552,7 +5512,7 @@ pub fn validate_pseudomanifold_certificate<
 }
 
 /// [`validate_pseudomanifold_structural`]'s certificate form — the
-/// enclosure its closed-form check 7 decided on.
+/// [`crate::SignCertificate`] its closed-form check 7 decided on.
 ///
 /// **At a [`Dual`](geom_core::Dual) this is where the difference from
 /// [`validate_geometric_certificate`] shows.** The certified door is
@@ -5562,7 +5522,8 @@ pub fn validate_pseudomanifold_certificate<
 /// absence is the one the certificate shows: the closed form answers,
 /// and a face that needs the quadrature refuses TYPED rather than
 /// passing unbounded. So a certificate handed back at a dual is a
-/// closed-form body's, and its pads are `0`. The region door's absence
+/// closed-form body's: every face finished at round 0, its pads `0`,
+/// and its continuation the fold of what it already holds. The region door's absence
 /// shows in the error vector, at every scalar, exactly as at the
 /// `()`-returning twin.
 ///
@@ -5575,7 +5536,7 @@ pub fn validate_pseudomanifold_certificate_structural<
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
-) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
     pseudomanifold_certificate_via(body, contacts, tol, None, None, None)
 }
 
@@ -5587,15 +5548,16 @@ pub fn validate_pseudomanifold_certificate_structural<
 /// crossing rung's backing consult — the `_structural` twin's path,
 /// and a [`Dual`](geom_core::Dual)'s only one.
 fn pseudomanifold_certificate_via<
+    'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
-    body: &Body<T>,
+    body: &'b Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
     nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
     quad_lane: Option<crate::props::QuadLane<T>>,
     region: Option<crate::chart_region::RegionLane<T>>,
-) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     validate_closed(body)?;
     let band = match Band::linear(tol) {
         Ok(band) => band,
@@ -9519,7 +9481,7 @@ mod offset_fit_door_rows {
     use geom_brep::OffsetFitLane;
     use geom_core::{Band, Tol};
 
-    use super::{DeclaredContact, ValidationError, tier3_local_checks_marked};
+    use super::{DeclaredContact, PlusVCheck, ValidationError, tier3_local_checks_marked};
     use crate::entity::FaceKey;
     use crate::fixtures::approx_faced_body;
 
@@ -9539,7 +9501,7 @@ mod offset_fit_door_rows {
             band,
             &mut marks,
             tol,
-            &|_, _, _, _| None,
+            PlusVCheck::NotMade,
             None,
             door,
         );
