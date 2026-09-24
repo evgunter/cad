@@ -104,7 +104,7 @@ This row, the other `needs_ev` EMIT row on profile numbering, and EDIT's
 `a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names` share
 one cause. A profile name spells a position that is recomputed from
 current state, so any edit that moves the positions re-denotes it. All
-three are put to Ev as one question on PR #3193: name a profile piece
+three are put to Ev as one question: name a profile piece
 by an id minted when its step is authored (`names/README.md`, "N1, the
 profile pieces"), or keep positions and persist a rename ledger. Under
 the id rule this row's fork does not arise, because no numbering is
