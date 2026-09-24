@@ -309,7 +309,8 @@
 //! boss's last value-free residual (`arc_span`), so the boss's ceiling
 //! is `0.7267` of its REAL study at ε = 1e-9, bounded by a real margin
 //! (`dihedral_wedge`). What stands at a parameter bulge is the sign of
-//! `b` and of the apothem, and the ring at `fl(0.4)` —
+//! `b` and of the apothem, and freezes: the ring at `fl(0.4)`, and the
+//! term and degree budgets on the dyadic `0.5` control —
 //! `work/decide/rule-d-reaches-the-unit-bulge-only`.
 //!
 //! **What it costs** (release, one whole-box leaf, algebra off → on):
@@ -379,7 +380,7 @@
 //! 7/0/0/3 → 9/0/0/1, and `carrier_matches_mapped_source` 72/0/48/6 →
 //! 72/0/54/0 through the door; its whole-certifying CEILING moves
 //! `8.2611e2 · ε → 9.3559e2 · ε` (1.13×), which is the move
-//! `work/sym/rule-d-reaches-the-unit-bulge-only` measured a 512-bit
+//! `work/decide/rule-d-reaches-the-unit-bulge-only` measured a 512-bit
 //! ring making and the rule makes at [`rational::COEFF_BITS`]. The
 //! D-tab's `carrier_endpoint_start` 24/0/8/4 → 24/0/12/0 on both
 //! spellings, and its `carrier_matches_mapped_source` 126/0/36/18 →
@@ -559,8 +560,10 @@
 //! minted over the polynomial quotient — rule E's cancellation carried
 //! past the monomial, at the one door every root goes through. It is
 //! what meets R1's boss's `arc_span` identity, whose root carries the
-//! chord's polynomial to the fourth power in both halves; [`root`]
-//! carries the argument and what it does not reach.
+//! chord's polynomial to the fourth power in both halves. It trades a
+//! meeting for it: the re-keyed root no longer meets the split
+//! spelling `sqrt(N)/sqrt(D)` of the same value. [`root`] carries the
+//! argument, the trade and what it does not reach.
 //!
 //! **The decision read** ([`SymRules::decision_read`]): a `Select`
 //! whose decision is certified one-signed over the leaf's box takes
@@ -1626,21 +1629,27 @@ pub struct SymRules {
     /// `registered` (the row above). The kept-atom retry's second
     /// shape.
     pub root_magnitude: bool,
-    /// **Rule G's EXACT QUOTIENT** ([`root`]'s `exact_quotient`): a
-    /// root whose argument `N/D` has a denominator that divides its
-    /// numerator EXACTLY — `N = Q·D` as polynomials, verified by the
-    /// product — is minted over the polynomial `Q`. It is rule E's
-    /// quotient carried past the monomial at the one door every root
-    /// goes through: a factor both halves share that is a POLYNOMIAL
-    /// (a chord's `(a + x)⁴`) is invisible to rule E and keeps the
-    /// root keyed on a quotient nothing else is keyed on. Read as
-    /// `canonical_root && root_quotient`, so like [`Self::abs_square`]
-    /// it only ever takes the step AWAY from a tier that has rule G.
+    /// **Rule G's EXACT QUOTIENT** ([`root`]'s `exact_quotient_root`):
+    /// a root whose argument `N/D` has a denominator that divides its
+    /// numerator EXACTLY — `N = Q·D` as polynomials, the division's
+    /// exact remainder reaching zero ([`form`]'s `Poly::div_exact`) — is
+    /// minted over the polynomial `Q`, before the split is asked. It is
+    /// rule E's quotient carried past the monomial at the one door every
+    /// root goes through: a factor both halves share that is a
+    /// POLYNOMIAL (a chord's `(a + x)⁴`) is invisible to rule E, and the
+    /// split then keys the halves' factors apart (`|p³|/p²` for `|p|`)
+    /// or declines on the ring. Read as `canonical_root &&
+    /// root_quotient`, so like [`Self::abs_square`] it only ever takes
+    /// the step AWAY from a tier that has rule G.
     ///
     /// An equality of reals wherever `D ≠ 0`, which clause 1 grants
-    /// ([`quotient`]'s four-source argument), and no value is read, so
-    /// a zero through it is a THEOREM. [`root`]'s header carries the
-    /// argument and what it does not reach.
+    /// ([`quotient`]'s five-source argument), and no value is read, so
+    /// a zero through it is a THEOREM. **It is a trade, not only a
+    /// gain**: the root re-keyed to `sqrt(Q)` no longer meets the split
+    /// spelling `sqrt(N)/sqrt(D)` of the same value — meeting both needs
+    /// a factorisation of `N` — and no measured document moves on that
+    /// shape. [`root`]'s header carries the argument, the trade and what
+    /// it does not reach.
     pub root_quotient: bool,
     /// **The DECISION READ** ([`signed::decision`], [`signed::order`]):
     /// in the early walk a `Select` whose decision is certified

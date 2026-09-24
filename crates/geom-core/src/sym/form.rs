@@ -21,6 +21,8 @@
 //! argument's form, so two occurrences of ONE atom cancel and nothing else
 //! about it is known there.
 
+use core::cmp::Ordering;
+
 #[cfg(feature = "sym-profile-testing")]
 use super::profile;
 use super::rational::Rat;
@@ -265,7 +267,56 @@ impl Poly {
     }
 }
 
-/// The product of two monomials, refusing an exponent overflow.
+impl Poly {
+    /// **`Q` with `self = Q·d` exactly**, for a non-constant `d`; `None`
+    /// wherever `d` does not divide `self` or the division declines.
+    ///
+    /// Division by the leading term under [`grlex`]: each step takes
+    /// the remainder's leading term `r`, divides it by `d`'s leading
+    /// term `l` (declining where `l`'s monomial does not divide `r`'s),
+    /// and subtracts `t·d` for that quotient term `t`. **The invariant,
+    /// held exactly at every step, is `rest = self − q·d`**: it holds
+    /// at the start (`rest = self`, `q = 0`), and a step adds `t` to
+    /// `q` and subtracts `t·d` from `rest` in the exact ring. So a
+    /// `rest` that reaches zero IS the statement `self = q·d`, and no
+    /// product needs checking afterwards. A step cannot drop a term:
+    /// every arithmetic refusal answers `None`, never a truncated form.
+    ///
+    /// Under a monomial order `t·d`'s leading term is `t·l = r`, so each
+    /// step cancels `rest`'s leading term and adds only smaller ones,
+    /// and each `t` is a distinct monomial — so `q` gains one term per
+    /// step. The step cap is therefore the budget's own term cap: a
+    /// quotient past `budget.max_terms` terms is not a form the tier
+    /// can hold (`within` refuses it), so no second constant stands
+    /// beside the budget. Each `t·d` is one term times `d`, inside the
+    /// budget's pair bound whenever `d` is.
+    ///
+    /// A refusal partway (the ring, an exponent, the pair bound) leaves
+    /// the cost profile's thread-local note set, although no node
+    /// froze. It is harmless: the caller always builds a form (the
+    /// quotient's root, or the atom it would have minted), so the node
+    /// is recorded as built and the note is never read — `form_in`
+    /// clears it before the next `combine`.
+    pub(super) fn div_exact(&self, d: &Self, budget: SymBudget) -> Option<Self> {
+        if self.is_zero() || d.as_constant().is_some() || d.degree() > self.degree() {
+            return None;
+        }
+        let (dm, dc) = leading(d)?;
+        let inverse = dc.recip()?;
+        let mut rest = self.clone();
+        let mut q = Self::zero();
+        for _ in 0..=budget.max_terms {
+            let Some((rm, rc)) = leading(&rest) else {
+                return Some(q);
+            };
+            let t = Self::term(mono_div(rm, dm)?, rc.mul(&inverse)?);
+            rest = rest.add(&t.mul(d, budget)?.neg()?)?;
+            q = q.add(&t)?;
+        }
+        None
+    }
+}
+
 /// **The exponent of `id` in `m`** — zero where the monomial does not
 /// carry it. One home: a monomial is a sorted `(id, exponent)` vector,
 /// so every rule that asks "to what power does this atom appear" would
@@ -275,6 +326,7 @@ pub(super) fn exp_of(m: &Mono, id: u128) -> u32 {
     m.iter().find(|(i, _)| *i == id).map_or(0, |(_, e)| *e)
 }
 
+/// The product of two monomials, refusing an exponent overflow.
 pub(super) fn mono_mul(a: &Mono, b: &Mono) -> Option<Mono> {
     let mut out: Mono = Vec::with_capacity(a.len() + b.len());
     merge_sorted(
@@ -293,6 +345,79 @@ pub(super) fn mono_mul(a: &Mono, b: &Mono) -> Option<Mono> {
         &mut out,
     )?;
     Some(out)
+}
+
+/// **The graded-lexicographic monomial order** — total degree first,
+/// then the exponent at the smallest indeterminate id where the two
+/// differ. The one order the tier's leading-term arithmetic runs under
+/// ([`leading`], [`trailing`], [`Poly::div_exact`] and `signed`'s
+/// polynomial square root): `a > b` implies `a·m > b·m`, and the empty
+/// monomial is the least, which is what a division or a root
+/// recurrence by leading terms needs. `Mono`'s own `Ord` — the order a
+/// `Poly` STORES its terms in — is a vector comparison and is NOT a
+/// monomial order, which is the hazard this one home exists for.
+/// Allocation-free: one merge over the two sorted vectors.
+pub(super) fn grlex(a: &Mono, b: &Mono) -> Ordering {
+    let degree = |m: &Mono| m.iter().map(|&(_, e)| u64::from(e)).sum::<u64>();
+    degree(a).cmp(&degree(b)).then_with(|| {
+        let (mut i, mut j) = (0, 0);
+        loop {
+            match (a.get(i), b.get(j)) {
+                (None, None) => return Ordering::Equal,
+                (Some(_), None) => return Ordering::Greater,
+                (None, Some(_)) => return Ordering::Less,
+                (Some(&(ia, ea)), Some(&(ib, eb))) => match ia.cmp(&ib) {
+                    Ordering::Equal if ea == eb => {
+                        i += 1;
+                        j += 1;
+                    }
+                    Ordering::Equal => return ea.cmp(&eb),
+                    // `a` carries `ia` and `b` does not: `a` is larger.
+                    Ordering::Less => return Ordering::Greater,
+                    Ordering::Greater => return Ordering::Less,
+                },
+            }
+        }
+    })
+}
+
+/// **`t / r` as monomials**, where `r` divides `t`; `None` where it
+/// does not (an exponent of `r` past `t`'s, or an indeterminate of `r`
+/// that `t` lacks). One merge over the two sorted vectors.
+pub(super) fn mono_div(t: &Mono, r: &Mono) -> Option<Mono> {
+    let mut out: Mono = Vec::with_capacity(t.len());
+    let mut j = 0;
+    for &(id, e) in t {
+        if r.get(j).is_some_and(|&(rid, _)| rid < id) {
+            return None;
+        }
+        let re = match r.get(j) {
+            Some(&(rid, re)) if rid == id => {
+                j += 1;
+                re
+            }
+            _ => 0,
+        };
+        if re > e {
+            return None;
+        }
+        if e > re {
+            out.push((id, e - re));
+        }
+    }
+    (j == r.len()).then_some(out)
+}
+
+/// The LEADING term of `p` under [`grlex`] — not the last term in
+/// storage order. `None` for the zero polynomial.
+pub(super) fn leading(p: &Poly) -> Option<&(Mono, Rat)> {
+    p.terms().iter().max_by(|a, b| grlex(&a.0, &b.0))
+}
+
+/// The TRAILING term of `p` under [`grlex`]. `None` for the zero
+/// polynomial.
+pub(super) fn trailing(p: &Poly) -> Option<&(Mono, Rat)> {
+    p.terms().iter().min_by(|a, b| grlex(&a.0, &b.0))
 }
 
 /// One walk over two vectors sorted by `key`, in key order, appended
@@ -692,5 +817,149 @@ mod tests {
         assert_eq!(p, q);
         assert_eq!(p, Poly::indet(11));
         assert_eq!(p.digest(), Poly::indet(11).digest());
+    }
+
+    // ---- the leading-term arithmetic: grlex, mono_div, div_exact ----
+
+    /// Every monomial over ids {3, 5, 7} with exponents 0..=3, in the
+    /// type's invariant shape (sorted by id, no zero exponent).
+    fn monos() -> Vec<Mono> {
+        let mut out = Vec::new();
+        for a in 0..=3u32 {
+            for b in 0..=3u32 {
+                for c in 0..=3u32 {
+                    out.push(
+                        [(3u128, a), (5, b), (7, c)]
+                            .into_iter()
+                            .filter(|&(_, e)| e > 0)
+                            .collect(),
+                    );
+                }
+            }
+        }
+        out
+    }
+
+    /// **`grlex` is a MONOMIAL order**, exhaustively over 64 monomials:
+    /// total, antisymmetric, equal exactly on equal monomials,
+    /// transitive, multiplicative (`a > b ⇒ a·m > b·m`), with `1` the
+    /// least. A tie-break that is not a monomial order reds the
+    /// multiplicative clause.
+    #[test]
+    fn grlex_is_a_monomial_order() {
+        let ms = monos();
+        for a in &ms {
+            assert_ne!(grlex(a, &Mono::new()), Ordering::Less, "1 is the least");
+            for b in &ms {
+                let ab = grlex(a, b);
+                assert_eq!(ab, grlex(b, a).reverse(), "antisymmetric");
+                assert_eq!(ab == Ordering::Equal, a == b, "equal iff equal");
+                for m in &ms {
+                    let am = mono_mul(a, m).unwrap();
+                    let bm = mono_mul(b, m).unwrap();
+                    assert_eq!(grlex(&am, &bm), ab, "multiplicative: {a:?} {b:?} by {m:?}");
+                    if ab == Ordering::Greater && grlex(b, m) == Ordering::Greater {
+                        assert_eq!(grlex(a, m), Ordering::Greater, "transitive");
+                    }
+                }
+            }
+        }
+    }
+
+    /// `mono_div` inverts `mono_mul` and refuses exactly the non-divisors.
+    #[test]
+    fn mono_div_inverts_mono_mul() {
+        let ms = monos();
+        for a in &ms {
+            for b in &ms {
+                let ab = mono_mul(a, b).unwrap();
+                assert_eq!(mono_div(&ab, b).as_ref(), Some(a));
+                let divides = b.iter().all(|&(id, e)| exp_of(a, id) >= e);
+                assert_eq!(mono_div(a, b).is_some(), divides, "{a:?} / {b:?}");
+            }
+        }
+    }
+
+    /// **The leading term is grlex's maximum, not the last in storage
+    /// order**: `x² + y + x·y` (`x` id 3, `y` id 5) stores `y` last —
+    /// `Mono`'s vector order puts `[(5, 1)]` after both `[(3, …)]` — while
+    /// the grlex leading term is `x²` (degree 2, and the larger `x`
+    /// exponent of the tie with `x·y`) and the trailing term is `y`.
+    #[test]
+    fn leading_is_the_grlex_maximum_not_the_stored_last() {
+        let mut p = Poly::term(vec![(3, 2)], Rat::one());
+        p.insert(vec![(5, 1)], Rat::one()).unwrap();
+        p.insert(vec![(3, 1), (5, 1)], Rat::one()).unwrap();
+        assert_ne!(
+            p.terms().last().map(|(m, _)| m.clone()),
+            Some(vec![(3, 2)]),
+            "the row needs a storage order whose last term is not the leading one"
+        );
+        assert_eq!(leading(&p).map(|(m, _)| m.clone()), Some(vec![(3, 2)]));
+        assert_eq!(trailing(&p).map(|(m, _)| m.clone()), Some(vec![(5, 1)]));
+    }
+
+    /// `x + k` over one indeterminate.
+    fn x_plus(k: Rat) -> Poly {
+        let mut p = Poly::indet(3);
+        p.insert(Mono::new(), k).unwrap();
+        p
+    }
+
+    /// `x^n − 1` over one indeterminate.
+    fn x_pow_minus_one(n: u32) -> Poly {
+        let mut p = Poly::term(vec![(3, n)], Rat::one());
+        p.insert(Mono::new(), Rat::new(-1, 1, 0).unwrap()).unwrap();
+        p
+    }
+
+    /// **The step cap is the budget's term cap.** `(x^n − 1)/(x − 1)`
+    /// has an `n`-term quotient: under a 50-term budget `n = 50` divides
+    /// and `n = 51` declines although `D | N`, and under the tests'
+    /// 4096-term budget `n = 600` divides.
+    #[test]
+    fn the_division_is_capped_at_the_budgets_term_cap() {
+        let d = x_plus(Rat::new(-1, 1, 0).unwrap());
+        let small = SymBudget {
+            max_terms: 50,
+            max_degree: 1024,
+        };
+        let q = x_pow_minus_one(50)
+            .div_exact(&d, small)
+            .expect("50 terms fit");
+        assert_eq!(q.terms().len(), 50);
+        assert!(x_pow_minus_one(51).div_exact(&d, small).is_none());
+        let big = SymBudget {
+            max_terms: 4096,
+            max_degree: 1024,
+        };
+        let q = x_pow_minus_one(600)
+            .div_exact(&d, big)
+            .expect("600 terms fit");
+        assert_eq!(q.terms().len(), 600);
+        assert_eq!(q.mul(&d, big).unwrap(), x_pow_minus_one(600));
+    }
+
+    /// **A non-zero remainder is a decline, never a quotient**: `(x² + x
+    /// + 1)/(x + 1)` leaves the constant `1`, and a division that
+    /// dropped it would answer `x`.
+    #[test]
+    fn a_non_zero_remainder_declines() {
+        let d = x_plus(Rat::one());
+        let mut n = Poly::term(vec![(3, 2)], Rat::one());
+        n.insert(vec![(3, 1)], Rat::one()).unwrap();
+        n.insert(Mono::new(), Rat::one()).unwrap();
+        assert!(n.div_exact(&d, budget()).is_none());
+        let exact = d.mul(&d, budget()).unwrap();
+        assert_eq!(exact.div_exact(&d, budget()), Some(d.clone()));
+    }
+
+    /// **The ring refusing partway is a decline**: `x^40/(x + 2^100)`
+    /// builds `2^(100·j)` coefficients until the ring refuses.
+    #[test]
+    fn a_ring_refusal_partway_declines() {
+        let d = x_plus(Rat::new(1, 1, 100).unwrap());
+        let n = Poly::term(vec![(3, 40)], Rat::one());
+        assert!(n.div_exact(&d, budget()).is_none());
     }
 }

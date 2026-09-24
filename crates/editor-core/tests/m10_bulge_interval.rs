@@ -1,6 +1,6 @@
 //! **What stands at a bulge that is not 1 — the nominal pins.** The
 //! form-level mechanism's reach is the UNIT bulge (`sym.rs`'s "The
-//! form-level algebra" section; `work/sym/rule-d-reaches-the-unit-bulge-only`):
+//! form-level algebra" section; `work/decide/rule-d-reaches-the-unit-bulge-only`):
 //! every document M10-10 measured authors its arcs through
 //! `LoopProgram::Circle`/`CircleSplit(2)`, kernel bulge `1`. These rows
 //! hold the per-predicate split AT THE NOMINAL, under the shipped set
@@ -60,9 +60,10 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// `carrier_endpoint_start` 4 → 0 — and `carrier_matches_mapped_source`
 /// is 16 there: four of them stand on the sign of `b` in the open and
 /// twelve are frozen, eight of those on the bulk of the sign's second
-/// atom (`m10_bulge_renders.txt` attributes each). At 512 bits the literal's `carrier_on_surface_2` is 18
-/// and its `carrier_on_surface_1` 0; `carrier_endpoint_start` stays
-/// 24/0/8/4. The literal's shipped CEILING is not the residue: 0.56 of
+/// atom (`m10_bulge_renders.txt` attributes each). A 512-bit ring
+/// (SYM-3's measurement, before rule E) took the literal's
+/// `carrier_on_surface_2` to 18 and its `carrier_on_surface_1` to 0.
+/// The literal's shipped CEILING is not the residue: 0.56 of
 /// its real study, bounded by `arc_diameter_clearance` (the annulus's
 /// real-margin class); the parameter's is `3.52e2·ε`, on and off
 /// alike.
@@ -219,14 +220,16 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
 
 /// The D-tab with its bulge a document parameter: the same table as
 /// the literal's ([`D_TAB_AT_THE_NOMINAL`]) except on ONE row. At the
-/// nominal the bulge's sign is not what blocks on any of the shared
-/// rows, the ring is, on the same nodes — but with SYM-5's rule E the
-/// two part on `carrier_matches_mapped_source`: 126/0/42/12 on the
-/// literal against 126/0/38/16 here, so four of the six the rule takes
-/// on the literal it does not take when the bulge is a parameter. The
-/// sign
-/// enters where the dyadic control shows it once the ring is out of
-/// the way: the carrier's span `4·atan|b|` (`sweep`'s `arc_span`)
+/// nominal the ring blocks the shared rows on the same nodes, with one
+/// exception that does not part the table: `line_span`'s two asked
+/// decisions here are never frozen and stand on the sign of the
+/// APOTHEM `(1 − b²)/b` (two magnitudes against their signed
+/// spellings), where the literal's two are frozen on the ring. With
+/// SYM-5's rule E the two part on `carrier_matches_mapped_source`:
+/// 126/0/42/12 on the literal against 126/0/38/16 here, so four of the
+/// six the rule takes on the literal it does not take when the bulge
+/// is a parameter. The sign of `b` enters where the dyadic control
+/// shows it once the ring is out of the way: the carrier's span `4·atan|b|` (`sweep`'s `arc_span`)
 /// mints `abs(b)` and `sqrt(1 + abs(b)²)` where the pushforward's
 /// `4·atan b` mints `sqrt(1 + b²)` — two atoms for one quantity,
 /// related only through the sign of `b` — and the radius

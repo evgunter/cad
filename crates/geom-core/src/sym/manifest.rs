@@ -73,7 +73,7 @@
 //! positive polynomial and `D` is a manifestly non-negative one. `D`
 //! needs only non-negativity because `D ≠ 0` at every point of a box
 //! clause 1 admits — and that is `quotient`'s side condition, argued
-//! there in full over the FOUR sources a denominator has. It is NOT
+//! there in full over the FIVE sources a denominator has. It is NOT
 //! "a point where `D` vanishes is a point the value channel divided by
 //! zero at": that covers only source (i), and `quotient`'s header names
 //! it as the mistake its own paragraph replaces; (ii)–(iv) are non-zero
