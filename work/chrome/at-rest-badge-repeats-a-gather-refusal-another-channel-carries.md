@@ -57,8 +57,7 @@ at `product_badge`.
   so it is a non-exhaustive sibling of `frame::badge_site`'s `match`. A
   new `ProductErrorKind` reds `badge_site` and silently inherits
   `Refused` here. Either option under "What a taker owes" removes the
-  second policy or
-  makes it answer to the first.
+  second policy or makes it answer to the first.
 - **The badge's words claim a gate run that did not happen.** The
   `Refused` built in that arm renders
   `AssemblyError::product_refusal(&fault)` — *"assembly: product: …"* —
