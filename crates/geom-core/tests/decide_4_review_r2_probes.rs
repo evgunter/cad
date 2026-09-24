@@ -370,3 +370,30 @@ fn r2_the_quotient_under_all_sub_shapes() {
         }
     }
 }
+
+/// `R` a product of sign-carrying factors, with a zero of `R` in the box.
+#[test]
+fn r2_a_product_of_sign_carrying_factors() {
+    let t = || over("t", -0.5, 0.5);
+    let s = || over("s", -1.0, -0.5);
+    let root = || {
+        let d = lit(2.0) + t();
+        (t().powi(2) * s().powi(2) * d / d).sqrt()
+    };
+    let signed = decide("sqrt(t^2 s^2 D/D) - t s", SymRules::shipped(), &|| {
+        root() - t() * s()
+    });
+    let neg = decide("sqrt(t^2 s^2 D/D) + t s", SymRules::shipped(), &|| {
+        root() + t() * s()
+    });
+    let whole = decide("sqrt(t^2 s^2 D/D) - |t s|", SymRules::shipped(), &|| {
+        root() - (t() * s()).abs()
+    });
+    let split = decide("sqrt(t^2 s^2 D/D) - |t||s|", SymRules::shipped(), &|| {
+        root() - t().abs() * s().abs()
+    });
+    assert_ne!(signed, "theorem");
+    assert_ne!(neg, "theorem");
+    assert_eq!(whole, "theorem");
+    println!("  |t s| against |t||s|: {split}");
+}
