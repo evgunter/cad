@@ -206,8 +206,9 @@ pub enum SceneError {
         /// The offending value, in world units.
         delta: f64,
     },
-    /// The document's roots did not gather into a product body: a
-    /// failed or poisoned root, or a document denoting no body.
+    /// The document's roots did not gather into a product body, for
+    /// any of the gather's reasons (`ProductErrorKind::means_no_body`
+    /// says which of them is an absence rather than a fault).
     NoProduct(ProductError),
     /// The body did not tessellate at this δ.
     NotTessellated(TessellateError),
@@ -437,8 +438,10 @@ impl SceneMesh {
     /// draws. Zero triangles, legally — an honest blank viewport, not
     /// an error — with `bounds` carried from the geometry that exists
     /// but is not drawn, so a camera still has something real to frame
-    /// against. Distinct from [`SceneError::EmptyMesh`], which remains
-    /// the refusal for a document that has nothing to draw at all.
+    /// against. Distinct from [`SceneMesh::nothing`], the picture of a
+    /// document with no geometry to carry a box from, and from
+    /// [`SceneError::EmptyMesh`], the refusal for parts that exist and
+    /// tessellated to nothing.
     pub fn empty(bounds: Aabb, delta: DisplayTolerance) -> Self {
         Self {
             positions: Vec::new(),
@@ -457,7 +460,7 @@ impl SceneMesh {
     }
 
     /// **The picture of a document that denotes no geometry at all**
-    /// — an empty recipe, or one holding only datums and profiles.
+    /// (which documents those are is `ProductErrorKind::means_no_body`'s).
     ///
     /// [`SceneMesh::empty`]'s sibling, and the distinction between
     /// them is where the extent comes from: that one is drawn from

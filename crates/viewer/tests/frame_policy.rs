@@ -2570,7 +2570,8 @@ fn opening_a_document_drops_the_previous_ones_landed_run() {
 
 #[test]
 fn a_well_formed_product_reports_no_fault_and_the_verdict_is_computed_once() {
-    // The gather-level verdict no per-node badge can carry. Nothing in
+    // The gather's verdict (which channel reports which class is
+    // `frame::badge_site`'s). Nothing in
     // the gallery refuses, so the row asserts the honest half: the
     // verdict exists, is `None` for a good document, and is `None`
     // before anything lands (which is not the same as "well formed").
