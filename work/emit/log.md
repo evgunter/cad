@@ -373,3 +373,22 @@ edges, so a rewired recipe could reach a node that was an ancestor in
 neither run. The fix pass walks each run separately, through the
 shared `roots::walk_strict_ancestors`. Two ShadowExec sentences that
 claimed per-pair evidence now state their node-level trigger.
+
+## 2026-09-24 — seam-line ranks close (PR 3125)
+
+A union's seam-edge pieces rebound across member orders, because two
+rankers oriented one seam line differently: a seam chain minted
+already cut, and a descent chain cut later. After three review rounds
+there is one home, `names::seam_pair`. It answers which seam line a
+rank runs along, through one exhaustive wrapper list, for the emitter
+and for the collapse alike. The pair emitter keeps its structural
+sides. An equal-named pair (two placements of one prototype) ranks
+along its own carrier, and a union cannot produce one because members
+are wrapped in `FromMember`.
+
+Measured rebinds, main to head, all 0: 192 in `far`, 352 in `two_b`,
+108 in `two`, and 368 in the reviewer's `two_ribs`. Some pair-boolean
+names move and are listed in the PR: 12 rows in `cross`, 12 in
+`cross_plain`, 4 in the split repro. Filed: P3
+`seam-line-sides-is-a-missing-rule`, raised to P0 if a document
+reaches it.
