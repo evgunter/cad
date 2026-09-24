@@ -469,7 +469,7 @@ fn mfkrh_inheriting_the_chart_carries_every_row() {
 /// tessellator and `chart_boundary` to read; the caller's re-mint is
 /// what restores the face. That `validate_pcurves` cannot tell a
 /// never-minted face from one a door emptied is filed as
-/// `work/trim/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
+/// `work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
 #[test]
 fn mfkrh_onto_a_rowless_curved_face_drops_the_rows_and_the_pass_goes_quiet() {
     let mut s = sheet();
@@ -653,7 +653,7 @@ fn mfkrh_onto_a_second_key_the_body_records_as_one_surface_carries_every_row() {
 /// an identity channel that can be absent but never wrong. Deciding
 /// those two keys equal means reading the surfaces' scalars
 /// structurally, which needs a bound these doors do not carry:
-/// `work/topo/two-provenance-free-keys-holding-one-surface-read-as-two-charts`.
+/// `work/origin/two-provenance-free-keys-holding-one-surface-read-as-two-charts`.
 #[test]
 fn two_keys_holding_one_surface_with_no_provenance_read_as_two_charts() {
     let mut s = sheet();
@@ -839,7 +839,7 @@ fn mef_onto_a_chart_that_mints_nothing_drops_the_moved_runs_rows() {
 /// half-minted — its own minted half rowless beside them — and the
 /// pass reported that half; dropped, the new face stores no row at
 /// all and reads as one the pass has not minted, about which it says
-/// nothing (`work/trim/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`).
+/// nothing (`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`).
 /// What the trade buys is the same as at the loop doors: the body no
 /// longer holds two curves stated in a chart the face is not on.
 #[test]
@@ -861,11 +861,13 @@ fn mef_onto_a_rowless_curved_chart_drops_the_runs_rows_and_the_pass_goes_quiet()
 /// byte.** `Inherit` and a `Shared` naming the old key are the same
 /// chart by construction, so the two rows that move are the two rows
 /// that were there — interval, image and certificate — and the two
-/// that stay are the other two. The two findings are the minted
-/// halves, `he_plus` on the old face and `he_minus` on the new, which
-/// this door leaves rowless either way (the operator's minting posture
-/// is `half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`,
-/// not this row's).
+/// that stay are the other two. **The carry is the `rows_deep`
+/// equality**; the `(2, 2)` reading beside it pins something else —
+/// the two findings are the minted halves, `he_plus` on the old face
+/// and `he_minus` on the new, which this door leaves rowless — and
+/// that count moves the day the operator mints its own halves' rows
+/// (`work/topo/half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`),
+/// without the carry having moved at all.
 #[test]
 fn mef_inheriting_or_sharing_the_chart_carries_the_runs_rows_byte_for_byte() {
     let base = sheet();
@@ -962,16 +964,16 @@ fn kef_into_a_rowless_curved_face_drops_the_remnants_rows_and_the_pass_goes_quie
 fn kef_between_faces_on_one_chart_carries_the_remnants_rows_byte_for_byte() {
     let mut s = sheet();
     let he = he_at(&s.body, s.low, at(U1, VM));
-    let killed_rows: Vec<String> = rows_deep(&s.body, s.low)
+    let remnant_rows: Vec<String> = rows_deep(&s.body, s.low)
         .into_iter()
         .filter(|row| !row.starts_with(&format!("{he:?} ")))
         .collect();
-    assert_eq!(killed_rows.len(), 3);
+    assert_eq!(remnant_rows.len(), 3);
     let killed = s.body.kef(he).unwrap();
     assert_eq!(killed.killed_face, s.low);
     assert_eq!(rows_of(&s.body, s.up), (6, 0));
     let after = rows_deep(&s.body, s.up);
-    for row in &killed_rows {
+    for row in &remnant_rows {
         assert!(
             after.contains(row),
             "kef lost or restated a row across one chart: {row}"
@@ -981,8 +983,11 @@ fn kef_between_faces_on_one_chart_carries_the_remnants_rows_byte_for_byte() {
 }
 
 /// And onto a second key the body records as the same description:
-/// the remnant's rows are carried, and the only findings are the
-/// surviving face's own five halves, which nobody ever minted.
+/// the remnant's rows are carried. **The carry is the `rows_deep`
+/// count** — the three rows that arrive are three that left. The
+/// `(5, 5)` reading beside it is the surviving face's own five
+/// halves, which this fixture re-charted without minting; it pins the
+/// fixture's state, not the door's.
 #[test]
 fn kef_into_a_second_key_the_body_records_as_one_surface_carries_the_remnants_rows() {
     let mut s = sheet();
@@ -993,10 +998,99 @@ fn kef_into_a_second_key_the_body_records_as_one_surface_carries_the_remnants_ro
         .unwrap();
     s.body.set_surface_source(cyl, one_recipe()).unwrap();
     s.body.set_surface_source(second, one_recipe()).unwrap();
+    let before = rows_deep(&s.body, s.low);
 
     let he = he_at(&s.body, s.low, at(U0, V0));
     s.body.kef(he).unwrap();
     assert_eq!(rows_of(&s.body, s.plane), (3, 5));
+    let after = rows_deep(&s.body, s.plane);
+    let carried = before.iter().filter(|row| after.contains(row)).count();
+    assert_eq!(carried, 3, "the remnant's three rows arrive verbatim");
     let findings = validate_pcurves(&s.body, band());
     assert_eq!((missing(&findings), findings.len()), (5, 5));
+}
+
+/// The sheet's cylinder charted with a rotated `u_ref`: the same point
+/// set, a different chart. A face put on it MINTS, and its rows are
+/// not the rows of the sheet's chart — which is what a destination
+/// that is both minted and on another chart needs.
+fn rotated_cylinder() -> Surface<f64> {
+    Surface::Cylinder {
+        origin: Point3::origin(),
+        axis: axis(),
+        radius: 1.0,
+        u_ref: Vec3::new((-0.3f64).cos(), (-0.3f64).sin(), 0.0),
+    }
+}
+
+/// **`kef` drops the remnant's rows and no others.** The surviving
+/// face is MINTED on a different chart (the sheet's cylinder,
+/// re-charted), so the remnant's three rows go — and the surviving
+/// loop's own three, stated in its own chart already, stay byte for
+/// byte, with the pass naming exactly the three rowless arrivals. A
+/// `kef` that disposed of the destination LOOP's rows (the loop doors'
+/// walk) would read `(0, 6)` and be silent; no other row here reaches
+/// a minted survivor on another chart.
+#[test]
+fn kef_into_a_minted_face_on_another_chart_keeps_the_survivors_own_rows() {
+    let mut s = sheet();
+    s.body
+        .set_face_surface(s.up, FaceSurface::New(rotated_cylinder()))
+        .unwrap();
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.up), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+    let up_before = rows_deep(&s.body, s.up);
+
+    let he = he_at(&s.body, s.low, at(U1, VM));
+    let killed = s.body.kef(he).unwrap();
+    assert_eq!(killed.killed_face, s.low);
+    assert_eq!(rows_of(&s.body, s.up), (3, 3));
+    for row in rows_deep(&s.body, s.up) {
+        assert!(
+            up_before.contains(&row),
+            "kef restated a surviving row: {row}"
+        );
+    }
+    let findings = validate_pcurves(&s.body, band());
+    assert_eq!((missing(&findings), findings.len()), (3, 3));
+}
+
+/// **The chart is decided where both keys resolve.** The dying face is
+/// the ONLY holder of its key — the sheet's back, put on a second key
+/// tied to the panel's by one recipe and minted — so this kill reaps
+/// that key. The remnant still carries by provenance: a decision read
+/// after the orphan sweep would find the dying key gone, read two
+/// charts, and drop five rows that were right.
+#[test]
+fn kef_carries_the_remnant_by_provenance_when_it_reaps_the_dying_key() {
+    let mut s = sheet();
+    let cyl = s.body.get_face(s.low).unwrap().surface;
+    let second = s
+        .body
+        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
+        .unwrap();
+    s.body.set_surface_source(cyl, one_recipe()).unwrap();
+    s.body.set_surface_source(second, one_recipe()).unwrap();
+    topo::mint_pcurves(&mut s.body, tol()).unwrap();
+    assert_eq!(rows_of(&s.body, s.plane), (6, 0));
+    let back_before = rows_deep(&s.body, s.plane);
+
+    // The back's half of the edge `a-b` starts at `b`.
+    let he = he_at(&s.body, s.plane, at(U1, V0));
+    let killed = s.body.kef(he).unwrap();
+    assert_eq!(killed.killed_face, s.plane);
+    assert_eq!(
+        killed.killed_surface,
+        Some(second),
+        "the dying key had one holder, and this kill reaps it"
+    );
+    assert_eq!(rows_of(&s.body, s.low), (8, 0));
+    let low_after = rows_deep(&s.body, s.low);
+    let carried = back_before
+        .iter()
+        .filter(|row| low_after.contains(row))
+        .count();
+    assert_eq!(carried, 5, "every surviving back row arrives verbatim");
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
 }

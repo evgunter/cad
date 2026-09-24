@@ -84,8 +84,9 @@
 //! Caches are minted at construction and are immutable with the body;
 //! there is no general invalidation machinery, and what stands in for
 //! one is per door: a door declares its posture below, and the three
-//! that move a whole loop between charts dispose of the moved rows
-//! themselves ([`crate::Body::drop_rows_on_chart_change`]).
+//! that move a whole loop between charts, and the two that move a run
+//! of half-edges between two faces' loops, dispose of the moved rows
+//! themselves ([`crate::Body::drop_rows`]).
 //! Content-keyed cache transfer stays banked (C4). Persistence (M4 PR 6 / D6.1) is
 //! **recipe-level**: a document stores its edit list, and loading
 //! re-evaluates it — so a round-trip **re-mints** pcurves from the same
@@ -182,28 +183,22 @@
 //! is stated in while changing no key. Each carries the moved loop's
 //! rows where the two faces are on one CHART
 //! ([`crate::Body::same_chart`]) and drops them where they are not,
-//! deriving nothing — [`crate::Body::drop_rows_on_chart_change`]
-//! carries the whole argument, including what the drop gives up: every
-//! rowless CURVED target, through every one of the three doors, trades
-//! a loud reading (the moved rows re-certified against the target's
-//! chart and refused) for a silent one (a face this pass says nothing
-//! about). Their `Neither` reading was the one the guard's table could
-//! not see: no posture makes a claim about what a row MEANS, and these
-//! doors changed nothing else.
+//! deriving nothing — [`crate::Body::drop_rows`] carries the whole
+//! argument, including what the drop gives up: every rowless CURVED
+//! target, through every door that drops, trades a loud reading (the
+//! moved rows re-certified against the target's chart and refused)
+//! for a silent one (a face this pass says nothing about). Their
+//! `Neither` reading was the one the guard's table could not see: no
+//! posture makes a claim about what a row MEANS, and these doors
+//! changed nothing else. Two more doors move a RUN of half-edges
+//! between two faces' loops rather than a whole loop —
+//! [`crate::Body::mef`]'s chord surgery and [`crate::Body::kef`]'s
+//! unsplice — and take the same answer over the run;
+//! `staleness_posture::DECLARED` carries each door's note.
 //!
 //! **Neither clears nor re-mints** — the remaining Euler operators and
 //! kill ops. These are primitives, and they are what the stale-row
-//! consequence below is about. Two of them move a RUN of half-edges
-//! between loops of DIFFERENT faces rather than a whole loop
-//! ([`crate::Body::mef`]'s moved run, [`crate::Body::kef`]'s remnant),
-//! so the rows on that run change chart exactly as a re-parented
-//! loop's do — and each door disposes of them on the loop doors'
-//! terms, carried across one chart and dropped across two
-//! ([`crate::Body::drop_run_rows_on_chart_change`]). What keeps them
-//! in this bucket is what they do NOT do: `mef` mints two halves with
-//! no row (`work/topo/half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`),
-//! and `kef` kills two whose rows outlive their keys, which is the
-//! consequence below.
+//! consequence below is about.
 //!
 //! The consequence is bounded but real: a `SecondaryMap` row outlives
 //! its key until the slot is reused, so surgery on a body that already
@@ -2604,9 +2599,14 @@ pub(crate) mod staleness_posture {
         /// half-edge's fresh key, or the two keys a parameter split
         /// leaves where one edge was — and drops what no key can
         /// carry, including a row whose key never moved but whose
-        /// chart did (the loop-re-parenting doors). What a door in
-        /// this bucket never does is return with a row that says
-        /// something the body no longer holds.
+        /// chart did (the loop-re-parenting doors, and the run
+        /// `mef`'s chord surgery or `kef`'s unsplice moves between two
+        /// faces' loops). What a door in this bucket never does is
+        /// return with a row that says something the body no longer
+        /// holds. It says nothing about rows the door never HELD: a
+        /// half-edge a door in this bucket mints arrives rowless, and
+        /// whose that row is to mint is the minting posture, decided
+        /// elsewhere.
         Transfers,
         /// Leaves the map exactly as it found it — a primitive, or a
         /// write the map is not keyed on. What this bucket rests on is
@@ -2615,12 +2615,7 @@ pub(crate) mod staleness_posture {
         /// whose rows no longer certify; it is silent about a complete
         /// face whose rows were stated in another chart and certify
         /// against this one, and about any face on a chart
-        /// [`super::chart_mints`] refuses. The two entries that moved
-        /// rows INTO that blind spot — `mef`'s run and `kef`'s remnant,
-        /// re-chartered with their keys unchanged — dispose of those
-        /// rows themselves now
-        /// ([`crate::Body::drop_run_rows_on_chart_change`]); what they
-        /// leave is absence, never a row about another chart.
+        /// [`super::chart_mints`] refuses.
         Neither,
     }
 
@@ -2744,27 +2739,10 @@ pub(crate) mod staleness_posture {
             ("mev", Neither, "Euler operator"),
             ("mev_line", Neither, "Euler operator (sugar over `mev`)"),
             ("mev_null", Neither, "Euler operator"),
-            (
-                "mef",
-                Neither,
-                "Euler operator; the run `[he1 .. he2)` it moves onto the new face keeps its \
-             rows where that face is on the old face's chart (`Body::same_chart`) and loses \
-             them where it is not (`Body::drop_run_rows_on_chart_change`); the two halves it \
-             mints carry no row",
-            ),
-            ("mef_chord", Neither, "Euler operator (sugar over `mef`)"),
             ("mekr", Neither, "Euler operator"),
             ("mekr_chord", Neither, "Euler operator (sugar over `mekr`)"),
             ("kemr", Neither, "Euler operator"),
             ("kev", Neither, "kill op"),
-            (
-                "kef",
-                Neither,
-                "kill op; the dying loop's remnant keeps its rows where the surviving face is \
-             on the dying face's chart and loses them where it is not \
-             (`Body::drop_run_rows_on_chart_change`); the killed halves' rows outlive their \
-             keys",
-            ),
             ("kvfs", Neither, "kill op"),
             // ---- Transfers: the loop-re-parenting doors, which carry
             // a moved loop's rows onto the target face and drop them
@@ -2796,6 +2774,29 @@ pub(crate) mod staleness_posture {
                 Transfers,
                 "ring surgery: re-parents a ring, mints no half-edge, and carries or drops \
              the ring's rows by whether the two faces are on one chart — see `kfmrh`",
+            ),
+            // ---- Transfers: the two doors that move a RUN of
+            // half-edges between two faces' loops, and dispose of the
+            // run's rows the way the loop doors dispose of a loop's. ----
+            (
+                "mef",
+                Transfers,
+                "Euler operator, and a run re-parenting: the run `[he1 .. he2)` it moves onto \
+             the new face keeps its rows where that face is on the old face's chart \
+             (`Body::same_chart`) and loses them where it is not (`Body::drop_rows`). The \
+             two halves it mints carry no row on either face — the minting posture \
+             (`work/topo/half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`), \
+             which this entry does not decide",
+            ),
+            ("mef_chord", Transfers, "Euler operator (sugar over `mef`)"),
+            (
+                "kef",
+                Transfers,
+                "kill op, and a run re-parenting: the dying loop's remnant keeps its rows \
+             where the surviving face is on the dying face's chart (`Body::same_chart`) and \
+             loses them where it is not (`Body::drop_rows`); the surviving loop's own rows \
+             are untouched, and the two killed halves' rows outlive their keys as every kill \
+             op's do",
             ),
             (
                 "movefac",

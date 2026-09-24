@@ -749,10 +749,10 @@ impl<T: Decide> Body<T> {
     /// face is on the same chart — one key, or two the body records as
     /// one description ([`Body::same_chart`]) — they stand; on any
     /// other chart the remnant's rows are DROPPED, for the reasons and
-    /// with the consequences [`Body::drop_run_rows_on_chart_change`]
-    /// states. The surviving loop's own rows are untouched either way.
-    /// Which is why the surviving face RESOLVES in the plan phase
-    /// below: its chart is what the mutation phase reads, and a
+    /// with the consequences [`Body::drop_rows`] states. The surviving
+    /// loop's own rows are untouched either way. Which is why the
+    /// surviving face RESOLVES in the plan phase below, and the chart
+    /// is decided there: it is what the mutation phase acts on, and a
     /// mutation phase reads nothing it has not proven.
     ///
     /// # Precondition check order
@@ -762,14 +762,14 @@ impl<T: Decide> Body<T> {
     /// ([`EulerOpError::UnclaimedHalfEdge`]); the mate resolves
     /// (`StaleKey`); the two halves lie in distinct loops
     /// ([`EulerOpError::SameLoop`] — the same-loop configuration is
-    /// [`Body::kemr`]'s) of distinct faces ([`EulerOpError::SameFace`] —
-    /// two loops of one face is what [`Body::kfmrh`] on adjacent faces
-    /// leaves behind; kill such an edge with [`Body::kev`], or via
-    /// [`Body::mfkrh`]-then-`kef` for the self-loop variant); both
-    /// loops resolve (`StaleKey`) and are cycles
-    /// ([`EulerOpError::LoopNotCycle`]); both faces resolve
-    /// (`StaleKey` — the dying one, then the surviving one); the dying
-    /// face is ring-free
+    /// [`Body::kemr`]'s); the dying loop resolves (`StaleKey`) and is
+    /// a cycle ([`EulerOpError::LoopNotCycle`]), then the surviving
+    /// loop likewise; the two loops lie on distinct faces
+    /// ([`EulerOpError::SameFace`] — two loops of one face is what
+    /// [`Body::kfmrh`] on adjacent faces leaves behind; kill such an
+    /// edge with [`Body::kev`], or via [`Body::mfkrh`]-then-`kef` for
+    /// the self-loop variant); the dying face resolves (`StaleKey`),
+    /// then the surviving one; the dying face is ring-free
     /// ([`EulerOpError::FaceHasRings`]); its shell resolves
     /// (`StaleKey`); the dying loop's cycle closes
     /// ([`EulerOpError::LoopCycleBroken`]); `prev(he)` and the mate's
@@ -833,6 +833,10 @@ impl<T: Decide> Body<T> {
                 .ok_or(EulerOpError::StaleKey {
                     key: EntityId::Face(f2),
                 })?;
+        // Decided here, where both keys resolve: the kills below may
+        // reap the dying face's surface, and a decision carried out
+        // of the plan phase has no order to keep against them.
+        let remnant_changes_chart = !self.same_chart(f1_data.surface, f2_surface);
         if !f1_data.rings.is_empty() {
             return Err(EulerOpError::FaceHasRings { face: f1 });
         }
@@ -882,10 +886,15 @@ impl<T: Decide> Body<T> {
         }
         // The remnant's rows are stated in the dying face's chart, and
         // stand on the surviving face only where that is the same
-        // chart. Before the kills: the compare reads both surface keys,
-        // and the orphan sweep below can reap the dying one.
-        let remnant_keys: Vec<HalfEdgeKey> = remnant.iter().copied().map(Live::key).collect();
-        self.drop_run_rows_on_chart_change(&remnant_keys, f1_data.surface, f2_surface);
+        // chart (decided in the plan phase). The remnant is exactly
+        // the set of half-edges whose `parent_loop` moved above, so it
+        // is exactly what the surviving loop's walk
+        // (`pcurves::loop_rows`) attributes to the moved half-edges
+        // once spliced: that loop is its own survivors plus the
+        // remnant, and its own rows are not this op's to touch.
+        if remnant_changes_chart {
+            self.drop_rows(remnant.iter().map(|moved| moved.key()));
+        }
         // Splice (derived as mef's exact inverse — module docs diagram).
         let m_alone = d.key() == m; // mate's loop was [m]
         // `b` absent = the dying loop was [he] alone; see its binding.
@@ -2025,6 +2034,37 @@ mod tests {
                 key: EntityId::Face(FaceKey::default()),
             },
             |b| b.kef(split.he_minus).unwrap_err(),
+        );
+    }
+
+    /// The documented order puts the surviving face's resolution
+    /// before the dying face's ring check, so a body faulted both ways
+    /// — the dying face carries a ring AND the surviving loop's face
+    /// does not resolve — is refused as the stale face, not the ring.
+    /// Two tier-1 corruptions on one call; which one the caller is
+    /// told about is the order, and this pins it.
+    #[test]
+    fn kef_names_the_stale_surviving_face_before_the_dying_faces_ring() {
+        let (mut body, _seed, seg, _split) = ops_pillow();
+        let strut = body
+            .mev_line(
+                MevSite::Fan {
+                    he1: seg.he_plus,
+                    he2: seg.he_plus,
+                },
+                p(2.0),
+                Tol::witness(),
+            )
+            .unwrap();
+        body.kemr(strut.he_plus, strut.he_minus).unwrap();
+        let l2 = body.get_half_edge(seg.he_minus).unwrap().parent_loop;
+        body.get_loop_mut(l2).unwrap().face = FaceKey::default();
+        assert_err_deep_unchanged(
+            &mut body,
+            &EulerOpError::StaleKey {
+                key: EntityId::Face(FaceKey::default()),
+            },
+            |b| b.kef(seg.he_plus).unwrap_err(),
         );
     }
 
