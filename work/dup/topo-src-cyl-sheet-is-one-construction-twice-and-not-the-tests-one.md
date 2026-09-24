@@ -4,6 +4,8 @@ kind: issue
 title: census.rs and chart_region.rs build the same cylinder sheet twice, and the tests/ door is that construction with a pub(crate) scar
 status: closed
 opened: 2026-09-19
+priority: P1
+cost: E
 closed: 2026-09-20
 branch: dup/src-cyl-sheet
 refs: [try-wall-sheet-stands-down-on-any-panic, geom-brep-inline-canonical-frame-surfaces]

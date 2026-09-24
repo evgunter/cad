@@ -1,64 +1,53 @@
-# EXCH — exchange: STEP and STL (plan)
+# EXCH — the plan
 
-**STATUS: OPEN (2026-09-03).** Opened 2026-09-03 from `docs/WORK-TRACKS-2026-09.md` (EXCH section), which is this
-program's charter until this plan supersedes it. Live state is
-`work/exch/log.md`'s tail and the item files beside this plan, never
-this file.
+exchange: STEP and STL
 
-Branch prefix (the #396 convention): **`exch/`** — unit branches
-`exch/<unit>-<slug>`, orchestrator branch `exch/orchestrator`.
-Away-channel tag `(EXCH orchestrator)`. A/B ordinal band
-**EXCH = 2100–2199**, claimed in `docs/MODEL-AB-LOG.md`'s banding
-entry in the opening commit, per that entry's rule.
+Re-scoped 2026-09-20 by EXCH's priority-seam cut
+(`work/README.md`, Track size). Nothing dispatched.
 
-## Charter
+## The slate
 
-Make import recognise what it can certify and make export say what the
-caller asked. The recognition work is certified-interval reasoning in
-`spline::compose` and the pcurve derivations; the option surface is
-three small API decisions Ev signs off.
+**24.5 budget points** of dispatchable work against a ceiling of 30.
+
+| pri | item | cost | title |
+|---|---|---|---|
+| P0 | `torus-rim-mint-abandons-a-half-applied-split` | H | The torus rim mint bails with Ok(()) after `split_at_midpoint` has already mutated the solid |
+| P1 | `recognize-normalizes-without-a-length-decision-and-cannot-mint-the-witness` | D | step-import recognize.rs normalizes a plane normal with no length decision and plus_zero's it, so it cannot mint the unit witness — the bare Vec3::orthonormal_basis stays for it |
+| P1 | `step-import-circle-promotion-has-no-map-obligation` | D | the circle limb certifies locus and closure, not the map: a re-timed closed carrier promotes on locus alone |
+| P1 | `step-import-eps-in-ambient-two-dial-strand` | D | recognition promotes at eps_in while selection and certify run at ambient: a column bent between the dials strands its edge |
+| P3 | `arc-rim-gate-reports-a-degenerate-carrier-as-an-infinite-residual` | E | step-import RimOffWallBoundary's residual is a measurement type carrying a non-measurement sentinel |
+| P3 | `import-normalizes-the-rim-only-cap` | D | STEP import re-mints a rim-only sphere cap into the seamed form, as a reported normalization |
+| P3 | `step-import-curve-recognition-named-exclusions` | H | step-import stage-1 curve recognition — the NAMED EXCLUSIONS (open arcs, ellipse, helix) and the surjectivity certificate |
+| P3 | `step-scaffold-strut-offset-is-absolute-in-a-unit-free-format` | D | step-import mints its scaffold strut at a fixed 1.0 offset, in a format whose coordinates carry no unit contract |
+| P4 | `chart-review-fuzz-frame-hand-rolls-the-helper-axis-cone` | E | chart_review_fuzz's frame() hand-rolls the |x| < 0.9 helper-axis cone instead of calling Vec3::orthonormal_basis |
+| None | `D343` | None | Sweep Class B (typed payloads through Debug) over the two STEP crates as one lane, with two riders |
+| None | `EXCH-E1` | None | D343 — typed payloads stop rendering through Debug in the two STEP crates, with its two riders |
+| None | `EXCH-E2` | None | the step-import chart-coherence consumer — findings reach the importer's diagnostics |
+| None | `EXCH-H1` | None | degree-1 line promotion and the ExtrudedPoint rung in nurbs_iso_derive |
+| None | `coherence-findings-have-no-step-import-consumer` | None | the step-import diagnostics half of the coherence consumer: examine_chart_coherence at the door where defective source coordinates actually arrive |
+| None | `epsilon-has-no-type-of-its-own` | None | Epsilon has no type of its own, so StepOptions and step-import restate Tolerance::init's rule by hand (S4's shape) |
+| None | `step-import-degree-one-line-promotion` | None | step-import — promote degree-1 NURBS carriers to Curve3::Line, needs an ExtrudedPoint rung in the NURBS-chart pcurve lane first |
+| None | `step-writer-hardcodes-user-header-fields` | None | The STEP writer still hardcodes two Part 21 header fields the standard assigns to the user |
+| None | `stl-header-refuses-plausible-names` | None | A plausible part name is a hard panic in both demos — StlOptions::header refuses solid-block and anything over 80 bytes |
+
+## Order
+
+`torus-rim-mint-abandons-a-half-applied-split` first: it bails with
+`Ok(())` after `split_at_midpoint` has already run, so the failure is
+silent AND leaves the body half-modified — the worst pairing on this
+slate.
+
+Then the recognition chain in dependency order:
+`recognize-normalizes-without-a-length-decision-and-cannot-mint-the-witness`,
+then `step-import-circle-promotion-has-no-map-obligation`, then
+`step-import-curve-recognition-named-exclusions`, which is the
+open-arc/ellipse/helix breadth the charter names and the largest unit
+here.
 
 ## Review posture
 
-Full v6 dual with Fable specs for the H units; the option-surface
-items are `[ev]` PRs then single-review E builds.
-
-## Unit order
-
-H, in dependency order:
-
-1. `step-import-degree-one-line-promotion` — the `ExtrudedPoint` /
-   `PlacedSegment`-over-`Line` rung in `nurbs_iso_derive` (TRIM's file;
-   filed there, built by whichever is dispatched first), then promote
-   certified degree-1 carriers to `Curve3::Line`; the certificate
-   exists.
-2. `step-import-curve-recognition-named-exclusions` — a derivative
-   channel in `spline::compose` so the turning witness becomes a
-   certificate (rung 2 before rung 1), then open arcs, the
-   general-quadric arm for ellipse, the helix implicit form; L.
-3. `rational-patch-flux-quadrature-budget` route 2 — an algebraic
-   cylinder-recognition certificate via exact spline-product hulls
-   (`spline::compose::tensor`) so M7-6 promotes rational walls to an
-   analytic `Cylinder`; issue 1195 is the second beneficiary; S-CERT's
-   Q4 ruling records the route as unclaimed; L. PROPS' dial decision is
-   the cheaper alternative for the dm1 flip — take the dial's answer
-   first.
-
-D→E, the option surface:
-
-4. `stl-header-refuses-plausible-names` — smallest; probably "fix the
-   demos to carry a fallback" and keep the wide sniff.
-5. `step-writer-hardcodes-user-header-fields` (`C14`) — which of
-   `authorisation` and the `FILE_DESCRIPTION` list are caller-settable.
-6. `epsilon-has-no-type-of-its-own` (`C13`; sibling of the `D283`
-   ruling) — where an ε-alone type lives and whether `Tolerance::eps`
-   becomes it; the three hand-copied finite-positive checks follow.
-
-E: `D343` (typed payloads through `{:?}` in the two STEP crates, with
-its two riders) and the step-import diagnostics half of FIX's
-`coherence-findings-have-no-consumer`.
-
-## Exit shape
-
-The three H units land, the option surface is ruled and built, Track
-U's STEP/STL rows are empty; the walk convention applies.
+OPEN, for this program's first dispatch. EXCH inherits protocol v7
+(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
+only, opus/opus outside it. Nobody has re-asked the triage question for
+this slate, so the first orchestrator answers it here rather than
+inheriting an answer.

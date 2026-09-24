@@ -141,21 +141,21 @@ fn the_validator_door_appends_a_site_note_and_routes_nothing() {
     assert!(!text.contains(NOTE), "{text}");
 }
 
-/// **The tube door's table routes a door name, never a recourse.**
+/// **The tube's table routes which tube it names, never a recourse.**
 ///
-/// The three wall names read `tube_along_arc_hollow`; every other
-/// name, and a nameless escalation, reads `tube door` — the honest
-/// answer for a predicate both tube doors can reach — and every one of
-/// them renders the shared recourse whole, with no gap sentence.
+/// The three wall names read "the hollow tube"; every other name, and
+/// a nameless escalation, reads "the tube" — the honest answer for a
+/// predicate both tube doors can reach — and every one of them renders
+/// the shared recourse whole, with no gap sentence.
 #[test]
 fn the_tube_door_routes_a_door_name_and_never_a_recourse() {
     for (name, door) in [
-        ("tube_wall", "tube_along_arc_hollow"),
-        ("tube_wall_bore", "tube_along_arc_hollow"),
-        ("tube_wall_gap", "tube_along_arc_hollow"),
-        ("tube_frame_unit", "tube door"),
-        ("tube_window_span", "tube door"),
-        (UNKNOWN, "tube door"),
+        ("tube_wall", "the hollow tube"),
+        ("tube_wall_bore", "the hollow tube"),
+        ("tube_wall_gap", "the hollow tube"),
+        ("tube_frame_unit", "the tube"),
+        ("tube_window_span", "the tube"),
+        (UNKNOWN, "the tube"),
     ] {
         let text = TubeError::Escalated {
             source: escalation(Some(name)),
@@ -177,7 +177,7 @@ fn the_tube_door_routes_a_door_name_and_never_a_recourse() {
     }
     .to_string();
     assert!(
-        text.starts_with("tube door escalated: sign indeterminate:"),
+        text.starts_with("the tube escalated: sign indeterminate:"),
         "{text}"
     );
 }

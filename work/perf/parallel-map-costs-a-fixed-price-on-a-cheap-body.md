@@ -4,6 +4,8 @@ kind: issue
 title: the per-face parallel map costs a fixed price a cheap body cannot repay, and one more per face on the memo path
 status: open
 opened: 2026-09-12
+priority: P2
+cost: D
 ---
 
 

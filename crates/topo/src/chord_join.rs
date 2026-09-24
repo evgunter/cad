@@ -328,72 +328,112 @@ impl From<PointInLoopError> for SplitJoinError {
     }
 }
 
+/// The recourse the section join's escalations carry. The join runs
+/// under a split, which takes no declarations, and under a Boolean,
+/// which does; the levers true at both are the geometry and the
+/// tolerance, and `BooleanError::Join` adds the declaration.
+use geom_core::NO_DECLARATION_RECOURSE as JOIN_RECOURSE;
+
 impl core::fmt::Display for SplitJoinError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.render(f, JOIN_RECOURSE)
+    }
+}
+
+/// A [`SplitJoinError`] as a Boolean shows it: the Boolean takes
+/// declarations, so its escalations offer the shared
+/// [`geom_core::COINCIDENCE_RECOURSE`] where the join's own `Display`
+/// (which a split shares) offers only the geometry and the tolerance.
+pub(crate) struct UnderBoolean<'a>(pub(crate) &'a SplitJoinError);
+
+impl core::fmt::Display for UnderBoolean<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.render(f, geom_core::COINCIDENCE_RECOURSE)
+    }
+}
+
+impl SplitJoinError {
+    /// The sentence, with the recourse every ill-conditioned arm
+    /// states supplied by the caller that knows which levers its reader
+    /// has: [`JOIN_RECOURSE`] under a split, the shared coincidence
+    /// recourse under a Boolean ([`UnderBoolean`]).
+    fn render(&self, f: &mut core::fmt::Formatter<'_>, recourse: &str) -> core::fmt::Result {
         match self {
-            Self::OrderEscalated { diag } => {
-                write!(f, "split join: lexicographic order escalated: {diag}")
-            }
-            Self::Escalated { face, diag } => {
-                write!(f, "split join: escalated at face {face:?}: {diag}")
-            }
-            Self::DegenerateSection { face } => write!(
+            Self::OrderEscalated { diag } => write!(
                 f,
-                "split join: section polygon at {face:?} bounds zero area — one-sided \
-                 tangency: the degenerate side has no real material (refused, never \
-                 emitted); {}",
-                geom_core::COINCIDENCE_RECOURSE
+                "the order of two section points is too close to call ({}). Recourse: \
+                 {recourse}",
+                diag.payload()
             ),
-            Self::RingHoming(e) => write!(f, "split join: ring re-homing: {e}"),
-            Self::RingHomingAmbiguous { ring } => write!(
+            Self::Escalated { diag, .. } => write!(
                 f,
-                "split join: ring {ring:?} sits ON the divided face's outer loop — \
-                 containment undecidable (ill-conditioned operand)"
+                "where a section runs across a face is too close to call ({}). Recourse: \
+                 {recourse}",
+                diag.payload()
+            ),
+            Self::DegenerateSection { .. } => write!(
+                f,
+                "a section is degenerate: it bounds zero area (a one-sided tangency), so \
+                 one side has no real material. Recourse: {recourse}"
+            ),
+            Self::RingHoming(e) => match e {
+                crate::splitting::PointInLoopError::Escalated { diag, .. } => write!(
+                    f,
+                    "which piece a hole loop falls in is too close to call ({}). Recourse: \
+                     {recourse}",
+                    diag.payload()
+                ),
+                crate::splitting::PointInLoopError::RayExhausted { .. } => write!(
+                    f,
+                    "every test ray grazed a hole loop, so which piece holds it is \
+                     ill-conditioned at this tolerance. Recourse: {recourse}"
+                ),
+                crate::splitting::PointInLoopError::CorruptLoop { .. } => {
+                    write!(f, "re-homing a hole loop refused: {e}")
+                }
+            },
+            Self::RingHomingAmbiguous { .. } => write!(
+                f,
+                "a hole loop sits on the divided face's outer boundary, so which piece \
+                 holds it cannot be decided. Recourse: {recourse}"
             ),
             Self::UnpairedLooseEnds { count } => write!(
                 f,
-                "split join: {count} loose null-edge halves survived the sweep (kernel bug)"
+                "{count} loose null-edge halves survived the join sweep (kernel bug)"
             ),
             Self::SectionLoopMixed { face } => write!(
                 f,
-                "split join: null face {face:?} has a side-mixed section loop (kernel bug)"
+                "null face {face:?} has a side-mixed section loop (kernel bug)"
             ),
             Self::CutInvariant { edge } => write!(
                 f,
-                "split join: neither face flanking null edge {edge:?} is a sliver (kernel bug)"
+                "neither face flanking null edge {edge:?} is a sliver (kernel bug)"
             ),
             Self::Corrupt { entity } => {
-                write!(f, "split join: traversal failed at {entity} (corrupt body)")
+                write!(f, "the join's traversal failed at {entity} (corrupt body)")
             }
-            Self::Band(e) => write!(f, "split join: invalid band: {e}"),
-            Self::Euler(e) => write!(f, "split join: euler operation refused: {e}"),
-            Self::Section { face, source } => {
-                write!(f, "split join: section chord in face {face:?}: {source}")
+            Self::Band(e) => write!(f, "{e}"),
+            Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            Self::Section { source, .. } => {
+                write!(f, "the section through a curved face refused: {source}")
             }
-            Self::SectionArcWindow { face, case, band } => {
+            Self::SectionArcWindow { case, band, .. } => {
                 write!(
                     f,
-                    "split join: section chord in face {face:?}: arc-side selection \
-                     refused — {case}"
+                    "the section through a curved face has no arc to take: {case}"
                 )?;
                 if case.is_containment_verdict() {
                     write!(
                         f,
-                        "; predicate 'split_arc_window' classified definite against the band \
-                         (zero = {:e}, escalate = {:e}) — the same margin inside that band \
-                         escalates instead, and it is the same ill-conditioning either way; {}",
+                        " ('split_arc_window', band ({:e}, {:e})). Recourse: {recourse}",
                         band.zero(),
                         band.escalate(),
-                        geom_core::COINCIDENCE_RECOURSE
                     )?;
                 }
                 Ok(())
             }
             Self::SectionInvariant { face, what } => {
-                write!(
-                    f,
-                    "split join: curved-section invariant at face {face:?}: {what}"
-                )
+                write!(f, "curved-section invariant at face {face:?}: {what}")
             }
         }
     }
@@ -2516,22 +2556,15 @@ mod tests {
         assert_eq!(diag.predicate, Some("split_arc_window"));
 
         for msg in [definite.to_string(), escalated.to_string()] {
-            assert_eq!(
-                msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-                1,
-                "{msg}"
-            );
+            assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
+            assert!(!msg.contains("declare"), "{msg}");
             assert!(msg.contains("split_arc_window"), "{msg}");
             assert!(msg.contains("1e-9") && msg.contains("1e-8"), "{msg}");
         }
         // The sub-case that classified nothing must NOT carry the
         // recourse — there is no ill-conditioned margin behind it.
         let no_run = spec_with(&[]).unwrap_err().to_string();
-        assert_eq!(
-            no_run.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            0,
-            "{no_run}"
-        );
+        assert_eq!(no_run.matches(JOIN_RECOURSE).count(), 0, "{no_run}");
     }
 
     /// Seam-placement independence, at the unit: the whole construction
@@ -2557,16 +2590,14 @@ mod tests {
     /// S6 (two-tolerance, D4 ¶1 addendum): the split-join pair —
     /// exactly-zero section area (`DegenerateSection`) and in-band
     /// (`Escalated`) — is one user situation; both arms carry the
-    /// shared recourse fragment.
+    /// join's one recourse ([`JOIN_RECOURSE`]), which offers no
+    /// declaration because the join takes none.
     #[test]
     fn section_area_pair_carries_the_shared_recourse() {
         let face = FaceKey::default();
         let msg = SplitJoinError::DegenerateSection { face }.to_string();
-        assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            1,
-            "{msg}"
-        );
+        assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
+        assert!(!msg.contains("declare"), "{msg}");
 
         let msg = SplitJoinError::Escalated {
             face,
@@ -2577,11 +2608,8 @@ mod tests {
             },
         }
         .to_string();
-        assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            1,
-            "{msg}"
-        );
+        assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
+        assert!(!msg.contains("declare"), "{msg}");
     }
 
     /// **The anti-re-fork row for the arc-side rule.** Each of the

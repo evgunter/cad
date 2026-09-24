@@ -4,6 +4,8 @@ kind: issue
 title: try_wall_sheet is token-identical in two review-probe suites and wraps the now-shared door
 status: closed
 opened: 2026-09-19
+priority: P4
+cost: E
 closed: 2026-09-20
 branch: dup/src-cyl-sheet
 refs: [try-wall-sheet-stands-down-on-any-panic]

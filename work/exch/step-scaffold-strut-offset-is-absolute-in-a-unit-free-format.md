@@ -4,6 +4,8 @@ kind: issue
 title: step-import mints its scaffold strut at a fixed 1.0 offset, in a format whose coordinates carry no unit contract
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 

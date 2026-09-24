@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-31
 github: 1367
 refs: [870, 873, 472, 1315, 1366, S230]
+priority: P2
+cost: D
 ---
 
 ## From GitHub issue 1367

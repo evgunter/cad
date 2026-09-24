@@ -1,24 +1,24 @@
 ---
 name: docs-ledger
-description: docs/ is pruned rather than archived — deleted documents are recorded in docs/DOC-LEDGER.md, so a pointer into docs/ that finds nothing means look it up, not that the pointer is wrong
+description: process docs (logs, specs, plans) are pruned when a program closes — anything worth referencing later gets a short note in docs/doc-ledger/ with a commit hash, and permanent docs do not cite process docs
 metadata:
   type: convention
 ---
 
-`docs/` is pruned, not archived. A document whose subject is finished
-is DELETED and its filename recorded in **`docs/DOC-LEDGER.md`**, with
-why it went and the SHA it is recoverable from. The repo is merge-only,
-so git is the archive; the ledger is the index git cannot give you,
-since a deleted path is invisible to anyone who does not know its name.
+prune process docs (logs, specs, plans...) when the program closes. if
+anything would plausibly want to reference them later, add a file to
+docs/doc-ledger with a SHORT note about what was deleted and a commit
+hash from before the deletion.
 
-**A pointer into `docs/` that finds nothing is not a wrong pointer.**
-Look the filename up in the ledger, then `git show <sweep-sha>:<path>`.
-Append-only logs still cite deleted files by name and are not edited
-to match; a LIVE pointer (source comment, DESIGN.md, a tracker item)
-is re-pointed at the page that replaced the file, or dropped.
+everything a program writes under work/ is a process doc, and older
+programs put process docs straight in docs/ too, so location isn't the
+test: process docs are about doing the work, permanent docs are about
+how the code is. anything in a process doc worth keeping (why the code
+took this shape, anything user- or dev-relevant) moves out before the
+delete, into a present-tense README next to the code.
 
-What replaces a deleted design doc: a present-tense README beside the
-code it governs, keeping the clause ids (`CURVED-DESIGN C3` still
-names one clause). An exit walk is replaced by nothing but its ledger
-entry. Deleting a document and recording it in the ledger are one
-commit.
+permanent docs ideally shouldn't reference process docs in the first
+place, but if they do, when deleting, those references should be (a)
+deleted or (b) if truly necessary, the info should be moved out of the
+process doc to a permanent doc (e.g. the code's new README). don't
+bother updating references on process docs.

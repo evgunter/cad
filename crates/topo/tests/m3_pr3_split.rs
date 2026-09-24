@@ -716,17 +716,16 @@ fn empty_sides_are_typed() {
     assert_eq!(validate_closed(body_of(&r.below)), Ok(()));
 }
 
-/// **Every arm of [`SplitError`] names the split in its message.**
+/// **No arm of [`SplitError`] names a stage or the door.**
 ///
-/// Three stages carry the door's name inside their own (`split_reduce`,
-/// `split join`, `split finish`), so `SplitError` does not re-state it
-/// and a forwarded refusal says "split" once instead of twice.
-/// `Pcurves` is the one stage whose error is shared with callers that
-/// are not splits, so that arm supplies the name itself. A stage
-/// renamed without this in mind would silently drop the door from every
-/// message a consumer sees, which is what this pins.
+/// The layer that raised the split names it once — the recipe layer's
+/// "the split op refused:" — so a stage prefix here (`split_reduce:`,
+/// `split join:`) would say "split" twice on the feature tree's line,
+/// and reads as developer detail to the person holding the mouse. A
+/// forwarded refusal (the band's, here) renders its own sentence and
+/// nothing in front of it.
 #[test]
-fn every_split_refusal_names_its_door_exactly_once() {
+fn no_split_refusal_names_a_stage() {
     let band = geom_core::BandError::Empty {
         zero: 1.0,
         escalate: 0.5,
@@ -739,14 +738,10 @@ fn every_split_refusal_names_its_door_exactly_once() {
     ];
     for e in cases {
         let msg = e.to_string();
-        assert!(
-            msg.contains("split"),
-            "the refusal must name its door: {msg}"
-        );
         assert_eq!(
-            msg.matches("split").count(),
-            1,
-            "the door is named twice: {msg}"
+            msg,
+            band.to_string(),
+            "a forwarded refusal renders its own sentence and no stage: {msg}"
         );
         assert!(!msg.contains('{'), "Debug guts leaked: {msg}");
     }

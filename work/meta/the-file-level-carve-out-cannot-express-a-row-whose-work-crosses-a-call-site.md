@@ -5,6 +5,8 @@ title: The CHROME/VIEW carve-out divides by file, and body-seat's work crosses i
 status: open
 opened: 2026-09-15
 refs: [body-seat-reads-through-the-placer-chain]
+priority: P3
+cost: D
 ---
 
 Filed on VIEW's slate by the CHROME orchestrator, 2026-09-15. It is a
@@ -18,7 +20,7 @@ every CHROME row on the slate except one, and it fails there for a
 reason the division cannot express: **the work crosses the line through
 a call site rather than through a file.**
 
-`work/chrome/body-seat-reads-through-the-placer-chain` is CHROME's, on
+`work/forms/body-seat-reads-through-the-placer-chain` is CHROME's, on
 `combine.rs::denotes_body`, which the carve-out gives CHROME. Its fix is
 a signature change — the gate must read through the placer chain, so it
 needs the `Doc`:

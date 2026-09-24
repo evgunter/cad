@@ -4,7 +4,8 @@ kind: issue
 title: The split's pub use shims leave two spellings of every moved path, and re-pointing the 32 test files needs CHROME's glob
 status: open
 opened: 2026-09-04
-refs: [viewer-session-god-module-split]
+priority: P4
+cost: E
 ---
 
 

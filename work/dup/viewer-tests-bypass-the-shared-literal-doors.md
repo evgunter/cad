@@ -4,6 +4,8 @@ kind: issue
 title: Thirty inline Expr::literal spellings in crates/viewer/tests beside the common::len/scl/ang doors
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 

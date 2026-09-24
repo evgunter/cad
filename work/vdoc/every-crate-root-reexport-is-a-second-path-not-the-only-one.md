@@ -5,6 +5,8 @@ title: The crate root re-export is a SECOND path to an item, never the only one:
 status: open
 opened: 2026-09-06
 refs: [2089]
+priority: P4
+cost: E
 ---
 
 

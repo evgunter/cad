@@ -30,7 +30,7 @@ use editor_core::{
     RecipeNodeId, mate_reach,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{FIXTURE_MATE_AXIS, insert, len, on_frame, run, solve, square, step};
+use fixture::{FIXTURE_MATE_AXIS, at_the_door, insert, len, on_frame, run, solve, square, step};
 use geom_core::k_stats::{Bracket, Recorded};
 use geom_core::linalg::{Affine3, Mat3, UnitVec3, Vec3};
 use geom_core::predicate::Band;
@@ -186,7 +186,7 @@ fn two_mates(
     first: Alignment,
     second: Alignment,
     reversed: bool,
-) -> (Rig, RecipeNodeId, RecipeNodeId, Option<MateFault>) {
+) -> (Rig, RecipeNodeId, RecipeNodeId, Option<(Site, MateFault)>) {
     let r = rig(label, 2);
     let (a, b) = if reversed {
         (r.ids[1], r.ids[0])
@@ -194,10 +194,33 @@ fn two_mates(
         (r.ids[0], r.ids[1])
     };
     let (doc, held) = add(r.doc, mate(a, b, first));
-    let (doc, added) = add(doc, mate(a, b, second));
-    let poses = solve(&doc, &r.o, Tol::witness());
-    let fault = poses.fault(added).cloned();
+    // The second mate meets its own admission at the door and the
+    // pair's verdict at the solve: whichever refuses is the fault.
+    let (doc, added, fault) = match at_the_door(
+        &doc,
+        &mate_reach::<f64>(&r.o, Tol::witness()),
+        mate(a, b, second),
+    ) {
+        Ok((doc, added)) => {
+            let fault = solve(&doc, &r.o, Tol::witness())
+                .fault(added)
+                .cloned()
+                .map(|fault| (Site::Solve, fault));
+            (doc, added, fault)
+        }
+        Err((added, fault)) => (doc, added, Some((Site::Door, fault))),
+    };
     (Rig { doc, ..r }, held, added, fault)
+}
+
+/// **Which door a mate's refusal came out of** — the insert door,
+/// which decides the mate's own datum, or the solve, which decides
+/// the pair. A row pins the site beside the fault, so a refusal that
+/// moved between them cannot pass as the same fault.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Site {
+    Door,
+    Solve,
 }
 
 /// The residual lever a contradictory refusal carries, with the
@@ -259,7 +282,8 @@ fn c1_rotation_identity_value_and_arm() {
         None,
     );
     let (r, held, added, fault) = two_mates("msolve8-c1-rot-id", first, second, false);
-    let fault = fault.expect("the pair refuses");
+    let (site, fault) = fault.expect("the pair refuses");
+    assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_member_rotation_identity");
     let q = representative(&first).linear * representative(&second).linear.inverse();
     assert_eq!(
@@ -306,7 +330,8 @@ fn c1_axis_fixed_value_and_arm() {
         None,
     );
     let (r, _, _, fault) = two_mates("msolve8-c1-axis-fixed", first, second, false);
-    let fault = fault.expect("the pair refuses");
+    let (site, fault) = fault.expect("the pair refuses");
+    assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_member_axis_fixed");
     let q = representative(&first).linear * representative(&second).linear.inverse();
     let n = second.a.axis(Tol::witness()).unwrap().get();
@@ -342,7 +367,8 @@ fn c1_two_axis_reach_value_and_arm() {
         None,
     );
     let (r, _, _, fault) = two_mates("msolve8-c1-reach", first, second, false);
-    let fault = fault.expect("the pair refuses");
+    let (site, fault) = fault.expect("the pair refuses");
+    assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_rotation_two_axis_reachable");
     let tol = Tol::witness();
     let a1 = first.a.axis(tol).unwrap().get();
@@ -389,7 +415,8 @@ fn c1_length_none_and_roll_arm() {
         None,
     );
     let (_, _, _, fault) = two_mates("msolve8-c1-len-plane", f1, f2, false);
-    let fault = fault.expect("the pair refuses");
+    let (site, fault) = fault.expect("the pair refuses");
+    assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let MateFault::Contradictory {
         predicate, clash, ..
     } = &fault
@@ -418,7 +445,8 @@ fn c1_length_none_and_roll_arm() {
         None,
     );
     let (_, _, _, fault) = two_mates("msolve8-c1-len-axis", c1, c2, false);
-    let fault = fault.expect("the pair refuses");
+    let (site, fault) = fault.expect("the pair refuses");
+    assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let MateFault::Contradictory {
         predicate, clash, ..
     } = &fault
@@ -443,7 +471,12 @@ fn c1_length_none_and_roll_arm() {
         Some(0.3),
     );
     let (r, _, _, fault) = two_mates("msolve8-c1-roll", big, rider, false);
-    let fault = fault.expect("the rider refuses");
+    let (site, fault) = fault.expect("the rider refuses");
+    assert_eq!(
+        site,
+        Site::Door,
+        "the rider is decided in its own coset, at the insert door"
+    );
     let MateFault::Contradictory {
         predicate, clash, ..
     } = &fault
@@ -544,7 +577,12 @@ fn the_three_residual_clashes_survive_the_inverted_authored_order() {
     ];
     for (label, predicate, first, second) in rows {
         let (_, _, _, fault) = two_mates(label, first, second, true);
-        let fault = fault.expect("the pair refuses");
+        let (site, fault) = fault.expect("the pair refuses");
+        assert_eq!(
+            site,
+            Site::Solve,
+            "{label}: a verdict about the pair is the solve's"
+        );
         assert!(
             !matches!(
                 fault,
@@ -967,20 +1005,32 @@ fn c2_inverted_coset_never_refuses() {
                     } else {
                         (r.ids[0], r.ids[1])
                     };
-                    let (doc, m) = add(
-                        r.doc,
+                    match at_the_door(
+                        &r.doc,
+                        &mate_reach::<f64>(&r.o, tol),
                         mate(a, b, al(prim, sense, *f, z_up_at([0.2, 0.0, 0.0]), None)),
-                    );
-                    solve(&doc, &r.o, tol).fault(m).cloned()
+                    ) {
+                        Ok((doc, m)) => solve(&doc, &r.o, tol)
+                            .fault(m)
+                            .cloned()
+                            .map(|fault| (Site::Solve, fault)),
+                        Err((_, fault)) => Some((Site::Door, fault)),
+                    }
                 };
                 match (verdict(false), verdict(true)) {
                     (None, None) => solved += 1,
-                    (Some(MateFault::Under { .. }), Some(MateFault::Under { .. })) => {}
                     (
-                        Some(MateFault::Frame { error: direct, .. }),
-                        Some(MateFault::Frame {
-                            error: inverted, ..
-                        }),
+                        Some((Site::Solve, MateFault::Under { .. })),
+                        Some((Site::Solve, MateFault::Under { .. })),
+                    ) => {}
+                    (
+                        Some((Site::Door, MateFault::Frame { error: direct, .. })),
+                        Some((
+                            Site::Door,
+                            MateFault::Frame {
+                                error: inverted, ..
+                            },
+                        )),
                     ) => {
                         assert_eq!(direct, inverted, "{f:?} {prim:?} {sense:?}");
                         refused_at_the_read += 1;
@@ -1001,10 +1051,13 @@ fn c2_inverted_coset_never_refuses() {
 
 // ---- C4: the two mate-less arms, measured ----
 
-/// Five instances on a reference no store resolves, two mates, one
-/// singleton — a document built WITHOUT the part doors, which decide
-/// under the band and so refuse before a solve when it does.
-fn band_document(label: &str) -> (ProfileDoc, EvalOptions) {
+/// Five instances on a reference no store resolves — a document
+/// built WITHOUT the part doors, which decide under the band and so
+/// refuse before a solve when it does — and the mate an author then
+/// tries to add: the edit door asks the solve's own admission, which
+/// begins with the band, so under a tolerance that admits none the
+/// mate is refused `Band` at the insert door.
+fn band_document(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>) {
     let doc_ref = DocRef {
         id: DocumentId::derive(&format!("{label}-part")),
         pin: ContentPin([7_u8; 32]),
@@ -1021,78 +1074,98 @@ fn band_document(label: &str) -> (ProfileDoc, EvalOptions) {
         doc = next;
         ids.push(id.expect("an instance inserts under a refusing band"));
     }
-    for (x, y) in [(0, 1), (2, 3)] {
-        let (next, _) = add(
-            doc,
-            mate(
-                ids[x],
-                ids[y],
-                al(
-                    MatePrimitive::FrameCoincidence,
-                    AxisSense::Aligned,
-                    z_up_at([0.0, 0.0, 0.0]),
-                    z_up_at([0.0, 0.0, 1.0]),
-                    None,
-                ),
-            ),
-        );
-        doc = next;
-    }
-    (doc, EvalOptions::default())
+    (doc, ids)
 }
 
-/// `Band` reaches EVERY mate and EVERY instance of the document —
-/// the singleton no mate touches included — and nothing else.
-fn band_reaches_every_row(doc: &ProfileDoc, o: &EvalOptions) {
+/// `Band` is met at the insert door: every mate refuses there with
+/// the solve's own `Band` fault, so no INSERT lands one — a snapshot
+/// loaded under this tolerance still can — and the solve reaches
+/// every instance the document holds.
+fn band_refuses_every_mate(doc: &ProfileDoc, ids: &[RecipeNodeId]) {
     let tol = Tol::witness();
     assert!(
         Band::linear(tol).is_err(),
         "the band must refuse for this row to measure anything"
     );
-    let poses = solve(doc, o, tol);
-    let (mut mates, mut instances) = (0_usize, 0_usize);
-    for &id in doc.order() {
-        let fault = poses.fault(id);
-        match doc.node(id).unwrap() {
-            Node::Mate { .. } => mates += 1,
-            Node::InstantiatePart { .. } => instances += 1,
-            _ => {
-                assert!(fault.is_none(), "{id:?}");
-                continue;
-            }
-        }
+    let mut refused = 0_usize;
+    for (x, y) in [(0, 1), (2, 3)] {
+        let err = doc
+            .apply(
+                &DocEdit::InsertNode {
+                    node: mate(
+                        ids[x],
+                        ids[y],
+                        al(
+                            MatePrimitive::FrameCoincidence,
+                            AxisSense::Aligned,
+                            z_up_at([0.0, 0.0, 0.0]),
+                            z_up_at([0.0, 0.0, 1.0]),
+                            None,
+                        ),
+                    ),
+                },
+                tol,
+                &editor_core::RefusingReach,
+            )
+            .expect_err("no band, no admission");
         assert!(
-            matches!(fault, Some(MateFault::Band { .. })),
-            "{id:?}: {fault:?}"
+            matches!(
+                &err,
+                editor_core::EditError::MateRefused { fault, .. }
+                    if matches!(**fault, MateFault::Band { .. })
+            ),
+            "{err:?}"
         );
+        refused += 1;
     }
-    assert_eq!((mates, instances), (2, 5));
+    assert_eq!(refused, 2);
+    assert!(
+        doc.order()
+            .iter()
+            .all(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. }))),
+        "the document holds its five instances and nothing else"
+    );
+    // And the solve of what the document does hold: `Band` reaches
+    // EVERY instance — each its own singleton cluster — and nothing
+    // else, since no band means no verdict for any of them.
+    let poses = solve(doc, &EvalOptions::default(), tol);
+    let mut instances = 0_usize;
+    for &id in doc.order() {
+        assert!(
+            matches!(poses.fault(id), Some(MateFault::Band { .. })),
+            "{id:?}: {:?}",
+            poses.fault(id)
+        );
+        instances += 1;
+    }
+    assert_eq!(instances, 5);
 }
 
-/// **`Band` reaches every row: K·ε overflows.** One process per row —
+/// **`Band` reaches every row: K·ε overflows** — every mate at the
+/// door, every instance at the solve. One process per row —
 /// `Tolerance::init` commits once — which is how this binary runs
 /// under nextest.
 #[test]
-fn c4_band_reaches_every_row_overflow() {
+fn c4_band_refuses_every_mate_at_the_door_and_reaches_every_instance_overflow() {
     Tolerance::init(Tolerance {
         eps: 1e308,
         k: 10.0,
     })
     .expect("first commit in this process");
-    let (doc, o) = band_document("msolve8-c4-overflow");
-    band_reaches_every_row(&doc, &o);
+    let (doc, ids) = band_document("msolve8-c4-overflow");
+    band_refuses_every_mate(&doc, &ids);
 }
 
 /// **`Band` reaches every row: K·ε rounds back onto ε.**
 #[test]
-fn c4_band_reaches_every_row_empty() {
+fn c4_band_refuses_every_mate_at_the_door_and_reaches_every_instance_empty() {
     Tolerance::init(Tolerance {
         eps: 5e-324,
         k: 1.0 + f64::EPSILON,
     })
     .expect("first commit in this process");
-    let (doc, o) = band_document("msolve8-c4-empty");
-    band_reaches_every_row(&doc, &o);
+    let (doc, ids) = band_document("msolve8-c4-empty");
+    band_refuses_every_mate(&doc, &ids);
 }
 
 /// **`PosesOfAnotherDocument` reaches no row.** A solved document of

@@ -273,28 +273,30 @@ pub enum ExtrudeError {
 impl fmt::Display for ExtrudeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Band(e) => write!(f, "extrude could not form a band: {e}"),
+            Self::Band(e) => write!(f, "{e}"),
             Self::DegenerateExtrusion => write!(
                 f,
-                "extrusion vector/distance has no definite normal component: in-plane or \
-                 sliver-thin extrusion — {} (D4)",
+                "the extrusion has no definite length across the sketch plane (it is \
+                 in-plane or sliver-thin). Recourse: {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
             Self::ObliqueExtrusion => f.write_str(
-                "extrusion vector has a definite in-plane component: oblique extrusion is \
-                 not supported (arc segments would sweep elliptic cylinders)",
+                "the extrusion leans definitely off the sketch plane's normal, and an \
+                 oblique extrusion is not supported (arcs would sweep elliptic cylinders). \
+                 Recourse: extrude along the plane's normal",
             ),
-            Self::ExtrusionEscalated { source } => {
-                write!(f, "extrusion-vector classification escalated: {source}")
-            }
+            Self::ExtrusionEscalated { source } => write!(
+                f,
+                "whether the extrusion leaves the sketch plane is too close to call: {source}"
+            ),
             Self::CosurfaceEscalated {
                 loop_index,
                 vertex_index,
                 source,
             } => write!(
                 f,
-                "cosurface sharing at loop {loop_index} vertex {vertex_index} escalated: \
-                 {source}"
+                "whether the walls meeting at loop {loop_index} vertex {vertex_index} share \
+                 one surface is too close to call: {source}"
             ),
             Self::SliverJoin {
                 loop_index,
@@ -302,8 +304,8 @@ impl fmt::Display for ExtrudeError {
                 source,
             } => write!(
                 f,
-                "sliver dihedral at loop {loop_index} vertex {vertex_index}: the join is \
-                 neither a definite corner nor definitely smooth: {source}"
+                "the wall join at loop {loop_index} vertex {vertex_index} is neither a \
+                 definite corner nor definitely smooth: {source}"
             ),
             Self::SliverRim {
                 loop_index,
@@ -311,19 +313,19 @@ impl fmt::Display for ExtrudeError {
                 source,
             } => write!(
                 f,
-                "sliver dihedral at loop {loop_index} segment {segment_index}'s cap-wall rim: \
-                 the rim is neither a definite corner nor definitely smooth: {source}"
+                "the rim where loop {loop_index} segment {segment_index}'s wall meets a cap \
+                 is neither a definite corner nor definitely smooth: {source}"
             ),
-            Self::CapPlane { source } => write!(f, "cap plane: {source}"),
+            Self::CapPlane { source } => write!(f, "a cap is not planar: {source}"),
             Self::SidePlane {
                 loop_index,
                 segment_index,
                 source,
             } => write!(
                 f,
-                "side plane at loop {loop_index} segment {segment_index}: {source}"
+                "the wall of loop {loop_index} segment {segment_index} is not planar: {source}"
             ),
-            Self::Op { source } => write!(f, "extrude operator step failed: {source}"),
+            Self::Op { source } => write!(f, "an Euler operation refused: {source}"),
         }
     }
 }

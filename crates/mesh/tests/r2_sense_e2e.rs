@@ -66,7 +66,7 @@ fn a_reversed_band_measures_zero_and_is_caught_only_by_tier_three() {
         .expect_err("an inside-out solid is not valid");
     assert!(
         errs.iter()
-            .any(|e| matches!(e, ValidationError::NegativeVolume)),
+            .any(|e| matches!(e, ValidationError::NegativeVolume { .. })),
         "the +V invariant names a whole-body flip: {errs:?}"
     );
 

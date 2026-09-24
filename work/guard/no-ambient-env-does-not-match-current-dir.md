@@ -4,6 +4,8 @@ kind: issue
 title: no-ambient-env's pattern does not match std::env::current_dir, which two files read
 status: open
 opened: 2026-09-19
+priority: P3
+cost: E
 ---
 
 

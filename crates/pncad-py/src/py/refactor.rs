@@ -250,7 +250,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        E::PartNameReachesRemainder { node: n, name } => (
+        E::PartNameReachesRemainder { node: n, name, .. } => (
             id(n),
             none(),
             none(),
@@ -260,7 +260,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             named(name),
             none(),
         ),
-        E::NameStraddlesCut { name } | E::BodyNameCrossesCut { name } => (
+        E::NameStraddlesCut { name, .. } | E::BodyNameCrossesCut { name } => (
             none(),
             none(),
             none(),
@@ -542,7 +542,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         ),
         E::InstanceBodyNameReferenced { name }
         | E::ForeignInstanceName { name }
-        | E::StrandedPartName { name } => (
+        | E::StrandedPartName { name, .. } => (
             none(),
             none(),
             named(name),

@@ -1959,3 +1959,90 @@ A reader found eight. Three are worth the log.
   to code**: grep the other program's directory before filing, which
   `work/README.md` already says and which is easy to skip when the
   finding feels new.
+
+## 2026-09-20 — the second sitting: three more units, and the shape that repeated four times
+
+`70941cdd0` (#2898, `faces_of_solid`), `1efaf7996` (#2899, the one-line box
+wrappers), `820492add` (#2900, the viewer fixture sugar). Slate: **18
+closed, 27 open, 1 parked**. Three method items were added from
+measurements taken during these units (16, 17, 18) rather than from
+argument.
+
+### The finding: a fold leaves a member behind IN A FILE IT HAD OPEN
+
+Four consecutive units, and by the fourth it was predictable enough to
+brief for:
+
+- `solid_contain.rs:2415` — the same arena scan under the negated
+  predicate, **three lines below** the lines the fold rewrote. The
+  lane's own instrument fired on it as a distinct hit; the hit list
+  demoted it to a parenthetical. Not a miss — a **method item 9
+  bucketing**.
+- `props.rs` — an inline, unnamed copy that an *earlier* fold had
+  edited around three lines away without seeing.
+- `common/asm.rs` and `msolve5` — the viewer unit reached into both,
+  pulled three helper classes out, and left a fourth member of its own
+  class sitting in each.
+- `mate_tool_flow.rs` and `review_gui4_r1.rs` — three longhand copies
+  of the construction behind a door **the same commit had just
+  minted**, one directly below and two sandwiched between calls that
+  commit wrote.
+
+The mechanism is not carelessness and it is not the instrument. It is
+that a lane editing a file for one member has its attention on the
+member, not the file — so the strongest single instruction to a lane
+is **re-read every file you touched, for the class you are closing**,
+and the strongest single question to a reader is *what else is in the
+files this diff opened?*
+
+### Instruments: the converse needle
+
+The viewer unit's class was "apply an edit and take the result". Its
+needle was the edit's constructor, which structurally cannot see a
+re-spelling of the **write-back** — `= applied.doc` is what finds
+those, and it is what closed the class. A needle aimed at a
+construction's *entry* has a blind spot at its *exit*, and the two
+needles are cheap to run together. (Method item 10's roster gains this
+by example rather than by a new line.)
+
+### Counts, again, and one new way to be wrong
+
+- **A figure published from a census taken before the unit's own last
+  fold**, never re-taken — the same shape as the ambient `.expect`
+  rate measured after the fold it was the denominator for. A count is
+  a claim about a **tree state**, not only about a date.
+- **Two right numbers that agree by accident.** A bucket split was
+  published as 8/5 twice over — but the two 8/5 partitions were
+  different cuts of the same thirteen, one by window and one by shape.
+  The coincidence is what made it read as verified. Neither implied
+  the other.
+- **A wrong total in the table whose job is to prove the folds live**:
+  a plant made a suite panic, and the harness read the **first**
+  `test result:` line, which a panicking shard emits before the
+  suite's. The reader's guard is free and complete: **every row must
+  sum to the baseline run count**, and the defect violates that by
+  construction. Cheaper than a re-run, and it is how a reader checks
+  any table taken before a harness fix.
+
+### The orchestrator's own errors this sitting
+
+- **Three lanes were briefed to read a log entry that was not on
+  `main`** — it was on this branch and merged an hour later. One lane
+  said so and read it out of the orchestrator's checkout; two said
+  nothing, so whether they read it is unknown. **Check that briefed
+  reading is on the branch the lane will cut from.**
+- **A diffstat read against a moved `main`**, twice, once nearly
+  reported as a lane deleting a tracker row. Other programs' merged
+  work reads as the lane's deletions. Measure from the merge base.
+- **A misread hand-back** turned into a brief item that was simply
+  false (a fixture reported as declined had been folded). The lane
+  corrected it.
+
+### A merged unit left a member behind
+
+#2886 closed two rows claiming a helper pair was folded.
+`review_gui2_r1` still carried a private copy — path-qualified and
+**broken across two `//!` lines**, which that unit's line-shaped
+census could not see. Found by the next lane on the same territory,
+with a whole-function scan. **A closed row is not evidence the class
+is empty; it is evidence of what one instrument could see.**

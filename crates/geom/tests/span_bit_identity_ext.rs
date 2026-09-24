@@ -17,9 +17,9 @@
 //! gate.
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-use geom::{NurbsCurve3, NurbsSurface};
-use geom_core::spline::{CoeffWindow, KnotVector, RationalWindow, Span, basis};
-use geom_core::{Bounds, Dual64, Interval, Point3, Real, Vec3};
+use geom::{NurbsCurve2, NurbsCurve3, NurbsSurface};
+use geom_core::spline::{CoeffWindow, KnotVector, RationalWindow, Span, SpanLocate, basis};
+use geom_core::{Bounds, Dual64, Interval, Point2, Point3, Real, Vec3};
 
 // The doors, one name each. The review lane's build put its
 // base-vs-head spelling seam here; what the seam proved is now the
@@ -132,9 +132,9 @@ fn ri(o: &mut Rows, t: &str, r: geom_core::RingInterval) {
     o.push((format!("{t}.hi"), r.hi().to_bits()));
 }
 
-fn rows() -> Rows {
-    let mut o = Rows::new();
-    let corpus: Vec<(&str, KnotVector, bool)> = vec![
+/// The curve corpus: name, knot vector, rational.
+fn corpus() -> Vec<(&'static str, KnotVector, bool)> {
+    vec![
         (
             "c0cubic",
             kv(&[0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0, 2.0], 3),
@@ -156,8 +156,22 @@ fn rows() -> Rows {
             kv(&[0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2),
             true,
         ),
-    ];
-    for (name, k, rational) in corpus {
+    ]
+}
+
+/// Every knot value, every span midpoint, both domain ends.
+fn params(k: &KnotVector) -> Vec<f64> {
+    let mut ts: Vec<f64> = k.knots().to_vec();
+    for i in k.first_span()..=k.last_span() {
+        ts.push(0.5 * (k.knots()[i] + k.knots()[i + 1]));
+    }
+    ts.dedup();
+    ts
+}
+
+fn rows() -> Rows {
+    let mut o = Rows::new();
+    for (name, k, rational) in corpus() {
         let c = curve(k.clone(), rational);
         let cd: NurbsCurve3<Dual64> = lift(&c);
         let ci: NurbsCurve3<Interval> = lift(&c);
@@ -170,12 +184,7 @@ fn rows() -> Rows {
         let rpair = k
             .with_rational_coeffs(&coeffs, &w)
             .expect("minted against its own vector");
-        // parameters: every knot value, every span midpoint, both domain ends
-        let mut ts: Vec<f64> = k.knots().to_vec();
-        for i in k.first_span()..=k.last_span() {
-            ts.push(0.5 * (k.knots()[i] + k.knots()[i + 1]));
-        }
-        ts.dedup();
+        let ts = params(&k);
         for (ti, t) in ts.iter().enumerate() {
             let t = *t;
             pf(&mut o, &format!("{name}.eval@{ti}"), c.eval(t));
@@ -427,13 +436,31 @@ fn digest(rows: &[(String, u64)]) -> u64 {
 /// cannot leave the digest green by producing a shorter stream.
 const ROW_COUNT: usize = 11_151;
 
-/// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order,
-/// measured on the retired `(kv, span)` spellings at the merge base.
-const DIGEST: u64 = 0x606f_ae2d_7244_63e4;
+/// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order.
+///
+/// **Re-captured when the C9 ring became a newtype over the backend**
+/// (`0x606f_ae2d_7244_63e4` before): the ring padded one representable
+/// step outward on every operation and the backend pads only where the
+/// operation was inexact. Exactly 28 of these 11 151 rows moved, all of
+/// them a `derivative_span_hull` or `derivative_domain_hull` endpoint
+/// and all of them TIGHTER — a derivative hull is a fold of exact
+/// differences, which is where the retired pad had nothing to cover, so
+/// each one lands on the exact value the reals give (`-6`, `4.5`, `1.5`,
+/// `12`). None moved looser.
+const DIGEST: u64 = 0xd572_6f5c_cd9a_ef62;
 
 #[test]
 fn the_extended_corpus_is_bit_identical_to_the_retired_spellings() {
     let r = rows();
+    // The dump hook runs BEFORE the assertions, like the sibling
+    // corpora's: a re-pin is measured row by row, and a digest that
+    // names nothing cannot be measured at all.
+    if std::env::var_os("CAD_PRINT_ROWS").is_some() {
+        for (n, b) in &r {
+            println!("ROW {n} {b:#018x}");
+        }
+        println!("rows {} digest {:#018x}", r.len(), digest(&r));
+    }
     assert_eq!(
         r.len(),
         ROW_COUNT,
@@ -445,9 +472,117 @@ fn the_extended_corpus_is_bit_identical_to_the_retired_spellings() {
         DIGEST,
         "a value in the extended corpus moved; run with --nocapture to print every row"
     );
-    if std::env::var_os("CAD_PRINT_ROWS").is_some() {
-        for (n, b) in &r {
-            println!("ROW {n} {b:#018x}");
+}
+
+fn bf64(x: f64) -> Vec<u64> {
+    vec![x.to_bits()]
+}
+fn bdual(x: Dual64) -> Vec<u64> {
+    vec![x.value.to_bits(), x.deriv.to_bits()]
+}
+fn biv(x: Interval) -> Vec<u64> {
+    vec![x.lo().to_bits(), x.hi().to_bits()]
+}
+
+/// One parameter of the whole-curve differential: both halves of
+/// `ders1` against the evaluator each half claims to be, by bits.
+fn jet3<T: SpanLocate>(c: &NurbsCurve3<T>, t: T, bits: fn(T) -> Vec<u64>, what: &str) {
+    let (p, d) = c.ders1(t);
+    let (q, e) = (c.eval(t), c.deriv(t));
+    for (n, a, b) in [
+        ("x", p.x, q.x),
+        ("y", p.y, q.y),
+        ("z", p.z, q.z),
+        ("dx", d.x, e.x),
+        ("dy", d.y, e.y),
+        ("dz", d.z, e.z),
+    ] {
+        assert_eq!(
+            bits(a),
+            bits(b),
+            "{what}: {n} differs between ders1 and its evaluator"
+        );
+    }
+}
+fn jet2<T: SpanLocate>(c: &NurbsCurve2<T>, t: T, bits: fn(T) -> Vec<u64>, what: &str) {
+    let (p, d) = c.ders1(t);
+    let (q, e) = (c.eval(t), c.deriv(t));
+    for (n, a, b) in [
+        ("x", p.x, q.x),
+        ("y", p.y, q.y),
+        ("dx", d.x, e.x),
+        ("dy", d.y, e.y),
+    ] {
+        assert_eq!(
+            bits(a),
+            bits(b),
+            "{what}: {n} differs between ders1 and its evaluator"
+        );
+    }
+}
+fn lift2<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve2<T> {
+    NurbsCurve2::new(
+        c.knots().clone(),
+        c.control()
+            .iter()
+            .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
+            .collect(),
+        c.weights().to_vec(),
+    )
+    .unwrap()
+}
+
+/// `ders1` is `eval` and `deriv` bit for bit at the whole-curve level
+/// over the extended corpus in every lane — `f64`, `Dual64` on both
+/// channels, `Interval` on both bounds — at every knot value, span
+/// midpoint and domain end. The `Interval` parameters are the ones
+/// that hull more than one span: each knot value widened by 0.05
+/// straddles that knot, and one interval spans the whole domain and
+/// folds every span. A differential, not a capture: the `DIGEST` above
+/// carries no `ders1` label, so a hull folded in a different order
+/// reds this row by name and leaves the digest alone. The same row
+/// runs on `NurbsCurve2`, which the macro mints the door on.
+#[test]
+fn ders1_is_eval_and_deriv_bit_for_bit_in_every_lane() {
+    let mut checked = 0usize;
+    for (name, k, rational) in corpus() {
+        let c = curve(k.clone(), rational);
+        let (cd, ci): (NurbsCurve3<Dual64>, NurbsCurve3<Interval>) = (lift(&c), lift(&c));
+        let (c2, cd2, ci2): (NurbsCurve2<f64>, NurbsCurve2<Dual64>, NurbsCurve2<Interval>) =
+            (lift2(&c), lift2(&c), lift2(&c));
+        let (lo, hi) = k.domain();
+        let ts = params(&k);
+        let mut ivs: Vec<Interval> = ts
+            .iter()
+            .map(|t| Interval::from_bounds(t - 0.05, t + 0.05))
+            .collect();
+        ivs.push(Interval::from_bounds(lo, hi));
+        for &t in &ts {
+            jet3(&c, t, bf64, &format!("{name} f64 @{t}"));
+            jet3(
+                &cd,
+                Dual64::variable(t),
+                bdual,
+                &format!("{name} dual @{t}"),
+            );
+            jet2(&c2, t, bf64, &format!("{name} 2d f64 @{t}"));
+            jet2(
+                &cd2,
+                Dual64::variable(t),
+                bdual,
+                &format!("{name} 2d dual @{t}"),
+            );
+            checked += 4;
+        }
+        for iv in ivs {
+            let what = format!("{name} iv [{}, {}]", iv.lo(), iv.hi());
+            jet3(&ci, iv, biv, &what);
+            jet2(&ci2, iv, biv, &format!("{what} 2d"));
+            checked += 2;
         }
     }
+    assert!(
+        checked >= 120,
+        "the corpus stopped covering parameters: {checked}"
+    );
 }

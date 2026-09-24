@@ -531,52 +531,55 @@ pub enum RevolveError {
 impl fmt::Display for RevolveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Band(e) => write!(f, "revolve could not form a band: {e}"),
-            Self::NonFiniteAxis => f.write_str(
-                "revolve axis direction has no finite length \u{2014} its components \
-                 overflow the norm, or one of them is not a number; scale the geometry \
-                 into the session's range",
+            Self::Band(e) => write!(f, "{e}"),
+            Self::NonFiniteAxis => write!(
+                f,
+                "the revolve axis direction has no finite length (a component overflows \
+                 the norm or is not a number). Recourse: {}",
+                geom_core::RANGE_RECOURSE
             ),
-            Self::UnderflowedAxis => f.write_str(
-                "revolve axis direction's length underflowed out of the format \u{2014} its \
-                 components are too small for the norm to hold, so it measures exactly \
-                 zero while still naming a direction; no tolerance reaches this, scale \
-                 the geometry into the session's range",
+            Self::UnderflowedAxis => write!(
+                f,
+                "the revolve axis direction's length underflowed out of the format: it \
+                 measures zero while still naming a direction. Recourse: {}",
+                geom_core::RANGE_RECOURSE
             ),
             Self::DegenerateAxis => write!(
                 f,
-                "revolve axis direction has no definite length (zero or sliver) — {}",
+                "the revolve axis direction has no definite length (zero or a sliver). \
+                 Recourse: {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
-            Self::AxisEscalated { source } => {
-                write!(f, "revolve axis classification escalated: {source}")
-            }
+            Self::AxisEscalated { source } => write!(
+                f,
+                "whether the revolve axis has a length is too close to call: {source}"
+            ),
             Self::DegenerateAngle => write!(
                 f,
-                "revolve angle is coincident with zero at tolerance (metered at the profile's \
-                 maximum radial extent) — {}",
+                "the revolve angle is zero at tolerance (measured at the profile's widest \
+                 radius). Recourse: {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
             Self::FullRangeAngle => f.write_str(
-                "partial revolve angle reaches the full period at tolerance: an exactly-full \
-                 revolve must use Revolution::Full",
+                "the partial revolve angle reaches a full turn at tolerance; an exactly \
+                 full revolve uses Revolution::Full",
             ),
             Self::AngleEscalated { source } => {
-                write!(f, "revolve angle classification escalated: {source}")
+                write!(f, "the revolve angle is too close to call: {source}")
             }
             // Definite at ANY magnitude (r = -0.5 fires this same arm),
             // so the coincidence levers are offered conditionally — the
             // unconditional fix is to move the profile off the negative
-            // side (S6 review, MINOR-2).
+            // side.
             Self::VertexCrossesAxis {
                 loop_index,
                 vertex_index,
             } => write!(
                 f,
-                "profile vertex at loop {loop_index} vertex {vertex_index} lies definitely on \
-                 the negative side of the revolve axis (a revolve never carries material \
-                 through the axis) — move the profile to the non-negative side; if the vertex \
-                 was meant to sit exactly on the axis, {}",
+                "profile loop {loop_index} vertex {vertex_index} lies definitely across the \
+                 revolve axis, and a revolve never carries material through its axis. \
+                 Recourse: move the profile to one side of the axis; if the vertex should \
+                 sit exactly on the axis, {}",
                 geom_core::COINCIDENCE_RECOURSE
             ),
             Self::SliverRadius {
@@ -585,16 +588,16 @@ impl fmt::Display for RevolveError {
                 source,
             } => write!(
                 f,
-                "profile vertex at loop {loop_index} vertex {vertex_index} sits a sliver away \
-                 from the revolve axis (micro-radius revolve): {source}"
+                "profile loop {loop_index} vertex {vertex_index} sits a sliver away from the \
+                 revolve axis: {source}"
             ),
             Self::ArcCrossesAxis {
                 loop_index,
                 segment_index,
             } => write!(
                 f,
-                "arc segment at loop {loop_index} segment {segment_index} definitely dips into \
-                 the negative side of the revolve axis"
+                "the arc at profile loop {loop_index} segment {segment_index} dips across \
+                 the revolve axis. Recourse: move the profile clear of the axis"
             ),
             Self::SliverAxisClearance {
                 loop_index,
@@ -602,46 +605,43 @@ impl fmt::Display for RevolveError {
                 source,
             } => write!(
                 f,
-                "axis-clearance classification at loop {loop_index} segment {segment_index} \
-                 escalated: {source}"
+                "whether the arc at loop {loop_index} segment {segment_index} clears the \
+                 revolve axis is too close to call: {source}"
             ),
             Self::UnsupportedToroid {
                 loop_index,
                 segment_index,
             } => write!(
                 f,
-                "arc at loop {loop_index} segment {segment_index} sweeps a horn/spindle torus \
-                 (carrier reaches the axis): outside D3's ring-torus convention"
+                "the arc at loop {loop_index} segment {segment_index} would sweep a horn or \
+                 spindle torus (its circle reaches the axis), which is not supported. \
+                 Recourse: keep the arc's circle clear of the axis"
             ),
             Self::NonManifoldAxisContact {
                 loop_index,
                 vertex_index,
             } => write!(
                 f,
-                "full revolve: axis contact at loop {loop_index} vertex {vertex_index} is not \
-                 part of a single on-axis segment run — the solid would be non-manifold"
+                "a full revolve of loop {loop_index} would pinch at vertex {vertex_index}, \
+                 where the loop touches the axis outside a single on-axis segment. \
+                 Recourse: lay that stretch of the loop along the axis, or use a partial \
+                 revolve"
             ),
             Self::MultipleAxisRuns { loop_index } => write!(
                 f,
-                "full revolve: loop {loop_index} touches the axis in two or more disjoint \
-                 segment runs, so the revolved boundary would close an inner cavity shell \
-                 this construction holds no containment evidence for (every cavity is born \
-                 through the void-insertion door with caller-certified containment; a \
-                 two-run profile's enclosure is not a validated hole loop) — revolve the \
-                 solid profile and subtract the enclosed body (topo::subtract), or use a \
-                 partial revolve"
+                "loop {loop_index} touches the axis in two or more separate runs, so a full \
+                 revolve would enclose a cavity it cannot certify. Recourse: revolve the \
+                 solid profile and subtract the enclosed body, or use a partial revolve"
             ),
             Self::HoleTouchesAxis { loop_index } => write!(
                 f,
-                "full revolve: hole loop {loop_index} touches the revolve axis, which \
-                 contradicts its validated strict containment inside the outer loop — the \
-                 profile was validated at a different tolerance than this revolve runs at; \
-                 re-validate the profile at the run's tolerance"
+                "hole loop {loop_index} touches the revolve axis, though the profile was \
+                 validated with it strictly inside its outer loop at another tolerance. \
+                 Recourse: re-validate the profile at the revolve's tolerance"
             ),
             Self::VoidInsertion { loop_index, source } => write!(
                 f,
-                "full revolve: inserting hole loop {loop_index}'s revolved cavity through \
-                 the void-insertion door refused: {source}"
+                "inserting the cavity of hole loop {loop_index} refused: {source}"
             ),
             Self::CosurfaceEscalated {
                 loop_index,
@@ -649,8 +649,8 @@ impl fmt::Display for RevolveError {
                 source,
             } => write!(
                 f,
-                "cosurface sharing at loop {loop_index} vertex {vertex_index} escalated: \
-                 {source}"
+                "whether the walls meeting at loop {loop_index} vertex {vertex_index} share \
+                 one surface is too close to call: {source}"
             ),
             Self::SliverJoin {
                 loop_index,
@@ -658,8 +658,8 @@ impl fmt::Display for RevolveError {
                 source,
             } => write!(
                 f,
-                "sliver dihedral at loop {loop_index} vertex {vertex_index}: the latitude join \
-                 is neither a definite corner nor definitely smooth: {source}"
+                "the join at loop {loop_index} vertex {vertex_index} is neither a definite \
+                 corner nor definitely smooth: {source}"
             ),
             Self::SliverRim {
                 loop_index,
@@ -667,12 +667,12 @@ impl fmt::Display for RevolveError {
                 source,
             } => write!(
                 f,
-                "sliver dihedral at loop {loop_index} segment {segment_index}'s cap rim: \
-                 {source}"
+                "the cap rim at loop {loop_index} segment {segment_index} is neither a \
+                 definite corner nor definitely smooth: {source}"
             ),
-            Self::CapPlane { source } => write!(f, "revolve cap plane: {source}"),
-            Self::Op { source } => write!(f, "revolve operator step failed: {source}"),
-            Self::Pcurve(source) => write!(f, "revolve pcurve mint pass: {source}"),
+            Self::CapPlane { source } => write!(f, "a cap is not planar: {source}"),
+            Self::Op { source } => write!(f, "an Euler operation refused: {source}"),
+            Self::Pcurve(source) => write!(f, "{source}"),
         }
     }
 }
@@ -831,9 +831,6 @@ mod tests {
             "{msg}"
         );
         assert!(msg.contains("no finite length"), "{msg}");
-        assert!(
-            msg.contains("scale the geometry into the session's range"),
-            "{msg}"
-        );
+        assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
     }
 }

@@ -364,31 +364,26 @@ impl core::fmt::Display for PcurveMintError {
         match self {
             Self::Corrupt => write!(
                 f,
-                "pcurve minting: the body is structurally corrupt (a key did not resolve) \
-                 — the structural validators own this diagnosis: read the tier-1 report \
-                 and repair the reference it names; this pass refuses to guess rather \
-                 than minting past a broken one"
+                "the body is structurally corrupt (a key did not resolve), so its faces \
+                 cannot be parametrized; read the structural validators' report and repair \
+                 the reference it names"
             ),
-            Self::Certify { half_edge, error } => {
-                write!(f, "pcurve minting at half-edge {half_edge:?}: {error}")
-            }
+            Self::Certify { half_edge, error } => write!(
+                f,
+                "the pcurve of half-edge {half_edge:?} failed certification: {error}"
+            ),
             Self::LoopDiscontinuity { half_edge } => write!(
                 f,
-                "pcurve minting: half-edge {half_edge:?} does not meet its predecessor in \
-                 the chart — the loop's single-branch unwrap is discontinuous there \
-                 (a branch is chosen once per loop and certified, never per sample). \
-                 Re-mint the body if it was edited after minting: surgery leaves stale \
-                 rows and this pass is their backstop. If a fresh mint refuses here too, \
-                 the loop's edges do not meet through the chart and the face's boundary \
-                 is what to repair"
+                "the pcurve of half-edge {half_edge:?} does not meet its predecessor's in \
+                 its face's chart. \
+                 Recourse: re-mint the body if it was edited after minting; if a fresh mint \
+                 refuses too, repair the face's boundary"
             ),
             Self::LoopNotClosed { face } => write!(
                 f,
-                "pcurve minting: the chart walk of a loop of face {face:?} did not close \
-                 (its azimuth advance is neither zero nor one full period) — re-mint \
-                 after any surgery on an already-minted body, and if a fresh mint refuses \
-                 the same way repair the loop itself: the walk never closes a gap by \
-                 choosing a branch"
+                "the pcurves of a loop of face {face:?} do not close in its chart (the \
+                 azimuth advance is neither zero nor one full period). Recourse: re-mint the body after any \
+                 surgery; if a fresh mint refuses too, repair the loop"
             ),
             Self::SingularChartJoint {
                 face,
@@ -396,43 +391,34 @@ impl core::fmt::Display for PcurveMintError {
                 half_edge,
             } => write!(
                 f,
-                "chart boundary: loop {lp:?} of face {face:?} meets a chart singularity at \
-                 half-edge {half_edge:?} (a sphere pole or a cone apex), where the first \
-                 chart channel has no lever and the boundary has no chord polygon — valid \
-                 input, unbuilt lane: the joint's azimuth is whatever the derivation \
-                 produced and no branch choice makes it a vertex, so ask for the \
-                 description on a face whose loops stay clear of the singularity (a sphere \
-                 or cone face that does describes normally); there is nothing in the body \
-                 to repair"
+                "loop {lp:?} of face {face:?} meets a sphere pole or cone apex at half-edge \
+                 {half_edge:?}, where no face description is built yet; there is nothing in \
+                 the body to repair. Recourse: ask for the description of a face whose loops \
+                 stay clear of the pole or apex"
             ),
             Self::OuterSpansPeriod => write!(
                 f,
-                "chart boundary: the outer loop's chart span exceeds the chart's period, so \
-                 the face wraps onto itself and its region is not periodic within its own \
-                 outer — the ring lifts are then lifts of nothing and no honest description \
-                 exists to return, so hold the producer to an outer within one period (a \
-                 revolve's angle headroom is that guard) and describe a face that wraps \
-                 further as sub-period pieces"
+                "the outer loop spans more than one period of its chart, so the face wraps \
+                 onto itself and has no description. Recourse: describe it as pieces within \
+                 one period (a revolve's angle headroom holds this)"
             ),
             Self::LoopWraps { face, r#loop: lp } => write!(
                 f,
-                "chart boundary: the chart walk of loop {lp:?} of face {face:?} closes one \
-                 whole period off — it lifts the chart rather than bounding a chart polygon. \
-                 No constructor in the tree is known to produce such a loop, so report the \
-                 body that reached this rather than repairing one"
+                "loop {lp:?} of face {face:?} closes one whole period off, so it bounds no \
+                 region of its chart; no constructor is known to produce this, so report \
+                 the body that reached it"
             ),
             Self::MissingCache { half_edge } => write!(
                 f,
-                "pcurve minting: half-edge {half_edge:?} bounds a face whose chart mints \
-                 pcurve caches, but carries none at rest — the face's cache set is \
-                 half-minted: re-mint the body, and repair the op that returned a mutated \
-                 already-minted body without clearing or re-minting, which is what leaves one"
+                "half-edge {half_edge:?} carries no pcurve although its face's chart mints \
+                 them: the body changed after minting. Recourse: re-mint the \
+                 body, and report the op that returned it"
             ),
             Self::Escalated { half_edge, cause } => write!(
                 f,
-                "pcurve minting at half-edge {half_edge:?} escalated: {cause}"
+                "the pcurve at half-edge {half_edge:?} escalated: {cause}"
             ),
-            Self::Band(e) => write!(f, "pcurve minting: {e}"),
+            Self::Band(e) => write!(f, "{e}"),
         }
     }
 }

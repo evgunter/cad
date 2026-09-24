@@ -4,6 +4,8 @@ kind: issue
 title: Branch-side block records make 'prior highest sample on main' collide: TRIM-3 PR-2 and D290 both recorded #201
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

@@ -340,7 +340,7 @@ pub use chart::{Chart, ChartKind};
 pub use chart_bound::{ChartBound, ChartEdge, ChartLoop, MetredBound, MetredRect};
 pub use chart_iso::{TravKind, classify_kind, iso_side_starts, mid_azimuth, unwrap_near};
 pub use chart_region::{
-    ChartOverlap, ChartRegionError, ChartRegionLane, WITNESS_BUDGET, WitnessBudget,
+    ChartOverlap, ChartRegionError, RegionLane, WITNESS_BUDGET, WitnessBudget,
     chart_region_overlap, declared_pair_overlap,
 };
 pub use coherence::{
@@ -368,9 +368,9 @@ pub use offset_nappe::{Nappe, face_nappe, group_nappe};
 pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{PcurveMintError, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of};
 pub use props::{
-    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, PropsQuadLane,
-    ShellClassification, ShellClassifyError, ShellRole, SignCertificate, VolumeEnclosure,
-    classify_shells, classify_shells_of, mass_properties,
+    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
+    ShellClassifyError, ShellRole, SignCertificate, VolumeEnclosure, classify_shells,
+    classify_shells_of, classify_shells_structural, mass_properties, mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;
@@ -399,11 +399,11 @@ pub use splitting::{
 pub use transform::{TransformError, transform_rigid, transform_rigid_via};
 pub use validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
-    StaleDeclaration, ValidationError, contact_marks, contact_marks_certified,
-    contact_marks_declared, contact_marks_declared_certified, validate, validate_closed,
+    StaleDeclaration, ValidationError, contact_marks, contact_marks_declared,
+    contact_marks_declared_structural, contact_marks_structural, validate, validate_closed,
     validate_geometric, validate_geometric_certificate, validate_geometric_certificate_declared,
     validate_geometric_declared, validate_geometric_structural,
     validate_geometric_structural_declared, validate_pseudomanifold,
-    validate_pseudomanifold_certificate, validate_pseudomanifold_certificate_certified,
-    validate_pseudomanifold_certified,
+    validate_pseudomanifold_certificate, validate_pseudomanifold_certificate_structural,
+    validate_pseudomanifold_structural,
 };

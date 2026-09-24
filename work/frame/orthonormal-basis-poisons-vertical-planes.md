@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-29
 github: 1157
 refs: [1116, 1143, 1146]
+priority: P0
+cost: H
 ---
 
 ## From GitHub issue 1157

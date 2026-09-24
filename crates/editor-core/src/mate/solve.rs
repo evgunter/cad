@@ -15,6 +15,8 @@
 //! - [`solve_document`] — the per-pair coset fold along a deterministic
 //!   spanning tree, yielding every instance's pose relative to its
 //!   gauge, and every mate's role.
+//! - [`admit_mate`] — one mate's own admission, the per-mate prefix
+//!   of the solve asked by the edit door of a mate being inserted.
 //! - [`reconcile`] — the cluster-record keying maintenance the edit
 //!   door runs after any edit that can move the mate graph.
 //!
@@ -393,6 +395,17 @@ fn opposed() -> Affine3<f64> {
     )
 }
 
+/// **What a caller of [`mate_coset`] answers when the rider on a
+/// coincidence asks for its lever.**
+enum LeverArm {
+    /// The lever, formed: the two mated parts' reach plus the datum's
+    /// own terms, over which the rider is decided.
+    Formed(f64),
+    /// No lever, and no decision: the caller is replaying an entry
+    /// whose rider the recording door decided ([`Maintain::reach`]).
+    Declined,
+}
+
 /// One mate's coset: the relative poses (b's part coordinates into a's)
 /// its primitive admits.
 ///
@@ -409,14 +422,19 @@ fn opposed() -> Affine3<f64> {
 /// — so no direction here is read back off a product of matrices,
 /// which would be unit only to rounding and a witness to nothing.
 ///
-/// `arm` is this mate's lever — the two mated parts' reach summed
-/// ([`pair_reach`]) plus the datum's own terms
-/// ([`Alignment::lever_arm`]), formed once by the caller — over which
-/// the rider's redundancy is decided.
+/// `lever` forms this mate's lever — the two mated parts' reach
+/// summed ([`pair_reach`]) plus the datum's own terms
+/// ([`Alignment::lever_arm`]) — and is asked at exactly one site: the
+/// rider on a coincidence, the one row of the table that levers a
+/// decision. Every other row decides on the datum alone, so a caller
+/// with no lever in hand (the edit door, [`admit_mate`]) forms none
+/// for them, and a caller that holds one already (the fold, which
+/// levers its intersections too) hands it in. [`LeverArm::Declined`]
+/// is replay's answer, on the rule stated at [`Maintain::reach`].
 fn mate_coset(
     mate: RecipeNodeId,
     alignment: &Alignment,
-    arm: f64,
+    lever: impl FnOnce() -> Result<LeverArm, Box<MateFault>>,
     band: Band,
     tol: Tol,
 ) -> Result<Coset, Box<MateFault>> {
@@ -443,7 +461,13 @@ fn mate_coset(
             // redundant-or-contradictory, DECIDED. A coincidence has
             // already pinned the roll, so the only clocking it can
             // agree with is zero.
-            if let Some(theta) = alignment.clocking {
+            // The lever is asked HERE and nowhere else in the table:
+            // no rider, no ask. A declined lever (replay only) yields
+            // the coset with the rider UNDECIDED — the door that
+            // recorded the entry decided it.
+            if let Some(theta) = alignment.clocking
+                && let LeverArm::Formed(arm) = lever()?
+            {
                 let roll = Measured::Lever(Lever::Roll {
                     radians: theta,
                     arm,
@@ -486,20 +510,26 @@ fn mate_coset(
             }
         },
         MatePrimitive::PlanarRest { offset } => {
-            if alignment.clocking.is_some() {
-                return Err(Box::new(MateFault::TableLacks {
-                    mate,
-                    what: "a clocking rider on a planar rest",
-                }));
+            // The table's static gap, read where the table keeps it
+            // (`super::table_gap`), at this arm so a frame refusal
+            // still precedes it.
+            if let Some(what) = super::table_gap(alignment.primitive, alignment.clocking) {
+                return Err(Box::new(MateFault::TableLacks { mate, what }));
             }
             let target = fa * Affine3::translation(local_z * offset);
             (target, Subgroup::Planar { normal: axis })
         }
         MatePrimitive::Clocking => {
-            return Err(Box::new(MateFault::TableLacks {
-                mate,
-                what: "a standalone clocking with no carrying mate",
-            }));
+            // The table's other static gap, from the same home
+            // (`super::table_gap`), which gaps a standalone clocking
+            // for every rider: an answer of `None` here is the table
+            // contradicting itself, not a mate the table admits.
+            let Some(what) = super::table_gap(alignment.primitive, alignment.clocking) else {
+                unreachable!(
+                    "table_gap admits a standalone clocking, which the table has no row for"
+                )
+            };
+            return Err(Box::new(MateFault::TableLacks { mate, what }));
         }
     };
     Ok(Coset {
@@ -588,6 +618,133 @@ fn derived_direction(
     })
 }
 
+/// **The per-reference prefix of a mate's admission**, after its two
+/// walks: the checks that need a number ([`check_reference`]) on both
+/// sides, then the pair as two DISTINCT members
+/// ([`MateFault::SelfMate`]) — the one function the solve's first
+/// loop and [`admit_mate`] both call, so the two cannot meet these
+/// refusals in different orders. The walks themselves stay
+/// [`walk_of`]'s, made before this is asked: the loop needs them for
+/// the welds whether or not these checks admit the mate. Two COPIES
+/// of one pattern are two members and pass: what a mate cannot relate
+/// is a member to itself.
+fn check_references<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    env: &ParamEnv<f64>,
+    mate: RecipeNodeId,
+    wa: &Walk,
+    wb: &Walk,
+) -> Result<(), MateFault> {
+    check_reference(doc, env, mate, MateSide::A, wa)?;
+    check_reference(doc, env, mate, MateSide::B, wb)?;
+    if wa.member == wb.member {
+        return Err(MateFault::SelfMate {
+            mate,
+            instance: wa.member.instance,
+        });
+    }
+    Ok(())
+}
+
+/// **The class door of a mate's own admission**: the class inside the
+/// vocabulary ([`MateFault::ClassNotAdmitted`]). The class table is
+/// the policy (`super::class_admission`); this door enforces its own
+/// half of it and nothing more.
+fn admit_class(mate: RecipeNodeId, class: super::ContactClass) -> Result<(), Box<MateFault>> {
+    if super::class_admission(class) == super::ClassAdmission::NotAdmitted {
+        return Err(Box::new(MateFault::ClassNotAdmitted { mate }));
+    }
+    Ok(())
+}
+
+/// **One mate's own admission** — what the solve decides about a mate
+/// from its own datum alone, asked of that one mate (`node`, the
+/// `Node::Mate` the document holds or is about to hold at `mate`): the
+/// two walks ([`walk_of`]), the per-reference prefix
+/// ([`check_references`]), the class door ([`admit_class`]) and the
+/// coset table ([`mate_coset`]), in the order the solve meets them,
+/// with the lever formed through `reach` exactly where the table
+/// levers a decision (the rider on a coincidence) and nowhere else.
+/// It is the per-mate prefix of the solve: [`solve_with_env`]'s first
+/// loop makes the walks and asks [`check_references`], and
+/// [`fold_pair`] asks [`admit_class`] and [`mate_coset`] of every
+/// mate it folds, adding only what a PAIR needs — the lever formed
+/// for every mate, because the fold levers its intersections too.
+///
+/// The edit door asks this of a mate being inserted, so a mate the
+/// solve refuses on its own datum is refused at the insert door
+/// (`ASSEMBLY.md` A11 rule 1). The solve records the same fault
+/// against the mate whenever it reads the datum; a mate on a pair the
+/// fold never reads — two members over one instance — is refused on
+/// the datum alone all the same, since which pairs the fold reads is
+/// a cluster fact this door does not decide. It folds nothing and
+/// reads no other mate: the relational verdicts — UNDER, a
+/// contradiction against ANOTHER mate, an escalation on a fold — are
+/// the solve's, because they are facts about a pair, not about a
+/// mate. A rider the band decides redundant is admitted, as the solve
+/// admits it. What the door does not cover is a state: a mate that
+/// COMES to carry one of these faults after insert — a head a rebind
+/// or a shrunk pattern strands, a `Part` re-pointed, a snapshot loaded
+/// from a doctored or older file — is the solve's at evaluation.
+///
+/// `env` is the document's own nominal environment, built by the
+/// door that asks (the evaluation's arrangement at [`solve_with_env`]:
+/// one build per entry, every reader handed it). `reach` absent is
+/// replay's, and the rider is then not re-decided — the rule and its
+/// reason are stated once, at [`Maintain::reach`].
+///
+/// # Errors
+///
+/// The fault the solve records against the mate for its own datum,
+/// unaltered: [`MateFault::Band`] when no band forms; the walk's
+/// [`MateFault::DanglingHead`]; [`check_references`]'s; the class
+/// door's; and [`mate_coset`]'s — `Frame`, `TableLacks`, the decided
+/// contradictory rider or its escalation, and
+/// [`MateFault::Unleverable`] where the rider needs a lever the reach
+/// cannot form.
+pub(crate) fn admit_mate<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    mate: RecipeNodeId,
+    node: &Node<P>,
+    env: &ParamEnv<f64>,
+    reach: Option<&dyn MateReach>,
+    tol: Tol,
+) -> Result<(), Box<MateFault>> {
+    // The door asks this of the mate it is inserting, under the id it
+    // minted for it; any other node here is the caller's mistake, not
+    // a refusal the mate earned.
+    let Node::Mate {
+        a,
+        b,
+        class,
+        alignment,
+    } = node
+    else {
+        unreachable!("admit_mate is asked of a mate; node {} is not one", mate.0)
+    };
+    let band = Band::linear(tol).map_err(|error| Box::new(MateFault::Band { error }))?;
+    let wa = walk_of(doc, mate, MateSide::A, a).map_err(Box::new)?;
+    let wb = walk_of(doc, mate, MateSide::B, b).map_err(Box::new)?;
+    check_references(doc, env, mate, &wa, &wb).map_err(Box::new)?;
+    admit_class(mate, *class)?;
+    // The two parts are asked in DOCUMENT order, which is the order
+    // the fold asks a pair that is a cluster of its own: its gauge is
+    // the earlier instance and the tree's parent, so a refusal that
+    // names the first part not in hand names the same part here.
+    let (first, second) = if wa.member.instance <= wb.member.instance {
+        (&wa.member, &wb.member)
+    } else {
+        (&wb.member, &wa.member)
+    };
+    let lever = || match reach {
+        Some(reach) => pair_reach(doc, reach, first, second)
+            .map(|parts| LeverArm::Formed(parts + alignment.lever_arm()))
+            .map_err(|refusal| Box::new(MateFault::Unleverable { mate, refusal })),
+        None => Ok(LeverArm::Declined),
+    };
+    mate_coset(mate, alignment, lever, band, tol).map(|_| ())
+}
+
 /// **The per-pair fold** (A11 rule 1): every mate on the ordered
 /// MEMBER pair `(parent, child)`, intersected. The result's
 /// representative maps the child MEMBER's part coordinates into the
@@ -598,6 +755,10 @@ fn derived_direction(
 /// ([`pair_left_factor`]), composed outside the fold, which is what
 /// keeps the coset algebra itself unchanged (the rider's rule-1
 /// clause).
+///
+/// Each mate passes its own admission first — the pair door and the
+/// coset table, the doors [`admit_mate`] asks of a mate alone — and
+/// only then meets the fold.
 ///
 /// # Errors
 ///
@@ -636,20 +797,10 @@ fn fold_pair<P: crate::ProfilePayload>(
         else {
             continue;
         };
-        // The class table is the policy (`super::class_admission`);
-        // this door enforces its own half of it and nothing more.
-        if super::class_admission(*class) == super::ClassAdmission::NotAdmitted {
-            return Err(Box::new(MateFault::ClassNotAdmitted { mate }));
-        }
         // The members these two references resolved to, walked once
         // where the pair map was built and carried here.
         let (ha, hb) = (&pm.a.member, &pm.b.member);
-        if ha == hb {
-            return Err(Box::new(MateFault::SelfMate {
-                mate,
-                instance: ha.instance,
-            }));
-        }
+        admit_class(mate, *class)?;
         let parts = match parts_reach {
             Some(parts) => parts,
             None => {
@@ -663,7 +814,13 @@ fn fold_pair<P: crate::ProfilePayload>(
         // own datum terms. The fold's is the largest so far.
         let mate_arm = parts + alignment.lever_arm();
         arm = arm.max(mate_arm);
-        let mut coset = mate_coset(mate, alignment, mate_arm, band, tol)?;
+        let mut coset = mate_coset(
+            mate,
+            alignment,
+            || Ok(LeverArm::Formed(mate_arm)),
+            band,
+            tol,
+        )?;
         // The authored order is `a`'s coordinates from `b`'s; the tree
         // may need the other direction.
         // The transported direction is `a`'s axis carried into `b`'s
@@ -887,22 +1044,12 @@ pub(crate) fn solve_with_env<P: crate::ProfilePayload>(
         // **The checks that need a number, at the site the solve
         // reads the reference** — for EVERY reference of EVERY live
         // mate, not only the ones a tree edge's offset happens to
-        // derive. The walk itself evaluated nothing, so this is where
-        // the name meets a count.
-        let checked = check_reference(doc, env, id, MateSide::A, wa)
-            .and_then(|()| check_reference(doc, env, id, MateSide::B, wb));
-        if let Err(fault) = checked {
+        // derive — and the pair as two distinct members: the same
+        // prefix the edit door asks (`check_references`). The walk
+        // itself evaluated nothing, so this is where the name meets a
+        // count.
+        if let Err(fault) = check_references(doc, env, id, wa, wb) {
             broken.push((id, fault));
-            continue;
-        }
-        if wa.member == wb.member {
-            broken.push((
-                id,
-                MateFault::SelfMate {
-                    mate: id,
-                    instance: wa.member.instance,
-                },
-            ));
             continue;
         }
         let (ha, hb) = (wa.member.clone(), wb.member.clone());
@@ -1153,6 +1300,17 @@ pub enum ClusterMaintenance {
 }
 
 impl ClusterMaintenance {
+    /// The gauge the act moves: the absorbed cluster's for a `Join`,
+    /// the new gauge for a `Split` or `GaugeRewrite`, the dropped one
+    /// for a `Drop`. [`EditError::MaintenanceUnrecorded`] names it.
+    pub(crate) fn moved_gauge(&self) -> RecipeNodeId {
+        match self {
+            Self::Join { absorbed, .. } => *absorbed,
+            Self::Split { to, .. } | Self::GaugeRewrite { to, .. } => *to,
+            Self::Drop { gauge, .. } => *gauge,
+        }
+    }
+
     /// The frame the row carries, if any: an absorbed cluster's, a
     /// minted or rewritten gauge's, a dropped gauge's.
     pub fn frame(&self) -> Option<&Frame> {
@@ -1210,13 +1368,43 @@ pub(crate) enum Maintain<'a> {
     /// The live edit door: solve the PRIOR document through this
     /// reach, once, the first time a row needs it.
     Solve(&'a dyn MateReach),
-    /// Replay of a logged edit that recorded no rows: a row that needs
-    /// a solved frame refuses, because replay never solves.
+    /// Replay of a logged edit that recorded no rows: the entry claims
+    /// the edit performs no cluster maintenance, so any row refuses — a
+    /// row that needs a solved frame because replay never solves, and a
+    /// row derived from the documents alone because re-deriving it
+    /// would make the replay disagree with its entry.
     Never,
     /// Replay of a logged edit that recorded rows: they are what the
     /// maintenance decided, re-applied verbatim, and nothing is
     /// derived.
     Recorded(&'a [ClusterMaintenance]),
+}
+
+impl<'a> Maintain<'a> {
+    /// The reach a decision at this door levers through: the live
+    /// door's, and none under either replay arm.
+    ///
+    /// **The two replay rules, and why they differ.** The per-mate
+    /// admission ([`admit_mate`]) with no reach DECLINES the one
+    /// decision that needs a lever — the rider on a coincidence —
+    /// under `Never` and `Recorded` alike, because the door that
+    /// recorded the entry decided it over the parts it had in hand,
+    /// and re-deciding it here would need a store replay never holds;
+    /// everything decided on the datum alone is decided again. The
+    /// maintenance under `Never` REFUSES any row
+    /// ([`EditError::MaintenanceUnrecorded`]), because the entry
+    /// claimed none and a frame nothing decided cannot be recorded;
+    /// under `Recorded` it re-applies the rows the recording door
+    /// minted. A decision
+    /// declined leaves nothing false in the document — the datum is
+    /// what it was and the next solve decides it again; a frame
+    /// invented would.
+    pub(crate) fn reach(&self) -> Option<&'a dyn MateReach> {
+        match self {
+            Self::Solve(reach) => Some(*reach),
+            Self::Never | Self::Recorded(_) => None,
+        }
+    }
 }
 
 /// **The maintenance for one accepted edit** — [`reconcile`] deriving
@@ -1239,7 +1427,21 @@ pub(crate) fn maintain<P: crate::ProfilePayload>(
             Ok(rows.to_vec())
         }
         Maintain::Solve(reach) => reconcile(before, after, tol, Some(reach)),
-        Maintain::Never => reconcile(before, after, tol, None),
+        // An entry with no rows claims the edit performed no cluster
+        // maintenance, and replay holds it to exactly that: a row that
+        // needs a solved frame refuses inside `reconcile`, and a row
+        // derived from the documents alone (a `Join`, a `Drop`) refuses
+        // here. Re-deriving it instead would give the log two answers
+        // to "what did this edit do" — the entry's and the replay's.
+        Maintain::Never => {
+            let acts = reconcile(before, after, tol, None)?;
+            match acts.first() {
+                None => Ok(acts),
+                Some(act) => Err(EditError::MaintenanceUnrecorded {
+                    gauge: act.moved_gauge(),
+                }),
+            }
+        }
     }
 }
 

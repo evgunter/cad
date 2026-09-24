@@ -73,7 +73,7 @@
 // hold what it carries.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
-    Maintenance, MetaVersionError, ProgramRefusal, apply, apply_logged, replay_entry,
+    Maintenance, MetaVersionError, ProgramRefusal, apply, apply_logged,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -248,7 +248,7 @@ pub use editor_core::{
 // version constant to carry either.
 pub use editor_core::{
     Loaded, NonFiniteSite, PersistError, ProgramFault, REGENERATE_RECOURSE, SnapshotError, load,
-    load_with, save,
+    save,
 };
 
 // Document identity and content pins.
@@ -342,7 +342,7 @@ pub use editor_core::{
 // the solve or mint door, so exposing it here is what lets a tool
 // offer only what the vocabulary can execute instead of discovering
 // the refusal after the edit lands.
-pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
+pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission, table_gap};
 
 // **The assembly at-rest gate** (A5): `assemble` gathers a document's
 // product, mints every solved mate's declaration into its contact

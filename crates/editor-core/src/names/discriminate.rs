@@ -163,6 +163,20 @@ pub(crate) const SIDE_OF: &str = "name_frag_side_of";
 /// half.
 pub(crate) const ORDER_ALONG: &str = "name_frag_order_along";
 
+/// The chord-on-rim predicate's name (`emit_topo`'s `chord_on_rim`):
+/// whether a boolean's chord between two merged faces lies within the
+/// rim its key's side reads it through to.
+///
+/// **Outside the [`FAMILY`], and that is a choice with a cost.** The
+/// family is the fragment QUALIFIER vocabulary: `resolve`'s diagnosis
+/// ladder reads a `name_frag_` flip as the name's own discriminator
+/// changing sign. This predicate is not a qualifier — its verdict
+/// enters no name — so it stays out. The cost: when its flip is what
+/// makes a chord's name vanish (the chord leaves its rim and the
+/// emitter refuses), the ladder ranks that flip as a generic one rather
+/// than as the name's own.
+pub(crate) const CHORD_ON_RIM: &str = "name_chord_on_rim";
+
 /// One candidate's extent along an oriented carrier: the certified
 /// min/max of its probe parameters (values stay HERE — only the
 /// resulting order enters names).

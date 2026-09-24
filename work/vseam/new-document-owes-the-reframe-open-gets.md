@@ -2,9 +2,11 @@
 id: new-document-owes-the-reframe-open-gets
 kind: issue
 title: app.rs re-frames and drops the delta budget for Open only, though NewDocument replaces the document too
-refs: [session-clearing-walk-is-hand-maintained-three-times, 1885]
+refs: [1885]
 status: open
 opened: 2026-09-05
+priority: P1
+cost: E
 ---
 
 

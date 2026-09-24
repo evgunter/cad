@@ -263,9 +263,16 @@ fn rows() -> Vec<(String, u64)> {
 /// by producing a shorter stream.
 const ROW_COUNT: usize = 1001;
 
-/// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order,
-/// captured from the retired spellings before the change.
-const DIGEST: u64 = 0x9214_4852_a6d1_ba8a;
+/// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order.
+///
+/// **Re-captured when the C9 ring became a newtype over the backend**
+/// (`0x9214_4852_a6d1_ba8a` before): the ring padded one representable
+/// step outward on every operation and the backend pads only where the
+/// operation was inexact. Exactly 18 of these 1 001 rows moved, all of
+/// them a `deriv_span_hull` endpoint and all of them TIGHTER — the
+/// derivative hull is a fold of exact differences, which is where the
+/// retired pad had nothing to cover. None moved looser.
+const DIGEST: u64 = 0x5345_3564_ebc1_737a;
 
 /// Individual values from the same capture — one foothold per subject
 /// and per door family, so a red digest has a named row beside it.
@@ -278,7 +285,9 @@ const SPOT: &[(&str, u64)] = &[
     ("rat3.sup_norm@3", 0x3ff0_0000_0000_0000),
     ("rat3.ders_basis@3.1.1", 0xbfe8_0000_0000_0000),
     ("rat3.deriv2_in_span@3.z", 0x4015_d3c5_6e75_8fe3),
-    ("quad.deriv_span_hull.hi@2", 0x4010_0000_0000_0004),
+    // Tighter by four steps, and onto the exact `4.0`: the rational
+    // quadratic's derivative hull is a fold of exact differences.
+    ("quad.deriv_span_hull.hi@2", 0x4010_0000_0000_0000),
     ("quad.span_hull_rat.hi@3", 0x3fe0_0000_0000_0000),
     ("quad.ders1.p@2.x", 0xbfcc_609a_90e7_d95c),
     ("surf.eval@11.z", 0x3fda_2f68_4bda_12f8),
@@ -302,6 +311,15 @@ fn digest(rows: &[(String, u64)]) -> u64 {
 #[test]
 fn every_span_door_is_bit_identical_to_its_retired_spelling() {
     let rows = rows();
+    // The same dump hook the coefficient corpora carry, so a re-pin
+    // can be measured row by row rather than read off a digest that
+    // names nothing.
+    if std::env::var_os("SPAN_DUMP").is_some() {
+        for (name, bits) in &rows {
+            println!("{name} {bits:#018x}");
+        }
+        println!("rows {} digest {:#018x}", rows.len(), digest(&rows));
+    }
     assert_eq!(
         rows.len(),
         ROW_COUNT,

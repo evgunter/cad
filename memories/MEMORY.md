@@ -3,23 +3,14 @@
 Read the files as relevance dictates; this index says what each is for,
 not what it says.
 
-**Finding the work.** `work/` is the tracker and `work/README.md` its
-contract: `work/STATUS.md` is the board, `work/<program>/` holds a
-program's `program.md`, `plan.md`, `log.md` and one file per open
-item; **live state is there and never here.** A program is closed when
-its `docs/<NAME>-EXIT-WALK.md` is ratified; the walk is then deleted
-and recorded in `docs/DOC-LEDGER.md`, which is the done-state of
-record. Ratified design is `docs/DESIGN.md` plus its companion table,
-whose closed-program rows are README pages beside the code. Merge
-gate = hosted Actions.
-
 ## Working with Ev
 
 - [CAD working style](cad-working-style.md) — discuss → ratify into
   DESIGN.md → commit; doc prose states the present only; **how to write
   a memory** (the two tests, and be brief)
-- [Docs ledger](docs-ledger.md) — `docs/` is pruned, not archived; a
-  pointer to a missing `docs/` file resolves in `docs/DOC-LEDGER.md`
+- [Docs ledger](docs-ledger.md) — process docs are pruned when a
+  program closes; what is worth referencing later gets a note in
+  `docs/doc-ledger/`
 - [Ev profile](ev-profile.md) — differential-geometry fluent; define
   CAD jargon, don't simplify the math; probes fudged invariants
 - [Git workflow](git-workflow.md) — the hazards CLAUDE.md's merge-only
@@ -39,9 +30,9 @@ gate = hosted Actions.
 - [Agent lane operations](agent-lane-operations.md) — lane creation,
   build-slot locks, disk, liveness, death recovery, and the ways CI
   silently does not run
-- [Model A/B experiment](model-ab-experiment.md) — the standing
-  Opus-vs-Fable implementation experiment; `docs/MODEL-AB-LOG.md` is
-  normative and owns every live number
+- [Experiments](experiments.md) — the process experiments that are
+  live (dual Opus review concordance) or suspended (model A/B), where
+  each one's normative log is, and what any experiment binds
 
 ## Testing, review, measurement
 

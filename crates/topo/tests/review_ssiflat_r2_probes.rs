@@ -194,7 +194,7 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
         "the consumer-visible text must name the enclosure: {shown}"
     );
     assert!(
-        shown.contains("zero = ") && shown.contains("escalate = "),
+        shown.contains("ambiguity band ("),
         "and the band it was judged against: {shown}"
     );
     assert!(
@@ -403,7 +403,7 @@ fn the_margin_is_legible_through_the_public_topo_door() {
          value: {shown:?}"
     );
     assert!(
-        shown.iter().any(|s| s.contains("zero = ")),
+        shown.iter().any(|s| s.contains("ambiguity band (")),
         "the band must survive the public door with the margin: {shown:?}"
     );
     assert!(

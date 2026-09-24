@@ -4,6 +4,8 @@ kind: issue
 title: whether a corner graze on a near-coplanar candidate survives INFORM depends on which corner the tessellator labelled tri[0]
 status: open
 opened: 2026-09-16
+priority: P0
+cost: H
 ---
 
 

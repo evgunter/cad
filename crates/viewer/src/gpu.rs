@@ -190,9 +190,25 @@ struct Uniforms {
 
 /// One [`Mark`] as the uniform lane the shader reads: linear tint in
 /// `xyz`, strength in `w`.
+///
+/// **Neither half needs a door here, and they are total for
+/// different reasons.** `theme::linear` is total over `u8` and
+/// finite for every byte; the strength is a
+/// [`crate::theme::MixFraction`], so `[0, 1]` is a property of the
+/// value rather than something this function could check and the
+/// shader could not. That matters because the shader cannot refuse:
+/// `mix(base, mark.xyz, mark.w)` spreads a weight that is not a
+/// number over the whole colour, and nothing downstream takes it
+/// back. On a gamma-space surface `to_display`'s `clamp` does not —
+/// WGSL specifies `clamp` as `min(max(e1, e2), e3)`, which makes no
+/// promise about an unordered operand — and on an `*Srgb` one the
+/// `ENCODE_SRGB` early return sits ABOVE that line, so the pass runs
+/// no clamp at all. A guard added in the WGSL would also be a second
+/// spelling of a rule the palette already states, held together by
+/// nothing.
 fn mark_lane(mark: Mark) -> [f32; 4] {
     let [r, g, b] = crate::theme::linear(mark.tint);
-    [r, g, b, mark.strength]
+    [r, g, b, mark.strength.get()]
 }
 
 /// Uniform block size in bytes.
@@ -532,15 +548,38 @@ struct Geometry {
     revision: u64,
 }
 
-/// How many vertices one pass over `scene` draws.
+/// **A vertex table's length as a draw range, or `None` when it is
+/// not one.**
+///
+/// `wgpu` counts vertices in `u32` and a Rust table counts them in
+/// `usize`, so the cast can fail — and its failure arm has to be a
+/// refusal rather than a number. `u32::MAX` is a corner count no
+/// caller here computed, in the field that carries the one they did:
+/// a draw over it reads a range the buffers do not hold, which is the
+/// one answer a length is asked for in order to avoid.
+///
+/// **Not reachable on a machine this runs on, and the bound is
+/// memory rather than code.** `u32::MAX + 1` corners is `2^32`
+/// positions at three `f32` each — 51.5 GB before normals, ids or
+/// flags — and `scene::TRIANGLE_BUDGET` is a starting point rather
+/// than a cap, so nothing in the crate bounds the count; the
+/// allocation does. This is the door stating what it can answer, not
+/// a repair of a live defect.
+fn draw_range(len: usize) -> Option<u32> {
+    u32::try_from(len).ok()
+}
+
+/// How many vertices one pass over `scene` draws, or `None` when the
+/// scene's corner table is longer than a draw range
+/// ([`draw_range`]).
 ///
 /// **The scene is non-indexed geometry** — [`SceneMesh`]'s own
 /// contract: every triangle emits its own three corners, so nothing
 /// is shared and the draw range is the corner table's own length.
 /// This is the only place that number is derived, so the two passes
 /// over one scene cannot draw different ranges of it.
-fn corner_count(scene: &SceneMesh) -> u32 {
-    u32::try_from(scene.positions().len()).unwrap_or(u32::MAX)
+fn corner_count(scene: &SceneMesh) -> Option<u32> {
+    draw_range(scene.positions().len())
 }
 
 impl ViewportRenderer {
@@ -700,6 +739,13 @@ impl ViewportRenderer {
     }
 
     /// Upload `scene` if the buffers do not already hold `revision`.
+    ///
+    /// **A scene with no draw range is not uploaded**: the held
+    /// buffers are dropped and nothing is drawn, which is the answer
+    /// the passes already have for a scene that is not there
+    /// ([`corner_count`]). Uploading it and drawing `u32::MAX`
+    /// vertices out of a shorter buffer is the alternative, and that
+    /// is a range no caller computed.
     fn ensure_geometry(&mut self, device: &wgpu::Device, scene: &SceneMesh, revision: u64) {
         if self
             .geometry
@@ -708,6 +754,10 @@ impl ViewportRenderer {
         {
             return;
         }
+        let Some(corners) = corner_count(scene) else {
+            self.geometry = None;
+            return;
+        };
         let positions = create_init_buffer(
             device,
             "viewer_scene_positions",
@@ -737,7 +787,7 @@ impl ViewportRenderer {
             normals,
             ids,
             flags,
-            corners: corner_count(scene),
+            corners,
             revision,
         });
     }
@@ -1104,7 +1154,13 @@ impl EdgePass {
             return;
         }
         let (positions, marks) = edge_vertices(overlay);
-        let vertices = u32::try_from(positions.len()).unwrap_or(u32::MAX);
+        // The same refusal as the scene's, for the same reason: a
+        // vertex table longer than a draw range has no draw, and
+        // `u32::MAX` would be a count this function did not compute.
+        let Some(vertices) = draw_range(positions.len()) else {
+            self.held = None;
+            return;
+        };
         self.held = Some(EdgeGeometry {
             positions: create_init_buffer(
                 device,
@@ -1273,7 +1329,7 @@ impl ViewportCallback {
         Uniforms {
             view_projection: self.view_projection,
             light_direction: [lx, ly, lz, 0.0],
-            base_color: [r, g, b, self.theme.ambient],
+            base_color: [r, g, b, self.theme.ambient.get()],
             highlight: [self.highlight.selected, self.highlight.hovered, 0, 0],
             selected: mark_lane(self.theme.selected),
             hovered: mark_lane(self.theme.hovered),
@@ -1883,16 +1939,137 @@ mod tests {
     /// **The shader's transfer curve is the palette's transfer
     /// curve.** They are two spellings — WGSL and Rust — of IEC
     /// 61966-2-1, and nothing but this row stops one from being edited
-    /// without the other. The constants are what is compared, because
-    /// they are what a divergence would be made of.
+    /// without the other.
+    ///
+    /// **It compares the CONSTANTS, on both sides, and that is all it
+    /// compares.** The sentence here used to add *"because they are
+    /// what a divergence would be made of"*, and the tree contradicts
+    /// it: `theme::channel_to_srgb8` refuses a channel that is not a
+    /// number and `to_display` has no counterpart, so one divergence
+    /// between the two spellings is made of a **guard** — which this
+    /// row cannot see and is not widened to see, because a guard in
+    /// WGSL would be a second statement of a rule with nothing
+    /// holding the two together.
+    ///
+    /// What makes that divergence harmless is stated where it is
+    /// enforced rather than here: every number `to_display` receives
+    /// is one. The tints reach it through `theme::linear`, total over
+    /// `u8`; both weights are [`crate::theme::MixFraction`]s, bounded
+    /// by their type at [`mark_lane`] and at
+    /// [`ViewportCallback::block`]; and `fs_main`'s shading term takes
+    /// its normal from a vertex attribute `scene::triangle_normal`
+    /// writes, which is a unit vector or `[0, 0, 1]` and never a zero.
+    ///
+    /// **That last leg argues about the WRITER, not about what the
+    /// fragment stage receives.** `VertexOut::normal` carries no
+    /// `@interpolate(flat)`, unlike `id` and `flag`, so `normalize`
+    /// reads an INTERPOLATED value. It is non-zero today only because
+    /// `scene`'s build loop pushes one face normal at all three
+    /// corners, which makes the interpolation an identity; a
+    /// per-vertex normal would end that without touching this row or
+    /// any other. Stated here because it is the one leg of the
+    /// argument above that rests on a caller rather than on a type.
     #[test]
     fn the_shaders_srgb_curve_states_the_same_constants_the_palette_does() {
-        for constant in ["12.92", "1.055", "0.055", "1.0 / 2.4", "0.0031308"] {
+        // **The Rust half read as the ENCODER'S BODY, not as the
+        // file.** Two narrowings, and the second is the one a
+        // file-scoped read gets wrong. `code_only` drops the prose,
+        // where all five numbers are discussed; `item_body` drops
+        // `channel_to_linear`, the DECODER twenty lines above, which
+        // spells `12.92`, `1.055` and `0.055` for the inverse curve.
+        // Three of these five are not unique to the function this row
+        // is about, so a read over the file is answered by the wrong
+        // half of the palette and reports it under the encoder's name.
+        let palette = test_utils::source::code_only(include_str!("theme.rs"));
+        let head = palette
+            .find("fn channel_to_srgb8")
+            .expect("theme.rs still defines `channel_to_srgb8`");
+        let test_utils::source::ItemBody::Body(body) =
+            test_utils::source::item_body(&palette, head)
+        else {
+            panic!("`channel_to_srgb8` is a definition with a body");
+        };
+        let encoder = &palette[body];
+        for (shader, rust) in [
+            ("12.92", "12.92"),
+            ("1.055", "1.055"),
+            ("0.055", "0.055"),
+            ("1.0 / 2.4", "1.0 / 2.4"),
+            ("0.0031308", "0.003_130_8"),
+        ] {
             assert!(
-                SHADER.contains(constant),
-                "the shader's sRGB encode no longer spells {constant}; \
+                SHADER.contains(shader),
+                "the shader's sRGB encode no longer spells {shader}; \
                  `theme::channel_to_srgb8` is the other half of this curve",
             );
+            assert!(
+                encoder.contains(rust),
+                "`theme::channel_to_srgb8` no longer spells {rust}; \
+                 the shader's `to_display` is the other half of this curve",
+            );
+        }
+    }
+
+    /// **Every weight the block carries is one the shader can mix
+    /// with, and it is the palette's own number.**
+    ///
+    /// The two lanes a WGSL weight rides in — each mark's `w` and
+    /// `base_color`'s — are where a value a theme states last passes
+    /// through Rust. The shader forms `mix(base, tint, w)` and
+    /// `ambient + (1 - ambient) * lambert` out of them and can refuse
+    /// neither, so what stands between a weight and a poisoned pixel
+    /// is [`crate::theme::MixFraction`]'s bound and nothing after it.
+    ///
+    /// **Two halves, and neither says anything alone.** That the
+    /// lanes are *in range* would be satisfied by a block that wrote
+    /// `0.0` everywhere; that they are *the theme's numbers* would be
+    /// satisfied by a block that copied a `NaN` faithfully. Together
+    /// they say the block hands the shader what the palette states
+    /// and nothing it cannot use. The bound itself is asserted at the
+    /// door, over inputs no theme in the registry has —
+    /// `tests/theme.rs`.
+    #[test]
+    fn every_weight_the_uniform_block_carries_is_a_weight_the_palette_states() {
+        let delta = DisplayTolerance::new(1.0e-4).expect("a positive display tolerance");
+        for theme in crate::theme::Theme::ALL {
+            let block = ViewportCallback {
+                scene: Arc::new(SceneMesh::empty(
+                    bvh::Aabb::from_points([pncad::geom_core::Point3::new(0.0, 0.0, 0.0)])
+                        .expect("one point is a box"),
+                    delta,
+                )),
+                revision: 0,
+                view_projection: [[0.0; 4]; 4],
+                // Nothing here lights anything: the row reads the
+                // weight lanes, and every other lane is furniture.
+                light_direction: [0.0, 0.0, -1.0],
+                theme: *theme,
+                viewport_px: [1.0, 1.0],
+                pixels_per_point: 1.0,
+                highlight: Highlight::default(),
+                edges: EdgeOverlay::default(),
+                id_query: None,
+            }
+            .block();
+            let weights = [
+                ("ambient", block.base_color[3], theme.ambient.get()),
+                ("selected", block.selected[3], theme.selected.strength.get()),
+                ("hovered", block.hovered[3], theme.hovered.strength.get()),
+                ("probe", block.probe[3], theme.probe.strength.get()),
+                ("focus", block.focus[3], theme.focus.strength.get()),
+            ];
+            for (which, lane, stated) in weights {
+                assert!(
+                    (0.0..=1.0).contains(&lane),
+                    "{}: the {which} lane carries {lane}, which is not a weight",
+                    theme.name,
+                );
+                assert_eq!(
+                    lane, stated,
+                    "{}: the {which} lane is not the weight the palette states",
+                    theme.name,
+                );
+            }
         }
     }
 
@@ -1916,7 +2093,7 @@ mod tests {
         let delta = DisplayTolerance::new(1.0e-4).expect("a positive display tolerance");
         let mesh = scene::scene_of(&doc, delta, tol).expect("the plate tessellates");
 
-        let corners = corner_count(&mesh);
+        let corners = corner_count(&mesh).expect("the plate's corners are a draw range");
         assert_eq!(
             usize::try_from(corners).expect("the corner count fits a usize"),
             mesh.stats().triangles * 3,
@@ -1937,7 +2114,47 @@ mod tests {
 
         // The empty picture draws nothing: `read_id_at` reads this as
         // "there is no answer" rather than submitting an empty pass.
-        assert_eq!(corner_count(&SceneMesh::empty(mesh.bounds(), delta)), 0);
+        assert_eq!(
+            corner_count(&SceneMesh::empty(mesh.bounds(), delta)),
+            Some(0)
+        );
+    }
+
+    /// **A vertex table too long to be a draw range is refused, not
+    /// substituted.**
+    ///
+    /// The pair, because neither half says anything alone: the
+    /// refusal has to be the ONLY thing refused, or a door that
+    /// answers `None` for everything passes the first assertion. The
+    /// legitimate half runs over the lengths the two call sites
+    /// actually produce — a scene's corner table and an overlay's
+    /// six-per-segment quad corners — and asks that each comes back
+    /// as itself rather than merely as some number.
+    ///
+    /// **`u32::MAX` is the value this row exists to exclude**, so it
+    /// is named: the unfixed door answers `Some(u32::MAX)` here, which
+    /// is a `Some` like any other and which an `is_some()` assertion
+    /// would have passed.
+    #[test]
+    fn a_vertex_table_longer_than_a_draw_range_has_no_draw_range() {
+        for len in [0_usize, 1, 6, 3 * 40_000, u32::MAX as usize] {
+            assert_eq!(
+                draw_range(len),
+                Some(u32::try_from(len).expect("the case fits by construction")),
+                "a table of {len} vertices is a draw range and `draw_range`                  did not answer it"
+            );
+        }
+        let Ok(too_many) = usize::try_from(u64::from(u32::MAX) + 1) else {
+            // A 32-bit target cannot express a length that does not
+            // fit a `u32`, so there is nothing to refuse there.
+            return;
+        };
+        assert_eq!(
+            draw_range(too_many),
+            None,
+            "`draw_range` answered a draw range for {too_many} vertices, which              it cannot count; the substituted answer is {:?}",
+            u32::try_from(too_many).unwrap_or(u32::MAX),
+        );
     }
 
     /// **Both scene passes hand [`corner_count`]'s answer to `draw`,

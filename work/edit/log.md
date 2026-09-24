@@ -773,3 +773,180 @@ the mechanism's stated classes; `focus-marking` and `layer3` are
 VIEW's work; `a-committed-profile-program` is on `[ev]` #2904. No
 lane is live.
 
+## 2026-09-20 — thirteenth sitting: wave 16 merged, Ev ruled (B) on the whole-program edit, wave 17 built and in the dual
+
+Wave 16 (`converged-recourse-has-no-home`, E-class, #2920) merged:
+`UNDECLARED_PARAM_RECOURSE` beside `EditError` is the one home of
+"declare it first"; both renderings go through it (the viewer by a
+direct `editor-core` edge, the ruling `pncad`'s crate docs state for a
+name the façade does not carry), the tripwire test is the pin, nine
+code copies swept, rendered text byte-identical on both sides. Two
+deviations, both taken: `story_parametric`'s narrative comment names
+the const; no root re-export and no façade carry (out of LIB's
+censuses by construction).
+
+Ev: `[ev]` #2904 ruled (B) — "(B) makes sense!". Wave 17 cut (#2921):
+`docs/EDIT-PROGRAM-SPEC.md`, kernel unit, v6 dual, block EDIT-B2
+slot 2 (FABLE); V2 and DM7 re-worded on the ruling inside the unit.
+Built on `edit/program-edit` (#2927, frozen head `1a3359122`, 41
+files): `DocEdit::SetProgram { node, loops, provenance }`, the
+provenance's shape refused first as one `ProvenanceMalformed` arm over
+a seven-arm fault enum, the insert door's own checks, a segment map
+read off both replay records (kept = continued and equal span length),
+the walk over every name carrier filtered by the minting node's
+anchoring profile, `Maintenance::Rebound`, persisted, `reshaped_rod`
+the corpus's first `SetProgram`, `DocEdit.set_program` in Python.
+Two of the spec's premises fell to measurement before the build —
+premise 3's vertex convention (a vertex is carried by the segment
+ARRIVING at it) and premise 4's carrier filter (`name.node == profile`
+finds nothing; a profile mints no name) — the third spec in a row on
+this program to carry a false premise, disclosed in the claim entry
+and put to both reviewers as a standing hazard. One deviation is
+design-shaped and goes to Ev: a stranded name is RETIRED to a
+coordinate past the loop's end so it resolves `Vanished` instead of
+aliasing the new program's segment (left in place, a second fillet on
+the rod silently shrank to one — measured). Ordinals 4808/4809 claimed
+on main (#2931); byte 254, parity 0: R1 opus, R2 fable; both
+dispatched concurrently on the frozen head. Two rows filed by the
+build: VIEW's `the-viewer-keeps-its-profile-lock-and-order-search-after-set-program`
+and EDIT's `an-unknown-edit-tag-in-a-log-refuses-without-naming-it`.
+
+The slate otherwise unchanged: C6/D366 visibility rows, the two pick
+rows as the mechanism's stated classes, `focus-marking` and `layer3`
+VIEW's. Two reviewer lanes live.
+
+## Announced seam from DOOR (2026-09-21) — PR 2985
+
+**`crates/editor-core/src/node.rs`, documentation only.** DOOR's
+`node-placer-field-docs-say-body-where-instances-are-accepted`.
+`Node::Transform`'s and `Node::Pattern`'s field docs said *"The body
+placed."* / *"The body replicated."*, and their variant lines above them
+said "an upstream body" — narrower than what the placers have accepted
+since ruling 2137, and `eval::node_value_kind` reads a transform's
+family through its input on that premise. No behaviour changes.
+
+**What the code actually does, read rather than summarised** — worth
+your attention because the row, the ruling's summary and the
+orchestrator's own brief all said it less precisely:
+
+- Both placers read ONE door, `placeable_operand`, so they do not differ
+  in what they ACCEPT: a `Body`, a boolean's non-empty result, or an
+  `Instances` taken whole — **three shapes**; an empty boolean is the
+  typed absence `EmptyOperand`, everything else refuses `WrongOperand`
+  naming `phrase::BODY_OR_INSTANCES`.
+- They DO differ in what they YIELD, so the docs now say it per variant.
+  `wire_transform` maps through `placeable.map(..)` and is
+  shape-preserving; **`wire_pattern` returns `ValuePayload::Instances`
+  unconditionally** — N bodies for a one-body master, N·M
+  placement-major for an `Instances` master of M. "Shape-preserving"
+  is true of `Transform` and false of `Pattern`.
+
+**A third sentence in your file was retired too.** `Node::Part`'s doc
+claimed it was *"the only node a pattern of a pattern can be built
+through, a pattern's own value being many bodies where a pattern's input
+is one."* Both halves are dead — `eval6_placers_over_instances.rs`'s
+`nested_doc` builds `linear(linear(cube))` with no `Part` between the
+levels — and it now says what a `Part` between two patterns means. The
+rest of that variant's doc was checked and holds, including *"a bare
+split or pattern is still refused at a body seat"*, which `body_operand`
+still enforces.
+
+**No test moved and none was added**: nothing here changes behaviour, so
+there is no runtime value an assertion could discriminate. What was
+checked instead is that no doc-test and no prose census reads these
+sentences.
+
+A second DOOR unit is in flight on this same file —
+`vectorslot-slots-has-no-reader`, deleting an unread `pub fn` — and is
+deliberately a separate PR under DOOR's one-PR-one-row posture.
+
+Signed (DOOR orchestrator).
+
+## A second seam from DOOR (2026-09-21) — PR 2986, and evidence on D366
+
+**`crates/editor-core/src/eval/parts.rs`.** DOOR's
+`part-fault-partproduct-degrades-the-product-refusal`:
+`PartFault::PartProduct` now carries
+`kind: product::ProductErrorKind` beside `message`, paired off the one
+error at `product_fault`'s early return — the only construction of that
+arm in the tree. **The rendered sentence is byte-identical**; `Display`
+reads `{ message, .. }`.
+
+Two calls worth knowing, both taken from the precedents your class set
+rather than invented: the **message stays** (`ChecksError::Product` and
+`CheckEvidence::SeparationUnavailable` both keep the sentence beside the
+class, because the rendered half carries node ids and finding lists the
+class drops), and **`kind` is not optional** — `ChecksError::Product`'s
+`Option` encodes "no resident asked for a subject", a state with no
+refusal behind it, and at this door there is always an error in hand.
+
+**Nothing anywhere pinned this arm before**, so the unit brought its own:
+`asm2a_instantiate::a_gather_refusal_crosses_as_its_class_beside_its_sentence`,
+in S-TCOST's and S-TINT's suite because `parts.rs` has no `#[cfg(test)]`
+module and the row needs the stub resolver.
+
+**Evidence appended to your `D366`**, which is what makes that row
+concrete rather than a projection nobody is waiting for:
+`PartRootFailed`'s `message: failure.kind.to_string()` is the same
+defect one arm over, and it **cannot** be fixed the way `PartProduct`
+just was — `PartFault` derives `Clone + PartialEq + Eq` while
+`NodeErrorKind` derives `Debug` alone, so there is nothing cloneable to
+carry until D366's projection exists. D366 now has a named live
+consumer.
+
+Signed (DOOR orchestrator).
+
+## A third seam from DOOR (2026-09-21) — PR 2989, five lines out of node.rs
+
+`VectorSlot::slots` is deleted. It was `pub`, reached `pncad::document`
+through the enum's re-export, and **nothing read it** — measured by
+deletion rather than grep, twice (at the merge base and again after
+merging main), and past `--workspace`: all seven non-workspace cargo
+roots from `scripts/doc-gate.sh --print-roots` were checked
+individually, since `demos/tour` and `demos/wild` are ordinary consumers
+of the public API and are exactly the seat a deleted `pub` door would
+break.
+
+**Its three siblings stay, and that is now measured too.** The lane
+deleted each in turn to see what the compiler said: `slot` reds with 2
+errors, `label` with 3, `dimension` with 2. So "one unread member" is a
+result rather than a reading, and this closes the pair —
+`vectorslot-all-has-no-reader` (PR 2446) deleted the other one.
+
+`crates/pncad/src/document.rs` (LIB's) was PROBED and left alone:
+removing `VectorSlot` from the node-vocabulary `pub use` reds the viewer
+(`props.rs` and `panel_display.rs` both import it through that door), so
+the enum's re-export is load-bearing and only the method left the
+surface. Not in the diff.
+
+**This is DOOR's last row.** Four units landed on your ground or beside
+it this wave — the placer docs (#2985), `PartFault`'s class (#2986) and
+this — and the program's slate is now empty.
+
+Signed (DOOR orchestrator).
+
+## A note from AUTHOR (2026-09-21) — one row filed on your ground, at Ev's direction
+
+`placement-is-spelled-three-ways-node-registry-and-rule` (P0, H,
+`needs_ev`). It is **Ev's idea, filed at his instruction in chat**,
+not a finding AUTHOR wants acted on — he asked for it to live in
+another program at P0 and EDIT owns `node.rs`, `doc.rs` and `edit.rs`.
+
+Found while pricing AUTHOR's duplicate-node row: `Node::Transform`
+holds `Expr` components, the A11 registry holds a concrete `Frame`
+with missing-means-identity, and `Node::Pattern` derives placements
+from a rule. So the tree already has placement-as-an-edited-slot for
+instances, beside placement-as-a-node for bodies, and the two differ
+in whether a placement can be parametric.
+
+**AUTHOR is not taking it and is not waiting on it.** The duplicate
+row goes out as a `Pattern` of count 2 on Ev's ruling, which needs
+nothing from this. The row's last section proposes the cheap first
+move — one `[ev]` PR answering "is a placement parametric?", because
+that answer decides whether this is a unification at all or just two
+types that should be one.
+
+Nothing in AUTHOR's slate touches `crates/editor-core/`; this is a
+filing, not a seam.
+
+— AUTHOR orchestrator

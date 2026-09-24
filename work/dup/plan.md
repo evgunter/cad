@@ -167,6 +167,119 @@ while it was being worked: 5 → 8, 2 → 16, 11 → 14 → 17, 17 → 19,
     baseline under it is wrong, and checking the delta feels like
     checking the number.
 
+16. **A plant that relaxes a one-sided assertion is not a probe.** The
+    newest and most dangerous way a mutation lies. A fixture was planted
+    AWAY from a rim to test whether anything watched it; the consuming
+    row asserts `examined == 0` for a plate clear of the rim, so the
+    plant could only ever make the assertion easier, and the suite went
+    green. Read naively that is "this fixture is asserted by nothing" —
+    a coverage finding, filed, wrong. Re-planting TOWARD the rim
+    reddened it at once. So before reading a plant's result, **say which
+    direction makes the predicate harder**, and plant that way; a
+    `count == 0`, `is_empty` or "loses none" row is satisfied by every
+    move in one direction. Verified independently by the reviewer
+    (2026-09-20, `dup/one-line-fixture-wrappers`), with the caveat that
+    matters: the trap is a property of the fixture's **row set**, not of
+    the fixture. A sibling fixture in the same unit reds in both
+    directions because it also feeds an accepting corpus row; the clean
+    isolation is a fixture whose only consumer asserts one-sidedly.
+    Its relatives: a symmetric change cannot reach a row that asserts
+    additivity of a pair built from two copies of one fixture (the same
+    unit found a site live on a fixture's height and dead on both
+    in-plane extents, whose FIRST plant left the suite green), and a
+    plant in a door the folded site does not route through cannot reach
+    it at all. **One plant is not a probe; a plant whose direction you
+    have not argued is not a probe either.**
+
+17. **A plant's restore must restore exactly what the plant changed,
+    and nothing else.** A lane's replant loop began each iteration with
+    `git checkout <file>`, which silently reverted three uncommitted
+    fixes before the plants ran — so the figures it was about to
+    publish described a tree it did not mean. `git checkout` on a path
+    is a whole-file revert with **no memory of what it is reverting**,
+    and cannot tell the plant from any other edit in the file.
+    "Commit before planting" is one sufficient way to make a blunt
+    revert safe and is good hygiene, but it is not the rule: it fails
+    the moment someone plants in a tree carrying an unrelated edit.
+    The rule is a copy/restore of the file's pre-plant bytes, or a
+    patch/reverse-patch pair. **The reusable half is the detection**:
+    the lane found it by diffing against `HEAD`, and that check belongs
+    in any plant harness. (2026-09-20, `dup/one-line-fixture-wrappers`;
+    the general form is the reviewer's, not the lane's.)
+
+18. **A measurement taken to prove an instrument unreliable needs the
+    same re-take as any other measurement.** A lane documenting that
+    `git log -S` cannot answer a ratification question in this
+    shallow clone reported, as its evidence, that both queries returned
+    *"the same five commits, none of which touches either file"*. Each
+    returns **108**; the sets differ; **107 are parentless**, so
+    `--name-only` shows them touching the file. Every particular was
+    wrong and the conclusion was right — and better supported by the
+    true figures, because 108 non-answers at graft boundaries is a
+    stronger demonstration than five irrelevant commits. Item 15's
+    shape inside the row that exists to warn about it: **the number
+    offered as proof that a number cannot be trusted is still a
+    number.**
+
+19. **A null plant needs a DIVERGENT control, not a null control.** A
+    lane planted a reversed order at a site and got nothing red. Instead
+    of publishing *"the order is unasserted"* it ran a control — the
+    whole function body replaced by `None` — got nothing red again, and
+    concluded the site was unasserted entirely, so the order plant had
+    measured nothing. That was the right instinct and **the wrong
+    control**: returning the null value is the *same experiment*, and it
+    cannot tell *called and unasserted* from *never called*. The
+    reviewer ran the discriminating one — body → `panic!` — and got
+    **732 / 1**: the site IS reached, by exactly one row, and its answer
+    is wholly unasserted. The conclusion survived by luck of the tree,
+    not by the control. So: when a plant reds nothing, prove the site is
+    **executed** with a plant that cannot be absorbed by any assertion —
+    `panic!`, `unreachable!`, an abort — and only then reason about what
+    is unasserted. A row that claims a site is dark owes that line in
+    its table.
+    (2026-09-20, `dup/shells-of-solid-door`; the sharpening is the
+    reviewer's.)
+
+20. **Briefed reading must be on the branch the lane will cut from.**
+    Twice in one sitting the orchestrator pointed lanes at text that
+    existed only on `dup/orchestrator`: a log entry, and then method
+    items 16–18 themselves, cited in three briefs while `main`'s
+    `plan.md` stopped at 15. One lane said so and read it out of the
+    orchestrator's checkout; the others said nothing, so whether they
+    read it is unknown — **the failure is silent at the lane's end**. A
+    dangling citation in a brief is item 15's shape with the
+    orchestrator as the hand it passes through: before a brief cites a
+    file, section or numbered item, check it is on the branch the
+    worktree is cut from, not merely on the branch that wrote it.
+    A third instance, a different shape: a brief asserted that
+    `crates/viewer/tests/common/mod.rs` states a checkable biconditional
+    between each module's list and its markers. That text is in
+    **`crates/sweep/tests/common/mod.rs`** — a fact learned from one
+    crate's shared module, transposed onto another's by an orchestrator
+    who had read it an hour earlier in a review of a different unit.
+    Neither string occurs anywhere under `crates/viewer/tests/`. **A
+    fact about `<crate>/tests/common` is about that crate**, and a
+    brief that generalises one is asserting a census it has not taken.
+
+21. **A lane's scratch path must be lane-private, for the same reason
+    its `CARGO_TARGET_DIR` is.** Three concurrent lanes shared one
+    scratchpad directory. A sibling's `plant.py` — written for a
+    different worktree — **overwrote another lane's harness by name**
+    between writing and running it. The run produced **empty output and
+    exit 0**, which reads exactly like *no plant reddened anything*. It
+    was caught only because the output file was zero bytes.
+    This is the ENOSPC hazard's twin and the sharper of the two: a
+    truncated run at least fails, while a clobbered harness **succeeds
+    at doing nothing**. Both produce a green that is an artefact of the
+    apparatus rather than a fact about the tree, which is the one thing
+    a plant exists to rule out. So: a lane writes its harness under its
+    own worktree or its own target dir, never a shared scratch path;
+    and a plant that reds nothing is not read until its output is
+    confirmed non-empty and its `test result:` line complete.
+    (2026-09-20, `dup/viewer-shared-doors`; found and reported by the
+    lane it happened to. The shared path was the orchestrator's
+    arrangement, not the lane's.)
+
 ## Review posture
 
 Test-side, S-TINT's posture: one style review per unit, and a full

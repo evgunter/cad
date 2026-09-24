@@ -4,6 +4,8 @@ kind: issue
 title: the shell census golden hashes voided_rod's verdicts in decision order, so a pure re-anchoring of a loop moves it and a sign change is indistinguishable from a move
 status: open
 opened: 2026-09-14
+priority: P3
+cost: E
 ---
 
 Filed by the TOPO revert-wrap fix pass (PR 2573, 2026-09-14), on this

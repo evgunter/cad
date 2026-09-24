@@ -4,6 +4,8 @@ kind: issue
 title: cyl_sheet_b's descending rim still projects for its radial direction, the read its siblings were repaired away from
 status: closed
 opened: 2026-09-19
+priority: P3
+cost: E
 closed: 2026-09-20
 branch: dup/src-cyl-sheet
 parent: topo-src-cyl-sheet-is-one-construction-twice-and-not-the-tests-one

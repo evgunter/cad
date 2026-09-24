@@ -4,6 +4,8 @@ kind: issue
 title: the python-suite axis now skips only viewer and test-utils — does the exception still earn its machinery
 status: open
 opened: 2026-09-06
+priority: P4
+cost: E
 ---
 
 
