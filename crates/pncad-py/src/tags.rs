@@ -1661,8 +1661,6 @@ pub fn face_refusal_tag(refusal: &FaceRefusal) -> &'static str {
         FaceRefusal::Ambiguous { .. } => "ambiguous",
         FaceRefusal::NotAFace { .. } => "not_a_face",
         FaceRefusal::Readback { .. } => "readback",
-        FaceRefusal::NoReference { .. } => "no_reference",
-        FaceRefusal::ReferenceRefused { .. } => "reference_refused",
         FaceRefusal::Unpinned { .. } => "unpinned",
         FaceRefusal::NotAnInstance { .. } => "not_an_instance",
     }

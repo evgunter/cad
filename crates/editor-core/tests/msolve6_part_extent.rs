@@ -265,10 +265,10 @@ fn a2_the_lever_is_the_formula_to_the_bit() {
     };
     assert_eq!(*theta, core::f64::consts::FRAC_PI_2);
     let r = reaches(&doc, &opts, &ids);
-    let expected = (r[0] + r[1]) + datum_lever(&alignment);
+    let expected = (r[0] + r[1]) + fixture::datum_lever(&alignment);
     assert_eq!(*arm, expected, "the lever is the formula, bit for bit");
     // And the datum's own term is what the formula says it is.
-    assert_eq!(datum_lever(&alignment), 0.1_f64.hypot(1.0) + 0.2);
+    assert_eq!(fixture::datum_lever(&alignment), 0.1_f64.hypot(1.0) + 0.2);
 }
 
 // ---- A3: the lever decides at the parts' scale ----
@@ -308,7 +308,7 @@ fn tilted(label: &str, half: f64) -> (Verdict, Verdict, Option<MateFault>, f64) 
     );
     let alignment = coincidence(frame([0.0, 0.0, 2.0 * half]), frame([0.0; 3]), theta);
     let r = reaches(&doc, &opts, &ids);
-    let arm = (r[0] + r[1]) + datum_lever(&alignment);
+    let arm = (r[0] + r[1]) + fixture::datum_lever(&alignment);
     let band = Band::linear(Tol::witness()).expect("the band");
     // The verdict is reached where the mate is authored: an admitted
     // rider enters and the solve places the pair; a refused one
@@ -728,15 +728,6 @@ impl MateReach for Counting<'_> {
     ) -> Result<topo::readback::Pose<f64>, editor_core::FacePoseRefusal> {
         self.1.face_pose(part, face)
     }
-}
-
-/// The datum's own lever term, for an alignment whose two sides are
-/// authored vectors (every alignment this file authors).
-fn datum_lever(a: &Alignment) -> f64 {
-    a.lever_arm(
-        a.a.authored_vectors().expect("an authored side"),
-        a.b.authored_vectors().expect("an authored side"),
-    )
 }
 
 /// Two instances of a box seated by a frame coincidence (a clocked,
@@ -1681,7 +1672,7 @@ fn a6_an_indeterminate_prior_refuses_the_edit_typed() {
         },
     );
     let band = Band::linear(Tol::witness()).expect("band");
-    let datum = datum_lever(&coincidence(frame([0.0, 0.0, 0.01]), frame([0.0; 3]), 0.0));
+    let datum = fixture::datum_lever(&coincidence(frame([0.0, 0.0, 0.01]), frame([0.0; 3]), 0.0));
     let r_large = {
         let (re, _) = step(
             doc.clone(),

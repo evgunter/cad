@@ -35,3 +35,22 @@ tag `lever_refusal_tag` and its census row move with it
 (`crates/pncad-py/src/tags.rs`, `test_binding_census.py`'s
 `LeverRefusal` entry). MSOLVE's ground (`mate.rs`, `mate/reach.rs`);
 the tag is LIB's and wants announcing.
+
+## A second instance: `FaceRefusal` re-spells `FacePoseRefusal` (MSOLVE-9, 2026-09-24)
+
+MSOLVE-9 (PR 2934) landed the same shape a second time.
+`FaceRefusal` (`crates/editor-core/src/mate.rs`) is `FacePoseRefusal`'s
+arms (`crates/editor-core/src/mate/reach.rs`) re-spelled one for one
+with an `instance`, a `part` and a `face` added, projected by hand in
+`FaceRefusal::of()`, with a twin `Display` sentence per arm and a twin
+Python tag (`face_refusal_tag`, `crates/pncad-py/src/tags.rs`). The
+lever's two own arms recur here too: `FaceRefusal::NotAnInstance` is
+the solve's, not the reach's, and `PartUnresolved` wraps the resolver's
+fault as the lever's does. The one-carrier fix above covers both
+pairs — `FaceRefusal { instance, part, face, refusal: FacePoseRefusal }`
+beside the arms that are the solve's alone — and should take both in
+one unit, since the two pairs share the Python payload's `instance`
+projection (`crates/pncad-py/src/mate_payload.rs`) and four tag words
+pinned as one fact
+(`crates/pncad-py/src/tests.rs`'s
+`a_face_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do`).

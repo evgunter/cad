@@ -960,9 +960,8 @@ BOUND_AS = {
     # it (`mate_face_unresolved`), and its discriminant is the word that
     # arm publishes: why a `from_face` frame's face answered no pose
     # (`part_unresolved`, `no_such_name`, `ambiguous`, `not_a_face`,
-    # `readback`, `no_reference`, `reference_refused`, `unpinned`,
-    # `not_an_instance`). The instance crosses as `MateFault.instance`,
-    # the face as `MateFault.face`.
+    # `readback`, `unpinned`, `not_an_instance`). The instance crosses
+    # as `MateFault.instance`, the face as `MateFault.face`.
     "FaceRefusal": "MateFault.inner_variant",
     # The reach's own refusal of a face pose, named against the part
     # alone; the solve wraps it into `FaceRefusal` with the instance

@@ -458,8 +458,6 @@ pub fn mate_payload(fault: &MateFault) -> MateFaultPayload<'_> {
                 | FaceRefusal::NoSuchName { instance, .. }
                 | FaceRefusal::Ambiguous { instance, .. }
                 | FaceRefusal::Readback { instance, .. }
-                | FaceRefusal::NoReference { instance, .. }
-                | FaceRefusal::ReferenceRefused { instance, .. }
                 | FaceRefusal::Unpinned { instance, .. } => (*instance, None),
                 FaceRefusal::NotAFace {
                     instance, found, ..

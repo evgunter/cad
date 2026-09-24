@@ -113,11 +113,7 @@ pub trait MateReach {
     /// [`FacePoseRefusal`]: the part does not resolve (the resolver's
     /// own fault), the table has no row for the name or ties it, the
     /// readback refuses the face (no canonical frame, a dangling
-    /// key), or the product's scalar pins no `f64`. The reference
-    /// rule ([`FacePoseRefusal::NoReference`],
-    /// [`FacePoseRefusal::ReferenceRefused`]) is decided by the
-    /// solve, which holds the authored reference; this door answers
-    /// the pose alone.
+    /// key), or the product's scalar pins no `f64`.
     fn face_pose(
         &self,
         part: &DocRef,
@@ -158,13 +154,6 @@ pub enum FacePoseRefusal {
     /// with no canonical frame, or a key the table names that the
     /// body does not hold.
     Readback(topo::readback::ReadbackError),
-    /// The face's pose fixes no in-frame reference and the frame
-    /// authored none. Decided by the solve, which holds the frame.
-    NoReference,
-    /// The face's pose fixes an in-frame reference and the frame
-    /// authored one beside it. Decided by the solve, which holds the
-    /// frame.
-    ReferenceRefused,
     /// The product is elaborated at a scalar that pins no single
     /// `f64` (`eval`'s `SectionScalar`: an enclosure or a sensitivity
     /// lane), so the pose has no `f64` coordinates to read.
@@ -208,10 +197,13 @@ pub enum ReachRefusal {
 /// hand: every part is [`crate::eval::PartFault::NoResolver`], typed,
 /// so a solve through it levers no mate, resolves no `FromFace`
 /// frame, and refuses each one in the resolver's own voice, and an
-/// edit whose maintenance needs a solved frame refuses at the door. What `eval::mate_reach` answers over
-/// options carrying no resolver, as a value for a door that has no
-/// options at all — and the honest reach for an edit that cannot
-/// move a cluster's gauge, which never asks it.
+/// edit whose maintenance needs a solved frame refuses at the door.
+/// What `eval::mate_reach` answers over options carrying no resolver,
+/// as a value for a door that has no options at all — and the honest
+/// reach for an edit that asks the parts nothing: one that cannot move
+/// a cluster's gauge and inserts no mate whose admission reads a part
+/// (a side that names a face, a rider on a coincidence). Such an
+/// insert refuses through it, typed, at the door.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RefusingReach;
 

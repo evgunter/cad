@@ -430,6 +430,20 @@ fn opposed() -> Affine3<f64> {
 /// levers its intersections too) hands it in. Replay never reaches
 /// the table: with no reach it declines at [`admit_mate`], on the
 /// rule stated at [`Maintain::reach`].
+/// **One side's frame through the witness ladder**, refused at the
+/// mate and the side — the one wrap both readers of a frame use
+/// ([`mate_coset`], and [`admit_mate`]'s replay arm).
+fn side_frame(
+    mate: RecipeNodeId,
+    side: MateSide,
+    frame: &AuthoredFrame,
+    tol: Tol,
+) -> Result<geom_core::linalg::OrthoFrame<f64>, Box<MateFault>> {
+    frame
+        .frame(tol)
+        .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
+}
+
 fn mate_coset(
     mate: RecipeNodeId,
     alignment: &Alignment,
@@ -439,12 +453,12 @@ fn mate_coset(
     band: Band,
     tol: Tol,
 ) -> Result<Coset, Box<MateFault>> {
-    let frame = |side: MateSide, f: &AuthoredFrame| {
-        f.frame(tol)
-            .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))
-    };
-    let fa = frame(MateSide::A, a)?;
-    let fb = frame(MateSide::B, b)?.to_affine();
+    // THE DATUM'S OWN ORDER, which `admit_mate`'s replay arm restates
+    // over the sides it holds: `a`'s frame, then `b`'s, then the
+    // table's static gap at the arm it falls in — so a frame refusal
+    // precedes a gap, and both precede any lever.
+    let fa = side_frame(mate, MateSide::A, a, tol)?;
+    let fb = side_frame(mate, MateSide::B, b, tol)?.to_affine();
     let (fa, axis) = match alignment.sense {
         AxisSense::Aligned => (fa.to_affine(), fa.w()),
         AxisSense::Opposed => (fa.to_affine() * opposed(), -fa.w()),
@@ -618,9 +632,12 @@ fn derived_direction(
 
 /// **The part a member stands on**: its instance's reference, or the
 /// node when it is not a live instantiate node — which the member walk
-/// excludes and the two readers ([`pair_reach`], [`resolve_side`])
-/// still name rather than assume.
-fn part_of<P: crate::ProfilePayload>(
+/// excludes and the readers still name rather than assume. The one
+/// derivation of the part a mate reads: the lever's ([`pair_reach`]),
+/// a face side's ([`resolve_side`]), and the part pin a face side's
+/// memo key carries (`eval`'s `SolveAnswer`), so the key and the solve
+/// cannot come to name two different parts for one side.
+pub(crate) fn part_of<P>(
     doc: &Doc<P>,
     member: &Member,
 ) -> Result<crate::ident::DocRef, RecipeNodeId> {
@@ -641,10 +658,9 @@ fn part_of<P: crate::ProfilePayload>(
 /// placement enters — with the pose's origin and CHART axis (the
 /// orientation sense is not folded in; the mate's own
 /// [`AxisSense`] says which way the sides point) and, for the roll,
-/// the pose's own in-frame reference where the carrier fixes one,
-/// else the frame's authored reference. One reference, from one
-/// source: both present refuses [`FaceRefusal::ReferenceRefused`],
-/// neither refuses [`FaceRefusal::NoReference`].
+/// the carrier's own in-frame reference direction (`Pose::u_ref`). A
+/// face frame authors no reference of its own, so its roll is the
+/// carrier's and nothing else ([`MateFrame`]).
 ///
 /// Asked before the coset table reads the frame and before the lever
 /// is formed (the datum's `‖origin‖` terms are the RESOLVED origins),
@@ -686,16 +702,17 @@ fn resolve_side<P: crate::ProfilePayload>(
         ))
     };
     let pose = reach.face_pose(&part, &face.face).map_err(named)?;
-    let reference = match (pose.u_ref, face.reference) {
-        (Some(u_ref), None) => [u_ref.x, u_ref.y, u_ref.z],
-        (None, Some(authored)) => authored,
-        (Some(_), Some(_)) => return Err(named(super::FacePoseRefusal::ReferenceRefused)),
-        (None, None) => return Err(named(super::FacePoseRefusal::NoReference)),
+    // `topo::readback::face_pose` answers every carrier it answers
+    // through one constructor that fixes `u_ref` (an edge's pose is
+    // the only readback with none), so a face's pose always carries
+    // the roll reference the frame takes.
+    let Some(u_ref) = pose.u_ref else {
+        unreachable!("readback::face_pose fixes u_ref for every carrier it answers")
     };
     Ok(AuthoredFrame {
         origin: [pose.origin.x, pose.origin.y, pose.origin.z],
         axis: [pose.axis.x, pose.axis.y, pose.axis.z],
-        reference,
+        reference: [u_ref.x, u_ref.y, u_ref.z],
     })
 }
 
@@ -824,14 +841,15 @@ pub(crate) fn admit_mate<P: crate::ProfilePayload>(
     let Some(reach) = reach else {
         // Replay: a `FromFace` side is DECLINED, not resolved (the
         // rule at `Maintain::reach`), so the coset cannot be read.
-        // What the datum alone decides is decided again — each
-        // authored side's frame ladder, then the table's static gaps
-        // in the order the table meets them (a frame refusal first).
+        // What the datum alone decides is decided again, in the order
+        // `mate_coset` meets it (stated there): each authored side's
+        // frame, `a` before `b`, then the table's static gaps. Not one
+        // shared function because the table asks the gap at the arm it
+        // falls in, inside the construction a declined side cannot
+        // reach; the order is the invariant both keep.
         for (side, frame) in [(MateSide::A, &alignment.a), (MateSide::B, &alignment.b)] {
             if let Some(authored) = frame.authored_vectors() {
-                authored
-                    .frame(tol)
-                    .map_err(|error| Box::new(MateFault::Frame { mate, side, error }))?;
+                side_frame(mate, side, authored, tol)?;
             }
         }
         if let Some(what) = super::table_gap(alignment.primitive, alignment.clocking) {
@@ -1629,24 +1647,30 @@ fn undecided(fault: &MateFault) -> bool {
         // A caller's mispairing is no verdict about the document.
         | MateFault::PosesOfAnotherDocument { .. } => true,
         // A face frame that did not resolve: the part not in hand, a
-        // product whose scalar pins nothing, or a body whose table
-        // names a key it lacks — nothing here knows the pose; a name
-        // the part's table has no row for or ties, a carrier with no
-        // canonical frame, a reference missing or spelled twice, a
-        // member on no instance — the document's own content decided
-        // there is no frame, and re-authoring the mate is the recourse.
+        // product whose scalar pins nothing, a body whose table names
+        // a key it lacks, or a member on no instance — nothing here
+        // knows the pose; a name the part's table has no row for or
+        // ties, a carrier with no canonical frame — the document's own
+        // content decided there is no frame, and re-authoring the mate
+        // is the recourse.
+        //
+        // `NotAnInstance` is classified as the lever's arm is: the
+        // whole of `Unleverable` is no verdict, its `NotAnInstance`
+        // included, and the two arms are one fact (the member walk's
+        // own rule broken, which no door reaches) met by two readers.
+        // Nothing decided a pose there, so the edit refuses rather than
+        // record a frame.
         MateFault::FaceUnresolved { refusal, .. } => match refusal.as_ref() {
-            FaceRefusal::PartUnresolved { .. } | FaceRefusal::Unpinned { .. } => true,
+            FaceRefusal::PartUnresolved { .. }
+            | FaceRefusal::Unpinned { .. }
+            | FaceRefusal::NotAnInstance { .. } => true,
             FaceRefusal::Readback { error, .. } => !matches!(
                 error,
                 topo::readback::ReadbackError::NoCanonicalFrame { .. }
             ),
             FaceRefusal::NoSuchName { .. }
             | FaceRefusal::Ambiguous { .. }
-            | FaceRefusal::NotAFace { .. }
-            | FaceRefusal::NoReference { .. }
-            | FaceRefusal::ReferenceRefused { .. }
-            | FaceRefusal::NotAnInstance { .. } => false,
+            | FaceRefusal::NotAFace { .. } => false,
         },
         // An unsupported mate (a class the solve does not admit, a
         // primitive the coset table lacks) has no pose, and deleting

@@ -154,14 +154,11 @@ const SEAT_B: [f64; 3] = [SHELF_LENGTH - POST_SECTION / 2.0, SHELF_DEPTH / 2.0, 
 
 /// The post's own seat, in POST coordinates: its top cap FACE, by the
 /// part's own name. The frame is resolved from the face's canonical
-/// pose at every evaluation — its centre, its normal, its own roll
-/// reference — so a post whose height changes moves the seat with it
-/// and no number here can disagree with the model.
+/// pose at every evaluation — its centre, its normal, the carrier's
+/// own roll reference — so a post whose height changes moves the seat
+/// with it and no number here can disagree with the model.
 fn post_seat(post_top: &StableName) -> MateFrame {
-    MateFrame::from_face(
-        FaceName::new(post_top.clone()).expect("a cap is a face"),
-        None,
-    )
+    MateFrame::from_face(FaceName::new(post_top.clone()).expect("a cap is a face"))
 }
 
 /// One post's volume, and the shelf's — the arithmetic every census
@@ -193,10 +190,14 @@ fn pe(src: &str, params: &BTreeMap<ParamName, Dimension>) -> Expr {
 /// would be read as either. `tess-meter`'s is a validated text token
 /// for a mesh report; this one is a `StableName` whose kind is
 /// `Face`.
+///
+/// The head is the part-local face as the instance names it — the
+/// kernel's own wrapper (`FaceName::in_part`), the inverse of the
+/// unwrap a face frame's name is.
 fn head(instance: RecipeNodeId, local: &StableName) -> SitedFace {
-    let name = pncad::document::FaceName::new(in_part(instance, local))
+    let name = pncad::document::FaceName::new(local.clone())
         .unwrap_or_else(|err| panic!("a mate head names a face: {err}"));
-    SitedFace::at_mint(name)
+    SitedFace::at_mint(name.in_part(instance))
 }
 
 /// Inserts a node that is not a mate and returns its minted id.
@@ -248,15 +249,20 @@ fn edit(doc: &mut ProfileDoc, e: &DocEdit<ProfileProgram>, tol: Tol, reach: &dyn
 }
 
 /// An AUTHORED mate frame: origin, primary axis, clocking reference —
-/// the shelf's seating points, which are the shelf's own datum (it is
-/// modelled from its underside) rather than a face of it.
+/// the shelf's two seating points. Both lie on ONE face, the shelf's
+/// underside, and a face frame is that face's canonical origin with no
+/// offset inside the face, so the two seats spelled as the face would
+/// collapse onto one point: a point on a face that is not its origin
+/// is authored.
 fn mate_frame(origin: [f64; 3]) -> MateFrame {
     MateFrame::authored(origin, [0.0, 0.0, 1.0], [1.0, 0.0, 0.0])
 }
 
-/// A part-local name, wrapped at the instance that placed it — the
-/// instance-qualified form every cross-document reference takes (the
-/// GQ4 wrapper × N1–N7).
+/// A part-local name of ANY kind, wrapped at the instance that placed
+/// it — the instance-qualified form every cross-document reference
+/// takes (the GQ4 wrapper × N1–N7). A face goes through the kernel's
+/// own `FaceName::in_part` ([`head`]); this spells the wrapper for the
+/// edges and vertices a whole-table walk meets too.
 fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
     StableName {
         kind: local.kind,
@@ -1693,10 +1699,11 @@ fn round_trip(ws: &Workspace, doc: &ProfileDoc, label: &str, tol: Tol) {
 /// post's own name, so a post whose height changes moves the seat
 /// with it, which the update walk shows — the shelf comes down with
 /// the shortened posts and the gate still certifies. The shelf's
-/// seating points stay authored numbers, because they are the shelf's
-/// own datum (it is modelled from its underside) and not a face of
-/// it; that spelling is what a face with no canonical frame — a NURBS
-/// carrier — keeps taking.
+/// seating points stay authored numbers, because both lie on its one
+/// underside and a face frame has no offset inside its face — the two
+/// would collapse onto the face's canonical origin ([`mate_frame`]);
+/// that spelling is also what a face with no canonical frame — a
+/// NURBS carrier — keeps taking.
 pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
     let (mut ws, parts) = workspace(work, tol);
     println!(

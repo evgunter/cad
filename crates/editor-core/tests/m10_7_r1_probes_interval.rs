@@ -329,12 +329,7 @@ fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
     };
     // The datum term over the two sides' resolved frames — both are
     // authored vectors here, so resolution is the projection.
-    let lever = |a: &Alignment| {
-        a.lever_arm(
-            a.a.authored_vectors().expect("an authored side"),
-            a.b.authored_vectors().expect("an authored side"),
-        )
-    };
+    let lever = fixture::datum_lever;
     // A datum at the origin contributes NOTHING — no metre stands in
     // for the parts, which the solve adds from their own bodies.
     assert_eq!(lever(&at(0.0)), 0.0);

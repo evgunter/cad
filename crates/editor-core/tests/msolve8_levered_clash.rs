@@ -142,16 +142,10 @@ fn reach_of(r: &Rig) -> f64 {
         .expect("the part reaches")
 }
 
-/// The authored vectors of a frame this file authored — every frame
-/// here is one.
-fn av(f: &MateFrame) -> &editor_core::AuthoredFrame {
-    f.authored_vectors().expect("an authored frame")
-}
-
 /// The mate's lever as the solve forms it: both parts' reach plus the
 /// datum's own terms.
 fn lever_of(r: &Rig, a: &Alignment) -> f64 {
-    reach_of(r) + reach_of(r) + a.lever_arm(av(&a.a), av(&a.b))
+    reach_of(r) + reach_of(r) + a.lever_arm(fixture::authored(&a.a), fixture::authored(&a.b))
 }
 
 /// The representative `mate_coset` forms for an aligned sense: the
@@ -159,8 +153,8 @@ fn lever_of(r: &Rig, a: &Alignment) -> f64 {
 /// inverse of `b`'s.
 fn representative(a: &Alignment) -> Affine3<f64> {
     let tol = Tol::witness();
-    let fa = av(&a.a).placement(tol).unwrap();
-    let fb = av(&a.b).placement(tol).unwrap();
+    let fa = fixture::authored(&a.a).placement(tol).unwrap();
+    let fb = fixture::authored(&a.b).placement(tol).unwrap();
     let target = match a.primitive {
         MatePrimitive::PlanarRest { offset } => {
             fa * Affine3::translation(Vec3::new(0.0, 0.0, 1.0) * offset)
@@ -342,7 +336,10 @@ fn c1_axis_fixed_value_and_arm() {
     assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_member_axis_fixed");
     let q = representative(&first).linear * representative(&second).linear.inverse();
-    let n = av(&second.a).axis(Tol::witness()).unwrap().get();
+    let n = fixture::authored(&second.a)
+        .axis(Tol::witness())
+        .unwrap()
+        .get();
     assert_eq!(
         value.to_bits(),
         (q * n - n).norm().to_bits(),
@@ -379,8 +376,8 @@ fn c1_two_axis_reach_value_and_arm() {
     assert_eq!(site, Site::Solve, "a verdict about the pair is the solve's");
     let (value, arm) = residual_of(&fault, "mate_rotation_two_axis_reachable");
     let tol = Tol::witness();
-    let a1 = av(&first.a).axis(tol).unwrap().get();
-    let a2 = av(&second.a).axis(tol).unwrap().get();
+    let a1 = fixture::authored(&first.a).axis(tol).unwrap().get();
+    let a2 = fixture::authored(&second.a).axis(tol).unwrap().get();
     let (q1, q2) = (
         representative(&first).linear,
         representative(&second).linear,
@@ -662,7 +659,10 @@ fn c2_axis_vs_placement_sweep() {
                 for r in refs {
                     for o in origins {
                         let f = frame(o, [x, y, z], r);
-                        match (av(&f).placement(tol), av(&f).axis(tol)) {
+                        match (
+                            fixture::authored(&f).placement(tol),
+                            fixture::authored(&f).axis(tol),
+                        ) {
                             (Ok(p), Ok(a)) => {
                                 both_ok += 1;
                                 assert_eq!(bits3(p.linear.c2), bits3(a.get()), "{f:?}");
@@ -886,7 +886,8 @@ fn c2_parallel_boundary_through_doors() {
             z_up_at([0.0, 0.0, 0.0]),
             None,
         );
-        let arm = rr + rr + first.lever_arm(av(&first.a), av(&first.b));
+        let arm =
+            rr + rr + first.lever_arm(fixture::authored(&first.a), fixture::authored(&first.b));
         for raw in raw_n1s {
             let n1 = UnitVec3::new(raw, FIXTURE_MATE_AXIS, band).unwrap().get();
             for &shape in &shapes {
@@ -928,15 +929,16 @@ fn c2_parallel_boundary_through_doors() {
         );
         // The witnesses the doors decide are the search's, and the
         // fold's arm is the one the search used.
-        let w1 = av(&first.a).axis(tol).unwrap().get();
-        let w2 = av(&second.a).axis(tol).unwrap().get();
+        let w1 = fixture::authored(&first.a).axis(tol).unwrap().get();
+        let w2 = fixture::authored(&second.a).axis(tol).unwrap().get();
         assert_eq!(
             bits3(w1),
             bits3(UnitVec3::new(raw1, FIXTURE_MATE_AXIS, band).unwrap().get())
         );
         let r = rig(&format!("msolve8-c2-doors-{i}"), 2);
         assert_eq!(
-            (rr + rr + first.lever_arm(av(&first.a), av(&first.b))).to_bits(),
+            (rr + rr + first.lever_arm(fixture::authored(&first.a), fixture::authored(&first.b)))
+                .to_bits(),
             arm.to_bits()
         );
         let (doc, _) = add(r.doc, mate(r.ids[0], r.ids[1], first));
@@ -1269,17 +1271,17 @@ fn kstats_aim_decided_twice_per_mate() {
     for (door, count) in [
         ("frame", {
             let b = Bracket::open();
-            let _ = av(&f).frame(tol).unwrap();
+            let _ = fixture::authored(&f).frame(tol).unwrap();
             decided(&b.finish(), "frame_point_at_aim")
         }),
         ("placement", {
             let b = Bracket::open();
-            let _ = av(&f).placement(tol).unwrap();
+            let _ = fixture::authored(&f).placement(tol).unwrap();
             decided(&b.finish(), "frame_point_at_aim")
         }),
         ("axis", {
             let b = Bracket::open();
-            let _ = av(&f).axis(tol).unwrap();
+            let _ = fixture::authored(&f).axis(tol).unwrap();
             decided(&b.finish(), "frame_point_at_aim")
         }),
     ] {

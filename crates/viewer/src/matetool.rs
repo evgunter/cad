@@ -150,7 +150,7 @@ pub fn admitted_classes() -> Vec<MateAdmission> {
 /// The node the FACE is read at is not returned because it is not a
 /// second fact: the returned name is the MEMBER's instance's, and the
 /// part-local name the frame stores is that name's own row
-/// ([`part_local`]).
+/// (`FaceName::part_local`).
 ///
 /// The admission rule is A11's member vocabulary READ, not restated
 /// ([`pncad::document::member_of`]): the walk from the operand down to
@@ -160,16 +160,14 @@ pub fn admitted_classes() -> Vec<MateAdmission> {
 /// boolean is not a pass-through: it mints its own geometry and its
 /// own names, and no member stands on it.
 ///
-/// **A pattern copy's pose is read at the MASTER**, on the innermost
-/// pattern's input instance. An alignment is authored in the member's
-/// part coordinates, every copy at every level is a rigid image of
-/// the same part, and the static offset that separates the placed
-/// body from its master — the copy maps of the patterns the walk
-/// consumed, a transform's map, or all of them composed — is the
-/// SOLVE's, applied onto the alignment there. Reading the placed
-/// body's own world pose and dividing by the instance's placement
-/// would fold that offset into the authored numbers, where the solve
-/// would then apply it a second time.
+/// **A pattern copy's face is read at the MASTER**, on the innermost
+/// pattern's input instance. A frame names a face of the member's
+/// PART, every copy at every level is a rigid image of that part, and
+/// the static offset that separates the placed body from its master —
+/// the copy maps of the patterns the walk consumed, a transform's map,
+/// or all of them composed — is the SOLVE's, applied onto the frame
+/// there. A name read at the placed copy would carry that copy's own
+/// qualifier, which is not a row of the part's table.
 ///
 /// # Errors
 ///
@@ -222,22 +220,14 @@ fn picked_member(
     Ok((reference, member, read))
 }
 
-/// **The part-local name a member's face name wraps**: the row of the
-/// part's own table under the one `InPart` qualifier the instance
-/// puts round every name it places — what a `FromFace` frame stores,
-/// read INSIDE the part where no instance exists. `read` is the name
-/// headed at the member's instance ([`picked_member`]'s third
-/// answer), so exactly one qualifier stands between it and the part's
-/// row; `None` when the name is not of that shape, which the member
-/// walk excludes and this door still names rather than assumes.
+/// **The part-local name a member's face name wraps** — the kernel's
+/// own unwrap (`FaceName::part_local`) at the member's instance. `read`
+/// is the name headed there ([`picked_member`]'s third answer), so
+/// exactly one qualifier stands between it and the part's row; `None`
+/// when the name is not of that shape, which the member walk excludes
+/// and this door still names rather than assumes.
 fn part_local(member: &Member, read: &StableName) -> Option<editor_core::FaceName> {
-    if read.node != member.instance {
-        return None;
-    }
-    let [RoleSeg::InPart { of }] = read.path.as_slice() else {
-        return None;
-    };
-    editor_core::FaceName::new((**of).clone()).ok()
+    editor_core::FaceName::part_local(read, member.instance)
 }
 
 /// A typed mate-tool refusal (closed enum, D4 ¶3).
@@ -292,16 +282,6 @@ pub enum MateToolError {
         /// The door's refusal.
         error: InterrogateError,
     },
-    /// The picked face's carrier fixes no roll reference, and the
-    /// tool authors none, so the frame's roll would be undetermined —
-    /// refused here, where the solve would refuse it
-    /// (`FaceRefusal::NoReference`). Every analytic carrier the
-    /// readback answers fixes one today, so this answers a carrier
-    /// the readback's contract admits and none of its arms produce.
-    NoReference {
-        /// Which pick.
-        side: MateSide,
-    },
     /// The chosen class is outside the vocabulary
     /// ([`ClassAdmission::NotAdmitted`]): refused HERE, before any
     /// edit exists, with the kernel's own deferral sentence.
@@ -347,12 +327,6 @@ impl core::fmt::Display for MateToolError {
             Self::Frame { side, error } => write!(
                 f,
                 "pick {}'s face frame cannot be derived: {error}",
-                side.name()
-            ),
-            Self::NoReference { side } => write!(
-                f,
-                "pick {}'s face fixes no roll reference, so a mate frame cannot be \
-                 derived from it",
                 side.name()
             ),
             Self::ClassRefused { class } => {
@@ -600,16 +574,13 @@ impl MateTool {
             // it, refused here in the door's own words where it has
             // none. The pose itself is not kept — the frame is the
             // NAME, resolved by the solve.
-            let pose = face_frame(eval, member.instance, read)
+            face_frame(eval, member.instance, read)
                 .map_err(|error| MateToolError::Frame { side, error })?;
-            if pose.u_ref.is_none() {
-                return Err(MateToolError::NoReference { side });
-            }
             let local = part_local(member, read).ok_or(MateToolError::NotAnInstancePick {
                 side,
                 node: member.instance,
             })?;
-            Ok(MateFrame::from_face(local, None))
+            Ok(MateFrame::from_face(local))
         };
         let frame_a = frame_of(MateSide::A, &member_a, &read_a)?;
         let frame_b = frame_of(MateSide::B, &member_b, &read_b)?;

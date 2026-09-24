@@ -3155,13 +3155,16 @@ class Doc:
         cluster's frame from a solve of the prior document, whose lever
         is the mated parts' own extent. Every other edit never consults
         it, with one exception: inserting a mate asks the solve's own
-        per-mate admission at the door, and a clocking rider on a frame
-        coincidence is decided over the mated parts' extent, read
-        through `resolver`. Absent, a gauge-moving edit raises
-        `EditError` with variant `maintenance_refused` rather than
-        recording a frame nothing decided, and a mate with such a rider
-        raises `mate_refused` with `inner_variant == "mate_unleverable"`;
-        everything else is unaffected.
+        per-mate admission at the door, which reads the mated parts
+        through `resolver` in two cases — a `MateFrame.from_face` side
+        is resolved from the part's own face, and a clocking rider on a
+        frame coincidence is decided over the parts' extent. Absent, a
+        gauge-moving edit raises `EditError` with variant
+        `maintenance_refused` rather than recording a frame nothing
+        decided, a mate with a face side raises `mate_refused` with
+        `inner_variant == "mate_face_unresolved"`, and one with such a
+        rider `inner_variant == "mate_unleverable"`; everything else is
+        unaffected.
 
         A mate the solve refuses on its own datum — no member at its
         head, one member named twice, a class outside the vocabulary,
@@ -3250,12 +3253,13 @@ class Doc:
         """Insert a node, answering its minted id — `apply` of
         `DocEdit.insert_node`.
 
-        `resolver` is the document seam a mate's admission levers
-        through: an insert is a Join at most (the survivor keeps its
-        gauge), so its maintenance never consults it, but a mate's
-        clocking rider on a frame coincidence is decided at the door
-        over the mated parts' extent, read through `resolver` — see
-        `apply` for what a mate refuses here (`mate_refused`)."""
+        `resolver` is the document seam a mate's admission reads the
+        parts through: an insert is a Join at most (the survivor keeps
+        its gauge), so its maintenance never consults it, but a mate's
+        `from_face` side is resolved from the part's face at the door,
+        and its clocking rider on a frame coincidence is decided there
+        over the mated parts' extent, both read through `resolver` —
+        see `apply` for what a mate refuses here (`mate_refused`)."""
     def sketch_frame(
         self,
         plane: Optional[SketchPlane] = None,
@@ -4909,20 +4913,28 @@ class MateFrame:
     perpendicular part are read. Both are plain numbers (a direction
     carries no dimension); `origin` is three lengths.
 
-    FROM A FACE: `MateFrame.from_face(face, reference=None)`, where
-    `face` is the PART-LOCAL name text of a face of the mated part —
-    the row `evaluate(part).select(...)` answers on the part's own
-    document, never the instance-qualified spelling a mate head
-    carries. The solve reads that face's canonical pose off the
-    part's own evaluation at every evaluation and takes it as the
-    frame: the carrier's origin, its CHART axis (the face's
-    orientation sense is not folded in — the mate's `AxisSense` says
-    which way the sides point) and its own in-frame reference, else
-    the `reference` given here; both present, or neither, refuses at
-    the solve (`mate_face_unresolved`). Nothing is stored twice: edit
-    the part so the face moves, and the mate follows. A face with no
-    canonical frame (a NURBS carrier) refuses at the solve and keeps
-    taking authored vectors."""
+    FROM A FACE: `MateFrame.from_face(face)`, where `face` is the
+    PART-LOCAL name text of a face of the mated part — the row
+    `evaluate(part).select(...)` answers on the part's own document,
+    never the instance-qualified spelling a mate head carries. The
+    solve reads that face's canonical pose off the part's own
+    evaluation at every evaluation and takes it as the frame: the
+    carrier's origin, its CHART axis (the face's orientation sense is
+    not folded in — the mate's `AxisSense` says which way the sides
+    point) and the carrier's own in-frame reference direction as the
+    roll. So a face frame's roll is the carrier's: a side that needs a
+    roll of its own takes authored vectors. Nothing is stored twice:
+    edit the part so the face moves, and the mate follows. A face with
+    no canonical frame (a NURBS carrier) refuses at the solve and keeps
+    taking authored vectors.
+
+    A face frame resolves at the NOMINAL value only. Under an analysis
+    lane — `stackup.sensitivities`' dual passes, a certified
+    `clearance`'s interval leaf — the part's product pins no single
+    number, so the side refuses `mate_face_unresolved` / `unpinned`
+    rather than drop the pose's own sensitivity: those doors refuse an
+    assembly that holds a face frame, where the same mate authored as
+    vectors still solves."""
 
     def __init__(
         self,
@@ -4931,12 +4943,11 @@ class MateFrame:
         reference: tuple[float, float, float],
     ) -> None: ...
     @staticmethod
-    def from_face(
-        face: str, reference: Optional[tuple[float, float, float]] = None
-    ) -> MateFrame:
+    def from_face(face: str) -> MateFrame:
         """A frame resolved from `face`, a face of the part by its
-        PART-LOCAL name text (see the class docs). Raises ValueError
-        for text that is not a stable name, and EditError
+        PART-LOCAL name text (see the class docs); the name is the
+        whole frame, and it resolves on the nominal lane only. Raises
+        ValueError for text that is not a stable name, and EditError
         (`mate_head_not_a_face`) for a name of another kind."""
 
     @property
@@ -4954,8 +4965,8 @@ class MateFrame:
 
     @property
     def reference(self) -> Optional[tuple[float, float, float]]:
-        """The authored clocking reference: an authored frame's
-        always, a `from_face` frame's where one was given."""
+        """The authored clocking reference; `None` on a `from_face`
+        frame, whose roll is the carrier's own."""
 
     @property
     def face(self) -> Optional[str]:
@@ -5226,8 +5237,8 @@ class MateFault:
         `no_finite_bound`, `not_an_instance`, with the instance it is
         about as `instance`), or the face refusal's on
         `mate_face_unresolved` (`part_unresolved`, `no_such_name`,
-        `ambiguous`, `not_a_face`, `readback`, `no_reference`,
-        `reference_refused`, `unpinned`, `not_an_instance`, with the
+        `ambiguous`, `not_a_face`, `readback`, `unpinned`,
+        `not_an_instance`, with the
         instance as `instance` and the face as `face`). `None` on an
         arm whose payload is a struct rather than an enum — an
         escalation has no inner word, and its shape is which margin
@@ -5336,15 +5347,19 @@ def solve_document(doc: Doc, *, resolver: Optional[Workspace] = None) -> SolvedP
     unrelated one, so refusals are read back through
     `SolvedPoses.fault`.
 
-    The solve reads no geometry except each mated part's own extent —
-    an upper bound taken from its evaluated body, entering only as the
-    lever a parallelism verdict is decided over — so `resolver` is the
-    same document seam `evaluate(doc, resolver=)` crosses. Without one
-    every mate on a part faults `mate_unleverable` in the resolver's
-    own voice rather than levering over nothing. In particular the
-    solve does NOT check that a mate's frames match the faces its
-    references name, which is why a document can solve cleanly and
-    still refuse at the gate."""
+    The solve reads no geometry except what each mated part's own
+    evaluation answers: its extent — an upper bound taken from its
+    evaluated body, entering only as the lever a parallelism verdict
+    is decided over — and, for a `MateFrame.from_face` side, that
+    face's canonical pose. So `resolver` is the same document seam
+    `evaluate(doc, resolver=)` crosses. Without one every mate on a
+    part refuses in the resolver's own voice rather than reading
+    nothing: a face side `mate_face_unresolved` (read first), an
+    authored one `mate_unleverable`. A face frame IS its face and
+    cannot drift from the part; the solve does NOT check that AUTHORED
+    vectors match the faces the mate's references name, which is why
+    a document authored so can solve cleanly and still refuse at the
+    gate."""
 
 def clusters(doc: Doc) -> list[list[NodeId]]:
     """The placement clusters: instances coupled by mates, members in

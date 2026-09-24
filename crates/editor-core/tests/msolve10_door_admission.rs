@@ -176,20 +176,11 @@ impl MateReach for Counting<'_> {
     }
 }
 
-/// The datum's own lever term, for an alignment whose two sides are
-/// authored vectors (every alignment this file authors).
-fn datum_lever(a: &Alignment) -> f64 {
-    a.lever_arm(
-        a.a.authored_vectors().expect("an authored side"),
-        a.b.authored_vectors().expect("an authored side"),
-    )
-}
-
 /// The lever the solve forms for a mate on `ids`: both parts' reach
 /// plus the datum's own terms.
 fn lever_of(doc: &ProfileDoc, opts: &EvalOptions, ids: &[RecipeNodeId], a: &Alignment) -> f64 {
     let reach = mate_reach::<f64>(opts, Tol::witness());
-    let mut arm = datum_lever(a);
+    let mut arm = fixture::datum_lever(a);
     for &id in ids {
         let Some(Node::InstantiatePart { doc_ref, .. }) = doc.node(id) else {
             panic!("an instance");
@@ -389,9 +380,8 @@ fn a_from_face_side_asks_face_pose_once_per_side_at_the_door() {
         node: fixture::resolver::PART_BODY,
         path: vec![editor_core::RoleSeg::Cap(end)],
     };
-    let face = |end: CapEnd| {
-        MateFrame::from_face(editor_core::FaceName::new(cap(end)).expect("a face"), None)
-    };
+    let face =
+        |end: CapEnd| MateFrame::from_face(editor_core::FaceName::new(cap(end)).expect("a face"));
     // One face side, one authored side, no rider: one face ask, no
     // reach ask.
     let one_side = Alignment {
@@ -433,7 +423,7 @@ fn a_logged_from_face_insert_replays_with_no_store_and_loads() {
         path: vec![editor_core::RoleSeg::Cap(CapEnd::End)],
     };
     let alignment = Alignment {
-        a: MateFrame::from_face(editor_core::FaceName::new(cap).expect("a face"), None),
+        a: MateFrame::from_face(editor_core::FaceName::new(cap).expect("a face")),
         ..seat(Some(0.0))
     };
     let edit = DocEdit::InsertNode {

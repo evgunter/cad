@@ -2748,12 +2748,14 @@ fn reach_over_cache<T: EvalScalar>(
 /// **A named face's canonical pose over a part cache** — the other
 /// read `ASSEMBLY.md` A11 rule 5 lets into the solve, answered from
 /// the same cached product the reach reads: the part's own product
-/// table resolves the PART-LOCAL name to its face (the product is one
-/// aggregate body, and every row of its table indexes it), and
-/// `topo::readback::face_pose` reads the carrier's frame off the
-/// part's own body, in the part's own coordinates — no placement
-/// enters, since the frames a mate authors are in those coordinates
-/// already.
+/// table resolves the PART-LOCAL name to its face through the name
+/// doors' own table ladder (`names::interrogate::key_in`, the rungs
+/// every read door asks, in their order), and `topo::readback::
+/// face_pose` reads the carrier's frame off the part's own body, in
+/// the part's own coordinates — no placement enters, since the frames
+/// a mate authors are in those coordinates already. The product is one
+/// aggregate body that every row of its table indexes, so the row's
+/// output-body index is not read.
 ///
 /// The pose crosses to the solve as `f64`, the scalar the solve's
 /// frames are: at `f64` the product's coordinates are the value, and
@@ -2767,26 +2769,16 @@ fn face_pose_over_cache<T: EvalScalar>(
     tol: Tol,
 ) -> Result<topo::readback::Pose<f64>, crate::mate::FacePoseRefusal> {
     use crate::mate::FacePoseRefusal as R;
-    use crate::names::{EntityKey, Entry};
+    use crate::names::interrogate::{TableRefusal, key_in};
     let value = parts
         .get(part, tol)
         .map_err(|fault| R::PartUnresolved { fault })?;
-    let ent = match value.names.lookup(face).ok_or(R::NoSuchName)? {
-        Entry::Unique(ent) => *ent,
-        Entry::Tied(candidates) => {
-            return Err(R::Ambiguous {
-                candidates: candidates.len(),
-            });
-        }
-    };
-    let key = match ent.key {
-        EntityKey::Face(key) => key,
-        other => {
-            return Err(R::NotAFace {
-                found: other.kind(),
-            });
-        }
-    };
+    let (_, key) =
+        key_in::<topo::FaceKey>(&value.names, face).map_err(|refusal| match refusal {
+            TableRefusal::NoSuchName => R::NoSuchName,
+            TableRefusal::Ambiguous { candidates } => R::Ambiguous { candidates },
+            TableRefusal::Kind { found } => R::NotAFace { found },
+        })?;
     let pose = topo::readback::face_pose(value.body.as_ref(), key).map_err(R::Readback)?;
     let pin = |x: T| x.pinned_f64().ok_or(R::Unpinned);
     let point =
@@ -3010,11 +3002,11 @@ where
     // (A11): one spanning tree per cluster, folded once, read by every
     // instance and every mate below. Running it here rather than per
     // node is not an optimization — a per-node solve would be a second
-    // answer to "where does this cluster sit". Its one geometric read
-    // — each mated part's extent, the lever — comes off THIS run's
-    // part cache, lazily: a mated part is evaluated here, once, under
-    // the cache's own shielding bracket, and its instantiate node
-    // then hits the cache.
+    // answer to "where does this cluster sit". Its two geometric
+    // reads — each mated part's extent (the lever) and a `FromFace`
+    // side's face pose — come off THIS run's part cache, lazily: a
+    // mated part is evaluated here, once, under the cache's own
+    // shielding bracket, and its instantiate node then hits the cache.
     let reach = CacheReach { parts: &parts, tol };
     let poses = crate::mate::solve_with_env(doc, &nominal_env, &reach, tol);
     let op_env = wire::OpEnv {
@@ -3710,6 +3702,18 @@ mod tag {
             CLEAR = 0,
             FAULTED = 1,
         }
+        /// A mate's axis sense, read after its authored lengths.
+        axis_sense {
+            ALIGNED = 1,
+            OPPOSED = 2,
+        }
+        /// A mate frame's arm, read before that side's payload: an
+        /// authored frame's nine coordinates, or a face frame's
+        /// part-local name.
+        mate_frame {
+            AUTHORED = 1,
+            FROM_FACE = 2,
+        }
         /// **The word before a slot's NOMINAL — the one home of why a
         /// key holds one, and of every exception.** It is written
         /// after that slot's bits at the evaluation scalar, and it
@@ -4001,13 +4005,13 @@ impl SolveAnswer {
             Some(crate::node::Node::Mate {
                 a, b, alignment, ..
             }) => {
+                // The solve's own derivation of the part a face side
+                // resolves against (`mate::solve::part_of`), so the key
+                // and the solve name one part for one side.
                 let part_of = |reference, frame: &crate::mate::MateFrame| {
                     frame.face()?;
                     let member = crate::mate::member_of(doc, reference)?;
-                    match doc.node(member.instance) {
-                        Some(crate::node::Node::InstantiatePart { doc_ref, .. }) => Some(*doc_ref),
-                        _ => None,
-                    }
+                    crate::mate::solve::part_of(doc, &member).ok()
                 };
                 [part_of(a, &alignment.a), part_of(b, &alignment.b)]
             }
@@ -5098,8 +5102,8 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
         }
     }
     h.write_tag(match a.sense {
-        AxisSense::Aligned => 1,
-        AxisSense::Opposed => 2,
+        AxisSense::Aligned => tag::axis_sense::ALIGNED,
+        AxisSense::Opposed => tag::axis_sense::OPPOSED,
     });
     match a.clocking {
         Some(theta) => {
@@ -5109,13 +5113,14 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
         None => h.write_tag(tag::presence::ABSENT),
     }
     // Each side's arm as a word, then its payload: an authored frame's
-    // nine coordinates; a face frame's PART-LOCAL name and its optional
-    // reference. The part the face resolves against is the mate's
-    // other channel (`SolveAnswer::feed_face_parts`), read after this.
+    // nine coordinates; a face frame's PART-LOCAL name, the whole of
+    // what it authors. The part the face resolves against is the
+    // mate's other channel (`SolveAnswer::feed_face_parts`), read after
+    // this.
     for frame in [&a.a, &a.b] {
         match frame {
             crate::mate::MateFrame::Authored(frame) => {
-                h.write_tag(1);
+                h.write_tag(tag::mate_frame::AUTHORED);
                 for x in frame
                     .origin
                     .iter()
@@ -5126,17 +5131,8 @@ fn feed_alignment(h: &mut KeyHasher, a: &crate::mate::Alignment) {
                 }
             }
             crate::mate::MateFrame::FromFace(face) => {
-                h.write_tag(2);
+                h.write_tag(tag::mate_frame::FROM_FACE);
                 feed_stable_name(h, &face.face);
-                match face.reference {
-                    Some(reference) => {
-                        h.write_tag(tag::presence::PRESENT);
-                        for x in reference {
-                            h.write_f64_bits(x);
-                        }
-                    }
-                    None => h.write_tag(tag::presence::ABSENT),
-                }
             }
         }
     }

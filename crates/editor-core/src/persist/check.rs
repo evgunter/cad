@@ -1271,11 +1271,21 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         // the same `Node::has_non_finite_alignment` the edit door asks
         // — a second pass over the nodes would be a second place to
         // forget the question. A `FromFace` side is checked
-        // STRUCTURALLY and no further — a face by type, its keys
-        // closed at the wire, its optional reference finite here —
-        // because its numbers are the part's: whether the name is a
-        // row of the part's table is the solve's at evaluation
-        // (`MateFault::FaceUnresolved`), never this door's.
+        // STRUCTURALLY and no further — a face by type, its one key
+        // closed at the wire — because its numbers are the part's:
+        // whether the name is a row of the part's table is the
+        // solve's at evaluation (`MateFault::FaceUnresolved`), never
+        // this door's.
+        //
+        // Nor is its PART-LOCAL spelling checked here, and the gap is
+        // real: a face frame spelled as a head is (qualified by an
+        // `InPart` under the instance) loads from a snapshot and
+        // faults `NoSuchName` at evaluation, where the insert door
+        // refuses the same frame at once — the door resolves it, this
+        // one cannot. The spelling is not decidable off the bytes: a
+        // part that is itself an assembly carries `InPart` rows in its
+        // own table, so a qualified name can be exactly the part's own
+        // row, and only the part's product says which.
         if node.has_non_finite_alignment() {
             return Err(SnapshotError::MateAlignment { node: id });
         }

@@ -173,26 +173,24 @@ pub fn open_bench(bench: &Bench, tol: Tol) -> DocSession {
     session
 }
 
-/// The instance-qualified spelling of a part-local name (the GQ4
-/// wrapper), for rows that author a mate directly.
+/// The instance-qualified spelling of a part-local face (the GQ4
+/// wrapper), for rows that author a mate directly — the kernel's own
+/// wrapper (`FaceName::in_part`), the inverse of the unwrap the mate
+/// tool stores a face frame's name by.
 pub fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
-    StableName {
-        kind: local.kind,
-        node: instance,
-        path: vec![pncad::select::RoleSeg::InPart {
-            of: local.clone().into(),
-        }],
-    }
+    pncad::document::FaceName::new(local.clone())
+        .expect("a mate head is a face")
+        .in_part(instance)
+        .into_name()
 }
 
 /// **The frame the mate tool authors for a picked face**: the face's
-/// PART-LOCAL name, resolved by the solve at every evaluation, with
-/// no authored reference. What every tool row compares a proposal's
+/// PART-LOCAL name, resolved by the solve at every evaluation — the
+/// whole of the frame. What every tool row compares a proposal's
 /// side against.
 pub fn from_face(local: &StableName) -> pncad::document::MateFrame {
     pncad::document::MateFrame::from_face(
         pncad::document::FaceName::new(local.clone()).expect("a cap is a face"),
-        None,
     )
 }
 

@@ -2,8 +2,9 @@
 id: a11-rule-5-names-unleverable-where-a-face-side-faults-face-unresolved
 kind: issue
 title: A11 rule 5 says an unresolved part faults Unleverable; a FromFace side faults FaceUnresolved first
-status: open
+status: closed
 opened: 2026-09-24
+closed: 2026-09-24
 priority: P4
 cost: E
 ---
@@ -28,3 +29,13 @@ reads as universal. The re-wording is one clause (name both arms), but
 rule 5 carries ratified text the MSOLVE-9 lane was told not to touch,
 so it is the orchestrator's call whether this lands as a consequence
 of the approved change or waits for Ev.
+
+## Closed
+
+Closed in MSOLVE-9's fix pass (PR 2934) under the orchestrator's
+ruling R6: the clause is re-worded as a consequence of the approved
+change, not a second decision. `crates/editor-core/ASSEMBLY.md` A11
+rule 5 now says an unresolved part faults its mate in the resolver's
+own voice — `MateFault::FaceUnresolved` (`FaceRefusal::PartUnresolved`)
+where a `FromFace` side stands on it, else `MateFault::Unleverable`.
+Pinned by `msolve9_from_face::an_unresolvable_part_faults_in_the_resolvers_voice`.

@@ -443,6 +443,37 @@ impl FaceName {
         self.0
     }
 
+    /// **This face as the instance that places its part names it** —
+    /// the part's own name for the face, worn inside the one
+    /// [`RoleSeg::InPart`] qualifier an instantiate node puts round
+    /// every name it places, headed at that instance. What a mate head
+    /// on a placed part is; [`FaceName::part_local`] is its inverse.
+    pub fn in_part(&self, instance: RecipeNodeId) -> FaceName {
+        Self(StableName {
+            kind: self.0.kind,
+            node: instance,
+            path: vec![RoleSeg::InPart {
+                of: self.0.clone().into(),
+            }],
+        })
+    }
+
+    /// **The part-local face a placed name wraps** — the row of the
+    /// part's own table under the one `InPart` qualifier `instance`
+    /// put round it, read INSIDE the part where no instance exists:
+    /// what a `FromFace` mate frame stores. `None` when `name` is not
+    /// of that shape (headed elsewhere, qualified otherwise, or not a
+    /// face); [`FaceName::in_part`] is its inverse.
+    pub fn part_local(name: &StableName, instance: RecipeNodeId) -> Option<FaceName> {
+        if name.node != instance {
+            return None;
+        }
+        let [RoleSeg::InPart { of }] = name.path.as_slice() else {
+            return None;
+        };
+        FaceName::new((**of).clone()).ok()
+    }
+
     /// **The one in-crate way a face name is re-made**: this face's
     /// DERIVATION rewritten, its kind untouched.
     ///

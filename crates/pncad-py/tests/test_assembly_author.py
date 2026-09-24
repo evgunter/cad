@@ -1892,9 +1892,11 @@ class TestMateFrameFromFace(BenchWorkspace):
         self.assertIsNone(frame.reference)
         with self.assertRaises(TypeError):
             frame.placement()
-        clocked = MateFrame.from_face(cap, reference=(0.0, 1.0, 0.0))
-        self.assertEqual(clocked.reference, (0.0, 1.0, 0.0))
-        self.assertNotEqual(frame, clocked)
+        # The name is the whole frame: its roll is the carrier's, and
+        # no reference can be authored beside it.
+        with self.assertRaises(TypeError):
+            MateFrame.from_face(cap, reference=(0.0, 1.0, 0.0))
+        self.assertEqual(frame, MateFrame.from_face(cap))
         authored = mate_frame(POST_SEAT)
         self.assertEqual(authored.variant, "authored")
         self.assertIsNone(authored.face)

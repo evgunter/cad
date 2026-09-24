@@ -87,14 +87,20 @@ fn direction(v: pncad::geom_core::Vec3<f64>) -> (f64, f64, f64) {
 /// own document, never the instance-qualified spelling a mate head
 /// carries — whose canonical pose the solve reads off the part's own
 /// evaluation at every evaluation (`ASSEMBLY.md` A11 rule 5): the
-/// carrier's origin and CHART axis, and its own in-frame reference
-/// where the carrier fixes one, else the `reference` authored beside
-/// the name (both present, or neither, refuses at the solve). The
-/// face's orientation sense is not folded into the axis; the mate's
-/// `AxisSense` says which way the sides point. Nothing is stored
-/// twice: edit the part so the face moves, and the mate follows. A
-/// face with no canonical frame (a NURBS carrier) refuses at the
-/// solve, typed, and keeps taking authored vectors.
+/// carrier's origin, its CHART axis, and its own in-frame reference
+/// direction as the roll — so a face frame's roll is the carrier's,
+/// and a side that needs a roll of its own takes authored vectors.
+/// The face's orientation sense is not folded into the axis; the
+/// mate's `AxisSense` says which way the sides point. Nothing is
+/// stored twice: edit the part so the face moves, and the mate
+/// follows. A face with no canonical frame (a NURBS carrier) refuses
+/// at the solve, typed, and keeps taking authored vectors.
+///
+/// A face frame resolves at the NOMINAL value only: under an analysis
+/// lane — `stackup.sensitivities`' dual passes, a certified
+/// `clearance`'s interval leaf — its side refuses `unpinned`, so those
+/// doors refuse an assembly holding one, where the same mate authored
+/// as vectors still solves.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct MateFrame(pub(crate) d::MateFrame);
@@ -115,19 +121,15 @@ impl MateFrame {
     }
 
     /// A frame resolved from `face`, a face of the part by its
-    /// PART-LOCAL name text (the class docs say which spelling), with
-    /// `reference` the clocking reference for a carrier that fixes
-    /// none of its own. Raises `ValueError` for text that is not a
-    /// stable name, and `EditError` (`mate_head_not_a_face`) for a
-    /// name of another kind — the same door a mate head goes through.
+    /// PART-LOCAL name text (the class docs say which spelling). The
+    /// name is the whole frame: its roll is the carrier's own. Raises
+    /// `ValueError` for text that is not a stable name, and
+    /// `EditError` (`mate_head_not_a_face`) for a name of another
+    /// kind — the same door a mate head goes through.
     #[staticmethod]
-    #[pyo3(signature = (face, reference=None))]
-    fn from_face(py: Python<'_>, face: &str, reference: Option<(f64, f64, f64)>) -> PyResult<Self> {
+    fn from_face(py: Python<'_>, face: &str) -> PyResult<Self> {
         let face = super::doc::face_name_from_text(py, face)?;
-        Ok(Self(d::MateFrame::from_face(
-            face,
-            reference.map(|r| [r.0, r.1, r.2]),
-        )))
+        Ok(Self(d::MateFrame::from_face(face)))
     }
 
     /// Which arm: `"authored"` or `"from_face"`.
@@ -156,15 +158,13 @@ impl MateFrame {
             .map(|f| (f.axis[0], f.axis[1], f.axis[2]))
     }
 
-    /// The clocking reference, as authored: an authored frame's
-    /// always, a `from_face` frame's where one was given.
+    /// The clocking reference, as authored; `None` on a `from_face`
+    /// frame, whose roll is the carrier's own.
     #[getter]
     fn reference(&self) -> Option<(f64, f64, f64)> {
-        let reference = match &self.0 {
-            d::MateFrame::Authored(f) => Some(f.reference),
-            d::MateFrame::FromFace(f) => f.reference,
-        };
-        reference.map(|r| (r[0], r[1], r[2]))
+        self.0
+            .authored_vectors()
+            .map(|f| (f.reference[0], f.reference[1], f.reference[2]))
     }
 
     /// The face a `from_face` frame names, as its name text in the
@@ -215,9 +215,8 @@ impl MateFrame {
                 f.origin, f.axis, f.reference
             ),
             d::MateFrame::FromFace(f) => format!(
-                "MateFrame.from_face({:?}, reference={:?})",
-                super::doc::name_text(py, &f.face)?,
-                f.reference
+                "MateFrame.from_face({:?})",
+                super::doc::name_text(py, &f.face)?
             ),
         })
     }
@@ -709,8 +708,9 @@ impl MateFault {
 
     /// The face a `from_face` frame named, as its name text in the
     /// PART's own spelling, where the refusal is about one
-    /// (`mate_face_unresolved`, whose `inner_variant` names the face's
-    /// own row, tie, carrier or reference).
+    /// (`mate_face_unresolved`, whose `inner_variant` names why: the
+    /// part not in hand, the face's own row, tie or carrier, or a
+    /// product on an analysis lane).
     #[getter]
     fn face(&self, py: Python<'_>) -> PyResult<Option<String>> {
         self.payload()
@@ -1030,16 +1030,20 @@ impl SolvedPoses {
 /// unrelated one, so refusals are recorded per node and read back
 /// through `SolvedPoses.fault`.
 ///
-/// The solve reads no geometry except each mated part's own extent —
-/// an upper bound taken from its evaluated body, entering only as the
-/// lever a parallelism verdict is decided over — so `resolver` is the
-/// same document seam `evaluate(doc, resolver=)` crosses: a
-/// `Workspace`, or `None`, under which every mate on a part faults
-/// `mate_unleverable` in the resolver's own voice (`part_no_resolver`)
-/// rather than levering over nothing. In particular the solve does
-/// NOT check that a mate's frames match the faces its references
-/// name — that is issue #944, and it is why a document can solve
-/// cleanly and still refuse at the at-rest gate.
+/// The solve reads no geometry except what each mated part's own
+/// evaluation answers: its extent — an upper bound taken from its
+/// evaluated body, entering only as the lever a parallelism verdict
+/// is decided over — and, for a `MateFrame.from_face` side, that
+/// face's canonical pose. So `resolver` is the same document seam
+/// `evaluate(doc, resolver=)` crosses: a `Workspace`, or `None`, under
+/// which every mate on a part refuses in the resolver's own voice
+/// (`part_no_resolver`) rather than reading nothing — a face side as
+/// `mate_face_unresolved` (read first), an authored one as
+/// `mate_unleverable`. A face frame IS its face, so it cannot drift
+/// from the part; the solve does NOT check that AUTHORED vectors
+/// match the faces the mate's references name, which is why a
+/// document authored so can solve cleanly and still refuse at the
+/// at-rest gate.
 #[pyfunction]
 #[pyo3(signature = (doc, *, resolver=None))]
 pub(crate) fn solve_document(

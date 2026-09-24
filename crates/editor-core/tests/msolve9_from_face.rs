@@ -15,13 +15,14 @@
 //! own document (a block seated on a post's cap, the post's height
 //! edited, the mate following by exactly the height change); every
 //! analytic carrier resolving to `face_pose`'s frame bit for bit with
-//! the sense bit left out; a NURBS face refusing typed; the reference
-//! rule; a vanished name and an unresolvable part refusing in the
-//! resolver's own voice at the door, at evaluation and never at load;
-//! the memo key moving iff the face's part moves; the wire round-trip
-//! of both arms and the stray-key refusal; and every tracked
-//! document loading with its frames read as authored and re-saving
-//! byte for byte.
+//! the sense bit left out; a NURBS face refusing typed; a vanished
+//! name and an unresolvable part refusing in the resolver's own voice
+//! at the door, at evaluation and never at load;
+//! the memo key moving under an edit to the face's part and holding
+//! under one outside it; a tie and an analysis lane refusing typed;
+//! the wire round-trip of both arms, the stray-key refusal and the
+//! untagged frame's; and every tracked document loading on the tagged
+//! wire and re-saving byte for byte.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -33,11 +34,11 @@ use std::sync::Arc;
 use editor_core::mate::SurfaceKind;
 use editor_core::{
     Alignment, AuthoredFrame, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocumentId,
-    EditError, EntityKind, EvalOptions, Evaluation, Expr, FaceName, FacePoseRefusal, FaceRefusal,
-    Frame, LoggedEdit, LoopProgram, MateFault, MateFrame, MatePrimitive, MateSide, Node,
-    NodeErrorKind, PartFault, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId,
-    RefusingReach, RoleSeg, SitedFace, SlotId, StableName, all_faces, face_carrier_kind,
-    face_frame, load, mate_reach, save,
+    EditError, EntityKind, EvalOptions, Evaluation, Expr, FaceName, FaceRefusal, Frame, LoggedEdit,
+    LoopProgram, MateFault, MateFrame, MatePrimitive, MateSide, Node, NodeErrorKind, PartFault,
+    PersistError, ProfileDoc, ProfileProgram, REGENERATE_RECOURSE, RecipeNodeId, RefusingReach,
+    RoleSeg, SitedFace, SlotId, StableName, all_faces, face_carrier_kind, face_frame, load,
+    mate_reach, save,
 };
 use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
 use fixture::{
@@ -82,7 +83,7 @@ fn cap(end: CapEnd) -> StableName {
 /// A frame that names `local`, a face of the part, with no authored
 /// reference.
 fn from_face(local: &StableName) -> MateFrame {
-    MateFrame::from_face(FaceName::new(local.clone()).expect("a face"), None)
+    MateFrame::from_face(FaceName::new(local.clone()).expect("a face"))
 }
 
 /// The identity frame, authored: origin at the part's origin, +z, +x.
@@ -215,14 +216,21 @@ fn mate_fault(ev: &Evaluation<f64>, mate: RecipeNodeId) -> MateFault {
 /// its own door, the store holding the new version, the reference
 /// moved by `UpdateReference` through the store's reach.
 fn shorten_or_grow(s: &mut Seat, height: f64) {
-    let (post, _) = step(
-        s.post.clone(),
+    edit_the_post(
+        s,
         DocEdit::SetParam {
             node: PART_BODY,
             slot: SlotId::Distance,
             expr: len(height),
         },
     );
+}
+
+/// An edit to the post document, stored under a new pin, and the
+/// assembly's reference moved to it — the post as the store now holds
+/// it.
+fn edit_the_post(s: &mut Seat, edit: DocEdit<ProfileProgram>) {
+    let (post, _) = step(s.post.clone(), edit);
     let new_ref = s.store.insert(post.clone(), Tol::witness());
     s.post = post;
     s.opts = with_resolver(s.store.clone());
@@ -658,31 +666,32 @@ fn a2_a_nurbs_face_refuses_no_canonical_frame_typed() {
     .expect("authored vectors keep working");
 }
 
-// ---- The reference rule ----
+// ---- A tie, and an analysis lane ----
 
-/// **One reference, from one source**: a carrier that fixes its own
-/// in-frame reference resolves with none authored and refuses an
-/// authored one beside it (`ReferenceRefused`). Every analytic carrier
-/// the readback answers fixes one today, so `NoReference` is pinned
-/// at its wrap — the readback's contract admits a pose with none, and
-/// no door produces it.
+/// **A name the part's table ties refuses `Ambiguous`** at the insert
+/// door, naming the mate, the side, the instance, the part and the
+/// face: the U cutter's two congruent arms mint one tied face row, so
+/// there is no one pose to read.
 #[test]
-fn a_carried_reference_beside_an_authored_one_refuses_and_no_reference_is_pinned() {
-    let (part, name, pose) = carrier("msolve9-ref-sphere", SurfaceKind::Sphere);
-    assert!(pose.u_ref.is_some(), "a sphere fixes its own reference");
-    resolve_through_the_solve(
-        "msolve9-ref-none",
-        part.clone(),
-        from_face(&name),
-        AxisSense::Aligned,
-    )
-    .expect("resolves with the carrier's own reference");
-    let doubled = MateFrame::from_face(
-        FaceName::new(name.clone()).expect("a face"),
-        Some([1.0, 0.0, 0.0]),
-    );
-    let fault = resolve_through_the_solve("msolve9-ref-twice", part, doubled, AxisSense::Aligned)
-        .expect_err("one fact spelled twice");
+fn a_tied_face_refuses_ambiguous_at_the_door() {
+    let (part, sub) = fixture::u_cutter_tie(ProfileDoc::empty(
+        DocumentId::derive("msolve9-tie-part"),
+        Tol::witness(),
+    ));
+    let ev = run(&part, &EvalOptions::default());
+    let tied = ev
+        .value(sub)
+        .expect("the U subtract evaluates")
+        .name_table
+        .iter()
+        .find_map(|(name, entry)| match entry {
+            editor_core::Entry::Tied(_) if name.kind == EntityKind::Face => Some(name.clone()),
+            _ => None,
+        })
+        .expect("the U cutter ties a face");
+    let fault =
+        resolve_through_the_solve("msolve9-tie", part, from_face(&tied), AxisSense::Aligned)
+            .expect_err("a tied face has no one pose");
     let MateFault::FaceUnresolved {
         side: MateSide::A,
         refusal,
@@ -692,27 +701,54 @@ fn a_carried_reference_beside_an_authored_one_refuses_and_no_reference_is_pinned
         panic!("expected FaceUnresolved, got {fault:?}");
     };
     assert!(
-        matches!(refusal.as_ref(), FaceRefusal::ReferenceRefused { face, .. } if **face == name),
-        "{fault:?}"
-    );
-    let instance = RecipeNodeId(3);
-    let part_ref = editor_core::DocRef {
-        id: DocumentId::derive("msolve9-ref-pin"),
-        pin: editor_core::ContentPin([9u8; 32]),
-    };
-    let face = FaceName::new(name).expect("a face");
-    assert_eq!(
-        FaceRefusal::of(
-            FacePoseRefusal::NoReference,
-            instance,
-            part_ref,
-            face.clone()
+        matches!(
+            refusal.as_ref(),
+            FaceRefusal::Ambiguous { face, candidates: 2, .. } if **face == tied
         ),
-        FaceRefusal::NoReference {
-            instance,
-            part: part_ref,
-            face,
-        }
+        "{refusal:?}"
+    );
+}
+
+/// **A face frame resolves on the nominal lane only**: the same seat
+/// evaluated at `Dual64` — the scalar `stackup::sensitivities` runs its
+/// passes at — faults the mate `Unpinned`, naming the instance, the
+/// part and the face, where the `f64` evaluation of the same document
+/// resolves it. The pose's coordinates carry a tangent there, and the
+/// solve's `f64` frames have no place for it.
+#[test]
+fn a_face_frame_under_a_dual_evaluation_refuses_unpinned() {
+    let s = seat("msolve9-dual", 1.0);
+    assert!(run(&s.doc, &s.opts).node_error(s.mate).is_none());
+    let dual = editor_core::evaluate::<geom_core::Dual64>(
+        &s.doc,
+        None,
+        &CancelToken::new(),
+        &s.opts,
+        Tol::witness(),
+    );
+    let fault = match &dual
+        .node_error(s.mate)
+        .expect("the mate faults at Dual64")
+        .kind
+    {
+        NodeErrorKind::Mate(fault) => (**fault).clone(),
+        other => panic!("a mate's own refusal: {other}"),
+    };
+    let MateFault::FaceUnresolved {
+        side: MateSide::A,
+        refusal,
+        ..
+    } = &fault
+    else {
+        panic!("expected FaceUnresolved, got {fault:?}");
+    };
+    assert!(
+        matches!(
+            refusal.as_ref(),
+            FaceRefusal::Unpinned { instance, face, .. }
+                if *instance == s.post_i && **face == cap(CapEnd::End)
+        ),
+        "{refusal:?}"
     );
 }
 
@@ -850,10 +886,18 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
 
 /// **A part that does not resolve faults the mate in the resolver's
 /// own voice** — at the door through the refusing reach, and at
-/// evaluation under no resolver — before any lever is asked.
+/// evaluation under no resolver — before any lever is asked, naming
+/// the instance, the part and the face; the message names the face
+/// too.
 #[test]
 fn an_unresolvable_part_faults_in_the_resolvers_voice() {
     let s = seat("msolve9-unresolved", 1.0);
+    let Some(Node::InstantiatePart {
+        doc_ref: post_ref, ..
+    }) = s.doc.node(s.post_i).cloned()
+    else {
+        panic!("an instance");
+    };
     let (_, fault) = at_the_door(
         &s.doc,
         &RefusingReach,
@@ -870,8 +914,14 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
             MateFault::FaceUnresolved { side: MateSide::A, refusal, .. }
                 if matches!(
                     refusal.as_ref(),
-                    FaceRefusal::PartUnresolved { instance, fault: PartFault::NoResolver }
-                        if instance_named.is_none_or(|named| *instance == named)
+                    FaceRefusal::PartUnresolved {
+                        instance,
+                        part,
+                        face,
+                        fault: PartFault::NoResolver,
+                    } if instance_named.is_none_or(|named| *instance == named)
+                        && *part == post_ref
+                        && **face == cap(CapEnd::End)
                 )
         )
     };
@@ -882,17 +932,30 @@ fn an_unresolvable_part_faults_in_the_resolvers_voice() {
         no_resolver(&at_evaluation, Some(s.post_i)),
         "the evaluation's own voice: {at_evaluation}"
     );
+    let MateFault::FaceUnresolved { refusal, .. } = &at_evaluation else {
+        unreachable!("matched above");
+    };
+    let text = refusal.to_string();
+    assert!(
+        text.contains(&cap(CapEnd::End).to_string()) && text.contains(&post_ref.to_string()),
+        "the message names the face and the part: {text}"
+    );
 }
 
 // ---- A4: the memo key ----
 
-/// **The mate's key moves iff the face's part moves**: an edit to the
-/// part that moves the face re-keys the mate — its value is
-/// recomputed, not served, and the block's pose follows — while an
-/// edit elsewhere in the assembly leaves the key alone and the mate
-/// comes off the memo.
+/// **The mate's key moves under an edit to the face's part, and holds
+/// under an edit outside it.** The key carries the part's content pin
+/// (`SolveAnswer`'s face channel), which over-approximates the face
+/// in the direction that re-reads: an edit to the part that moves the
+/// face re-keys the mate — its value is recomputed and the block's
+/// pose follows — and so does an edit to the part that leaves the face
+/// bit for bit where it was (a datum frame inserted into the post),
+/// while an edit outside the part leaves the key alone and the mate's
+/// value comes off the memo. The whole-document solve runs on every
+/// evaluation either way; what the memo serves is the mate's value.
 #[test]
-fn a4_the_key_moves_with_the_face_and_holds_otherwise() {
+fn a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_it() {
     let mut s = seat("msolve9-a4", 1.0);
     let (mate, block_i) = (s.mate, s.block_i);
     let first = run(&s.doc, &s.opts);
@@ -929,33 +992,79 @@ fn a4_the_key_moves_with_the_face_and_holds_otherwise() {
         "the solved pose followed the face"
     );
 
-    // An edit that leaves the part alone: a datum inserted beside the
-    // assembly's nodes.
-    let (doc, _) = insert(
-        s.doc.clone(),
-        fixture::frame([0.0, 0.0, 5.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    // An edit to the part that leaves the face where it was: a datum
+    // frame inserted into the post. The cap's pose is the same bits,
+    // and the key moves anyway — the pin is the part's, not the face's.
+    let cap_before = cap_pose(&s.post, CapEnd::End);
+    edit_the_post(
+        &mut s,
+        DocEdit::InsertNode {
+            node: fixture::frame([0.0, 0.0, 5.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+        },
+    );
+    let cap_after = cap_pose(&s.post, CapEnd::End);
+    let pose_bits = |p: &topo::readback::Pose<f64>| {
+        let u = p.u_ref.expect("a cap fixes its reference");
+        [
+            p.origin.x, p.origin.y, p.origin.z, p.axis.x, p.axis.y, p.axis.z, u.x, u.y, u.z,
+        ]
+        .map(f64::to_bits)
+    };
+    assert_eq!(
+        pose_bits(&cap_after),
+        pose_bits(&cap_before),
+        "the face did not move"
     );
     let third = editor_core::evaluate::<f64>(
-        &doc,
+        &s.doc,
         Some(&second),
         &CancelToken::new(),
         &s.opts,
         Tol::witness(),
     );
-    assert_eq!(
+    assert_ne!(
         key(&second),
         key(&third),
-        "the face did not move, the key did not"
+        "an edit to the face's part moves the key, whether or not the face moved"
     );
-    assert!(reused(&second, &third), "the mate came off the memo");
+    assert!(!reused(&second, &third), "the mate's value was recomputed");
+    assert_eq!(
+        placed_z(&s.doc, &s.opts).to_bits(),
+        1.3_f64.to_bits(),
+        "to the same pose"
+    );
+
+    // An edit outside the part: a datum inserted beside the assembly's
+    // nodes.
+    let (doc, _) = insert(
+        s.doc.clone(),
+        fixture::frame([0.0, 0.0, 5.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
+    );
+    let fourth = editor_core::evaluate::<f64>(
+        &doc,
+        Some(&third),
+        &CancelToken::new(),
+        &s.opts,
+        Tol::witness(),
+    );
+    assert_eq!(
+        key(&third),
+        key(&fourth),
+        "an edit outside the part leaves the key"
+    );
+    assert!(
+        reused(&third, &fourth),
+        "the mate's value came off the memo"
+    );
 }
 
 // ---- The wire ----
 
 /// **Both arms round-trip, and a stray key on either refuses at
 /// load**: a document carrying a `FromFace` side and an `Authored`
-/// side saves and loads as itself, and a key neither inner struct has
-/// refuses the file as unreadable.
+/// side saves and loads as itself, a face side is `{"face": …}` and
+/// nothing else, and a key neither inner struct has — a `reference`
+/// beside a face included — refuses the file as unreadable.
 #[test]
 fn both_arms_round_trip_and_a_stray_key_on_either_refuses() {
     let s = seat("msolve9-wire", 1.0);
@@ -968,6 +1077,30 @@ fn both_arms_round_trip_and_a_stray_key_on_either_refuses() {
     );
     let again = save(&loaded.doc, &[], Tol::witness()).expect("re-saves");
     assert_eq!(again, text, "byte for byte");
+    // A face side is its name and nothing else on the wire.
+    let body = wire::wire_body(&text);
+    let face_side =
+        &body["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"]["a"]["FromFace"];
+    assert_eq!(
+        face_side
+            .as_object()
+            .expect("the arm's object")
+            .keys()
+            .collect::<Vec<_>>(),
+        ["face"],
+        "{face_side}"
+    );
+    // A reference beside the face is a key the arm does not have: the
+    // roll is the carrier's, so there is nothing an author could add.
+    let referenced = wire::doctored(&text, |wire| {
+        wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"]["a"]["FromFace"]["reference"] =
+            serde_json::json!([1.0, 0.0, 0.0]);
+    });
+    let err = load(&referenced, Tol::witness()).expect_err("a reference key refuses");
+    assert!(
+        matches!(err, PersistError::Unreadable { .. }),
+        "a reference beside a face: {err:?}"
+    );
     // Side `a` names the face, side `b` authors vectors: a stray key
     // inside either arm refuses, and so does one beside the tag.
     for (side, arm) in [("a", "FromFace"), ("b", "Authored")] {
@@ -1023,11 +1156,20 @@ fn an_untagged_frame_refuses_whichever_arms_keys_it_carries() {
 /// every mate frame it carries is spelled with its tag**: the corpus
 /// is on this wire, not the one before the arm, so no reader has an
 /// older shape to accept.
+///
+/// **The tag half cannot fail today**: no tracked document holds a
+/// mate, so the walk meets no alignment and the half is vacuous until
+/// one does. It is kept for that day — a mated document checked in
+/// on an older wire would load-fail here, and one on this wire is
+/// checked side by side — and the load-and-re-save half runs over
+/// every file now. Both suffixes a document is saved under are walked;
+/// an older build's bytes kept as refusal evidence refuse with the
+/// regenerate recourse, and are held to holding no mate.
 #[test]
 fn c5_every_tracked_document_loads_on_the_tagged_wire_and_re_saves_identically() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let listed = std::process::Command::new("git")
-        .args(["ls-files", "-z", "--", "*.pncad"])
+        .args(["ls-files", "-z", "--", "*.pncad", "*.cad"])
         .current_dir(&root)
         .output()
         .expect("git lists the tracked files");
@@ -1050,6 +1192,19 @@ fn c5_every_tracked_document_loads_on_the_tagged_wire_and_re_saves_identically()
             }) => {
                 assert_ne!(document, p);
                 assert_eq!(p, process);
+                continue;
+            }
+            // An older build's bytes, kept as evidence of the load
+            // door's refusal (`bool13_goldens/`): refused with the
+            // regenerate recourse, as every pre-wire file is. None holds
+            // a mate, so no frame on an older wire hides behind the
+            // refusal.
+            Err(e) if e.to_string().contains(REGENERATE_RECOURSE) => {
+                assert!(
+                    !text.contains("\"Mate\""),
+                    "{}: an unloadable file holds a mate: {e}",
+                    path.display()
+                );
                 continue;
             }
             Err(e) => panic!("{}: loads with no store: {e}", path.display()),
@@ -1106,30 +1261,33 @@ fn every_alignment(value: &serde_json::Value, f: &mut dyn FnMut(&serde_json::Val
     }
 }
 
-/// The two edit doors' shared finiteness rule reaches a face frame's
-/// authored reference and nothing else of it: a non-finite reference
-/// refuses `NonFiniteAlignment`, and a face frame with none is finite
-/// whatever its face resolves to.
+/// The two edit doors' shared finiteness rule reaches the authored
+/// side of a mate and nothing of a face side, which authors no number:
+/// a non-finite authored side beside a face side refuses
+/// `NonFiniteAlignment` at the door before any face is read, and a
+/// face side beside a finite one is finite whatever its face resolves
+/// to.
 #[test]
-fn a_face_frames_reference_is_the_only_number_the_finiteness_door_sees() {
+fn a_face_side_authors_no_number_the_finiteness_door_sees() {
     let s = seat("msolve9-finite", 1.0);
-    let poisoned = MateFrame::from_face(
-        FaceName::new(cap(CapEnd::End)).expect("a face"),
-        Some([f64::NAN, 0.0, 0.0]),
-    );
+    let poisoned = MateFrame::authored([f64::NAN, 0.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]);
     let err = s
         .doc
         .apply(
             &DocEdit::InsertNode {
-                node: mate(s.post_i, s.block_i, coincide(poisoned, identity())),
+                node: mate(
+                    s.post_i,
+                    s.block_i,
+                    coincide(from_face(&cap(CapEnd::End)), poisoned),
+                ),
             },
             Tol::witness(),
             &RefusingReach,
         )
-        .expect_err("a non-finite reference refuses");
+        .expect_err("a non-finite authored side refuses");
     assert!(
         matches!(err, EditError::NonFiniteAlignment { .. }),
-        "{err:?}"
+        "the finiteness door, before the refusing reach is asked: {err:?}"
     );
     assert!(coincide(from_face(&cap(CapEnd::End)), identity()).is_finite());
 }

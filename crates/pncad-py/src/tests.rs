@@ -4489,13 +4489,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         function: "face_refusal_tag",
         values: &[
             "ambiguous",
-            "no_reference",
             "no_such_name",
             "not_a_face",
             "not_an_instance",
             "part_unresolved",
             "readback",
-            "reference_refused",
             "unpinned",
         ],
         delegates: &[],
@@ -5703,6 +5701,8 @@ fn a_face_refusal_spells_the_facts_it_shares_the_way_their_own_maps_do() {
     assert_eq!(
         face_refusal_tag(&FaceRefusal::PartUnresolved {
             instance,
+            part,
+            face: face.clone(),
             fault: PartFault::NoResolver,
         }),
         lever_refusal_tag(&LeverRefusal::PartUnresolved {

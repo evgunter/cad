@@ -266,8 +266,10 @@ shelf_underside = instance_cap(ev, shelf_i, CapEnd.Start)
 # its OWN part's coordinates. The post's seat IS its top cap face, by
 # the post's own name: the solve reads the cap's pose off the post's
 # evaluation every time, so a post whose height changes moves the
-# seat with it. The shelf's seats are authored numbers — its own datum
-# (it is modelled from its underside), not a face of it. The posts sit
+# seat with it. The shelf's seats are authored numbers: both posts
+# meet ONE face of the shelf, its underside, and a face frame is that
+# face's canonical origin with no offset inside the face, so two seats
+# spelled as the face would land on the same point. The posts sit
 # flush with the shelf's two ends, which is the obvious way to draw a
 # bench.
 post_seat = MateFrame.from_face(part_cap(post, CapEnd.End))
@@ -342,12 +344,20 @@ Two things in that block are worth pausing on.
 **A mate frame is a face of the part, or three authored vectors.**
 `MateFrame.from_face(name)` names a face in the PART's own spelling
 and the solve resolves it from the part's own evaluation at every
-evaluation — its origin, its chart axis and its own roll reference —
-so nothing is stored twice and the mate follows the face when the
-part is edited; a face with no canonical frame (a NURBS carrier)
-refuses typed and keeps taking authored vectors. Authored vectors are
-the spelling for a datum that is not a face (the shelf's seats above)
-and for a roll the face's own reference does not give. The solve's
+evaluation — its origin, its chart axis and the carrier's own roll
+reference — so nothing is stored twice and the mate follows the face
+when the part is edited; a face with no canonical frame (a NURBS
+carrier) refuses typed and keeps taking authored vectors. The name is
+the whole frame: a face frame's roll is the carrier's, and its origin
+is the face's canonical one. Authored vectors are the spelling for a
+point that is not a face's origin (the shelf's two seats above, both
+on its one underside), and for a roll the carrier does not give. A
+face frame also resolves at the NOMINAL value only: under an analysis
+lane — `stackup.sensitivities`' dual passes, a certified `clearance`'s
+interval leaf — the part's product pins no single number, the face
+side refuses `unpinned`, and those two doors refuse an assembly that
+holds one, where the same mate authored as vectors still solves. The
+solve's
 *algorithm* is unchanged — coset intersection over decided
 predicates, no numeric fitting — and its inputs are the document plus
 its mated parts' evaluations. What is still not checked is an
@@ -1173,9 +1183,12 @@ is one node whose placements are a rule; a mate names an instance. The
 bench's flat-pack layout and its assembled stand are two documents for
 this reason, not one.
 
-**A mate frame is not minted from a face** (issue #944). You select
-the face for the reference and *author* the frame separately, and
-nothing checks that the two agree — which is why the gate exists, and
+**A face frame gives up two things authored vectors keep.** Its roll
+is the carrier's own reference, so it cannot turn a mate about its
+axis; and it resolves on the nominal lane only, so sensitivities and
+certified clearance refuse an assembly that holds one. An authored
+frame keeps both, and pays for them the old way: nothing checks it
+against the faces the mate names, which is why the gate exists, and
 why a mate that solves is not yet a mate that certifies.
 
 **A mate is a product root.** Roots are the live nodes nothing else

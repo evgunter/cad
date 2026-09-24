@@ -41,11 +41,13 @@ msolve9_from_face.rs`: A1 `a1_the_mate_follows_the_edited_face`; A2
 `a2_the_reachs_face_pose_is_the_parts_own_face_frame_bit_for_bit`,
 `a2_every_analytic_carrier_resolves_to_face_pose_bit_for_bit`,
 `a2_the_sense_bit_is_not_folded_and_axis_sense_alone_decides`,
-`a2_a_nurbs_face_refuses_no_canonical_frame_typed`; the reference rule
-`a_carried_reference_beside_an_authored_one_refuses_and_no_reference_is_pinned`;
+`a2_a_nurbs_face_refuses_no_canonical_frame_typed`;
+`a_tied_face_refuses_ambiguous_at_the_door`;
+`a_face_frame_under_a_dual_evaluation_refuses_unpinned`;
 `a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_load`;
 `an_unresolvable_part_faults_in_the_resolvers_voice`; A4
-`a4_the_key_moves_with_the_face_and_holds_otherwise`; the wire,
+`a4_the_key_moves_under_an_edit_to_the_faces_part_and_holds_under_one_outside_it`;
+the wire,
 externally tagged under the spec's 2026-09-24 amendment,
 `both_arms_round_trip_and_a_stray_key_on_either_refuses` and
 `an_untagged_frame_refuses_whichever_arms_keys_it_carries`; C5
@@ -60,5 +62,8 @@ viewer's tool authors `FromFace` (`mate_tool_flow`, `review_gui4_r1`,
 seats its posts on their cap faces and its migration walk shows the
 shelf following the shortened posts; Python has `MateFrame.from_face`,
 `mate_face_unresolved`, `face_refusal_tag` and the payload's `face`
-(`test_assembly_author.py::TestMateFrameFromFace`). Residue filed:
-`from-face-frame-under-an-analysis-lane-refuses-unpinned`.
+(`test_assembly_author.py::TestMateFrameFromFace`). A face frame is
+its name alone (the review fix pass dropped the authored reference: its
+roll is the carrier's). Residue filed:
+`from-face-frame-under-an-analysis-lane-refuses-unpinned` and
+`a-face-frame-cannot-turn-its-roll`.
