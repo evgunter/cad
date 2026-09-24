@@ -2204,8 +2204,7 @@ fn carried_names_of(name: &StableName, node: RecipeNodeId) -> Vec<StableName> {
 /// invariant a re-anchoring of a downstream table would break, which
 /// is the day the descent question becomes observable.
 #[test]
-fn a_name_carried_inside_a_shells_table_keeps_its_operands_program_spelling_over_a_reversed_loop()
-{
+fn a_name_carried_inside_a_shells_table_keeps_its_operands_program_spelling_over_a_reversed_loop() {
     let pt = |x: f64, y: f64| [len(x), len(y)];
     let cw = LoopProgram::Chain(vec![
         ProgramStep::At(pt(2.0, 2.0)),
