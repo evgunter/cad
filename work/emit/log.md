@@ -335,6 +335,27 @@ The weekly usage limit stopped all lanes on 2026-09-23 at about 09:30
 UTC. They were resumed on 2026-09-24 from their pushed branches and
 worktrees.
 
+## 2026-09-24 — a second usage-limit stop
+
+The weekly limit stopped every lane again at about 05:00 UTC. At 12:10
+every branch was fully pushed and every worktree was clean, so nothing
+was lost except in-flight edits the lanes re-derive. The four lanes
+and the review of 3133 were resumed:
+
+- loft correspondence, whose PR is about to open;
+- the 3125 fix pass;
+- the 3124 fix pass;
+- 3133, the split spur, in review.
+
+## 2026-09-24 — Ev on tangent splits
+
+Ev, in chat: a split plane that grazes the target within the sliver
+band refuses, and an exact tangency has to be declared. Both are
+unlikely to happen by coincidence when the cut elsewhere does not
+depend on them. So refusing, as 3133's guard does, is the correct
+posture, not a P0. What remains is verb breadth: `split` has no way to
+declare an exact tangency, with the boolean's declared contacts as the
+precedent. That is filed P1 on REACH's slate from 3133.
 ## 2026-09-24 — the global flip lanes close (PR 3124)
 
 A vanished name's diagnosis now reads two scopes, through one lane
