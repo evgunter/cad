@@ -2495,6 +2495,11 @@ impl DocSession {
             DocEdit::InsertNode { .. }
             | DocEdit::DeleteNode { .. }
             | DocEdit::SetMembers { .. }
+            // A profile's program replaced whole, with the names its
+            // reshaping moves rebound at the door: structure, not a
+            // panel field's value — and the identity program under
+            // the identity provenance is the door's own no-op.
+            | DocEdit::SetProgram { .. }
             | DocEdit::SetRoots { .. }
             | DocEdit::Rebind { .. }
             | DocEdit::UpdateReference { .. }
