@@ -4524,15 +4524,20 @@ pub(crate) fn tier3_local_checks_marked<
     // lever is re-metered to the arcs' own lengths. That arithmetic has
     // one home, `crate::loop_winding`, which the merge's role assigner
     // (`merge_faces`) decides on as well, so the checker falsifies a
-    // role by the very functional that assigned it. A LINE-only loop is
-    // decided by the chord sum alone, the correction block structurally
-    // skipped.
+    // role by the very functional that assigned it — so an error IN the
+    // functional moves both sides together and this arm cannot see it.
+    // The independent guard is a row whose roles come from another
+    // derivation: `m5_s10_face_sense`'s extruded washer (roles from
+    // `profile`'s containment pass, chord terms zero) and its R ≠ 1,
+    // Δ ≠ π crescent, which refuse the HONEST body under a mis-signed
+    // or mis-scaled arc term. A LINE-only loop is decided by the chord
+    // sum alone, the correction block structurally skipped.
     //
     // **The residue this arm does not examine**, by carrier: a loop
     // riding an `Ellipse` (the shared winding decides it, and the merge
-    // assigns roles by it, but its lever is an arc-length upper bound
-    // and no ellipse-bounded body has been measured under this refusal
-    // — `work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`),
+    // assigns roles by it, but its lever is an arc-length upper bound;
+    // what the widening would refuse over the corpora is measured at
+    // `work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`),
     // and a loop riding a NURBS or spiric carrier, whose region has no
     // closed-form area. A planar face bounded so carries a stored sense
     // no at-rest check falsifies.

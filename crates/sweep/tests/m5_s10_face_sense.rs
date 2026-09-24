@@ -693,6 +693,69 @@ fn an_inverted_cap_refuses_at_its_arc_ring_as_well_as_its_outline() {
     }
 }
 
+/// The notched slab: a 0.5 × 0.08 rectangle whose top edge is a
+/// CONCAVE arc of radius ½ spanning 60°, dipping to 0.013 above the
+/// floor, extruded 0.1. Its caps are narrowly positive — twice their
+/// area is `2(w·h − R²(Δ − sin Δ)/2)` with `w·h = 0.04` and a circular
+/// segment of 0.0227 — so the arc term's MAGNITUDE decides their sign,
+/// not just its sign. `R ≠ 1` and `Δ ≠ π` on purpose: at a unit radius
+/// or a semicircle the mutants below are invisible.
+fn notched_slab() -> Body<f64> {
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+        ProfileVertex::new(p2(0.5, 0.0), 0.0),
+        // Bulge −tan(Δ/4), Δ = 60°: a clockwise arc, bowing INTO the
+        // counterclockwise region. Chord 0.5 = 2R sin 30° gives R = ½.
+        ProfileVertex::new(p2(0.5, 0.08), -(15f64.to_radians().tan())),
+        ProfileVertex::new(p2(0.0, 0.08), 0.0),
+    ]);
+    let prof = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .expect("the notched profile validates");
+    extrude(&prof, Extrusion::Distance(0.1), Tol::witness())
+        .expect("the notched slab extrudes")
+        .body
+}
+
+/// **The arc term's magnitude is pinned, not only its sign.** The
+/// notched slab's caps are wound positive by a margin smaller than the
+/// arc term it subtracts, so the HONEST body certifies only if the
+/// segment `R²(Δ − sin Δ)` is computed right, and each cap inverted
+/// through the public door refuses by name.
+///
+/// **How it goes red — the mutants it kills.** Twice the honest cap
+/// area is 0.0347. Replacing the arc term flips the honest caps
+/// negative, so `validate_geometric` on the honest body refuses:
+/// dropping `sin Δ` (→ −0.182), dropping `R²` (→ −0.101), `R` for `R²`
+/// (→ −0.011), `sin(Δ/2)` for `sin Δ` (→ −0.057), and `sin|Δ|` on the
+/// reverse-traversed cap (→ −0.398). What it does NOT kill — the arc
+/// term dropped or its sign flipped leaves these caps positive — is
+/// the washer row's job, where the chord term is zero. The runtime
+/// values are the two error vectors.
+#[test]
+fn a_narrow_arc_cap_certifies_honest_and_refuses_inverted() {
+    let tol = Tol::witness();
+    let body = notched_slab();
+    assert!(
+        topo::validate_geometric(&body, tol).is_ok(),
+        "the honest notched slab certifies: its caps' arc-exact winding is positive"
+    );
+    let caps = planar_arm_reaches(&body)
+        .into_iter()
+        .filter(|&(_, l)| {
+            loop_carriers(&body, l)
+                .iter()
+                .any(|c| matches!(c, geom::Curve3::Circle { .. }))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(caps.len(), 2, "both caps carry the concave arc");
+    for &(face, l) in &caps {
+        let errs = topo::validate_geometric(&sense_inverted_at(&body, face), tol)
+            .expect_err("an inverted narrow arc cap is refused");
+        assert_eq!(role_inversions(&errs), vec![(face, l)]);
+    }
+}
+
 /// **The residue: a planar loop riding an `Ellipse` stays outside the
 /// arm.** `tilted_cut_upper`'s cut face is a plane bounded by one exact
 /// `Ellipse`; its bottom cap is bounded by circle arcs. Inverting the

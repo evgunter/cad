@@ -2241,23 +2241,10 @@ impl<T: Decide> Body<T> {
         Ok(group)
     }
 
-    /// The signed winding of a cycle loop around `normal`, through the
-    /// shared statement of the `bool_ring_run_winding` predicate
-    /// ([`crate::loop_winding`], whose module docs carry the carrier
-    /// set, the conic bulge decomposition and the F4 metering). `None`
-    /// for empty loops (a lone-vertex ring bounds no area and stays a
-    /// ring) and for a cycle carrying a NURBS or spiric edge — the
-    /// honest remainder, on which the caller refuses rather than
-    /// guesses. This site answers on every carrier the predicate
-    /// decides, ellipses included: it ASSIGNS a role and needs one.
-    ///
-    /// A torn lookup announces `StaleKey` naming the loop, and an
-    /// in-band margin escalates typed: a role derived from a boundary
-    /// that could not be read is the silent-corrupt-export class the
-    /// winding pass exists to close.
-    ///
-    /// `normal` must be the face's OUTWARD normal (S10), folded once by
-    /// the caller through `face_normal`'s door.
+    /// [`Body::planar_loop_winding`] at ellipse reach, in this door's
+    /// error vocabulary: a torn lookup is `StaleKey` naming the loop and
+    /// an in-band margin escalates. `None` is an empty loop or a NURBS
+    /// or spiric carrier. `normal` is the face's OUTWARD normal.
     fn loop_winding(
         &self,
         l: LoopKey,

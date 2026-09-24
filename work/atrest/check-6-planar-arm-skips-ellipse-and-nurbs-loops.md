@@ -25,7 +25,20 @@ arm still does not examine, by carrier:
   `LoopCarriers::Circular`. Two things stand between: the perimeter
   lever is an arc-length UPPER bound for an ellipse (`|Δ|·major`), so
   a thin elliptic region escalates where a circular one decides; and
-  no ellipse-bounded body has been measured under this refusal.
+  the spec that widened the arm (ATREST-4) settled circles only.
+
+  **Measured (ATREST-4, CI run 36045094459):** the instrument logged
+  the `Elliptic`-reach verdict of every planar loop the whole nextest
+  suite, the tour and the wild STEP corpus validate. Per ε row
+  (default, 1e-6, 1e-12 — identical): 279 ellipse-bearing loops, 278
+  wound `Positive` (honest), **1 would refuse** — the section face of
+  `step-export`'s `cut_cylinder` under the test's own `flip_all`, a
+  genuinely inverted body — and **0 escalate**. The demos add 8, all
+  `Positive`. The largest contributors are `cert_m2r1_passes`,
+  `m10_di_dual_corpus`, `cert_m2r1_corpus`, `docm5_subject`. So on
+  today's corpora the widening to `Elliptic` refuses nothing a verb
+  produces and escalates nothing; what it still owes is a thin
+  elliptic region, where the upper-bound lever is the risk.
   Producers today: `topo::splitting::split` by a plane oblique to a
   cylinder (the cut face of `crates/sweep/tests/common/mod.rs`'s
   `tilted_cut_upper`; `step-export`'s `cut_cylinder`), and any STEP
