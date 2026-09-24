@@ -16,7 +16,9 @@
 //! (`CAD_M10_10_DOC=r1_segment_boss|r2_d_tab_literal|r2_d_tab_parameter`,
 //! and the dyadic controls `r2_d_tab_literal_dyadic|r2_d_tab_parameter_dyadic`);
 //! `m10_bulge_renders.txt` beside this file is the trimmed record of
-//! those renders, with the boss's freeze cause uncut.
+//! those renders — every decision the tier was asked and left numeric
+//! on an arc-family predicate, with its freeze causes and its
+//! attributed cause — with the boss's one value-free residual uncut.
 //!
 //! The split is the same at ε = 1e-6, 1e-9 and 1e-12 (the atoms a
 //! residual carries do not depend on the band), so the rows assert

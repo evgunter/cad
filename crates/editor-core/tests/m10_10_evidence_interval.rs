@@ -829,6 +829,14 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
                 },
             ),
         ] {
+            // `CAD_M10_10_COLUMNS=a,b,…` keeps the columns whose label
+            // contains one of the words (`OFF`, `rules`, `the ladder`, …),
+            // so one rule set's cost on the pad is not six pad replays.
+            if let Ok(cols) = std::env::var("CAD_M10_10_COLUMNS")
+                && !cols.split(',').any(|c| label.contains(c.trim()))
+            {
+                continue;
+            }
             // `CAD_M10_10_PROFILE` installs the tier's cost profile
             // around each take and prints what the retry memos held
             // (`SymProfile::retry_forms`) beside the DAG — the growth
