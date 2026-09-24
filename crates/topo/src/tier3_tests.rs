@@ -1321,7 +1321,7 @@ fn a_multi_solid_certificate_is_the_whole_body_measurement() {
 /// One solid, three shells: the outer cube, a cavity wall inside it,
 /// and an island inside that cavity — the hollow-operand subtraction's
 /// shape
-/// (`work/bool/subtract-of-a-hollow-operand-files-the-island-under-one-solid`).
+/// (`work/zip/subtract-of-a-hollow-operand-files-the-island-under-one-solid`).
 /// Two of those shells enclose definitely-positive volume.
 ///
 /// Four doors produce this state on purpose — `graft onto`, the
@@ -1332,11 +1332,9 @@ fn a_multi_solid_certificate_is_the_whole_body_measurement() {
 /// against an authored expectation. So tier 3 admits it, and this row
 /// reds if a count-level refusal is ever put back at this tier.
 ///
-/// What IS unchecked here is the NESTING — that the island sits inside
-/// the cavity — which no tier reads
-/// (`work/atrest/tier-3-does-not-check-shell-roles-per-solid`). The
-/// row cannot assert an absence, so it asserts the admission and names
-/// the residue.
+/// The NESTING is read too, by check 10, and admits it on the merits:
+/// inside the island the shells wind `+1 - 1 + 1 = 1`, so the island is
+/// material and every region winds 0 or 1.
 #[test]
 fn a_solid_holding_several_outer_shells_still_certifies() {
     let tol = Tol::witness();
@@ -1425,6 +1423,73 @@ fn a_solid_with_a_genuine_cavity_certifies() {
         body.shells_of_solid(keeper).expect("the one solid").len(),
         2,
         "one solid, two shells"
+    );
+    assert_eq!(validate_geometric(&body, tol), Ok(()));
+}
+
+/// **Check 10's per-shell contribution, both arms.** The point-in-solid
+/// walk over ONE shell's faces answers whether a point is in the
+/// material that shell alone bounds. For the outer wall that is its
+/// inside; for the cavity wall, whose faces point into the cavity, it is
+/// the cavity's COMPLEMENT — so a point in the cavity reads `Out` and a
+/// point anywhere else reads `In`, the far one included (where the walk
+/// may cross nothing and read the selection's negative volume at
+/// infinity). Check 10's `[In] - [Void]` is exactly this: `-1` in the
+/// cavity, `0` outside it. A walk that read a void selection as its
+/// ENCLOSED region would flip both void rows below.
+#[test]
+fn a_shell_selection_reads_the_material_that_shell_alone_bounds() {
+    use crate::boolean::SolidContainment::{In, Out};
+    use crate::boolean::solid_contain::{SolidFaces, point_in_solid_faces};
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    cube_solid(&mut body, (0.0, 0.0, 0.0), 1.0, false, tol);
+    cube_solid(&mut body, (0.2, 0.2, 0.2), 0.5, true, tol);
+    let [keeper, cavity] = solids_of(&body)[..] else {
+        panic!("two cubes are two solids");
+    };
+    let (wall, void) = (
+        body.shells_of_solid(keeper).expect("live")[0],
+        body.shells_of_solid(cavity).expect("live")[0],
+    );
+    refile_shells(&mut body, cavity, keeper);
+    let roles: std::collections::BTreeMap<_, _> = crate::classify_shells(&body, tol)
+        .expect("the cubes classify")
+        .into_iter()
+        .map(|c| (c.shell, c.role))
+        .collect();
+    assert_eq!(
+        (roles[&wall], roles[&void]),
+        (crate::ShellRole::Outer, crate::ShellRole::Void)
+    );
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let probe = |shell, p: Point3<f64>| {
+        let sel = SolidFaces::of_shell(&body, shell).expect("a shell selection");
+        point_in_solid_faces(&body, &sel, p, band, tol).expect("the walk answers")
+    };
+    let in_cavity = pt(0.43, 0.41, 0.47);
+    let in_wall = pt(0.1, 0.13, 0.11);
+    let beside = pt(2.0, 0.37, 0.41);
+    let far = pt(100.0, 90.0, 80.0);
+    assert_eq!(
+        [
+            probe(wall, in_cavity),
+            probe(wall, in_wall),
+            probe(wall, beside),
+            probe(wall, far)
+        ],
+        [In, In, Out, Out],
+        "the outer wall's material is its inside"
+    );
+    assert_eq!(
+        [
+            probe(void, in_cavity),
+            probe(void, in_wall),
+            probe(void, beside),
+            probe(void, far)
+        ],
+        [Out, In, In, In],
+        "the cavity wall's material is everything outside the cavity"
     );
     assert_eq!(validate_geometric(&body, tol), Ok(()));
 }

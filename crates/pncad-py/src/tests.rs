@@ -3432,7 +3432,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
 /// **What one validator finding says, arm by arm** — including the
 /// arms no Python door can produce.
 ///
-/// `ValidationError` has seventy-one arms and Python reaches them
+/// Python reaches `ValidationError`'s arms
 /// through five `Body` methods — the four rungs of the ladder and
 /// `validate_geometric_measured`, whose gate half is the third rung —
 /// so most of the enum is unreachable
@@ -5501,6 +5501,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "scaffolding_empty_loop",
             "scaffolding_strut_vertex",
             "shell_disconnected",
+            "shell_winding",
             "shell_without_faces",
             "sliver_dihedral",
             "solid_without_shells",

@@ -101,3 +101,9 @@ carry numbers where the prose above may not"*).
 
 Territory: `crates/pncad-py/*` is LIB's fence and CENSUS's `keep_out`
 announces its pncad-py rows there.
+
+**2026-09-24 (ATREST-7).** The *"seventy-one arms"* of `ValidationError`
+went stale when check 10 added `ShellWinding`; both copies
+(`src/tests.rs` and `tests/test_validate.py`) now say "`ValidationError`'s
+arms" with no number — the delete disposition, since the exhaustive
+`validation_error_tag` is where that count lives.

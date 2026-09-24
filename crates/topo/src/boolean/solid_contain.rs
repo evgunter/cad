@@ -2369,6 +2369,36 @@ impl SolidFaces {
         let faces = body
             .faces_of_solid(solid)
             .ok_or(PointInSolidError::NoSuchSolid { solid })?;
+        Self::guarded(body, faces)
+    }
+
+    /// One SHELL's faces in face-arena order, guarded as [`Self::of`]
+    /// guards a solid's — selected by the faces' own `shell`
+    /// back-pointers, so the probe reads the material that shell ALONE
+    /// bounds: for a cavity wall, whose faces point into the cavity,
+    /// that is everything outside the cavity (the complement, read
+    /// through the probe's at-infinity side exactly as a reverted
+    /// operand is).
+    ///
+    /// A key the body does not hold selects no face, which the probe
+    /// answers [`PointInSolidError::ZeroVolumeBody`]; a group-read
+    /// surface key shared with a face of ANOTHER SHELL — of this solid
+    /// or of another — refuses [`PointInSolidError::SurfaceSharedOutsideSolid`],
+    /// whose reason holds unchanged at shell grain.
+    pub(crate) fn of_shell<T: Decide>(
+        body: &Body<T>,
+        shell: crate::entity::ShellKey,
+    ) -> Result<Self, PointInSolidError> {
+        let faces = body
+            .faces()
+            .filter(|(_, d)| d.shell == shell)
+            .map(|(k, _)| k)
+            .collect();
+        Self::guarded(body, faces)
+    }
+
+    /// `faces` as a selection, behind the shared-group-key guard.
+    fn guarded<T: Decide>(body: &Body<T>, faces: Vec<FaceKey>) -> Result<Self, PointInSolidError> {
         // A group-read kind whose surface key is carried on both sides
         // of the selection boundary (the variant's doc). One pass over
         // the arena: every key's first face outside the selection.

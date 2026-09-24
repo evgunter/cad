@@ -447,7 +447,7 @@ class TestTheRefusalsShape(unittest.TestCase):
     def test_the_arms_this_suite_cannot_reach_are_named(self):
         """WHAT PYTHON CANNOT PRODUCE, said rather than left implied.
 
-        `ValidationError` has seventy-one arms and Python reaches them
+        Python reaches `ValidationError`'s arms
         through five `Body` methods — the four rungs and
         `validate_geometric_measured`, whose gate half is the third
         rung. The structural and geometric arms
