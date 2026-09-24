@@ -85,7 +85,7 @@
 //! structure, and the alternative is an unsound bound. It stays a
 //! per-window check rather than a mint-time refusal because it is a
 //! *value* precondition of the claim on exactly the weights a window
-//! reads — a bad weight poisons the windows that read it and no other
+//! reads — a bad weight refuses the windows that read it and no other
 //! — where the count is a *pairing* fact about the whole array, which
 //! is the mint's business.
 //!
@@ -315,7 +315,7 @@ impl<E: CertifiedBounds> Eq for SplineCoeffs<'_, E> {}
 /// counts are checked once. Weight *positivity* is not checked at the
 /// mint: it is the per-window precondition of
 /// [`RationalWindow::hull_rational`] (module docs), and a bad weight
-/// poisons the windows that read it and no other.
+/// refuses the windows that read it and no other.
 ///
 /// `Copy`: three references, allocation-free.
 ///
@@ -485,7 +485,7 @@ impl KnotVector {
     /// [`KnotVector::control_count`] long. This is the only way to
     /// obtain a [`RationalCoeffs`]. Weight *positivity* is not checked
     /// here: it is the rational door's per-window precondition (module
-    /// docs), and a bad weight poisons the windows that read it.
+    /// docs), and a bad weight refuses the windows that read it.
     pub fn with_rational_coeffs<'a, E: CertifiedBounds>(
         &'a self,
         coeffs: &'a [E],
@@ -500,7 +500,7 @@ impl KnotVector {
     }
 
     /// `coeffs` minted against this vector and differenced once —
-    /// [`SplineCoeffs::derivative_coeffs`] — or a **one-element poison
+    /// [`SplineCoeffs::derivative_coeffs`] — or a **one-element refused
     /// vector** when the mint refuses the array (a length that is not
     /// [`KnotVector::control_count`]). The returned length is never
     /// zero: the mint's answer has `control_count() − 1 ≥ 1` entries
@@ -587,7 +587,7 @@ impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
     /// enclosure of a rounded difference would silently drop that error
     /// into the denominator. (Sterbenz makes the subtraction exact for
     /// most knot pairs; interval arithmetic pays one ulp for the cases where it is
-    /// not.) A knot difference that is not provably positive poisons
+    /// not.) A knot difference that is not provably positive refuses
     /// the coefficient — interval arithmetic's `Div` refuses a zero-touching
     /// divisor, so this cannot leak.
     ///
@@ -611,7 +611,7 @@ impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
 
     /// Enclosures of **every** derivative coefficient of the nonrational
     /// scalar B-spline: `control_count() − 1` values, index `i` giving
-    /// `Q_i`. A bad knot difference or a poisoned coefficient poisons
+    /// `Q_i`. A bad knot difference or a refused coefficient refuses
     /// that entry.
     ///
     /// The returned length is never zero. Every [`KnotVector`]
@@ -645,7 +645,7 @@ impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
     /// A certified upper bound on `|f|` over the **whole domain** —
     /// the magnitude of [`SplineCoeffs::domain_hull`]. The per-span
     /// reading is [`CoeffWindow::sup_norm_bound`]; `NaN` for every
-    /// poison path, as there.
+    /// refusal path, as there.
     pub fn sup_norm_bound(self) -> f64 {
         self.domain_hull().mag()
     }
@@ -683,7 +683,7 @@ impl<'a, E: CertifiedBounds> RationalCoeffs<'a, E> {
     }
 
     /// Whole-domain enclosure of the rational scalar spline: the hull
-    /// over spans of [`RationalWindow::hull_rational`]. Poison if any
+    /// over spans of [`RationalWindow::hull_rational`]. Refused if any
     /// span's weights fail the precondition.
     pub fn domain_hull_rational(self) -> Interval {
         let mut acc = Interval::refused();
@@ -732,7 +732,7 @@ impl<'a, E: CertifiedBounds> CoeffWindow<'a, E> {
     /// the brackets of the `p + 1` coefficients active there (module
     /// docs: the convexity fact).
     ///
-    /// Poison for a poisoned coefficient. The result is the
+    /// Refused for a refused coefficient. The result is the
     /// polynomial's bound on `[u_span, u_{span+1}]` only — outside it
     /// the span's polynomial extension is unbounded by anything here.
     ///
@@ -781,7 +781,7 @@ impl<'a, E: CertifiedBounds> CoeffWindow<'a, E> {
     /// certifies the span). The whole-domain reading is
     /// [`SplineCoeffs::sup_norm_bound`].
     ///
-    /// Returns `NaN` for every poison path, which fails that comparison
+    /// Returns `NaN` for every refusal path, which fails that comparison
     /// under every direction (D4 ¶2). The value is an upper bound on
     /// the true supremum, never an approximation of it.
     pub fn sup_norm_bound(self) -> f64 {
@@ -812,7 +812,7 @@ impl<E: CertifiedBounds> RationalWindow<'_, E> {
     /// the *right to make the claim*: with all active weights strictly
     /// positive the rational basis is a nonnegative partition of unity,
     /// so the value is still a convex combination of the control
-    /// values. A non-positive or non-finite weight is poison.
+    /// values. A non-positive or non-finite weight is refused.
     pub fn hull_rational(self) -> Interval {
         if !self.weights_positive() {
             return Interval::refused();

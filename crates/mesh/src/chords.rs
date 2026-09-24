@@ -278,7 +278,7 @@ fn nurbs_chord_count(
             // second difference is the first difference of `q1`
             // against the derivative vector `kv1`, which is exactly
             // what `derivative_domain_hull` answers. A length the
-            // mint refuses arrives as poison, as `difference_coeffs`
+            // mint refuses arrives refused, as `difference_coeffs`
             // would have delivered it.
             let hull = kv1
                 .with_coeffs(&q1)
@@ -286,7 +286,7 @@ fn nurbs_chord_count(
             sum_sq = sum_sq + hull.sqr();
         }
         // A refused hull has no bound to report: `NaN` is what the
-        // `is_finite` test below reads as "unbounded/poisoned", and
+        // `is_finite` test below reads as "unbounded/refused", and
         // the refusal is asked by name because interval arithmetic carries it in
         // the decoration rather than in the endpoints.
         if !sum_sq.is_certified() {
@@ -298,7 +298,7 @@ fn nurbs_chord_count(
     if !m_bound.is_finite() {
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
-            note: "B-spline carrier second-derivative hull is unbounded/poisoned — \
+            note: "B-spline carrier second-derivative hull is unbounded/refused — \
                    outside the certified chord inventory",
         });
     }
@@ -328,11 +328,11 @@ fn nurbs_chord_count(
 /// weight range: for a SUP bound with a nonnegative numerator the
 /// conservative division is by `w_min` (the mirror image of the speed
 /// meter's lower-bound `w_max` choice — the interval division by
-/// `[w_lo, w_hi]` computes exactly that, outward-rounded, and poisons
+/// `[w_lo, w_hi]` computes exactly that, outward-rounded, and refuses
 /// if positivity was never proven). Recentring at the span's control
 /// centroid keeps the cross terms span-sized. The domain bound is the
 /// max over spans (hull of the squared enclosures), `next_up` after
-/// the final square root — poison flows to the caller's finite check.
+/// the final square root — a refusal flows to the caller's finite check.
 fn rational_carrier_m_bound(
     n: &geom::NurbsCurve3<f64>,
     ek: EdgeKey,
@@ -400,7 +400,7 @@ fn rational_carrier_m_bound(
         })
         .collect();
     // The signed hull of `net[i] − c·wnet[i]` over `[i0, i1]`
-    // (out-of-range poisons; recentring commutes with differencing).
+    // (out-of-range is refused; recentring commutes with differencing).
     let window = |net: &[Interval],
                   wnet: &[Interval],
                   c: Interval,
@@ -458,14 +458,14 @@ fn rational_carrier_m_bound(
         // and `s − 2` are not subtractions at the use site either. The
         // caller's degree gate makes p ≥ 2, so the order-2 window is
         // always `Some`; if that ever stopped holding the bound
-        // POISONS (and the caller's finite check refuses) rather than
+        // is REFUSED (and the caller's finite check reads it) rather than
         // underflowing.
         // `p ≥ 2` (the caller's degree gate), so the order-2 window is
         // `Some` on every reachable path. It is asserted rather than
         // merely commented: `debug_assert` is the tree's fail-loud form
         // for a state that cannot occur — the panic family is denied in
         // kernel code (workspace lints), so the release build still
-        // takes the total route below and POISONS, which refuses the
+        // takes the total route below and REFUSES the
         // bound instead of quietly under-reporting it.
         let d2 = span.derived_window(2);
         debug_assert!(
@@ -707,8 +707,8 @@ fn general_uv_speeds(
             .iter()
             .map(|pt| Interval::point(if axis == 0 { pt.x } else { pt.y }))
             .collect();
-        // `mag` is NaN on poison — a coefficient array the mint
-        // refuses arrives as poison and leaves as the refusal below,
+        // `mag` is NaN on a refusal — a coefficient array the mint
+        // refuses arrives refused and leaves as the refusal below,
         // never as a finite bound.
         *s = kv
             .with_coeffs(&coeffs)
@@ -721,7 +721,7 @@ fn general_uv_speeds(
         return Err(TessellateError::UnsupportedCurve {
             edge: ek,
             note: "general curve-in-UV pcurve whose derivative control hull is \
-                   unbounded/poisoned — outside the certified chord inventory",
+                   unbounded/refused — outside the certified chord inventory",
         });
     }
     Ok((su, sv))
@@ -1293,7 +1293,7 @@ mod tests {
         }
     }
 
-    /// The POISON row the flip keeps: an ILLEGAL rational carrier
+    /// The refusal row the flip keeps: an ILLEGAL rational carrier
     /// (non-positive weight) cannot even be described —
     /// `NurbsCurve3::new` refuses at the door, so
     /// [`nurbs_chord_count`]'s own licence check is a defensive

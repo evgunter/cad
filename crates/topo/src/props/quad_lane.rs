@@ -695,15 +695,16 @@ mod tests {
         }
 
         /// The seam is per scalar, not per channel: one violated
-        /// coefficient poisons its own slot and leaves the rest intact,
-        /// so the poison reaches the flux algebra where it is visible.
+        /// coefficient is refused in its own slot and leaves the rest
+        /// intact, so the refusal reaches the flux algebra where it is
+        /// visible.
         #[test]
-        fn chan_poisons_only_the_violated_coefficient() {
+        fn chan_refuses_only_the_violated_coefficient() {
             let one = Interval::from_f64(1.0);
             let c = chan(one, trv_pos(), one, one).expect("channel builds");
             assert!(!c.ca.is_certified(), "the violated coefficient survived");
             for (tag, r) in [("c0", c.c0), ("cb", c.cb), ("cl", c.cl)] {
-                assert!(r.is_certified(), "{tag} poisoned a certified coefficient");
+                assert!(r.is_certified(), "{tag} refused a certified coefficient");
             }
         }
     }

@@ -168,7 +168,7 @@ fn ring_corpus() -> Vec<(String, Interval)> {
         ("[-1,1]", Interval::from_bounds(-1.0, 1.0)),
         ("[-inf,0]", Interval::from_bounds(f64::NEG_INFINITY, 0.0)),
         ("[0,inf]", Interval::from_bounds(0.0, f64::INFINITY)),
-        ("poison", Interval::refused()),
+        ("refused", Interval::refused()),
         ("inverted", Interval::from_bounds(1.0, -1.0)),
     ];
     let mut out: Vec<(String, Interval)> = seeds.iter().map(|&(t, r)| (t.to_string(), r)).collect();

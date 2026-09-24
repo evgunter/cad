@@ -2170,7 +2170,7 @@ fn a_poisoning_control_net_refuses_the_enclosure_typed() {
     let w = NurbsSurface::new(ku, kv, control, weights).expect("a wall a caller can build");
     match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
         Err(SsiError::UnsupportedCertificate { what })
-            if what.contains("control-net enclosure poisoned") =>
+            if what.contains("control-net enclosure refused") =>
         {
             println!("the poisoned net was answered by the CHART SWEEP'S POISON ARM");
         }
@@ -2248,7 +2248,7 @@ fn an_underflowing_weight_reaches_the_chart_poison_arm_without_magnitude() {
     let w = wall_from_cols_w(NURBS_WALL_COLS, [tiny; 8]);
     match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
         Err(SsiError::UnsupportedCertificate { what })
-            if what.contains("control-net enclosure poisoned") => {}
+            if what.contains("control-net enclosure refused") => {}
         Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => {
             panic!("the chart-speed guard answered for a net whose speed is finite: {what}")
         }

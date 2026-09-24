@@ -584,7 +584,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // lifted: it is a value branch, which generic evaluation code
         // may not take (Q1), and it bought nothing. A degenerate span
         // (zero-length tangent) divided by zero poisons `e`, the graph
-        // margin's certification enclosure poisons with it, and
+        // margin's certification enclosure is refused with it, and
         // `zero_free_lower_bound` reports 0 — the same typed refusal
         // the guarded zero vector produced, reached without a branch.
         let t = fine.deriv(T::from_f64(0.5 * (a + b)));
@@ -605,7 +605,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
 ///
 /// Returns the chain's smallest zero-free margin (dimensionless, the
 /// `sin θ` scale) and the box count; `None` when the chain is broken or
-/// an enclosure poisoned, which is a definite structural refusal.
+/// an enclosure refused, which is a definite structural refusal.
 fn probe_tube_analytic<T: Decide + Bounds + CertifiedEnclosure>(
     chain: &[(Box3, Vec3<T>)],
     s1: &Surface<T>,
@@ -676,6 +676,11 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         // so the derivative boxes below would be an arbitrary cell's
         // and the margin would certify from them. The probe refuses —
         // no span of this pcurve can be bounded, so none is probed.
+        // The window hull maps any refusal to NaI, so on it
+        // `!is_certified()` and `Real::is_poison` agree today and no row
+        // can tell them apart; the check asks `is_certified` because that
+        // is the question that stays right if the hull ever hands a
+        // refusal on with real endpoints.
         if !hu.is_certified() || !hv.is_certified() {
             return None;
         }
@@ -685,7 +690,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         let dv = boxes.deriv_box(u0, u1, v0, v1, false);
         // The plane equation is what the whole limb certifies, so the
         // normal crosses through the CERTIFIED door: a component whose
-        // computation left its domain becomes poison and the
+        // computation left its domain is refused and the
         // transversality margin collapses to zero, rather than a
         // zero-free enclosure of an equation nobody evaluated.
         let n = [
@@ -702,7 +707,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         // refuse. An admitted `+∞` here does not certify a wrong
         // number today (`ex`/`ey` become `0` or NaN and the stretch
         // guard below catches the residue), but which guard answers
-        // would then depend on the poison's arithmetic path rather
+        // would then depend on the refusal's arithmetic path rather
         // than on this test saying what it means.
         if !tn.is_finite() || tn <= 0.0 {
             return None;

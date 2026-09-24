@@ -55,8 +55,8 @@
 //! **The divisor is the cell's weight hull, argued not assumed.** On
 //! the cell `w` is a convex combination of the active weights, so
 //! `w ∈ [w_min, w_max]`; interval arithmetic's division refuses a zero-touching
-//! divisor, so a net whose positivity was never proven poisons rather
-//! than answering.
+//! divisor, so a net whose positivity was never proven is refused
+//! rather than answering.
 //!
 //! **Recentring keeps the cross terms cell-sized**: with the cell's
 //! control centroid as `c`, `sup|S − c|` is a cell-of-control-net
@@ -86,10 +86,10 @@
 //! correlation a steep ramp lives in. The cost is only how finely a
 //! consumer must subdivide; the bound is never wrong.
 //!
-//! # Poison (fail-loud, D4 ¶2)
+//! # Refusal (fail-loud, D4 ¶2)
 //!
 //! Structural refusals are typed ([`PatchBoundError`]); arithmetic
-//! failures are refusals, and a poisoned hull fails every `≤ ε`
+//! failures are refusals, and a refused hull fails every `≤ ε`
 //! comparison it reaches.
 
 use geom_core::Bounds;
@@ -436,7 +436,7 @@ pub type Net = TensorNet;
 /// The signed hull of `a[i][j] − c·w[i][j]` over the window
 /// `wu × wv` — the recentred homogeneous net `Ã = A − c·w` read
 /// through the linearity of knot differencing (`d(A − c·w) = dA −
-/// c·dw`, entrywise, same knots). Out-of-range indices poison.
+/// c·dw`, entrywise, same knots). Out-of-range indices are refused.
 ///
 /// This module's own READING, not the shared assembly: no other
 /// consumer of a tensor net recentres at the hull read, because no
@@ -483,7 +483,7 @@ pub fn window_hull(net: &Net, wu: &RangeInclusive<usize>, wv: &RangeInclusive<us
 /// magnitude is read off its signed enclosure.
 ///
 /// Fixed association (D9): channel order `x, y, z`, accumulated left
-/// to right from interval arithmetic zero. Poison in one channel poisons the sum.
+/// to right from interval arithmetic zero. A refusal in one channel refuses the sum.
 #[must_use]
 pub fn sq_norm(v: [Interval; 3]) -> Interval {
     v.iter().fold(Interval::zero(), |acc, c| acc + c.sqr())
@@ -744,7 +744,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     // code may not assume the ARITHMETIC proved it, so the refined
     // licence is read off the enclosure's own `lo` — a weight hull that
     // touches or straddles zero voids the convex-combination licence
-    // just as a described non-positive weight does, and poison is not a
+    // just as a described non-positive weight does, and a refusal is not a
     // proof of positivity either.
     for i in 0..nu {
         for j in 0..nv {
@@ -808,7 +808,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
             // value is sound and none of it has to be enclosed. Taken
             // from the midpoint of each enclosed control point, in a
             // fixed order; a non-finite midpoint (an overflowed or
-            // poisoned enclosure) contributes `0`, which is still a
+            // refused enclosure) contributes `0`, which is still a
             // finite centre and leaves the widened hulls to report the
             // trouble.
             let mut c = [0.0f64; 3];

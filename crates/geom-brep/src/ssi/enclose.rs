@@ -36,7 +36,7 @@
 //!
 //! # Soundness posture
 //!
-//! Every function is **conservative or poison**: a widened enclosure
+//! Every function is **conservative or refused**: a widened enclosure
 //! costs a refusal, never a wrong answer, and any structural surprise
 //! (unsupported kind, malformed net, zero-touching divisor) yields
 //! [`Interval::refused`], which fails every downstream test. There is
@@ -113,7 +113,7 @@ impl Box3 {
     /// one home.
     ///
     /// It answers the number and nothing else, and mints no
-    /// [`SupSpeed`](geom_core::SupSpeed): a box whose sides are poison
+    /// [`SupSpeed`](geom_core::SupSpeed): a box whose sides are refused
     /// or whose magnitudes overflow can answer `0`, `NaN` or `+∞`, and
     /// what each of those MEANS is the caller's decision — the two
     /// chart-rate sites currently answer it differently, which is a
@@ -149,8 +149,8 @@ impl Box3 {
     }
 
     /// Whether the two boxes definitely do **not** meet — the
-    /// exclusion test for the ℝ⁴ image-separation lane. Poison is never
-    /// disjoint (poison excludes nothing).
+    /// exclusion test for the ℝ⁴ image-separation lane. A refusal is
+    /// never disjoint (a refusal excludes nothing).
     pub(crate) fn definitely_disjoint(self, o: Self) -> bool {
         let sep = |a: Interval, b: Interval| {
             a.is_certified() && b.is_certified() && (a.hi() < b.lo() || b.hi() < a.lo())
@@ -159,7 +159,7 @@ impl Box3 {
     }
 
     /// Whether `self` is contained in `o` — the "accounted" test.
-    /// Poison contains nothing and is contained in nothing.
+    /// A refusal contains nothing and is contained in nothing.
     pub(crate) fn contained_in(self, o: Self) -> bool {
         let inside = |a: Interval, b: Interval| {
             a.is_certified() && b.is_certified() && b.lo() <= a.lo() && a.hi() <= b.hi()
@@ -174,7 +174,7 @@ impl Box3 {
 
     /// The center as an f64 point (a marcher seed, never a claim).
     ///
-    /// A poisoned axis has no center, and this says so with `NaN`
+    /// A refused axis has no center, and this says so with `NaN`
     /// rather than with the midpoint of a bracket that stands for
     /// nothing: the refusal is asked by name because interval arithmetic keeps
     /// its refusal in the decoration and a refused axis carries
@@ -194,7 +194,7 @@ impl Box3 {
     /// — D9), returning the two halves in ascending order.
     pub(crate) fn split(self) -> (Self, Self) {
         let (wx, wy, wz) = (self.x.width(), self.y.width(), self.z.width());
-        // A half of a poisoned axis is poisoned. `from_bounds` mints
+        // A half of a refused axis is refused. `from_bounds` mints
         // a fresh `Com` out of whatever endpoints it is handed, so
         // re-minting a refused axis through it would launder the
         // refusal away — which is what the certified door exists to
@@ -228,14 +228,14 @@ impl Box3 {
 /// stand for.
 ///
 /// An operand that cannot certify is refused at the door and yields
-/// poison here; a bracket whose upper end is negative is admitted by the
-/// door and yields poison at [`Interval::from_bounds`] (`−hi ≤ hi`
+/// a refusal here; a bracket whose upper end is negative is admitted by the
+/// door and yields a refusal at [`Interval::from_bounds`] (`−hi ≤ hi`
 /// fails). Either way the pad fails every downstream test rather than
 /// shrinking a box, and the two refusals stay distinct because only one
 /// of them is about the operand's right to certify anything. Stated
 /// precisely because the weaker claim is the true one: a bracket that
 /// merely STRADDLES zero has `hi ≥ 0` and pads by its upper end, which
-/// is sound — it is only an entirely-negative radius that poisons.
+/// is sound — it is only an entirely-negative radius that is refused.
 fn pad_interval<T: CertifiedEnclosure>(r: T) -> Interval {
     match r.certified_bracket() {
         Some((_, hi)) => Interval::from_bounds(-hi, hi),
@@ -288,7 +288,7 @@ fn norm_sq(q: [Interval; 3]) -> Interval {
 ///
 /// Implemented for the kinds whose meters form is a ring expression
 /// with no root: plane, sphere, cylinder. **Cone and torus yield
-/// poison** — their meters forms carry a `sqrt` certification arithmetic
+/// a refusal** — their meters forms carry a `sqrt` certification arithmetic
 /// deliberately does not take (`√(w·w)`; C9), and converting their
 /// polynomial composites back to meters needs a certified reciprocal of a
 /// quantity certification arithmetic cannot bound tightly enough to be useful. No
@@ -349,7 +349,7 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
     surface: &Surface<T>,
     b: Box3,
 ) -> [Interval; 3] {
-    let poison = [Interval::refused(); 3];
+    let refused = [Interval::refused(); 3];
     match *surface {
         Surface::Plane { normal, .. } => constv(normal),
         Surface::Sphere { center, radius, .. } => {
@@ -376,7 +376,7 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
         // As the residual enclosure above: no implicit form, no
         // gradient enclosure.
         Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
-            poison
+            refused
         }
     }
 }
@@ -486,7 +486,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// The rectangle is **clamped to the knot domains** first. Callers
     /// pad windows by a tube radius, which routinely pushes them past
     /// the clamped ends; a parameter outside the domain has no span,
-    /// and letting that poison the enclosure would make every branch
+    /// and letting that refuse the enclosure would make every branch
     /// that reaches a surface edge fail its own uniqueness tube. The
     /// clamp is sound because the objects being enclosed — a pcurve, a
     /// foot point — cannot leave the domain either.
@@ -514,7 +514,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     /// construction, and the net below is the window's OWN surface, so
     /// every `row(i) + j` is in range. The `ctl.get` arm is therefore
     /// unreachable — it is kept as the total spelling (D9: an
-    /// out-of-range read is a poison box, never an index panic), not as
+    /// out-of-range read is a refused box, never an index panic), not as
     /// a refusal any input can reach.
     fn cell_point_box(&self, win: SurfaceWindow<'_, T>) -> Box3 {
         // The net comes from the window's own surface, not from
@@ -529,7 +529,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
             let row = win.row(i);
             for j in 0..=win.span_v().degree() {
                 let Some(p) = ctl.get(row + j) else {
-                    return poison_box();
+                    return refused_box();
                 };
                 let b = Box3::between(*p, *p);
                 out = Some(match out {
@@ -538,7 +538,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 });
             }
         }
-        out.unwrap_or_else(poison_box)
+        out.unwrap_or_else(refused_box)
     }
 
     /// The homogeneous derivative-net hull in one direction, plus the
@@ -592,7 +592,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 let (Some(p0), Some(p1), Some(&w0), Some(&w1)) =
                     (ctl.get(idx0), ctl.get(idx1), wts.get(idx0), wts.get(idx1))
                 else {
-                    return (poison_box(), Interval::refused(), Interval::refused());
+                    return (refused_box(), Interval::refused(), Interval::refused());
                 };
                 // Homogeneous coefficients A = w·P. The weight is `f64`
                 // structure and the control point is the caller's
@@ -611,12 +611,12 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 ];
                 let (deg, span_lo, span_hi) = if along_u {
                     let Some((&lo, &hi)) = ku.get(iu + 1).zip(ku.get(iu + pu + 1)) else {
-                        return (poison_box(), Interval::refused(), Interval::refused());
+                        return (refused_box(), Interval::refused(), Interval::refused());
                     };
                     (pu as f64, lo, hi)
                 } else {
                     let Some((&lo, &hi)) = kv.get(iv + 1).zip(kv.get(iv + pv + 1)) else {
-                        return (poison_box(), Interval::refused(), Interval::refused());
+                        return (refused_box(), Interval::refused(), Interval::refused());
                     };
                     (pv as f64, lo, hi)
                 };
@@ -645,7 +645,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
             }
         }
         (
-            abox.unwrap_or_else(poison_box),
+            abox.unwrap_or_else(refused_box),
             wd.unwrap_or_else(Interval::refused),
             w.unwrap_or_else(Interval::refused),
         )
@@ -674,12 +674,12 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 });
             }
         }
-        out.unwrap_or_else(poison_box)
+        out.unwrap_or_else(refused_box)
     }
 
     /// A certified box for `∂S/∂u` (or `∂S/∂v`) over the rectangle, via
     /// the quotient rule `S_d = (A_d − S·w_d)/w` evaluated entirely on
-    /// hulls. Poison when the weight hull touches zero (interval arithmetic
+    /// hulls. Refused when the weight hull touches zero (interval arithmetic
     /// refuses the divisor) or the net is malformed.
     pub(crate) fn deriv_box(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool) -> Box3 {
         let ((su0, su1), (sv0, sv1)) = self.cells(u0, u1, v0, v1);
@@ -704,7 +704,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 });
             }
         }
-        out.unwrap_or_else(poison_box)
+        out.unwrap_or_else(refused_box)
     }
 
     /// A **first-order** certified box for `S` over an arbitrary
@@ -751,7 +751,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
     }
 }
 
-fn poison_box() -> Box3 {
+fn refused_box() -> Box3 {
     Box3 {
         x: Interval::refused(),
         y: Interval::refused(),
@@ -879,13 +879,13 @@ mod tests {
                 want.hi()
             );
         }
-        // The derivative boxes survive the same skip — poison here would
+        // The derivative boxes survive the same skip — a refusal here would
         // mean it left their hulls unseeded.
         for along_u in [true, false] {
             let d = boxes.deriv_box(u0, u1, v0, v1, along_u);
             assert!(
                 d.x.is_certified() && d.y.is_certified() && d.z.is_certified(),
-                "deriv box (along_u = {along_u}) poisoned across the empty cell"
+                "deriv box (along_u = {along_u}) refused across the empty cell"
             );
         }
     }
@@ -949,7 +949,7 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_kinds_poison_rather_than_guess() {
+    fn unsupported_kinds_refuse_rather_than_guess() {
         let torus = Surface::Torus {
             center: Point3::new(0.0, 0.0, 0.0),
             axis: Vec3::new(0.0, 0.0, 1.0),
@@ -964,9 +964,9 @@ mod tests {
     }
 
     #[test]
-    fn poison_boxes_are_never_disjoint_and_never_contained() {
+    fn refused_boxes_are_never_disjoint_and_never_contained() {
         let good = Box3::around(Point3::new(0.0, 0.0, 0.0), 1.0);
-        let bad = poison_box();
+        let bad = refused_box();
         assert!(!good.definitely_disjoint(bad));
         assert!(!bad.definitely_disjoint(good));
         assert!(!bad.contained_in(good));
@@ -987,7 +987,7 @@ mod tests {
     }
 
     /// **The two crossings agree with the door, whichever way it
-    /// answers.** The bracket crossing destructures a refusal to poison and
+    /// answers.** The bracket crossing destructures a refusal to NaI and
     /// `pad_interval` reads the bracket's upper end, so the door
     /// beginning to REFUSE a value it used to hand over as a NaN bracket
     /// takes a different branch through both of them. The `f64` lane is
@@ -1002,7 +1002,7 @@ mod tests {
     /// stops it is its width, downstream. The row pins the boundary
     /// between the two so neither can drift into the other unnoticed.
     #[test]
-    fn a_poisoned_f64_refuses_at_the_door_and_still_lands_on_poison() {
+    fn a_poisoned_f64_refuses_at_the_door_and_still_lands_on_a_refused_box() {
         let origin = Point3::new(0.0, 0.0, 0.0);
         let nan_pad = Box3::around(origin, f64::NAN);
         assert!(
@@ -1021,7 +1021,7 @@ mod tests {
         assert!(!bad_centre.x.is_certified(), "a NaN centre built a box");
         assert!(
             bad_centre.y.is_certified(),
-            "the healthy coordinates must still build: poison is per-axis here"
+            "the healthy coordinates must still build: a refusal is per-axis here"
         );
         let good = Box3::around(origin, 0.5);
         assert!(
@@ -1041,12 +1041,12 @@ mod tests {
     /// [`Interval::from_certified`] is the only way an evaluation
     /// scalar enters certification arithmetic here, and it is the one place the
     /// operand's own verdict is read — an operand whose bracket is sound
-    /// but whose computation left a domain arrives capped at interval arithmetic's
-    /// poison, and nothing across the seam consults the evaluation
+    /// but whose computation left a domain arrives capped at certification's
+    /// refusal, and nothing across the seam consults the evaluation
     /// scalar again.
     /// The rows sweep the operand across the domain boundary: the
     /// enclosure must refuse on exactly the side where the decoration
-    /// degrades, which neither a laundering nor a uniformly-poisoning
+    /// degrades, which neither a laundering nor a uniformly-refusing
     /// implementation can satisfy.
     #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
     mod decoration_seam {
@@ -1106,7 +1106,7 @@ mod tests {
         }
 
         /// Each entry point, swept. Both mutation directions are caught:
-        /// laundering certifies the whole sweep, uniform poisoning refuses
+        /// laundering certifies the whole sweep, uniform refusal refuses
         /// the whole sweep, and the non-vacuity assertions reject both.
         #[test]
         fn every_ring_crossing_refuses_exactly_where_the_decoration_degrades() {
@@ -1167,7 +1167,7 @@ mod tests {
         /// have been thought safe. It is not: the pad is a widening
         /// derived from a quantity whose computation left its domain.
         #[test]
-        fn a_violated_radius_poisons_the_pad() {
+        fn a_violated_radius_refuses_the_pad() {
             let c = Point3::new(h(0.0), h(0.0), h(0.0));
             let bad = Box3::around(c, operand(-1.0));
             assert!(!bad.x.is_certified() && !bad.y.is_certified() && !bad.z.is_certified());
