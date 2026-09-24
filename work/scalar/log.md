@@ -1625,3 +1625,33 @@ catches a literal door in a policy arm, which the helper cannot). One
 Opus full reviewer dispatched on the frozen head
 (`lane4p-review-brief.md`, nine claims led by "nothing pinned before is
 unpinned" and a plant battery on the door matcher).
+
+## RING-4 and RING-3 merged; RING-5 ruled (2026-09-24)
+
+Ev signed off both in chat. **RING-4** (#3154) merged first
+(`af2ca47f90`), with the state-sync riding it (spec → ledger note, item
+closed, the three mooted rows closed); Ev on the cost: "the time
+difference is unfortunate but seems totally worth it", and
+`test_utils::loud_skip_marker!` stays (the viewer's three `app` rows).
+**RING-3** (#3153) landed second: main merged in at `a0cef634a9` (five
+conflicts, all prose/tests; a whole-file `--ours` first dropped one of
+RING-4's non-conflicting edits in `ssi/certify.rs` — a stale `interval`
+cfg — caught by grep and redone hunk by hunk; local check, clippy,
+gates, geom-core 729/729 green; run 36004282466 green), then the
+state-sync and the DR-2 row as the LAST commit (excluded from the tally:
+method divergence), merged `542f44da5d`. Ev asked why the line count
+did not drop more: the ring's refusal bodies moved onto `Interval`
+(~400 of 533 lines), the renames are 1:1, and the fix pass added pins
+and rows; code net −319 over src and tests.
+
+**RING-5 (Ev, in chat, option 1 of two offered):** the certification
+doors move off `Interval`'s inherent surface into an extension trait in
+`geom-core`, imported by name in certification files, with a gate on
+its importers (allowlisted files; no `Real` + `is_poison` there) and one
+`hull` name per meaning; it absorbs
+`certification-value-hygiene-has-no-gate`. Declined: a thin view type
+`Certified(Interval)` (compiler-enforced, but a second type again,
+reversing C9's "one type in both roles"). C9's "inherent methods"
+wording changes with it — an `[ev]` PR. The backend's IEEE-1788 set
+operations stay as they are (evaluation wants them; the oracle checks
+them).
