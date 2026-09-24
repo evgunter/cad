@@ -4,43 +4,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::probe_support::{try_wall_sheet, wall_sheet};
 use geom_core::{Band, Tol};
-use topo::test_support::{CylFrame, cyl_wall_sheet};
+use topo::test_support::CylFrame;
 use topo::{Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, declared_pair_overlap};
 
 fn band() -> Band {
     let tol = Tol::witness();
     Band::linear(tol).unwrap()
-}
-
-/// The builder, fallible at the MINT: a tilted frame's chart images
-/// mint as exact structure only by bit-lottery above ~10·ε of tilt
-/// (`r2_diag_mintable_tilts` maps it; the constants of the rows using
-/// this door won the lottery at the default ε row, where their
-/// demonstrations were measured). A row whose fixture cannot be
-/// MINTED at this ε states that and stands down (the
-/// `m5_pr7_split_meter` typed-fixture-refusal precedent) — the arm
-/// never saw the pair, so neither outcome would be evidence about it.
-fn try_wall_sheet(
-    body: &mut Body<f64>,
-    frame: CylFrame,
-    src_id: u64,
-    u0: f64,
-    u1: f64,
-    v0: f64,
-    v1: f64,
-) -> Option<FaceKey> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        cyl_wall_sheet(
-            body,
-            frame,
-            Some(src_id),
-            (u0, u1),
-            (v0, v1),
-            Tol::witness(),
-        )
-    }))
-    .ok()
 }
 
 fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
@@ -176,14 +147,7 @@ fn probe2_band_fast_path_exactness_gate_is_f64_only() {
 
 fn sheet(frame: CylFrame, src: u64, u0: f64, u1: f64, v0: f64, v1: f64) -> (Body<f64>, FaceKey) {
     let mut body = Body::<f64>::new();
-    let f = cyl_wall_sheet(
-        &mut body,
-        frame,
-        Some(src),
-        (u0, u1),
-        (v0, v1),
-        Tol::witness(),
-    );
+    let f = wall_sheet(&mut body, frame, src, u0, u1, v0, v1);
     (body, f)
 }
 

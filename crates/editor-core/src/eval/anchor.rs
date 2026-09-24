@@ -5,11 +5,18 @@
 //! STRUCTURAL positions: `ProfileEdgeRef`/`ProfileVertexRef` indices
 //! mean "the segment/vertex the program's step order authored", not
 //! "the canonical rotation's position". Nothing geometric enters the
-//! index, so a parameter edit CANNOT renumber, by construction — the
-//! renumbering class (lex-band crossings under the canonical rotation)
-//! is eliminated for program loops. Structural edits (re-authoring the
-//! program) may renumber; the freeze doctrine (stale selections refuse
-//! Vanished, M6-5) remains that backstop, as everywhere.
+//! index, so the renumbering class (lex-band crossings under the
+//! canonical rotation) is eliminated for program loops: a parameter
+//! edit cannot move a name across the canonical start. What a
+//! parameter edit CAN still do is change how many segments a step
+//! draws — a corner fillet whose runs reach a `Zero` fit emits
+//! nothing, so a radius written through `SetParam` grows or shrinks
+//! the loop and every live name after that step renumbers, reported by
+//! nothing (`work/edit/a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names.md`).
+//! Structure changes by `DocEdit::SetProgram`, which rebinds every
+//! kept name and retires the rest (DM7); the freeze doctrine (stale
+//! selections refuse `Vanished`, M6-5) backstops what a reshaping
+//! strands, as everywhere.
 //!
 //! # Mechanism
 //!
@@ -32,7 +39,7 @@
 
 use profile::{Profile, ProfileLoop, ValidatedProfile};
 
-use crate::names::{Entry, NameTable, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName};
+use crate::names::{Entry, NameTable, ProfileEdgeRef, ProfileVertexRef, SegRewrite, StableName};
 
 /// One canonical loop's anchor: how canonical indices map back to the
 /// program's authored order.
@@ -299,82 +306,30 @@ fn remap_vertex(naming: &ProfileNaming, v: ProfileVertexRef) -> ProfileVertexRef
     }
 }
 
-/// Rewrites the profile-ref-bearing role segments an emitter minted
-/// DIRECTLY (extrude/revolve/loft emitters; wrapped upstream names are
-/// already program-anchored, so composition variants are untouched).
-///
-/// Not to be confused with [`crate::refactor`]'s function of the same
-/// name: that one partitions [`RoleSeg`] by whether the variant embeds
-/// a [`StableName`] and recurses into the ones that do; this one
-/// partitions it by whether the variant embeds a PROFILE LOCATOR, and
-/// does not recurse — the sentence above is why, and nothing enforces
-/// it.
-fn remap_seg(naming: &ProfileNaming, seg: RoleSeg) -> RoleSeg {
-    use RoleSeg as R;
-    match seg {
-        R::Lateral(e) => R::Lateral(remap_edge(naming, e)),
-        R::RimEdge(c, e) => R::RimEdge(c, remap_edge(naming, e)),
-        R::LateralEdge(v) => R::LateralEdge(remap_vertex(naming, v)),
-        R::CapVertex(c, v) => R::CapVertex(c, remap_vertex(naming, v)),
-        R::Band(e) => R::Band(remap_edge(naming, e)),
-        R::BandRim(v) => R::BandRim(remap_vertex(naming, v)),
-        R::BandRimPi(v) => R::BandRimPi(remap_vertex(naming, v)),
-        R::BandPi(e) => R::BandPi(remap_edge(naming, e)),
-        R::Meridian(m, e) => R::Meridian(m, remap_edge(naming, e)),
-        R::MeridianVertex(m, v) => R::MeridianVertex(m, remap_vertex(naming, v)),
-        R::Pole(v) => R::Pole(remap_vertex(naming, v)),
-        R::AxisEdge(e) => R::AxisEdge(remap_edge(naming, e)),
-        // EXHAUSTIVE on purpose (the `walk_names` rule): the arms above
-        // are exactly the variants that embed a `ProfileEdgeRef` or a
-        // `ProfileVertexRef`, and these are exactly the ones that do
-        // not. A future variant carrying a profile locator must be
-        // classified here or the compile breaks; a catch-all would let
-        // it cross a re-anchor with a stale locator, silently.
-        R::OutputBody
-        | R::Cap(..)
-        | R::RevolveCap(..)
-        | R::FromMember { .. }
-        | R::FromA(..)
-        | R::FromB(..)
-        | R::Seam { .. }
-        | R::Merged(..)
-        | R::Fragment(..)
-        | R::SplitBody(..)
-        | R::SectionFace { .. }
-        | R::SectionEdge { .. }
-        | R::SplitFragment { .. }
-        | R::CrossingVertex { .. }
-        | R::OnToolVertex { .. }
-        | R::FromTarget(..)
-        | R::BlendFace(..)
-        | R::CornerFace(..)
-        | R::TrimEdge { .. }
-        | R::FootVertex { .. }
-        | R::EndArc { .. }
-        | R::BandFace(..)
-        | R::BandTrim { .. }
-        | R::BandFoot(..)
-        | R::BandCross(..)
-        | R::BandCut(..)
-        | R::BandSlit(..)
-        | R::Inner(..)
-        | R::Rim(..)
-        | R::HoleRim { .. }
-        | R::InPart { .. }
-        | R::Instance { .. } => seg,
+/// **The anchor rewrite as a [`SegRewrite`]**: the profile locators an
+/// emitter minted DIRECTLY (extrude/revolve/loft emitters) are
+/// rewritten canonical → program; a carried name is left as it is —
+/// wrapped upstream names are already program-anchored, so this
+/// rewriter keeps the trait's identity `name` and never descends. The
+/// walk over `RoleSeg`'s shape is `RoleSeg::rewrite`'s, shared
+/// with the split re-map and the whole-program edit.
+struct Anchoring<'a>(&'a ProfileNaming);
+
+impl SegRewrite for Anchoring<'_> {
+    type Error = core::convert::Infallible;
+
+    fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Self::Error> {
+        Ok(remap_edge(self.0, e))
+    }
+
+    fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Self::Error> {
+        Ok(remap_vertex(self.0, v))
     }
 }
 
 fn remap_name(naming: &ProfileNaming, name: StableName) -> StableName {
-    StableName {
-        kind: name.kind,
-        node: name.node,
-        path: name
-            .path
-            .into_iter()
-            .map(|seg| remap_seg(naming, seg))
-            .collect(),
-    }
+    let Ok(anchored) = name.rewrite_path(&mut Anchoring(naming));
+    anchored
 }
 
 /// Rewrites every name in an emitted table canonical → program (the
