@@ -1442,6 +1442,14 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     // lint, not a refusal. The post is referenced twice; move ONE with
     // the primitive and the lint reports the multiplicity with the
     // nodes holding each pin.
+    // Where the shelf sits on the posts as they are — read now, while
+    // the store still holds the version both posts pin: a post side's
+    // frame is the post's own cap face, so a solve of a document whose
+    // pin the store has moved past refuses that side rather than
+    // remember an old frame.
+    let shelf_before = solve_document(&updated, &reach, tol)
+        .placement(&updated, stand.shelf_i)
+        .expect("the shelf is solved before the migration");
     let mut shorter = ws
         .resolve(
             &DocRef {
@@ -1530,9 +1538,6 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     // the cap used to be, and the gate would have refuted the mate by
     // name; the face name is the state, the frame is derived.
     let ev = run(&migrated, &with_store(ws), tol);
-    let shelf_before = solve_document(&stand.doc, &reach, tol)
-        .placement(&stand.doc, stand.shelf_i)
-        .expect("the shelf was solved before the migration");
     let shelf_after = solve_document(&migrated, &reach, tol)
         .placement(&migrated, stand.shelf_i)
         .expect("the shelf is solved after the migration");
