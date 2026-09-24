@@ -16,10 +16,11 @@ client over the API), functional style, fail-loud.
   their clause ids kept; DESIGN.md's companion table lists them.
 - `memories/MEMORY.md` — memory index; read it, follow pointers as
   relevant.
-- `docs/prompts/implementer-discipline.md` and
-  `docs/prompts/reviewer-style-lane.md` — the standing discipline
-  handed to every implementer and reviewer lane by path. **Orchestrators
-  read both in full**: they are the rules the orchestrator adjudicates
+- `docs/prompts/implementer-discipline.md`,
+  `docs/prompts/reviewer-style-lane.md` and
+  `docs/prompts/design-reviewer.md` — the standing discipline handed
+  to every implementer, reviewer and design-review lane by path.
+  **Orchestrators read all three in full**: they are the rules the orchestrator adjudicates
   against, and they bind the orchestrator's own judgement too (e.g. a
   golden or stored bit that changes is never a cost to weigh against a
   change that makes the code right — re-baseline and say what moved).
@@ -50,6 +51,11 @@ the body with its `file:line` citations, and commit it on your branch;
 Anything that needs Ev — a design fork, a ruling, a ratification, a
 question — is a PR titled `[ev] ...`, and the `work/` item that asked
 sets `needs_ev: true` ("Ev's channel" in `work/README.md`).
+
+- **A design fork is weighed first** by one Opus and one Fable
+  reviewer (`docs/prompts/design-reviewer.md`), reconciled until the
+  recommendations are clear; the procedure is in
+  `memories/orchestration-model.md`.
 
 - The PR states the question by editing the doc it concerns, and is
   updated in place with the answer. Its body is a decision document

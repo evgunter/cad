@@ -11,6 +11,7 @@ text.
 |---|---|---|
 | `reviewer-style-lane.md` | reviewers, alongside the claims to falsify | `docs/REVIEW-STYLE-DISPATCH.md` |
 | `implementer-discipline.md` | every implementer lane | `memories/orchestration-model.md` |
+| `design-reviewer.md` | the Opus and Fable reviewers who weigh a design fork before it goes to Ev | `memories/orchestration-model.md`, `docs/DESIGN-FORK-PROTOCOL.md` |
 
 **Scope: repo-general prompts only.** A program whose specs carry their own
 standing brief lines keeps them there.
