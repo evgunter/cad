@@ -20,7 +20,7 @@ fn annotated_doc(sigma: f64) -> ProfileDoc {
     editor_core::apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("s"),
+            name: ParamName::literal("s"),
             value: DocParam::continuous_with(
                 Dimension::Length,
                 1.0,
@@ -61,7 +61,7 @@ fn planted_snapshot_corruptions_refuse_typed_at_load() {
         assert_ne!(corrupt, text, "{label}: the corruption must land");
         match load(&corrupt, Tol::witness()) {
             Err(PersistError::Distribution { name, fault: got }) => {
-                assert_eq!(name.0, "s", "{label}");
+                assert_eq!(name.as_str(), "s", "{label}");
                 assert_eq!(got, fault, "{label}");
             }
             other => panic!("{label}: must refuse typed, got {other:?}"),
@@ -78,7 +78,7 @@ fn a_planted_bounds_corruption_refuses_at_load() {
         editor_core::apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::new("b"),
+                name: ParamName::literal("b"),
                 value: DocParam::continuous_with(
                     Dimension::Length,
                     1.0,
@@ -96,7 +96,7 @@ fn a_planted_bounds_corruption_refuses_at_load() {
     assert_ne!(corrupt, text, "the corruption must land");
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Distribution { name, fault }) => {
-            assert_eq!(name.0, "b");
+            assert_eq!(name.as_str(), "b");
             assert_eq!(
                 fault,
                 DistributionFault::NominalOutsideSupport { lo: 0.125, hi: 0.5 }
@@ -113,7 +113,7 @@ fn a_planted_bounds_corruption_refuses_at_load() {
 fn a_corrupt_distribution_in_a_saved_edit_log_refuses_at_load() {
     let base = ProfileDoc::empty(DocumentId::derive("r1-corrupt-log"), Tol::witness());
     let edit = DocEdit::SetDocParam {
-        name: ParamName::new("s"),
+        name: ParamName::literal("s"),
         value: DocParam::continuous_with(
             Dimension::Length,
             1.0,
@@ -134,7 +134,7 @@ fn a_corrupt_distribution_in_a_saved_edit_log_refuses_at_load() {
             assert_eq!(
                 error,
                 EditError::InvalidDistribution {
-                    name: ParamName::new("s"),
+                    name: ParamName::literal("s"),
                     fault: DistributionFault::SigmaNotPositive { sigma: -2.0 },
                 }
             );
@@ -169,7 +169,7 @@ fn unknown_forms_and_stray_fields_refuse_to_parse() {
         editor_core::apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::new("n"),
+                name: ParamName::literal("n"),
                 value: DocParam::Count { value: 3 },
             },
             Tol::witness(),

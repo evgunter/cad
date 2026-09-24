@@ -163,11 +163,11 @@ fn r1_the_plate_ceiling_bisected_both_ways() {
 pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite length");
     let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite scalar");
-    let plen = |n: &str| Expr::param(ParamName::new(n), Dimension::Length);
+    let plen = |n: &'static str| Expr::param(ParamName::literal(n), Dimension::Length);
     let mut r = Recorder::new();
-    let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
+    let declare = |r: &mut Recorder, n: &'static str, value: f64, distribution: Distribution| {
         r.push(DocEdit::SetDocParam {
-            name: ParamName::new(n),
+            name: ParamName::literal(n),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value,

@@ -99,9 +99,9 @@ fn sym(
     })
 }
 
-fn param_doc(name: &str, nominal: f64, half: f64, r: &mut Recorder) {
+fn param_doc(name: &'static str, nominal: f64, half: f64, r: &mut Recorder) {
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new(name),
+        name: ParamName::literal(name),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: nominal,
@@ -125,7 +125,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
         [1.0, 0.0, 0.0],
         [0.0, 1.0, 0.0],
     ));
-    let w = Expr::param(ParamName::new("w"), Dimension::Length);
+    let w = Expr::param(ParamName::literal("w"), Dimension::Length);
     let neg_w = Expr::neg(w.clone());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
@@ -207,7 +207,7 @@ fn sym5_tilted_width_parameter_ladder() {
 pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("t"),
+        name: ParamName::literal("t"),
         value: DocParam::Continuous {
             dim: Dimension::Scalar,
             value: 0.25,
@@ -218,7 +218,7 @@ pub(crate) fn boss_on_tilted(half: f64, derived: bool) -> ProfileDoc {
             }),
         },
     });
-    let t = Expr::param(ParamName::new("t"), Dimension::Scalar);
+    let t = Expr::param(ParamName::literal("t"), Dimension::Scalar);
     let base = r.insert(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
         u: [scl(1.0), scl(0.0), scl(0.0)],
@@ -296,7 +296,7 @@ fn sym5_tilted_derived_guided_profiled() {
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let box_ = ParamBox::of(&analyzed);
     for name in box_.axes().keys() {
-        name_param(&name.0);
+        name_param(name.as_str());
     }
     for (label, rules) in [
         ("shipped", SymRules::shipped()),
@@ -709,7 +709,7 @@ enum Place {
 fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("t"),
+        name: ParamName::literal("t"),
         value: DocParam::Continuous {
             dim: Dimension::Scalar,
             value: 0.25,
@@ -720,7 +720,7 @@ fn r2_document(half: f64, base: Base, place: Place) -> ProfileDoc {
             }),
         },
     });
-    let t = Expr::param(ParamName::new("t"), Dimension::Scalar);
+    let t = Expr::param(ParamName::literal("t"), Dimension::Scalar);
     let b = base_frame(&mut r, &t, base);
     let on = match place {
         Place::Authored => b,
@@ -867,7 +867,7 @@ fn render_wall(name: &str, base: Base, place: Place, halves: &[f64]) {
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
         let box_ = ParamBox::of(&analyzed);
         for name_ in box_.axes().keys() {
-            name_param(&name_.0);
+            name_param(name_.as_str());
         }
         let only_lift = std::env::var("CAD_SYM8_LIFT").ok();
         for lift in [ProfileLift::Pinned, ProfileLift::Guided] {

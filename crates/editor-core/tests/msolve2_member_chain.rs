@@ -1165,7 +1165,7 @@ fn a4c_the_part_index_is_evaluated_at_the_documents_bindings() {
     let control = control_seat("msolve2-a4c");
     let s = scene("msolve2-a4c");
     let (base, top) = (s.base, s.top);
-    let k = ParamName::new("k");
+    let k = ParamName::literal("k");
     let (doc, _) = step(
         s.doc,
         DocEdit::SetDocParam {

@@ -55,8 +55,8 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::literal(n)
 }
 
 fn lit(v: f64) -> Expr {

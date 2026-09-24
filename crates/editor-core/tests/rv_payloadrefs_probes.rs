@@ -39,7 +39,7 @@ use geom_core::Tol;
 /// `howmany`,
 /// plus a linear pattern whose count READS that parameter.
 fn patterned_on_a_count_param() -> (ProfileDoc, ParamName, RecipeNodeId) {
-    let name = ParamName::new("howmany");
+    let name = ParamName::literal("howmany");
     let (doc, profile) = on_frame(
         ProfileDoc::empty(
             editor_core::DocumentId::derive("rv-payloadrefs"),
@@ -117,7 +117,7 @@ fn rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref() {
         let params = wire["snapshot"]["params"]
             .as_object_mut()
             .expect("the params are a map");
-        assert!(params.remove(&name.0).is_some());
+        assert!(params.remove(name.as_str()).is_some());
     });
 
     let verdict = load(&corrupt, Tol::witness());
@@ -130,7 +130,7 @@ fn rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref() {
     }
     let rendered = format!("{}", verdict.expect_err("refused"));
     assert!(
-        !rendered.contains(&name.0),
+        !rendered.contains(name.as_str()),
         "the refusal for an unreadable parameter reference does not name the parameter — that is \
          the cost of the domain edge, and this is the assertion that says so: {rendered}"
     );
@@ -149,7 +149,7 @@ fn rv_an_expression_no_walk_reads_is_refused_structurally_not_as_a_param_ref() {
 /// arms.
 #[test]
 fn rv_the_f1_checker_refuses_arithmetic_and_the_param_table_refuses_the_reading() {
-    let name = ParamName::new("depth");
+    let name = ParamName::literal("depth");
     // The F1 checker, at construction, with no document in sight.
     let fault = MeasureExpr::add(
         MeasureExpr::value(Expr::param(name.clone(), Dimension::Length)),
@@ -238,7 +238,7 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
         "{}",
         SnapshotError::PayloadUnknownDocParam {
             node: RecipeNodeId(7),
-            name: ParamName::new("depth"),
+            name: ParamName::literal("depth"),
         }
     );
     assert!(
@@ -255,7 +255,7 @@ fn rv_the_payload_refusal_names_a_noun_that_covers_an_assertion_bound() {
     let edit = format!(
         "{}",
         EditError::PayloadUnknownDocParam {
-            name: ParamName::new("depth"),
+            name: ParamName::literal("depth"),
             node: RecipeNodeId(7),
         }
     );

@@ -43,8 +43,8 @@ use editor_core::{
 
 use fixture::{Recorder, tol};
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::literal(n)
 }
 
 fn lit(v: f64) -> Expr {
@@ -55,7 +55,7 @@ fn scalar(v: f64) -> Expr {
     Expr::literal(v, Dimension::Scalar).expect("finite scalar literal")
 }
 
-fn param(n: &str) -> Expr {
+fn param(n: &'static str) -> Expr {
     Expr::param(name(n), Dimension::Length)
 }
 
@@ -77,7 +77,7 @@ fn frame(r: &mut Recorder) -> RecipeNodeId {
     }))
 }
 
-fn declare(r: &mut Recorder, n: &str, value: f64) {
+fn declare(r: &mut Recorder, n: &'static str, value: f64) {
     r.push(DocEdit::SetDocParam {
         name: name(n),
         value: DocParam::continuous(Dimension::Length, value),
@@ -201,7 +201,7 @@ fn failing(ev: &Evaluation<f64>) -> BTreeSet<RecipeNodeId> {
 
 /// The PROBE's question at one value of one parameter: does this
 /// document fail anywhere the document at the nominal did not?
-fn no_new_failure(doc: &ProfileDoc, p: &str, value: f64) -> bool {
+fn no_new_failure(doc: &ProfileDoc, p: &'static str, value: f64) -> bool {
     let baseline = failing(&f64_run(doc));
     let moved = editor_core::apply(
         doc,
@@ -250,7 +250,12 @@ fn standings_and_names(
     (standings, names)
 }
 
-fn range_of(doc: &ProfileDoc, p: &str, seed: RangeSeed, config: &DriveConfig) -> CertifiedRange {
+fn range_of(
+    doc: &ProfileDoc,
+    p: &'static str,
+    seed: RangeSeed,
+    config: &DriveConfig,
+) -> CertifiedRange {
     certified_range(doc, &RangeField::Param(name(p)), seed, config, tol())
         .expect("the fixture has an axis and a witness that builds")
 }
@@ -763,15 +768,16 @@ fn a_structural_slot_on_a_node_that_has_none_is_an_unknown_slot() {
 #[test]
 fn a_taken_synthetic_name_refuses() {
     let (doc, node) = slab_slot(1.0);
-    let taken = format!(
-        "query:certified-range:{}:{}",
+    let taken = ParamName::new(format!(
+        "query_certified_range_{}_{}",
         node.0,
-        SlotId::Distance.label()
-    );
+        SlotId::Distance.label().replace(' ', "_")
+    ))
+    .expect("the query's spelling is one identifier");
     let doc = editor_core::apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: name(&taken),
+            name: taken.clone(),
             value: DocParam::continuous(Dimension::Length, 3.0),
         },
         tol(),
@@ -789,9 +795,7 @@ fn a_taken_synthetic_name_refuses() {
             RangeSeed::symmetric(0.25),
             tol()
         ),
-        Err(RangeRefusal::SyntheticNameTaken {
-            param: name(&taken)
-        })
+        Err(RangeRefusal::SyntheticNameTaken { param: taken })
     );
 }
 

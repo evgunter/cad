@@ -79,11 +79,11 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::literal(n)
 }
 
-fn param(n: &str, dim: Dimension) -> Expr {
+fn param(n: &'static str, dim: Dimension) -> Expr {
     Expr::param(name(n), dim)
 }
 
@@ -107,7 +107,7 @@ fn config(max_leaves: usize) -> DriveConfig {
     }
 }
 
-fn opts(seed: Option<&str>, lift: ProfileLift) -> EvalOptions {
+fn opts(seed: Option<&'static str>, lift: ProfileLift) -> EvalOptions {
     EvalOptions {
         seed: seed.map(name),
         profile_lift: lift,
@@ -157,7 +157,7 @@ fn key(ev: &Evaluation<impl geom_core::Decide>, id: RecipeNodeId) -> u128 {
     ev.value(id).expect("evaluated Ok").content_key.0
 }
 
-fn entry<'a>(entries: &'a [Sensitivity], n: &str) -> &'a SensitivityOutcome {
+fn entry<'a>(entries: &'a [Sensitivity], n: &'static str) -> &'a SensitivityOutcome {
     &entries
         .iter()
         .find(|s| s.param == name(n))
@@ -487,7 +487,7 @@ fn sum(u: Distribution, n: Distribution, tn: Distribution) -> (ProfileDoc, Recip
             value: continuous(Dimension::Length, 1.0, dist),
         });
     }
-    let v = |p: &str| MeasureExpr::value(param(p, Dimension::Length));
+    let v = |p: &'static str| MeasureExpr::value(param(p, Dimension::Length));
     let expr = MeasureExpr::add(
         MeasureExpr::add(v("u"), v("n")).expect("Length"),
         MeasureExpr::add(v("tn"), v("f")).expect("Length"),
@@ -509,7 +509,7 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
     let s = slab(None, None);
     let env = seed_env::<Dual64, _>(&s.doc, s.doc.param_env::<Dual64>(), &name("w"))
         .expect("w is continuous");
-    let binding = |n: &str| match env.bindings[&name(n)] {
+    let binding = |n: &'static str| match env.bindings[&name(n)] {
         ParamValue::Continuous { value, .. } => value,
         ParamValue::Count(_) => panic!("{n} is continuous"),
     };
@@ -565,7 +565,7 @@ fn the_seed_rides_exactly_one_binding_on_an_aliasing_shaped_fixture() {
 #[test]
 fn the_memo_serves_only_the_seed_independent_subgraph_in_every_threading_order() {
     let s = slab(None, None);
-    let guided = |seed: Option<&str>| opts(seed, ProfileLift::Guided);
+    let guided = |seed: Option<&'static str>| opts(seed, ProfileLift::Guided);
     let base = run::<Dual64>(&s.doc, None, &guided(None));
     let on_w = run::<Dual64>(&s.doc, None, &guided(Some("w")));
     let on_d = run::<Dual64>(&s.doc, None, &guided(Some("d")));

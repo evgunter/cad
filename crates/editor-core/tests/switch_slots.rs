@@ -249,7 +249,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let doc = ProfileDoc::empty_derived("switch_slots", Tol::witness())
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::new("r"),
+                name: ParamName::literal("r"),
                 value: DocParam::continuous(Dimension::Length, 0.5),
             },
             Tol::witness(),
@@ -277,7 +277,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                             Expr::literal(0.0, Dimension::Length).unwrap(),
                             Expr::literal(0.0, Dimension::Length).unwrap(),
                         ],
-                        radius: Expr::param(ParamName::new("r"), Dimension::Length),
+                        radius: Expr::param(ParamName::literal("r"), Dimension::Length),
                     }],
                 }),
             },
@@ -290,7 +290,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
     let broken = doc
         .apply(
             &DocEdit::SetDocParam {
-                name: ParamName::new("r"),
+                name: ParamName::literal("r"),
                 value: DocParam::continuous(Dimension::Length, 0.0),
             },
             Tol::witness(),

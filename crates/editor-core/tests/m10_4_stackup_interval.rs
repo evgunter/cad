@@ -101,11 +101,11 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::literal(n)
 }
 
-fn param(n: &str, dim: Dimension) -> Expr {
+fn param(n: &'static str, dim: Dimension) -> Expr {
     Expr::param(name(n), dim)
 }
 
@@ -155,7 +155,7 @@ fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
         .doc
 }
 
-fn entry<'a>(entries: &'a [Sensitivity], n: &str) -> &'a SensitivityOutcome {
+fn entry<'a>(entries: &'a [Sensitivity], n: &'static str) -> &'a SensitivityOutcome {
     &entries
         .iter()
         .find(|s| s.param == name(n))

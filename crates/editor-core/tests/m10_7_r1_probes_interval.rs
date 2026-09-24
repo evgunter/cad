@@ -32,8 +32,8 @@ fn len(v: f64) -> Expr {
 fn scl(v: f64) -> Expr {
     Expr::literal(v, Dimension::Scalar).unwrap()
 }
-fn param(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn param(n: &'static str) -> Expr {
+    Expr::param(ParamName::literal(n), Dimension::Length)
 }
 
 /// Every `Failed` node of a leaf replay, with its kind — the first is
@@ -383,7 +383,7 @@ fn bracket_with(
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("w"),
+        name: ParamName::literal("w"),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: 20.0e-3,

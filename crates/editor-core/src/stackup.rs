@@ -1280,11 +1280,11 @@ impl Stackup {
             let _ = writeln!(
                 s,
                 "param {} sensitivity={} contribution={} chamber_span={}",
-                row.param.0,
+                row.param.as_str(),
                 render_sensitivity(&row.sensitivity),
                 match &row.contribution {
                     Ok(v) => format!("{:016x}", v.to_bits()),
-                    Err(u) => format!("unavailable:{}", u.param().0),
+                    Err(u) => format!("unavailable:{}", u.param().as_str()),
                 },
                 match &row.chamber_span {
                     Some(c) => format!(
@@ -1305,7 +1305,7 @@ impl Stackup {
                     "unavailable:{}",
                     blockers
                         .iter()
-                        .map(|b| b.param().0.clone())
+                        .map(|b| b.param().as_str().to_owned())
                         .collect::<Vec<_>>()
                         .join(",")
                 ),
@@ -1317,7 +1317,7 @@ impl Stackup {
         let _ = writeln!(s, "basis {}", self.basis.word());
         if let crate::report::MassBasis::Forced { by } = &self.basis {
             for p in by {
-                let _ = writeln!(s, "  forced_by {}", p.0);
+                let _ = writeln!(s, "  forced_by {}", p.as_str());
             }
         }
         let _ = write!(s, "{}", coverage_bits(&self.coverage));
@@ -1395,7 +1395,7 @@ impl Stackup {
             let _ = writeln!(
                 s,
                 "    ∂m/∂{}: {}   contribution {}",
-                row.param.0,
+                row.param.as_str(),
                 render_sensitivity(&row.sensitivity),
                 match &row.contribution {
                     Ok(v) => format!("{v}"),
@@ -1448,7 +1448,8 @@ pub fn render_sensitivity(outcome: &SensitivityOutcome) -> String {
             match refusal {
                 LiftRefusal::PinnedSection { section, param } => format!(
                     "{} feeds the section of node {}, which stays f64 (C6/D9)",
-                    param.0, section.0
+                    param.as_str(),
+                    section.0
                 ),
                 LiftRefusal::GuidedReplay { loop_, step } => format!(
                     "the guided elaboration could not re-confirm loop {loop_} step {step} \

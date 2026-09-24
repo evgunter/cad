@@ -371,7 +371,7 @@ fn probing_a_field_that_is_not_there_refuses_typed() {
 
     let outcome = session.perform(SessionOp::ProbeBounds {
         target: BoundsTarget::Param {
-            name: pncad::document::ParamName::new("nope"),
+            name: pncad::document::ParamName::literal("nope"),
         },
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));

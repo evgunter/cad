@@ -1195,7 +1195,7 @@ impl ViewerApp {
             None => {}
         }
         if let Some(name) = frame::creation_offer(refusal.as_ref()) {
-            self.drafts.new_param_name = name.0.clone();
+            self.drafts.new_param_name = name.as_str().to_owned();
             self.drafts.new_param_dimension = None;
             self.drafts.new_param_offer = Some(name.clone());
         }

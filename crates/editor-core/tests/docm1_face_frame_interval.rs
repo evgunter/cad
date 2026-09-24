@@ -141,7 +141,7 @@ fn a_section_on_a_derived_frame_refuses_derived_frame_section_at_interval() {
 fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("lift"),
+        name: ParamName::literal("lift"),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: 0.0,
@@ -168,7 +168,7 @@ fn boxed_on_param(width: f64) -> (ProfileDoc, RecipeNodeId) {
         translation: [
             len(0.0),
             len(0.0),
-            Expr::param(ParamName::new("lift"), Dimension::Length),
+            Expr::param(ParamName::literal("lift"), Dimension::Length),
         ],
         rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
         rotation_angle: ang(0.0),
@@ -251,7 +251,7 @@ fn an_interval_extrude_of_a_widened_height() {
     let at = |width: f64| -> bool {
         let mut r = Recorder::new();
         r.push(DocEdit::SetDocParam {
-            name: ParamName::new("hh"),
+            name: ParamName::literal("hh"),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: 1.0,
@@ -274,7 +274,7 @@ fn an_interval_extrude_of_a_widened_height() {
         );
         r.insert(Node::Extrude {
             profile,
-            distance: Expr::param(ParamName::new("hh"), Dimension::Length),
+            distance: Expr::param(ParamName::literal("hh"), Dimension::Length),
         });
         let doc = r.doc;
         let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
@@ -318,7 +318,7 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     let width = Tol::witness().eps() / 10.0;
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("h"),
+        name: ParamName::literal("h"),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: 1.0,
@@ -337,7 +337,7 @@ fn a_widened_extrude_height_carries_the_frame_at_one_tenth_eps() {
     );
     let cube = r.insert(Node::Extrude {
         profile,
-        distance: Expr::param(ParamName::new("h"), Dimension::Length),
+        distance: Expr::param(ParamName::literal("h"), Dimension::Length),
     });
     let frame = r.insert(Node::Datum(Datum::FaceFrame {
         at: cube,

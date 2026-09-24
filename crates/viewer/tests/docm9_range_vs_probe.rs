@@ -26,7 +26,7 @@ fn tol() -> Tol {
 }
 
 fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+    ParamName::literal(n)
 }
 
 fn lit(v: f64) -> Expr {

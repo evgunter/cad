@@ -83,7 +83,7 @@ fn both_doors_agree_at_the_degenerate_arities() {
 /// `At` … `LineTo(Start)` shape.
 #[test]
 fn parametric_corners_expand_to_the_same_shape() {
-    let w = Expr::param(ParamName::new("w"), Dimension::Length);
+    let w = Expr::param(ParamName::literal("w"), Dimension::Length);
     let zero = len(0.0);
     let program = LoopProgram::polygon_expr([
         [zero.clone(), zero.clone()],

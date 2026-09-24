@@ -602,11 +602,11 @@ fn row3_uncut_param_reference_refuses() {
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("h"),
+            name: ParamName::literal("h"),
             value: DocParam::continuous(editor_core::Dimension::Length, 1.5),
         },
     );
-    let h = || Expr::param(ParamName::new("h"), editor_core::Dimension::Length);
+    let h = || Expr::param(ParamName::literal("h"), editor_core::Dimension::Length);
     // Each block draws on its OWN frame. A shared one would sever an
     // edge at the cut below — the frame is a document input now — and
     // that refusal would fire before the parameter question this row
@@ -641,7 +641,7 @@ fn row3_uncut_param_reference_refuses() {
             cut_node,
             kept_node,
         }) => {
-            assert_eq!(param, ParamName::new("h"));
+            assert_eq!(param, ParamName::literal("h"));
             assert_eq!(cut_node, e1);
             assert_eq!(kept_node, e2);
         }
@@ -657,7 +657,7 @@ fn row3_uncut_param_reference_refuses() {
         None,
     )
     .expect("a cut containing every referencing node carries the parameter");
-    assert!(out.part.params().contains_key(&ParamName::new("h")));
+    assert!(out.part.params().contains_key(&ParamName::literal("h")));
 }
 
 /// Row 3c — inline of a stale pin is the resolver's PinMismatch,
@@ -1285,7 +1285,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     let (part_doc, _) = step(
         part_doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("L"),
+            name: ParamName::literal("L"),
             value: DocParam::continuous(editor_core::Dimension::Length, 2.0),
         },
     );
@@ -1294,7 +1294,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
     let (host, _) = step(
         host,
         DocEdit::SetDocParam {
-            name: ParamName::new("L"),
+            name: ParamName::literal("L"),
             value: DocParam::continuous(editor_core::Dimension::Length, 1.0),
         },
     );
@@ -1306,7 +1306,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
         Tol::witness(),
     ) {
         Err(InlineError::ParamConflict { param }) => {
-            assert_eq!(param, ParamName::new("L"));
+            assert_eq!(param, ParamName::literal("L"));
             let msg = format!("{}", InlineError::ParamConflict { param });
             assert!(
                 msg.contains("parameter L is declared by both"),

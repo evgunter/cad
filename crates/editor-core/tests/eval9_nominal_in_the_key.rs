@@ -38,7 +38,7 @@ const FRAME: RecipeNodeId = RecipeNodeId(0);
 const PROFILE: RecipeNodeId = RecipeNodeId(1);
 
 fn p() -> ParamName {
-    ParamName::new("p")
+    ParamName::literal("p")
 }
 
 /// The probe's document: `p` a scalar parameter at `nominal`, a frame

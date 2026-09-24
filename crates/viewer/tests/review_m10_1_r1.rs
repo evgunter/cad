@@ -23,7 +23,7 @@ fn annotated_session() -> (DocSession, ParamName, Distribution) {
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    let name = ParamName::new("bore_r");
+    let name = ParamName::literal("bore_r");
     let dist = Distribution::Normal { sigma: 5e-6 };
     let outcome = session.perform(SessionOp::CreateParam {
         name: name.clone(),

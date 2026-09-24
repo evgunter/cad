@@ -30,7 +30,7 @@ use editor_core::{
 use geom_core::Tol;
 
 fn p() -> ParamName {
-    ParamName::new("p")
+    ParamName::literal("p")
 }
 
 /// `p` a Length parameter at `nominal`; a circle of radius `p` on the

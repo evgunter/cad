@@ -101,13 +101,13 @@ fn point_bits(ev: &editor_core::Evaluation<f64>, node: RecipeNodeId) -> Vec<(u64
 }
 
 fn p() -> ParamName {
-    ParamName::new("lift")
+    ParamName::literal("lift")
 }
 
 /// The parameter row 7 drives a frame's x axis LENGTH with — a
 /// `Scalar`, because a direction's components are not lengths.
 fn span() -> ParamName {
-    ParamName::new("span")
+    ParamName::literal("span")
 }
 
 /// A one-axis degenerate box `name ∈ nominal + [offset, offset]`:

@@ -47,7 +47,7 @@ fn scl(v: f64) -> Expr {
 fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new("w"),
+        name: ParamName::literal("w"),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: 2.0,
@@ -58,7 +58,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
             }),
         },
     });
-    let w = || Expr::param(ParamName::new("w"), Dimension::Length);
+    let w = || Expr::param(ParamName::literal("w"), Dimension::Length);
     let plane = r.insert(Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
         u: [scl(1.0), scl(0.0), scl(0.0)],

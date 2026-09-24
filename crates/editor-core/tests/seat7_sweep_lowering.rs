@@ -78,17 +78,17 @@ const H: f64 = 1.2;
 /// own angle (`sweep`'s `verbs_germarms2`).
 const PHI: f64 = PI / 4.0;
 
-fn param(name: &str) -> Expr {
-    Expr::param(ParamName::new(name), Dimension::Length)
+fn param(name: &'static str) -> Expr {
+    Expr::param(ParamName::literal(name), Dimension::Length)
 }
 
 /// A document declaring `r`.
-fn doc_with_r(name: &str) -> ProfileDoc {
+fn doc_with_r(name: &'static str) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(name), tol());
     step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("r"),
+            name: ParamName::literal("r"),
             value: DocParam::continuous(Dimension::Length, R),
         },
     )
@@ -772,7 +772,7 @@ fn each_loop_of_a_hole_first_profile_carries_its_own_radius() {
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("q"),
+            name: ParamName::literal("q"),
             value: DocParam::continuous(Dimension::Length, Q),
         },
     );
@@ -935,7 +935,7 @@ fn the_memo_never_serves_a_stale_sweep_token() {
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("r"),
+            name: ParamName::literal("r"),
             value: DocParam::continuous(Dimension::Length, 2.0 * R),
         },
     );
@@ -1159,12 +1159,12 @@ fn each_arc_of_a_reversed_chain_carries_its_own_steps_radius() {
 /// The shared body of the two rows above: a two-arc chain at `r` and
 /// `q`, and a peg extruded from a circle at each, with every arc wall
 /// required to declare against its own step's peg and against no other.
-fn assert_two_arcs_declare_apart(id: &str, side: profile::ArcSide, want_reversed: bool) {
+fn assert_two_arcs_declare_apart(id: &'static str, side: profile::ArcSide, want_reversed: bool) {
     let doc = doc_with_r(id);
     let (doc, _) = step(
         doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("q"),
+            name: ParamName::literal("q"),
             value: DocParam::continuous(Dimension::Length, Q),
         },
     );

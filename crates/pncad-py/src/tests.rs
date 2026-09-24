@@ -270,7 +270,7 @@ fn analysis_refusal_tags_are_stable() {
     use pncad::analysis::{AnalysisPolicy, box_mass};
     use pncad::document::{Distribution, ParamName};
 
-    let bore = ParamName::new("bore");
+    let bore = ParamName::literal("bore");
     let refusal = box_mass(
         &bore,
         &Distribution::Band { lo: -1.0, hi: 1.0 },
@@ -1591,7 +1591,7 @@ fn expression_text_door_tags_are_stable() {
     use pncad::document::{ParamName, parse_expr};
 
     let mut declared = BTreeMap::new();
-    declared.insert(ParamName::new("width"), Dimension::Length);
+    declared.insert(ParamName::literal("width"), Dimension::Length);
     let refuse = |src: &str| {
         parse_expr(src, &declared).expect_err("this source is not a well-formed expression")
     };
@@ -1658,7 +1658,7 @@ fn expression_evaluation_tags_are_stable() {
     };
 
     let tol = Tol::witness();
-    let width = ParamName::new("width");
+    let width = ParamName::literal("width");
     let declare = |name: &ParamName, param: DocParam| {
         let doc: ProfileDoc = crate::identity::derived("expression-evaluation-probe", tol);
         apply(
@@ -2244,7 +2244,7 @@ fn edit_inner_variant_tags_are_stable() {
         .expect_err("a zero sigma breaks an E2 invariant");
     assert_eq!(
         pair(&EditError::InvalidDistribution {
-            name: ParamName::new("bore"),
+            name: ParamName::literal("bore"),
             fault,
         }),
         ("invalid_distribution", Some("sigma_not_positive"))
@@ -2310,7 +2310,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use pncad::select::{EntityKind, RoleSeg};
 
     let id = |n: u64| RecipeNodeId(n);
-    let param = || ParamName::new("bore");
+    let param = || ParamName::literal("bore");
     let named = || StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId(7),
@@ -3938,7 +3938,7 @@ fn the_edit_and_snapshot_maps_agree_on_the_four_param_ref_words() {
     use pncad::document::{Dimension, EditError, ParamName, RecipeNodeId, SlotId, SnapshotError};
 
     let node = RecipeNodeId(5);
-    let name = || ParamName::new("width");
+    let name = || ParamName::literal("width");
 
     let pairs: [(&str, &str, EditError, SnapshotError); 4] = [
         (
@@ -4225,7 +4225,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "boundary_edit_tag",
-        values: &["mate_head_not_a_face", "name_serialize"],
+        values: &[
+            "mate_head_not_a_face",
+            "name_serialize",
+            "param_name_not_an_identifier",
+        ],
         delegates: &["declare_error_tag", "placement_rule_fault_tag"],
     },
     TagEntry {

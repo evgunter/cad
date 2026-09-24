@@ -104,7 +104,7 @@ fn author_die() -> Die {
         doc,
         &mut log,
         TEdit::SetDocParam {
-            name: ParamName::new("pip_depth"),
+            name: ParamName::literal("pip_depth"),
             value: DocParam::continuous(Dimension::Length, 0.002),
         },
     );
@@ -140,7 +140,7 @@ fn author_die() -> Die {
         TEdit::InsertNode {
             node: Node::Extrude {
                 profile: pip_profile.unwrap(),
-                distance: Expr::param(ParamName::new("pip_depth"), Dimension::Length),
+                distance: Expr::param(ParamName::literal("pip_depth"), Dimension::Length),
             },
         },
     );
@@ -243,7 +243,7 @@ fn die_authors_replays_and_diffs() {
         .doc
         .apply(
             &TEdit::SetDocParam {
-                name: ParamName::new("pip_depth"),
+                name: ParamName::literal("pip_depth"),
                 value: DocParam::continuous(Dimension::Length, 0.003),
             },
             Tol::witness(),
@@ -252,7 +252,7 @@ fn die_authors_replays_and_diffs() {
         .unwrap();
     let d2 = die.doc.diff(&variant2.doc);
     assert!(d2.nodes.is_empty());
-    assert_eq!(d2.params, vec![ParamName::new("pip_depth")]);
+    assert_eq!(d2.params, vec![ParamName::literal("pip_depth")]);
 
     // The original document is untouched by all of the above (D2:
     // apply is pure).

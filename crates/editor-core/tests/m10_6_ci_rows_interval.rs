@@ -307,7 +307,7 @@ fn distributed_plate() -> ProfileDoc {
         SitedRef::new(node, faces.remove(0))
     };
     let refs = vec![wall(hole_a), wall(hole_b)];
-    let radius_of = |n: &str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
+    let radius_of = |n: &'static str| MeasureExpr::value(Expr::param(name(n), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("L + L"),
@@ -344,8 +344,8 @@ fn assertions_of(doc: &ProfileDoc) -> Vec<RecipeNodeId> {
         .collect()
 }
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::literal(n)
 }
 
 /// The ε-scaled half-width every parametric fixture here uses, for the

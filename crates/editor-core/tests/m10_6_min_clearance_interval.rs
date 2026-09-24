@@ -76,8 +76,8 @@ const NECK_GAP: f64 = 0.4;
 /// answer a correct engine gives.
 const BOUND: f64 = 0.3;
 
-fn name(n: &str) -> ParamName {
-    ParamName::new(n)
+fn name(n: &'static str) -> ParamName {
+    ParamName::literal(n)
 }
 
 /// The analysis half-width, in metres — M10-5's, for M10-5's reason.

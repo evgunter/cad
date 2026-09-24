@@ -60,8 +60,8 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-fn p(name: &str) -> ParamName {
-    ParamName::new(name)
+fn p(name: &'static str) -> ParamName {
+    ParamName::literal(name)
 }
 
 fn mm() -> UnitSym {
@@ -252,7 +252,7 @@ fn with_display_unit_is_the_carry_forward_and_its_refusals_are_none() {
 #[test]
 fn the_unit_door_refuses_typed() {
     let doc = fixture();
-    let refuse = |name: &str, unit: UnitSym| {
+    let refuse = |name: &'static str, unit: UnitSym| {
         apply(
             &doc,
             &DocEdit::SetDocParamUnit {

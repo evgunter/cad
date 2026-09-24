@@ -1959,7 +1959,8 @@ impl core::fmt::Display for NodeErrorKind {
                 "the seed on parameter {:?} reaches section profile node {}, which stays f64 \
                  in every lane (a loft's or a sweep's section is structure) — the tangent \
                  cannot ride through it, so this node refuses rather than embed a zero",
-                param.0, section.0
+                param.as_str(),
+                section.0
             ),
             Self::WrongOperand {
                 input,
@@ -5042,7 +5043,7 @@ fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
             e.param_refs(&mut params);
             h.write_u64(params.len() as u64);
             for (name, dim) in params {
-                h.write_str(&name.0);
+                h.write_str(name.as_str());
                 h.write_tag(dimension_tag(dim));
             }
         }

@@ -187,7 +187,7 @@ fn selecting_a_parameter_marks_the_features_it_drives() {
 
     // A parameter nothing reads marks nothing — the honest answer, not
     // "everything" and not a panic.
-    let unused = pncad::document::ParamName::new("unused");
+    let unused = pncad::document::ParamName::literal("unused");
     let quiet = marks::focus(&index, session.doc(), &Selection::Param(unused));
     assert!(quiet.is_empty());
 }

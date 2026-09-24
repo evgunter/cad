@@ -42,7 +42,7 @@ fn scene() -> Scene {
     let doc = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new(HOLE_R),
+            name: ParamName::literal(HOLE_R),
             value: DocParam::continuous(Dimension::Length, HOLE_R_VALUE),
         },
         Tol::witness(),
@@ -96,7 +96,7 @@ fn set_hole_r(doc: &ProfileDoc, value: f64) -> ProfileDoc {
     apply(
         doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new(HOLE_R),
+            name: ParamName::literal(HOLE_R),
             value: DocParam::continuous(Dimension::Length, value),
         },
         Tol::witness(),

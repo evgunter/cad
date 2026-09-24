@@ -57,7 +57,7 @@ fn doc_with_one_law(law: Distribution) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         &doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new("x"),
+            name: ParamName::literal("x"),
             value: DocParam::Continuous {
                 dim: Dimension::Length,
                 value: NOMINAL,
@@ -75,7 +75,7 @@ fn doc_with_one_law(law: Distribution) -> (ProfileDoc, RecipeNodeId) {
         &doc,
         &DocEdit::InsertNode {
             node: Node::measure(
-                MeasureExpr::value(Expr::param(ParamName::new("x"), Dimension::Length)),
+                MeasureExpr::value(Expr::param(ParamName::literal("x"), Dimension::Length)),
                 Vec::new(),
             )
             .expect("a measure over a value leaf takes no references"),
@@ -134,7 +134,7 @@ fn sample_offsets_enumerates_the_population_monte_carlo_summarizes() {
             let offsets =
                 sample_offsets(&analyzed, &config, i).expect("a normal law is sampleable");
             assert_eq!(offsets.len(), 1, "one varying parameter, one offset");
-            NOMINAL + offsets[&ParamName::new("x")]
+            NOMINAL + offsets[&ParamName::literal("x")]
         })
         .collect();
     let (mean, sigma, min, max) = summarize(&values);
@@ -154,7 +154,7 @@ fn a_samples_draw_depends_on_its_index_alone() {
     let (doc, _) = doc_with_one_law(Distribution::Uniform { lo: -0.5, hi: 0.5 });
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let config = McConfig::default();
-    let x = ParamName::new("x");
+    let x = ParamName::literal("x");
 
     let ascending: Vec<f64> = (0..8)
         .map(|i| sample_offsets(&analyzed, &config, i).expect("sampleable")[&x])

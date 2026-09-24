@@ -50,7 +50,7 @@ pub const MIN_WEB: f64 = 0.0005;
 pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
-        name: ParamName::new(HOLE_R),
+        name: ParamName::literal(HOLE_R),
         value: DocParam::Continuous {
             dim: Dimension::Length,
             value: R0,
@@ -79,7 +79,7 @@ pub fn document() -> CorpusDoc {
             plane,
             loops: vec![LoopProgram::Circle {
                 centre: [len(cx), len(0.0)],
-                radius: Expr::param(ParamName::new(HOLE_R), Dimension::Length),
+                radius: Expr::param(ParamName::literal(HOLE_R), Dimension::Length),
             }],
         })
     };
@@ -128,7 +128,7 @@ pub fn document() -> CorpusDoc {
         assert!(!faces.is_empty(), "a hole extrude has a cylindrical wall");
         SitedRef::new(node, faces.remove(0))
     };
-    let radius = || MeasureExpr::value(Expr::param(ParamName::new(HOLE_R), Dimension::Length));
+    let radius = || MeasureExpr::value(Expr::param(ParamName::literal(HOLE_R), Dimension::Length));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius(), radius()).expect("Length + Length"),

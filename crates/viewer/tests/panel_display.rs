@@ -628,7 +628,7 @@ fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
 fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-unit", tol);
-    let name = ParamName::new("base_r");
+    let name = ParamName::literal("base_r");
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
@@ -681,7 +681,7 @@ fn a_millimetre_parameter_reads_and_authors_in_millimetres() {
 fn a_count_parameter_has_no_written_unit() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-count", tol);
-    let name = ParamName::new("holes");
+    let name = ParamName::literal("holes");
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
@@ -716,7 +716,7 @@ fn a_parameters_range_reads_in_the_unit_it_was_searched_in() {
     let reading = |value: DocParam| {
         let tol = Tol::witness();
         let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-param-range", tol);
-        let name = ParamName::new("thickness");
+        let name = ParamName::literal("thickness");
         let (doc, _) = common::edited(
             &doc,
             DocEdit::SetDocParam {
@@ -795,7 +795,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("thickness"),
+            name: ParamName::literal("thickness"),
             value: DocParam::written_length(WrittenLength::in_unit(8.0, MM)),
         },
         tol,
@@ -803,7 +803,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     let (doc, _) = common::edited(
         &doc,
         DocEdit::SetDocParam {
-            name: ParamName::new("in_metres"),
+            name: ParamName::literal("in_metres"),
             value: DocParam::continuous(Dimension::Length, 0.008),
         },
         tol,
@@ -812,7 +812,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
     let writing = |name: &str| {
         let row = rows
             .iter()
-            .find(|row| row.name == ParamName::new(name))
+            .find(|row| row.name == ParamName::literal(name))
             .expect("the parameter row");
         FieldWriting::of(row.dimension, row.unit)
     };
@@ -1003,7 +1003,7 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
     );
     let row = props::param_rows(&common::declared(
         "mint-mm",
-        &ParamName::new("base_r"),
+        &ParamName::literal("base_r"),
         minted,
     ))
     .pop()
@@ -1022,7 +1022,7 @@ fn the_create_door_mints_a_declaration_in_the_unit_it_was_given() {
     assert_eq!(
         props::param_rows(&common::declared(
             "mint-deg",
-            &ParamName::new("sweep"),
+            &ParamName::literal("sweep"),
             angle
         ))
         .pop()

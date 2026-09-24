@@ -18,15 +18,85 @@ use crate::node::{Node, RecipeNodeId};
 use geom_core::Tol;
 
 /// A document-level parameter name (spec D4's "parameter refs").
+///
+/// **Admissible by construction.** A parameter exists to be referenced
+/// from an expression, so a name is one the expression parser reads
+/// back as a reference to that same parameter — exactly one
+/// identifier token covering the whole text
+/// ([`crate::parse::ParamNameFault`] says how a text fails that). The
+/// field is private and [`Self::new`] is the one door, so neither an
+/// edit nor a file can hold a parameter no expression could name: the
+/// edit door never sees an inadmissible name because none can be
+/// spelled, and the load door refuses one at the token, through
+/// `Deserialize`, which is this same constructor
+/// (`try_from = "String"`) — the same shape `UnitSym` refuses an
+/// off-table symbol in. That is why `write_doc_param` runs no name
+/// check and `persist::check` has no name walk: there is one
+/// decision, at the type, and no second door can restate it.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-pub struct ParamName(pub String);
+#[serde(try_from = "String")]
+pub struct ParamName(String);
 
 impl ParamName {
-    /// Convenience constructor.
-    pub fn new(name: impl Into<String>) -> Self {
-        Self(name.into())
+    /// The one door: the text, or why the lexer does not read it as
+    /// one identifier.
+    ///
+    /// # Errors
+    ///
+    /// [`crate::parse::ParamNameFault`], carrying the offered text and
+    /// the lexer's finding.
+    pub fn new(name: impl Into<String>) -> Result<Self, crate::parse::ParamNameFault> {
+        let offered = name.into();
+        match crate::parse::param_name_fault(&offered) {
+            None => Ok(Self(offered)),
+            Some(reason) => Err(crate::parse::ParamNameFault { offered, reason }),
+        }
+    }
+
+    /// A name written in source text — a test fixture, a demo, a
+    /// guide example — which is admissible or the program is wrong.
+    /// Takes `&'static str` so that user input cannot reach it by
+    /// type: a name that arrives at runtime goes through
+    /// [`Self::new`] and is refused typed.
+    ///
+    /// # Panics
+    ///
+    /// On an inadmissible literal, with the fault's own sentence: the
+    /// program's text is wrong, and that is a bug to fix rather than a
+    /// refusal to carry.
+    #[track_caller]
+    #[allow(clippy::panic)]
+    pub fn literal(name: &'static str) -> Self {
+        match Self::new(name) {
+            Ok(name) => name,
+            Err(fault) => panic!("{fault}"),
+        }
+    }
+
+    /// The name's text.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TryFrom<String> for ParamName {
+    type Error = crate::parse::ParamNameFault;
+
+    fn try_from(name: String) -> Result<Self, Self::Error> {
+        Self::new(name)
+    }
+}
+
+/// A name is keyed by its text, so a table of names answers a lookup
+/// by the `&str` the lexer produced without a name being minted for
+/// the question (`parse::Parser::primary`). Sound because the derived
+/// `Hash`, `Eq` and `Ord` over a single `String` field are `str`'s
+/// own.
+impl core::borrow::Borrow<str> for ParamName {
+    fn borrow(&self) -> &str {
+        &self.0
     }
 }
 

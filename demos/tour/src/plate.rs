@@ -54,8 +54,8 @@ fn scl(v: f64) -> Expr {
     Expr::literal(v, Dimension::Scalar).expect("finite scalar")
 }
 
-fn param(n: &str) -> Expr {
-    Expr::param(ParamName::new(n), Dimension::Length)
+fn param(n: &'static str) -> Expr {
+    Expr::param(ParamName::literal(n), Dimension::Length)
 }
 
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
@@ -65,11 +65,17 @@ fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeN
     applied.record.minted.expect("an insert mints an id")
 }
 
-fn declare(doc: &mut ProfileDoc, n: &str, value: f64, distribution: Distribution, tol: Tol) {
+fn declare(
+    doc: &mut ProfileDoc,
+    n: &'static str,
+    value: f64,
+    distribution: Distribution,
+    tol: Tol,
+) {
     let applied = apply(
         doc,
         &DocEdit::SetDocParam {
-            name: ParamName::new(n),
+            name: ParamName::literal(n),
             value: DocParam::continuous_with(Dimension::Length, value, distribution),
         },
         tol,
@@ -170,7 +176,7 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
         tol,
     );
 
-    let hole = |doc: &mut ProfileDoc, centre: Expr, radius: &str, tol| {
+    let hole = |doc: &mut ProfileDoc, centre: Expr, radius: &'static str, tol| {
         let profile = insert(
             doc,
             Node::Profile(ProfileProgram {
@@ -230,7 +236,7 @@ pub fn plate(spacing_half_width: f64, radius_sigma: f64, bound: f64, tol: Tol) -
     // two parallel cylinder faces is their AXIS distance (the closed
     // form's own contract), so the subtraction of the radii is the
     // author's arithmetic and not a hidden convention.
-    let radius_of = |n: &str| MeasureExpr::value(param(n));
+    let radius_of = |n: &'static str| MeasureExpr::value(param(n));
     let web = MeasureExpr::sub(
         MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
         MeasureExpr::add(radius_of("hole_a_r"), radius_of("hole_b_r")).expect("Length + Length"),

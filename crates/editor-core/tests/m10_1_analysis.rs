@@ -18,13 +18,13 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-fn doc_with(params: &[(&str, DocParam)]) -> ProfileDoc {
+fn doc_with(params: &[(&'static str, DocParam)]) -> ProfileDoc {
     let mut doc = ProfileDoc::empty(DocumentId::derive("m10-1-analysis"), Tol::witness());
     for (name, value) in params {
         doc = apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::new(*name),
+                name: ParamName::literal(name),
                 value: value.clone(),
             },
             Tol::witness(),
@@ -45,8 +45,8 @@ fn annotated(value: f64, distribution: Distribution) -> DocParam {
     }
 }
 
-fn p(name: &str) -> ParamName {
-    ParamName::new(name)
+fn p(name: &'static str) -> ParamName {
+    ParamName::literal(name)
 }
 
 /// The default policy IS the ±3σ convention, and the box it draws for

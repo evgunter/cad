@@ -74,7 +74,7 @@ fn edit_fields(
         ("input", node(payload.input)),
         ("referenced_by", node(payload.referenced_by)),
         ("slot", word(payload.slot)),
-        ("param", word(payload.param.map(|p| p.0.as_str()))),
+        ("param", word(payload.param.map(|p| p.as_str()))),
         (
             "name",
             opt(payload.name.map(|n| name_text(py, n).map(|s| text(&s)))),
@@ -342,7 +342,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             word(crate::tags::distribution_fault_tag(fault)),
             none(),
             none(),
-            text(&p.0),
+            text(p.as_str()),
             none(),
             none(),
             none(),
@@ -363,7 +363,7 @@ pub(crate) fn persist_err(py: Python<'_>, err: &d::PersistError) -> PyErr {
             none(),
             none(),
             none(),
-            text(&p.0),
+            text(p.as_str()),
             dim(*measures),
             dim(*was),
             none(),
@@ -2823,19 +2823,25 @@ pub(crate) struct ParamName(pub(crate) d::ParamName);
 
 #[pymethods]
 impl ParamName {
+    /// Refuses typed (`EditError.variant == "param_name_not_an_identifier"`)
+    /// a text no expression could read back as this parameter — blank,
+    /// padded, not one identifier: the document layer's one rule for a
+    /// name, asked at the boundary that turns text into one.
     #[new]
-    fn new(name: &str) -> Self {
-        Self(d::ParamName::new(name))
+    fn new(py: Python<'_>, name: &str) -> PyResult<Self> {
+        d::ParamName::new(name).map(Self).map_err(|fault| {
+            boundary_edit_err(py, BoundaryEdit::ParamName(&fault), fault.to_string())
+        })
     }
 
     /// The name itself.
     #[getter]
     fn name(&self) -> String {
-        self.0.0.clone()
+        self.0.as_str().to_owned()
     }
 
     fn __repr__(&self) -> String {
-        format!("ParamName({:?})", self.0.0)
+        format!("ParamName({:?})", self.0.as_str())
     }
 
     fn __eq__(&self, other: &Self) -> bool {

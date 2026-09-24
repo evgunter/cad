@@ -622,7 +622,7 @@ fn the_registry_split_is_measured_at_a_pinned_point() {
     let doc = editor_core::apply(
         &entry.doc,
         &editor_core::DocEdit::SetDocParam {
-            name: editor_core::ParamName::new("fins"),
+            name: editor_core::ParamName::literal("fins"),
             value: editor_core::DocParam::Count { value: 160 },
         },
         tol,
