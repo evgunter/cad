@@ -14,18 +14,16 @@
 //! written down. A tool added to the set cannot be forgotten by an
 //! exclusivity rule that no longer exists.
 //!
-//! **The four per-tool rules here dispatch through an exhaustive
-//! match** — the pick routing, the survival step, the cursor
-//! narrowing, the close-on-commit edit — for the same reason: an
-//! eighth tool must not be able to compile while three of its four
-//! obligations are silently unmet. The READ door is not one of them:
-//! each typed accessor on [`Tools`] matches its own variant and
-//! answers `None` to every other, so an eighth tool that never gets
-//! an accessor compiles clean. [`ToolKind::ALL`] is not a list a
-//! compiler has to be asked to force either: it is projected from the
-//! enum's own declaration by the crate's `vocabulary!` macro, so an
-//! eighth kind reaches it by construction. Nothing outside the test
-//! suites reads it.
+//! **The four per-tool rules here are policy and name every tool** —
+//! the pick routing, the survival step, the cursor narrowing, the
+//! close-on-commit edit. The READ door is not one of them: each typed
+//! accessor on [`Tools`] matches its own variant and answers `None` to
+//! every other, which is identity rather than policy, so an eighth
+//! tool that never gets an accessor compiles clean. [`ToolKind::ALL`]
+//! is not a list a compiler has to be asked to force either: it is
+//! projected from the enum's own declaration by the crate's
+//! `vocabulary!` macro, so an eighth kind reaches it by construction.
+//! Nothing outside the test suites reads it.
 //!
 //! The value is renderer-free on purpose: the pick routing, the
 //! survival step and the exclusivity are all properties a headless row
@@ -127,32 +125,75 @@ impl ToolKind {
 
     /// **Whether this operation is this tool's one committed edit** —
     /// the rule that closes the tool that authored it, once the edit
-    /// has actually landed.
-    ///
-    /// The mate tool answers `false` for every op deliberately: it
-    /// closes at its own click, before the op is performed, which is
-    /// the shipped GUI-4 behaviour and not this rule's to change.
+    /// has actually landed. Which op belongs to which tool is
+    /// `committed_by`'s; whether a tool closes on its op at all is
+    /// this match's.
     pub fn commits(self, op: &SessionOp) -> bool {
         match self {
+            // The mate tool closes at its own click, before the op is
+            // performed, which is the shipped GUI-4 behaviour and not
+            // this rule's to change.
             Self::Mate => false,
-            Self::Revolve => matches!(op, SessionOp::AddRevolve { .. }),
-            Self::Boolean => matches!(op, SessionOp::AddBoolean { .. }),
-            Self::Split => matches!(op, SessionOp::AddSplit { .. }),
-            Self::Transform => matches!(op, SessionOp::AddTransform { .. }),
-            // Two ops, one tool, for the blend tool's reason: the
-            // output choice picks the door, and either one landing is
-            // this tool's edit committed.
-            Self::Pattern => matches!(
-                op,
-                SessionOp::AddPattern { .. } | SessionOp::AddPlacedUnion { .. }
-            ),
-            // Two ops, one tool: the kind choice picks the door, and
-            // either one landing is this tool's edit committed.
-            Self::Blend => matches!(
-                op,
-                SessionOp::AddFillet { .. } | SessionOp::AddChamfer { .. }
-            ),
+            Self::Revolve
+            | Self::Boolean
+            | Self::Split
+            | Self::Transform
+            | Self::Pattern
+            | Self::Blend => committed_by(op) == Some(self),
         }
+    }
+}
+
+/// **Which tool an operation is the committed edit of**, or `None` for
+/// an operation no tool closes on. `AddMate` is nobody's: the mate
+/// tool does not close on it ([`ToolKind::commits`]).
+fn committed_by(op: &SessionOp) -> Option<ToolKind> {
+    match op {
+        SessionOp::AddRevolve { .. } => Some(ToolKind::Revolve),
+        SessionOp::AddBoolean { .. } => Some(ToolKind::Boolean),
+        SessionOp::AddSplit { .. } => Some(ToolKind::Split),
+        SessionOp::AddTransform { .. } => Some(ToolKind::Transform),
+        // Two ops, one tool: the output choice picks the door, and
+        // either one landing is this tool's edit committed. The blend
+        // tool's kind choice does the same.
+        SessionOp::AddPattern { .. } | SessionOp::AddPlacedUnion { .. } => Some(ToolKind::Pattern),
+        SessionOp::AddFillet { .. } | SessionOp::AddChamfer { .. } => Some(ToolKind::Blend),
+        SessionOp::AddMate { .. }
+        | SessionOp::Select(_)
+        | SessionOp::Hover(_)
+        | SessionOp::DeleteNode { .. }
+        | SessionOp::SetSlot { .. }
+        | SessionOp::ProbeBounds { .. }
+        | SessionOp::SetSlotUnit { .. }
+        | SessionOp::SetSlotExpression { .. }
+        | SessionOp::SetParam { .. }
+        | SessionOp::SetParamUnit { .. }
+        | SessionOp::SetParamText { .. }
+        | SessionOp::CreateParam { .. }
+        | SessionOp::BeginGesture { .. }
+        | SessionOp::BeginParamGesture { .. }
+        | SessionOp::PreviewGesture { .. }
+        | SessionOp::CommitGesture { .. }
+        | SessionOp::PreviewParamGesture { .. }
+        | SessionOp::CommitParamGesture { .. }
+        | SessionOp::CancelGesture
+        | SessionOp::Undo
+        | SessionOp::Redo
+        | SessionOp::CancelEvaluation
+        | SessionOp::Reevaluate
+        | SessionOp::Open(_)
+        | SessionOp::Save(_)
+        | SessionOp::SetInstanceHidden { .. }
+        | SessionOp::BeginFreeMove { .. }
+        | SessionOp::PreviewFreeMove { .. }
+        | SessionOp::CommitFreeMove { .. }
+        | SessionOp::CancelFreeMove
+        | SessionOp::NewDocument { .. }
+        | SessionOp::AddDatum { .. }
+        | SessionOp::AddProfile { .. }
+        | SessionOp::EditProfile { .. }
+        | SessionOp::AddExtrude { .. }
+        | SessionOp::AddInstance { .. } => None,
     }
 }
 

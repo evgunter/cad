@@ -7,8 +7,8 @@
 //! widget does.
 //!
 //! [`SessionOp::permitted_during_value_gesture`] is the mid-gesture
-//! policy as data — one exhaustive match rather than a rule inferred
-//! from every dispatch target.
+//! policy as data — one match rather than a rule inferred from every
+//! dispatch target.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -860,8 +860,7 @@ impl FreeMoveName {
 /// is what a preview and a commit are checked against before they
 /// touch anything ([`crate::g1::Slot`]'s two name checks), and
 /// [`SessionOp::names_gesture`] is the one place an operation becomes
-/// one — exhaustive over the enum, so an operation that joins a drag
-/// cannot skip the question.
+/// one.
 ///
 /// **The layers below still speak their own subjects.** The session
 /// compares a [`ValueGestureName`] and the display state compares an
@@ -917,11 +916,7 @@ impl SessionOp {
     ///
     /// The one place a [`SessionOp`] becomes a [`GestureName`], and
     /// the answer to *are these three spellings the same kind of
-    /// fact*: they are, and this is where the tree says so. The match
-    /// is exhaustive, so an operation joining a drag does not compile
-    /// until someone writes down which gesture it names — the same
-    /// property [`SessionOp::permitted_during_value_gesture`] buys for
-    /// the mid-drag policy.
+    /// fact*: they are, and this is where the tree says so.
     ///
     /// **The two cancels answer `None`, and that is the rule rather
     /// than an omission**: a cancel names no target
@@ -1066,10 +1061,9 @@ impl SessionOp {
     /// merely unguarded. What is established is that it is sound
     /// today, on the mechanism above.
     ///
-    /// The whole policy is here, exhaustively, so that the set of
-    /// operations a drag refuses can be READ rather than reconstructed
-    /// from the dispatch, and so that a new operation cannot join the
-    /// enum without an answer: [`super::DocSession::perform`] consults this
+    /// The whole policy is here, so that the set of operations a drag
+    /// refuses can be READ rather than reconstructed from the
+    /// dispatch: [`super::DocSession::perform`] consults this
     /// once, before dispatch, and no arm re-guards against the VALUE
     /// gesture with a table of its own. Six arms guard from a
     /// GESTURE's state: the `*FreeMove` quartet delegates to

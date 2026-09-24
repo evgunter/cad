@@ -89,8 +89,8 @@ pub(crate) fn failure_lines(
     theme: &Theme,
 ) -> Option<RecipeNodeId> {
     let message = row.status.message()?;
-    // Where the WORDS go, and where a line under them goes. Exhaustive
-    // on purpose: which row a status links to is decided per state.
+    // Where the WORDS go, and where a line under them goes: which row
+    // a status links to is decided per state.
     let (words_to, then_to) = match &row.status {
         RowStatus::Poisoned { through, .. } => (Some(*through), None),
         // The words are this row's own cause; the link, when the tree
@@ -166,10 +166,8 @@ impl ViewerBehavior<'_> {
                     });
                 }
             }
-            // **Exhaustive on purpose**: whether a row draws a badge
-            // at all is this pane's decision, so a status the kernel
-            // grows has to answer it here rather than fall into a
-            // wildcard and draw.
+            // Whether a row draws a badge at all is this pane's
+            // decision.
             //
             // How LOUD a drawn badge is, is not decided here — that is
             // `RowStatus::tone()`, read below.

@@ -171,7 +171,10 @@ impl Verdict {
         Self(
             eval.nodes
                 .iter()
-                .filter(|(_, result)| matches!(result, NodeResult::Failed(_)))
+                .filter(|(_, result)| match result {
+                    NodeResult::Failed(_) => true,
+                    NodeResult::Ok(_) | NodeResult::Poisoned { .. } => false,
+                })
                 .map(|(id, _)| *id)
                 .collect(),
         )

@@ -184,24 +184,17 @@ pub(crate) fn preview_verdict(
             }
         }
         Some(Err(error)) => {
-            // **Unfinished is not wrong.** The end-of-program arm
-            // says only that the chain has no closing verb yet,
-            // which is the state every chain passes through while
-            // it is being written — a one-point chain reaches the
-            // form this way, because there is no leg for the
-            // provisional close to be walked over. Every OTHER
-            // refusal blames a step somebody actually wrote, and
-            // keeps the colour that says so.
-            if matches!(error, PreviewError::Transition { verb: None, .. }) {
-                crate::widgets::message_toned(ui, error.to_string(), &theme, frame::Tone::Advisory);
+            // **Unfinished is not wrong** ([`PreviewError::unfinished`]):
+            // a one-point chain reaches the form this way, because
+            // there is no leg for the provisional close to be walked
+            // over. Every other refusal keeps the colour that blames
+            // the step somebody wrote.
+            let tone = if error.unfinished() {
+                frame::Tone::Advisory
             } else {
-                crate::widgets::message_toned(
-                    ui,
-                    error.to_string(),
-                    &theme,
-                    frame::Tone::Actionable,
-                );
-            }
+                frame::Tone::Actionable
+            };
+            crate::widgets::message_toned(ui, error.to_string(), &theme, tone);
             true
         }
     }

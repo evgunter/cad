@@ -72,9 +72,7 @@ vocabulary! {
 /// declaration publishes `BooleanOp::ALL`, and the form draws one
 /// button per entry of it. A fourth operation therefore arrives in
 /// this form with no MEMBERSHIP edit here — it gets its button from
-/// the kernel's list — and it cannot arrive silently either, because
-/// it has no word until this match is given one, which is a compile
-/// error and not a missing button.
+/// the kernel's list, and its word from this match.
 ///
 /// **The order is `ALL`'s**, which is the kernel's declaration order,
 /// and the type's own doc says that order carries no meaning. The form
@@ -92,8 +90,8 @@ pub(crate) fn boolean_op_label(op: BooleanOp) -> &'static str {
 vocabulary! {
     /// The add-datum form's kind choice — one form, and **every arm of
     /// [`crate::session::DatumSpec`]**. An enum rather than an index
-    /// into a label list, so every consumer matches exhaustively and a
-    /// new kind cannot leave a silent wildcard arm behind.
+    /// into a label list, because a consumer can match an enum and name
+    /// every kind, and cannot do that with an index.
     ///
     /// Two kinds need a PICK as well as numbers, and they pick from
     /// different places. `AxisInPlane`'s frame is a document node,
@@ -234,8 +232,8 @@ vocabulary! {
 ///
 /// **A match, not a table**, for the reason [`boolean_op_label`] is
 /// one: a mode the vocabulary gains reaches the picker from
-/// `ArcMode::ALL` with no membership edit here, and has no word until
-/// this match gives it one — a compile error, not a missing option.
+/// `ArcMode::ALL` with no membership edit here, and its word from
+/// this match.
 /// The verbs need no such function: `profile::Verb`'s own `Display`
 /// is the authoring spelling, declared on the transition table's row.
 pub(crate) fn arc_mode_label(mode: ArcMode) -> &'static str {
@@ -448,8 +446,7 @@ impl FieldWriting {
 /// forces (`crates/viewer/src/vocab.rs` declares the macro) is that
 /// every [`MatePrimitive`] variant is either offered at a seat of this
 /// list or named below as deliberately absent, with the reason it is
-/// absent. A primitive added to the kernel enum is neither until
-/// someone writes one of the two, and the build says so.
+/// absent.
 pub(crate) const MATE_PRIMITIVES: [(MatePrimitive, &str); 3] = [
     (MatePrimitive::FrameCoincidence, "frame coincidence"),
     (MatePrimitive::Coaxial, "coaxial"),

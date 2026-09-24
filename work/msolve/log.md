@@ -733,6 +733,17 @@ carries it per MSOLVE-7. Worth your read, since half of it is your file.
 
 Signed (DOOR orchestrator).
 
+## 2026-09-24 — seam note from CHROME (`chrome/subset-policy`)
+
+That branch adds no conflict with #2934 (`msolve/9-from-face`) beyond
+the four it already has against main. `MateFault::FaceUnresolved` lands
+in `tree.rs`'s `blamed_mates`/`repaired_at`, which were exhaustive
+before and to which #2934 already adds the arm. The CHROME branch adds
+no `MateFault` match. It does rewrite `MateTool::proposal`'s class door
+as a `match` over `ClassAdmission`, a few lines below #2934's signature
+change. It merges cleanly, but the merged `proposal` wants a compile.
+
+(CHROME implementer lane, chrome/subset-policy)
 ## MSOLVE-9 resumed on Opus; the wire amended; review tier DUAL (2026-09-24)
 
 The MSOLVE-9 lane stopped on a usage limit on 2026-09-20 with PR 2934

@@ -165,9 +165,7 @@ impl GestureTarget {
     /// from the chrome carries neither and has no business asserting
     /// them. So the comparison that decides whether a preview belongs
     /// to the open gesture is over [`ValueGestureName`], and this is
-    /// the one place a target becomes one — exhaustive over the
-    /// target's arms, so a third kind of gesture target cannot skip
-    /// the question.
+    /// the one place a target becomes one.
     fn name(&self) -> ValueGestureName {
         match self {
             Self::Slot { node, slot, .. } => ValueGestureName::Slot {
@@ -692,11 +690,8 @@ impl DocSession {
     /// and has its own control beside the spinner that reports the
     /// run. The census is held from the operation vocabulary's side by
     /// `crates/viewer/tests/gesture_table.rs`'s
-    /// `every_gesture_cancel_has_a_chrome_door`, whose match over
-    /// `SessionOp` is exhaustive — so a third gesture cannot join the
-    /// enum with no door, which is the protection
-    /// [`SessionOp::permitted_during_value_gesture`] gives the
-    /// mid-gesture policy one concept over.
+    /// `every_gesture_cancel_has_a_chrome_door`, which names every
+    /// `SessionOp`.
     ///
     /// Each door reads the state of its OWN gesture: this session's
     /// value drag, and [`crate::display::DisplayState::probing`] for
@@ -2360,11 +2355,7 @@ impl DocSession {
     ///
     /// **Every other edit submits**, and that is the conservative
     /// direction rather than a gap: an insert, a delete or a rename
-    /// has no standing value of its own to be equal to. The match
-    /// below NAMES every one of them rather than wildcarding — a
-    /// `DocEdit` added later has to be answered here, in a compile
-    /// error, instead of quietly inheriting a guard nobody asked
-    /// whether it wanted.
+    /// has no standing value of its own to be equal to.
     fn writes_nothing(&self, edit: &DocEdit<ProfileProgram>) -> bool {
         let doc = self.committed_doc();
         match edit {
@@ -2392,18 +2383,10 @@ impl DocSession {
                 doc.params().get(name),
                 Some(DocParam::Continuous { display_unit, .. }) if display_unit == unit
             ),
-            // **Every other edit submits — and the match NAMES them
-            // all**, so a `DocEdit` added later is a compile error at
-            // the one site that has to decide whether it wants this
-            // guard. A wildcard would give the next value-writing
-            // edit no guard and nothing would go red; this is the
-            // same preference `SessionOp::permitted_during_value_gesture`
-            // states for the gesture table.
-            //
-            // The structure of the recipe and the shape of the
-            // product: a node inserted, deleted, re-parented or
-            // re-pointed has no standing value of its own for an
-            // offered one to equal.
+            // Every other edit submits. The structure of the recipe and
+            // the shape of the product: a node inserted, deleted,
+            // re-parented or re-pointed has no standing value of its
+            // own for an offered one to equal.
             DocEdit::InsertNode { .. }
             | DocEdit::DeleteNode { .. }
             | DocEdit::SetMembers { .. }

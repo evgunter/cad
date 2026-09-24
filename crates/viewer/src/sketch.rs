@@ -49,8 +49,8 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{
-    Datum, DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, LoopProgram,
-    Node, ParamEnv, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
+    DatumValue, Dimension, DimensionError, Doc, EvalError, Evaluation, Expr, LoopProgram, Node,
+    ParamEnv, ProfileProgram, RecipeNodeId, RecordedNotation, RecordedProgramError, SlotId,
     ValuePayload, resolve_loops, unparse,
 };
 use pncad::geom_core::{Point2, Tol};
@@ -60,6 +60,8 @@ use pncad::profile::{
     arc_specs_at, replay,
 };
 use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenLength};
+
+use crate::session::refuse::{NodeKindWanted, admits};
 
 /// One loop of the add-profile door: a template shape, or a PATH
 /// authored verb by verb.
@@ -120,11 +122,9 @@ pub enum ProfileShape {
 /// **A step of `verb` with the path form's starting numbers** — what
 /// a row becomes when its verb is picked.
 ///
-/// Exhaustive on the kernel's [`Verb`], and that is what holds the
-/// form to the algebra: the form offers [`Verb::ALL`], so a verb the
-/// transition table gains reaches the menu by itself, and it has no
-/// starting step until this match gives it one — a compile error, not
-/// a verb that is silently missing.
+/// The form offers [`Verb::ALL`], so a verb the transition table gains
+/// reaches the menu by itself; this match is where it is given its
+/// starting step.
 ///
 /// **Millimetre-scale, never zero.** A leg of length zero and a
 /// fillet of radius zero are both geometry refusals, so a fresh step
@@ -177,8 +177,7 @@ pub fn fresh_step(verb: Verb) -> Step<f64> {
 
 /// **An arc spec of `mode` with the form's starting numbers** —
 /// millimetre-scale and never degenerate, for the reason
-/// [`fresh_step`]'s are; exhaustive on the kernel's [`ArcMode`] for
-/// the reason that one is on [`Verb`].
+/// [`fresh_step`]'s are.
 pub fn fresh_arc(mode: ArcMode) -> ArcData<f64> {
     let target = fresh_target(TargetKind::Point);
     match mode {
@@ -666,12 +665,7 @@ pub fn frame_placement(
     evaluation: &Evaluation<f64>,
     frame: RecipeNodeId,
 ) -> Option<SketchPlane<f64>> {
-    // Either frame kind: what is drawn is the landed VALUE, which both
-    // produce.
-    if !matches!(
-        doc.node(frame),
-        Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
-    ) {
+    if !admits(doc.node(frame), NodeKindWanted::Frame) {
         return None;
     }
     let ValuePayload::Datum(DatumValue::Frame(f)) = &evaluation.value(frame)?.payload else {
@@ -681,7 +675,9 @@ pub fn frame_placement(
 }
 
 /// **Every frame datum in the document, in document order** — what the
-/// creation forms' frame picker offers.
+/// creation forms' frame picker offers, which is exactly the set a
+/// frame seat [`admits`], so the picker cannot offer a node the commit
+/// door refuses.
 ///
 /// Document order rather than sorted by id or by name: the feature
 /// tree lists nodes that way, so the picker and the tree name the
@@ -690,12 +686,7 @@ pub fn frames(doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
     doc.order()
         .iter()
         .copied()
-        .filter(|id| {
-            matches!(
-                doc.node(*id),
-                Some(Node::Datum(Datum::Frame { .. } | Datum::FaceFrame { .. }))
-            )
-        })
+        .filter(|id| admits(doc.node(*id), NodeKindWanted::Frame))
         .collect()
 }
 
@@ -852,6 +843,27 @@ pub enum PreviewError {
     },
 }
 
+impl PreviewError {
+    /// **Whether this refusal says only that the chain has not closed
+    /// YET** — the end-of-program arm, the state every chain passes
+    /// through while it is being written. Every other refusal blames a
+    /// step somebody wrote.
+    ///
+    /// The one reading of "unfinished is not wrong": [`preview`] retries
+    /// exactly these under a provisional close, and the profile pane
+    /// tones exactly these as advice rather than as a fault.
+    pub fn unfinished(&self) -> bool {
+        match self {
+            Self::Transition { verb: None, .. } => true,
+            Self::Transition { verb: Some(_), .. }
+            | Self::Lowering(_)
+            | Self::Resolve { .. }
+            | Self::Unflattenable { .. }
+            | Self::Geometry { .. } => false,
+        }
+    }
+}
+
 // The preview's sentence is about the step the author is looking at,
 // so both halves of the (state, verb) pair are named in the author's
 // vocabulary: the verb through `profile::Verb`'s own `Display` — the
@@ -978,16 +990,15 @@ pub fn preview(
             // until the last step landed, which is precisely when a
             // person no longer needs to see it.
             //
-            // The end-of-program arm (`verb: None`) is the only one
-            // that means "unfinished" rather than "wrong": every other
-            // refusal blames a step that was authored. So that arm,
-            // and only it, is retried under a PROVISIONAL closing leg
-            // — `line_to Start`, appended here and never recorded
-            // anywhere — which is enough to make the driver hand back
-            // the geometry it already walked. The leg itself is not
-            // drawn: it contributes no vertex, so a consumer that
-            // declines to wrap an open polyline draws exactly the legs
-            // that were authored and nothing else.
+            // An unfinished refusal ([`PreviewError::unfinished`]) is
+            // the only one that means "not yet" rather than "wrong".
+            // So that one, and only it, is retried under a PROVISIONAL
+            // closing leg — `line_to Start`, appended here and never
+            // recorded anywhere — which is enough to make the driver
+            // hand back the geometry it already walked. The leg itself
+            // is not drawn: it contributes no vertex, so a consumer
+            // that declines to wrap an open polyline draws exactly the
+            // legs that were authored and nothing else.
             //
             // Nothing about the lattice is re-implemented to do it.
             // The provisional close goes through the same `replay` as
@@ -995,7 +1006,11 @@ pub fn preview(
             // (a bound direction with no position, an arc arrival
             // still waiting for a binder) the ORIGINAL refusal is
             // reported — never one belonging to a step nobody wrote.
-            Err(error) if matches!(error.kind, ReplayErrorKind::Transition { verb: None, .. }) => {
+            Err(error) => {
+                let refused = refusal(index, &error);
+                if !refused.unfinished() {
+                    return Err(refused);
+                }
                 let mut provisional = steps.clone();
                 provisional.push(Step::LineTo(Target::Start));
                 match replay(&provisional, tol) {
@@ -1003,10 +1018,9 @@ pub fn preview(
                         loops.push(replayed);
                         closed_flags.push(false);
                     }
-                    Err(_) => return Err(refusal(index, &error)),
+                    Err(_) => return Err(refused),
                 }
             }
-            Err(error) => return Err(refusal(index, &error)),
         }
     }
     let open = closed_flags.iter().any(|closed| !closed);
@@ -1099,7 +1113,7 @@ pub fn committed(
 ) -> CommittedProfiles {
     let mut out = CommittedProfiles::default();
     for &node in doc.order() {
-        if Some(node) == except || !matches!(doc.node(node), Some(Node::Profile(_))) {
+        if Some(node) == except || !admits(doc.node(node), NodeKindWanted::Profile) {
             continue;
         }
         let Some(value) = evaluation.value(node) else {
@@ -1230,7 +1244,22 @@ pub fn fresh_step_at(verb: Verb, state: Option<TipState>) -> Step<f64> {
             fresh(0, spec);
             fresh(1, spec2);
         }
-        _ => {}
+        // No arc spec to freshen.
+        Step::At(_)
+        | Step::Angle(_)
+        | Step::Toward { .. }
+        | Step::Tangent
+        | Step::Cusp
+        | Step::Turn(_)
+        | Step::Line(_)
+        | Step::LineTo(_)
+        | Step::ContinueTo(_)
+        | Step::TangentArcTo(_)
+        | Step::Fillet { .. }
+        | Step::FarEndTo(_)
+        | Step::CloseTo
+        | Step::Circle { .. }
+        | Step::CircleSplit { .. } => {}
     }
     step
 }

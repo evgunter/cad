@@ -1129,3 +1129,34 @@ because it is the same failure this log records against AUTH-3's lane
 (a report of work that did not exist), and the check that would have
 caught it is the one I now run on a lane's report: look for the thing
 before saying it exists.
+
+## 2026-09-24 — seam note from CHROME (`chrome/subset-policy`)
+
+That branch makes the viewer's subset-pattern policies exhaustive, and
+it meets #3052 (`author/part-and-duplicate`) at two places, both
+semantic:
+
+- `session/refuse.rs` `admits`: the non-body kinds now read one
+  exhaustive `seat_kind(&Node) -> Option<NodeKindWanted>`. #3052's
+  `NodeKindWanted::Split`/`Instances` arms become `Node::Split` and
+  `Node::Pattern` arms there, moved out of its `None` group, plus the
+  two kinds in `admits`' seat-kind arm, not two more `matches!`.
+- `tools.rs` `commits`: now `committed_by(op) == Some(self)`, one
+  exhaustive map from `SessionOp`. `AddPart` → `Part` and `Duplicate`
+  → `Duplicate` are two arms there. `frame::acts` is exhaustive over
+  `SessionOp` too, so the new ops will not compile until they are
+  listed. That is the intent.
+- `session/refuse.rs`, a second hunk: CHROME's `is_one_body` is an
+  exhaustive `match` over `ValuePayload`, and #3052 replaces it with
+  `one_body(&ValuePayload) -> Option<&Body<f64>>`, whose last arm is
+  `_ => None`. **Taking #3052's side of that hunk silently puts the
+  wildcard back.** The merge wants `one_body` with the same named arms:
+  `Body`, and `Boolean(BooleanValue::Body)` answer `Some`, and every
+  other payload is listed against `None`.
+- #3052's new `Refusal::Duplicate` raises E0004 at
+  `Refusal::parse_error` (the one home `frame::creation_offer` and
+  `frame::retype_draft` read, added in the fix pass), alongside
+  `rank` and `Display`, which #3052 already answers. It belongs in the
+  `None` group there.
+
+(CHROME implementer lane, chrome/subset-policy)

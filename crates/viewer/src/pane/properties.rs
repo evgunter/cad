@@ -4,7 +4,7 @@
 //! Module kind: **driver** (`crates/viewer/README.md`, The drivers).
 
 use eframe::egui;
-use pncad::document::{Axis3, Dimension, Frame, Node, ParamName, RecipeNodeId};
+use pncad::document::{Axis3, Dimension, Frame, ParamName, RecipeNodeId};
 use pncad::quantity::{self, UnitDef};
 
 use crate::app::{ViewerBehavior, chrome, indeterminate_wording};
@@ -12,7 +12,9 @@ use crate::display::free_move_check;
 use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
 use crate::frame::Tone;
 use crate::props::{self, ParamRow, SlotDriver, SlotGroup, SlotRow, SlotValue};
-use crate::session::{BoundsTarget, Refusal, Selection, SessionOp, Standing, ValueGestureName};
+use crate::session::{
+    BoundsTarget, NodeKindWanted, Refusal, Selection, SessionOp, Standing, ValueGestureName, admits,
+};
 use crate::theme::Theme;
 use crate::widgets::{
     FieldShowing, FieldVocabulary, ProbeOps, UNIT_PICKER_WIDTH, angle_picker, delete_button,
@@ -172,9 +174,9 @@ impl ViewerBehavior<'_> {
     /// probing its range. A profile the editor cannot hold (an argument
     /// already driven) shows its refusal and the rows open.
     fn feature_rows_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, groups: &[SlotGroup]) {
-        let profile = matches!(
+        let profile = admits(
             self.session.committed_doc().node(node),
-            Some(Node::Profile(_))
+            NodeKindWanted::Profile,
         );
         if profile && self.edit_profile_ui(ui, node) {
             egui::CollapsingHeader::new("arguments")

@@ -113,8 +113,8 @@ pub enum DatumSpec {
 /// so there is no pick to be wrong and nothing to gate. A second
 /// [`super::SessionOp`] would have re-declared `loops` and the whole
 /// insert-door refusal contract beside the one that has it, and would
-/// have had to answer the three exhaustive matches over the op
-/// vocabulary twice.
+/// have had to answer every exhaustive match over the op vocabulary
+/// twice.
 ///
 /// **What [`Self::NewXy`] must not become is an implicit frame.** It
 /// inserts an ordinary [`pncad::document::Datum::Frame`] node — visible
