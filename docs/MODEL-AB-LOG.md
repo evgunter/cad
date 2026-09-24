@@ -7136,6 +7136,33 @@ klint:unsampled`, `gate ok`). Tokens (harness): impl 262,516, fix
 harness figure is the record). Tally after this entry: candidates
 unchanged (the one MAJOR is doc class).
 
+Block TOPO-B5 — CONCLUDED record (published from the orchestrator's
+branch-side record `topo/b5-block` at the last slot's conclusion,
+2026-09-24). Protocol: three slots {opus, opus, fable}, with fable at
+position byte mod 3. Pre-draw fields for all three slots were
+committed to `work/topo/log.md` at `41eb35f5c` BEFORE the draw. Draw
+2026-09-14: `/dev/urandom` byte **7** ⇒ 7 mod 3 = **1** ⇒ fable at
+slot 1. Slots:
+- 0 = `set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left`
+  (OPUS; S / STRUCTURAL; PR #2594, ordinal 2712, sample #242). One
+  unilateral MAJOR, doc class, was excluded, so there is no tally
+  candidate. Concluded 2026-09-24.
+- 1 = `mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`
+  (FABLE; M / STRUCTURAL; PR #2603, ordinal 2713, sample #241, no tally
+  candidate). The implementer lane's tokens and wall are missing data.
+  Concluded 2026-09-24.
+- 2 = `a-null-edge-can-be-re-based-onto-a-distinct-point` (+ the m7-8
+  row) was drawn OPUS but **dispatched only after the suspension**. It
+  therefore ran as an ordinary Opus unit, claimed no ordinal and drew
+  no sample. Its review is `docs/DUAL-REVIEW-LOG.md`'s DR-1 (PR #3148,
+  merged 2026-09-24). The slot is recorded as unconsumed by this
+  protocol.
+
+Every row of this block is flagged arm-exposed per the disclosure
+above. Both A/B pairs COUNT; neither review was interrupted. The block
+closes the TOPO band's use of the A/B protocol: no further TOPO block
+will be drawn under the suspension.
+
 ## SYM program rows (work/sym/; band 4700–4799; blocks named SYM-B<n>)
 
 SYM-4 review ordinal fixed at dispatch (2026-09-14, PR #2565 open —
