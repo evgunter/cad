@@ -498,14 +498,7 @@ pub(crate) fn sign_walk<'b, T: Decide, V>(
     // still open — both idiom 1 into slots in the caller's order, both
     // composed sequentially in it ([`mass_properties_impl`]'s note).
     let mut runs = decide_faces(faces, |&face_key| {
-        face_flux(
-            body,
-            face_key,
-            band,
-            &hook,
-            tol,
-            RoundWindow::at(0),
-        )
+        face_flux(body, face_key, band, &hook, tol, RoundWindow::at(0))
     })?;
     let mut round = 0usize;
     loop {
@@ -550,14 +543,7 @@ pub(crate) fn sign_walk<'b, T: Decide, V>(
             .map(|(slot, run)| (slot, run.face))
             .collect();
         let decided = decide_faces(&open, |&(_, face_key)| {
-            face_flux(
-                body,
-                face_key,
-                band,
-                &hook,
-                tol,
-                RoundWindow::at(round),
-            )
+            face_flux(body, face_key, band, &hook, tol, RoundWindow::at(round))
         })?;
         for ((slot, _), run) in open.iter().zip(decided) {
             runs[*slot] = run;
@@ -3710,8 +3696,8 @@ mod face_list_door_tests {
                 .collect();
             let assembled =
                 SignCertificate::assembled(&body, band, tol, Some(QuadLane::certified()), parts)
-                .refine_to_target()
-                .unwrap();
+                    .refine_to_target()
+                    .unwrap();
             let whole = crate::mass_properties(&body, tol).unwrap();
             assert_eq!(
                 (
