@@ -46,7 +46,6 @@ use editor_core::{CancelToken, EvalOptions, NodeResult, ProfileDoc, ProfileLift,
 use geom_core::sym::report::{
     DecisionShape, ShapeOutcome, name_param, start_shape_report, take_shape_report,
 };
-use geom_core::sym::with_session_rules;
 use geom_core::{Sign, SymBudget, SymRules, Tol};
 
 use crate::m10_7_plate::plate;
@@ -118,6 +117,19 @@ pub(crate) fn replay(
     rules: SymRules,
     tol: Tol,
 ) -> (Vec<DecisionShape>, Option<String>, geom_core::SymCounts) {
+    replay_retried(doc, box_, rules, geom_core::SymRetry::none(), tol)
+}
+
+/// [`replay`] with a RETRY LADDER installed (`geom_core::SymRetry`) —
+/// the tier a drive runs. `replay` is this at
+/// `SymRetry::none()`, which is the tier making one attempt per rung.
+pub(crate) fn replay_retried(
+    doc: &ProfileDoc,
+    box_: &ParamBox,
+    rules: SymRules,
+    retry: geom_core::SymRetry,
+    tol: Tol,
+) -> (Vec<DecisionShape>, Option<String>, geom_core::SymCounts) {
     for name in box_.axes().keys() {
         name_param(&name.0);
     }
@@ -127,14 +139,15 @@ pub(crate) fn replay(
         ..EvalOptions::default()
     };
     start_shape_report();
-    let (first_refusal, counts) = with_session_rules(budget(), rules, || {
-        let ev: editor_core::Evaluation<geom_core::Sym<geom_core::Interval>> =
-            evaluate(doc, None, &CancelToken::new(), &opts, tol);
-        ev.order.iter().find_map(|id| match ev.result(*id) {
-            Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
-            _ => None,
-        })
-    });
+    let (first_refusal, counts) =
+        geom_core::sym::with_session_retry(budget(), rules, retry, || {
+            let ev: editor_core::Evaluation<geom_core::Sym<geom_core::Interval>> =
+                evaluate(doc, None, &CancelToken::new(), &opts, tol);
+            ev.order.iter().find_map(|id| match ev.result(*id) {
+                Some(NodeResult::Failed(e)) => Some(format!("node {} — {}", id.0, e.kind)),
+                _ => None,
+            })
+        });
     (take_shape_report(), first_refusal, counts)
 }
 
@@ -384,10 +397,7 @@ fn m10_8_ceilings_per_rule_set() {
     ];
     for (name, doc_at) in docs {
         for (label, rules) in sets {
-            let dials = SymbolicDials {
-                rules,
-                ..SymbolicDials::default()
-            };
+            let dials = crate::m10_8_harness::dials(rules);
             let (lo, hi, set) = ceiling(doc_at, dials, tol);
             println!(
                 "   {name} rules={label:<6} certifies x{lo:e}, refuses x{hi:e} of the real study"

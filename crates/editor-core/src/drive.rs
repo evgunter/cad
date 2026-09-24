@@ -281,7 +281,27 @@ pub struct SymbolicDials {
     /// stood before the algebra, so the effect of each rule on a
     /// document is a measurement taken through this dial rather than
     /// an assumption.
+    ///
+    /// **That premise needs [`Self::retry`] at
+    /// [`geom_core::SymRetry::none`]**: a retry ladder is a second
+    /// rule set run into each side's refusals — its first attempt shuts
+    /// rule G — so a rules differential taken with it on both sides
+    /// reads a rule's cost as recovered. The suites' differentials take
+    /// their dials from one place that sets it so
+    /// (`editor-core/tests/m10_8_harness.rs`, `dials`).
     pub rules: geom_core::SymRules,
+    /// **The RETRY LADDER a refused decision may take**
+    /// ([`geom_core::SymRetry`]): the measured ladder by default
+    /// ([`DEFAULT_SYM_RETRY`] = [`geom_core::SymRetry::kept_atom`], whose
+    /// doc carries the cost against the line and the trade), and
+    /// [`geom_core::SymRetry::none`] is the tier making one attempt per
+    /// rung — exactly as it stood before SYM-9 — so what the ladder buys
+    /// a document is a differential taken through this dial.
+    ///
+    /// It can only ADD: a retry is asked only where every rung of the
+    /// first attempt declined, so no dial value here moves a decision
+    /// out of `symbolic_zero`, `sign_gated` or `registered`.
+    pub retry: geom_core::SymRetry,
 }
 
 /// The shipped term budget ([`SymbolicDials`]).
@@ -289,6 +309,69 @@ pub const DEFAULT_SYM_MAX_TERMS: usize = 4096;
 
 /// The shipped degree budget ([`SymbolicDials`]).
 pub const DEFAULT_SYM_MAX_DEGREE: u32 = 128;
+
+/// **The shipped RETRY LADDER** ([`SymbolicDials::retry`]):
+/// [`geom_core::SymRetry::kept_atom`] — two kept-atom attempts, rule G
+/// shut and then rule A's `sqrt(X)² = X` shut, and no wider-ring
+/// attempt. It SHIPS ACROSS THE 1.6 s LINE as a disclosed trade, the way
+/// rule E did (`geom_core::sym`'s rule-E section).
+///
+/// **The cost, on the affordability line's own instrument** — one
+/// whole-box leaf (`m10_10_leaf_cost_with_and_without_the_algebra`),
+/// release, the fastest of three takes on a four-core box, the shipped
+/// rules at one attempt per rung against the same rules with a ladder:
+///
+/// | document (scale) | M10-9 | one attempt | `kept_atom` | rule-G mask alone | rule-A mask alone | what the ladder closes |
+/// | --- | --- | --- | --- | --- | --- | --- |
+/// | two-hole plate (`1e2·ε`) | 0.09 s | 0.35 s | 0.35 s | 0.38 s¹ | 0.38 s¹ | nothing |
+/// | R1's annulus (`1e1·ε`) | 0.06 s | 0.37 s | 0.38 s | 0.40 s¹ | 0.39 s¹ | nothing |
+/// | R2's filleted bracket (`1e1·ε`) | 0.28 s | 2.86 s | 3.88 s | 3.53 s | 3.25 s | 6 decisions, all `registered` (rule A's attempt) |
+/// | R2's link (`1e1·ε`) | 0.23 s | 17.28 s | 19.71 s | 18.94 s | 17.93 s | 12 decisions, all `symbolic_zero` (rule G's attempt) |
+/// | R2's rounded pad (`1e2·ε`) | 0.75 s | 131.3 s | 147.7 s | 144.0 s¹ | 139.2 s¹ | nothing |
+///
+/// ¹ One take, not three.
+///
+/// **The trade, on the balance.** The line is 1.6 s. The bracket, the
+/// link and the pad are over it at ONE attempt per rung — the shipped
+/// rules alone take the bracket to 10× and the link to 75× their M10-9
+/// leaf — and the ladder adds 1.0 s on the bracket (36 %), 2.4 s on the
+/// link (14 %) and 16 s on the pad (12.5 %). It takes no document from
+/// under the line to over it and changes no certification (every leaf
+/// above certifies whole with it and without it); with the decision read
+/// shut (`SymRules::without_the_reads`) the same columns move by less
+/// than the takes' spread, so the read is not what it costs. What it
+/// buys is the link's twelve theorems, ten of them exactly the ten
+/// rule G costs `carrier_on_surface_2` at one attempt per rung
+/// (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`)
+/// — so the rule-G attempt pays back what the default rule G takes.
+///
+/// **The rule-A attempt is the WEAKER half and is named as such.** On
+/// the only document it acts on it buys six REGISTRATIONS and no theorem
+/// — decisions moved from `numeric` to a constructor's axiom — for about
+/// 0.4 s of the bracket's 1.0 s (rule-A mask alone 3.25 s against 2.86).
+/// It ships with the rule-G attempt on the same balance, disclosed here
+/// rather than dropped.
+///
+/// **The masks' order is a tie**: the other order recovers the same
+/// decisions on every measured document (the nominal replay, dev:
+/// bracket 1.47× against 1.44×, link 1.22× against 1.21×; the leaf:
+/// 3.88 against 3.76 s and 19.71 against 19.51 s, inside the takes'
+/// spread), so rule G's attempt — the one that buys theorems — goes
+/// first.
+///
+/// **One mask would not do**: rule A and rule G shut in ONE attempt
+/// keeps the bracket's six and recovers NONE of the link's twelve at
+/// the nominal (why is not executed; `geom_core::SymRetry::without`
+/// carries the hypothesis and what would confirm it).
+///
+/// **The wider ring is measured and not in the ladder**, which is the
+/// answer SYM-9 owes `work/sym/coefficient-ring-width-is-not-monotone-in-reach`:
+/// at 512 bits it recovers, predicate by predicate, no more than the
+/// kept-atom attempts do — the bracket's same six and eight of the
+/// link's twelve — at 4.50× the nominal replay on the bracket against
+/// the kept-atom ladder's 1.47×. At 1024 bits it recovers thirteen more
+/// on the bracket than the kept atom does, 19 in all, at 11.57×.
+pub const DEFAULT_SYM_RETRY: geom_core::SymRetry = geom_core::SymRetry::kept_atom();
 
 impl SymbolicDials {
     /// The tier off — the numeric-only replay, bit for bit.
@@ -312,7 +395,7 @@ impl SymbolicDials {
     /// certified-leaf consumer takes ([`crate::eval::LeafLane`]).
     pub(crate) fn lane(self) -> crate::eval::LeafLane {
         if self.enabled {
-            crate::eval::LeafLane::Symbolic(self.budget(), self.rules)
+            crate::eval::LeafLane::Symbolic(self.budget(), self.rules, self.retry)
         } else {
             crate::eval::LeafLane::Numeric
         }
@@ -327,6 +410,8 @@ impl Default for SymbolicDials {
             max_degree: DEFAULT_SYM_MAX_DEGREE,
             // The shipped atom-algebra set ([`geom_core::SymRules::shipped`]).
             rules: geom_core::SymRules::default(),
+            // The measured retry ladder ([`DEFAULT_SYM_RETRY`]).
+            retry: DEFAULT_SYM_RETRY,
         }
     }
 }
@@ -861,6 +946,20 @@ impl ParamBoxVerdict {
                     self.decisions.registrations_contradicted
                 );
             }
+            // **How many of the discharges above a RETRY carried**
+            // (`geom_core::SymCounts::retried`, SYM-9), by the same
+            // present-only-when-nonzero rule: the ladder is entered
+            // only on a refusal, so a drive it closes nothing on
+            // serializes the line it serialized before the ladder
+            // existed. At the nominal it closes something on two of the
+            // five documents SYM-9 measured (R2's link and bracket).
+            //
+            // It is not a fourth discharge column: those three are
+            // where a retry's answer lands, and this says how many of
+            // them the second attempt is holding up.
+            if self.decisions.retried != 0 {
+                let _ = write!(s, " retried={}", self.decisions.retried);
+            }
             let _ = writeln!(s);
         }
         let _ = write!(s, "{}", self.accounting.serialize());
@@ -924,6 +1023,17 @@ impl ParamBoxVerdict {
                     s,
                     ", {} more by a constructor's registered identity",
                     d.registered
+                );
+            }
+            // How many of the discharges named above a retry carried —
+            // a clause of its own and not a parenthesis on the last
+            // column, because a retry's zero lands in whichever column
+            // its rung writes (`geom_core::SymCounts::retried`).
+            if d.retried != 0 {
+                let _ = write!(
+                    s,
+                    "; {} of those discharges reached only by a second attempt",
+                    d.retried
                 );
             }
             // A refusal is louder than a count: it says a constructor
@@ -1475,12 +1585,17 @@ fn classify(
         ..lane_opts()
     };
     if symbolic.enabled {
-        let (leaf, counts) =
-            sym::with_session_memo(symbolic.budget(), symbolic.rules, memo, || {
+        let (leaf, counts) = sym::with_session_memo_retry(
+            symbolic.budget(),
+            symbolic.rules,
+            symbolic.retry,
+            memo,
+            || {
                 let leaf: Evaluation<Sym<Interval>> =
                     evaluate(doc, None, &CancelToken::new(), &opts, tol);
                 leaf
-            });
+            },
+        );
         return (
             classify_replay(
                 doc,
@@ -1871,11 +1986,16 @@ fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, symbolic: Symbolic
     // driver's own population. Running it at bare `Probe` would report a
     // population the driver did not produce.
     if symbolic.enabled {
-        let _ = geom_core::sym::with_session_rules(symbolic.budget(), symbolic.rules, || {
-            let ev: Evaluation<Sym<geom_core::Probe>> =
-                evaluate(doc, None, &CancelToken::new(), &opts, tol);
-            ev
-        });
+        let _ = geom_core::sym::with_session_retry(
+            symbolic.budget(),
+            symbolic.rules,
+            symbolic.retry,
+            || {
+                let ev: Evaluation<Sym<geom_core::Probe>> =
+                    evaluate(doc, None, &CancelToken::new(), &opts, tol);
+                ev
+            },
+        );
         return;
     }
     let _: Evaluation<geom_core::Probe> = evaluate(doc, None, &CancelToken::new(), &opts, tol);

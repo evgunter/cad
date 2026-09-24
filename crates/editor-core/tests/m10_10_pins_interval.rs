@@ -108,32 +108,76 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             && !off.common_factor
             && !off.manifest_sign
             && !off.canonical_root
+            && !off.abs_square
+            && !off.root_magnitude
             && !off.decision_read,
         "the algebra off: {off:?}"
     );
-    // EIGHT dials since DECIDE-3: rule E (the quotient's common factor,
-    // SYM-5), rule F (the manifest sign, SYM-8), rule G (the canonical
-    // root) and the decision read are form-level algebra in the early
-    // walk like the other four, and `without_the_algebra` is M10-9's
-    // tier bit for bit, which had none of them.
-    // `m10_9_pins_interval` holds M10-9's rows under it. A dial left
-    // out of this list makes the differential one against a tier that
-    // never existed — SYM-8's review found exactly that, with rule F on
-    // BOTH sides of it.
+    // TEN dials since SYM-9, and the two it added are rule G's own
+    // halves. Eight of them have been the list since DECIDE-3: rule E
+    // (the quotient's common factor, SYM-5), rule F (the manifest sign,
+    // SYM-8), rule G (the canonical root) and the decision read are
+    // form-level algebra in the early walk like the other four, and
+    // `without_the_algebra` is M10-9's tier bit for bit, which had none
+    // of them. `m10_9_pins_interval` holds M10-9's rows under it. A
+    // dial left out of this list makes the differential one against a
+    // tier that never existed — SYM-8's review found exactly that, with
+    // rule F on BOTH sides of it.
+    //
+    // **`abs_square` and `root_magnitude` are the ninth and tenth**
+    // (SYM-9): rule G's companion rewrite `|X|² = X²` and its magnitude
+    // door `sqrt(R²) = |R|`, each read as a conjunction with
+    // `canonical_root`, so neither can turn a step ON in a tier that
+    // has rule G shut and `without_the_algebra` is the same TIER it was
+    // before they existed. They are here because they must be the same
+    // VALUE too: a tier shut two ways is one `SymRules` and rows
+    // compare them (`m10_8_pins_interval`'s `a0_alone`).
+    //
+    // **Both sets are written out WHOLE, field by field**, with no
+    // rest pattern: a dial added to `SymRules` is then a compile error
+    // here until this row says which side it is on, and a dial left
+    // ON in `without_the_algebra` reds the first assertion rather than
+    // hiding behind a `..` the second one filled from it.
     assert_eq!(
+        off,
         SymRules {
-            trig_of_atan: true,
-            early_ab: true,
+            sqrt_square: false,
+            pythagoras: false,
+            const_fold: true,
+            early: true,
+            early_ab: false,
+            trig_of_atan: false,
+            signed_root: false,
+            common_factor: false,
+            manifest_sign: false,
+            canonical_root: false,
+            abs_square: false,
+            root_magnitude: false,
+            decision_read: false,
+            registered: true,
+        },
+        "`without_the_algebra` is M10-9's tier: A0 and the early walk and the door, and \
+         nothing of the algebra"
+    );
+    assert_eq!(
+        s,
+        SymRules {
             sqrt_square: true,
             pythagoras: true,
+            const_fold: true,
+            early: true,
+            early_ab: true,
+            trig_of_atan: true,
+            signed_root: false,
             common_factor: true,
             manifest_sign: true,
             canonical_root: true,
+            abs_square: true,
+            root_magnitude: true,
             decision_read: true,
-            ..off
+            registered: true,
         },
-        s,
-        "`without_the_algebra` differs from `shipped` in the eight algebra dials and nothing else"
+        "`shipped` is `without_the_algebra` with the ten algebra dials on, and nothing else"
     );
 }
 

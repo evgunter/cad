@@ -99,14 +99,18 @@ fn find_square(
                     // stops reducing the moment it is spelled `|R|`,
                     // and the residual keeps a square it can cancel.
                     //
-                    // **Behind rule G's dial, not rule A's**, and that
-                    // is the whole of why the arm exists: nothing mints
-                    // an `Abs` where a root used to stand until rule G
+                    // **Behind three dials — rule A's, rule G's and
+                    // its own (`SymRules::abs_square`)**, read as one
+                    // conjunction. Rule G's, because nothing mints an
+                    // `Abs` where a root used to stand until rule G
                     // does, so a tier with `canonical_root` off that
                     // carried this arm would be a tier that never
-                    // existed — and every differential taken against
-                    // it would measure two rules at once.
-                    SymOp::Abs if rules.sqrt_square && rules.canonical_root => {
+                    // existed — and every differential taken against it
+                    // would measure two rules at once. Its own, because
+                    // it is the half of rule G whose trade on R2's link
+                    // is measured apart, and a retry needs a bit to
+                    // shut it by.
+                    SymOp::Abs if rules.sqrt_square && rules.canonical_root && rules.abs_square => {
                         // A budget refusal on the squared argument is
                         // not an answer about the FORM: skip this atom
                         // and keep looking, the way a rule that can

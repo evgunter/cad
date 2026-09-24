@@ -267,10 +267,7 @@ fn r2_the_bracket_between_the_two_ceilings_certifies_under_the_shipped_tier_only
             &DriveConfig {
                 max_depth: 0,
                 max_leaves: 1,
-                symbolic: SymbolicDials {
-                    rules,
-                    ..SymbolicDials::default()
-                },
+                symbolic: crate::m10_8_harness::dials(rules),
                 ..DriveConfig::default()
             },
             tol,
@@ -317,10 +314,7 @@ fn r2_end_to_end_rounded_pad_study() {
                 &analyzed,
                 &DriveConfig {
                     max_leaves: 64,
-                    symbolic: SymbolicDials {
-                        rules,
-                        ..SymbolicDials::default()
-                    },
+                    symbolic: crate::m10_8_harness::dials(rules),
                     ..DriveConfig::default()
                 },
                 tol,

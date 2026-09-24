@@ -47,7 +47,7 @@ pub use real::{
 };
 pub use ring_interval::RingInterval;
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
-pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRules};
+pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRetry, SymRules};
 pub use tolerance::{
     EpsilonSource, Tol, Tolerance, ToleranceEnvError, ToleranceEnvErrorKind, ToleranceError,
     ToleranceReport,

@@ -60,7 +60,7 @@ use crate::predicate::Sign;
 /// A DESTRUCTURE and not a field list: a column added to
 /// [`SymCounts`] is a compile error here until this row says which
 /// side of the partition below it is on.
-fn columns(counts: SymCounts) -> [(&'static str, u64); 7] {
+fn columns(counts: SymCounts) -> [(&'static str, u64); 8] {
     let SymCounts {
         symbolic_zero,
         sign_gated,
@@ -68,6 +68,7 @@ fn columns(counts: SymCounts) -> [(&'static str, u64); 7] {
         registrations_refused,
         registrations_contradicted,
         numeric,
+        retried,
         frozen,
     } = counts;
     [
@@ -77,6 +78,7 @@ fn columns(counts: SymCounts) -> [(&'static str, u64); 7] {
         ("registrations_refused", registrations_refused),
         ("registrations_contradicted", registrations_contradicted),
         ("numeric", numeric),
+        ("retried", retried),
         ("frozen", frozen),
     ]
 }
@@ -87,11 +89,17 @@ fn columns(counts: SymCounts) -> [(&'static str, u64); 7] {
 /// last assertion of the row pins that); `registrations_refused` and
 /// `registrations_contradicted` count events at the registry door and
 /// at a numeric contradiction, neither of which is a decision being
-/// discharged; `frozen` counts nodes, not decisions.
-const NOT_A_DISCHARGE_KIND: [&str; 4] = [
+/// discharged; `frozen` counts nodes, not decisions; and `retried`
+/// counts decisions a RETRY closed, which is a fact about WHICH attempt
+/// answered and not about what the answer claims — a retry's discharge
+/// lands in the same column the first attempt's would
+/// ([`super::SymRetry`]), which is exactly why this row must not expect
+/// a kind of its own for it.
+const NOT_A_DISCHARGE_KIND: [&str; 5] = [
     "registrations_refused",
     "registrations_contradicted",
     "numeric",
+    "retried",
     "frozen",
 ];
 

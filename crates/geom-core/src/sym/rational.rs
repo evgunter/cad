@@ -1,6 +1,9 @@
 //! **The coefficients are arbitrary-precision dyadic-scaled rationals**
 //! ([`Rat`], over `num-bigint`), bounded at [`rational::COEFF_BITS`]
-//! bits. The readings that argued for the bound, none of them pinned
+//! bits on every walk of every first attempt, and at a WIDER bound only
+//! inside a retry attempt that asks for one (`sym::SymRetry::bits`,
+//! scoped by `with_coeff_bound`, which puts the bound back however the
+//! attempt ends). The readings that argued for the bound, none of them pinned
 //! and none of them a claim about today's tree: the i128-era whole-box
 //! replays reported `frozen: 0` on the bracket, because the `Decide`
 //! impl's DECISION PATH never asks the form of a margin the numeric
@@ -363,6 +366,43 @@ pub(super) struct Rat {
 /// (`docs/DOC-LEDGER.md` sweep 13).
 pub(super) const COEFF_BITS: u64 = 256;
 
+// **The bound the ring is actually checked against on this thread** —
+// `COEFF_BITS` everywhere except inside a RETRY attempt, which
+// `with_coeff_bound` runs at a wider one.
+//
+// A thread local and not a parameter of the operations, and the reason
+// is where the operations are: `Poly::add`, `Poly::insert`,
+// `Poly::scaled` and `Poly::neg` grow an integer and take no
+// `SymBudget`, so a bound carried as a parameter would be a signature
+// change through `form`, `algebra`, `quotient`, `root`, `manifest`,
+// `signed` and `trig` to reach the two sites that read it. The tier is
+// already scoped on a thread local (`sym::SESSION`), and this one is
+// set and restored by the same scope.
+thread_local! {
+    static COEFF_BOUND: core::cell::Cell<u64> = const { core::cell::Cell::new(COEFF_BITS) };
+}
+
+/// The bound [`Rat::from_parts`] and [`Rat::add`] refuse past.
+#[inline]
+pub(super) fn coeff_bound() -> u64 {
+    COEFF_BOUND.get()
+}
+
+/// Runs `f` with the ring bounded at `bits`, restoring whatever bound
+/// was in force — including if `f` panics, because the guard restores
+/// on drop and a bound left wide would make every later form a
+/// different form.
+pub(super) fn with_coeff_bound<R>(bits: u64, f: impl FnOnce() -> R) -> R {
+    struct Restore(u64);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            COEFF_BOUND.set(self.0);
+        }
+    }
+    let _restore = Restore(COEFF_BOUND.replace(bits));
+    f()
+}
+
 impl Rat {
     pub(super) fn zero() -> Self {
         Self {
@@ -432,7 +472,8 @@ impl Rat {
             profile::note(profile::FreezeCause::Overflow);
             return None;
         };
-        if num.bits() > COEFF_BITS || den.bits() > COEFF_BITS {
+        let bound = coeff_bound();
+        if num.bits() > bound || den.bits() > bound {
             #[cfg(feature = "sym-profile-testing")]
             {
                 profile::coefficient_bits(num.bits().max(den.bits()), false);
@@ -491,7 +532,7 @@ impl Rat {
         let lo = self.exp2.min(other.exp2);
         let shift = |r: &Self| -> Option<Int> {
             let k = usize::try_from(r.exp2.checked_sub(lo)?).ok()?;
-            if k as u64 > COEFF_BITS {
+            if k as u64 > coeff_bound() {
                 #[cfg(feature = "sym-profile-testing")]
                 profile::note(profile::FreezeCause::Coefficient);
                 return None;

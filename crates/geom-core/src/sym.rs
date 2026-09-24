@@ -572,7 +572,12 @@
 //! parameter brackets.
 //!
 //! **The PLAIN memo is the exception, and it is per DRIVE when a drive
-//! installs one** ([`DriveMemo`], [`with_session_memo`]). A node's
+//! installs one** ([`DriveMemo`], [`with_session_memo`] and
+//! [`with_session_memo_retry`]). It serves the plain walk and nothing
+//! else — never the early or door walk, and never a retry's: a retry's
+//! forms live in the session's own retry tables ([`SymRetry`]) and are
+//! dropped with the leaf, and the plain rung a drive memo serves is the
+//! one rung no retry re-asks. A node's
 //! plain form is a function of its id, the budget and the two dials the
 //! plain walk consults, and of nothing else: the walk reads no value,
 //! every atom in it is opaque, and rule A0 is the only rule. So a form
@@ -603,6 +608,34 @@
 //! **The coefficients** — the exact rational, the bound it is refused
 //! past and the freeze discipline that bound keeps — are
 //! [`rational`]'s own docs.
+//!
+//! **A freeze is not the end of the ladder: a refused decision may
+//! RETRY** ([`SymRetry`]). The ladder makes one attempt per rung, and a
+//! decision every rung refuses is re-asked — on the early, top-residual
+//! and door rungs only, never the plain one — with a rule that opens an
+//! atom shut, or at a wider coefficient bound, each attempt in its own
+//! memos.
+//!
+//! The argument is this section's own, read backwards. Freezing is
+//! sound because an indeterminate denotes an unknown function, and it
+//! is also a REACH mechanism: two spellings that freeze at the same
+//! node cancel through it, without the ring ever seeing what the node
+//! was. So opening a node — by widening the ring, or by a rule that
+//! folds the atom — can LOSE a discharge the frozen node gave, and
+//! widening the tier is not monotone in what it proves
+//! (`work/sym/coefficient-ring-width-is-not-monotone-in-reach`; R1's
+//! boss loses ten decisions to an `abs` fold, R2's link sixteen of one
+//! predicate to rule G). A LADDER cannot lose one, because the first
+//! attempt has already answered wherever it can and the second is asked
+//! only into its silence — so the receipt's three discharge columns can
+//! only rise and `numeric` can only fall.
+//!
+//! Each attempt is sound on its own terms: the ring's bound is a cost
+//! and not a soundness condition (the integers are exact at every
+//! width), and a rule set with fewer rules is a subset of the same
+//! algebra. A retry's zero is therefore the same kind of claim as the
+//! rung that reached it and lands in that rung's column, with
+//! [`SymCounts::retried`] counting it beside.
 //!
 //! # Cost: where the tier's time goes, by count
 //!
@@ -735,6 +768,59 @@
 //! no form on either document comes within 40× of it. Rule D's fold is
 //! 0.4 % of the plate's replay; the ring's heap path is 9 % of its
 //! operations, so the `i128` inline path holds on both documents.
+//!
+//! **What the RETRY LADDER costs, and where** ([`SymRetry`]; SYM-9's
+//! Phase 1 tables are in the unit's PR). A retry is paid ONLY on a
+//! decision every rung of the first attempt refused, so the cost is a
+//! second walk per refusal and nothing at all where there are none.
+//! **At the nominal, two of the five documents measured there refuse
+//! nothing the tier is asked** — the two-hole plate and R1's annulus,
+//! whose whole `numeric` column is the numeric channel certifying a
+//! non-zero sign, where the tier is never consulted; R1's segment boss
+//! refuses one decision; R2's filleted bracket refuses 74 of 2,021 and
+//! R2's link 107 of 1,102.
+//!
+//! **On the affordability line's instrument** — one whole-box leaf
+//! (`m10_10_leaf_cost_with_and_without_the_algebra`), release, the
+//! fastest of three takes — the shipped rules at one attempt per rung
+//! against the same rules with `SymRetry::kept_atom`: plate at `1e2·ε`
+//! 0.35 → 0.35 s, annulus 0.37 → 0.38, bracket 2.86 → 3.88, link
+//! 17.28 → 19.71, pad at `1e2·ε` 131.3 → 147.7. The line is 1.6 s. The
+//! bracket, the link and the pad are over it at the first attempt, and
+//! the ladder takes no document from under it to over it; it adds 36 %,
+//! 14 % and 12.5 % on those three, and it recovers six decisions on the
+//! bracket (`registered`, the rule-A attempt), twelve on the link
+//! (`symbolic_zero`, the rule-G attempt) and nothing on the pad. **It
+//! SHIPS ON ACROSS THE LINE as a disclosed trade, as rule E did** (the
+//! rule-E section above): the shipped rules alone put those three over
+//! the line — the bracket at 10× and the link at 75× their M10-9 leaf —
+//! the ladder adds 1.0 s, 2.4 s and 16 s there and changes no
+//! certification, and the rule-G attempt returns exactly the ten
+//! theorems the default rule G costs the link's `carrier_on_surface_2`.
+//! The rule-A attempt is the weaker half — six registrations and no
+//! theorem, for about 0.4 s of the bracket's 1.0 s — and ships on the
+//! same balance, named. `editor_core::drive::DEFAULT_SYM_RETRY` carries
+//! the table per mask, the reads-off reading that says the decision read
+//! is not what the ladder costs, and the argument.
+//!
+//! **What a ladder holds**, per attempt, as a session ends
+//! (`profile::SymProfile::retry_forms`), at the nominal: the segment
+//! boss 80 forms an attempt against a DAG of 12,638 nodes, the bracket
+//! 2,716 against 28,996, the link 5,259 against 19,564; the plate and the
+//! annulus none, because no attempt is made. [`RETRY_FORMS`] is set
+//! against those numbers.
+//!
+//! **The freeze causes under the refusals** are what the ladder's
+//! shapes were chosen against, and the instrument is the per-decision
+//! attribution ([`profile::DecisionRecord`], `rung_table`). On the
+//! bracket's 74 refused decisions their own walks froze 204 nodes on
+//! the coefficient bound, 161 on degree and 35 on terms; on the link's
+//! 107, 90 / 154 / 152. The ring is a leading cause on both, and a
+//! 512-bit ring retry recovers, predicate by predicate, no more than the
+//! kept-atom attempts do (the bracket's same six, eight of the link's
+//! twelve) at 4.50× the bracket's nominal replay where the kept-atom
+//! ladder is 1.47× — so the freeze cause is not the shape the retry
+//! that recovers it takes.
 //!
 //! # The census: which identity-shaped predicates this tier reaches
 //!
@@ -1260,6 +1346,21 @@ pub struct SymCounts {
     pub registrations_contradicted: u64,
     /// Decisions handed to the numeric channel.
     pub numeric: u64,
+    /// **Decisions closed by a RETRY** ([`SymRetry`]) — the first
+    /// attempt's rungs all declined and one of the ladder's answered.
+    ///
+    /// A column BESIDE the three discharge columns and not a fourth
+    /// one: a retry's zero is the same kind of claim as the rung that
+    /// reached it (`SymRetry` argues that once), so it is counted in
+    /// `symbolic_zero`, `sign_gated` or `registered` exactly as the
+    /// first attempt's would be, and this says how many of those the
+    /// ladder is carrying. It has no K token for the same reason —
+    /// the sample's vocabulary is about what a decision CLAIMS, and a
+    /// retry claims nothing new.
+    ///
+    /// Zero under every session door but [`with_session_retry`] and
+    /// [`with_session_memo_retry`], the two that install a ladder.
+    pub retried: u64,
     /// **Nodes this session's plain walk froze** into indeterminates (a
     /// budget or an overflow) — a count of THIS leaf's work, unlike the
     /// decision columns beside it, which are claims about this leaf's
@@ -1309,6 +1410,7 @@ impl SymCounts {
         self.registrations_refused += other.registrations_refused;
         self.registrations_contradicted += other.registrations_contradicted;
         self.numeric += other.numeric;
+        self.retried += other.retried;
     }
 }
 
@@ -1482,6 +1584,37 @@ pub struct SymRules {
     /// The companion is behind THIS dial and not rule A's, so
     /// [`Self::without_canonical_root`] is the tier as it stood.
     pub canonical_root: bool,
+    /// **Rule G's COMPANION REWRITE, `|X|² = X²`** ([`algebra`]'s
+    /// `find_square`, the `Abs` arm) — rule A's substitution at the
+    /// atom rule G leaves where a root's argument was a perfect
+    /// square. Read as `canonical_root && sqrt_square && abs_square`,
+    /// so it is off wherever rule G is and this dial only ever takes
+    /// it away: a tier with `canonical_root` off that carried the
+    /// rewrite never existed, and `find_square`'s own comment argues
+    /// that once.
+    ///
+    /// It has a dial of its own because it is the half of rule G whose
+    /// trade is MEASURED apart: on R2's link it buys 52 decisions of
+    /// `carrier_on_surface_2` and costs 10, by opening the square of
+    /// an `abs` node the document wrote into an expansion that does
+    /// not cancel where the closed atom did
+    /// (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`).
+    /// That is the kept-atom RETRY's first shape, and a retry needs a
+    /// mask bit to turn off.
+    pub abs_square: bool,
+    /// **Rule G's MAGNITUDE DOOR, `sqrt(R²) = |R|`** ([`root`]'s
+    /// `magnitude_of_root`, step 3 of the canonical form) — read as
+    /// `canonical_root && root_magnitude`, so like [`Self::abs_square`]
+    /// it only ever takes the step away from a tier that has rule G.
+    /// With it off the primitive part keeps its `Sqrt` atom and the
+    /// content split above it stands.
+    ///
+    /// The second measured half of the link's trade: six of its
+    /// sixteen go this way, re-taken by the rim registrant's axiom, so
+    /// the document ends with six fewer theorems and six more
+    /// `registered` (the row above). The kept-atom retry's second
+    /// shape.
+    pub root_magnitude: bool,
     /// **The DECISION READ** ([`signed::decision`], [`signed::order`]):
     /// in the early walk a `Select` whose decision is certified
     /// one-signed over the leaf's box takes that arm, and a `min`/`max`
@@ -1529,6 +1662,8 @@ impl SymRules {
             common_factor: true,
             manifest_sign: true,
             canonical_root: true,
+            abs_square: true,
+            root_magnitude: true,
             decision_read: true,
             registered: true,
         }
@@ -1573,6 +1708,8 @@ impl SymRules {
             common_factor: true,
             manifest_sign: true,
             canonical_root: true,
+            abs_square: true,
+            root_magnitude: true,
             decision_read: true,
             registered: true,
         }
@@ -1593,6 +1730,8 @@ impl SymRules {
             common_factor: false,
             manifest_sign: false,
             canonical_root: false,
+            abs_square: false,
+            root_magnitude: false,
             decision_read: false,
             registered: false,
         }
@@ -1623,6 +1762,12 @@ impl SymRules {
             common_factor: false,
             manifest_sign: false,
             canonical_root: false,
+            // Read as a conjunction with `canonical_root`, so they say the
+            // same thing either way; spelled false here so that two
+            // constructors of one tier are one VALUE and a row may
+            // compare them.
+            abs_square: false,
+            root_magnitude: false,
             decision_read: false,
             ..Self::shipped()
         }
@@ -1665,6 +1810,12 @@ impl SymRules {
             common_factor: false,
             manifest_sign: false,
             canonical_root: false,
+            // Read as a conjunction with `canonical_root`, so they say the
+            // same thing either way; spelled false here so that two
+            // constructors of one tier are one VALUE and a row may
+            // compare them.
+            abs_square: false,
+            root_magnitude: false,
             decision_read: false,
             ..Self::shipped()
         }
@@ -1681,6 +1832,12 @@ impl SymRules {
     pub const fn without_canonical_root() -> Self {
         Self {
             canonical_root: false,
+            // Read as a conjunction with `canonical_root`, so they say the
+            // same thing either way; spelled false here so that two
+            // constructors of one tier are one VALUE and a row may
+            // compare them.
+            abs_square: false,
+            root_magnitude: false,
             ..Self::shipped()
         }
     }
@@ -1711,6 +1868,12 @@ impl SymRules {
         Self {
             manifest_sign: false,
             canonical_root: false,
+            // Read as a conjunction with `canonical_root`, so they say the
+            // same thing either way; spelled false here so that two
+            // constructors of one tier are one VALUE and a row may
+            // compare them.
+            abs_square: false,
+            root_magnitude: false,
             decision_read: false,
             ..Self::shipped()
         }
@@ -1720,6 +1883,230 @@ impl SymRules {
 impl Default for SymRules {
     fn default() -> Self {
         Self::shipped()
+    }
+}
+
+impl SymRules {
+    /// **This set NARROWED by `mask`**: every rule that is on in both,
+    /// off everywhere else — the kept-atom retry's rule set
+    /// ([`SymRetry::without`]).
+    ///
+    /// Spelled field by field rather than over a bitfield so that a
+    /// dial added to this struct is a compile error here until someone
+    /// says which side of the mask it takes.
+    #[must_use]
+    pub const fn masked_by(self, mask: Self) -> Self {
+        Self {
+            sqrt_square: self.sqrt_square && mask.sqrt_square,
+            pythagoras: self.pythagoras && mask.pythagoras,
+            const_fold: self.const_fold && mask.const_fold,
+            early: self.early && mask.early,
+            early_ab: self.early_ab && mask.early_ab,
+            trig_of_atan: self.trig_of_atan && mask.trig_of_atan,
+            signed_root: self.signed_root && mask.signed_root,
+            common_factor: self.common_factor && mask.common_factor,
+            manifest_sign: self.manifest_sign && mask.manifest_sign,
+            canonical_root: self.canonical_root && mask.canonical_root,
+            abs_square: self.abs_square && mask.abs_square,
+            root_magnitude: self.root_magnitude && mask.root_magnitude,
+            decision_read: self.decision_read && mask.decision_read,
+            registered: self.registered && mask.registered,
+        }
+    }
+}
+
+/// **The RETRY LADDER**: the second attempts a REFUSED decision may
+/// make, on THREE of the four rungs — the early walk, rules A/B over
+/// the top residual, and the registered-identity door. The plain rung
+/// is never retried.
+///
+/// The first attempt is the tier as it stands — the session's
+/// [`SymRules`] over the ring at [`rational::COEFF_BITS`] — and nothing
+/// here moves it. A retry is asked ONLY where every rung of the first
+/// attempt declined, so it can take a decision out of
+/// [`SymCounts::numeric`] and never out of [`SymCounts::symbolic_zero`],
+/// [`SymCounts::sign_gated`] or [`SymCounts::registered`]. The plain
+/// rung is left out because a plain theorem is the strongest claim the
+/// tier makes and re-asking it could only re-label it. The top-residual
+/// rung is IN, because its residual is the plain form — unchanged on
+/// every attempt — and what an attempt changes there is only the rules
+/// the reduction applies and the ring it runs at, so a zero it reaches
+/// is a theorem exactly as the first attempt's would be.
+///
+/// **Why a retry rather than a wider tier.** Widening the ring, or
+/// turning a rule on, is not monotone in what the tier discharges
+/// (`work/sym/coefficient-ring-width-is-not-monotone-in-reach`): a node
+/// the walk cannot build FREEZES into an indeterminate of its own and
+/// therefore matches ITSELF on both sides of an identity, so opening it
+/// — by a wider ring, or by a rule that folds the atom — can LOSE a
+/// discharge the frozen node gave. R1's boss loses ten decisions to an
+/// `abs` fold at 256 bits; R2's link loses sixteen theorems of one
+/// predicate to rule G
+/// (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`).
+/// A ladder cannot lose one, because the first attempt has already
+/// answered wherever it can and the second is asked only into its
+/// silence.
+///
+/// **Each attempt is a sound discharge on its own terms.** The ring's
+/// bound is a COST and not a soundness condition — [`rational`]'s
+/// integers are exact at every width, and a form that is the zero
+/// polynomial over coefficients of 512 bits is the zero polynomial —
+/// and a rule set with fewer rules is a subset of the same algebra, so
+/// a zero it reaches is a zero the full set would reach if it reached
+/// anything at all. A retry's zero is therefore the same KIND of claim
+/// as the rung that reached it, and lands in that rung's column;
+/// [`SymCounts::retried`] counts it beside, never instead of.
+///
+/// **An attempt identical to one already made is not walked**
+/// ([`Self::attempts`]): one whose rules AND ring bound equal the first
+/// attempt's — a mask that takes away only rules the session has already
+/// shut, or a ring retry at exactly [`rational::COEFF_BITS`] — or equal
+/// an earlier retry's, would build the same forms again for nothing. So
+/// a rules differential taken at a narrow tier with a ladder installed
+/// pays no ladder at all. Only EQUAL attempts are dropped: a ring retry
+/// NARROWER than the first attempt's is a different attempt, sound and
+/// pointless, and is walked as the caller asked.
+///
+/// **Not a field of [`SymBudget`]**, which is where the unit's spec put
+/// it: `SymBudget` is built as a struct literal at 53 sites in 39
+/// files across four crates on the base this unit is cut from (`git
+/// grep 'SymBudget {'` less the declaration, its `impl` and the
+/// functions that return one), most of them outside this unit's
+/// territory, and more fields would be a struct-update rewrite of every
+/// one of them.
+/// This carries the dials through its own door ([`with_session_retry`])
+/// and leaves every existing caller building the session it builds
+/// today.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SymRetry {
+    /// **The WIDER RING one retry runs at**, in bits — `None` for no
+    /// ring retry. The FIRST attempt's bound is
+    /// [`rational::COEFF_BITS`] and this never moves it: the readings
+    /// that set that constant stand, and this ladder adds attempts
+    /// rather than widening the one everything else is measured at.
+    pub bits: Option<u64>,
+    /// **The KEPT-ATOM attempts, in the order they are taken**, each a
+    /// MASK over the session's rules: an attempt runs
+    /// [`SymRules::masked_by`], every rule that is on in both, so a
+    /// field `false` in a mask names a rule that attempt goes WITHOUT
+    /// and a field `true` leaves it as the session has it. `None` in a
+    /// slot is no attempt there.
+    ///
+    /// **Several masks and not one, and the reason is measured.**
+    /// SYM-9's Phase 1 took each shape alone and then together, as
+    /// retries at the nominal: rule A shut recovers six decisions on
+    /// R2's bracket, rule G shut recovers twelve on R2's link, and the
+    /// two shut in ONE mask recovers the bracket's six and NONE of the
+    /// link's twelve. So one mask cannot express what the measurement
+    /// chose. Why the joint mask loses the twelve is NOT executed on
+    /// the link: the working hypothesis is that the twelve close
+    /// through rule A's `sqrt(X)² = X` once rule G has stopped
+    /// re-keying the atom, and what would confirm it is the render of
+    /// those residuals under both masks with their atom keys read off
+    /// (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`,
+    /// shape 2).
+    pub without: [Option<SymRules>; MASKS],
+    /// **The GROWTH GUARD** — the most forms ONE attempt's two memos may
+    /// hold before the ladder stops offering that attempt for the rest
+    /// of the leaf, and the decisions that would have asked it stay
+    /// numeric. [`RETRY_FORMS`] by default; a dial so that the guard is
+    /// a row and not a comment (`the_growth_guard_withholds_an_attempt_at_its_cap`).
+    ///
+    /// **The check is BEFORE an attempt is walked**, so it bounds the
+    /// memo to the cap plus ONE attempt's walk: a walk adds at most one
+    /// form per node id to each of the two memos, so an attempt's memos
+    /// never exceed `max_forms` plus twice the ids the session's walks
+    /// can visit.
+    pub max_forms: usize,
+}
+
+/// How many kept-atom masks a [`SymRetry`] may carry. Two, because two
+/// is what SYM-9's measurement chose and an array is what keeps
+/// [`SymRetry`] `Copy`; a third shape wants a measurement of its own
+/// before it wants a slot.
+pub const MASKS: usize = 2;
+
+impl Default for SymRetry {
+    /// [`SymRetry::none`] — so a struct update from the default never
+    /// inherits a growth guard of zero.
+    fn default() -> Self {
+        Self::none()
+    }
+}
+
+impl SymRetry {
+    /// No retry at all: the ladder is the first attempt and stops — the
+    /// tier every session door but [`with_session_retry`] and
+    /// [`with_session_memo_retry`] installs.
+    #[must_use]
+    pub const fn none() -> Self {
+        Self {
+            bits: None,
+            without: [None; MASKS],
+            max_forms: RETRY_FORMS,
+        }
+    }
+
+    /// **The kept-atom ladder SYM-9 measured**: two attempts, one with
+    /// rule G shut and then one with rule A's `sqrt(X)² = X` shut, and no
+    /// wider-ring attempt. It is the drive's default ladder;
+    /// `editor_core::drive::DEFAULT_SYM_RETRY`
+    /// carries the measurement that chose the shapes, the order (a tie,
+    /// so rule G's attempt — the one that buys theorems — goes first) and
+    /// the cost against the 1.6 s line it ships across.
+    ///
+    /// The rule-G mask spells rule G's two halves (`abs_square`,
+    /// `root_magnitude`) shut with it, as every constructor that shuts
+    /// `canonical_root` does, so the attempt it runs is ONE `SymRules`
+    /// value — [`SymRules::without_canonical_root`] on the shipped set.
+    #[must_use]
+    pub const fn kept_atom() -> Self {
+        Self {
+            bits: None,
+            without: [
+                Some(SymRules {
+                    canonical_root: false,
+                    abs_square: false,
+                    root_magnitude: false,
+                    ..SymRules::all()
+                }),
+                Some(SymRules {
+                    sqrt_square: false,
+                    ..SymRules::all()
+                }),
+            ],
+            max_forms: RETRY_FORMS,
+        }
+    }
+
+    /// The attempts beyond the first, IN THE ORDER THEY ARE TAKEN, each
+    /// as its ordinal (1 for the first retry), the rules it runs and the
+    /// ring bound it runs at: the masks in slot order, then the ring.
+    ///
+    /// **An attempt identical to one already made is dropped** — to the
+    /// first attempt, `(first, COEFF_BITS)`, or to an earlier retry. Its
+    /// walks would build the same forms under the same rules at the same
+    /// bound, so they cannot answer where the other did not; offering it
+    /// would only pay for the walk.
+    fn attempts(self, first: SymRules) -> impl Iterator<Item = (u8, SymRules, u64)> {
+        let candidates = self
+            .without
+            .into_iter()
+            .map(move |m| m.map(|mask| (first.masked_by(mask), rational::COEFF_BITS)))
+            .chain(core::iter::once(self.bits.map(|bits| (first, bits))))
+            .flatten();
+        let mut made = [(first, rational::COEFF_BITS); MASKS + 2];
+        let mut n = 1;
+        let mut out = [None; MASKS + 1];
+        for c in candidates {
+            if made[..n].contains(&c) {
+                continue;
+            }
+            made[n] = c;
+            out[n - 1] = Some((u8::try_from(n).unwrap_or(u8::MAX), c.0, c.1));
+            n += 1;
+        }
+        out.into_iter().flatten()
     }
 }
 
@@ -1784,6 +2171,29 @@ struct AtomInfo {
 struct Session {
     budget: SymBudget,
     rules: SymRules,
+    /// **The retry ladder this session offers a refused decision**
+    /// ([`SymRetry`]) — [`SymRetry::none`] under every door but
+    /// [`with_session_retry`] and [`with_session_memo_retry`].
+    retry: SymRetry,
+    /// **The retry attempts' memos, one entry per attempt beyond the
+    /// first** — the `(id, attempt)` keying [`SymRetry`]'s ladder
+    /// needs, spelled as a table per attempt so that an attempt's
+    /// lookup costs what the first attempt's does.
+    ///
+    /// They are SEPARATE from `forms_early` and `forms_door` and never
+    /// read into them: an attempt's forms are built under different
+    /// rules or a different ring bound, so a form of one attempt is not
+    /// a form of another and serving one for the other would move a
+    /// decision the first attempt already made. Grown lazily and capped
+    /// at [`SymRetry::max_forms`] entries, past which the ladder stops
+    /// offering that attempt for the rest of the leaf.
+    ///
+    /// **A registration clears every attempt's DOOR memo**, as it clears
+    /// `forms_door` and for the same reason: a door form is a function
+    /// of the registry, so one built before a record would answer for a
+    /// registry that no longer exists. The early memos never consult the
+    /// registry and stay whole.
+    retries: Vec<RetryMemo>,
     nodes: IdMap<SymNode>,
     /// The PLAIN quotient forms — every atom opaque, rule A0 only (the
     /// constant fold, which cannot cost a cancellation). Rules A/B are
@@ -1859,15 +2269,66 @@ struct Session {
     plain_tainted: IdSet,
 }
 
+/// **One retry attempt's two memos** — the early walk's and the door
+/// walk's, under that attempt's rules and ring bound.
+///
+/// The plain walk has no entry here: the plain rung is never retried
+/// ([`SymRetry`]), so the plain form a decision is asked of first is
+/// the first attempt's on every attempt.
+#[derive(Default)]
+struct RetryMemo {
+    early: IdMap<Arc<Form>>,
+    door: IdMap<Arc<Form>>,
+}
+
+impl RetryMemo {
+    /// The forms this attempt is holding, both walks.
+    fn len(&self) -> usize {
+        self.early.len() + self.door.len()
+    }
+}
+
+/// **The GROWTH GUARD's default** ([`SymRetry::max_forms`]): past this
+/// many forms in one attempt's two memos the attempt is not offered
+/// again for the rest of the leaf, and the decisions that would have
+/// asked it stay numeric.
+///
+/// A retry pays a second walk of the DAG per refused decision, and the
+/// forms it builds are a second population beside the first attempt's —
+/// so without a cap a leaf whose refusals are many and whose DAG is
+/// large would hold two of everything. **Measured**, the most one
+/// attempt of `SymRetry::kept_atom` holds as a session ends
+/// (`profile::SymProfile::retry_forms`): R2's rounded pad 7,465 forms
+/// against a DAG of 32,698 nodes (one whole-box leaf at `1e2·ε`), R2's
+/// link 5,259 against 19,564 and R2's bracket 2,716 against 28,996 (the
+/// nominal), R1's segment boss 80; the plate and the annulus none. And
+/// an attempt holds at most one form per node id in each of its two
+/// memos — about 65,000 on the pad. The cap sits above both, so no measured
+/// document reaches it, and a document that does degrades into missed
+/// cancellations rather than into memory.
+///
+/// **The check is before the walk** (`ladder`), so an attempt admitted
+/// just under the cap can add one walk's worth past it: the bound on an
+/// attempt's memos is this plus two forms per node id. The row that
+/// reaches it is `the_growth_guard_withholds_an_attempt_at_its_cap`.
+const RETRY_FORMS: usize = 200_000;
+
 impl Session {
     /// **The one place a session is built** — every field of it, in one
     /// literal, so a field added here cannot leave a second literal
     /// somewhere else half-initialised (the `trig` test module kept one,
     /// and it is this now).
-    fn new(budget: SymBudget, rules: SymRules, memo: Option<Arc<DriveMemo>>) -> Self {
+    fn new(
+        budget: SymBudget,
+        rules: SymRules,
+        retry: SymRetry,
+        memo: Option<Arc<DriveMemo>>,
+    ) -> Self {
         Self {
             budget,
             rules,
+            retry,
+            retries: Vec::new(),
             nodes: IdMap::default(),
             forms: IdMap::default(),
             forms_early: IdMap::default(),
@@ -1998,7 +2459,26 @@ pub fn with_session_rules<R>(
     rules: SymRules,
     f: impl FnOnce() -> R,
 ) -> (R, SymCounts) {
-    with_session_in(budget, rules, None, f)
+    with_session_in(budget, rules, SymRetry::none(), None, f)
+}
+
+/// [`with_session_rules`] with a RETRY LADDER installed ([`SymRetry`]):
+/// a decision every rung of the first attempt refuses is re-asked at a
+/// wider ring, or with a rule that opens an atom shut, or both.
+///
+/// One of the two doors that install one — this and, with a drive's
+/// plain memo, [`with_session_memo_retry`]. Every other door here runs
+/// [`SymRetry::none`], so a caller that has not asked for the ladder
+/// builds the session it built before this unit — which is what makes
+/// the ladder's effect on a document a differential and not an
+/// assumption.
+pub fn with_session_retry<R>(
+    budget: SymBudget,
+    rules: SymRules,
+    retry: SymRetry,
+    f: impl FnOnce() -> R,
+) -> (R, SymCounts) {
+    with_session_in(budget, rules, retry, None, f)
 }
 
 /// [`with_session_rules`] with a DRIVE-scoped plain memo installed
@@ -2034,12 +2514,43 @@ pub fn with_session_memo<R>(
         accepts,
         "a drive memo is valid for the budget and rules it was made for"
     );
-    with_session_in(budget, rules, accepts.then(|| Arc::clone(memo)), f)
+    with_session_in(
+        budget,
+        rules,
+        SymRetry::none(),
+        accepts.then(|| Arc::clone(memo)),
+        f,
+    )
+}
+
+/// [`with_session_memo`] with a RETRY LADDER installed beside the
+/// drive's plain memo — the door a DRIVE uses, and the only one that
+/// takes both.
+///
+/// **The memo is unaffected by the ladder and the check above does not
+/// widen.** A drive memo holds PLAIN forms and the plain rung is never
+/// retried ([`SymRetry`]), so a form it serves is the form this leaf
+/// would build at any ladder; what a retry builds lives in the
+/// session's own retry tables and is dropped with the leaf.
+pub fn with_session_memo_retry<R>(
+    budget: SymBudget,
+    rules: SymRules,
+    retry: SymRetry,
+    memo: &Arc<DriveMemo>,
+    f: impl FnOnce() -> R,
+) -> (R, SymCounts) {
+    let accepts = memo.accepts(budget, rules);
+    debug_assert!(
+        accepts,
+        "a drive memo is valid for the budget and rules it was made for"
+    );
+    with_session_in(budget, rules, retry, accepts.then(|| Arc::clone(memo)), f)
 }
 
 fn with_session_in<R>(
     budget: SymBudget,
     rules: SymRules,
+    retry: SymRetry,
     memo: Option<Arc<DriveMemo>>,
     f: impl FnOnce() -> R,
 ) -> (R, SymCounts) {
@@ -2056,7 +2567,7 @@ fn with_session_in<R>(
         return (f(), SymCounts::default());
     }
     SESSION.with(|s| {
-        *s.borrow_mut() = Some(Session::new(budget, rules, memo));
+        *s.borrow_mut() = Some(Session::new(budget, rules, retry, memo));
     });
     #[cfg(feature = "sym-profile-testing")]
     profile::session_start();
@@ -2065,6 +2576,7 @@ fn with_session_in<R>(
     #[cfg(feature = "sym-profile-testing")]
     if let Some(s) = &sess {
         profile::session_done(s.nodes.len(), s.atoms.len());
+        profile::retry_memos(&s.retries.iter().map(RetryMemo::len).collect::<Vec<_>>());
     }
     if let Some(s) = &sess {
         publish_to_memo(s);
@@ -2855,14 +3367,8 @@ fn mint_atom(sess: &mut Session, id: u128, early: bool, info: impl FnOnce() -> A
 /// The plain quotient form of `root` — every atom opaque, no rule
 /// applied, no value read. Memoized in the session's persistent table.
 fn plain_form(sess: &mut Session, root: SymId) -> Arc<Form> {
-    let mut memo = core::mem::take(&mut sess.forms);
-    #[cfg(feature = "sym-profile-testing")]
-    let t0 = profile::clock();
-    let out = form_in(sess, &mut memo, root, false, false);
-    #[cfg(feature = "sym-profile-testing")]
-    profile::walk_done(profile::Walk::Plain, t0);
-    sess.forms = memo;
-    out
+    let first = (sess.rules, rational::COEFF_BITS);
+    walk(sess, root, WalkKind::Plain, 0, first)
 }
 
 /// The most rule-A/B substitutions the early walk takes per node
@@ -2888,14 +3394,8 @@ const EARLY_AB_TERMS: usize = 512;
 /// [`plain_form`], with rules A/B applied per node under
 /// [`EARLY_STEPS`] and rule C's fold at each `sqrt`/`abs`.
 fn early_form(sess: &mut Session, root: SymId) -> Arc<Form> {
-    let mut memo = core::mem::take(&mut sess.forms_early);
-    #[cfg(feature = "sym-profile-testing")]
-    let t0 = profile::clock();
-    let out = form_in(sess, &mut memo, root, true, false);
-    #[cfg(feature = "sym-profile-testing")]
-    profile::walk_done(profile::Walk::Early, t0);
-    sess.forms_early = memo;
-    out
+    let first = (sess.rules, rational::COEFF_BITS);
+    walk(sess, root, WalkKind::Early, 0, first)
 }
 
 /// The DOOR form of `root` — [`early_form`]'s walk with the session's
@@ -2904,14 +3404,186 @@ fn early_form(sess: &mut Session, root: SymId) -> Arc<Form> {
 /// both declined, so a zero it finds is one the registration was
 /// needed for.
 fn door_form(sess: &mut Session, root: SymId) -> Arc<Form> {
-    let mut memo = core::mem::take(&mut sess.forms_door);
+    let first = (sess.rules, rational::COEFF_BITS);
+    walk(sess, root, WalkKind::Door, 0, first)
+}
+
+/// The three normal-form walks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WalkKind {
+    /// Every atom opaque, rule A0 only.
+    Plain,
+    /// The session's rules per node.
+    Early,
+    /// The early walk with the registry applied.
+    Door,
+}
+
+/// **Which memo a walk reads and fills**: the first attempt's three,
+/// or one retry attempt's early or door table ([`Session::retries`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MemoSlot {
+    Plain,
+    Early,
+    Door,
+    RetryEarly(usize),
+    RetryDoor(usize),
+}
+
+impl MemoSlot {
+    /// The memo `kind` fills at `attempt`. The plain walk has only the
+    /// first attempt's: the plain rung is never retried ([`SymRetry`]).
+    fn of(kind: WalkKind, attempt: u8) -> Self {
+        match (kind, usize::from(attempt).checked_sub(1)) {
+            (WalkKind::Plain, _) => Self::Plain,
+            (WalkKind::Early, None) => Self::Early,
+            (WalkKind::Door, None) => Self::Door,
+            (WalkKind::Early, Some(k)) => Self::RetryEarly(k),
+            (WalkKind::Door, Some(k)) => Self::RetryDoor(k),
+        }
+    }
+}
+
+impl Session {
+    /// The memo `slot` names, growing the retry tables to reach it.
+    fn memo_slot(&mut self, slot: MemoSlot) -> &mut IdMap<Arc<Form>> {
+        let retry = |r: &mut Vec<RetryMemo>, k: usize| {
+            if r.len() <= k {
+                r.resize_with(k + 1, RetryMemo::default);
+            }
+        };
+        match slot {
+            MemoSlot::Plain => &mut self.forms,
+            MemoSlot::Early => &mut self.forms_early,
+            MemoSlot::Door => &mut self.forms_door,
+            MemoSlot::RetryEarly(k) => {
+                retry(&mut self.retries, k);
+                &mut self.retries[k].early
+            }
+            MemoSlot::RetryDoor(k) => {
+                retry(&mut self.retries, k);
+                &mut self.retries[k].door
+            }
+        }
+    }
+}
+
+/// **The walk's scope**: the memo taken out of its slot, the session's
+/// rules swapped for the attempt's, the profile's attempt set — and all
+/// three put back when the scope ends, by any path including a panic,
+/// the way [`rational::with_coeff_bound`] restores the ring bound.
+///
+/// A plain assignment after the walk would leave a session that
+/// unwound mid-walk holding the attempt's rules and an empty memo. The
+/// session is thread-local and outlives the unwind (no door here tears
+/// it down on a panic), so the next decision on that thread would run
+/// the wrong tier over an empty table.
+struct WalkScope<'s> {
+    sess: &'s mut Session,
+    slot: MemoSlot,
+    memo: IdMap<Arc<Form>>,
+    kept: SymRules,
     #[cfg(feature = "sym-profile-testing")]
-    let t0 = profile::clock();
-    let out = form_in(sess, &mut memo, root, true, true);
+    outer: u8,
+}
+
+impl Drop for WalkScope<'_> {
+    fn drop(&mut self) {
+        self.sess.rules = self.kept;
+        let memo = core::mem::take(&mut self.memo);
+        *self.sess.memo_slot(self.slot) = memo;
+        #[cfg(feature = "sym-profile-testing")]
+        profile::set_attempt(self.outer);
+    }
+}
+
+/// **The one walk door**: `kind`'s form of `root` on `attempt` (0 the
+/// first, `k` the `k`th retry), under `rules` at the ring bound `bits`,
+/// in that attempt's memo.
+///
+/// The rules are swapped onto the session for the walk and swapped back
+/// — `form_in` and everything below it reads `sess.rules`, and a
+/// parameter carried past all of them would be a signature change
+/// through six modules to reach the same read.
+fn walk(
+    sess: &mut Session,
+    root: SymId,
+    kind: WalkKind,
+    attempt: u8,
+    (rules, bits): (SymRules, u64),
+) -> Arc<Form> {
+    let slot = MemoSlot::of(kind, attempt);
+    let memo = core::mem::take(sess.memo_slot(slot));
+    // **The first attempt swaps nothing and scopes nothing**: it runs
+    // under the session's own rules at the ring's own bound, which is
+    // what every caller hands it (`plain_form`, `early_form`,
+    // `door_form`, `rungs` at attempt 0). Only a retry swaps the rules
+    // in and widens the ring; the scope below still restores the memo
+    // on every attempt.
+    let first = attempt == 0;
+    debug_assert!(
+        !first || (rules == sess.rules && bits == rational::COEFF_BITS),
+        "the first attempt is the session's rules at COEFF_BITS"
+    );
+    let kept = if first {
+        sess.rules
+    } else {
+        core::mem::replace(&mut sess.rules, rules)
+    };
     #[cfg(feature = "sym-profile-testing")]
-    profile::walk_done(profile::Walk::Door, t0);
-    sess.forms_door = memo;
+    let (t0, outer) = (profile::clock(), profile::set_attempt(attempt));
+    let mut scope = WalkScope {
+        sess,
+        slot,
+        memo,
+        kept,
+        #[cfg(feature = "sym-profile-testing")]
+        outer,
+    };
+    let (early, registry) = match kind {
+        WalkKind::Plain => (false, false),
+        WalkKind::Early => (true, false),
+        WalkKind::Door => (true, true),
+    };
+    let WalkScope { sess, memo, .. } = &mut scope;
+    let out = if first {
+        form_in(sess, memo, root, early, registry)
+    } else {
+        rational::with_coeff_bound(bits, || form_in(sess, memo, root, early, registry))
+    };
+    #[cfg(feature = "sym-profile-testing")]
+    profile::walk_done(
+        match kind {
+            WalkKind::Plain => profile::Walk::Plain,
+            WalkKind::Early => profile::Walk::Early,
+            WalkKind::Door => profile::Walk::Door,
+        },
+        t0,
+    );
     out
+}
+
+/// **Which RUNG of the ladder answered a decision** — the plain form,
+/// the early walk, rules A/B over the top residual, or the
+/// registered-identity door.
+///
+/// The order is the ladder's own, and it is the order that keeps a
+/// stronger claim from being re-labelled as a weaker one: `discharge`'s
+/// docs argue it. Recorded per decision by the cost profile
+/// (`profile::DecisionRecord`) so that "where the refusals are" is a
+/// count and not a reading of the code; carried outside the profile's
+/// feature because `ladder` answers it whether or not anything is
+/// listening.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Rung {
+    /// The PLAIN form — every atom opaque, rule A0 only. Never retried.
+    Plain,
+    /// The EARLY walk — the session's rules per node.
+    Early,
+    /// Rules A/B over the TOP residual, once the walks have declined.
+    Top,
+    /// The registered-identity DOOR.
+    Door,
 }
 
 /// How the symbolic tier discharged a decision.
@@ -3019,64 +3691,151 @@ pub fn discharge_sample_outcomes() -> Vec<(String, crate::k_stats::SampleOutcome
 /// `None` outside a session, and at a zero-term budget — the tier
 /// switched off inside the scalar.
 fn discharge(id: SymId) -> Option<Discharge> {
+    discharge_in(id, false).map(|(d, _)| d)
+}
+
+/// [`discharge`] with the RETRY LADDER offered ([`SymRetry`]), and the
+/// ATTEMPT that answered beside the answer — `0` for the first, `k` for
+/// the `k`th rung of the ladder.
+///
+/// **The decision path's spelling, and the only one that retries.** The
+/// contradiction assertion on a definite margin runs [`discharge`]
+/// instead — the first attempt alone — and the reason is cost: that
+/// assertion asks a form of EVERY definite margin, which is 95 % of the
+/// early walk's forms on the M10-3 slab (`# Cost`), and almost all of
+/// them refuse, so a ladder there would be the ladder times the whole
+/// population instead of times the refusals the decision path actually
+/// has. What stands behind a retry's zero is therefore the soundness
+/// argument each attempt makes on its own terms ([`SymRetry`]), not a
+/// cross-check against the numeric channel; the cross-check is taken at
+/// the first attempt, where it always was.
+fn discharge_retried(id: SymId) -> Option<(Discharge, u8)> {
+    discharge_in(id, true)
+}
+
+fn discharge_in(id: SymId, retries: bool) -> Option<(Discharge, u8)> {
     SESSION.with(|s| {
         let mut slot = s.borrow_mut();
         let sess = slot.as_mut()?;
         if sess.budget.max_terms == 0 {
             return None;
         }
-        let plain = plain_form(sess, id);
-        if plain.is_zero() {
-            return Some(Discharge::Theorem);
+        #[cfg(feature = "sym-profile-testing")]
+        let mark = profile::decision_begin();
+        let out = ladder(sess, id, retries);
+        #[cfg(feature = "sym-profile-testing")]
+        profile::decision_end(mark, out.map(|(_, rung, attempt)| (rung, attempt)));
+        out.map(|(d, _, attempt)| (d, attempt))
+    })
+}
+
+/// **The ladder**: the plain rung once, then the rungs of the first
+/// attempt, then — only into their silence — each retry's rungs in
+/// [`SymRetry::attempts`]'s order.
+fn ladder(sess: &mut Session, id: SymId, retries: bool) -> Option<(Discharge, Rung, u8)> {
+    // **THE PLAIN RUNG, and the first attempt's alone.** A plain
+    // theorem is the strongest claim the tier makes; re-asking it under
+    // other rules could only re-label it, so no attempt above the first
+    // builds a plain form at all ([`SymRetry`]).
+    let plain = plain_form(sess, id);
+    if plain.is_zero() {
+        return Some((Discharge::Theorem, Rung::Plain, 0));
+    }
+    let first = (sess.rules, rational::COEFF_BITS);
+    if let Some((d, rung)) = rungs(sess, id, &plain, 0, first) {
+        return Some((d, rung, 0));
+    }
+    if !retries {
+        return None;
+    }
+    for (attempt, rules, bits) in sess.retry.attempts(sess.rules) {
+        // **The GROWTH GUARD** (`SymRetry::max_forms`), checked BEFORE
+        // the attempt is walked: an attempt whose memos are at the cap
+        // is not offered again for the rest of the leaf, and the
+        // decision stays numeric.
+        let k = usize::from(attempt) - 1;
+        if sess
+            .retries
+            .get(k)
+            .is_some_and(|m| m.len() >= sess.retry.max_forms)
+        {
+            continue;
         }
-        let rules = sess.rules;
-        if rules.early {
-            let e = early_form(sess, id);
-            if e.is_zero() {
-                return Some(if e.gated {
+        if let Some((d, rung)) = rungs(sess, id, &plain, attempt, (rules, bits)) {
+            sess.counts.retried += 1;
+            return Some((d, rung, attempt));
+        }
+    }
+    None
+}
+
+/// The EARLY rung, the TOP-RESIDUAL rung and the DOOR rung of one
+/// attempt, in the order that keeps a stronger claim from being
+/// re-labelled as a weaker one — and, for an attempt above the first,
+/// in that attempt's own memos, under its rules and its ring bound.
+fn rungs(
+    sess: &mut Session,
+    id: SymId,
+    plain: &Form,
+    attempt: u8,
+    (rules, bits): (SymRules, u64),
+) -> Option<(Discharge, Rung)> {
+    if rules.early {
+        let e = walk(sess, id, WalkKind::Early, attempt, (rules, bits));
+        if e.is_zero() {
+            return Some((
+                if e.gated {
                     Discharge::SignGated
                 } else {
                     Discharge::Theorem
-                });
-            }
+                },
+                Rung::Early,
+            ));
         }
-        // Rules A and B (unconditional) over the residual, once —
-        // BEFORE the door, because a zero they reach is a THEOREM and
-        // labelling one an axiom would understate what the tier proved.
-        // (An earlier cut asked the door here and said in its own
-        // comment that it asked last; under `SymRules::all()` that
-        // attributed A/B theorems to `registered`. R1 m1 / R2 MINOR-4.)
-        if rules.sqrt_square || rules.pythagoras {
-            #[cfg(feature = "sym-profile-testing")]
-            let t0 = profile::clock();
-            let reduced = algebra::reduce(&plain, rules, sess.budget, &sess.atoms);
-            #[cfg(feature = "sym-profile-testing")]
-            profile::reduce_top_done(t0);
-            if reduced.as_ref().is_some_and(|f| f.is_zero()) {
-                return Some(Discharge::Theorem);
-            }
+    }
+    // Rules A and B (unconditional) over the residual, once —
+    // BEFORE the door, because a zero they reach is a THEOREM and
+    // labelling one an axiom would understate what the tier proved.
+    // (An earlier cut asked the door here and said in its own
+    // comment that it asked last; under `SymRules::all()` that
+    // attributed A/B theorems to `registered`. R1 m1 / R2 MINOR-4.)
+    //
+    // The residual is the PLAIN form on every attempt — the plain rung
+    // is never retried — but the reduction runs under the attempt's
+    // rules and at its ring bound, so a retry can close here what the
+    // first attempt's ring refused.
+    if rules.sqrt_square || rules.pythagoras {
+        #[cfg(feature = "sym-profile-testing")]
+        let t0 = profile::clock();
+        let reduced = rational::with_coeff_bound(bits, || {
+            algebra::reduce(plain, rules, sess.budget, &sess.atoms)
+        });
+        #[cfg(feature = "sym-profile-testing")]
+        profile::reduce_top_done(t0);
+        if reduced.as_ref().is_some_and(|f| f.is_zero()) {
+            return Some((Discharge::Theorem, Rung::Top));
         }
-        // THE DOOR, asked LAST and only where there is a registration
-        // to ask about ([`Sym::register_equal`]): only where every walk
-        // above has declined is the registration what answered, and
-        // that is exactly the claim `SymCounts::registered` makes.
-        //
-        // **A GATED door form does not discharge.** A zero that rests
-        // BOTH on a constructor's axiom and on rule C's box-wise sign
-        // read is two weakenings at once, and the receipt has one
-        // column for each and none for the pair; reporting it as either
-        // alone would overstate one of them. So it falls to the numeric
-        // channel — the conservative direction, and unreachable in a
-        // shipped run because `signed_root` is dial-off
-        // (`SymRules::shipped`). Pinned rather than assumed.
-        if rules.registered && rules.early && !sess.registry.is_empty() {
-            let d = door_form(sess, id);
-            if d.is_zero() && !d.gated {
-                return Some(Discharge::Registered);
-            }
+    }
+    // THE DOOR, asked LAST and only where there is a registration
+    // to ask about ([`Sym::register_equal`]): only where every walk
+    // above has declined is the registration what answered, and
+    // that is exactly the claim `SymCounts::registered` makes.
+    //
+    // **A GATED door form does not discharge.** A zero that rests
+    // BOTH on a constructor's axiom and on rule C's box-wise sign
+    // read is two weakenings at once, and the receipt has one
+    // column for each and none for the pair; reporting it as either
+    // alone would overstate one of them. So it falls to the numeric
+    // channel — the conservative direction, and unreachable in a
+    // shipped run because `signed_root` is dial-off
+    // (`SymRules::shipped`). Pinned rather than assumed.
+    if rules.registered && rules.early && !sess.registry.is_empty() {
+        let d = walk(sess, id, WalkKind::Door, attempt, (rules, bits));
+        if d.is_zero() && !d.gated {
+            return Some((Discharge::Registered, Rung::Door));
         }
-        None
-    })
+    }
+    None
 }
 
 /// **Is this node's DOOR form the zero form** — the registry applied,
@@ -3421,10 +4180,14 @@ impl<T: Real> Sym<T> {
                 return SymRegistration::Cyclic;
             }
             sess.registry.insert(a, b);
-            // Only the DOOR memo can hold a form the new record would
-            // have changed; the plain and early memos never consult the
-            // registry, so they stay whole (and M10-8's, bit for bit).
+            // Only the DOOR memos can hold a form the new record would
+            // have changed — the first attempt's and every retry's; the
+            // plain and early memos never consult the registry, so they
+            // stay whole (and M10-8's, bit for bit).
             sess.forms_door.clear();
+            for r in &mut sess.retries {
+                r.door.clear();
+            }
             SymRegistration::Recorded
         })
     }
@@ -3726,11 +4489,12 @@ impl<T: Decide> Decide for Sym<T> {
             report::record(&numeric, None, None, self.value.enclosure_probe());
             return numeric;
         }
-        let symbolic = if domain_violation {
+        let answered = if domain_violation {
             None
         } else {
-            discharge(self.node)
+            discharge_retried(self.node)
         };
+        let symbolic = answered.map(|(d, _)| d);
         count_decision(symbolic);
         if let Some(how) = symbolic {
             #[cfg(feature = "probe")]
@@ -3782,6 +4546,448 @@ mod tests {
 
     fn decides_zero(m: Sym<f64>) -> bool {
         crate::k_stats::decide("sym_test", Margin::of(m), band()) == Ok(Sign::Zero)
+    }
+
+    /// **A pair of spellings of one constant whose product the shipped
+    /// ring REFUSES and a 512-bit ring does not.** Each factor is
+    /// `1/3`'s `f64`, a 53-bit odd mantissa; six of them multiply to
+    /// 318 bits, so `COEFF_BITS` refuses the fifth product on the left
+    /// and the one product on the right, and both nodes freeze into
+    /// indeterminates of their own — two different ones, because their
+    /// content hashes differ.
+    fn two_spellings_past_the_ring() -> Sym<f64> {
+        let c = || Sym::<f64>::from_f64(1.0 / 3.0);
+        let six = c() * c() * c() * c() * c() * c();
+        let cubed = c() * c() * c();
+        six - cubed * cubed
+    }
+
+    /// The measured ladder.
+    fn kept_atom() -> SymRetry {
+        SymRetry::kept_atom()
+    }
+
+    #[test]
+    fn a_wider_ring_retry_closes_what_the_first_attempts_ring_refused() {
+        // The two spellings have the same `f64` value, so the NUMERIC
+        // channel answers `Zero` inside the band either way and the
+        // answer alone says nothing: what the row reads is the RECEIPT,
+        // which is where a theorem and a measurement are told apart.
+        let (_, first) = with_session(budget(), || decides_zero(two_spellings_past_the_ring()));
+        assert_eq!(
+            first.numeric, 1,
+            "at COEFF_BITS both spellings freeze into indeterminates of their own, the \
+             difference is not the zero form, and the decision falls to the numeric channel"
+        );
+        assert_eq!(first.symbolic_zero, 0);
+        assert_eq!(first.retried, 0, "no ladder is installed");
+
+        let retry = SymRetry {
+            bits: Some(512),
+            ..SymRetry::none()
+        };
+        let (_, with_ladder) = with_session_retry(budget(), SymRules::shipped(), retry, || {
+            decides_zero(two_spellings_past_the_ring())
+        });
+        assert_eq!(
+            with_ladder.symbolic_zero, 1,
+            "at 512 bits both products fit, both spellings are one constant and the \
+             difference is the zero polynomial — the same identity of reals either way, so \
+             a retry's theorem is a theorem and lands in the column the first attempt's would"
+        );
+        assert_eq!(
+            with_ladder.retried, 1,
+            "and `retried` says the ladder is what carried it"
+        );
+        assert_eq!(with_ladder.numeric, 0);
+    }
+
+    /// The forms each retry attempt's memos hold RIGHT NOW, in the
+    /// session this thread has installed — the evidence that a ladder
+    /// was walked, which the receipt does not carry (`retried` counts
+    /// decisions a retry CLOSED, not attempts made).
+    fn retry_memo_sizes() -> Vec<usize> {
+        SESSION.with(|s| {
+            s.borrow()
+                .as_ref()
+                .map(|sess| sess.retries.iter().map(RetryMemo::len).collect())
+                .unwrap_or_default()
+        })
+    }
+
+    /// `(1/3)^n` spelled two ways — a left-associated chain against
+    /// `(1/3)^a · (1/3)^(n−a)` — so the ring refuses the two at
+    /// different nodes and they freeze into different indeterminates.
+    /// Each factor is a 53-bit odd mantissa, so the product needs about
+    /// `53·n` bits.
+    fn power_two_ways(n: usize, a: usize) -> Sym<f64> {
+        let c = || Sym::<f64>::from_f64(1.0 / 3.0);
+        let chain = |k: usize| (1..k).fold(c(), |acc, _| acc * c());
+        chain(n) - chain(a) * chain(n - a)
+    }
+
+    fn ring(bits: u64) -> SymRetry {
+        SymRetry {
+            bits: Some(bits),
+            ..SymRetry::none()
+        }
+    }
+
+    fn columns(c: &SymCounts) -> [u64; 5] {
+        [
+            c.symbolic_zero,
+            c.sign_gated,
+            c.registered,
+            c.numeric,
+            c.retried,
+        ]
+    }
+
+    /// **THE NEGATIVE ROW**: a decision the first attempt refuses AND
+    /// every retry refuses stays numeric.
+    ///
+    /// What the RECEIPT shows is the decision in `numeric` and nothing
+    /// in `retried`, which is the same receipt a session with no ladder
+    /// writes — the receipt records what each decision CLAIMS, and a
+    /// ladder that closed nothing claims nothing. That the attempts WERE
+    /// made is a fact about the session's work and not a claim, so the
+    /// row reads it where it lives: the retry memos hold the forms the
+    /// two attempts built.
+    #[test]
+    fn a_decision_every_attempt_refuses_stays_numeric() {
+        // 318 bits is past 256 and past 300; the ring retry is offered
+        // and declines, and the kept-atom retries cannot reach a
+        // constant product at all.
+        let retry = SymRetry {
+            bits: Some(300),
+            ..kept_atom()
+        };
+        let ((_, walked), counts) =
+            with_session_retry(budget(), SymRules::shipped(), retry, || {
+                (
+                    decides_zero(two_spellings_past_the_ring()),
+                    retry_memo_sizes(),
+                )
+            });
+        assert_eq!(
+            columns(&counts),
+            [0, 0, 0, 1, 0],
+            "neither attempt reaches it — 318 bits is past both bounds — so it stays \
+             numeric and nothing is counted retried"
+        );
+        assert_eq!(
+            walked.len(),
+            3,
+            "all three attempts were offered — the two masks and the ring"
+        );
+        assert!(
+            walked.iter().all(|n| *n > 0),
+            "and each walked, building forms in its own memo: {walked:?}"
+        );
+    }
+
+    /// **An attempt that cannot differ from the first is not walked.** A
+    /// session whose rules are already narrower than every mask — M10-9's
+    /// `without_the_algebra`, which has rule A and rule G shut — offered
+    /// the measured ladder: both masks reduce to the session's own rules,
+    /// so both attempts are the first attempt again and neither is made.
+    #[test]
+    fn an_attempt_identical_to_the_first_is_not_walked() {
+        let first = SymRules::without_the_algebra();
+        assert_eq!(first.masked_by(kept_atom().without[0].unwrap()), first);
+        assert_eq!(first.masked_by(kept_atom().without[1].unwrap()), first);
+        assert_eq!(kept_atom().attempts(first).count(), 0);
+        let ((_, walked), counts) = with_session_retry(budget(), first, kept_atom(), || {
+            (
+                decides_zero(two_spellings_past_the_ring()),
+                retry_memo_sizes(),
+            )
+        });
+        assert_eq!(counts.numeric, 1);
+        assert!(
+            walked.is_empty(),
+            "no retry memo was ever made, because no attempt was: {walked:?}"
+        );
+        // And a ring retry at exactly the first attempt's bound is the
+        // first attempt again too; so is a second mask identical to the
+        // first. (A NARROWER ring is a different attempt and is kept —
+        // `attempts` drops only equal ones.)
+        let same = SymRetry {
+            bits: Some(rational::COEFF_BITS),
+            without: [kept_atom().without[0], kept_atom().without[0]],
+            ..SymRetry::none()
+        };
+        let offered: Vec<u8> = same
+            .attempts(SymRules::shipped())
+            .map(|(k, _, _)| k)
+            .collect();
+        assert_eq!(offered, [1], "one distinct attempt, numbered 1");
+        let narrower = SymRetry {
+            bits: Some(rational::COEFF_BITS - 1),
+            ..SymRetry::none()
+        };
+        assert_eq!(
+            narrower.attempts(SymRules::shipped()).count(),
+            1,
+            "a narrower ring is not the first attempt, so it is offered"
+        );
+    }
+
+    /// **THE GROWTH GUARD** (`SymRetry::max_forms`): an attempt whose
+    /// memos are at the cap is withheld, checked before the walk. Two
+    /// decisions that only a 512-bit retry closes: with the cap at one
+    /// form, the first decision's retry fills the memo past it and the
+    /// second decision's is never offered.
+    #[test]
+    fn the_growth_guard_withholds_an_attempt_at_its_cap() {
+        let bag = || {
+            decides_zero(power_two_ways(5, 2));
+            decides_zero(power_two_ways(6, 2));
+            retry_memo_sizes()
+        };
+        let (_, open) = with_session_retry(budget(), SymRules::shipped(), ring(512), bag);
+        assert_eq!(
+            columns(&open),
+            [2, 0, 0, 0, 2],
+            "uncapped, both close on the retry"
+        );
+        let capped = SymRetry {
+            max_forms: 1,
+            ..ring(512)
+        };
+        let (sizes, counts) = with_session_retry(budget(), SymRules::shipped(), capped, bag);
+        assert_eq!(
+            columns(&counts),
+            [1, 0, 0, 1, 1],
+            "the first closes on its retry; the second's attempt is withheld and it stays \
+             numeric"
+        );
+        assert!(
+            sizes[0] >= 1,
+            "the memo passed the cap on the one walk the guard allowed: {sizes:?}"
+        );
+    }
+
+    /// **A retry's forms never reach the first attempt's memos**, at the
+    /// scalar. Decision 1 is closed by a 512-bit retry, which builds its
+    /// `c⁵` node as a 265-bit constant in the RETRY memo. Decisions 2′
+    /// and 2 share that node and close ONLY while it is FROZEN at 256
+    /// bits — `c⁵·c⁵` is 530 bits and refuses at every bound below 1024,
+    /// so an opened `c⁵` freezes at two different outer nodes and the
+    /// identity is lost. 2′ closes at the plain rung, 2 at the early rung
+    /// (an `abs` fold keeps the plain rung out). A retry's form leaking
+    /// into either memo turns one of them numeric.
+    #[test]
+    fn a_retrys_forms_never_reach_the_first_attempts_memos() {
+        let c = || Sym::<f64>::from_f64(1.0 / 3.0);
+        let c5 = || c() * c() * c() * c() * c();
+        let two = || Sym::<f64>::from_f64(2.0);
+        let z = || {
+            let w = p("z", 0.3);
+            w * w + Sym::from_f64(1.0)
+        };
+        let bag = || {
+            decides_zero(power_two_ways(5, 2));
+            decides_zero((c5() * c5()) * two() - c5() * (c5() * two()));
+            decides_zero(z().abs() * ((c5() * c5()) * two()) - z() * (c5() * (c5() * two())));
+        };
+        let (_, none) = with_session(budget(), bag);
+        let (_, ladder) = with_session_retry(budget(), SymRules::shipped(), ring(512), bag);
+        assert_eq!(
+            columns(&none),
+            [2, 0, 0, 1, 0],
+            "2 and 2' close on the frozen node; 1 refuses"
+        );
+        assert_eq!(
+            columns(&ladder),
+            [3, 0, 0, 0, 1],
+            "the retry closes 1, and 2/2' are still closed by the first attempt on the frozen \
+             node"
+        );
+    }
+
+    /// `X = Π(1 − wᵢ)` over `n` parameters: `2ⁿ` terms, mixed signs so
+    /// rule F never folds `|X|`.
+    fn mixed(n: usize) -> Sym<f64> {
+        let mut x = Sym::<f64>::from_f64(1.0);
+        for i in 0..n {
+            x = x * (Sym::from_f64(1.0) - p(&format!("w{i}"), 0.1));
+        }
+        x
+    }
+
+    /// Manifestly positive, so rule F folds `|Z| = Z` in the EARLY walk
+    /// only: the plain rung keeps the `abs` atom and the top residual
+    /// cannot open it, so only a walk decides a margin carrying it.
+    fn z() -> Sym<f64> {
+        let w = p("z", 0.3);
+        w * w + Sym::from_f64(1.0)
+    }
+
+    /// A document `abs` node whose square rule G's companion rewrite
+    /// opens into `X²` (64 → 729 terms), so the next product `X²·X²`
+    /// freezes on the term budget, where `|X|⁴` as a kept atom is one
+    /// monomial — the SHAPE of the link's loss, built at the scalar.
+    fn closes_only_with_rule_g_off() -> Sym<f64> {
+        let x = mixed(6);
+        let a = || x.abs();
+        let q = (a() * a()) * (a() * a());
+        let q2 = ((a() * a()) * a()) * a();
+        z().abs() * q - z() * q2
+    }
+
+    /// Rule A's own harm: `sqrt(X)² = X` with `X` of 256 terms opens
+    /// into `X·X` (6561 terms), past the term budget; `s⁴` kept as an
+    /// atom power is one monomial.
+    fn closes_only_with_rule_a_off() -> Sym<f64> {
+        let x = mixed(8);
+        let s = || x.sqrt();
+        let q = (s() * s()) * (s() * s());
+        let q2 = ((s() * s()) * s()) * s();
+        z().abs() * q - z() * q2
+    }
+
+    fn mask(f: fn(&mut SymRules)) -> SymRetry {
+        let mut m = SymRules::all();
+        f(&mut m);
+        SymRetry {
+            without: [Some(m), None],
+            ..SymRetry::none()
+        }
+    }
+
+    /// **Each of the measured ladder's two masks closes a decision the
+    /// other cannot, at the scalar** — the reason there are two. The
+    /// rule-G shape: rule G shut, the rewrite shut or rule A shut each
+    /// close it (all three keep `|X|²` from opening), the ring cannot
+    /// (the freeze is on terms), and the measured ladder closes it on its
+    /// first attempt.
+    #[test]
+    fn a_decision_that_closes_only_with_rule_g_off() {
+        let run = |r: SymRetry| {
+            with_session_retry(budget(), SymRules::shipped(), r, || {
+                decides_zero(closes_only_with_rule_g_off())
+            })
+            .1
+        };
+        assert_eq!(columns(&run(SymRetry::none())), [0, 0, 0, 1, 0]);
+        let closed = [1, 0, 0, 0, 1];
+        assert_eq!(columns(&run(mask(|m| m.canonical_root = false))), closed);
+        assert_eq!(columns(&run(mask(|m| m.abs_square = false))), closed);
+        assert_eq!(columns(&run(mask(|m| m.sqrt_square = false))), closed);
+        assert_eq!(columns(&run(ring(512))), [0, 0, 0, 1, 0]);
+        assert_eq!(columns(&run(kept_atom())), closed);
+    }
+
+    /// And the rule-A shape: only rule A shut closes it; rule G shut
+    /// does not, nor the ring; the measured ladder closes it on the
+    /// attempt that shuts rule A.
+    #[test]
+    fn a_decision_that_closes_only_with_rule_a_off() {
+        let run = |r: SymRetry| {
+            with_session_retry(budget(), SymRules::shipped(), r, || {
+                decides_zero(closes_only_with_rule_a_off())
+            })
+            .1
+        };
+        assert_eq!(columns(&run(SymRetry::none())), [0, 0, 0, 1, 0]);
+        assert_eq!(
+            columns(&run(mask(|m| m.sqrt_square = false))),
+            [1, 0, 0, 0, 1]
+        );
+        assert_eq!(
+            columns(&run(mask(|m| m.canonical_root = false))),
+            [0, 0, 0, 1, 0]
+        );
+        assert_eq!(columns(&run(ring(512))), [0, 0, 0, 1, 0]);
+        assert_eq!(columns(&run(kept_atom())), [1, 0, 0, 0, 1]);
+    }
+
+    /// **A refused ladder leaves every column where it was**: a mixed
+    /// bag — a decision past every bound the ladder offers, a
+    /// non-identity, and a plain theorem — decided with no ladder and
+    /// with one. Every decision column and `frozen` are identical, and
+    /// nothing is counted retried.
+    #[test]
+    fn a_refused_ladder_leaves_every_column_where_it_was() {
+        let bag = || {
+            let a = decides_zero(power_two_ways(10, 5));
+            let b = decides_zero(closes_only_with_rule_g_off() + Sym::from_f64(1.0e-3));
+            let x = p("w", 0.37);
+            let c = decides_zero(x + Sym::from_f64(2.0) * x - Sym::from_f64(3.0) * x);
+            (a, b, c)
+        };
+        let (o1, none) = with_session(budget(), bag);
+        let (o2, ladder) = with_session_retry(budget(), SymRules::shipped(), ring(300), bag);
+        assert_eq!(o1, o2);
+        assert_eq!(columns(&none), columns(&ladder));
+        assert_eq!(
+            none.frozen, ladder.frozen,
+            "a retry's freezes are not counted into `frozen`"
+        );
+        assert_eq!(ladder.retried, 0);
+    }
+
+    /// The ring bound is restored after a panic inside a retry attempt.
+    #[test]
+    fn the_coeff_bound_is_restored_after_a_panic_inside_it() {
+        assert_eq!(rational::coeff_bound(), rational::COEFF_BITS);
+        let r = std::panic::catch_unwind(|| {
+            rational::with_coeff_bound(1024, || {
+                assert_eq!(rational::coeff_bound(), 1024);
+                panic!("planted");
+            })
+        });
+        assert!(r.is_err());
+        assert_eq!(rational::coeff_bound(), rational::COEFF_BITS);
+    }
+
+    /// **A retry never re-labels what the first attempt proved.** The
+    /// same margin, decided with the ladder and without it, is the same
+    /// discharge in the same column — the ladder is asked only into the
+    /// first attempt's silence, so a plain theorem is never re-asked.
+    #[test]
+    fn the_ladder_leaves_the_first_attempts_answers_exactly_as_they_were() {
+        let margin = || {
+            let x = p("w", 0.37);
+            let a = x + Sym::from_f64(2.0) * x;
+            let b = Sym::from_f64(3.0) * x;
+            decides_zero(a - b)
+        };
+        let (plain, without) = with_session(budget(), margin);
+        let (laddered, with_ladder) =
+            with_session_retry(budget(), SymRules::shipped(), kept_atom(), margin);
+        assert!(plain && laddered);
+        assert_eq!(
+            without.symbolic_zero, with_ladder.symbolic_zero,
+            "a plain theorem is the plain rung's on both runs"
+        );
+        assert_eq!(
+            with_ladder.retried, 0,
+            "the ladder was never entered, so it carried nothing"
+        );
+    }
+
+    /// **A mask is a field-by-field AND**, so a retry can only ever run
+    /// FEWER rules than the session — never a rule the session shut.
+    #[test]
+    fn a_retry_mask_can_only_take_rules_away() {
+        let shut = SymRules::none();
+        for mask in [SymRules::all(), SymRules::shipped(), SymRules::none()] {
+            assert_eq!(
+                shut.masked_by(mask),
+                shut,
+                "no mask turns a rule ON that the session has off"
+            );
+        }
+        let all = SymRules::all();
+        assert_eq!(all.masked_by(SymRules::all()), all);
+        assert_eq!(all.masked_by(SymRules::none()), SymRules::none());
+        assert_eq!(
+            SymRules::shipped().masked_by(SymRules::all()),
+            SymRules::shipped(),
+            "an all-true mask is the identity"
+        );
     }
 
     #[test]

@@ -98,11 +98,21 @@ fn decide_3_no_predicate_loses_a_decision() {
             // are asserted on both sides, so any further drift reds
             // and says which. The whole measurement, and the remedy
             // record, is
-            // `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`,
-            // which stays open at P1 for SYM-9. At the DOCUMENT level
-            // rule G is a gain here — `[515, 0, 90, 497]` becomes
-            // `[541, 0, 96, 465]` — and a change that makes the code
-            // right is not skipped for the re-baseline it costs.
+            // `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`.
+            // At the DOCUMENT level rule G is a gain here —
+            // `[515, 0, 90, 497]` becomes `[541, 0, 96, 465]` — and a
+            // change that makes the code right is not skipped for the
+            // re-baseline it costs.
+            //
+            // In this row's own vocabulary the sixteen are two things:
+            // TEN decisions lost to `numeric`, and SIX claims WEAKENED
+            // from a theorem to an axiom. Both sides here run one attempt
+            // per rung (`split_at_the_nominal`, no retry ladder), because
+            // this is rule G's trade and a ladder on the `on` side would
+            // read it as recovered. What the measured retry ladder does
+            // about it is pinned where the ladder is:
+            // `sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`
+            // (the ten back, `[92, 0, 6, 10]`; the six still weakened).
             if *name == "r2_link" && *p == "carrier_on_surface_2" {
                 assert_eq!(
                     (*b, a),
