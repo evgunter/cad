@@ -1,12 +1,14 @@
 ---
 id: product-refuses-naming-when-one-instance-is-placed-under-two-roots
-kind: issue
+kind: unit
 title: product refuses Naming when one instance's names appear under two transform roots, so a document the solve accepts cannot gather
-status: open
+status: review
 opened: 2026-09-05
 refs: [does-n3-retire-loudly-generalise-to-the-folds-other-compositions]
 priority: P0
 cost: H
+branch: gather/two-roots-refusal
+pr: 3142
 ---
 
 
@@ -95,3 +97,13 @@ cannot represent.** Two layers disagree today, and the ruling did not
 change that; it only settled which layer's answer is right.
 
 `crates/editor-core/src/product.rs` is WIRE's, so this lands here.
+
+## Implemented (PR 3142)
+
+The gather refuses the shape from the recipe, before any root is read,
+as `ProductError::PlacedUnderTwoRoots { placed, select, first, second }`
+(`product.rs`, `placed_under_two_roots`). The per-root `Naming` carry
+arm stays reachable through a split's intact pass-through (named in
+`wire_product_gather_tie`); the tie-flush arm is unreachable with its
+reason at the site. The solve's half is MSOLVE's:
+`work/msolve/the-solve-accepts-a-body-placed-under-two-roots.md`.
