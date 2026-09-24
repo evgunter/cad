@@ -968,6 +968,35 @@ fn mef_onto_a_second_key_the_body_records_as_one_surface_carries_the_runs_rows()
     assert!(s.body.pcurve(made.he_minus).is_some());
 }
 
+/// **A face `mef` carves onto a chart the body cannot tell is the old
+/// one stays unminted.** A second key holding an equal cylinder with no
+/// recorded provenance reads as another chart (`Body::same_chart`), so
+/// the run's rows are dropped onto the new face — and the operator
+/// mints nothing there either, although the closed-form lane could: a
+/// face whose rows did not stand is the minting pass's, and a row
+/// minted onto it would claim a chart identity the body does not hold.
+#[test]
+fn mef_onto_an_unrecorded_equal_chart_mints_nothing_on_the_new_face() {
+    let mut s = sheet();
+    let second = s
+        .body
+        .set_face_surface(s.plane, FaceSurface::New(cylinder()))
+        .unwrap();
+    let (he1, he2, chord) = ruling_site(&mut s);
+    let made = s
+        .body
+        .mef(
+            MefSite::Chords { he1, he2 },
+            chord,
+            FaceSurface::Shared(second),
+            tol(),
+        )
+        .unwrap();
+    assert_eq!(rows_of(&s.body, made.face), (0, 4));
+    assert_eq!(rows_of(&s.body, s.low), (4, 0));
+    assert_eq!(validate_pcurves(&s.body, band()), vec![]);
+}
+
 /// **A chord off the chart leaves both pieces unminted, and the pass
 /// refuses the result.** A straight chord from `a` to `c` cuts through
 /// the cylinder rather than lying on it, so neither piece of the lower
