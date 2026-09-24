@@ -471,6 +471,26 @@ trivially. The change is behaviour-preserving: the corpus name
 digests, the 304-cell probe and a reviewer-built ≥2-survivor
 placed-union tie are identical to main.
 
+## 2026-09-24 — name-ordered positions have one home (PR 3173)
+
+`names/canonical.rs` is now the one place a path's name-ordered
+positions are put in order:
+- `Merged` and `BandFace` sets;
+- `SideOf` partners (the collapse never sorted these before);
+- junction runs;
+- a union `Seam`'s sides, and the `OrderAlong` rank value that depends
+  on them.
+
+Mint, collapse and every rewrite (`rewrite_path`, `refactor::remap_*`)
+go through one core. The rank rule is derived inside it by comparing
+the name before and after, for every rank on a seam line, including
+one reached through a wrapper.
+
+Review round 1 caught a pair boolean's ranks along an embedded union
+seam re-binding silently under a reordering remap. On the reviewer's
+probe over every permutation there are now 0 wrong binds and 0
+dangling names; main had 990 dangling. Published names that move: 42
+`SideOf` partner-order rows, each binding the same geometry.
 ## 2026-09-24 — three small rows close (PR 3175)
 
 - Naming counts narrow to u32 through one helper, `names::emit::to_u32`,
@@ -482,3 +502,50 @@ placed-union tie are identical to main.
 
 Filed: `naming-index-casts-saturate-silently-at-u32-max` (P4), widened
 at review to the 14 truncating `as u32` casts in `editor-core`.
+
+## 2026-09-24 — value edits report a numbering move (PR 3180)
+
+A value edit (SetParam, SetExpression, SetStructuralParam, SetDocParam,
+SetDocParamValue) that moves a profile's canonical numbering used to
+rename silently: a hole grown past its outer loop, or a loop whose
+sense flipped. It now runs the same carry-and-report door as
+SetProgram. DM7 is re-worded to cover edits that move a name's
+numbering.
+
+Review found a two-step path through an unreadable state (no replay,
+a tie, or zero area). The interim rule makes it loud: an unreadable
+side strands every name on that profile. The lossless answer needs
+the last published numbering, and that is not recipe state (two
+saves are byte-identical while the same name denotes different
+walls). The choice between option A (persist it) and option B
+(doc-param edits refuse unreadable results) is with Ev in
+`a-value-edits-last-published-numbering-is-not-recipe-state`
+(`needs_ev`).
+
+Filed:
+- P0 `a-child-documents-rebind-leaves-the-parents-held-names-in-the-old-numbering`
+- P1 `the-viewer-drops-every-dm7-rename-report`
+- P2 `the-value-edit-numbering-check-costs-a-replay-per-swept-profile`
+
+## 2026-09-24 — the group-size rung reads the emitter's groups (PR 3184)
+
+`GroupResized` used to count a group by how its members' names were
+spelled. Tied parents were then summed (4 → 2), and a face a split no
+longer divided read 2 → 0. Now each emitter records the groups it
+forms, by entity (`names::FragmentGroups`, not persisted), and the
+rung only looks the count up. At a union the count is the distinct
+published entities a fold step's group descends to, followed by
+entity through every later step. Where a group is formed by names (a
+seam group a tie formed), the rung declines. No name, stored bit or
+`DIAGNOSIS_DIGEST` row moved.
+
+The review took three rounds:
+- Round 1 found a partly swallowed union group reporting its full step
+  size.
+- The fix for that matched rows across fold steps by name, which
+  summed tied parents again.
+- Round 3 moved the descent to emit time, by entity.
+
+Documented as a known undercount: a piece a later step re-mints as a
+`Seam` edge along its own line is not counted as the parent's
+descendant.

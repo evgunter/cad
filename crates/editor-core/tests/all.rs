@@ -180,6 +180,10 @@ mod fix_pattern_mate_crossing;
 mod refusal_concision;
 #[path = "refusal_concision_chains.rs"]
 mod refusal_concision_chains;
+#[path = "remap_reorders_ids.rs"]
+mod remap_reorders_ids;
+#[path = "resolve_group_membership.rs"]
+mod resolve_group_membership;
 #[path = "resolve_upstream_scope.rs"]
 mod resolve_upstream_scope;
 #[path = "rv_dm7_probes.rs"]

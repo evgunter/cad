@@ -20,6 +20,7 @@
 //! birth facts; THIS module (editor-core) names things.
 
 mod attribute;
+mod canonical;
 mod defer;
 mod discriminate;
 mod emit;
@@ -32,6 +33,7 @@ mod emit_topo;
 mod emit_union;
 mod flush;
 mod geompred;
+mod groups;
 pub(crate) mod interrogate;
 pub(crate) mod merged;
 mod role;
@@ -62,6 +64,8 @@ pub use geompred::{
     ALL_SURFACE_KINDS, Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal,
     SurfaceKindSet,
 };
+pub(crate) use groups::Emitted;
+pub use groups::FragmentGroups;
 pub use interrogate::{
     Denotation, InterrogateError, denotation, edge_carrier_kind, edge_frame, face_carrier_kind,
     face_frame, vertex_position,
