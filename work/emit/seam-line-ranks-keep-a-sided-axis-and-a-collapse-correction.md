@@ -4,7 +4,7 @@ kind: issue
 title: Every ranker along a seam line ranks along the minted pair's n_a × n_b, so a commutative consumer needs RankRule to re-orient it; a canonical axis would remove the correction and rename pair-boolean OrderAlong names
 status: open
 opened: 2026-09-24
-priority: P1
+priority: P3
 cost: D
 refs: [union-seam-edge-ranks-follow-which-step-split-the-seam, name-ordered-positions-in-a-path-have-no-single-home, 3125]
 ---
@@ -38,3 +38,14 @@ Whether the uniform axis is worth the name migration and the N2
 change. That is Ev's call, and it goes as an `[ev]` PR. Ev ruled on
 3102 that re-baselining is never a reason to skip a good change, but
 this one changes a ratified clause's substance.
+
+## Against the canonical axis (orchestrator, 2026-09-24)
+
+Sign-normalizing a line direction lexicographically is discontinuous.
+A seam line that an edit rotates through an axis plane flips its
+canonical sign, and every rank along it reverses. That renames names
+under small edits. The pair-line rule (`n_a × n_b`, re-oriented once
+by the collapse) has no such discontinuity. What PR 3125's review
+showed is that the pair-line rule needs ONE home, answering which line
+a name's rank is along for every consumer, not a different axis. The
+row is re-banded P3. It stays open as the record of the alternative.
