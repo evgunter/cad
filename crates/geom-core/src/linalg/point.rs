@@ -50,6 +50,9 @@ impl<T: Real> Point2<T> {
     /// coordinate, in `x, y` order. A structural map — no arithmetic,
     /// so it is exact whenever `f` is (`Real::from_f64`,
     /// `Dual::constant`).
+    ///
+    /// Lifting an `f64` point into a lane is `p.map(T::from_f64)`,
+    /// here and on the 3-D type.
     #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Point2<U> {
         Point2::new(f(self.x), f(self.y))
@@ -344,6 +347,29 @@ mod tests {
         assert_eq!(r.x.to_bits(), p.x.to_bits());
         assert_eq!(r.y.to_bits(), p.y.to_bits());
         assert_eq!(r.z.to_bits(), p.z.to_bits());
+    }
+
+    /// A point read into a lane is `map` with the scalar's embedding,
+    /// and each coordinate lands in its OWN slot, exactly: the point
+    /// enclosure of its stored bits at the interval scalar, a constant
+    /// carrying the same bits at the dual scalar. The coordinates are
+    /// pairwise distinct, so a walk that crossed two slots is caught.
+    #[test]
+    fn map_lifts_each_coordinate_into_its_own_slot() {
+        use crate::{Bounds, Dual64, Interval};
+        let p2 = Point2::new(1.5, -3.0);
+        let p3 = Point3::new(-2.25, 0.1, 7.0);
+        let (i2, i3) = (p2.map(Interval::from_f64), p3.map(Interval::from_f64));
+        let d3 = p3.map(Dual64::from_f64);
+        let enclosed = [(i2.x, p2.x), (i2.y, p2.y), (i3.x, p3.x), (i3.y, p3.y), (i3.z, p3.z)];
+        for (got, want) in enclosed {
+            let bits = (got.lo().to_bits(), got.hi().to_bits());
+            assert_eq!(bits, (want.to_bits(), want.to_bits()), "{want}");
+        }
+        for (got, want) in [(d3.x, p3.x), (d3.y, p3.y), (d3.z, p3.z)] {
+            assert_eq!(got.value.to_bits(), want.to_bits(), "{want}");
+            assert_eq!(got.deriv.to_bits(), 0.0_f64.to_bits(), "{want}");
+        }
     }
 
     #[test]

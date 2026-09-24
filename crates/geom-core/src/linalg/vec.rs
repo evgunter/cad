@@ -42,6 +42,9 @@ impl<T: Real> Vec2<T> {
     /// component, in `x, y` order. A structural map — no arithmetic,
     /// so it is exact whenever `f` is (`Real::from_f64`,
     /// `Dual::constant`).
+    ///
+    /// Lifting an `f64` vector into a lane is `v.map(T::from_f64)`,
+    /// here and on the 3-D type.
     #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> Vec2<U> {
         Vec2::new(f(self.x), f(self.y))
@@ -723,6 +726,29 @@ mod tests {
         assert_eq!((c.x, c.y, c.z), (0.0, 0.0, 1.0));
         let p = Vec2::<f64>::unit_x().perp_dot(Vec2::unit_y());
         assert_eq!(p, 1.0);
+    }
+
+    /// A vector read into a lane is `map` with the scalar's embedding,
+    /// and each component lands in its OWN slot, exactly: the point
+    /// enclosure of its stored bits at the interval scalar, a constant
+    /// carrying the same bits at the dual scalar. The components are
+    /// pairwise distinct, so a walk that crossed two slots is caught.
+    #[test]
+    fn map_lifts_each_component_into_its_own_slot() {
+        use crate::{Bounds, Dual64, Interval};
+        let v2 = Vec2::new(1.5, -3.0);
+        let v3 = Vec3::new(-2.25, 0.1, 7.0);
+        let (i2, i3) = (v2.map(Interval::from_f64), v3.map(Interval::from_f64));
+        let d3 = v3.map(Dual64::from_f64);
+        let enclosed = [(i2.x, v2.x), (i2.y, v2.y), (i3.x, v3.x), (i3.y, v3.y), (i3.z, v3.z)];
+        for (got, want) in enclosed {
+            let bits = (got.lo().to_bits(), got.hi().to_bits());
+            assert_eq!(bits, (want.to_bits(), want.to_bits()), "{want}");
+        }
+        for (got, want) in [(d3.x, v3.x), (d3.y, v3.y), (d3.z, v3.z)] {
+            assert_eq!(got.value.to_bits(), want.to_bits(), "{want}");
+            assert_eq!(got.deriv.to_bits(), 0.0_f64.to_bits(), "{want}");
+        }
     }
 
     #[test]
