@@ -1673,3 +1673,20 @@ a second name for the evaluation hull. Spec (`scalar/ring-5` at
 gate `certification-doors.sh`; census re-keyed with a cross-read of the
 gate; C9 re-worded (`[ev]`). Tier DUAL. Dispatch waits for LANE-4P
 (#3165), which edits `topo/src/props.rs` and `bounds-allowlist.sh`.
+
+## LANE-4P merged; RING-5 dispatched (2026-09-24)
+
+LANE-4P's fix pass (Opus; resumed once after a container restart killed
+its post-merge nextest — its head was already pushed, nothing lost) took
+all twelve items: RING-4's stale `interval` cfg dropped on the merge;
+the census reads fn-pointer fields and requires each helper to compare
+every one; `Option<Self>`/`Result<Self,_>` constructors, lifetime-
+parameterised impls and unreadable heads now red; a `NOT_A_DOOR`
+exemption list; failures collected; red messages say what a helper
+must contain; `test_utils::source::where_at` shared. Head `4c473313d5`,
+run 36013029381 green; state-sync rode the PR; merged `e5a01bb002`.
+Filed: TINT (three impl-block walks; `source::line`'s column-0
+off-by-one), SCALAR (`QuadLane` formation sites unpinned). RING-5's
+implementer dispatched on Opus (`scalar/ring-5`, merges main first,
+the compiler census first; tier DUAL; PR `[ev]`). LANE-4 still waits on
+TOPO's #3160.
