@@ -1690,3 +1690,26 @@ off-by-one), SCALAR (`QuadLane` formation sites unpinned). RING-5's
 implementer dispatched on Opus (`scalar/ring-5`, merges main first,
 the compiler census first; tier DUAL; PR `[ev]`). LANE-4 still waits on
 TOPO's #3160.
+
+## RING-5 in review (dual) (2026-09-24)
+
+RING-5's implementer (Opus, 421,544 tokens, 119 min harness) opened
+#3174 (`[ev]`): the sealed `Certification` trait in
+`geom_core::interval::certification` (imported by that path; not
+re-exported — deviation: a re-export in `interval.rs` would put 36
+E0034s in its tests), `poison` → `refused`, `from_certified` inherent
+(decision stated for Ev), gate `certification-doors.sh` keyed on the
+module path (the token `Certification` is also an `EulerOpError`
+variant) with seven rules and 22 single-rule plants, `quad_lane` and
+`probe_tube_chart`'s tail moved, census re-keyed and cross-reading the
+gate, C9 re-worded. Compiler census: 433 production calls in 17 files
+(one the survey missed, `editor-core/src/clearance.rs`, evaluation,
+re-resolves to `Real::powi` unchanged). First run red: the gate's
+selftest under the runner's awk (`\*` read as a quantifier) — relayed,
+fixed with `[*]`; run 36025875034 on `57a5c751e9` green. (The lane
+installed gawk on the shared box and set `awk` back to mawk; noted.)
+Head frozen; R1 and R2 dispatched on Opus concurrently ~16:55Z under the
+protocol at `c3129311bd`, identical brief (`ring5-review-brief.frozen.md`,
+sha256 `9acf5d7a…`), ten claims, told to report a refused edit rather
+than route around it and not to change system configuration. The PR
+thread held only the fence comment when they were briefed.
