@@ -458,6 +458,7 @@ which is what actually moves the number.
 | chord_join.rs:1490 | split_chart_azimuth_frame | radial·u_ref (m) — branch selection | m | OK (note N5) |
 | chord_join.rs:1623/1639 | split_sphere_window_pole(_side) | radius − axial distance | m | OK |
 | splitting/join.rs:377 | split_section_area | 2·\|A\|/P mean width | m | FIXED (factor-2 doc/code mismatch; dimension was already m) |
+| splitting/join.rs (`refuse_section_spur`) | split_section_spur | distance between a spur tip's two neighbours, through the `Margin::norm3` door | m | OK (new) |
 | splitting/finish.rs:414 | classify_dihedral arm | edge extents (m) | m | OK |
 
 > **Anchors moved (2026-08-20).** The nine rows above that read
