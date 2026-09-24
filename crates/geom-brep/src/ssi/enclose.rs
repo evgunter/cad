@@ -52,7 +52,10 @@
 //! and crosses into certification arithmetic through its bracket
 //! ([`geom_core::Bounds`]), instead of demanding `f64` operands and
 //! walling the whole certificate off the interval lane (M5-LOG PR 9c
-//! deviation 2).
+//! deviation 2). One entry point also takes plain `f64`:
+//! `chart_transverse_margin` receives the pcurve's tangent as a
+//! `(tx, ty, tn)` triple its caller selected on its own scalar — a
+//! direction, which is structure in C6's `f64` lane, not an enclosure.
 //!
 //! The bound is the sole bound [`geom_core::CertifiedBounds`] — the pair
 //! of bracket doors, named, so certification code that reads both writes
@@ -109,7 +112,7 @@ impl Box3 {
     /// surface's speed there — metres per chart unit — which is what
     /// the three sites that need one compute: the chart floor's rate
     /// in `plane_nurbs_ssi`, limb 3's chart tube pad, and the
-    /// transverse stretch inside `probe_tube_chart`. One arithmetic,
+    /// transverse stretch inside `chart_transverse_margin`. One arithmetic,
     /// one home.
     ///
     /// It answers the number and nothing else, and mints no

@@ -11,8 +11,10 @@ cost: H
 
 ## The finding
 
-In `crates/geom-brep/src/ssi/certify.rs`, the plane×NURBS chart-form
-margin divides by the chart's stretch along `e⊥`:
+In `crates/geom-brep/src/ssi/enclose.rs`'s `chart_transverse_margin`
+(called from `ssi/certify.rs`'s `probe_tube_chart`; the locator
+section at the end says where it moved from), the plane×NURBS
+chart-form margin divides by the chart's stretch along `e⊥`:
 
 ```rust
 let stretch =
@@ -126,3 +128,15 @@ is about the same method's GUARDS (what `0`, `NaN` and `+∞` mean at
 each caller), which `speed_sup`'s doc also points at. This row is about
 its ROUNDING. The two want settling together and neither subsumes the
 other.
+
+## Locator (2026-09-24, RING-5): the code moved, the defect did not
+
+RING-5 (#3174) moved `probe_tube_chart`'s certification tail — the
+`stretch` division quoted above and `zero_free_lower_bound` with it —
+out of `crates/geom-brep/src/ssi/certify.rs` into
+`crates/geom-brep/src/ssi/enclose.rs`'s `chart_transverse_margin`
+(`let stretch = vt.speed_sup();` and
+`let margin = zero_free_lower_bound(phi_u * ex + phi_v * ey) / stretch;`,
+~436-444), which `probe_tube_chart` still calls. The move was pure:
+`speed_sup`'s round-to-nearest `sqrt` is unchanged, so the finding
+stands as written at its new address. This is the SSI slate's P0.

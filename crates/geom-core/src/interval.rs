@@ -677,9 +677,10 @@ impl crate::spline::SpanLocate for Interval {
     }
 
     fn enclosure_hull(self, other: Self) -> Self {
-        // The convex hull with poison-first semantics — the same
-        // convention as the kink tangent hull below (NaI/empty
-        // propagate; 1788's empty-absorbing hull would drop poison).
+        // The convex hull with poison-first semantics — the
+        // evaluation hull `enclosure_hull_of` below, which this calls
+        // (NaI/empty propagate; 1788's empty-absorbing hull would drop
+        // poison).
         Self(enclosure_hull_of(self.0, other.0))
     }
 }
@@ -773,12 +774,13 @@ fn cap_decoration(x: DInterval, floor: Decoration) -> DInterval {
 /// [`Certification::hull`](certification::Certification::hull), a
 /// different operation under a different name.
 ///
-/// The convex hull of two decorated tangents, decorated with the *minimum*
+/// The convex hull of two decorated values, decorated with the *minimum*
 /// of their decorations — deliberately NOT IEEE 1788's set-operation
 /// convention (which would drop to `Trv` unconditionally): the hull here
 /// is not a set operation on unrelated intervals but the subgradient
-/// convention for a tie region (see [`KinkJacobian`]), and each branch's
-/// tangent keeps its own computation history. Poison first: either
+/// convention for a tie region (see [`KinkJacobian`]) — at the kink
+/// selectors the two values are the branches' tangents — and each
+/// operand keeps its own computation history. Poison first: either
 /// operand NaI ⇒ NaI, either empty ⇒ empty (1788's "empty absorbs into
 /// the hull" would *drop* a poisoned tangent — the opposite of poison
 /// propagation).

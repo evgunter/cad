@@ -913,11 +913,12 @@ pub(crate) fn witness<T: Decide + Bounds + CertifiedEnclosure>(
 #[cfg(test)]
 mod tests {
     /// **The mignitude refuses a refusal that carries real endpoints.**
-    /// This file has `Real` in scope, so `Real::is_poison` — NaI or
-    /// empty only — would compile at `zero_free_lower_bound` and read
-    /// this quotient (`Trv`, a strictly positive lower end) as a sound
-    /// bracket, handing its lower end back as a certified margin. The
-    /// refusal is `!is_certified()`.
+    /// `zero_free_lower_bound` lives in `ssi::enclose`, a certification
+    /// file with no `Real` in scope, and refuses by `!is_certified()`;
+    /// this quotient (`Trv`, a strictly positive lower end) is the value
+    /// an `is_poison` check would read as a sound bracket, handing its
+    /// lower end back as a certified margin. The row pins that the
+    /// transversality margin this file reads is `0.0` on it.
     #[test]
     fn the_mignitude_refuses_a_refusal_with_real_endpoints() {
         use super::zero_free_lower_bound;

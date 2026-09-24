@@ -255,7 +255,7 @@ impl core::error::Error for MeterError {}
 /// endpoints and `i.lo() > 0.0` can be TRUE of one — a quotient by a
 /// divisor not proven away from zero is the shape that reaches here.
 ///
-/// The **mignitude**, and the same quantity `ssi::certify`'s
+/// The **mignitude**, and the same quantity `ssi::enclose`'s
 /// `zero_free_lower_bound` reads for the transversality margin. Kept
 /// separate rather than shared: that one is a *decision* helper on a
 /// residual channel and answers `0.0` for a straddling interval
