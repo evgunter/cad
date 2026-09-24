@@ -4550,58 +4550,6 @@ pub(crate) fn tier3_local_checks_marked<
         for (l, is_outer) in
             core::iter::once((face.outer, true)).chain(face.rings.iter().map(|&r| (r, false)))
         {
-            let Some(loop_data) = body.get_loop(l) else {
-                continue; // unreachable on tier-1 input
-            };
-            let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
-                continue; // empty ring: bounds no area
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
-                continue; // unreachable on tier-1 input
-            };
-            // Line-bounded only (banner): an arc's vertex chord is not
-            // the boundary, and its winding is not the region's.
-            // Since VERBS-1031B this skip has a live PRODUCER on the
-            // other side of it — `merge_faces::loop_winding` now
-            // ASSIGNS outer/ring roles on exactly the conic-bounded
-            // loops this arm passes over, so those roles are set by a
-            // functional check 6 cannot falsify (evidence and flip
-            // condition: `verbs-1031b-assigner-checker-divergence`).
-            let all_lines = cycle.iter().all(|&he| {
-                body.get_half_edge(he)
-                    .and_then(|hd| body.get_edge(hd.edge))
-                    .and_then(|e| body.get_curve_geom(e.curve))
-                    .and_then(crate::null::CurveGeom::certified)
-                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
-            });
-            if !all_lines {
-                continue;
-            }
-            let point_of = |he| {
-                body.get_half_edge(he)
-                    .and_then(|hd| body.get_vertex(hd.start))
-                    .and_then(|vd| body.get_point(vd.point).copied())
-            };
-            let Some(p0) = point_of(cycle[0]) else {
-                continue; // unreachable on tier-1 input
-            };
-            let mut newell = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
-            // The F4 metering lever (audit; the derivation and the
-            // three-site coherence statement live at
-            // `boolean::join::ring_run_ccw`): this loop's perimeter,
-            // accumulated with the area. Line-bounded only, so the
-            // chords ARE the boundary.
-            let mut perimeter = T::zero();
-            let mut prev = p0;
-            for &he in &cycle[1..] {
-                let Some(p) = point_of(he) else {
-                    continue;
-                };
-                newell = newell + (prev - p0).cross(p - p0);
-                perimeter = perimeter + (p - prev).norm();
-                prev = p;
-            }
-            perimeter = perimeter + (p0 - prev).norm();
             // Only a DEFINITE wrong sign refuses (doc on the variant:
             // the check-7 posture — Zero and escalated windings are
             // exempt, so degenerate pillows stay legal and
@@ -4611,12 +4559,44 @@ pub(crate) fn tier3_local_checks_marked<
             } else {
                 Sign::Positive
             };
-            if decide(
-                "bool_ring_run_winding",
-                Margin::over_lever(outward.dot(newell), perimeter),
-                band,
-            ) == Ok(wrong)
-            {
+            // ATREST-4 MEASUREMENT (temporary; removed before landing).
+            if let Ok(path) = std::env::var("ATREST4_SURFACE") {
+                let old = body.planar_loop_winding(l, outward, band, crate::loop_winding::LoopCarriers::Lines);
+                let new = body.planar_loop_winding(l, outward, band, crate::loop_winding::LoopCarriers::Circular);
+                let ell = body.planar_loop_winding(l, outward, band, crate::loop_winding::LoopCarriers::Elliptic);
+                let tag = |w: &Result<Option<Result<Sign, geom_core::Indeterminate>>, crate::loop_winding::TornLoop>| match w {
+                    Err(_) => "torn".to_string(),
+                    Ok(None) => "none".to_string(),
+                    Ok(Some(Ok(s))) => format!("{s:?}"),
+                    Ok(Some(Err(_))) => "escalated".to_string(),
+                };
+                let (o, n, e) = (tag(&old), tag(&new), tag(&ell));
+                if o != n || n != e {
+                    use std::io::Write as _;
+                    let exe = std::env::current_exe().ok().and_then(|p| p.file_name().map(|f| f.to_string_lossy().into_owned())).unwrap_or_default();
+                    let th = std::thread::current().name().unwrap_or("?").to_string();
+                    let refuses = matches!(new, Ok(Some(Ok(sg))) if sg == wrong);
+                    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+                        let _ = writeln!(f, "{exe}\t{th}\t{face_key:?}\t{l:?}\touter={is_outer}\told={o}\tnew={n}\tell={e}\trefuses={refuses}");
+                    }
+                }
+                if matches!(old, Ok(Some(Ok(sg))) if sg == wrong) {
+                    errors.push(ValidationError::LoopRoleInverted {
+                        face: face_key,
+                        r#loop: l,
+                    });
+                }
+                continue;
+            }
+            // Line and Circle carriers (banner); an empty ring, a loop
+            // riding an ellipse, spiric or NURBS edge, and a torn
+            // lookup (unreachable on tier-1 input) are not asked.
+            let Ok(Some(winding)) =
+                body.planar_loop_winding(l, outward, band, crate::loop_winding::LoopCarriers::Circular)
+            else {
+                continue;
+            };
+            if winding == Ok(wrong) {
                 errors.push(ValidationError::LoopRoleInverted {
                     face: face_key,
                     r#loop: l,

@@ -168,6 +168,10 @@ pub(crate) mod source_walk;
 #[cfg(test)]
 mod cert_m3r1_probes;
 pub mod instance;
+// The one statement of a stored planar loop's signed winding, shared by
+// the merge's role assigner and tier 3's check 6. Non-doc comment for
+// the same rustdoc reason as the sector modules below.
+pub(crate) mod loop_winding;
 #[cfg(test)]
 pub(crate) mod iso;
 pub(crate) mod live;
