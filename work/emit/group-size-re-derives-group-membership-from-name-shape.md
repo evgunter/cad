@@ -2,10 +2,11 @@
 id: group-size-re-derives-group-membership-from-name-shape
 kind: issue
 title: group_resized re-derives fragment-group membership from name SHAPE while the emitters decide it from geometry; the from_tie merge and the split pass-through are where the two can disagree
-status: open
+status: dispatched
 opened: 2026-09-23
 priority: P1
 cost: D
+branch: emit/group-membership
 ---
 
 
