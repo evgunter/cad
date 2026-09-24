@@ -1474,6 +1474,12 @@ impl RoleSeg {
     /// [`RoleSeg`]'s shape that every rewrite of a role path goes
     /// through ([`SegRewrite`] says which three).
     ///
+    /// A segment rebuilt alone is NOT canonical: its sets, its `SideOf`
+    /// partners and a union seam's sides are in whatever order the
+    /// rewrite left them, and a rank may lie along a line the rewrite
+    /// reversed. So the walk is private to [`StableName::rewrite_path`],
+    /// which rebuilds the whole path and puts it in canonical form.
+    ///
     /// The match is EXHAUSTIVE on purpose, with no wildcard (the
     /// `walk_names` rule): a variant added to [`RoleSeg`] says here
     /// which of the three things it carries — a locator, a name, or
@@ -1492,7 +1498,7 @@ impl RoleSeg {
     ///
     /// Whatever `w` refuses, at the first thing it refuses.
     #[allow(clippy::too_many_lines)] // one arm per RoleSeg variant, each short
-    pub(crate) fn rewrite<W: SegRewrite>(self, w: &mut W) -> Result<RoleSeg, W::Error> {
+    fn rewrite<W: SegRewrite>(self, w: &mut W) -> Result<RoleSeg, W::Error> {
         use RoleSeg as R;
         Ok(match self {
             // Neither a locator nor a name: verbatim.
@@ -1598,35 +1604,30 @@ impl StableName {
     /// mint: a rewrite that moves the names in a name-ordered position
     /// (a set, a `SideOf` vector, a junction's run, a union seam's two
     /// sides) can change their order, and a name the emitter would not
-    /// mint for the same entity resolves to nothing. A union seam whose
-    /// sides come out swapped reverses the ranks along its line, so the
-    /// rule is read from the name as it was and the images `w` gives
-    /// its sides ([`canonical::RankRule::across`]).
+    /// mint for the same entity resolves to nothing. A seam whose sides
+    /// come out swapped — in this name, or in a name it embeds — reverses
+    /// the ranks along its line, so the rule is read from the name as it
+    /// was and as it is, with the images `w` gives the seam's sides
+    /// (`names::canonical::rewritten`).
     ///
     /// # Errors
     ///
     /// Whatever `w` refuses.
     pub(crate) fn rewrite_path<W: SegRewrite>(self, w: &mut W) -> Result<StableName, W::Error> {
-        let seams = if canonical::published_by_name(&self) {
-            canonical::Seams::ByName(canonical::RankRule::across(&self, &mut |n| {
-                Ok(w.name(n)?.unwrap_or_else(|| n.clone()))
-            })?)
-        } else {
-            canonical::Seams::Sided
-        };
         let path = self
             .path
-            .into_iter()
+            .iter()
+            .cloned()
             .map(|seg| seg.rewrite(w))
             .collect::<Result<_, _>>()?;
-        Ok(canonical::recanonicalize(
-            StableName {
-                kind: self.kind,
-                node: self.node,
-                path,
-            },
-            seams,
-        ))
+        let now = StableName {
+            kind: self.kind,
+            node: self.node,
+            path,
+        };
+        canonical::rewritten(&self, now, &mut |n| {
+            Ok(w.name(n)?.unwrap_or_else(|| n.clone()))
+        })
     }
 }
 /// The [`RoleSeg`] variants a BOOLEAN emitter never mints, as a

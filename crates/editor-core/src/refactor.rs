@@ -688,10 +688,15 @@ impl Recording {
 /// its id order), so every name-ordered position may come out
 /// reordered.
 ///
+/// Public because a name held outside the document — a caller's own
+/// reference into a split or inlined part — crosses the same map the
+/// split and the inline apply to the names they carry, and has to come
+/// out spelled the way theirs do.
+///
 /// # Errors
 ///
 /// The first local id the map lacks.
-fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, RecipeNodeId> {
+pub fn remap_name(name: &StableName, map: &NodeMap) -> Result<StableName, RecipeNodeId> {
     let (node, path) = remap_derivation(name.kind, name.node, &name.path, map)?;
     Ok(StableName {
         kind: name.kind,

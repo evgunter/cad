@@ -174,7 +174,7 @@ pub(super) fn name_blend<T: geom_core::Real>(
         }
         put(
             EntityKey::Face(*f),
-            canonical::sided_segment(RoleSeg::BandFace(names)),
+            canonical::minted_segment(RoleSeg::BandFace(names)),
             tied,
         )?;
     }

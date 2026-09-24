@@ -701,7 +701,7 @@ pub(crate) fn name_boolean<T: Decide>(
             &mut t,
             &mut tie,
             from_tie,
-            canonical::sided(name1(EntityKind::Face, node, RoleSeg::Merged(constituents))),
+            canonical::minted(name1(EntityKind::Face, node, RoleSeg::Merged(constituents))),
             ent(0, EntityKey::Face(*kept)),
         )?;
         handled.insert(*kept);
@@ -841,7 +841,7 @@ fn name_fragment_group<T: Decide>(
     for (vector, faces) in by_vector {
         let mut name = base.clone();
         name.path.push(RoleSeg::Fragment(Qualifier::SideOf(vector)));
-        let name = canonical::sided(name);
+        let name = canonical::minted(name);
         if faces.len() == 1 {
             put(t, tie, from_tie, name, ent(0, EntityKey::Face(faces[0])))?;
         } else {
@@ -1278,7 +1278,10 @@ fn name_boolean_vertices<T: Decide>(
         let mut b_edges: Vec<NameRef> = Vec::new();
         let mut a_faces: Vec<NameRef> = Vec::new();
         let mut b_faces: Vec<NameRef> = Vec::new();
-        let mut seam_lines: Vec<(NameRef, NameRef)> = Vec::new();
+        // The distinct seam LINES through this vertex: a set, because
+        // several incident seam edges lie on one line. The junction's
+        // name is these lines, and `names::canonical` orders them.
+        let mut seam_lines: BTreeSet<(NameRef, NameRef)> = BTreeSet::new();
         // B1: a seam vertex reads its parentage off the incident EDGE
         // names, so an edge name that is itself tied makes the vertex
         // name tie-descended too.
@@ -1299,7 +1302,7 @@ fn name_boolean_vertices<T: Decide>(
                 Some(RoleSeg::Seam { a: fa, b: fb }) => {
                     a_faces.push(fa.clone());
                     b_faces.push(fb.clone());
-                    seam_lines.push((fa.clone(), fb.clone()));
+                    seam_lines.insert((fa.clone(), fb.clone()));
                 }
                 _ => return Err(bug("seam vertex incident to an unexpected edge role")),
             }
@@ -1338,8 +1341,6 @@ fn name_boolean_vertices<T: Decide>(
         from_tie |= partner_a.as_ref().is_some_and(|u| u.tied);
         let partner_b_inner: Option<NameRef> = partner_b.map(|u| u.name);
         let partner_a_inner: Option<NameRef> = partner_a.map(|u| u.name);
-        seam_lines.sort_unstable();
-        seam_lines.dedup();
         // The A side of the pair is always an A-descended name and the
         // B side always a B-descended one: every arm draws its two
         // components from different sources, so `Seam{x, x}` — a
@@ -1372,7 +1373,7 @@ fn name_boolean_vertices<T: Decide>(
             // deterministic, and unique per line set (straight lines
             // meet once).
             ([], [], _, _) if seam_lines.len() >= 2 => {
-                let name = canonical::sided(StableName {
+                let name = canonical::minted(StableName {
                     kind: EntityKind::Vertex,
                     node,
                     path: seam_lines

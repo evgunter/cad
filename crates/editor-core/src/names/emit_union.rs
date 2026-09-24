@@ -36,11 +36,11 @@
 //! later step cut, and a seam-vertex group ranked along a seam edge.
 //! Which ranks lie on a seam line, and which pair's line, is ONE answer,
 //! `names::seam_pair`, read by the pair emitter to pick the direction
-//! and by the canonicalizer's [`RankRule`] to decide what the ordering
-//! does. The rule is found from the fold-space name, through any depth
-//! of `FromA`/`FromB` wrapping, and reads the rank from the other end
-//! (`of − 1 − rank`) exactly where the pair comes out swapped in name
-//! order.
+//! and by the canonical form (`names::canonical`) to decide what the
+//! ordering does. The line is found in the fold-space name, through any
+//! depth of `FromA`/`FromB` wrapping, and in the collapsed one, and the
+//! rank reads from the other end (`of − 1 − rank`) exactly where the
+//! pair comes out swapped in name order.
 //!
 //! # How an intermediate row is told from a member's row
 //!
@@ -201,7 +201,7 @@ const FOREIGN: &str = "a union fold's table carries a segment the boolean emitte
 const JUNCTION_LINES_COLLIDE: &str =
     "two lines of a union's seam junction collapse to one member-space line";
 
-use super::canonical::{RankRule, Seams, canonicalize, is_junction};
+use super::canonical::{self, Stop, is_junction};
 use super::merged::NESTED_MERGED;
 
 /// One fold-table name, keyed by member.
@@ -216,15 +216,17 @@ use super::merged::NESTED_MERGED;
 /// Two halves. [`orient`] rewrites every name the path holds into this
 /// node's space and keeps the fold's order, so every seam pair is still
 /// A-first and every rank is still along the A-first line. The
-/// canonicalizer (`names::canonical`) then puts the name-ordered
-/// positions in order, and re-reads each rank by the [`RankRule`] that
-/// the fold-space name and this same rewrite give. Each name the path
-/// embeds comes out of this function whole, so it is canonical before
-/// the path holding it is ordered.
+/// canonical form (`names::canonical::collapsed`) then puts the
+/// name-ordered positions in order, and re-reads each rank against the
+/// line as the fold-space name and the collapsed one write it. Each
+/// name the path embeds comes out of this function whole, so it is
+/// canonical before the path holding it is ordered.
 fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingError> {
-    let rule = RankRule::across(name, &mut |n| collapse(node, n))?;
-    let name = canonicalize(orient(node, name)?, Seams::ByName(rule))
-        .map_err(|u| NamingError::Emission { what: u.what() })?;
+    let name = canonical::collapsed(name, orient(node, name)?, &mut |n| collapse(node, n))
+        .map_err(|stop| match stop {
+            Stop::Image(e) => e,
+            Stop::Unrankable(u) => NamingError::Emission { what: u.what() },
+        })?;
     // The junction's run is NOT deduplicated, unlike a `Merged` set.
     // The pair emitter deduplicates the lines before it mints, so the
     // run holds k DISTINCT fold-space lines; two collapsing to one
@@ -248,7 +250,7 @@ fn collapse(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingE
 /// the inner name's own positions stay in fold order, and its ranks
 /// along the fold's A-first line, until the one canonicalization at the
 /// top. Every rank the flattened path carries lies along the one line
-/// [`RankRule::across`] finds through the same wrapping: an edge's
+/// the canonical form finds through the same wrapping: an edge's
 /// pieces all lie on its seam line, and a seam vertex's rank on its
 /// edge parent's.
 fn orient(node: RecipeNodeId, name: &StableName) -> Result<StableName, NamingError> {
