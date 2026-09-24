@@ -13,9 +13,29 @@ Ev's standing instructions for implementation work:
 
 - The top-level agent is **orchestrator and (meta-)reviewer**: central
   planning and design decisions stay with it; coding and reviews are
-  delegated to subagents, which may spawn their own. Implementer and
-  reviewer model follow [[model-ab-experiment]]; design, specs and
-  rulings stay Fable.
+  delegated to subagents, which may spawn their own. Every phase —
+  implementers, reviewers, and the design, specs and rulings — runs
+  on Opus (Ev, 2026-09-23).
+- **Review tiers — the orchestrator's call per unit, at spec time**
+  (Ev, 2026-09-19, dual tier 2026-09-23). The program's `log.md` or
+  the unit's item file names the tier and its one-line reason at
+  dispatch, so no call is invisible.
+  - **Orchestrator's read**: a mechanical change, where neither
+    correctness nor style is meaningfully at risk, merges on green CI
+    and the orchestrator's own read — no review lane.
+  - **Single review** (the default): one Opus reviewer. A STYLE review
+    (`docs/prompts/reviewer-style-lane.md`), or a FULL review — claims
+    to falsify alongside the style questions — where the unit carries
+    a meaningful chance of correctness bugs. That is a feel for the
+    unit, not a criterion: where the change can be read and believed,
+    style is enough; where believing it would take more than reading
+    it, the review carries the correctness claims too.
+  - **Dual review**: logic that is especially tricky, or an
+    architectural or design decision whose impact is broad or which
+    would be hard to change later, gets two independent Opus reviewers
+    on the same frozen head, with the fix pass off the adjudicated
+    union. The pair is an experiment row ([[experiments]]), so its
+    method is `docs/DUAL-REVIEW-PROTOCOL.md`'s.
 - **Continue autonomously** to the next genuine branch point. High-
   confidence design PRs (dominant-argument conventions, faithful
   elaborations of a ratified plan) self-merge with their full writeups;
@@ -88,8 +108,9 @@ Ev's standing instructions for implementation work:
   the gate.
 - **State-sync records RIDE THE UNIT'S OWN PR (Ev, 2026-08-27)** — a
   unit's ledger row and log entries go on as one more commit to that
-  unit's branch, **LAST, after both reviews are delivered** (the A/B row
-  names the implementer's arm, and reviewers read `git log`). This
+  unit's branch, **LAST, after every review is delivered** (an experiment row
+  can carry what a reviewer must not see yet, and reviewers read
+  `git log`). This
   is for STATE-SYNC only: design conversations, protocol and memory
   amendments, spec ratifications and anything asking Ev a question get
   their OWN PR — burying those in a unit's merge hides exactly what

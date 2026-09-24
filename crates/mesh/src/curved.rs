@@ -9,8 +9,8 @@
 //! interior grid is strictly inside every boundary constraint. Every
 //! sweep-authored face satisfies it; it is not a property of
 //! iso-bounded input in general (a keyway is iso-bounded and is a U),
-//! so it is CHECKED here rather than assumed, as FOUR questions with
-//! four homes:
+//! so it is CHECKED here rather than assumed, as FIVE questions with
+//! five homes:
 //!
 //! 1. **SHAPE** — *is the face's domain an iso-parameter rectangle?*
 //!    Asked BEFORE the walk, on rim structure, through the predicate's
@@ -38,12 +38,24 @@
 //!    [`TessellateError::MeridianFreeCurvedFace`], whose doc carries
 //!    the argument. It is an existence question and not a span one:
 //!    two rims at two levels refuse as one rim does. What it stands in
-//!    front of is a rectangle of zero height, which question 4 admits
+//!    front of is a rectangle of zero height, which question 5 admits
 //!    (every entry is on its box —
 //!    `tests::a_zero_height_box_passes_the_walk_consistency_check`) and
 //!    the CDT triangulates to nothing. Props admits the sphere member,
 //!    so neither door above refuses it.
-//! 4. **WALK CONSISTENCY** — *did the walk trace that rectangle?*
+//! 4. **TWO COLUMNS** — *can a loop with no rim open a u-extent at
+//!    all?* Asked BY the walk, on the loop's incidence
+//!    (`walk::require_two_columns`), refusing
+//!    [`TessellateError::SingleColumnCurvedFace`], whose doc carries the
+//!    argument. The mirror of question 3 on the other axis, and the
+//!    mirror only in what it stands in front of: a rectangle of zero
+//!    WIDTH, which question 5 admits for the same reason. It is not a
+//!    span question either — the columns are never compared. A rim-free
+//!    loop's extent comes from the distinct EDGES that open its iso
+//!    sides, so the question is whether two of those exist. Both doors
+//!    above admit the members; the branch door (question 2) takes the
+//!    one member whose meridian carries a pole mid-edge.
+//! 5. **WALK CONSISTENCY** — *did the walk trace that rectangle?*
 //!    Asked after, on the polygon, BANDED in metres
 //!    ([`require_swept_rectangle`], refusing
 //!    [`TessellateError::UnsupportedCurvedDomain`]).
@@ -188,6 +200,16 @@ pub(crate) fn tessellate_curved(
         what: "curved chart",
     })?;
     let polygon = loop_polygon(body, &chart, chords, shared, fk, face.outer, tol.eps)?;
+    // A COUNT, and only a count. Every loop measured into this line came
+    // from a state questions 3 and 4 now refuse on their own terms first
+    // — a one-generator cylinder face counted two entries — so this is
+    // BELIEVED UNREACHABLE BY INPUT, and left as a typed refusal rather
+    // than promoted to `unreachable!`, which would want a proof this does
+    // not have. What would show the belief wrong: a loop whose every
+    // traversal is a continuation of one iso side and whose edges carry
+    // fewer than three chord ids between them, with two distinct opening
+    // edges so question 4 admits it. A construction that reaches this
+    // line is a row for it, not a reason to delete it.
     if polygon.len() < 3 {
         return Err(TessellateError::MissingEntity {
             what: "degenerate curved boundary",

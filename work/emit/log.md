@@ -264,6 +264,25 @@ Filed from the review:
 - P2 `group-resized-does-not-name-the-cutter-that-stopped-cutting`.
 - P4 `name-counts-saturate-silently-at-u32-max`.
 
+## 2026-09-23 — the global flip lanes are scoped to ancestors
+
+The lane stopped on a definitional fork: what the global lanes may
+report as a vanish's cause. The two candidates:
+
+- (a) N1's derivation path, under which the global lanes disappear;
+- (b) the transitive ancestors of the minting node, with sentences
+  saying "upstream of", not "on the path".
+
+The measurement: the digest corpus and the whole suite are identical
+under both. The two differ in a cutter-union scene, where a recorded
+flip sits upstream of the cut but not in the vanished name.
+
+The orchestrator chose (b) without asking Ev. It applies the
+cause-before-effect principle Ev approved on 3115. An upstream flip is
+a candidate cause and outranks the `GroupResized` effect, as long as
+its sentence claims only what is known. Under (a), GroupResized's "no
+flip was found" would be false. A flip on a non-ancestor node is never
+reported, which closes the live wrong answer.
 ## 2026-09-23 — union seam-chain ranks close (PR 3121)
 
 A union's `Seam` canonicalization swapped the pair into name order
@@ -302,3 +321,16 @@ Filed from the unit and its reviews:
   re-banded: the commonest refusal on legal unions.
 - P0 `split-of-a-fused-declared-union-refuses-duplicate-vertex-name`.
 - P4 `opside-unit-respells-topo-operand`.
+
+## 2026-09-24 — Ev rules the loft unit global
+
+On 3102's thread, Ev chose the global canonical start (V3's lex-min
+start retired) and canonical numbering for every verb's published
+profile refs. That means migrating the names of clockwise-authored
+extrudes and revolves. Re-baselining is not a cost against a correct
+change. The loft unit's `needs_ev` is cleared, and the unit is
+re-dispatched with the wider scope.
+
+The weekly usage limit stopped all lanes on 2026-09-23 at about 09:30
+UTC. They were resumed on 2026-09-24 from their pushed branches and
+worktrees.

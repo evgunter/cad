@@ -2,10 +2,11 @@
 id: union-seam-edge-ranks-follow-which-step-split-the-seam
 kind: issue
 title: A union names one seam edge's pieces by two different rankers depending on member order, so OrderAlong names rebind silently
-status: open
+status: dispatched
 opened: 2026-09-23
 priority: P0
 cost: D
+branch: emit/seam-rank-orientation
 ---
 
 

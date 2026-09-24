@@ -133,6 +133,15 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
             );
             Ok(())
         }
+        // The same shape, for the same reason: the KIND is the sortable
+        // part of the refusal and the face key does not cross.
+        T::SingleColumnCurvedFace { surface, .. } => {
+            fields[4] = (
+                "note",
+                PyString::new(py, surface.name()).unbind().into_any(),
+            );
+            Ok(())
+        }
         T::Band { error } => {
             fields[4] = (
                 "note",

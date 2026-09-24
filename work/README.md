@@ -359,9 +359,9 @@ lost. That is the whole test. (Ev, in chat, 2026-09-20.)
   records the ruling and what was built.
 - **No plan or log outside `work/`.** `docs/*-PLAN.md` and
   `docs/*-LOG.md` are lint errors, so a session writing to the old
-  path fails loudly. (`docs/MODEL-AB-LOG.md` is an experiment log, not
-  a program's, and is the one named exemption; it leaves `docs/` when
-  the experiment concludes.)
+  path fails loudly. (`docs/MODEL-AB-LOG.md` and `docs/DUAL-REVIEW-LOG.md` are
+  experiment logs, not a program's, and are the named exemptions; each
+  leaves `docs/` when its experiment concludes.)
 - **Specs keep their lifecycle.** `docs/<ID>-SPEC.md` binds an
   implementer for one unit and is deleted at merge, with a note under
   `docs/doc-ledger/`; the item file is the record that survives.
