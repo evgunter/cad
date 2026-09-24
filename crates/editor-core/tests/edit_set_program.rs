@@ -2148,6 +2148,95 @@ fn names_on_a_reversed_and_rotated_loop_move_in_program_coordinates() {
     assert_eq!(face_origin(&applied.doc, ext, &wall_of(ext, 0, 0)), w0);
 }
 
+/// Every name minted by `node` that `name` carries inside its path,
+/// read off the name's serialized form — a test's own walk, so it
+/// cannot share the crate's rewrite walk's answer.
+fn carried_names_of(name: &StableName, node: RecipeNodeId) -> Vec<StableName> {
+    fn visit(v: &serde_json::Value, node: RecipeNodeId, out: &mut Vec<StableName>) {
+        match v {
+            serde_json::Value::Object(map) => {
+                if map.contains_key("kind") && map.contains_key("node") && map.contains_key("path")
+                {
+                    if let Ok(inner) = serde_json::from_value::<StableName>(v.clone())
+                        && inner.node == node
+                    {
+                        out.push(inner);
+                    }
+                }
+                for child in map.values() {
+                    visit(child, node, out);
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    visit(item, node, out);
+                }
+            }
+            _ => {}
+        }
+    }
+    let json = serde_json::to_value(name).expect("a name serializes");
+    let mut out = Vec::new();
+    // The name itself is minted by another node; only what it CARRIES
+    // is asked for.
+    if let serde_json::Value::Object(map) = &json {
+        if let Some(path) = map.get("path") {
+            visit(path, node, &mut out);
+        }
+    }
+    out
+}
+
+/// **A name carried inside a shell's table keeps its operand's
+/// PROGRAM spelling over a reversed loop.** The square authored
+/// clockwise, so canonicalization reverses it and the anchor rewrite
+/// is not the identity; a shell opened at wall 1 publishes names that
+/// carry the extrude's names (its rims, its inner walls, its
+/// survivors), and every carried name is one the extrude's own table
+/// holds — the spelling `eval::anchor` published, never re-anchored
+/// a second time on the way through a downstream op.
+///
+/// What this row does NOT hold, measured: whether the anchor's own
+/// rewriter descends into a carried name. `remap_table` runs only on
+/// the sweep emitters' tables, which carry no names, so a rewriter
+/// that descended is today indistinguishable from one that does not
+/// (the mutant passes this row and every other). The row pins the
+/// invariant a re-anchoring of a downstream table would break, which
+/// is the day the descent question becomes observable.
+#[test]
+fn a_name_carried_inside_a_shells_table_keeps_its_operands_program_spelling_over_a_reversed_loop()
+{
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    let cw = LoopProgram::Chain(vec![
+        ProgramStep::At(pt(2.0, 2.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(2.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 2.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let (doc, _profile, ext) = extruded("set-program-carried-cw", vec![cw]);
+    let mouth = wall_of(ext, 0, 1);
+    let (doc, shell) = insert(doc, Node::shell(ext, len(0.1), vec![mouth.clone()]));
+    let ev = fixture::run(&doc, &EvalOptions::default());
+    assert!(ev.value(shell).is_some(), "{:?}", corpus::failures(&ev));
+    let ext_table = table(&ev, ext);
+    assert!(
+        ext_table.lookup(&mouth).is_some(),
+        "the open list names a published wall"
+    );
+    let mut carried = 0usize;
+    for (name, _) in table(&ev, shell).iter() {
+        for inner in carried_names_of(name, ext) {
+            carried += 1;
+            assert!(
+                ext_table.lookup(&inner).is_some(),
+                "{name} carries {inner}, which the extrude never published"
+            );
+        }
+    }
+    assert!(carried > 0, "the shell's table carries the extrude's names");
+}
+
 // ---------------------------------------------------------------- //
 // Every other holder kind, and the refusal order
 // ---------------------------------------------------------------- //
