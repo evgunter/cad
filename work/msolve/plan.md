@@ -201,8 +201,11 @@ PORT; triaged 2026-09-24:**
     `placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate`
     (CHROME, P3: `check_reference` sites a `Part`'s own index at the
     pattern below it — one condition, two seats, the class MSOLVE-7
-    closed for the axis). Specs after MSOLVE-9 merges; both touch
-    `mate/solve.rs` and `mate/member.rs`.
+    closed for the axis). Spec `docs/MSOLVE-11-SPEC.md` (2026-09-24):
+    each decision on the one mate whose answer it decided, the lever
+    finite by construction so `parallel`'s minted escalation has no
+    input, the `Part`'s index refused at the `Part`. Dispatches after
+    MSOLVE-9 merges; both rewrite `mate/solve.rs`.
 
 The exit walk waits on 10–12, 14–16 and 17–18: the program closes when the
 lever, the member residue (with the wire hole), the margins' arm

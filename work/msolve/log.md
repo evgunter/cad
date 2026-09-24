@@ -772,3 +772,17 @@ state-sync merges, since a draft walk on main would carry the status
 line Ev ruled out of diffs (2026-09-21). It stands at `b9e6ca0ebf8bf62eed493ab65f25584ca86486b1`
 (rows 1–9 and 11 MET, row 10 in flight) and returns in the `[ev]`
 PR that asks for its ratification once MSOLVE-9 and MSOLVE-11 merge.
+
+## MSOLVE-11 specced (2026-09-24)
+
+`docs/MSOLVE-11-SPEC.md`, written while the MSOLVE-9 lane works. Two
+measurements shaped it. `k_stats::Detached` is deliberately not
+`Clone`, so each solve decision gets exactly one home: the mate whose
+answer it decided. The fold's additions go to the added mate, and a
+pair's own verdicts go to the mate `Under` already names. And
+`coset::parallel`'s hand-minted escalation is reached only by a
+non-finite lever arm, since `|u × v · arm| ≤ arm` for unit witnesses.
+That arm skews every levered predicate silently, so the fix is a
+finite arm by construction at its one formation door, and the minted
+`Indeterminate` becomes unreachable rather than re-routed. Review
+tier: single, full.
