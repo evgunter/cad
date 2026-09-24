@@ -889,6 +889,20 @@ pub(crate) fn rims_between<T: geom_core::Real>(
     Ok(found)
 }
 
+/// A vertex's point in `body` — the one reader of it in this module's
+/// emitters.
+pub(crate) fn vertex_point<T: geom_core::Real>(
+    body: &Body<T>,
+    v: VertexKey,
+) -> Result<geom_core::Point3<T>, NamingError> {
+    body.get_vertex(v)
+        .and_then(|vd| body.get_point(vd.point))
+        .copied()
+        .ok_or(NamingError::Emission {
+            what: "a vertex without a point",
+        })
+}
+
 /// All half-edges of a face (outer loop + rings), deterministic
 /// order.
 pub(crate) fn face_half_edges<T: geom_core::Real>(

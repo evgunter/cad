@@ -697,7 +697,8 @@ pub enum SideVerdict {
 /// verdicts against recipe-covariant references. NO values, NO bare
 /// indices — `OrderAlong.rank` is an ordinal under the named
 /// order-along comparison (N2's sanctioned order-along(oriented
-/// parent carrier)), which changes only at a recorded flip.
+/// parent carrier)), or for a union's member-edge piece the index of a
+/// cell of that edge, and changes only at a recorded flip.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -734,14 +735,24 @@ pub enum Qualifier {
     /// A union's collapse puts a seam pair in name order, and where
     /// that swaps the pair it reads the rank from the other end.
     ///
+    /// **A union's piece of a member edge counts cells, not
+    /// fragments.** For `FromMember(m, e)` + `OrderAlong`, the finished
+    /// body's vertices on `e`'s segment cut it into `of` cells numbered
+    /// from `e`'s start in `m`'s body; `rank` is the first cell the piece
+    /// covers, and `of` counts cells whoever holds them, so some ranks
+    /// below `of` name no piece of `m` (`emit_union::rank_member_edges`).
+    ///
     /// The carrier's orientation is load-bearing — reversing it
     /// reverses every rank — so where it is built from face normals
     /// those are **outward** normals (M5 S10, `emit_topo::face_plane`),
     /// never raw chart normals.
     OrderAlong {
-        /// This fragment's rank (0-based) along the carrier.
+        /// This fragment's rank (0-based) along the carrier — for a
+        /// union's member-edge piece, its first cell's index.
         rank: u32,
-        /// How many sibling fragments the ordering ranked.
+        /// How many sibling fragments the ordering ranked — for a
+        /// union's member-edge piece, how many cells the edge is cut
+        /// into.
         of: u32,
     },
 }

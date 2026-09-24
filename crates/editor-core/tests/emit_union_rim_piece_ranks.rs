@@ -30,7 +30,7 @@ fn round(p: &geom_core::Point3<f64>) -> P {
     (r(p.x), r(p.y), r(p.z))
 }
 
-/// What each uniquely named entity of a published table IS, independent
+/// Where each uniquely named entity of a published table is, independent
 /// of arena keys: a vertex's point, an edge's two end points, a face's
 /// vertex points.
 fn geometry(
@@ -58,6 +58,65 @@ fn geometry(
         out.insert(name.clone(), sig);
     }
     out
+}
+
+/// **What each named entity of a published table IS, telling shells
+/// apart** — every row, a tie included. A vertex is its point and the
+/// sorted points of its edge neighbours, so two coincident vertices of
+/// two touching shells differ; an edge is its two ends so described; a
+/// face is its vertex points; a tie is its candidates', sorted and
+/// marked.
+fn signature(
+    ev: &editor_core::Evaluation<f64>,
+    union: editor_core::RecipeNodeId,
+) -> BTreeMap<StableName, String> {
+    let body = body_of(ev, union);
+    let point = |v| round(body.get_point(body.get_vertex(v).unwrap().point).unwrap());
+    let mut neighbours: BTreeMap<_, Vec<P>> = BTreeMap::new();
+    for (_, edge) in body.edges() {
+        let s = body.get_half_edge(edge.he_plus).unwrap().start;
+        let t = body.get_half_edge(edge.he_minus).unwrap().start;
+        neighbours.entry(s).or_default().push(point(t));
+        neighbours.entry(t).or_default().push(point(s));
+    }
+    let vertex = |v| {
+        let mut n = neighbours.get(&v).cloned().unwrap_or_default();
+        n.sort_unstable();
+        format!("{:?}<{n:?}>", point(v))
+    };
+    let one = |k: EntityKey| -> String {
+        let mut parts: Vec<String> = match k {
+            EntityKey::Vertex(v) => vec![vertex(v)],
+            EntityKey::Edge(e) => {
+                let edge = body.get_edge(e).unwrap();
+                [edge.he_plus, edge.he_minus]
+                    .iter()
+                    .map(|&he| vertex(body.get_half_edge(he).unwrap().start))
+                    .collect()
+            }
+            EntityKey::Face(f) => face_vertices(body, f)
+                .into_iter()
+                .map(|v| format!("{:?}", point(v)))
+                .collect(),
+            other => vec![format!("{other:?}")],
+        };
+        parts.sort();
+        parts.concat()
+    };
+    table(ev, union)
+        .iter()
+        .map(|(name, entry)| {
+            let sig = match entry {
+                Entry::Unique(e) => one(e.key),
+                Entry::Tied(es) => {
+                    let mut all: Vec<String> = es.iter().map(|e| one(e.key)).collect();
+                    all.sort();
+                    format!("TIED[{}]", all.join("|"))
+                }
+            };
+            (name.clone(), sig)
+        })
+        .collect()
 }
 
 /// A document and how each of its member orders is built into a union.
@@ -107,6 +166,10 @@ const B: Bx = ((0.5, 1.5), (0.0, 1.0), (0.0, 1.0));
 const S1: Bx = ((0.2, 0.3), (-1.0, 2.0), (0.5, 3.0));
 const S2: Bx = ((0.6, 0.7), (-1.0, 2.0), (0.5, 3.0));
 const S3: Bx = ((0.25, 0.65), (-1.0, 0.5), (0.8, 3.0));
+/// A third block flush with both `a` and `b` (`r4tri`), and one touching
+/// `a`'s top along a line (`r4touch`).
+const C8: Bx = ((0.8, 2.0), (0.0, 1.0), (0.0, 1.0));
+const TOUCH: Bx = ((0.3, 0.4), (1.0, 2.0), (1.0, 1.0));
 /// A long block, flush with `bend` at one end and `cend` at the other.
 const ALONG: Bx = ((0.0, 3.0), (0.0, 1.0), (0.0, 1.0));
 const BEND: Bx = ((2.0, 4.0), (0.0, 1.0), (0.0, 1.0));
@@ -115,8 +178,10 @@ const CEND: Bx = ((-1.0, 1.0), (0.0, 1.0), (0.0, 1.0));
 /// PR 3112's review corpus (`a`, `b` flush), and the review's own
 /// fixtures of #3168: one member edge cut in different steps (`r1two`,
 /// `r1three`), the same beside a flush partner (`r1flush`), a member
-/// flush with TWO partners (`r2ends`, `r2endsg`), and a declared union
-/// nested in an undeclared one (`r3nest`, `r3nest2`).
+/// flush with TWO partners (`r2ends`, `r2endsg`), three members each
+/// flush with the other two (`r4tri`, `r4trig`), a member touching
+/// another along a line (`r4touch`), and a declared union nested in an
+/// undeclared one (`r3nest`, `r3nest2`).
 fn cases() -> Vec<Case> {
     let g = ((0.3, 0.4), (-1.0, 2.0), (0.5, 3.0));
     let smid = ((1.4, 1.6), (-1.0, 2.0), (0.5, 3.0));
@@ -140,11 +205,17 @@ fn cases() -> Vec<Case> {
             vec![0, 1, 2, 3],
             vec![(0, 1), (0, 2)],
         ),
+        Case::flat("r4tri", vec![A, B, C8], vec![0, 1, 2], TRI.to_vec()),
+        Case::flat("r4trig", vec![A, B, C8, g], vec![0, 1, 2, 3], TRI.to_vec()),
+        Case::flat("r4touch", vec![A, B, TOUCH], vec![0, 1, 2], vec![(0, 1)]),
         Case::nested("r3nest", vec![A, B, g]),
         Case::nested("r3nest2", vec![A, B, S1, S2]),
     ]);
     out
 }
+
+/// Every pair of three blocks declared flush.
+const TRI: [(usize, usize); 3] = [(0, 1), (1, 2), (0, 2)];
 
 fn r2ends() -> Case {
     Case::flat(
@@ -227,13 +298,13 @@ fn runs(
 fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
     let mut compared = 0;
     for case in cases() {
-        let mut seen: BTreeMap<(String, StableName), (Vec<P>, String)> = BTreeMap::new();
+        let mut seen: BTreeMap<(String, StableName), (String, String)> = BTreeMap::new();
         runs(&case, |at, ev, _, unions| {
             for &(tag, union) in unions {
                 if failure(ev, union).is_some() {
                     continue;
                 }
-                for (name, sig) in geometry(ev, union) {
+                for (name, sig) in signature(ev, union) {
                     match seen.get(&(tag.to_string(), name.clone())) {
                         Some((first, then)) => {
                             compared += 1;

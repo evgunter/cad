@@ -19,7 +19,7 @@ use super::defer::{TieRows, Upstream, put, upstream_name};
 use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along, side_of_face};
 use super::emit::{
     Incidence, NamingError, Rim, RimShare, edge_ends, ent, face_half_edges, name1, rim_between,
-    rims_between,
+    rims_between, vertex_point,
 };
 use super::merged::{self, NESTED_MERGED};
 use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
@@ -90,10 +90,7 @@ fn face_extent<T: Decide>(
             .get_half_edge(he)
             .ok_or_else(|| bug("face_extent: dangling half-edge"))?
             .start;
-        let p = *body
-            .get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point))
-            .ok_or_else(|| bug("face_extent: vertex without point"))?;
+        let p = vertex_point(body, v)?;
         let t = Vec3::new(p.x, p.y, p.z).dot(dir);
         min = Some(match min {
             None => t,
@@ -1475,11 +1472,7 @@ fn name_boolean_vertices<T: Decide>(
         let extents = verts
             .iter()
             .map(|&v| {
-                let p = body
-                    .get_vertex(v)
-                    .and_then(|vd| body.get_point(vd.point))
-                    .copied()
-                    .ok_or_else(|| bug("seam vertex without point"))?;
+                let p = vertex_point(body, v)?;
                 let tv = Vec3::new(p.x, p.y, p.z).dot(dir);
                 Ok(Extent { min: tv, max: tv })
             })
@@ -1525,15 +1518,8 @@ pub(super) fn edge_extent<T: Decide>(
     e: EdgeKey,
     dir: Vec3<T>,
 ) -> Result<Extent<T>, NamingError> {
-    let bug = |what| NamingError::Emission { what };
     let (v0, v1) = edge_ends(body, e)?;
-    let p = |v: VertexKey| -> Result<Point3<T>, NamingError> {
-        body.get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point))
-            .copied()
-            .ok_or_else(|| bug("edge_extent: vertex without point"))
-    };
-    let (p0, p1) = (p(v0)?, p(v1)?);
+    let (p0, p1) = (vertex_point(body, v0)?, vertex_point(body, v1)?);
     let t0 = Vec3::new(p0.x, p0.y, p0.z).dot(dir);
     let t1 = Vec3::new(p1.x, p1.y, p1.z).dot(dir);
     Ok(Extent {
@@ -1542,68 +1528,83 @@ pub(super) fn edge_extent<T: Decide>(
     })
 }
 
-/// Where a point lies against the closed segment `q0 → q1`.
+/// Where a point lies against a [`Segment`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum OnSegment {
     /// Off the segment's line, or on it past one of its ends.
     Off,
-    /// At `q0`.
+    /// At its start.
     AtStart,
-    /// At `q1`.
+    /// At its end.
     AtEnd,
     /// On the line, strictly between the ends.
     Inside,
 }
 
-/// **Where point `p` lies against the closed segment `q0 → q1`** —
-/// three margins, each a length decided through `predicate`: the
-/// distance off the line (must be `Zero` to be on it), and the signed
-/// distances past each end along it (a `Negative` one is off the
-/// segment, a `Zero` one is at that end). An in-band margin escalates
-/// typed.
-///
-/// The one point-on-segment test of this module: [`chord_on_rim`]
-/// asks it of a chord's two ends against a rim, and the union's
-/// member-edge ranker (`emit_union`) of every result vertex against a
-/// member edge.
-pub(super) fn place_on_segment<T: Decide>(
-    p: Point3<T>,
-    (q0, q1): (Point3<T>, Point3<T>),
-    predicate: &'static str,
-    bnd: geom_core::Band,
-) -> Result<OnSegment, NamingError> {
-    let d = q1 - q0;
-    let len = d.norm();
-    let sign = |m: Margin<T>| {
-        decide(predicate, m, bnd).map_err(|source| NamingError::Escalated { predicate, source })
-    };
-    let off = sign(Margin::over_lever((p - q0).cross(d).norm(), len))?;
-    let past0 = sign(Margin::over_lever((p - q0).dot(d), len))?;
-    let past1 = sign(Margin::over_lever((q1 - p).dot(d), len))?;
-    Ok(match (off, past0, past1) {
-        (Sign::Zero, Sign::Zero, Sign::Zero | Sign::Positive) => OnSegment::AtStart,
-        (Sign::Zero, Sign::Positive, Sign::Zero) => OnSegment::AtEnd,
-        (Sign::Zero, Sign::Positive, Sign::Positive) => OnSegment::Inside,
-        _ => OnSegment::Off,
-    })
+/// **An edge's closed segment, start to end** — the one place a point's
+/// position against an edge is read: [`Segment::place`] says whether it
+/// lies on the segment, [`Segment::along`] how far along it.
+pub(super) struct Segment<T: Decide> {
+    q0: Point3<T>,
+    q1: Point3<T>,
+    d: Vec3<T>,
+    len: T,
 }
 
-/// A vertex's point in `body`.
-pub(super) fn vertex_point<T: Decide>(
-    body: &Body<T>,
-    v: VertexKey,
-) -> Result<Point3<T>, NamingError> {
-    body.get_vertex(v)
-        .and_then(|vd| body.get_point(vd.point))
-        .copied()
-        .ok_or(NamingError::Emission {
-            what: "a vertex without a point",
+impl<T: Decide> Segment<T> {
+    /// Edge `e` of `body`, from its `he_plus` start to its end.
+    pub(super) fn of_edge(body: &Body<T>, e: EdgeKey) -> Result<Self, NamingError> {
+        let (v0, v1) = edge_ends(body, e)?;
+        let (q0, q1) = (vertex_point(body, v0)?, vertex_point(body, v1)?);
+        let d = q1 - q0;
+        Ok(Segment {
+            q0,
+            q1,
+            d,
+            len: d.norm(),
         })
+    }
+
+    /// The signed length from the start to `p`'s foot on the line.
+    pub(super) fn along(&self, p: Point3<T>) -> T {
+        (p - self.q0).dot(self.d) / self.len
+    }
+
+    /// Where `p` lies, decided through `predicate` over lengths: first
+    /// its distance off the line, and only for a point ON it the
+    /// distances past each end (a `Negative` one is off the segment, a
+    /// `Zero` one at that end). A point off the line costs one verdict.
+    /// An in-band margin escalates typed.
+    pub(super) fn place(
+        &self,
+        p: Point3<T>,
+        predicate: &'static str,
+        bnd: geom_core::Band,
+    ) -> Result<OnSegment, NamingError> {
+        let sign = |m: Margin<T>| {
+            decide(predicate, m, bnd).map_err(|source| NamingError::Escalated { predicate, source })
+        };
+        let off = sign(Margin::over_lever(
+            (p - self.q0).cross(self.d).norm(),
+            self.len,
+        ))?;
+        if off != Sign::Zero {
+            return Ok(OnSegment::Off);
+        }
+        let past0 = sign(Margin::over_lever((p - self.q0).dot(self.d), self.len))?;
+        let past1 = sign(Margin::over_lever((self.q1 - p).dot(self.d), self.len))?;
+        Ok(match (past0, past1) {
+            (Sign::Zero, Sign::Zero | Sign::Positive) => OnSegment::AtStart,
+            (Sign::Positive, Sign::Zero) => OnSegment::AtEnd,
+            (Sign::Positive, Sign::Positive) => OnSegment::Inside,
+            _ => OnSegment::Off,
+        })
+    }
 }
 
 /// Whether result edge `chord` lies on operand edge `rim` of
-/// `op_body`: both of its ends on the closed segment between the
-/// rim's ends ([`place_on_segment`], through [`CHORD_ON_RIM`]).
+/// `op_body`: both of its ends on the rim's closed [`Segment`], through
+/// [`CHORD_ON_RIM`].
 fn chord_on_rim<T: Decide>(
     body: &Body<T>,
     chord: EdgeKey,
@@ -1611,11 +1612,10 @@ fn chord_on_rim<T: Decide>(
     rim: EdgeKey,
     bnd: geom_core::Band,
 ) -> Result<bool, NamingError> {
-    let (r0, r1) = edge_ends(op_body, rim)?;
-    let q = (vertex_point(op_body, r0)?, vertex_point(op_body, r1)?);
+    let seg = Segment::of_edge(op_body, rim)?;
     let (c0, c1) = edge_ends(body, chord)?;
     for v in [c0, c1] {
-        if place_on_segment(vertex_point(body, v)?, q, CHORD_ON_RIM, bnd)? == OnSegment::Off {
+        if seg.place(vertex_point(body, v)?, CHORD_ON_RIM, bnd)? == OnSegment::Off {
             return Ok(false);
         }
     }
@@ -1658,15 +1658,8 @@ fn rim_holding<T: Decide>(
 
 /// The oriented direction of an operand edge (he_plus start → end).
 pub(super) fn edge_dir<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<Vec3<T>, NamingError> {
-    let bug = |what| NamingError::Emission { what };
     let (v0, v1) = edge_ends(body, e)?;
-    let p = |v: VertexKey| -> Result<Point3<T>, NamingError> {
-        body.get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point))
-            .copied()
-            .ok_or_else(|| bug("edge_dir: vertex without point"))
-    };
-    Ok(p(v1)? - p(v0)?)
+    Ok(vertex_point(body, v1)? - vertex_point(body, v0)?)
 }
 
 /// The direction a chain along a seam line is ranked in: the pair's

@@ -49,10 +49,7 @@ pub(crate) fn side_of_face<T: Decide>(
             .get_half_edge(he)
             .ok_or_else(|| bug("side_of: dangling half-edge"))?
             .start;
-        let p = *body
-            .get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point))
-            .ok_or_else(|| bug("side_of: vertex without point"))?;
+        let p = super::emit::vertex_point(body, v)?;
         match decide(SIDE_OF, Margin::of((p - origin).dot(normal)), b) {
             Ok(sign) => signs.push(sign),
             Err(source) => {
@@ -165,10 +162,16 @@ pub(crate) const ORDER_ALONG: &str = "name_frag_order_along";
 
 /// The on-member-edge predicate's name (`emit_union`'s member-edge
 /// ranker): whether a vertex of a union's result lies on a member edge,
-/// and at which end. Its verdicts are the cut points a member edge's
-/// pieces are ranked between, so a flip moves a rank — which is why it
-/// is IN the [`FAMILY`], unlike [`CHORD_ON_RIM`].
-pub(crate) const ON_MEMBER_EDGE: &str = "name_frag_on_member_edge";
+/// and at which end.
+///
+/// **Outside the [`FAMILY`], as [`CHORD_ON_RIM`] is, and for a sharper
+/// reason.** It is decided for every vertex of the result against every
+/// ranked member edge, so nearly all of its verdicts are about vertices
+/// nowhere near the name being diagnosed; inside the family, any one of
+/// them flipping would take `resolve`'s diagnosis ladder at its first
+/// rung. The cost is the same as the chord's: a flip that does move a
+/// piece's cell is ranked as a generic flip.
+pub(crate) const ON_MEMBER_EDGE: &str = "name_on_member_edge";
 
 /// The chord-on-rim predicate's name (`emit_topo`'s `chord_on_rim`):
 /// whether a boolean's chord between two merged faces lies within the
