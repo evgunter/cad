@@ -368,13 +368,13 @@ fn a_gesture_on_an_absent_parameter_refuses_typed() {
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
     let outcome = session.perform(SessionOp::BeginParamGesture {
-        name: pncad::document::ParamName::literal("no-such-parameter"),
+        name: pncad::document::ParamName::literal("no_such_parameter"),
     });
     assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
     assert!(matches!(
         session
             .perform(SessionOp::PreviewParamGesture {
-                name: pncad::document::ParamName::literal("no-such-parameter"),
+                name: pncad::document::ParamName::literal("no_such_parameter"),
                 value: 1.0
             })
             .refusal,

@@ -308,7 +308,7 @@ fn real_study(tol: Tol) {
                 // it. `render_sensitivity` was made public for this.
                 println!(
                     "     ∂web/∂{}: {}",
-                    s.param.0,
+                    s.param.as_str(),
                     render_sensitivity(&s.outcome)
                 );
             }

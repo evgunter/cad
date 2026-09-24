@@ -521,7 +521,7 @@ fn every_op_behaves_as_the_table_says() {
 fn a_begin_under_an_open_drag_refuses_before_it_checks_its_target() {
     let tol = Tol::witness();
     let (mut session, first, second, param) = two_fields(tol);
-    let undeclared = ParamName::literal("no-such-parameter");
+    let undeclared = ParamName::literal("no_such_parameter");
 
     // The second extrude's distance becomes a computed slot, which is
     // what `begin_gesture`'s own check refuses.

@@ -809,7 +809,7 @@ fn a_parameter_field_is_written_the_way_its_declaration_says() {
         tol,
     );
     let rows = props::param_rows(&doc);
-    let writing = |name: &str| {
+    let writing = |name: &'static str| {
         let row = rows
             .iter()
             .find(|row| row.name == ParamName::literal(name))

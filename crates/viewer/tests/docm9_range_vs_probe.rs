@@ -25,7 +25,7 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn name(n: &str) -> ParamName {
+fn name(n: &'static str) -> ParamName {
     ParamName::literal(n)
 }
 

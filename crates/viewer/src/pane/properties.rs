@@ -225,7 +225,7 @@ impl ViewerBehavior<'_> {
         // The offer from an unknown-parameter parse refusal, shown
         // while the name field still says the offered name.
         if let Some(offered) = self.drafts.new_param_offer.clone() {
-            if offered.0 == self.drafts.new_param_name.trim() {
+            if offered.as_str() == self.drafts.new_param_name.trim() {
                 crate::widgets::message_toned(
                     ui,
                     Refusal::offer_wording(&offered),
