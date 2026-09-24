@@ -171,7 +171,8 @@ within eight lines of it.
   anyway; neither holds a member.)
 - **The mutable-handle population is excluded, and that exclusion is
   a judgement rather than a blind spot — so it is named.** `git grep
-  'get_solid_mut('` is **37 tree-wide, 35 in `crates/topo/src`**, of
+  'get_solid_mut('` is **37 tree-wide at `cd9fdfd6b`** (39 once this
+  row names the atom twice), **35 in `crates/topo/src`**, of
   which **33** read a solid's shell list through the mut handle; the
   other two are the accessor's own definition (a window over-fire onto
   the adjacent `get_shell_mut`, the same over-fire this census reports
