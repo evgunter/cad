@@ -6544,3 +6544,7 @@ fable at slot 1.
 | 2 | OPUS | `a-null-edge-can-be-re-based-onto-a-distinct-point` (+ `the-re-basing-gate-refuses-m7-8-where-nothing-moves`) | difficulty M, task class STRUCTURAL — logged before the draw |
 
 Ordinal claims go to main at each review dispatch (band 2700–2799).
+
+Slot 1 CONCLUDED 2026-09-24: PR #2603 merged (`af04748de`), ordinal
+2713, sample #241, no tally candidate. Arm-exposed per the main-side
+disclosure. The implementer lane's tokens and wall are missing data.
