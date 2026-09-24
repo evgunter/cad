@@ -8,6 +8,7 @@ refs: [2100, plate-ceiling-is-now-the-scaffold-pushforward, symbolic-tier-census
 parent: SYM-3
 priority: P1
 cost: D
+needs_ev: true
 ---
 
 **Filed by M10-10's fix pass from both reviews' end-to-end probes**
@@ -447,3 +448,67 @@ LITERAL against 126/0/38/16 on the PARAMETER — the first row where the
 two spellings part at the nominal, so this row's "the same table as
 the literal's" is now true of every row but that one
 (`m10_bulge_interval` pins both).
+
+## The bulge's sign: how the tier learns it (DECIDE-4's fork)
+
+DECIDE-4's Phase 1 (on `decide/4-bulge-reach` at `200123f29`, this
+item's section "What stands on DECIDE-3's and SYM-9's tree") finds the
+sign of a parameter bulge still blocking. On the `0.5` parameter
+control, four `carrier_matches_mapped_source` decisions are zero for
+every `b > 0` and non-zero for `b < 0`: the carrier's `sqrt(1 + |b|²)`
+against the pushforward's `sqrt(1 + b²)`. Eight more freeze behind the
+same second atom. Nothing else on today's tree needs the sign: every
+other residue is the ring, or the one value-free decision on the boss
+that DECIDE-4 takes.
+
+**The decision: the sweep spells the carrier's span from the turn it
+already decided.** `placed_segment_spec` writes `4·atan(σ·b)`, where
+`σ` is the turn sign `path_arc_bulge` decided, in place of
+`arc_span`'s `4·atan|b|`. The carrier and the pushforward then mint
+one atom for one quantity.
+
+- **What it takes:**
+  - On the control, `carrier_matches_mapped_source` goes from 16 to 6
+    numeric, and `carrier_on_surface_2` from 6 to 4.
+  - On R2's link, `carrier_matches_mapped_source` goes from 32 to 10.
+  - The control's ceiling rises from `4.3375e2` to `5.1078e2 · ε`.
+- **What it costs:** R2's link loses four `carrier_on_surface_2`
+  theorems, two to the door and two to `numeric`. That is the
+  non-monotone class SYM-9's ladder was built for, and it is
+  re-baselined and said.
+- **Leaf time:**
+  - link: 19.8 → 10.7 s;
+  - pad: 151 → 91 s;
+  - bracket: 3.9 → 3.1 s;
+  - the rest flat.
+- **How the new zeros count:** they are theorems, or `registered`
+  through the span identity's door. None is `sign_gated`.
+
+**Rejected: rule C on (`signed_root`, the one shipped-off dial).** It
+does fold the sign, and it takes 14 decisions on the control. But as
+the dial stands, it runs ahead of the value-free folds and the door:
+
+- it re-labels theorems `sign_gated` on every document (the control's
+  `carrier_on_surface_1` goes 144/0/0/0 → 27/117/0/0);
+- it loses the door's `pcurve_map_residual`;
+- `numeric` RISES everywhere: plate 462 → 498, annulus 209 → 245,
+  link 453 → 477, bracket 760 → 782, boss 234 → 251.
+
+**Not measured, named so the choice is whole:**
+
+- the registration variant of the recommendation,
+  `register_equal(abs(b), σ·b)` stated where `path_arc_bulge` is
+  decided. It leaves the constructor's spelling as it is, at the cost
+  of an axiom where the spelling gives the same atom.
+- a NARROWED rule C: only `abs`/`sqrt` atoms, ordered behind the door
+  and every value-free fold, as the decision read is.
+
+**A second, smaller question rides with it: the sign of the APOTHEM.**
+Six decisions on the control (`line_span`, `arc_span` and
+`contact_at_shared_vertex`, two each) are zero exactly where the
+apothem `L(1 − b²)/(4b)` is positive. The magnitude
+`sqrt(r² − (L/2)²)` stands against the signed offset. The turn `σ`
+does not reach them; only a value read does. **The decision: filed as
+its own DECIDE item**, with the narrowed rule C as its candidate, not
+folded into DECIDE-4.
+

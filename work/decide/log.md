@@ -426,3 +426,29 @@ both avoided.
 The item leaves it to Ev with the orchestrator. The spec has Phase 1
 count both routes on today's tree, and stops before either is
 implemented. The sign-free part (Phase 2a) does not wait on it.
+
+## 2026-09-24 — DECIDE-4 stops on the sign: the fork goes to Ev
+
+DECIDE-4's Phase 1 is pushed on `decide/4-bulge-reach` (`200123f29`).
+The evidence is the item's section "What stands on DECIDE-3's and
+SYM-9's tree (DECIDE-4)" on that branch: the per-cause tables, the
+renders, both routes counted and costed, and the leaf times.
+
+- **(ii) is empty.** DECIDE-3's `abs_square` and canonical root took
+  what SYM-3 counted.
+- **One value-free decision is left:** the boss's `arc_span`, which
+  bounds the boss's ceiling (`1.0309e3·ε`). It is a polynomial common
+  factor under a root, which rule E's monomial factor misses. That is
+  Phase 2a, and it proceeds.
+- **(iii) is non-empty:** four decisions on the `0.5` parameter
+  control, with eight frozen behind them. Phase 2b stops.
+
+The fork is written into the item (`needs_ev: true`) on the `[ev]` PR.
+The recommendation is route B, the span spelled from the decided turn.
+Route A as the dial stands is rejected: it raises `numeric` on every
+document. The apothem's sign is a second, smaller question, proposed as
+its own item.
+
+Also measured, not asked: on the plate and the bracket, `restrict`'s
+sub-arcs meet no arc-family decision. That closes the sweep's blind
+spot (i) for those two documents only.
