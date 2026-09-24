@@ -1,11 +1,11 @@
-//! **LIB-SWITCH §6: program-anchored naming, pinned.**
+//! **LIB-SWITCH §6: a parameter edit cannot renumber, pinned.**
 //!
-//! Profile-entity naming for program loops anchors to PROGRAM-
-//! STRUCTURAL positions (the ratified §V3 round-2 resolution): nothing
-//! geometric enters the index, so a parameter edit CANNOT renumber —
-//! including the very edit class that renumbers the CANONICAL indices
-//! (a lex-min-swapping rectangle). The freeze doctrine remains the
-//! structural-edit backstop (stale program refs refuse Vanished).
+//! Profile-entity names index canonical positions, and the canonical
+//! form keeps each loop's authored start (§V3): nothing geometric
+//! enters the index, so a parameter edit CANNOT renumber — including
+//! the edit class that renumbered under a geometric start (a rectangle
+//! whose lexicographic-minimum corner moves). The freeze doctrine
+//! remains the structural-edit backstop (stale refs refuse Vanished).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
@@ -20,10 +20,10 @@ use editor_core::{
 use geom_core::Tol;
 
 /// A quad whose LAST authored corner x is a document parameter: at
-/// x0 = 0.5 that corner (0.5, 1) is lex-min (canonical offset 3); at
-/// x0 = 1.5 the ENTRY corner (1, 0) is — the canonical rotation
-/// changes under a pure parameter edit, the §6 renumbering class on
-/// the nose.
+/// x0 = 0.5 that corner (0.5, 1) is the lexicographic minimum; at
+/// x0 = 1.5 the ENTRY corner (1, 0) is — a geometric start would move
+/// under this pure parameter edit, the §6 renumbering class on the
+/// nose.
 /// Every document here is a sketch frame, the profile drawn on it, and
 /// the extrude over that: node 0 is the frame, so these two are what
 /// the rows address.
@@ -95,7 +95,7 @@ fn names_of(doc: &ProfileDoc, id: RecipeNodeId) -> BTreeSet<StableName> {
         .collect()
 }
 
-fn anchor_offset(doc: &ProfileDoc) -> (u32, bool) {
+fn anchor_reversed(doc: &ProfileDoc) -> bool {
     let ev = evaluate::<f64>(
         doc,
         None,
@@ -106,33 +106,55 @@ fn anchor_offset(doc: &ProfileDoc) -> (u32, bool) {
     let ValuePayload::Profile(pv) = &ev.value(PROFILE).expect("profile").payload else {
         panic!("profile payload");
     };
-    let a = pv.naming.loops[0];
-    (a.offset, a.reversed)
+    pv.naming.loops[0].reversed
 }
 
-/// THE demonstration row (§6c, inverted by the resolution): the param
-/// edit MOVES lex-min — the canonical rotation demonstrably changes —
-/// and the emitted name set does NOT move: program anchoring ate the
-/// renumbering class.
+/// THE demonstration row (§6c): the param edit moves the loop's
+/// lexicographic minimum, and neither the canonical start nor the
+/// emitted name set moves — the start is the authored one.
 #[test]
-fn lex_min_swap_cannot_renumber_program_names() {
+fn a_parameter_edit_that_moves_the_lex_min_corner_renumbers_nothing() {
     let before = param_rect_doc(0.5);
     let after = param_rect_doc(1.5);
-    // The canonicalization genuinely rotated (the §6 measurement's
-    // renumbering class is REAL on the canonical substrate)…
-    let (off_before, rev_b) = anchor_offset(&before);
-    let (off_after, rev_a) = anchor_offset(&after);
-    assert!(!rev_b && !rev_a, "CCW-authored rectangles never reverse");
+    // The edit genuinely moves the lexicographic minimum…
+    let lex_min = |doc: &ProfileDoc| {
+        let ev = evaluate::<f64>(
+            doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        let ValuePayload::Profile(pv) = &ev.value(PROFILE).expect("profile").payload else {
+            panic!("profile payload");
+        };
+        let vs = pv.validated.loops()[0].vertices();
+        (0..vs.len())
+            .min_by(|&i, &j| {
+                let (p, q) = (vs[i].pos(), vs[j].pos());
+                p.x.total_cmp(&q.x).then(p.y.total_cmp(&q.y))
+            })
+            .unwrap()
+    };
     assert_ne!(
-        off_before, off_after,
-        "the edit must actually swap the lex-min vertex for this row to demonstrate anything"
+        lex_min(&before),
+        lex_min(&after),
+        "the edit must actually move the lexicographic minimum for this row to \
+         demonstrate anything"
     );
-    // …and the NAME substrate did not: identical name sets…
+    // …while the anchor stays the identity: CCW-authored rectangles
+    // never reverse, and the start is the authored one by
+    // construction (the denotation check below reads it)…
+    assert!(
+        !anchor_reversed(&before) && !anchor_reversed(&after),
+        "CCW-authored rectangles never reverse"
+    );
+    // …so the name set is identical…
     assert_eq!(names_of(&before, BODY), names_of(&after, BODY));
-    // …AND (review MINOR-1: set equality alone is renumbering-blind
-    // for a full table) the DENOTATION held: in both documents,
-    // program segment 0 — Lateral(0)'s referent — is the leg leaving
-    // the authored entry corner (1, 0), read through the anchor.
+    // …AND (set equality alone is renumbering-blind for a full table)
+    // the DENOTATION held: in both documents, canonical segment 0 —
+    // Lateral(0)'s referent — is the leg leaving the authored entry
+    // corner (1, 0).
     for doc in [&before, &after] {
         let ev = evaluate::<f64>(
             doc,
@@ -144,11 +166,7 @@ fn lex_min_swap_cannot_renumber_program_names() {
         let ValuePayload::Profile(pv) = &ev.value(PROFILE).expect("profile").payload else {
             panic!("profile payload");
         };
-        let a = pv.naming.loops[0];
-        let c = (0..a.len)
-            .find(|&k| a.segment(k) == 0)
-            .expect("program segment 0 exists");
-        let start = pv.validated.loops()[0].vertices()[c as usize].pos();
+        let start = pv.validated.loops()[0].vertices()[0].pos();
         assert_eq!(start.x.to_bits(), 1.0_f64.to_bits());
         assert_eq!(start.y.to_bits(), 0.0_f64.to_bits());
     }
@@ -225,7 +243,7 @@ fn stale_program_refs_refuse_vanished() {
          Vanished class at every consumer (fillet selections, Declare, \
          appearance), the M6-5 freeze doctrine"
     );
-    // And a REAL program-anchored ref resolves.
+    // And a REAL canonical ref resolves.
     let real = StableName {
         kind: EntityKind::Edge,
         node: BODY,
@@ -357,8 +375,9 @@ fn hole_circle_anchor_recovers_reversal() {
             "canonical seg {c} carries program seg {p_seg}'s negated bulge"
         );
     }
-    // Denotation at the name layer: both program-anchored semicircle
-    // walls exist under the hole's PROGRAM indices.
+    // Denotation at the name layer: both semicircle walls exist under
+    // the hole's CANONICAL indices — its two program segments,
+    // reflected.
     use editor_core::{EntityKind, ProfileEdgeRef, RoleSeg};
     let table = &ev.value(BODY).expect("extrude").name_table;
     for seg in 0..2u32 {
