@@ -10,10 +10,13 @@
 //! sense, which cannot flip under a continuous edit without passing
 //! through a sliver, and which loop is the outer one (canonical loop
 //! 0), which cannot change without the loops crossing. Validation
-//! refuses both intermediate states, but a `SetParam` that jumps
-//! straight past them lands, and then every name on the swapped loops
-//! renumbers unreported — a hole grown until it encloses the outer
-//! loop is the case. What a parameter edit CAN still
+//! refuses both intermediate states, but a value edit that jumps
+//! straight past them lands — a hole grown until it encloses the outer
+//! loop, a vertex moved across its loop. The edit door compares the
+//! profile's numbering before and after such an edit and carries every
+//! name spelled in it across, reporting each one it rebinds or strands
+//! (`reanchor_report` in `edit.rs`, through `SetProgram`'s map and
+//! report). What a parameter edit CAN still
 //! do is change how many segments a step draws — a corner fillet whose
 //! runs reach a `Zero` fit emits nothing, so a radius written through
 //! `SetParam` grows or shrinks the loop and every live name after that
@@ -355,4 +358,19 @@ fn signed_area(lp: &ProfileLoop<f64>) -> f64 {
         }
     }
     0.5 * twice + arcs
+}
+
+/// **A program's naming anchor as far as it can be read**, per
+/// CANONICAL loop: the validated anchor ([`naming_of`]) where the loops
+/// validate, the replay's own reading ([`replay_naming`]) where they do
+/// not, and empty where neither can order the loops. The one reading
+/// both edit doors that carry names across a change take of each side.
+pub(crate) fn readable_naming(
+    loops: &[ProfileLoop<f64>],
+    tol: geom_core::Tol,
+) -> Vec<Option<LoopAnchor>> {
+    match naming_of(loops, tol) {
+        Some(n) => n.loops.into_iter().map(Some).collect(),
+        None => replay_naming(loops).unwrap_or_default(),
+    }
 }

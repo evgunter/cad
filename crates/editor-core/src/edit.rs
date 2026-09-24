@@ -2615,9 +2615,11 @@ struct SegmentMap {
     /// read is `None` and every name on it strands; empty where the
     /// canonical loop order itself cannot be read.
     old_naming: Vec<Option<crate::eval::LoopAnchor>>,
-    /// The new program's naming anchor: program order → the canonical
-    /// locator a name is spelled in.
-    new_naming: crate::eval::ProfileNaming,
+    /// The new program's naming anchor, per CANONICAL loop: program
+    /// order → the canonical locator a name is spelled in. `None` for
+    /// a loop whose anchor cannot be read, and every name that would
+    /// land on it strands.
+    new_naming: Vec<Option<crate::eval::LoopAnchor>>,
 }
 
 /// One locator's image under a [`SegmentMap`].
@@ -2656,7 +2658,10 @@ impl SegmentMap {
             Vec<Option<crate::eval::LoopAnchor>>,
         )>,
         old_loops: usize,
-        new: (&[CheckedRecords<'_, '_>], crate::eval::ProfileNaming),
+        new: (
+            &[CheckedRecords<'_, '_>],
+            Vec<Option<crate::eval::LoopAnchor>>,
+        ),
         provenance: &[LoopProvenance],
     ) -> Result<Self, ProgramRefusal> {
         let (new, new_naming) = new;
@@ -2751,24 +2756,14 @@ impl SegmentMap {
         self.old_naming.get(l as usize).copied().flatten()
     }
 
-    /// New program loop `li` → its canonical position and anchor. Every
-    /// new program loop is some canonical loop — the anchor was derived
-    /// from this program's own validation.
-    fn new_anchor(&self, li: u32) -> (u32, crate::eval::LoopAnchor) {
+    /// New program loop `li` → its canonical position and anchor;
+    /// `None` where the new naming cannot read that loop.
+    fn new_anchor(&self, li: u32) -> Option<(u32, crate::eval::LoopAnchor)> {
         use crate::program::program_index as ix;
-        let Some((cl, a)) = self
-            .new_naming
-            .loops
+        self.new_naming
             .iter()
             .enumerate()
-            .find(|(_, a)| a.program_loop == li)
-        else {
-            unreachable!(
-                "the new program's naming anchor was derived from its own validation, \
-                 which assigns every program loop a canonical loop"
-            )
-        };
-        (ix(cl), *a)
+            .find_map(|(cl, a)| a.filter(|a| a.program_loop == li).map(|a| (ix(cl), a)))
     }
 
     /// The retired coordinate of a CANONICAL locator `(l, index)` of
@@ -2780,7 +2775,10 @@ impl SegmentMap {
             .old_anchor(l)
             .map(|a| self.retired(a.program_loop, index))
         {
-            Some((li, at)) if li < RETIRED_FLOOR => (self.new_anchor(li).0, at),
+            Some((li, at)) if li < RETIRED_FLOOR => match self.new_anchor(li) {
+                Some((cl, _)) => (cl, at),
+                None => (RETIRED_FLOOR + l, index),
+            },
             _ => (RETIRED_FLOOR + l, index),
         }
     }
@@ -2808,10 +2806,10 @@ impl SegmentMap {
             return retired();
         }
         match self.kept(a.program_loop, a.segment(e.segment)) {
-            Some((li, s)) => {
-                let (cl, na) = self.new_anchor(li);
-                Some(Image::Kept(at((cl, na.canonical_segment(s)))))
-            }
+            Some((li, s)) => match self.new_anchor(li) {
+                Some((cl, na)) => Some(Image::Kept(at((cl, na.canonical_segment(s))))),
+                None => retired(),
+            },
             None => retired(),
         }
     }
@@ -2848,7 +2846,9 @@ impl SegmentMap {
         if n_new == 0 {
             return retired();
         }
-        let (cl, na) = self.new_anchor(loop_index);
+        let Some((cl, na)) = self.new_anchor(loop_index) else {
+            return retired();
+        };
         Some(Image::Kept(at((
             cl,
             na.canonical_vertex((segment + 1) % n_new),
@@ -3665,9 +3665,10 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
     let reconcile = edit.moves_the_mate_graph();
     // The report read at the door that made it: DM7's strands and the
     // declarations a delete orphaned, or the strands and the rebounds
-    // a reshaped program made. Two edits fill this — `DeleteNode`,
-    // the only edit that removes a node, and `SetProgram`, the only
-    // edit that moves what a profile's segments are; `Rebind` moves
+    // a reshaped program made. `DeleteNode` fills it, the only edit
+    // that removes a node; `SetProgram`, which moves what a profile's
+    // segments are; and a value edit that moves a profile's canonical
+    // numbering (`reanchor_report`, after the match). `Rebind` moves
     // references onto a live name at the author's word and reports
     // nothing.
     let mut reported: Vec<Maintenance> = Vec::new();
@@ -3913,11 +3914,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             let old_replayed = payload.replay_records(&env, tol).ok();
             let old_checked = old_replayed.as_ref().and_then(|(loops, records)| {
                 let checked = checked_replay(old_loops, loops, records).ok()?;
-                let naming = match crate::eval::naming_of(loops, tol) {
-                    Some(n) => n.loops.into_iter().map(Some).collect(),
-                    None => crate::eval::replay_naming(loops).unwrap_or_default(),
-                };
-                Some((checked, naming))
+                Some((checked, crate::eval::readable_naming(loops, tol)))
             });
             let Some(new_naming) = crate::eval::naming_of(&new_loops, tol) else {
                 unreachable!(
@@ -3939,7 +3936,10 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                     .as_ref()
                     .map(|(checked, naming)| (checked.as_slice(), naming.clone())),
                 old_loops.len(),
-                (&new_checked, new_naming),
+                (
+                    &new_checked,
+                    new_naming.loops.iter().copied().map(Some).collect(),
+                ),
                 provenance,
             )
             .map_err(refused)?;
@@ -4385,6 +4385,15 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             }
         }
     }
+    // A value edit that moves a profile's canonical numbering — a
+    // hole jumped past its outer loop, a loop's sense flipped — is the
+    // event `SetProgram` reports, with the program unchanged: the
+    // names spelled in that profile's numbering are carried across it
+    // through the same map and reported through the same door.
+    let renumbered = value_edit_profiles(doc, edit);
+    if !renumbered.is_empty() {
+        reported.extend(reanchor_report(doc, &mut new, &renumbered, tol)?);
+    }
     let mut maintenance = reported;
     if reconcile {
         maintenance.extend(
@@ -4397,6 +4406,156 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
         doc: new,
         record,
         maintenance,
+    })
+}
+
+/// **The profiles a value edit can renumber**: the ones whose program
+/// reads the value it writes. A slot edit reaches the node it names —
+/// a profile only where that node is one; a document-parameter edit
+/// that moves a value reaches every profile whose program references
+/// the parameter. Every other edit writes no value a program reads (a
+/// notation or an annotation moves no nominal), or is `SetProgram`,
+/// which carries its own names.
+fn value_edit_profiles<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    edit: &DocEdit<P>,
+) -> Vec<RecipeNodeId> {
+    let is_profile = |id: &RecipeNodeId| matches!(doc.nodes.get(id), Some(Node::Profile(_)));
+    match edit {
+        DocEdit::SetParam { node, .. } | DocEdit::SetStructuralParam { node, .. } => {
+            Some(*node).filter(is_profile).into_iter().collect()
+        }
+        DocEdit::SetExpression { path, .. } => {
+            Some(path.node).filter(is_profile).into_iter().collect()
+        }
+        DocEdit::SetDocParam { name, .. } | DocEdit::SetDocParamValue { name, .. } => doc
+            .order
+            .iter()
+            .copied()
+            .filter(|id| {
+                doc.nodes.get(id).is_some_and(|n| {
+                    matches!(n, Node::Profile(_))
+                        && n.slots().into_iter().any(|slot| {
+                            n.expr(slot).is_some_and(|e| {
+                                let mut refs = Vec::new();
+                                e.param_refs(&mut refs);
+                                refs.iter().any(|(r, _)| r == name)
+                            })
+                        })
+                })
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// **Carry the names across a value edit that moved a profile's
+/// canonical numbering**, and report every one it moved or stranded.
+///
+/// Published names are spelled in each profile's CANONICAL numbering
+/// (DM8): outer loop first, each loop in its canonical sense from its
+/// authored start. Two of those facts are decisions about geometry —
+/// which loop is outer, and each loop's sense — so a value edit can
+/// move them without touching the program: a hole's radius jumped
+/// until it encloses the outer loop, or a vertex moved across its
+/// loop. The program's steps are unchanged, so every step still draws
+/// what it drew; what changed is which canonical locator each drawn
+/// segment answers to. That is a [`SegmentMap`] under the identity
+/// provenance, read through each side's own anchor, and the names are
+/// carried and reported by [`reshape_report`] — the door
+/// `SetProgram` reports through — rather than left spelling what the
+/// numbering now gives to another segment.
+///
+/// A profile whose numbering the edit did not move is untouched, so
+/// the ordinary value edit reports nothing. Where either side does not
+/// replay, or its loop order cannot be read at all, there is nothing
+/// to translate between and the profile is left as it is: an old side
+/// that does not replay has no spans (the same answer `SetProgram`
+/// gives), and a new side that does not replay has no evaluation for
+/// a name to denote anything in. A loop one side cannot read the sense
+/// of strands the names on it (`eval::anchor::replay_naming`).
+fn reanchor_report<P: Clone + crate::ProfilePayload>(
+    old: &Doc<P>,
+    new: &mut Doc<P>,
+    profiles: &[RecipeNodeId],
+    tol: Tol,
+) -> Result<Vec<Maintenance>, EditError> {
+    let mut rows = Vec::new();
+    for &node in profiles {
+        let Some(map) = numbering_move(old, new, node, tol)? else {
+            continue;
+        };
+        let anchored = new
+            .order
+            .iter()
+            .copied()
+            .filter(|id| {
+                new.nodes
+                    .get(id)
+                    .is_some_and(|n| n.anchoring_profile() == Some(node))
+            })
+            .collect();
+        rows.extend(reshape_report(new, &mut ProgramRemap::new(&map, anchored))?);
+    }
+    Ok(rows)
+}
+
+/// The [`SegmentMap`] carrying `node`'s names from `old`'s numbering
+/// to `new`'s, or `None` where the numbering did not move or cannot be
+/// read on both sides ([`reanchor_report`]).
+fn numbering_move<P: Clone + crate::ProfilePayload>(
+    old: &Doc<P>,
+    new: &Doc<P>,
+    node: RecipeNodeId,
+    tol: Tol,
+) -> Result<Option<SegmentMap>, EditError> {
+    let (Some(Node::Profile(before)), Some(Node::Profile(after))) =
+        (old.nodes.get(&node), new.nodes.get(&node))
+    else {
+        return Ok(None);
+    };
+    let (Some(old_programs), Some(new_programs)) = (before.loops(), after.loops()) else {
+        return Ok(None);
+    };
+    let (Ok((old_loops, old_records)), Ok((new_loops, new_records))) = (
+        before.replay_records(&old.param_env::<f64>(), tol),
+        after.replay_records(&new.param_env::<f64>(), tol),
+    ) else {
+        return Ok(None);
+    };
+    let old_naming = crate::eval::readable_naming(&old_loops, tol);
+    let new_naming = crate::eval::readable_naming(&new_loops, tol);
+    // What a name's spelling reads: which program loop each canonical
+    // loop is, and whether it is reversed. A segment count a slot edit
+    // moves is another question
+    // (`work/edit/a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names.md`).
+    let numbering = |n: &[Option<crate::eval::LoopAnchor>]| -> Vec<Option<(u32, bool)>> {
+        n.iter()
+            .map(|a| a.map(|a| (a.program_loop, a.reversed)))
+            .collect()
+    };
+    if old_naming.is_empty()
+        || new_naming.is_empty()
+        || numbering(&old_naming) == numbering(&new_naming)
+    {
+        return Ok(None);
+    }
+    let (Ok(old_checked), Ok(new_checked)) = (
+        checked_replay(old_programs, &old_loops, &old_records),
+        checked_replay(new_programs, &new_loops, &new_records),
+    ) else {
+        return Ok(None);
+    };
+    SegmentMap::build(
+        Some((&old_checked, old_naming)),
+        old_programs.len(),
+        (&new_checked, new_naming),
+        &LoopProvenance::identity(new_programs),
+    )
+    .map(Some)
+    .map_err(|refusal| EditError::ProfileProgramRefused {
+        node,
+        refusal: Box::new(refusal),
     })
 }
 

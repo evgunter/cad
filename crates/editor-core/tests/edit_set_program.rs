@@ -2554,3 +2554,175 @@ fn a_slot_edit_through_a_zero_fit_renumbers_a_live_name_and_reports_nothing() {
         "measured: wall 2 is the right edge now — the live name renumbered: {after:?}"
     );
 }
+
+// ---------------------------------------------------------------- //
+// A value edit that moves a profile's canonical numbering
+// ---------------------------------------------------------------- //
+
+/// The square `(0,0)–(2,2)` with a hole circle about `(1, 1)` whose
+/// radius is the document parameter `hole_r`, the square described
+/// first; walls framed at the square's canonical wall 2 (the side
+/// `(2,2)→(0,2)`) and at the hole's canonical wall 0.
+fn square_and_driven_hole(label: &str) -> (ProfileDoc, RecipeNodeId) {
+    let radius = ParamName::new("hole_r");
+    let doc = ProfileDoc::empty_derived(label, tol());
+    let (doc, _) = fixture::step(
+        doc,
+        DocEdit::SetDocParam {
+            name: radius.clone(),
+            value: DocParam::continuous(Dimension::Length, 0.3),
+        },
+    );
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![
+                LoopProgram::Chain(square_steps()),
+                LoopProgram::Circle {
+                    centre: [len(1.0), len(1.0)],
+                    radius: Expr::param(radius, Dimension::Length),
+                },
+            ],
+        }),
+    );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let (doc, _) = frame_on(doc, ext, wall_of(ext, 0, 2));
+    let (doc, _) = frame_on(doc, ext, wall_of(ext, 1, 0));
+    (doc, ext)
+}
+
+fn set_hole_r(doc: &ProfileDoc, r: f64) -> editor_core::Applied<ProfileProgram> {
+    apply(
+        doc,
+        &DocEdit::SetDocParamValue {
+            name: ParamName::new("hole_r"),
+            value: editor_core::DocParamValue::Continuous(r),
+        },
+        tol(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the value lands")
+}
+
+/// **A value edit that jumps a hole past its outer loop is reported,
+/// and every name on either loop is carried.** `hole_r` goes from 0.3
+/// to 1.5: the circle now encloses the square (its corners are √2 from
+/// the centre), so the profile still validates — with the ROLES
+/// swapped. The circle is canonical loop 0, counterclockwise as
+/// authored; the square is canonical loop 1, reversed. The square's
+/// side `(2,2)→(0,2)` — canonical wall 2 of loop 0 before — is
+/// canonical wall `4 − 1 − 2 = 1` of loop 1 now, and the circle's
+/// canonical wall 0 (program segment 1, the hole reversed) is canonical
+/// wall 1 of loop 0.
+///
+/// Silently, the side's name would have become a coordinate the circle
+/// does not draw — `Vanished` at the next evaluation, reported by
+/// nothing — and the hole's name would have named the square's side
+/// `(0,2)→(0,0)`, a DIFFERENT wall, reported by nothing. The edit
+/// rebinds both and says so, and each rebound name denotes the wall it
+/// denoted before.
+#[test]
+fn a_value_edit_that_jumps_a_hole_past_its_outer_loop_rebinds_and_reports() {
+    let (doc, ext) = square_and_driven_hole("value-jump-hole");
+    let applied = set_hole_r(&doc, 1.5);
+    assert_eq!(
+        rebounds(&applied.maintenance),
+        vec![
+            (wall_of(ext, 0, 2), wall_of(ext, 1, 1)),
+            (wall_of(ext, 1, 0), wall_of(ext, 0, 1)),
+        ],
+        "both names carried into the swapped numbering, in the carriers' document order: {:?}",
+        applied.maintenance
+    );
+    assert_eq!(applied.maintenance.len(), 2, "nothing stranded");
+    let side = corners_of(&applied.doc, ext, &wall_of(ext, 1, 1));
+    assert!(
+        has_corner3(&side, (2.0, 2.0, 0.0)) && has_corner3(&side, (0.0, 2.0, 0.0)),
+        "the rebound side is still the side (2,2)→(0,2): {side:?}"
+    );
+    // What the edit had to carry the names away from: under the new
+    // numbering the hole's OLD spelling names the square's side
+    // (0,2)→(0,0) — another wall, which a name left in place would
+    // have denoted silently.
+    let old_spelling = corners_of(&applied.doc, ext, &wall_of(ext, 1, 0));
+    assert!(
+        has_corner3(&old_spelling, (0.0, 2.0, 0.0)) && has_corner3(&old_spelling, (0.0, 0.0, 0.0)),
+        "the hole's old spelling now denotes the square's side (0,2)→(0,0): {old_spelling:?}"
+    );
+}
+
+/// **A value edit that moves nothing canonical reports nothing.** The
+/// same hole, 0.3 → 0.4: the roles and senses hold, and no name moves.
+#[test]
+fn a_value_edit_that_keeps_the_numbering_reports_nothing() {
+    let (doc, _) = square_and_driven_hole("value-keep-hole");
+    let applied = set_hole_r(&doc, 0.4);
+    assert_eq!(applied.maintenance, Vec::new());
+}
+
+/// **A slot edit that flips a loop's sense is reported, and the names
+/// on the loop are carried.** A triangle `(0,0) → (2,0) → (1, 1)`,
+/// counterclockwise as authored; `SetParam` moves the apex to
+/// `(1, −1)`, and the same three steps now wind clockwise, so the outer
+/// loop is reversed: canonical wall `k` is program segment `2 − k`.
+/// The base `(0,0)→(2,0)` — program segment 0, canonical wall 0 before
+/// — is canonical wall 2 now; program segment 1 stays canonical wall 1.
+///
+/// Silently, canonical wall 0 would have named program segment 2, the
+/// side `(1,−1)→(0,0)`: a different wall, reported by nothing.
+#[test]
+fn a_slot_edit_that_flips_a_loops_sense_rebinds_and_reports() {
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    let triangle = LoopProgram::Chain(vec![
+        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(2.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, 1.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let (doc, profile, ext) = extruded("value-flip-sense", vec![triangle]);
+    let (doc, _) = frame_on(doc, ext, wall_of(ext, 0, 0));
+    let (doc, _) = frame_on(doc, ext, wall_of(ext, 0, 1));
+    let applied = apply(
+        &doc,
+        &DocEdit::SetParam {
+            node: profile,
+            slot: SlotId::Profile {
+                loop_: 0,
+                step: 2,
+                arg: StepArg::TargetY,
+            },
+            expr: len(-1.0),
+        },
+        tol(),
+        &editor_core::RefusingReach,
+    )
+    .expect("the apex moves");
+    assert_eq!(
+        applied.maintenance,
+        vec![Maintenance::Rebound {
+            from: wall_of(ext, 0, 0),
+            to: wall_of(ext, 0, 2),
+        }],
+        "the base's name carried across the flip, and nothing else moved"
+    );
+    let base = corners_of(&applied.doc, ext, &wall_of(ext, 0, 2));
+    assert!(
+        has_corner3(&base, (0.0, 0.0, 0.0)) && has_corner3(&base, (2.0, 0.0, 0.0)),
+        "the rebound name is still the base (0,0)→(2,0): {base:?}"
+    );
+    // The old spelling now names the side (1,−1)→(0,0): the wall a
+    // name left in place would have denoted silently.
+    let old_spelling = corners_of(&applied.doc, ext, &wall_of(ext, 0, 0));
+    assert!(
+        has_corner3(&old_spelling, (1.0, -1.0, 0.0)) && has_corner3(&old_spelling, (0.0, 0.0, 0.0)),
+        "the base's old spelling now denotes the side (1,−1)→(0,0): {old_spelling:?}"
+    );
+}
