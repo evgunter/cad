@@ -135,7 +135,16 @@ pub enum PartFault {
     /// The referenced document has no product for a reason that is not
     /// a failing root (no body-denoting root, an invalid gather, a
     /// name collision).
+    ///
+    /// The refusal crosses in both halves, the
+    /// [`crate::checks::ChecksError::Product`] shape: `kind` is the
+    /// class a consumer branches on, `message` the gather's own
+    /// sentence a reader reads — it carries the node ids and finding
+    /// lists the class drops. Neither half is a substring hunt through
+    /// the other, and both come off ONE [`crate::product::ProductError`].
     PartProduct {
+        /// Which arm of the product door refused.
+        kind: crate::product::ProductErrorKind,
         /// The product door's diagnosis.
         message: String,
     },
@@ -191,7 +200,7 @@ impl core::fmt::Display for PartFault {
                     None => write!(f, "{message}"),
                 }
             }
-            Self::PartProduct { message } => {
+            Self::PartProduct { message, .. } => {
                 write!(f, "the referenced document has no product: {message}")
             }
             Self::ReferenceCycle { cycle } => {
@@ -411,12 +420,17 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
 /// the nested evaluation is local to the resolution. So the cause is
 /// read here, while it still exists: typed and chained when the
 /// failing root was itself an instantiate node, rendered otherwise.
+///
+/// Every OTHER refusal crosses as its class beside its sentence, both
+/// read off the one error — the pairing
+/// [`PartFault::PartProduct`] states.
 fn product_fault<T: Decide>(
     error: &crate::product::ProductError,
     evaluation: &super::Evaluation<T>,
 ) -> PartFault {
     let crate::product::ProductError::RootFailed { node } = error else {
         return PartFault::PartProduct {
+            kind: error.kind(),
             message: error.to_string(),
         };
     };

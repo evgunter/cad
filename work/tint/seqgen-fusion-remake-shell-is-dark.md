@@ -4,6 +4,8 @@ kind: issue
 title: seqgen::fusion_remake_shell can return None unconditionally and nothing in topo reds
 status: open
 opened: 2026-09-20
+priority: P3
+cost: D
 ---
 
 ## Finding

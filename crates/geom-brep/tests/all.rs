@@ -111,6 +111,8 @@ mod offa_r1_probes;
 mod offb_r1_probes;
 #[path = "onb_c_payoff_interval.rs"]
 mod onb_c_payoff_interval;
+#[path = "props_cone_apex_cap.rs"]
+mod props_cone_apex_cap;
 #[path = "props_sphere_pole_side.rs"]
 mod props_sphere_pole_side;
 #[path = "r2_probe_sphere_polar.rs"]
@@ -136,6 +138,8 @@ mod r2_quad_digit_probe;
 
 #[path = "offset_fit.rs"]
 mod offset_fit;
+#[path = "ring2_r2_probes.rs"]
+mod ring2_r2_probes;
 
 #[path = "cert5_r2_probes.rs"]
 mod cert5_r2_probes;

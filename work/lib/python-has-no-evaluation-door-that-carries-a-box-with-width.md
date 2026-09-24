@@ -4,6 +4,8 @@ kind: issue
 title: Three EvalOptions fields defer to an evaluation door that carries a box with width, and no row schedules one
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 ## Disclosed by PORT's `python-cannot-set-options-structs` (PR #2678)

@@ -87,6 +87,10 @@ impl Faces {
 /// proves nothing, which is the one way this sweep can rot silently.
 fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) -> Faces {
     let mut seen = Faces::default();
+    // EVERY census cell that moved, not the first: a re-pin reads the
+    // whole column at once, and a first-mismatch report costs one full
+    // refinement sweep per cell.
+    let mut moved: Vec<String> = Vec::new();
     for (i, t) in TOLS.into_iter().enumerate() {
         let got: (&str, f64) = match fit_offset_at(base, d, t, band()) {
             Ok((_, c)) => ("certified", c.hull_sup),
@@ -192,16 +196,19 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
             "{name} d={d} t={t}: the face moved to {} carrying {:e}",
             got.0, got.1
         );
-        if want[i].1.is_finite() {
-            assert!(
-                (got.1 - want[i].1).abs() <= want[i].1.abs() * 1e-3,
-                "{name} d={d} t={t}: the {} face carries {:e}, pinned at {:e}",
-                got.0,
-                got.1,
-                want[i].1
-            );
+        if want[i].1.is_finite() && (got.1 - want[i].1).abs() > want[i].1.abs() * 1e-3 {
+            moved.push(format!(
+                "t={t}: the {} face carries {:e}, pinned at {:e}",
+                got.0, got.1, want[i].1
+            ));
         }
     }
+    assert!(
+        moved.is_empty(),
+        "{name} d={d}: {} census cell(s) moved — {}",
+        moved.len(),
+        moved.join("; ")
+    );
     eprintln!(
         "{name} d={d}: budget={} cap={} not_finite(none)={} not_finite(lost)={} stalled={}",
         seen.budget, seen.cap, seen.not_finite_none, seen.not_finite_lost, seen.stalled
@@ -399,8 +406,14 @@ fn bumpy_at_delta_1e_6_keeps_every_faces_payload_invariants() {
         [
             ("cap", 2.4521974e-7),
             ("cap", 2.4521974e-7),
-            ("certified", 7.6102157e-10),
-            ("certified", 7.6102157e-10),
+            // Re-pinned when the C9 ring became a newtype over the
+            // backend (`7.6102157e-10` before): `cell_bound`'s
+            // assembly loses the ring's unconditional one-step
+            // outward pad per operation, so the same certificate on
+            // the same cells comes in a third tighter. The FACE each
+            // cell wears is unmoved, which is what this census counts.
+            ("certified", 5.0593136e-10),
+            ("certified", 5.0593136e-10),
             ("certified", 3.4386399e-6),
         ],
     );
@@ -415,10 +428,15 @@ fn bumpy_at_delta_1e_5_keeps_every_faces_payload_invariants() {
         &bumpy_patch(),
         1e-5,
         [
-            ("cap", 1.6337241e-7),
-            ("cap", 1.6337241e-7),
-            ("certified", 8.3373901e-10),
-            ("certified", 8.3373901e-10),
+            // Re-pinned for the reason the δ = 1e-6 column gives
+            // (`1.6337241e-7` and `8.3373901e-10` before): the ring's
+            // unconditional pad is gone from `cell_bound`, and the
+            // cap face's achieved bound moves with the certified one
+            // because it is the same assembly read one round short.
+            ("cap", 2.5343499e-8),
+            ("cap", 2.5343499e-8),
+            ("certified", 5.6830092e-10),
+            ("certified", 5.6830092e-10),
             ("certified", 3.0299228e-5),
         ],
     );

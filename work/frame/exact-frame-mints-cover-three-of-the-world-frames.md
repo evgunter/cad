@@ -4,6 +4,8 @@ kind: issue
 title: The frame witness's decision-free mints cover three world frames, so every other exact frame costs a K funnel name
 status: open
 opened: 2026-09-15
+priority: P1
+cost: D
 ---
 
 

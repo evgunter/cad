@@ -18,7 +18,7 @@ use crate::tags::{
 };
 use pncad::document::Dimension;
 use pncad::tolerance::Tol;
-use pncad::topo::{FaceKey, VertexKey};
+use pncad::topo::{FaceKey, SolidKey, VertexKey};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 // The shared Rust-source lexer: `src/tags.rs` is READ by the tag-table
@@ -2337,6 +2337,18 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::EmptyPlacementList { node: id(1) }, &["node"]);
     carries(&E::NonFinitePlacement { node: id(1) }, &["node"]);
     carries(&E::NonFiniteAlignment { node: id(1) }, &["node"]);
+    // The door's per-mate admission carries the solve's fault WHOLE
+    // beside the mate: the one payload that crosses as a value.
+    carries(
+        &E::MateRefused {
+            node: id(1),
+            fault: Box::new(pncad::document::MateFault::TableLacks {
+                mate: id(1),
+                what: "a clocking rider on a planar rest",
+            }),
+        },
+        &["node", "fault"],
+    );
     carries(&E::UpdateOnNonInstance { node: id(1) }, &["node"]);
     carries(&E::UnresolvedInput { input: id(2) }, &["input"]);
     carries(
@@ -2975,9 +2987,9 @@ fn a_blend_escalation_reads_as_prose_at_every_site() {
              rather than raising: {text}"
         );
         assert!(
-            text.contains("escalated at the "),
-            "the site names itself after the preposition the sentence supplies: \
-             {text}"
+            text.starts_with("escalated at ") && !text.contains("Key("),
+            "the site names itself after the preposition the sentence supplies, \
+             and no arena key: {text}"
         );
     }
 }
@@ -3484,11 +3496,14 @@ fn every_validation_finding_carries_every_word_its_arm_has() {
         Some("edge_face_pierce")
     );
 
-    // The one fieldless arm, and the shape of every arm that carries
-    // no payload at all: the variant alone, five `None`s beside it,
+    // An arm whose payload projects to no word at all, and the shape
+    // every such arm takes: the variant alone, five `None`s beside it,
     // so `getattr` never raises on a finding a caller did not expect.
+    // Check 7's subject is a solid, and a solid key is not a word.
     assert_eq!(
-        project(&ValidationError::NegativeVolume),
+        project(&ValidationError::NegativeVolume {
+            solid: SolidKey::default(),
+        }),
         Finding {
             variant: "negative_volume",
             subject_kind: None,
@@ -3560,7 +3575,13 @@ fn every_stale_declaration_arm_projects_the_payload_it_carries() {
     // the contradiction arm is the OTHER direction of the same
     // certification diff and carries a declaration that IS witnessed,
     // by counter-evidence.
-    assert_eq!(project(&ValidationError::NegativeVolume).stale_kind, None);
+    assert_eq!(
+        project(&ValidationError::NegativeVolume {
+            solid: SolidKey::default(),
+        })
+        .stale_kind,
+        None
+    );
 }
 
 /// **Every `RingContact` arm's word, built and read.**
@@ -4318,6 +4339,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "invalid_tolerance",
             "maintenance_refused",
             "maintenance_unrecorded",
+            "mate_refused",
             "measure_malformed",
             "meta_non_finite",
             "meta_not_set",
@@ -4363,9 +4385,12 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "edit_inner_variant_tag",
         values: &[],
+        // `mate_fault_tag` twice: the maintenance's refusal and the
+        // per-mate admission's each forward the solve's fault whole.
         delegates: &[
             "distribution_fault_tag",
             "expr_dimension_error_tag",
+            "mate_fault_tag",
             "mate_fault_tag",
             "measure_node_fault_tag",
             "meta_version_error_tag",
@@ -4646,6 +4671,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "emission",
             "escalated",
             "fragment_lineage_cycle",
+            "merged_chord",
+            "merged_chord_off_rim",
             "missing_upstream",
             "seam_vertex_parentage",
             "split_lineage_cycle",
@@ -5312,11 +5339,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "certificate_exceeded",
             "empty_loop",
             "invalid_chordal_tolerance",
+            "meridian_free_curved_face",
             "missing_entity",
             "null_scaffold_edge",
             "resolution_overflow",
             "ring_on_curved_face",
             "self_touching_trim_loop",
+            "single_column_curved_face",
             "tolerance_band_unformable",
             "triangulation",
             "unsupported_curve",

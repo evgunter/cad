@@ -183,9 +183,11 @@ pub enum SkinError {
 impl core::fmt::Display for SkinError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::TooFewSections { have, need } => {
-                write!(f, "skin: {have} sections, need at least {need}")
-            }
+            Self::TooFewSections { have, need } => write!(
+                f,
+                "{have} sections were given and at least {need} are needed. Recourse: supply \
+                 more sections"
+            ),
             Self::SectionShapeMismatch {
                 section,
                 expected,
@@ -193,38 +195,35 @@ impl core::fmt::Display for SkinError {
                 what,
             } => write!(
                 f,
-                "skin: section {section} has {found} {what}, section 0 has {expected} — a \
-                 skin matches like to like by index; supply sections with the same shape"
+                "section {section} has {found} {what} and section 0 has {expected}, but \
+                 sections are matched by index. Recourse: supply sections with the same shape"
             ),
             Self::SectionProfile { section, source } => {
-                write!(
-                    f,
-                    "skin: section {section} failed profile validation: {source}"
-                )
+                write!(f, "section {section} is not a valid profile: {source}")
             }
             Self::DomainNotUnit { section, domain } => write!(
                 f,
-                "skin: section {section} lives on [{}, {}], not the unit domain the \
-                 compatibility pass requires",
+                "section {section} lives on [{}, {}], not the unit domain the sections are \
+                 matched on",
                 domain.0, domain.1
             ),
             Self::DegenerateSection { section, what } => write!(
                 f,
-                "skin: section {section} is degenerate ({what}) — {COINCIDENCE_RECOURSE}"
+                "section {section} is degenerate ({what}). Recourse: {COINCIDENCE_RECOURSE}"
             ),
             Self::BadDegree { degree, sections } => write!(
                 f,
-                "skin: v-degree {degree} is not usable for {sections} sections (need \
-                 1 ≤ degree ≤ sections − 1)"
+                "degree {degree} is not usable for {sections} sections (it must be at least 1 \
+                 and below the section count)"
             ),
             Self::PathTangentReversal { station } => write!(
                 f,
-                "skin: the path's tangent reverses or vanishes at station {station} — no \
-                 rigid frame carries the profile through it"
+                "the path's tangent reverses or vanishes at station {station}, so no rigid \
+                 frame carries the profile through it. Recourse: smooth the path there"
             ),
-            Self::Fit(e) => write!(f, "skin: {e}"),
-            Self::KnotAlgebra(e) => write!(f, "skin: {e}"),
-            Self::Structure(e) => write!(f, "skin: {e}"),
+            Self::Fit(e) => write!(f, "{e}"),
+            Self::KnotAlgebra(e) => write!(f, "{e}"),
+            Self::Structure(e) => write!(f, "{e}"),
         }
     }
 }
@@ -1108,6 +1107,20 @@ pub fn sweep_geometry(
     loft_geometry(&sections, &places, v_degree, tol)
 }
 
+/// A path derivative normalised to the unit tangent, or the station's
+/// [`SkinError::PathTangentReversal`] when it has no direction (zero,
+/// infinite or poisoned length).
+// `!(x > 0)` is deliberate NaN-catching (the geom-core::spline::algebra
+// note): a poisoned coordinate must take the refusal arm.
+#[allow(clippy::neg_cmp_op_on_partial_ord)]
+fn unit_tangent(station: usize, d: Vec3<f64>) -> Result<Vec3<f64>, SkinError> {
+    let n = d.norm();
+    if !(n > 0.0) || !n.is_finite() {
+        return Err(SkinError::PathTangentReversal { station });
+    }
+    Ok(d / n)
+}
+
 /// The rigid section placements of a §10.4 path sweep — the
 /// path-following frame of [`sweep_geometry`], factored so the BODY
 /// assembly (M6-3, `crate::loft`) rides the exact same machinery with
@@ -1148,25 +1161,17 @@ pub fn sweep_places(
         place.translation.y,
         place.translation.z,
     );
-    let unit_tangent = |station: usize, t: f64| -> Result<Vec3<f64>, SkinError> {
-        let d = path.deriv(t);
-        let n = d.norm();
-        if !(n > 0.0) || !n.is_finite() {
-            return Err(SkinError::PathTangentReversal { station });
-        }
-        Ok(d / n)
-    };
     let t_of = |i: usize| {
         #[allow(clippy::cast_precision_loss)]
         let s = i as f64 / last;
         (hi - lo).mul_add(s, lo)
     };
-    let base_tangent = unit_tangent(0, t_of(0))?;
-    let base_point = path.eval(t_of(0));
+    let (base_point, base_d) = path.ders1(t_of(0));
+    let base_tangent = unit_tangent(0, base_d)?;
     let mut places = Vec::with_capacity(stations);
     for i in 0..stations {
-        let t = t_of(i);
-        let tangent = unit_tangent(i, t)?;
+        let (p, d) = path.ders1(t_of(i));
+        let tangent = unit_tangent(i, d)?;
         let axis = base_tangent.cross(tangent);
         let sin = axis.norm();
         let cos = base_tangent.dot(tangent);
@@ -1189,7 +1194,7 @@ pub fn sweep_places(
             // Pinned as executed behaviour, not asserted as intent.
             return Err(SkinError::PathTangentReversal { station: i });
         };
-        places.push(Affine3::translation(path.eval(t) - base_point) * turn * place);
+        places.push(Affine3::translation(p - base_point) * turn * place);
     }
     Ok(places)
 }

@@ -2,9 +2,12 @@
 id: nurbs-face-bound-unsound-on-a-random-rational
 kind: issue
 title: nurbs_face_bound is UNSOUND on a random rational surface: r1_random_rational_soundness_sweep failed hosted at seed 0xdae51dbd4e1b79fd
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1850, rational-cells-hull-the-f64-refined-net-so-the-described-patch-escapes]
+priority: P0
+cost: H
+closed: 2026-09-22
 ---
 
 
@@ -146,7 +149,7 @@ surfaces now (it reproduces with the old `mk` restored).
 **The cause** is `geom_brep::patch_bound::rational_cells` hulling the
 `f64`-refined net — PROPS' file, filed there with the exact-arithmetic
 measurements:
-`work/props/rational-cells-hull-the-f64-refined-net-so-the-described-patch-escapes.md`.
+`work/tess/rational-cells-hull-the-f64-refined-net-so-the-described-patch-escapes.md`.
 The certificate IS the defect (the described surface's true `‖S_uu‖`
 exceeds `muu` by 3e-16 relative, in exact rational arithmetic), not the
 test's bare `<=`.
@@ -163,3 +166,31 @@ test's bare `<=`.
 3. This row closes when the sweep is green over a bilinear-stratified
    census on PROPS' fix — the general sweep draws bilinear patches 1/9
    of the time, which is why two hosted hits took 4,385 runs.
+
+## 2026-09-18 — item 1 of "What stays TESS's" landed; the row stays open
+
+`r1_random_rational_soundness_sweep`, `assert_dominates` and their
+siblings in `crates/mesh` now fail through one spelling,
+`nurbs_cert::tests::Domination`: every number labelled with its side
+(`sampled` / `certified`), printed at `{:.17e}`, and each escaping
+component named with its excess. The 2026-09-16 seed now reads
+
+```
+UNSOUND at trial 29 (degree 1x1): `uu` ESCAPES: sampled 1.24859234123372476e0
+exceeds certified 1.24859234123372431e0 by 4.44089209850062616e-16 (3.557e-16
+of the certified); all components (uu, uv, vv): sampled (…) against certified (…)
+```
+
+**What is asserted did not change** — the comparison is still the bare
+`<=` with no allowance, so the row still goes red on the seeds that
+expose PROPS' defect, and that is correct until PROPS' fix lands. Items
+2 and 3 above are untouched.
+
+## Closed (2026-09-22)
+
+With TESS-2 (PR 3080): the certificate encloses the described patch,
+the bilinear-stratified census is 0 in 30,000 on the fix, and the
+exact-referee rows red on the old bound. The sweep itself still
+compares through a 64-ulp allowance — CHORD's
+`soundness-sweep-allowance-is-fifty-times-the-measured-sampler-error`
+carries that with the measured numbers.

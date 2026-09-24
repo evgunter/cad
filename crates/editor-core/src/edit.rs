@@ -421,6 +421,44 @@ impl<P> DocEdit<P> {
     /// answer here stops the crate compiling, rather than defaulting to
     /// "moves nothing" and making a refusal the load door owns
     /// reachable from an edit door.
+    /// **Whether this edit writes a mate's alignment datum** — the
+    /// numbers, the primitive, the sense and the rider the solve's
+    /// per-mate admission decides on. Exactly one edit does: the
+    /// insert of a `Node::Mate`, which is where the admission is asked.
+    /// A `Rebind` moves a reference's NAME (and, read at its own mint,
+    /// its operand), never the datum, and what it strands is N5's —
+    /// the solve's at evaluation.
+    ///
+    /// Exhaustive with no wildcard arm, for the reason
+    /// [`Self::moves_the_mate_graph`] gives: an arm added without an
+    /// answer here stops the crate compiling rather than writing a
+    /// datum past the admission.
+    pub(crate) fn writes_a_mates_datum(&self) -> bool {
+        match self {
+            Self::InsertNode { node } => matches!(node, Node::Mate { .. }),
+            Self::DeleteNode { .. }
+            | Self::SetMembers { .. }
+            | Self::Rebind { .. }
+            | Self::SetPlacement { .. }
+            | Self::SetParam { .. }
+            | Self::SetStructuralParam { .. }
+            | Self::SetExpression { .. }
+            | Self::SetDocParam { .. }
+            | Self::SetDocParamValue { .. }
+            | Self::SetDocParamUnit { .. }
+            | Self::SetDocParamDistribution { .. }
+            | Self::ReWitness { .. }
+            | Self::ReWitnessBulk { .. }
+            | Self::SetAppearance { .. }
+            | Self::ClearAppearance { .. }
+            | Self::SetTolerance { .. }
+            | Self::SetAppearanceMeta { .. }
+            | Self::ClearAppearanceMeta { .. }
+            | Self::SetRoots { .. }
+            | Self::UpdateReference { .. } => false,
+        }
+    }
+
     pub(crate) fn moves_the_mate_graph(&self) -> bool {
         match self {
             // The instance set and the mate set are both node sets, so
@@ -489,6 +527,22 @@ impl core::fmt::Display for CarryForwardDoor {
         })
     }
 }
+
+/// **The one recourse for a parameter name that does not exist**, and
+/// the only home of its wording.
+///
+/// One mistake reaches two doors. Typing an undeclared name into the
+/// value field reaches a carry-forward edit, which refuses
+/// [`EditError::DocParamNotDeclared`]; dragging that parameter's row
+/// is a lookup with no edit behind it, and the viewer refuses
+/// `Refusal::NoSuchParam` (`crates/viewer/src/session/refuse.rs`, the
+/// second reader of this const and the only one outside this crate).
+/// The two are converged on the RECOURSE and not on the sentence,
+/// because a drag has no refused edit to report and a sentence that
+/// borrowed the door's frame would report a refusal of something
+/// nobody attempted. What is converged is what the user must DO, so
+/// it is written once here and rendered twice.
+pub const UNDECLARED_PARAM_RECOURSE: &str = "declare it first";
 
 /// Typed, specific edit refusal (spec D6: no stringly errors).
 ///
@@ -693,12 +747,17 @@ pub enum EditError {
         fault: Option<Box<crate::mate::MateFault>>,
     },
     /// Replay of a logged edit that recorded no maintenance rows,
-    /// where the maintenance needed a solved frame (a gauge that moved
-    /// on a mated document). Replay never solves; a log from before
-    /// the rows were recorded is migrated through
-    /// [`Doc::replay_with`] (or `persist::load_with`) and re-saved.
+    /// where the edit performs cluster maintenance. Replay performs
+    /// exactly an entry's rows ([`LoggedEdit`]) and never solves: a row
+    /// that needs a frame has nothing to mint it from, and a row it
+    /// could derive from the documents alone (a `Join`, a `Drop`) is
+    /// refused rather than re-derived, so the entry and its replay
+    /// never disagree. `persist::save` verifies its log
+    /// through this same replay, so no file it wrote refuses here.
     MaintenanceUnrecorded {
-        /// The gauge whose frame the log does not carry.
+        /// The gauge the unrecorded act moves: the absorbed cluster's
+        /// for a join, the new gauge for a split or rewrite, the dropped
+        /// one for a drop.
         gauge: RecipeNodeId,
     },
     /// `SetParam` aimed at a STRUCTURAL slot — structural edits go
@@ -1175,6 +1234,31 @@ pub enum EditError {
         /// The mate being inserted.
         node: RecipeNodeId,
     },
+    /// The mate solve refuses this mate on its OWN datum — a fact
+    /// about the mate alone, which the solve records against it
+    /// whenever it reads the datum: its head does not resolve to a
+    /// member, it names one member twice, its class is outside the
+    /// vocabulary, a frame has no definite direction, the coset table
+    /// has no row for it, or its clocking rider contradicts the
+    /// coincidence it rides (decided over the mate's own lever,
+    /// through the reach this door holds). The same admission the
+    /// solve makes (`ASSEMBLY.md` A11 rule 1), asked at the insert
+    /// door, so the insert is refused; the recourse is the fault's
+    /// own. A mate on a pair the fold never reads — two members over
+    /// one instance — is refused on the datum alone all the same.
+    /// What is NOT this: a verdict about a PAIR — under-determined,
+    /// contradicting ANOTHER mate, an escalation on a fold — which
+    /// needs the cluster and stays the solve's; and a STATE a mate
+    /// comes to hold after insert (a head a rebind or a shrunk pattern
+    /// strands, a `Part` re-pointed, a doctored or older snapshot),
+    /// which the doors do not re-decide and the solve refuses at
+    /// evaluation.
+    MateRefused {
+        /// The mate being inserted.
+        node: RecipeNodeId,
+        /// The solve's own fault, unaltered.
+        fault: Box<crate::mate::MateFault>,
+    },
     /// A pin update aimed at a node that does not instantiate a part
     /// (A13; ASM-UPD D-1 — the [`EditError::PlacementOnNonInstance`]
     /// precedent: only a cross-document reference HAS a version).
@@ -1270,7 +1354,7 @@ impl core::fmt::Display for EditError {
         match self {
             Self::UnknownNode { id } => write!(f, "node {} is not live", id.0),
             Self::ProfileProgramRefused { node, refusal } => {
-                write!(f, "node {}'s profile program refused: {refusal}", node.0)
+                write!(f, "node {}'s sketch refused: {refusal}", node.0)
             }
             Self::UnresolvedInput { input } => {
                 write!(f, "input {} does not resolve to a live node", input.0)
@@ -1432,17 +1516,16 @@ impl core::fmt::Display for EditError {
             ),
             Self::ContinuousParamCannotBeCount { name } => write!(
                 f,
-                "parameter {name}: a continuous parameter cannot be a count — use a count parameter"
+                "parameter {name} is continuous, and a continuous parameter cannot be a count — \
+                 use a count parameter"
             ),
-            // The closing clause is also `Refusal::NoSuchParam`'s, in
-            // the viewer: one mistake reaches this door by typing and
-            // that lookup by dragging, and the two are converged on the
-            // RECOURSE rather than on the sentence. A viewer test holds
-            // them in step (`panel_edits::refusals_render_as_sentences`).
+            // The closing clause is `UNDECLARED_PARAM_RECOURSE`, which
+            // the viewer's `Refusal::NoSuchParam` renders too; the
+            // const's own doc says why the two doors converge there.
             Self::DocParamNotDeclared { name, door } => write!(
                 f,
                 "parameter {name} is not declared, so {door} has no declaration to carry \
-                 forward — declare it first"
+                 forward — {UNDECLARED_PARAM_RECOURSE}"
             ),
             Self::DocParamCountHasNoUnit { name } => write!(
                 f,
@@ -1473,7 +1556,14 @@ impl core::fmt::Display for EditError {
                  {offered} — changing a parameter's kind is a redeclaration"
             ),
             Self::PathOffTree { path } => {
-                write!(f, "expression path {path:?} runs off the tree")
+                let steps: Vec<String> = path.path.iter().map(u8::to_string).collect();
+                write!(
+                    f,
+                    "the expression path [{}] in node {}'s {} slot runs off the tree",
+                    steps.join(", "),
+                    path.node.0,
+                    path.slot.label()
+                )
             }
             Self::Dimension(e) => write!(f, "{e}"),
             Self::DeclareNamesMissingNode { name } => {
@@ -1486,11 +1576,11 @@ impl core::fmt::Display for EditError {
             ),
             Self::NonFiniteDocParam { name, field } => write!(
                 f,
-                "parameter {name}: {field} is not finite — the value and every distribution \
+                "parameter {name}'s {field} is not finite — the value and every distribution \
                  offset must be a number"
             ),
             Self::InvalidDistribution { name, fault } => {
-                write!(f, "parameter {name}: {fault}")
+                write!(f, "parameter {name} has an invalid distribution: {fault}")
             }
             Self::RebindTargetMissingNode { name } => write!(
                 f,
@@ -1612,6 +1702,11 @@ impl core::fmt::Display for EditError {
                 "the mate at node {} carries a non-finite alignment coordinate",
                 node.0
             ),
+            Self::MateRefused { node, fault } => write!(
+                f,
+                "the mate at node {} is refused by the solve on its own datum: {fault}",
+                node.0
+            ),
             Self::UpdateOnNonInstance { node } => write!(
                 f,
                 "node {} does not instantiate a part, so it has no pinned version to update",
@@ -1636,9 +1731,9 @@ impl core::fmt::Display for EditError {
             }
             Self::MaintenanceUnrecorded { gauge } => write!(
                 f,
-                "the logged edit moves gauge {} and carries no maintenance rows; replay never \
-                 solves, so the log predates the rows — migrate it (replay with a reach) and \
-                 re-save",
+                "the logged edit carries no maintenance rows but moves gauge {}; a log entry \
+                 records every cluster row `apply` returned for its edit, and replay neither \
+                 solves nor re-derives them",
                 gauge.0
             ),
         }
@@ -2408,7 +2503,9 @@ pub fn cascade_delete_order<P: crate::ProfilePayload>(
 /// a new value comes back with the [`EditRecord`] and the maintenance
 /// rows ([`Applied::maintenance`]). All validation is here — refs
 /// resolve, no cycles, dimension checks re-run on touched expressions
-/// (spec D6).
+/// (spec D6), and a mate being inserted passes the solve's own
+/// per-mate admission, its clocking rider decided over the mated
+/// parts' reach ([`EditError::MateRefused`]).
 pub fn apply<P: Clone + crate::ProfilePayload>(
     doc: &Doc<P>,
     edit: &DocEdit<P>,
@@ -2421,17 +2518,28 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
 /// **A logged edit and the maintenance it performed** — one entry of
 /// a document's edit log, on the wire and in a history.
 ///
-/// `maintenance` is what [`apply`] returned for the edit
-/// ([`Applied::maintenance`]): the A11 cluster-record rows the mate
-/// graph's motion forced on the placement registry, frames included.
-/// Replay ([`apply_logged`], [`Doc::replay`], `persist::load`)
-/// re-applies these rows and never solves, so the log carries what
-/// was decided (D9) and replay stays a function of the log alone.
+/// `maintenance` is the cluster half of what [`apply`] returned for
+/// the edit ([`Applied::cluster_rows`]): the A11 cluster-record rows
+/// the mate graph's motion forced on the placement registry, frames
+/// included. Replay ([`apply_logged`], [`Doc::replay`],
+/// `persist::load`) re-applies these rows and never solves, so the log
+/// carries what was decided (D9) and replay stays a function of the log
+/// alone. Replay performs EXACTLY an entry's rows: a non-empty list is
+/// re-applied verbatim, and an empty one whose edit would perform any
+/// refuses ([`EditError::MaintenanceUnrecorded`]) rather than having
+/// them re-derived — so the log has one answer to "what did this edit
+/// do", and the entry is it.
 ///
-/// On the wire an entry with no rows — the common case — is the bare
-/// edit, so it costs nothing beyond the edit itself and a log from
-/// before rows were recorded reads as a log of bare entries.
-#[derive(Debug, Clone, PartialEq)]
+/// On the wire an entry is `{ "edit": …, "maintenance": […] }`, both
+/// fields present, `maintenance` empty for an edit that performed
+/// none, and nothing is tried and then abandoned while reading one: an
+/// empty list and an absent field are not two spellings of one fact.
+/// (serde's derived visitor also reads the positional array
+/// `[<edit>, [<row>…]]`, the same hatch `persist`'s module docs
+/// disclose for the file body; it is a second spelling of the one
+/// shape, branched on by its first token, not a fallback.)
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct LoggedEdit<P> {
     /// The edit.
     pub edit: DocEdit<P>,
@@ -2440,8 +2548,11 @@ pub struct LoggedEdit<P> {
 }
 
 impl<P> LoggedEdit<P> {
-    /// An entry with no rows: an edit that performed no maintenance,
-    /// or one logged before rows were recorded.
+    /// An entry with no rows: a claim that the edit performs no
+    /// cluster maintenance, which replay holds it to
+    /// ([`EditError::MaintenanceUnrecorded`]). An edit that inserts or
+    /// removes a mate, or deletes a mated instance, needs its rows
+    /// (`LoggedEdit { edit, maintenance: applied.cluster_rows() }`).
     pub fn bare(edit: DocEdit<P>) -> Self {
         Self {
             edit,
@@ -2449,7 +2560,7 @@ impl<P> LoggedEdit<P> {
         }
     }
 
-    /// Every edit as a bare entry.
+    /// Every edit as a [`Self::bare`] entry.
     pub fn bare_all(edits: &[DocEdit<P>]) -> Vec<Self>
     where
         P: Clone,
@@ -2464,55 +2575,11 @@ impl<P> From<DocEdit<P>> for LoggedEdit<P> {
     }
 }
 
-impl<P: serde::Serialize> serde::Serialize for LoggedEdit<P> {
-    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        #[derive(serde::Serialize)]
-        struct WithRows<'a, P> {
-            edit: &'a DocEdit<P>,
-            maintenance: &'a [crate::mate::ClusterMaintenance],
-        }
-        if self.maintenance.is_empty() {
-            self.edit.serialize(serializer)
-        } else {
-            WithRows {
-                edit: &self.edit,
-                maintenance: &self.maintenance,
-            }
-            .serialize(serializer)
-        }
-    }
-}
-
-impl<'de, P: serde::Deserialize<'de>> serde::Deserialize<'de> for LoggedEdit<P> {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        // Every wire type refuses a field it does not know
-        // (`persist`'s module docs: a stale reader must not silently
-        // drop data), the entry-with-rows shape included.
-        #[derive(serde::Deserialize)]
-        #[serde(deny_unknown_fields)]
-        struct WithRows<P> {
-            edit: DocEdit<P>,
-            maintenance: Vec<crate::mate::ClusterMaintenance>,
-        }
-        #[derive(serde::Deserialize)]
-        #[serde(untagged)]
-        enum Wire<P> {
-            WithRows(WithRows<P>),
-            Bare(DocEdit<P>),
-        }
-        Ok(match Wire::deserialize(deserializer)? {
-            Wire::WithRows(WithRows { edit, maintenance }) => Self { edit, maintenance },
-            Wire::Bare(edit) => Self::bare(edit),
-        })
-    }
-}
-
 /// **Replay one logged edit**: the edit through every door [`apply`]
 /// has, then the RECORDED maintenance rows applied to the registry —
-/// no solve, no reach, no store. An entry with no rows runs the
-/// structural half of the maintenance (joins, drops, gauges that
-/// stayed) and refuses [`EditError::MaintenanceUnrecorded`] where a
-/// row would have needed a solved frame.
+/// no solve, no reach, no store. An entry with no rows claims the edit
+/// performs no cluster maintenance, and refuses
+/// [`EditError::MaintenanceUnrecorded`] if it performs any.
 ///
 /// # Errors
 ///
@@ -2522,41 +2589,16 @@ pub fn apply_logged<P: Clone + crate::ProfilePayload>(
     entry: &LoggedEdit<P>,
     tol: Tol,
 ) -> Result<Applied<P>, EditError> {
-    // An entry with no rows is one that performed no maintenance OR
-    // one logged before rows were recorded; the two are told apart by
-    // whether a row turns out to need a frame, which is `Never`'s
-    // refusal. An empty `Recorded` would claim the first and hide the
-    // second, so the branch is here, once.
+    // An entry with no rows claims the edit performs no cluster
+    // maintenance. `Never` holds it to that — any row the replay would
+    // perform refuses — where an empty `Recorded` would replay the edit
+    // as if it had none, silently. So the branch is here, once.
     let how = if entry.maintenance.is_empty() {
         Maintain::Never
     } else {
         Maintain::Recorded(&entry.maintenance)
     };
     apply_maintaining(doc, &entry.edit, tol, how)
-}
-
-/// **Replay one log entry** — the one step every replay loop takes
-/// ([`Doc::replay`], [`Doc::replay_with`], `persist::load`,
-/// `persist::save`'s verification pass, the viewer's history). With
-/// `migrate` absent it is [`apply_logged`]: the recorded rows, no
-/// solve. With `migrate` present, an entry that recorded no rows goes
-/// through the live door ([`apply`]) instead and comes back with the
-/// rows it performed — the migration of a log from before rows were
-/// recorded; an entry with rows replays from them either way.
-///
-/// # Errors
-///
-/// [`apply_logged`]'s, or [`apply`]'s on a migrated entry.
-pub fn replay_entry<P: Clone + crate::ProfilePayload>(
-    doc: &Doc<P>,
-    entry: &LoggedEdit<P>,
-    tol: Tol,
-    migrate: Option<&dyn MateReach>,
-) -> Result<Applied<P>, EditError> {
-    match migrate {
-        Some(reach) if entry.maintenance.is_empty() => apply(doc, &entry.edit, tol, reach),
-        _ => apply_logged(doc, entry, tol),
-    }
 }
 
 /// [`apply`] with the maintenance's source chosen by the door
@@ -2643,6 +2685,24 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             new.order.push(id);
             check_acyclic(&new)?;
             crate::roots::on_insert(&mut new, id, &node.inputs());
+            // The solve's own per-mate admission (A11 rule 1), asked
+            // of the document the mate now stands in — its walks read
+            // the operands there — through the reach this door holds:
+            // a mate the coset table refuses on its own datum is
+            // refused at this door. The verdicts about a PAIR stay the
+            // solve's (`admit_mate`), and so does every STATE a mate
+            // comes to hold after insert — this is the one door that
+            // writes a mate's datum (`DocEdit::writes_a_mates_datum`),
+            // and a reference a later edit strands is N5's. The
+            // environment is the document's own nominal, built here
+            // once for this door's reading, the way the evaluation
+            // builds its own and hands it to the solve.
+            debug_assert!(edit.writes_a_mates_datum() == matches!(node, Node::Mate { .. }));
+            if matches!(node, Node::Mate { .. }) {
+                let env = new.param_env::<f64>();
+                crate::mate::solve::admit_mate(&new, id, node, &env, how.reach(), tol)
+                    .map_err(|fault| EditError::MateRefused { node: id, fault })?;
+            }
             EditRecord {
                 minted: Some(id),
                 structural: true,
@@ -3300,9 +3360,9 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
     ///
     /// # Errors
     ///
-    /// [`apply_logged`]'s: an entry with no rows whose edit moved a
-    /// gauge refuses [`EditError::MaintenanceUnrecorded`] — a log from
-    /// before rows were recorded, which [`Doc::replay_with`] migrates.
+    /// [`apply_logged`]'s: an entry with no rows whose edit performs
+    /// cluster maintenance refuses [`EditError::MaintenanceUnrecorded`]
+    /// — the log claims no maintenance the edit in fact performed.
     pub fn replay(
         id: crate::DocumentId,
         log: &[LoggedEdit<P>],
@@ -3310,38 +3370,9 @@ impl<P: Clone + crate::ProfilePayload> Doc<P> {
     ) -> Result<Doc<P>, EditError> {
         let mut doc = Doc::empty(id, tol);
         for entry in log {
-            doc = replay_entry(&doc, entry, tol, None)?.doc;
+            doc = apply_logged(&doc, entry, tol)?.doc;
         }
         Ok(doc)
-    }
-
-    /// **The migration door**: [`Doc::replay`] for a log whose entries
-    /// may predate the maintenance rows. An entry with rows replays
-    /// from them; an entry with none is applied through `reach` (the
-    /// live door) and its rows are derived and RECORDED, so the log
-    /// returned beside the document replays without a store from then
-    /// on. Re-save it.
-    ///
-    /// # Errors
-    ///
-    /// [`apply`]'s and [`apply_logged`]'s.
-    pub fn replay_with(
-        id: crate::DocumentId,
-        log: &[LoggedEdit<P>],
-        tol: Tol,
-        reach: &dyn MateReach,
-    ) -> Result<(Doc<P>, Vec<LoggedEdit<P>>), EditError> {
-        let mut doc = Doc::empty(id, tol);
-        let mut migrated = Vec::with_capacity(log.len());
-        for entry in log {
-            let applied = replay_entry(&doc, entry, tol, Some(reach))?;
-            migrated.push(LoggedEdit {
-                edit: entry.edit.clone(),
-                maintenance: applied.cluster_rows(),
-            });
-            doc = applied.doc;
-        }
-        Ok((doc, migrated))
     }
 }
 
@@ -3416,5 +3447,75 @@ mod tests {
             !keyed_on_the_gauge.moves_the_mate_graph(),
             "SetPlacement writes the registry the reconciliation re-keys; it moves no reading edge"
         );
+    }
+
+    /// **The datum question is answered by the edit too**: the insert
+    /// of a mate writes a mate's alignment datum and nothing else does
+    /// — not the insert of another node, not the rebind that moves a
+    /// head (a reference, not the datum), not the structural edit that
+    /// shrinks a pattern under one. The per-mate admission is asked
+    /// at exactly the edit this answers `true` for.
+    #[test]
+    fn exactly_the_mate_insert_writes_a_mates_datum() {
+        let id = crate::node::RecipeNodeId(1);
+        let name = |node| crate::names::StableName {
+            kind: crate::names::EntityKind::Face,
+            node,
+            path: vec![],
+        };
+        let frame = crate::mate::MateFrame {
+            origin: [0.0; 3],
+            axis: [0.0, 0.0, 1.0],
+            reference: [1.0, 0.0, 0.0],
+        };
+        let mate: DocEdit<ProfileProgram> = DocEdit::InsertNode {
+            node: crate::node::Node::Mate {
+                a: crate::node::SitedFace::at_mint(
+                    crate::names::FaceName::new(name(id)).expect("a face"),
+                ),
+                b: crate::node::SitedFace::at_mint(
+                    crate::names::FaceName::new(name(crate::node::RecipeNodeId(2)))
+                        .expect("a face"),
+                ),
+                class: crate::mate::ContactClass::Rest,
+                alignment: crate::mate::Alignment {
+                    a: frame,
+                    b: frame,
+                    primitive: crate::mate::MatePrimitive::FrameCoincidence,
+                    sense: crate::mate::AxisSense::Aligned,
+                    clocking: None,
+                },
+            },
+        };
+        assert!(mate.writes_a_mates_datum());
+        let others: [DocEdit<ProfileProgram>; 3] = [
+            DocEdit::InsertNode {
+                node: crate::node::Node::Datum(crate::node::Datum::Point {
+                    position: [
+                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
+                            .expect("finite"),
+                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
+                            .expect("finite"),
+                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
+                            .expect("finite"),
+                    ],
+                }),
+            },
+            DocEdit::Rebind {
+                from: name(id),
+                to: name(crate::node::RecipeNodeId(2)),
+            },
+            DocEdit::SetStructuralParam {
+                node: id,
+                slot: crate::node::SlotId::Count,
+                expr: crate::expr::Expr::count(1),
+            },
+        ];
+        for edit in &others {
+            assert!(
+                !edit.writes_a_mates_datum(),
+                "{edit:?} writes no mate's datum; what it strands is the solve's"
+            );
+        }
     }
 }

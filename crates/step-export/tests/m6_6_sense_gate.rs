@@ -301,7 +301,7 @@ fn whole_body_inverted_ball_stays_negative_volume() {
         validate_geometric(&inverted, Tol::witness()).expect_err("inverted ball must refuse");
     assert!(
         errs.iter()
-            .any(|e| matches!(e, ValidationError::NegativeVolume)),
+            .any(|e| matches!(e, ValidationError::NegativeVolume { .. })),
         "expected NegativeVolume, got {errs:?}"
     );
     assert!(

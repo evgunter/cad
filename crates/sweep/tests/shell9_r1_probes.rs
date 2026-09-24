@@ -422,7 +422,9 @@ fn r1_drum_reverted_cavity_alone() {
     println!("[r1drum] reverted cavity alone: {v:?}");
     assert_eq!(
         v,
-        Err(vec![topo::ValidationError::NegativeVolume]),
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: reverted.solids().next().expect("one solid").0
+        }]),
         "the reversal mirrors the cap plane's images: only the complement's volume fails"
     );
     let out = topo::shell(&drum, 0.05, tol()).expect("the drum shells");

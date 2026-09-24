@@ -65,7 +65,7 @@ pub mod program;
 /// The certified locally-valid range of ONE field — the on-demand
 /// query whose answer is meant to REPLACE the sampling probe's
 /// reading, in a consumer nothing in this tree has built yet
-/// (`work/chrome/certify-affordance-on-the-bounds-panel`,
+/// (`work/offer/certify-affordance-on-the-bounds-panel`,
 /// `work/lib/certified-range-has-no-python-door`). Gated on `interval`
 /// for [`mod@drive`]'s reason: the certificate IS a drive's leaves,
 /// and a query that fell back to `f64` would be the sampler it exists
@@ -127,7 +127,7 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, Maintenance, apply,
-    apply_logged, cascade_delete_order, replay_entry,
+    apply_logged, cascade_delete_order,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,
@@ -150,7 +150,7 @@ pub use mate::{
     ClusterMaintenance, Coset, Lever, LeverRefusal, MateFault, MateFrame, MatePrimitive, MateReach,
     MateRole, MateSide, Member, NO_AT_REST_RECORD_RECOURSE, ReachRefusal, RefusingReach,
     SolvedPoses, Subgroup, UNDER_RECOURSE, class_admission, clusters, gauge_of, member_of,
-    reading_edges, relative_freedom_components, solve_document,
+    reading_edges, relative_freedom_components, solve_document, table_gap,
 };
 pub use mc::{
     DEFAULT_SAMPLES, DEFAULT_SEED, McAssertion, McConfig, McMeasure, McRefusal, McReport,
@@ -183,7 +183,7 @@ pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
 pub use persist::{
     Loaded, PersistError, REGENERATE_RECOURSE, canonical_bytes, content_pin, header_document_id,
-    load, load_with, save,
+    load, save,
 };
 pub use persist::{NonFiniteSite, ProgramFault, SnapshotError};
 pub use placement::{AxisRefusal, Frame, FrameFault};

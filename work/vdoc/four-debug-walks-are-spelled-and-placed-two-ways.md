@@ -5,6 +5,8 @@ title: DocSession's Debug walk sits 1,819 lines below its declaration while the 
 status: open
 opened: 2026-09-06
 refs: [2093]
+priority: P4
+cost: E
 ---
 
 

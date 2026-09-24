@@ -4,6 +4,8 @@ kind: issue
 title: camera.rs declines an error-arm split on the ground that a promoted review suite pins the arm — the reading Ev withdrew, in src/
 status: open
 opened: 2026-09-19
+priority: P4
+cost: E
 ---
 
 

@@ -503,7 +503,7 @@ fn the_kind_refusal_no_longer_names_the_cone() {
         kind: geom_brep::SurfaceKind::Nurbs,
     }
     .to_string();
-    assert!(msg.contains("HEALTHY"), "{msg}");
+    assert!(msg.contains("The solid itself is fine"), "{msg}");
     assert!(!msg.contains("corrupt"), "{msg}");
     assert!(
         !msg.contains("cone"),
@@ -523,7 +523,7 @@ fn the_kind_refusal_no_longer_names_the_cone() {
         face: body.faces().next().unwrap().0,
     }
     .to_string();
-    assert!(msg.contains("HEALTHY"), "{msg}");
+    assert!(msg.contains("The solid itself is fine"), "{msg}");
     assert!(msg.contains("Recourse"), "{msg}");
     assert!(
         msg.contains("apex"),

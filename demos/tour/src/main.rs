@@ -52,6 +52,9 @@ mod bool_bodies;
 mod booleans;
 mod bossplate;
 mod bud;
+mod chain;
+#[cfg(feature = "interval")]
+mod chaintol;
 mod checks;
 mod crosslap;
 mod curvedcut;
@@ -66,6 +69,7 @@ mod klein;
 mod letterforms;
 mod lily;
 mod mate7a_r2_probes;
+mod mcchain;
 mod mcplate;
 mod plate;
 #[cfg(feature = "probe")]
@@ -445,9 +449,7 @@ fn run_body(
     // tier 3's is the sign and a continuation.
     let measured = match &sb.contacts {
         Some(contacts) if sb.at_rest => {
-            match pncad::topo::validate_pseudomanifold_certificate_certified(
-                &sb.body, contacts, tol,
-            ) {
+            match pncad::topo::validate_pseudomanifold_certificate(&sb.body, contacts, tol) {
                 Ok(props) => {
                     println!("   [{label}] tier-3' at rest: every declaration certified");
                     Measured::Number(props)
@@ -468,7 +470,7 @@ fn run_body(
             }
         }
         Some(contacts) => Measured::Number(
-            pncad::topo::validate_pseudomanifold_certificate_certified(&sb.body, contacts, tol)
+            pncad::topo::validate_pseudomanifold_certificate(&sb.body, contacts, tol)
                 .unwrap_or_else(|e| {
                     panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}")
                 }),
@@ -1108,6 +1110,34 @@ fn main() {
         "   wrote {} ({} bytes) — compose with demos/render-mc.sh",
         mc_path.display(),
         svg.len()
+    );
+
+    // The chain's density cell (`mcchain`), beside the plate's and for
+    // the same reason: a second 2-D picture the tour draws itself.
+    println!("\n-- the MC density chain (E11.1: four links, an angular error at every joint) --");
+    let chain_svg = mcchain::narration(tol);
+    let chain_path = mc_dir.join("chain-density.svg");
+    std::fs::write(&chain_path, &chain_svg).expect("write the chain density sheet");
+    println!(
+        "   wrote {} ({} bytes) — compose with demos/render-mc.sh",
+        chain_path.display(),
+        chain_svg.len()
+    );
+
+    // The chain's certified half, beside its picture and behind the
+    // `interval` feature for the reason the plate's tolerance cell is:
+    // the certified scalar's leaves are its entire subject.
+    #[cfg(feature = "interval")]
+    {
+        println!(
+            "\n-- the chain on the certified lane (E6/E12: one leaf per link count, measured) --"
+        );
+        chaintol::narration(tol);
+    }
+    #[cfg(not(feature = "interval"))]
+    println!(
+        "\n-- the chain's certified lane is SKIPPED: build with `--features interval`, \
+         whose certified scalar is the cell's entire subject --"
     );
 
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));

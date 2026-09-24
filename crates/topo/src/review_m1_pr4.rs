@@ -29,7 +29,7 @@
 //! release-mode torn-body batteries.
 //!
 //! Only lint fixes and the promotion of the corrected re-make taxonomy
-//! were applied at promotion; the probes are otherwise verbatim.
+//! were applied at promotion; the probes were otherwise verbatim then.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

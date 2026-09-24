@@ -5,6 +5,8 @@ title: A PR that goes mergeable_state dirty against a moved main gets NO Actions
 status: open
 opened: 2026-09-05
 refs: [1910]
+priority: P4
+cost: E
 ---
 
 

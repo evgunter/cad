@@ -40,7 +40,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::MM;
 use viewer::bounds::BoundsProbe;
 use viewer::props::{self, SlotDriver, SlotValue, in_written, rendering_unit};
-use viewer::session::{BoundsTarget, DocSession, ProfileShape, Refusal, SessionOp};
+use viewer::session::{BoundsTarget, DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
 use viewer::tree::RowStatus;
 
 /// The lighthouse's proportions, as the parameters are first declared:
@@ -132,7 +132,7 @@ fn drum(
     let profile = insert(
         session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Circle {
                 // A positive placeholder; the expression takes over
                 // before anything downstream consumes it.
@@ -205,7 +205,8 @@ fn the_parametric_living_walk() {
     // an undeclared name — here a typo — is refused by the EDIT door
     // instead: `DocEdit::SetDocParamValue` carries an existing
     // declaration forward and says so, `EditError::DocParamNotDeclared`
-    // naming the parameter and the recourse ("declare it first").
+    // naming the parameter and the one recourse both doors render
+    // (`editor_core::edit::UNDECLARED_PARAM_RECOURSE`).
     // Neither commits or mints history.
     let before = session.history().len();
     let outcome = session.perform(SessionOp::CreateParam {

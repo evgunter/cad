@@ -5,6 +5,8 @@ title: set_face_surface swaps a face onto a chart that mints nothing and leaves 
 status: open
 opened: 2026-09-14
 refs: [loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart, mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows, attach-postconditions-validate-the-whole-body-and-panic]
+priority: P0
+cost: D
 ---
 
 Found by PR 2549's R1 reviewer, by execution, and filed by that PR's

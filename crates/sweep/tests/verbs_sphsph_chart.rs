@@ -550,11 +550,9 @@ fn the_refusal_names_the_class_it_needs() {
     }
     .to_string();
     for want in [
-        "latitude rim",
-        "meridian great circle",
-        "POLE strictly inside",
-        "azimuth jumps by",
-        "Recourse",
+        "sphere face",
+        "Recourse: bound the sphere face with latitude circles and meridians that meet at \
+         the poles",
     ] {
         assert!(msg.contains(want), "missing {want:?}: {msg}");
     }
@@ -655,7 +653,13 @@ fn a_meridian_edge_with_a_pole_strictly_inside_refuses_at_both_doors() {
         matches!(err, PointInSolidError::PartialSphereFace { .. }),
         "{err:?}"
     );
-    assert!(err.to_string().contains("POLE strictly inside"), "{err}");
+    // The variant does not carry WHICH remainder it met, so the
+    // sentence cannot name the pole; its recourse is the one that
+    // repairs this face.
+    assert!(
+        err.to_string().contains("meridians that meet at the poles"),
+        "{err}"
+    );
 }
 
 /// **The §7 non-iso-bounded refusal, planted**, with its two-tolerance
@@ -825,7 +829,8 @@ fn a_ringed_sphere_face_refuses_at_both_doors() {
         matches!(err, PointInSolidError::PartialSphereFace { .. }),
         "{err:?}"
     );
-    assert!(err.to_string().contains("ring"), "{err}");
+    // A ringed face is repaired by keeping it whole.
+    assert!(err.to_string().contains("keep it whole"), "{err}");
 }
 
 /// The body's one flat disc face — the revolve's cap, whose plane's

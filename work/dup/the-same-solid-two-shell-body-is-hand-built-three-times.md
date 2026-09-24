@@ -1,9 +1,11 @@
 ---
 id: the-same-solid-two-shell-body-is-hand-built-three-times
 kind: issue
-title: The same-solid two-shell body is hand-built three times in topo/src, twice by the same three raw writes
+title: The same-solid multi-shell body is hand-built four times in topo/src, and the newest copy is a candidate home
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 
@@ -98,6 +100,19 @@ comment and a pointer here. The class is still **three sites** —
 `euler_ring.rs`, `body.rs`, `validate.rs` — and `body.rs`'s is now one
 named block instead of two open-coded ones. Where the shared fixture
 lives, and with what parameters, is still the table above.
+
+## 2026-09-24: a FOURTH site landed on main — the class is four, not three
+
+`crates/topo/src/tier3_tests.rs`'s `refile_shells(body, donor, keeper)`
+arrived after this row was written and is the same construction
+generalised: every shell of `donor` re-homed under `keeper` by raw
+write (back-pointers, then `keeper`'s list), `donor`'s list cleared,
+and the arena removal PAIRED with its provenance removal. It is the
+closest thing in the tree to the shared fixture this row asks for — an
+all-shells `adopt_shell_into` — which makes it a candidate home, not
+only a fourth copy. Found by the `Body::shells_of_solid` unit's re-sweep
+at its merge with main; recorded, not folded, because the home is this
+row's decision.
 
 ## Not measured
 

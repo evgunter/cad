@@ -4,6 +4,8 @@ kind: issue
 title: needs_ev is schema-valid on a program and the Waiting on Ev queue can never show one, so a program's exit ask is invisible on the board
 status: open
 opened: 2026-09-15
+priority: P3
+cost: E
 ---
 
 

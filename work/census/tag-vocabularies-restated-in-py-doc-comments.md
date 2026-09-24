@@ -4,6 +4,8 @@ kind: issue
 title: Eight delegating getters under src/py/ restate their map's vocabulary in prose
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

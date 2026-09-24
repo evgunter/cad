@@ -5,6 +5,8 @@ title: The slot range button mints a third sentence for the condition Refusal::a
 status: open
 opened: 2026-09-19
 refs: [a-disabled-control-says-why-in-four-shapes]
+priority: P3
+cost: E
 ---
 
 Found by the census in `a-disabled-control-says-why-in-four-shapes`, at
@@ -46,7 +48,7 @@ helper's doc comment is explicit about being the only composition:
 
 The range button is the third surface, and it does not call it. Worse,
 the *same panel* already does: `Panel::slot_notes_ui`
-(`properties.rs:718-726`, the `Refusal::affordance` call at `:724`) draws `Refusal::affordance(params, …)` for a
+(`properties.rs:735-743`, the `Refusal::affordance` call at `:741`) draws `Refusal::affordance(params, …)` for a
 driven slot. So a reader looking at a driven slot sees the ratified
 affordance on the row and a different sentence on the button beside it.
 

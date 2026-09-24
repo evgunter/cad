@@ -4,6 +4,8 @@ kind: issue
 title: Three unbounded steps still run inside the frame after the pick index moved off it
 status: open
 opened: 2026-09-05
+priority: P1
+cost: D
 ---
 
 

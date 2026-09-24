@@ -4,6 +4,8 @@ kind: issue
 title: One display tolerance value written out in seven places in crates/viewer/tests
 status: open
 opened: 2026-09-20
+priority: P4
+cost: E
 ---
 
 

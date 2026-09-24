@@ -208,6 +208,8 @@ pub enum MatePrimitive {
     /// it can be REFUSED: the table lacks the entry by design (a bare
     /// angular relation pins no coset of the shapes the table closes
     /// over), and an unrepresentable refusal is an untestable one.
+    /// Refused at the insert door and at every solve that reads the
+    /// datum ([`table_gap`]), not re-decided on replay.
     Clocking,
 }
 
@@ -281,8 +283,10 @@ pub struct Alignment {
     /// primitive — on [`MatePrimitive::Coaxial`] it cuts the residual
     /// to prismatic along the axis; on
     /// [`MatePrimitive::FrameCoincidence`] it is redundant-or-
-    /// contradictory and gets decided; on a planar rest the table has
-    /// no entry and the solve refuses typed.
+    /// contradictory and gets decided over the mate's own lever — at
+    /// the insert door and at every solve that reads the datum, not
+    /// re-decided on replay; on a planar rest the table has no entry
+    /// ([`table_gap`]) and the same doors refuse typed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub clocking: Option<f64>,
 }
@@ -436,6 +440,33 @@ impl ClassAdmission {
             Self::NoAtRestRecord { why } => why,
             Self::NotAdmitted => CLASS_DEFERRAL,
         }
+    }
+}
+
+/// **The coset table's static gaps** — the primitive-and-rider pairs
+/// the table has no row for, refused on the datum alone with no
+/// geometry read and no lever formed: a clocking rider on a planar
+/// rest, and a standalone clocking with no carrying primitive. The
+/// sentence is the table's own, and is what
+/// [`MateFault::TableLacks`]'s `what` carries.
+///
+/// INVARIANT: every door that refuses a static gap reads it here —
+/// the coset table itself (`mate/solve.rs`'s `mate_coset`, at the
+/// arm each gap falls in, so a frame refusal still precedes it) and
+/// the viewer's mate tool, which refuses before any geometry — so no
+/// second match over the pair can drift from the table. `None` for
+/// every pair the table has a row for, decided or not: a rider on a
+/// coincidence is DECIDED over a lever, which is not a gap.
+pub fn table_gap(primitive: MatePrimitive, clocking: Option<f64>) -> Option<&'static str> {
+    match (primitive, clocking) {
+        (MatePrimitive::PlanarRest { .. }, Some(_)) => Some("a clocking rider on a planar rest"),
+        (MatePrimitive::Clocking, _) => Some("a standalone clocking with no carrying mate"),
+        (
+            MatePrimitive::FrameCoincidence
+            | MatePrimitive::Coaxial
+            | MatePrimitive::PlanarRest { .. },
+            _,
+        ) => None,
     }
 }
 
@@ -806,7 +837,10 @@ pub enum MateFault {
     },
     /// **A mate's reference names no member of A11's vocabulary** —
     /// N5's dangling reference. It contributes no reading edge; the
-    /// solve refuses typed rather than pretending the mate is absent.
+    /// insert door and every solve refuse typed rather than pretending
+    /// the mate is absent — at insert, where the head resolves to no
+    /// member as authored, and at evaluation, where a later edit
+    /// stranded it.
     ///
     /// Exactly two causes, and both are about a copy or a node that
     /// does not exist:
@@ -878,8 +912,8 @@ pub enum MateFault {
     /// pattern's value the body below it is. A document where those
     /// disagree would be PLACED by the name and GATHERED by the
     /// `Part` — two different bodies for one declaration — so the
-    /// solve refuses rather than choosing, and reports both indices
-    /// in the `Part`'s index space.
+    /// insert door and the solve refuse rather than choosing, and
+    /// report both indices in the `Part`'s index space.
     ///
     /// Raised per REFERENCE, where the solve reads each one, so it
     /// reaches a declaring mate as surely as a tree edge's.

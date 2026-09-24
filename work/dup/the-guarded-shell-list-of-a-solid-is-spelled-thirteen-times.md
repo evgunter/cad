@@ -4,6 +4,8 @@ kind: issue
 title: Body::shells_of_solid is the missing door: the guarded shell list of a solid is spelled twenty-one times in topo/src, not thirteen
 status: closed
 opened: 2026-09-20
+priority: P1
+cost: D
 closed: 2026-09-20
 refs: [listing-a-solids-faces-is-spelled-four-times-in-topo-src, two-spellings-of-the-face-to-solid-owner-index, the-guarded-shell-list-of-a-solid-is-spelled-eleven-times-outside-topo-src, seqgen-fusion-remake-shell-is-dark, the-boolean-joins-shell-processing-order-is-unasserted]
 ---
@@ -514,7 +516,23 @@ Residue, one file each:
 | the boolean join's shell-processing order is unasserted | `work/tint/the-boolean-joins-shell-processing-order-is-unasserted.md` |
 | the owner index: two doors that already DISAGREE about a lone vertex, measured — **and the falsification is pinned by nothing in the tree** | `work/dup/two-spellings-of-the-face-to-solid-owner-index.md` |
 | the same-solid two-shell body: a FOURTH hand-build, minted by this unit's own reference row and folded back to a local helper | `work/dup/the-same-solid-two-shell-body-is-hand-built-three-times.md` |
-| `review_m1_pr4.rs`'s *"the probes are otherwise verbatim"* — a closed exception list this unit's fold added to without amending | `work/dup/review-m1-pr4s-verbatim-sentence-is-one-edit-less-true.md` |
+
+**Re-swept at the merge with main (`2135285`), because a sweep is
+accurate as of its merge base and not its merge**: four new members
+had landed in `crates/topo/src/tier3_tests.rs` (**atrest**'s ground) —
+`refile_shells`' donor read and three test reads (~:1182, ~:1351,
+~:1363, ~:1425). All four fold onto the door, same substitution. No
+other new `get_solid(` reached `.shells` anywhere under `topo/src`.
+`refile_shells` is also a fourth site of the two-shell-body fixture
+class, recorded on that row.
+
+Not filed, fixed: `review_m1_pr4.rs`'s header said *"the probes are
+otherwise verbatim"*, a present-tense claim this unit's fold made
+false. It now says they *were* otherwise verbatim at promotion — a
+dated claim that stays true — per `work/README.md`'s rule that a small
+fix you can make where you stand is made rather than filed. The file
+carries no PR #17 attribution, and its no-simplify sentence is
+untouched.
 
 ## A note on how two of these corrections nearly did not land
 

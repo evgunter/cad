@@ -37,17 +37,28 @@ fn rows() -> Rows {
 }
 
 const ROW_COUNT_INTERVAL: usize = 480;
-const DIGEST_INTERVAL: u64 = 0x077f_2c93_d2ac_b9b5;
+/// **Re-captured when the C9 ring became a newtype over the backend**
+/// (`0x077f_2c93_d2ac_b9b5` before): the ring's unconditional one-step
+/// outward pad per operation is gone, and the backend's exactness
+/// witnesses stand in its place. 222 of these 480 rows moved TIGHTER
+/// and none moved looser — the same direction, and the same cause, as
+/// the default lane's corpus.
+const DIGEST_INTERVAL: u64 = 0xa75e_f69a_a5a0_c32b;
 const SPOT_INTERVAL: &[(&str, u64)] = &[
     ("d1.nr.interval.hull@1.lo", 0xbff8_51eb_851e_b852),
     ("d2m2.nr.interval.sup_domain", 0x4002_8d4f_df3b_645a),
     ("d2m2.rat.interval.hull_rat@4.hi", 0x4002_8d4f_df3b_645a),
-    ("d3.nr.interval.dhull@5.lo", 0xc002_9062_4dd2_f1ae),
-    ("d3.rat.interval.ddomain.hi", 0x4020_4ed9_1687_2b06),
+    // Tighter by three steps: the derivative-hull fold's differences
+    // are exact at these coefficients and are no longer padded.
+    ("d3.nr.interval.dhull@5.lo", 0xc002_9062_4dd2_f1ab),
+    // Tighter by four steps, same cause one door over.
+    ("d3.rat.interval.ddomain.hi", 0x4020_4ed9_1687_2b02),
     ("d3m2.rat.interval.sup@6", 0x4002_8d4f_df3b_645a),
     ("d3m3.nr.interval.domain.hi", 0x4002_8d4f_df3b_645a),
     ("d3m3.rat.interval.sup_domain_rat", 0x4002_8d4f_df3b_645a),
-    ("d4.nr.interval.dcoeff.3.hi", 0xc016_d4fd_f3b6_459e),
+    // Tighter by four steps (a `hi` on a negative value, so the bit
+    // pattern rises): a chain of exact differences the ring padded.
+    ("d4.nr.interval.dcoeff.3.hi", 0xc016_d4fd_f3b6_45a2),
     ("d4.rat.interval.domain_rat.lo", 0xbff8_51eb_851e_b852),
 ];
 

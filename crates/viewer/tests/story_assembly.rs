@@ -10,11 +10,12 @@
 //! included — and a save/reopen that resolves the whole workspace
 //! again.
 //!
-//! One stage is a mistake and its recovery: a clocking rider on the
-//! seat's frame coincidence, which the coset table decides against.
-//! The refusal reaches every instance in the cluster, and the tree
-//! sends the user to the MATE that caused it — the four instance rows
-//! read as downstream of the rider, not as four failures of their own.
+//! One stage is a mistake and where it is met: a clocking rider on
+//! the seat's frame coincidence, which the coset table decides
+//! against over the mate's own lever. The edit door asks that same
+//! admission, so `perform` refuses the mate typed and nothing enters
+//! the history — no instance row ever reads as downstream of a rider
+//! the user could not have committed.
 //!
 //! The at-rest badge tells the truth twice: the mated base CERTIFIES
 //! (its one contact is a declared, nested rest), and the finished
@@ -49,7 +50,8 @@ use viewer::input::ViewportSize;
 use viewer::matetool::{MateTool, MateToolState};
 use viewer::pickindex::PickIndex;
 use viewer::session::{
-    AtRestBadge, DocSession, FaceSelection, Hovered, ProfileShape, Refusal, Selection, SessionOp,
+    AtRestBadge, DocSession, FaceSelection, Hovered, ProfilePlane, ProfileShape, Refusal,
+    Selection, SessionOp,
 };
 use viewer::tree::RowStatus;
 
@@ -103,7 +105,7 @@ fn author_box_part(
     let profile = insert(
         session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Rectangle { width, height })],
         },
     );
@@ -802,74 +804,58 @@ fn the_windmill_story() {
         "the declared overhanging blades certify through the crossing rung"
     );
 
-    // ── 11a. A CONTRADICTORY RIDER, AND WHERE THE TREE SENDS THE
-    // USER. The user tries to clock the hub about its seat — but the
-    // seat is a frame coincidence and a coincidence has already pinned
-    // the roll, so the coset table decides against the rider
-    // (`mate_clocking_redundant`). The refusal reaches the whole
-    // cluster: no instance in it has a pose any more, and the kernel
-    // records the same typed fault against each of them as that node's
-    // OWN failure, because mates and instances are DAG leaves and the
-    // placement solve is not a DAG edge.
-    //
-    // What the tree must not do is read that verbatim. The fault names
-    // the mate it is about, so the rider the user just wrote is the one
-    // actionable row, and all four instance rows — the tower and both
-    // sails included, which the rider does not touch — read as
-    // downstream of it and point at it.
+    // ── 11a. A CONTRADICTORY RIDER, AND WHERE THE DOOR STOPS IT. The
+    // user tries to clock the hub about its seat — but the seat is a
+    // frame coincidence and a coincidence has already pinned the roll,
+    // so the coset table decides against the rider
+    // (`mate_clocking_redundant`), over the hub's and the tower's own
+    // extent. The edit door asks the solve's own per-mate admission,
+    // so `perform` refuses the mate typed, carrying the solve's fault
+    // unaltered: no entry enters the history, the tree keeps its
+    // seven `Ok` rows, and there is nothing for the next evaluation to
+    // fail on and nothing to undo.
     let clocked = {
         let mut alignment = seat_proposal.alignment;
         alignment.clocking = Some(0.4);
-        insert(
-            &mut session,
-            SessionOp::AddMate {
-                a: seat_proposal.a.clone(),
-                b: seat_proposal.b.clone(),
-                class: seat_proposal.class,
-                alignment,
-            },
-        )
+        session.perform(SessionOp::AddMate {
+            a: seat_proposal.a.clone(),
+            b: seat_proposal.b.clone(),
+            class: seat_proposal.class,
+            alignment,
+        })
     };
-    session.pump();
-    let rows = session.tree_rows();
-    let status_of = |id: RecipeNodeId| common::status_of(&rows, id);
-    {
-        let RowStatus::Failed { message } = status_of(clocked) else {
-            panic!("the rider carries the cause, got {:?}", status_of(clocked));
-        };
-        assert!(
-            message.contains("mate_clocking_redundant"),
-            "the kernel's own words, on the mate's row: {message}"
+    let Some(Refusal::Edit(error)) = &clocked.refusal else {
+        panic!(
+            "the rider is refused at the door, got {:?}",
+            clocked.refusal
         );
-    }
-    assert_eq!(
-        rows.iter()
-            .filter(|row| matches!(row.status, RowStatus::Failed { .. }))
-            .map(|row| row.id)
-            .collect::<Vec<_>>(),
-        vec![clocked],
-        "exactly one actionable row, and it is the mate the fault names"
-    );
-    for instance in [tower_i, hub_i, sail_a, sail_b] {
-        match status_of(instance) {
-            RowStatus::Poisoned { through, message } => {
-                assert_eq!(through, clocked, "the instance points at the rider");
-                assert_eq!(
-                    message,
-                    Some(viewer::tree::downstream_wording(clocked)),
-                    "and sends the user to the rider's row rather than repeating its refusal here"
-                );
-            }
-            other => panic!("instance {instance:?} must read as downstream, got {other:?}"),
-        }
-    }
-    // Undo takes the rider back out; the windmill is whole again.
-    session.perform(SessionOp::Undo);
-    session.pump();
+    };
+    let pncad::document::EditError::MateRefused { fault, .. } = &**error else {
+        panic!("the door carries the solve's own fault, got {error}");
+    };
     assert!(
-        session.doc().node(clocked).is_none(),
-        "undo removes the rider"
+        matches!(
+            **fault,
+            pncad::document::MateFault::Contradictory {
+                held,
+                added,
+                predicate: "mate_clocking_redundant",
+                clash: pncad::document::Clash::Levered(pncad::document::Lever::Roll { radians, .. }),
+            } if held == added && radians == 0.4
+        ),
+        "the table's decision, in the kernel's own words: {fault}"
     );
+    assert!(
+        clocked.committed.is_empty(),
+        "a refused edit commits nothing: {:?}",
+        clocked.committed
+    );
+    assert_eq!(
+        session.doc().order().len(),
+        7,
+        "the history holds the four instances and three mates it held before"
+    );
+    session.pump();
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }

@@ -5,6 +5,8 @@ title: The stale-vs-foreign key clause is spelled at thirteen Body doors, two of
 status: open
 opened: 2026-09-20
 refs: [the-guarded-shell-list-of-a-solid-is-spelled-thirteen-times]
+priority: P4
+cost: D
 ---
 
 ## Finding

@@ -4,6 +4,8 @@ kind: issue
 title: Reversing the order the boolean join walks an operand solid's shells reds nothing
 status: open
 opened: 2026-09-20
+priority: P3
+cost: D
 ---
 
 ## Finding

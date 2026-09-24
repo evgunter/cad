@@ -618,18 +618,30 @@ fn an_explicit_pattern_rule_never_reaches_the_solve() {
 // ---- what stays a dangling head ----
 
 /// A copy index at the pattern's count names a copy that does not
-/// exist — still `DanglingHead`, at the pattern.
+/// exist — still `DanglingHead`, at the pattern. The mate names copy
+/// 2 of a count-3 pattern that then shrinks to two copies: a head at
+/// the count at insert is the edit door's to refuse, and this is how
+/// one arises after it.
 #[test]
 fn an_index_at_the_count_is_still_a_dangling_head() {
-    let scene = patterned(
+    let mut scene = patterned(
         "msolve3-past-count",
         PatternKind::Linear {
             direction: [scl(1.0), scl(0.0), scl(0.0)],
             spacing: len(2.0),
         },
-        2,
+        3,
         2,
     );
+    let (doc, _) = step(
+        scene.doc,
+        DocEdit::SetStructuralParam {
+            node: scene.placer,
+            slot: editor_core::SlotId::Count,
+            expr: Expr::count(2),
+        },
+    );
+    scene.doc = doc;
     let f = scene.fault();
     assert!(
         matches!(&f, MateFault::DanglingHead { head, .. } if *head == scene.placer),

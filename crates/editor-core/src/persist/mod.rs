@@ -33,8 +33,8 @@
 //! is that instance;
 //! `work/census/census-sees-an-inert-attribute-but-not-a-missing-one.md`
 //! is the class, and holds the question of what would detect the next
-//! one — a tracker path deleted at its program's close resolves through
-//! `docs/DOC-LEDGER.md`),
+//! one — a tracker path deleted at its program's close is recoverable
+//! in git history),
 //! so the rule above is what this format means by a stale reader and
 //! not a property its types enforce everywhere it is asserted. Where a
 //! declaration has no named field ANYWHERE the attribute is inert: a
@@ -57,7 +57,7 @@
 //! A save is TEXT: an `id: <32 lowercase hex>` header line naming the
 //! document's identity (ASM-1 D-6 — the workspace scan reads it
 //! without parsing the body), then a JSON body
-//! `{ "snapshot": <Doc>, "edits": [<DocEdit>…] }` — the full document
+//! `{ "snapshot": <Doc>, "edits": [<LoggedEdit>…] }` — the full document
 //! snapshot plus the edit log since that snapshot. (One known hatch,
 //! pinned rather than closed: serde's derived struct visitor also
 //! accepts the two fields POSITIONALLY, so a body spelled
@@ -131,9 +131,8 @@ pub(crate) mod wire;
 
 use geom_core::tolerance::{Tolerance, ToleranceError};
 
-use crate::edit::{Applied, EditError, EditRecord, LoggedEdit, replay_entry};
+use crate::edit::{EditError, EditRecord, LoggedEdit, apply_logged};
 use crate::ident::DocumentId;
-use crate::mate::MateReach;
 use crate::program::{ProfileDoc, ProfileProgram};
 use geom_core::Tol;
 
@@ -167,8 +166,8 @@ struct FileBody {
 pub struct Loaded {
     /// The snapshot as saved.
     pub snapshot: ProfileDoc,
-    /// The edit log as saved — or, through [`load_with`], as
-    /// migrated: every entry carrying the rows it performed.
+    /// The edit log as saved: every entry carrying the rows it
+    /// performed.
     pub edits: Vec<LoggedEdit<ProfileProgram>>,
     /// The current document: snapshot with every edit replayed.
     pub doc: ProfileDoc,
@@ -311,7 +310,14 @@ pub enum PersistError {
     /// An edit in the log refused through the [`crate::edit::apply`] door — on
     /// LOAD replay, or at SAVE by the symmetric log-verification pass
     /// (a log that cannot replay would make an unloadable file; save
-    /// refuses first).
+    /// refuses first). A logged mate insert the solve's per-mate
+    /// admission refuses on the datum alone refuses here as
+    /// [`EditError::MateRefused`], naming the entry; a rider on a
+    /// coincidence, which the recording door decided over the parts'
+    /// reach, is not re-decided (`Maintain::reach` states the rule).
+    /// The SNAPSHOT is a state, not an edit: its walk asks only that a
+    /// mate's alignment be finite, and a mate it holds that the solve
+    /// refuses is the solve's at evaluation.
     EditReplay {
         /// The refusing edit's index in the log.
         index: usize,
@@ -457,7 +463,7 @@ pub fn save(
     // that would need a store to load refuses at save too.
     let mut replay = snapshot.clone();
     for (index, entry) in edits.iter().enumerate() {
-        replay = replay_entry(&replay, entry, tol, None)
+        replay = apply_logged(&replay, entry, tol)
             .map_err(|error| PersistError::EditReplay { index, error })?
             .doc;
     }
@@ -488,31 +494,6 @@ struct SerBody<'a> {
 /// guarded by the shared validator but unreachable post-parse — JSON
 /// carries no non-finite tokens, so those bytes refuse as `Parse`).
 pub fn load(text: &str, tol: Tol) -> Result<Loaded, PersistError> {
-    load_replaying(text, tol, None)
-}
-
-/// **The migration door**: [`load`] for a file whose log may predate
-/// the maintenance rows (bare entries that moved a gauge, which
-/// [`load`] refuses `EditReplay` carrying
-/// [`EditError::MaintenanceUnrecorded`]). Entries with rows replay
-/// from them; entries with none are applied through `reach` and their
-/// rows derived, so the returned [`Loaded::edits`] is the migrated
-/// log — re-save it with [`save`], after which [`load`] reads it with
-/// no store in hand.
-///
-/// # Errors
-///
-/// [`load`]'s, with the live door's own refusals
-/// ([`EditError::MaintenanceRefused`]) in place of `Unrecorded`.
-pub fn load_with(text: &str, tol: Tol, reach: &dyn MateReach) -> Result<Loaded, PersistError> {
-    load_replaying(text, tol, Some(reach))
-}
-
-fn load_replaying(
-    text: &str,
-    tol: Tol,
-    migrate: Option<&dyn MateReach>,
-) -> Result<Loaded, PersistError> {
     // The header carries the document's id (ASM-1 D-6); it is parsed
     // before the body so a malformed header refuses in header terms,
     // then verified against the snapshot below.
@@ -534,26 +515,16 @@ fn load_replaying(
     // replayed state, never trusted bytes.
     let mut doc = body.snapshot.clone();
     let mut records = Vec::with_capacity(body.edits.len());
-    let mut edits = Vec::with_capacity(body.edits.len());
-    for (index, entry) in body.edits.into_iter().enumerate() {
-        // With `migrate` in hand a bare entry goes through the live
-        // door and comes back with the rows it performed.
-        let applied = replay_entry(&doc, &entry, tol, migrate)
+    for (index, entry) in body.edits.iter().enumerate() {
+        let applied = apply_logged(&doc, entry, tol)
             .map_err(|error| PersistError::EditReplay { index, error })?;
-        edits.push(LoggedEdit {
-            edit: entry.edit,
-            maintenance: applied.cluster_rows(),
-        });
-        let Applied {
-            doc: next, record, ..
-        } = applied;
-        doc = next;
-        records.push(record);
+        doc = applied.doc;
+        records.push(applied.record);
     }
     reconcile_epsilon(doc.epsilon())?;
     Ok(Loaded {
         snapshot: body.snapshot,
-        edits,
+        edits: body.edits,
         doc,
         records,
     })

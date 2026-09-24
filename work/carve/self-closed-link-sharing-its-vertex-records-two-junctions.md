@@ -4,6 +4,8 @@ kind: issue
 title: walk_chains records two junctions at one vertex and closes the chain when a self-closed link shares its vertex with one other requested link
 status: open
 opened: 2026-09-13
+priority: P0
+cost: H
 ---
 
 
