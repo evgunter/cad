@@ -2,9 +2,10 @@
 id: lane-4-fitted-lane-folded
 kind: unit
 title: LANE-4: PcurveFittedLane folds into a FittedLane door value answered by AtRestPolicy::fitted_lane(); lane_name becomes a per-scalar name source
-status: open
+status: review
 opened: 2026-09-24
 branch: scalar/lane-4
+pr: 3194
 ---
 
 
