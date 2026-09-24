@@ -643,3 +643,30 @@ re-stated to that.
 CONTACT never answered the `disc_side` note of 2026-09-21; the note
 said the unit would land the `pub(crate)` itself and announce the seam
 if CONTACT did not object, and that is what ATREST-5 does.
+
+## 2026-09-24 — wave 2 specced; one row re-homed to ZIP
+
+**Re-homed**: `declared-opposite-orientation-refusal-is-unreached-by-any-row`
+to ZIP. All three consumers it wants guarded (`merge_faces.rs`,
+`boolean/join.rs`, `boolean/rest.rs`) are ZIP's ground and the owed
+rows are tests of them; it sat here from TOPO's cut because the planar
+door it names was the anchor.
+
+**Wave 2**, dispatched beside wave 1 because neither collides with
+ATREST-3's restructuring beyond a merge:
+
+| unit | carries | tier | reason |
+|---|---|---|---|
+| ATREST-7 | shell roles → the winding invariant | single, full | a new check 10 stating what a valid multi-shell solid is; refusal surface measured first, expected empty |
+| ATREST-8 | Ev's concision request + the `CensusLaneUnsupported` recourse + the census witness slot | single, style | prose at the source to CHROME's standard, plus a budget guard for `ValidationError` |
+
+`census-lane-unsupported-display-names-the-scalar-not-the-door` moved
+from the door-matrix group to ATREST-8: re-read, its verdict half is
+H5 ruling 3's letter and changes nothing — what is wrong is the
+sentence, so it is prose.
+
+**Held for wave 3**: the door matrix
+(`structural-suffix-means-two-things-across-the-six-doors`,
+`validate-rs-exports-sixteen-doors-on-an-irregular-matrix`), which
+collides head-on with ATREST-3's change to the certificate doors'
+return types and waits for it.
