@@ -96,11 +96,11 @@
 //! decision through named trilean predicates (geom-core's
 //! [`geom_core::Decide`] door — see `crate::validate` docs for the
 //! predicate inventory and `geom_core::k_stats` for the margin-statistics
-//! hook). Its canonical-form rules (deterministic starting vertex, loop
+//! hook). Its canonical-form rules (the authored starting vertex, loop
 //! order, traversal senses) are documented on [`ValidatedProfile`]; the
-//! canonical form is invariant under input traversal order and
-//! starting-vertex rotation of every loop (under test — D9-load-bearing,
-//! since recipes replay this). It is **not** invariant under
+//! canonical form is invariant under input traversal order of every
+//! loop (under test — D9-load-bearing, since recipes replay this) and
+//! keeps each loop's authored start. It is **not** invariant under
 //! reordering the input's loop list: the outer is hoisted first, but
 //! holes keep their discovery (input) order — a D9 recipe replays the
 //! loop order it recorded, so reordering loops is a *different*

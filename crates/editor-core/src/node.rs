@@ -3536,20 +3536,21 @@ impl<P> Node<P> {
         hits
     }
 
-    /// **The profile whose program coordinates this node's own profile
-    /// locators are spelled in** — the node whose `ProfileEdgeRef`s
+    /// **The profile whose canonical coordinates this node's own
+    /// profile locators are spelled in** — the node whose `ProfileEdgeRef`s
     /// and `ProfileVertexRef`s a `SetProgram` on that profile has to
     /// remap — or `None` for a node whose names carry no locator of
     /// its own.
     ///
-    /// A sweep's table is program-anchored to the profile it sweeps
-    /// (`eval::anchor`, DM8): every `Lateral`, `RimEdge`, `Band`,
+    /// A sweep's table is spelled in the canonical numbering of the
+    /// profile it sweeps (DM8): every `Lateral`, `RimEdge`, `Band`,
     /// `Pole` and their siblings that the extrude or revolve at this
-    /// node mints names a segment or vertex of THAT profile's
-    /// program. A loft's table is anchored by its FIRST section's map
-    /// alone (DM8's stated exception), so its locators are section
-    /// 0's coordinates and a reshaping of a later section moves none
-    /// of them. A sweep's frontier publishes no table today; the
+    /// node mints names a segment or vertex of THAT profile. A loft's
+    /// table names canonical segment `k` of every section at once, so
+    /// it follows one section's reshaping, its FIRST's: a reshaping of
+    /// a later section moves none of its locators
+    /// (`work/emit/a-lofts-names-follow-only-its-first-sections-reshaping.md`).
+    /// A sweep's frontier publishes no table today; the
     /// answer is the profile it would anchor to, which is the same
     /// lowering as the extrude's, and costs nothing while no name
     /// exists to remap. Everything else mints locator-free names of

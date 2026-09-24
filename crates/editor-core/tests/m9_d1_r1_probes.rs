@@ -157,10 +157,10 @@ fn subdivided_axis_run(angle: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// The `poles` export of the doc's profile, re-swept at the same
-/// revolution, reindexed by PROGRAM vertex: the emitter reads canonical
-/// indices and the published table is program-anchored, so the arm a
-/// row compares against the emitter's outcome has to cross the anchor.
-fn export_poles_by_program_vertex(
+/// revolution, by CANONICAL vertex: the emitter reads canonical indices
+/// and the published table carries them as they are, so the arm a row
+/// compares against the table needs no reindexing.
+fn export_poles_by_canonical_vertex(
     doc: &ProfileDoc,
     ev: &Evaluation<f64>,
     revolution: sweep::Revolution<f64>,
@@ -184,12 +184,7 @@ fn export_poles_by_program_vertex(
         Tol::witness(),
     )
     .expect("the revolve the evaluation already ran");
-    let anchor = vp.naming.loops[0];
-    let mut by_program = vec![false; built.poles[0].len()];
-    for (k, p) in built.poles[0].iter().enumerate() {
-        by_program[anchor.vertex(u32::try_from(k).expect("a loop index")) as usize] = p.is_some();
-    }
-    by_program
+    built.poles[0].iter().map(Option::is_some).collect()
 }
 
 /// **FULL revolve of a subdivided axis run: the interior on-axis vertex
@@ -218,7 +213,7 @@ fn full_subdivided_axis_run_names_no_vertex_for_the_interior() {
         "run tip v2 unnamed"
     );
     assert_eq!(
-        export_poles_by_program_vertex(&doc, &ev, sweep::Revolution::Full),
+        export_poles_by_canonical_vertex(&doc, &ev, sweep::Revolution::Full),
         vec![true, false, true],
         "the export's arm must agree with what the emitter named"
     );
@@ -248,7 +243,7 @@ fn partial_subdivided_axis_run_names_the_interior_vertex_a_pole() {
         );
     }
     assert_eq!(
-        export_poles_by_program_vertex(
+        export_poles_by_canonical_vertex(
             &doc,
             &ev,
             sweep::Revolution::Partial(std::f64::consts::FRAC_PI_2)

@@ -31,7 +31,7 @@ use topo::{Body, EdgeKey};
 
 /// A circle as a two-vertex bulge loop — an ARC-bearing section, so
 /// the canonical form carries real decisions (segment classification,
-/// traversal sense, the lex-min start) and the lift has arc carriers
+/// traversal sense) and the lift has arc carriers
 /// to rebuild.
 fn circle(r: f64) -> ProfileLoop<f64> {
     ProfileLoop::new(vec![
