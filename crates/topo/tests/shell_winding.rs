@@ -115,8 +115,8 @@ fn a_void_outside_every_outer_refuses() {
         Err(vec![ValidationError::ShellWinding {
             solid,
             shell: cavity,
-            role: ShellRole::Void,
             winding: 0,
+            bounded: -1,
         }]),
         "the cavity sits where the solid's only other shell winds 0"
     );
@@ -145,8 +145,8 @@ fn an_outer_inside_an_outer_refuses() {
         Err(vec![ValidationError::ShellWinding {
             solid,
             shell: enclosed,
-            role: ShellRole::Outer,
             winding: 1,
+            bounded: 2,
         }]),
         "the inner cube sits where the outer one already winds 1"
     );
@@ -178,8 +178,8 @@ fn a_void_inside_a_void_refuses() {
         Err(vec![ValidationError::ShellWinding {
             solid,
             shell: small_cavity,
-            role: ShellRole::Void,
             winding: 0,
+            bounded: -1,
         }]),
         "the inner cavity sits where the wall and the outer cavity wind 1 - 1 = 0"
     );

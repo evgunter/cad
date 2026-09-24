@@ -166,14 +166,24 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
 /// so a reroute through `subtract` would genuinely run the pipeline and
 /// this row would see it.
 ///
-/// **`bool_ring_run_winding` is allowed, and naming it is the point.**
-/// The verb ends in a tier-3 validation, and the validator's own
-/// planar-boundary check decides that predicate against the same margin
-/// the boolean's ring-run test uses. The name has **three** owners, not
-/// two — `topo::validate`, `topo::boolean::join`, and
-/// `topo::merge_faces`' role normalization — which is exactly why a
-/// silent prefix filter would be the wrong shape here. Allowing it by
-/// name keeps the claim exact.
+/// **The validator's own `bool_` predicates are allowed, and naming
+/// them is the point.** The verb ends in a tier-3 validation, and two of
+/// its checks decide predicates the boolean shares:
+///
+/// - `bool_ring_run_winding` — the planar-boundary check decides it
+///   against the same margin the boolean's ring-run test uses. The name
+///   has **three** owners, not two — `topo::validate`,
+///   `topo::boolean::join`, and `topo::merge_faces`' role normalization.
+/// - the point-in-solid walk's planar family — check 10 (shell winding)
+///   probes one vertex of each shell of a multi-shell solid against the
+///   other shells through `topo::point_in_solid_faces`, the boolean's
+///   containment fallback, and on these planar fixtures that walk
+///   decides only its planar predicates, listed below. It is a
+///   containment read, never a crossing.
+///
+/// That several owners share these names is exactly why a silent prefix
+/// filter would be the wrong shape here. Allowing them by name keeps
+/// the claim exact.
 ///
 /// **What this pin does and does not cover.** It reads the log for
 /// `bool_`-prefixed predicates, which is the crossing pipeline's own
@@ -182,7 +192,14 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
 /// boolean's machinery did not run", and the marching stack is reached
 /// only through that machinery, so the coverage of SSI is by
 /// composition rather than by the filter — stated rather than implied.
-const VALIDATOR_SHARED: &str = "bool_ring_run_winding";
+const VALIDATOR_SHARED: &[&str] = &[
+    "bool_ring_run_winding",
+    "bool_point_in_solid_plane",
+    "bool_point_in_solid_denom",
+    "bool_point_in_solid_advance",
+    "bool_point_in_solid_order",
+    "bool_point_in_solid_infinity",
+];
 
 #[test]
 fn shell_runs_no_intersection_machinery() {
@@ -196,7 +213,7 @@ fn shell_runs_no_intersection_machinery() {
     let crossing: Vec<&'static str> = verdicts
         .iter()
         .map(|v| v.predicate)
-        .filter(|p| p.starts_with("bool_") && *p != VALIDATOR_SHARED)
+        .filter(|p| p.starts_with("bool_") && !VALIDATOR_SHARED.contains(p))
         .collect();
     assert!(
         crossing.is_empty(),
@@ -863,7 +880,7 @@ fn shell_of_a_hollow_runs_no_intersection_machinery() {
     let crossing: Vec<&'static str> = verdicts
         .iter()
         .map(|v| v.predicate)
-        .filter(|p| p.starts_with("bool_") && *p != VALIDATOR_SHARED)
+        .filter(|p| p.starts_with("bool_") && !VALIDATOR_SHARED.contains(p))
         .collect();
     assert!(
         crossing.is_empty(),

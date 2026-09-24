@@ -1236,24 +1236,28 @@ pub enum ValidationError {
         source: ContainError,
     },
     /// **Tier 3, check 10.** A shell of a solid stands where the
-    /// solid's OTHER shells already wind the wrong number, so the
-    /// region beside it winds outside `{0, 1}`: an `Outer` shell must
-    /// sit at winding `0` and a `Void` at `1`. The three shapes are a
-    /// `Void` outside every `Outer` (`winding` 0, cavity `-1`), an
-    /// `Outer` inside another with no `Void` between (`winding` 1,
-    /// inside `2`), and a `Void` inside another `Void` with no `Outer`
-    /// between (`winding` 0, cavity `-1`). A solid's per-solid total is
-    /// positive on all three, so check 7 does not see them.
+    /// solid's OTHER shells already wind the wrong number, so a region
+    /// beside it winds outside `{0, 1}`: an `Outer` shell (which adds
+    /// `+1` inside itself) must sit at winding `0`, and a `Void` (which
+    /// adds `-1` inside its cavity) at `1`. The three shapes are a
+    /// `Void` outside every `Outer` (`winding` 0, `bounded` −1), an
+    /// `Outer` inside another with no `Void` between (1 and 2), and a
+    /// `Void` inside another `Void` with no `Outer` between (0 and −1).
+    /// A solid's total is positive on all three, so check 7 does not
+    /// see them. The shell's role is `bounded - winding`: `+1` for an
+    /// `Outer` shell, `-1` for a `Void`.
     ShellWinding {
         /// The solid whose shells overlap.
         solid: SolidKey,
         /// The shell standing at the wrong winding.
         shell: ShellKey,
-        /// That shell's role, from its own signed volume.
-        role: crate::props::ShellRole,
         /// The winding number the solid's other shells put on this
         /// shell, measured at one of its vertices.
         winding: i32,
+        /// The winding number of the region this shell bounds, just
+        /// across it: `winding + 1` inside an `Outer` shell,
+        /// `winding - 1` inside a `Void`'s cavity.
+        bounded: i32,
     },
     /// Tier 3′ (M3 PR 6a): the global coincidence census found a
     /// position coincidence between distinct entities that no declared
@@ -2383,20 +2387,14 @@ impl fmt::Display for ValidationError {
             Self::ShellWinding {
                 solid,
                 shell,
-                role,
                 winding,
-            } => {
-                let beside = match role {
-                    crate::props::ShellRole::Outer => winding + 1,
-                    crate::props::ShellRole::Void => winding - 1,
-                };
-                write!(
-                    f,
-                    "tier 3: {role:?} shell {shell:?} of solid {solid:?} sits where the solid's \
-                     other shells wind {winding}, so the region it bounds winds {beside} — a \
-                     solid's shells must bound winding 0 or 1 everywhere"
-                )
-            }
+                bounded,
+            } => write!(
+                f,
+                "tier 3: shell {shell:?} of solid {solid:?} sits where the solid's other \
+                 shells wind {winding}, and the region it bounds winds {bounded} — a solid's \
+                 shells must bound winding 0 or 1 everywhere"
+            ),
         }
     }
 }
@@ -3366,16 +3364,18 @@ fn shell_winding_errors<T: Decide>(
                 }
             }
             let Some(winding) = winding else { continue };
-            let required = match role {
-                ShellRole::Outer => 0,
-                ShellRole::Void => 1,
+            // The winding the shell's own contribution puts just across
+            // it, and the one place its role is read.
+            let (required, bounded) = match role {
+                ShellRole::Outer => (0, winding + 1),
+                ShellRole::Void => (1, winding - 1),
             };
             if winding != required {
                 errors.push(ValidationError::ShellWinding {
                     solid,
                     shell,
-                    role: *role,
                     winding,
+                    bounded,
                 });
             }
         }
@@ -7595,8 +7595,8 @@ mod tests {
             ValidationError::ShellWinding {
                 solid: t.solid,
                 shell: t.shell,
-                role: crate::props::ShellRole::Void,
                 winding: 0,
+                bounded: -1,
             },
             ValidationError::DanglingGeometry {
                 from: EntityId::Vertex(v),
