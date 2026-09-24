@@ -35,6 +35,7 @@ mod geompred;
 pub(crate) mod interrogate;
 pub(crate) mod merged;
 mod role;
+mod seam_line;
 mod select;
 mod table;
 

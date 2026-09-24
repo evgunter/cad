@@ -56,8 +56,11 @@ vertex unnamed, so a `None` standing over surviving geometry cannot pass.
 yields n fragments, `Fragment(Qualifier)` follows the parent-bearing segment:
 `Qualifier::SideOf`, a sign vector of `name_frag_side_of` verdicts against the
 cutting partners' outward-oriented carrier planes, or `Qualifier::OrderAlong {
-rank, of }`, the `name_frag_order_along` rank along the parent's oriented
-carrier. Both run through `k_stats`, so fragment identity changes only at a
+rank, of }`, the `name_frag_order_along` rank along the parent's oriented line
+— for pieces on a seam line, the seam pair's `n_a × n_b` (the pair's `a` face
+first, one orientation whichever step cut the line; a union reading the pair in
+name order reads a swapped pair's rank from the other end), and otherwise the
+parent's own oriented carrier. Both run through `k_stats`, so fragment identity changes only at a
 recorded flip; an in-band margin refuses (`NamingError::Escalated`), never a
 silent pick, and an ambient tolerance that forms no classification band at all
 refuses (`NamingError::Band`) carrying the band constructor's own diagnostic —

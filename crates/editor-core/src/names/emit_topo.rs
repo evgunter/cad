@@ -22,6 +22,7 @@ use super::emit::{
 };
 use super::merged::{self, NESTED_MERGED};
 use super::role::{EntityKind, NameRef, Qualifier, RoleSeg, SplitHalf, StableName};
+use super::seam_line;
 use super::table::{EntityKey, Entry, NameTable};
 use crate::node::RecipeNodeId;
 use geom_core::Tol;
@@ -1132,8 +1133,8 @@ fn name_boolean_edges<T: Decide>(
             continue;
         }
         // Collinear chain: order along the pair's intersection line,
-        // oriented n_a × n_b (the carriers' own orientations, A side
-        // first — descent decides which is which, never list order).
+        // oriented n_a × n_b with the pair's `a` face first, matched to
+        // its face by name (`seam_line_dir`), never by list order.
         //
         // The SIGN of `dir` is load-bearing, not just its axis:
         // `edge_extent` projects onto it and `order_along` ranks by
@@ -1142,18 +1143,10 @@ fn name_boolean_edges<T: Decide>(
         // `face_plane` returns OUTWARD normals (S10 category A): the
         // orientation of this line is a fact about the two faces'
         // material sides, and it must move only when they do.
-        let faces = inc
-            .edge_faces
-            .get(&edges[0])
-            .ok_or_else(|| bug("seam group lost its faces"))?;
-        let (f0, f1) = (faces[0], faces[1]);
-        let (fa_key, fb_key) = match descend_face(f0)? {
-            OpSide::A(_) => (f0, f1),
-            OpSide::B(_) => (f1, f0),
+        let RoleSeg::Seam { a: sa, b: sb } = &base.path[0] else {
+            return Err(bug("seam group base is not a seam"));
         };
-        let (_, na) = face_plane(body, fa_key)?;
-        let (_, nb) = face_plane(body, fb_key)?;
-        let dir = na.cross(nb);
+        let dir = seam_line_dir(body, t, node, edges[0], (sa, sb))?;
         let extents = edges
             .iter()
             .map(|&e| edge_extent(body, e, dir))
@@ -1180,9 +1173,9 @@ fn name_boolean_edges<T: Decide>(
         // before it is minted; one line, one orientation, whichever step
         // cut it. Any other parent is ordered along its own oriented
         // carrier (operand geometry).
-        let dir = match inner.name.path.as_slice() {
-            [RoleSeg::Seam { a: sa, b: sb }, ..] => seam_root_line(op, root_key, sa, sb)?,
-            _ => edge_dir(op_body, root_key)?,
+        let dir = match seam_line::seam_line_pair(&inner.name) {
+            Some(pair) => seam_line_dir(op.body, op.table, op.node, root_key, pair)?,
+            None => edge_dir(op_body, root_key)?,
         };
         let extents = edges
             .iter()
@@ -1485,13 +1478,13 @@ fn resolve_edge_carrier<T: Decide>(
         return Ok(None);
     }
     match op.table.lookup(parent) {
-        Some(Entry::Unique(e)) => match (e.key, parent.path.as_slice()) {
-            // A seam edge's line is its pair's `n_a × n_b`, the one
+        Some(Entry::Unique(e)) => match (e.key, seam_line::seam_line_pair(parent)) {
+            // An edge on a seam line is ranked along that line, the one
             // orientation every ranker along a seam line uses.
-            (EntityKey::Edge(k), [RoleSeg::Seam { a, b }, ..]) => {
-                seam_root_line(op, k, a, b).map(Some)
+            (EntityKey::Edge(k), Some(pair)) => {
+                seam_line_dir(op.body, op.table, op.node, k, pair).map(Some)
             }
-            (EntityKey::Edge(k), _) => edge_dir(op.body, k).map(Some),
+            (EntityKey::Edge(k), None) => edge_dir(op.body, k).map(Some),
             _ => Ok(None),
         },
         _ => Ok(None),
@@ -1577,67 +1570,56 @@ fn edge_dir<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<Vec3<T>, NamingErro
     Ok(p(v1)? - p(v0)?)
 }
 
-/// Whether face name `n` is, or descends one step from, `x` — the test
-/// that finds which of a seam edge's two faces is its pair's `a` side.
-/// A pair emitter's face is `FromA(x)` / `FromB(x)` (plus fragment
-/// discriminators); a union's is `x` itself, or `x` followed by them;
-/// a merged face descends from `x` when one of its constituents does.
-fn face_descends_from(n: &StableName, x: &StableName) -> bool {
-    match n.path.first() {
-        Some(RoleSeg::FromA(inner) | RoleSeg::FromB(inner)) => **inner == *x,
-        Some(RoleSeg::Merged(cs)) => cs.iter().any(|c| face_descends_from(c, x)),
-        _ => n.node == x.node && n.kind == x.kind && n.path.starts_with(&x.path),
-    }
-}
-
-/// The line a chain of pieces of seam edge `root` is ranked along: the
-/// seam pair's `n_a × n_b`, with `a` and `b` read off the root's own
-/// name and matched to its two faces in the operand body. That is the
-/// direction the seam-chain ranker uses for the same line, so the two
-/// rankers agree whichever step cut the seam.
-fn seam_root_line<T: Decide>(
-    op: &OperandCtx<'_, T>,
-    root: EdgeKey,
-    a: &StableName,
-    b: &StableName,
+/// The direction a chain along a seam line is ranked in: the pair's
+/// `n_a × n_b`, with `a` and `b` the pair's two sides as its name
+/// records them (`super::seam_line`). They are matched by NAME to the
+/// two faces of `edge` in `body`, whose names `table` holds, and the
+/// outward normals are read from those faces. `node` is the node whose
+/// body this is, carried by the refusal.
+///
+/// Every ranker along a seam line reads its direction here: the
+/// seam-chain ranker on the result body, and the descent ranker and
+/// the vertex carrier on an operand body. So the pieces of one line are
+/// ranked one way, whichever step cut it.
+fn seam_line_dir<T: Decide>(
+    body: &Body<T>,
+    table: &NameTable,
+    node: RecipeNodeId,
+    edge: EdgeKey,
+    (a, b): (&StableName, &StableName),
 ) -> Result<Vec3<T>, NamingError> {
     let bug = |what| NamingError::Emission { what };
-    let edge = op
-        .body
-        .get_edge(root)
-        .ok_or_else(|| bug("seam root edge not live in its operand"))?;
-    let mut fa = None;
-    let mut fb = None;
-    for he in [Some(edge.he_plus), op.body.mate(edge.he_plus)] {
-        let he = he.ok_or_else(|| bug("seam root edge without a mate"))?;
-        let face = op
-            .body
+    let e = body
+        .get_edge(edge)
+        .ok_or_else(|| bug("seam line edge not live in its body"))?;
+    let mut faces = [None, None];
+    for (slot, he) in faces
+        .iter_mut()
+        .zip([Some(e.he_plus), body.mate(e.he_plus)])
+    {
+        let he = he.ok_or_else(|| bug("seam line edge without a mate"))?;
+        let face = body
             .get_half_edge(he)
-            .and_then(|h| op.body.get_loop(h.parent_loop))
+            .and_then(|h| body.get_loop(h.parent_loop))
             .map(|l| l.face)
-            .ok_or_else(|| bug("seam root edge half-edge off any face"))?;
-        let name = op
-            .table
+            .ok_or_else(|| bug("seam line edge half-edge off any face"))?;
+        let name = table
             .name_of(&ent(0, EntityKey::Face(face)))
-            .ok_or_else(|| bug("seam root edge face unnamed in its operand"))?;
-        match (face_descends_from(name, a), face_descends_from(name, b)) {
-            (true, false) if fa.is_none() => fa = Some(face),
-            (false, true) if fb.is_none() => fb = Some(face),
-            _ => return Err(bug(SEAM_ROOT_FACES)),
-        }
+            .ok_or_else(|| bug("seam line edge face unnamed"))?;
+        *slot = Some((face, name));
     }
-    let (Some(fa), Some(fb)) = (fa, fb) else {
-        return Err(bug(SEAM_ROOT_FACES));
+    let [Some((f0, n0)), Some((f1, n1))] = faces else {
+        return Err(bug("seam line edge without two faces"));
     };
-    let (_, na) = face_plane(op.body, fa)?;
-    let (_, nb) = face_plane(op.body, fb)?;
+    let (fa, fb) = match seam_line::a_side_is_first(n0, n1, a, b) {
+        Some(true) => (f0, f1),
+        Some(false) => (f1, f0),
+        None => return Err(NamingError::SeamLineSides { node, edge }),
+    };
+    let (_, na) = face_plane(body, fa)?;
+    let (_, nb) = face_plane(body, fb)?;
     Ok(na.cross(nb))
 }
-
-/// A seam edge's two faces in its operand do not descend one from each
-/// side of the pair its name records.
-const SEAM_ROOT_FACES: &str =
-    "a seam edge's faces do not descend one from each side of its recorded pair";
 
 /// Inserts a same-name group ranked by order-along, or tied when
 /// genuinely unordered.
