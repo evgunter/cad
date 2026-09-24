@@ -701,11 +701,7 @@ pub(crate) fn name_boolean<T: Decide>(
             &mut t,
             &mut tie,
             from_tie,
-            canonical::sided(name1(
-                EntityKind::Face,
-                node,
-                RoleSeg::Merged(constituents),
-            )),
+            canonical::sided(name1(EntityKind::Face, node, RoleSeg::Merged(constituents))),
             ent(0, EntityKey::Face(*kept)),
         )?;
         handled.insert(*kept);

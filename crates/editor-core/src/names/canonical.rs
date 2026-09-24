@@ -410,7 +410,10 @@ mod tests {
             .map(|p| canonicalize(build(p), seams).unwrap())
             .collect();
         for f in &forms {
-            assert_eq!(f, &forms[0], "the canonical form depends on the written order");
+            assert_eq!(
+                f, &forms[0],
+                "the canonical form depends on the written order"
+            );
         }
         assert_eq!(
             canonicalize(forms[0].clone(), seams).unwrap(),
@@ -537,7 +540,10 @@ mod tests {
         // Keep, so the form is a fixed point.
         let again = RankRule::across(&out, &mut |n| Ok::<_, ()>(n.clone())).unwrap();
         assert_eq!(again, RankRule::Keep);
-        assert_eq!(canonicalize(out.clone(), Seams::ByName(again)).unwrap(), out);
+        assert_eq!(
+            canonicalize(out.clone(), Seams::ByName(again)).unwrap(),
+            out
+        );
         // A pair boolean's seam is sided: nothing moves.
         let sided = name(
             EntityKind::Edge,

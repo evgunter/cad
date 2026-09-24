@@ -732,8 +732,10 @@ pub enum Qualifier {
     /// - for face fragments of a split, the section line oriented by
     ///   `n_face × n_tool`.
     ///
-    /// A union's collapse puts a seam pair in name order, and where
-    /// that swaps the pair it reads the rank from the other end.
+    /// A union's seam pair is in name order (`names::canonical`), and
+    /// wherever putting it there swaps the pair — at the union's
+    /// collapse, or at a later rewrite of the name that reorders the
+    /// two sides — the rank is read from the other end.
     ///
     /// The carrier's orientation is load-bearing — reversing it
     /// reverses every rank — so where it is built from face normals
@@ -931,8 +933,9 @@ pub enum RoleSeg {
     ///
     /// In a pair boolean's table `a` is the A side and `b` the B side.
     /// In a UNION's published table they are not: a union has no A
-    /// and B, so its collapse puts the two sides in name order
-    /// (`emit_union::seam_line`), and `a` is only the lesser name.
+    /// and B, so the two sides are in name order (`names::canonical`,
+    /// at the collapse and after any rewrite), and `a` is only the
+    /// lesser name.
     Seam {
         /// The A-side crossing entity's name (the lesser name, in a
         /// union's table).

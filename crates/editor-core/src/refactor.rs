@@ -2328,7 +2328,11 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             vec![seam(face(30), face(32)), seam(face(31), face(32))],
             "the run re-sorted, each line A-first"
         );
-        let sided = name(EntityKind::Edge, 5, vec![seam(face(1), face(2)), rank(0, 3)]);
+        let sided = name(
+            EntityKind::Edge,
+            5,
+            vec![seam(face(1), face(2)), rank(0, 3)],
+        );
         let out = remap_name(&sided, &map()).expect("covered");
         assert_eq!(
             out.path,

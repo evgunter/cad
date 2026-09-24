@@ -201,8 +201,8 @@ const FOREIGN: &str = "a union fold's table carries a segment the boolean emitte
 const JUNCTION_LINES_COLLIDE: &str =
     "two lines of a union's seam junction collapse to one member-space line";
 
-use super::merged::NESTED_MERGED;
 use super::canonical::{RankRule, Seams, canonicalize, is_junction};
+use super::merged::NESTED_MERGED;
 
 /// One fold-table name, keyed by member.
 ///
@@ -419,6 +419,7 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::*;
+    use crate::names::canonical::Unrankable;
     use crate::names::role::{CapEnd, EntityKind};
 
     fn face(node: RecipeNodeId, path: Vec<RoleSeg>) -> StableName {
