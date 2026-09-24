@@ -1956,3 +1956,55 @@ door.
 Local on the merged head: `cargo test -p topo` (762 + 594 + 14 + 11),
 and clippy `-p topo --all-targets -D warnings` is clean. The row for
 ordinal 2712 rides after this head goes green on hosted CI.
+
+## The re-basing-gate dual concluded (PR 3148); fix pass dispatched (2026-09-24)
+
+This is the first pair under `docs/DUAL-REVIEW-PROTOCOL.md`. Both
+reviews of `36c7d0f36` came back APPROVE-WITH-FIXES, with no MAJOR
+from either (6 and 6 MINOR). Reports are archived privately. The
+attribution-stripped coding used blinding byte 233.
+
+Bilateral, all by execution:
+- The PR's reason for refusing a run holding BOTH halves of a null
+  edge is false. Both ends land on the new vertex, one point by
+  structure, and the one-half mutant survives every row.
+- The documented run order between the null arm and the carrier arm
+  is unpinned: the mutant survives.
+- The `Display` text claims what the gate cannot know.
+- The M7-8 no-move spelling is oversold. One review found tier 3
+  refuses the result. The other found the two calls are not atomic:
+  a failing second call leaves a null edge at rest.
+- The filed `kev` evidence claims an over-refusal with zero measured
+  instances. One review also measured 58 zip kills merging
+  ulp-distinct vertices.
+- The stale-curve-key drive-by is unpinned.
+
+Also bilateral: the rationale is restated in five or six homes, a
+sibling of `NullScaffoldCurve`, the `19032e09f` authorship read as
+ratification, and `needs_ev` handed off with no schedule.
+
+One review alone, confirmed by the orchestrator: `topo::query` holds a
+PRODUCTION bitwise comparison at `T: Bounds` (`same_point_bits`, used
+by `rim_of`'s `same_circle`, from `c512a2e34`, unratified). The
+bit-identity gate script cannot see it. So the lane's "no door
+exists" premise is true only at `T: Real`. Shape 1 stands, because the
+retirement governs, and the `[ev]` proposal must show Ev this. The
+other review had concluded no door existed.
+
+Ruled for the fix pass:
+- Refine the full stop structurally: refuse only when the run holds
+  exactly one half.
+- Pin the run order and the drive-by.
+- Fix the `Display` text and the variant doc, and give the rationale
+  one home, corrected for `query.rs`.
+- File the `query.rs` bit compare and the gate's blindness on the
+  owner's slate.
+- Assert the M7-8 spelling through the public `mev`, with its tier-3
+  reading and non-atomicity stated.
+- Correct the `kev` evidence to what was measured.
+
+The fix pass is dispatched as a fresh lane on the unit's branch. The
+program charter's stale premise (`program.md`, the run doors' clause
+and the gate's) is re-worded by the orchestrator at this unit's merge.
+Tally unchanged; the pair is fair (no relaxation, neither review
+interrupted).
