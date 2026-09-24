@@ -1737,3 +1737,26 @@ equivalent mutant today (the certification hull maps every refusal to
 NaI) — stated at the site, the file named in GAP 2; stale locators
 incl. SSI's open P0 row's citation corrected. Fix pass dispatched on
 Opus ~17:40Z. DR row drafted (`ring5-dual-row.md`), held for merge.
+
+## LANE-4's open call ruled; its sequencing (2026-09-24)
+
+**Where the fitted hook's `None` comes from at the validators
+(orchestrator's call, applying ruling 3; logged with the alternative):
+the policy read throughout.** `validate_pcurves` (and every construction
+pass) takes the door from `AtRestPolicy::fitted_lane()`; no verdict moves
+at any scalar. Declined: the door-name shape (the `_structural`
+validators hand `None`), which would make `validate_*_structural` at
+`f64` newly refuse a body carrying a `General` row that the `f64`
+construction path itself built — the same body passing its mint and
+failing its own structural validation. Ruling 3's "`_structural` twin
+carries the hook's `None`" clause attaches to doors that already have a
+certified/structural pair (LANE-1's `mass_properties`); LANE-4 creates
+no new such pair (the ~40 construction passes have no twins, and minting
+them is not what the ruling asked). The survey's other answer stands:
+the representation question needs no type change — a `None` hook is a
+refusal before any cache exists, byte-identical to today's
+`FittedLaneUnsupported`. **Sequencing:** LANE-4 now waits on RING-5
+(#3174, Ev's sign-off; both edit `topo/src/props.rs`'s `AtRestPolicy`
+seam) as well as TOPO's #3160 (`pcurves.rs` `walk_loop`; its head has
+not moved since 09:02Z). If #3160 is still idle when RING-5 lands,
+LANE-4 is dispatched anyway and the second to land merges the other.
