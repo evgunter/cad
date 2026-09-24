@@ -564,3 +564,25 @@ Measured on the review probe:
 Filed:
 - P2 `cite-member-edges-group-rerank-can-reverse-the-folds-rank-direction`
   (review O4b; unreached, untested branch)
+## 2026-09-24 — the group-size rung reads the emitter's groups (PR 3184)
+
+`GroupResized` used to count a group by how its members' names were
+spelled. Tied parents were then summed (4 → 2), and a face a split no
+longer divided read 2 → 0. Now each emitter records the groups it
+forms, by entity (`names::FragmentGroups`, not persisted), and the
+rung only looks the count up. At a union the count is the distinct
+published entities a fold step's group descends to, followed by
+entity through every later step. Where a group is formed by names (a
+seam group a tie formed), the rung declines. No name, stored bit or
+`DIAGNOSIS_DIGEST` row moved.
+
+The review took three rounds:
+- Round 1 found a partly swallowed union group reporting its full step
+  size.
+- The fix for that matched rows across fold steps by name, which
+  summed tied parents again.
+- Round 3 moved the descent to emit time, by entity.
+
+Documented as a known undercount: a piece a later step re-mints as a
+`Seam` edge along its own line is not counted as the parent's
+descendant.

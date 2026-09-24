@@ -191,12 +191,21 @@ records — and reports the first partner whose side changed, marked
 `FlipSource::ShadowExec` so no reader mistakes it for a line of a log. The
 GROUP-SIZE rung (`resolve::group_resized`, whose docs say why a fragment name
 can vanish with no flip) needs a prior run: when the last-good table at the
-minting node carried the name, and the rows spelled by its base — bare, or
-with one `Fragment` qualifier, a tie counting each candidate — number `was`
-entities there and `now ≠ was` in the current table, the diagnosis is
-`GroupResized { node, was, now }`. That is a statement about two recorded
-tables, not a claimed flip and not a claim about where the parent entity
-went. The ladder orders cause before effect: the flips, the qualifier delta,
+minting node carried the name, and the group its emitter divided the
+fragment's parent into held `was` entities there and holds `now ≠ was` in the
+current run, the diagnosis is `GroupResized { node, was, now }`. The group is
+the one the emitter formed, read from the record it keeps beside the table
+(`names::FragmentGroups`, not persisted), not re-derived from the names: it
+counts the distinct entities of the node's output descended from the parent
+within the group by the emitter's own descent, however each is spelled — an
+undivided pass-through, an N3 `Merged` survivor, and at a union the published
+entities a fold step's group descends to, followed by entity through every
+later step. A piece a later step re-mints under a seam name of its own is not
+a descendant by that descent and is not counted. Two tied parents that
+share a base are two groups, each counted on its own, where the emitter groups
+by parent entity; where it groups by parent names (the seam lanes) their
+pieces share one group and the rung declines. That is a statement about two
+recorded groups, not a claimed flip. The ladder orders cause before effect: the flips, the qualifier delta,
 the doc-diff lanes and `Upstream` name a cause, the group-size change is an
 effect whose cause the evidence does not hold, so it runs after every cause-naming rung
 and before the fallback. A collapsed fragment's undivided base, when it

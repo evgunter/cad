@@ -400,6 +400,7 @@ fn table_without(
         node,
         NodeResult::Ok(editor_core::NodeValue {
             name_table: Arc::new(t),
+            fragment_groups: Arc::default(),
             ..v
         }),
     );
@@ -540,6 +541,7 @@ fn one_node_eval(
         NodeResult::Ok(editor_core::NodeValue {
             payload: ValuePayload::Declarations(vec![]),
             name_table: Arc::new(t),
+            fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
             verdicts: Arc::new(vec![]),
