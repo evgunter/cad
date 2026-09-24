@@ -1819,3 +1819,25 @@ dispatched on Opus concurrently ~22:40Z (protocol `c3129311bd`,
 "no verdict moves at any scalar" and the two deviations that could
 change behaviour; reviewers told not to read other processes' command
 lines).
+
+## LANE-4 dual delivered: the first tally candidate; fix pass dispatched (2026-09-24)
+
+R1 APPROVE-WITH-FIXES 0/2/6 (+9 style); R2 APPROVE-WITH-FIXES 1/2/2
+(+12 style). Fair pair (both pruned their own build dirs when the shared
+disk filled — R2 at the orchestrator's instruction, a correction; R2's
+handback file write was refused by the tool layer, report saved by the
+orchestrator from its message; no glimpse). Blinded coding (byte 72):
+10 bilateral groups; **one tally candidate — MINT-ORDER, R2→, MAJOR,
+code, by execution**: the fix's up-front refusal for a `None` fitted
+door is observable through `nurbs_iso_derive`'s own-chart arm, which
+hands a stated `General` image straight to `mint_face`; at `Dual64` a
+public-API body's mint moved `Ok` → `Err(FittedLaneUnsupported)` and a
+refusal text moved. R1 asserted the opposite by inspection — as did the
+survey (my input) and so the spec. Ruled: upheld as blocking (it
+falsifies the unit's central invariant, whatever its reach); the fix
+pass restores the base's order exactly for both `None` arms and commits
+R2's public-API body as a genuine `Dual64` fixture with rows at all five
+scalars (R2's surviving mutant must red). The orchestrator log had not
+reached main since #2700 (R1's NOTE); landed by #3197. Fix pass
+dispatched on Opus ~23:30Z. DR row drafted (`lane4-dual-row.md`).
+Running tally: 1 of 8.
