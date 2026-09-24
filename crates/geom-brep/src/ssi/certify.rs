@@ -943,6 +943,22 @@ pub(crate) fn witness<T: Decide + Bounds + CertifiedEnclosure>(
 
 #[cfg(test)]
 mod tests {
+    /// **The mignitude refuses a refusal that carries real endpoints.**
+    /// This file has `Real` in scope, so `Real::is_poison` — NaI or
+    /// empty only — would compile at `zero_free_lower_bound` and read
+    /// this quotient (`Trv`, a strictly positive lower end) as a sound
+    /// bracket, handing its lower end back as a certified margin. The
+    /// refusal is `!is_certified()`.
+    #[test]
+    fn the_mignitude_refuses_a_refusal_with_real_endpoints() {
+        use super::zero_free_lower_bound;
+        use geom_core::{Bounds, Interval};
+        let q = Interval::from_bounds(1.0, 2.0) / Interval::from_bounds(0.0, 1.0);
+        assert!(!q.is_certified(), "the fixture is a refusal: {q:?}");
+        assert!(Bounds::lo(q) > 0.0, "with a positive lower end: {q:?}");
+        assert_eq!(zero_free_lower_bound(q), 0.0, "{q:?}");
+    }
+
     /// **The tube ladder's floor is the run band's own ε, exactly.**
     ///
     /// A degradation row, not a violation row. Every other statement
