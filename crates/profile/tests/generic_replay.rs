@@ -46,7 +46,7 @@ use profile::{ArcData, ProfileLoop, ReplayError, Step, Target, replay};
 /// than silently dropping out of the off-`f64` rows.
 fn embed_step<T: Real>(step: &Step<f64>) -> Step<T> {
     fn pt<T: Real>(p: Point2<f64>) -> Point2<T> {
-        Point2::new(T::from_f64(p.x), T::from_f64(p.y))
+        p.map(T::from_f64)
     }
     fn tgt<T: Real>(t: Target<f64>) -> Target<T> {
         match t {

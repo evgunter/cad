@@ -740,7 +740,13 @@ mod tests {
         let v3 = Vec3::new(-2.25, 0.1, 7.0);
         let (i2, i3) = (v2.map(Interval::from_f64), v3.map(Interval::from_f64));
         let d3 = v3.map(Dual64::from_f64);
-        let enclosed = [(i2.x, v2.x), (i2.y, v2.y), (i3.x, v3.x), (i3.y, v3.y), (i3.z, v3.z)];
+        let enclosed = [
+            (i2.x, v2.x),
+            (i2.y, v2.y),
+            (i3.x, v3.x),
+            (i3.y, v3.y),
+            (i3.z, v3.z),
+        ];
         for (got, want) in enclosed {
             let bits = (got.lo().to_bits(), got.hi().to_bits());
             assert_eq!(bits, (want.to_bits(), want.to_bits()), "{want}");

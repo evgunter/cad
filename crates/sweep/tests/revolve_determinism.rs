@@ -60,12 +60,7 @@ fn dual_value_channel_matches_f64_bitwise() {
         ProfileLoop::new(
             lp.vertices()
                 .iter()
-                .map(|v| {
-                    ProfileVertex::new(
-                        Point2::new(Dual::constant(v.pos().x), Dual::constant(v.pos().y)),
-                        Dual::constant(v.bulge()),
-                    )
-                })
+                .map(|v| v.map(Dual::constant))
                 .collect(),
         )
     };

@@ -673,7 +673,7 @@ fn even_crossing_belly_cut_at_interval() {
     let nv = Vec3::new(0.3, 2.0, 1.0).normalize();
     let plane = SplitPlane {
         origin: Point3::new(iv(0.03), iv(0.11), iv(0.47)),
-        normal: Vec3::new(iv(nv.x), iv(nv.y), iv(nv.z)),
+        normal: nv.map(iv),
     };
     // The same §2 assertions the f64 belly row carries, at Interval:
     // wall containment, the spans summing per part, and bit-identical

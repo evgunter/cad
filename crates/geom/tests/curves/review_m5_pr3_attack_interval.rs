@@ -29,13 +29,7 @@ fn lift(c: &NurbsCurve3<f64>) -> NurbsCurve3<Interval> {
     let ctrl = c
         .control()
         .iter()
-        .map(|p| {
-            Point3::new(
-                Interval::from_f64(p.x),
-                Interval::from_f64(p.y),
-                Interval::from_f64(p.z),
-            )
-        })
+        .map(|p| p.map(Interval::from_f64))
         .collect();
     NurbsCurve3::new(c.knots().clone(), ctrl, c.weights().to_vec()).unwrap()
 }
@@ -150,13 +144,7 @@ fn f2_dual_interval_straddle_encloses_both_tangents() {
     let ctrl = c
         .control()
         .iter()
-        .map(|p| {
-            Point3::new(
-                Dual::constant(Interval::from_f64(p.x)),
-                Dual::constant(Interval::from_f64(p.y)),
-                Dual::constant(Interval::from_f64(p.z)),
-            )
-        })
+        .map(|p| p.map(|c| Dual::constant(Interval::from_f64(c))))
         .collect();
     let cdi: NurbsCurve3<Dual<Interval>> =
         NurbsCurve3::new(c.knots().clone(), ctrl, c.weights().to_vec()).unwrap();

@@ -227,9 +227,9 @@ fn n3r2_dual_box_contains_a_dense_sample() {
             let (axis, u_ref) = frame(0.4, 0.7, f64::from(oct) * core::f64::consts::FRAC_PI_4);
             let carrier_d: Curve3<Dual64> = Curve3::Circle {
                 center: Point3::new(d(0.0), d(0.0), d(0.0)),
-                axis: Vec3::new(d(axis.x), d(axis.y), d(axis.z)),
+                axis: axis.map(d),
                 radius: Dual64::variable(r),
-                u_ref: Vec3::new(d(u_ref.x), d(u_ref.y), d(u_ref.z)),
+                u_ref: u_ref.map(d),
             };
             let real: Curve3<f64> = Curve3::Circle {
                 center: Point3::new(0.0, 0.0, 0.0),
@@ -288,7 +288,7 @@ fn n3r2_interval_box_dominates_every_realization_ascending() {
                     let t1 = Interval::from_bounds(t1c - w, t1c + w);
                     let carrier: Curve3<Interval> = Curve3::Circle {
                         center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                        axis: Vec3::new(iv(axis.x), iv(axis.y), iv(axis.z)),
+                        axis: axis.map(iv),
                         radius: Interval::from_bounds(r * (1.0 - w), r * (1.0 + w)),
                         u_ref: Vec3::new(
                             Interval::from_bounds(u0.x - w, u0.x + w),
@@ -348,9 +348,9 @@ fn n3r2_interval_box_dominates_every_realization_descending() {
         let t1 = Interval::from_bounds(0.2 - w, 0.2 + w); // end (smaller)
         let carrier: Curve3<Interval> = Curve3::Circle {
             center: Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-            axis: Vec3::new(iv(axis.x), iv(axis.y), iv(axis.z)),
+            axis: axis.map(iv),
             radius: iv(1.0),
-            u_ref: Vec3::new(iv(u0.x), iv(u0.y), iv(u0.z)),
+            u_ref: u0.map(iv),
         };
         let b = conic_arc_aabb(&carrier, t0, t1, carrier.eval(t0), carrier.eval(t1)).unwrap();
         let real: Curve3<f64> = Curve3::Circle {

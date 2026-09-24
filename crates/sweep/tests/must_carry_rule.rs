@@ -646,17 +646,15 @@ fn a_filleted_block_spends_the_rules_stations_once_per_smooth_strut() {
 #[cfg(feature = "probe")]
 fn probe_surface(s: &Surface<f64>) -> Surface<geom_core::k_stats::Probe> {
     use geom_core::k_stats::Probe;
-    let pt = |p: Point3<f64>| Point3::new(Probe(p.x), Probe(p.y), Probe(p.z));
-    let v = |d: Vec3<f64>| Vec3::new(Probe(d.x), Probe(d.y), Probe(d.z));
     match *s {
         Surface::Plane {
             origin,
             normal,
             u_ref,
         } => Surface::Plane {
-            origin: pt(origin),
-            normal: v(normal),
-            u_ref: v(u_ref),
+            origin: origin.map(Probe),
+            normal: normal.map(Probe),
+            u_ref: u_ref.map(Probe),
         },
         Surface::Cone {
             apex,
@@ -664,10 +662,10 @@ fn probe_surface(s: &Surface<f64>) -> Surface<geom_core::k_stats::Probe> {
             half_angle,
             u_ref,
         } => Surface::Cone {
-            apex: pt(apex),
-            axis: v(axis),
+            apex: apex.map(Probe),
+            axis: axis.map(Probe),
             half_angle: Probe(half_angle),
-            u_ref: v(u_ref),
+            u_ref: u_ref.map(Probe),
         },
         _ => panic!("only the out-of-lane triple's kinds are lifted here"),
     }
@@ -679,8 +677,8 @@ fn probe_carrier(c: &Curve3<f64>) -> Curve3<geom_core::k_stats::Probe> {
     use geom_core::k_stats::Probe;
     match *c {
         Curve3::Line { origin, dir } => Curve3::Line {
-            origin: Point3::new(Probe(origin.x), Probe(origin.y), Probe(origin.z)),
-            dir: Vec3::new(Probe(dir.x), Probe(dir.y), Probe(dir.z)),
+            origin: origin.map(Probe),
+            dir: dir.map(Probe),
         },
         _ => panic!("only the out-of-lane triple's carrier is lifted here"),
     }

@@ -345,7 +345,7 @@ fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
     fn embed<T: geom_core::Real>(step: &profile::Step<f64>) -> profile::Step<T> {
         use geom_core::Point2;
         use profile::{ArcData, Step, Target};
-        let pt = |p: Point2<f64>| Point2::new(T::from_f64(p.x), T::from_f64(p.y));
+        let pt = |p: Point2<f64>| p.map(T::from_f64);
         let tgt = |t: Target<f64>| match t {
             Target::Start => Target::Start,
             Target::StartArriving => Target::StartArriving,

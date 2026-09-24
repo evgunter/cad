@@ -551,17 +551,7 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
         let Surface::Nurbs(n) = widened_u_chart_by(&chart_of(&body, bowed), 1) else {
             panic!("the widened chart is a NURBS chart")
         };
-        let control = n
-            .control()
-            .iter()
-            .map(|p| {
-                Point3::new(
-                    Dual::constant(p.x),
-                    Dual::constant(p.y),
-                    Dual::constant(p.z),
-                )
-            })
-            .collect();
+        let control = n.control().iter().map(|p| p.map(Dual::constant)).collect();
         Surface::Nurbs(Arc::new(
             NurbsSurface::<Dual64>::new(
                 n.knots_u().clone(),

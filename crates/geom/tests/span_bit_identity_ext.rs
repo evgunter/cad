@@ -73,10 +73,7 @@ fn curve(k: KnotVector, rational: bool) -> NurbsCurve3<f64> {
 fn lift<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
     NurbsCurve3::new(
         c.knots().clone(),
-        c.control()
-            .iter()
-            .map(|p| Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z)))
-            .collect(),
+        c.control().iter().map(|p| p.map(T::from_f64)).collect(),
         c.weights().to_vec(),
     )
     .unwrap()
@@ -85,10 +82,7 @@ fn lift_s<T: Real>(s: &NurbsSurface<f64>) -> NurbsSurface<T> {
     NurbsSurface::new(
         s.knots_u().clone(),
         s.knots_v().clone(),
-        s.control()
-            .iter()
-            .map(|p| Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z)))
-            .collect(),
+        s.control().iter().map(|p| p.map(T::from_f64)).collect(),
         s.weights().to_vec(),
     )
     .unwrap()

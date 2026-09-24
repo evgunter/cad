@@ -283,11 +283,7 @@ fn basis_interval_contains_f64() {
         Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0),
     ] {
         let (b1, b2) = n.orthonormal_basis();
-        let ni = Vec3::new(
-            Interval::from_f64(n.x),
-            Interval::from_f64(n.y),
-            Interval::from_f64(n.z),
-        );
+        let ni = n.map(Interval::from_f64);
         let (i1, i2) = ni.orthonormal_basis();
         for (f, e) in [
             (b1.x, i1.x),
