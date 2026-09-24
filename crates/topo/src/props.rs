@@ -2243,9 +2243,8 @@ mod wiring_rows {
 
     /// `Ok(())` when the shell door holds `shell_open`; otherwise the
     /// name of the field that moved.
-    fn holds_the_certified_shell_door<
-        T: super::Decide + geom_core::CertifiedBounds + AtRestPolicy,
-    >() -> Result<(), &'static str> {
+    fn holds_the_certified_shell_door<T: geom_core::CertifiedBounds + AtRestPolicy>()
+    -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
             ShellDoor::<T>::certified().open,
             crate::shell::shell_open::<T> as fn(_, _, _, _) -> _,
@@ -2701,9 +2700,11 @@ mod at_rest_policy_tests {
              scalar"
         );
         // The arm's `Some` is the door's one constructor and not a
-        // value spelled beside it: this module can write the private
-        // field, so a literal here would hold whatever it names and
-        // `wiring_rows`, which pins `certified()`, would not see it.
+        // value spelled beside it: the `impl AtRestPolicy for …` arms
+        // live in the parent module, which owns the private field, so a
+        // `ShellDoor { open: … }` literal in an arm would hold whatever
+        // it names and `wiring_rows`, which pins `certified()`, would
+        // not see it.
         let door = T::shell_door().expect("a certifying scalar holds the shell door");
         assert!(
             std::ptr::fn_addr_eq(door.open, super::ShellDoor::<T>::certified().open),

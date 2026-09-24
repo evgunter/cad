@@ -513,13 +513,14 @@ BOUNDS_ALLOWLIST=(
   # stands for, so the type cannot be written at a scalar without
   # it, and no bracket is read here — the door holds a function
   # pointer and hands its arguments on.
-  # 28 -> 29: `wiring_rows::holds_the_certified_shell_door`, the shell
-  # door's pointer-identity helper (`CertifiedBounds + AtRestPolicy`
-  # beside `Decide`). It is `holds_the_certified_quadrature`'s header
-  # a few lines up, already under this count, for the same reason: it
-  # forms `ShellDoor::<T>::certified()` at each certifying scalar, so
-  # it restates that constructor's bound and nothing wider, in a
-  # `#[cfg(test)]` module that reads no bracket.
+  # The count includes `wiring_rows::holds_the_certified_shell_door`,
+  # the shell door's pointer-identity helper (`CertifiedBounds +
+  # AtRestPolicy`), for the reason `holds_the_certified_quadrature`'s
+  # header a few lines up is under it: it forms
+  # `ShellDoor::<T>::certified()` at each certifying scalar, so it
+  # restates that constructor's bound (its `Decide` implied by
+  # `AtRestPolicy`) and nothing wider, in a `#[cfg(test)]` module that
+  # reads no bracket.
   'crates/topo/src/props.rs 29 M5 PR 11, the certified-quadrature plumbing'
   # M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery.
   'crates/sweep/src/blend/battery.rs 15 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
