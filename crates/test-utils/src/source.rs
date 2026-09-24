@@ -400,6 +400,31 @@ pub fn sentinel_region(text: &str, what: &str, begin: &str, end: &str) -> std::o
     b + begin.len()..e
 }
 
+/// **Every offset `needle` matches at in `text`, refused when there is
+/// none** — [`str::match_indices`] for a scan whose file is REQUIRED to
+/// carry its needle.
+///
+/// A needle that stopped matching — a marker renamed, a file moved, a
+/// path re-spelled — makes a census read an empty set, and an empty
+/// set satisfies every equality and containment it feeds. That is not
+/// an honest zero: the scan's premise is broken, so it refuses at the
+/// read, naming the text and the needle, rather than hand the caller a
+/// set whose emptiness some later assertion has to remember to check.
+/// A scan that may legitimately match nothing wants
+/// [`str::match_indices`] itself.
+///
+/// `what` names the text in the refusal, as for [`sentinel_region`].
+#[must_use]
+pub fn required_matches(text: &str, what: &str, needle: &str) -> Vec<usize> {
+    let found: Vec<usize> = text.match_indices(needle).map(|(at, _)| at).collect();
+    assert!(
+        !found.is_empty(),
+        "{what}: `{needle}` matches nothing, and this scan's text is required to carry it — \
+         the needle or the file has drifted from what the scan was built to read"
+    );
+    found
+}
+
 /// The offset at which the line holding `at` begins.
 ///
 /// The offset half of [`line()`], which answers the line NUMBER. Here
@@ -1968,6 +1993,20 @@ mod tests {
         assert_eq!(found.len(), 2, "{found:?}");
         assert!(found.iter().any(|p| p.ends_with("hidden.rs")), "{found:?}");
         std::fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    /// A required needle answers its offsets, and one that matches
+    /// nothing refuses naming the text and the needle — the empty set
+    /// is never handed back.
+    #[test]
+    fn a_required_needle_that_matches_nothing_refuses_at_the_scan() {
+        assert_eq!(super::required_matches("a b a", "t", "a"), vec![0, 4]);
+        let refusal = std::panic::catch_unwind(|| super::required_matches("a b", "the.rs", "zz"))
+            .expect_err("an absent required needle refuses");
+        let said = refusal
+            .downcast_ref::<String>()
+            .expect("the refusal is formatted");
+        assert!(said.contains("the.rs") && said.contains("`zz`"), "{said}");
     }
 
     /// **The precondition is the operation.** Over a blanked view every
