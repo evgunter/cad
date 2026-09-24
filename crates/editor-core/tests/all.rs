@@ -154,6 +154,8 @@ mod edit_pair_apply_names;
 mod edit_recorded_notation;
 #[path = "edit_ruled_carve.rs"]
 mod edit_ruled_carve;
+#[path = "edit_set_program.rs"]
+mod edit_set_program;
 #[path = "edit_step_segments.rs"]
 mod edit_step_segments;
 #[path = "emit_boolean_vertex_keys.rs"]

@@ -333,7 +333,8 @@ fn deleting_an_outers_minting_node_strands_it_on_the_instance() {
             Maintenance::Strand { node, name } => Some((*node, name.clone())),
             Maintenance::Cluster(_)
             | Maintenance::StrandedAppearance { .. }
-            | Maintenance::OrphanedDeclare { .. } => None,
+            | Maintenance::OrphanedDeclare { .. }
+            | Maintenance::Rebound { .. } => None,
         })
         .collect();
     assert_eq!(
