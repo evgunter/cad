@@ -185,7 +185,26 @@ CHROME, CENSUS-INERT-DENY, EDIT and SCALAR's class sweep; triaged
     settling the principle that the doors decide edits and the solve
     decides states.
 
-The exit walk waits on 10–12 and 14–16: the program closes when the
+**Routed onto this slate 2026-09-20 … 09-23 by PROPS, CHROME and
+PORT; triaged 2026-09-24:**
+
+17. **`msolve-9-spec-prescribes-an-untagged-wire`** (PORT) — rides
+    with MSOLVE-9. The spec's wire sentence is amended on the unit
+    branch: `MateFrame` is externally tagged and the tracked corpus
+    regenerates, under Ev's ruling on PR 3123 and PR 2702's
+    no-backtracking gate.
+18. **`MSOLVE-11`** — the solve's escalations reach a node's log, and
+    the refusals it sites name the node that failed. Gathers
+    `mate-lane-escalations-reach-no-nodes-log` (PROPS, P1: the
+    whole-document solve runs outside any node's bracket, and
+    `coset::parallel` mints an `Indeterminate` by hand) and
+    `placer-refused-names-the-pattern-for-a-part-index-that-does-not-evaluate`
+    (CHROME, P3: `check_reference` sites a `Part`'s own index at the
+    pattern below it — one condition, two seats, the class MSOLVE-7
+    closed for the axis). Specs after MSOLVE-9 merges; both touch
+    `mate/solve.rs` and `mate/member.rs`.
+
+The exit walk waits on 10–12, 14–16 and 17–18: the program closes when the
 lever, the member residue (with the wire hole), the margins' arm
 (with the witness and the `MateFault` note), the face-resolved frame
 and the static clocking refusal are in.

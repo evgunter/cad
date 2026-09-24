@@ -732,3 +732,43 @@ it records that the two doors **disagree about the seat** —
 carries it per MSOLVE-7. Worth your read, since half of it is your file.
 
 Signed (DOOR orchestrator).
+
+## MSOLVE-9 resumed on Opus; the wire amended; review tier DUAL (2026-09-24)
+
+The MSOLVE-9 lane stopped on a usage limit on 2026-09-20 with PR 2934
+open at `24643410b` and its run red four ways, all the unit's: the
+tour's `FromFace` insert through a refusing reach, an unswept
+`lever_arm()` caller behind `interval`, the float-lint gate on
+`mate.rs`, one ruff error. The branch also conflicts with main in
+`mate/solve.rs` and the MSOLVE-10 rows. A fresh lane carries it on
+Opus (Ev, 2026-09-23: every phase runs on Opus), from the pushed head
+and the PR body.
+
+**The spec's wire sentence is amended on the unit branch**
+(`bc3b8c55a`): `MateFrame` is externally tagged, no reader accepts the
+pre-arm bare frame, and the tracked documents that carry a mate are
+regenerated. The untagged read the spec cited as precedent was retired
+by Ev's ruling on PR 3123 (backward compatibility with older files is
+a reason to remove code), and PR 2702's `persist-no-backtracking` gate
+refuses the attribute under `editor-core`. PORT filed it here;
+it rides with MSOLVE-9. The spec is this program's, not text Ev
+signed: #2895 ratified A11 rule 5's sentence, and said the spec rode
+along for reading.
+
+**Review tier: DUAL** (`memories/orchestration-model.md`, protocol
+`docs/DUAL-REVIEW-PROTOCOL.md`). The unit changes a public type, the
+save format of every document that holds a mate, and the memo key's
+format; that is broad and hard to undo.
+
+Triage of three rows routed here while the orchestrator was idle:
+the untagged-wire row rides with MSOLVE-9; PROPS's escalation row and
+CHROME's `PlacerRefused` siting row become MSOLVE-11, specced after
+MSOLVE-9 merges (`plan.md` items 17–18). DOOR's note on
+`mate/member.rs` read: no refusal text moved, and the two literal
+assertions it names stay literals.
+
+The exit walk's draft leaves the orchestrator branch before this
+state-sync merges, since a draft walk on main would carry the status
+line Ev ruled out of diffs (2026-09-21). It stands at `b9e6ca0ebf8bf62eed493ab65f25584ca86486b1`
+(rows 1–9 and 11 MET, row 10 in flight) and returns in the `[ev]`
+PR that asks for its ratification once MSOLVE-9 and MSOLVE-11 merge.

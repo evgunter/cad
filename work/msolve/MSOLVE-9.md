@@ -2,11 +2,12 @@
 id: MSOLVE-9
 kind: unit
 title: A mate frame that names a face of the part and resolves at evaluation through the reach road; A11's inputs sentence revised
-status: open
+status: dispatched
 opened: 2026-09-19
 branch: msolve/9-from-face
 priority: P0
 cost: D
+pr: 2934
 ---
 
 
