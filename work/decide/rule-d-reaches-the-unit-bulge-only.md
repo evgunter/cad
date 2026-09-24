@@ -493,6 +493,11 @@ the dial stands, it runs ahead of the value-free folds and the door:
 - it loses the door's `pcurve_map_residual`;
 - `numeric` RISES everywhere: plate 462 → 498, annulus 209 → 245,
   link 453 → 477, bracket 760 → 782, boss 234 → 251.
+- it takes back what DECIDE-4's value-free rule gains. With that rule in,
+  the boss's `arc_span` under rule C on is `[4, 2, 0, 0]`: two of its
+  theorems are re-labelled `sign_gated`. This was measured by DECIDE-4's
+  review on `334bb2aa2`. The cause is older: `sqrt(5p²) − √5·|p|` is a
+  theorem under the shipped set and refused under `SymRules::all()`.
 
 **Not measured, named so the choice is whole:**
 
