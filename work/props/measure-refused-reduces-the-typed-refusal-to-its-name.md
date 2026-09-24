@@ -14,7 +14,7 @@ opened: 2026-09-24
 `"selection_kind"` for `MeasureSelectionKind`, and the clearance engine's
 `ClearanceRefusal::name()` for `MeasureClearanceRefused`. So one hop after
 the measure layer started carrying the engine's typed refusal
-(`work/port/min-clearance-refusal-stringly-twin.md`, PR #3188), the drive
+(`work/port/min-clearance-refusal-stringly-twin.md`, PR #3188 — PORT has since closed; recover it with `git show 6a173492f:work/port/min-clearance-refusal-stringly-twin.md`), the drive
 reduces it back to its name; a reader of `RefusalReason` that wants the
 arm matches a string, and nothing stops the two vocabularies colliding.
 The serialized form (`drive.rs` ~:1938, `measure_refused {node} {class}`)
