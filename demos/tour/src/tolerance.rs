@@ -170,8 +170,8 @@
 
 use pncad::analysis::{
     AnalysisPolicy, AnalyzedBox, BoxAxis, DriveConfig, MassBudget, McConfig, ParamBoxVerdict,
-    Stackup, StackupRefusal, analyzed_box, assertion_at, box_mass, drive, leaf_histogram,
-    monte_carlo, render_sensitivity, stackup,
+    RefusalReason, Stackup, StackupRefusal, analyzed_box, assertion_at, box_mass, drive,
+    leaf_histogram, monte_carlo, render_sensitivity, stackup,
 };
 use pncad::document::{ProfileDoc, RecipeNodeId};
 use pncad::geom_core::Tol;
@@ -186,9 +186,14 @@ use crate::plate::{Plate, WEB, plate};
 /// refining a boundary the answer does not depend on. 512 leaves
 /// certify 83% of the study's mass in about three and a half minutes
 /// and already reach the violating corner (256 leaves certify 79% and
-/// do not; 1024 certify 89%, measured in
-/// `editor-core/tests/m10_10_evidence_interval`). The cell caps it and
-/// says so, which is a statement about the COST rather than a thumb
+/// do not; 384 reach it with 7e-6 of the study's mass violated against
+/// 512's 1.75e-4, a corner a shift in the split order could lose; 1024
+/// certify 89%, measured in `editor-core/tests/m10_10_evidence_interval`
+/// and, for 128–512, by a probe on this cell on 2026-09-24). At 256 and
+/// below the requirement reads `Holds` and every stop-1 assertion on the
+/// violated corner fails, so the budget is not a dial for CI time:
+/// halving it loses the stop's finding. The cell caps it and says so,
+/// which is a statement about the COST rather than a thumb
 /// on the answer: a reader who doubts it can raise the number and
 /// watch the certified mass grow and the verdict not change.
 fn starved() -> DriveConfig {
@@ -198,7 +203,36 @@ fn starved() -> DriveConfig {
     }
 }
 
+/// The hull's padding below and above the true range over the
+/// certified leaves at stop 1's budget (512 leaves, 193 certified),
+/// MEASURED at the default ε in metres — `2.125e-5` below and
+/// `8.500e-5` above the exact affine range `[4.400e-4, 7.600e-4]`
+/// — and pinned at BOTH ends within 2% at the default ε (a hull that
+/// padded more would fail, and so would one whose leaves narrowed:
+/// the widening is proportional to the leaf's width), as a ceiling
+/// at the other ε rows.
+const HULL_SLACK_BELOW: f64 = 2.125e-5;
+const HULL_SLACK_ABOVE: f64 = 8.500e-5;
+
+/// Whether this run is at the default ε, where stop 1's leaf counts
+/// and hull padding are pinned exactly rather than as ceilings.
+fn at_default_eps(tol: Tol) -> bool {
+    (tol.eps() / 1.0e-9 - 1.0).abs() < 1.0e-3
+}
+
 /// The tour's tolerance cell.
+///
+/// **It asserts what its captions claim, not only prints them.** It runs
+/// in `demo-tour certified`, which `tests/eps_regression.rs` runs at
+/// every ε row, so a finding that moves panics the tour there: stop 1
+/// CERTIFIES — every refusal the leaf budget, the requirement `Mixed`
+/// over the certified leaves with a stated violated mass, the hull
+/// straddling the floor, and the leaves and padding the caption names
+/// (a padded hull straddles more easily, so the straddle alone would
+/// get EASIER as the hull pads) — and at the certifiable box the
+/// certified answer and the RSS's disagree. The exact leaf counts and
+/// padding are the default ε's; the other rows hold the padding as a
+/// ceiling.
 pub fn narration(tol: Tol) {
     real_study(tol);
     certified_study(tol);
@@ -224,14 +258,49 @@ fn real_study(tol: Tol) {
 
     let verdict = drive(&doc, &analyzed, &starved(), tol).expect("the nominal builds");
     println!("{}", indent(&verdict.render(&analyzed)));
+    assert!(
+        verdict
+            .refused()
+            .iter()
+            .all(|l| matches!(l.reason, RefusalReason::Budget(_))),
+        "the caption says every refusal is the leaf budget: {:?}",
+        verdict.receipt()
+    );
+    // At the default ε the leaf counts the header quotes, exactly: a
+    // tier whose reach moved would move them.
+    if at_default_eps(tol) {
+        assert_eq!(
+            (verdict.certified().len(), verdict.refused().len()),
+            (193, 319),
+            "the header's leaf counts at 512 leaves: {:?}",
+            verdict.receipt()
+        );
+    }
     // The verdict on the requirement, read off the ASSERTION NODE over
     // each certified leaf — stop 2's discipline, applied to the study
     // a user actually has.
-    let decided = assertion_over_leaves(&doc, &verdict, assertion, tol);
-    let masses = requirement_masses(&doc, &analyzed, &verdict, assertion, tol);
+    let requirement = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol);
+    let decided = requirement.decided;
     match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
         Ok(report) => {
             println!("{}", indent(&report.render(&analyzed)));
+            assert_eq!(
+                decided,
+                Decided::Mixed,
+                "the caption says the requirement holds where the mass is and is violated \
+                 in the corner"
+            );
+            // The VIOLATED mass is a number, not only a `Mixed`: the
+            // floor fails on a certified part of the study, and holds
+            // on most of it.
+            assert!(
+                requirement.violated > 0.0 && requirement.holds > requirement.violated,
+                "the caption says the floor is violated on certified mass and holds on most: \
+                 holds {:.4}, violated {:.4}, unevaluated {:.4}",
+                requirement.holds,
+                requirement.violated,
+                requirement.unevaluated
+            );
             println!(
                 "   the assertion node {} is the recorded requirement, and THIS is the \
                  study's answer: {} — over the certified leaves the floor HOLDS on \
@@ -240,11 +309,11 @@ fn real_study(tol: Tol) {
                  is in leaves the budget left unresolved",
                 assertion.0,
                 describe(&decided),
-                masses.holds,
-                masses.violated,
+                requirement.holds,
+                requirement.violated,
                 bound * 1e3,
-                masses.unevaluated,
-                1.0 - masses.holds - masses.violated - masses.unevaluated
+                requirement.unevaluated,
+                1.0 - requirement.holds - requirement.violated - requirement.unevaluated
             );
             let slack = hull_slack(&verdict, (report.worst_case.lo, report.worst_case.hi));
             println!(
@@ -259,6 +328,42 @@ fn real_study(tol: Tol) {
                 slack.true_hi,
                 slack.below,
                 slack.above
+            );
+            // The straddle beside its padding (R2's Q3): the hull
+            // ENCLOSES the true range over the certified leaves and
+            // exceeds it by a padding proportional to the leaf's width
+            // — bounded here at both ends, so a hull that padded its way
+            // across the floor would fail.
+            assert!(
+                report.worst_case.lo < bound && bound < report.worst_case.hi,
+                "the certified worst case straddles the floor: {:?} against {bound:e}",
+                report.worst_case
+            );
+            assert!(
+                slack.below >= 0.0 && slack.above >= 0.0,
+                "the hull encloses the true range: {slack:?}"
+            );
+            assert_eq!(
+                report.worst_case.leaves,
+                verdict.certified().len(),
+                "the hull is over every certified leaf"
+            );
+            assert!(
+                slack.true_lo < bound,
+                "the TRUE range over the certified leaves reaches under the floor — the \
+                 straddle is the study's, not the padding's: {slack:?} against {bound:e}"
+            );
+            let within = |got: f64, want: f64| {
+                if at_default_eps(tol) {
+                    (got - want).abs() <= 0.02 * want
+                } else {
+                    got <= 1.05 * want
+                }
+            };
+            assert!(
+                within(slack.below, HULL_SLACK_BELOW) && within(slack.above, HULL_SLACK_ABOVE),
+                "the padding is the measured one ({slack:?} against {HULL_SLACK_BELOW:e} / \
+                 {HULL_SLACK_ABOVE:e}); if it moved, the leaves moved"
             );
             println!(
                 "     WHY it certifies now: the symbolic identity tier (E12) discharges \
@@ -317,12 +422,12 @@ fn real_study(tol: Tol) {
                 receipt.certified, receipt.refused
             );
             println!("{}", indent(&MassBudget::of(&coverage, &analyzed).render()));
-            println!(
-                "     This is NOT the expected answer any more: under M10-10's tier this \
-                 study certifies (the module header carries the numbers). A refusal \
-                 here means the arc family's identity residuals are bounding the plate \
-                 again — a regression in geom_core::sym, to be read off the over-band \
-                 set at ceiling + δ (editor-core/tests/m10_8_harness), not off this line."
+            panic!(
+                "stop 1 certified nothing, and under M10-10's tier this study certifies \
+                 (the module header carries the numbers). A refusal here means the arc \
+                 family's identity residuals are bounding the plate again — a regression \
+                 in geom_core::sym, to be read off the over-band set at ceiling + δ \
+                 (editor-core/tests/m10_8_harness), not off this line."
             );
         }
         Err(other) => panic!("unexpected stackup refusal: {other}"),
@@ -332,6 +437,8 @@ fn real_study(tol: Tol) {
     // it is on every line.
     let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("the nominal builds");
     println!("{}", indent(&mc.render()));
+    assert!(mc.render().contains("ADVISORY"));
+    assert_eq!(mc.samples, pncad::analysis::DEFAULT_SAMPLES);
 }
 
 /// **Stop 2 — the same plate at the box the driver can certify**: the
@@ -386,23 +493,27 @@ fn certified_study(tol: Tol) {
     // numbers that differ by less than the run's own coincidence
     // threshold, and a demo that decides on it is claiming a certainty
     // the kernel refuses to claim one line away.
-    let decided = assertion_over_leaves(&doc, &verdict, assertion, tol);
+    let decided = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol).decided;
+    assert_eq!(
+        decided,
+        Decided::Holds,
+        "the straddle is inside the coincidence band, so the assertion node HOLDS — and \
+         the caption must say what the node says"
+    );
     match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
         Ok(report) => {
             println!("{}", indent(&report.render(&analyzed)));
             print_divergence(&report, bound, worst, &decided, tol);
+            assert_divergence(&report, bound, tol);
             // The E11.6 datum: where each certified leaf's mass lands.
             let histogram = leaf_histogram(&doc, &analyzed, &verdict, measure, tol);
             println!("{}", indent(&histogram.render()));
         }
-        Err(refusal) => {
-            println!(
-                "   the certifiable box did not certify either: {refusal}\n     \
-                 That is a finding about the arc-rim endpoint family the module header \
-                 names, not about the plate — the cell prints it rather than choosing a \
-                 box that flatters the kernel."
-            );
-        }
+        Err(refusal) => panic!(
+            "the certifiable box did not certify: {refusal}. The ε-scaled box is the one \
+             this stop is built on, so the arc-rim endpoint family the module header names \
+             is bounding the plate again."
+        ),
     }
     println!(
         "   the assertion node {} is the recorded requirement, and THIS is what the CI \
@@ -412,30 +523,34 @@ fn certified_study(tol: Tol) {
     );
     let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("the nominal builds");
     println!("{}", indent(&mc.render()));
+    assert_eq!(mc.samples, pncad::analysis::DEFAULT_SAMPLES);
     // The advisory lane's own number, READ OFF THE REPORT rather than
     // asserted in prose. The first pass printed "0%" as a literal, so
     // a study whose sampling did find the corner would have been
     // narrated wrongly by a sentence nobody re-ran.
-    if let Some(fraction) = mc
+    let fraction = mc
         .assertions
         .iter()
         .find(|a| a.node == assertion)
         .and_then(|a| a.violation_fraction())
-    {
-        println!(
-            "     NOTE: the advisory lane's violation fraction is {:.4}% over {} samples, \
-             while the CERTIFIED worst case reaches {:e} below the bound. The two answer \
-             different questions — the sampled one asks where 512 draws landed, the \
-             certified one asks what the whole box admits — which is why E11 makes the \
-             certified one the only gate.",
-            100.0 * fraction,
-            mc.samples,
-            bound
-                - stackup(&doc, measure, &analyzed, &verdict, None, true, tol)
-                    .map(|r| r.worst_case.lo)
-                    .unwrap_or(bound)
-        );
-    }
+        .expect("the sampled assertion has a violation fraction to report");
+    assert!(
+        (0.0..=1.0).contains(&fraction),
+        "a violation fraction is a fraction: {fraction}"
+    );
+    println!(
+        "     NOTE: the advisory lane's violation fraction is {:.4}% over {} samples, \
+         while the CERTIFIED worst case reaches {:e} below the bound. The two answer \
+         different questions — the sampled one asks where 512 draws landed, the \
+         certified one asks what the whole box admits — which is why E11 makes the \
+         certified one the only gate.",
+        100.0 * fraction,
+        mc.samples,
+        bound
+            - stackup(&doc, measure, &analyzed, &verdict, None, true, tol)
+                .map(|r| r.worst_case.lo)
+                .unwrap_or(bound)
+    );
     // **And a bound the run CAN decide**, so the reader sees the gate
     // actually gate rather than only refuse. See `print_divergence`
     // for why the interesting bound is not one of these.
@@ -470,14 +585,37 @@ fn describe(d: &Decided) -> &'static str {
     }
 }
 
-fn assertion_over_leaves(
+/// **The requirement's answer WITH ITS MASSES**: the assertion node's
+/// verdict over every certified leaf, collapsed to a [`Decided`], and
+/// how much of the study's probability mass sits where the assertion
+/// HOLDS, where it is VIOLATED, and where the kernel refuses to call it
+/// (`Unevaluated`) — each leaf's mass under the study's own
+/// distributions (`box_mass`, the same integral the driver's accounting
+/// takes). `Mixed` alone says the leaves disagree; the masses say by
+/// how much, which is the sentence E12 quotes as the one to become
+/// sayable ("with probability p the web is under the floor").
+///
+/// One pass, because [`assertion_at`] REPLAYS the leaf: reading the
+/// verdict and the masses separately replayed every certified leaf
+/// twice.
+struct Requirement {
+    decided: Decided,
+    holds: f64,
+    violated: f64,
+    unevaluated: f64,
+}
+
+fn requirement_over_leaves(
     doc: &ProfileDoc,
+    analyzed: &AnalyzedBox,
     verdict: &ParamBoxVerdict,
     assertion: RecipeNodeId,
     tol: Tol,
-) -> Decided {
+) -> Requirement {
     let mut seen: Option<Decided> = None;
+    let (mut holds, mut violated, mut unevaluated) = (0.0, 0.0, 0.0);
     for leaf in verdict.certified() {
+        let mass = leaf_mass(analyzed, &leaf.box_);
         // On the lane the drive certified the leaf on — the verdict
         // carries it, so a consumer never has to know which.
         let one = match assertion_at(doc, assertion, &leaf.box_, verdict.symbolic(), tol) {
@@ -488,52 +626,23 @@ fn assertion_over_leaves(
             },
             None => Decided::Nothing,
         };
+        match one {
+            Decided::Holds => holds += mass,
+            Decided::Violated => violated += mass,
+            _ => unevaluated += mass,
+        }
         seen = Some(match seen {
             None => one,
             Some(prev) if prev == one => prev,
             Some(_) => Decided::Mixed,
         });
     }
-    seen.unwrap_or(Decided::Nothing)
-}
-
-/// **The requirement's answer WITH ITS MASSES**: over the certified
-/// leaves, how much of the study's probability mass sits where the
-/// assertion HOLDS, where it is VIOLATED, and where the kernel refuses
-/// to call it (`Unevaluated`) — each leaf's mass under the study's own
-/// distributions (`box_mass`, the same integral the driver's accounting
-/// takes). `Mixed` alone says the leaves disagree; this says by how
-/// much, which is the sentence E12 quotes as the one to become sayable
-/// ("with probability p the web is under the floor").
-struct RequirementMasses {
-    holds: f64,
-    violated: f64,
-    unevaluated: f64,
-}
-
-fn requirement_masses(
-    doc: &ProfileDoc,
-    analyzed: &AnalyzedBox,
-    verdict: &ParamBoxVerdict,
-    assertion: RecipeNodeId,
-    tol: Tol,
-) -> RequirementMasses {
-    let mut out = RequirementMasses {
-        holds: 0.0,
-        violated: 0.0,
-        unevaluated: 0.0,
-    };
-    for leaf in verdict.certified() {
-        let mass = leaf_mass(analyzed, &leaf.box_);
-        match assertion_at(doc, assertion, &leaf.box_, verdict.symbolic(), tol)
-            .and_then(|v| v.holds())
-        {
-            Some(true) => out.holds += mass,
-            Some(false) => out.violated += mass,
-            None => out.unevaluated += mass,
-        }
+    Requirement {
+        decided: seen.unwrap_or(Decided::Nothing),
+        holds,
+        violated,
+        unevaluated,
     }
-    out
 }
 
 /// One leaf's mass under the study's distributions: the product over
@@ -611,6 +720,37 @@ fn definite_arm(doc: &ProfileDoc, analyzed: &AnalyzedBox, measure: RecipeNodeId,
          threshold above the whole enclosure) the same assertion reads a definite \
          VIOLATED — the gate gates. It is not the interesting bound, and the line above \
          says why."
+    );
+}
+
+/// **Stop 2's caption, asserted**: the certified worst case reaches
+/// under the bound by less than ε, the RSS's 3σ reading does not reach
+/// it, and the window between the two is narrower than the escalation
+/// threshold — the honest limit the stop reports, so it is asserted
+/// rather than only narrated.
+fn assert_divergence(report: &Stackup, bound: f64, tol: Tol) {
+    let margin = report.worst_case.lo - bound;
+    assert!(
+        margin < 0.0 && margin.abs() < tol.eps(),
+        "the caption says the enclosure reaches under the bound by less than eps: margin \
+         {margin:e}, eps {:e}",
+        tol.eps()
+    );
+    let pncad::analysis::Rss::Advisory { sigma } = &report.rss else {
+        panic!("every contributor carries a measure here: {:?}", report.rss);
+    };
+    let three_sigma = report.nominal.expect("the web has an f64 nominal") - 3.0 * *sigma;
+    assert!(
+        three_sigma >= bound,
+        "and the RSS's 3σ reading does not reach under the bound — that disagreement is \
+         the cell's subject; σ = {sigma:e}"
+    );
+    let gap = three_sigma - report.worst_case.lo;
+    assert!(
+        gap > 0.0 && gap < tol.k() * tol.eps(),
+        "the caption says the certified worst case reaches further under than 3σ, and the \
+         whole divergence is inside the escalation threshold: window {gap:e} against {:e}",
+        tol.k() * tol.eps()
     );
 }
 
@@ -721,244 +861,4 @@ fn indent(text: &str) -> String {
         .map(|l| format!("     {l}"))
         .collect::<Vec<_>>()
         .join("\n")
-}
-
-#[cfg(test)]
-mod tests {
-    use pncad::analysis::RefusalReason;
-
-    use super::*;
-
-    /// The hull's padding below and above the true range over the
-    /// certified leaves at stop 1's budget (512 leaves, 193 certified),
-    /// MEASURED at the default ε in metres — `2.125e-5` below and
-    /// `8.500e-5` above the exact affine range `[4.400e-4, 7.600e-4]`
-    /// — and pinned at BOTH ends within 2% at the CI row (a hull that
-    /// padded more would fail, and so would one whose leaves narrowed:
-    /// the widening is proportional to the leaf's width), as a ceiling
-    /// at the other ε rows.
-    const HULL_SLACK_BELOW: f64 = 2.125e-5;
-    const HULL_SLACK_ABOVE: f64 = 8.500e-5;
-
-    /// **The cell's own row, so it EXECUTES on hosted CI.**
-    ///
-    /// The narration runs in `demo-tour certified`, which asserts
-    /// nothing. This row is what puts the cell inside
-    /// `ci.yml`'s `demos tour suite` step, and it asserts the
-    /// findings the captions claim rather than merely running the
-    /// code: a real study CERTIFIES — every refusal the leaf budget,
-    /// the requirement `Mixed` over the certified leaves with a stated
-    /// violated mass, the hull straddling the floor, and the leaves
-    /// and padding the caption names (a padded hull straddles more
-    /// easily, so the straddle alone would get EASIER as the hull
-    /// pads) — and at the certifiable box the certified answer and the
-    /// RSS's disagree.
-    #[test]
-    fn the_two_stops_say_what_their_captions_say() {
-        let tol = Tol::witness();
-
-        // Stop 1: the real study CERTIFIES, every refusal is the leaf
-        // budget, and the requirement read off the assertion node is
-        // MIXED — held where the mass is, violated in the corner.
-        let bound = WEB - 1.0e-4;
-        let Plate {
-            doc,
-            measure,
-            assertion,
-            ..
-        } = plate(5.0e-5, 1.0e-5, bound, tol);
-        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        let verdict = drive(&doc, &analyzed, &starved(), tol).expect("the nominal builds");
-        assert!(
-            !verdict.certified().is_empty(),
-            "the caption says a ±0.05 mm study certifies; it certified nothing: {:?}",
-            verdict.receipt()
-        );
-        assert!(
-            verdict
-                .refused()
-                .iter()
-                .all(|l| matches!(l.reason, RefusalReason::Budget(_))),
-            "the caption says every refusal is the leaf budget: {:?}",
-            verdict.receipt()
-        );
-        let decided = assertion_over_leaves(&doc, &verdict, assertion, tol);
-        assert_eq!(
-            decided,
-            Decided::Mixed,
-            "the caption says the requirement holds where the mass is and is violated \
-             in the corner"
-        );
-        // The VIOLATED mass is a number, not only a `Mixed`: the floor
-        // fails on a certified part of the study, and holds on most of
-        // it.
-        let masses = requirement_masses(&doc, &analyzed, &verdict, assertion, tol);
-        println!(
-            "stop 1 at {} leaves: {:?}; holds {:.4}, violated {:.4}, unevaluated {:.4}",
-            starved().max_leaves,
-            verdict.receipt(),
-            masses.holds,
-            masses.violated,
-            masses.unevaluated
-        );
-        assert!(
-            masses.violated > 0.0 && masses.holds > masses.violated,
-            "the caption says the floor is violated on certified mass and holds on most: \
-             holds {:.4}, violated {:.4}, unevaluated {:.4}",
-            masses.holds,
-            masses.violated,
-            masses.unevaluated
-        );
-        // At the CI row (the default ε) the leaf counts the header
-        // quotes, exactly: a tier whose reach moved would move them.
-        if (tol.eps() / 1.0e-9 - 1.0).abs() < 1.0e-3 {
-            assert_eq!(
-                (verdict.certified().len(), verdict.refused().len()),
-                (193, 319),
-                "the header's leaf counts at 512 leaves: {:?}",
-                verdict.receipt()
-            );
-        }
-        match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
-            Ok(report) => {
-                assert!(
-                    report.worst_case.lo < bound && bound < report.worst_case.hi,
-                    "the certified worst case straddles the floor: {:?} against {bound:e}",
-                    report.worst_case
-                );
-                // The straddle beside its padding (R2's Q3): the hull
-                // ENCLOSES the true range over the certified leaves
-                // and exceeds it by a padding proportional to the
-                // leaf's width — bounded here at both ends, so a hull
-                // that padded its way across the floor would fail.
-                let slack = hull_slack(&verdict, (report.worst_case.lo, report.worst_case.hi));
-                println!(
-                    "stop 1 hull [{:.6e}, {:.6e}] over {} leaves; {slack:?}",
-                    report.worst_case.lo, report.worst_case.hi, report.worst_case.leaves
-                );
-                assert!(
-                    slack.below >= 0.0 && slack.above >= 0.0,
-                    "the hull encloses the true range: {slack:?}"
-                );
-                assert_eq!(
-                    report.worst_case.leaves,
-                    verdict.certified().len(),
-                    "the hull is over every certified leaf"
-                );
-                assert!(
-                    slack.true_lo < bound,
-                    "the TRUE range over the certified leaves reaches under the floor — the \
-                     straddle is the study's, not the padding's: {slack:?} against {bound:e}"
-                );
-                let at_the_ci_row = (tol.eps() / 1.0e-9 - 1.0).abs() < 1.0e-3;
-                let within = |got: f64, want: f64| {
-                    if at_the_ci_row {
-                        (got - want).abs() <= 0.02 * want
-                    } else {
-                        got <= 1.05 * want
-                    }
-                };
-                assert!(
-                    within(slack.below, HULL_SLACK_BELOW) && within(slack.above, HULL_SLACK_ABOVE),
-                    "the padding is the measured one ({slack:?} against {HULL_SLACK_BELOW:e} / \
-                     {HULL_SLACK_ABOVE:e}); if it moved, the leaves moved"
-                );
-            }
-            Err(other) => panic!("the real study's stackup refused: {other}"),
-        }
-        // The advisory lane still answers, and its label rides it.
-        let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("replays");
-        assert!(mc.render().contains("ADVISORY"));
-        assert_eq!(mc.samples, pncad::analysis::DEFAULT_SAMPLES);
-
-        // Stop 2: the certifiable box certifies, and the two answers
-        // disagree in the direction the caption claims.
-        let spread = tol.eps() / 64.0;
-        let (half_width, sigma) = (0.05 * spread, 0.2 * spread);
-        let worst = 2.0 * half_width + 2.0 * (3.0 * sigma);
-        let rss3 = 3.0 * ((2.0 * half_width / 3.0_f64.sqrt()).powi(2) + 2.0 * sigma.powi(2)).sqrt();
-        let bound = WEB - 0.5 * (worst + rss3);
-        let Plate {
-            doc,
-            measure,
-            assertion,
-            ..
-        } = plate(half_width, sigma, bound, tol);
-        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-        let verdict =
-            drive(&doc, &analyzed, &DriveConfig::default(), tol).expect("the nominal builds");
-        assert!(
-            !verdict.certified().is_empty(),
-            "the ε-scaled box is the one that certifies"
-        );
-        let report =
-            stackup(&doc, measure, &analyzed, &verdict, None, true, tol).expect("a stackup");
-        assert!(
-            report.worst_case.lo < bound,
-            "the caption's punchline: the CERTIFIED worst case reaches under the bound"
-        );
-        match report.rss {
-            pncad::analysis::Rss::Advisory { sigma } => assert!(
-                report.nominal.expect("the web has an f64 nominal") - 3.0 * sigma >= bound,
-                "and the RSS's 3σ reading does not — that disagreement is the cell's \
-                 subject; σ = {sigma:e}"
-            ),
-            ref other => panic!("every contributor carries a measure here: {other:?}"),
-        }
-        // **The verdict the caption reports, read off the node** — the
-        // correction R1 forced. `worst_case.lo < bound` is true above
-        // by less than eps, and the recorded requirement says HOLDS
-        // over exactly those leaves. A caption that printed "FAILS"
-        // off the float contradicted the row that gates.
-        let decided = assertion_over_leaves(&doc, &verdict, assertion, tol);
-        assert_eq!(
-            decided,
-            Decided::Holds,
-            "the straddle is inside the coincidence band, so the assertion node HOLDS — \
-             and the caption must say what the node says"
-        );
-        // The margin the caption calls sub-band really is sub-band.
-        let margin = report.worst_case.lo - bound;
-        assert!(
-            margin < 0.0 && margin.abs() < tol.eps(),
-            "the caption says the enclosure reaches under the bound by less than eps: \
-             margin {margin:e}, eps {:e}",
-            tol.eps()
-        );
-        // And the DIVERGENCE window the caption sizes: the certified
-        // answer reaches further under than the RSS's, and the whole
-        // disagreement is narrower than the escalation threshold. That
-        // second half is the honest limit this stop reports, so it is
-        // asserted rather than narrated.
-        let sigma = match report.rss {
-            pncad::analysis::Rss::Advisory { sigma } => sigma,
-            ref other => panic!("every contributor carries a measure here: {other:?}"),
-        };
-        let gap = (report.nominal.expect("the web has an f64 nominal") - 3.0 * sigma)
-            - report.worst_case.lo;
-        assert!(
-            gap > 0.0,
-            "the certified worst case must reach further under than 3σ"
-        );
-        assert!(
-            gap < tol.k() * tol.eps(),
-            "the caption says the whole divergence is inside the escalation threshold: \
-             window {gap:e} against {:e}",
-            tol.k() * tol.eps()
-        );
-        // The MC lane's number, which the caption now READS rather than
-        // hardcodes: it must exist and be a fraction.
-        let mc = monte_carlo(&doc, &analyzed, &McConfig::default(), tol).expect("replays");
-        let fraction = mc
-            .assertions
-            .iter()
-            .find(|a| a.node == assertion)
-            .and_then(|a| a.violation_fraction())
-            .expect("the sampled assertion has a violation fraction to report");
-        assert!(
-            (0.0..=1.0).contains(&fraction),
-            "a violation fraction is a fraction: {fraction}"
-        );
-        assert_eq!(mc.samples, pncad::analysis::DEFAULT_SAMPLES);
-    }
 }
