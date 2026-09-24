@@ -996,19 +996,15 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
     // this verb can answer for.
     let mut voids: Vec<ShellKey> = Vec::new();
     for &solid in &solids {
-        let shells = body
-            .get_solid(solid)
-            .ok_or(ShellError::Corrupt {
-                key: EntityId::Solid(solid),
-            })?
-            .shells
-            .clone();
+        let shells = body.shells_of_solid(solid).ok_or(ShellError::Corrupt {
+            key: EntityId::Solid(solid),
+        })?;
         // A single-shell solid's shell is its boundary by arity, so
         // that solid reads nothing and its verdict log is untouched.
         if shells.len() == 1 {
             continue;
         }
-        let roles = crate::props::classify_shells_of(body, &shells, tol)
+        let roles = crate::props::classify_shells_of(body, shells, tol)
             .map_err(|error| ShellError::Roles { error })?;
         let outer = roles.iter().filter(|c| c.role == ShellRole::Outer).count();
         if outer != 1 {

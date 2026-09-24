@@ -1873,6 +1873,93 @@ down, carry the scope.
   landed a wrong count in the tracker of the program whose subject is
   counts that do not survive re-taking.
 
+## 2026-09-20 — the `src` cylinder sheet: one construction, and the scar was not what held it apart
+
+`dup/src-cyl-sheet`, three rows as one unit. `crates/topo/src` held
+four spellings of the cylinder-wall sheet (`census::cyl_sheet`,
+`census::cyl_sheet_b`, `chart_region::cyl_sheet`, and the door PR #2887
+minted) and now holds one, with 316 lines gone.
+
+**The finding: a "visibility scar" that was measured, named and wrong.**
+PR #2887 measured one difference between the `src` pair and the
+`tests/` door — the rim plane's minting route — and read it as a
+`pub(crate)` scar. There are two. The scar is inert in both directions
+(1 lib row, 0 of 566 integration). The other, where the cylinder key
+lives, reds **1** integration row one way and **6** census rows the
+other, and it is what actually kept the families apart. The scar's own
+stated reason was false of the door the moment the door existed: it
+lives in `src` and could always call `add_surface`; the scaffolds were
+the `tests/` closures' workaround, carried into `src` with a
+justification that the move had already dissolved.
+
+**Method item 12, in a shape worth naming: a justification that
+survives its own premise.** The sentence was true of the code it was
+written about and false of the code it was written INTO, in one commit,
+by the lane that wrote both. Item 12's earlier instances were text
+going stale over time; this one was stale on arrival, and no re-reading
+of the diff would have caught it — only building the thing the sentence
+said was impossible. **The instrument for that class is the plant, not
+the read.** The reviewer found the sharper half: the paragraph **named
+its own escape in its own parenthetical** — *"a caller inside it does
+not have to (`crate::census`'s own sheets call `add_surface`
+directly…)"* — and kept the scaffolds anyway. It did not go stale; it
+contradicted itself at the moment it was written.
+
+**A mutation is not a proof when a suite can swallow it.** The fold's
+proof plant reds 22 of 566 — and the two rows built on
+`try_wall_sheet`'s `catch_unwind` stand down and report ok. A wrapper
+whose premise is one failure mode catches every failure mode, so those
+two rows are green over a correct builder and over a broken one alike.
+Filed on S-TINT. **Item 11 needs the corollary: after a plant, check
+the rows you EXPECTED to red and did not, not only the count.** And the
+reviewer's half, which is the cheaper instrument and was sitting in the
+same terminal: **the panic hook prints a full backtrace to stderr
+before the row passes**, so the hole is not silent — it is loud and
+reported green. *A passing row that emitted a panic backtrace is a
+swallowed failure*, and that reads off a run nobody had to design.
+
+Counts that moved, per item 15: the parent's "617 integration rows
+green at both lanes" is the INTERVAL lane's count; the default lane is
+566 and the probe lane 571, so a figure quoted without its feature row
+names a set nobody can reproduce. The `try_wall_sheet` row's "token-
+identical (one md5)" and "their doc comments differ in substance" were
+both false at the merge base — and backwards: the doc comments were
+byte-identical, the bodies were not, and `r1`'s copy cites a map that
+lives in `r2`.
+
+### Fix pass — four classes, and one of them is this program's own subject
+
+A reader found eight. Three are worth the log.
+
+- **A fold can move code out of a guard's reach, and the guard stays
+  green.** `source_walk::public_fns` reads `pub fn` and rejects
+  `pub(crate) fn`, so hoisting the sheet's Euler sequence into a
+  `pub(crate)` shared body took it out of the tier-1 mutation-door
+  population entirely — invisibly, because the `pub fn` it was cut from
+  is allowlisted and an allowlisted door's body is never read. The lane
+  then **edited that allowlist's prose to describe the code that had
+  left**. Restored: the shared body is a `pub` door named by both door
+  tables. **The generalisation the lane wrote was wrong in the axis**:
+  the gates key on the `cfg` MOUNT, not on visibility — a `pub(crate)
+  fn` under `#[cfg(test)]` is still skipped — and the door walk is the
+  one place visibility decides, and it decides the other way. A fold
+  out of a `#[cfg(test)]` mount has to be checked in both directions.
+- **A fold that re-mints the thing it folded, inside the home it just
+  made.** The shared stand-down wrapper was written spelling the door's
+  argument list rather than calling the adapter already beside it —
+  token-for-token the adapter it had just homed. Before the fold one
+  called the other; after it they were two copies in one binary. This
+  is X4 at its most ordinary and no census would have found it: the
+  duplicate was minted by the fix.
+- **A duplicate row, filed by the duplication program.** The lane
+  opened a canonical-cylinder row against a class S-TINT has carried
+  since 2026-09-03; neither referenced the other and they proposed
+  different homes. Deleted before it reached the board and its evidence
+  appended to the open row. **Item 14 applies to the tracker, not just
+  to code**: grep the other program's directory before filing, which
+  `work/README.md` already says and which is easy to skip when the
+  finding feels new.
+
 ## 2026-09-20 — the second sitting: three more units, and the shape that repeated four times
 
 `70941cdd0` (#2898, `faces_of_solid`), `1efaf7996` (#2899, the one-line box

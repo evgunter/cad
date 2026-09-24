@@ -221,23 +221,28 @@ while it was being worked: 5 → 8, 2 → 16, 11 → 14 → 17, 17 → 19,
     offered as proof that a number cannot be trusted is still a
     number.**
 
-19. **A null plant needs a DIVERGENT control, not a null control.** A
-    lane planted a reversed order at a site and got nothing red. Instead
-    of publishing *"the order is unasserted"* it ran a control — the
-    whole function body replaced by `None` — got nothing red again, and
-    concluded the site was unasserted entirely, so the order plant had
-    measured nothing. That was the right instinct and **the wrong
-    control**: returning the null value is the *same experiment*, and it
+19. **One plant cannot both prove a site reached and prove its answer
+    unasserted.** The operative test, in the lane's own words: **to
+    prove a site is REACHED, plant something no answer can satisfy; to
+    prove its answer is UNASSERTED, plant a different answer.** And the
+    shape that makes a wrong control look rigorous: **a plant that
+    replaces a function's body with its own null return value is not a
+    control — it is the same experiment with a wider swing.**
+    How it arose: an order plant reddened nothing, and the lane — right
+    to refuse to publish *"the order is unasserted"* without a control —
+    replaced the whole body with `None` and got nothing again. That
     cannot tell *called and unasserted* from *never called*. The
-    reviewer ran the discriminating one — body → `panic!` — and got
-    **732 / 1**: the site IS reached, by exactly one row, and its answer
-    is wholly unasserted. The conclusion survived by luck of the tree,
-    not by the control. So: when a plant reds nothing, prove the site is
-    **executed** with a plant that cannot be absorbed by any assertion —
-    `panic!`, `unreachable!`, an abort — and only then reason about what
-    is unasserted. A row that claims a site is dark owes that line in
-    its table.
-    (2026-09-20, `dup/shells-of-solid-door`; the sharpening is the
+    discriminating plant, `panic!`, gave **732 / 1**: reached by exactly
+    one row, answer wholly unasserted. The conclusion survived by luck
+    of the tree, not by the control. A row claiming a site is dark owes
+    the divergent line in its table.
+    Verified in the field the same day: a shared door's value, planted
+    at 50x coarser, 10x finer and **5000x coarser** with nothing red,
+    proved *executed* by a `panic!` control redding **75 rows across
+    every calling suite** — called and wholly unasserted, which is a
+    coverage finding rather than a dead fold.
+    (2026-09-20, `dup/shells-of-solid-door` and `dup/viewer-shared-doors`;
+    the wording is the implementer's, the null-swing clause the
     reviewer's.)
 
 20. **Briefed reading must be on the branch the lane will cut from.**
@@ -279,6 +284,61 @@ while it was being worked: 5 → 8, 2 → 16, 11 → 14 → 17, 17 → 19,
     (2026-09-20, `dup/viewer-shared-doors`; found and reported by the
     lane it happened to. The shared path was the orchestrator's
     arrangement, not the lane's.)
+
+22. **A correction inherits the instrument class of the thing it
+    corrects.** A lane was told a published count was wrong, re-took
+    it — and **its re-take was wrong the same way**: a four-line window
+    read a `.to_vec()` six lines below its call as a borrow, exactly
+    the window failure that produced the original figure. Its own
+    sentence is the item: *the instrument that corrects a count can be
+    wrong the same way the count was.* And the sentence proved itself
+    in place — the **next paragraph** of that same fix published "31
+    reaching within five lines" where the true figure is **33**, two
+    sites pushed out of the window by a four-line `unreachable!` string.
+    Three distinct corrections were wrong this sitting (a line gap
+    corrected from a right number to a wrong one; a case-sensitive grep
+    "correcting" a population from seven to six; these two windows), and
+    the common cause is that a correction arrives already framed as a
+    fix and so is read rather than re-measured. **Change instrument when
+    you correct, not just the number** — if a window produced the error,
+    the correction is not another window.
+    (2026-09-20, `dup/shells-of-solid-door`; the diagnosis is the lane's
+    and the second instance the reviewer's.)
+
+23. **After a plant, read the rows you expected to red and did not —
+    and treat a passing row that printed a panic as a swallowed
+    failure.** A fold's proof plant reddened 22 rows, and the count
+    read as complete. Two rows that should have been in it were not:
+    under `--nocapture` both print *"the fixture cannot be minted at
+    this eps — standing down"* and report **ok**, because a
+    `catch_unwind` wrapper cannot tell an unmintable fixture from a
+    broken builder. They are the only rows in that crate no mutation of
+    the builder beneath them can red. The count alone would have read
+    as 22 of 22 expected.
+    The cheaper half, which the reviewer supplied: the panic hook still
+    prints a **full backtrace to stderr** before the row passes, so the
+    hole is not silent — it is loud, and reported green. **A passing row
+    that emitted a backtrace is a swallowed failure**, and that is
+    greppable where "the rows I expected" is a judgement.
+    (2026-09-20, `dup/src-cyl-sheet`; the corollary is the lane's, the
+    backtrace instrument the reviewer's.)
+
+24. **A negative result carries the scope of the search that produced
+    it.** A lane was asked whether a convention existed in a crate's
+    shared test module. It searched that crate's `common/mod.rs`, found
+    nothing, and reported *"neither string occurs anywhere in
+    `crates/viewer/tests/`"*. True of the file it read; the convention
+    lives in a **sibling crate's** `tests/common/` **submodules**. Its
+    own diagnosis is the item: *my negative result was correctly scoped
+    to the file I searched and wrongly stated as a fact about the repo.*
+    The orchestrator made the mirror-image error in the same exchange,
+    asserting a fact learned from one crate's `tests/common` about
+    another's. Both are item 3 (**re-derive the SCOPE**) in the negative
+    direction, where it is harder to see: a positive hit carries its own
+    path, and an absence carries nothing at all. **State a negative with
+    its fence attached** — "not under `<path>`, with `<instrument>`" —
+    never as a bare "there is none".
+    (2026-09-20, `dup/viewer-shared-doors`; the wording is the lane's.)
 
 ## Review posture
 
