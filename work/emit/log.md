@@ -334,3 +334,21 @@ re-dispatched with the wider scope.
 The weekly usage limit stopped all lanes on 2026-09-23 at about 09:30
 UTC. They were resumed on 2026-09-24 from their pushed branches and
 worktrees.
+
+## 2026-09-24 — the global flip lanes close (PR 3124)
+
+A vanished name's diagnosis now reads two scopes, through one lane
+table (flip, then structural parameter, then recipe edit):
+
+1. its derivation path;
+2. its minting node's strict ancestors in either run, each walked
+   within its own run's document, minus the path. Answers from this
+   scope are reported as `Diagnosis::Upstream`.
+
+A node the name does not depend on is never read. The ladder runs:
+path lanes, `qualifier_delta`, `Upstream`, `GroupResized`, fallback.
+Review caught a MAJOR: the first ancestor walk mixed the two runs'
+edges, so a rewired recipe could reach a node that was an ancestor in
+neither run. The fix pass walks each run separately, through the
+shared `roots::walk_strict_ancestors`. Two ShadowExec sentences that
+claimed per-pair evidence now state their node-level trigger.
