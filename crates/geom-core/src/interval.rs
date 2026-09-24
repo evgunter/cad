@@ -329,8 +329,10 @@ impl Interval {
     /// rather than becoming a plausible bound nothing downstream can
     /// question.
     ///
-    /// A scalar that does certify crosses capped at `Def`, which is
-    /// exactly what
+    /// A scalar that does certify crosses capped at `Def` — unless its
+    /// bracket is no interval at all: `f64::INFINITY` certifies as
+    /// `[∞, ∞]`, which [`Interval::from_bounds`] mints as NaI, so that
+    /// crossing refuses, in the safe direction. The cap is exactly what
     /// [`certified_bracket`](crate::CertifiedEnclosure::certified_bracket)
     /// promises and no more: the door's verdict is two-valued, and most
     /// of its implementors (`f64`, `Probe`, `Sym`) have no decoration to
@@ -560,8 +562,6 @@ impl Real for Interval {
         Self(self.0.abs())
     }
 
-    /// NaI and the empty interval are both poison (the [`Bounds`]
-    /// convention: neither stands for any real number).
     /// **The witness over a box** ([`Real::register_equal`]): two
     /// certified enclosures of one real MEET, so a claim whose two
     /// sides are disjoint over this leaf's box is refused typed. An
@@ -607,6 +607,17 @@ impl Real for Interval {
         }
     }
 
+    /// NaI and the empty interval are both poison (the [`Bounds`]
+    /// convention: neither stands for any real number).
+    ///
+    /// **This is not the certification refusal.** A bracket that may
+    /// not certify — a quotient by a divisor not proven away from zero,
+    /// a `sqrt` of a bracket reaching below zero — carries decoration
+    /// `Trv` and ordinary endpoints, and this answers `false` for it.
+    /// On a certification value the refusal is
+    /// `!`[`Interval::is_certified`], which is what every certification
+    /// door reads; a site with `Real` in scope that asks this instead
+    /// compiles and takes the certifying branch.
     fn is_poison(self) -> bool {
         self.0.is_nai() || self.0.is_empty()
     }
