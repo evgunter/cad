@@ -66,6 +66,8 @@ mod asm2a_instantiate;
 mod asm2b_multisolid;
 #[path = "asm4_split_inline.rs"]
 mod asm4_split_inline;
+#[path = "asm_parent_held_names.rs"]
+mod asm_parent_held_names;
 #[path = "asm_r2a_mate_solve.rs"]
 mod asm_r2a_mate_solve;
 #[path = "asm_r2a_mate_wire.rs"]
