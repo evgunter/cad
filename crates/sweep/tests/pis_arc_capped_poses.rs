@@ -22,7 +22,9 @@
 
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileVertex, RawLoop, SketchPlane};
-use sweep::test_support::{ROD_FLAT, ROD_L, ROD_R, hemisphere_on_flat_base, prism, rod_d_profile_at};
+use sweep::test_support::{
+    ROD_FLAT, ROD_L, ROD_R, hemisphere_on_flat_base, prism, rod_d_profile_at,
+};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, PointInSolidError, SolidContainment, point_in_solid, transform_rigid};
 
@@ -232,15 +234,25 @@ fn poses() -> Vec<(&'static str, Affine3<f64>)> {
             "0.7 about x through (1/4, -1/2, 1/8)",
             about([0.25, -0.5, 0.125], Vec3::new(1.0, 0.0, 0.0), 0.7),
         ),
-        ("0.7 about z", about([0.0; 3], Vec3::new(0.0, 0.0, 1.0), 0.7)),
-        ("0.3 about y through (0.1, 0.2, 0.3)", about([0.1, 0.2, 0.3], Vec3::new(0.0, 1.0, 0.0), 0.3)),
+        (
+            "0.7 about z",
+            about([0.0; 3], Vec3::new(0.0, 0.0, 1.0), 0.7),
+        ),
+        (
+            "0.3 about y through (0.1, 0.2, 0.3)",
+            about([0.1, 0.2, 0.3], Vec3::new(0.0, 1.0, 0.0), 0.3),
+        ),
         (
             "1.1 about (1,2,3) through (-0.2, 0.1, 0.4)",
             about([-0.2, 0.1, 0.4], Vec3::new(1.0, 2.0, 3.0).normalize(), 1.1),
         ),
         (
             "pi/2 about x",
-            about([0.0; 3], Vec3::new(1.0, 0.0, 0.0), core::f64::consts::FRAC_PI_2),
+            about(
+                [0.0; 3],
+                Vec3::new(1.0, 0.0, 0.0),
+                core::f64::consts::FRAC_PI_2,
+            ),
         ),
     ]
 }
@@ -298,10 +310,17 @@ fn every_arc_capped_kind_reads_its_truth_at_every_pose() {
             let posed = transform_rigid(&case.body, &map, tol()).unwrap();
             let mut refused = 0;
             for &(p, t) in &probes {
-                let want = if t { SolidContainment::In } else { SolidContainment::Out };
+                let want = if t {
+                    SolidContainment::In
+                } else {
+                    SolidContainment::Out
+                };
                 match point_in_solid(&posed, map.transform_point(p), band, tol()) {
                     Ok(got) if got == want => {}
-                    Ok(got) => wrong.push(format!("{} | {pose} | {p:?}: {got:?}, truth {want:?}", case.name)),
+                    Ok(got) => wrong.push(format!(
+                        "{} | {pose} | {p:?}: {got:?}, truth {want:?}",
+                        case.name
+                    )),
                     Err(PointInSolidError::Escalated { .. }) => refused += 1,
                     Err(e) => wrong.push(format!("{} | {pose} | {p:?}: refused {e:?}", case.name)),
                 }
