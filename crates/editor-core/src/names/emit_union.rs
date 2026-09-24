@@ -567,7 +567,7 @@ fn cite_member_edges<T: geom_core::Decide>(
                 max: along,
             });
         }
-        insert_ranked_or_tied(&mut out, &mut tie, false, base, &keys, &extents, bnd, |e| {
+        insert_ranked_or_tied(&mut out, &mut tie, false, &base, &keys, &extents, bnd, |e| {
             *e
         })?;
     }
