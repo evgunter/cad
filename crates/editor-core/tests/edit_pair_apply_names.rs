@@ -535,9 +535,9 @@ fn a_later_evaluation_of_the_same_document_is_admitted() {
         .expect("a later evaluation of the same document is admitted");
     assert_eq!(
         names_after, names_before,
-        "the index is the one that was built, and a program-anchored \
-         name does not move when a parameter does: the later run answers \
-         the same name in every slot"
+        "the index is the one that was built, and a canonical name — \
+         counted from the loop's authored start — does not move when a \
+         parameter does: the later run answers the same name in every slot"
     );
     assert!(
         pick.boundary_names(&after).is_ok(),

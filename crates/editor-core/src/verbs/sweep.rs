@@ -5,9 +5,8 @@
 //!
 //! `Node::Extrude` and `Node::Revolve` share their OPERAND and their
 //! shape downstream of the run: one validated profile in, one solid
-//! out, a birth record whose emitter mints a full table, a
-//! program-anchor rewrite over that table, and the same per-edge
-//! parameter flow. Everything upstream of the run differs, and it
+//! out, a birth record whose emitter mints a full table in canonical
+//! profile numbering, and the same per-edge parameter flow. Everything upstream of the run differs, and it
 //! differs in DOCUMENT semantics rather than in literals: an extrude
 //! reads one slot, while a revolve resolves an axis node, checks that
 //! the axis and the profile are written against the same frame, and

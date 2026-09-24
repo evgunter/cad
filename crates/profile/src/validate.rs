@@ -116,9 +116,11 @@
 //! like a sliver (width in (ε, Kε)) already escalated at the simplicity
 //! stage — the sliver band is one consistent notion across predicates.
 //!
-//! **The exact-order band.** Canonical-start selection is a
-//! *representation* choice, not a geometric coincidence question: it
-//! must be total, transitive, and bit-deterministic, and a tolerance
+//! **The exact-order band.** Choosing each loop's containment
+//! representative — its lexicographic-minimum vertex, the point the
+//! containment forest casts its rays from — is a *representation*
+//! choice, not a geometric coincidence question: it must be total,
+//! transitive, and bit-deterministic, and a tolerance
 //! band would make near-ties non-transitive (x-coordinates 1.5ε apart
 //! are legitimate and must still order). It therefore classifies
 //! against the documented hairline band (`geom_core::BandError::Empty`
@@ -1182,11 +1184,11 @@ impl<T: Real> ValidatedLoop<T> {
     /// segment this loop declares TANGENT at both of its junctions, in
     /// CANONICAL segment order.
     ///
-    /// **Authored order is not preserved, and entry `k` is not the
-    /// k-th fillet you wrote.** Validation canonicalizes: it rotates
-    /// the chain to its lex-min vertex, and it REVERSES a loop wound
-    /// the wrong way for its role — so a hole authored with fillets
-    /// `[r1, r2]` answers `[r2, r1]`. Correlate by
+    /// **Authored order is not always preserved, and entry `k` is not
+    /// always the k-th fillet you wrote.** Validation canonicalizes: it
+    /// keeps the authored start, but it REVERSES a loop wound the wrong
+    /// way for its role — so a hole authored with fillets `[r1, r2]`
+    /// answers `[r2, r1]`. Correlate by
     /// [`BlendArc::segment`] (a canonical index, which is the only
     /// index this layer has) or by the arc data itself, which is
     /// self-identifying; do not index by authoring position.
@@ -1301,22 +1303,29 @@ pub struct BlendArc<T: Real> {
 /// - **Traversal**: the outer loop runs counterclockwise, holes run
 ///   clockwise, *in sketch coordinates* (reversal negates bulges — the
 ///   involution of the crate docs).
-/// - **Starting vertex**: each loop starts at its lexicographically
-///   minimal vertex (least x, then least y), compared through the
-///   exact-order band (module docs) — total and rotation-invariant.
+/// - **Starting vertex**: each loop starts at its AUTHORED vertex 0.
+///   Reversal keeps vertex 0 in place ([`ProfileLoop::reversed`]), so
+///   canonical vertex `k` is the author's vertex `k` counted along the
+///   canonical traversal.
 ///
 /// The canonical form is invariant under the input's traversal
-/// direction and starting-vertex rotation of every loop (under test,
-/// byte-level). Stated honestly, this is *decision* invariance: the
-/// output values are exact reindexings of the input, but the
-/// predicate margins deciding them are computed in
-/// rotation-dependent order (e.g. `loop_orientation` anchors its
-/// shoelace at the chain's first vertex), so a margin within an ulp
-/// of a band edge could in principle classify differently across
-/// rotations — a measure-zero configuration, stated rather than
-/// hidden. It is **not** invariant under reordering the input's loop
-/// *list*: holes keep discovery (input) order, and D9 recipes replay
-/// that order — see the crate docs.
+/// direction (under test, byte-level) and follows its starting vertex:
+/// a loop authored from another vertex is the same point set with a
+/// different canonical start. That is deliberate. Where a loop starts
+/// is information a consumer can need and no per-loop rule can
+/// recover — a loft pairs canonical segment `k` of every section, so
+/// the authored start is what says which edges correspond — and a
+/// geometric start (the lexicographic minimum, say) jumps to another
+/// vertex when a vertex moves. Stated honestly, the direction
+/// invariance is *decision* invariance: the output values are exact
+/// reindexings of the input, but the predicate margins deciding them
+/// are computed in traversal-dependent order (e.g. `loop_orientation`
+/// anchors its shoelace at the chain's first vertex), so a margin
+/// within an ulp of a band edge could in principle classify
+/// differently across directions — a measure-zero configuration,
+/// stated rather than hidden. It is **not** invariant under reordering
+/// the input's loop *list*: holes keep discovery (input) order, and D9
+/// recipes replay that order — see the crate docs.
 #[derive(Debug, Clone)]
 pub struct ValidatedProfile<T: Real> {
     plane: crate::SketchPlane<T>,
@@ -1359,7 +1368,7 @@ impl ValidatedProfile<f64> {
     /// vertex indices — are index structure; the lift maps no index,
     /// so they hold at `U` by construction. The DECIDED ones — each
     /// loop's role, its traversal sense (outer counterclockwise, holes
-    /// clockwise), its start at the lex-min vertex, each segment's
+    /// clockwise), its start at the authored vertex, each segment's
     /// `Line`/`Arc` classification and turn, each joint's verified
     /// tangency, the absence of contact — are the verdicts `validate`
     /// made at `f64`. They are carried AS THE `f64` DECISIONS, and that
@@ -1424,7 +1433,7 @@ impl<T: Decide> Profile<T> {
 
     /// [`validate`](Self::validate) keeping the structure record it
     /// built: the containment forest, the roles, and every loop's
-    /// canonical rotation, reversal and segment shapes.
+    /// reversal and segment shapes.
     ///
     /// Recording asks no predicate a different question, so this is
     /// [`validate`](Self::validate)'s canonical form bit for bit, plus
@@ -1448,15 +1457,16 @@ impl<T: Decide> Profile<T> {
     /// **Guided validation**: canonicalize at this scalar while
     /// CONSUMING `structure`'s decisions instead of remaking them.
     ///
-    /// The two canonicalization predicates are STRUCTURALLY ABSENT
-    /// here, not merely expected to agree. `lex_min`'s ordering runs
-    /// against a band an ulp wide — total at `f64` by that band's
-    /// design, and indeterminate at an interval scalar on essentially
-    /// every input, because two enclosures of nearly-equal coordinates
-    /// overlap. `loop_orientation` is the same story at a sliver.
-    /// Re-running either at a lane scalar would therefore refuse
-    /// almost everything it was asked, so the rotation and the
-    /// reversal are taken from the record, and what this pass verifies
+    /// The pinned predicates are STRUCTURALLY ABSENT here, not merely
+    /// expected to agree. `lex_min`'s ordering (the containment
+    /// representative) runs against a band an ulp wide — total at `f64`
+    /// by that band's design, and indeterminate at an interval scalar
+    /// on essentially every input, because two enclosures of
+    /// nearly-equal coordinates overlap. `loop_orientation` is the same
+    /// story at a sliver. Re-running either at a lane scalar would
+    /// therefore refuse almost everything it was asked, so the
+    /// representative, the start and the reversal are taken from the
+    /// record, and what this pass verifies
     /// instead is the VALUE channel that hangs off them: the segments
     /// the recorded permutation produces, classified here, must have
     /// the recorded shapes, and the declared joints must land where
@@ -1491,8 +1501,8 @@ impl<T: Decide> Profile<T> {
         guide: &mut CanonGuide,
     ) -> Result<ValidatedProfile<T>, ProfileError> {
         let band = Band::linear(tol).map_err(ProfileError::Band)?;
-        // The exact-order band for canonical-start selection (module
-        // docs): no representable f64 lies strictly inside it.
+        // The exact-order band for the containment representative
+        // (module docs): no representable f64 lies strictly inside it.
         let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
 
         if self.loops.is_empty() {
@@ -1547,8 +1557,8 @@ impl<T: Decide> Profile<T> {
         }
 
         // Representative point per loop: the lexicographic minimum
-        // vertex (rotation/reversal invariant; needed for both
-        // containment and the canonical start). PINNED under guidance
+        // vertex (rotation/reversal invariant), the point containment
+        // is decided from. PINNED under guidance
         // — see `validate_guided` for why `lex_min` is not a predicate
         // a lane scalar can be asked.
         let mut rep: Vec<Point2<T>> = Vec::with_capacity(self.loops.len());
@@ -1664,13 +1674,12 @@ impl<T: Decide> Profile<T> {
                 )));
             }
             let (validated, shapes) =
-                canonicalize_loop(lp, &loop_segs[li], role, li, band, exact, guide.loop_at(li))?;
+                canonicalize_loop(lp, &loop_segs[li], role, li, band, guide.loop_at(li))?;
             guide.record(LoopCanonical {
                 role,
                 inside: core::mem::take(&mut within[li]),
                 representative: rep_index[li],
                 reversed: shapes.reversed,
-                start: shapes.start,
                 segments: shapes.segments,
                 tangent_joints: validated.tangent_joints.clone(),
             });
@@ -1954,8 +1963,8 @@ fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>, exact: Band) -> Result<bool, 
     }
 }
 
-/// The index of a chain's lexicographically minimal vertex (the
-/// canonical start; also the containment representative point).
+/// The index of a chain's lexicographically minimal vertex — the
+/// containment representative point.
 fn lex_min_index<T: Decide>(
     vertices: &[ProfileVertex<T>],
     exact: Band,
@@ -1975,7 +1984,15 @@ fn lex_min_index<T: Decide>(
     Ok(best)
 }
 
-/// Orients, rotates, and re-derives one loop into its canonical form.
+/// Orients and re-derives one loop into its canonical form.
+///
+/// The canonical start is the AUTHORED start: reversing a chain keeps
+/// its vertex 0 at position 0 ([`ProfileLoop::reversed`]), so the
+/// oriented chain already starts where the author started it. A loop's
+/// start is information no per-loop canonicalization can recover — a
+/// loft's correspondence between sections is carried by it — so it is
+/// kept rather than replaced by a geometric choice that jumps when a
+/// vertex moves.
 ///
 /// Orientation is the **`loop_orientation`** predicate — margin:
 /// 2·A/P, the loop's mean width (meters): A is the bulge-polygon signed
@@ -1992,15 +2009,12 @@ fn canonicalize_loop<T: Decide>(
     role: LoopRole,
     loop_index: usize,
     band: Band,
-    exact: Band,
     recorded: Option<&LoopCanonical>,
 ) -> Result<(ValidatedLoop<T>, LoopPermutation), ProfileError> {
-    // The permutation is PINNED under guidance: neither `lex_min` nor
-    // `loop_orientation` runs at all, because neither is a question a
-    // lane scalar can answer — `lex_min`'s band is an ulp wide, and two
-    // enclosures of nearly-equal coordinates overlap it on essentially
-    // every input. What the guided pass verifies is the value channel
-    // the recorded permutation produces, below.
+    // The permutation is PINNED under guidance: `loop_orientation` does
+    // not run at all, because it is not a question a lane scalar can be
+    // trusted to answer the f64 way. What the guided pass verifies is
+    // the value channel the recorded permutation produces, below.
     let reversed = match recorded {
         Some(rec) => rec.reversed,
         None => {
@@ -2017,26 +2031,16 @@ fn canonicalize_loop<T: Decide>(
             }
         }
     };
+    // The canonical start is the authored vertex 0, which `reversed()`
+    // keeps in place: no rotation runs, so the oriented chain IS the
+    // canonical one.
     let chain = if reversed { lp.reversed() } else { lp.clone() };
-    let start = match recorded {
-        Some(rec) => rec.start,
-        None => lex_min_index(&chain.vertices, exact, loop_index)?,
-    };
     let n = chain.vertices.len();
-    if start >= n {
-        return Err(ProfileError::Structure(StructureRefusal::out_of_range(
-            start, n,
-        )));
-    }
-    let vertices: Vec<ProfileVertex<T>> = (0..n).map(|k| chain.vertices[(start + k) % n]).collect();
-    // Declared joints follow their vertex through the rotation
-    // (reversal already remapped them in `reversed()`); indices are
-    // in range — validated at entry. Sorted + deduplicated: canonical.
-    let mut tangent_joints: Vec<usize> = chain
-        .tangent_joints
-        .iter()
-        .map(|&j| (j + n - start) % n)
-        .collect();
+    let vertices: Vec<ProfileVertex<T>> = chain.vertices;
+    // Declared joints: reversal already remapped them in `reversed()`,
+    // and indices are in range — validated at entry. Sorted +
+    // deduplicated: canonical.
+    let mut tangent_joints: Vec<usize> = chain.tangent_joints;
     tangent_joints.sort_unstable();
     tangent_joints.dedup();
 
@@ -2134,7 +2138,6 @@ fn canonicalize_loop<T: Decide>(
         },
         LoopPermutation {
             reversed,
-            start,
             segments: shapes,
         },
     ))
@@ -2144,7 +2147,6 @@ fn canonicalize_loop<T: Decide>(
 /// the part of a [`LoopCanonical`] only `canonicalize_loop` knows.
 struct LoopPermutation {
     reversed: bool,
-    start: usize,
     segments: Vec<SegmentShape>,
 }
 
