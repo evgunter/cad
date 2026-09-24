@@ -2,13 +2,14 @@
 id: set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left
 kind: issue
 title: set_face_surface swaps a face onto a chart that mints nothing and leaves its complete row set behind, which validate_pcurves skips entirely
-status: review
+status: closed
 opened: 2026-09-14
 refs: [loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart, mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows, attach-postconditions-validate-the-whole-body-and-panic]
 priority: P0
 cost: D
 pr: 2594
 branch: topo/set-face-surface-drops-rows-on-chart-change
+closed: 2026-09-24
 ---
 
 Found by PR 2549's R1 reviewer, by execution, and filed by that PR's
@@ -106,3 +107,20 @@ the tier-1 postcondition alone.
 Branch `topo/set-face-surface-drops-rows-on-chart-change`. PR title:
 "TOPO: set_face_surface drops the rows a chart swap leaves behind". Do
 not close the item; the dual runs at review.
+
+## Closed (2026-09-24, PR 2594)
+
+`Body::set_face_surface` decides the chart once, with `same_chart`,
+immediately after it mints the new surface and before its orphan
+sweep. When the chart changes, it drops the face's rows through
+`drop_face_rows`, which hands the validator's own walk
+(`pcurves::stored_rows`) to the one removal, `Body::drop_rows`. The
+setter is declared `Transfers`. `set_edge_curve` stays `Neither`,
+with its blind spot on a half-minted face stated. The residues were
+filed when found:
+`work/tess/a-chart-swap-whose-carriers-cannot-certify-leaves-a-face-nothing-can-re-derive`,
+`work/topo/three-spellings-of-one-chart-answer-the-same-question-differently`,
+`work/trim/the-pcurves-module-header-restates-the-posture-table-below-it`,
+and evidence on
+`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`
+and `work/origin/two-provenance-free-keys-holding-one-surface-read-as-two-charts`.

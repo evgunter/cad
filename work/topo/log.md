@@ -1862,3 +1862,27 @@ MAJOR and the second MINOR, so they are bilateral. The implementer
 lane lost its tokens and wall time twice over, and they are recorded
 as missing data. Slot 1 is concluded. PR 2594 lands second and folds
 its face door onto `drop_rows` in its merge-forward.
+
+## The setter merged: PR 2594 closes `set-face-surface-leaves-…` (2026-09-24)
+
+The merged-forward head `29aa4b345` is green on the full matrix (run
+35962645677; the filter reads `CONFIG_SOURCE=lane:unsampled
+eps:unsampled klint:unsampled` at tier closure). It carries main
+through PR 2603 and the fold PR 2603 named: `drop_face_rows` hands its
+`stored_rows` walk to `drop_rows`. Every door that changes a row's
+chart now calls one removal after one `same_chart` at its own site.
+The fix pass took every adjudicated item, and none was refuted:
+- The setter decides the chart before the orphan sweep, which retires
+  the ordering duty. The orphaning row reds when the decision moves.
+- `set_edge_curve`'s note is corrected for the half-minted blind spot,
+  with its row.
+- The receipt reads nineteen sites in twelve files.
+- The mesh residue is filed (now TESS's).
+- The `Arc` rung is rowed in `mesh`.
+
+Two orchestrator commits reach code after the review: the VREV hazard
+row re-baselined (`b5d25ac44`, sixteen stranded pcurves become none)
+and the fold (`29aa4b345`). Both re-earned the gate. The ordinal-2712
+row rides as this PR's last commit. Its one unilateral MAJOR (the
+half-minted blind spot asserted away) is doc/claim class, recorded and
+excluded, so the tally is unchanged. Slot 0 is concluded.
