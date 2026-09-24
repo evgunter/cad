@@ -127,41 +127,136 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
 // existing, so the retired row's assertion is a strict weakening of the
 // successor's. Nothing is lost.
 
-/// The `Dual` lane's refusing side, executed rather than assumed: a
-/// fitted cache is never re-derived at a scalar that may not certify
-/// (D1, 2026-08-19 — a dual carries a bracket and still may not reach
-/// certification arithmetic, C9), and the refusal says so.
+/// **The `Dual` lane's refusing side, executed at the dual.** The
+/// fixture's own image, carrier and operand pair, lifted exactly to
+/// `Dual64`, offered to the fitted-grade door
+/// (`PcurveCache::certify_general`) with what the dual's policy
+/// answers — no fitted door, and its name. A dual may not certify (D1,
+/// 2026-08-19 — it carries a bracket and still may not reach
+/// certification arithmetic, C9), so no cache comes back.
 ///
-/// **What is left to execute.** A dual cannot hold the fitted door at
-/// all — `geom_brep::FittedLane::certified` is bounded on the right,
-/// and `fitted_lane.rs` carries the `compile_fail` block that says so —
-/// so a `Fitted` cache is unconstructible at a dual and there is no
-/// dual cache to offer. What a dual's policy DOES answer is `None` and
-/// its name, and the one door that takes an absent lane is
-/// `PcurveCache::recertify`: its fitted arm refuses on `None` without
-/// running a check. So the row hands that door exactly the dual's
-/// answer, over this fixture's own cache, and reads the refusal a dual
-/// body's tier-3 pass would produce.
+/// **The refusal sits at check 4, and the row pins where.** Checks 1–3
+/// read no door, so at the dual they run for real — the carrier class,
+/// the metered interval, the schedule of map residuals, all evaluated
+/// in dual arithmetic — and the absent door is asked for only where the
+/// C2 certificate would be derived. Three offers say so:
+///
+/// - the fixture's inputs pass checks 1–3 and refuse
+///   `FittedLaneUnsupported`, naming the dual;
+/// - the same inputs over a reversed interval refuse at check 2
+///   (`IntervalNotForward`), as they do at `f64`;
+/// - the image of a DIFFERENT arc of the same locus (`foreign_cache`'s)
+///   refuses at check 3 on the map residual, as it does at `f64`.
+///
+/// A door refused before check 1 would answer all three with the first
+/// one's refusal.
+#[test]
+fn the_dual_runs_the_lane_free_checks_and_refuses_at_check_four() {
+    use geom_brep::{ChartWindow, PcurveCache, PcurveCertifyError, PcurveCheck};
+    use geom_core::{Dual64, Real};
+    use topo::AtRestPolicy;
+    let Some(built) = fixture::build::<f64>() else {
+        vacuity::stood_down(
+            &format!(
+                "M6-2 dual-lane refusal at check 4, eps = {:e}",
+                Tol::witness().get().eps
+            ),
+            "the cylinder×sphere fixture stood down on the SSI door's typed \
+             FitSampleBudget refusal at this ε, so THIS RUN ASSERTS NOTHING about the \
+             dual lane: neither that it runs checks 1–3 in dual arithmetic, nor that it \
+             refuses at check 4 naming the dual",
+        );
+        return;
+    };
+    let band = Band::linear(Tol::witness()).unwrap();
+    let lift = Dual64::from_f64;
+    let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(built.carrier.map_scalar(lift)));
+    let (cylinder, sphere) = (built.cylinder.map_scalar(lift), built.sphere.map_scalar(lift));
+    let w = built.window;
+    let window = ChartWindow {
+        u_min: lift(w.u_min),
+        u_max: lift(w.u_max),
+        v_min: lift(w.v_min),
+        v_max: lift(w.v_max),
+    };
+    let (f0, f1) = built.carrier.domain();
+    let offer = |image: &geom::NurbsCurve2<f64>, t0: f64, t1: f64| {
+        PcurveCache::<Dual64>::certify_general(
+            std::sync::Arc::new(image.map_scalar(lift)),
+            lift(t0),
+            lift(t1),
+            &carrier,
+            &cylinder,
+            Some(&sphere),
+            window,
+            band,
+            <Dual64 as AtRestPolicy>::fitted_lane(),
+            <Dual64 as AtRestPolicy>::scalar_name(),
+        )
+        .map(|_| ())
+    };
+
+    let at_four = offer(&built.image, f0, f1);
+    assert!(
+        matches!(
+            at_four,
+            Err(PcurveCertifyError::FittedLaneUnsupported { scalar: "dual" })
+        ),
+        "the fixture passes checks 1–3 at the dual and refuses where the door is \
+         asked for: {at_four:?}"
+    );
+    let at_two = offer(&built.image, f1, f0);
+    assert!(
+        matches!(at_two, Err(PcurveCertifyError::IntervalNotForward)),
+        "a reversed interval refuses at check 2 at the dual, before any door is \
+         asked for: {at_two:?}"
+    );
+    let foreign = fixture::foreign_cache(&built);
+    let geom_brep::Pcurve::Fitted(foreign_image) = foreign.pcurve() else {
+        panic!("the foreign cache is fitted");
+    };
+    let at_three = offer(foreign_image, f0, f1);
+    assert!(
+        matches!(
+            at_three,
+            Err(PcurveCertifyError::ResidualExceeded {
+                check: PcurveCheck::MapResidual,
+                ..
+            })
+        ),
+        "another arc's image refuses at check 3 at the dual, before any door is \
+         asked for: {at_three:?}"
+    );
+}
+
+/// **`recertify` handed a scalar's absent door: the refusal's type and
+/// text.** This row executes nothing at a dual — a dual cannot build
+/// the fitted cache it would need, and the row above is the one that
+/// runs the dual. It takes the fixture's own `f64` cache and hands
+/// `PcurveCache::recertify` exactly what the dual's policy answers
+/// (`None`, and the dual's name), which is the one way a fitted cache
+/// meets an absent door: the fixture passes checks 1–3, and check 4
+/// refuses. What it pins is that refusal's variant and its Display.
 ///
 /// **The asserted substring is the true reason.** The message must
 /// name the scalar and say that it may not certify; it must not say it
 /// carries no bracket, which D1 made false — `msg.contains("bracket")`
 /// passing again would mean someone reintroduced the stale claim.
 #[test]
-fn the_dual_lane_refuses_a_fitted_cache_typed() {
+fn recertify_handed_the_duals_answer_refuses_naming_the_dual() {
     use geom_core::Dual64;
     use topo::AtRestPolicy;
     let Some(built) = fixture::build::<f64>() else {
         vacuity::stood_down(
             &format!(
-                "M6-2 dual-lane refusal, eps = {:e}",
+                "M6-2 recertify handed the dual's answer, eps = {:e}",
                 Tol::witness().get().eps
             ),
             "the cylinder×sphere fixture stood down on the SSI door's typed \
              FitSampleBudget refusal at this ε, so THIS RUN ASSERTS NOTHING about the \
-             dual lane: neither that it refuses a fitted cache typed, nor that the \
-             refusal names the lane and its post-D1 reason instead of re-asserting the \
-             premise D1 invalidated",
+             absent-door refusal: neither its variant, nor that its text names the \
+             scalar and its post-D1 reason instead of re-asserting the premise D1 \
+             invalidated",
         );
         return;
     };
