@@ -4,6 +4,8 @@ kind: issue
 title: Four direction-role words respell an eval::phrase const plus a suffix; composing them needs the macro layer extended from words to phrases
 status: open
 opened: 2026-09-12
+priority: P1
+cost: D
 ---
 
 

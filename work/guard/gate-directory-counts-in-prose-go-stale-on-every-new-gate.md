@@ -4,6 +4,8 @@ kind: issue
 title: Two GUARD rows carry gate-directory counts that a new gate silently falsifies
 status: open
 opened: 2026-09-15
+priority: P3
+cost: D
 ---
 
 

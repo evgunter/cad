@@ -4,6 +4,8 @@ kind: issue
 title: the E11.1 advisory estimator is ungated on the facade and unreachable from Python
 status: open
 opened: 2026-09-08
+priority: P3
+cost: D
 ---
 
 

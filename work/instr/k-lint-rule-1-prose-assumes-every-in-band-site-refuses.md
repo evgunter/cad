@@ -4,6 +4,8 @@ kind: issue
 title: k-lint: rule 1's prose says an indeterminate sample means the kernel refused typed; a folding site records one and does not refuse
 status: open
 opened: 2026-09-08
+priority: P4
+cost: E
 ---
 
 

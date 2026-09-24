@@ -5,6 +5,8 @@ title: STEP import re-mints a rim-only sphere cap into the seamed form, as a rep
 status: open
 opened: 2026-09-18
 refs: [rim-only-sphere-cap-panics-at-census]
+priority: P3
+cost: D
 ---
 
 
@@ -31,7 +33,33 @@ Fixtures: `crates/step-import/tests/fixtures/tess-cap-diag/`
 `tess/rim-only-cap-diag` at `83833e586`; TESS-1 lands them on main with
 `mesh`'s typed refusal, which is what such a body meets until this
 lands. Order: this before TOPO's validity rule
-(`work/topo/validity-refuses-an-interior-chart-singularity.md`), or
+(`work/atrest/validity-refuses-an-interior-chart-singularity.md`), or
 import starts refusing files it accepts today.
 
 Signed: (TESS orchestrator)
+
+**Fixtures landed (TESS-1's lane, 2026-09-18).** On TESS-1's branch the
+two files are `crates/step-import/tests/fixtures/rim-only-cap/`
+(`rimonly1.step`, `rimonly2.step`, generator `gen_rim_only_cap.py`),
+not the survey branch's `tess-cap-diag/` path, and the row that reads
+them is `crates/step-import/tests/meridian_free_cap.rs`. That row
+asserts the body is adopted AS STATED (its edge count, tier 3 `Ok`, the
+closed-form volume) before it asserts `mesh`'s refusal, so it goes red
+the day this normalization lands — which is the row telling this unit
+to turn it into the normalization's own.
+
+**Two more notes from TESS-1's fix pass (2026-09-20).** (1) The
+survey's third fixture, `seamed.step` (the OCC-style statement: a
+closed rim plus one seam meridian to a pole vertex, used twice by the
+sphere face), was deliberately NOT lifted to main. It is not a mesh
+row: import refuses it today (`TierInvalid`,
+`ScaffoldingStrutVertex`, the valence-1 pole), and whether that
+statement should be accepted, normalized or stay refused is this
+unit's question. It and its generator arm are on branch
+`tess/rim-only-cap-diag` at `83833e586`
+(`crates/step-import/tests/fixtures/tess-cap-diag/`). (2) The notice
+that these rows move by design now sits where this unit's lane will
+meet it: the header and the edge-count assert message of
+`crates/step-import/tests/meridian_free_cap.rs`, the comment over the
+two `rim-only-cap` rows of `tier_gate.rs`'s corpus table, and the
+generator's docstring.

@@ -4,6 +4,8 @@ kind: issue
 title: four viewer test files each spin on a seam with their own copy of the same bounded nap loop
 status: open
 opened: 2026-09-15
+priority: P4
+cost: E
 ---
 
 

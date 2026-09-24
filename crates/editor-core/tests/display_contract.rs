@@ -256,7 +256,13 @@ fn declare_error_display_names_its_content_not_its_struct() {
 
 test_utils::f6_variants! {
     /// `InterrogateError`'s census — see [`NODE_PICK_ERROR`].
-    const INTERROGATE_ERROR: InterrogateError = [
+    ///
+    /// `pub(crate)` because `lib_u5_interrogate` welds the ladder rungs
+    /// it drives against this same roster. A census of its own there
+    /// would be a second list of the same enum's identifiers: rustc
+    /// keeps both in step, so they could not drift, but the enum has
+    /// one roster in this binary and this is it.
+    pub(crate) const INTERROGATE_ERROR: InterrogateError = [
         NodeNotEvaluated,
         NodeFailed,
         NodePoisoned,
@@ -315,7 +321,7 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
         // The kernel's own words are forwarded, not paraphrased.
         (
             InterrogateError::Readback(topo::ReadbackError::NoCarrier),
-            vec!["interrogate:", "scaffolding"],
+            vec!["scaffolding", "tier 2 refuses at rest"],
         ),
     ];
     assert_f6_every_variant(&cases, &INTERROGATE_ERROR, &[]);
@@ -466,7 +472,7 @@ fn select_refusal_display_names_its_content_not_its_struct() {
                 zero: 5e-324,
                 escalate: 5e-324,
             }),
-            vec!["ambiguity band", "ambient tolerance", "strictly below"],
+            vec!["ambiguity band", "ambient tolerance", "not below"],
         ),
     ];
     assert_f6_every_variant(&cases, &SELECT_REFUSAL, &also_banned);
@@ -1252,6 +1258,31 @@ fn the_shadow_exec_refusal_states_which_wall_it_hit() {
     );
 }
 
+/// The group-size diagnosis states the table fact and nothing more —
+/// the same sentence at every count, since a count of one or zero
+/// says nothing about where the parent went (N3 merges and undivided
+/// pass-throughs are rows the group's spellings do not match). Exact
+/// sentences, so a clause that claims more cannot slip in.
+#[test]
+fn a_resized_group_states_the_table_fact_and_claims_no_flip() {
+    for (was, now) in [(2, 1), (3, 0), (2, 3)] {
+        let d = Diagnosis::GroupResized {
+            node: RecipeNodeId(8),
+            was,
+            now,
+        };
+        assert_eq!(
+            d.to_string(),
+            format!(
+                "at node 8, the rows spelled by this fragment's base name, bare or \
+                 with one fragment qualifier, held {was} entities in the last-good run \
+                 and hold {now} now, and no verdict flip was found that explains the change"
+            )
+        );
+        assert_f6(&d, &[], &["GroupResized"]);
+    }
+}
+
 /// Refusals that name a stable name FORWARD its `Display` rather than
 /// re-spelling the kind-plus-minting-node phrase. The expectation is
 /// built from the impl, so a copy that stops tracking it fails here —
@@ -1794,7 +1825,8 @@ fn a_lever_refusal_names_the_instance_and_why() {
 /// a refused maintenance solve carries the prior solve's own sentence
 /// (or says the solve recorded nothing for the gauge — the typed
 /// report of a state its invariants exclude), and an unrecorded row
-/// names the migration.
+/// says the entry carries none and that an entry records every row its
+/// edit performs.
 #[test]
 fn the_maintenance_refusals_name_the_gauge_and_the_recourse() {
     let gauge = RecipeNodeId(3);
@@ -1819,7 +1851,11 @@ fn the_maintenance_refusals_name_the_gauge_and_the_recourse() {
     );
     assert_f6(
         &EditError::MaintenanceUnrecorded { gauge },
-        &["gauge 3", "no maintenance rows", "migrate", "re-save"],
+        &[
+            "gauge 3",
+            "no maintenance rows",
+            "records every cluster row",
+        ],
         &["MaintenanceUnrecorded"],
     );
     assert_f6(
@@ -1870,6 +1906,8 @@ test_utils::f6_variants! {
         FragmentLineage,
         SeamVertexParentage,
         SharedRim,
+        MergedChord,
+        MergedChordOffRim,
         Band,
         Escalated,
     ];
@@ -1961,11 +1999,23 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["operand node 23", "more than one edge"],
         ),
         (
+            NamingError::MergedChord { edge },
+            vec!["merged faces", "the join's own edge"],
+        ),
+        (
+            NamingError::MergedChordOffRim {
+                edge,
+                node: RecipeNodeId(29),
+                rim: edge,
+            },
+            vec!["merged faces", "operand node 29", "does not lie within"],
+        ),
+        (
             NamingError::Band(BandError::Empty {
                 zero: 5e-324,
                 escalate: 5e-324,
             }),
-            vec!["classification band", "5e-324"],
+            vec!["naming band", "5e-324"],
         ),
         (
             NamingError::Escalated {

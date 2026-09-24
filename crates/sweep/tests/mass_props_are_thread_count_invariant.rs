@@ -18,7 +18,8 @@
 //! the walk is serial, and both widths are read against it. Same
 //! instrument as `reporting_door_bit_digest`, and cut the same way: a
 //! row cut on this branch would record what this branch does, which is
-//! the thing under test.
+//! the thing under test. The one case where a lane re-cuts here
+//! anyway, and what licenses it, is at `expected`.
 //!
 //! **What the recorded channels here can and cannot see.** The verdict
 //! channel is full — every `props_quad_*` and check-7 decision the
@@ -251,6 +252,27 @@ fn digest() -> String {
 /// The committed digest for each ε row the matrix gates. Cut on the
 /// MERGE BASE (see the module docs); an ε with no entry prints its
 /// block and fails, which is how a new row gets cut.
+///
+/// **When a lane may re-cut here instead, and what licenses it.** The
+/// merge-base rule exists to stop a branch recording its own
+/// regression as the baseline — not to make a pinned number a
+/// contract. A branch re-cuts on itself exactly when its own change is
+/// what moved the table AND the new reading is the right answer, with
+/// the cause named at the cut: `work/scalar/H5.md` ruling 2 (a
+/// certified bound that gets tighter re-baselines like any other move)
+/// and `memories/output-stability-as-justification.md`. Anything else
+/// — a move the branch cannot explain, or one in the wrong direction —
+/// is a finding, and the table stays where it is.
+///
+/// **Re-cut at all three ε when the C9 ring became a newtype over
+/// `interval-transcendentals`' `DInterval`.** That is the other repair
+/// the assertion below names: the ring padded one representable step
+/// outward on every operation and the backend pads only where the
+/// operation is inexact, so four rows' pads shrank and none grew
+/// (`loft_prism`'s volume lands on exactly `9`), and the sym-session
+/// decision counts are untouched. Every verdict hash in the block is
+/// unchanged — nothing certified that refused, or refused that
+/// certified — and the pads are the whole of what moved, downward.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

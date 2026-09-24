@@ -4,6 +4,8 @@ kind: issue
 title: sphere u sphere refuses CurvedPierceUnsupported although intersect::route mints the exact circle
 status: open
 opened: 2026-09-09
+priority: P0
+cost: H
 ---
 
 

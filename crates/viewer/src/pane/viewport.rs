@@ -8,7 +8,7 @@ use std::sync::atomic::Ordering;
 
 use eframe::egui;
 
-use crate::app::{ViewerBehavior, chrome, to_f32};
+use crate::app::{ViewerBehavior, chrome};
 use crate::camera::{self, Camera, CameraOp};
 use crate::datums::{self, datum_view};
 use crate::frame;
@@ -16,23 +16,33 @@ use crate::gpu::{IdQuery, ViewportCallback};
 use crate::idpass::{self, IdStep};
 use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
 use crate::marks;
+use crate::narrowing::Narrow;
 use crate::pickcache;
 use crate::pickindex::{PickIndex, PictureKey};
 use crate::session::SessionOp;
 use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
 
-/// **One sketch-plane segment, placed and appended to an overlay lane**
+/// **One sketch-plane segment, placed and offered to an overlay lane**
 /// as the line-list pair the edge pass draws.
+///
+/// This function PLACES and nothing else: whether a leg can be drawn
+/// is [`marks::LegLane`]'s answer, which is where the crate keeps it
+/// and where a test can ask it with no pane in existence. What is
+/// particular here is that this lane is the one with an authored
+/// producer: a path whose corner is `7e307` — a number the
+/// add-profile form takes, because it is a number — replays,
+/// flattens, and arrives on its plane with coordinates whose
+/// narrowing is an infinity. A path with one such corner and the rest
+/// ordinary is drawn as its ordinary legs and a gap, which is
+/// `LegLane::undrawn`'s subject.
 fn push_segment(
-    lane: &mut Vec<[f32; 3]>,
+    lane: &mut marks::LegLane,
     plane: &pncad::profile::SketchPlane<f64>,
     a: [f64; 2],
     b: [f64; 2],
 ) {
-    for [x, y] in [a, b] {
-        let world = plane.to_world(pncad::geom_core::Point2::new(x, y));
-        lane.push([world.x as f32, world.y as f32, world.z as f32]);
-    }
+    let [from, to] = [a, b].map(|[x, y]| plane.to_world(pncad::geom_core::Point2::new(x, y)));
+    lane.leg(from, to);
 }
 
 /// **One drawn loop, placed on its plane and appended to a lane.**
@@ -45,7 +55,7 @@ fn push_segment(
 /// authored legs exactly. That is the whole of "a path draws while it
 /// is still being written".
 fn push_loop(
-    lane: &mut Vec<[f32; 3]>,
+    lane: &mut marks::LegLane,
     plane: &pncad::profile::SketchPlane<f64>,
     polyline: &PreviewLoop,
 ) {
@@ -542,6 +552,20 @@ impl ViewerBehavior<'_> {
                 )
             })
             .unwrap_or_default();
+        // **The three lanes this pane composes itself**, each as the
+        // value that owns the display seam's rule
+        // ([`marks::LegLane`]) rather than as a bare `Vec` each block
+        // narrows into on its own. What they carry beyond the
+        // segments is `undrawn()` — how many legs the seam refused —
+        // which is the state a reader would have to be told to know
+        // that an outline is missing a leg rather than ending where
+        // it appears to. Nothing here holds it: the badge that would
+        // say so and the field that would carry it between frames are
+        // `crate::frame`'s and `crate::app`'s. That half is the VNEWS
+        // row `an-overlay-leg-past-the-display-seam-is-not-badged`.
+        let mut datums = marks::LegLane::default();
+        let mut profiles = marks::LegLane::default();
+        let mut preview = marks::LegLane::default();
         // **The open blend tool's held set is marked too** — all of
         // it, because the set IS what the user is composing and a
         // count alone cannot tell them WHICH twelve edges they hold.
@@ -598,10 +622,16 @@ impl ViewerBehavior<'_> {
             // records in the field above.
             *self.datums_vanished = drawn.vanished();
             for drawn in drawn.drawn {
-                for point in drawn.segments {
-                    edges
-                        .datums
-                        .push([point[0] as f32, point[1] as f32, point[2] as f32]);
+                // The same seam and the same rule as [`push_segment`],
+                // through the same value: a datum mark's endpoint the
+                // GPU cannot hold is not drawn. `datums::draws` sizes
+                // every mark against the view and refuses on its own
+                // scale, so nothing in tree produces one — the lane is
+                // here so the crate has ONE disposition for the
+                // narrowing rather than a cast that happens not to
+                // fail.
+                for leg in drawn.segments.chunks_exact(2) {
+                    datums.leg(leg[0], leg[1]);
                 }
             }
         }
@@ -624,7 +654,7 @@ impl ViewerBehavior<'_> {
             *self.profiles_undrawn = committed.undrawn.len();
             for profile in &committed.drawn {
                 for polyline in &profile.loops {
-                    push_loop(&mut edges.profiles, &profile.plane, polyline);
+                    push_loop(&mut profiles, &profile.plane, polyline);
                 }
             }
         }
@@ -660,9 +690,9 @@ impl ViewerBehavior<'_> {
             let view = datum_view(self.camera, viewport).ok();
             for polyline in &drawn.loops {
                 let points = &polyline.points;
-                push_loop(&mut edges.preview, &plane, polyline);
+                push_loop(&mut preview, &plane, polyline);
                 let mut segment = |a: [f64; 2], b: [f64; 2]| {
-                    push_segment(&mut edges.preview, &plane, a, b);
+                    push_segment(&mut preview, &plane, a, b);
                 };
                 // **The directed point at each step.** A tip is a
                 // position and, once a verb has bound one, a
@@ -718,6 +748,10 @@ impl ViewerBehavior<'_> {
             }
         }
 
+        edges.datums = datums.into_segments();
+        edges.profiles = profiles.into_segments();
+        edges.preview = preview.into_segments();
+
         // **Held, not said.** A view matrix that cannot be formed is
         // true of this camera on every frame until it moves somewhere
         // one can be, so it is a read the toolbar badges
@@ -726,7 +760,12 @@ impl ViewerBehavior<'_> {
         // painted the line, and `perform_batch` then ran after this
         // pane — so on every frame whose batch acted cleanly the
         // `Clear` took it before any frame drew it.
-        let matrix = match self.camera.view_projection(aspect) {
+        // **The matrix the GPU will actually hold**, not the algebra's
+        // own: `Camera::view_projection_f32` is the camera's door at
+        // the display seam, and a projection this module can form and
+        // a GPU cannot hold refuses here by the same route and into
+        // the same badge as one the camera could not form at all.
+        let matrix = match self.camera.view_projection_f32(aspect) {
             Ok(matrix) => {
                 *self.projection_fault = None;
                 matrix
@@ -778,15 +817,45 @@ impl ViewerBehavior<'_> {
             self.notices.push(report.notice());
         }
 
+        // **The pane's own numbers at the same seam the matrix just
+        // crossed.** The size the renderer is told and the point
+        // scale the edge pass sizes marks with are the last two `f64`
+        // the GPU sees, and they cross the one narrowing rather than
+        // a cast written twice here. What this arm buys is that the
+        // seam has ONE disposition, not a door that refuses over
+        // there and a cast that cannot fail over here.
+        //
+        // **It drops the frame and says nothing, and that is the
+        // whole of what it should do.** The other two dispositions of
+        // this seam reach a reader — a scene refuses as a whole and a
+        // projection that will not narrow badges — and this one does
+        // not, deliberately: no input can reach it. `aspect()` above
+        // has already declined an extent that is not positive and
+        // finite, and what is left is an extent in physical pixels
+        // above `f32::MAX`, about `3.4e38`, which is not a window and
+        // not a scale factor. A badge here would name a state no
+        // person can put the pane into, on a frame no person can see,
+        // so the refusal is spent on not drawing an infinity and on
+        // nothing else. An overlay LEG past the seam is the opposite
+        // case and is badged (`marks::LegLane::undrawn`, and the
+        // VNEWS row above): that one is authorable, and it leaves a
+        // picture a person is looking at.
+        let (Some(viewport_px), Some(point_scale)) = (
+            [viewport.width_px, viewport.height_px].narrow(),
+            pixels_per_point.narrow(),
+        ) else {
+            return;
+        };
         let id_query = match (step, cursor_px) {
-            (IdStep::Ask { serial }, Some(cursor)) => {
-                viewport.ndc_of(cursor).map(|[nx, ny]| IdQuery {
-                    cursor_ndc: [nx as f32, ny as f32],
-                    viewport_px: [viewport.width_px as f32, viewport.height_px as f32],
+            (IdStep::Ask { serial }, Some(cursor)) => viewport
+                .ndc_of(cursor)
+                .and_then(|ndc| ndc.narrow())
+                .map(|cursor_ndc| IdQuery {
+                    cursor_ndc,
+                    viewport_px,
                     serial,
                     answer: Arc::clone(self.id_answer),
-                })
-            }
+                }),
             _ => None,
         };
 
@@ -803,11 +872,11 @@ impl ViewerBehavior<'_> {
             ViewportCallback {
                 scene: Arc::clone(self.scene),
                 revision: self.revision,
-                view_projection: to_f32(&matrix),
+                view_projection: matrix,
                 light_direction: LIGHT_DIRECTION,
                 theme: self.theme,
-                viewport_px: [viewport.width_px as f32, viewport.height_px as f32],
-                pixels_per_point: pixels_per_point as f32,
+                viewport_px,
+                pixels_per_point: point_scale,
                 highlight: highlight.unwrap_or_default(),
                 edges,
                 id_query,
@@ -833,18 +902,20 @@ mod tests {
     use eframe::egui;
 
     use super::{
-        button_events, drawn_index, egui_buttons, land, scroll_event, viewer_button,
-        viewer_modifiers,
+        button_events, drawn_index, egui_buttons, land, push_loop, push_segment, scroll_event,
+        viewer_button, viewer_modifiers,
     };
     use crate::camera::{Camera, CameraOp, fold_recorded};
     use crate::frame::{self, product_badge};
     use crate::idpass;
     use crate::input::{self, InputMap, PointerButton, ViewportEvent};
+    use crate::marks;
     use crate::pickcache::{self, NotIndexed};
     use crate::pickindex::{IdMap, PickIndex, PictureKey};
     use crate::props::SlotValue;
     use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, SessionOp};
+    use crate::sketch::PreviewLoop;
     use pncad::document::SlotId;
     use pncad::geom_core::Tol;
 
@@ -1653,5 +1724,61 @@ mod tests {
                 "{egui_button:?} denotes the wrong button of the viewer's vocabulary"
             );
         }
+    }
+    /// **The pane's own producer reaches the display seam's rule**,
+    /// and a leg it refuses does not reach the lane.
+    ///
+    /// `push_segment` PLACES a sketch-plane pair and offers it; what
+    /// happens to a leg the seam cannot carry is
+    /// [`marks::LegLane`]'s, asserted there over the arithmetic. What
+    /// is asserted here is the wiring: that this producer goes
+    /// through that value at all, so a corner past `f32::MAX` reaches
+    /// the vertex buffer as an absence rather than as an infinity.
+    #[test]
+    fn a_placed_leg_past_the_display_seam_is_offered_and_refused() {
+        let plane = pncad::profile::SketchPlane::xy();
+        let mut lane = marks::LegLane::default();
+        push_segment(&mut lane, &plane, [0.0, 0.0], [1.0, 0.0]);
+        assert_eq!(lane.undrawn(), 0);
+        assert_eq!(lane.segments().len(), 2, "one leg is two positions");
+        push_segment(&mut lane, &plane, [1.0, 0.0], [7.0e307, 0.0]);
+        assert_eq!(
+            lane.segments().len(),
+            2,
+            "the refused leg added no position to the lane"
+        );
+        assert_eq!(lane.undrawn(), 1);
+        assert!(
+            lane.segments().iter().flatten().all(|c| c.is_finite()),
+            "no infinity reaches the vertex buffer"
+        );
+    }
+
+    /// **An authored outline with one far corner draws as a gap**, not
+    /// as nothing and not as a smear.
+    ///
+    /// The loop a person could compose in the add-profile form:
+    /// ordinary corners and one at `7e307`, a number the form takes
+    /// because it is a number. Four legs are authored, two of them
+    /// reach the far corner, and what the lane holds afterwards is the
+    /// other two plus a count of what it lost — which is the evidence
+    /// that the drop is visible in a picture a person is looking at
+    /// rather than only in one that is nowhere.
+    #[test]
+    fn an_authored_loop_with_one_far_corner_draws_its_other_legs() {
+        let plane = pncad::profile::SketchPlane::xy();
+        let polyline = PreviewLoop {
+            points: vec![[0.0, 0.0], [1.0, 0.0], [7.0e307, 0.0], [0.0, 1.0]],
+            vertices: vec![0, 1, 2, 3],
+            closed: true,
+        };
+        let mut lane = marks::LegLane::default();
+        push_loop(&mut lane, &plane, &polyline);
+        assert_eq!(lane.undrawn(), 2, "the two legs that reach the far corner");
+        assert_eq!(
+            lane.segments().len(),
+            4,
+            "the two legs between ordinary corners are drawn"
+        );
     }
 }

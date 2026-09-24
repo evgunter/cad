@@ -1542,10 +1542,12 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::Emission { .. } => "emission",
         NamingError::SplitLineage(_) => "split_lineage_cycle",
         NamingError::FragmentLineage { .. } => "fragment_lineage_cycle",
-        // The two MISSING-RULE arms, tagged apart from "emission": a
-        // caller branching on this word is deciding whether to report a
-        // kernel bug, and these two are not one.
+        // The MISSING-RULE arms, tagged apart from "emission": a caller
+        // branching on this word is deciding whether to report a kernel
+        // bug, and these are not one.
         NamingError::SeamVertexParentage { .. } => "seam_vertex_parentage",
+        NamingError::MergedChord { .. } => "merged_chord",
+        NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
@@ -2097,6 +2099,8 @@ pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
         TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
         TessellateError::UnsupportedCurvedDomain { .. } => "unsupported_curved_domain",
         TessellateError::UnsupportedCurvedShape { .. } => "unsupported_curved_shape",
+        TessellateError::MeridianFreeCurvedFace { .. } => "meridian_free_curved_face",
+        TessellateError::SingleColumnCurvedFace { .. } => "single_column_curved_face",
         TessellateError::Band { .. } => "tolerance_band_unformable",
     }
 }
@@ -2713,7 +2717,7 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::LaminaWedge { .. } => "lamina_wedge",
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",
-        ValidationError::NegativeVolume => "negative_volume",
+        ValidationError::NegativeVolume { .. } => "negative_volume",
         ValidationError::VolumeUncomputable { .. } => "volume_uncomputable",
         ValidationError::Pcurve { .. } => "pcurve",
         ValidationError::RingMeetsOuter { .. } => "ring_meets_outer",

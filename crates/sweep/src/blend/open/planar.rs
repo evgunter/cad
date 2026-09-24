@@ -214,8 +214,7 @@ fn chamfer_feet<T: Decide + Bounds>(
         let (Some(first), Some(second)) = (on_face.next(), on_face.next()) else {
             return Err(unbuilt_run_out(
                 EntityId::Face(face),
-                "a corner's support does not carry two requested edges; run-outs at such \
-                 corners are not implemented",
+                "a corner's support does not carry two requested edges",
             ));
         };
         let (o1, d1) = first?;
@@ -473,8 +472,7 @@ pub(in crate::blend) fn blank_phase<T: Decide + Bounds>(
         if struts_here.len() != 3 {
             return Err(unbuilt_run_out(
                 EntityId::Vertex(vertex),
-                "a corner did not receive a strut on each of three distinct supports; \
-                 run-outs at such corners are not implemented",
+                "a corner did not receive a strut on each of three distinct supports",
             ));
         }
         let mut spur: Option<EdgeKey> = None;

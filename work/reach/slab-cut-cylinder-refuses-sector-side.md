@@ -6,6 +6,8 @@ status: open
 opened: 2026-09-01
 github: 1455
 refs: [1377, 347]
+priority: P0
+cost: H
 ---
 
 ## From GitHub issue 1455

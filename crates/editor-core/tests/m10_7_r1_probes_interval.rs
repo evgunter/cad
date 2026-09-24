@@ -129,8 +129,7 @@ fn r1_slab_ceiling_and_first_refusal() {
     // bracket (ceiling + δ) — never a drive's first refusal at a wider
     // box, where several predicates are over the band at once and the
     // name is evaluation order (M10's closed
-    // `first-refusal-at-twice-the-ceiling-is-an-order-artefact`,
-    // `docs/DOC-LEDGER.md` sweep 13).
+    // `first-refusal-at-twice-the-ceiling-is-an-order-artefact`).
     // The wider boxes are read the same way, as SETS, labelled by
     // their half-width: the regimes the widening finding names.
     for half in [hi, 0.5, 0.75, 0.999] {

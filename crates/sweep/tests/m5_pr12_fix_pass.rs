@@ -225,7 +225,8 @@ fn f4_an_oblique_trihedron_builds_and_reports_volume_uncomputable() {
                 source: MassPropsError::Face {
                     source: geom_brep::PropsError::NotIsoRectangle { .. },
                     ..
-                }
+                },
+                ..
             }
         )),
         "the refusal must name the props inventory's gap: {errs:?}"

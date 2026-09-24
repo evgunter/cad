@@ -173,10 +173,12 @@ pub struct PickCache {
 enum Attempt {
     /// Submitted, and no answer yet.
     ///
-    /// **It is what the cache asked for, not evidence anybody is still
-    /// answering.** Only an answer moves it on, so a seam that can no
-    /// longer produce one leaves it `Asked` for the life of the window;
-    /// [`PickCache::indexing`] therefore asks the seam as well.
+    /// **Only an answer moves it on, and an answer always comes.** A
+    /// seam that loses the worker it submitted to ends the process
+    /// where it finds out (`crate::evalseam`) rather than going quiet,
+    /// so this state never stands over a seam nobody is behind. The one
+    /// way it is dropped without an answer is [`PickCache::forget`],
+    /// when the picture it names stops existing at all.
     Asked(PictureKey),
     /// Submitted and answered — installed as the held index, or refused
     /// into [`PickCache::error`]. Either way this picture is not
@@ -236,11 +238,13 @@ pub enum CacheStep {
     Submitted,
     /// A build for exactly this picture has already been
     /// submitted and not answered — nothing was done and nothing was
-    /// resubmitted. This is a statement about what the cache asked
-    /// for, not about whether the seam still has it: a submitted
-    /// attempt stops the retry loop whether or not anyone is left to
-    /// answer it, which is why [`PickCache::indexing`] and not this
-    /// step is what the chrome reads.
+    /// resubmitted.
+    ///
+    /// **A statement about the picture THIS sync asked about**, where
+    /// [`PickCache::indexing`] is the standing fact the chrome reads.
+    /// The two are not the same question: a frame that submits a new
+    /// picture answers [`CacheStep::Submitted`] and is indexing all
+    /// the same.
     Indexing,
     /// This attempt was already made and refused — nothing was done.
     Held,
@@ -464,28 +468,26 @@ impl PickCache {
     /// Whether a build is outstanding: the indexing state the chrome
     /// reads, as a value (`crate::frame::progress`).
     ///
-    /// **Both halves, because each alone is false in one direction.**
-    /// The cache's own record says which picture was asked for and is
-    /// what [`PickCache::forget`] drops, so a build whose answer is
-    /// already destined for [`IndexLanding::Stale`] does not light the
-    /// indicator — the record alone is what that costs. The seam says
-    /// whether anyone is still going to answer, and it is the only
-    /// thing that knows: a worker that has gone clears its own flags
-    /// ([`IndexService::busy`] goes dark) while the attempt stays
-    /// `Attempt::Asked` — named rather than linked, as a private item
-    /// — because only an answer moves it on and none is coming.
+    /// **The cache's own record, and it is the only thing that can
+    /// answer.** It says which PICTURE was asked for, where the seam
+    /// knows only that it is busy, so a build whose answer is already
+    /// destined for [`IndexLanding::Stale`] does not light the
+    /// indicator: [`PickCache::forget`] drops the attempt when the
+    /// picture stops existing, while the seam goes on building the
+    /// orphan and goes on reporting itself busy for it.
     ///
-    /// Reporting the record alone left the toolbar spinning on
-    /// `indexing…` for the life of the window, repainting every frame
-    /// to collect a result nobody would send, and refusing every click
-    /// [`NotIndexed::Building`] — *the picture is still being
-    /// indexed*, of a picture nobody is indexing. The seam already
-    /// states the obligation this satisfies, at both places it notices
-    /// the worker is gone (`crate::evalseam`: *the indicator must not
-    /// stay lit for an answer that is not coming*); it is the consumer
-    /// that was not asking.
+    /// **And the seam cannot disagree in the other direction**, which
+    /// is why it is not consulted as well. An attempt is recorded in
+    /// the same step it is submitted, and from there the seam holds it
+    /// — running or waiting — until it hands back the answer
+    /// [`PickCache::pump`] takes straight to [`PickCache::land`],
+    /// which is what moves the attempt off `Asked`. The one seam that
+    /// could be idle under a standing `Attempt::Asked` is one whose
+    /// worker has gone, and that is not a state an implementation may
+    /// be in: a seam that loses its worker ends the process at the
+    /// point of detection (`crate::evalseam`) rather than going quiet.
     pub fn indexing(&self) -> bool {
-        matches!(self.attempt, Some(Attempt::Asked(_))) && self.seam.busy()
+        matches!(self.attempt, Some(Attempt::Asked(_)))
     }
 
     /// Why the last attempt refused, if it did.
@@ -517,17 +519,15 @@ pub enum NotIndexed {
     /// coming, and the toolbar is already saying so.
     Building,
     /// No index, and no build under way — the last attempt refused
-    /// (its reason is [`PickCache::error`]), nothing has been
-    /// evaluated yet, or the seam that would build one has stopped
-    /// answering. Waiting will not help; the retry policy holds until
-    /// the generation or δ moves.
+    /// (its reason is [`PickCache::error`]), or nothing has been
+    /// evaluated yet. Waiting will not help; the retry policy holds
+    /// until the generation or δ moves.
     ///
     /// **The observable is the arm and the causes are a list, not a
-    /// definition.** A third cause arrived with
-    /// [`PickCache::indexing`]'s seam read — a build submitted to a
-    /// worker that has gone — and it is this arm rather than
-    /// [`NotIndexed::Building`] precisely because the sentence
-    /// `Building` carries would be a promise nobody can keep.
+    /// definition**, which is what puts two of them under one name:
+    /// either way there is no index and nobody building one, and the
+    /// sentence [`NotIndexed::Building`] carries would be a promise
+    /// nobody can keep.
     Absent,
     /// An index is in hand and it did not mint the picture's corners:
     /// it describes a rebuild that has not been drawn.
@@ -568,8 +568,8 @@ impl core::fmt::Display for NotIndexed {
             Self::Absent => write!(
                 f,
                 "not picked: the picture on screen has no pick index and none \
-                 is being built — the last index build refused, nothing has \
-                 been evaluated yet, or the index seam has stopped answering"
+                 is being built — the last index build refused, or nothing has \
+                 been evaluated yet"
             ),
             Self::AnotherPicture => write!(
                 f,

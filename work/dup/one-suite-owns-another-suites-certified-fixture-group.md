@@ -5,6 +5,8 @@ title: review_arceval's certified operands are m5_s12's, by cross-suite import r
 status: parked
 opened: 2026-09-20
 blocked_on: [two-rules-disagree-on-when-a-fixture-leaves-a-suite]
+priority: P4
+cost: E
 ---
 
 

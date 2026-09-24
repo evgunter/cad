@@ -4,7 +4,9 @@ kind: issue
 title: one environmental fact now says WHY it is unusable and its sibling still answers a bare bool with the reason kept elsewhere
 status: open
 opened: 2026-09-10
-refs: [wasm-theme-choice-is-offered-and-silently-not-kept, hover-route-for-an-absent-chooser-has-no-test, 2293]
+refs: [hover-route-for-an-absent-chooser-has-no-test, 2293]
+priority: P3
+cost: E
 ---
 
 Disclosed by the close of
@@ -114,3 +116,27 @@ exists, so that a value's words are composed once. That is the same principle th
 row applies to `ChooserBackend`, at a value rather than at a sentence,
 and it is precedent for the shape *a method on the value that knows*
 over the shape *keep the bool and move the const*.
+
+## Evidence added by the `is_instance` lane (2026-09-19)
+
+That lane's sweep ranged over every `-> bool` door under
+`crates/viewer/src` (66 of them), which is a different rule from this
+row's and therefore a cross-check on it rather than a substitute. Two
+things it settled, both narrowing rather than widening the population:
+
+- **`platform::running_under_wsl` is not a member.** It is
+  `std::env::var_os("WSL_DISTRO_NAME").is_some() ||
+  std::env::var_os("WSL_INTEROP").is_some()` — two reads that cannot
+  fail, so its `false` stands over one state and there is no unusable
+  arm and no reason to carry. The sweep rule above lists *"the WSL
+  probe"* as a candidate; this is the answer for it.
+- **`platform::ChooserBackend::usable` is the only `-> bool` in the
+  crate that hides an environmental reason**, on that 66-door pass.
+  The other bool doors over a lookup either carry no reason at all
+  (`is_hidden`, `holds`, `current_for`) or have their typed reason on a
+  door beside them (`pickcache::indexing` next to `pickcache::error`,
+  `session::select::Selection::live` next to the unresolved verdict) —
+  which is the shape this row is asking `ChooserBackend` to take.
+
+Neither touches the row's open decision, which is which of the two
+shapes the fix takes.

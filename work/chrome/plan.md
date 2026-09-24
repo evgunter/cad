@@ -1,6 +1,6 @@
 # CHROME — viewer chrome and coverage (plan)
 
-**STATUS: OPEN; slate re-cut 2026-09-15.** The opening slate of nine
+**STATUS: OPEN; slate re-cut 2026-09-15, and cut again 2026-09-22** (see *The slate after the 2026-09-22 cut*). The opening slate of nine
 units all landed on 2026-09-04 and the program then went dormant for
 eleven days. What it holds now is the residue those units filed, five
 hand-offs from DOCM, and rows other programs filed onto this slate
@@ -30,35 +30,46 @@ not by a correctness lane. A style lane that verifies claims finds
 correctness defects as a side effect of checking whether the words are
 true.
 
-## Territory — the VIEW carve-out (2026-09-15)
+## Territory — the carve-out is spent (2026-09-21)
 
-CHROME and VIEW both claim `crates/viewer/src/*` and both `keep_out`s
-name the other, so lint is quiet; but until 2026-09-15 both clauses
-were **false**. CHROME's said *"CHROME goes first"* (spent — VIEW went
-first). VIEW's said CHROME *"has been dormant since 07:00"* and treated
-the wait clause as discharged on that basis (true when written, false
-now). The programs no longer take turns; they divide the files.
+The 2026-09-15 section this replaces divided `crates/viewer` between
+CHROME and VIEW file by file, because both claimed the whole crate and
+both were live in it. **Two things have happened since, and together
+they retire it.**
 
-**CHROME works:** `datums.rs`, `bounds.rs`, `combine.rs::denotes_body`,
-`tree.rs::blamed_mates`, and
-`crates/viewer/tests/{valid_range,combine_ops,tree_badges}.rs`.
+1. **VIEW re-scoped on 2026-09-17.** Eighty-six of its ninety-four
+   live rows went to four successor programs (VNEWS, VGEOM, VSEAM,
+   VDOC) or to seven other live programs, and its own `keep_out` now
+   says plainly: *"this program does not dispatch new units — its
+   remaining act is the exit walk."* Half of every cession clause
+   below was *"VIEW holds an open row on the same ground"*. VIEW holds
+   almost none, and will open no more.
+2. **`work/README.md` ruled the general question on 2026-09-20** (Ev,
+   in chat): two open programs may claim one path, shared ground is
+   legitimate and expected, **neither side owes the other a
+   `keep_out`**, and what IS owed is awareness while a lane is LIVE —
+   a per-branch question that `work.py territory --base main` answers.
 
-**CHROME cedes**, each because VIEW holds an open row on the same
-ground: `scene.rs` and `gpu.rs`
-(`scene-mesh-carries-an-identity-index-buffer`, opened 2026-09-15,
-rewrites `SceneMesh::build_parts_focused` and swaps `draw_indexed` for
-`draw`); `theme.rs` and `pane/features.rs`
-(`tone-is-a-value-in-frame-and-a-comment-in-two-panes`); `marks.rs` and
-`blend.rs` (VIEW works these files; `edge-cost-claims-name-a-search-
-that-is-gone` is re-homed to VIEW for that reason and no other). And the spine CHROME never had a claim on in practice:
-`app.rs`, `session.rs`, `session/*`, `pane/*`, `frame.rs`,
-`pickindex.rs`, `display.rs`, `props.rs`, `forms.rs`, `sketch.rs`.
+So CHROME does not cede `scene.rs`, `gpu.rs`, `theme.rs`,
+`pane/features.rs`, `marks.rs`, `blend.rs`, `app.rs`, `session.rs`,
+`session/*`, `pane/*`, `frame.rs`, `pickindex.rs`, `display.rs`,
+`props.rs`, `forms.rs` or `sketch.rs` to anybody. It claims
+`crates/viewer/src/*`, `crates/viewer/tests/*` and
+`crates/viewer/README.md`, as `paths` has always said, alongside
+AUTHOR, VGEOM, VSEAM, VNEWS, VIEW and FIT.
 
-**`crates/editor-core` is not DOCM's any more.** DOCM exited 2026-09-14
-(`docs/DOC-LEDGER.md`, sweep 14) and its ground divided: `mate.rs` and
-`mate/*` to MSOLVE; `doc.rs`, `edit.rs`, `node.rs`, `resolve/*` and
-`REFERENCES.md` to EDIT; `crates/pncad-py` is LIB's. A CHROME row
-reaching any of them is a **hand-off, not a fence to work around**.
+**What replaces the file list is a per-wave read of who is live.** At
+dispatch the orchestrator runs `work.py territory` and the open-PR
+list, and a unit's scope names the files another lane is in RIGHT NOW
+as out-of-scope for this wave — a scheduling fact with a date on it,
+not a fence. Every dispatch carries it; no clause here can, because it
+would be false within the day.
+
+**The three rows the spent cession alone was holding are all
+disposed of**: `band-refusal-still-badges-every-row` stays here (Wave 2
+priced its variant and left the row open), `gpu-index-counts-substitute-u32-max`
+is closed, and `mispaired-ids-exempts-the-empty-window` went to FIT in
+the 2026-09-22 cut, after VGEOM declined it on its charter test.
 
 ## What the 2026-09-15 audit found
 
@@ -104,52 +115,163 @@ None open: the two rows filed here landed in PR 2856 on 2026-09-19.
 
 ## Unit order
 
-E-first, and each unit names the ground it may touch.
+**Wave 1 LANDED 2026-09-21** — three units, five rows, PRs 3018, 3021
+and 3022. No A/B duals and no row in `docs/MODEL-AB-LOG.md` (Ev, in
+chat: *"no AB protocol"*); the band 1600-1699 stays claimed and empty.
+Each unit's spec was deleted at its merge per `docs/DOC-LEDGER.md`, so
+nothing here points at one; `work/chrome/log.md` carries what each
+did and the item files are the record that survives.
 
-1. **`chrome/citation-repoint`** — repoint the four rotted rows by
-   subject and close the two reports. Tracker only, no source. *(done;
-   under style review)*
-2. **`chrome/datums-substitution-sweep`** — `datums.rs` holds four
-   members of one fail-loud class (a NaN or failed conversion floored
-   into a plausible number): `inclusive-rule-range-draws-a-line-on-a-
-   nan-count` (E, fix written in the row),
-   `metres-per-pixel-swallows-a-nan-depth` (HARDER — an `Option<f64>`
-   ripple), and two sites the audit found unfiled. No VIEW row touches
-   the file. *(dispatched)*
-3. **`bounds.rs`, two rows** — `certify-affordance-on-the-bounds-panel`
-   is live, and `bounds.rs`'s own module header still says the three
-   kernel doors it needs "are missing" when DOCM-9 built them. Fix the
-   stale header first; it is E and it currently misleads any taker.
-4. **`tree.rs::blamed_mates`** — `band-refusal-still-badges-every-row`.
-   `MateFault::Band` carries only a `BandError` and names no mate, so
-   every row in a refused cluster keeps its own badge. No test covers
-   the Band shape today.
-5. **`combine.rs::denotes_body`** — `body-seat-reads-through-the-placer-
-   chain`. **NOT dispatchable as written, and the reason is the
-   carve-out's.** The fix is a signature change (the gate needs the
-   `Doc`), and `denotes_body`'s only production caller is
-   `session/refuse.rs`, which the carve-out cedes to VIEW — so a CHROME
-   lane can write the whole fix and cannot make the crate build. Filed
-   as `work/view/the-file-level-carve-out-cannot-express-a-row-whose-
-   work-crosses-a-call-site`, which offers three ways out and
-   recommends two. The row's own design question is settled; only the
-   boundary is open. Land it aware of `work/door/node-placer-field-docs-
-   say-body-where-instances-are-accepted`, which names this row as its
-   viewer-side member.
-6. **`probe-rows-assert-in-one-direction-only`** — tests only, but its
-   fourth finding (a stale `derived.bounds` survives a refusal) lands
-   in `session.rs`, which is ceded. Take findings 2 and 3 now; finding
-   4 waits on a hand-off.
+**What the wave is evidence for, stated once because it is the reason
+this program reviews the way it does.** Every one of the three units
+was corrected by the layer below it, and the corrections changed
+answers rather than details:
 
-**Not scheduled, and why.** `culling-is-load-bearing-with-no-pixel-
-test` and `viewer-expresses-no-gpu-adapter-preference` are both live
-and both HARDER; the first would be the first row in the crate to
-assert about a rendered image and therefore sets a convention, and the
-second has three open decisions and a fault that is by construction not
-catchable in Rust. Neither is a lane unit until someone decides the
-shape. `viewer-cannot-author-a-part-node` was already adjudicated at
-class M by DOOR and rejected: the seat and instance arguments are the
-work, not a detail.
+- **A row's premise was wrong on all three units.** `MAX_GRID_LINES`
+  is 512, not the 96 its row builds a reachability argument on. The
+  `datums.rs` finiteness census was eight sites, not four. And
+  `ProductErrorKind::is_empty_document`, the home the whole
+  empty-document unit was built around citing, **does not exist** —
+  renamed `means_no_body` inside PR 2629's own lane, so the row was
+  filed citing a dead name. Two were caught at dispatch by reading the
+  tree; the third by the lane. **Reading the tree before writing a
+  spec is now what this program does**, and it costs minutes.
+- **A correctness arm blocked a merge.** The grid unit's first cut
+  shrank the over-cap patch centred on the REGION, which at a grazing
+  seat is not centred on what the camera is aimed at — past a pane
+  about 6900 px tall it drew a complete, closing rectangle with
+  nothing at the aim point, and it was a REGRESSION against the
+  truncation it replaced. Style review alone would not have caught it;
+  the arm was added because that unit's failure mode is a confident
+  wrong answer rather than a refusal, which is the rule this program
+  already had.
+- **The fresh-instance trap landed on all three units, seven times.**
+  A lane closing a duplication minted one, every time. One lane caught
+  its own at the keyboard and another found its fourth while filing
+  the row about it; the rest were caught only by a reader who did not
+  write the fix. `docs/prompts/reviewer-style-lane.md` §1's last
+  bullet is the single highest-yield line in the brief, and naming the
+  trap in a PR body still prevents nothing.
+- **Two lanes overturned an orchestrator recommendation with
+  measurement, and both were right.** One was told to restate a
+  constant deliberately and instead made it private and exposed the
+  DERIVED bound (`placed_rung_cost`), which is `Camera::pitch_limit`'s
+  precedent exactly rather than the departure the review called it.
+  The other declined to derive `OVER_BUDGET_DELTA` from the starting
+  δ, because a decade under a COARSER start is a δ the same file
+  records as inside the budget. Sequencing and shape calls are the
+  orchestrator's; both of these were the lane's, and the lane had the
+  measurement.
+
+**Wave 2 LANDED 2026-09-22** — three units, four rows (PRs 3055, 3058, 3059), no A/B duals
+and no row in `docs/MODEL-AB-LOG.md` (Ev, in chat: *"no AB protocol"*);
+the band 1600-1699 stays claimed and empty. Dispatched against the item
+files directly rather than against `docs/<ID>-SPEC.md`: these rows carry
+their own `## What a taker owes`, and a spec restating a complete row is
+a second place for its premises to rot.
+
+- **`chrome/wrap-in-region`** — `error-and-check-text-overflows-its-region`,
+  the slate's only P0 and Ev's own request. The LAYOUT half only; the
+  concision half reaches kernel `Display` impls and files per-crate rows
+  instead. Un-investigated when filed, so investigation is the bulk.
+- **`chrome/rowstatus-exhaustive`** —
+  `has-faults-cannot-red-on-a-new-rowstatus` with
+  `band-refusal-still-badges-every-row`, as one unit and in that order:
+  the guard goes exhaustive FIRST so the Band row's variant cannot land
+  silently. Both rows say to take them together.
+- **`chrome/split-circle-eps`** —
+  `a-split-circle-fixture-sits-inside-the-1e-6-escalation-band`, a live
+  red on `main` at `1e-6` that one CI step's missing `CAD_TOLERANCE_EPS`
+  hides.
+
+**The live-ground map each dispatch carried, and the fact that it was
+partly WRONG.** `plan.md`'s territory section promises a per-wave read
+of who is live rather than a file list, and this was the first wave to
+owe one. I built it from `git diff --name-only origin/main...origin/<branch>`
+per open PR — and a **three-dot diff takes the merge base**, which for a
+week-stale branch is far behind `main`, so `main`'s own changes to a file
+are attributed to the branch. The map therefore named files as live that
+were not, and missed at least one that was.
+
+Measured, after PR 3055's reviewer caught it: **#2929 does not touch
+`crates/viewer/tests/tree_badges.rs` at all** — its diff is 40 files and
+that is not among them; its branch merely carries pre-`main` content
+there. **#2934 (`msolve/9-from-face`) touches both that file AND
+`crates/viewer/src/tree.rs`**, and `tree.rs` is what I told the lane was
+clear ground and is where its whole change lives.
+
+**The authoritative source is the PR's own file list**, which GitHub
+computes against the real merge base; `git merge-base` is not a
+sufficient substitute, because a branch that has merged `main` has
+several merge bases and `git` picks one. `git merge-tree --write-tree A B`
+answers the question that actually matters — will these two conflict —
+and is what this program should use from here.
+
+This is the same root cause as
+`work/meta/territory-base-main-is-stale-in-every-agent-checkout`, filed
+this sitting from the other direction: a stale base ref silently
+answering a question about the wrong tree. Two independent instances in
+one wave, one of which reached a merged artifact.
+
+**Wave 3 LANDED 2026-09-22** — PRs 3088, 3089 and 3090, eight rows
+closed; `work/chrome/log.md` has the record.
+
+## The slate after the 2026-09-22 cut
+
+The cut (`work/chrome/log.md`, same date) left **28 points** against
+the 30-point ceiling, in two families and the class behind the second.
+
+- **The text the viewer lays out** — Ev's P0 overflow report and its
+  residue. The concision half (`error-and-check-text-overflows-its-region`),
+  the fifty unconverted sentences
+  (`messages-in-the-creation-and-properties-panes-still-draw-past-their-row`)
+  and the toolbar's own canceled line are P0. Before them sits a fork
+  nobody has answered: `messages-wrapped-at-a-region-and-numbers-bounded-by-characters-are-two-answers`
+  and `wrapping-at-a-region-with-no-floor-produces-a-four-character-ribbon`
+  ask what a too-narrow region owes a sentence, and the fifty-site
+  conversion waits on that answer so it is done once.
+  `an-auto-sized-window-makes-available-width-last-frames-content`,
+  `feature-tree-row-labels-draw-an-unbounded-pose-in-an-extend-row` and
+  `message-resolves-its-text-style-differently-from-ui-label` ride with
+  whichever unit next edits `widgets::message` or its callers.
+- **The badges it draws** — `at-rest-badge-reports-an-empty-document-as-a-refusal`,
+  `band-refusal-still-badges-every-row`,
+  `blamed-mates-sends-the-eye-past-the-node-the-fault-says-to-fix`,
+  `viewer-panels-disagree-on-a-poisoned-node`,
+  `two-is-this-broken-readings-argue-opposite-on-poisoned`,
+  `six-viewer-sites-restate-the-empty-document-rule-and-its-badge-policy`,
+  `downstream-wording-spells-node-where-node-number-forbids-it` and
+  `chrome-weight-is-outside-the-palette`.
+- **The subset-policy class** Wave 2's exhaustive guard exposed:
+  `a-wildcard-match-decides-viewer-policy-in-five-places`,
+  `matches-subset-policy-survives-in-four-viewer-modules` and
+  `the-exhaustive-on-purpose-argument-is-restated-twenty-times` — one
+  class, one unit.
+
+**Wave 4 LANDED 2026-09-23** — PRs 3100, 3101 and 3108;
+`work/chrome/log.md` has the record.
+
+**After Wave 4 (19 points).** Next, in order:
+- `messages-in-the-creation-and-properties-panes-still-draw-past-their-row`
+  (P0), `create.rs` half. It waits only on AUTH-4 (#3052) leaving
+  `pane/create.rs`. `add_part_ui`'s window owes a `default_width`.
+- The concision row (P0) closes when its named check can be made: the
+  unowned `props.rs` and `certify.rs` residue.
+- `at-rest-badge-reports-an-empty-document-as-a-refusal` and the
+  subset-policy class, once `session.rs` and `session/refuse.rs` leave
+  the live PRs.
+
+**Held back, and why.**
+`at-rest-badge-reports-an-empty-document-as-a-refusal` is the next row
+and did not go this wave: its whole subject is `session.rs`, which is
+live in two open PRs. That is the same reason it was held last wave, and
+it is a scheduling fact, not a fence — it goes the moment 3052 and 2960
+land.
+
+**The board's in-flight column is a claim, not a fact** — see
+`work/chrome/log.md`, 2026-09-22. A row is marked `dispatched` here only
+after its branch exists on the remote, which is the cheapest thing that
+would have caught the phantom this sitting repaired.
 
 ## Exit shape
 

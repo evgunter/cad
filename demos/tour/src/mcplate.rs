@@ -70,6 +70,14 @@
 //!    not assumed: `m10_6_mc_draws.rs` pins it in the library, and the
 //!    bit-equality above re-checks it here on real geometry. The
 //!    gating half of the issue is still open.
+//!
+//!    The REDUCTION the bit-equality runs is the lane's own
+//!    (`analysis::summarize`) and not a transcription of it. It was a
+//!    transcription until SYM-14's review: a bitwise comparison whose
+//!    two sides are two spellings of one formula tests the spellings,
+//!    and the copies here and in `mcchain` had already dropped the
+//!    lane's two guards. The sheet is byte-identical across that
+//!    change, which is what says the arithmetic was the same one.
 //! 2. **A per-sample replay is a full rebuild.** There is no door for
 //!    "re-evaluate this document at a different parameter value and
 //!    keep everything the value does not reach": the memo is by
@@ -83,7 +91,7 @@
 use std::fmt::Write as _;
 
 use pncad::analysis::{
-    AnalysisPolicy, DEFAULT_SAMPLES, McConfig, analyzed_box, monte_carlo, sample_offsets,
+    AnalysisPolicy, DEFAULT_SAMPLES, McConfig, analyzed_box, monte_carlo, sample_offsets, summarize,
 };
 use pncad::document::{
     CancelToken, DocEdit, DocParamValue, EvalOptions, Evaluation, ParamName, ProfileDoc,
@@ -134,18 +142,6 @@ struct Sample {
     holes: [(f64, f64, f64); 2],
     /// The web `Measure`'s value at this sample.
     web: f64,
-}
-
-/// `summarize`'s arithmetic, in the order the MC lane runs it — so the
-/// comparison below is over the same reduction and a difference means
-/// a difference in the DRAWS.
-fn summarize(values: &[f64]) -> (f64, f64, f64, f64) {
-    let n = values.len() as f64;
-    let mean = values.iter().sum::<f64>() / n;
-    let sigma = (values.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / (n - 1.0)).sqrt();
-    let min = values.iter().copied().fold(f64::INFINITY, f64::min);
-    let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    (mean, sigma, min, max)
 }
 
 /// The body a node evaluated to.

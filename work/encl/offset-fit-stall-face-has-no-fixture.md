@@ -4,6 +4,8 @@ kind: issue
 title: offset_fit's RefinementStalled face has no fixture at any door, so the verdict-before-budget ordering is unpinned
 status: open
 opened: 2026-09-12
+priority: P3
+cost: E
 ---
 
 

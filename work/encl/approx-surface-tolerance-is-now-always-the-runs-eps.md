@@ -4,6 +4,8 @@ kind: issue
 title: SurfaceSpec.tolerance is now always the run's eps on every production path; map_approx reads it as if it were the surface's own
 status: open
 opened: 2026-09-05
+priority: P1
+cost: D
 ---
 
 **Owner: whoever owns `crates/geom/src/surfaces/approx.rs` and

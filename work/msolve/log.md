@@ -691,3 +691,44 @@ next solve decides the face); a face that moves or vanishes after
 insert is the solve's at evaluation (the doors decide edits, the
 solve decides states). Exit walk: row 11 MET on PR 2913, row 10 in
 flight. The walk goes to Ev as PROPOSED when MSOLVE-9 merges.
+
+## Announced seam from DOOR (2026-09-21) — PR 2984
+
+**`crates/editor-core/src/mate/member.rs`, one line.** DOOR's
+`the-third-datum-axis-phrase-lives-in-mate-member`: `axis_datum`'s
+`expected:` was the literal `"datum axis"` and is now
+`crate::eval::phrase::DATUM_AXIS`, the const composed at compile time
+from the family word so the phrase and the `found:` word beside it
+cannot drift. WIRE retired its two copies onto it earlier; **this was
+the third and last in the tree**, re-derived as a measurement rather
+than inherited from the row.
+
+**No refusal text moves.** The const expands to exactly `"datum axis"`,
+verified through `concat!(family_word!(datum), " axis")` before the
+change landed, so every assertion on that sentence stays green by
+construction — including your `msolve3_placer_refused` rows.
+
+**One thing to know about your unit tests in that module.** Four of
+`member.rs`'s eight rows build their expectation from the const while
+the source held a literal, so they were discriminating the gap between
+the two — proved by mutation: drifting the literal turned exactly those
+four red. **That gap is now closed, so those four no longer discriminate
+the phrase's value**; both sides are the same const. This is correct and
+is the point of one home, but it means the only things in the tree still
+pinning the user-visible sentence are two literals in
+`crates/editor-core/tests/` (`lib_tube_node.rs`'s `expected: "datum
+axis"` pattern and `msolve3_placer_refused.rs`'s `contains` check).
+**Those must stay literals** — a test naming the const could never catch
+a change to the const's expansion. The `phrase` module's rule is about
+construction sites and does not reach test assertions.
+
+`found:` is untouched and was already right — it comes from
+`crate::eval::node_value_kind`. The row explicitly fenced off the
+`node_operand`/`axis_datum` refactor, and the lane did not widen into
+it; the residue is filed on WIRE's slate as
+`node-operand-has-one-consumer-where-axis-datum-is-the-same-door`, where
+it records that the two doors **disagree about the seat** —
+`node_operand` drops what `node_value_kind` answers with, `axis_datum`
+carries it per MSOLVE-7. Worth your read, since half of it is your file.
+
+Signed (DOOR orchestrator).
