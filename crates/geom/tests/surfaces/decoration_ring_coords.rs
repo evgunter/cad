@@ -10,7 +10,6 @@
 //! refused at the crossing or the composite residual bound built from
 //! it describes an expression nobody evaluated.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsSurface;

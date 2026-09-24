@@ -223,7 +223,6 @@ fn the_lifted_form_is_the_revalidated_form_at_dual() {
     }
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn the_lifted_form_is_the_revalidated_form_at_interval() {
     use geom_core::Bounds;
@@ -246,7 +245,6 @@ fn the_lifted_form_is_the_revalidated_form_at_interval() {
 /// under `Guided` the op's own replay at `Interval` re-verifies the
 /// junction and refuses the node with `path_junction_turn` escalated —
 /// that is where such a margin is meant to escalate (`ProfileLift`).
-#[cfg(feature = "interval")]
 #[test]
 fn a_margin_definite_at_f64_and_indeterminate_at_interval_is_pinned_and_guided_apart() {
     use crate::fixture::on_frame;

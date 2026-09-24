@@ -1036,7 +1036,6 @@ mod tests {
     /// that cannot certify is refused at the crossing — otherwise the
     /// transversality margin is a positive number computed from a plane
     /// equation that was never evaluated where it was asked for.
-    #[cfg(feature = "interval")]
     #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
     mod normal_crossing_tests {
         use geom::NurbsCurve2;

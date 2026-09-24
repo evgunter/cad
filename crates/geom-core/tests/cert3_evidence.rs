@@ -15,7 +15,7 @@
 //! elsewhere quotes. Run one with
 //!
 //! ```text
-//! cargo test -p geom-core --features interval --test all \
+//! cargo test -p geom-core --test all \
 //!     -- --ignored --nocapture cert3_evidence
 //! ```
 //!
@@ -24,7 +24,6 @@
 //! `crates/editor-core/tests/cert3r1_dump.rs`, because it needs the
 //! evaluator. The m10-p fence header names it.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Bounds, Interval, Mat3, Point3, Real, Vec3};

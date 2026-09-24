@@ -129,15 +129,9 @@ struct Lane {
 }
 
 /// One (ε, `d`) point at all four lanes.
-///
-/// `exact` is read only on the `interval` legs, where the row that
-/// drives that lane compiles; `#[allow(dead_code)]` says so rather
-/// than the field being dropped, because the table is one measurement
-/// and a column that exists in half the builds is a second table.
 struct Cell {
     bare: Lane,
     inexact: Lane,
-    #[cfg_attr(not(feature = "interval"), allow(dead_code))]
     exact: Lane,
 }
 
@@ -380,7 +374,6 @@ fn sym11_the_far_placement_is_a_counted_dispute_at_sym_probe() {
 /// count is zero in every cell because `Interval::WITNESS` is `Exact`,
 /// which routes a contradiction to the `debug_assert!` and never to
 /// the column, so a count here is that const having moved.
-#[cfg(feature = "interval")]
 #[test]
 fn sym11_the_far_placement_never_contradicts_at_sym_interval() {
     use geom_core::Interval;

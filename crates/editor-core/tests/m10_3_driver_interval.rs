@@ -45,13 +45,6 @@
 //! this file consumes it. The by-shape sweep for its siblings, its
 //! commands and its blind spots are in M10-3's PR and re-run in M10-7's,
 //! where the 57 names it published are classified.
-//!
-//! The file's basename carries `interval` deliberately: the driver is
-//! gated on that feature (there is no leaf to certify without the
-//! certified scalar) and `scripts/ci-filter.py` pins the hosted lane on
-//! exactly that name, so this unit's own axis is never left to the
-//! sampling draw.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

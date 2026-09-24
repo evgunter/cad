@@ -120,26 +120,15 @@ finish_run() {
 # `tests/all.rs` all produce a green run over zero rows and an empty CSV.
 # So the row count and the dump are both asserted here — this is the only
 # place that can tell the difference between "clean" and "ran nothing".
-# THE FEATURE SET ONE SUITE NEEDS, keyed by module rather than passed at
-# every call site, so the dump half and the plain half cannot disagree
-# about it. `probe` alone is the rule: the recording scalar is the only
-# thing most suites need. The E6 driver suite is the exception and is
-# the reason this exists — the driver is the `interval` feature's
-# service and `Probe` is the `probe` feature's scalar, so its file
-# compiles to NOTHING under `probe` alone and every selection over it
-# would then run and skip zero tests, which is the silence the checks
-# below exist to catch.
+# THE FEATURE SET ONE SUITE NEEDS, keyed in one place rather than passed at
+# every call site, so the dump half and the plain half cannot disagree about
+# it. `probe` is the whole of it: the recording scalar is the one opt-in a
+# probe suite needs. Three suites (the E6 driver's and two `Sym<Interval>`
+# ones) needed `interval` besides while the certified lane sat behind that
+# feature, and compiled to NOTHING without it; the feature is deleted
+# (RING-4), so they compile under `probe` alone.
 feats_for() {
-  case "$1" in
-    # Every suite here needs BOTH features for the same reason: it
-    # instantiates a `probe` scalar inside an `interval` service (the E6
-    # driver, or `Sym<Interval>` from the symbolic tier), so under
-    # `probe` alone the file compiles to NOTHING and the selection over
-    # it runs and skips zero tests.
-    m10_3_driver_k_probe_interval|m10_7_r1_retag_probe|m10_7_r2_sym_probes)
-      echo probe,interval ;;
-    *) echo probe ;;
-  esac
+  echo probe
 }
 
 run_dump() {
@@ -247,9 +236,7 @@ for eps in 1e-6 1e-9 1e-12; do
   # linted CSV for the same reason the M2 corpus does: k-lint's
   # thresholds were argued over the Band 4 corpus and the tour scenes,
   # and folding a new population in would move the gate's subject
-  # matter. Needs `interval` as well as `probe` — `Probe` is the
-  # recording scalar and the driver is the interval service, and this
-  # is the only invocation in the repo that builds the pair.
+  # matter.
   run_dump "$eps" "E6 driver" editor-core m10_3_driver_k_probe_interval "$driver"
   echo "=== k-probe sweep @ eps=$eps (demo scenes) ==="
   (cd "$root/demos/tour" && CAD_TOLERANCE_EPS=$eps cargo run --features probe -- k-probe "$demos")

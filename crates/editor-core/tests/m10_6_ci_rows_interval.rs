@@ -47,7 +47,6 @@
 //! while this table does not. (It used to print a note and return
 //! green, which is a row that reports nothing and passes — the shape
 //! this tree refuses everywhere else.)
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;

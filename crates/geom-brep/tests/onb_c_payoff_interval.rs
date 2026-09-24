@@ -22,11 +22,10 @@
 //! `#[ignore]`d: asserts nothing, gates nothing, prints.
 //!
 //! ```text
-//! cargo test -p geom-brep --features interval --test all \
+//! cargo test -p geom-brep --test all \
 //!     -- --ignored --nocapture onb_c_payoff_interval
 //! ```
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;

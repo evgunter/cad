@@ -59,7 +59,6 @@ fn r1_f64_nested_restrict_round_trip() {
     assert!(d > 0.0, "a 1e-8 revolve moved nothing at all — suspicious");
 }
 
-#[cfg(feature = "interval")]
 mod interval_lane {
     use super::*;
     use crate::shared::interval::iv;

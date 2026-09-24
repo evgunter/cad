@@ -377,10 +377,10 @@ fn the_measure_node_fault_tag_is_stable() {
 /// reachable from Python and `tests/test_measures.py` reaches it
 /// through a real document. `MinClearanceRefusal` is the interval
 /// engine's own, and its ONLY producer is
-/// `impl MinClearanceLane for geom_core::Interval`, behind the
-/// `interval` feature; no Python evaluation reaches it at any feature
-/// set, because the lane and not the feature is what gates it. So this
-/// row is where the second one's tag and prose are pinned at all.
+/// `impl MinClearanceLane for geom_core::Interval`; no Python
+/// evaluation reaches it, because the binding evaluates at `f64` and the
+/// lane is what gates it. So this row is where the second one's tag and
+/// prose are pinned at all.
 #[test]
 fn the_fourth_verbs_two_refusals_are_stable() {
     use crate::tags::{measure_unavailable_at_tag, node_error_tag};
@@ -2281,7 +2281,7 @@ fn edit_inner_variant_tags_are_stable() {
 ///
 /// The arm table, executable. `crate::edit_payload::edit_payload` is
 /// the projection Python reads its attributes off, and this pin says
-/// what each of the 58 arms puts on the wire: the exact set of
+/// what each of the 68 arms puts on the wire: the exact set of
 /// attributes it CARRIES, in publication order, with the rest `None`.
 ///
 /// It is here rather than in `tests/*.py` because most of these arms
@@ -2292,7 +2292,7 @@ fn edit_inner_variant_tags_are_stable() {
 /// can provoke it, so it is pinned where it can be provoked: by
 /// construction, on the row with no interpreter.
 ///
-/// The pin is TOTAL over the enum: all 58 arms are built here, so an
+/// The pin is TOTAL over the enum: all 68 arms are built here, so an
 /// arm whose projection is dropped shows up as a changed set rather
 /// than as an absence nobody counted. Totality of the PROJECTION is a
 /// different guarantee and a stronger one: `edit_payload`'s match is
@@ -2304,7 +2304,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocParamValue,
         DocumentId, EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
-        RecipeNodeId, RootFault, SlotId,
+        ProvenanceFault, RecipeNodeId, RootFault, SlotId,
     };
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};
@@ -2330,6 +2330,17 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::WouldCycle { at: id(1) }, &["node"]);
     carries(&E::ReadSiteMissingNode { at: id(1) }, &["node"]);
     carries(&E::SetMembersOnNonList { node: id(1) }, &["node"]);
+    carries(&E::SetProgramOnNonProfile { node: id(1) }, &["node"]);
+    carries(
+        &E::ProvenanceMalformed {
+            node: id(1),
+            fault: ProvenanceFault::LoopCount {
+                loops: 1,
+                provenance: 2,
+            },
+        },
+        &["node"],
+    );
     carries(&E::WitnessOnNonSketch { node: id(1) }, &["node"]);
     carries(&E::DuplicateWitnessEntry { node: id(1) }, &["node"]);
     carries(&E::PlacementOnNonInstance { node: id(1) }, &["node"]);
@@ -4357,6 +4368,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_on_non_instance",
             "placement_rule_mismatch",
             "profile_program_refused",
+            "provenance_malformed",
             "read_site_missing_node",
             "rebind_appearance_collision",
             "rebind_identity",
@@ -4368,6 +4380,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "repeated_designation",
             "selection_not_canonical",
             "set_members_on_non_list",
+            "set_program_on_non_profile",
             "slot_dimension_mismatch",
             "slot_doc_param_dimension",
             "slot_unknown_doc_param",
@@ -4396,6 +4409,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_version_error_tag",
             "node_error_tag",
             "program_refusal_tag",
+            "provenance_fault_tag",
         ],
     },
     TagEntry {
@@ -4599,6 +4613,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "gauge_rewrite",
             "join",
             "orphaned_declare",
+            "rebound",
             "split",
             "strand",
             "stranded_appearance",
@@ -4976,7 +4991,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "program_refusal_tag",
-        values: &["geometry", "resolve", "transition", "validate"],
+        values: &["geometry", "record", "resolve", "transition", "validate"],
         delegates: &[],
     },
     TagEntry {
@@ -4987,6 +5002,19 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "promoted_kind_tag",
         values: &["cylinder", "plane"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "provenance_fault_tag",
+        values: &[
+            "loop_count",
+            "no_such_old_loop",
+            "no_such_old_step",
+            "old_loop_continued_twice",
+            "old_step_continued_twice",
+            "step_count",
+            "step_of_new_loop",
+        ],
         delegates: &[],
     },
     TagEntry {

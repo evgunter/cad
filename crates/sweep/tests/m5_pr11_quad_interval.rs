@@ -3,7 +3,6 @@
 //! (`volume ± volume_pad` around the Interval value's own enclosure)
 //! must contain the closed form πr²H/2, and tier 3 passes.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;

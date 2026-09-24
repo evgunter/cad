@@ -16,7 +16,6 @@
 //! surfaced a real laundering door in `Dual::powi(0)`'s derivative
 //! channel. See its own comment — it is pre-existing and
 //! backend-independent, so it is pinned as-is rather than fixed here.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag, Sign};

@@ -38,7 +38,6 @@
 //! on top of the door, and its state is `m10_10_pins_interval`'s.
 //! Holding at every row here is what "the algebra off reproduces
 //! M10-9" means in assertable form.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::ProfileDoc;

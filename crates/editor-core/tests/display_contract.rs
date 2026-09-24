@@ -20,9 +20,9 @@ use editor_core::{
     EvalError, FrameFault, HitTestError, InputFault, InterrogateError, Lever, LeverRefusal,
     Maintenance, MateFault, MateSide, MeasureNodeFault, MeshPickError, MetaVersionError,
     MintRefusal, NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, PartFault,
-    PersistError, PlacementRuleFault, ProgramFault, RecipeNodeId, RecordedProgramError, RefusedRef,
-    ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
-    SnapshotError, StableName, StepArg, StepSegmentsError,
+    PersistError, PlacementRuleFault, ProgramFault, ProvenanceFault, RecipeNodeId,
+    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg,
+    RootFault, Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepSegmentsError,
 };
 use geom_core::BandError;
 
@@ -1221,6 +1221,7 @@ fn a_recovered_predicate_flip_names_its_partner_and_says_it_was_recovered() {
             "flipped from positive to negative",
             &face_name().to_string(),
             "recovered by re-running the pair at diagnosis time",
+            "one of the two runs recorded no side verdict at the name's minting node",
         ],
         &[
             sign_words.as_slice(),
@@ -1243,7 +1244,7 @@ fn the_shadow_exec_refusal_states_which_wall_it_hit() {
                 ceiling: 32,
             },
         },
-        &["no verdict", "33", "32", "re-execute"],
+        &["no side verdict", "minting node", "33", "32", "re-execute"],
         &["ShadowExecDeclined", "PairTooWide", "ShadowExecRefusal"],
     );
     assert_f6(
@@ -1280,6 +1281,96 @@ fn a_resized_group_states_the_table_fact_and_claims_no_flip() {
             )
         );
         assert_f6(&d, &[], &["GroupResized"]);
+    }
+}
+
+/// The two scopes of the with-history lanes say which one answered,
+/// in exact sentences: a path arm claims the name's derivation path,
+/// and the upstream arm claims only that its node feeds the minting
+/// node without being on the path. Exact, so a scope cannot quietly
+/// claim the other's relation.
+#[test]
+fn the_path_and_upstream_scopes_state_which_one_answered() {
+    use editor_core::{RecipeEditRef, UpstreamCause};
+    use geom_core::predicate::Sign;
+    let count = SlotId::Count.label();
+    let path = [
+        (
+            Diagnosis::PredicateFlip {
+                predicate: "bool_point_in_solid_plane",
+                from: Sign::Negative,
+                to: Sign::Positive,
+                source: editor_core::FlipSource::VerdictLog,
+            },
+            "predicate bool_point_in_solid_plane flipped from negative to positive on the \
+             name's derivation path"
+                .to_owned(),
+        ),
+        (
+            Diagnosis::StructuralParam {
+                node: RecipeNodeId(9),
+                param: SlotId::Count,
+            },
+            format!("a structural parameter changed on the derivation path (node 9, slot {count})"),
+        ),
+        (
+            Diagnosis::RecipeEdit {
+                edit: RecipeEditRef::NodeDeleted {
+                    node: RecipeNodeId(4),
+                },
+            },
+            "the recorded reference disagrees with the recipe as it stands on the derivation \
+             path (node 4 was deleted)"
+                .to_owned(),
+        ),
+    ];
+    let upstream = |cause| Diagnosis::Upstream {
+        node: RecipeNodeId(11),
+        cause,
+    };
+    let tail = ", upstream of node 11, the name's minting node, but not on its derivation path";
+    let up = [
+        (
+            upstream(UpstreamCause::PredicateFlip {
+                predicate: "bool_point_in_solid_plane",
+                at: RecipeNodeId(10),
+                from: Sign::Negative,
+                to: Sign::Positive,
+            }),
+            format!(
+                "predicate bool_point_in_solid_plane flipped from negative to positive at node \
+                 10{tail}"
+            ),
+        ),
+        (
+            upstream(UpstreamCause::StructuralParam {
+                node: RecipeNodeId(10),
+                param: SlotId::Count,
+            }),
+            format!("a structural parameter changed at node 10 (slot {count}){tail}"),
+        ),
+        (
+            upstream(UpstreamCause::RecipeEdit {
+                edit: RecipeEditRef::NodeDeleted {
+                    node: RecipeNodeId(4),
+                },
+            }),
+            format!("the recipe changed (node 4 was deleted){tail}"),
+        ),
+    ];
+    for (d, want) in path.into_iter().chain(up) {
+        assert_eq!(d.to_string(), want);
+        assert_f6(
+            &d,
+            &[],
+            &[
+                "Upstream",
+                "UpstreamCause",
+                "PredicateFlip",
+                "StructuralParam",
+                "RecipeEdit",
+            ],
+        );
     }
 }
 
@@ -2170,7 +2261,7 @@ test_utils::f6_variants! {
 
 test_utils::f6_variants! {
     /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
-    const MAINTENANCE: Maintenance = [Cluster, Strand, StrandedAppearance, OrphanedDeclare];
+    const MAINTENANCE: Maintenance = [Cluster, Strand, StrandedAppearance, OrphanedDeclare, Rebound];
 }
 
 /// **Each registry act says what it did to the placement registry.**
@@ -2251,7 +2342,11 @@ fn maintenance_display_says_what_the_edit_did() {
             },
             vec![
                 "node 5 carries a face name minted by node 7",
-                "this edit deleted node 7",
+                // The row is made by two edits — a delete and a
+                // reshaping — and the sentence names what either
+                // removed without claiming which.
+                "this edit removed what it denoted",
+                "its minting node, or the profile segment it named",
                 "resolves to nothing until it is rebound",
             ],
         ),
@@ -2259,8 +2354,19 @@ fn maintenance_display_says_what_the_edit_did() {
             Maintenance::StrandedAppearance { name: face_name() },
             vec![
                 "the appearance store holds an attachment under a face name minted by node 7",
-                "this edit deleted node 7",
+                "this edit removed what it denoted",
                 "rebound or cleared",
+            ],
+        ),
+        (
+            Maintenance::Rebound {
+                from: face_name(),
+                to: face_name(),
+            },
+            vec![
+                "a face name minted by node 7 was rewritten in place",
+                "draws the same step's segment under the reshaped profile program",
+                "still denotes what it did",
             ],
         ),
         (
@@ -2342,6 +2448,121 @@ fn a_recorded_program_refusal_says_what_the_lift_could_not_take() {
         &cases,
         &RECORDED_PROGRAM_ERROR,
         &as_strs(&dimension_dump_words()),
+    );
+}
+
+test_utils::f6_variants! {
+    /// `ProvenanceFault`'s census — see [`NODE_PICK_ERROR`]. The
+    /// whole-program edit's shape faults: seven ways a provenance can
+    /// fail to describe its program, each naming the coordinate the
+    /// caller wrote in the caller's own terms.
+    const PROVENANCE_FAULT: ProvenanceFault = [
+        LoopCount,
+        StepCount,
+        NoSuchOldLoop,
+        NoSuchOldStep,
+        StepOfNewLoop,
+        OldLoopContinuedTwice,
+        OldStepContinuedTwice,
+    ];
+}
+
+/// **Every provenance shape fault states the coordinate it is about
+/// and the count it was checked against**, in the caller's terms — a
+/// NEW loop or step index where the entry sits, an OLD one where it
+/// points — and the edit's arm that carries one frames it with the
+/// node.
+#[test]
+fn a_provenance_fault_names_the_coordinate_and_the_count() {
+    let cases = [
+        (
+            ProvenanceFault::LoopCount {
+                loops: 2,
+                provenance: 3,
+            },
+            vec!["2 loops", "3 entries", "one entry per loop"],
+        ),
+        (
+            ProvenanceFault::StepCount {
+                loop_: 1,
+                steps: 5,
+                provenance: 4,
+            },
+            vec!["loop 1 authors 5 steps", "4 entries", "one entry per step"],
+        ),
+        (
+            ProvenanceFault::NoSuchOldLoop {
+                loop_: 0,
+                from: 3,
+                old_loops: 2,
+            },
+            vec!["loop 0 continues old loop 3", "has 2 loops"],
+        ),
+        (
+            ProvenanceFault::NoSuchOldStep {
+                loop_: 0,
+                step: 2,
+                from: 1,
+                old_step: 9,
+                old_steps: 5,
+            },
+            vec![
+                "loop 0 step 2 continues old step 9 of old loop 1",
+                "authors 5 steps",
+            ],
+        ),
+        (
+            ProvenanceFault::StepOfNewLoop {
+                loop_: 1,
+                step: 0,
+                old_step: 4,
+            },
+            vec![
+                "loop 1 is a new loop",
+                "step 0 continues old step 4",
+                "its steps are all new",
+            ],
+        ),
+        (
+            ProvenanceFault::OldLoopContinuedTwice {
+                from: 0,
+                first: 0,
+                again: 1,
+            },
+            vec!["old loop 0 is continued by loop 0 and again by loop 1"],
+        ),
+        (
+            ProvenanceFault::OldStepContinuedTwice {
+                loop_: 0,
+                from: 0,
+                old_step: 1,
+                first: 1,
+                again: 2,
+            },
+            vec![
+                "old step 1 of old loop 0 is continued by loop 0's step 1 and again by its \
+                 step 2",
+            ],
+        ),
+    ];
+    assert_f6_every_variant(&cases, &PROVENANCE_FAULT, &[]);
+    assert_f6(
+        &EditError::ProvenanceMalformed {
+            node: RecipeNodeId(4),
+            fault: ProvenanceFault::LoopCount {
+                loops: 1,
+                provenance: 2,
+            },
+        },
+        &["node 4's program provenance", "1 loops", "2 entries"],
+        &["ProvenanceMalformed", "LoopCount"],
+    );
+    assert_f6(
+        &EditError::SetProgramOnNonProfile {
+            node: RecipeNodeId(4),
+        },
+        &["node 4 holds no profile program", "no program to set"],
+        &["SetProgramOnNonProfile"],
     );
 }
 
@@ -2445,11 +2666,8 @@ fn step_segments_error_display_names_its_content_not_its_struct() {
 /// of the door, and an arm added to one of these enums inherits
 /// whichever spelling its neighbours use.
 ///
-/// The certified-range and stackup doors compile in the interval build
-/// only, so they are censused by
-/// [`a_parameter_name_renders_unquoted_at_the_interval_only_doors`]
-/// rather than by a branch inside this one: a test that exists in both
-/// builds runs identical code in both.
+/// The certified-range and stackup doors are censused by
+/// [`a_parameter_name_renders_unquoted_at_the_interval_only_doors`].
 #[test]
 fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
     use editor_core::{
@@ -2560,7 +2778,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
 /// Each sentence names the parameter and does not quote it — the shared
 /// predicate of
 /// [`a_parameter_name_renders_unquoted_at_every_door_but_parse`] and its
-/// interval-only sibling, so the two lanes cannot drift into asking
+/// certified-lane sibling, so the two cannot drift into asking
 /// different questions of the same rule.
 fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) {
     let quoted = format!("{:?}", name.0);
@@ -2577,11 +2795,8 @@ fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) 
     }
 }
 
-/// The two doors [`a_parameter_name_renders_unquoted_at_every_door_but_parse`]
-/// cannot reach: `range.rs` and `stackup.rs` compile in the interval
-/// build only, so their spelling is censused in that lane — which every
-/// code-tier run gates, not a lane nobody runs.
-#[cfg(feature = "interval")]
+/// The two certified-lane doors, `range.rs` and `stackup.rs`, beside
+/// [`a_parameter_name_renders_unquoted_at_every_door_but_parse`]'s.
 #[test]
 fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
     use editor_core::{RangeRefusal, Unavailable};

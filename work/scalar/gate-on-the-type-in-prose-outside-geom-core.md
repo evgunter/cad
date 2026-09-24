@@ -2,8 +2,9 @@
 id: gate-on-the-type-in-prose-outside-geom-core
 kind: issue
 title: prose sites outside geom-core still put the interval gate on the TYPE
-status: open
+status: closed
 opened: 2026-09-21
+closed: 2026-09-24
 priority: P4
 cost: E
 refs: [ring-1-interval-type-ungated, H5]
@@ -78,3 +79,7 @@ DOES cover were fixed in RING-1's PR rather than filed here:
 `.github/workflows/ci.yml:3596,3997` — all three named the backend as
 the feature's. `docs/CI-MINUTES-2026-08.md` is a dated measurement
 record, correct as of its date, and stays.
+
+## Closed (2026-09-24) — mooted by RING-4, PR 3154
+
+Moot: the `interval` feature is deleted (RING-4, PR 3154) and its fix pass swept the live prose that named any interval gate, on the type or otherwise; no gate is left to misplace.

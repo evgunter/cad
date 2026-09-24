@@ -1,5 +1,5 @@
 //! M5 PR 9c, item 1: the sphere containment/pierce doors at the
-//! CERTIFIED scalar (feature `interval`).
+//! CERTIFIED scalar.
 //!
 //! The point of the lane is that the new arm's margins are honest
 //! enclosures, not f64 luck: the boundary residual
@@ -10,7 +10,6 @@
 //! bound and the whole lane would refuse geometry it should accept.
 //! Exact dyadic fixtures decide definitely from point enclosures.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;

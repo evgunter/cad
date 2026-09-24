@@ -1187,7 +1187,6 @@ fn diag_uniform_weight_twins() {
 /// Interval decision scalar must agree with the f64 lane bit-for-bit
 /// on the returned enclosure (the Interval arithmetic is shared;
 /// only decisions route through T).
-#[cfg(feature = "interval")]
 #[test]
 fn probe_interval_scalar_agrees() {
     use geom_core::Interval;

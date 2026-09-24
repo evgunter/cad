@@ -33,10 +33,10 @@ curated surface a Python caller is measured against. `analysis.rs`
 joined them at LIB-MC: it was outside this alphabet in BOTH directions
 while it curated the whole E1/E2 analysis lane and E11.1's advisory
 estimator, which is how three of one family's four chartered doors and
-a whole un-gated lane went unreported. Its certified half is behind
-`#[cfg(feature = "interval")]` and this reader cannot see a `cfg`
-attribute at all, so those names arrive looking exactly like the
-ungated ones beside them and are dispositioned by hand in `NOT_BOUND`
+a whole lane went unreported. Its certified half answers at the
+certified scalar, which this binding never evaluates at, and nothing in
+a `pub use` list says so, so those names arrive looking exactly like the
+`f64` ones beside them and are dispositioned by hand in `NOT_BOUND`
 — stated here because a blind spot nobody wrote down is an unverified
 claim. They are read with the Rust guard's own technique: comments
 stripped first, then the leaf name of every `pub use` item, so prose
@@ -869,6 +869,15 @@ BOUND_AS = {
     # cross at the two carriers' second words.
     "NamingError": "EvaluationError.inner_kind",
     "ProgramRefusal": "EditError.inner_variant",
+    # The whole-program edit's two payload types. `LoopProvenance` is
+    # what `DocEdit.set_program` takes as its `provenance` argument —
+    # a list of `(from, steps)` tuples, one per loop, which is the
+    # struct's two fields spelled as Python data rather than a class
+    # of its own. `ProvenanceFault` is what
+    # `EditError::ProvenanceMalformed` carries, and its seven arms
+    # cross at the carrier's second word.
+    "LoopProvenance": "DocEdit.set_program",
+    "ProvenanceFault": "EditError.inner_variant",
     # `MetaVersionError` is the same row one arm over, and it arrives
     # by the same reading failing. It was `NOT_CARRIED` under "the
     # curated face is a different shape", qualified: it is a nested
@@ -1268,13 +1277,13 @@ BOUND_AS = {
     "tail_mass": "AnalyzedBox.tail_mass",
     # The two payloads the analysis surface carries UNCONDITIONALLY,
     # and it says why at the site: they are what `NodeErrorKind`'s
-    # `ParamBox` and `Seed` arms hold, and those arms exist on every
-    # build even though the door that fills them is behind `interval`.
+    # `ParamBox` and `Seed` arms hold, and those arms exist whatever
+    # scalar the door that fills them answers at.
     # They cross exactly as their carrier does — flattened to the tag
     # `EvaluationError.kind` answers, the `NodeErrorKind` row's shape
-    # one level in. A default-feature evaluation cannot produce either
-    # today, which is the same sentence `MinClearanceRefusal` carries
-    # one roster down: the LANE decides, not the feature.
+    # one level in. An `f64` evaluation cannot produce either today,
+    # which is the same sentence `MinClearanceRefusal` carries one
+    # roster down: the LANE decides.
     "ParamBoxError": "EvaluationError.kind",
     "SeedError": "EvaluationError.kind",
 }
@@ -2302,6 +2311,12 @@ NOT_BOUND = {
     "ProfileDoc": SHAPE,
     "ProfileLift": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
+    # The floor of the retired index space — the coordinate
+    # `SetProgram` retires a stranded name to. A Python caller reads
+    # the retired spelling off the `strand` row's `name` and rebinds
+    # from it; it never mints one, so the number is not a door here
+    # (`test_document.py`'s strand row pins the spelling by value).
+    "RETIRED_FLOOR": SHAPE,
     "Real": SHAPE,
     "RecordedNotation": f"{GAP}: B-PATH-NOTATION the notation a recorded path leg was authored in",
     "RecordedProgramError": SHAPE,
@@ -2739,9 +2754,8 @@ NOT_BOUND = {
     # NOT ordinary is that no Python evaluation can produce one: the
     # refusal's only producer is
     # `impl MinClearanceLane for geom_core::Interval`, and the binding
-    # evaluates at `f64` alone (`src/py/value.rs`), so the FEATURE is
-    # not what gates it — the SCALAR is, and `pncad-py --features
-    # interval` reaches it no better. That is `profile_lift`'s
+    # evaluates at `f64` alone (`src/py/value.rs`), so the SCALAR is
+    # what gates it. That is `profile_lift`'s
     # sentence above arriving on the refusal side: the door starts
     # answering differently exactly when Python gains a non-`f64`
     # evaluation, and it should gain its spelling in the unit that
@@ -2807,15 +2821,14 @@ NOT_BOUND = {
     # as methods on the box, `OffsetInterval` in `NOT_BOUND` — with
     # forty certified-half names arriving beside them.
     #
-    # THE GATE, MEASURED, because a reader of the roster cannot see it
-    # either: `crates/pncad/src/analysis.rs` splits into one UNGATED
-    # `pub use` list and five behind `#[cfg(feature = "interval")]`.
-    # All three chartered doors are on the ungated list, so the family
-    # closes on the DEFAULT build the wheel is made from; what is
-    # gated is the E6 driver with its `ParamBox`, the E4/E5 stackup,
-    # `assertion_at` and the E10 reporting layer, none of which this
-    # family chartered. The positive form is
-    # `tests/test_distributions.py`.
+    # THE SPLIT, MEASURED, because a reader of the roster cannot see it
+    # either: `crates/pncad/src/analysis.rs` carries one scalar-free
+    # `pub use` list and five for the certified half. All three
+    # chartered doors are on the scalar-free list, so the family
+    # closes without the certified scalar; the certified half is the E6
+    # driver with its `ParamBox`, the E4/E5 stackup, `assertion_at` and
+    # the E10 reporting layer, none of which this family chartered. The
+    # positive form is `tests/test_distributions.py`.
     # B-MEASURES IS GONE FROM THIS ROSTER, closed at LIB-B-MEASURES,
     # and the id left `FAMILIES` with it — which emptied that map, the
     # last census-owned charter closing. It cited SEVEN names and they
@@ -2845,8 +2858,7 @@ NOT_BOUND = {
     #
     # THE GATE, MEASURED, and it is not the one B-DISTRIBUTIONS found:
     # every name this family owns is curated in
-    # `crates/pncad/src/document.rs`, which carries NO `cfg`, so
-    # nothing here is behind `interval` on the façade. The limit is a
+    # `crates/pncad/src/document.rs`, which carries NO `cfg`. The limit is a
     # LANE — see the `MinClearanceRefusal` entry — and it bites one
     # refusal out of the family's whole surface.
     #
@@ -2976,28 +2988,26 @@ NOT_BOUND = {
     # arrive at once, in one family, because they are the analysis
     # surface's certified half.
     #
-    # THEY ARE NOT IN THE CRATE THIS BINDING COMPILES INTO. Each is
-    # behind `#[cfg(feature = "interval")]` on that page, and the wheel
-    # is built from the DEFAULT feature set: the E6 subdivision driver
-    # and its `ParamBox`, the E4/E5 sensitivity and stackup, E10's
-    # `assertion_at` and the reporting layer. Binding one would mean
-    # shipping a door absent from the artifact a user installs, so this
-    # is `different-shape` and not a `gap:` — there is no work owed
-    # while the shape of the thing is "no certified scalar on this
-    # side". The reader this scan CANNOT be: it strips comments and
-    # reads `pub use` statements, so a `cfg` attribute above one is
-    # invisible to it and these forty look exactly like the ungated
-    # names beside them. That is why the disposition is argued here
-    # rather than inferred, and why a name moving across that gate
-    # kernel-side moves no row here on its own.
+    # THEY ANSWER AT A SCALAR THIS BINDING NEVER EVALUATES AT. The E6
+    # subdivision driver and its `ParamBox`, the E4/E5 sensitivity and
+    # stackup, E10's `assertion_at` and the reporting layer all compile
+    # into the crate this binding compiles into, and every one of them
+    # needs the certified scalar to have an answer at all, so this is
+    # `different-shape` and not a `gap:` — there is no work owed while
+    # the shape of the thing is "no certified scalar on this side"
+    # (`work/bind/certified-analysis-half-compiles-into-the-wheel-unbound.md`
+    # asks whether that shape should change). The reader this scan
+    # CANNOT be: it strips comments and reads `pub use` statements, so
+    # nothing tells it which scalar a door answers at and these forty
+    # look exactly like the `f64` names beside them. That is why the
+    # disposition is argued here rather than inferred.
     #
     # WHAT WOULD MAKE THIS ROW STOP BEING HONEST, in `EvalOutcome`'s
     # shape: a Python surface that evaluates at a certified scalar. On
     # that day these are doors a caller can reach and every one of them
     # owes a spelling or a `gap:`. `MinClearanceRefusal`'s entry two
     # screens up is the same sentence from the refusal side, and it is
-    # the sharper statement of it: the FEATURE is not always what
-    # gates, the LANE is.
+    # the sharper statement of it: the LANE is what gates.
     "BoxAxis": SHAPE,
     "BudgetKind": SHAPE,
     "Certified": SHAPE,
@@ -3038,8 +3048,8 @@ NOT_BOUND = {
     "render_sensitivity": SHAPE,
     "report_key": SHAPE,
     "stackup": SHAPE,
-    # The offset interval an analyzed axis varies over — UNGATED, and
-    # its Python shape is the `(lo, hi)` pair `AnalyzedParam.offsets`
+    # The offset interval an analyzed axis varies over — scalar-free,
+    # and its Python shape is the `(lo, hi)` pair `AnalyzedParam.offsets`
     # and `AnalyzedParam.absolute()` answer, in the axis's own
     # dimension. The leaf-pricing door takes the same two ends as two
     # arguments (`AnalyzedBox.box_mass`). A class holding two offsets
@@ -3156,6 +3166,12 @@ MEMBERS_BOUND_AS = {
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
     "Maintenance::OrphanedDeclare": "Maintenance.variant",
+    # `Maintenance::Rebound` needs a profile name a reshaping moved:
+    # `Node.fillet` takes a name selection and `DocEdit.set_program`
+    # is bound, and `test_document.py`'s
+    # `test_a_reshaped_program_rebinds_a_fillets_name_and_reports_it`
+    # is the Python program that makes one appear.
+    "Maintenance::Rebound": "Maintenance.variant",
     # THE SECOND SAME-SPELLED PAIR, and this rule is what found it.
     # `pncad.pyi`'s `DimensionError` is the QUANTITY boundary's refusal —
     # `1 * m + 1 * rad`, with `op`/`left`/`right` — while the curated
@@ -3189,6 +3205,8 @@ MEMBERS_BOUND_AS = {
     "EditError::RepeatedDesignation": "EditError.variant",
     "EditError::SelectionNotCanonical": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
+    "EditError::SetProgramOnNonProfile": "EditError.variant",
+    "EditError::ProvenanceMalformed": "EditError.variant",
     "EditError::TooFewMembers": "EditError.variant",
     "EditError::DeleteWouldDangle": "EditError.variant",
     "EditError::UnknownSlot": "EditError.variant",

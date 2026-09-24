@@ -1,4 +1,4 @@
-//! Interval-scalar validation (feature `interval`): the Q1 story end to
+//! Interval-scalar validation: the Q1 story end to
 //! end — exact fixtures decide definitely from point enclosures, and a
 //! near-tangent profile escalates through an enclosure lying wholly
 //! inside the sliver band (the subdivision-terminal case).
@@ -7,7 +7,6 @@
 //! arc-carrier corner whose gates all decide from enclosures, the
 //! knife-edge fit whose enclosure straddles the hairline and escalates,
 //! and the two-survivor vesica whose pick agrees with the f64 lane.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;

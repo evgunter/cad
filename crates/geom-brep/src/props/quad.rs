@@ -6811,9 +6811,9 @@ mod tests {
     /// Every other row calls the door with `pt(..)` endpoints, so
     /// `vertex_slack` is exactly zero and the pad is unexercised: the
     /// PR body once claimed CI's interval rows were its evidence, and
-    /// they are not — `m8_4_intersection_iso` is `Body<f64>` throughout
-    /// and the interval jobs run the same f64 fixture. This row is the
-    /// engine's interval-lane shape written directly: one shared vertex
+    /// they are not — `m8_4_intersection_iso` is `Body<f64>` throughout.
+    /// This row is the engine's interval-lane shape written directly:
+    /// one shared vertex
     /// whose bracket is fat and whose MIDPOINT is off the true corner,
     /// which is exactly what the pad pays for.
     ///

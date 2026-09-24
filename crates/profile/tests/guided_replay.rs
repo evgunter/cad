@@ -335,7 +335,6 @@ fn guided_replay_consumes_the_recorded_pick_rather_than_ranking() {
 /// signed sweep folding its raw difference once
 /// ([`geom_core::Real::reduce_periodic_centred`]) the gate classifies,
 /// the ladder is reached, and consumption is observable here.
-#[cfg(feature = "interval")]
 #[test]
 fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
     use geom_core::Interval;
@@ -644,11 +643,10 @@ fn guided_validation_runs_no_canonicalization_decide() {
 /// The same receipt at `Interval`, where it is load-bearing: this
 /// profile's guided validation SUCCEEDS at a scalar whose `lex_min`
 /// comparisons would have to be asked of overlapping enclosures.
-#[cfg(feature = "interval")]
 #[test]
 fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
-    // Used ONLY by this interval-gated row, so imported here rather
-    // than at module scope, where the default build carries them unused.
+    // Used ONLY by this row, so imported here rather than at module
+    // scope.
     use common::lift;
     use geom_core::Interval;
     use geom_core::k_stats::Bracket;

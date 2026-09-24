@@ -4,7 +4,6 @@
 //! reviews found these re-derived five times over (their Q1); a copy
 //! per suite is a copy per suite of whatever a future change to the
 //! drive's whole-box shape has to be made in.
-#![cfg(feature = "interval")]
 #![allow(dead_code)]
 
 use std::time::Instant;

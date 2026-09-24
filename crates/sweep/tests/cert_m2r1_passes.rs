@@ -323,7 +323,6 @@ fn m2r1_structural_at_dual64_is_the_f64_closed_form_and_refuses_where_the_lane_w
     );
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn m2r1_passes_interval() {
     for (n, b) in corpus::<geom_core::Interval>() {

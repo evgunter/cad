@@ -2255,7 +2255,6 @@ mod wiring_rows {
         );
     }
 
-    #[cfg(feature = "interval")]
     #[test]
     fn interval_is_wired_to_the_certified_quadrature() {
         assert!(
@@ -2470,7 +2469,6 @@ impl AtRestPolicy for geom_core::Probe {
     }
 }
 
-#[cfg(feature = "interval")]
 impl AtRestPolicy for geom_core::interval::Interval {
     /// The fit is derived at `f64` only — a fact about the scalar the
     /// derivation was written in, not about this scalar's
@@ -2669,7 +2667,6 @@ mod at_rest_policy_tests {
         certifying_arms_are_the_doors::<geom_core::Probe>();
     }
 
-    #[cfg(feature = "interval")]
     #[test]
     fn interval_gates_run_the_doors() {
         certifying_arms_are_the_doors::<geom_core::interval::Interval>();
@@ -3354,7 +3351,6 @@ mod quad_lane {
         /// lane's scalars are refused HERE rather than a certified flux
         /// enclosure being built from a quantity that was clamped out of
         /// its own domain.
-        #[cfg(feature = "interval")]
         #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
         mod bracket_seam_tests {
             use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};

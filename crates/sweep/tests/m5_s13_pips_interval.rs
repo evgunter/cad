@@ -1,5 +1,5 @@
 //! M5 S13 interval lane: the die-pips rows at the CERTIFIED scalar
-//! (feature `interval`).
+//!.
 //!
 //! What this lane is FOR here: the §1 re-cut is the first fallback
 //! path that composes metric trileans (the extent gap), a rigid
@@ -11,13 +11,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::loud_skip_marker!(
-    feature = "interval",
-    row = interval_lane_skipped_no_certified_coverage_here,
-    absent = "certified coverage of the S13 die-pip rows",
-);
-
-#[cfg(feature = "interval")]
 mod certified {
     use crate::common::operands::slab;
     use core::f64::consts::PI;

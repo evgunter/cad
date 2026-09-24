@@ -54,7 +54,7 @@
 #      feature = "X")` compiles depends on the crate's manifest, not on
 #      the gate: `crates/{topo,sweep}/Cargo.toml` carry SELF
 #      DEV-DEPENDENCIES enabling `test-support` and `sweep-testing`, so
-#      those gates DO compile, while `interval` and `budget` do not. Nor
+#      those gates DO compile, while `budget` does not. Nor
 #      can a line-reader tell `all` from `any`, or a required feature from
 #      a negated one. So this half is BEHAVIOURAL: `--check-listing` reads
 #      what the compiler built.
@@ -65,8 +65,8 @@
 # deciding half therefore keeps `--root` and a `--selftest` whose fixture
 # is TEXT, not a compilable workspace — which is why it costs no fixture
 # build. It was adopted on correctness: it is the only mechanism that
-# accepts a `test-support` gate and refuses an `interval` one, both
-# checked by planting.
+# accepts a `test-support` gate and refuses one on a feature the probe
+# loop does not enable, both checked by planting when it was adopted.
 #
 # ITS COST IS SMALL, AND BOUNDED RATHER THAN KNOWN. The marginal is the
 # link `--test all -- --list` needs, which the sweep two steps later pays
@@ -675,7 +675,7 @@ gate() {
         done
     )
     if [ -n "$missing" ]; then
-      gate_error "$(gate_name): $CENSUS_LISTING counts these as probe suites, but \`--features probe\` built no test from them: $missing. The census reads the gate LINE; a gate can be spelled correctly and still be true under no configuration CI runs — a second feature the probe loop does not enable (\`interval\`, \`budget\`; \`test-support\` and \`sweep-testing\` ARE enabled, by the crate's self dev-dependency), or a non-feature condition false on every runner. Fix the gate, give the suite a test, or stop counting the file"
+      gate_error "$(gate_name): $CENSUS_LISTING counts these as probe suites, but \`--features probe\` built no test from them: $missing. The census reads the gate LINE; a gate can be spelled correctly and still be true under no configuration CI runs — a second feature the probe loop does not enable (\`budget\`; \`test-support\` and \`sweep-testing\` ARE enabled, by the crate's self dev-dependency), or a non-feature condition false on every runner. Fix the gate, give the suite a test, or stop counting the file"
       exit 1
     fi
     GATE_SCAN_FILES=$(printf '%s\n' "$suites" | awk -F'\t' -v c="$CENSUS_LISTING" '$1==c' | wc -l | tr -d ' ')

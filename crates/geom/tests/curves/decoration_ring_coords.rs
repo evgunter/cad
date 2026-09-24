@@ -16,7 +16,6 @@
 //! crosses with its stored endpoints, and the two verdicts are decided
 //! per coefficient rather than per carrier.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{NurbsCurve2, NurbsCurve3};

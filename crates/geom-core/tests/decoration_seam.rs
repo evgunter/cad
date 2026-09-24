@@ -49,7 +49,6 @@
 //! certifies the whole sweep and fails; an implementation that poisons
 //! indiscriminately refuses the whole sweep and fails too.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::{Band, Decide, Indeterminate, MarginDiag};

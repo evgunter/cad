@@ -12,7 +12,7 @@
 //! against the merge-base rlib (`ea11576b4`) through the RETIRED free
 //! spellings (`hull::span_hull`, `hull::domain_hull`,
 //! `hull::derivative_coeffs`, …) and its digest captured; `DIGEST`
-//! below is that capture. It runs on both lanes (no feature gate) and
+//! below is that capture. It runs on both lanes and
 //! reuses the shipped suite's digest fold.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

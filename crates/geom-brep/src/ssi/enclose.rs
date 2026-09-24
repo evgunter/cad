@@ -982,7 +982,6 @@ mod tests {
     /// enclosure must refuse on exactly the side where the decoration
     /// degrades, which neither a laundering nor a uniformly-poisoning
     /// implementation can satisfy.
-    #[cfg(feature = "interval")]
     #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
     mod decoration_seam {
         use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};

@@ -568,7 +568,6 @@ mod tests {
     ///
     /// Consults no tolerance: the two widths are widths, and the band
     /// is only what the site's own margins need in order to run.
-    #[cfg(feature = "interval")]
     #[test]
     fn a_root_on_the_span_start_reduces_at_input_width_under_the_midpoint_anchor() {
         use geom_core::{Bounds, Interval, Real};

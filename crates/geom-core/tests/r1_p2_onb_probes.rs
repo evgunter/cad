@@ -162,7 +162,6 @@ fn r1_onb_frame_is_orthonormal_at_vertical_normals() {
     }
 }
 
-#[cfg(feature = "interval")]
 mod interval_lane {
     use geom_core::interval::Interval;
     use geom_core::{Bounds, Real, Vec3};

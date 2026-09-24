@@ -31,12 +31,6 @@
 //! slab with the tier OFF (its subject is the refusal's shape, and
 //! since E12 that box certifies with the tier on), which the row says
 //! at the site.
-//!
-//! The file's basename carries `interval` because the driver, the
-//! chamber mark's certified variant and the gating `worst_case` all
-//! live behind that feature; the hosted lane is asked for by trailer,
-//! never inferred from the name.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

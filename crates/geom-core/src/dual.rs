@@ -1787,14 +1787,13 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Dual<Interval> (feature-gated)
+    // Dual<Interval>
     // ------------------------------------------------------------------
 
     /// `Dual<Interval>` through the public API only ([`crate::real::Bounds`]
     /// on the channels); the decoration-level pins for the interval kink
     /// selectors live in `crate::interval`'s test module, which can see
     /// the wrapped `DecInterval`.
-    #[cfg(feature = "interval")]
     mod interval_duals {
         use super::*;
         use crate::interval::Interval;
@@ -2231,7 +2230,6 @@ mod tests {
         /// endpoints — not a point, and not touched by an unbounded
         /// tangent (E9: tangent poison never refuses). Red if the impl
         /// hulls the channels together: `[−∞, ∞]` would swallow `[−1, 2]`.
-        #[cfg(feature = "interval")]
         #[test]
         fn dual_interval_bracket_is_the_value_enclosure() {
             use crate::interval::Interval;

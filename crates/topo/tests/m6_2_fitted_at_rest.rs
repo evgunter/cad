@@ -180,13 +180,6 @@ fn the_band_is_the_runs_own() {
 // The interval lane — the evidence that the lift happened
 // ==================================================================
 
-test_utils::loud_skip_marker!(
-    feature = "interval",
-    row = interval_lane_skipped_no_certified_coverage_here,
-    absent = "certified coverage of the fitted cache at rest",
-);
-
-#[cfg(feature = "interval")]
 mod certified {
     use super::fixture;
     use geom_brep::{EnvelopeStatement, Pcurve};

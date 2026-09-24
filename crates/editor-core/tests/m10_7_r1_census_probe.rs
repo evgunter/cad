@@ -6,14 +6,14 @@
 //! drive certifies the macroscopic box.
 //!
 //! NO TEST IN THIS FILE IS EXECUTED BY CI — every test here is behind the whole-file
-//! `#![cfg(all(feature = "interval", feature = "probe"))]`, and two of
+//! `#![cfg(feature = "probe")]`, and two of
 //! the three are `#[ignore]`d besides. They are a reviewer's
 //! counter-fixture: a profile the unit never built, run to check what
 //! the census claims about it. The claim they check is recorded in
 //! `work/sym/symbolic-tier-census.md`; the rows are how it was
 //! reached, kept so the next lane can re-run them rather than re-derive
 //! them.
-#![cfg(all(feature = "interval", feature = "probe"))]
+#![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

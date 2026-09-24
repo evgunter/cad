@@ -67,7 +67,6 @@
 //! spellings that are a different value stay put and say so.
 
 pub(crate) mod fixture;
-#[cfg(feature = "interval")]
 pub(crate) mod interval;
 pub(crate) mod patch;
 pub(crate) mod point;

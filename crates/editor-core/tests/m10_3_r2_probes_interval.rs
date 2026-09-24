@@ -30,7 +30,6 @@
 //! comment says EVIDENCE-ONLY assert that a documented behaviour is
 //! still what it is and gate nothing new.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

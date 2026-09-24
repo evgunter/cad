@@ -1,5 +1,5 @@
 //! **Reviewer probes for the rim door at the certified scalar** (PR
-//! 1821 review lane r2, feature `interval`) — the row that can go RED
+//! 1821 review lane r2) — the row that can go RED
 //! when [`topo::query::rim_of`]'s bit test stops reading the UPPER
 //! bracket end.
 //!
@@ -20,7 +20,6 @@
 //! so the door must refuse. With `hi` dropped they match and the door
 //! answers a rim.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, TAU};

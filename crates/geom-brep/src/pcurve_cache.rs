@@ -1627,7 +1627,6 @@ impl PcurveFittedLane for geom_core::Probe {
     }
 }
 
-#[cfg(feature = "interval")]
 impl PcurveFittedLane for geom_core::interval::Interval {
     fn fitted_certificate(
         carrier: &Curve3<Self>,
