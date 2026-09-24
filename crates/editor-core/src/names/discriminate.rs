@@ -162,16 +162,16 @@ pub(crate) const ORDER_ALONG: &str = "name_frag_order_along";
 
 /// The on-member-edge predicate's name (`emit_union`'s member-edge
 /// ranker): whether a vertex of a union's result lies on a member edge,
-/// and at which end.
+/// at which end, and whether two such vertices are one place.
 ///
-/// **Outside the [`FAMILY`], as [`CHORD_ON_RIM`] is, and for a sharper
-/// reason.** It is decided for every vertex of the result against every
-/// ranked member edge, so nearly all of its verdicts are about vertices
-/// nowhere near the name being diagnosed; inside the family, any one of
-/// them flipping would take `resolve`'s diagnosis ladder at its first
-/// rung. The cost is the same as the chord's: a flip that does move a
-/// piece's cell is ranked as a generic flip.
-pub(crate) const ON_MEMBER_EDGE: &str = "name_on_member_edge";
+/// **In the [`FAMILY`], unlike [`CHORD_ON_RIM`].** Its verdicts decide a
+/// member-edge piece's `OrderAlong { rank, of }` — which places cut the
+/// edge, so how many cells there are and which one a piece starts in —
+/// so they enter the name, and a flip of one is an N2 discriminator
+/// flip. `resolve`'s ladder reads a family flip on the path as the
+/// name's own; a flip about a vertex elsewhere on the same member edge
+/// does move that edge's count, so the reading holds for it too.
+pub(crate) const ON_MEMBER_EDGE: &str = "name_frag_on_member_edge";
 
 /// The chord-on-rim predicate's name (`emit_topo`'s `chord_on_rim`):
 /// whether a boolean's chord between two merged faces lies within the

@@ -51,9 +51,18 @@
 //! stretch of it the fold had cut when it met the vertex
 //! ([`cite_member_edges`]). A rank the fold wrote is fold history — the
 //! same name would denote different pieces in different member orders.
+//! A rank these passes write is a function of the finished body, so it
+//! is order-free as far as the boolean's output is: where different
+//! member orders leave different vertices on a member edge (a
+//! near-coincident cut can), the count differs with them
+//! (`work/emit/declared-flush-union-edge-and-vertex-names-follow-member-order.md`).
+//!
 //! A refusal raised mid-fold, and the declaration door's view of an
-//! intermediate step, have no finished body and keep the fold's ranks;
-//! neither carries a member edge today (both name faces).
+//! intermediate step, have no finished body and keep the fold's ranks.
+//! Neither may carry a fold-ranked member-edge piece: the declaration
+//! door admits no edge (`DeclareUnsupportedPair`), and a refusal that
+//! would carry one refuses as an emission bug instead
+//! ([`is_fold_ranked_member_edge`]).
 //!
 //! # How an intermediate row is told from a member's row
 //!
@@ -196,7 +205,8 @@ pub(crate) struct Member<'a, T: geom_core::Decide> {
 /// whether `m`, another member or no member holds it. One cell, no rank.
 /// The fold's ranks are replaced, not refined: they record which step
 /// cut the edge and which member kept a flush stretch, both of which
-/// depend on member order.
+/// depend on member order. These depend only on the finished body, so they are
+/// order-free as far as the boolean's output is.
 ///
 /// Refuses [`NamingError::MemberEdgeTied`] for a tie where one edge is
 /// needed, and [`NamingError::Emission`] for a piece that is not a
@@ -301,9 +311,14 @@ fn member_edge<'a, T: geom_core::Decide>(
 ///
 /// A place can hold several vertices: members that only touch leave one
 /// in each shell at one point. Vertices are one place when a chain of
-/// `Zero` gaps joins them — the connected components of that relation,
-/// which no visiting order can change, since `Zero` is not transitive
-/// and a greedy first match would be.
+/// `Zero` gaps joins them, the ends' vertices included: the connected
+/// components of that relation, which no visiting order changes (`Zero`
+/// is not transitive, so a greedy first match would). That needs a band
+/// with K ≥ 2, or a chain of two coincidences could span a definite
+/// separation; a narrower band refuses ([`NamingError::NarrowBand`]).
+///
+/// The places are the finished body's, so the cells are order-free as
+/// far as the boolean's output is.
 struct Cells {
     places: Vec<Vec<topo::VertexKey>>,
 }
@@ -315,18 +330,23 @@ impl Cells {
         bnd: geom_core::Band,
     ) -> Result<Self, NamingError> {
         let bug = |what| NamingError::Emission { what };
-        let (mut start, mut end, mut inside) = (Vec::new(), Vec::new(), Vec::new());
+        if bnd.escalate() < 2.0 * bnd.zero() {
+            return Err(NamingError::NarrowBand {
+                zero: bnd.zero(),
+                escalate: bnd.escalate(),
+            });
+        }
+        // Every vertex on the segment, with where it lies and how far
+        // along.
+        let mut on = Vec::new();
         for (v, _) in body.vertices() {
             let p = vertex_point(body, v)?;
             match seg.place(p, ON_MEMBER_EDGE, bnd)? {
                 OnSegment::Off => {}
-                OnSegment::AtStart => start.push(v),
-                OnSegment::AtEnd => end.push(v),
-                OnSegment::Inside => inside.push((v, seg.along(p))),
+                at => on.push((v, at, seg.along(p))),
             }
         }
         // Components of the `Zero` relation, by union–find.
-        let mut root: Vec<usize> = (0..inside.len()).collect();
         fn find(root: &mut [usize], mut i: usize) -> usize {
             while root[i] != i {
                 root[i] = root[root[i]];
@@ -334,33 +354,54 @@ impl Cells {
             }
             i
         }
-        for i in 0..inside.len() {
-            for j in (i + 1)..inside.len() {
-                let gap = decide(ON_MEMBER_EDGE, Margin::of(inside[j].1 - inside[i].1), bnd)
-                    .map_err(|source| NamingError::Escalated {
+        let mut root: Vec<usize> = (0..on.len()).collect();
+        for i in 0..on.len() {
+            for j in (i + 1)..on.len() {
+                let gap = decide(ON_MEMBER_EDGE, Margin::of(on[j].2 - on[i].2), bnd).map_err(
+                    |source| NamingError::Escalated {
                         predicate: ON_MEMBER_EDGE,
                         source,
-                    })?;
+                    },
+                )?;
                 if gap == Sign::Zero {
                     let (a, b) = (find(&mut root, i), find(&mut root, j));
                     root[a.max(b)] = a.min(b);
                 }
             }
         }
-        let mut components: Vec<(Vec<topo::VertexKey>, Extent<T>)> = Vec::new();
-        let mut slot = vec![usize::MAX; inside.len()];
-        for (i, &(v, t)) in inside.iter().enumerate() {
+        // (vertices, extent along, holds the start, holds the end)
+        type Place<T> = (Vec<topo::VertexKey>, Extent<T>, bool, bool);
+        let mut components: Vec<Place<T>> = Vec::new();
+        let mut slot = vec![usize::MAX; on.len()];
+        for (i, &(v, at, t)) in on.iter().enumerate() {
             let r = find(&mut root, i);
             if slot[r] == usize::MAX {
                 slot[r] = components.len();
-                components.push((Vec::new(), Extent { min: t, max: t }));
+                components.push((Vec::new(), Extent { min: t, max: t }, false, false));
             }
-            let (vs, x) = &mut components[slot[r]];
+            let (vs, x, start, end) = &mut components[slot[r]];
             vs.push(v);
             x.min = x.min.min(t);
             x.max = x.max.max(t);
+            *start |= at == OnSegment::AtStart;
+            *end |= at == OnSegment::AtEnd;
         }
-        let along: Vec<_> = components
+        let (mut first, mut last, mut inside) = (None, None, Vec::new());
+        for (vs, x, start, end) in components {
+            let end_place = match (start, end) {
+                (true, true) => return Err(bug("one place on a member edge is at both its ends")),
+                (true, false) => &mut first,
+                (false, true) => &mut last,
+                (false, false) => {
+                    inside.push((vs, x));
+                    continue;
+                }
+            };
+            if end_place.replace(vs).is_some() {
+                return Err(bug("two places at one end of a member edge"));
+            }
+        }
+        let along: Vec<_> = inside
             .iter()
             .map(|(_, x)| Extent {
                 min: x.min,
@@ -370,14 +411,14 @@ impl Cells {
         let ranks = order_along(&along, bnd)?.ok_or_else(|| {
             bug("two places on a member edge the order along it does not separate")
         })?;
-        let mut places = vec![Vec::new(); components.len() + 2];
-        for ((vs, _), rank) in components.into_iter().zip(ranks) {
+        let mut places = vec![Vec::new(); inside.len() + 2];
+        for ((vs, _), rank) in inside.into_iter().zip(ranks) {
             places[rank as usize + 1] = vs;
         }
-        places[0] = start;
+        places[0] = first.unwrap_or_default();
         *places
             .last_mut()
-            .ok_or_else(|| bug("a member edge with no end"))? = end;
+            .ok_or_else(|| bug("a member edge with no end"))? = last.unwrap_or_default();
         Ok(Self { places })
     }
 
@@ -440,14 +481,16 @@ fn member_edge_piece(name: &StableName) -> Option<(RecipeNodeId, StableName, boo
 /// had cut it when it met the vertex — a stretch that spans several of
 /// [`rank_member_edges`]' cells, so no published rank denotes it. It is
 /// cited as `FromMember(m, e)`, which is how a vertex already cites an
-/// edge the fold had not cut. A vertex whose name moved drops its own
-/// fold rank too, and the vertices that then share a name are ranked
-/// along the edge they cite ([`insert_ranked_or_tied`]). A vertex citing
-/// two member edges has no one carrier, and several of them refuse.
+/// edge the fold had not cut. The rewrite is [`StableName::rewrite_path`],
+/// which ends in the canonical form (`names::canonical::rewritten`).
 ///
-/// The rewrite is [`StableName::rewrite_path`], which ends in the
-/// canonical form (`names::canonical::rewritten`), so a moved name's
-/// name-ordered positions are in order again.
+/// A vertex's own trailing rank is fold history too once its name moved,
+/// so vertices are grouped by their name without it. A group holding a
+/// moved name is ranked WHOLE along the one member edge its seam cites
+/// ([`insert_ranked_or_tied`]), unmoved members included, so no bare
+/// name stands beside ranked ones; a group with no moved name keeps its
+/// names. A group of several with no single seam, or a seam citing no
+/// member edge or two, has no carrier and refuses.
 fn cite_member_edges<T: geom_core::Decide>(
     t: NameTable,
     body: &topo::Body<T>,
@@ -457,16 +500,18 @@ fn cite_member_edges<T: geom_core::Decide>(
     use std::collections::BTreeMap;
     let bug = |what| NamingError::Emission { what };
     let mut out = NameTable::new();
-    let mut vertices: BTreeMap<StableName, Vec<Entry>> = BTreeMap::new();
+    // base → (name as it stands, entry, whether the rewrite moved it)
+    let mut vertices: BTreeMap<StableName, Vec<(StableName, Entry, bool)>> = BTreeMap::new();
     for (name, entry) in t.iter() {
         let cited = name
             .clone()
             .rewrite_path(&mut WholeMemberEdges { union: name.node })?;
-        if cited == *name || cited.kind != EntityKind::Vertex {
+        if cited.kind != EntityKind::Vertex {
             put_entry(&mut out, cited, entry)?;
             continue;
         }
-        let mut base = cited;
+        let moved = cited != *name;
+        let mut base = cited.clone();
         while base.path.len() > 1
             && matches!(
                 base.path.last(),
@@ -475,27 +520,37 @@ fn cite_member_edges<T: geom_core::Decide>(
         {
             base.path.pop();
         }
-        vertices.entry(base).or_default().push(entry.clone());
+        vertices
+            .entry(base)
+            .or_default()
+            .push((cited, entry.clone(), moved));
     }
     let mut tie = TieRows::default();
-    for (base, entries) in vertices {
-        if let [entry] = entries.as_slice() {
+    for (base, rows) in vertices {
+        if !rows.iter().any(|&(_, _, moved)| moved) {
+            for (name, entry, _) in rows {
+                put_entry(&mut out, name, &entry)?;
+            }
+            continue;
+        }
+        if let [(_, entry, _)] = rows.as_slice() {
             put_entry(&mut out, base, entry)?;
             continue;
         }
         let whole = |n: &StableName| member_edge_piece(n).filter(|(_, _, ranked)| !ranked);
-        let (member, edge, _) = match base.path.as_slice() {
-            [RoleSeg::Seam { a, b }] => match (whole(a), whole(b)) {
-                (Some(m), None) | (None, Some(m)) => m,
-                _ => return Err(bug(Unrankable::SidedVertexRank.what())),
-            },
-            _ => return Err(bug(Unrankable::SidedVertexRank.what())),
+        let [RoleSeg::Seam { a, b }] = base.path.as_slice() else {
+            return Err(bug(CITED_GROUP_NOT_ONE_SEAM));
+        };
+        let (member, edge, _) = match (whole(a), whole(b)) {
+            (Some(m), None) | (None, Some(m)) => m,
+            (Some(_), Some(_)) => return Err(bug(Unrankable::SidedVertexRank.what())),
+            (None, None) => return Err(bug(CITED_GROUP_NO_MEMBER_EDGE)),
         };
         let (member_body, member_edge) = member_edge(members, member, &edge)?;
         let seg = Segment::of_edge(member_body, member_edge)?;
-        let mut keys = Vec::with_capacity(entries.len());
-        let mut extents = Vec::with_capacity(entries.len());
-        for entry in entries {
+        let mut keys = Vec::with_capacity(rows.len());
+        let mut extents = Vec::with_capacity(rows.len());
+        for (_, entry, _) in rows {
             let Entry::Unique(e) = entry else {
                 return Err(NamingError::MemberEdgeTied {
                     member,
@@ -518,6 +573,25 @@ fn cite_member_edges<T: geom_core::Decide>(
     }
     tie.flush(&mut out)?;
     Ok(out)
+}
+
+/// Several vertices share one name once they cite member edges whole,
+/// and that name is not a single seam line (a junction's run, say), so
+/// nothing says what to rank them along.
+const CITED_GROUP_NOT_ONE_SEAM: &str = "several vertices of a union share one name once they cite \
+     member edges whole, and that name is not a single seam to rank them along";
+
+/// The same, where the name is one seam but neither side is a member
+/// edge cited whole.
+const CITED_GROUP_NO_MEMBER_EDGE: &str = "several vertices of a union share one seam name once \
+     they cite member edges whole, and neither side of it is a member edge to rank them along";
+
+/// Whether `name` is a RANKED piece of a member edge. In a name collapsed
+/// out of a fold that did not finish — a refusal's — that rank is the
+/// fold's, which no published table holds, so such a name cannot be
+/// handed out.
+pub(crate) fn is_fold_ranked_member_edge(name: &StableName) -> bool {
+    member_edge_piece(name).is_some_and(|(_, _, ranked)| ranked)
 }
 
 /// The [`SegRewrite`] of [`cite_member_edges`]: an embedded ranked piece
@@ -1260,5 +1334,22 @@ mod tests {
                 "{label}: {err:?}"
             );
         }
+    }
+
+    /// **A band with ambiguity K below 2 refuses to count cells**: two
+    /// coincidences in a row could span a definite separation there, so
+    /// a place would be a guess.
+    #[test]
+    fn a_band_narrower_than_twice_its_zero_refuses_to_count_cells() {
+        let (body, k0, _) = two_edge_body();
+        let seg = Segment::of_edge(&body, k0).unwrap();
+        let narrow = geom_core::Band::new(1e-9, 1.5e-9).unwrap();
+        let err = Cells::of(&body, &seg, narrow).map(|_| ()).unwrap_err();
+        assert!(
+            matches!(err, NamingError::NarrowBand { zero, escalate } if zero == 1e-9 && escalate == 1.5e-9),
+            "{err:?}"
+        );
+        let wide = geom_core::Band::new(1e-9, 2e-9).unwrap();
+        assert!(Cells::of(&body, &seg, wide).is_ok());
     }
 }

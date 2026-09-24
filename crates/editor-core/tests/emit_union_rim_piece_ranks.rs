@@ -30,6 +30,13 @@ fn round(p: &geom_core::Point3<f64>) -> P {
     (r(p.x), r(p.y), r(p.z))
 }
 
+/// A point to 1e-9, for [`signature`]: finer than any feature of the
+/// cases, so two different points never share one.
+fn fine(p: &geom_core::Point3<f64>) -> P {
+    let r = |x: f64| (x * 1e9).round() as i64;
+    (r(p.x), r(p.y), r(p.z))
+}
+
 /// Where each uniquely named entity of a published table is, independent
 /// of arena keys: a vertex's point, an edge's two end points, a face's
 /// vertex points.
@@ -71,7 +78,7 @@ fn signature(
     union: editor_core::RecipeNodeId,
 ) -> BTreeMap<StableName, String> {
     let body = body_of(ev, union);
-    let point = |v| round(body.get_point(body.get_vertex(v).unwrap().point).unwrap());
+    let point = |v| fine(body.get_point(body.get_vertex(v).unwrap().point).unwrap());
     let mut neighbours: BTreeMap<_, Vec<P>> = BTreeMap::new();
     for (_, edge) in body.edges() {
         let s = body.get_half_edge(edge.he_plus).unwrap().start;
@@ -285,26 +292,91 @@ fn runs(
     }
 }
 
-/// **No name rebinds across member orders.** Over every case and every
-/// pair of fused orders, a name both tables publish denotes the same
-/// vertex point, the same edge ends and the same face vertices — for a
-/// nested case, in the inner union and in the outer one. Before the
-/// union ranked member edges over the finished body, 102 of the
-/// corpus's 350 pairs rebound a `FromMember` rim-edge piece (191 names);
-/// ranking over the pieces a member KEEPS left `r2ends` and `r2endsg`
-/// rebinding (8 names in one main-fused pair of `r2ends`), because which
-/// member keeps a flush stretch depends on order.
+/// **The cases that refuse in some member orders and publish in others**,
+/// pinned: `(label, union, orders refusing, refusal variants)`. Each is a
+/// real order dependence, owned by
+/// `work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`
+/// (and, for `DeclareResolve`, by the gather row it cites); a change here
+/// is a change to that row, measured.
+const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
+    ("row", "U", 18, "DeclareResolve/UndeclaredContact"),
+    ("rowids", "U", 18, "DeclareResolve/UndeclaredContact"),
+    ("abg", "U", 2, "DeclareResolve"),
+    ("abgids", "U", 2, "DeclareResolve"),
+    ("abglow", "U", 2, "DeclareResolve"),
+    ("abgg2", "U", 16, "DeclareResolve"),
+    ("fam000", "U", 2, "DeclareResolve"),
+    ("fam001", "U", 2, "DeclareResolve"),
+    ("fam002", "U", 2, "DeclareResolve"),
+    ("fam012", "U", 2, "DeclareResolve"),
+    ("fam022", "U", 2, "DeclareResolve"),
+    ("fam100", "U", 4, "DeclareResolve"),
+    ("fam101", "U", 4, "DeclareResolve"),
+    ("fam102", "U", 4, "DeclareResolve"),
+    ("fam112", "U", 4, "DeclareResolve"),
+    ("fam122", "U", 4, "DeclareResolve"),
+    ("fam200", "U", 2, "DeclareResolve"),
+    ("fam201", "U", 2, "DeclareResolve"),
+    ("fam202", "U", 2, "DeclareResolve"),
+    ("fam212", "U", 2, "DeclareResolve"),
+    ("fam222", "U", 2, "DeclareResolve"),
+    ("r1flush", "U", 18, "DeclareResolve"),
+    ("r2endsg", "U", 8, "DeclareResolve"),
+    ("r4tri", "U", 2, "Boolean"),
+    ("r4trig", "U", 12, "Boolean/DeclareResolve"),
+];
+
+/// **No name rebinds across member orders, and no order refuses what
+/// another publishes.** Over every case and every pair of fused orders, a
+/// name both tables publish denotes the same thing ([`signature`]: points
+/// to 1e-9, shells told apart, ties compared) — for a nested case, in the
+/// inner union and in the outer one. A case whose orders do not all
+/// publish reds, unless it is one of [`KNOWN_MIXED`] exactly as pinned
+/// there (`work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`).
+/// Names one order
+/// publishes and another does not are reported, not failed: that is
+/// `declared-flush-union-edge-and-vertex-names-follow-member-order` (P1).
+///
+/// On main (the #3168 review's probe of the corpus plus the r1–r3
+/// fixtures), 25 of 305 pairs of fused orders rebound 20 distinct names;
+/// ranking over the pieces a member KEEPS left
+/// `r2ends`, `r2endsg` and `r4tri` rebinding, because which member keeps
+/// a flush stretch depends on order.
 #[test]
 fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
     let mut compared = 0;
+    let mut mixed = Vec::new();
+    let mut absent = 0;
     for case in cases() {
         let mut seen: BTreeMap<(String, StableName), (String, String)> = BTreeMap::new();
+        // tag → (order, refusal or None, published names)
+        type Outcome = (String, Option<String>, Vec<StableName>);
+        let mut outcomes: BTreeMap<String, Vec<Outcome>> = BTreeMap::new();
         runs(&case, |at, ev, _, unions| {
             for &(tag, union) in unions {
-                if failure(ev, union).is_some() {
+                if let Some(refused) = failure(ev, union) {
+                    // Arena keys and node ids differ by order; the
+                    // refusal's variant is what must agree.
+                    let shown = format!("{refused:?}");
+                    let kind = shown
+                        .split([' ', '(', '{'])
+                        .next()
+                        .unwrap_or("")
+                        .to_string();
+                    outcomes.entry(tag.to_string()).or_default().push((
+                        at.to_string(),
+                        Some(kind),
+                        Vec::new(),
+                    ));
                     continue;
                 }
-                for (name, sig) in signature(ev, union) {
+                let sigs = signature(ev, union);
+                outcomes.entry(tag.to_string()).or_default().push((
+                    at.to_string(),
+                    None,
+                    sigs.keys().cloned().collect(),
+                ));
+                for (name, sig) in sigs {
                     match seen.get(&(tag.to_string(), name.clone())) {
                         Some((first, then)) => {
                             compared += 1;
@@ -321,7 +393,46 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
                 }
             }
         });
+        for (tag, runs) in outcomes {
+            let refusals: Vec<_> = runs
+                .iter()
+                .filter_map(|(at, r, _)| Some((at, r.as_ref()?)))
+                .collect();
+            if !refusals.is_empty() && refusals.len() < runs.len() {
+                let kinds: std::collections::BTreeSet<&str> =
+                    refusals.iter().map(|(_, k)| k.as_str()).collect();
+                eprintln!(
+                    "{} {tag}: {} of {} orders refuse {refusals:?}",
+                    case.label,
+                    refusals.len(),
+                    runs.len()
+                );
+                mixed.push(format!(
+                    "{} {tag}: {} {}",
+                    case.label,
+                    refusals.len(),
+                    kinds.into_iter().collect::<Vec<_>>().join("/")
+                ));
+            }
+            let published: Vec<_> = runs.iter().filter(|(_, r, _)| r.is_none()).collect();
+            let all: std::collections::BTreeSet<&StableName> =
+                published.iter().flat_map(|(_, _, ns)| ns.iter()).collect();
+            for (_, _, ns) in &published {
+                absent += all.len() - ns.len();
+            }
+        }
     }
+    eprintln!(
+        "names published in one fused order and absent in another: {absent} (order, name) pairs"
+    );
+    let known: Vec<String> = KNOWN_MIXED
+        .iter()
+        .map(|(label, tag, n, kinds)| format!("{label} {tag}: {n} {kinds}"))
+        .collect();
+    assert_eq!(
+        mixed, known,
+        "the cases that refuse in some orders and publish in others changed"
+    );
     assert!(
         compared > 1000,
         "only {compared} cross-order names compared"

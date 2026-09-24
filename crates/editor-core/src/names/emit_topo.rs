@@ -925,17 +925,37 @@ fn name_boolean_edges<T: Decide>(
     // zip-listed edge — refuses as the missing rule it is
     // (`NamingError::MergedChordOffRim`, `NamingError::MergedChord`).
     let chord_kind = |e: EdgeKey, own: Option<topo::Operand>| -> Result<ChordKind, NamingError> {
-        // The premise this caller is asking under: it did not build
-        // these bodies, it DESCENDED two result faces into one of them
-        // and guesses the pair carries this chord's rim. One shared
-        // edge is that rim; several are the pieces of one line, and
-        // the chord picks the piece it lies within ([`rim_holding`]).
-        // A pair with no rim, or pieces the chord does not pick one
-        // of, refutes the guess, not the body — so the answer is
-        // classified here rather than at the walk.
-        let same_side_rim = |op: &OperandCtx<'_, T>, f0: FaceKey, f1: FaceKey| {
+        // **One rule for a chord between two faces of ONE operand**,
+        // merged or not. The premise this caller asks under: it did not
+        // build these bodies, it DESCENDED two result faces into one of
+        // them and guesses the pair carries this chord's rim. One shared
+        // edge is that rim, when the chord lies within it
+        // ([`chord_on_rim`]); several are the pieces of one line, and the
+        // chord picks the piece it lies within ([`rim_holding`]). A pair
+        // with no rim, or pieces the chord picks none of, refutes the
+        // guess, not the body — so the answer is classified here rather
+        // than at the walk. `off_rim` says what a chord off its one rim
+        // is, which depends on why the faces were paired.
+        //
+        // `chord_on_rim` is a straight-segment test, so a CURVED rim
+        // (an arc between a cylinder's side and a cap) is taken without
+        // it. Only unmerged faces can meet along one: merged faces are
+        // planar (F7), and two planes meet in a line.
+        let same_side_rim = |op: &OperandCtx<'_, T>,
+                             f0: FaceKey,
+                             f1: FaceKey,
+                             off_rim: &dyn Fn(EdgeKey) -> NamingError|
+         -> Result<EdgeKey, NamingError> {
             let found = match rim_between(op.body, f0, f1)? {
-                Rim::One(rim) => return Ok(rim),
+                Rim::One(rim) => {
+                    let straight = topo::query::edge_carrier_kind(op.body, rim)
+                        == Some(topo::query::CurveKind::Line);
+                    return if !straight || chord_on_rim(body, e, op.body, rim, bnd)? {
+                        Ok(rim)
+                    } else {
+                        Err(off_rim(rim))
+                    };
+                }
                 Rim::NotOne(RimShare::Several) => {
                     if let Some(rim) = rim_holding(body, e, op.body, f0, f1, bnd)? {
                         return Ok(rim);
@@ -950,6 +970,12 @@ fn name_boolean_edges<T: Decide>(
                 other: f1,
                 found,
             })
+        };
+        // Two UNMERGED faces of one operand whose closures meet at the
+        // chord meet along their one shared rim, so a chord off it is a
+        // body the emitter cannot read — a kernel fact, not a rule.
+        let unmerged_off_rim = |_| NamingError::Emission {
+            what: "a chord between two unmerged faces of one operand lies off the rim they share",
         };
         let faces = inc
             .edge_faces
@@ -980,37 +1006,15 @@ fn name_boolean_edges<T: Decide>(
                 );
                 let (op, f0) = d0.of(a, b);
                 let (_, f1) = d1.of(a, b);
-                return match rim_between(op.body, f0, f1)? {
-                    Rim::One(rim) if chord_on_rim(body, e, op.body, rim, bnd)? => Ok(match side {
-                        topo::Operand::A => ChordKind::SameA(rim),
-                        topo::Operand::B => ChordKind::SameB(rim),
-                    }),
-                    Rim::One(rim) => Err(NamingError::MergedChordOffRim {
-                        edge: e,
-                        node: op.node,
-                        rim,
-                    }),
-                    Rim::NotOne(RimShare::Several) => {
-                        match rim_holding(body, e, op.body, f0, f1, bnd)? {
-                            Some(rim) => Ok(match side {
-                                topo::Operand::A => ChordKind::SameA(rim),
-                                topo::Operand::B => ChordKind::SameB(rim),
-                            }),
-                            None => Err(NamingError::SharedRim {
-                                node: op.node,
-                                face: f0,
-                                other: f1,
-                                found: RimShare::Several,
-                            }),
-                        }
-                    }
-                    Rim::NotOne(found) => Err(NamingError::SharedRim {
-                        node: op.node,
-                        face: f0,
-                        other: f1,
-                        found,
-                    }),
-                };
+                let rim = same_side_rim(op, f0, f1, &|rim| NamingError::MergedChordOffRim {
+                    edge: e,
+                    node: op.node,
+                    rim,
+                })?;
+                return Ok(match side {
+                    topo::Operand::A => ChordKind::SameA(rim),
+                    topo::Operand::B => ChordKind::SameB(rim),
+                });
             }
         };
         Ok(match (d0, d1) {
@@ -1022,8 +1026,12 @@ fn name_boolean_edges<T: Decide>(
             }
             // Two faces of one operand: the rim they share
             // (`same_side_rim`).
-            (OpSide::A(fa0), OpSide::A(fa1)) => ChordKind::SameA(same_side_rim(a, fa0, fa1)?),
-            (OpSide::B(fb0), OpSide::B(fb1)) => ChordKind::SameB(same_side_rim(b, fb0, fb1)?),
+            (OpSide::A(fa0), OpSide::A(fa1)) => {
+                ChordKind::SameA(same_side_rim(a, fa0, fa1, &unmerged_off_rim)?)
+            }
+            (OpSide::B(fb0), OpSide::B(fb1)) => {
+                ChordKind::SameB(same_side_rim(b, fb0, fb1, &unmerged_off_rim)?)
+            }
         })
     };
     let seam_pair = |e: EdgeKey| -> Result<(Upstream, Upstream), NamingError> {

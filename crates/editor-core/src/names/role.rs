@@ -740,10 +740,12 @@ pub enum Qualifier {
     ///
     /// **A union's piece of a member edge counts cells, not
     /// fragments.** For `FromMember(m, e)` + `OrderAlong`, the finished
-    /// body's vertices on `e`'s segment cut it into `of` cells numbered
-    /// from `e`'s start in `m`'s body; `rank` is the first cell the piece
-    /// covers, and `of` counts cells whoever holds them, so some ranks
-    /// below `of` name no piece of `m` (`emit_union::rank_member_edges`).
+    /// body's vertices on `e`'s segment cut it into cells numbered along
+    /// `e`'s oriented carrier in `m`'s body. `of` counts CELLS, not
+    /// pieces: a cell another member holds, or none does, counts too, so
+    /// some ranks below `of` index a cell no piece of `m` holds. `rank`
+    /// is the first cell the piece covers. The count is order-free as far
+    /// as the boolean's output is (`emit_union::rank_member_edges`).
     ///
     /// The carrier's orientation is load-bearing — reversing it
     /// reverses every rank — so where it is built from face normals
@@ -754,8 +756,8 @@ pub enum Qualifier {
         /// union's member-edge piece, its first cell's index.
         rank: u32,
         /// How many sibling fragments the ordering ranked — for a
-        /// union's member-edge piece, how many cells the edge is cut
-        /// into.
+        /// union's member-edge piece, how many CELLS the edge is cut
+        /// into, held or not.
         of: u32,
     },
 }

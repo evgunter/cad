@@ -2002,6 +2002,7 @@ test_utils::f6_variants! {
         MergedChordOffRim,
         SeamLineSides,
         MemberEdgeTied,
+        NarrowBand,
         Band,
         Escalated,
     ];
@@ -2155,6 +2156,13 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 escalate: 5e-324,
             }),
             vec!["naming band", "5e-324"],
+        ),
+        (
+            NamingError::NarrowBand {
+                zero: 1e-9,
+                escalate: 1.5e-9,
+            },
+            vec!["naming band is too narrow", "below 2"],
         ),
         (
             NamingError::Escalated {

@@ -38,9 +38,12 @@ Both orders fuse on main.
 
 Counted as names present in two fused orders of one document but bound
 to different geometry. Edges were compared by their end points and
-vertices by their point, over the corpus's 350 pairs of fused orders:
+vertices by their point, over the corpus's 350 pairs of fused orders at
+`emit/shared-rim-several`'s first head (EMIT's own probe). "Rebinds"
+counts (pair, name) rebinds, so a name rebound in three pairs counts
+three times:
 
-| pairs of orders | pairs | pairs with a rebind | rebound names |
+| pairs of orders | pairs | pairs with a rebind | rebinds |
 |---|---|---|---|
 | both fused on main | 162 | 18 | 24 |
 | one fused on main, one fuses with `emit/shared-rim-several` | 124 | 42 | 60 |
@@ -74,8 +77,12 @@ the finished body at the end of `emit_union::name_union`:
   member edge cites the whole edge.
 
 Its measurements, from #3168's review probes over the corpus and the
-review fixtures, every order: 0 pairs of fused orders rebind a name
-(on main 25 pairs rebound 20 names), and no cell that fuses on main
-refuses. Ranking over the pieces a member keeps, an earlier draft,
+review fixtures, every order: 0 pairs of fused orders rebind a name,
+and no cell that fuses on main refuses. On main (498de1ae6d, the review's
+first probe): over the corpus plus the r1–r3 fixtures, 25 of 305 pairs
+rebind, 56 (pair, name) rebinds of 20 distinct names; over the corpus
+alone, 18 of 158 pairs, 24 rebinds of 8 names. (EMIT's probe above
+fuses 162 corpus pairs on main to the review's 158; the 18 and 24
+agree.) Ranking over the pieces a member keeps, an earlier draft,
 still rebound `r2ends`, `r2endsg` and `r4tri`. The rows are in
 `crates/editor-core/tests/emit_union_rim_piece_ranks.rs`.

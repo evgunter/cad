@@ -3441,7 +3441,9 @@ fn wire_union<
         // what the published table gets: `names::name_union` then
         // renumbers the pieces of member EDGES over the finished body,
         // which a step that has not finished does not have. A declared
-        // pair names member faces, which that pass leaves alone.
+        // pair cannot name an edge at all: `declared_step` admits face
+        // and vertex pairs only, and refuses any other
+        // (`DeclareUnsupportedPair`).
         //
         // A member-space name the fold has already merged away is
         // rewritten to the accumulation's `Merged` row that holds it
@@ -3885,8 +3887,9 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 /// into, and has seam vertices cite member edges whole. A refusal is
 /// raised before there is a finished body, so a member-edge piece it
 /// carried would keep the fold's rank, which no published table holds.
-/// None carries one: `refusal_menu` resolves face keys, and a flush
-/// finding names faces.
+/// So one refuses as an emission bug ([`UNION_REFUSAL_FOLD_RANKED_EDGE`])
+/// rather than being handed out; today none reaches it, since
+/// `refusal_menu` resolves face keys and a flush finding names faces.
 ///
 /// A name that will not collapse is an emission bug in the fold's own
 /// table, and it is raised as one rather than swallowed: the union was
@@ -3944,6 +3947,15 @@ fn union_refusal<T: crate::lane::Lane>(
     // so there is nothing for the sited arm below to carry.
     for subject in [&a, &b] {
         if let DeclarationSubject::FoldMinted(row) = subject {
+            // A piece of a member edge here carries the FOLD's rank,
+            // which the published table renumbers over the finished
+            // body: handing it out would name nothing. No flush finding
+            // names an edge today; if one ever does, it refuses loudly.
+            if names::is_fold_ranked_member_edge(row) {
+                return NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: UNION_REFUSAL_FOLD_RANKED_EDGE,
+                });
+            }
             return NodeErrorKind::UndeclarableContact {
                 row: Box::new(row.clone()),
                 diag,
@@ -4065,6 +4077,10 @@ fn sited_member(
         _ => DeclarationSubject::FoldMinted(collapsed),
     })
 }
+
+/// A union's refusal named a piece of a member edge by the fold's rank.
+const UNION_REFUSAL_FOLD_RANKED_EDGE: &str = "a union fold's refusal names a piece of a member \
+     edge by the fold's rank, which no published table holds";
 
 /// A union's refusal named a row its own fold table cannot collapse.
 const UNION_REFUSAL_FOREIGN: &str =

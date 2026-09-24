@@ -4695,6 +4695,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "merged_chord",
             "merged_chord_off_rim",
             "missing_upstream",
+            "narrow_band",
             "seam_line_sides",
             "seam_vertex_parentage",
             "seam_vertex_partners",

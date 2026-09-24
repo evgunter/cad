@@ -33,7 +33,9 @@ use crate::node::RecipeNodeId;
 /// 2. An honest in-band escalation: [`Self::Escalated`].
 /// 3. An ambient tolerance no discriminator can be built from:
 ///    [`Self::Band`], whose own doc draws the line the two below
-///    stand on — *nothing about the result body is wrong here*.
+///    stand on — *nothing about the result body is wrong here* — and
+///    [`Self::NarrowBand`], a band too narrow for one rule that needs
+///    more than it.
 /// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
 ///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
 ///    [`Self::MergedChord`], [`Self::MergedChordOffRim`],
@@ -48,8 +50,8 @@ use crate::node::RecipeNodeId;
 /// Two framings are written once each — [`EMISSION_FRAMING`] and
 /// [`UNRULED_FRAMING`] — and each opens every refusal of its category:
 /// every category-1 variant opens with the emission framing, every
-/// category-4 variant with the missing-rule one. Categories 2 and 3
-/// each have one variant and a sentence of their own, and borrow
+/// category-4 variant with the missing-rule one. Category 2 has one
+/// variant and category 3 two, each with a sentence of its own, and borrow
 /// neither framing. So a reader tells a kernel bug from a MISSING RULE
 /// from everything else by the clause a refusal opens with: the first
 /// clause of this type's `Display`, which the node-level refusal
@@ -319,6 +321,22 @@ pub enum NamingError {
     /// relabelled as an emission inconsistency, which this is not:
     /// nothing about the result body is wrong here.
     Band(BandError),
+    /// The classification band is too narrow for a union to count a
+    /// member edge's cells: its escalation threshold is under twice its
+    /// coincidence threshold (the ambiguity K is below 2).
+    ///
+    /// The cell count joins the vertices on a member edge into places by
+    /// chains of coincident (`Zero`) gaps. Two gaps within the
+    /// coincidence threshold sum to at most twice it, which a band with
+    /// K ≥ 2 never decides as a definite separation, so a place is never
+    /// both one point and two. Below 2 it could be, and the count would
+    /// be a guess. Nothing about the result body is wrong here.
+    NarrowBand {
+        /// The band's coincidence threshold.
+        zero: f64,
+        /// Its escalation threshold.
+        escalate: f64,
+    },
     /// An N2 discriminator margin escalated in-band (typed, never a
     /// silent pick — spec D3).
     Escalated {
@@ -488,6 +506,12 @@ impl core::fmt::Display for NamingError {
                 f,
                 "the naming band could not be built from the ambient tolerance, so no \
                  name can be decided: {error}"
+            ),
+            Self::NarrowBand { zero, escalate } => write!(
+                f,
+                "the naming band is too narrow to count a member edge's cells: its escalation \
+                 threshold {escalate} is under twice its coincidence threshold {zero} (an \
+                 ambiguity K below 2), so two coincidences in a row could be decided apart"
             ),
             Self::Escalated { predicate, source } => write!(
                 f,
@@ -1686,6 +1710,13 @@ mod display_tests {
                 }),
                 vec!["5e-324"],
             ),
+            (
+                NamingError::NarrowBand {
+                    zero: 1e-9,
+                    escalate: 1.5e-9,
+                },
+                vec!["0.0000000015", "0.000000001", "below 2"],
+            ),
         ];
         // **The one place a variant's CATEGORY is written down**, and
         // it is a match, so a variant added without choosing one does
@@ -1715,7 +1746,9 @@ mod display_tests {
                 | NamingError::MergedChordOffRim { .. }
                 | NamingError::SeamLineSides { .. }
                 | NamingError::MemberEdgeTied { .. } => Some(UNRULED_FRAMING),
-                NamingError::Band(_) | NamingError::Escalated { .. } => None,
+                NamingError::Band(_)
+                | NamingError::NarrowBand { .. }
+                | NamingError::Escalated { .. } => None,
             }
         };
         let sampled = |err: &NamingError| -> usize {
@@ -1735,6 +1768,7 @@ mod display_tests {
                 NamingError::Band(_) => 12,
                 NamingError::SeamLineSides { .. } => 13,
                 NamingError::MemberEdgeTied { .. } => 14,
+                NamingError::NarrowBand { .. } => 15,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
