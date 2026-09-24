@@ -38,9 +38,13 @@ msolve9_from_face.rs`: A1 `a1_the_mate_follows_the_edited_face`; A2
 `a_carried_reference_beside_an_authored_one_refuses_and_no_reference_is_pinned`;
 `a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_load`;
 `an_unresolvable_part_faults_in_the_resolvers_voice`; A4
-`a4_the_key_moves_with_the_face_and_holds_otherwise`; the wire
-`both_arms_round_trip_and_a_stray_key_on_either_refuses`; C5
-`c5_every_tracked_document_reads_its_frames_as_authored_and_re_saves_identically`;
+`a4_the_key_moves_with_the_face_and_holds_otherwise`; the wire,
+externally tagged under the spec's 2026-09-24 amendment,
+`both_arms_round_trip_and_a_stray_key_on_either_refuses` and
+`an_untagged_frame_refuses_whichever_arms_keys_it_carries`; C5
+`c5_every_tracked_document_loads_on_the_tagged_wire_and_re_saves_identically`
+(no tracked document carries a mate, so none moved; closes
+`msolve-9-spec-prescribes-an-untagged-wire`);
 and in `msolve10_door_admission.rs` the counting row
 `a_from_face_side_asks_face_pose_once_per_side_at_the_door` and
 `a_logged_from_face_insert_replays_with_no_store_and_loads`. The
