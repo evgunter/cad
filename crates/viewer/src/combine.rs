@@ -25,7 +25,7 @@
 use pncad::document::{
     BooleanOp, Doc, Evaluation, Expr, Node, PartSelect, PatternKind, ProfileProgram, RecipeNodeId,
 };
-use pncad::geom_core::Tol;
+use pncad::geom_core::{Tol, Vec3};
 use pncad::select::SplitHalf;
 
 use crate::seats::{Seat, SeatError, SeatEvent, Seats};
@@ -762,12 +762,9 @@ pub fn duplicate_step(
     let floor = measured(crate::scene::SCALE_PROBE_DELTA)?;
     // The floor mesh's box diagonal: the body's size, read before a
     // chord can be chosen for it.
-    let scale = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-        .map(|axis| width_along(&floor.positions, axis).unwrap_or(0.0))
-        .iter()
-        .map(|w| w * w)
-        .sum::<f64>()
-        .sqrt();
+    let [wx, wy, wz] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+        .map(|axis| width_along(&floor.positions, axis).unwrap_or(0.0));
+    let scale = Vec3::new(wx, wy, wz).norm();
     if !(scale.is_finite() && scale > 0.0) {
         return Err(DuplicateFault::NoExtent { input });
     }
@@ -784,13 +781,14 @@ pub fn duplicate_step(
 /// zero direction.
 fn width_along(points: &[pncad::geom_core::Point3<f64>], direction: [f64; 3]) -> Option<f64> {
     let [dx, dy, dz] = direction;
-    let norm = (dx * dx + dy * dy + dz * dz).sqrt();
+    let direction = Vec3::new(dx, dy, dz);
+    let norm = direction.norm();
     if !(norm.is_finite() && norm > 0.0) {
         return None;
     }
     let mut along = points
         .iter()
-        .map(|p| (p.x * dx + p.y * dy + p.z * dz) / norm);
+        .map(|p| Vec3::new(p.x, p.y, p.z).dot(direction) / norm);
     let first = along.next()?;
     let (lo, hi) = along.fold((first, first), |(lo, hi), r| (lo.min(r), hi.max(r)));
     Some(hi - lo)
