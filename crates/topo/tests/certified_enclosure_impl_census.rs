@@ -130,7 +130,13 @@ struct Roster {
 }
 
 /// The rosters, one per door value in the tree.
-const ROSTERS: [Roster; 4] = [
+const ROSTERS: [Roster; 5] = [
+    Roster {
+        door: "FittedLane",
+        file: "crates/geom-brep/src/fitted_lane.rs",
+        helper: "holds_the_certified_fitted_lane",
+        formed: Formed::CertifyingScalars,
+    },
     Roster {
         door: "OffsetFitLane",
         file: "crates/geom-brep/src/offset_fit_lane.rs",
