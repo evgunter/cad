@@ -2,12 +2,15 @@
 id: a-null-edge-can-be-re-based-onto-a-distinct-point
 kind: issue
 title: the re-basing gate skips null scaffolding, so a fan mev can leave a null edge whose two ends are distinct points
-status: open
+status: closed
 opened: 2026-09-14
 parent: S93
 refs: [S93]
 priority: P0
 cost: H
+pr: 3148
+branch: topo/rebasing-gate-null-edges-and-no-move
+closed: 2026-09-24
 ---
 
 ## What
@@ -81,7 +84,9 @@ distinct point and stop meaning what `mev_null`'s F9 shape says), and
 it refuses the plane × NURBS `Unimplemented` class even where the new
 vertex takes the old vertex's own point. Both rows agree the exact
 question is "is `p_new` the point `p_old`", bitwise, and that
-`Point3<T>` at `T: Real` has no door for it by design. Phase 1 decides
+`Point3<T>` at `T: Real` has no door for it by design (one bound up, at
+`T: Bounds`, `crates/topo/src/query.rs`'s `same_point_bits` is one, in
+production: the m7-8 row's "Shape 2 is Ev's"). Phase 1 decides
 between two shapes and says why:
 
 1. **The structural answer inside `topo`**: a moved run refuses a null
@@ -133,3 +138,19 @@ the re-basing gate refuses a null edge in a moved run, and says what it
 cannot ask". Do not close the items; the dual runs at review — the
 m7-8 row closes with this one only if shape 2 lands, else it carries
 the `[ev]` proposal.
+
+## Closed (2026-09-24, PR 3148)
+
+`Body::certify_rebased_run` refuses, typed (`RebasedNullEdge`), a
+moved run that holds exactly ONE half of a null edge, because the gate
+cannot ask whether the moved end lands on the other end's point. A run
+holding both halves carries the edge: both ends land on the one new
+vertex, so the edge is still one vertex by structure. Neither answer
+compares points. The M7-8 over-refusal stays. Its no-move split
+(`mev_null`, then `set_edge_curve`) is documented as neither atomic
+nor certified at rest, and the question of a comparison door is Ev's,
+on `the-re-basing-gate-refuses-m7-8-where-nothing-moves`. Residues
+filed: `work/tquery/rim-of-compares-point-bits-in-production-where-no-gate-looks`
+(an in-tree production bit compare no gate sees), and the `kev`
+evidence on `kevs-fan-merge-needs-a-re-describing-kill-door`, pinned by
+a test that the `kev` unit must change.

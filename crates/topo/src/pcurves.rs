@@ -83,10 +83,11 @@
 //!
 //! Caches are minted at construction and are immutable with the body;
 //! there is no general invalidation machinery, and what stands in for
-//! one is per door: a door declares its posture below, and the three
-//! that move a whole loop between charts, and the two that move a run
-//! of half-edges between two faces' loops, dispose of the moved rows
-//! themselves ([`crate::Body::drop_rows`]).
+//! one is per door: a door declares its posture below, and the doors
+//! that change which chart a row is stated in — the three that move a
+//! whole loop between charts, the two that move a run of half-edges
+//! between two faces' loops, and the setter that re-charts a face in
+//! place — dispose of those rows themselves ([`crate::Body::drop_rows`]).
 //! Content-keyed cache transfer stays banked (C4). Persistence (M4 PR 6 / D6.1) is
 //! **recipe-level**: a document stores its edit list, and loading
 //! re-evaluates it — so a round-trip **re-mints** pcurves from the same
@@ -195,6 +196,23 @@
 //! [`crate::Body::mef`]'s chord surgery and [`crate::Body::kef`]'s
 //! unsplice — and take the same answer over the run;
 //! `staleness_posture::DECLARED` carries each door's note.
+//!
+//! [`crate::Body::set_face_surface`] reaches the same posture from the
+//! other side: nothing moves, and the CHART moves under every row the
+//! face stores at once. It carries them across a swap onto the same
+//! chart and drops them on any other
+//! ([`crate::Body::drop_face_rows`]), which is what makes its own
+//! declaration below true as written — a swap onto a plane or a
+//! placeholder used to leave a COMPLETE row set stated in the chart
+//! the face left, and this pass skips exactly that face.
+//! Its sibling [`crate::Body::set_edge_curve`] is NOT the same case
+//! and stays `Neither`: a carrier swap moves neither the row's key nor
+//! its chart, and pass 2 re-derives every row's agreement from the
+//! edge's current carrier, so what it stales is refused loud on a
+//! COMPLETE face — and on a half-minted one this pass measures no
+//! stored row at all, which is its property everywhere and not that
+//! door's
+//! (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`).
 //!
 //! **Neither clears nor re-mints** — the remaining Euler operators and
 //! kill ops. These are primitives, and they are what the stale-row
@@ -2599,13 +2617,15 @@ pub(crate) mod staleness_posture {
         /// half-edge's fresh key, or the two keys a parameter split
         /// leaves where one edge was — and drops what no key can
         /// carry, including a row whose key never moved but whose
-        /// chart did (the loop-re-parenting doors, and the run
-        /// `mef`'s chord surgery or `kef`'s unsplice moves between two
-        /// faces' loops). What a door in this bucket never does is
-        /// return with a row that says something the body no longer
-        /// holds. It says nothing about rows a door never HELD: whether
-        /// a half-edge a door mints gets a row at the mint site is the
-        /// minting posture, decided elsewhere and not by this bucket.
+        /// chart did (the loop-re-parenting doors, the run `mef`'s
+        /// chord surgery or `kef`'s unsplice moves between two faces'
+        /// loops, and the surface setter, under which a face's whole
+        /// row set changes chart at once). What a door in this bucket
+        /// never does is return with a row that says something the
+        /// body no longer holds. It says nothing about rows a door
+        /// never HELD: whether a half-edge a door mints gets a row at
+        /// the mint site is the minting posture, decided elsewhere and
+        /// not by this bucket.
         Transfers,
         /// Leaves the map exactly as it found it — a primitive, or a
         /// write the map is not keyed on. What this bucket rests on is
@@ -2824,17 +2844,27 @@ pub(crate) mod staleness_posture {
             ("detach_pcurve", Neither, "drops ONE row the caller chose"),
             (
                 "set_face_surface",
-                Neither,
-                "a surface swap is content staleness, not a key the map can lose — and the \
-             tier-3 pass re-certifies against the new surface only where that surface \
-             mints: a swap onto a plane or a placeholder leaves a COMPLETE row set stated \
-             in the chart the face left, which this pass skips \
-             (`work/topo/set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left`)",
+                Transfers,
+                "re-charts a face in place, which changes what every row the face stores is \
+             ABOUT while changing no key: the rows are kept across a swap onto the same \
+             chart (`Body::same_chart`) and dropped on any other (`Body::drop_face_rows`). \
+             Content staleness alone would be \
+             the tier-3 pass's, but only where the NEW surface mints — a swap onto a plane \
+             or a placeholder left a COMPLETE row set stated in the chart the face left, \
+             which that pass skips entirely",
             ),
             (
                 "set_edge_curve",
                 Neither,
-                "a carrier swap is content staleness the tier-3 pass re-certifies against",
+                "a carrier swap is content staleness the tier-3 pass re-certifies against, \
+             and NOT the surface setter's case: neither the row's key nor its chart moves, \
+             and pass 2 re-derives each row's agreement from the edge's current carrier, so \
+             a staled row is refused per half-edge on a COMPLETE face. A face whose chart \
+             mints nothing stores no minted row to stale; a HALF-MINTED one does, and this \
+             pass re-certifies nothing on it \
+             (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`) — \
+             the pass's property for every content staleness, which dropping rows here \
+             would trade for a re-mint on every swap that certifies",
             ),
             (
                 "set_edge_curve_nurbs_lane",
