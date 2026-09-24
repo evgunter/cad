@@ -48,9 +48,8 @@ banner says is missing is not needed: `|c_o - c_r|` against
 tangent, crossing and disjoint exactly. That is a contact-half arm
 (the report is `RingMeetsOuter`, with a contact shape naming the two
 loops rather than a vertex, since a crossing need not have a ring
-vertex outside to name) and it is why ATREST-5 did not put a
-two-circle test in the nesting arm: there it would decide exactly the
-case the arm is premised away from, in the wrong half's vocabulary.
+vertex outside to name). Why it is not a nesting-arm test is argued
+once, at `validate::ring_nesting`'s doc.
 The general case (arcs of different circles, lines against arcs) needs
 the arc-window test `boolean::contain::point_on_arc` already spells.
 

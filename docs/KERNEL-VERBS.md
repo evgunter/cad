@@ -481,7 +481,9 @@ the table.
   part out, passes whenever the first vertex decided is an inside one,
   and so does a ring arc bowing past the outer loop between inside
   vertices — both are the contact half's unmatched crossing,
-  `work/atrest/check-9-contact-half-misses-a-crossing-and-a-tangency.md`.
+  `work/atrest/check-9-contact-half-misses-a-crossing-and-a-tangency.md`
+  (why the nesting arm does not answer the second: `validate::ring_nesting`'s
+  doc).
 
   **Why nothing caught it, and the transferable lesson.** Not "the rim
   lift never had a consumer": `offd2_r1_probes::probe_opened_vessel_cup`

@@ -361,9 +361,12 @@ pub(crate) fn loop_shape<T: Decide>(
 /// face's plane by [`contfp`]'s contract, so the in-plane radial
 /// distance is the whole question.
 ///
-/// Visible to the crate for the reason [`LoopShape`] is: tier 3's
-/// check 9 decides its nesting arm's disc class here, the same
-/// question about the same loops, so one decide answers both callers.
+/// Exact on the class: one radial margin through one decide
+/// (`bool_face_disc_radius`) — `OnBoundary` on its `Zero`, an
+/// escalation on an in-band margin, never a guess. It assumes only
+/// that `q` lies in the circle's plane; that `q` is off the circle by
+/// more than the band — what [`contfp`]'s boundary pre-pass supplies —
+/// is the caller's to supply if it wants a definite answer.
 pub(crate) fn disc_side<T: Decide>(
     disc: LoopCircle<T>,
     q: Point3<T>,
