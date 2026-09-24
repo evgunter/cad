@@ -17,7 +17,6 @@
 test_utils::gated_to![
     "crates/geom-core/src/linalg/",
     "crates/geom-core/src/interval.rs",
-    "crates/geom-core/src/ring_interval.rs",
     "interval-transcendentals/src/",
 ];
 

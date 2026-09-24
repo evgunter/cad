@@ -32,18 +32,18 @@
 //! ring, off the SAME [`Step`] list — same targets, same sources, same
 //! order. The two differ in the coefficient the combination is taken
 //! with, and they must: the projective applier's `λ` is an `f64`
-//! quotient of weights, while the ring applier re-derives the Boehm
+//! quotient of weights, while interval arithmetic applier re-derives the Boehm
 //! ratios `α = (u − U_j)/Δ` and `β = (U_{j+p} − u)/Δ` from the knots
 //! they are made of ([`Step::Combo`]'s `ratio`) so that they round
 //! OUTWARD. A ring consumer that took the stored `λ` and padded it by a
 //! guessed number of ulps would be asserting a bound nobody derived;
-//! re-deriving the ratios in the ring makes the insertion widen like
-//! every other step of an enclosure. The ring applier takes HOMOGENEOUS
+//! re-deriving the ratios in certification arithmetic makes the insertion widen like
+//! every other step of an enclosure. Interval arithmetic applier takes HOMOGENEOUS
 //! coefficients, where the combination is the plain convex one and no
 //! `λ` is needed.
 
 use super::knots::{InteriorKnot, KnotVector, SplineError};
-use crate::ring_interval::RingInterval;
+use crate::interval::Interval;
 
 /// A typed knot-algebra refusal (fail-loud; the kernel never panics).
 #[derive(Clone, Debug, PartialEq)]
@@ -136,7 +136,7 @@ enum Src {
 /// Carried as INGREDIENTS and not as values, because the two appliers
 /// need them at two precisions: `f64`, folded into the projective `λ`
 /// below, and outward-rounded ring quotients for
-/// [`CurvePlan::apply_ring`]. A stored `f64` ratio would leave the ring
+/// [`CurvePlan::apply_ring`]. A stored `f64` ratio would leave interval arithmetic
 /// applier padding a rounded number by a guess.
 #[derive(Clone, Copy, Debug)]
 struct Ratio {
@@ -258,10 +258,10 @@ impl CurvePlan {
     /// insertion ratio — degree elevation, knot removal — poisons its
     /// target, as does a malformed plan or a channel of the wrong
     /// length. Poison then flows through every hull the caller reads.
-    pub fn apply_ring(&self, old: &[RingInterval]) -> Vec<RingInterval> {
+    pub fn apply_ring(&self, old: &[Interval]) -> Vec<Interval> {
         let n_new = self.knots.control_count();
-        let mut new: Vec<Option<RingInterval>> = vec![None; n_new];
-        let fetch = |new: &[Option<RingInterval>], s: Src| -> Option<RingInterval> {
+        let mut new: Vec<Option<Interval>> = vec![None; n_new];
+        let fetch = |new: &[Option<Interval>], s: Src| -> Option<Interval> {
             match s {
                 Src::Old(i) => old.get(i).copied(),
                 Src::New(i) => new.get(i).copied().flatten(),
@@ -316,9 +316,8 @@ impl CurvePlan {
                                 // it is not is variation-diminishing in the
                                 // exact sense the reals give.
                                 // Fixed association (D9): `β·x + α·y`.
-                                let (lo, hi) =
-                                    (RingInterval::point(r.lo), RingInterval::point(r.hi));
-                                let u = RingInterval::point(r.inserted);
+                                let (lo, hi) = (Interval::point(r.lo), Interval::point(r.hi));
+                                let u = Interval::point(r.inserted);
                                 let span = hi - lo;
                                 let alpha = (u - lo) / span;
                                 let beta = (hi - u) / span;
@@ -331,7 +330,7 @@ impl CurvePlan {
             }
         }
         new.into_iter()
-            .map(|slot| slot.unwrap_or_else(RingInterval::poison))
+            .map(|slot| slot.unwrap_or_else(Interval::poison))
             .collect()
     }
 }
@@ -416,7 +415,7 @@ pub fn insert_knot_plan(
 /// **The Boehm structure is shared with [`super::compose`]'s
 /// `insert_once_ring`, and the two are now a FILED duplication rather
 /// than an argued one.** That function's own docs still argue the split
-/// on the ground that it "folds `RingInterval` coefficients with an
+/// on the ground that it "folds `Interval` coefficients with an
 /// outward-rounding quotient and has no weights to form `λ` from" —
 /// which is a description of [`CurvePlan::apply_ring`], so the argument
 /// no longer separates them. What still does is the SHAPE of the
@@ -530,7 +529,7 @@ pub fn refine_plan(
 /// channel of a rational description are themselves polynomial
 /// B-splines. The schedule is the arm a ring consumer wants
 /// ([`CurvePlan::apply_ring`]): the plan's own `λ` is then the
-/// `f64`-rounded insertion ratio, which the ring applier does not read.
+/// `f64`-rounded insertion ratio, which interval arithmetic applier does not read.
 ///
 /// Unit weights are the net's real weights and not a stand-in, and what
 /// they buy is the positivity precondition for free — nothing else, since
@@ -901,6 +900,7 @@ fn elevate_bezier_stage(kv: &KnotVector, weights: &[f64]) -> CurvePlan {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::real::Bounds;
     use crate::spline::basis::basis_funs;
 
     /// 1-D rational evaluation oracle: x(t) = Σ N w x / Σ N w — the
@@ -937,8 +937,8 @@ mod tests {
         cur
     }
 
-    /// **The two arithmetics stay in step, and the ring one stays where
-    /// the described coefficients are.** The ring applier reads the SAME
+    /// **The two arithmetics stay in step, and the interval one stays where
+    /// the described coefficients are.** The interval applier reads the SAME
     /// [`Step`] list as the point applier, so "same targets, same
     /// sources" is structural rather than tested; what a row can break
     /// is the arithmetic that hangs off it, and these four claims are
@@ -948,11 +948,11 @@ mod tests {
     ///    every degree and every split count.
     /// 2. **A carry is the coefficient itself**, bitwise: nothing is
     ///    combined, so nothing rounds, and an enclosure wider than a
-    ///    point would mean the ring applier had touched a carry.
+    ///    point would mean interval arithmetic applier had touched a carry.
     /// 3. **No slot leaves the described hull by more than the ratios'
     ///    own rounding.** In ℝ a refined coefficient is a convex
     ///    combination of the described ones, so it lies in their hull;
-    ///    in the ring the two ratios round outward independently and
+    ///    in certification arithmetic the two ratios round outward independently and
     ///    `α_hi + β_hi` exceeds 1, so a slot reaches a little past that
     ///    hull. The excursion is bounded by the same width claim 4
     ///    bounds, and it is that allowance — not a fresh tolerance —
@@ -991,12 +991,11 @@ mod tests {
             let coeffs: Vec<f64> = (0..n)
                 .map(|i| if i % 2 == 0 { i as f64 } else { -(i as f64) })
                 .collect();
-            let input: Vec<RingInterval> =
-                coeffs.iter().copied().map(RingInterval::point).collect();
+            let input: Vec<Interval> = coeffs.iter().copied().map(Interval::point).collect();
             let input_hull = input
                 .iter()
                 .copied()
-                .reduce(RingInterval::hull)
+                .reduce(Interval::hull)
                 .expect("a clamped vector has control points");
             let scale = coeffs.iter().fold(0.0f64, |m, c| m.max(c.abs())).max(1.0);
             for splits in [2usize, 3, 8, 16] {
@@ -1030,7 +1029,7 @@ mod tests {
                 let ceiling_ulps = 8.0 * (add.len() + 1) as f64;
                 let slack = ceiling_ulps * scale * f64::EPSILON;
                 for (i, r) in ring_out.iter().enumerate() {
-                    assert!(!r.is_poison(), "{tag}: slot {i} poisoned");
+                    assert!(r.is_certified(), "{tag}: slot {i} poisoned");
                     assert!(
                         r.lo() >= input_hull.lo() - slack && r.hi() <= input_hull.hi() + slack,
                         "{tag}: slot {i} = [{:.17e}, {:.17e}] is outside the described hull \
@@ -1069,7 +1068,7 @@ mod tests {
 
     /// **The bulge, measured.** A refined coefficient is a convex
     /// combination of two described ones, so in ℝ it lies between them
-    /// — and with EQUAL adjacent coefficients it equals them. The ring
+    /// — and with EQUAL adjacent coefficients it equals them. Interval arithmetic
     /// applier cannot say that: `α` and `β` are outward-rounded
     /// independently, so `α_hi + β_hi` exceeds 1 and `β·c + α·c`
     /// comes out as a bracket straddling `c` rather than the point `c`.
@@ -1117,14 +1116,14 @@ mod tests {
                 }
             }
             let plans = refine_plan_homogeneous(&kv, &add).unwrap();
-            let mut out: Vec<RingInterval> = vec![RingInterval::point(c); kv.control_count()];
+            let mut out: Vec<Interval> = vec![Interval::point(c); kv.control_count()];
             for plan in &plans {
                 out = plan.apply_ring(&out);
             }
             let mut outside = 0usize;
             let mut worst = 0.0f64;
             for r in &out {
-                assert!(!r.is_poison(), "p={p} c={c}: poisoned slot");
+                assert!(r.is_certified(), "p={p} c={c}: poisoned slot");
                 let excursion = (r.hi() - c).max(c - r.lo());
                 if excursion > 0.0 {
                     outside += 1;
