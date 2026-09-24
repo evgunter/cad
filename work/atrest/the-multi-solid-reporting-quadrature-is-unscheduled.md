@@ -2,12 +2,13 @@
 id: the-multi-solid-reporting-quadrature-is-unscheduled
 kind: issue
 title: the multi-solid body certificate pays a second arena-wide quadrature nobody scheduled
-status: open
+status: dispatched
 opened: 2026-09-22
 priority: P1
 cost: D
 rides_with: tier3-prime-still-couples-plus-v-to-the-reporting-target
 refs: [2977]
+parent: ATREST-3
 ---
 
 
