@@ -1037,6 +1037,29 @@ backtracking gate refused; merging main forward also needed the gate's
 `[..]` inserting it. The orchestrator releases the program: `status:
 ready`, with the remaining open rows dispatchable.
 
+## `port/wrap-a`: three rows to review (2026-09-24)
+
+One lane, three rows, one PR. `refusal-messages-render-floats-through-f64-display`:
+`geom_core::Readable` is the one rendering of an `f64` in a message
+(positional inside `[1e-4, 1e16)` and at zero, scientific outside — `{:?}`
+less a trailing `.0`), and the spline stack's refusals route through it:
+the row's three `Display`s, nine sibling arms the sweep found
+(`SplineError::DomainInvalid` among them) and `KnotMirrorError`'s computed
+`lo + hi`. The viewer's `render_number` was a copy of the same rendering
+and now calls it; `quantity`'s copy stays, since neither crate depends on
+the other. The remainder of the class, in eight other crates, is filed as
+`work/issues/refusal-floats-outside-the-spline-stack-render-through-f64-display`.
+`stackup-report-joins-rendered-blockers-on-a-mark-they-may-contain`:
+the row's second join never existed (it was `serialize`'s name list);
+the one real join is replaced by one blocker per line under a count,
+held by an `f6_variants!`-welded arm census and a split-back test, and
+the three name-joins that rely on EDIT's in-flight name door are
+recorded on that row. `D341`: closed as already fixed — the binding
+census's member rule (Ev, 2026-09-09) requires every `Node` and `Datum`
+arm to be spelled as a constructor or listed, and already lists
+`Node::Sweep`. The row predated the rule and was never re-read; a
+second Rust census this lane first wrote was reverted in review.
+
 ## `props-refusal-cannot-carry-measured-overshoot` closes name-only (2026-09-24)
 
 The row asked for a ratification: may `props/curved.rs`'s refusals carry a
