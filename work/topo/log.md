@@ -1730,3 +1730,78 @@ carry the pair typed, so a consumer resolves from the field and never
 parses the prose. What it costs is the locus.
 
 Signed (FIX orchestrator).
+
+## Set-face-surface dual concluded (ordinal 2712); fix pass dispatched (2026-09-14)
+
+Both reviews MERGEABLE-AFTER-FIXES on `71d846be4`, converging. The
+drop held under every mutant either side planted (carry-always reds
+four rows, drop-always the provenance-sharing control, outer-loop-only
+the ring row; the red-first row reproduced on the merge base). The
+substance: (1) R1's unilateral executed MAJOR — the `set_edge_curve`
+note this PR adds ("refused wherever the row exists at all") is false
+on a half-minted minting face, where `validate_pcurves` skips passes 2
+and 3 (R1's probe: one unrelated row detached, the staled row goes
+unreported); a pre-existing TRIM blind spot asserted away in two
+places and load-bearing for the `Neither` posture — doc/claim class,
+recorded and excluded from the tally; (2) the ordering duty (drop
+before the orphan sweep) is prose with no pin — both swapped the order
+and every suite stayed green, the failure a silent over-drop (R2's
+orphaning-body probe reds it; R1's Q7 shape retires the duty by
+deciding before the write); (3) the face door hand-writes the loop
+walk beside two helpers and `stored_rows`, and evaluates `same_chart`
+twice (both, Q1); (4) the receipt's "twelve sites" is nineteen in
+twelve files (both); (5) the `mesh` re-attach residue is disclosed on
+a log, not filed (both); (6) `attach.rs`'s "every producer re-mints"
+false for `extrude` (R2); the `Arc::ptr_eq` rung unrowed, the
+red-first row's `[]` half signal-free, the own-key control never
+entering the door (R1). Brief corrections: `MissingCache` fires only
+on a half-minted face (R2); the item had no `## Brief` at the
+branch's base (R1) — the brief reached main after the lane branched.
+Fix pass dispatched as a fresh lane on the inherited branch, same arm
+as the implementer; reports archived at
+`/home/user/topo-orch/sfs-r{1,2}-report.md`. Row recorded at merge
+with the doc-class candidate.
+
+## Resumed after a ten-day idle; the tracker and the protocol changed underneath (2026-09-24)
+
+The session resumed on 2026-09-24 (Ev: usage is back). Main moved
+~3,800 commits. What changed for this program: the 2026-09-20
+priority-seam cut left TOPO the Euler operators' surgery doors
+(`euler*.rs`, `attach.rs`, `movefac.rs`, `revert.rs`,
+`merge_faces.rs`, `fixtures.rs`) at P0, moving the identity channel to
+ORIGIN, the at-rest validator to ATREST, split/query to TQUERY, the
+guards to PROBE and the n-spellings rows to WALKS; the model A/B
+protocol was SUSPENDED on 2026-09-23 (every phase on Opus; review depth
+chosen per unit — orchestrator's read, single, or dual, a dual being a
+row in `docs/DUAL-REVIEW-LOG.md`), with units already dispatched under
+a drawn arm finishing under the protocol they started in.
+
+Block TOPO-B5 therefore stands like this. **Slot 0** (PR 2594, the
+setter) had concluded its dual and its fix pass before the idle; its
+branch is merged forward (tracker conflicts only — S-MESH left the
+tracker, so its row and two log entries moved to TESS) and its row is
+recorded at merge. **Slot 1** (PR 2603, the run doors) had its
+implementer finish — PR opened, run 34877183170 green on `e36af64a4` —
+before the lane died on a usage limit with its final report lost; its
+branch is merged forward to `2216e0c00` and its dual dispatched on
+that frozen head, ordinal 2713 claimed on PR 3136 (byte 61, briefs
+stored and hashed; both briefs bar the log, the protocol log and the
+block branch). **Slot 2** never dispatched, so it draws nothing: it
+runs on Opus as an ordinary unit, and the block record says its slot
+is unconsumed when the block closes.
+
+**A disclosure, made on PR 3136**: this log named the implementer's
+arm at dispatch for most units from block B2 on, which the protocol's
+own leak rule forbids. Those rows are flagged arm-exposed in the
+protocol log; this log names no arm from here on.
+
+**Slot 2's review tier: DUAL**, recorded here at spec time per the
+review tiers — the unit decides what a kernel gate may ask about
+"nothing moved" with no point-identity door at `T: Real`, and one of
+its two shapes is a structural-identity door on `geom-core`'s ratified
+surface: an architectural decision that would be hard to change later.
+It dispatches when a build target frees (the box holds two fresh
+builds at a time after the merge of main; the dual above holds both).
+
+One row re-homed: `census-witness-string-repeats-the-subject` moves to
+ATREST with `validate.rs`, the file it decides (logged there).
