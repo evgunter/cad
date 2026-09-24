@@ -1,7 +1,7 @@
 //! M5 PR 3 acceptance, interval lane (spec row 4): Interval
 //! containment for NURBS curve evaluation — single-span boxes and
 //! knot-straddling boxes — plus poison propagation and the
-//! `Dual<Interval>` instantiation. Runs under `--features interval`.
+//! `Dual<Interval>` instantiation.
 //!
 //! Containment logic: every interval ring op encloses all exact
 //! results over contained inputs and rounds outward, and f64's
@@ -11,7 +11,6 @@
 //! `eval(Interval) ∋ eval(f64)` is legitimate here (pure ring
 //! arithmetic; contrast the transcendental caveat in `Bounds`' docs).
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(clippy::needless_range_loop)]
 

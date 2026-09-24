@@ -51,7 +51,7 @@
 //!   exact-order band `(f64::from_bits(1), f64::from_bits(2))`, inside
 //!   which no representable f64 lies, so `sign_within` is total on every
 //!   finite f64 margin. That is a statement about `f64` and nothing
-//!   wider: under `--features interval` a margin is an enclosure, and
+//!   wider: at the interval scalar a margin is an enclosure, and
 //!   `tests/interval_lane.rs` already drives `fillet_leg_fit` in band
 //!   there. The two rows below are scalar-scoped by construction.
 //!

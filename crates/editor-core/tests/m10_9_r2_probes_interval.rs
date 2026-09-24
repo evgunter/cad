@@ -26,7 +26,6 @@
 //! NOT proposed for merge: the branch carries a probe instrument
 //! (`DecisionShape::enclosure`, `Decide::enclosure_probe`).
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 

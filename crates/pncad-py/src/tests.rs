@@ -377,10 +377,10 @@ fn the_measure_node_fault_tag_is_stable() {
 /// reachable from Python and `tests/test_measures.py` reaches it
 /// through a real document. `MinClearanceRefusal` is the interval
 /// engine's own, and its ONLY producer is
-/// `impl MinClearanceLane for geom_core::Interval`, behind the
-/// `interval` feature; no Python evaluation reaches it at any feature
-/// set, because the lane and not the feature is what gates it. So this
-/// row is where the second one's tag and prose are pinned at all.
+/// `impl MinClearanceLane for geom_core::Interval`; no Python
+/// evaluation reaches it, because the binding evaluates at `f64` and the
+/// lane is what gates it. So this row is where the second one's tag and
+/// prose are pinned at all.
 #[test]
 fn the_fourth_verbs_two_refusals_are_stable() {
     use crate::tags::{measure_unavailable_at_tag, node_error_tag};

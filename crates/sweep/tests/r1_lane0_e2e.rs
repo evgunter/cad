@@ -145,7 +145,6 @@ fn the_f64_seam_answers_every_public_door() {
 
 /// The certifying interval scalar: every door refuses by its own typed
 /// variant, and the text says the absence is the DERIVATION's.
-#[cfg(feature = "interval")]
 #[test]
 fn the_interval_seam_refuses_at_every_public_door() {
     use geom_core::{Bounds, Interval, Real};
@@ -229,7 +228,6 @@ fn the_interval_seam_refuses_at_every_public_door() {
 
 /// The mint's absence path through the PUBLIC offset door at a scalar with
 /// no fit: a NURBS cap, offset at `Interval`.
-#[cfg(feature = "interval")]
 #[test]
 fn the_interval_mint_refuses_through_the_public_offset_door() {
     use geom_core::{Bounds, Interval, Real};

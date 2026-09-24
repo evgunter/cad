@@ -420,7 +420,6 @@ fn deep_value_channel_identity_f64_vs_dual64_including_carrier_arenas() {
 
 /// Instrument 1 at `Dual<Interval>`, one closed-form and one
 /// NURBS-walled document (mirrors the unit's own draw).
-#[cfg(feature = "interval")]
 #[test]
 fn deep_value_channel_identity_interval_vs_dual_interval() {
     use geom_core::{DualInterval, Interval};

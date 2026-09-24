@@ -1,10 +1,7 @@
 //! The [`Interval`] scalar over the in-repo `interval-transcendentals`
 //! crate — Q1's certified instantiation of [`Real`] and [`Decide`].
-//! This module compiles in every build; what the `interval` cargo
-//! feature gates is the lane-trait impls in the crates above this one
-//! and the interval test files — not the type, and not a kernel body
-//! bounded by [`Real`]/[`Decide`]/[`Bounds`] alone, which instantiates
-//! at this scalar in a default build.
+//! It compiles in every build, and so do the lane-trait impls at it in
+//! the crates above this one.
 //!
 //! An `Interval` is a machine-representable enclosure `[lo, hi]` of the
 //! **true real value** of a computation: every operation returns an

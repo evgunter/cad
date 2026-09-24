@@ -1211,7 +1211,6 @@ fn merge_coplanar_full_plateau_atomicity() {
 /// decoration). If two different enclosures print alike, the merge op's
 /// declared-equality (and every D9 dump comparison) is blind to the
 /// difference in the interval lane.
-#[cfg(feature = "interval")]
 #[test]
 fn interval_debug_channel_faithfulness_probe() {
     use geom_core::{Interval, Real};
@@ -1240,7 +1239,6 @@ fn interval_debug_channel_faithfulness_probe() {
 /// singleton parameter splits and re-certifies; an enclosure straddling
 /// the interiority band escalates typed (never silently splits); the
 /// interval cube replays deterministically through the split.
-#[cfg(feature = "interval")]
 #[test]
 fn interval_split_edge_lane() {
     use geom_core::{Interval, Real};

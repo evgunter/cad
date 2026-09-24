@@ -420,7 +420,6 @@ fn caches_replay_bit_identically() {
 /// rather than `f64` readings. The 3ε row is the CI matrix's
 /// (`CAD_TOLERANCE_EPS`), not a separate test — nothing here depends on
 /// the exact ε beyond "the residuals are rounding-scale".
-#[cfg(feature = "interval")]
 #[test]
 fn caches_certify_on_the_interval_lane() {
     use geom_core::{Interval, Real};

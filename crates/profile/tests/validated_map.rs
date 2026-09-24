@@ -273,7 +273,6 @@ fn the_lift_to_dual_equals_validating_at_dual() {
     }
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn the_lift_to_interval_equals_validating_at_interval() {
     use geom_core::Bounds;

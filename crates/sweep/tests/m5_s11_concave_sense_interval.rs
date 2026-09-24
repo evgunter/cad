@@ -1,5 +1,5 @@
 //! M5 S11 interval lane: the concave-sense door and union rows at the
-//! CERTIFIED scalar (feature `interval`).
+//! CERTIFIED scalar.
 //!
 //! The sense bit itself is exact structure (a `bool` selected from
 //! stored `Sign`s — nothing here widens), so what this lane proves is
@@ -9,7 +9,6 @@
 //! escalation), the pellet survives with a certified volume
 //! enclosure, and the washer's bore reads as void.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands::pellet;

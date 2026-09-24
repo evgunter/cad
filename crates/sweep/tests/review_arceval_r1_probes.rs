@@ -1,6 +1,6 @@
 //! Blinded-review probes for PR #922 at the whole-body level.
 //!
-//! Two rows, both `--features interval` only:
+//! Two rows, both at the interval scalar:
 //!
 //! - **E1, an independent consumer of the arc lane**: a revolved ball
 //!   is the *left* operand of a subtract whose cutter block chops a cap
@@ -43,7 +43,6 @@
 //!   earns its place is this file's owner's call, not a duplication
 //!   unit's; it is filed and left standing.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod certified {

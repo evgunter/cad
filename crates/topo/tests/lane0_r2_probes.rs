@@ -202,7 +202,6 @@ fn the_probe_has_no_fit_at_the_public_doors() {
     certified_doors_at::<geom_core::Probe>("probe");
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn the_interval_scalar_has_no_fit_at_the_public_doors() {
     doors_at::<geom_core::interval::Interval>("interval", Some("interval"));

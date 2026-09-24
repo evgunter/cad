@@ -8,8 +8,7 @@
 //! a BOX of joint angles, with no sampling at all — and reports what
 //! it finds, including where it stops.
 //!
-//! Behind the `interval` feature, because the certified scalar is its
-//! entire subject.
+//! The certified scalar is its entire subject.
 //!
 //! # Why this is a measurement and not a demonstration
 //!
@@ -590,10 +589,9 @@ mod tests {
 
     /// **The cell's own row, so it EXECUTES on hosted CI.**
     ///
-    /// The narration runs in a tour WALK (`cargo run`), and the hosted
-    /// lane that walks the tour is a render lane which does not pass
-    /// `--features interval`. This row is what puts the cell inside
-    /// `ci.yml`'s `demos tour suite` step instead, and it asserts the
+    /// The narration runs in `demo-tour certified`, which asserts
+    /// nothing. This row is what puts the cell inside
+    /// `ci.yml`'s `demos tour suite` step, and it asserts the
     /// findings the header claims rather than merely running the code.
     #[test]
     fn the_certified_table_says_what_the_header_says() {

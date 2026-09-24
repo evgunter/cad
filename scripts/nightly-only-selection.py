@@ -13,8 +13,7 @@ tests, not the whole suite* — and the marker deliberately lives AT the test
 rather than in a central roster, so there is no list to read the set off.
 
 There does not need to be one. The set is a property of the two builds, and
-this is the same derivation `scripts/interval-only-selection.py` makes for the
-`interval` feature: list twice, subtract. A test whose marker is deleted
+the derivation is: list twice, subtract. A test whose marker is deleted
 leaves this set on the next run with nothing to remember, and no annotation
 can lie about it.
 
@@ -43,14 +42,14 @@ the difference and can never be selected. That is why the nightly needs no
 whole pre-existing ignored population would run, which is the thing Ev
 ruled out.
 
-FAILS CLOSED ON A BROKEN RIG. An empty difference is LEGITIMATE here — unlike
-the interval case, a tree with no demoted tests is an ordinary tree — but it
+FAILS CLOSED ON A BROKEN RIG. An empty difference is LEGITIMATE here — a
+tree with no demoted tests is an ordinary tree — but it
 is indistinguishable, from the two listings alone, from the rig failure that
 matters: both listings built the same way (RUSTFLAGS not reaching the second
 build, a typo in the cfg name, the flag dropped from the workflow). Those
 produce two identical listings and therefore the same empty set, and would
 zero this lane silently and permanently. So the empty case is PROVED from the
-SOURCE, exactly as the interval script proves its own: if not one file under
+SOURCE: if not one file under
 `crates/` carries the marker, no demoted test can exist and `none()` is the
 right answer; if markers ARE in the tree and the difference is still empty,
 that is a broken rig and this exits 1.
@@ -69,8 +68,7 @@ import sys
 # THE MARKER, as a SOURCE predicate, used only to decide whether an empty
 # difference is legitimate. Deliberately LOOSE — a doc comment quoting the
 # attribute satisfies it — because the two ways this can be wrong are not
-# symmetric, the same asymmetry interval-only-selection.py states for its own
-# crate scan: OVER-reporting sends an empty difference to the exit-1 arm,
+# symmetric: OVER-reporting sends an empty difference to the exit-1 arm,
 # which merely asks a human to look; UNDER-reporting emits `none()` for a
 # tree that really does have demoted tests, and that is the silent hole. When
 # in doubt this must say "there are markers".
@@ -144,8 +142,8 @@ SAFE = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_:-")
 
 
 def term(kind, s):
-    """An EXACT-match DSL term, emitted UNQUOTED — the same two load-bearing
-    details `interval-only-selection.py` documents: the leading `=` makes it
+    """An EXACT-match DSL term, emitted UNQUOTED, and two details are
+    load-bearing: the leading `=` makes it
     exact (a bare `test(foo)` is a SUBSTRING match, so `foo` would drag in
     `foo_and_more`), and nextest 0.9.140 does not match the quoted form for
     these values. Anything outside the safe alphabet is a hard error rather

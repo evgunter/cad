@@ -290,7 +290,6 @@ fn az_coupled_flush_refuses_undeclared_succeeds_declared() {
 /// Interval lane: conservatism acceptable, wrongness never (the
 /// demo_tripwires pattern). A success must pass tier 2 and enclose
 /// the exact oracle.
-#[cfg(feature = "interval")]
 #[test]
 fn az_plain_interval_refuses_or_encloses() {
     use geom_core::{Bounds, Interval};
