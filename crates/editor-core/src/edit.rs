@@ -23,11 +23,12 @@ use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::mate::reach::MateReach;
 use crate::mate::solve::Maintain;
 use crate::meta::{MetaValue, MetaVersionError};
-use crate::names::EntityKind;
+use crate::names::{EntityKind, ProfileEdgeRef, ProfileVertexRef, SegRewrite};
 use crate::node::{
     AssertionBoundFault, Node, PlacementRuleFault, RecipeNodeId, SlotDimensionFault, SlotId,
     StableName,
 };
+use crate::program::{CheckedRecords, ProgramRefusal, checked_replay};
 use crate::roots::RootFault;
 use crate::witness::{BranchCertification, WitnessDatum};
 use geom_core::Tol;
@@ -37,9 +38,9 @@ use geom_core::Tol;
 /// [`apply`] (spec D2), which answers a new document and leaves its
 /// input untouched. The set has three shapes. Structural edits over
 /// nodes, their slots and the document's roots and placements
-/// (`InsertNode`, `DeleteNode`, `SetMembers`, `SetParam`,
-/// `SetStructuralParam`, `SetExpression`, `SetRoots`, `SetPlacement`,
-/// `UpdateReference`). The document-parameter family: one
+/// (`InsertNode`, `DeleteNode`, `SetMembers`, `SetProgram`,
+/// `SetParam`, `SetStructuralParam`, `SetExpression`, `SetRoots`,
+/// `SetPlacement`, `UpdateReference`). The document-parameter family: one
 /// create-or-replace door (`SetDocParam`) and the carry-forward doors,
 /// each moving ONE field of a standing declaration and keeping the
 /// rest (`SetDocParamValue`, `SetDocParamUnit`,
@@ -109,6 +110,97 @@ pub enum DocEdit<P> {
         node: RecipeNodeId,
         /// The whole new list, in order (D9: the order is data).
         members: Vec<RecipeNodeId>,
+    },
+    /// **Replace a live profile node's PROGRAM whole** — its loops,
+    /// their verbs, order and count, arc modes, sides, windings,
+    /// target forms, a split circle's `n` — validated once, as one
+    /// edit (V2, `crates/profile/README.md`: structure changes only by
+    /// this edit). The plane is NOT carried and does not move: it is
+    /// the profile's one DAG input (`Node::Profile(p) =>
+    /// p.plane_input()`), and DM6 rules that no edit rewires a live
+    /// node's inputs — the only rewiring edit is
+    /// [`DocEdit::SetMembers`] over a list, and this is not that.
+    ///
+    /// The new program is stated in full, [`DocEdit::SetMembers`]'s
+    /// shape: nothing is inferred about which of the old loops or
+    /// steps survived. What IS inferred is the one thing the editor
+    /// that authored the edit knows and the door cannot: which old
+    /// step each new step continues, stated per loop and per step in
+    /// `provenance` ([`LoopProvenance`]). The door is told, never
+    /// guesses.
+    ///
+    /// Every check [`DocEdit::InsertNode`] makes of a profile is made
+    /// here, of the REWRITTEN node, through the same functions: the
+    /// slot walk (`check_node_slots` — dimensions and document
+    /// parameter references over every argument of every loop), then
+    /// resolve + replay + validate under the current parameter
+    /// environment ([`EditError::ProfileProgramRefused`]). Before any
+    /// of that the provenance's SHAPE is checked
+    /// ([`EditError::ProvenanceMalformed`]), so a program is never
+    /// replayed for an edit that could not have been honoured.
+    ///
+    /// **The names.** A name holding a profile locator
+    /// (`ProfileEdgeRef` / `ProfileVertexRef`) is spelled in the
+    /// program's own coordinates (`eval::anchor`, DM8), so reshaping
+    /// the program moves what every such name denotes. The door reads
+    /// which segments each old step drew and each new step draws off
+    /// the two replay records and, for every name carrier the
+    /// document holds (`Doc::name_carriers`): a name on a segment of a
+    /// KEPT step — one an old step continues into with the same number
+    /// of segments — is REWRITTEN in place to its new coordinates and
+    /// reported [`Maintenance::Rebound`]; a name on a segment of a
+    /// DROPPED step, a CHANGED step (one whose segment count moved: a
+    /// `line` re-authored as `arc_fillet`) or a loop no new loop
+    /// continues is reported [`Maintenance::Strand`] /
+    /// [`Maintenance::StrandedAppearance`] exactly as a delete reports
+    /// it (DM7: the subject is the edit that removes a name's
+    /// referent, of which the delete is one). Names spelled in another
+    /// profile's coordinates are untouched by construction: the walk
+    /// asks each minting node which profile anchors its locators
+    /// ([`Node::anchoring_profile`]).
+    ///
+    /// **The retirement.** The door does three things — reports every
+    /// strand, rebinds every kept name (both ruled on `[ev]` #2904),
+    /// and RETIRES every stranded name, which the ruling did not spell
+    /// out and which is put to Ev on
+    /// `work/edit/stranded-names-are-retired-to-an-undrawable-coordinate.md`.
+    /// A stranded name's locator is rewritten to a coordinate at or
+    /// above [`RETIRED_FLOOR`], where no program draws, and the
+    /// `Strand` / `StrandedAppearance` row carries that spelling:
+    /// left in place it would denote whichever segment the new program
+    /// draws at its old index as if it always had (the DI1 aliasing
+    /// class), and collide with a kept name moved onto that index. A
+    /// retired name resolves `Vanished` at every evaluation until it
+    /// is rebound, and a name already retired is left as it is and
+    /// reported by no later edit.
+    ///
+    /// A program byte-identical to the current one under the identity
+    /// provenance is legal and reports nothing.
+    ///
+    /// **The plane cannot be carried**, which is the whole of DM6's
+    /// claim here, pinned where a claim about types belongs — the
+    /// variant has no such field, so an edit that tried to move it
+    /// does not compile:
+    ///
+    /// ```compile_fail,E0560
+    /// let _: editor_core::DocEdit<editor_core::ProfileProgram> =
+    ///     editor_core::DocEdit::SetProgram {
+    ///         node: editor_core::RecipeNodeId(1),
+    ///         plane: editor_core::RecipeNodeId(0),
+    ///         loops: Vec::new(),
+    ///         provenance: Vec::new(),
+    ///     };
+    /// ```
+    SetProgram {
+        /// The profile node whose program is replaced.
+        node: RecipeNodeId,
+        /// The whole new program, outer loop first then holes in
+        /// description order — every loop stated in full.
+        loops: Vec<crate::program::LoopProgram>,
+        /// One entry per new loop, in `loops`' order: which old loop
+        /// it continues and which old step each of its steps
+        /// continues.
+        provenance: Vec<LoopProvenance>,
     },
     /// Replace a CONTINUOUS slot's expression (Length/Angle/Scalar
     /// slots; spec D3's continuous parameters).
@@ -404,6 +496,221 @@ pub enum DocEdit<P> {
     },
 }
 
+/// **Where one loop of a [`DocEdit::SetProgram`] came from**: which
+/// old loop it continues and which old step each of its steps
+/// continues, stated by the editor that reshaped the program — the one
+/// party that knows it inserted a leg rather than replaced one.
+///
+/// Every index is into the program the node HOLDS when the edit is
+/// applied: `from` an old loop index, each `steps[i]` an old step
+/// index of that old loop. `None` is "new" — a loop or step nothing
+/// old continues into — and it is the only way to say so: a new loop's
+/// steps are all new, and naming an old step under a loop with no
+/// `from` is a shape fault ([`ProvenanceFault::StepOfNewLoop`]).
+///
+/// The shape is checked before the program is: one entry per new loop,
+/// one per new step, every index inside the old program, no old loop
+/// and no old step continued twice ([`ProvenanceFault`]). An old loop
+/// or step NOTHING continues is dropped, and every name on its
+/// segments strands (DM7).
+///
+/// Persisted beside its edit, so it is on the wire and refuses a
+/// field it does not know like every other wire type.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct LoopProvenance {
+    /// The old loop this loop continues, or `None` for a new loop.
+    pub from: Option<u32>,
+    /// Per step of this loop, in program order: the old step (of the
+    /// loop `from` names) it continues, or `None` for a new step. A
+    /// carrier form (`circle`, `circle_split`) has exactly one step,
+    /// numbered 0, so its list has one entry.
+    pub steps: Vec<Option<u32>>,
+}
+
+impl LoopProvenance {
+    /// The provenance under which every loop and step of `loops`
+    /// continues the old loop and step at the same index — the
+    /// spelling of "this program is the one the node holds, and each
+    /// step is still itself", which a byte-identical program carries.
+    pub fn identity(loops: &[crate::program::LoopProgram]) -> Vec<Self> {
+        loops
+            .iter()
+            .enumerate()
+            .map(|(i, lp)| Self {
+                from: Some(crate::program::program_index(i)),
+                steps: (0..lp.authored_steps())
+                    .map(|k| Some(crate::program::program_index(k)))
+                    .collect(),
+            })
+            .collect()
+    }
+}
+
+/// What is wrong with the SHAPE of a [`DocEdit::SetProgram`]'s
+/// provenance — refused before the program is replayed, since a
+/// provenance the door could not honour makes the replay moot.
+///
+/// One typed fault per way the shape can be wrong, each named for what
+/// is wrong rather than for where the check tripped, and carried as
+/// ONE arm of [`EditError`] ([`EditError::ProvenanceMalformed`]) the
+/// way a measure's shape faults are ([`EditError::MeasureMalformed`]):
+/// they are seven answers to one question about one field of one edit,
+/// and a caller that branches on the edit's refusal reads the field's
+/// fault beside it rather than seven refusals of the edit.
+///
+/// Every index here is a coordinate a caller wrote, so the faults name
+/// it in the caller's own terms: a NEW loop or step index where the
+/// entry sits, an OLD one where it points.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProvenanceFault {
+    /// The provenance has an entry per loop, and the count is not the
+    /// new program's loop count.
+    LoopCount {
+        /// How many loops the new program has.
+        loops: usize,
+        /// How many entries the provenance has.
+        provenance: usize,
+    },
+    /// One loop's entry has a step per step, and the count is not
+    /// that loop's authored step count.
+    StepCount {
+        /// The new loop.
+        loop_: u32,
+        /// How many steps it authors.
+        steps: usize,
+        /// How many entries its provenance has.
+        provenance: usize,
+    },
+    /// A new loop claims to continue an old loop the old program does
+    /// not have.
+    NoSuchOldLoop {
+        /// The new loop.
+        loop_: u32,
+        /// The old loop index it names.
+        from: u32,
+        /// How many loops the old program has.
+        old_loops: usize,
+    },
+    /// A new step claims to continue an old step its old loop does
+    /// not have.
+    NoSuchOldStep {
+        /// The new loop.
+        loop_: u32,
+        /// The new step.
+        step: u32,
+        /// The old loop the new loop continues.
+        from: u32,
+        /// The old step index it names.
+        old_step: u32,
+        /// How many steps that old loop authors.
+        old_steps: usize,
+    },
+    /// A step of a NEW loop (`from: None`) claims to continue an old
+    /// step. A new loop continues nothing, so there is no old loop for
+    /// the step index to be a step of.
+    StepOfNewLoop {
+        /// The new loop.
+        loop_: u32,
+        /// The new step.
+        step: u32,
+        /// The old step index it names.
+        old_step: u32,
+    },
+    /// Two new loops claim to continue one old loop. A loop continues
+    /// into at most one loop; a copy is a new loop.
+    OldLoopContinuedTwice {
+        /// The old loop.
+        from: u32,
+        /// The first new loop that names it.
+        first: u32,
+        /// The later one.
+        again: u32,
+    },
+    /// Two steps of one new loop claim to continue one old step. A step
+    /// continues into at most one step; a copy is a new step.
+    OldStepContinuedTwice {
+        /// The new loop.
+        loop_: u32,
+        /// The old loop it continues.
+        from: u32,
+        /// The old step named twice.
+        old_step: u32,
+        /// The first new step that names it.
+        first: u32,
+        /// The later one.
+        again: u32,
+    },
+}
+
+impl core::fmt::Display for ProvenanceFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::LoopCount { loops, provenance } => write!(
+                f,
+                "the new program has {loops} loops and the provenance {provenance} entries; \
+                 the provenance states one entry per loop"
+            ),
+            Self::StepCount {
+                loop_,
+                steps,
+                provenance,
+            } => write!(
+                f,
+                "loop {loop_} authors {steps} steps and its provenance has {provenance} \
+                 entries; a loop's provenance states one entry per step"
+            ),
+            Self::NoSuchOldLoop {
+                loop_,
+                from,
+                old_loops,
+            } => write!(
+                f,
+                "loop {loop_} continues old loop {from}, and the program being replaced has \
+                 {old_loops} loops"
+            ),
+            Self::NoSuchOldStep {
+                loop_,
+                step,
+                from,
+                old_step,
+                old_steps,
+            } => write!(
+                f,
+                "loop {loop_} step {step} continues old step {old_step} of old loop {from}, \
+                 which authors {old_steps} steps"
+            ),
+            Self::StepOfNewLoop {
+                loop_,
+                step,
+                old_step,
+            } => write!(
+                f,
+                "loop {loop_} is a new loop and its step {step} continues old step {old_step}; \
+                 a new loop continues nothing, so its steps are all new"
+            ),
+            Self::OldLoopContinuedTwice { from, first, again } => write!(
+                f,
+                "old loop {from} is continued by loop {first} and again by loop {again}; a \
+                 loop continues into at most one loop"
+            ),
+            Self::OldStepContinuedTwice {
+                loop_,
+                from,
+                old_step,
+                first,
+                again,
+            } => write!(
+                f,
+                "old step {old_step} of old loop {from} is continued by loop {loop_}'s step \
+                 {first} and again by its step {again}; a step continues into at most one step"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for ProvenanceFault {}
+
 impl<P> DocEdit<P> {
     /// **Whether this edit can move the MATE GRAPH** — the reading
     /// edges A11's clusters are made of: the instance set, the mate
@@ -436,6 +743,11 @@ impl<P> DocEdit<P> {
     pub(crate) fn writes_a_mates_datum(&self) -> bool {
         match self {
             Self::InsertNode { node } => matches!(node, Node::Mate { .. }),
+            // A reshaping rebinds or retires the NAMES a mate's heads
+            // hold — `Rebind`'s motion over every name at once — and
+            // never touches a datum; a head it strands is N5's, the
+            // solve's at evaluation.
+            Self::SetProgram { .. } => false,
             Self::DeleteNode { .. }
             | Self::SetMembers { .. }
             | Self::Rebind { .. }
@@ -471,6 +783,10 @@ impl<P> DocEdit<P> {
             // node, which is the graph's shape changing without its
             // node set changing.
             Self::Rebind { .. } => true,
+            // A reshaped program rebinds every name on its kept steps
+            // in place, a mate's head among them — the same motion as
+            // `Rebind`, over every name at once.
+            Self::SetProgram { .. } => true,
             // Everything else writes a value, a slot, a payload or a
             // presentation record, and leaves the reading edges where
             // they are. `SetPlacement` is the pointed one: it WRITES
@@ -687,6 +1003,27 @@ pub enum EditError {
     SetMembersOnNonList {
         /// The node that carries no list.
         node: RecipeNodeId,
+    },
+    /// `SetProgram` aimed at a node that holds no profile program: a
+    /// node of another kind, or a `Node::Profile` over a payload that
+    /// carries no program ([`crate::ProfilePayload::loops`] answers
+    /// `None` — the `Doc<P>` test payloads). Replacing "the program"
+    /// of a node that has none is a different sentence, not a smaller
+    /// version of this edit.
+    SetProgramOnNonProfile {
+        /// The node that holds no program.
+        node: RecipeNodeId,
+    },
+    /// A `SetProgram`'s provenance does not have the shape its program
+    /// needs ([`ProvenanceFault`] says which way), refused before the
+    /// program is replayed: a provenance the door could not honour
+    /// makes the replay moot, and a caller mends the field named
+    /// rather than the program.
+    ProvenanceMalformed {
+        /// The profile node.
+        node: RecipeNodeId,
+        /// What is wrong with the provenance.
+        fault: ProvenanceFault,
     },
     /// A list input left with fewer than two entries. A union of one
     /// body is that body and a loft through one section is not a skin:
@@ -1394,6 +1731,16 @@ impl core::fmt::Display for EditError {
                 "node {} carries no list input, so it has no members to set",
                 node.0
             ),
+            Self::SetProgramOnNonProfile { node } => write!(
+                f,
+                "node {} holds no profile program, so it has no program to set",
+                node.0
+            ),
+            // The fault owns its sentence; the door adds which node's
+            // program the provenance was about.
+            Self::ProvenanceMalformed { node, fault } => {
+                write!(f, "node {}'s program provenance: {fault}", node.0)
+            }
             Self::TooFewMembers { found, .. } => write!(
                 f,
                 "the node this edit writes would be invalid: {}",
@@ -1776,14 +2123,23 @@ pub enum Maintenance {
     /// what was consumed.
     Cluster(crate::mate::ClusterMaintenance),
     /// **A payload name this edit stranded** (DM7): `node` survives
-    /// and carries `name`, whose minting node the edit deleted.
+    /// and carries `name`, whose referent the edit removed — the node
+    /// that minted it ([`DocEdit::DeleteNode`]), or the profile
+    /// segment it named ([`DocEdit::SetProgram`], for a name on a step
+    /// the reshaping dropped or changed).
     ///
-    /// The name still says exactly what it always said; what is gone
-    /// is the node that minted it, so evaluation answers
+    /// After a delete the name still says exactly what it always said;
+    /// what is gone is the node that minted it, so evaluation answers
     /// [`crate::resolve::ResolveError::NodeGone`] — rung 1 of the N5
-    /// ladder — and [`DocEdit::Rebind`] is the repair. A name is not
-    /// a DAG edge (the D3 carve-out), so the delete is legal: this
-    /// row is what the door owes instead of a refusal.
+    /// ladder. After a reshaping the name is spelled at a RETIRED
+    /// coordinate — at or above [`RETIRED_FLOOR`], which no program
+    /// draws (its doc says why it is not left where it was) — so
+    /// evaluation answers
+    /// [`crate::resolve::ResolveError::Vanished`], rung 3. Either way
+    /// the name resolves to nothing and [`DocEdit::Rebind`] is the
+    /// repair, from the spelling this row carries. A name is not a
+    /// DAG edge (the D3 carve-out), so both edits are legal: this row
+    /// is what the door owes instead of a refusal.
     ///
     /// The deleted minting node is `name.node` and is not repeated as
     /// a field of its own: a second copy is a disagreement waiting to
@@ -1791,13 +2147,15 @@ pub enum Maintenance {
     Strand {
         /// The surviving node whose payload carries the name.
         node: RecipeNodeId,
-        /// The name it carries. Its `node` is the id this edit
-        /// deleted.
+        /// The name it carries, as it carries it now: its `node` is
+        /// the id a delete removed, or its locator is the coordinate
+        /// a reshaping retired it to.
         name: StableName,
     },
     /// **An appearance attachment this edit stranded** (DM7): the
     /// document's appearance store holds an attribute under `name`,
-    /// whose minting node the edit deleted.
+    /// whose referent the edit removed — the minting node, or the
+    /// profile segment.
     ///
     /// The second carrier, and it carries no node: an attachment is
     /// keyed by a [`StableName`] in the store rather than held in a
@@ -1811,10 +2169,13 @@ pub enum Maintenance {
     /// and deliberately does not require a live node.
     ///
     /// The attachment itself is untouched: DM7 reports, it never
-    /// repairs.
+    /// repairs. A reshaping re-keys it under the retired spelling, as
+    /// it does every carrier's copy of the name, and touches the
+    /// attributes under it not at all.
     StrandedAppearance {
-        /// The key the store holds the attachment under. Its `node`
-        /// is the id this edit deleted.
+        /// The key the store holds the attachment under, as it holds
+        /// it now: its `node` is the id a delete removed, or its
+        /// locator is the coordinate a reshaping retired it to.
         name: StableName,
     },
     /// **A [`Node::Declare`] this edit left with no consumer** — the
@@ -1872,6 +2233,33 @@ pub enum Maintenance {
         /// it.
         declare: RecipeNodeId,
     },
+    /// **A name this edit rewrote in place** ([`DocEdit::SetProgram`]):
+    /// `from` was held by a carrier — a payload, or the appearance
+    /// store's keys — and denoted a segment or vertex of a profile
+    /// step the edit KEPT; the step's segments now sit at other
+    /// coordinates, so every carrier holding `from` now holds `to`,
+    /// which denotes the same segment under the new program.
+    ///
+    /// The one arm that reports a REPAIR rather than a consequence
+    /// left for the author: the door knows exactly where the segment
+    /// went (it read both replay records), so leaving the name for a
+    /// [`DocEdit::Rebind`] would be leaving the author to re-derive an
+    /// answer the door had. What the row keeps is the VISIBILITY a
+    /// rewrite would otherwise lose: a moved name is in the accepted
+    /// edit's report, so a name never re-denotes silently.
+    ///
+    /// Both names are `StableName`s, and no carrier is named: a
+    /// payload name's carrier is the node that holds it and a store
+    /// key has none, and a name held by several carriers at once (a
+    /// fillet's selection and a paint on the same wall) moved in every
+    /// one of them under this ONE row — the row is about the name, not
+    /// about where it was found.
+    Rebound {
+        /// The name every carrier held before the edit.
+        from: StableName,
+        /// The name every carrier holds now.
+        to: StableName,
+    },
 }
 
 impl core::fmt::Display for Maintenance {
@@ -1881,27 +2269,32 @@ impl core::fmt::Display for Maintenance {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Cluster(act) => write!(f, "{act}"),
-            // The relative clause binds to the NODE, not to the name:
-            // "a face name minted by node 7, which this edit deleted"
-            // reads as though the name were deleted, and the name is
-            // exactly what survives.
+            // The sentence names what was removed as the name's
+            // REFERENT — the minting node under a delete, the profile
+            // segment under a reshaping — because the row does not say
+            // which edit made it and must not claim the node is gone
+            // when the segment is. "a face name minted by node 7,
+            // which this edit deleted" would read as though the name
+            // were deleted, and the name is exactly what survives.
             Self::Strand { node, name } => write!(
                 f,
-                "node {} carries a {}; this edit deleted node {}, so the name resolves to \
-                 nothing until it is rebound",
-                node.0, name, name.node.0
+                "node {} carries a {}; this edit removed what it denoted (its minting node, or \
+                 the profile segment it named), so the name resolves to nothing until it is \
+                 rebound",
+                node.0, name
             ),
             // The same sentence with the store where the carrying
             // node was: what a reader has to know is that the paint
-            // is still there and which node's departure orphaned it.
-            // A store holds a thing UNDER a key, and `StableName`'s own
-            // Display supplies the noun ("face name minted by node 7"),
-            // so the article is this sentence's to provide.
+            // is still there and what took its referent. A store holds
+            // a thing UNDER a key, and `StableName`'s own Display
+            // supplies the noun ("face name minted by node 7"), so
+            // the article is this sentence's to provide.
             Self::StrandedAppearance { name } => write!(
                 f,
-                "the appearance store holds an attachment under a {}; this edit deleted node {}, \
-                 so the name resolves to nothing until it is rebound or cleared",
-                name, name.node.0
+                "the appearance store holds an attachment under a {}; this edit removed what it \
+                 denoted (its minting node, or the profile segment it named), so the name \
+                 resolves to nothing until it is rebound or cleared",
+                name
             ),
             // The subject is the SURVIVOR here, where both strand
             // sentences above open on a carrier and close on the
@@ -1920,6 +2313,22 @@ impl core::fmt::Display for Maintenance {
                  it, so no node consumes the declaration until a boolean or union names it \
                  again",
                 declare.0
+            ),
+            // The two names render through `StableName`'s own Display,
+            // which spells the kind and the minting node and not the
+            // path, so the two spellings read alike; what the sentence
+            // adds is what happened between them — the profile the
+            // name's segment was drawn from was reshaped, and the
+            // rewrite is a repair the door made, not a loss it left.
+            // "The same step's segment": combinatorially the same
+            // segment, drawn by the step the old one continues into;
+            // its plane may differ when that step's start moved.
+            Self::Rebound { from, to } => write!(
+                f,
+                "a {} was rewritten in place to the {} that draws the same step's segment under \
+                 the reshaped profile program, so every carrier of the name still denotes what \
+                 it did",
+                from, to
             ),
         }
     }
@@ -2034,6 +2443,532 @@ fn orphaned_declares<P: crate::ProfilePayload>(
         .collect()
 }
 
+/// **The provenance's shape** ([`LoopProvenance`]), checked before the
+/// program is replayed: one entry per new loop, one per new step,
+/// every index inside the old program, no old loop or old step
+/// continued twice. The first fault met is the one reported, in the
+/// order the entries are read — loop count, then per loop its step
+/// count, its `from`, and its steps.
+fn check_provenance(
+    node: RecipeNodeId,
+    old: &[crate::program::LoopProgram],
+    new: &[crate::program::LoopProgram],
+    provenance: &[LoopProvenance],
+) -> Result<(), EditError> {
+    use crate::program::program_index as ix;
+    let fault = |fault: ProvenanceFault| EditError::ProvenanceMalformed { node, fault };
+    if provenance.len() != new.len() {
+        return Err(fault(ProvenanceFault::LoopCount {
+            loops: new.len(),
+            provenance: provenance.len(),
+        }));
+    }
+    // Which new loop first continued each old loop, so a second is
+    // named against the first.
+    let mut continued_by: Vec<Option<u32>> = vec![None; old.len()];
+    for (i, (lp, prov)) in new.iter().zip(provenance).enumerate() {
+        let loop_ = ix(i);
+        if prov.steps.len() != lp.authored_steps() {
+            return Err(fault(ProvenanceFault::StepCount {
+                loop_,
+                steps: lp.authored_steps(),
+                provenance: prov.steps.len(),
+            }));
+        }
+        let old_steps = match prov.from {
+            None => None,
+            Some(from) => {
+                let Some(old_loop) = old.get(from as usize) else {
+                    return Err(fault(ProvenanceFault::NoSuchOldLoop {
+                        loop_,
+                        from,
+                        old_loops: old.len(),
+                    }));
+                };
+                if let Some(first) = continued_by[from as usize] {
+                    return Err(fault(ProvenanceFault::OldLoopContinuedTwice {
+                        from,
+                        first,
+                        again: loop_,
+                    }));
+                }
+                continued_by[from as usize] = Some(loop_);
+                Some((from, old_loop.authored_steps()))
+            }
+        };
+        let mut step_continued_by: Vec<Option<u32>> = vec![None; old_steps.map_or(0, |(_, n)| n)];
+        for (j, old_step) in prov.steps.iter().enumerate() {
+            let step = ix(j);
+            let Some(old_step) = *old_step else {
+                continue;
+            };
+            let Some((from, count)) = old_steps else {
+                return Err(fault(ProvenanceFault::StepOfNewLoop {
+                    loop_,
+                    step,
+                    old_step,
+                }));
+            };
+            if old_step as usize >= count {
+                return Err(fault(ProvenanceFault::NoSuchOldStep {
+                    loop_,
+                    step,
+                    from,
+                    old_step,
+                    old_steps: count,
+                }));
+            }
+            if let Some(first) = step_continued_by[old_step as usize] {
+                return Err(fault(ProvenanceFault::OldStepContinuedTwice {
+                    loop_,
+                    from,
+                    old_step,
+                    first,
+                    again: step,
+                }));
+            }
+            step_continued_by[old_step as usize] = Some(step);
+        }
+    }
+    Ok(())
+}
+
+/// **The floor of the retired index space.** A name whose step a
+/// reshaping dropped or changed is RETIRED by [`DocEdit::SetProgram`]
+/// to a coordinate at or above this floor — segment `RETIRED_FLOOR +
+/// s` of the loop that continues its loop, or loop `RETIRED_FLOOR + l`
+/// of the program where none does, `s` and `l` its old coordinates —
+/// and no program draws there: a coordinate is a count of the loop's
+/// segments in memory (`program_index` narrows exactly such a count,
+/// and a loop of `RETIRED_FLOOR` segments would hold 2^31 vertices,
+/// tens of gibibytes before the validator's pairwise self-intersection
+/// walk ever ran over it), so a drawn coordinate is bounded far below
+/// the floor by what fits, not by a check. That is what lets a retired
+/// name stay dead under EVERY later edit, a slot edit included — a
+/// corner fillet whose runs reach a `Zero` fit emits nothing, so a
+/// `SetParam` on its radius grows the loop by two segments and reports
+/// nothing, and a coordinate one past the OLD end would have gone live
+/// under it. A coordinate already at or above the floor is left
+/// exactly where it is by every later reshaping, and reported by none
+/// (DM7's clause is the referent THE EDIT removed; a name already
+/// retired lost its referent at an earlier one).
+///
+/// The sum cannot overflow: an old coordinate below the floor plus
+/// the floor is at most `u32::MAX - 1`.
+pub const RETIRED_FLOOR: u32 = u32::MAX / 2;
+
+/// Whether a coordinate is already in the retired space, where the
+/// map leaves it alone.
+fn already_retired(loop_: u32, index: u32) -> bool {
+    loop_ >= RETIRED_FLOOR || index >= RETIRED_FLOOR
+}
+
+/// **Where every segment of the program a node held went**, read off
+/// the two checked replay records and the provenance — the map a
+/// `SetProgram` rewrites every profile locator through.
+///
+/// A KEPT step is an old step some new step continues whose recorded
+/// span has the SAME length as the new step's: its segments map
+/// segment-for-segment in order. A step nothing continues is dropped;
+/// a continued step whose span length moved is changed and treated as
+/// dropped for every name on it — the record says which arm of the
+/// transition table ran, and a different arm did not draw "the same
+/// segments, elsewhere". A loop no new loop continues maps none of its
+/// segments. Segments are PROGRAM-order indices on both sides (the
+/// names hold them so, DM8, and the spans are recorded so), and no
+/// canonical permutation enters.
+///
+/// A vertex maps as the segment ARRIVING at it: vertex `v` is the end
+/// of segment `v - 1` (mod the loop's length), so it lands at the end
+/// of that segment's image. The segment LEAVING it would be wrong
+/// exactly where this edit is most used — a leg inserted before step
+/// `s` leaves old vertex `s - 1` where it stands while segment
+/// `s - 1`'s image now starts at the inserted point.
+///
+/// A segment nothing maps has no image, and the name on it is RETIRED
+/// ([`RETIRED_FLOOR`]) rather than left in place: left in place it
+/// would denote whichever segment the new program draws at its old
+/// index, silently, and collide in a selection with a kept name moved
+/// onto that index. Retired it resolves to nothing — `Vanished`, the
+/// N5 ladder's rung whose diagnosis offers the repair — and the
+/// strand row carries the spelling the document now holds. A name
+/// already retired is not a strand of this edit and is untouched.
+struct SegmentMap {
+    /// Per OLD loop, per old segment: the new `(loop, segment)` it
+    /// maps to, or `None` where the step that drew it was dropped or
+    /// changed. Empty when the old program's record cannot be read, in
+    /// which case no segment maps and every name strands: a
+    /// provenance cannot be honoured against spans nobody can read.
+    old: Vec<Vec<Option<(u32, u32)>>>,
+    /// Per OLD loop, the new loop that continues it (`None` where
+    /// none does) — where a retired name of that loop is filed.
+    continued: Vec<Option<u32>>,
+    /// Per NEW loop, its segment count — a vertex wraps modulo it.
+    new_len: Vec<u32>,
+}
+
+/// One locator's image under a [`SegmentMap`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Image<L> {
+    /// The step that drew it was kept: this is where it went.
+    Kept(L),
+    /// Nothing drew it any more: this is the retired coordinate the
+    /// name now carries, and the name is reported stranded.
+    Retired(L),
+}
+
+impl SegmentMap {
+    /// `old_loops` is the old program's loop count — known from the
+    /// program itself, so a loop's continuation is read off the
+    /// provenance whether or not the old program's record can be
+    /// read; `old` is its checked records where it can.
+    ///
+    /// Both records are read through DM8's checked door
+    /// ([`CheckedRecords::span_of`]): the shape check that admitted
+    /// them says the step counts agree with the programs, and a span
+    /// past its loop's end is refused per step. For the NEW program
+    /// that refusal is the door's ([`ProgramRefusal::Record`]); for
+    /// the OLD program, which is replayed without validation and may
+    /// be a program the tree no longer admits, a span the walk refuses
+    /// is a step whose segments cannot be found, and every name on it
+    /// strands — reported, never guessed.
+    ///
+    /// # Errors
+    ///
+    /// [`ProgramRefusal::Record`] where the new program's checked
+    /// record refuses a span.
+    fn build(
+        old: Option<&[CheckedRecords<'_, '_>]>,
+        old_loops: usize,
+        new: &[CheckedRecords<'_, '_>],
+        provenance: &[LoopProvenance],
+    ) -> Result<Self, ProgramRefusal> {
+        use crate::program::program_index as ix;
+        let new_len: Vec<u32> = new.iter().map(|r| ix(r.segments())).collect();
+        let mut continued: Vec<Option<u32>> = vec![None; old_loops];
+        for (i, prov) in provenance.iter().enumerate() {
+            if let Some(from) = prov.from
+                && let Some(slot) = continued.get_mut(from as usize)
+            {
+                *slot = Some(ix(i));
+            }
+        }
+        let Some(old) = old else {
+            return Ok(Self {
+                old: Vec::new(),
+                continued,
+                new_len,
+            });
+        };
+        let mut map: Vec<Vec<Option<(u32, u32)>>> =
+            old.iter().map(|r| vec![None; r.segments()]).collect();
+        for (i, prov) in provenance.iter().enumerate() {
+            let Some(from) = prov.from else {
+                continue;
+            };
+            // The shape check ran first, so `from` is an old loop and
+            // every `Some` step is one of its steps; the records were
+            // admitted by the checked door, so each has one span per
+            // authored step.
+            let (Some(old_record), Some(new_record)) = (old.get(from as usize), new.get(i)) else {
+                continue;
+            };
+            for (j, old_step) in prov.steps.iter().enumerate() {
+                let Some(k) = *old_step else {
+                    continue;
+                };
+                let ns = new_record
+                    .span_of(ix(j))
+                    .map_err(|error| ProgramRefusal::Record {
+                        loop_: ix(i),
+                        error,
+                    })?;
+                let Ok(os) = old_record.span_of(k) else {
+                    continue;
+                };
+                if os.len() != ns.len() {
+                    continue;
+                }
+                for (t, s) in os.iter().enumerate() {
+                    map[from as usize][s] = Some((ix(i), ix(ns.start() + t)));
+                }
+            }
+        }
+        Ok(Self {
+            old: map,
+            continued,
+            new_len,
+        })
+    }
+
+    /// Where old segment `(loop, segment)` went, or `None` where the
+    /// step that drew it was dropped or changed, the loop was dropped,
+    /// or the old program never drew that coordinate.
+    fn kept(&self, loop_: u32, segment: u32) -> Option<(u32, u32)> {
+        *self.old.get(loop_ as usize)?.get(segment as usize)?
+    }
+
+    /// The retired coordinate for old `(loop, index)`, `index` below
+    /// the floor: on the loop that continues its loop, at
+    /// `RETIRED_FLOOR + index`; or on loop `RETIRED_FLOOR + loop`
+    /// where nothing does, at `index`. Distinct per old coordinate.
+    fn retired(&self, loop_: u32, index: u32) -> (u32, u32) {
+        match self.continued.get(loop_ as usize).copied().flatten() {
+            Some(i) => (i, RETIRED_FLOOR + index),
+            None => (RETIRED_FLOOR + loop_, index),
+        }
+    }
+
+    /// The image of an edge locator; `None` where it is already
+    /// retired and this edit has nothing to say about it.
+    fn edge(&self, e: ProfileEdgeRef) -> Option<Image<ProfileEdgeRef>> {
+        if already_retired(e.loop_index, e.segment) {
+            return None;
+        }
+        let at = |(loop_index, segment)| ProfileEdgeRef {
+            loop_index,
+            segment,
+        };
+        Some(match self.kept(e.loop_index, e.segment) {
+            Some(to) => Image::Kept(at(to)),
+            None => Image::Retired(at(self.retired(e.loop_index, e.segment))),
+        })
+    }
+
+    /// The image of a vertex locator, carried by the segment arriving
+    /// at it; `None` where it is already retired.
+    fn vertex(&self, v: ProfileVertexRef) -> Option<Image<ProfileVertexRef>> {
+        use crate::program::program_index as ix;
+        if already_retired(v.loop_index, v.vertex) {
+            return None;
+        }
+        let at = |(loop_index, vertex)| ProfileVertexRef { loop_index, vertex };
+        let retired = || Some(Image::Retired(at(self.retired(v.loop_index, v.vertex))));
+        let Some(n_old) = self.old.get(v.loop_index as usize).map(Vec::len) else {
+            return retired();
+        };
+        if n_old == 0 || v.vertex as usize >= n_old {
+            return retired();
+        }
+        let arriving = (v.vertex as usize + n_old - 1) % n_old;
+        let Some((loop_index, segment)) = self.kept(v.loop_index, ix(arriving)) else {
+            return retired();
+        };
+        let n_new = self.new_len.get(loop_index as usize).copied().unwrap_or(0);
+        if n_new == 0 {
+            return retired();
+        }
+        Some(Image::Kept(at((loop_index, (segment + 1) % n_new))))
+    }
+}
+
+/// **A name mapped through a reshaped program**: the [`SegRewrite`]
+/// that decides, for every `StableName` a carrier holds, whether the
+/// edit left it alone, moved it, or stranded it — and what it is
+/// spelled as now. The walk over a name's shape is
+/// `RoleSeg::rewrite`'s, shared with the anchor rewrite and the
+/// split re-map; what this rewriter adds is the locator's image and
+/// the descent into every carried name.
+struct ProgramRemap<'a> {
+    map: &'a SegmentMap,
+    /// The nodes whose OWN locators are spelled in the reshaped
+    /// profile's coordinates ([`Node::anchoring_profile`]). A name
+    /// minted by any other node holds this profile's coordinates only
+    /// inside the `NameRef`s it carries, which the descent reaches.
+    anchored: std::collections::BTreeSet<RecipeNodeId>,
+    /// Whether the name being walked right now is minted by an
+    /// anchored node — set per name on the way down, restored on the
+    /// way up.
+    here: bool,
+    /// Whether any locator of the name being imaged had no image:
+    /// reset per top-level name, read after the walk.
+    stranded: bool,
+}
+
+impl ProgramRemap<'_> {
+    fn new(
+        map: &SegmentMap,
+        anchored: std::collections::BTreeSet<RecipeNodeId>,
+    ) -> ProgramRemap<'_> {
+        ProgramRemap {
+            map,
+            anchored,
+            here: false,
+            stranded: false,
+        }
+    }
+
+    /// `None`: untouched. `Some(Kept(now))`: moved onto the kept
+    /// segments' new coordinates. `Some(Retired(now))`: a locator
+    /// anywhere in the name — at its own level or inside a carried
+    /// name — had no image, and the whole name is reported stranded
+    /// under the spelling `now`.
+    fn image(&mut self, name: &StableName) -> Option<Image<StableName>> {
+        self.stranded = false;
+        let Ok(now) = self.name(name);
+        let now = now?;
+        Some(if self.stranded {
+            Image::Retired(now)
+        } else {
+            Image::Kept(now)
+        })
+    }
+}
+
+impl SegRewrite for ProgramRemap<'_> {
+    type Error = core::convert::Infallible;
+
+    fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Self::Error> {
+        if !self.here {
+            return Ok(e);
+        }
+        Ok(match self.map.edge(e) {
+            Some(Image::Kept(to)) => to,
+            Some(Image::Retired(to)) => {
+                self.stranded = true;
+                to
+            }
+            None => e,
+        })
+    }
+
+    fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Self::Error> {
+        if !self.here {
+            return Ok(v);
+        }
+        Ok(match self.map.vertex(v) {
+            Some(Image::Kept(to)) => to,
+            Some(Image::Retired(to)) => {
+                self.stranded = true;
+                to
+            }
+            None => v,
+        })
+    }
+
+    /// Every carried name descends: its own locators map iff ITS
+    /// minting node anchors to this profile, and the answer is the
+    /// rewritten name where anything in it moved.
+    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, Self::Error> {
+        let outer = core::mem::replace(&mut self.here, self.anchored.contains(&n.node));
+        let Ok(now) = n.clone().rewrite_path(self);
+        self.here = outer;
+        Ok((now != *n).then_some(now))
+    }
+}
+
+/// **The reshaping's report and rewrite, in one walk over the
+/// document's name carriers** ([`Doc::rewrite_names`], the `&mut` twin
+/// of the walk the delete's report reads, driven by the same
+/// `Carrier::ALL` roster): every name the map strands is rewritten to
+/// its retired spelling and reported ([`Maintenance::Strand`] on its
+/// carrying node, [`Maintenance::StrandedAppearance`] on a store key),
+/// every name the map moves is rewritten in place and reported
+/// [`Maintenance::Rebound`] once, at the first carrier the walk met it
+/// in. A name already retired is neither.
+///
+/// The rows come back in [`Applied::maintenance`]'s contracted order:
+/// the strands, then the stranded keys, then the rebounds.
+///
+/// The rewrite is a function of the map alone, so it is deterministic
+/// and a replay reproduces it: nothing here reads a hash order.
+///
+/// # Errors
+///
+/// A re-keyed appearance record landing on a key already carrying the
+/// same attribute kind or metadata key refuses as `Rebind`'s own
+/// collision does ([`EditError::RebindAppearanceCollision`],
+/// [`EditError::RebindMetadataCollision`]) — which value survives
+/// would be an auto-pick. The map cannot produce one on its own: kept
+/// segments map injectively and retired coordinates are distinct from
+/// every drawn one and from each other, so two keys of this profile
+/// never land on one key. What can collide is a key this edit moves
+/// with a key of ANOTHER profile that happens to spell the same name,
+/// which no coordinate can distinguish and this door does not decide.
+fn reshape_report<P>(
+    doc: &mut Doc<P>,
+    remap: &mut ProgramRemap<'_>,
+) -> Result<Vec<Maintenance>, EditError> {
+    let mut strands = Vec::new();
+    let mut stranded_keys = Vec::new();
+    let mut rebounds = Vec::new();
+    // The names already reported moved, so a name held by two
+    // carriers rides one row. A list rather than a set: the order it
+    // is searched in is not an output, and it stays free of any hash.
+    let mut reported: Vec<StableName> = Vec::new();
+    doc.rewrite_names(
+        |carrier| {
+            let (name, node) = match carrier {
+                NameCarrier::Payload { node, name } => (name, Some(node)),
+                NameCarrier::Store { name } => (name, None),
+            };
+            match remap.image(name)? {
+                Image::Retired(now) => {
+                    match node {
+                        Some(node) => strands.push(Maintenance::Strand {
+                            node,
+                            name: now.clone(),
+                        }),
+                        None => stranded_keys
+                            .push(Maintenance::StrandedAppearance { name: now.clone() }),
+                    }
+                    Some(now)
+                }
+                Image::Kept(now) => {
+                    if !reported.contains(name) {
+                        reported.push(name.clone());
+                        rebounds.push(Maintenance::Rebound {
+                            from: name.clone(),
+                            to: now.clone(),
+                        });
+                    }
+                    Some(now)
+                }
+            }
+        },
+        move_appearance_record,
+    )?;
+    let mut out = strands;
+    out.extend(stranded_keys);
+    out.extend(rebounds);
+    Ok(out)
+}
+
+/// **One appearance record moved onto the key `to`**, attribute by
+/// attribute and metadata entry by entry, refusing where `to` already
+/// carries the same kind or key: which value survives would be an
+/// auto-pick. The store half of every name rewrite —
+/// [`DocEdit::Rebind`]'s one pair and [`DocEdit::SetProgram`]'s map —
+/// so the two doors cannot disagree about what a collision is.
+fn move_appearance_record(
+    store: &mut crate::appearance::AppearanceMap,
+    moved: crate::appearance::AppearanceRecord,
+    to: &StableName,
+) -> Result<(), EditError> {
+    let dst = store.entry(to.clone()).or_default();
+    for (kind, attr) in moved.attrs {
+        if dst.attrs.contains_key(&kind) {
+            return Err(EditError::RebindAppearanceCollision {
+                name: to.clone(),
+                kind,
+            });
+        }
+        dst.attrs.insert(kind, attr);
+    }
+    // The D7 metadata rides the record through the same move, under
+    // the same no-auto-pick collision rule.
+    for (key, value) in moved.metadata {
+        if dst.metadata.contains_key(&key) {
+            return Err(EditError::RebindMetadataCollision {
+                name: to.clone(),
+                key,
+            });
+        }
+        dst.metadata.insert(key, value);
+    }
+    Ok(())
+}
+
 /// An accepted edit: the NEW document (the input untouched, spec D2)
 /// plus the [`EditRecord`].
 #[derive(Debug, Clone, PartialEq)]
@@ -2045,30 +2980,41 @@ pub struct Applied<P> {
     /// **What the edit did that the caller did not ask for**: the A11
     /// cluster-record maintenance it forced, the references it
     /// stranded (DM7) — the payload names, then the appearance keys —
-    /// and the declarations it left with no consumer. See
-    /// [`Maintenance`].
+    /// the names it rewrote in place, and the declarations it left
+    /// with no consumer. See [`Maintenance`].
     ///
     /// **The order is a CONTRACT, not an accident of the
     /// implementation, and a consumer may rely on it**: every
     /// [`Maintenance::Strand`] first, in the document's node order
     /// and within one node in the payload's own order; then every
     /// [`Maintenance::StrandedAppearance`], in the appearance store's
-    /// key order; then every [`Maintenance::OrphanedDeclare`] (at
-    /// most one today — [`Node::declare_input`] is an `Option`, so
-    /// no node kind holds two; in the deleted node's input order
-    /// should a kind ever hold two, and
+    /// key order; then every [`Maintenance::Rebound`], one row per
+    /// name in the order the same walk first met it — the node
+    /// carriers' occurrences in document order and payload order, then
+    /// the store's keys in key order — so a name held by a payload and
+    /// by the store rides one row, at the payload's position; then
+    /// every [`Maintenance::OrphanedDeclare`] (at most one today —
+    /// [`Node::declare_input`] is an `Option`, so no node kind holds
+    /// two; in the deleted node's input order should a kind ever hold
+    /// two, and
     /// `dm7_delete_strands::no_delete_can_report_two_orphans_today`
     /// reds the day that changes); then the A11 cluster acts, which
     /// reconcile the registry against the document the strands were
-    /// read out of. The strands and the orphans are read at the door,
-    /// out of the document the edit had just produced.
+    /// read out of. The strands, the rebounds and the orphans are read
+    /// at the door, out of the document the edit had just produced. A
+    /// delete reports strands and orphans and never a rebound; a
+    /// `SetProgram` reports strands and rebounds and never an orphan;
+    /// no other edit reports any of the three.
     ///
     /// The paragraph above is the contract — it is stated here in
     /// full because a consumer outside this crate cannot read
     /// `Carrier::ALL`, which is `pub(crate)`. In-crate the order has
-    /// one home all the same: the report is `Doc::name_carriers`
-    /// filtered on the deleted node, so the strands' order is that
-    /// walk's, and a reader who wants to see why reads it there.
+    /// one home all the same: one roster, `Carrier::ALL`, drives both
+    /// walks — the delete's report reads `Doc::name_carriers`, filtered
+    /// on the deleted node, and the program edit's rewrites through
+    /// `Doc::rewrite_names`, its `&mut` twin, mapped through the
+    /// segment map — so the strands' and the rebounds' orders are that
+    /// roster's, and a reader who wants to see why reads it there.
     ///
     /// Each boundary is held by the row whose fixture actually
     /// produces the pair of kinds it separates:
@@ -2083,7 +3029,11 @@ pub struct Applied<P> {
     /// The orphan boundary is
     /// `dm7_delete_strands::an_orphaned_declare_follows_the_strands_of_the_same_delete`,
     /// whose one delete both strands a name a surviving node carries
-    /// and takes a declaration's last consumer.
+    /// and takes a declaration's last consumer. The rebound boundary
+    /// is
+    /// `edit_set_program::a_reshaping_reports_its_strands_then_its_stranded_keys_then_its_rebounds`,
+    /// whose one edit strands a payload name, strands a store key and
+    /// rebinds a name held by both carriers.
     /// What a consumer may NOT do is read position 0 as a kind: a
     /// delete that strands no payload name puts an appearance strand
     /// or a cluster act there, so an arm is found by matching, never
@@ -2109,11 +3059,13 @@ impl<P> Applied<P> {
             .filter_map(|m| match m {
                 Maintenance::Cluster(act) => Some(act.clone()),
                 // A strand and an orphaned Declare are facts the next
-                // evaluation reports from the document; only a cluster
-                // act is state replay has to re-apply.
+                // evaluation reports from the document, and a rebound
+                // name is one the document now holds rewritten; only a
+                // cluster act is state replay has to re-apply.
                 Maintenance::Strand { .. }
                 | Maintenance::StrandedAppearance { .. }
-                | Maintenance::OrphanedDeclare { .. } => None,
+                | Maintenance::OrphanedDeclare { .. }
+                | Maintenance::Rebound { .. } => None,
             })
             .collect()
     }
@@ -2617,11 +3569,13 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
     // ([`DocEdit::moves_the_mate_graph`]), so a new arm answers the
     // question or does not compile.
     let reconcile = edit.moves_the_mate_graph();
-    // The delete door's report, read at the door that made it: DM7's
-    // strands, and the declarations the same delete orphaned. Only
-    // `DeleteNode` fills this: no other edit removes a node, so no
-    // other edit can strand a name — `Rebind` moves references onto a
-    // live one — or take a declaration's last consumer.
+    // The report read at the door that made it: DM7's strands and the
+    // declarations a delete orphaned, or the strands and the rebounds
+    // a reshaped program made. Two edits fill this — `DeleteNode`,
+    // the only edit that removes a node, and `SetProgram`, the only
+    // edit that moves what a profile's segments are; `Rebind` moves
+    // references onto a live name at the author's word and reports
+    // nothing.
     let mut reported: Vec<Maintenance> = Vec::new();
     let record = match edit {
         DocEdit::InsertNode { node } => {
@@ -2798,6 +3752,96 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                 structural: true,
             }
         }
+        DocEdit::SetProgram {
+            node,
+            loops,
+            provenance,
+        } => {
+            let payload = match new.nodes.get(node) {
+                None => return Err(EditError::UnknownNode { id: *node }),
+                Some(Node::Profile(p)) => p,
+                Some(_) => return Err(EditError::SetProgramOnNonProfile { node: *node }),
+            };
+            let (Some(old_loops), Some(rewritten)) =
+                (payload.loops(), payload.with_loops(loops.clone()))
+            else {
+                return Err(EditError::SetProgramOnNonProfile { node: *node });
+            };
+            // The provenance's shape FIRST: a provenance the door
+            // could not honour makes the replay below moot, and the
+            // caller mends the field named rather than the program.
+            check_provenance(*node, old_loops, loops, provenance)?;
+            // The rewritten node walks the insert door's own slot
+            // checks — the same function, not a mirror: dimensions and
+            // parameter references over every argument of every loop.
+            let probe = Node::Profile(rewritten);
+            check_node_slots(&new, *node, &probe)?;
+            let Node::Profile(rewritten) = &probe else {
+                unreachable!("the probe was built as a profile node two lines above")
+            };
+            // Then the VQ9 door the insert door runs, keeping what the
+            // replay decided: the new program's per-step spans.
+            let env = new.param_env::<f64>();
+            let refused = |refusal| EditError::ProfileProgramRefused {
+                node: *node,
+                refusal: Box::new(refusal),
+            };
+            let (new_loops, new_records) = rewritten.check_returning(&env, tol).map_err(refused)?;
+            // Read through DM8's checked door, so which segments each
+            // authored step draws is answered by the one walk that
+            // answers it at evaluation; a record the walk refuses is a
+            // typed refusal of the edit, never a guess.
+            let new_programs = rewritten
+                .loops()
+                .ok_or(EditError::SetProgramOnNonProfile { node: *node })?;
+            let new_checked =
+                checked_replay(new_programs, &new_loops, &new_records).map_err(refused)?;
+            // The program being replaced, replayed under the same env
+            // for ITS spans — the coordinates every name on it holds.
+            // Validation is not asked of it: a program that replays
+            // and does not validate (V1 class 2: refusing programs may
+            // exist at rest) still has the spans its names were
+            // published against. One that does not even replay, or
+            // whose record the checked door refuses, has no readable
+            // spans, so nothing can be mapped and every name on it
+            // strands — reported, never guessed.
+            let old_replayed = payload.replay_records(&env, tol).ok();
+            let old_checked = old_replayed
+                .as_ref()
+                .and_then(|(loops, records)| checked_replay(old_loops, loops, records).ok());
+            let map = SegmentMap::build(
+                old_checked.as_deref(),
+                old_loops.len(),
+                &new_checked,
+                provenance,
+            )
+            .map_err(refused)?;
+            new.nodes.insert(*node, probe);
+            // Whose locators are spelled in this profile's coordinates:
+            // the sweeps over it. Every other node's names hold them
+            // only inside carried names, which the walk descends.
+            let anchored = new
+                .order
+                .iter()
+                .copied()
+                .filter(|id| {
+                    new.nodes
+                        .get(id)
+                        .is_some_and(|n| n.anchoring_profile() == Some(*node))
+                })
+                .collect();
+            reported = reshape_report(&mut new, &mut ProgramRemap::new(&map, anchored))?;
+            // Structural whatever moved: the edit's class is a
+            // rewrite of program structure — verbs, order, count —
+            // and the record classifies the edit, as
+            // `SetStructuralParam` is structural whether or not the
+            // count it writes differs. An identity program is this
+            // edit with nothing to do, not a different edit.
+            EditRecord {
+                minted: None,
+                structural: true,
+            }
+        }
         DocEdit::SetParam { node, slot, expr } => {
             if slot.is_structural() {
                 return Err(EditError::StructuralSlotNeedsStructuralEdit { slot: *slot });
@@ -2946,31 +3990,12 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // the name — PR 7's store; also the spec D9 banked
             // operand→final repair path). A per-kind collision with
             // an attribute already on `to` is refused loudly: which
-            // value survives would be an auto-pick.
+            // value survives would be an auto-pick —
+            // `move_appearance_record` is the one home for that rule.
             let mut appearance_sites = 0usize;
             if let Some(moved) = new.appearance.remove(from) {
                 appearance_sites += 1;
-                let dst = new.appearance.entry(to.clone()).or_default();
-                for (kind, attr) in moved.attrs {
-                    if dst.attrs.contains_key(&kind) {
-                        return Err(EditError::RebindAppearanceCollision {
-                            name: to.clone(),
-                            kind,
-                        });
-                    }
-                    dst.attrs.insert(kind, attr);
-                }
-                // The D7 metadata rides the record through the same
-                // move, under the same no-auto-pick collision rule.
-                for (key, value) in moved.metadata {
-                    if dst.metadata.contains_key(&key) {
-                        return Err(EditError::RebindMetadataCollision {
-                            name: to.clone(),
-                            key,
-                        });
-                    }
-                    dst.metadata.insert(key, value);
-                }
+                move_appearance_record(&mut new.appearance, moved, to)?;
             }
             if declare_sites + appearance_sites == 0 {
                 return Err(EditError::RebindNoReferences { name: from.clone() });

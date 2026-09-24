@@ -1037,7 +1037,9 @@ pub(crate) fn relative_freedom_components(doc: &super::doc::Doc) -> Vec<Vec<Node
 /// `name` for a strand, `name` alone for a `stranded_appearance`,
 /// whose carrier is the appearance store and not a node, and `node`
 /// alone for an `orphaned_declare`, whose subject is the surviving
-/// declaration rather than anything the edit broke.
+/// declaration rather than anything the edit broke; `name` and
+/// `rebound_to` for a `rebound`, the spelling a reshaped profile's
+/// name had and the one it has now.
 /// (`source`/`target` rather than `from`/`to`: `from` is a Python
 /// keyword.)
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
@@ -1053,7 +1055,8 @@ impl Maintenance {
             d::Maintenance::Cluster(act) => Some(act),
             d::Maintenance::Strand { .. }
             | d::Maintenance::StrandedAppearance { .. }
-            | d::Maintenance::OrphanedDeclare { .. } => None,
+            | d::Maintenance::OrphanedDeclare { .. }
+            | d::Maintenance::Rebound { .. } => None,
         }
     }
 }
@@ -1061,9 +1064,9 @@ impl Maintenance {
 #[pymethods]
 impl Maintenance {
     /// The stable tag: `join`, `split`, `gauge_rewrite`, `drop`,
-    /// `strand`, `stranded_appearance` or `orphaned_declare`, the
-    /// seven the stub lists for this attribute. The word decides
-    /// which of the payload attributes below carry.
+    /// `strand`, `stranded_appearance`, `orphaned_declare` or
+    /// `rebound`, the eight the stub lists for this attribute. The
+    /// word decides which of the payload attributes below carry.
     // The map is `crate::tags::maintenance_tag`, whose words
     // `TAG_INVENTORY` pins.
     #[getter]
@@ -1087,22 +1090,46 @@ impl Maintenance {
         match &self.0 {
             d::Maintenance::Strand { node, .. } => Some(NodeId(*node)),
             d::Maintenance::OrphanedDeclare { declare } => Some(NodeId(*declare)),
-            d::Maintenance::Cluster(_) | d::Maintenance::StrandedAppearance { .. } => None,
+            // A rebound name rides one row however many carriers held
+            // it, so the row names no carrier.
+            d::Maintenance::Cluster(_)
+            | d::Maintenance::StrandedAppearance { .. }
+            | d::Maintenance::Rebound { .. } => None,
         }
     }
 
-    /// The stranded name itself, in the opaque text every name door
-    /// on this surface speaks — the payload name for a `strand`, the
-    /// appearance store's key for a `stranded_appearance`. Its
-    /// minting node is the one the edit deleted; `Doc.rebind` is the
-    /// repair this surface carries for either one.
+    /// The name this row is about, in the opaque text every name door
+    /// on this surface speaks — the stranded payload name for a
+    /// `strand`, the appearance store's stranded key for a
+    /// `stranded_appearance`, and the spelling every carrier held
+    /// BEFORE the edit for a `rebound`. A stranded name is spelled as
+    /// the document now holds it — its minting node deleted, or its
+    /// profile locator retired — and `DocEdit.rebind` from that
+    /// spelling is the repair this surface carries.
     #[getter]
     fn name(&self, py: Python<'_>) -> PyResult<Option<String>> {
         match &self.0 {
-            d::Maintenance::Strand { name, .. } | d::Maintenance::StrandedAppearance { name } => {
+            d::Maintenance::Strand { name, .. }
+            | d::Maintenance::StrandedAppearance { name }
+            | d::Maintenance::Rebound { from: name, .. } => {
                 super::doc::name_text(py, name).map(Some)
             }
             d::Maintenance::Cluster(_) | d::Maintenance::OrphanedDeclare { .. } => Ok(None),
+        }
+    }
+
+    /// The spelling every carrier holds NOW, for a `rebound` — the
+    /// same name, at the coordinates the reshaped program draws its
+    /// segment at. `None` on every other row: a strand is not moved,
+    /// and a cluster act names gauges.
+    #[getter]
+    fn rebound_to(&self, py: Python<'_>) -> PyResult<Option<String>> {
+        match &self.0 {
+            d::Maintenance::Rebound { to, .. } => super::doc::name_text(py, to).map(Some),
+            d::Maintenance::Strand { .. }
+            | d::Maintenance::StrandedAppearance { .. }
+            | d::Maintenance::Cluster(_)
+            | d::Maintenance::OrphanedDeclare { .. } => Ok(None),
         }
     }
 

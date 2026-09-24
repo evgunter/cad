@@ -385,3 +385,37 @@ shape. The blend's two sites and the generator's roundtrip inverse
 take the describing door; the generator's other kills supply a chord
 spec or keep their filter. Kernel answer: a block slot; this row is
 now the unit, and `S93` closes with it.
+
+## Evidence from TOPO-B5 slot 2 (branch `topo/rebasing-gate-null-edges-and-no-move`)
+
+`Body::certify_rebased_run` now refuses a **null edge** where the
+moved run holds exactly one of its halves
+(`EulerOpError::RebasedNullEdge`), because whether the moved end lands
+on the other end's point is the exact `p_new == p_old` question the
+gate does not ask (its rustdoc says why;
+`work/topo/the-re-basing-gate-refuses-m7-8-where-nothing-moves.md`
+carries the `[ev]` proposal). A run holding both halves moves the null
+edge whole and is carried. Two consequences for this unit:
+
+- **`kev`'s fan merge carries the same null-edge hole, unchecked**: a
+  `kev` of a real edge whose far fan holds one half of a null edge
+  re-bases that half onto a distinct point, exactly as the certified
+  `mev` fan did before the slot-2 fix. Pinned as it stands by
+  `euler::tests::kevs_fan_merge_moves_one_end_of_a_null_edge_onto_a_distinct_point_unchecked`
+  (`kev` answers `Ok`, the null edge's ends are `(0,0,0)` and
+  `(1,0,0)`, tier 1 green); the unit that gives the kill its gate flips
+  that row.
+- **What reusing the gate would cost the pipelines is not measured to
+  be anything.** Instrumenting `kev` across `cargo test -p topo` and
+  `-p sweep` at `36c7d0f36` (the slot's review round) found ZERO
+  pipeline kills (`boolean/zip.rs`, `boolean/rest.rs`, `splitting/reassembly.rs`)
+  whose far fan holds a null edge, so an over-refusal there is
+  hypothetical. The same instrumentation found that those kills do not
+  all merge coincident copies: 58 zip kills merge two vertices whose
+  points differ by ulps (for instance under
+  `m3_pr6_saddle::tilt_sweep_no_silent_mispair`, `z = 0.5000000000000001`
+  against `0.5`), so a zip `kev` DOES move its merged fan, by an ulp.
+  Any null arm this unit gives `kev` therefore cannot lean on "the
+  killed edge's ends are coincident copies": at the zip they are two
+  points, and a structural answer has to come from the run's shape (as
+  the `mev` gate's both-halves arm does), not from the coordinates.
