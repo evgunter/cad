@@ -1772,10 +1772,7 @@ pub(crate) fn split_cache<T: Decide>(
 /// [`PcurveMintError`] — a certification refusal, a discontinuous or
 /// unclosed loop walk, or an escalated classification. Never a silent
 /// skip of a face the lane covers.
-pub fn mint_pcurves<T: AtRestPolicy>(
-    body: &mut Body<T>,
-    tol: Tol,
-) -> Result<(), PcurveMintError> {
+pub fn mint_pcurves<T: AtRestPolicy>(body: &mut Body<T>, tol: Tol) -> Result<(), PcurveMintError> {
     let band = Band::linear(tol).map_err(PcurveMintError::Band)?;
     // Start from empty. A body reaching this pass may have been carved
     // from a scratch clone that inherited rows for half-edges the

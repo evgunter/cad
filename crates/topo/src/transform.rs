@@ -984,7 +984,7 @@ mod offset_fit_door_rows {
             Some(OffsetFitLane::fit()),
             <f64 as crate::AtRestPolicy>::scalar_name(),
         )
-            .expect("a rigid map of a certified fit re-certifies at the same tolerance");
+        .expect("a rigid map of a certified fit re-certifies at the same tolerance");
         let spec = mapped.spec();
         let geom::SurfaceDescription::Offset { base, d } = &spec.description;
         assert_eq!(

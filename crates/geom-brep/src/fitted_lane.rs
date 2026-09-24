@@ -87,7 +87,8 @@ pub struct FittedLane<T: Real> {
         Band,
     ) -> Result<SsiCertificate<T>, PcurveCertifyError>,
     /// [`FittedLane::general_image`]'s body.
-    general_image_lane: fn(&NurbsCurve3<T>, &NurbsSurface<T>) -> Result<NurbsCurve2<T>, PcurveCertifyError>,
+    general_image_lane:
+        fn(&NurbsCurve3<T>, &NurbsSurface<T>) -> Result<NurbsCurve2<T>, PcurveCertifyError>,
     /// [`FittedLane::chart_foot`]'s body.
     chart_foot_lane: fn(Point3<T>, &NurbsSurface<T>) -> Result<Point2<f64>, PcurveCertifyError>,
 }
@@ -237,10 +238,7 @@ mod wiring_rows {
         ) {
             return Err("general_image_lane is not `pcurve_cache::general_image_lane`");
         }
-        if !std::ptr::fn_addr_eq(
-            lane.chart_foot_lane,
-            chart_foot_lane::<T> as fn(_, _) -> _,
-        ) {
+        if !std::ptr::fn_addr_eq(lane.chart_foot_lane, chart_foot_lane::<T> as fn(_, _) -> _) {
             return Err("chart_foot_lane is not `pcurve_cache::chart_foot_lane`");
         }
         Ok(())

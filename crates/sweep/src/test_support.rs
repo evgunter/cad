@@ -499,11 +499,7 @@ pub fn ball_poled_z(r: f64, c: Vec3<f64>, tol: Tol) -> Body<f64> {
 
 /// [`ball_poled_z`] at any scalar the revolve and rigid-motion doors
 /// take.
-pub fn ball_poled_z_at<T: Decide + topo::AtRestPolicy>(
-    r: T,
-    c: Vec3<T>,
-    tol: Tol,
-) -> Body<T> {
+pub fn ball_poled_z_at<T: Decide + topo::AtRestPolicy>(r: T, c: Vec3<T>, tol: Tol) -> Body<T> {
     let ball = revolved_about_y_at(
         vec![
             ProfileVertex::new(Point2::new(T::zero(), -r), T::one()),
@@ -1704,7 +1700,7 @@ pub fn rod_upper_crease(body: &Body<f64>) -> EdgeKey {
 /// far foot's split parameter lies a turn off the carrier's principal
 /// branch. Same creases, same caps, same closed form as
 /// [`rod_with_flat`]; generic over the scalar for the interval twin
-/// (the extrude door's bound is `Decide + PcurveFittedLane`, no bracket).
+/// (the extrude door's bound is `Decide + AtRestPolicy`, no bracket).
 pub fn rod_d_profile_at<T: Decide + topo::AtRestPolicy>(tol: Tol) -> Body<T> {
     rod_d_profile_of_length_at(ROD_L, tol)
 }

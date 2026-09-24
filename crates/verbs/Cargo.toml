@@ -12,7 +12,6 @@ workspace = true
 # Forwards geom-core's K-telemetry recording scalar so the
 # workspace-wide `--features probe` lane builds uniformly.
 probe = [
-    "geom-brep/probe",
     "geom-core/probe",
     "profile/probe",
     "sweep/probe",
@@ -20,8 +19,6 @@ probe = [
 ]
 
 [dependencies]
-# The lane trait the blend doors take (`PcurveFittedLane`).
-geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
 # The sweeps' operand type (`ValidatedProfile`), borrowed at the
 # profile door and never stored in a payload.

@@ -1126,9 +1126,7 @@ pub struct PcurveCertificate<T: Real> {
 /// operand, which the mint does not have in hand and does not need —
 /// the mint's next step re-derives the whole C2 certificate against the
 /// operand pair anyway.
-pub(crate) fn general_image_lane<
-    T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure,
->(
+pub(crate) fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
     carrier: &NurbsCurve3<T>,
     wall: &NurbsSurface<T>,
 ) -> Result<NurbsCurve2<T>, PcurveCertifyError> {

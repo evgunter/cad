@@ -59,3 +59,16 @@ caller's. Nothing in the tree is known to split an edge of such a face
 — the whole `topo`, `sweep` and `mesh` suites are green with the carry
 in place — so the arm is unexercised today, which is why this is a row
 and not a refusal.
+
+**Reshaped by LANE-4 (evidence, 2026-09-24).** The bound this row
+prices is gone. `PcurveCache::certify_fitted`, `certify_general` and
+`recertify` now sit in an `impl<T: Decide>` block and take the fitted
+door as a VALUE (`geom_brep::FittedLane<T>`; `recertify` takes
+`Option<FittedLane<T>>` and the scalar's name), and `run_fitted_checks`
+is `T: Decide`. The per-scalar answer is
+`topo::AtRestPolicy::fitted_lane`. So `split_cache` can carry a
+`Fitted`/`General` row without widening `split_edge`'s bound: it can
+take `Option<FittedLane<T>>` as a parameter (H5 ruling 3's shape), with
+`Some` handed in by a caller that holds `AtRestPolicy`. Or `split_edge`
+re-spells `Decide` → `AtRestPolicy`, the ripple priced above, with one
+policy trait in place of the deleted lane trait.

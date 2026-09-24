@@ -221,7 +221,15 @@ fn a_stored_pcurve_row_on_a_plane_face_is_mirrored_and_its_certificate_travels_v
         format!("{:?}", row.certificate()),
         "a fresh run on the reverted body metres the same numbers"
     );
-    let stale = row.recertify(&carrier3, reverted_plane, None, window, band, <f64 as topo::AtRestPolicy>::fitted_lane(), <f64 as topo::AtRestPolicy>::scalar_name());
+    let stale = row.recertify(
+        &carrier3,
+        reverted_plane,
+        None,
+        window,
+        band,
+        <f64 as topo::AtRestPolicy>::fitted_lane(),
+        <f64 as topo::AtRestPolicy>::scalar_name(),
+    );
     assert!(
         matches!(
             stale,

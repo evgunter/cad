@@ -92,6 +92,7 @@ pub use edge_nurbs::{PlaneNurbsLimbs, PlaneNurbsRefusal, plane_nurbs_limbs};
 pub use enters::{
     EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
 };
+pub use fitted_lane::FittedLane;
 pub use implicit::{
     ARC_RESIDUAL_SAMPLES, circle_arc_residual_range, circle_residual_curvature_bound,
     circle_residual_extremes, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
@@ -116,15 +117,14 @@ pub use offset_fit::{
     certify_offset, certify_offset_at, certify_offset_over, certify_offset_over_at, fit_offset,
     fit_offset_at, recertify_approx, recertify_approx_at,
 };
-pub use fitted_lane::FittedLane;
 pub use offset_fit_lane::OffsetFitLane;
 pub use pcurve::{
     PCURVE_FIT_SAMPLES, PcurveError, ellipse_pcurve_on_cylinder, ellipse_pcurve_on_plane,
 };
 pub use pcurve_cache::{
     ChartStretchInf, ChartWindow, EnvelopeStatement, NoChartSup, Pcurve, PcurveCache,
-    PcurveCertificate, PcurveCertifyError, PcurveCheck, chart_pcurve,
-    chart_stretch_inf, chart_stretch_sup, chart_stretch_sup_v,
+    PcurveCertificate, PcurveCertifyError, PcurveCheck, chart_pcurve, chart_stretch_inf,
+    chart_stretch_sup, chart_stretch_sup_v,
 };
 pub use props::{
     FaceContribution, LoopEdge, PropsError, curved_face, planar_face, require_iso_rectangle,

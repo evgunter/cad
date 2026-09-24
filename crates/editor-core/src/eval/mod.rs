@@ -2303,10 +2303,10 @@ impl CancelToken {
 /// What a scalar must satisfy to be evaluated: decided predicates, the
 /// memo's content bits, the certification brackets the props lane
 /// needs, the scalar's at-rest gate policy (`topo::AtRestPolicy`,
-/// which carries the fitted-pcurve lane trait as its supertrait and
-/// answers the two injected doors, the offset fit's and the shell
-/// verb's — the part seam gathers a referenced document's product, so
-/// evaluation owns a gate policy per scalar), the two per-scalar
+/// which answers the three injected doors — the offset fit's, the
+/// fitted pcurves' and the shell verb's — and names the scalar; the
+/// part seam gathers a referenced document's product, so evaluation
+/// owns a gate policy per scalar), the two per-scalar
 /// analysis capabilities
 /// (`crate::analysis::AxisScalar` for the parameter box,
 /// `crate::analysis::SeedScalar` for the E4 seed — both scalar-free

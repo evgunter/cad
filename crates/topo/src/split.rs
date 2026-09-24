@@ -146,7 +146,8 @@ impl<T: Decide> Body<T> {
     ///
     /// Two frontiers, both stated at `split_cache`. A
     /// `Fitted`/`General` row is left exactly as found, because its
-    /// certification doors are the `PcurveFittedLane` ones. And on a
+    /// certification doors take the fitted door
+    /// ([`crate::AtRestPolicy::fitted_lane`]). And on a
     /// SPLINE chart the carry is exact — a described-NURBS wall's
     /// `IsoLine`/`IsoArc` rows restrict like any other and tier 3
     /// reads `Ok` — but the recovery step the caveat below names,

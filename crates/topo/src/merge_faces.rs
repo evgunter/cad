@@ -1425,9 +1425,9 @@ impl<T: Decide> Body<T> {
         // refusal keeps the untouched-on-error contract.
         //
         // LATENT (named, not reachable by any current path): the mint
-        // pass carries the `PcurveFittedLane` bound since PCURVE P-2
-        // (#498) and mints U2's `General` arm through it, but the
-        // FITTED variant itself still has no mint site, so a `Fitted`
+        // pass holds the fitted door (`AtRestPolicy::fitted_lane`) and
+        // mints U2's `General` arm through it, but the FITTED variant
+        // itself still has no mint site, so a `Fitted`
         // cache (at rest since M6-2) on a merged body would still come
         // back as the mint pass's honest-skip — the face legally
         // UNCACHED, its fitted certificate silently dropped. What is

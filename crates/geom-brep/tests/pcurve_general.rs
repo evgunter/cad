@@ -243,9 +243,18 @@ fn a_general_circle_image_certifies_at_the_fitted_grade() {
     // certificate: `General` is the fitted GRADE, and the two doors
     // differ only in what their callers may assume, never in what the
     // kernel measured.
-    let twin =
-        PcurveCache::certify_fitted(img, t0, t1, &carrier, &sphere(), Some(&plane), w, band(), FittedLane::certified())
-            .expect("the same inputs certify through the fitted door");
+    let twin = PcurveCache::certify_fitted(
+        img,
+        t0,
+        t1,
+        &carrier,
+        &sphere(),
+        Some(&plane),
+        w,
+        band(),
+        FittedLane::certified(),
+    )
+    .expect("the same inputs certify through the fitted door");
     assert_eq!(
         format!("{:?}", cache.certificate()),
         format!("{:?}", twin.certificate()),

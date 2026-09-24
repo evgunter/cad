@@ -31,8 +31,7 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
     CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, FittedLane, Pcurve,
-    PcurveCache,
-    PcurveCertifyError, PcurveCheck,
+    PcurveCache, PcurveCertifyError, PcurveCheck,
 };
 use geom_core::k_stats::{self, Probe};
 use geom_core::spline::KnotVector;
