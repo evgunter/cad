@@ -751,3 +751,32 @@ still mints `tan(atan(b)·(s1 − s0))`.
 - **(iii) is non-empty**: 4 decisions on the `0.5` parameter control,
   with 8 more frozen behind the second atom. Phase 2b stops for Ev's
   fork.
+
+### Phase 2a: rule G's exact quotient
+
+The one value-free (iv) decision is taken by
+`SymRules::root_quotient` (`crates/geom-core/src/sym/root.rs`, its
+header section "The exact quotient"). If a root's argument `N/D` has
+a denominator that divides its numerator exactly, the root is minted
+over the polynomial quotient before rule G's split. `Q` is accepted
+only when `Q·D` equals `N` term for term. It is behind its own dial,
+read with rule G's, and `SymRules::without_root_quotient` is the
+tier SYM-9 shipped.
+
+Measured on the nominal splits of nine documents (the plate, the
+bracket, the annulus, the link, the boss, both `0.4` D-tabs and both
+controls; `CAD_M10_10_RULES=no_q` against the shipped set): the only
+move is the boss's `arc_span` 5/0/0/1 → 6/0/0/0, a THEOREM. Its
+receipt goes `[374, 2, 96, 234]` → `[375, 2, 96, 233]`. The boss's
+whole-certifying ceiling goes `1.0309e3 · ε` → **0.7267 of its real
+study** at ε = 1e-9, and what bounds it is now `dihedral_wedge`
+`[7.50e-9, 5.48e-2]` 1/58, a real margin. That puts it in
+`real-margin-dependency-widening`'s class with the annulus. The two
+parameter D-tabs' ceilings do not move. The plate's walk ledger moves
+one digest (`Early/Decision`) with every count identical. Leaf cost
+(release, one take): noise-level on the six instrument documents, and
+the boss's leaf goes 0.246 → 0.324 s.
+
+It does not reach a shared factor where neither half divides the
+other (a GCD), and it does not reach an `abs` over such a quotient.
+No measured decision stands on either.

@@ -304,10 +304,13 @@
 //! bulge other than 1 leaves residue — at M10-10 R1's boss at bulge 2
 //! stood at `carrier_matches_mapped_source` 6 of 54 and
 //! `carrier_on_surface_2` 27 of 90 numeric with its ceiling unmoved;
-//! SYM-5's rule E has since taken the first six and eighteen of the
-//! twenty-seven and moved that ceiling `8.2611e2 → 9.3559e2 · ε`, so
-//! what stands there now is 0 of 54 and 9 of 90 —
-//! `work/sym/rule-d-reaches-the-unit-bulge-only`.
+//! rule E has since taken the first six and eighteen of the
+//! twenty-seven, rule G the other nine, and rule G's exact quotient the
+//! boss's last value-free residual (`arc_span`), so the boss's ceiling
+//! is `0.7267` of its REAL study at ε = 1e-9, bounded by a real margin
+//! (`dihedral_wedge`). What stands at a parameter bulge is the sign of
+//! `b` and of the apothem, and the ring at `fl(0.4)` —
+//! `work/decide/rule-d-reaches-the-unit-bulge-only`.
 //!
 //! **What it costs** (release, one whole-box leaf, algebra off → on):
 //! plate at `1e2 · ε` 0.15 → 0.21 s; plate at its REAL study 0.02 →
@@ -1715,7 +1718,7 @@ impl SymRules {
     /// | E, the quotient's common factor (`common_factor`, SYM-5) | none on the five; R1's boss at bulge 2 `8.2611e2 → 9.3559e2 · ε` (1.13×), and a derived frame whose AXES carry a parameter certifies where its authored twin does, which no dial reached before | one whole-box leaf, release: plate 0.13 → 0.36 s, annulus 0.12 → 0.29, bracket 0.44 → 1.70, link 3.31 → 2.43, pad 3.85 → 14.40 | **yes**, with the bracket, the pad and the link over the 1.6 s line disclosed |
     /// | F, the manifest sign (`manifest_sign`, SYM-8) | none, on all EIGHT measured documents, to the digit; the tilt-`u` derived frame's `carrier_endpoint_end` 24/0/0/1 → 33/0/0/0 and its `Pinned` replay 122 decisions out of `numeric` at a sixth of the cost | free to the measurement's noise and cheaper on most — the six leaf numbers live once, in the module header's rule-F section | **yes**, with the pad's four `symbolic_zero` → `registered` ratified as a spec deviation |
     /// | G, the canonical root (`canonical_root`, DECIDE-3) | the tilted derived boss certifies at both halves and both lifts and the tilt-`u` one outright; the link, the bracket and the pad gain theorems and the plate's ledger loses its `Early/Assertion` and `Door/Decision` freezes | the differential is `without_canonical_root`; the numbers live in the PR that shipped it and in [`root`] | **yes** |
-    /// | G's exact quotient (`root_quotient`, DECIDE-4) | R1's boss at bulge 2 `1.0309e3 → CEILING_TBD · ε`, its `arc_span` 5/0/0/1 → 6/0/0/0; no other split moves at the nominal on the plate, bracket, annulus, link, both D-tabs or the two controls | COST_TBD | **yes** |
+    /// | G's exact quotient (`root_quotient`, DECIDE-4) | R1's boss at bulge 2 `1.0309e3 · ε` → **0.7267 of its REAL study** at ε = 1e-9, bounded by `dihedral_wedge` (a real margin), its `arc_span` 5/0/0/1 → 6/0/0/0; no other split moves at the nominal on the plate, bracket, annulus, link, both D-tabs or the two controls | one whole-box leaf, release, off → on: plate 0.378 → 0.386 s, plate at its real study 0.359 → 0.425, annulus 0.365 → 0.444, bracket 4.03 → 4.02, link 19.2 → 20.2, pad 147.5 → 149.3, boss 0.246 → 0.324; every receipt but the boss's unmoved | **yes**, with the bracket, the pad and the link over the 1.6 s line either way |
     /// | the decision read (`decision_read`, DECIDE-3) | the frame's conditioning comparisons, which no form settles: `sign_gated` where it fires and never `symbolic_zero` | the deep enclosure runs at every `Select` and `min`/`max`; the pin suites' wall time is the cost row `work/decide/decision-read-triples-the-plate-pin-suites-wall-time` | **yes**, with that cost disclosed |
     ///
     /// The pins in `m10_8_pins_interval.rs`, `m10_9_pins_interval.rs`

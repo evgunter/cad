@@ -750,13 +750,14 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
     let only = std::env::var("CAD_M10_10_DOCS")
         .ok()
         .filter(|s| !s.trim().is_empty());
-    let scales: [(&str, f64); 6] = [
+    let scales: [(&str, f64); 7] = [
         ("two_hole_plate", 1.0e2 * eps),
         ("two_hole_plate", 1.0),
         ("r2_filleted_bracket", 1.0e1 * eps),
         ("r1_annulus", 1.0e1 * eps),
         ("r2_rounded_pad", 1.0e2 * eps),
         ("r2_link", 1.0e1 * eps),
+        ("r1_segment_boss", 1.0e2 * eps),
     ];
     let docs = documents(tol);
     for (name, scale) in scales {
