@@ -57,3 +57,14 @@ so the rewrite was filed here rather than made; the feature tree's
 guard (`crates/editor-core/tests/refusal_concision_chains.rs`) finds a
 `Debug` struct by its shape and admits it on exactly that row
 (`FILED_DEBUG`), and removing the entry is the check that this is done.
+
+The render has since moved, unchanged (PORT, `port/min-clearance-typed`):
+`MinClearanceRefusal` is gone, `NodeErrorKind::MeasureClearanceRefused`
+carries `clearance::ClearanceRefusal` itself, and the sentence is spelled in
+`NodeErrorKind`'s `Display` arm (`crates/editor-core/src/eval/mod.rs`) from
+`ClearanceRefusal::name()` and `ClearanceRefusal::payload()`. The `Debug`
+half is `payload()`'s — `Budget` renders `{k:?}`, and `Unsupported` and
+`PoisonEnclosure` render `FaceKey`s through `Debug` — so the fix now reads
+the typed arm rather than a string. `crates/pncad-py/src/tests.rs`'s
+`the_fourth_verbs_two_refusals_are_stable` pins its prose on a `Selection`
+arm for the same reason: a real `Budget` refusal does not read as prose.

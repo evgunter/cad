@@ -384,7 +384,10 @@ fn the_measure_node_fault_tag_is_stable() {
 #[test]
 fn the_fourth_verbs_two_refusals_are_stable() {
     use crate::tags::{measure_unavailable_at_tag, node_error_tag};
-    use pncad::document::{CellBudget, ClearanceRefusal, MeasureUnavailableAt, NodeErrorKind};
+    use pncad::document::{
+        CellBudget, ClearanceRefusal, MeasureUnavailableAt, NodeErrorKind, RecipeNodeId,
+        SelectionRefusal,
+    };
 
     let absent = MeasureUnavailableAt::NeedsEnclosure {
         verb: "min_clearance",
@@ -398,12 +401,23 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     // rather than handing back a worse number.
     assert!(absent.to_string().contains("clearance::min_separation"));
 
-    let refused =
+    // One tag for every arm of the engine's refusal.
+    let budget =
         NodeErrorKind::MeasureClearanceRefused(ClearanceRefusal::Budget(CellBudget::Depth {
             max_cell_depth: 12,
         }));
-    assert_eq!(node_error_tag(&refused), "measure_clearance_refused");
-    assert!(crate::errors::reads_as_prose(&refused.to_string()));
+    assert_eq!(node_error_tag(&budget), "measure_clearance_refused");
+    // The prose is pinned on an arm whose payload renders as a sentence:
+    // `Budget`'s renders through `Debug`, which
+    // work/props/props-refusal-prose-outgrows-the-viewer.md owns.
+    let selection = NodeErrorKind::MeasureClearanceRefused(ClearanceRefusal::Selection(
+        SelectionRefusal::NoSuchBody {
+            node: RecipeNodeId(3),
+            index: 1,
+        },
+    ));
+    assert_eq!(node_error_tag(&selection), "measure_clearance_refused");
+    assert!(crate::errors::reads_as_prose(&selection.to_string()));
 }
 
 /// LIB-B-MEASURES: an assertion's two directions, and the symbols a
