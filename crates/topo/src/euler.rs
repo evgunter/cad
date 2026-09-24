@@ -553,18 +553,22 @@ pub enum EulerOpError {
         /// The typed re-certification failure.
         error: CertifyError,
     },
-    /// [`Body::mev`]'s fan site would re-base a **null edge**
-    /// ([`crate::CurveGeom::NullScaffold`]) onto the new vertex.
-    /// Raised in the plan phase, so the body is untouched.
+    /// [`Body::mev`]'s fan site would move one end of a **null edge**
+    /// ([`crate::CurveGeom::NullScaffold`]) onto the new vertex and not
+    /// the other: the moved run holds exactly one of its half-edges.
+    /// The re-basing gate refuses it because it cannot ask whether the
+    /// moved end lands on the other end's point (the reason, and the
+    /// door that would ask, are stated once, in the crate-internal
+    /// `Body::certify_rebased_run`'s docs). Raised in the plan phase,
+    /// so the body is untouched. A run holding both halves moves both
+    /// ends onto the one new vertex and is not refused; a fan split
+    /// that moves nothing is [`Body::mev_null`].
     ///
-    /// A null edge is a zero-length edge at one point
-    /// ([`Body::mev_null`]'s F9 shape), and it has no carrier to
-    /// re-certify, so the only question a move can ask of it is
-    /// whether its two ends still coincide — which needs an exact
-    /// `p_new == p_old` comparison `Point3<T>` has no door for. The
-    /// operator refuses the move instead. A fan split that moves
-    /// nothing is [`Body::mev_null`], which copies the old point and
-    /// so never has to ask.
+    /// Not [`EulerOpError::NullScaffoldCurve`], which is an operation
+    /// that needs a carrier meeting an edge that has none: this arm is
+    /// about the run's shape, one half of a null edge in it and the
+    /// other not, and no operation here asks the null edge for a
+    /// carrier.
     RebasedNullEdge {
         /// The null edge the run would re-base.
         edge: EdgeKey,
@@ -870,8 +874,9 @@ impl fmt::Display for EulerOpError {
             ),
             Self::RebasedNullEdge { edge } => write!(
                 f,
-                "mev fan: the moved run holds null edge {edge:?}, whose two ends would \
-                 no longer be one point (a fan split that moves nothing is mev_null)"
+                "mev fan: the moved run re-bases one end of null edge {edge:?} and not \
+                 the other, and the re-basing gate cannot ask whether the moved end \
+                 lands on the other's point (a fan split that moves nothing is mev_null)"
             ),
             Self::DescriptionNotAdjacent { edge } => write!(
                 f,
@@ -1441,12 +1446,19 @@ impl<T: Decide> Body<T> {
     /// [`Body::set_edge_curve`]'s decision, with the caller's own
     /// spec; the gate's own docs carry the argument for why an
     /// operator re-certifies exactly rather than re-fitting. A **null
-    /// edge** in the run has no carrier to re-certify and is refused
-    /// [`EulerOpError::RebasedNullEdge`], as the plane × NURBS class is
-    /// refused `Unimplemented` — both even where `point` is the old
-    /// vertex's own, since telling that case apart needs a comparison
-    /// `Point3<T>` does not offer. A fan split that moves nothing is
-    /// [`Body::mev_null`], which copies the old point.
+    /// edge** the run moves one end of (one of its halves in the run,
+    /// the other not) is refused [`EulerOpError::RebasedNullEdge`]; one
+    /// whose two halves are both in the run moves whole and is carried.
+    /// The one-half refusal, and the plane × NURBS class's
+    /// `RebasedCarrier { Unimplemented }`, stand even where `point` is
+    /// the old vertex's own: the gate does not ask whether `point` is
+    /// that point, and its docs (the crate-internal
+    /// `Body::certify_rebased_run`) say why. A fan split that moves
+    /// nothing is [`Body::mev_null`], which copies the old point; it
+    /// leaves a null edge, and describing that edge is a second call,
+    /// [`Body::set_edge_curve`], which can fail on its own and leave
+    /// the null edge in place. The two calls are the no-move split, not
+    /// one atomic door.
     ///
     /// **Minting order** (D9, exact): point, curve (the certified
     /// [`EdgeCurve`]), vertex, edge, `he_plus`, `he_minus`.
@@ -1492,10 +1504,14 @@ impl<T: Decide> Body<T> {
     /// resolve (`StaleKey` / `StaleGeometry`). Then, for both sites,
     /// the geometry gate: `curve` certifies
     /// ([`EulerOpError::Certification`]); and at a `Fan` site, per
-    /// edge of the moved run in run order, the edge is not a null edge
-    /// ([`EulerOpError::RebasedNullEdge`]) and its carrier re-certifies
-    /// against the endpoints the move gives it
-    /// ([`EulerOpError::RebasedCarrier`]).
+    /// edge of the moved run in run order: the run member and its edge
+    /// resolve (`StaleKey`); the edge's curve entry resolves
+    /// (`StaleGeometry` naming the curve) and is not a null edge the
+    /// run moves one end of ([`EulerOpError::RebasedNullEdge`]); the
+    /// edge's two end vertices and points resolve (`StaleKey` /
+    /// `StaleGeometry`); and its carrier re-certifies against the
+    /// endpoints the move gives it ([`EulerOpError::RebasedCarrier`]).
+    /// The first edge of the run to fail names the refusal.
     ///
     /// # Errors
     ///
@@ -2372,31 +2388,60 @@ impl<T: Decide> Body<T> {
     /// narrow one: no edge's carrier is made false BY THIS MOVE. Every
     /// other refusal is unconditional.
     ///
-    /// **A null edge in the run is refused, full stop**
-    /// ([`EulerOpError::RebasedNullEdge`]). It carries no certificate
-    /// ([`crate::CurveGeom::NullScaffold`]), so the one question a move
-    /// can ask of it is whether its two ends still coincide — the F9
-    /// shape [`Body::mev_null`] minted is a zero-length edge at ONE
-    /// point — and that is an exact `p_new == p_old` comparison, which
-    /// `Point3<T>` has no door for at `T: Real` (no `PartialEq`; a band
-    /// decision is the wrong question, since a point within band of the
-    /// old one is still a move). So the gate refuses without asking,
-    /// at the old point as at any other. A fan split across null
-    /// scaffolding that moves nothing is [`Body::mev_null`]'s, which
-    /// copies the old point and so skips this gate structurally; every
-    /// kernel run site (the splitting and boolean pipelines' null-edge
-    /// insertion) goes through it.
+    /// **A null edge is refused where the run moves one of its ends and
+    /// not the other** ([`EulerOpError::RebasedNullEdge`]). It carries
+    /// no certificate ([`crate::CurveGeom::NullScaffold`]); what it has
+    /// instead is the F9 shape [`Body::mev_null`] minted, a zero-length
+    /// edge at ONE point. Where the run holds BOTH its halves (a null
+    /// self-loop at the moved vertex), both ends move onto the one new
+    /// vertex, so the edge stays one vertex and one point by structure
+    /// and the gate carries it without asking anything. Where the run
+    /// holds exactly one half, the moved end lands on `p_new` and the
+    /// other stays on `p_old`, and whether those are one point is the
+    /// exact question below, which the gate does not ask: it refuses,
+    /// at the old point as at any other.
     ///
-    /// The plane × NURBS class (M7-8) needs an injected lane this
-    /// bound cannot supply, so it refuses `Unimplemented` here exactly
-    /// as `split_edge` does on the same class — an operator makes no
-    /// claim it cannot derive, and a claim it cannot derive is not a
-    /// licence to move the edge. It refuses where the new point is the
-    /// old vertex's own too, for the same missing comparison:
-    /// `recertify` answers `Unimplemented` whether or not anything
-    /// moved. The fan split that keeps the old point is spelled
-    /// [`Body::mev_null`] there as well, its new edge described
-    /// afterwards through [`Body::set_edge_curve`].
+    /// **The question this gate does not ask: is `p_new` the point
+    /// `p_old`, bit for bit.** Bitwise, not within band, because a point
+    /// within band of the old one is still a move, and carrying a
+    /// certificate (or a null edge's one-point shape) across it is the
+    /// staleness this gate exists to close; a band decision
+    /// (`Decide::sign_within` over a distance) is the wrong question and
+    /// has an `Indeterminate` arm besides. At this gate's bound,
+    /// `T: Real`, there is no door for the exact question: `Point3<T>`
+    /// derives no `PartialEq`, `Real` offers no bit accessor, and
+    /// `Real::register_equal` is a site-allowlisted identity axiom, not
+    /// an equality. A bit comparison of points does exist in the tree
+    /// one bound up, at `T: Bounds`: `crate::query`'s `same_point_bits`,
+    /// which compares `lo()`/`hi()` bits and which `rim_of`'s circle
+    /// identity uses in production. The absence of a door is therefore
+    /// not what decides; `docs/DESIGN.md`'s standing outcome that
+    /// production bit-identity coincidence checking is RETIRED is, and
+    /// whether a kernel gate may ask this question, and through which
+    /// door, is on
+    /// `work/topo/the-re-basing-gate-refuses-m7-8-where-nothing-moves.md`.
+    /// Every other doc that meets this question points here.
+    ///
+    /// **What that costs.** The plane × NURBS class (M7-8) needs an
+    /// injected lane this bound cannot supply, so `recertify` answers
+    /// `Unimplemented` exactly as `split_edge` does on the same class —
+    /// an operator makes no claim it cannot derive, and a claim it
+    /// cannot derive is not a licence to move the edge. `recertify`
+    /// answers that before any endpoint check, so the gate refuses where
+    /// the new point is the old vertex's own too; and a run moving one
+    /// half of a null edge is refused at the old point too. Both are
+    /// over-refusals of a move that moves nothing. A fan split that
+    /// keeps the old point is [`Body::mev_null`]'s, which copies the old
+    /// point and so skips this gate structurally; every kernel run site
+    /// (the splitting and boolean pipelines' null-edge insertion) goes
+    /// through it. That is the no-move SPLIT, not an atomic or an
+    /// at-rest-certified door: its new edge is a null edge, which tier 2
+    /// refuses at rest; describing it afterwards through
+    /// [`Body::set_edge_curve`] is a second call, which can fail on its
+    /// own and leave that null edge behind; and on the M7-8 pillow the
+    /// only spec that certifies there (a closed circle at the point)
+    /// passes tiers 1 and 2 and not tier 3, since the edge lies where
+    /// its two faces meet in a line.
     ///
     /// Pure (no mutation) — one verdict per EDGE in run order (D9),
     /// since a self-loop at the moved vertex has both halves in the
@@ -2423,6 +2468,13 @@ impl<T: Decide> Body<T> {
             let (he_plus, he_minus) = (edge.he_plus, edge.he_minus);
             let curve = match self.get_curve_geom(edge.curve) {
                 Some(crate::null::CurveGeom::Certified(curve)) => curve,
+                // Both halves in the run: both ends move onto the one
+                // new vertex, so the edge stays one vertex by structure.
+                Some(crate::null::CurveGeom::NullScaffold(_))
+                    if run.contains(&he_plus) && run.contains(&he_minus) =>
+                {
+                    continue;
+                }
                 Some(crate::null::CurveGeom::NullScaffold(_)) => {
                     return Err(EulerOpError::RebasedNullEdge { edge: edge_key });
                 }
@@ -3256,7 +3308,7 @@ mod tests {
     /// A segment `v0 → v1` with a null strut minted at `v1` by
     /// `mev_null`: `v1`'s fan is `[nul.he_plus, seg.he_minus]`, so
     /// `Fan { nul.he_plus, seg.he_minus }` is a run site whose run is
-    /// exactly the null edge.
+    /// exactly one half of the null edge.
     fn null_strut_on_a_segment() -> (Body<f64>, MevCreated, MevCreated) {
         let tol = Tol::witness();
         let mut body = Body::<f64>::new();
@@ -3283,7 +3335,12 @@ mod tests {
     }
 
     /// The bits of the points at `edge`'s two ends, `he_plus` start
-    /// first — equal exactly when the edge is still one point.
+    /// first — equal exactly when the edge is still one point. Points
+    /// compare by `to_bits` here and whole curve entries by `Debug`
+    /// text in [`carrier_bits`]: a point has three scalars to read
+    /// bits from, a curve entry has no bits accessor, and `f64`'s
+    /// `Debug` is round-trip exact, so both are bit-faithful short of a
+    /// NaN payload.
     fn end_point_bits(body: &Body<f64>, edge: EdgeKey) -> [[u64; 3]; 2] {
         let e = body.get_edge(edge).unwrap();
         let bits = |he: HalfEdgeKey| {
@@ -3295,48 +3352,238 @@ mod tests {
     }
 
     #[test]
-    fn the_gate_refuses_a_null_scaffolded_edge_in_a_moved_run_wherever_it_moves() {
-        // A null edge is a zero-length edge at ONE point, and whether a
-        // move keeps it one needs a comparison `Point3<T>` does not
-        // offer, so the gate refuses it without asking: at a far point,
-        // and at the null edge's own point alike.
+    fn the_gate_refuses_a_run_that_moves_one_end_of_a_null_edge_wherever_it_moves() {
+        // The run holds one half of the null edge, so the move splits
+        // its two ends between the new vertex and the old one. The gate
+        // refuses without comparing points (why: `certify_rebased_run`'s
+        // docs), at a far point and at the null edge's own point alike.
         let tol = Tol::witness();
         let (body, _seg, nul) = null_strut_on_a_segment();
         for p_new in [Point3::new(99.0, 99.0, 99.0), Point3::new(1.0, 0.0, 0.0)] {
             assert_eq!(
                 body.certify_rebased_run(&[nul.he_plus], p_new, tol),
                 Err(EulerOpError::RebasedNullEdge { edge: nul.edge }),
-                "a null edge in the run at {p_new:?}"
+                "one half of a null edge in the run at {p_new:?}"
             );
         }
     }
 
     #[test]
-    fn a_fan_mev_refuses_to_rebase_a_null_edge_and_leaves_it_one_point() {
+    fn a_fan_mev_refuses_to_move_one_end_of_a_null_edge_and_leaves_the_body_untouched() {
         // The public door, where the hole was: a certified `mev` at a
-        // run site holding a null edge, at a point off the old one.
+        // run site holding one half of a null edge. At a far point
+        // (a chord spec) and at the old vertex's own point (the closed
+        // spec, the only one that certifies a zero-span edge) alike,
+        // the refusal is typed and the body is untouched, the null edge
+        // still one point.
         let tol = Tol::witness();
         let (mut body, seg, nul) = null_strut_on_a_segment();
+        let here = Point3::new(1.0, 0.0, 0.0);
         let far = Point3::new(99.0, 99.0, 99.0);
-        let before = end_point_bits(&body, nul.edge);
-        assert_eq!(before[0], before[1], "mev_null minted one point");
-        assert_err_and_unchanged(
-            &mut body,
-            &EulerOpError::RebasedNullEdge { edge: nul.edge },
-            |b| {
-                b.mev(
-                    MevSite::Fan {
-                        he1: nul.he_plus,
-                        he2: seg.he_minus,
-                    },
-                    far,
-                    geom_brep::EdgeCurveSpec::line_between(Point3::new(1.0, 0.0, 0.0), far),
-                    tol,
-                )
-                .unwrap_err()
-            },
+        let ends = end_point_bits(&body, nul.edge);
+        assert_eq!(ends[0], ends[1], "mev_null minted one point");
+        let before = deep_snapshot(&body);
+        for (point, spec) in [
+            (far, geom_brep::EdgeCurveSpec::line_between(here, far)),
+            (here, geom_brep::EdgeCurveSpec::self_loop_circle_at(here)),
+        ] {
+            let site = MevSite::Fan {
+                he1: nul.he_plus,
+                he2: seg.he_minus,
+            };
+            assert_eq!(
+                body.mev(site, point, spec, tol).map(|_| ()),
+                Err(EulerOpError::RebasedNullEdge { edge: nul.edge }),
+                "mev to {point:?}"
+            );
+            assert_eq!(deep_snapshot(&body), before, "mev to {point:?}");
+        }
+    }
+
+    /// A null edge made a self-loop at one vertex `v` at `(1, 2, 3)`,
+    /// with a real strut at `v` beside it: `mev_null` at a lone vertex,
+    /// a closed circle edge between its two coincident ends, `kev` of
+    /// that circle edge merging the new vertex's fan (the null edge's
+    /// other half) onto `v`, then the strut. Tier-1 green. Returns the
+    /// body, the null edge and the strut's half at `v`.
+    fn null_self_loop_beside_a_strut() -> (Body<f64>, EdgeKey, HalfEdgeKey) {
+        let tol = Tol::witness();
+        let here = Point3::new(1.0, 2.0, 3.0);
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(here).unwrap();
+        let nul = body
+            .mev_null(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                crate::NewVertexSide::Above,
+            )
+            .unwrap();
+        let circle = body
+            .mef(
+                MefSite::Chords {
+                    he1: nul.he_minus,
+                    he2: nul.he_plus,
+                },
+                geom_brep::EdgeCurveSpec::self_loop_circle_at(here),
+                FaceSurface::Inherit,
+                tol,
+            )
+            .unwrap();
+        // `kev(he)` kills `end(he)`: take the half that starts at the
+        // seed vertex, so the vertex `mev_null` minted dies.
+        let kill = if body.get_half_edge(circle.he_plus).unwrap().start == seed.vertex {
+            circle.he_plus
+        } else {
+            circle.he_minus
+        };
+        body.kev(kill).unwrap();
+        let e = body.get_edge(nul.edge).unwrap();
+        let (hp, hm) = (e.he_plus, e.he_minus);
+        assert_eq!(
+            body.get_half_edge(hp).unwrap().start,
+            body.get_half_edge(hm).unwrap().start,
+            "the null edge is a self-loop"
         );
-        assert_eq!(end_point_bits(&body, nul.edge), before);
+        let strut = body
+            .mev_line(
+                MevSite::Fan { he1: hp, he2: hp },
+                Point3::new(5.0, 2.0, 3.0),
+                tol,
+            )
+            .unwrap();
+        assert_eq!(validate(&body), Ok(()));
+        (body, nul.edge, strut.he_plus)
+    }
+
+    #[test]
+    fn a_fan_mev_moving_both_halves_of_a_null_edge_keeps_it_one_vertex() {
+        // Both halves in the run: both ends move onto the one new
+        // vertex, so the null edge stays one vertex and one point by
+        // structure, with nothing compared. The gate carries it at the
+        // old point and at a far one, and the certified door runs.
+        let tol = Tol::witness();
+        let (mut body, nul_edge, strut) = null_self_loop_beside_a_strut();
+        let here = Point3::new(1.0, 2.0, 3.0);
+        let far = Point3::new(40.0, 2.0, 3.0);
+        let e = body.get_edge(nul_edge).unwrap();
+        let (hp, hm) = (e.he_plus, e.he_minus);
+        // From the strut the orbit is [strut, x, y]; the run
+        // `[x .. strut)` is exactly the null edge's two halves.
+        let orbit = body.vertex_orbit(strut).unwrap();
+        assert_eq!(orbit.len(), 3);
+        let run = [orbit[1], orbit[2]];
+        assert!(run.contains(&hp) && run.contains(&hm), "{orbit:?}");
+        for p_new in [here, far] {
+            assert_eq!(
+                body.certify_rebased_run(&run, p_new, tol),
+                Ok(()),
+                "both halves in the run at {p_new:?}"
+            );
+        }
+        let created = body
+            .mev(
+                MevSite::Fan {
+                    he1: orbit[1],
+                    he2: strut,
+                },
+                far,
+                geom_brep::EdgeCurveSpec::line_between(here, far),
+                tol,
+            )
+            .unwrap();
+        for he in [hp, hm] {
+            assert_eq!(body.get_half_edge(he).unwrap().start, created.vertex);
+        }
+        let ends = end_point_bits(&body, nul_edge);
+        assert_eq!(ends[0], ends[1], "the null edge is still one point");
+        assert_eq!(validate(&body), Ok(()));
+    }
+
+    #[test]
+    fn a_fan_mev_refuses_in_run_order_between_a_null_edge_and_a_moved_carrier() {
+        // `mev`'s precondition list is per edge of the moved run IN RUN
+        // ORDER: a run whose first member is one half of a null edge
+        // refuses `RebasedNullEdge`, and a run whose first member is a
+        // chord the move breaks refuses `RebasedCarrier`, though each
+        // run holds both. `v1` carries the segment's far end, the null
+        // strut and a second chord strut.
+        let tol = Tol::witness();
+        let (mut body, _seg, nul) = null_strut_on_a_segment();
+        body.mev_line(
+            MevSite::Fan {
+                he1: nul.he_plus,
+                he2: nul.he_plus,
+            },
+            Point3::new(1.0, 5.0, 0.0),
+            tol,
+        )
+        .unwrap();
+        let o = body.vertex_orbit(nul.he_plus).unwrap();
+        assert_eq!(o.len(), 3);
+        let chord_after_null = body.get_half_edge(o[2]).unwrap().edge;
+        let far = Point3::new(7.0, 7.0, 7.0);
+        let spec = geom_brep::EdgeCurveSpec::line_between(Point3::new(1.0, 0.0, 0.0), far);
+        let before = deep_snapshot(&body);
+        // Run [o0, o1]: the null half first.
+        assert_eq!(
+            body.mev(
+                MevSite::Fan {
+                    he1: o[0],
+                    he2: o[2],
+                },
+                far,
+                spec.clone(),
+                tol,
+            )
+            .map(|_| ()),
+            Err(EulerOpError::RebasedNullEdge { edge: nul.edge })
+        );
+        assert_eq!(deep_snapshot(&body), before);
+        // Run [o2, o0]: a chord first, the null half second.
+        let err = body
+            .mev(
+                MevSite::Fan {
+                    he1: o[2],
+                    he2: o[1],
+                },
+                far,
+                spec,
+                tol,
+            )
+            .map(|_| ())
+            .unwrap_err();
+        assert!(
+            matches!(err, EulerOpError::RebasedCarrier { edge, .. } if edge == chord_after_null),
+            "{err:?}"
+        );
+        assert_eq!(deep_snapshot(&body), before);
+    }
+
+    #[test]
+    fn the_gate_refuses_a_moved_edge_whose_curve_key_dangles_with_the_body_untouched() {
+        // A tier-1-corrupt body: the first moved spoke's curve entry is
+        // gone. The gate names the dangling key rather than skipping the
+        // edge, and the rest of the run is never asked about it.
+        let (mut body, _seed, [_a, b, _c, d]) = four_spoke_star();
+        body.curves.remove(b.curve).unwrap();
+        assert!(validate(&body).is_err(), "the plant is tier-1-corrupt");
+        let before = deep_snapshot(&body);
+        assert_eq!(
+            body.mev_line(
+                MevSite::Fan {
+                    he1: b.he_plus,
+                    he2: d.he_plus,
+                },
+                p(5.0),
+                Tol::witness(),
+            )
+            .map(|_| ()),
+            Err(EulerOpError::StaleGeometry {
+                key: GeomRef::Curve(b.curve),
+            })
+        );
+        assert_eq!(deep_snapshot(&body), before);
     }
 
     #[test]
@@ -3362,6 +3609,23 @@ mod tests {
             "the run moved onto the new vertex"
         );
         assert_eq!(end_point_bits(&body, nul.edge), before);
+        assert_eq!(validate(&body), Ok(()));
+    }
+
+    #[test]
+    fn kevs_fan_merge_moves_one_end_of_a_null_edge_onto_a_distinct_point_unchecked() {
+        // What `kev` does today, pinned so the unit that gives the kill
+        // its gate (`work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`)
+        // has a row to flip: killing the segment's far end `v1` merges
+        // its fan, which holds one half of the null edge, onto `v0`, so
+        // the null edge now spans `(0,0,0)` and `(1,0,0)` and tier 1
+        // accepts it.
+        let (mut body, seg, nul) = null_strut_on_a_segment();
+        let before = end_point_bits(&body, nul.edge);
+        assert_eq!(before[0], before[1]);
+        body.kev(seg.he_plus).unwrap();
+        let after = end_point_bits(&body, nul.edge);
+        assert_ne!(after[0], after[1], "the null edge spans two points");
         assert_eq!(validate(&body), Ok(()));
     }
 
@@ -3413,56 +3677,127 @@ mod tests {
         (body, split.edge)
     }
 
-    #[test]
-    fn the_gate_refuses_the_plane_x_nurbs_class_where_nothing_moves_and_mev_null_splits_it() {
-        // The over-refusal the gate's docs state: `recertify` answers
-        // `Unimplemented` for the M7-8 class whether or not the run
-        // moves, so the gate refuses at the old vertex's own point as
-        // at a far one. The fan split that keeps the old point is
-        // `mev_null`'s, which carries the run's certificate untouched,
-        // and its new edge is then described like any null edge.
-        let tol = Tol::witness();
-        let (mut body, edge) = m7_8_pillow(tol);
+
+    /// The M7-8 pillow's fan site at the old vertex whose run is the
+    /// plane × NURBS edge, with that vertex's point.
+    fn m7_8_site(body: &Body<f64>, edge: EdgeKey) -> (MevSite, HalfEdgeKey, Point3<f64>) {
         let hp = body.get_edge(edge).unwrap().he_plus;
         let v = body.get_half_edge(hp).unwrap().start;
         let here = *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
-        for p_new in [here, Point3::new(here.x, here.y, here.z + 1.0)] {
-            assert_eq!(
-                body.certify_rebased_run(&[hp], p_new, tol),
-                Err(EulerOpError::RebasedCarrier {
-                    edge,
-                    error: geom_brep::CertifyError::Unimplemented,
-                }),
-                "the M7-8 edge at {p_new:?}"
-            );
-        }
         let orbit = body.vertex_orbit(hp).unwrap();
         assert_eq!(orbit.len(), 2, "the pillow's vertex has valence two");
         let site = MevSite::Fan {
             he1: hp,
             he2: orbit[1],
         };
-        let before = carrier_bits(&body, edge);
+        (site, hp, here)
+    }
+
+    #[test]
+    fn a_fan_mev_refuses_the_plane_x_nurbs_class_where_nothing_moves_and_mev_null_splits_it() {
+        // The over-refusal the gate's docs state, through the public
+        // door: `recertify` answers `Unimplemented` for the M7-8 class
+        // before any endpoint check, so `mev` refuses at the old
+        // vertex's own point (the closed spec) as at a moved one (a
+        // chord), body untouched. The no-move split is `mev_null`, which
+        // carries the run's certificate untouched; its new edge is then
+        // described by a second call.
+        let tol = Tol::witness();
+        let (mut body, edge) = m7_8_pillow(tol);
+        let (site, hp, here) = m7_8_site(&body, edge);
+        let moved = Point3::new(here.x, here.y, here.z + 1.0);
+        let before = deep_snapshot(&body);
+        for (point, spec) in [
+            (here, geom_brep::EdgeCurveSpec::self_loop_circle_at(here)),
+            (moved, geom_brep::EdgeCurveSpec::line_between(here, moved)),
+        ] {
+            assert_eq!(
+                body.mev(site, point, spec, tol).map(|_| ()),
+                Err(EulerOpError::RebasedCarrier {
+                    edge,
+                    error: geom_brep::CertifyError::Unimplemented,
+                }),
+                "the M7-8 edge, mev to {point:?}"
+            );
+            assert_eq!(deep_snapshot(&body), before, "mev to {point:?}");
+        }
+        let carrier_before = carrier_bits(&body, edge);
         let created = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
         assert_eq!(
             body.get_half_edge(hp).unwrap().start,
             created.vertex,
             "the M7-8 edge moved onto the new vertex"
         );
-        assert_eq!(carrier_bits(&body, edge), before);
+        assert_eq!(carrier_bits(&body, edge), carrier_before);
         body.set_edge_curve(
             created.edge,
             geom_brep::EdgeCurveSpec::self_loop_circle_at(here),
             tol,
         )
         .unwrap();
-        assert!(
-            body.get_curve_geom(body.get_edge(created.edge).unwrap().curve)
-                .and_then(crate::CurveGeom::certified)
-                .is_some(),
-            "the null edge is described"
-        );
+        // What the two calls leave: tiers 1 and 2 accept it.
         assert_eq!(validate(&body), Ok(()));
+        assert_eq!(crate::validate::validate_closed(&body), Ok(()));
+        // Tier 3 does not. Over the pillow's own at-rest reading it
+        // adds two, both on the new edge: its circle's description is
+        // the scaffolding door's, which is transient and not at rest
+        // (`ScaffoldAtRest`), and the circle leaves the plane face it
+        // bounds (`PlanarBoundaryResidual`). No
+        // description could do better here: the new edge lies on the
+        // plane `y = 0` and the `z = 0` patch, which meet in a line, and
+        // a closed edge of positive length cannot lie in a line. The
+        // no-move split is therefore not an at-rest-certified door.
+        let (pillow, _) = m7_8_pillow(tol);
+        let mut expected = crate::validate::validate_geometric(&pillow, tol).unwrap_err();
+        let plane_face = [created.he_plus, created.he_minus]
+            .into_iter()
+            .map(|he| body.face_of_half_edge(he).unwrap())
+            .find(|&f| {
+                matches!(
+                    body.get_surface(body.get_face(f).unwrap().surface),
+                    Some(geom::Surface::Plane { .. })
+                )
+            })
+            .unwrap();
+        expected.extend([
+            crate::ValidationError::ScaffoldAtRest { edge: created.edge },
+            crate::ValidationError::PlanarBoundaryResidual {
+                face: plane_face,
+                edge: created.edge,
+            },
+        ]);
+        assert_eq!(
+            crate::validate::validate_geometric(&body, tol),
+            Err(expected)
+        );
+    }
+
+    #[test]
+    fn the_no_move_split_leaves_a_null_edge_at_rest_when_its_second_call_fails() {
+        // The two calls are not one door: `mev_null` has already run
+        // when `set_edge_curve` refuses, and what is left is a null edge
+        // at rest, which tier 2 refuses. (A single certified door would
+        // leave the body untouched on `Err`.)
+        let tol = Tol::witness();
+        let (mut body, edge) = m7_8_pillow(tol);
+        let (site, _hp, here) = m7_8_site(&body, edge);
+        let created = body.mev_null(site, crate::NewVertexSide::Above).unwrap();
+        let off = Point3::new(here.x + 1.0, here.y, here.z);
+        let err = body.set_edge_curve(
+            created.edge,
+            geom_brep::EdgeCurveSpec::line_between(here, off),
+            tol,
+        );
+        assert!(
+            matches!(err, Err(EulerOpError::Certification { .. })),
+            "{err:?}"
+        );
+        assert_eq!(
+            crate::validate::validate_closed(&body),
+            Err(vec![crate::ValidationError::NullEdgeAtRest {
+                edge: created.edge
+            }])
+        );
     }
 
     #[test]
