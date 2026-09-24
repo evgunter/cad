@@ -159,11 +159,14 @@ fn r1_no_fold_constant_d() {
 #[test]
 fn r1_no_fold_near_miss() {
     // N = (2+t)(1+t) + 1e-30 t^3: D divides N except for one tiny term.
-    let (on, off) = both("near miss sqrt(((2+t)(1+t)+1e-30 t^3)/(1+t)) - sqrt(2+t)", || {
-        let t = over("t", 0.5, 1.0);
-        let d = lit(1.0) + t;
-        (((lit(2.0) + t) * d + lit(1e-30) * t * t * t) / d).sqrt() - (lit(2.0) + t).sqrt()
-    });
+    let (on, off) = both(
+        "near miss sqrt(((2+t)(1+t)+1e-30 t^3)/(1+t)) - sqrt(2+t)",
+        || {
+            let t = over("t", 0.5, 1.0);
+            let d = lit(1.0) + t;
+            (((lit(2.0) + t) * d + lit(1e-30) * t * t * t) / d).sqrt() - (lit(2.0) + t).sqrt()
+        },
+    );
     assert_ne!(on, "theorem", "a near miss is not an exact quotient");
     assert_eq!(on, off);
 }
@@ -221,13 +224,16 @@ fn r1_ring_overflow_partway_declines() {
 /// y-terms. With the lex part wrong the leading terms no longer cancel.
 #[test]
 fn r1_grlex_tie_break_multivariate() {
-    let (on, off) = both("sqrt(Q (y^2 - x^2 + 4)/(y^2 - x^2 + 4)) - sqrt(Q), ties", || {
-        let x = over("x", 0.5, 1.0);
-        let y = over("y", 0.25, 0.75);
-        let d = y * y - x * x + lit(4.0);
-        let q = x * y + x * x + y * y * y + lit(3.0);
-        (q * d / d).sqrt() - q.sqrt()
-    });
+    let (on, off) = both(
+        "sqrt(Q (y^2 - x^2 + 4)/(y^2 - x^2 + 4)) - sqrt(Q), ties",
+        || {
+            let x = over("x", 0.5, 1.0);
+            let y = over("y", 0.25, 0.75);
+            let d = y * y - x * x + lit(4.0);
+            let q = x * y + x * x + y * y * y + lit(3.0);
+            (q * d / d).sqrt() - q.sqrt()
+        },
+    );
     assert_eq!(on, "theorem");
     assert_ne!(off, "theorem");
 }
@@ -289,11 +295,15 @@ fn r1_sign_carrying_product_stays_a_magnitude() {
 /// must keep the label and the zero is `sign_gated`, never a theorem.
 #[test]
 fn r1_gated_argument_keeps_its_label() {
-    let l = decide("sqrt(|t|(2+t)(1+t)/(1+t)) - sqrt(t(2+t)), all()", SymRules::all(), || {
-        let t = over("t", 0.5, 1.0);
-        let d = lit(1.0) + t;
-        (t.abs() * (lit(2.0) + t) * d / d).sqrt() - (t * (lit(2.0) + t)).sqrt()
-    });
+    let l = decide(
+        "sqrt(|t|(2+t)(1+t)/(1+t)) - sqrt(t(2+t)), all()",
+        SymRules::all(),
+        || {
+            let t = over("t", 0.5, 1.0);
+            let d = lit(1.0) + t;
+            (t.abs() * (lit(2.0) + t) * d / d).sqrt() - (t * (lit(2.0) + t)).sqrt()
+        },
+    );
     assert_ne!(l, "theorem", "a gated argument's zero is not a theorem");
 }
 
