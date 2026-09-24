@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-24
 priority: P0
 cost: H
+needs_ev: true
 ---
 
 
@@ -36,3 +37,15 @@ rows) across the pin move. Either:
   the parent's held names, reporting as DM7 does; or
 - the child's rows are recorded with the version so the parent can
   replay them.
+
+## Folded into the stable-name question (2026-09-24)
+
+This row, the other `needs_ev` EMIT row on profile numbering, and EDIT's
+`a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names` share
+one cause. A profile name spells a position that is recomputed from
+current state, so any edit that moves the positions re-denotes it. All
+three are put to Ev as one question on PR #PRNUM: name a profile piece
+by an id minted when its step is authored (`names/README.md`, "N1, the
+profile pieces"), or keep positions and persist a rename ledger. Under
+the id rule this row's fork does not arise, because no numbering is
+left to carry.
