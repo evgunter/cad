@@ -1797,3 +1797,25 @@ two regions of `topo/src/props.rs` and one `bounds-allowlist.sh` count,
 resolvable at the implementer's pre-PR merge; the alternative (wait)
 idles the last unit on Ev's review. TOPO's #3160 (idle since 09:02Z)
 likewise: whichever lands second merges the other.
+
+## LANE-4 in review (dual) (2026-09-24)
+
+LANE-4's implementer (Opus, 452,289 tokens, 130 min harness) opened
+#3194: `FittedLane<T>` in `geom-brep/src/fitted_lane.rs`, the trait and
+its five impls deleted, `AtRestPolicy::fitted_lane()` + `scalar_name()`
+(today's strings), 25 bound sites dropped the term, 35 re-spelled, 3
+narrowed to `Decide` (a ten-round compile fixpoint showed the other 35
+each reach a read site), `certify_at_dual` → a `compile_fail` doctest +
+a `recertify(.., None, "dual")` row, LANE-4P's helper and roster, `verbs`
+drops its now-unused `geom-brep` edge, one new `bounds-allowlist.sh`
+entry. Deviations: the shared bodies' inner `Option` dropped (it only
+carried the lane's absence); the dual row runs over an `f64` cache; a
+`None` door now refuses before checks 1–3 (said unobservable). Bits:
+the fitted fixture dump and `r2_p2_consumer` byte-identical base vs
+head. Run 36063860902 on `cfee6a03b5` green; the merge brought in
+neither #3174 nor #3160. Fence comment posted. Head frozen; R1 and R2
+dispatched on Opus concurrently ~22:40Z (protocol `c3129311bd`,
+`lane4-review-brief.frozen.md` sha256 `d9d55d19…`, eleven claims led by
+"no verdict moves at any scalar" and the two deviations that could
+change behaviour; reviewers told not to read other processes' command
+lines).
