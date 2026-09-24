@@ -208,9 +208,13 @@ row is a claim about any one alone. `One` and `Split` take the same
 operand and are two doors because their out-types differ; `One` and
 `Shell` agree at both ends and are two doors because the shell's op door
 demands certification rights (`Decide + CertifiedBounds + AtRestPolicy`)
-no `Dual` scalar has — which is why `run_shell` lives in a second `impl`
-block, so the mixed pass instantiated at `Dual` still compiles against
-`run`. The name is kept for continuity — it crosses the document layer's
+no `Dual` scalar has — which `run_shell` asks for as a VALUE: a
+`topo::ShellDoor<T>` parameter whose one constructor is bounded on
+those rights. So the seat needs no second `impl` block for it, and the
+mixed pass instantiated at `Dual` still compiles against every door
+here — a scalar the per-scalar policy gives no door
+(`topo::AtRestPolicy::shell_door` answers `None`) has nothing to pass
+and refuses typed where it stands. The name is kept for continuity — it crosses the document layer's
 refusal payload (`NodeErrorKind::VerbArity`, re-exported through
 `pncad`) — at a rename price measured at approximately nothing, so
 keeping it is a decision someone may revisit, not a defect.

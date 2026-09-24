@@ -581,3 +581,12 @@ Both rows arrived with **no `priority` and no `cost`**. Lint does not
 require either, and the unpriced default of 2.5 means a slate can
 drift over budget on rows nobody banded. Worth watching rather than
 filing: the fix-pass brief did not ask for a band, and it should have.
+
+## A row arriving from TOPO (2026-09-24)
+
+`census-witness-string-repeats-the-subject` — FIX's re-homed decision
+about `ValidationError::witness`'s shape (`String`, so "this arm has
+no position" has no spelling) landed on TOPO on 2026-09-20 while
+`validate.rs` was still TOPO's; the cut the same day made it ATREST's.
+Moved by `git mv` with its id and body; the two defective sites stay
+REACH's and CHART's as FIX's section says. Signed (TOPO orchestrator).
