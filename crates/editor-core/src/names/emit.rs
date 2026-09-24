@@ -622,8 +622,12 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
                 .into_iter()
                 .filter_map(|e| mapped(e.key).map(|key| ent(0, key)))
                 .collect();
-            // A tie whose every candidate the fuse consumed has no row to
-            // write; any survivors narrow through the one door.
+            // Empty for the prototype's BODY-kind rows: the fused body is
+            // this node's own, named above, so they have nothing to point
+            // at. A consumed candidate does not empty a row here — a placed
+            // union is gated to disjoint placements, where each instance's
+            // `GraftKeys` is total — so a tied row keeps every candidate
+            // and narrows through the one door.
             if !moved.is_empty() {
                 super::defer::narrow_into(&mut t, super::role::NameRef::new(wrapped), moved)?;
             }
