@@ -536,33 +536,38 @@ pub enum EulerOpError {
         /// The certification failure.
         error: CertifyError,
     },
-    /// [`Body::mev`]'s fan site would move this edge onto a vertex its
-    /// carrier does not run to: the stored description,
-    /// re-certified against the endpoints the edge WOULD have after
-    /// the move, fails. Raised in the plan phase, so the body is
-    /// untouched.
+    /// A re-based edge would carry a carrier that does not describe it
+    /// at the endpoints the move gives it: [`Body::mev`]'s fan site
+    /// re-certifying the moved run's stored description, or
+    /// [`Body::kev_describing`] re-certifying a merged member it was
+    /// not handed a spec for, or certifying the spec it was handed.
+    /// Raised in the plan phase, so the body is untouched.
     ///
     /// The description is authoritative and the carrier is its
     /// certified cache (D2/D4 ¶2), so an operator that cannot certify
-    /// the moved edge has nothing honest to write: re-describing the
-    /// run is [`Body::set_edge_curve`]'s decision, made by the caller
-    /// with a spec of its own.
+    /// the moved edge has nothing honest to write: re-describing it is
+    /// the caller's decision, made with a spec of its own
+    /// ([`Body::set_edge_curve`], or the list [`Body::kev_describing`]
+    /// takes).
     RebasedCarrier {
         /// The re-based edge whose carrier no longer describes it.
         edge: EdgeKey,
         /// The typed re-certification failure.
         error: CertifyError,
     },
-    /// [`Body::mev`]'s fan site would move one end of a **null edge**
-    /// ([`crate::CurveGeom::NullScaffold`]) onto the new vertex and not
+    /// [`Body::mev`]'s fan site, or either kill door's fan merge
+    /// ([`Body::kev`], [`Body::kev_describing`]), would move one end of
+    /// a **null edge**
+    /// ([`crate::CurveGeom::NullScaffold`]) onto another vertex and not
     /// the other: the moved run holds exactly one of its half-edges.
     /// The re-basing gate refuses it because it cannot ask whether the
     /// moved end lands on the other end's point (the reason, and the
     /// door that would ask, are stated once, in the crate-internal
     /// `Body::certify_rebased_run`'s docs). Raised in the plan phase,
     /// so the body is untouched. A run holding both halves moves both
-    /// ends onto the one new vertex and is not refused; a fan split
-    /// that moves nothing is [`Body::mev_null`].
+    /// ends onto the one vertex and is not refused; a fan split that
+    /// moves nothing is [`Body::mev_null`], and a merge that moves
+    /// nothing is a kill of a null edge.
     ///
     /// Not [`EulerOpError::NullScaffoldCurve`], which is an operation
     /// that needs a carrier meeting an edge that has none: this arm is
@@ -571,6 +576,37 @@ pub enum EulerOpError {
     /// carrier.
     RebasedNullEdge {
         /// The null edge the run would re-base.
+        edge: EdgeKey,
+    },
+    /// [`Body::kev`]'s fan merge would re-base these certified edges —
+    /// the members of the dying vertex's surviving fan — onto the
+    /// surviving vertex, and the keys-only kill cannot certify a
+    /// carrier there: it takes no band, so it asks no question a band
+    /// would answer. Raised in the plan phase, so the body is
+    /// untouched.
+    ///
+    /// The kill that can is [`Body::kev_describing`], which takes a
+    /// band, and a re-description for any member whose stored carrier
+    /// does not describe it at the merged endpoints. Every certified
+    /// member is named, in the dying vertex's clockwise orbit order
+    /// from the killed edge, because that door's caller needs the
+    /// whole list and not its first entry.
+    MergeRebasesCarriers {
+        /// The certified merged members, in orbit order.
+        edges: Vec<EdgeKey>,
+    },
+    /// [`Body::kev_describing`] was handed a re-description for an edge
+    /// that is not a member of the merged fan: no half of it starts at
+    /// the dying vertex once the killed edge is gone, so the merge does
+    /// not re-base it (the killed edge itself included).
+    NotMergedMember {
+        /// The listed edge.
+        edge: EdgeKey,
+    },
+    /// [`Body::kev_describing`] was handed two re-descriptions for one
+    /// merged member. Named at the second entry.
+    DuplicateRedescription {
+        /// The edge listed twice.
         edge: EdgeKey,
     },
     /// [`Body::set_edge_curve`]: an intrinsic (`Intersection`) or
@@ -732,7 +768,9 @@ pub enum EulerOpError {
     /// no second face to kill. (That configuration is what
     /// [`Body::kfmrh`] on two ADJACENT faces leaves behind: the shared
     /// edge's other half ends up in the demoted ring. Kill such an edge
-    /// with [`Body::kev`] when its endpoints are distinct; the
+    /// with [`Body::kev`] when its endpoints are distinct — or
+    /// [`Body::kev_describing`], where the far vertex's merged fan
+    /// carries certified edges; the
     /// self-loop variant has no direct one-op killer — promote the ring
     /// back out with [`Body::mfkrh`], then [`Body::kef`].)
     SameFace {
@@ -874,10 +912,24 @@ impl fmt::Display for EulerOpError {
             ),
             Self::RebasedNullEdge { edge } => write!(
                 f,
-                "mev fan: the moved run re-bases one end of null edge {edge:?} and not \
-                 the other, and the re-basing gate cannot ask whether the moved end \
-                 lands on the other's point (a fan split that moves nothing is mev_null)"
+                "the moved run re-bases one end of null edge {edge:?} and not the other, \
+                 and the re-basing gate cannot ask whether the moved end lands on the \
+                 other's point (a fan split that moves nothing is mev_null)"
             ),
+            Self::MergeRebasesCarriers { edges } => write!(
+                f,
+                "kev: the fan merge re-bases certified edges {edges:?} onto the surviving \
+                 vertex, and the keys-only kill takes no band to certify them there \
+                 (kev_describing takes one, and their re-descriptions)"
+            ),
+            Self::NotMergedMember { edge } => write!(
+                f,
+                "kev_describing: edge {edge:?} is not a member of the merged fan, so the \
+                 merge gives it nothing to re-describe"
+            ),
+            Self::DuplicateRedescription { edge } => {
+                write!(f, "kev_describing: edge {edge:?} is re-described twice")
+            }
             Self::DescriptionNotAdjacent { edge } => write!(
                 f,
                 "edge {edge:?}'s intrinsic/seam description names surfaces that are not \
@@ -968,7 +1020,7 @@ impl fmt::Display for EulerOpError {
                 f,
                 "two distinct faces required, but both sides name face \
                  {face:?} (kfmrh sums two faces; kef on an edge interior to \
-                 one face has no face to kill — see kev)"
+                 one face has no face to kill — see kev and kev_describing)"
             ),
             Self::CrossShell { f1, f2 } => write!(
                 f,
@@ -1084,6 +1136,9 @@ pub(crate) fn every_euler_op_error_once()
             error: CertifyError::Unimplemented,
         },
         EulerOpError::RebasedNullEdge { edge: ek },
+        EulerOpError::MergeRebasesCarriers { edges: vec![ek] },
+        EulerOpError::NotMergedMember { edge: ek },
+        EulerOpError::DuplicateRedescription { edge: ek },
         EulerOpError::DescriptionNotAdjacent { edge: ek },
         EulerOpError::StaleKey {
             key: EntityId::HalfEdge(he),
@@ -1210,6 +1265,9 @@ impl EulerOpError {
             Self::Certification { .. }
             | Self::RebasedCarrier { .. }
             | Self::RebasedNullEdge { .. }
+            | Self::MergeRebasesCarriers { .. }
+            | Self::NotMergedMember { .. }
+            | Self::DuplicateRedescription { .. }
             | Self::DescriptionNotAdjacent { .. }
             | Self::FanStartMismatch { .. }
             | Self::NotSameLoop { .. }
@@ -1441,9 +1499,8 @@ impl<T: Decide> Body<T> {
     /// MOVE is what makes the answer no — body untouched, like every
     /// other precondition. A carrier that already missed its own
     /// endpoint before the call is carried rather than refused: it
-    /// names a defect this operation did not create, and the operator
-    /// that does is [`Body::kev`]'s fan merge. Re-describing a run is
-    /// [`Body::set_edge_curve`]'s decision, with the caller's own
+    /// names a defect this operation did not create. Re-describing a
+    /// run is [`Body::set_edge_curve`]'s decision, with the caller's own
     /// spec; the gate's own docs carry the argument for why an
     /// operator re-certifies exactly rather than re-fitting. A **null
     /// edge** the run moves one end of (one of its halves in the run,
@@ -1459,6 +1516,13 @@ impl<T: Decide> Body<T> {
     /// [`Body::set_edge_curve`], which can fail on its own and leave
     /// the null edge in place. The two calls are the no-move split, not
     /// one atomic door.
+    ///
+    /// **The variant family.** `mev` takes the new edge's spec;
+    /// [`Body::mev_line`] derives the chord; [`Body::mev_null`] takes no
+    /// geometry and moves nothing. The kill side mirrors it: [`Body::kev`]
+    /// is keys-only and refuses a merge that would strand a carrier, and
+    /// [`Body::kev_describing`] takes the merged fan's re-descriptions
+    /// and a band, as this door takes its spec and band.
     ///
     /// **Minting order** (D9, exact): point, curve (the certified
     /// [`EdgeCurve`]), vertex, edge, `he_plus`, `he_minus`.
@@ -2347,6 +2411,30 @@ impl<T: Decide> Body<T> {
         .map_err(|error| EulerOpError::Certification { error })
     }
 
+    /// `edge`'s two endpoint points, `he_plus` forward order (the
+    /// interval's `t₀` end is `start(he_plus)`, its `t₁` end
+    /// `start(he_minus)`), once `run` has moved onto a vertex at
+    /// `p_new`: `p_new` at a half in the run, the half's current start
+    /// point elsewhere. The one reading of "the endpoints the move
+    /// gives it" that both re-basing doors certify against. Pure.
+    pub(crate) fn rebased_endpoints(
+        &self,
+        edge: EdgeKey,
+        run: &[HalfEdgeKey],
+        p_new: Point3<T>,
+    ) -> Result<(Point3<T>, Point3<T>), EulerOpError> {
+        let edge_data = self.get_edge(edge).ok_or(EulerOpError::StaleKey {
+            key: EntityId::Edge(edge),
+        })?;
+        let endpoint = |he: HalfEdgeKey| -> Result<Point3<T>, EulerOpError> {
+            if run.contains(&he) {
+                return Ok(p_new);
+            }
+            self.resolve_vertex_point(self.resolve_half_edge(he)?.start)
+        };
+        Ok((endpoint(edge_data.he_plus)?, endpoint(edge_data.he_minus)?))
+    }
+
     /// The **re-basing gate**: every edge of a run of half-edges about
     /// to start at a vertex whose point is `p_new`, re-certified
     /// against the endpoints it will have once the run has moved.
@@ -2381,12 +2469,13 @@ impl<T: Decide> Body<T> {
     /// the same question of the endpoints the edge has NOW; where that
     /// fails the same way, the carrier already missed its own endpoint
     /// and this move is not what made it false. Refusing there would
-    /// name another operator's defect on an edge this one may not even
-    /// touch — [`Body::kev`]'s fan merge leaves exactly that state
-    /// (`work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`),
-    /// tier 3 reports it at rest, and this operator's claim is the
-    /// narrow one: no edge's carrier is made false BY THIS MOVE. Every
-    /// other refusal is unconditional.
+    /// name a defect this operation did not create, on an edge it may
+    /// not even touch; tier 3 reports such a carrier at rest, and the
+    /// gate's claim is the narrow one: no edge's carrier is made false
+    /// BY THIS MOVE. (No re-basing door leaves one — this gate refuses,
+    /// and both kill doors refuse or re-describe what a merge would
+    /// strand — so the arm is fed only by a body that arrives with
+    /// one.) Every other refusal is unconditional.
     ///
     /// **A null edge is refused where the run moves one of its ends and
     /// not the other** ([`EulerOpError::RebasedNullEdge`]). It carries
@@ -2484,15 +2573,7 @@ impl<T: Decide> Body<T> {
                     });
                 }
             };
-            // `he_plus` forward order: the interval's `t₀` end is
-            // `start(he_plus)`, its `t₁` end is `start(he_minus)`.
-            let endpoint = |he: HalfEdgeKey| -> Result<Point3<T>, EulerOpError> {
-                if run.contains(&he) {
-                    return Ok(p_new);
-                }
-                self.resolve_vertex_point(self.resolve_half_edge(he)?.start)
-            };
-            let (p_start, p_end) = (endpoint(he_plus)?, endpoint(he_minus)?);
+            let (p_start, p_end) = self.rebased_endpoints(edge_key, run, p_new)?;
             let surfaces = |k| self.surfaces.get(k).cloned();
             let Err(error) = curve.recertify(p_start, p_end, surfaces, band) else {
                 continue;
@@ -3402,10 +3483,18 @@ mod tests {
 
     /// A null edge made a self-loop at one vertex `v` at `(1, 2, 3)`,
     /// with a real strut at `v` beside it: `mev_null` at a lone vertex,
-    /// a closed circle edge between its two coincident ends, `kev` of
+    /// a closed circle edge between its two coincident ends, a kill of
     /// that circle edge merging the new vertex's fan (the null edge's
     /// other half) onto `v`, then the strut. Tier-1 green. Returns the
     /// body, the null edge and the strut's half at `v`.
+    ///
+    /// **No door builds this.** The kill moves ONE end of the null
+    /// edge, which both kill doors refuse (`RebasedNullEdge`, the
+    /// re-basing gate's null arm) — and a null edge only ever joins its
+    /// minting vertex to a fresh one, so there is no other way to close
+    /// one onto a single vertex. The fixture takes the kill's ungated
+    /// execution, `Body::kev_execute`, because the rows it serves pin
+    /// the both-halves arm, which only this state exercises.
     fn null_self_loop_beside_a_strut() -> (Body<f64>, EdgeKey, HalfEdgeKey) {
         let tol = Tol::witness();
         let here = Point3::new(1.0, 2.0, 3.0);
@@ -3437,7 +3526,8 @@ mod tests {
         } else {
             circle.he_minus
         };
-        body.kev(kill).unwrap();
+        let plan = body.kev_plan(kill).unwrap();
+        body.kev_execute(plan);
         let e = body.get_edge(nul.edge).unwrap();
         let (hp, hm) = (e.he_plus, e.he_minus);
         assert_eq!(
@@ -3613,20 +3703,58 @@ mod tests {
     }
 
     #[test]
-    fn kevs_fan_merge_moves_one_end_of_a_null_edge_onto_a_distinct_point_unchecked() {
-        // What `kev` does today, pinned so the unit that gives the kill
-        // its gate (`work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`)
-        // has a row to flip: killing the segment's far end `v1` merges
-        // its fan, which holds one half of the null edge, onto `v0`, so
-        // the null edge now spans `(0,0,0)` and `(1,0,0)` and tier 1
-        // accepts it.
+    fn kevs_fan_merge_refuses_to_move_one_end_of_a_null_edge_and_leaves_the_body_untouched() {
+        // Killing the segment's far end `v1` would merge its fan, which
+        // holds one half of the null edge, onto `v0`, so the null edge
+        // would span `(0,0,0)` and `(1,0,0)`. Both kill doors refuse it
+        // through the re-basing gate's null arm, body untouched and the
+        // null edge still one point: the keys-only kill structurally,
+        // the describing kill with a band and nothing listed.
+        let tol = Tol::witness();
         let (mut body, seg, nul) = null_strut_on_a_segment();
-        let before = end_point_bits(&body, nul.edge);
-        assert_eq!(before[0], before[1]);
-        body.kev(seg.he_plus).unwrap();
-        let after = end_point_bits(&body, nul.edge);
-        assert_ne!(after[0], after[1], "the null edge spans two points");
-        assert_eq!(validate(&body), Ok(()));
+        let ends = end_point_bits(&body, nul.edge);
+        assert_eq!(ends[0], ends[1]);
+        let before = deep_snapshot(&body);
+        assert_eq!(
+            body.kev(seg.he_plus).map(|_| ()),
+            Err(EulerOpError::RebasedNullEdge { edge: nul.edge })
+        );
+        assert_eq!(deep_snapshot(&body), before);
+        assert_eq!(
+            body.kev_describing(seg.he_plus, &[], tol).map(|_| ()),
+            Err(EulerOpError::RebasedNullEdge { edge: nul.edge })
+        );
+        assert_eq!(deep_snapshot(&body), before);
+        assert_eq!(end_point_bits(&body, nul.edge), ends);
+    }
+
+    #[test]
+    fn kevs_fan_merge_moving_both_halves_of_a_null_edge_keeps_it_one_vertex() {
+        // The both-halves arm on the kill side. `w` carries a null
+        // self-loop and a strut from `v`; killing the strut toward `w`
+        // merges both halves of the null edge onto `v`, so it stays one
+        // vertex and one point by structure. The keys-only kill carries
+        // it with nothing compared, and so does the describing kill.
+        let (body, nul_edge, strut) = null_self_loop_beside_a_strut();
+        let tol = Tol::witness();
+        let toward_w = body.mate(strut).unwrap();
+        let v = body.get_half_edge(toward_w).unwrap().start;
+        for describing in [false, true] {
+            let mut body = body.clone();
+            let killed = if describing {
+                body.kev_describing(toward_w, &[], tol).unwrap()
+            } else {
+                body.kev(toward_w).unwrap()
+            };
+            assert_ne!(killed.killed_vertex, v);
+            let e = body.get_edge(nul_edge).unwrap();
+            for he in [e.he_plus, e.he_minus] {
+                assert_eq!(body.get_half_edge(he).unwrap().start, v);
+            }
+            let ends = end_point_bits(&body, nul_edge);
+            assert_eq!(ends[0], ends[1], "the null edge is still one point");
+            assert_eq!(validate(&body), Ok(()));
+        }
     }
 
     /// [`described_pillow`] with its seed face on a described NURBS
@@ -3838,12 +3966,11 @@ mod tests {
     #[test]
     fn the_gate_carries_a_run_an_earlier_kev_had_already_made_stale() {
         // The gate's claim is the narrow one: no edge's carrier is made
-        // false BY THIS MOVE. `kev`'s fan merge leaves a carrier
-        // missing its own endpoint
-        // (`work/topo/kevs-fan-merge-needs-a-re-describing-kill-door.md`),
-        // and a later `mev` that moves that edge nowhere must not
-        // refuse in its name — the edge is no worse for this op, and
-        // tier 3 is what reports it.
+        // false BY THIS MOVE. A carrier already missing its own
+        // endpoint is planted here with the kill's ungated execution
+        // (both kill doors refuse to leave one), and a later `mev` that
+        // moves that edge nowhere must not refuse in its name — the
+        // edge is no worse for this op, and tier 3 is what reports it.
         let tol = Tol::witness();
         let (mut body, _seed, [a, _b, _c, _d]) = four_spoke_star();
         let s = body
@@ -3858,7 +3985,8 @@ mod tests {
             .unwrap();
         // Kills the far tip; `s` merges onto `a`'s start vertex while
         // its chord still runs to the dead vertex's point.
-        body.kev(a.he_plus).unwrap();
+        let plan = body.kev_plan(a.he_plus).unwrap();
+        body.kev_execute(plan);
         let stale = body.get_edge(s.edge).unwrap().he_plus;
         let orbit = body.vertex_orbit(stale).unwrap();
         let i = orbit.iter().position(|&h| h == stale).unwrap();
