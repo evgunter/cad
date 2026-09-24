@@ -346,3 +346,13 @@ and the review of 3133 were resumed:
 - the 3125 fix pass;
 - the 3124 fix pass;
 - 3133, the split spur, in review.
+
+## 2026-09-24 — Ev on tangent splits
+
+Ev, in chat: a split plane that grazes the target within the sliver
+band refuses, and an exact tangency has to be declared. Both are
+unlikely to happen by coincidence when the cut elsewhere does not
+depend on them. So refusing, as 3133's guard does, is the correct
+posture, not a P0. What remains is verb breadth: `split` has no way to
+declare an exact tangency, with the boolean's declared contacts as the
+precedent. That is filed P1 on REACH's slate from 3133.
