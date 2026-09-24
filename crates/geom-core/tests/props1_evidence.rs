@@ -17,14 +17,14 @@
 //! gate nothing, they print. Run them with
 //!
 //! ```text
-//! cargo test -p geom-core --features interval --test all \
+//! cargo test -p geom-core --test all \
 //!     -- --ignored --nocapture props1_evidence
 //! ```
 //!
 //! The rest of the file gates, comparing what the constructors SHIP
 //! against the retired spelling written out below. The `f64` rows run
-//! in both lanes; the `enclosure` module's rows need the `interval`
-//! feature, and are where the width and containment properties live —
+//! at `f64`; the `enclosure` module's rows run at the interval scalar,
+//! and are where the width and containment properties live —
 //! narrower is worthless if it is wrong, so every width row has a
 //! containment row beside it.
 
@@ -292,7 +292,6 @@ fn parallel_rejection_is_exactly_zero_at_f64() {
 
 /// The width and containment rows. `Interval` only: an enclosure is
 /// the only lane where a repeated mention costs anything.
-#[cfg(feature = "interval")]
 mod enclosure {
     use super::{
         ANCHORS, NORMALS, ONTOS, PARALLEL_SCALE, SELVES, p3, retired_mirror_translation,

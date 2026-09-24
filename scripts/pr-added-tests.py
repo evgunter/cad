@@ -18,14 +18,13 @@ found. It is deliberately NOT a gate — a budget needs a baseline and the
 baseline is moving fast — so nothing here thresholds anything, and the step
 that calls it cannot fail its job.
 
-A SIBLING OF `scripts/interval-only-selection.py`, and the same shape: a set
-difference over the `(binary-id, test-name)` pairs of two `cargo nextest
-list --message-format json` documents. What it does NOT share is that
-script's `load`, and the difference is the whole reason the code is not
-imported: the sibling's fail-closed direction is EXIT 1, because it selects
-what the interval legs execute and an unrecognised schema there must stop
-the run rather than run nothing. This one's fail-closed direction is a
-PRINTED SKIP, because it gates nothing and a report that reds a job has
+A SIBLING OF `scripts/nightly-only-selection.py`, and the same shape: a set
+difference over two `cargo nextest list --message-format json` documents.
+What it does NOT share is that script's `load`, and the difference is the
+whole reason the code is not imported: the sibling's fail-closed direction
+is EXIT 1, because it selects what a row executes and an unrecognised schema
+there must stop the run rather than run nothing. This one's fail-closed
+direction is a PRINTED SKIP, because it gates nothing and a report that reds a job has
 broken something more important than itself. Same question, opposite
 disposition; sharing the function would force one of the two answers to be
 wrong.
@@ -102,8 +101,7 @@ FIXTURES = os.path.join(HERE, "fixtures")
 
 def _load_sibling():
     """`scripts/slowest-tests.py`, imported by path — its filename has a
-    hyphen in it, so `import` cannot name it. The same device, for the same
-    reason, as `interval-only-selection.py`'s import of its tripwire."""
+    hyphen in it, so `import` cannot name it."""
     path = os.path.join(HERE, "slowest-tests.py")
     spec = importlib.util.spec_from_file_location("slowest_tests", path)
     if spec is None or spec.loader is None:

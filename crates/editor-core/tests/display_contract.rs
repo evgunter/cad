@@ -2666,11 +2666,8 @@ fn step_segments_error_display_names_its_content_not_its_struct() {
 /// of the door, and an arm added to one of these enums inherits
 /// whichever spelling its neighbours use.
 ///
-/// The certified-range and stackup doors compile in the interval build
-/// only, so they are censused by
-/// [`a_parameter_name_renders_unquoted_at_the_interval_only_doors`]
-/// rather than by a branch inside this one: a test that exists in both
-/// builds runs identical code in both.
+/// The certified-range and stackup doors are censused by
+/// [`a_parameter_name_renders_unquoted_at_the_interval_only_doors`].
 #[test]
 fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
     use editor_core::{
@@ -2781,7 +2778,7 @@ fn a_parameter_name_renders_unquoted_at_every_door_but_parse() {
 /// Each sentence names the parameter and does not quote it — the shared
 /// predicate of
 /// [`a_parameter_name_renders_unquoted_at_every_door_but_parse`] and its
-/// interval-only sibling, so the two lanes cannot drift into asking
+/// certified-lane sibling, so the two cannot drift into asking
 /// different questions of the same rule.
 fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) {
     let quoted = format!("{:?}", name.0);
@@ -2798,11 +2795,8 @@ fn assert_parameter_names_are_bare(framed: &[(&str, String)], name: &ParamName) 
     }
 }
 
-/// The two doors [`a_parameter_name_renders_unquoted_at_every_door_but_parse`]
-/// cannot reach: `range.rs` and `stackup.rs` compile in the interval
-/// build only, so their spelling is censused in that lane — which every
-/// code-tier run gates, not a lane nobody runs.
-#[cfg(feature = "interval")]
+/// The two certified-lane doors, `range.rs` and `stackup.rs`, beside
+/// [`a_parameter_name_renders_unquoted_at_every_door_but_parse`]'s.
 #[test]
 fn a_parameter_name_renders_unquoted_at_the_interval_only_doors() {
     use editor_core::{RangeRefusal, Unavailable};

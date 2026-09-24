@@ -1752,7 +1752,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "u",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
-         this renders a brace in an interval build and prose in a default one",
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/geom-brep/src/offset.rs",
@@ -1760,7 +1760,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "realized",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
-         this renders a brace in an interval build and prose in a default one",
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/geom-brep/src/offset.rs",
@@ -1768,7 +1768,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "realized_minor",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
-         this renders a brace in an interval build and prose in a default one",
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/geom-brep/src/offset_fit.rs",
@@ -1821,7 +1821,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "gap",
         3,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
-         this renders a brace in an interval build and prose in a default one",
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/topo/src/replace_face.rs",
@@ -1829,7 +1829,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "shift",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
-         this renders a brace in an interval build and prose in a default one",
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/topo/src/replace_face.rs",
@@ -1837,7 +1837,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "station_max",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
-         this renders a brace in an interval build and prose in a default one",
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/topo/src/replace_face.rs",
@@ -1845,7 +1845,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "station_min",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
-         this renders a brace in an interval build and prose in a default one",
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/topo/src/replace_face.rs",
@@ -1853,7 +1853,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "v_max",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
-         this renders a brace in an interval build and prose in a default one",
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/topo/src/replace_face.rs",
@@ -1861,7 +1861,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "v_min",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
-         this renders a brace in an interval build and prose in a default one",
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/topo/src/shell.rs",
@@ -1869,7 +1869,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "gap",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
-         this renders a brace in an interval build and prose in a default one",
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/topo/src/shell.rs",
@@ -1877,7 +1877,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "needed",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
-         this renders a brace in an interval build and prose in a default one",
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/topo/src/shell.rs",
@@ -1885,7 +1885,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "thickness",
         1,
         "the `Real` scalar parameter: `Interval` wraps a named-field struct, so\
-         this renders a brace in an interval build and prose in a default one",
+         this renders a brace at `Interval` and prose at `f64`",
     ),
     (
         "crates/topo/src/splitting/mod.rs",

@@ -289,11 +289,9 @@ name, by the `app_lane_skipped_*` rows in `src/lib.rs`,
 `tests/panel_display.rs`.
 
 **wasm.** The whole kernel plus `editor-core` compiles to
-`wasm32-unknown-unknown`, `--features interval` included, and CI
+`wasm32-unknown-unknown`, the certified interval lane included, and CI
 re-takes that reading on every code-tier pull request with one
-`cargo check` step for the interval build only; the default-features
-half rides on it because `scripts/check-interval-cfg-additive.py`
-keeps the interval build a syntactic superset of the library sources.
+`cargo check` step over the one build there is.
 The guard establishes that the crates compile, not that they link or
 run. `pncad` and this crate additionally need `getrandom`'s wasm
 backend named in both halves: the `wasm_js` feature (the stanza in

@@ -9626,10 +9626,7 @@ mod offset_fit_door_rows {
     }
 
     /// A scalar with no offset fit: its seam answers `None`. One row
-    /// per scalar rather than one row with `cfg`'d statements inside
-    /// it, because a `cfg` on a STATEMENT is a non-additive feature
-    /// gate (`scripts/check-interval-cfg-additive.py`) while a `cfg`
-    /// on a whole `#[test]` fn is test-only code.
+    /// per scalar.
     fn no_door<T: crate::props::AtRestPolicy>(named: &str) {
         assert!(
             T::offset_fit_lane().is_none(),
@@ -9661,7 +9658,6 @@ mod offset_fit_door_rows {
 
     /// The certifying interval scalar certifies plenty and still has no
     /// fit — the arm that makes the two absences distinguishable.
-    #[cfg(feature = "interval")]
     #[test]
     fn the_interval_scalar_has_no_door() {
         no_door::<geom_core::interval::Interval>("the interval scalar");

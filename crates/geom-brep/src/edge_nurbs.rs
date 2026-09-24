@@ -728,7 +728,6 @@ mod tests {
         ));
     }
 
-    #[cfg(feature = "interval")]
     mod interval {
         use geom_core::{Bounds, Interval};
 

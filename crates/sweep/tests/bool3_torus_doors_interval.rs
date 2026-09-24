@@ -1,5 +1,5 @@
 //! Issue 1011, the torus half: the torus containment doors at the
-//! CERTIFIED scalar (feature `interval`).
+//! CERTIFIED scalar.
 //!
 //! The point of the lane is that the arm's margins are honest
 //! enclosures rather than `f64` luck, and the ray×torus quartic asks
@@ -37,7 +37,6 @@
 //! Probes are dyadic where the geometry allows, so the enclosures are
 //! points and every margin decides definitely.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;

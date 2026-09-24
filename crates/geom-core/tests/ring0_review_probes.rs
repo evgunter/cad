@@ -93,13 +93,9 @@ fn division_touching_zero_refuses_on_both_sides() {
     assert_eq!(d.decoration(), Decoration::Dac);
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn division_touching_zero_refuses_at_the_interval_scalar() {
-    // The scalar wrapper's refusal, spelled inline rather than through
-    // a gated helper: `scripts/check-interval-cfg-additive.py` admits
-    // only whole gated items of a few kinds under `crates/*/tests`, so
-    // that a name present in both builds runs the same code in both.
+    // The scalar wrapper's refusal, spelled inline.
     let refuses = |blo: f64, bhi: f64| {
         let a = geom_core::Interval::from_bounds(1.0, 2.0);
         let b = geom_core::Interval::from_bounds(blo, bhi);

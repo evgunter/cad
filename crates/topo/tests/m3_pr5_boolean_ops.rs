@@ -117,7 +117,6 @@ fn generic_scenarios_f64() {
 }
 
 // ---- Interval lane (the same scenarios at T = Interval). ----
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
 

@@ -11,11 +11,8 @@
 //! merge base against the retired `(kv, span)` spellings, and it is
 //! unchanged here.
 //!
-//! **Interval-gated**, because half its rows are `Interval` rows: it
-//! runs in the six `interval` test jobs. The default lane's bit
-//! identity is `span_bit_identity.rs`, whose 1001 rows carry no feature
-//! gate.
-#![cfg(feature = "interval")]
+//! Half its rows are `Interval` rows. The `f64` lane's bit identity is
+//! `span_bit_identity.rs`, whose 1001 rows it does not repeat.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use geom::{NurbsCurve2, NurbsCurve3, NurbsSurface};
 use geom_core::spline::{CoeffWindow, KnotVector, RationalWindow, Span, SpanLocate, basis};

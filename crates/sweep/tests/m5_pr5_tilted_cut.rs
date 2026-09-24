@@ -256,7 +256,6 @@ fn tangent_plane_refuses_typed() {
 /// The interval lane: the tilted cut replays at `T = Interval` and the
 /// section ellipses' residual enclosures contain zero against both
 /// surfaces (the exact-in-ℝ claim, certified).
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use geom_core::Tol;
@@ -647,7 +646,6 @@ fn repaired_belly_bodies_mint_certified_pcurves() {
 /// construction — so the enclosures stay narrow and the interval lane
 /// now splits the belly document two-sided, with every section arc on
 /// the finite wall.
-#[cfg(feature = "interval")]
 #[test]
 fn even_crossing_belly_cut_at_interval() {
     use geom_core::{Bounds, Interval, Real};
