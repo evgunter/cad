@@ -1816,7 +1816,7 @@ mod tests {
     #[test]
     fn a_ranked_group_count_past_u32_refuses() {
         assert_eq!(group_count(3).unwrap(), 3);
-        if let Some(too_many) = usize::try_from(u64::from(u32::MAX) + 1).ok() {
+        if let Ok(too_many) = usize::try_from(u64::from(u32::MAX) + 1) {
             assert!(matches!(
                 group_count(too_many),
                 Err(NamingError::Emission { .. })
