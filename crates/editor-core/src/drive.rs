@@ -2061,19 +2061,28 @@ fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<&'static str> {
         // The selection resolved to the wrong KIND of entity. Document
         // structure; no parameter value moves it.
         NodeErrorKind::MeasureSelectionKind { .. } => Some("selection_kind"),
-        NodeErrorKind::MeasureClearanceRefused(r) => match r.class {
-            // Which faces are admitted, whether the two scopes pair at
-            // all, and whether the carrier has an implementation: all
-            // decided by the document's own topology and the engine's
-            // support table, not by the box.
-            c @ ("no_admitted_pair" | "unsupported" | "selection" | "empty_scope"
-            | "not_a_distance") => Some(c),
-            // `budget`, `sliver`, `poison_enclosure`, `witness_unverified`,
-            // `nothing_certified`, `tolerance_has_no_band`: every one of
-            // these can differ over a smaller box, so refinement is the
-            // right answer and the catch-all keeps it.
-            _ => None,
-        },
+        NodeErrorKind::MeasureClearanceRefused(r) => {
+            use crate::clearance::ClearanceRefusal as C;
+            match r {
+                // Which faces are admitted, whether the two scopes pair at
+                // all, and whether the carrier has an implementation: all
+                // decided by the document's own topology and the engine's
+                // support table, not by the box.
+                C::NoAdmittedPair
+                | C::Unsupported { .. }
+                | C::Selection(_)
+                | C::EmptyScope
+                | C::NotADistance { .. } => Some(r.name()),
+                // Every one of these can differ over a smaller box, so
+                // refinement is the right answer.
+                C::Budget(_)
+                | C::Sliver { .. }
+                | C::PoisonEnclosure { .. }
+                | C::WitnessUnverified { .. }
+                | C::NothingCertified { .. }
+                | C::ToleranceHasNoBand => None,
+            }
+        }
         _ => None,
     }
 }

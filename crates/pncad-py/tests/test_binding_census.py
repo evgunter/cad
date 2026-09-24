@@ -1318,7 +1318,7 @@ BOUND_AS = {
     # They cross exactly as their carrier does — flattened to the tag
     # `EvaluationError.kind` answers, the `NodeErrorKind` row's shape
     # one level in. An `f64` evaluation cannot produce either today,
-    # which is the same sentence `MinClearanceRefusal` carries one
+    # which is the same sentence `ClearanceRefusal` carries one
     # roster down: the LANE decides.
     "ParamBoxError": "EvaluationError.kind",
     "SeedError": "EvaluationError.kind",
@@ -2804,7 +2804,13 @@ NOT_BOUND = {
     # `min_clearance` WITH, so it is reachable today and is bound
     # top-level under rule 1. One kernel file, one verb, two refusals,
     # and the lane decides which of them a Python caller can ever see.
-    "MinClearanceRefusal": SHAPE,
+    "ClearanceRefusal": SHAPE,
+    # Its `Budget` and `Selection` payloads, curated beside it so a
+    # Rust consumer can read the arm it matched. They cross exactly as
+    # their carrier does — inside the one tag — and no `f64` evaluation
+    # reaches them for the same reason.
+    "CellBudget": SHAPE,
+    "SelectionRefusal": SHAPE,
     # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at
     # LIB-B-FACE-FRAME, and the id left `FAMILIES` with it. It cited
     # exactly ONE name here — `face_carrier_kind` — which is now in
@@ -2878,7 +2884,7 @@ NOT_BOUND = {
     #     `MeasureUnavailableAt` as exception classes keeping their
     #     Rust types' own names.
     #   - TWO stay here and are RETAGGED `SHAPE` — `SitedRef` and
-    #     `MinClearanceRefusal`, each argued at its own entry above.
+    #     `ClearanceRefusal`, each argued at its own entry above.
     #     Neither is a debt any more and neither is reach: one is a
     #     type whose two halves are what the doors take, the other a
     #     refusal flattened to a tag no `f64` evaluation can raise.
@@ -2895,7 +2901,7 @@ NOT_BOUND = {
     # THE GATE, MEASURED, and it is not the one B-DISTRIBUTIONS found:
     # every name this family owns is curated in
     # `crates/pncad/src/document.rs`, which carries NO `cfg`. The limit is a
-    # LANE — see the `MinClearanceRefusal` entry — and it bites one
+    # LANE — see the `ClearanceRefusal` entry — and it bites one
     # refusal out of the family's whole surface.
     #
     # WHAT THIS FILE COULD NOT SEE, in both directions. `Node::Measure`
@@ -3041,7 +3047,7 @@ NOT_BOUND = {
     # WHAT WOULD MAKE THIS ROW STOP BEING HONEST, in `EvalOutcome`'s
     # shape: a Python surface that evaluates at a certified scalar. On
     # that day these are doors a caller can reach and every one of them
-    # owes a spelling or a `gap:`. `MinClearanceRefusal`'s entry two
+    # owes a spelling or a `gap:`. `ClearanceRefusal`'s entry two
     # screens up is the same sentence from the refusal side, and it is
     # the sharper statement of it: the LANE is what gates.
     "BoxAxis": SHAPE,

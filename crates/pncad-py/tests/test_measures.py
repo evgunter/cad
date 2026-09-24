@@ -23,7 +23,7 @@ refusals a Python caller can ever see. `min_clearance` is answered by
 an engine whose value is an ENCLOSURE, and the binding evaluates at
 `f64` alone — a point scalar, with nowhere to put one. So
 `MeasureUnavailableAt` is reachable here and is exercised below, while
-the engine's own `MinClearanceRefusal` is not reachable: its one
+the engine's own `ClearanceRefusal` is not reachable: its one
 producer is the interval lane's `MinClearanceLane` impl, at a scalar
 the binding does not evaluate at. That refusal's tag and prose are
 pinned in Rust instead (`src/tests.rs`).

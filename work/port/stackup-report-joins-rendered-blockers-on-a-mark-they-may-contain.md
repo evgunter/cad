@@ -2,11 +2,12 @@
 id: stackup-report-joins-rendered-blockers-on-a-mark-they-may-contain
 kind: issue
 title: the stackup report joins rendered Unavailable blockers flat on a "; " the elements may carry
-status: review
+status: closed
 pr: 3178
 opened: 2026-09-16
 priority: P3
 cost: E
+closed: 2026-09-24
 ---
 
 

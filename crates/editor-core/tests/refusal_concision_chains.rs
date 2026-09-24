@@ -128,8 +128,9 @@ pub(crate) const FILED_DECLARE: &[&str] = &["Split/Join/Section(Carrier)"];
 /// The rows that render a `Debug` struct from a file an open PR is
 /// reworking, by exact row id, each filed with its owner.
 pub(crate) const FILED_DEBUG: &[&str] = &[
-    // `editor-core/src/measure.rs` (#2702) renders the clearance
-    // engine's refusal class through `Debug`, PROPS's:
+    // `ClearanceRefusal::payload` (`editor-core/src/clearance.rs`)
+    // renders the engine's budget and face evidence through `Debug`,
+    // and this arm prints it; PROPS's:
     // work/props/props-refusal-prose-outgrows-the-viewer.md
     "MeasureClearanceRefused",
 ];
@@ -1971,11 +1972,11 @@ fn doc_ref() -> editor_core::DocRef {
 
 /// The contact, frame, witness, part and measure arms.
 fn document_arms() -> Vec<(String, NodeErrorKind)> {
+    use editor_core::clearance::{CellBudget, ClearanceRefusal};
     use editor_core::{
         BifurcationKind, BranchMarginEvidence, ContactClass, DirectionRefusal, EntityKind,
         FaceName, FlushEvidence, FlushFinding, FlushRung, Implicated, InterrogateError,
-        MeasureNodeFault, MinClearanceRefusal, PartFault, ResolveFault, SitedRef, WitnessAge,
-        WitnessBifurcation,
+        MeasureNodeFault, PartFault, ResolveFault, SitedRef, WitnessAge, WitnessBifurcation,
     };
     use geom_core::UnitVec3Error;
     use payloads::*;
@@ -2059,10 +2060,9 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         ),
         row(
             "MeasureClearanceRefused",
-            NodeErrorKind::MeasureClearanceRefused(MinClearanceRefusal {
-                class: "budget",
-                payload: "Depth { max_cell_depth: 20 }".to_owned(),
-            }),
+            NodeErrorKind::MeasureClearanceRefused(ClearanceRefusal::Budget(CellBudget::Depth {
+                max_cell_depth: 20,
+            })),
         ),
     ];
     for (n, error) in [

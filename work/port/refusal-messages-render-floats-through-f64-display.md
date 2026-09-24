@@ -2,11 +2,12 @@
 id: refusal-messages-render-floats-through-f64-display
 kind: issue
 title: Refusal messages render f64 knots and weights through Display, so 1e308 prints as 309 digits
-status: review
+status: closed
 pr: 3178
 opened: 2026-09-15
 priority: P3
 cost: E
+closed: 2026-09-24
 ---
 
 

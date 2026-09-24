@@ -60,9 +60,12 @@ disclose if it turns out differently in the tree:
   as `topo::clearance::ClearanceRefusal`; the document-level arms
   `Selection(SelectionRefusal)` and `NothingCertified` stay in an
   editor-core enum that wraps the moved one (`Engine(topo::…)`).
-  Every `Display` text is unchanged. `MinClearanceRefusal`
-  (`measure.rs`, the stringly twin M10 filed) is NOT touched — its
-  issue is M10's.
+  Every `Display` text is unchanged. The measure layer carries the
+  editor-core enum unaltered (`NodeErrorKind::MeasureClearanceRefused`,
+  `MinClearanceLane::min_separation`'s error), so the split reaches
+  two sites outside `clearance.rs`: `drive.rs`'s
+  `box_independent_measure_class`, which classes every arm, and the
+  `pncad::document` re-export of the enum and its payloads.
 - **`Window`.** Its `at: RecipeNodeId` / `body: u32` fields exist so
   the `f64` witness rebuild resolves the same face at its own node
   (the docs say why: two nodes can carry the same arena key). The

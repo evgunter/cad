@@ -1069,3 +1069,16 @@ refusing margin under its predicate name — and it holds, so the answer is
 name-only, written at `NotOneChartBranch` and `NotIsoRectangle`. Ev agreed
 in chat that switching would need a surprisingly good reason, and let it
 land without an `[ev]` PR.
+
+## `port/wrap-a` merged; `min-clearance-refusal-stringly-twin` to review (2026-09-24)
+
+PR #3178 merged, so its three rows — `refusal-messages-render-floats-through-f64-display`,
+`stackup-report-joins-rendered-blockers-on-a-mark-they-may-contain` and `D341` —
+are closed. `min-clearance-refusal-stringly-twin`: the gate the row waited on
+is gone (`clearance` is an ungated module), so `MinClearanceRefusal`'s
+`(class, String)` pair is deleted and the measure layer carries the engine's own
+`ClearanceRefusal`: `MinClearanceLane::min_separation`'s error,
+`NodeErrorKind::MeasureClearanceRefused`'s payload, and an exhaustive enum match
+in `drive.rs`'s `box_independent_measure_class` (the reader the row called
+`decide_assertion`). `pncad::document` curates the enum and its `Budget` /
+`Selection` payloads; the rendered text is unchanged.

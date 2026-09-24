@@ -140,8 +140,8 @@ pub use mc::{
 };
 pub use measure::{
     ASSERT_BOUND, AssertionDir, AssertionVerdict, Certified, MeasureExpr, MeasurePrimitive,
-    MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, MinClearanceRefusal,
-    UnevaluatedReason, WINDOW_TIGHTENING,
+    MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, UnevaluatedReason,
+    WINDOW_TIGHTENING,
 };
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
