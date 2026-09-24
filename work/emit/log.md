@@ -527,7 +527,7 @@ Filed:
 - P1 `the-viewer-drops-every-dm7-rename-report`
 - P2 `the-value-edit-numbering-check-costs-a-replay-per-swept-profile`
 
-## 2026-09-24 — the stable-name question put to Ev (PR #PRNUM)
+## 2026-09-24 — the stable-name question put to Ev (PR #3193)
 
 Ev's comment on EDIT's #3163 asked for "a more general stable name
 system". Three open rows share one cause: a profile locator spells a
