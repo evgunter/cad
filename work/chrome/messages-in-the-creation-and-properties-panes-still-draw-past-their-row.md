@@ -2,8 +2,10 @@
 id: messages-in-the-creation-and-properties-panes-still-draw-past-their-row
 kind: issue
 title: viewer: fifty refusal, fault and prompt sentences in the creation and properties panes are still drawn by the layout's rule, not the message's
-status: open
+status: closed
 opened: 2026-09-22
+closed: 2026-09-24
+pr: 3139
 priority: P0
 cost: D
 refs: [error-and-check-text-overflows-its-region]
@@ -242,3 +244,56 @@ The sweep that found `slot_value_ui` also found a field that is not a
 message: a driven slot's value field shows its expression's source,
 unbounded, in the same row. Filed as
 `a-driven-slots-field-draws-its-expression-source-at-any-width`.
+
+## create.rs half, done (2026-09-24)
+
+`chrome/create-messages` routed every sentence in `pane/create.rs`
+through `crate::widgets::message`, `message_toned` (every `ui.weak`
+became `Tone::Advisory`) or plain `message` (every `ui.label`),
+re-taking the census by subject with the test above. The line numbers
+above had drifted and three of the subjects were misattributed; the
+list below is by function.
+
+- **In a row: two, not three.** `frame_picker`'s empty arm (now
+  `NO_FRAMES`, said on a line of its own under the picker's label) and
+  `add_part_ui`'s per-entry id (now `part_entry`, a free function: the
+  pick button, then the 32-digit id under it). The third,
+  `BlendTarget::of_face(face)` in the face row, is in
+  `datum_face_frame_rows`, not `blend_tool_ui`, and is a NAME:
+  `"feature {n} body {m}"` is a fixed literal and two integers. It
+  stays beside its `face` label. `create.rs`'s `layout_tests` holds a
+  row per in-row site, each red against the old layout.
+- **Top-down: twenty-five**, the twenty-seven above less two that are
+  NAMES by the same count rule the properties half used for
+  `"{n} rebind candidate(s) offered"`: `mate_tool_ui`'s one-pick line
+  (`"pick a: face of node {n}"`) and `blend_tool_ui`'s picked-count
+  line (`"{count} edges picked on {target}"`, whose target is the
+  two-integer name above). The mate tool's two-pick line stays a
+  sentence, because it is a joined pair, as `seat_line` is. The
+  "sketch-frame note" listed under `blend_tool_ui` is
+  `datum_face_frame_rows`'s. All twenty-five are converted.
+- **Names, left as labels**: `"no picks yet"`, `"no directory"`,
+  `"none picked"`, `"no edges picked yet"`, the two above, every form
+  label, every radio and checkbox label from a closed set, and every
+  fixed button label including `"Extrude {node}"`.
+
+**The window width.** `add_part_ui`'s window is now built by
+`part_window`, which gives it the width of the pane that opened it
+(`egui::Ui::available_width`, never under `message_floor`). The premise
+that carried this bullet here did not hold as stated. Measured on
+egui 0.36.1: `egui::Window::new` begins at egui's own 340-point default
+size, so with no `default_width` the chooser's sentences wrapped at 326
+points from the first painted frame. `egui::Resize::begin` ratchets UP
+to last frame's content and never back. So the wrap did fire, at a
+width egui chose, and a wider row (a long file name on a pick button)
+widened the window instead. `widgets::message`'s doc now says that.
+`the_part_choosers_sentences_wrap_at_the_opening_panes_width` holds the
+opener's width, red against the window with no width (its sentence
+ran 62 points past a 260-point opener).
+
+Filed from the sweep: `a-part-choosers-pick-button-draws-a-file-name-at-any-width`
+and `a-frame-pickers-closed-combo-draws-a-frames-pose-in-an-extend-row`.
+The sentences AUTHOR's PR 3052 adds to `create.rs` (`part_selector_rows`'
+two notes, `part_tool_ui` and `duplicate_tool_ui`'s prompts, seat lines
+and `duplicate_note`) were not on this branch and were not chased. They
+are that PR's to route through `message`.
