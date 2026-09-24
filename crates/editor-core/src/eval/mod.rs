@@ -1956,10 +1956,9 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Seed { source } => write!(f, "{source}"),
             Self::SeedPinnedSection { section, param } => write!(
                 f,
-                "the seed on parameter {:?} reaches section profile node {}, which stays f64 \
+                "the seed on parameter {param} reaches section profile node {}, which stays f64 \
                  in every lane (a loft's or a sweep's section is structure) — the tangent \
                  cannot ride through it, so this node refuses rather than embed a zero",
-                param.as_str(),
                 section.0
             ),
             Self::WrongOperand {
