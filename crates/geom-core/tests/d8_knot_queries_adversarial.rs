@@ -45,10 +45,10 @@
 
 test_utils::gated_to![
     "crates/geom-core/src/spline/",
-    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
 ];
 
-use geom_core::ring_interval::RingInterval;
+use geom_core::interval::Interval;
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::CurveRingData;
 use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};
@@ -809,8 +809,8 @@ fn the_raw_slice_entitlement_survives_the_whole_mutation_sequence() {
 // C7: the public door
 // ---------------------------------------------------------------------
 
-fn lift(v: &[f64]) -> Vec<RingInterval> {
-    v.iter().map(|x| RingInterval::point(*x)).collect()
+fn lift(v: &[f64]) -> Vec<Interval> {
+    v.iter().map(|x| Interval::point(*x)).collect()
 }
 
 /// Drives the one public entry point that forwards caller-supplied
@@ -824,7 +824,7 @@ fn caller_supplied_break_parameters_cannot_reach_the_unreachable() {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let kv_s = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
     let sw = vec![1.0; 8];
-    let sx: Vec<Vec<RingInterval>> = vec![
+    let sx: Vec<Vec<Interval>> = vec![
         lift(&[0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0]),
         lift(&[0.0, 0.4, 0.9, 0.0, 0.4, 0.9, 0.1, 0.2]),
         lift(&[0.0, 0.2, 0.0, 0.1, 0.3, 0.1, 0.0, 0.1]),

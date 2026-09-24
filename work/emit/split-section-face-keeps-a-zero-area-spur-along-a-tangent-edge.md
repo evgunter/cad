@@ -2,12 +2,14 @@
 id: split-section-face-keeps-a-zero-area-spur-along-a-tangent-edge
 kind: issue
 title: A split whose plane is tangent to the target along an edge AND crosses it elsewhere keeps the tangent edge as a zero-area spur of the section face
-status: dispatched
+status: closed
 opened: 2026-09-23
 priority: P0
 cost: H
 branch: emit/split-spur
 refs: [split-of-a-fused-declared-union-refuses-duplicate-vertex-name]
+closed: 2026-09-24
+pr: 3133
 ---
 
 ## What

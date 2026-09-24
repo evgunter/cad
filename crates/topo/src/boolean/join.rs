@@ -2614,7 +2614,7 @@ mod frame_dispatch_tests {
 }
 
 /// **The cylinder×cylinder coplanarity split at the CERTIFIED scalar**
-/// (feature `interval`) — the two-arm pin for this unit's new decide
+/// — the two-arm pin for this unit's new decide
 /// site, `bool_germ_frame_axes_coplanar`.
 ///
 /// **Why it lives HERE and not in a body-level suite.** The predicate
@@ -2637,7 +2637,6 @@ mod frame_dispatch_tests {
 /// here would be the arithmetic's doing and is exactly what this row is
 /// for.
 #[cfg(test)]
-#[cfg(feature = "interval")]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod frame_dispatch_interval_tests {
     use geom_core::{Interval, Point3, Real, Tol, Vec3};

@@ -126,8 +126,8 @@
 //! every one of its twenty-six existing digests is byte-identical, so
 //! no pre-existing document moved. The `probe` row moved with the
 //! `f64` row and stayed EQUAL to it, which is the property that row
-//! exists for; the `interval` row was re-read under the `interval`
-//! feature, the only lane that builds it.
+//! exists for; the `interval` row was re-read in the lane that built
+//! it then.
 //!
 //! RE-BLESSED AGAIN FOR THE IN-PLANE REVOLVE AXIS, and this time the
 //! finer instrument DID separate it. A revolve's axis is written in the
@@ -143,9 +143,8 @@
 //! byte-identical. The INTERVAL row moved with the other two and for
 //! the same reason — it is the same digest over the same ids at a
 //! different scalar — and it was re-blessed a cycle later than they
-//! were, because it compiles only under the `interval` feature and a
-//! default-lane run never builds it, and the hosted lane is what
-//! said so.
+//! were, because a default-lane run did not build it then, and the
+//! hosted lane is what said so.
 //!
 //! This scalar moves anyway, because it feeds `id.0` for every node
 //! in every document and two of the die documents' ids swapped. The geometric evidence below is unchanged and was
@@ -630,7 +629,6 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
 
 /// The same fence at `Interval`, where the lift's second pass would
 /// otherwise be tempting to leave on.
-#[cfg(feature = "interval")]
 #[test]
 fn the_corpus_evaluation_is_bit_identical_at_interval() {
     use geom_core::{Bounds, Interval};

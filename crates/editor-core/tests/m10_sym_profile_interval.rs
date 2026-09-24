@@ -25,7 +25,6 @@
 //! replays one box a chosen number of times and nothing else, so an
 //! instruction count over it is the tier's and not the instrument's.
 //! The command that takes it is recorded in the item body.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the code it profiles: the normal form and its rules, the

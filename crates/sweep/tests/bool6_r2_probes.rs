@@ -81,7 +81,6 @@ fn r2_middle_slab_at_every_band_edge_at_the_run_band() {
 /// interval there (the lift and the world transform round outward),
 /// so the exact edges are RECORDED rather than pinned, and only the
 /// off-edge steps are asserted to agree with the f64 lane.
-#[cfg(feature = "interval")]
 #[test]
 fn r2_middle_slab_band_edges_at_interval() {
     use geom_core::Interval;

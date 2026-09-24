@@ -4,8 +4,8 @@
 //! Every document here is a RECIPE authored through `DocEdit`s (an
 //! edit LOG, never a hand-built `Doc` value), so each one is at once:
 //!
-//! - an evaluation fixture (green at every CI ε row and under the
-//!   `interval` feature — `m4_pr8_corpus.rs` / `..._interval.rs`),
+//! - an evaluation fixture (green at every CI ε row and at the
+//!   certified scalar — `m4_pr8_corpus.rs` / `..._interval.rs`),
 //! - a persistence fixture (the PR 6 D6.1 rows run the whole corpus:
 //!   `m4_pr6_roundtrip.rs` / `..._interval.rs`),
 //! - a latency fixture (D2's full-rebuild + incremental-recompute
@@ -163,8 +163,8 @@ pub fn documents() -> Vec<CorpusDoc> {
         // `5c8540f`. It was held out while the fillet battery's
         // clearance screen seeded a gap with
         // `T::from_f64(f64::INFINITY)` — NaI at the Interval scalar,
-        // so the document was green at `f64` and refused under
-        // `--features interval`, which registry membership requires.
+        // so the document was green at `f64` and refused at the
+        // Interval scalar, which registry membership requires.
         // That sentinel is gone; the document runs the Interval lane
         // like every other row. It stays additionally pinned at both
         // scalars by `m5_pr12_fillet_node.rs`.

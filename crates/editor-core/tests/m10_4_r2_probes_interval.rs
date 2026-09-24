@@ -31,7 +31,6 @@
 //! EVIDENCE-ONLY print or assert a documented behaviour and gate
 //! nothing new.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;

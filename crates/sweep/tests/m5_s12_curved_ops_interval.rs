@@ -1,5 +1,5 @@
 //! M5 S12 interval lane: curved `revert` and the newly-live curved
-//! ∖/∩ at the CERTIFIED scalar (feature `interval`).
+//! ∖/∩ at the CERTIFIED scalar.
 //!
 //! Everything S12 adds is exact structure — a `bool` negation, a
 //! surface-KEY equality, an arena scan of surface kinds — so none of it
@@ -18,13 +18,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::loud_skip_marker!(
-    feature = "interval",
-    row = interval_lane_skipped_no_certified_coverage_here,
-    absent = "certified coverage of S12's curved ops",
-);
-
-#[cfg(feature = "interval")]
 pub(crate) mod certified {
     use core::f64::consts::PI;
     use geom_core::Tol;

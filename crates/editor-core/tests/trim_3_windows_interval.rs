@@ -26,10 +26,8 @@
 //! at the interval scalar over an ε-scaled box, so a revolved band
 //! refuses at the SELECTION door and never reaches `window_of`.
 //!
-//! The basename carries `interval` because the suite is
-//! `#![cfg(feature = "interval")]`, which is what selects it into the
-//! interval legs.
-#![cfg(feature = "interval")]
+//! The basename carries `interval` because the suite's subject is the
+//! certified scalar.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

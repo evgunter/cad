@@ -85,7 +85,7 @@ impl<T: Real> MassProperties<T> {
     /// # The ends are RECONSTRUCTED, and what that costs
     ///
     /// The stored form is a midpoint and a half-width
-    /// (`quad_lane::mid_pad`), so neither end here is the ring
+    /// (`quad_lane::mid_pad`), so neither end here is interval arithmetic
     /// interval's own endpoint: each is two `f64` roundings away from
     /// it (the halving that built the pair, and this arithmetic). The
     /// LOWER end is the one that now decides an ACCEPTANCE — check 7
@@ -2031,13 +2031,10 @@ fn classify_shells_via<T: Decide>(
 /// certification rights — `f64`, the telemetry probe, the interval
 /// scalar, and `Sym` over any of those; a [`geom_core::Dual`] carries a
 /// bracket (D1) and still may not certify (DL1), which is the missing
-/// [`geom_core::CertifiedEnclosure`] impl and nothing else. The tree's
-/// fifth `CertifiedEnclosure` impl, `geom_core::RingInterval`, is a
-/// bracket CURRENCY (the ring the certified reads hand back) and not a
-/// scalar — it implements no [`Decide`], so no door forms at it and no
-/// wiring row is owed. That roster is not left to this sentence:
+/// [`geom_core::CertifiedEnclosure`] impl and nothing else. That roster
+/// is not left to this sentence:
 /// `topo/tests/certified_enclosure_impl_census.rs` counts the impls in
-/// the tree against `wiring_rows`' instantiations and reds on a sixth
+/// the tree against `wiring_rows`' instantiations and reds on a
 /// certifying scalar that has no row here. This type
 /// carries that fact to the passes that run at both kinds of scalar:
 /// its one constructor is [`QuadLane::certified`], at
@@ -2258,7 +2255,6 @@ mod wiring_rows {
         );
     }
 
-    #[cfg(feature = "interval")]
     #[test]
     fn interval_is_wired_to_the_certified_quadrature() {
         assert!(
@@ -2473,7 +2469,6 @@ impl AtRestPolicy for geom_core::Probe {
     }
 }
 
-#[cfg(feature = "interval")]
 impl AtRestPolicy for geom_core::interval::Interval {
     /// The fit is derived at `f64` only — a fact about the scalar the
     /// derivation was written in, not about this scalar's
@@ -2672,7 +2667,6 @@ mod at_rest_policy_tests {
         certifying_arms_are_the_doors::<geom_core::Probe>();
     }
 
-    #[cfg(feature = "interval")]
     #[test]
     fn interval_gates_run_the_doors() {
         certifying_arms_are_the_doors::<geom_core::interval::Interval>();
@@ -2731,7 +2725,7 @@ mod quad_lane {
     };
     use geom_brep::props::{LoopEdge, PropsError, loop_vector_area};
     use geom_core::Tol;
-    use geom_core::ring_interval::RingInterval;
+    use geom_core::interval::Interval;
     // The compound `Decide + Bounds` bound below is a RATIFIED seam
     // (M5 PR 11, Ev's lane-split ruling; discipline allowlist row):
     // this module is the certified lanes' plumbing and never
@@ -2754,12 +2748,12 @@ mod quad_lane {
     /// A refused enclosure has no midpoint and no width, and answers
     /// `NaN` for both — which is what every consumer of this pair
     /// already carries through `T::from_f64`. The refusal is asked by
-    /// name: the ring keeps it in the decoration, so a refused
+    /// name: interval arithmetic keeps it in the decoration, so a refused
     /// enclosure's two endpoints are ordinary numbers and their
     /// average would be a plausible mass property with nothing behind
     /// it.
-    pub(super) fn mid_pad(x: RingInterval) -> (f64, f64) {
-        if x.is_poison() {
+    pub(super) fn mid_pad(x: Interval) -> (f64, f64) {
+        if !x.is_certified() {
             return (f64::NAN, f64::NAN);
         }
         ((x.lo() + x.hi()) * 0.5, (x.hi() - x.lo()) * 0.5)
@@ -2773,16 +2767,16 @@ mod quad_lane {
         carrier: &Curve3<T>,
         p: Point3<T>,
         eps: f64,
-    ) -> Result<(RingInterval, RingInterval), PropsError> {
-        let full = RingInterval::from_bounds(-1.0, 1.0);
+    ) -> Result<(Interval, Interval), PropsError> {
+        let full = Interval::from_bounds(-1.0, 1.0);
         // `from_bounds` mints a fresh bracket out of whatever
         // endpoints it is handed, so a refused operand would come back
         // clean. The refusal is carried across by hand.
-        let clamp = |x: RingInterval, pad: f64| {
-            if x.is_poison() {
-                return RingInterval::poison();
+        let clamp = |x: Interval, pad: f64| {
+            if !x.is_certified() {
+                return Interval::poison();
             }
-            RingInterval::from_bounds(x.lo() - pad, x.hi() + pad).clamped_to(-1.0, 1.0)
+            Interval::from_bounds(x.lo() - pad, x.hi() + pad).clamped_to(-1.0, 1.0)
         };
         match carrier {
             // A line's harmonic pcurve has zero trig amplitudes; the
@@ -2796,11 +2790,9 @@ mod quad_lane {
             } => {
                 let v_ref = axis.cross(*u_ref);
                 let w = p - *center;
-                let c = RingInterval::from_certified(w.dot(*u_ref))
-                    / RingInterval::from_certified(*radius);
-                let s = RingInterval::from_certified(w.dot(v_ref))
-                    / RingInterval::from_certified(*radius);
-                let pad = (RingInterval::point(eps) / RingInterval::from_certified(*radius)).mag();
+                let c = Interval::from_certified(w.dot(*u_ref)) / Interval::from_certified(*radius);
+                let s = Interval::from_certified(w.dot(v_ref)) / Interval::from_certified(*radius);
+                let pad = (Interval::point(eps) / Interval::from_certified(*radius)).mag();
                 Ok((clamp(c, pad), clamp(s, pad)))
             }
             Curve3::Ellipse {
@@ -2812,12 +2804,10 @@ mod quad_lane {
             } => {
                 let v_ref = axis.cross(*u_ref);
                 let w = p - *center;
-                let c = RingInterval::from_certified(w.dot(*u_ref))
-                    / RingInterval::from_certified(*major);
-                let s = RingInterval::from_certified(w.dot(v_ref))
-                    / RingInterval::from_certified(*minor);
-                let pad_c = (RingInterval::point(eps) / RingInterval::from_certified(*major)).mag();
-                let pad_s = (RingInterval::point(eps) / RingInterval::from_certified(*minor)).mag();
+                let c = Interval::from_certified(w.dot(*u_ref)) / Interval::from_certified(*major);
+                let s = Interval::from_certified(w.dot(v_ref)) / Interval::from_certified(*minor);
+                let pad_c = (Interval::point(eps) / Interval::from_certified(*major)).mag();
+                let pad_s = (Interval::point(eps) / Interval::from_certified(*minor)).mag();
                 Ok((clamp(c, pad_c), clamp(s, pad_s)))
             }
             // The spiric's chart images are not harmonic (its `m`
@@ -2852,10 +2842,10 @@ mod quad_lane {
         cl: T,
     ) -> Result<HarmChan, PropsError> {
         Ok(HarmChan {
-            c0: RingInterval::from_certified(c0),
-            ca: RingInterval::from_certified(ca),
-            cb: RingInterval::from_certified(cb),
-            cl: RingInterval::from_certified(cl),
+            c0: Interval::from_certified(c0),
+            ca: Interval::from_certified(ca),
+            cb: Interval::from_certified(cb),
+            cl: Interval::from_certified(cl),
         })
     }
 
@@ -2910,7 +2900,7 @@ mod quad_lane {
         };
         let eps = tol.eps();
         let va = loop_vector_area(outer, *origin)?;
-        let o_dot_va = RingInterval::from_certified((*origin - Point3::origin()).dot(va));
+        let o_dot_va = Interval::from_certified((*origin - Point3::origin()).dot(va));
         let mut edges = Vec::with_capacity(outer.len());
         for (le, he) in outer.iter().zip(hes) {
             let Some(cache) = body.pcurve(*he) else {
@@ -2946,15 +2936,15 @@ mod quad_lane {
             edges.push(TrimEdgeQ {
                 u: chan(p0.x, pa.x, pb.x, pl.x)?,
                 v: chan(p0.y, pa.y, pb.y, pl.y)?,
-                t0: RingInterval::from_certified(t0),
-                t1: RingInterval::from_certified(t1),
+                t0: Interval::from_certified(t0),
+                t1: Interval::from_certified(t1),
                 forward: le.forward,
                 trig0,
-                env: RingInterval::from_certified(cache.certificate().envelope),
+                env: Interval::from_certified(cache.certificate().envelope),
             });
         }
         quad::cylinder_cut_face_rounds::<T>(
-            RingInterval::from_certified(*radius),
+            Interval::from_certified(*radius),
             o_dot_va,
             &edges,
             eps,
@@ -3007,11 +2997,11 @@ mod quad_lane {
         }
         let eps = tol.eps();
         // Exact-structure read of a T scalar (point bracket required).
-        let exact = |x: RingInterval| -> Result<f64, PropsError> {
+        let exact = |x: Interval| -> Result<f64, PropsError> {
             // The refusal first: a refused crossing carries the
             // scalar's own endpoints, so a point bracket that may not
             // certify passes both tests below.
-            if !x.is_poison() && x.lo() == x.hi() && x.lo().is_finite() {
+            if x.is_certified() && x.lo() == x.hi() && x.lo().is_finite() {
                 Ok(x.lo())
             } else {
                 Err(PropsError::QuadratureUnsupported {
@@ -3051,12 +3041,12 @@ mod quad_lane {
             let a = cache.pcurve().eval(t0);
             let b = cache.pcurve().eval(t1);
             let (ax, ay) = (
-                exact(RingInterval::from_certified(a.x))?,
-                exact(RingInterval::from_certified(a.y))?,
+                exact(Interval::from_certified(a.x))?,
+                exact(Interval::from_certified(a.y))?,
             );
             let (bx, by) = (
-                exact(RingInterval::from_certified(b.x))?,
-                exact(RingInterval::from_certified(b.y))?,
+                exact(Interval::from_certified(b.x))?,
+                exact(Interval::from_certified(b.y))?,
             );
             if ax != bx && ay != by {
                 return Err(PropsError::QuadratureUnsupported {
@@ -3074,8 +3064,7 @@ mod quad_lane {
             // Metric boundary length bound + the map-residual defect.
             let len = carrier_metric_length(&le.carrier, t0, t1)?;
             perimeter += len;
-            boundary_defect +=
-                len * RingInterval::from_certified(cache.certificate().envelope).mag();
+            boundary_defect += len * Interval::from_certified(cache.certificate().envelope).mag();
         }
         // The rectangle certificate: hull of the traversal polygon,
         // every vertex on a corner, and the shoelace equal to ±the
@@ -3119,9 +3108,9 @@ mod quad_lane {
             .iter()
             .map(|p| {
                 [
-                    RingInterval::from_certified(p.x),
-                    RingInterval::from_certified(p.y),
-                    RingInterval::from_certified(p.z),
+                    Interval::from_certified(p.x),
+                    Interval::from_certified(p.y),
+                    Interval::from_certified(p.z),
                 ]
             })
             .collect();
@@ -3159,24 +3148,24 @@ mod quad_lane {
         t1: T,
     ) -> Result<f64, PropsError> {
         Ok(match carrier {
-            Curve3::Line { dir, .. } => (RingInterval::from_certified(dir.norm())
-                * RingInterval::from_certified(t1 - t0))
-            .mag(),
+            Curve3::Line { dir, .. } => {
+                (Interval::from_certified(dir.norm()) * Interval::from_certified(t1 - t0)).mag()
+            }
             // The control polygon bounds the spline's arc length
             // (the convex-hull/variation-diminishing fact).
             Curve3::Nurbs(c) => {
-                let mut l = RingInterval::zero();
+                let mut l = Interval::zero();
                 for w in c.control().windows(2) {
-                    l = l + RingInterval::from_certified(w[0].distance(w[1]));
+                    l = l + Interval::from_certified(w[0].distance(w[1]));
                 }
                 l.mag()
             }
             // An ARC cap rim on a rational wall (M8-3): the metric
             // length is exactly `r·Δθ` — the carrier's own parameter
             // IS the angle, so no bound is needed.
-            Curve3::Circle { radius, .. } => (RingInterval::from_certified(*radius)
-                * RingInterval::from_certified(t1 - t0))
-            .mag(),
+            Curve3::Circle { radius, .. } => {
+                (Interval::from_certified(*radius) * Interval::from_certified(t1 - t0)).mag()
+            }
             _ => {
                 return Err(PropsError::QuadratureUnsupported {
                     what: "a NURBS-face boundary carrier outside the loft inventory \
@@ -3207,7 +3196,7 @@ mod quad_lane {
         tol: Tol,
         window: RoundWindow,
     ) -> Result<RoundOutcome, PropsError> {
-        let ring = |x: T| RingInterval::from_certified(x);
+        let ring = |x: T| Interval::from_certified(x);
         let mut chords: Vec<TrimChord> = Vec::with_capacity(outer.len());
         for (le, he) in outer.iter().zip(hes) {
             let Some(cache) = body.pcurve(*he) else {
@@ -3248,8 +3237,8 @@ mod quad_lane {
                     // bound rather than a refusal.
                     // The refusal first, for the reason the
                     // `exact` closure above gives.
-                    if r0.is_poison()
-                        || r1.is_poison()
+                    if !r0.is_certified()
+                        || !r1.is_certified()
                         || !(r0.lo() == r0.hi()
                             && r1.lo() == r1.hi()
                             && r0.lo() == d0
@@ -3309,8 +3298,8 @@ mod quad_lane {
         for i in 0..chords.len() {
             let j = (i + 1) % chords.len();
             let merged = (
-                RingInterval::hull(chords[i].b.0, chords[j].a.0),
-                RingInterval::hull(chords[i].b.1, chords[j].a.1),
+                Interval::hull(chords[i].b.0, chords[j].a.0),
+                Interval::hull(chords[i].b.1, chords[j].a.1),
             );
             chords[i].b = merged;
             chords[j].a = merged;
@@ -3357,14 +3346,13 @@ mod quad_lane {
         ///
         /// A bracket can be sound and still inadmissible:
         /// `sqrt([−1, 4]) + 1` is `[1, 3]` with decoration `Trv`.
-        /// `RingInterval` has no decoration channel, so the quadrature
-        /// lane's scalars have to be refused HERE or a certified flux
-        /// enclosure gets built from a quantity that was clamped out of
+        /// The crossing into certification arithmetic reads the verdict
+        /// here and caps the decoration at `Trv`, so the quadrature
+        /// lane's scalars are refused HERE rather than a certified flux
+        /// enclosure being built from a quantity that was clamped out of
         /// its own domain.
-        #[cfg(feature = "interval")]
         #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
         mod bracket_seam_tests {
-            use geom_core::ring_interval::RingInterval;
             use geom_core::{Bounds, CertifiedEnclosure, Interval, Real};
 
             use super::super::chan;
@@ -3384,20 +3372,20 @@ mod quad_lane {
 
             #[test]
             fn the_certified_door_refuses_a_violated_scalar() {
-                let r = RingInterval::from_certified(trv_pos());
+                let r = Interval::from_certified(trv_pos());
                 assert!(
-                    r.is_poison(),
-                    "a domain-violated scalar crossed into the ring as {r:?} — \
+                    !r.is_certified(),
+                    "a domain-violated scalar crossed into certification arithmetic as {r:?} — \
                      the bracket door does not read decorations, so the \
                      quadrature lane certifies a flux built from it"
                 );
                 // Non-vacuity: a certified scalar crosses with its endpoints.
-                let ok = RingInterval::from_certified(Interval::from_bounds(1.0, 4.0).sqrt());
+                let ok = Interval::from_certified(Interval::from_bounds(1.0, 4.0).sqrt());
                 assert_eq!((ok.lo(), ok.hi()), (1.0, 2.0));
             }
 
             /// Where a violated scalar would have to come FROM. Every
-            /// scalar this lane hands to [`RingInterval::from_certified`]
+            /// scalar this lane hands to [`Interval::from_certified`]
             /// is either read straight off
             /// the stored body or built from it by `dot`, `norm`,
             /// `distance` and arithmetic — and none of those can
@@ -3425,7 +3413,7 @@ mod quad_lane {
                         v.norm().certified_bracket().is_some(),
                         "a norm certified nothing for {v:?}"
                     );
-                    assert!(!RingInterval::from_certified(v.norm()).is_poison());
+                    assert!(Interval::from_certified(v.norm()).is_certified());
                 }
             }
 
@@ -3436,9 +3424,9 @@ mod quad_lane {
             fn chan_poisons_only_the_violated_coefficient() {
                 let one = Interval::from_f64(1.0);
                 let c = chan(one, trv_pos(), one, one).expect("channel builds");
-                assert!(c.ca.is_poison(), "the violated coefficient survived");
+                assert!(!c.ca.is_certified(), "the violated coefficient survived");
                 for (tag, r) in [("c0", c.c0), ("cb", c.cb), ("cl", c.cl)] {
-                    assert!(!r.is_poison(), "{tag} poisoned a certified coefficient");
+                    assert!(r.is_certified(), "{tag} poisoned a certified coefficient");
                 }
             }
         }

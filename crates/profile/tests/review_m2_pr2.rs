@@ -30,7 +30,6 @@ use crate::common;
 use common::{chain, profile, quarter_bulge, rect, tol};
 // `lift` re-instantiates a fixture at another scalar; the only
 // remaining consumer here is the interval-lane totality test.
-#[cfg(feature = "interval")]
 use common::lift;
 use geom_core::{Point2, Sign};
 use profile::RawLoop;
@@ -563,7 +562,6 @@ fn hair_thin_near_full_arc_is_refused_but_mislabeled() {
 /// Interval-lane totality on poisoned input: NaN coordinates lift to
 /// NaI enclosures and must produce a typed error, never a panic or an
 /// accept.
-#[cfg(feature = "interval")]
 #[test]
 fn interval_nan_totality() {
     use geom_core::Interval;

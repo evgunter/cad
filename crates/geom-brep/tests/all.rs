@@ -8,7 +8,7 @@
 //! second, unchecked copy of a set the compiler already knows.
 //!
 //! Each suite keeps its own `//!` docs and its inner attributes
-//! (`#![cfg(feature = "interval")]` and friends work as module-level
+//! (`#![cfg(feature = "probe")]` and friends work as module-level
 //! attributes). What it does not carry is a helper of its own that another
 //! suite also carries: the shared helper tree is declared once, below, as a
 //! module of THIS root, and a suite that wants a piece of it says

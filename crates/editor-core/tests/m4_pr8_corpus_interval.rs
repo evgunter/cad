@@ -10,7 +10,6 @@
 //! to ask of it (the enclosure CONTAINING the oracle is checked by
 //! `topo`'s own interval rows).
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;

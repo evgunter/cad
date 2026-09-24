@@ -1,5 +1,5 @@
-//! M2 PR 4 adversarial review — interval lane (feature `interval`;
-//! from `review/m2-4`, promoted permanently as `review_m2_pr4_interval`).
+//! M2 PR 4 adversarial review — interval lane (from `review/m2-4`,
+//! promoted permanently as `review_m2_pr4_interval`).
 //!
 //! Companion of `review_m2_pr4.rs`: the interval scalar's extrusion
 //! paths beyond the acceptance tests' axis-aligned +n cases — the
@@ -8,7 +8,6 @@
 //! review's honesty pins) REQUIRED tier-valid builds on the diagonal
 //! hole-planting bridge and on rotated (non-dyadic) placements.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;

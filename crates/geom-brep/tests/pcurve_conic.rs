@@ -345,7 +345,6 @@ fn ellipse_evaluator_differential_vs_rational_quadratic() {
 /// The interval lane of the differential: the oracle's enclosures
 /// contain points whose frame-quadratic residual encloses zero —
 /// agreement to certified enclosure width (§6).
-#[cfg(feature = "interval")]
 #[test]
 fn ellipse_differential_interval_lane() {
     use geom_core::{Bounds, Interval, Real};

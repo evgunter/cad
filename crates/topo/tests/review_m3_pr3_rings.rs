@@ -177,7 +177,6 @@ fn split_through_hole_two_section_polygons() {
 /// Either it works like f64 (lane agreement) or it must refuse typed
 /// (the documented interval posture) — a silent wrong answer or a
 /// panic is the only failure. Executed to find out which.
-#[cfg(feature = "interval")]
 #[test]
 fn interval_lane_ring_rehoming() {
     use geom_core::Interval;

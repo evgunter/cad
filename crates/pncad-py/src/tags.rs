@@ -1100,8 +1100,8 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::PayloadExpr { source, .. } => Some(eval_error_tag(source)),
         NodeErrorKind::MeasureSelectionKind { .. } => None,
         // The clearance engine's class name is a `&str` the engine
-        // mints behind a feature boundary, not a discriminant this
-        // crate can match; it is already the whole of the message.
+        // mints, not a discriminant this crate can match; it is already
+        // the whole of the message.
         NodeErrorKind::MeasureClearanceRefused(_) => None,
         NodeErrorKind::AssertionDimension { .. } => None,
     }
