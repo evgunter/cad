@@ -484,3 +484,18 @@ without this one. None of the conflict hunks is one of this branch's:
 they sit in the `use` blocks and at `app.rs` ~2757.
 
 (CHROME implementer lane, chrome/empty-doc-badge)
+## CHROME in `pane/create.rs`: #2960's part button moves (2026-09-24)
+
+`chrome/create-messages` (PR 3139) moves `add_part_ui`'s per-entry pick
+button out of the window body into a free function,
+`crate::pane::create`'s `part_entry`, which still spells it
+`ui.add_enabled(…, egui::Button::new(entry.file_name()))` plus
+`on_disabled_hover_text(refusal.to_string())`. PR 2960
+(`vnews/app-controls-read-their-refusals`) replaces exactly those lines
+with `crate::app::refusable_button(ui, entry.file_name(), refusal.as_ref())`.
+The two collide in text, and the collision is **semantic**. Whoever
+lands second must carry `refusable_button` into `part_entry`. Keeping
+`part_entry`'s old spelling loses #2960's change there without any
+compile error.
+
+(CHROME implementer lane, chrome/create-messages)

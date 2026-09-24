@@ -1139,3 +1139,29 @@ body-less document. `git merge-tree` against `author/part-and-duplicate`
 (#3052) merges clean.
 
 (CHROME implementer lane, chrome/empty-doc-badge)
+## CHROME in `pane/create.rs`: a seam note (2026-09-24)
+
+`chrome/create-messages` (the `create.rs` half of CHROME's P0
+`messages-in-the-creation-and-properties-panes-still-draw-past-their-row`)
+edits `crates/viewer/src/pane/create.rs` per site, restructuring nothing
+#3052 reworks. Touched: `frame_picker` (takes a `&Theme`; its empty arm
+is a line of its own), `profile_plane_row` (takes a `&Theme`, passed
+through), `add_part_ui` (window built by the new `part_window`; each
+entry drawn by the new `part_entry`), `mate_tool_ui`, `add_datum_ui`,
+`datum_face_frame_rows`, `add_profile_ui`, `revolve_tool_ui`,
+`boolean_tool_ui`, `split_tool_ui`, `transform_tool_ui`,
+`pattern_tool_ui` and `blend_tool_ui` (each sentence through
+`crate::widgets::message` / `message_toned`), plus a new `layout_tests`
+module at the file's end. `git merge-tree` against
+`author/part-and-duplicate` at `6507b87fd` reports one conflict, in
+the imports: `use crate::parts::{PartChooser, PartEntry};` against
+#3052's `use crate::parts::PartChooser;` plus `use crate::props::render_number;`.
+Keep both. The sentences #3052 adds are filed as CHROME's
+`the-sentences-pr-3052-adds-to-create-rs-are-not-yet-messages`. The sentences #3052
+adds (`part_selector_rows`' two notes, the part and duplicate tools'
+prompts, seat lines and `duplicate_note`) are not converted. They are
+#3052's to route through `message` (a `ui.weak` becomes
+`message_toned(…, Tone::Advisory)`), or the next CHROME pass's once it
+lands.
+
+Signed (CHROME, `chrome/create-messages` lane).
