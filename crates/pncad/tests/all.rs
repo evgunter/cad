@@ -4194,7 +4194,8 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   presentation layer with no authoring door yet.
 /// - **The witness/verdict/diff instrumentation** (`Branch*`,
 ///   `Summary*`, `Verdict*`, `Witness*`, `NodeVerdict*`, `FlipSet`,
-///   `Diagnosis`, `Implicated`, `PredicateDivergence`, `SideVerdict`,
+///   `Diagnosis`, `UpstreamCause`, `FlipSource`, `ShadowExecRefusal`,
+///   `Implicated`, `PredicateDivergence`, `SideVerdict`,
 ///   `DocDiff`, `NodeChange`, `diff_*`, `verdict_summary`, `Epoch`,
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary. GUI-2 carried these
@@ -4405,7 +4406,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-const NOT_CARRIED: [&str; 91] = [
+const NOT_CARRIED: [&str; 92] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4469,6 +4470,7 @@ const NOT_CARRIED: [&str; 91] = [
     "SummaryFlipSet",
     "TieWitness",
     "Tombstone",
+    "UpstreamCause",
     "VerdictFlip",
     "VerdictRow",
     "VerdictSummary",
