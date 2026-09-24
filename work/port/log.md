@@ -1054,3 +1054,12 @@ that rely on EDIT's in-flight name door are recorded on that row. `D341`:
 `node_kind.rs` forced a word, never a constructor; `surface_census.rs`
 now welds every `Node` variant and datum shape to its `Node.*`
 constructors, and records `Sweep` as unbound with its reason.
+## `props-refusal-cannot-carry-measured-overshoot` closes name-only (2026-09-24)
+
+The row asked for a ratification: may `props/curved.rs`'s refusals carry a
+measured `f64`, or is the K-stream record the payload of record? Checked
+the premise the name-only answer rests on — `k_stats::decide` records the
+refusing margin under its predicate name — and it holds, so the answer is
+name-only, written at `NotOneChartBranch` and `NotIsoRectangle`. Ev agreed
+in chat that switching would need a surprisingly good reason, and let it
+land without an `[ev]` PR.

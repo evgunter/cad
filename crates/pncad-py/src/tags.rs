@@ -1553,6 +1553,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::SeamVertexParentage { .. } => "seam_vertex_parentage",
         NamingError::MergedChord { .. } => "merged_chord",
         NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
+        NamingError::SeamLineSides { .. } => "seam_line_sides",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
