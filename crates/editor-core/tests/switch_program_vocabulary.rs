@@ -117,8 +117,8 @@
 use std::collections::BTreeSet;
 
 use editor_core::{
-    Dimension, Expr, LoopProgram, ParamEnv, ProfilePayload, ProfileProgram, ProgramArcData,
-    ProgramStep, ProgramTarget, SlotId,
+    Dimension, Expr, LoopProgram, ParamEnv, ParamName, ProfilePayload, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, SlotId,
 };
 use profile::{ArcMode, TargetKind, Verb};
 
@@ -1145,6 +1145,46 @@ fn every_enumerated_slot_addresses_a_distinct_expression() {
             arg.dimension()
         );
     }
+}
+
+/// **A refusal reports at the slot the census enumerates.** The
+/// enumeration (`spec_slots` / `step_expr`) and the resolution
+/// (`res_step` / `res_spec` / `res_target`) each assign a role to every
+/// expression a step carries, and the bijection census above reads only
+/// the first. So each enumerated slot's expression is replaced, one at
+/// a time, by a reference to a parameter nothing binds, and the
+/// program's resolution must refuse AT that slot — a resolver that
+/// addressed a fused arrival's target at the incoming spec's roles
+/// would point the user at the wrong field here, and nowhere else.
+///
+/// Blind spot, stated: the corpus's, as for the census above.
+#[test]
+fn every_enumerated_slot_is_where_its_refusal_reports() {
+    let program = corpus();
+    let slots = program.slots();
+    assert!(!slots.is_empty(), "the corpus enumerates no slot");
+    let unbound = ParamName::new("nothing binds this");
+    let mut misplaced = Vec::new();
+    for slot in &slots {
+        let mut broken = program.clone();
+        let expr = broken
+            .expr_mut(*slot)
+            .unwrap_or_else(|| panic!("{} is enumerated but addresses nothing", slot.label()));
+        *expr = Expr::param(unbound.clone(), expr.dim());
+        match broken.resolve(&ParamEnv::<f64>::default()) {
+            Err((reported, _)) if reported == *slot => {}
+            Err((reported, _)) => misplaced.push(format!(
+                "{} refuses at {}",
+                slot.label(),
+                reported.label()
+            )),
+            Ok(_) => misplaced.push(format!("{} resolved over an unbound parameter", slot.label())),
+        }
+    }
+    assert!(
+        misplaced.is_empty(),
+        "the resolver addresses these slots at a role the enumeration does not: {misplaced:#?}"
+    );
 }
 
 // ------------------------------------------------------------------
