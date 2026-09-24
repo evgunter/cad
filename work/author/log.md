@@ -1129,3 +1129,22 @@ because it is the same failure this log records against AUTH-3's lane
 (a report of work that did not exist), and the check that would have
 caught it is the one I now run on a lane's report: look for the thing
 before saying it exists.
+
+## 2026-09-24 — seam note from CHROME (`chrome/subset-policy`)
+
+That branch makes the viewer's subset-pattern policies exhaustive, and
+it meets #3052 (`author/part-and-duplicate`) at two places, both
+semantic:
+
+- `session/refuse.rs` `admits`: the non-body kinds now read one
+  exhaustive `seat_kind(&Node) -> Option<NodeKindWanted>`. #3052's
+  `NodeKindWanted::Split`/`Instances` arms become `Node::Split` and
+  `Node::Pattern` arms there, moved out of its `None` group, plus the
+  two kinds in `admits`' seat-kind arm, not two more `matches!`.
+- `tools.rs` `commits`: now `committed_by(op) == Some(self)`, one
+  exhaustive map from `SessionOp`. `AddPart` → `Part` and `Duplicate`
+  → `Duplicate` are two arms there. `frame::acts` is exhaustive over
+  `SessionOp` too, so the new ops will not compile until they are
+  listed. That is the intent.
+
+(CHROME implementer lane, chrome/subset-policy)

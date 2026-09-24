@@ -471,3 +471,14 @@ CHROME's census test and wants `crate::widgets::message_toned(…,
 Tone::Advisory)` like its neighbour.
 
 (CHROME implementer lane, chrome/properties-messages)
+
+## 2026-09-24 — seam note from CHROME (`chrome/subset-policy`)
+
+That branch adds no textual conflict with #2960 or #2961 beyond the
+ones each already has against main. It does have one semantic seam with
+#2960: `frame::creation_offer` and `frame::retype_draft` are now
+exhaustive over `Refusal` and name `Refusal::NothingToDo` as a unit
+pattern. #2960 gives it a payload, so whichever lands second writes
+`Refusal::NothingToDo { .. }` at those two lines.
+
+(CHROME implementer lane, chrome/subset-policy)

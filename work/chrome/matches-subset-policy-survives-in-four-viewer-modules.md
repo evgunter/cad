@@ -2,11 +2,14 @@
 id: matches-subset-policy-survives-in-four-viewer-modules
 kind: issue
 title: A matches! over an enum subset stands in for policy at 21 sites in eight more viewer modules, and none of them can red when the enum grows
-status: open
+status: closed
 opened: 2026-09-22
 priority: P2
 cost: E
 refs: [has-faults-cannot-red-on-a-new-rowstatus]
+closed: 2026-09-24
+branch: chrome/subset-policy
+pr: 3140
 ---
 
 ## Finding
@@ -160,3 +163,31 @@ reviewer who raised it was explicitly unsure, it churns roughly eleven
 call sites for a taste improvement, and it was raised on a PR that was
 already green. Recorded here rather than acted on so the next lane
 with that impl open for another reason can take it for free.
+
+## Closed 2026-09-24 (`chrome/subset-policy`)
+
+All 21 sites are exhaustive `match`es, plus `frame::retype_draft`,
+which this row counted as identity and which is the same "which
+refusals" question `creation_offer` asks over `Refusal`. Where one
+decision was spelled in several places, it now has one home and the
+places call it:
+
+- the `admits` five and `sketch.rs`'s two frame subsets →
+  `session::refuse::seat_kind`, behind `admits`, which `sketch::frames`
+  and `sketch::frame_placement` now call;
+- the `Resolution::Resolved` trio → `session::select::resolves`;
+- the `Transition { verb: None }` pair → `sketch::PreviewError::unfinished`.
+  The preview's retry asks it of the converted refusal rather than of
+  `ReplayErrorKind`, so the two enums are one question asked once;
+- `ToolKind::commits`' six → `tools::committed_by`, one exhaustive map
+  from `SessionOp` to the tool it closes;
+- `bounds::Verdict::of`, `refuse::is_one_body` and `frame::acts` are
+  converted in place.
+
+The census re-taken at the merge base (54 `matches!` lines: 22 fixed,
+32 left, each with its reason) is in the PR body, along with the
+second-pass sweep.
+
+**The `RowStatus::is_fault` shape** recorded above was not taken. This
+lane did not open `RowStatus`'s impl for another reason, and the ~11
+call-site churn is unchanged. It stays a taste call for whoever does.
