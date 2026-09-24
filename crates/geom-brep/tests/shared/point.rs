@@ -12,8 +12,8 @@
 //! three impls. `Real` is the tree's own name for that, and writing it
 //! out is what makes the sameness checkable instead of assumed.
 //!
-//! **What this module does NOT absorb.** The `RingInterval` triples —
-//! `[RingInterval::point(x), …]`, spelled `p` in four suites and `p3`
+//! **What this module does NOT absorb.** The `Interval` triples —
+//! `[Interval::point(x), …]`, spelled `p` in four suites and `p3`
 //! in one — are not a `Point3` and do not go through `Real`; they are
 //! `shared::ring`. `offset_mint.rs`'s `fn p(out, pt)` appends a point's
 //! BITS to a digest and only shares the letter.

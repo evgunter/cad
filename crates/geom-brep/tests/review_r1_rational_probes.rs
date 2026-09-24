@@ -26,9 +26,10 @@
 use core::num::NonZeroUsize;
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
+use geom_core::Bounds;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
-use geom_core::{MarginDiag, RingInterval};
+use geom_core::{Interval, MarginDiag};
 
 use crate::shared::patch::{dbasis_over, dense_over};
 use crate::shared::ring::p3 as p;
@@ -339,12 +340,7 @@ impl Patch {
 }
 
 /// Build the oracle patch from the same data handed to the kernel.
-fn patch(
-    ku: &KnotVector,
-    kv: &KnotVector,
-    control: &[[RingInterval; 3]],
-    weights: &[f64],
-) -> Patch {
+fn patch(ku: &KnotVector, kv: &KnotVector, control: &[[Interval; 3]], weights: &[f64]) -> Patch {
     let nu = ku.control_count();
     let nv = kv.control_count();
     let cp = control
@@ -372,7 +368,7 @@ fn probe(
     name: &str,
     ku: &KnotVector,
     kv: &KnotVector,
-    control: &[[RingInterval; 3]],
+    control: &[[Interval; 3]],
     weights: &[f64],
     perimeter: f64,
     closed_flux: Option<f64>,
@@ -1189,7 +1185,7 @@ fn diag_uniform_weight_twins() {
 
 /// Genericity spot check: the rational lane driven by the certified
 /// Interval decision scalar must agree with the f64 lane bit-for-bit
-/// on the returned enclosure (the RingInterval arithmetic is shared;
+/// on the returned enclosure (the Interval arithmetic is shared;
 /// only decisions route through T).
 #[test]
 fn probe_interval_scalar_agrees() {

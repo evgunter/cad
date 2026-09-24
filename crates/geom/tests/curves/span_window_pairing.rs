@@ -13,6 +13,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsCurve3;
+use geom_core::Bounds;
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
