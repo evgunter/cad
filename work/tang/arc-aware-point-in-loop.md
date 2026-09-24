@@ -77,3 +77,14 @@ S-BOOL's `keep_out` names issues 1076/1077 as VERBS' ground, even though the sit
 **Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
 in-chat direction): the plan's lane that carries this item is in
 `work/curved/plan.md`.
+
+## Sibling sites, from ATREST-5's sweep (2026-09-24)
+
+- **`chord_join::rehome_rings`** reads a split's run through
+  `point_in_loop` with no shape dispatch; filed on REACH's slate as
+  `work/reach/rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`
+  (unreproduced; the reachable class is mostly `ArcParity`).
+- **`solid_contain::point_in_face`**, already listed above: its `Disc`
+  class no longer needs this issue's walk. `boolean::contain::disc_side`
+  is `pub(crate)` as of ATREST-5, so that third can close by the same
+  dispatch `contfp` does, independently of the arc-aware walk.
