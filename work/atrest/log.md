@@ -670,3 +670,49 @@ sentence, so it is prose.
 `validate-rs-exports-sixteen-doors-on-an-irregular-matrix`), which
 collides head-on with ATREST-3's change to the certificate doors'
 return types and waits for it.
+
+## 2026-09-24 — ATREST-7 stopped at measure-first; the walk under it is wrong
+
+ATREST-7 (check 10, the shell-winding invariant) measured its refusal
+surface over the full corpus before landing, as specced. Every
+deliberate multi-shell product certified — `graft` onto, the coplanar
+split, `editor-core`'s islands and placed union, ZIP's hollow-operand
+subtraction — except ONE: `sweep::torax_axial::torax_the_torus_corners_survive_a_rigid_re_pose`,
+where `topo::shell` validates its own output and check 10 refuses. The
+lane stopped and diagnosed rather than landing: the cause is not a
+winding violation but `point_in_solid_faces` answering **`Out` from a
+point strictly inside** a rigidly re-posed torus-walled shell. The
+unposed body answers correctly. A false answer from a certified walk,
+not a refusal — so no "silent on `Err`" posture can absorb it, and it
+reaches the boolean's containment fallback and the census too.
+
+The stop clause is working as this program learned to write it: the
+check-10 retraction and ATREST-2's lessons were both about settling a
+claim before measuring who it refuses. This time the measurement ran
+first and found a bug one layer down instead of a false refusal
+shipped.
+
+**Ruled: ATREST claims the row and fixes the walk, as ATREST-9.** The
+row was filed for CONTACT (it owns `solid_contain.rs`), but CONTACT is
+`ready` with no orchestrator and nothing dispatched, so a P0 wrong
+answer that two programs' checks read would sit indefinitely. The
+alternative — landing check 10 with torus-walled shells declared out of
+its domain — would scope around one observed pose of a defect whose
+class nobody has measured, and leave the boolean's wrong answer with
+nobody on it. ATREST-9 reproduces without check 10, measures the kind ×
+pose class, and fixes the arm; seam announced on CONTACT's log.
+**Tier: dual** — numeric soundness in a certified walk the boolean
+trusts.
+
+ATREST-7 and its carried row are **parked** on the claimed row. The
+branch is pushed and green apart from the torax row; it resumes the
+moment ATREST-9 lands (re-run the matrix, open the PR, single full
+review as specced). Its own residue row
+(`check-10-is-silent-where-point-in-solid-refuses`) stays on that
+branch and lands with it.
+
+Operational: ATREST-3's lane held the machine-wide build mutex for over
+an hour with a full `--no-fail-fast` battery (piped through `tail`,
+against the discipline), plus an orphaned 1h42m waiter, starving five
+lanes and a reviewer. Told to release it and keep measurements
+targeted; every later brief says so explicitly.
