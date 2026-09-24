@@ -328,3 +328,46 @@ fn r1_quotient_without_rule_g_does_not_run() {
     assert_eq!(with, without);
     assert_ne!(with, "theorem");
 }
+
+/// **The verified product can refuse what the division found.** `N` is
+/// built as `Σ Q·d_j` (each product one monomial times `Q`, inside the
+/// walk's pair budget), `D` has twelve terms and `Q = (1+x+y+z)^11` has
+/// 364, so the division's steps are all inside the budget while the
+/// final `Q·D` check asks `364 × 12 = 4368 > 4096` pairs and is refused
+/// — a decline the loop's exact remainder did not need.
+#[test]
+fn r1_the_verification_refuses_a_quotient_the_loop_found() {
+    let (on, off) = both("sqrt(sum_j Q d_j / D) - sqrt(Q), |Q| 364, |D| 12", || {
+        let x = over("x", 0.5, 1.0);
+        let y = over("y", 0.125, 0.25);
+        let z = over("z", 0.25, 0.5);
+        let base = lit(1.0) + x + y + z;
+        let mut q = base;
+        for _ in 1..11 {
+            q = q * base;
+        }
+        let terms = [
+            lit(1.0),
+            x,
+            y,
+            z,
+            x * x,
+            y * y,
+            z * z,
+            x * y,
+            y * z,
+            z * x,
+            x * x * x,
+            y * y * y,
+        ];
+        let mut n = q * terms[0];
+        let mut d = terms[0];
+        for t in &terms[1..] {
+            n = n + q * *t;
+            d = d + *t;
+        }
+        (n / d).sqrt() - q.sqrt()
+    });
+    println!("  verification probe: on {on}, off {off}");
+    assert_eq!(on, "theorem", "the loop reached a zero remainder: N = Q·D");
+}
