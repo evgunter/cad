@@ -2,10 +2,12 @@
 id: viewer-cannot-author-a-duplicate-node
 kind: issue
 title: viewer: a 'duplicate' node reachable from the UI (Ev's request)
-status: dispatched
+status: review
 opened: 2026-09-17
 priority: P0
 cost: D
+branch: author/part-and-duplicate
+pr: 3052
 ---
 
 **Ev requested this specifically** (in chat, 2026-09-17): a
