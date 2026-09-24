@@ -151,14 +151,16 @@ because every node evaluation records its verdict log (`k_stats`);
 `resolve/vdiff.rs` diffs two runs per predicate by sign population
 (permutation-invariant) and is shared with `SetTolerance`'s ε-audit. The
 with-history lanes — recorded flips, structural parameters, recipe edits — read
-two scopes in order. First the name's derivation path (N1: the nodes the name
-mentions), answering `PredicateFlip`, `StructuralParam` or `RecipeEdit`. Then
-the minting node's ancestors outside that path, answering `Upstream { node,
-cause }`: a candidate cause that fed the name without deciding it. A node the
-minting node does not depend on is never read, since no edit there can reach
-the name. When the diff is silent the ladder is `Cascade`, then
-the qualifier-delta rung (a `PredicateFlip` recovered from `SideOf` verdicts
-stored in the names), then the GROUP-SIZE rung, then
+two scopes (`resolve::upstream_nodes` states the rule): first the name's
+derivation path (N1: the nodes the name mentions), answering `PredicateFlip`,
+`StructuralParam` or `RecipeEdit`; then, below the qualifier-delta rung, the
+nodes that were strict ancestors of the minting node in the last-good document
+or in the current one, each walked within its own document, minus the path,
+answering `Upstream { node, cause }` — a candidate cause that fed the name
+without deciding it. A node in neither set is never read. When the path is
+silent the ladder is `Cascade`, then the qualifier-delta rung (a
+`PredicateFlip` recovered from `SideOf` verdicts stored in the names), then
+the upstream scope, then the GROUP-SIZE rung, then
 `Diagnosis::cause_not_in_evidence` = `RecipeEdit {
 NodeChanged(minting node) }`, a site rather than a claim that an edit happened —
 reached in particular when the evidence lived on a pair the boolean's BVH sweep
@@ -178,9 +180,9 @@ with one `Fragment` qualifier, a tie counting each candidate — number `was`
 entities there and `now ≠ was` in the current table, the diagnosis is
 `GroupResized { node, was, now }`. That is a statement about two recorded
 tables, not a claimed flip and not a claim about where the parent entity
-went. The ladder orders cause before effect: the flips, the qualifier delta
-and the doc-diff lanes name a cause, the group-size change is an effect whose
-cause the evidence does not hold, so it runs after every cause-naming rung
+went. The ladder orders cause before effect: the flips, the qualifier delta,
+the doc-diff lanes and `Upstream` name a cause, the group-size change is an
+effect whose cause the evidence does not hold, so it runs after every cause-naming rung
 and before the fallback. A collapsed fragment's undivided base, when it
 resolves, rides in the offers for either qualifier kind. `Tombstone`
 carries the last-good entry for ghost rendering; selection tools hold name plus

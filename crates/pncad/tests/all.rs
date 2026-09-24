@@ -4194,7 +4194,8 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   presentation layer with no authoring door yet.
 /// - **The witness/verdict/diff instrumentation** (`Branch*`,
 ///   `Summary*`, `Verdict*`, `Witness*`, `NodeVerdict*`, `FlipSet`,
-///   `Diagnosis`, `Implicated`, `PredicateDivergence`, `SideVerdict`,
+///   `Diagnosis`, `UpstreamCause`, `FlipSource`, `ShadowExecRefusal`,
+///   `Implicated`, `PredicateDivergence`, `SideVerdict`,
 ///   `DocDiff`, `NodeChange`, `diff_*`, `verdict_summary`, `Epoch`,
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary. GUI-2 carried these

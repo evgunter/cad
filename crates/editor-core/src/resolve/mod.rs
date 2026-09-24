@@ -55,13 +55,15 @@
 //! it for a line of a log. The front door N5's amended text pointed
 //! at — the recovery rung that did not exist yet — is that rung.
 //!
-//! **After the flip and doc-diff lanes come up empty**, three honest
-//! rungs remain, in order: `Cascade` when an embedded operand name
-//! itself fails to resolve; the QUALIFIER-DELTA rung
+//! **After the path's flip and doc-diff lanes come up empty**, four
+//! honest rungs remain, in order: `Cascade` when an embedded operand
+//! name itself fails to resolve; the QUALIFIER-DELTA rung
 //! ([`qualifier_delta`]): the N2 discriminator verdicts recorded in
 //! the names themselves yield a `PredicateFlip` derived from recorded
 //! data when a same-shape sibling differs by exactly one pure-sign
-//! `SideOf` entry; and, with a prior run, the GROUP-SIZE rung
+//! `SideOf` entry; with a prior run, the same lanes UPSTREAM of the
+//! minting node ([`Diagnosis::Upstream`]; the scope rule is at
+//! [`upstream_nodes`]); and, with a prior run, the GROUP-SIZE rung
 //! ([`group_resized`], whose docs say why a fragment name can vanish
 //! with no flip at all) answering [`Diagnosis::GroupResized`]. If
 //! that too finds nothing, the total
@@ -433,17 +435,11 @@ pub enum Diagnosis {
     /// this arm).
     WitnessBifurcation(Box<WitnessBifurcation>),
     /// Evidence UPSTREAM of the vanished name's minting node that is
-    /// NOT on its derivation path: nothing on the path flipped or was
-    /// edited, and a recorded flip, a structural-parameter change or a
-    /// recipe edit at a node the minting node depends on was found.
-    ///
-    /// A candidate cause, stated no more strongly than the evidence
-    /// allows: the node is an ancestor (so its change can reach the
-    /// name's geometry) and is not in the name (so it did not decide
-    /// the name). Ancestry is read off the recipe's input edges in
-    /// either run's document, so a node the edit deleted or re-pointed
-    /// counts as upstream where it was upstream in the last-good run.
-    /// A node that is not an ancestor at all is never reported.
+    /// NOT on its derivation path — a recorded flip, a
+    /// structural-parameter change or a recipe edit at a node that fed
+    /// the name without deciding it. A candidate cause, stated no more
+    /// strongly than that; the scope rule, and what "upstream" means
+    /// across the two runs, is stated once at [`upstream_nodes`].
     Upstream {
         /// The vanished name's minting node, which `cause` is upstream
         /// of.
@@ -926,6 +922,14 @@ trait PriorCtx {
         name: &StableName,
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis>;
+    /// The upstream lanes ([`Diagnosis::Upstream`]; the scope rule is
+    /// stated at [`upstream_nodes`]).
+    fn upstream<T: Decide>(
+        &self,
+        new: RunCtx<'_, T>,
+        name: &StableName,
+        path: &BTreeSet<RecipeNodeId>,
+    ) -> Option<Diagnosis>;
     fn tombstone<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone>;
     /// The group-size rung ([`group_resized`]): with-prior only, since
     /// a size CHANGE needs a size to change from.
@@ -965,6 +969,15 @@ impl PriorCtx for NoPrior {
         None
     }
 
+    fn upstream<T: Decide>(
+        &self,
+        _new: RunCtx<'_, T>,
+        _name: &StableName,
+        _path: &BTreeSet<RecipeNodeId>,
+    ) -> Option<Diagnosis> {
+        None
+    }
+
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, _name: &StableName) -> Option<Tombstone> {
         None
     }
@@ -978,39 +991,63 @@ impl PriorCtx for NoPrior {
     }
 }
 
+impl<U: Decide> Prior<'_, U> {
+    /// The LANE TABLE: the three with-history lanes over one node set,
+    /// in their fixed order — a recorded flip, then a structural
+    /// parameter, then a recipe edit — answering the first evidence
+    /// found. Both scopes run exactly this; what differs between them
+    /// is the node set and the arm the evidence is wrapped in, and
+    /// the path scope's extra rungs ahead of it (the name's own
+    /// qualifier vocabulary), which this table deliberately does not
+    /// know about: a `name_frag_*` flip at an upstream node
+    /// re-qualified some OTHER name.
+    fn lanes<T: Decide>(
+        &self,
+        new: RunCtx<'_, T>,
+        flips: &FlipSet,
+        nodes: &BTreeSet<RecipeNodeId>,
+    ) -> Option<Evidence> {
+        if let Some((node, f)) = flips.flips_on_nodes(nodes).first() {
+            return Some(Evidence::Flip(*node, *f));
+        }
+        let ddiff = self.doc().diff(new.doc);
+        if let Some((node, param)) =
+            structural_param_change(self.doc(), new.doc, &ddiff, Some(nodes))
+        {
+            return Some(Evidence::Param(node, param));
+        }
+        recipe_edit_change(self.doc(), new.doc, &ddiff, Some(nodes)).map(Evidence::Edit)
+    }
+}
+
+/// One lane's find ([`Prior::lanes`]), before a scope wraps it in the
+/// arm that states where it was found.
+enum Evidence {
+    Flip(RecipeNodeId, VerdictFlip),
+    Param(RecipeNodeId, SlotId),
+    Edit(RecipeEditRef),
+}
+
 impl<U: Decide> PriorCtx for Prior<'_, U> {
-    /// The with-history diagnosis ladder (deterministic; first honest
-    /// evidence wins): path-restricted verdict flips, then structural
-    /// parameters on the path, then recipe edits on the path, then
-    /// the same three UPSTREAM — at the minting node's ancestors that
-    /// the name does not mention ([`Diagnosis::Upstream`]).
+    /// The PATH scope (the scope rule: [`upstream_nodes`]): the lane
+    /// table over [`derivation_nodes`], answering `PredicateFlip`,
+    /// `StructuralParam` or `RecipeEdit`, with the name's own
+    /// qualifier vocabulary ahead of it:
     ///
-    /// Two scopes, each true by construction of the set it reads: the
-    /// path arms are found only on [`derivation_nodes`], and the
-    /// upstream arm only on the ancestors outside it. A node that is
-    /// neither — anywhere else in the document — is never read: an
-    /// edit there cannot reach this name, so its flip is not a cause
-    /// of this vanish, whatever else the same document change did.
-    /// Upstream ranks below the path because a path node decided the
-    /// name and an upstream one only fed it.
-    ///
-    /// Attribution among several path flips, in order:
-    ///
-    /// 1. **A recorded `name_frag_*` flip wins** — those predicates
-    ///    are the name's OWN qualifier vocabulary, so a discriminator
-    ///    flip is definitionally the flip that re-qualified the
-    ///    fragment.
+    /// 1. **A recorded `name_frag_*` flip on the path wins** — those
+    ///    predicates are the name's OWN qualifier vocabulary, so a
+    ///    discriminator flip is definitionally the flip that
+    ///    re-qualified the fragment.
     /// 2. **The shadow-exec rung** ([`shadow_exec_flip`], issue 134),
     ///    which recovers a discriminator flip the run never recorded.
-    ///    It sits HERE, above the generic fallback and not below it,
-    ///    for the same reason rung 1 does: a recovered
-    ///    `name_frag_side_of` flip is the name's own vocabulary, and
-    ///    an incidental `bool_*` flip at the same node — the
-    ///    containment walk re-deciding when two operands come apart —
-    ///    is not. Ranking the incidental flip first would answer "why
-    ///    did this fragment name vanish" with a sentence about the
-    ///    boolean's interior.
-    /// 3. Otherwise the first flip in deterministic order.
+    ///    It sits HERE, above the lane table, for the same reason
+    ///    rung 1 does: a recovered `name_frag_side_of` flip is the
+    ///    name's own vocabulary, and an incidental `bool_*` flip at
+    ///    the same node — the containment walk re-deciding when two
+    ///    operands come apart — is not. Ranking the incidental flip
+    ///    first would answer "why did this fragment name vanish" with
+    ///    a sentence about the boolean's interior.
+    /// 3. The lane table ([`Prior::lanes`]) over the path.
     ///
     /// This is a consumer-side attribution choice — the diff engine
     /// itself stays cause-agnostic and unspecialized.
@@ -1020,70 +1057,55 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         name: &StableName,
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis> {
-        let recorded = |flips: &[(RecipeNodeId, VerdictFlip)], family_only: bool| {
-            let mut it = flips.iter();
-            let hit = if family_only {
-                it.find(|(_, f)| f.predicate.starts_with(crate::names::FAMILY))
-            } else {
-                it.next()
-            };
-            hit.map(|(_, f)| Diagnosis::PredicateFlip {
-                predicate: f.predicate,
-                from: f.from,
-                to: f.to,
-                source: FlipSource::VerdictLog,
-            })
-        };
         let flips = diff_verdicts(self.ctx.eval, new.eval);
-        let on_path = flips.flips_on_nodes(path);
-        if let Some(d) = recorded(&on_path, true) {
-            return Some(d);
+        let family = flips
+            .flips_on_nodes(path)
+            .into_iter()
+            .find(|(_, f)| f.predicate.starts_with(crate::names::FAMILY));
+        let flip = |f: VerdictFlip| Diagnosis::PredicateFlip {
+            predicate: f.predicate,
+            from: f.from,
+            to: f.to,
+            source: FlipSource::VerdictLog,
+        };
+        if let Some((_, f)) = family {
+            return Some(flip(f));
         }
         if let Some(d) = shadow_exec_flip(new, self.ctx, name, self.tol) {
             return Some(d);
         }
-        if let Some(d) = recorded(&on_path, false) {
-            return Some(d);
-        }
-        let ddiff = self.doc().diff(new.doc);
-        if let Some((node, param)) =
-            structural_param_change(self.doc(), new.doc, &ddiff, Some(path))
-        {
-            return Some(Diagnosis::StructuralParam { node, param });
-        }
-        if let Some(edit) = recipe_edit_change(self.doc(), new.doc, &ddiff, Some(path)) {
-            return Some(Diagnosis::RecipeEdit { edit });
-        }
-        // The upstream lanes: the same three, scoped to the minting
-        // node's ancestors that are NOT on the path — a node the name
-        // does not depend on is never a cause of its vanish.
-        let upstream: BTreeSet<RecipeNodeId> = ancestors(self.doc(), new.doc, name.node)
-            .difference(path)
-            .copied()
-            .collect();
-        let at = |cause| Diagnosis::Upstream {
-            node: name.node,
-            cause,
-        };
-        // The first upstream flip in deterministic order. No family
-        // preference here: a `name_frag_*` flip at an upstream node
-        // re-qualified some OTHER name, so it is not this name's own
-        // vocabulary.
-        if let Some((node, f)) = flips.flips_on_nodes(&upstream).first() {
-            return Some(at(UpstreamCause::PredicateFlip {
+        Some(match self.lanes(new, &flips, path)? {
+            Evidence::Flip(_, f) => flip(f),
+            Evidence::Param(node, param) => Diagnosis::StructuralParam { node, param },
+            Evidence::Edit(edit) => Diagnosis::RecipeEdit { edit },
+        })
+    }
+
+    /// The UPSTREAM scope ([`upstream_nodes`]): the lane table over the
+    /// minting node's ancestors that are not on the path, each find
+    /// wrapped in [`Diagnosis::Upstream`] with the node it is at.
+    fn upstream<T: Decide>(
+        &self,
+        new: RunCtx<'_, T>,
+        name: &StableName,
+        path: &BTreeSet<RecipeNodeId>,
+    ) -> Option<Diagnosis> {
+        let nodes = upstream_nodes(self.doc(), new.doc, name.node, path);
+        let flips = diff_verdicts(self.ctx.eval, new.eval);
+        let cause = match self.lanes(new, &flips, &nodes)? {
+            Evidence::Flip(at, f) => UpstreamCause::PredicateFlip {
                 predicate: f.predicate,
-                at: *node,
+                at,
                 from: f.from,
                 to: f.to,
-            }));
-        }
-        if let Some((node, param)) =
-            structural_param_change(self.doc(), new.doc, &ddiff, Some(&upstream))
-        {
-            return Some(at(UpstreamCause::StructuralParam { node, param }));
-        }
-        recipe_edit_change(self.doc(), new.doc, &ddiff, Some(&upstream))
-            .map(|edit| at(UpstreamCause::RecipeEdit { edit }))
+            },
+            Evidence::Param(node, param) => UpstreamCause::StructuralParam { node, param },
+            Evidence::Edit(edit) => UpstreamCause::RecipeEdit { edit },
+        };
+        Some(Diagnosis::Upstream {
+            node: name.node,
+            cause,
+        })
     }
 
     fn group_resized<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Diagnosis> {
@@ -1222,6 +1244,11 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             // single-run resolve — the N2 discriminator verdicts
             // recorded IN the names themselves are still evidence.
             .or_else(|| qualifier_delta(new.eval, name))
+            // The upstream scope ([`upstream_nodes`]): below every
+            // rung that names a cause ON the path, qualifier delta
+            // included, because a path cause decided the name and an
+            // upstream one only fed it.
+            .or_else(|| prior.upstream(new, name, &path))
             // The group-size rung (`group_resized`'s docs).
             .or_else(|| prior.group_resized(new, name))
             // Every rung above came up empty: no verdict flip, no doc
@@ -1629,8 +1656,9 @@ fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option
 ///
 /// Every rung above it that answers names a CAUSE — a recorded or
 /// shadow-executed flip names a predicate whose verdict changed, the
-/// qualifier delta recovers one from the names, and the doc-diff lanes
-/// name an edit. This rung states an EFFECT, a structural change whose
+/// qualifier delta recovers one from the names, the doc-diff lanes
+/// name an edit, and [`Diagnosis::Upstream`] names one of those three
+/// at a node that fed the name. This rung states an EFFECT, a structural change whose
 /// cause the evidence does not hold. When both are present — the bar
 /// slid, a predicate flipped, and the group resized as a consequence —
 /// the cause is the answer and the resize is its symptom, so this rung
@@ -2000,28 +2028,33 @@ pub fn derivation_nodes(name: &StableName) -> BTreeSet<RecipeNodeId> {
     nodes
 }
 
-/// Every node `node` depends on transitively through recipe input
-/// edges, in either document (itself excluded) — so a node the edit
-/// deleted or re-pointed away still counts where it fed the last-good
-/// run.
-fn ancestors(
+/// The UPSTREAM node set of a name minted at `node`, and THE SCOPE
+/// RULE of the with-history lanes, stated here once.
+///
+/// The lanes read two scopes, in order. The PATH is
+/// [`derivation_nodes`] (N1: the nodes the name mentions); evidence
+/// there is a cause that DECIDED the name, answered as
+/// `PredicateFlip`, `StructuralParam` or `RecipeEdit`, whose sentences
+/// say "on the derivation path". UPSTREAM is this set: every node
+/// that is a strict ancestor of `node` in the last-good document OR
+/// in the current one, each walked within its own document, minus the
+/// path; evidence there FED the name without deciding it, answered as
+/// [`Diagnosis::Upstream`], whose sentence says so. A node in neither
+/// set is never read — no edit there reaches this name in either run.
+///
+/// The two documents are walked separately and then united, never
+/// walked together: a chain that crosses from an old edge to a new
+/// one reaches nodes that fed the minting node in NEITHER run.
+fn upstream_nodes(
     old: &Doc<ProfileProgram>,
     new: &Doc<ProfileProgram>,
     node: RecipeNodeId,
+    path: &BTreeSet<RecipeNodeId>,
 ) -> BTreeSet<RecipeNodeId> {
-    let mut seen = BTreeSet::new();
-    let mut stack = vec![node];
-    while let Some(n) = stack.pop() {
-        for doc in [old, new] {
-            for input in doc.node(n).map(|x| x.inputs()).unwrap_or_default() {
-                if seen.insert(input) {
-                    stack.push(input);
-                }
-            }
-        }
-    }
-    seen.remove(&node);
-    seen
+    let mut nodes = crate::roots::strict_ancestors(old, node);
+    nodes.append(&mut crate::roots::strict_ancestors(new, node));
+    nodes.retain(|n| !path.contains(n));
+    nodes
 }
 
 /// Whether a name walk visits `SideOf` discriminator PARTNERS.
