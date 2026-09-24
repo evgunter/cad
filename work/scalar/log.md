@@ -1541,3 +1541,27 @@ the kernel conditioning filed on NURBS — put to Ev on the PR as
 separable. The DR row is drafted (`ring3-dual-row.md`) and held until
 merge so it rides last after any main merge. Ready-for-sign-off
 comment posted on #3153; `needs_ev` stands.
+
+## RING-4 fix pass green; waiting on Ev; LANE-4 survey dispatched (2026-09-24)
+
+RING-4 fix pass (Opus, 459,613 tokens, 104 min harness): the review's
+findings taken but S2 (declined in the body); head `c9b4e232e7`, run
+35983416425 green (code head `bafb21a81f`, run 35979996296, every eps
+and k-lint row). The narration regression is fixed by moving the two
+certified narrations out of the walk into a `demo-tour certified` mode
+that `demos tour suite` runs at every ε (no feature reintroduced): the
+tess-budget sweep step 719 s → ~217 s, the render tour step 767 s →
+191 s (the ~100 s left over base is the release build compiling the
+certified modules — a cost of the drop itself). The fold's saving
+roughly cancels out and is stated so (136.8 job-min vs 133–148 at base); the
+critical path is `k-lint (gate, release-default)`, as at base. One red
+on the way (ruff RUF005 in the new self-test arm; relayed; fixed).
+Ready-for-sign-off comment on #3154 with the §0 per-aggregate vs
+per-sample question, the run cost, and the merge-order note.
+
+Both PRs now wait on Ev. LANE-4 (`PcurveFittedLane` fold, ruling 3)
+survey dispatched on Opus, read-only, at `6709bc3229`; it is asked for
+the representation question H5 left open (a fitted cache with no
+certificate), the seam (policy answer vs topo door value), the pin-site
+fold and census ROSTERS (LANE-3's filed row), collisions with the two
+RING PRs and the booleans/blend/wire ground, and a cut and tier.
