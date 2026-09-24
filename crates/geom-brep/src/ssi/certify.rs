@@ -708,9 +708,7 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
             return None;
         }
         let (tx, ty) = (t.x.hi(), t.y.hi());
-        let Some(margin) = chart_transverse_margin(n, du, dv, (tx, ty, tn)) else {
-            return None;
-        };
+        let margin = chart_transverse_margin(n, du, dv, (tx, ty, tn))?;
         if margin < worst {
             worst = margin;
         }
