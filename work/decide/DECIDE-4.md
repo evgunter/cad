@@ -2,7 +2,7 @@
 id: DECIDE-4
 kind: unit
 title: rule D past the unit bulge: what stands at a bulge that is not 1 on today's tree, the sign-free part, and the bulge's sign
-status: open
+status: dispatched
 opened: 2026-09-24
 priority: P1
 cost: D
