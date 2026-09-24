@@ -2,10 +2,12 @@
 //!
 //! The surfaces here are hand-written copies of a vocabulary the
 //! kernel declares once: the PATHS verbs, the arc-spec modes that
-//! travel inside them, and the fields of the kernel OPTIONS STRUCTS a
-//! Python door configures. Each copy compiles green while short — a
-//! verb the transition table gains, a mode `arc_modes!` gains, a
-//! field an options struct gains, all reach `pncad-py` through
+//! travel inside them, the fields of the kernel OPTIONS STRUCTS a
+//! Python door configures, and the recipe NODE variants (with the
+//! datum shapes inside one) the `Node.*` constructors author. Each
+//! copy compiles green while short — a verb the transition table
+//! gains, a mode `arc_modes!` gains, a field an options struct gains,
+//! a node variant the recipe gains, all reach `pncad-py` through
 //! methods that were never exhaustive over them — so a Python user
 //! simply cannot write the thing, and nothing says so.
 //!
@@ -28,7 +30,12 @@
 //! [`Spelling::NotBound`] carrying the reason. An options struct is a
 //! struct rather than an enum, so its anchor is the same device in
 //! pattern form: an exhaustive destructure with no `..`, one per
-//! struct in [`options_doors`].
+//! struct in [`options_doors`]. A node variant carries a payload no
+//! test can conjure one of generically, so its anchor is the match
+//! `test_utils::f6_variants!` writes over the bare identifiers
+//! ([`NODE_VARIANTS`], [`DATUM_VARIANTS`]): a new variant stops that
+//! compiling, and once named there it has no entry in
+//! [`NODE_CONSTRUCTORS`] until someone writes one.
 //!
 //! # Which Python side this reads
 //!
@@ -56,7 +63,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
-use pncad::document::EvalOptions;
+use pncad::document::{Datum, EvalOptions, Node, ProfileProgram};
 use pncad::profile::{ArcMode, TargetKind, Verb};
 use pncad::step_export::StepOptions;
 use pncad::step_import::ImportOptions;
@@ -350,6 +357,7 @@ fn stub() -> Stub {
 // ------------------------------------------------------------------
 
 /// How one member of a kernel vocabulary reaches Python.
+#[derive(Clone)]
 enum Spelling {
     /// The stub spellings a caller writes to use it. Every one is
     /// checked to exist, so a plausible-looking name is not a way to
@@ -474,6 +482,137 @@ fn target_class(kind: TargetKind) -> Option<&'static str> {
         TargetKind::StartArriving => Some("ArrivesTangentToken"),
     }
 }
+
+/// The recipe node the `Node.*` constructors author, at the payload
+/// this crate's `Node` class carries.
+type KernelNode = Node<ProfileProgram>;
+
+test_utils::f6_variants! {
+    /// **Every kernel `Node` variant**, welded to `Node` by the match
+    /// the macro writes: a variant the kernel gains leaves that match
+    /// non-exhaustive, and once its identifier is written here
+    /// [`NODE_CONSTRUCTORS`] reds until it has a disposition.
+    ///
+    /// `node_kind`'s match already stops compiling on a new variant,
+    /// but what it forces is a KIND WORD — the read half. Nothing there
+    /// asks whether a Python caller can AUTHOR the node, and a variant
+    /// whose payload reuses types Python already spells mints no new
+    /// curated name for the export census to miss either.
+    const NODE_VARIANTS: KernelNode = [
+        Datum,
+        Profile,
+        Extrude,
+        Revolve,
+        Tube,
+        HollowTube,
+        Loft,
+        Sweep,
+        Fillet,
+        Chamfer,
+        Shell,
+        Split,
+        Boolean,
+        Union,
+        Transform,
+        Pattern,
+        Part,
+        PlacedUnion,
+        Declare,
+        InstantiatePart,
+        Mate,
+        Measure,
+        Assertion,
+    ];
+}
+
+test_utils::f6_variants! {
+    /// **Every datum shape**, welded the same way. `Node::Datum` is one
+    /// node variant and one kind word over six shapes with six
+    /// constructors, so the node roster alone would pass over a shape
+    /// the kernel gains inside it.
+    const DATUM_VARIANTS: Datum = [Plane, Axis, Point, Frame, AxisInPlane, FaceFrame];
+}
+
+/// **The node roster.** The `Node.*` constructors that author each
+/// kernel `Node` variant, keyed by [`NODE_VARIANTS`]' identifiers and
+/// held equal to them in both directions by
+/// [`every_node_variant_has_a_python_constructor`].
+///
+/// Several constructors author one variant where the Python surface
+/// offers more than one way to write it; the census requires every one
+/// listed, so a constructor that goes away reds here too.
+const NODE_CONSTRUCTORS: &[(&str, Spelling)] = &[
+    (
+        "Datum",
+        Spelling::Bound(&[
+            "Node.datum_plane",
+            "Node.datum_axis",
+            "Node.datum_point",
+            "Node.datum_frame",
+            "Node.sketch_frame",
+            "Node.datum_axis_in_plane",
+            "Node.datum_face_frame",
+        ]),
+    ),
+    (
+        "Profile",
+        Spelling::Bound(&["Node.profile", "Node.polygon"]),
+    ),
+    ("Extrude", Spelling::Bound(&["Node.extrude"])),
+    ("Revolve", Spelling::Bound(&["Node.revolve"])),
+    ("Tube", Spelling::Bound(&["Node.tube"])),
+    ("HollowTube", Spelling::Bound(&["Node.hollow_tube"])),
+    ("Loft", Spelling::Bound(&["Node.loft"])),
+    (
+        "Sweep",
+        Spelling::NotBound {
+            would_be: &["Node.sweep"],
+            reason: "the kernel's sweep door is banked — `wire_sweep` refuses unconditionally \
+                     (`SWEEP_FRONTIER`) — so a constructor would author a node every \
+                     evaluation refuses; the north-star audit carries it as gap G2",
+        },
+    ),
+    ("Fillet", Spelling::Bound(&["Node.fillet"])),
+    ("Chamfer", Spelling::Bound(&["Node.chamfer"])),
+    ("Shell", Spelling::Bound(&["Node.shell"])),
+    ("Split", Spelling::Bound(&["Node.split"])),
+    ("Boolean", Spelling::Bound(&["Node.boolean"])),
+    ("Union", Spelling::Bound(&["Node.union"])),
+    ("Transform", Spelling::Bound(&["Node.transform"])),
+    ("Pattern", Spelling::Bound(&["Node.pattern"])),
+    ("Part", Spelling::Bound(&["Node.part"])),
+    (
+        "PlacedUnion",
+        Spelling::Bound(&["Node.placed_union", "Node.placed_union_at"]),
+    ),
+    ("Declare", Spelling::Bound(&["Node.declare"])),
+    (
+        "InstantiatePart",
+        Spelling::Bound(&["Node.instantiate_part"]),
+    ),
+    ("Mate", Spelling::Bound(&["Node.mate"])),
+    ("Measure", Spelling::Bound(&["Node.measure"])),
+    ("Assertion", Spelling::Bound(&["Node.assertion"])),
+];
+
+/// **The datum roster.** The constructor that authors each datum
+/// shape, keyed by [`DATUM_VARIANTS`]' identifiers. A frame has two:
+/// `sketch_frame` is the frame a profile's plane names, spelled as a
+/// `SketchPlane` or an elevation.
+const DATUM_CONSTRUCTORS: &[(&str, Spelling)] = &[
+    ("Plane", Spelling::Bound(&["Node.datum_plane"])),
+    ("Axis", Spelling::Bound(&["Node.datum_axis"])),
+    ("Point", Spelling::Bound(&["Node.datum_point"])),
+    (
+        "Frame",
+        Spelling::Bound(&["Node.datum_frame", "Node.sketch_frame"]),
+    ),
+    (
+        "AxisInPlane",
+        Spelling::Bound(&["Node.datum_axis_in_plane"]),
+    ),
+    ("FaceFrame", Spelling::Bound(&["Node.datum_face_frame"])),
+];
 
 /// **Where one roster's spellings are looked for in the stub.**
 ///
@@ -797,11 +936,39 @@ fn verb_roster() -> Roster {
     }
 }
 
+/// A constructor table as a [`Roster`]: its alphabet is declared names.
+fn constructor_roster(subject: &'static str, table: &'static [(&str, Spelling)]) -> Roster {
+    Roster {
+        subject,
+        alphabet: Alphabet::Declared,
+        entries: table
+            .iter()
+            .map(|(variant, spelling)| ((*variant).to_owned(), spelling.clone()))
+            .collect(),
+    }
+}
+
+/// The node and datum rosters, each beside the welded identifiers its
+/// keys must equal.
+fn constructor_rosters() -> Vec<(Roster, &'static [&'static str])> {
+    vec![
+        (
+            constructor_roster("Node", NODE_CONSTRUCTORS),
+            NODE_VARIANTS.identifiers(),
+        ),
+        (
+            constructor_roster("Datum", DATUM_CONSTRUCTORS),
+            DATUM_VARIANTS.identifiers(),
+        ),
+    ]
+}
+
 /// Every roster in the file, each carrying its own alphabet — read
 /// together so a check cannot cover one and quietly skip another.
 fn every_roster() -> Vec<Roster> {
     std::iter::once(verb_roster())
         .chain(options_doors())
+        .chain(constructor_rosters().into_iter().map(|(roster, _)| roster))
         .collect()
 }
 
@@ -884,6 +1051,43 @@ fn every_path_verb_has_a_python_spelling() {
         missing.is_empty(),
         "the roster claims Python spellings pncad.pyi does not declare: {missing:?}"
     );
+}
+
+/// **The node census.** Every kernel `Node` variant, and every datum
+/// shape inside `Node::Datum`, is authored by a `Node.*` constructor
+/// `pncad.pyi` declares, or is recorded as deliberately unbound.
+///
+/// The keys are held to the welded identifiers in BOTH directions: a
+/// variant with no entry is the gap this census exists for, and an
+/// entry naming no variant is a disposition for something the kernel
+/// no longer has, which reads as coverage while covering nothing.
+#[test]
+fn every_node_variant_has_a_python_constructor() {
+    let stub = stub();
+    for (roster, variants) in constructor_rosters() {
+        let keys: Vec<&str> = roster.entries.iter().map(|(k, _)| k.as_str()).collect();
+        let keyed: BTreeSet<&str> = keys.iter().copied().collect();
+        assert_eq!(
+            keyed.len(),
+            keys.len(),
+            "the {} roster names a variant twice: {keys:?}",
+            roster.subject
+        );
+        let welded: BTreeSet<&str> = variants.iter().copied().collect();
+        let unrostered: Vec<&&str> = welded.difference(&keyed).collect();
+        let foreign: Vec<&&str> = keyed.difference(&welded).collect();
+        assert!(
+            unrostered.is_empty() && foreign.is_empty(),
+            "the {} roster has moved away from the kernel's variants: no disposition for \
+             {unrostered:?}; a disposition for no variant at {foreign:?}",
+            roster.subject
+        );
+        let missing = roster.missing(&stub);
+        assert!(
+            missing.is_empty(),
+            "the roster claims constructors pncad.pyi does not declare: {missing:?}"
+        );
+    }
 }
 
 /// **The mode census.** Every arc mode is a class a Python caller can

@@ -15,6 +15,12 @@
 //! layer up: the witness is a match on the kernel tag, never a
 //! hand-kept list that compiles green while short.
 //!
+//! A word is not a constructor: this match forces the READ half of a
+//! new variant and says nothing about whether Python can author one.
+//! The write half is `surface_census`'s node roster, welded to the same
+//! variants, which requires a `Node.*` constructor per variant or a
+//! written reason there is none.
+//!
 //! # The words are not the wire's words
 //!
 //! The saved text spells a node by its Rust variant identifier
