@@ -44,3 +44,20 @@ idiom the file already has.
   match), `edit_fields` (the shape it should have).
 - `crates/pncad-py/src/edit_payload.rs`, `check_payload.rs`,
   `mate_payload.rs` — the named-field precedent.
+
+## Second sighting (PORT-DIMS-1, 2026-09-15)
+
+PORT-DIMS-1 added a fourteenth `E::` arm to this match
+(`PersistError::Dimension`, the load door's structured refusal), so the
+count in this row's title is now **14 arms** and the `none()` column is
+longer by one arm's worth. Nothing about the new arm is wrong — it fills
+three of the fifteen slots and the Python suite reads all three back —
+but writing it was exactly the experience this row describes: the arm is
+a column of twelve `none()` calls with `word(...)`, `int(...)`,
+`int(...)` at positions 1, 11 and 12, and the only way to get them right
+was to count the tuple's binding list by eye against a sibling arm.
+
+That is the second cost recorded on this door rather than the first, and
+it is the argument for the named-field lift above: a door that grows an
+arm per kernel refusal will keep growing, and each new arm pays the same
+counting tax at the same invisibility.

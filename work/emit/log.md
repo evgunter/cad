@@ -412,3 +412,18 @@ Filed:
 - ATREST `validate-passes-a-body-with-a-zero-width-slit-face`,
   rewritten and re-banded P3: `split` runs no validation tier on its
   own outputs.
+
+## 2026-09-24 — SharedRim(Several) is held for its rebind sibling
+
+PR 3167 names a chord over a rim that exists in several collinear
+pieces: the chord takes the one piece it lies within. On the probe
+corpus, all 62 refusing union cells fuse, and 0 names that fused on
+main move. But measured over member orders, 42 order pairs that used
+to refuse loudly would now silently bind a rim-piece name to a
+different piece. That silent class already exists on main: 18 of 162
+pairs that both fuse on main rebind.
+
+The project is fail-loud, so 3167 does not land alone. The P0
+`union-rim-piece-ranks-follow-fold-order-so-rim-names-rebind` is
+stacked on it and dispatched to the same lane. The two land together
+once the probe corpus shows 0 rebinds.

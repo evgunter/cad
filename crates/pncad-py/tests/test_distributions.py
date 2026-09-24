@@ -55,7 +55,6 @@ from pncad import (
     AnalysisPolicy,
     AnalysisPolicyError,
     DEFAULT_QUANTILE_MASS,
-    DimensionError,
     Distribution,
     DistributionFault,
     Doc,
@@ -66,6 +65,7 @@ from pncad import (
     MeasureUnavailable,
     Node,
     ParamName,
+    QuantityOpMismatch,
     analyzed_box,
     deg,
     load,
@@ -282,12 +282,12 @@ class TestTheConstructorRefuses(unittest.TestCase):
         """The annotation carries no dimension of its own — it borrows
         the parameter's — so its own offsets have to agree about which
         one they are in."""
-        with self.assertRaises(DimensionError) as ctx:
+        with self.assertRaises(QuantityOpMismatch) as ctx:
             Distribution.band(-1 * mm, 1 * deg)
         self.assertEqual(ctx.exception.op, "Distribution.band")
         self.assertEqual(ctx.exception.left, "length")
         self.assertEqual(ctx.exception.right, "angle")
-        with self.assertRaises(DimensionError):
+        with self.assertRaises(QuantityOpMismatch):
             Distribution.truncated_normal(1 * mm, -1 * mm, 1.0)
 
     def test_an_offset_that_is_not_a_quantity_at_all_is_a_type_error(self):
@@ -297,14 +297,14 @@ class TestTheConstructorRefuses(unittest.TestCase):
     def test_the_declaration_and_the_annotation_must_agree(self):
         """The seam the constructor cannot check and the `DocParam`
         door can: an Angle spread on a Length parameter."""
-        with self.assertRaises(DimensionError) as ctx:
+        with self.assertRaises(QuantityOpMismatch) as ctx:
             DocParam.length(4 * mm, Distribution.normal(1 * deg))
         self.assertEqual(ctx.exception.op, "DocParam.length")
         self.assertEqual(ctx.exception.left, "length")
         self.assertEqual(ctx.exception.right, "angle")
-        with self.assertRaises(DimensionError):
+        with self.assertRaises(QuantityOpMismatch):
             DocParam.scalar(0.5, Distribution.normal(1 * mm))
-        with self.assertRaises(DimensionError):
+        with self.assertRaises(QuantityOpMismatch):
             DocParam.angle(1 * rad, Distribution.band(-1 * mm, 1 * mm))
         # And the agreeing spellings all pass.
         DocParam.length(4 * mm, Distribution.normal(1 * mm))
@@ -520,12 +520,12 @@ class TestTheMassColumns(unittest.TestCase):
         refusal, not a plausible number."""
         doc = declared(n=DocParam.length(1 * m, Distribution.normal(0.01 * m)))
         boxed = analyzed_box(doc)
-        with self.assertRaises(DimensionError) as ctx:
+        with self.assertRaises(QuantityOpMismatch) as ctx:
             boxed.box_mass(ParamName("n"), -1 * deg, 1 * deg)
         self.assertEqual(ctx.exception.op, "AnalyzedBox.box_mass")
         self.assertEqual(ctx.exception.left, "length")
         self.assertEqual(ctx.exception.right, "angle")
-        with self.assertRaises(DimensionError):
+        with self.assertRaises(QuantityOpMismatch):
             boxed.box_mass(ParamName("n"), -1 * m, 1 * deg)
 
 

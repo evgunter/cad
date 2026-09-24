@@ -97,7 +97,7 @@ fn mismatch(py: Python<'_>, op: &'static str, left: Dimension, other: &Bound<'_,
     let text = |s: &str| PyString::new(py, s).unbind().into_any();
     typed_err(
         py,
-        ErrorClass::Dimension,
+        ErrorClass::QuantityOp,
         QuantityOpMismatch::new(op, left, right).to_string(),
         &[
             ("op", text(op)),
