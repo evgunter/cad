@@ -1673,8 +1673,8 @@ fn group_resized<U: Decide, T: Decide>(
     let base = fragment_base(name)?;
     let prior_table = &prior.value(name.node)?.name_table;
     prior_table.lookup(name)?;
-    let was = group_size(prior_table, &base);
-    let now = group_size(&new.value(name.node)?.name_table, &base);
+    let was = group_size(prior_table, &base)?;
+    let now = group_size(&new.value(name.node)?.name_table, &base)?;
     (was != now).then_some(Diagnosis::GroupResized {
         node: name.node,
         was,
@@ -1683,8 +1683,11 @@ fn group_resized<U: Decide, T: Decide>(
 }
 
 /// How many entities one table names by `base` or by `base` plus one
-/// trailing `Fragment` qualifier ([`group_resized`]'s count).
-fn group_size(table: &crate::names::NameTable, base: &StableName) -> u32 {
+/// trailing `Fragment` qualifier ([`group_resized`]'s count). A count
+/// the diagnosis's `u32` cannot hold is `None`, and the rung declines
+/// rather than report a saturated size two different groups would
+/// share.
+fn group_size(table: &crate::names::NameTable, base: &StableName) -> Option<u32> {
     let members: usize = table
         .iter()
         .filter(|(row, _)| {
@@ -1701,7 +1704,7 @@ fn group_size(table: &crate::names::NameTable, base: &StableName) -> u32 {
             Entry::Tied(candidates) => candidates.len(),
         })
         .sum();
-    u32::try_from(members).unwrap_or(u32::MAX)
+    u32::try_from(members).ok()
 }
 
 /// The (from, to) sign pair iff `new` differs from `old` by exactly

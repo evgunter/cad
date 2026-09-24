@@ -539,11 +539,12 @@ impl<K: Copy> OpSide<K> {
         }
     }
 
-    /// The other side, carrying the same key.
-    fn other(self) -> Self {
+    /// Which operand this is, without the key — the kernel's own
+    /// dataless side ([`topo::Operand`]).
+    fn operand(self) -> topo::Operand {
         match self {
-            OpSide::A(k) => OpSide::B(k),
-            OpSide::B(k) => OpSide::A(k),
+            OpSide::A(_) => topo::Operand::A,
+            OpSide::B(_) => topo::Operand::B,
         }
     }
 
@@ -893,14 +894,14 @@ fn name_boolean_edges<T: Decide>(
     // unique constituent on side `want` — the seam's mint-time operand
     // identity survives the glue. Several same-side constituents
     // refuse.
-    let chord_descent = |f: FaceKey, want: OpSide<()>| -> Result<OpSide<FaceKey>, NamingError> {
+    let chord_descent = |f: FaceKey, want: topo::Operand| -> Result<OpSide<FaceKey>, NamingError> {
         let Some(ds) = merged_descents.get(&f) else {
             return descend_face(f);
         };
         // Constituent fragments of ONE operand face share a
         // descent — dedup before the uniqueness demand.
         let mut hits: Vec<OpSide<FaceKey>> =
-            ds.iter().filter(|d| d.with(()) == want).copied().collect();
+            ds.iter().filter(|d| d.operand() == want).copied().collect();
         hits.sort_unstable();
         hits.dedup();
         match hits.as_slice() {
@@ -925,7 +926,7 @@ fn name_boolean_edges<T: Decide>(
     // given, and a chord that fails it — or one with no key side, a
     // zip-listed edge — refuses as the missing rule it is
     // (`NamingError::MergedChordOffRim`, `NamingError::MergedChord`).
-    let chord_kind = |e: EdgeKey, own: Option<OpSide<()>>| -> Result<ChordKind, NamingError> {
+    let chord_kind = |e: EdgeKey, own: Option<topo::Operand>| -> Result<ChordKind, NamingError> {
         let faces = inc
             .edge_faces
             .get(&e)
@@ -939,11 +940,11 @@ fn name_boolean_edges<T: Decide>(
             (false, false) => (descend_face(faces[0])?, descend_face(faces[1])?),
             (true, false) => {
                 let d1 = descend_face(faces[1])?;
-                (chord_descent(faces[0], d1.with(()).other())?, d1)
+                (chord_descent(faces[0], d1.operand().opposite())?, d1)
             }
             (false, true) => {
                 let d0 = descend_face(faces[0])?;
-                (d0, chord_descent(faces[1], d0.with(()).other())?)
+                (d0, chord_descent(faces[1], d0.operand().opposite())?)
             }
             (true, true) => {
                 let Some(side) = own else {
@@ -957,8 +958,8 @@ fn name_boolean_edges<T: Decide>(
                 let (_, f1) = d1.of(a, b);
                 return match rim_between(op.body, f0, f1)? {
                     Rim::One(rim) if chord_on_rim(body, e, op.body, rim, bnd)? => Ok(match side {
-                        OpSide::A(()) => ChordKind::SameA(rim),
-                        OpSide::B(()) => ChordKind::SameB(rim),
+                        topo::Operand::A => ChordKind::SameA(rim),
+                        topo::Operand::B => ChordKind::SameB(rim),
                     }),
                     Rim::One(rim) => Err(NamingError::MergedChordOffRim {
                         edge: e,
@@ -1112,7 +1113,7 @@ fn name_boolean_edges<T: Decide>(
         } else {
             // Where a both-merged chord reads through to, checked
             // geometrically there (`chord_kind`).
-            match chord_kind(e, Some(root.with(())))? {
+            match chord_kind(e, Some(root.operand()))? {
                 ChordKind::Cross(fa, fb) => {
                     add_seam(fa, fb, e);
                 }
@@ -1310,17 +1311,32 @@ fn name_boolean_vertices<T: Decide>(
         // one included, since a zip elsewhere in the body does not reach
         // it. The touch comes in both orientations, so the partner is
         // read on whichever side the vertex's key belongs to.
+        //
+        // EVERY row for this vertex is read, not the first: a vertex
+        // coincident with several vertices of the other operand has a
+        // row for each, and its name must not depend on which one the
+        // reduction wrote first (`one_partner`).
         let rc = &naming.reduction_contacts;
         let (partner_a, partner_b): (Option<Upstream>, Option<Upstream>) =
             match operand_key(naming, inv_vertices, v)?.0 {
-                OpSide::A(ka) => match rc.vv.iter().find(|r| r.a == ka) {
-                    Some(r) => (None, named_in(OpSide::B(r.b))?),
-                    None => (None, None),
-                },
-                OpSide::B(kb) => match rc.vv.iter().find(|r| r.b == kb) {
-                    Some(r) => (named_in(OpSide::A(r.a))?, None),
-                    None => (None, None),
-                },
+                OpSide::A(ka) => {
+                    let named = rc
+                        .vv
+                        .iter()
+                        .filter(|r| r.a == ka)
+                        .map(|r| named_in(OpSide::B(r.b)))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    (None, one_partner(v, named.into_iter().flatten().collect())?)
+                }
+                OpSide::B(kb) => {
+                    let named = rc
+                        .vv
+                        .iter()
+                        .filter(|r| r.b == kb)
+                        .map(|r| named_in(OpSide::A(r.a)))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    (one_partner(v, named.into_iter().flatten().collect())?, None)
+                }
             };
         from_tie |= partner_b.as_ref().is_some_and(|u| u.tied);
         from_tie |= partner_a.as_ref().is_some_and(|u| u.tied);
@@ -1462,6 +1478,27 @@ fn name_boolean_vertices<T: Decide>(
     Ok(())
 }
 
+/// The one contact-record partner a seam vertex is named by, from the
+/// named partners of EVERY row that pairs it: none is no partner, one
+/// name — however many rows carry it — is that partner (tie-descended
+/// if any row's is), and several distinct names refuse
+/// ([`NamingError::SeamVertexPartners`]) rather than choose.
+fn one_partner(vertex: VertexKey, named: Vec<Upstream>) -> Result<Option<Upstream>, NamingError> {
+    let mut distinct: Vec<Upstream> = Vec::new();
+    for u in named {
+        match distinct.iter_mut().find(|d| d.name == u.name) {
+            Some(d) => d.tied |= u.tied,
+            None => distinct.push(u),
+        }
+    }
+    if distinct.len() > 1 {
+        let mut candidates: Vec<StableName> = distinct.iter().map(|u| (*u.name).clone()).collect();
+        candidates.sort();
+        return Err(NamingError::SeamVertexPartners { vertex, candidates });
+    }
+    Ok(distinct.pop())
+}
+
 /// The oriented carrier of an operand-edge parent name, if the name
 /// denotes an edge in that operand's table.
 ///
@@ -1564,6 +1601,18 @@ fn edge_dir<T: Decide>(body: &Body<T>, e: EdgeKey) -> Result<Vec3<T>, NamingErro
     Ok(p(v1)? - p(v0)?)
 }
 
+/// A ranked group's size as its names' `OrderAlong { of }`. A group
+/// larger than the field holds refuses rather than saturating: a
+/// saturated `of` would be a wrong count in every name of the group,
+/// and two different oversized groups would spell one. No body this
+/// crate can hold has such a group, so reaching it means a count
+/// no mint-time fact supports — an emission bug.
+fn group_count(n: usize) -> Result<u32, NamingError> {
+    u32::try_from(n).map_err(|_| NamingError::Emission {
+        what: "a ranked group has more members than a name's rank count holds",
+    })
+}
+
 /// Inserts a same-name group ranked by order-along, or tied when
 /// genuinely unordered.
 #[allow(clippy::too_many_arguments)]
@@ -1579,7 +1628,7 @@ fn insert_ranked_or_tied<T: Decide, K: Copy>(
 ) -> Result<(), NamingError> {
     match order_along(extents, bnd)? {
         Some(ranks) => {
-            let of = u32::try_from(keys.len()).unwrap_or(u32::MAX);
+            let of = group_count(keys.len())?;
             for (k, rank) in keys.iter().zip(ranks) {
                 let mut name = base.clone();
                 name.path
@@ -1683,7 +1732,7 @@ fn name_split_faces<T: Decide>(
             .collect::<Result<Vec<_>, _>>()?;
         match order_along(&extents, b)? {
             Some(ranks) => {
-                let of = u32::try_from(members.len()).unwrap_or(u32::MAX);
+                let of = group_count(members.len())?;
                 for (m, rank) in members.iter().zip(ranks) {
                     let mut name = name1(EntityKind::Face, node, base.clone());
                     name.path
@@ -1723,6 +1772,57 @@ mod tests {
     use crate::node::RecipeNodeId;
     use geom_core::Tol;
     use profile::RawLoop;
+
+    fn upstream(node: u64, tied: bool) -> Upstream {
+        Upstream {
+            name: NameRef::new(name1(
+                EntityKind::Vertex,
+                RecipeNodeId(node),
+                RoleSeg::CapVertex(
+                    super::super::role::CapEnd::End,
+                    super::super::role::ProfileVertexRef {
+                        loop_index: 0,
+                        vertex: 0,
+                    },
+                ),
+            )),
+            tied,
+        }
+    }
+
+    #[test]
+    fn one_partner_takes_one_name_however_many_rows_carry_it() {
+        let v = VertexKey::default();
+        assert!(one_partner(v, Vec::new()).unwrap().is_none());
+        let got = one_partner(v, vec![upstream(3, false), upstream(3, true)])
+            .unwrap()
+            .expect("two rows naming one partner decide it");
+        assert_eq!(got.name, upstream(3, false).name);
+        assert!(got.tied, "tie-descended if any row's partner is");
+    }
+
+    #[test]
+    fn one_partner_refuses_two_distinct_partners() {
+        let v = VertexKey::default();
+        let Err(NamingError::SeamVertexPartners { vertex, candidates }) =
+            one_partner(v, vec![upstream(3, false), upstream(4, false)])
+        else {
+            panic!("two distinct partners must refuse as SeamVertexPartners")
+        };
+        assert_eq!(vertex, v);
+        assert_eq!(candidates.len(), 2);
+    }
+
+    #[test]
+    fn a_ranked_group_count_past_u32_refuses() {
+        assert_eq!(group_count(3).unwrap(), 3);
+        if let Some(too_many) = usize::try_from(u64::from(u32::MAX) + 1).ok() {
+            assert!(matches!(
+                group_count(too_many),
+                Err(NamingError::Emission { .. })
+            ));
+        }
+    }
 
     /// A body holding one straight edge from `p` to `q`, and that edge.
     fn segment(p: [f64; 3], q: [f64; 3]) -> (Body<f64>, EdgeKey) {

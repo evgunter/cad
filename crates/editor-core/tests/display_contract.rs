@@ -1996,6 +1996,7 @@ test_utils::f6_variants! {
         SplitLineage,
         FragmentLineage,
         SeamVertexParentage,
+        SeamVertexPartners,
         SharedRim,
         MergedChord,
         MergedChordOffRim,
@@ -2092,6 +2093,13 @@ fn naming_error_display_names_its_content_not_its_struct() {
         (
             NamingError::MergedChord { edge },
             vec!["merged faces", "the join's own edge"],
+        ),
+        (
+            NamingError::SeamVertexPartners {
+                vertex,
+                candidates: Vec::new(),
+            },
+            vec!["seam vertex", "differently named vertices"],
         ),
         (
             NamingError::MergedChordOffRim {

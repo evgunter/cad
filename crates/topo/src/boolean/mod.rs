@@ -191,6 +191,16 @@ pub enum Operand {
     B,
 }
 
+impl Operand {
+    /// The other operand.
+    pub fn opposite(self) -> Self {
+        match self {
+            Self::A => Self::B,
+            Self::B => Self::A,
+        }
+    }
+}
+
 /// A trilean side code against the *other* solid's boundary — the
 /// boolean analogue of `PlaneSide`, derived from `enters_material`
 /// (module docs): `Enters ⇒ In`, `Exits ⇒ Out`, `Tangent ⇒ On`.

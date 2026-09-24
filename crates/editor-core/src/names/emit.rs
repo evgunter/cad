@@ -35,8 +35,8 @@ use crate::node::RecipeNodeId;
 ///    [`Self::Band`], whose own doc draws the line the two below
 ///    stand on — *nothing about the result body is wrong here*.
 /// 4. A MISSING RULE: [`Self::SeamVertexParentage`],
-///    [`Self::SharedRim`], [`Self::MergedChord`] and
-///    [`Self::MergedChordOffRim`], reached from recipes nothing is wrong with,
+///    [`Self::SeamVertexPartners`], [`Self::SharedRim`],
+///    [`Self::MergedChord`] and [`Self::MergedChordOffRim`], reached from recipes nothing is wrong with,
 ///    where the emitter has no rule for a construction the recipe
 ///    produced. They read as a missing rule and not as a bug report,
 ///    because telling an author to file a kernel bug over their own
@@ -162,6 +162,24 @@ pub enum NamingError {
     SeamVertexParentage {
         /// The result-body vertex whose parentage is not determined.
         vertex: VertexKey,
+    },
+    /// A seam vertex whose boolean contact records pair it with SEVERAL
+    /// differently named vertices of the other operand.
+    ///
+    /// The seam-vertex pass names a vertex with no seam structure of its
+    /// own by its contact-record partner. One partner — or several rows
+    /// naming the same one — decides it. Several distinct partners do
+    /// not, and no rule chooses among them, so the pass refuses rather
+    /// than take whichever row the reduction happened to write first.
+    /// A sibling word of [`Self::SeamVertexParentage`]: the same vertex
+    /// pass, a different structure to read (the contact rows, not the
+    /// incident edge roles).
+    SeamVertexPartners {
+        /// The result-body vertex.
+        vertex: VertexKey,
+        /// The distinct upstream names the contact rows pair it with,
+        /// in name order.
+        candidates: Vec<StableName>,
     },
     /// Two faces a boolean's seam-chord derivation believes meet along
     /// ONE edge of an operand body do not.
@@ -383,6 +401,13 @@ impl core::fmt::Display for NamingError {
                  share {found} where a seam chord's rim, derived from adjacency alone, needs \
                  exactly one",
                 node.0
+            ),
+            Self::SeamVertexPartners { vertex, candidates } => write!(
+                f,
+                "{UNRULED_FRAMING}: seam vertex {vertex:?} coincides, in the boolean's contact \
+                 records, with {} differently named vertices of the other operand, and no \
+                 rule chooses which one names it",
+                candidates.len()
             ),
             Self::MergedChord { edge } => write!(
                 f,
@@ -1413,6 +1438,7 @@ mod display_tests {
         // renders a constant where its subject belongs fails here.
         let vtx = two_vertices().0;
         let vtx_shown = format!("{vtx:?}");
+        let partner = name.clone();
         let pair = two_faces();
         assert_ne!(
             pair.0, pair.1,
@@ -1484,6 +1510,13 @@ mod display_tests {
                 vec![face0.as_str(), face1.as_str(), "23", "more than one edge"],
             ),
             (
+                NamingError::SeamVertexPartners {
+                    vertex: vtx,
+                    candidates: vec![partner.clone(), partner],
+                },
+                vec![vtx_shown.as_str(), "2 differently named vertices"],
+            ),
+            (
                 NamingError::MergedChord {
                     edge: two_edges().0,
                 },
@@ -1531,6 +1564,7 @@ mod display_tests {
                 | NamingError::SplitLineage(_)
                 | NamingError::FragmentLineage { .. } => Some(EMISSION_FRAMING),
                 NamingError::SeamVertexParentage { .. }
+                | NamingError::SeamVertexPartners { .. }
                 | NamingError::SharedRim { .. }
                 | NamingError::MergedChord { .. }
                 | NamingError::MergedChordOffRim { .. } => Some(UNRULED_FRAMING),
@@ -1548,9 +1582,10 @@ mod display_tests {
                 NamingError::FragmentLineage { .. } => 6,
                 NamingError::SeamVertexParentage { .. } => 7,
                 NamingError::SharedRim { .. } => 8,
-                NamingError::MergedChord { .. } => 9,
-                NamingError::MergedChordOffRim { .. } => 10,
-                NamingError::Band(_) => 11,
+                NamingError::SeamVertexPartners { .. } => 9,
+                NamingError::MergedChord { .. } => 10,
+                NamingError::MergedChordOffRim { .. } => 11,
+                NamingError::Band(_) => 12,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
