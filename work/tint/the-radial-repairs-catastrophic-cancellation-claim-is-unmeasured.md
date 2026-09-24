@@ -28,8 +28,8 @@ tree still looks.
 
 So the repair's premise survives only as a sentence in a doc comment,
 while the frames it is about (`CylFrame::tilted`, and
-`CylFrame::canonical` at small radii — `mate5_cyl_eps_rung` builds one
-at 1e-3) are exactly the ones the probe suites use.
+`CylFrame::canonical` at small radii, which `mate5_cyl_eps_rung`
+builds) are exactly the ones the probe suites use.
 
 ## Why this is S-TINT's
 

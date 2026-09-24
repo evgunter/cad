@@ -138,8 +138,9 @@ Two rows are NOT in that list and are the finding that came out of it:
 swallow the planted break through `try_wall_sheet`'s `catch_unwind` and
 report ok. Row: `work/tint/try-wall-sheet-stands-down-on-any-panic.md`.
 
-Residue also filed:
-`work/dup/the-canonical-unit-cylinder-literal-has-no-reachable-home.md`.
+The canonical-cylinder residue this unit turned up is evidence on
+`work/tint/geom-brep-inline-canonical-frame-surfaces`, not a row of its
+own (see the fix pass below).
 
 ## Fix pass, 2026-09-20 — the guard reach the first cut removed
 

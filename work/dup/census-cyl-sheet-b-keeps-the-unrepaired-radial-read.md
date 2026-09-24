@@ -91,12 +91,16 @@ to measure, not a licence to file a guess.
 
 **"ONE frame and ONE window" undercounted the windows.**
 `cross_description_pair` has two call sites, `census.rs`'s
-`a_cross_description_cylinder_patch_record_certifies` and
-`a_refuted_cross_description_cylinder_record_is_stale_typed`, and both
-were dumped: **both bit-identical**. The conclusion is unchanged and
-the count under it was wrong — a row closing on "one window" having
-measured one of two, in the program whose subject is counts that do not
-survive re-taking.
+`a_cross_description_cylinder_patch_record_certifies` (window
+`0.5..1.3 x 0.3..0.7`) and
+`a_refuted_cross_description_cylinder_record_is_stale_typed`
+(`0.5..1.3 x 2.0..2.5`). The first cut dumped only the first. The
+reviewer checked the second; this lane then re-took both itself,
+building `cyl_sheet_b` verbatim from merge base `cd9fdfd6b` against
+the shipped `cyl_wall_sheet_keyed`: **33 dump lines each, both diffs
+empty**. The conclusion stands. The count under it was wrong: a row
+closing on "one window" having measured one of two, in the program
+whose subject is counts that do not survive re-taking.
 
 **The declined row is filed after all**, and the reasoning above was
 half right. Not guessing a threshold was right. Leaving the question

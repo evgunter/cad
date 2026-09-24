@@ -83,9 +83,10 @@ occurrence in the repo is under a `tests/` tree. A `None`-returning
 fixture door in `topo::test_support` would be the first of its kind in
 any crate's `src`, and the row's second objection — that the stand-down
 is a per-suite judgement — is the reason it should stay where a suite
-can see it. One helper module, one statement of the posture, and
-`r2_probes`' `wall_sheet` stays where it is: eleven call sites read
-better flat, and it is one line over the shared door.
+can see it. One helper module, one statement of the posture, beside
+the flat `wall_sheet` adapter the stand-down wraps (the fix pass below
+moved that adapter there too; `r2_probes`' ten call sites read it
+flat).
 
 **What the fold measured on its way past.** Planting a
 `try_wall_sheet` that stands down unconditionally reds **zero** rows;
