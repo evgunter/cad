@@ -271,10 +271,11 @@ pub mod test_support {
     // purpose — a guard that reached for the constant the builder uses
     // would be comparing that constant against itself.
     pub use crate::test_support_fixtures::{
-        CubeOps, CylFrame, FaceGeometry, Prism, PrismOps, StraddleSeat,
-        assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet, declined_cube,
-        describe_as_intersections, face_surface_of_he, flush_declarations, geometric_cube, line,
-        mapped_cube, plane, prism, prism_ops, prism_z, straddle_seat,
+        CubeOps, CylFrame, CylKey, FaceGeometry, Prism, PrismOps, StraddleSeat,
+        assert_every_chord_named_by_both_rules, brick, cube_into, cyl_wall_sheet,
+        cyl_wall_sheet_keyed, declined_cube, describe_as_intersections, face_surface_of_he,
+        flush_declarations, geometric_cube, line, mapped_cube, plane, prism, prism_ops, prism_z,
+        straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
 

@@ -44,7 +44,7 @@ use pncad::document::{
     AxisSense, ClassAdmission, DocEdit, DocumentId, Frame, MatePrimitive, Node, PatternKind,
     ProfileDoc, RecipeNodeId, assemble, class_admission, parse_expr,
 };
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::geom_core::{Point3, Tol};
 use pncad::select::{ContactClass, Ray, face_frame};
 use pncad::workspace::Workspace;
 use viewer::display::{AdmissionFault, DisplayFault};
@@ -60,14 +60,6 @@ fn rest_choice() -> MateChoice {
         primitive: MatePrimitive::FrameCoincidence,
         sense: AxisSense::Opposed,
         clocking: None,
-    }
-}
-
-/// A ray straight up from below at `(x, y)`.
-fn up_at(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, -1.0),
-        dir: Vec3::new(0.0, 0.0, 1.0),
     }
 }
 
@@ -202,7 +194,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     let shelf_bottom = pick(
         &session,
         &index,
-        &up_at(
+        &asm::up_at(
             asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
             asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
         ),
@@ -909,7 +901,7 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     let bottom = pick(
         &session,
         &index,
-        &up_at(asm::POST_B_AT[0] + s / 2.0, asm::POST_B_AT[1] + s / 2.0),
+        &asm::up_at(asm::POST_B_AT[0] + s / 2.0, asm::POST_B_AT[1] + s / 2.0),
     );
     assert_eq!(top.node, bench.post_b);
     assert_eq!(bottom.node, bench.post_b);
