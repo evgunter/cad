@@ -178,6 +178,8 @@ mod fix_loop_polygon_expr;
 mod fix_pattern_mate_crossing;
 #[path = "refusal_concision.rs"]
 mod refusal_concision;
+#[path = "refusal_concision_at_rest.rs"]
+mod refusal_concision_at_rest;
 #[path = "refusal_concision_chains.rs"]
 mod refusal_concision_chains;
 #[path = "resolve_upstream_scope.rs"]

@@ -1270,13 +1270,18 @@ pub enum ValidationError {
         /// The face pair and class that were declared.
         declaration: DeclaredContact,
         /// Where the contradiction was witnessed, read after "at" in
-        /// the message: a coordinate triple, or — where the verdict
-        /// compares whole surfaces and yields no point (the
-        /// patch-record confirm pass's Door 1) — a phrase naming
-        /// them. Never the pair again: `declaration` carries it.
+        /// the message: the witnessing edge (the curve-record confirm
+        /// pass), or — where the verdict compares whole surfaces and
+        /// yields no point (the patch-record confirm pass's Door 1) —
+        /// a phrase naming them. Never the pair again: `declaration`
+        /// carries it.
         witness: String,
-        /// The margin that decided, and its predicate — the named
-        /// number the message renders, never a bare "contradicted".
+        /// The margin that decided, and its predicate. The message
+        /// names the predicate, so a contradiction never reads bare;
+        /// the margin itself rides in `Debug` — at most sites it is
+        /// `MarginDiag::Invalid`, standing in where the deciding fact
+        /// is a definite relation (senses aligned, a point off a
+        /// surface) rather than a number.
         margin: Indeterminate,
         /// Extra recourse steering when the counter-evidence has a
         /// named remedy (AQ6's designed-clearance arm).
@@ -2083,18 +2088,25 @@ impl fmt::Display for ValidationError {
                 witness,
                 margin,
                 steer,
-            } => write!(
-                f,
-                "tier-3′ census: the declared {} contact between faces {:?} and {:?} is \
-                 contradicted at {witness} by {} — every definite verdict wins over every \
-                 declaration; {}{}",
-                declaration.class.name(),
-                declaration.a,
-                declaration.b,
-                margin.payload(),
-                crate::contact::CONTACT_RECOURSE,
-                steer.map(|s| format!(" — {s}")).unwrap_or_default(),
-            ),
+            } => {
+                write!(
+                    f,
+                    "tier-3′ census: the geometry contradicts the declared {} contact \
+                     between faces {:?} and {:?} at {witness}",
+                    declaration.class.name(),
+                    declaration.a,
+                    declaration.b,
+                )?;
+                if let Some(predicate) = margin.predicate {
+                    write!(f, " (the check {predicate})")?;
+                }
+                write!(
+                    f,
+                    "; {}{}",
+                    crate::contact::CONTACT_RECOURSE,
+                    steer.map(|s| format!(" — {s}")).unwrap_or_default(),
+                )
+            }
             Self::StaleContactDeclaration { declaration } => write!(
                 f,
                 "tier-3′ census: declaration {declaration} has no geometric \
@@ -2131,11 +2143,8 @@ impl fmt::Display for ValidationError {
             ),
             Self::CensusUndecidable { a, b, what } => write!(
                 f,
-                "tier-3′ census: the pair {a} / {b} cannot be examined or definitely \
-                 cleared by any census arm ({what}) — refused as undecidable rather \
-                 than silently not looked at; separate the bodies, or wait for the \
-                 named lane (the exclusion ring for curved proximity; the \
-                 recorded gate-skips for declared interference)"
+                "tier-3′ census: {a} and {b} can be neither examined nor cleared: \
+                 {what}. Recourse: separate the bodies"
             ),
             Self::InstanceInterference {
                 outer,
