@@ -109,7 +109,7 @@
 //!   Without this, a no-hit ray on a reverted operand would misreport
 //!   complement material as `Out`.
 
-use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
+use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary, SolidKey};
@@ -341,126 +341,84 @@ impl From<PointInLoopError> for PointInSolidError {
 impl core::fmt::Display for PointInSolidError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Escalated { face, diag } => {
-                write!(f, "point_in_solid: escalated at face {face:?}: {diag}")
-            }
+            Self::Escalated { diag, .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its faces is too close \
+                 to call at this tolerance ({}). Recourse: {COINCIDENCE_RECOURSE}",
+                diag.payload()
+            ),
             Self::RayExhausted => write!(
                 f,
-                "point_in_solid: every schedule ray grazed — ill-conditioned query at this \
-                 tolerance"
+                "cannot tell what is inside the solid: every test ray grazed its \
+                 boundary, so the question is ill-conditioned at this tolerance. \
+                 Recourse: {COINCIDENCE_RECOURSE}"
             ),
-            Self::Loop(e) => write!(f, "point_in_solid: {e}"),
+            // `PointInLoopError` is shared with the split, whose wrapper
+            // states its own recourse; so the ray-exhausted arm carries
+            // none, and this path supplies the one it needs, as its
+            // sibling `RayExhausted` above does. The escalated arm's
+            // margin already ends in the shared recourse.
+            Self::Loop(e @ crate::splitting::PointInLoopError::RayExhausted { .. }) => write!(
+                f,
+                "cannot tell what is inside the solid: {e}. Recourse: {COINCIDENCE_RECOURSE}"
+            ),
+            Self::Loop(e) => write!(f, "cannot tell what is inside the solid: {e}"),
             Self::ZeroVolumeBody => write!(
                 f,
-                "point_in_solid: the body's signed volume is (near-)zero — no material side \
-                 at infinity to classify against"
+                "cannot tell what is inside the solid: it encloses no measurable volume"
             ),
-            Self::CorruptFace { face } => {
-                write!(
-                    f,
-                    "point_in_solid: face {face:?} is not walkable, or an entity it \
-                     names is lost — this is an arena claim about a BROKEN body, not \
-                     about a surface kind"
-                )
-            }
-            Self::KindUnsupported { face, kind } => {
-                write!(
-                    f,
-                    "point_in_solid: face {face:?} is a {} and the containment door \
-                     has no ray-crossing arm for the kind. The body is HEALTHY; what \
-                     is missing is a capability. This door is deliberately box-blind \
-                     — a ray from the query point crosses the whole boundary, so a \
-                     face out of reach of the CUT is still in reach of the RAY, which \
-                     is why the pair-scoped operand gate admitting the operation does \
-                     not settle this. Recourse: express the operation so no spline \
-                     face bounds the solid being classified against, or wait on \
-                     the containment arm for the kind",
-                    kind.name()
-                )
-            }
+            Self::CorruptFace { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its faces is broken (it \
+                 cannot be walked, or names something that is gone)"
+            ),
+            Self::KindUnsupported { kind, .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its faces is a {} \
+                 surface, which the inside/outside test has no way yet to cross. The \
+                 solid itself is fine. Recourse: build the solid so no spline (NURBS) \
+                 face bounds it",
+                super::kind_word(*kind)
+            ),
             Self::VolumeUncertified => write!(
                 f,
-                "point_in_solid: a schedule ray crossed no boundary at all, so the verdict is \
-                 the AT-INFINITY side — and that side is read off the body's signed volume, \
-                 which the closed-form props lane refused to certify. The body is HEALTHY and \
-                 this door's own arms answered; what is missing is a volume: a curved face \
-                 outside the closed-form inventory (the props refusal names the face and the \
-                 premise). Recourse: pose the query where a ray meets the boundary, or wait \
-                 on the props arm that measures that face"
+                "cannot tell what is inside the solid: no test ray met its boundary, and \
+                 the solid's volume, which would settle it, could not be measured for \
+                 one of its curved faces. The solid itself is fine. Recourse: test a \
+                 point whose rays meet the boundary"
             ),
-            Self::PartialSphereFace { face } => {
-                write!(
-                    f,
-                    "point_in_solid: sphere face {face:?} is neither closed on its own \
-                     surface nor expressible as a chart rectangle. A trimmed sphere face \
-                     IS served when every boundary edge is a latitude rim or a meridian \
-                     great circle — that face is exactly the [azimuth] × [latitude] window \
-                     its boundary pins. This one is not: it carries a ring, a boundary edge \
-                     in neither chart class, an azimuth walk wrapping past a period, or a \
-                     meridian edge with a POLE strictly inside it. That last one breaks the \
-                     rectangle in both coordinates: a meridian's chart image is a \
-                     constant-azimuth iso-line and an arc through a pole is not one (its \
-                     azimuth jumps by π there, and the loop walk carries a pole junction \
-                     only at a VERTEX), while its latitude extreme is interior to the edge, \
-                     where a fold over boundary levels never looks. Recourse: bound the \
-                     sphere face with rims and meridians meeting AT the poles, keep it \
-                     whole, or trim it with the cylinder/plane arms"
-                )
-            }
-            Self::PartialConeFace { face } => {
-                write!(
-                    f,
-                    "point_in_solid: cone face {face:?} is in neither cone class. The body \
-                     is HEALTHY and the containment door HAS a ray-crossing arm for the \
-                     kind; what it cannot pin is this face's azimuth. A cone chart's apex \
-                     is a junction no azimuth walk crosses — every azimuth maps to the tip \
-                     — so a face whose two bounding meridians MEET there has no closed-form \
-                     window, and the walk reports a whole period for a face that covers part \
-                     of one. Two classes answer around that: a face group with no azimuth \
-                     boundary of its own (the full revolve's two bands, which together cover \
-                     every azimuth of their shared slant window), and a face whose window is \
-                     definitely NARROWER than a period. This one is neither: it carries a \
-                     ring, its group's members disagree on their slant window, or its window \
-                     wrapped without its group wrapping. Recourse: bound the cone face so its \
-                     azimuth window closes short of a period, or let its group cover the \
-                     chart"
-                )
-            }
-            Self::PartialTorusFace { face } => {
-                write!(
-                    f,
-                    "point_in_solid: torus face {face:?} is in neither torus class. The \
-                     body is HEALTHY and the containment door HAS a ray-crossing arm for \
-                     the kind; what it cannot pin is this face's extent on the chart. A \
-                     ring torus has no chart singularity, so the two classes are simply \
-                     the whole chart and a rectangle of it: a face group closed against \
-                     the rest of the body (its union covers the torus), or a face whose \
-                     major and minor windows the boundary walk pins — each window either \
-                     definitely narrower than a period or exactly one, which on this \
-                     chart means the face genuinely wraps that coordinate, and the \
-                     boundary itself checked to BE that rectangle rather than merely to \
-                     fit inside it. This one is neither: it carries a ring, an \
-                     unwalkable boundary, a boundary edge with no closed-form image on \
-                     the torus chart (an oblique circle — the Villarceau class), a walk \
-                     that does not close, a boundary with more variation than a \
-                     rectangle has (an L-shaped face), or a window the walk unwound PAST \
-                     a period, which describes no face. Recourse: bound the torus face \
-                     with parallels and meridians, or let its group cover the chart"
-                )
-            }
-            Self::NoSuchSolid { solid } => write!(
+            Self::PartialSphereFace { .. } => write!(
                 f,
-                "point_in_solid: solid {solid:?} does not resolve in the body — an arena \
-                 claim about the query, not about a surface kind"
+                "cannot tell what is inside the solid: one of its sphere faces has an \
+                 outline the inside/outside test cannot read. The solid itself is fine. \
+                 Recourse: bound the sphere face with latitude circles and meridians \
+                 that meet at the poles, keep it whole, or trim it with cylinders or \
+                 planes"
             ),
-            Self::SurfaceSharedOutsideSolid { face, other } => write!(
+            Self::PartialConeFace { .. } => write!(
                 f,
-                "point_in_solid: face {face:?} of the queried solid shares its surface key \
-                 with face {other:?} of another solid, on a kind the door reads through a \
-                 surface group whose representative is chosen over the whole body — the \
-                 solid's own members could drop out of the sweep, so the query is refused. \
-                 Recourse: give each solid its own surface keys (instance placement \
-                 already does)"
+                "cannot tell what is inside the solid: one of its cone faces has an \
+                 outline the inside/outside test cannot read (two edges meet at its \
+                 apex, say). The solid itself is fine. Recourse: bound the cone face \
+                 short of a full turn around the axis, or let its faces cover the turn"
+            ),
+            Self::PartialTorusFace { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its torus faces has an \
+                 outline the inside/outside test cannot read. The solid itself is fine. \
+                 Recourse: bound the torus face with circles around and along the tube \
+                 (parallels and meridians), or let its faces together cover the whole \
+                 torus"
+            ),
+            Self::NoSuchSolid { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: the body holds no such solid"
+            ),
+            Self::SurfaceSharedOutsideSolid { .. } => write!(
+                f,
+                "cannot test this solid on its own: one of its faces shares its surface \
+                 with a face of another solid in the same body. Recourse: give each \
+                 solid its own surface keys (placing an instance already does)"
             ),
         }
     }
@@ -3678,8 +3636,8 @@ fn at_infinity_side<T: Decide>(
     // Closed-form lane (M5 PR 11 lane split) — see `volume_backstop`.
     //
     // The props refusal is READ, not flattened. `VolumeUncertified`'s
-    // own message asserts "the body is HEALTHY and this door's arms
-    // answered; what is missing is a volume", and two of the props
+    // own message asserts that the solid itself is fine and only its
+    // volume could not be measured, and two of the props
     // lane's refusals make that sentence false: an escalation is an
     // ill-conditioned operand at this ε (with a predicate name and a
     // band the caller can act on), and the corruption-shaped arms are
@@ -3805,7 +3763,11 @@ mod per_solid_entry_tests {
             other: fb,
         }
         .to_string();
-        assert!(text.contains("shares its surface key"), "{text}");
+        assert!(
+            text.contains("shares its surface with a face of another solid")
+                && text.contains("Recourse: give each solid its own surface keys"),
+            "{text}"
+        );
         assert!(!text.contains("SurfaceSharedOutsideSolid {"), "{text}");
     }
 

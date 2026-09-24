@@ -2,12 +2,13 @@
 id: rational-cells-hull-the-f64-refined-net-so-the-described-patch-escapes
 kind: issue
 title: patch_bound's rational arm hulls the f64-refined net: the described patch's true second partial exceeds the certified sup by ULPs, measured exactly
-status: open
+status: closed
 opened: 2026-09-18
 refs: [nurbs-face-bound-unsound-on-a-random-rational]
 priority: P0
 cost: H
 parent: TESS-2
+closed: 2026-09-22
 ---
 
 
@@ -107,3 +108,36 @@ carries it as an announced crossing into
 `crates/geom-brep/src/patch_bound.rs` (ENCL's path; shared ground is
 expected under ENCL's own `keep_out`). The file moves with its id, per
 `work/README.md`'s claiming rule.
+
+## The sweep no longer reds on this (2026-09-21)
+
+RING-2 (SCALAR, PR 3032) gave the sweep a 64-ulp sampler allowance,
+so `r1_random_rational_soundness_sweep` is green on main while the
+certificate is still short by the amount measured above. Filed as
+`work/chord/soundness-sweep-allowance-is-fifty-times-the-measured-
+sampler-error.md`; TESS-2's Phase 1 rows compare the exact truth BARE
+so the defect stays red until fixed.
+
+## 2026-09-22 — the INTEGRAL refined arm was unsound too (reviewer finding)
+
+This row's title says rational and its diagnosis is about
+`rational_cells`. A blinded review of TESS-2's head measured the same
+defect on the other arm: `patch_cells_refined`'s INTEGRAL branch also
+refined with the plain-`f64` `refine_knots_u/v` before assembling, so
+its cells enclosed the refined-`f64` patch too. Over 12,615 exact
+containment escapes found on the reverted tree, the BULK were that
+branch's point hulls excluding the described value at cell corners —
+more than the rational arm's, because the integral arm's cell enclosure
+IS the coefficient hull with no quotient rule to widen it, so the
+insertion rounding has nothing to hide behind.
+
+The close covers both: TESS-2's fix routes the integral refined branch
+through the same ring schedule (`integral_cells_refined`), and the same
+review counted 704,835 exact containment checks with zero escapes on
+the fixed head.
+
+The consumer that reaches the integral refined branch is
+`offset_meters`, through `patch_cells_refined` at its own split count —
+`patch_cells` never refines an integral face, which is why no shipped
+tessellation path showed this and why the rational arm is the one the
+falsifier found.

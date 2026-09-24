@@ -194,45 +194,40 @@ impl fmt::Display for SlabPair {
 impl fmt::Display for LoftError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Band(e) => write!(f, "loft: {e}"),
-            Self::Skin(e) => write!(f, "loft geometry: {e}"),
-            Self::Euler(e) => write!(f, "loft assembly: {e}"),
-            Self::CapPlane(e) => write!(f, "loft cap plane: {e}"),
-            Self::Pcurve(e) => write!(f, "loft pcurve mint: {e}"),
+            Self::Band(e) => write!(f, "{e}"),
+            Self::Skin(e) => write!(f, "{e}"),
+            Self::Euler(e) => write!(f, "an Euler operation of the assembly refused: {e}"),
+            Self::CapPlane(e) => write!(f, "an end cap is not planar: {e}"),
+            Self::Pcurve(e) => write!(f, "{e}"),
             Self::SeamStructure { source } => write!(
                 f,
-                "loft seam: a wall's boundary iso-curve failed to re-wrap (corrupt \
-                 skinned surface — kernel bug, not an input fault): {source}"
+                "a wall's boundary curve failed to re-wrap (kernel bug, not an input \
+                 fault): {source}"
             ),
             Self::SectionStructure => write!(
                 f,
-                "loft assembly: a section's loop/segment structure disagrees with the \
-                 skinned geometry, or two sections disagree with each other (kernel \
-                 bug, not an input fault)"
+                "a section's loop or segment structure disagrees with the skinned \
+                 geometry or with another section (kernel bug, not an input fault)"
             ),
             Self::ReversedStacking { slab } => write!(
                 f,
-                "loft {} definitely stack AGAINST section {slab}'s plane normal — the \
-                 builder orients caps and walls by forward stacking and does not guess. \
-                 The fold stopped at this pair and did not examine any later slab, so \
-                 it cannot say whether the rest of the list runs backwards too: inspect \
-                 the named pair. A wholly reversed list is named at slab 0, and \
-                 reordering it lofts the same solid",
+                "loft {} stack AGAINST section {slab}'s plane normal, and a loft does not \
+                 guess its direction. Recourse: reorder the sections so they stack \
+                 forward; this is the first reversed pair, and a wholly reversed list \
+                 lofts the same solid once reversed",
                 SlabPair(*slab)
             ),
             Self::DegenerateStacking { slab } => write!(
                 f,
-                "loft {} have a stacking displacement coincident with zero at tolerance \
-                 — a sliver-thin or in-plane slab has no orientable assembly",
+                "loft {} are not apart at tolerance (a sliver-thin or in-plane slab), so \
+                 the loft has no direction. Recourse: move the sections apart",
                 SlabPair(*slab)
             ),
-            Self::StackingEscalated { slab, source } => {
-                write!(
-                    f,
-                    "loft stacking classification escalated at {}: {source}",
-                    SlabPair(*slab)
-                )
-            }
+            Self::StackingEscalated { slab, source } => write!(
+                f,
+                "whether loft {} stack forward is too close to call: {source}",
+                SlabPair(*slab)
+            ),
         }
     }
 }

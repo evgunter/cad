@@ -166,20 +166,20 @@ const HOLLOW_PREDICATES: [&str; 3] = ["tube_wall", "tube_wall_bore", "tube_wall_
 /// on this enum is reachable through BOTH doors — the band is the
 /// run's, the window predicates are shared verbatim, and
 /// the revolve machinery is one body of code — so those arms say
-/// "tube door" rather than picking one and being wrong half the time.
+/// "the tube" rather than picking one and being wrong half the time.
 /// (The alternative, threading a hollow flag onto every arm, would
 /// put the door's identity in the payload of refusals that do not
 /// depend on it.)
 fn door(e: &TubeError) -> &'static str {
     match e {
         TubeError::Escalated { source } => match source.predicate {
-            Some(p) if HOLLOW_PREDICATES.contains(&p) => "tube_along_arc_hollow",
-            _ => "tube door",
+            Some(p) if HOLLOW_PREDICATES.contains(&p) => "the hollow tube",
+            _ => "the tube",
         },
         TubeError::NonpositiveWall { .. }
         | TubeError::WallExceedsRadius { .. }
-        | TubeError::WallGapCollapsed { .. } => "tube_along_arc_hollow",
-        _ => "tube door",
+        | TubeError::WallGapCollapsed { .. } => "the hollow tube",
+        _ => "the tube",
     }
 }
 
@@ -187,42 +187,37 @@ impl core::fmt::Display for TubeError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let door = door(self);
         match self {
-            Self::Band(e) => write!(f, "{door}: {e}"),
+            Self::Band(e) => write!(f, "{e}"),
             Self::DegenerateWindow => write!(
                 f,
-                "{door}: the arc window is degenerate or reversed (t1 must \
-                 definitely exceed t0, metered at the outer-equator arm)"
+                "{door}'s arc window is degenerate or reversed: its end must definitely \
+                 exceed its start"
             ),
             Self::FullRangeWindow => write!(
                 f,
-                "{door}: the arc window reaches one full period — an exactly \
-                 full tube says TubeWindow::Full"
+                "{door}'s arc window reaches one full turn; an exactly full tube uses the \
+                 full window (TubeWindow::Full)"
             ),
             Self::NonpositiveWall { eps } => write!(
                 f,
-                "{door}: the wall thickness is not definitely positive at \
-                 tolerance (metered at tube_wall; the run's threshold is {eps} m) — a wall \
-                 thinner than that is not a wall. Supply a thicker one, or call \
-                 tube_along_arc for the solid tube"
+                "{door}'s wall is not definitely thicker than the run's threshold of {eps} m \
+                 (tube_wall). Recourse: supply a thicker wall, or drop the wall for a solid \
+                 tube"
             ),
             Self::WallExceedsRadius { eps } => write!(
                 f,
-                "{door}: minor_radius - wall is not a definitely positive \
-                 inner radius at tolerance (metered at tube_wall_bore; the run's threshold \
-                 is {eps} m), so there is no bore and no annulus to revolve — supply a \
-                 thinner wall, or call tube_along_arc for the solid tube"
+                "{door}'s wall leaves no bore: the minor radius minus the wall is not \
+                 definitely positive (tube_wall_bore; threshold {eps} m). Recourse: supply a \
+                 thinner wall, or drop the wall for a solid tube"
             ),
             Self::WallGapCollapsed { eps } => write!(
                 f,
-                "{door}: the wall is positive and the bore is positive, but \
-                 the gap between the two radii the body would STORE is not (metered at \
-                 tube_wall_gap; the run's threshold is {eps} m) — at this outer radius the \
-                 subtraction minor_radius - wall rounds back onto minor_radius, so the two \
-                 circles would be stored as one. Supply a thicker wall, or a smaller outer \
-                 radius"
+                "{door}'s inner and outer radii would be stored as one value at this outer \
+                 radius (tube_wall_gap; threshold {eps} m). Recourse: supply a thicker wall, \
+                 or a smaller outer radius"
             ),
             Self::Escalated { source } => write!(f, "{door} escalated: {source}"),
-            Self::Revolve(e) => write!(f, "{door}: {e}"),
+            Self::Revolve(e) => write!(f, "{e}"),
         }
     }
 }

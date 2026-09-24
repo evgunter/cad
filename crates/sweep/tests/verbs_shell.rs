@@ -1901,7 +1901,7 @@ fn r2_probe_composed_door_vs_old_battery_on_a_check_9_body() {
                 .filter(|e| {
                     matches!(
                         e,
-                        topo::ValidationError::NegativeVolume
+                        topo::ValidationError::NegativeVolume { .. }
                             | topo::ValidationError::VolumeUncomputable { .. }
                     )
                 })
@@ -2044,7 +2044,7 @@ fn the_composed_doors_vector_is_the_batterys_on_a_check_9_body() {
         assert!(
             !composed.iter().any(|e| matches!(
                 e,
-                topo::ValidationError::NegativeVolume
+                topo::ValidationError::NegativeVolume { .. }
                     | topo::ValidationError::VolumeUncomputable { .. }
             )),
             "{what}: neither pass reaches check 7, so the widening is invisible here"

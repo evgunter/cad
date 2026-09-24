@@ -89,7 +89,14 @@ fn the_tangent_graze_resolves_past_first_order() {
         msg.contains("zero area") && msg.contains("one-sided tangency"),
         "the graze must reach the degenerate-section net: {msg}"
     );
-    assert!(msg.contains("declare the coincidence"), "{msg}");
+    // The join runs under a split here, which takes no declaration, so
+    // its recourse names the two levers the reader has, and not
+    // "declare".
+    assert!(
+        msg.contains(&format!("Recourse: {}", geom_core::NO_DECLARATION_RECOURSE)),
+        "{msg}"
+    );
+    assert!(!msg.contains("declare"), "{msg}");
 }
 
 #[test]

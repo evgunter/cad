@@ -62,3 +62,18 @@ sites that say it call it: `tree::node_label`, `Display for
 BlendTarget`, `pane/properties.rs`'s entity heading,
 `pane/create.rs`'s extrude button, `seats.rs`'s `seat_line` and
 `session/delete.rs`'s confirmation label.
+
+## Evidence 2026-09-22 (CHROME, `chrome/badge-attribution`, PR 3090)
+
+- `tree::downstream_wording` moved to the `feature` side: it composes
+  `tree::node_number` (CHROME's row
+  `downstream-wording-spells-node-where-node-number-forbids-it`). The
+  row it points at carries the KERNEL's `NodeError` text, which says
+  `node N failed`, so a poisoned row's pointer and its target now use
+  two words in one pane. Under the "split by surface" answer that is
+  correct; under "node everywhere" it is the wrong side.
+- A third name the literal sweep cannot see:
+  `pane/properties.rs`'s instance heading, `format!("instance {}",
+  node.0)` — a node named by id as "instance N", beside the entity
+  heading that says `feature N` through `node_number`. Found by
+  `grep -nE 'format!\([^)]*\.0\b' crates/viewer/src`.

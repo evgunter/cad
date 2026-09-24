@@ -518,8 +518,7 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
 /// refusal built in another module (`mate/member.rs` builds one; it
 /// reads `eval::phrase::DATUM_AXIS` since #2984, so the phrase is
 /// shared and only the construction is out of this scan's reach — the
-/// row that asked for it closed with DOOR, `docs/DOC-LEDGER.md`
-/// sweep 19),
+/// row that asked for it closed with DOOR),
 /// a phrase reached through a helper that takes it as an argument from
 /// elsewhere, the other kind-mismatch vocabularies in this crate
 /// (`work/wire/the-entity-kind-door-has-six-spellings.md` enumerates

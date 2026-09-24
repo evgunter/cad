@@ -22,6 +22,9 @@
 //! - [`mod@roster`], the weld between a file's `//!` roster of its own
 //!   `#[test]` rows and the rows libtest says the binary holds — one
 //!   ident per row, so a retired name is a compile error.
+//! - [`refusal`], the shape a refusal the viewer shows must have —
+//!   the word budget, and no stage prefix, `Debug` struct or arena key
+//!   — read structurally off the rendered sentence.
 //! - [`source`], the SHARED Rust lexer for guards that pin a claim
 //!   about the code against the code — three views of a file (code
 //!   only, code with literals, prose alone) plus the traversals and
@@ -53,6 +56,7 @@ pub mod f6;
 pub mod fuzz;
 pub mod own_thread;
 pub mod panic_capture;
+pub mod refusal;
 pub mod roster;
 pub mod source;
 pub mod tightness;

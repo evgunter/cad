@@ -2,8 +2,13 @@
 id: a-typed-field-hands-its-text-over-on-two-frames
 kind: issue
 title: a DragValue parses its buffered text on two consecutive frames, so one typed number reaches the chrome twice
-status: open
+status: closed
 opened: 2026-09-21
+priority: P2
+cost: D
+branch: vgeom/field-product
+pr: 3067
+closed: 2026-09-22
 ---
 
 

@@ -230,11 +230,8 @@ pub enum ParamAttachError {
 impl core::fmt::Display for ParamAttachError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::StaleKey => write!(f, "param-source attachment: stale surface key"),
-            Self::FieldNotOnKind { field } => write!(
-                f,
-                "param-source attachment: the surface has no {field:?} field"
-            ),
+            Self::StaleKey => write!(f, "the surface key is stale"),
+            Self::FieldNotOnKind { field } => write!(f, "the surface has no {field:?} field"),
         }
     }
 }

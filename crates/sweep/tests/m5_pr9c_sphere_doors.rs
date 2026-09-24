@@ -236,7 +236,9 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
     assert_eq!(topo::validate_closed(&rev), Ok(()));
     assert_eq!(
         topo::validate_geometric(&rev, Tol::witness()),
-        Err(vec![topo::ValidationError::NegativeVolume])
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: rev.solids().next().expect("one solid").0
+        }])
     );
     assert_eq!(
         topo::mass_properties(&rev, Tol::witness())
@@ -293,7 +295,10 @@ fn the_die_pips_shape_now_stops_typed_at_its_own_tangency() {
     let msg = err.to_string();
     assert!(!msg.contains("no representation"), "{msg}");
     assert!(!msg.contains("no seam lane"), "{msg}");
-    assert!(msg.contains("refused typed"), "{msg}");
+    assert!(
+        msg.contains("cannot be sure whether one lies inside the other"),
+        "{msg}"
+    );
 }
 
 /// NOTE row (PR 9c review, F4): the TANGENT ray. A schedule direction
