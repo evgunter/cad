@@ -1499,3 +1499,28 @@ naming-only in the decision section; certification-value hygiene
 (no gate against `is_poison`/transcendentals where `Real` is in
 scope, three hull semantics, "ring" public names) filed. Fix pass
 dispatched on Opus ~07:55Z.
+
+## RING-4 reviewed; fix pass dispatched (2026-09-24)
+
+Single full review (Opus): APPROVE-WITH-FIXES 0/3/6 (+10 style). By
+execution: coverage holds (nextest listings 8610 / 9523 / 9523 at the
+head's main parent `b0cfc5f565`; before-interval = after both ways;
+before-default − after = the six loud-skip rows; every base CI job or
+step has a head counterpart, with two coverage gains); fail-loud holds
+(stray `--features interval` errors in every root; a stray cfg reds
+clippy `-D warnings`; `benches/` is clippied only by nightly); the cost
+table is exact (per-aggregate vs per-sample stays Ev's call); tess
+CSVs bit-identical. MINORs: ~20 live comments still name the feature
+(the PR's patterns missed the shape "comment beside a deleted cfg");
+the cache-prime parity self-test lost its shared-key case (mutant
+stays green); the critical-path and net-savings claims are wrong — the
+tour walk now runs the two certified narrations (~+21 job-min/run,
+more than the fold saves). Ruled: the narration cost is a regression
+this unit introduced, fixed here (the walk goes back to not running
+them; `demos tour suite` covers them with assertions), not filed; the
+prose swept by shape (leaving `ring_interval.rs` to RING-3, which
+deletes it); `memories/local-battery-scope.md` re-worded naming-only
+for Ev; step/job-name qualifiers left (cache keys, mirror markers).
+Fix pass dispatched on Opus ~08:45Z (`ring4-fix-pass.md`). The
+reviewer ran its mutations without a classifier refusal (contrast
+RING-3's R2).
