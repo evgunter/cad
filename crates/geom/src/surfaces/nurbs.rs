@@ -1360,10 +1360,10 @@ impl<T: SpanLocate> NurbsSurface<T> {
 }
 
 impl<T: geom_core::CertifiedBounds> NurbsSurface<T> {
-    /// The control net lifted to ring points — the data-in shape of
+    /// The control net lifted to enclosure points — the data-in shape of
     /// `geom_core::spline::compose::tensor`: channel `d`, control
     /// index `i` in the row-major `iu·nv + iv` layout, as `[x, y, z]`
-    /// channels of ring enclosures. Pair with
+    /// channels of certification enclosures. Pair with
     /// [`Self::knots_u`]/[`Self::knots_v`]/[`Self::weights`] to build a
     /// `SurfaceRingData` for composite residual bounds. The rank does
     /// not enter the lift, so this is the same body the curves use

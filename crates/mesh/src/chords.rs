@@ -286,7 +286,7 @@ fn nurbs_chord_count(
         }
         // A refused hull has no bound to report: `NaN` is what the
         // `is_finite` test below reads as "unbounded/poisoned", and
-        // the refusal is asked by name because the ring carries it in
+        // the refusal is asked by name because interval arithmetic carries it in
         // the decoration rather than in the endpoints.
         if !sum_sq.is_certified() {
             f64::NAN
@@ -973,7 +973,7 @@ mod tests {
                 // Where the winning coefficient's basis function
                 // reaches 1, the hull max IS the sup and the two sides
                 // may differ only by each side's outward rounding —
-                // the ring's difference quotient and its `next_up` on
+                // interval arithmetic's difference quotient and its `next_up` on
                 // one side, the evaluator's basis pass on the other.
                 // `1e-14` relative is ~45 ulps at these magnitudes,
                 // measured at ~6e-16; a rewrite that pads the bound by

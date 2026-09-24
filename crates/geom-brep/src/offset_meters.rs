@@ -2,7 +2,7 @@
 //! the collapse headroom (`crates/geom-brep/README.md` O3).
 //!
 //! Both are read off [`crate::patch_bound`]'s per-cell enclosures, and
-//! both are **f64-substrate**: the C9 ring produces an `f64` certified
+//! both are **f64-substrate**: certification arithmetic produces an `f64` certified
 //! enclosure, which is what a hull bound IS, so the numbers below are
 //! the same on every lane (the `SsiCertificate::hull_sup` posture).
 //!
@@ -249,7 +249,7 @@ impl core::error::Error for MeterError {}
 /// The smallest `|x|` over the enclosure — zero when it straddles, and
 /// zero when it is poisoned, which is the conservative answer.
 ///
-/// **The poison arm is asked by name.** The ring's refusal is its
+/// **The poison arm is asked by name.** Interval arithmetic's refusal is its
 /// decoration, not a NaN pair, so a refused enclosure carries ordinary
 /// endpoints and `i.lo() > 0.0` can be TRUE of one — a quotient by a
 /// divisor not proven away from zero is the shape that reaches here.
@@ -324,7 +324,7 @@ pub(crate) fn norm_sq(v: &[Interval; 3]) -> Interval {
 /// a norm calls this rather than re-spelling the fold.
 /// A poisoned enclosure answers `NaN` — no bound at all, which is what
 /// every consumer of this value already treats as unbounded. The
-/// refusal is asked by name because a poisoned ring carries ordinary
+/// refusal is asked by name because a refused enclosure carries ordinary
 /// endpoints and `sqrt_up` of one would be a plausible bound with
 /// nothing behind it.
 pub(crate) fn norm_sup(v: &[Interval; 3]) -> f64 {
@@ -385,8 +385,8 @@ pub fn cell_normal(cell: &PatchCell) -> CellNormal {
         let proj = Interval::point(dv[0]) * m[0]
             + Interval::point(dv[1]) * m[1]
             + Interval::point(dv[2]) * m[2];
-        // The quotient stays IN THE RING and `.lo()` is read once, so
-        // the outward rounding of the division is the ring's rather
+        // The quotient stays IN INTERVAL ARITHMETIC and `.lo()` is read once, so
+        // the outward rounding of the division is interval arithmetic's rather
         // than this function's: a bare `lo / dn` would be a
         // correctly-rounded f64 quotient, which is not a lower bound
         // on the real one. `dn` is a certified UPPER bound on `‖d̂‖`,
@@ -623,7 +623,7 @@ fn cell_curvature(cell: &PatchCell) -> Option<(f64, f64)> {
     }
     // The normalized normal, componentwise: `n_c = m_c / ‖m‖` with
     // `‖m‖ ∈ [floor, sup]` — meter 1's floor is exactly what makes
-    // this division legal (the ring refuses a zero-touching divisor).
+    // this division legal (interval arithmetic refuses a zero-touching divisor).
     let mag = Interval::from_bounds(n.floor, n.sup);
     let unit = [n.m[0] / mag, n.m[1] / mag, n.m[2] / mag];
     let (l, m, nn) = (

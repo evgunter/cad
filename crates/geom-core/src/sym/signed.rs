@@ -13,7 +13,7 @@
 //! candidate `R` is enclosed over those brackets in the always-compiled,
 //! outward-rounded [`Interval`](crate::interval::Interval). No type is punned, no feature is
 //! gated, no bound is added: `R` is a polynomial in the parameters and
-//! `π`, evaluated in the ring; a form with any other indeterminate (an
+//! `π`, evaluated in certification arithmetic; a form with any other indeterminate (an
 //! opaque real, an atom, a frozen node) is not enclosable and the fold
 //! declines.
 //!
@@ -230,7 +230,7 @@ fn mono_poly(m: &Mono, e: u32) -> Poly {
     Poly::term(m.iter().map(|&(i, k)| (i, k * e)).collect(), Rat::one())
 }
 
-/// A rational coefficient as a ring enclosure ([`Rat::f64_bracket`]):
+/// A rational coefficient as a certification enclosure ([`Rat::f64_bracket`]):
 /// poison where the value is out of `f64`'s range rather than a flushed
 /// zero, which would not be conservative.
 fn rat_enclosure(c: &Rat) -> Interval {

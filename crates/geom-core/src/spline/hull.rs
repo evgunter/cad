@@ -1,5 +1,5 @@
 //! **Control-coefficient hull bounds** — the C2.2 sup-norm mechanism,
-//! built on the C9 ring (M5 PR 2). Data in, bounds out: every door
+//! built on certification arithmetic (M5 PR 2). Data in, bounds out: every door
 //! here reads coefficient brackets and knot structure through one
 //! borrow and answers with no evaluation and no sampling anywhere —
 //! a [`Interval`] enclosing the spline's *values* at the hull
@@ -112,7 +112,7 @@
 //! non-positive knot difference — yields a **poisoned bound**, and a
 //! poisoned coefficient poisons every bound it participates in.
 //!
-//! **A poisoned bound is refused by NAME, not by comparison.** The ring
+//! **A poisoned bound is refused by NAME, not by comparison.** Interval arithmetic
 //! carries its refusal in the decoration, so a poisoned bound can hand
 //! back ordinary endpoints and `residual.hi() <= eps` can be true of
 //! one: a non-positive knot difference makes `deriv_coeff`'s quotient a
@@ -120,7 +120,7 @@
 //! coefficient unhulled — [`SplineCoeffs::derivative_domain_hull`] and
 //! [`CoeffWindow::derivative_hull`] at degree 1 — pass it out without
 //! meeting [`Interval::hull`]'s NaI-minting guard. Every reader
-//! therefore asks `is_poison()` before it compares, or reads through an
+//! therefore asks `is_certified()` before it compares, or reads through an
 //! accessor that carries the refusal out as `NaN`
 //! ([`Interval::mag`], [`Interval::width`]);
 //! `crates/geom-core/tests/ring_endpoint_census.rs` is the row that
@@ -248,7 +248,7 @@ use crate::real::CertifiedBounds;
 /// let coeffs = vec![0.0f64; kv.control_count()];
 /// let weights = vec![1.0f64; kv.control_count()];
 /// let pair = kv.with_rational_coeffs(&coeffs, &weights).unwrap();
-/// assert!(!pair.span_at(0.3).hull_rational().is_poison());
+/// assert!(pair.span_at(0.3).hull_rational().is_certified());
 /// ```
 ///
 /// **What these rows do and do not check.** Stable rustdoc checks only
@@ -579,13 +579,13 @@ impl<'a, E: CertifiedBounds> SplineCoeffs<'a, E> {
     /// the two outer knots dropped.
     ///
     /// The knot difference is **structure** (both knots are `f64`), but
-    /// it is formed *in the ring* rather than at `f64`: an `f64`
+    /// it is formed *in certification arithmetic* rather than at `f64`: an `f64`
     /// subtraction is correctly rounded, not exact, and a point
     /// enclosure of a rounded difference would silently drop that error
     /// into the denominator. (Sterbenz makes the subtraction exact for
-    /// most knot pairs; the ring pays one ulp for the cases where it is
+    /// most knot pairs; interval arithmetic pays one ulp for the cases where it is
     /// not.) A knot difference that is not provably positive poisons
-    /// the coefficient — the ring's `Div` refuses a zero-touching
+    /// the coefficient — interval arithmetic's `Div` refuses a zero-touching
     /// divisor, so this cannot leak.
     ///
     /// Fixed association (D9): `(c_{i+1} − c_i) · p / Δu`, exactly as

@@ -7,7 +7,7 @@
 //!   polynomial, so the boundary-touch cell inclusion cannot inject a
 //!   neighbor-extension mismatch) — in BOTH parameter directions, with
 //!   homogeneous weights spanning [0.5, 8]. The composite must land at
-//!   ring rounding; a wrong insertion window, α, power table, or
+//!   outward rounding; a wrong insertion window, α, power table, or
 //!   binomial pair lands at the O(1) image scale instead. Plus a
 //!   two-sided pinch on a non-removable adversarial rational fixture.
 //! - B/C. Falsification battery: ≥1e5-sample dense scans across
@@ -170,11 +170,11 @@ fn removable_u_channel() -> (Vec<f64>, Vec<f64>, Vec<f64>) {
 
 /// The u-direction exact iso fixture: cubic u on knots
 /// `[0,0,0,0,0.5,1,1,1,1]` (removable interior knot — the decomposition
-/// still inserts it twice more through the ring-α path), linear v with
+/// still inserts it twice more through certification arithmetic-α path), linear v with
 /// weight factor [1, 3]. The v = 0.25 iso-curve is EXACT on the shared
 /// lifted data: coords are the same `fl(Hx/Hw)` on both sides, weights
-/// dyadic, so `S(P(t)) − C(t)` is identically zero in the ring's
-/// inputs. Composite must land at ring rounding.
+/// dyadic, so `S(P(t)) − C(t)` is identically zero in certification arithmetic's
+/// inputs. Composite must land at outward rounding.
 fn iso_u() -> (Surf, Curve, Curve) {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
     let kvv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -498,7 +498,7 @@ fn the_missing_center_shift_costs_bound_quality_far_from_origin() {
     // ORIGINALLY the review's cost witness for the shipped pipeline's
     // silent spec-§2.1 deviation (shift-free lift): this exact fixture
     // measured 1.128e-12 near the origin vs 1.866e-6 at 1e6 m — six
-    // orders of bound to ring rounding scaling with coefficient
+    // orders of bound to outward rounding scaling with coefficient
     // magnitude. The fix pass implemented the center-shift, and this
     // witness FLIPPED to the regression pin: the far bound must stay
     // at the translation's own representation floor (the +1e6 rounds

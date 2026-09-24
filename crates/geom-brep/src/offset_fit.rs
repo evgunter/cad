@@ -212,7 +212,7 @@
 //!
 //! The whole stack is **f64 substrate**: fitting is C6 structure
 //! selection (same inputs ⇒ same knots and control bits, D9), and the
-//! C9 ring's hull bounds are `f64` upper bounds by construction — the
+//! certification's hull bounds are `f64` upper bounds by construction — the
 //! `SsiCertificate::hull_sup` posture. Predicates decide through the
 //! kernel's one classification funnel.
 
@@ -1773,7 +1773,7 @@ struct Composite {
     breaks_v: Vec<f64>,
 }
 
-/// A row-major ring net of one spatial channel of a control net,
+/// A row-major enclosure net of one spatial channel of a control net,
 /// optionally weighted (the homogeneous `A^c = w·P^c`).
 ///
 /// `patch_bound::comp_nets` is the same extraction, and the two now
@@ -1795,7 +1795,7 @@ struct Composite {
 /// RING's, not `f64`'s, which is what makes this sound — an `f64`
 /// difference would round to a control point the base does not have,
 /// and the certificate would then be about a surface nobody supplied.
-/// The ring's outward rounding of `P − centre` is one ulp of the
+/// Interval arithmetic's outward rounding of `P − centre` is one ulp of the
 /// DIFFERENCE, i.e. of the patch's extent, where the unrecentred net
 /// carried one ulp of the coordinate.
 fn channel(n: &NurbsSurface<f64>, c: usize, form: NetForm, origin: &Origin) -> Vec<Interval> {
@@ -1947,7 +1947,7 @@ impl Composite {
         // The FIT's homogeneous net `F̃ = w_fit·P_fit` and its weight
         // channel. On a unit-weight fit `w_fit ≡ 1`, the spatial net
         // IS the homogeneous one and `wf` is not formed: the identity
-        // product would widen the ring for nothing.
+        // product would widen the enclosure for nothing.
         // The one recentring origin every net below is built against.
         let ctr = recentre_origin(base);
         let fit_form = NetForm::of(fit);
@@ -2072,7 +2072,7 @@ impl Composite {
     /// It is the DIVISOR of a lower bound on `‖E‖`
     /// ([`Composite::e_floors`]), so an upper bound short by one ulp
     /// makes that quotient unsound. [`norm_sup`] rounds every step
-    /// outward — the per-channel square and both sums in the ring,
+    /// outward — the per-channel square and both sums in certification arithmetic,
     /// then `sqrt_up`; an `f64` fold of the same three endpoints
     /// rounds to nearest at each multiply and add and lands below
     /// this reading on most cells of a real grid.
@@ -2142,16 +2142,16 @@ impl Composite {
     /// (module docs). `f64::INFINITY` whenever a side condition is
     /// not proved — never a finite wrong answer.
     ///
-    /// **The whole assembly stays in the ring**, with `.hi()` read
+    /// **The whole assembly stays in certification arithmetic**, with `.hi()` read
     /// exactly once at the end: every intermediate is a
     /// [`Interval`], so the outward rounding of each quotient,
-    /// product and sum is the ring's. An `f64` fold of ring endpoints
+    /// product and sum is interval arithmetic's. An `f64` fold of enclosure endpoints
     /// would round to nearest at each step and under-cover the real
     /// bound by ulps, which "certified" does not permit.
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
     fn cell_bound(&self, su: usize, sv: usize, floor: f64, d: f64) -> f64 {
         // **Every refusal below is asked by name before its
-        // endpoint is read.** The ring's poison is its decoration, so
+        // endpoint is read.** A refusal is its decoration, so
         // a refused hull carries ordinary endpoints: `w_lo > 0.0` and
         // `w_lo.is_finite()` are both TRUE of one, and so is the
         // `hi.is_finite()` at the end. `f64::INFINITY` is the whole
@@ -2196,7 +2196,7 @@ impl Composite {
         let x_mag = Interval::from_bounds(0.0, self.x.cell_hull(su, sv).mag());
         let dist_iv = x_mag / (wt.sqr() * (Interval::point(e_hull_lo) + abs_d));
         // τ = ‖Y‖ / (w̃·‖M̃‖) ≤ sup‖Y‖ / (floor·w̃·w³), using
-        // ‖M̃‖ = w³·‖m‖ ≥ w³·floor. `‖Y‖` from above is the ring's
+        // ‖M̃‖ = w³·‖m‖ ≥ w³·floor. `‖Y‖` from above is interval arithmetic's
         // own fold, for the reason [`norm_sup`] gives.
         let y_mag = Interval::from_bounds(
             0.0,
@@ -2523,7 +2523,7 @@ mod tests {
     /// a LOWER bound on `‖E‖`, so a divisor that is even slightly too
     /// small makes the quotient too large and the certificate
     /// unsound. The row reads the shipped [`Composite::m_tilde_sup`]
-    /// against the ring reading assembled independently here, on
+    /// against interval arithmetic reading assembled independently here, on
     /// every cell of the micron grid, and reds if the shipped one is
     /// ever below it. One grid carries the claim — it is per-cell, so
     /// 308 cells is 308 chances — and the fits here are seconds each.
@@ -2531,7 +2531,7 @@ mod tests {
     /// **What the row is guarding against is a specific regression**,
     /// which is why it also counts the other spelling: an `f64` fold
     /// of the same three endpoints — three round-to-nearest multiplies
-    /// and two adds, then one `next_up` — lands BELOW the ring
+    /// and two adds, then one `next_up` — lands BELOW interval arithmetic
     /// reading on almost every cell of every grid measured: 306 of
     /// 308 here, 428 of 434 on the quarter cylinder's `d = 1e-5`
     /// grid, 768 of 810 on the bumpy patch's. The counter is printed
@@ -2561,7 +2561,7 @@ mod tests {
                 assert!(
                     shipped >= ring,
                     "{name} d={d:e} cell ({su},{sv}): the divisor {shipped:e} is below \
-                     the ring reading {ring:e} — it is not certified from above"
+                     interval arithmetic reading {ring:e} — it is not certified from above"
                 );
                 let fold = sqrt_up(h[0].mag().powi(2) + h[1].mag().powi(2) + h[2].mag().powi(2));
                 if fold < ring {
@@ -2570,7 +2570,7 @@ mod tests {
             }
         }
         eprintln!(
-            "{name} d={d:e}: {cells} cells, an f64 fold would sit below the ring \
+            "{name} d={d:e}: {cells} cells, an f64 fold would sit below interval arithmetic \
              reading on {fold_below} of them"
         );
     }

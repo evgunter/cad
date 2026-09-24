@@ -567,9 +567,9 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
 /// round 6   8.3524739e-9   — the budget face, HIGHER than round 5
 /// ```
 ///
-/// **Re-read when the C9 ring became a newtype over the backend**
+/// **Re-read when certification arithmetic became the backend's**
 /// (rounds 1, 5 and 6 were `6.5173322e-8`, `6.0173184e-9` and
-/// `1.0707700e-8`): the ring padded one representable step outward on
+/// `1.0707700e-8`): the retired arithmetic padded one representable step outward on
 /// every operation of `cell_bound`'s assembly and the backend pads
 /// only where the operation is inexact, so every rung came in tighter
 /// and round 0 by less than its own printed precision. The SHAPE the
@@ -641,8 +641,8 @@ fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
 /// closed form to check against, which is why the row pins the
 /// digits rather than a ratio.
 ///
-/// **Re-pinned when the C9 ring became a newtype over the backend**
-/// (`7.6102e-10` before): the ring padded one representable step
+/// **Re-pinned when certification arithmetic became a newtype over the backend**
+/// (`7.6102e-10` before): interval arithmetic padded one representable step
 /// outward on every operation of `cell_bound`'s assembly and the
 /// backend pads only where the operation is inexact, so the same
 /// certificate on the same 609 cells comes in a third tighter.
@@ -672,7 +672,7 @@ fn the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre() {
 /// boundary, because the two faces are one decade apart and a change
 /// that moved either would otherwise move it silently.
 ///
-/// **Re-pinned when the C9 ring became a newtype over the backend**
+/// **Re-pinned when certification arithmetic became a newtype over the backend**
 /// (`5.8550e-7` before): the retired unconditional one-step pad per
 /// operation is gone from `cell_bound`'s assembly. The boundary this
 /// row draws is unmoved — `1e-8` and `1e-9` still never become

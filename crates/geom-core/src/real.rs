@@ -997,8 +997,9 @@ pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
 /// the only spelling — it IS the "definite sign or indeterminate" trilean,
 /// plus the two things a bare helper lacks (the NAME in the verdict log,
 /// and escalation as the forced disposition of indeterminate). A
-/// free-floating bounds-comparison helper would be the #701 `Enclosure`
-/// evasion with better manners, and stays out.
+/// free-floating bounds-comparison helper would be the #701 evasion (a
+/// bracket reader under a name the gate does not read) with better
+/// manners, and stays out.
 ///
 /// # The direction rule for terminal grants (#571, A′'s ruling)
 ///
@@ -1120,7 +1121,8 @@ pub mod bounds_allowlist {
     //!
     //! **M5 PR 11 (Ev's lane-split ruling) — `topo::props`'s
     //! certified-quadrature plumbing**, which decides (its `props_quad_*`
-    //! funnel margins) and reads brackets into the C9 ring. Its split from
+    //! funnel margins) and reads brackets into certification arithmetic
+    //! (`Interval::from_certified`). Its split from
     //! scalars that may not certify is STATIC and stands on two things:
     //! `topo::QuadLane::certified`, at `Decide + CertifiedBounds`, is the only
     //! entry from the reporting walks, and the `quad_lane::*` signatures
@@ -1133,7 +1135,8 @@ pub mod bounds_allowlist {
     //! a hook, a windowed walk and the certificate type that walk hands
     //! back — every one of them the same lane, the same bound and the same
     //! argument, and the `Decide` half is still what the `props_quad_*`
-    //! funnel needs while the bracket half is still what the C9 ring reads.
+    //! funnel needs while the bracket half is still what the crossing into
+    //! certification arithmetic reads.
     //! The weakest bound that works is unchanged and so is the evidence
     //! that the next tighter one fails: drop the bracket term and the
     //! windowed walk cannot form `Interval::from_certified`; drop
@@ -1190,12 +1193,12 @@ pub mod bounds_allowlist {
     //! `geom_brep::ssi::certify` (the three limbs) and
     //! `geom_brep::pcurve_cache`'s fitted lane, deciding (its `ssi_on_locus`,
     //! `ssi_hull_sup`, `ssi_tube_transversality`, `pcurve_*` funnel margins)
-    //! and consuming C9-ring enclosures (limb 2 a control-hull bound, limb 3 a
+    //! and consuming certification enclosures (limb 2 a control-hull bound, limb 3 a
     //! box-chain enclosure). Its refusing side is **not** empty:
     //! `PcurveFittedLane` certifies at `f64`, [`Probe`](crate::Probe) and the
     //! interval scalar and refuses at [`Dual`](crate::Dual), dual bodies
     //! really validating and really not holding a fitted cache.
-    //! `geom_brep::ssi::enclose` is deliberately absent: the ring machinery
+    //! `geom_brep::ssi::enclose` is deliberately absent: the enclosure machinery
     //! decides nothing and takes the sole bound the rule already allows.
     //!
     //! **M7-8 (under Ev's #264 ruling) — `geom_brep::edge_nurbs`**, the
@@ -1362,8 +1365,7 @@ pub mod bounds_allowlist {
 /// **"May this value enter certified code?"** — the other half of what
 /// [`Bounds`] used to mean, given a name of its own.
 ///
-/// [`Bounds`] and [`Enclosure`] answer *"what bracket does this value
-/// carry?"*: `[lo(), hi()]` is a superset of every real the value stands
+/// [`Bounds`] answers *"what bracket does this value carry?"*: `[lo(), hi()]` is a superset of every real the value stands
 /// for, read off storage, and it stays a sound bracket even when the
 /// computation that produced it left a domain somewhere — interval
 /// arithmetic still brackets the values the expression *was* defined on.
@@ -1372,7 +1374,7 @@ pub mod bounds_allowlist {
 /// that, and code that must not certify a domain violation needs to be
 /// able to tell.
 ///
-/// So this trait is not "a better [`Enclosure`]" and does not replace it.
+/// So this trait is not "a better [`Bounds`]" and does not replace it.
 /// It is the access-control half, split out, so that the two questions
 /// have separate doors and a caller has to say which one it is asking.
 /// It carries **no supertrait**: a body that needs a bracket accessor
@@ -1382,16 +1384,8 @@ pub mod bounds_allowlist {
 /// spelled as one name rather than as a compound bound the
 /// compound-`Bounds` gate would have to special-case. Write
 /// `T: CertifiedBounds`, not `T: Bounds + CertifiedEnclosure`. Making
-/// this a subtrait of
-/// [`Enclosure`] would re-bundle exactly what is being split, and would
-/// put a third `lo`/`hi` in scope wherever a compound bound is written —
-/// the ambiguity this module's style note already warns about for the
-/// [`Bounds`]/[`Enclosure`] pair. The second method below is not a
-/// door of that kind and is not reached for instead of one:
-/// [`Self::crossing_bracket`] answers a *refused* value's own endpoints
-/// for the single consumer that carries the refusal in a channel of its
-/// own, and promises nothing about the computation behind them.
-/// Certification entry points bound by `CertifiedEnclosure` cannot be
+/// this a subtrait of [`Bounds`] would re-bundle exactly what is being
+/// split. Certification entry points bound by `CertifiedEnclosure` cannot be
 /// handed a value that merely *has* a bracket; containment checks bounded
 /// by [`Bounds`] keep working on values certification would refuse, which
 /// is exactly right — a `Trv` enclosure still contains what it claims to.
@@ -1407,11 +1401,6 @@ pub mod bounds_allowlist {
 ///   threshold [`crate::predicate::Decide::sign_within`] refuses at, and
 ///   for the same reason. Empty and NaI sit below it, so the NaN
 ///   brackets they store never leave the door.
-/// - [`crate::Interval`] — refuses on poison, which it reads off
-///   the decoration it carries (`dec < Def`, with NaI and empty below
-///   that): `is_poison` is its whole domain-violation channel, and a
-///   refused ring still has endpoints, which is what
-///   [`Self::crossing_bracket`] reports at it.
 /// - `k_stats::Probe` (feature `probe`) — refuses on NaN, byte-for-byte
 ///   as `f64` does; D9 forbids the recording lane diverging.
 ///
@@ -1459,8 +1448,9 @@ impl CertifiedEnclosure for f64 {
 /// The two doors answer different questions — `[lo(), hi()]` is the
 /// bracket read off storage, `certified_bracket()` additionally promises
 /// the computation was defined on the whole input box — and certification
-/// code routinely asks both: it builds C9 ring enclosures through the
-/// certified door and reads raw endpoints for the containment and padding
+/// code routinely asks both: it builds certification enclosures through
+/// the certified door ([`Interval::from_certified`](crate::Interval::from_certified),
+/// whose bound is this one) and reads raw endpoints for the containment and padding
 /// arithmetic around them. Spelling that `T: Bounds + CertifiedEnclosure`
 /// is honest but is a *compound* bound in every mechanical sense, and the
 /// compound-`Bounds` rule on [`Bounds`] exists to catch a specific thing

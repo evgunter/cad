@@ -25,7 +25,7 @@
 //!    bit (D9).
 //! 6. Typed refusals at the entry points (closed `ComposeError`).
 //!
-//! These rows are ε-independent (pure ring arithmetic; no `Tolerance`
+//! These rows are ε-independent (pure certification arithmetic; no `Tolerance`
 //! read), so the battery's ε sweep changes nothing here by design —
 //! and every ratio below was confirmed BIT-IDENTICAL across the
 //! battery's three ε legs (`ci-filter.py`'s `EPS_ROWS`: default,
@@ -450,7 +450,7 @@ fn a_sign_changing_weight_extension_poisons_the_bound() {
     // w(u,·) = 1 + 99u; the pcurve runs u from −0.5 to 1, so the
     // boundary cell's polynomial extension (the documented domain
     // posture) sees the weight change sign inside the reachable
-    // window. The ring refuses the zero-touching divisor: the bound is
+    // window. Interval arithmetic refuses the zero-touching divisor: the bound is
     // NaN — poisoned, not panicked, and it fails any ≤ ε comparison.
     let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
@@ -525,7 +525,7 @@ fn a_bicubic_bicubic_composition_completes_within_the_budget() {
     // has almost nothing to be tight about and the whole-object box
     // admits only 1.757x. 1.6 sits 11% over the healthy reading and 12%
     // under the degraded one — narrow, but the whole computation is
-    // pure ring arithmetic and bit-identical across the battery, so the
+    // pure certification arithmetic and bit-identical across the battery, so the
     // margin is real rather than noise budget. If a legitimate change
     // moves it, this row reds with both numbers in the message and the
     // literal is re-measured rather than widened.

@@ -1,14 +1,15 @@
 //! **The control-net bracket seam follows the certified door.**
 //!
-//! `ring_coords` lifts a carrier's control net into the C9 ring, one
+//! `ring_coords` lifts a carrier's control net into certification arithmetic, one
 //! `Interval` per coefficient. The lift reads each coefficient's
 //! bracket, and at the `Interval` scalar a bracket can be *sound but
 //! inadmissible*: `sqrt([−1, 4])` clamps to `[0, 2]` and records the
-//! domain violation only in its decoration (`Trv`). Nothing downstream
-//! of the ring can see that — `Interval` has no decoration channel
-//! — so a coefficient that may not certify has to be refused **here**,
-//! at the crossing, or it certifies a composite bound for an expression
-//! nobody asked for.
+//! domain violation only in its decoration (`Trv`). The crossing
+//! (`Interval::from_certified`) caps a coefficient that may not certify
+//! at `Trv` rather than handing its sound endpoints on at `Com`, so the
+//! refusal is read **here**, at the crossing, and carried to every
+//! certification door downstream; handed on unrefused, it would certify
+//! a composite bound for an expression nobody asked for.
 //!
 //! The invariant these rows pin: a coefficient that fails
 //! [`CertifiedEnclosure`] crosses as poison, a coefficient that passes

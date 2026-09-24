@@ -391,9 +391,9 @@ fn derivative_coefficient_bounds_contain_the_slope() {
 #[test]
 fn bounds_are_bit_identical_across_repeats_and_coefficient_types() {
     // D9: no accumulation state, no platform branch, no dependence on
-    // *which* Enclosure type carried the coefficients — an f64
+    // *which* bracket type carried the coefficients — an f64
     // coefficient is a degenerate bracket and must give bit-identical
-    // endpoints to the same value wrapped in the ring.
+    // endpoints to the same value wrapped in certification arithmetic.
     let mut rng = fuzz::start("spline_hull::bit_identity");
     for degree in 1..=5usize {
         for _ in 0..fuzz::scaled(63) {
@@ -455,7 +455,7 @@ fn structural_errors_poison_rather_than_panic() {
             .hull()
             .is_certified()
     );
-    // A NaN f64 coefficient is the same poison through the Enclosure seam.
+    // A NaN f64 coefficient is the same refusal through the crossing.
     let mut nans = coeffs.clone();
     nans[n - 1] = f64::NAN;
     let pn = kv.with_coeffs(&nans).expect("its own vector");

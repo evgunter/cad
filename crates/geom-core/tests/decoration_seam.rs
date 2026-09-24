@@ -23,7 +23,7 @@
 //! at `f64` and at `Interval` is read off the value rather than off a
 //! decoration. `certified_door.rs` sweeps all four implementors against
 //! that one postcondition; these rows pin both halves here, and pin that
-//! the C9-ring crossing this crate can reach — `spline::hull`'s, through
+//! the crossing into certification arithmetic this crate can reach — `spline::hull`'s, through
 //! [`hull::domain_hull`] — follows the second door rather than the first,
 //! which is the actual defect S41 found: it read the bracket, so a `Trv`
 //! enclosure crossed into `Interval` as a healthy bound.

@@ -1,13 +1,13 @@
-//! **Hand-built rows beside the ring differential.**
+//! **Hand-built rows beside interval arithmetic differential.**
 //!
 //! `ring_interval_differential.rs` sweeps: its corner corpus is
 //! exhaustive and its fuzz lanes hunt for an operation that stopped
 //! forwarding. What it does not do is write down, in one readable
 //! place, the rows a reader has to take on trust — the sentences its
 //! module doc states about shapes that look like disagreements and are
-//! not, the negative-exponent chain that is the ring's second producer
+//! not, the negative-exponent chain that is interval arithmetic's second producer
 //! of a refusal carrying real endpoints, the division corners the H5
-//! survey asked about, and the characterised corners where the ring's
+//! survey asked about, and the characterised corners where interval arithmetic's
 //! answer MOVED when its arithmetic became the backend's. Each of
 //! those is a row here, asserted rather than printed.
 //!
@@ -39,7 +39,7 @@ fn di(lo: f64, hi: f64) -> DInterval {
 }
 
 /// The backend's refusal, as the differential spells it — and, read
-/// through the ring's own accessor, as `Interval::is_poison`.
+/// through `Interval`'s own predicate, as `!Interval::is_certified`.
 fn d_refuses(d: DInterval) -> bool {
     d.is_nai() || d.is_empty() || d.decoration() < Decoration::Def
 }
@@ -52,7 +52,7 @@ fn d_refuses(d: DInterval) -> bool {
 /// for the exact `[0,0]` divisor, which is the empty set.
 ///
 /// That is the whole reason a consumer reading one endpoint of a
-/// quotient has to ask `is_poison()` rather than compare against NaN.
+/// quotient has to ask `is_certified()` rather than compare against NaN.
 #[test]
 fn division_touching_zero_refuses_on_both_sides() {
     let cases = [
@@ -158,7 +158,7 @@ fn overflow_agrees_on_every_ring_op_including_powi() {
     assert_eq!((r.lo(), r.hi()), (NINF, 0.0));
 }
 
-/// **A negative power is a division**, and it is the ring's second
+/// **A negative power is a division**, and it is interval arithmetic's second
 /// producer of a refusal carrying real endpoints — the first being an
 /// ordinary division, and the only other way in being a crossing from
 /// an uncertified scalar.
@@ -200,7 +200,7 @@ fn a_negative_power_can_refuse_where_the_division_by_hand_does_not() {
     assert!(!ri(b.0, b.1).powi(-2).is_certified());
 }
 
-// ------------------------- the corners where the ring's answer moved
+// ------------------------- the corners where interval arithmetic's answer moved
 
 /// The characterised corners the RING-2 swap moved, each stated as
 /// what the tree answers now. These are the consumers' rows: a test

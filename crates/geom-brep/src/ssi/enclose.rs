@@ -1,5 +1,5 @@
 //! Certified enclosures for the SSI certificate and the exhaustiveness
-//! subdivision — **the C9 ring only** (M5 PR 7, C2.2/C2.3, C3).
+//! subdivision — **certification arithmetic only** (M5 PR 7, C2.2/C2.3, C3).
 //!
 //! Everything the SSI *proof* obligations need is transcendental-free
 //! (C9's whole argument), so it is computed here in
@@ -10,7 +10,7 @@
 //!
 //! # What lives here
 //!
-//! - [`Box3`] — an axis-aligned ring box in ℝ³, the exhaustiveness
+//! - [`Box3`] — an axis-aligned enclosure box in ℝ³, the exhaustiveness
 //!   cell and the uniqueness tube's link.
 //! - [`implicit_enclosure`] — `f(B)` for an analytic surface over a
 //!   box: **exclusion** when the enclosure excludes 0.
@@ -29,7 +29,7 @@
 //!   is the *Cartesian* control hull over a span cell (positive weights
 //!   ⇒ convex combination), and the derivative box comes from the
 //!   homogeneous derivative net through the quotient rule
-//!   `S_u = (A_u − S·w_u)/w`, all in the ring. (`geom_core::spline::
+//!   `S_u = (A_u − S·w_u)/w`, all in certification arithmetic. (`geom_core::spline::
 //!   hull` deliberately has no rational derivative path; this is that
 //!   path, assembled at the consumer from the primitives it does have,
 //!   which is where the surface-shaped bookkeeping belongs.)
@@ -42,14 +42,14 @@
 //! [`Interval::poison`], which fails every downstream test. There is
 //! no path here that narrows an enclosure on a value branch.
 //!
-//! # The M6-2 seam: generic scalars in, ring out
+//! # The M6-2 seam: generic scalars in, enclosures out
 //!
-//! [`Box3`] stays a **C9-ring object** — its fields are
-//! [`Interval`]s, and `Interval` deliberately does not implement
-//! `Real` (`geom_core::real`'s `Enclosure` rationale), so there is no
-//! "`Box3<T>`" to want. What M6-2 lifted is the **seam**: every
+//! [`Box3`] is a **certification object** — its fields are the
+//! [`Interval`] enclosures every lane scalar crosses into, whatever
+//! scalar the caller evaluates at, so there is no "`Box3<T>`" to
+//! want. What M6-2 lifted is the **seam**: every
 //! constructor and entry point here now takes the caller's own scalar
-//! and crosses into the ring through its bracket
+//! and crosses into certification arithmetic through its bracket
 //! ([`geom_core::Bounds`]), instead of demanding `f64` operands and
 //! walling the whole certificate off the interval lane (M5-LOG PR 9c
 //! deviation 2).
@@ -60,7 +60,7 @@
 //! discipline's compound-`Bounds` rule is about a parameter that decides
 //! *and* brackets, and this file has no decide half. An operand enters
 //! as `[lo, hi]` and every
-//! subsequent operation is ring arithmetic, so a widened operand widens
+//! subsequent operation is certification arithmetic, so a widened operand widens
 //! the enclosure — which can only cost a refusal. At `f64` the bracket
 //! is the value, so this lane's numbers are what they were, up to the
 //! ring's outward rounding of the pad itself.
@@ -69,7 +69,7 @@ use geom::{NurbsSurface, Surface, SurfaceWindow};
 use geom_core::Bounds;
 use geom_core::{CertifiedBounds, CertifiedEnclosure, Interval, Point3, Vec3};
 
-/// An axis-aligned ring box in ℝ³.
+/// An axis-aligned enclosure box in ℝ³.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Box3 {
     /// The x extent.
@@ -82,7 +82,7 @@ pub(crate) struct Box3 {
 
 impl Box3 {
     /// The box `[cx−r, cx+r] × …` around `c` — the caller's scalar
-    /// crosses into the ring here (module docs' seam).
+    /// crosses into certification arithmetic here (module docs' seam).
     pub(crate) fn around<T: CertifiedBounds>(c: Point3<T>, r: T) -> Self {
         let g = pad_interval(r);
         Self {
@@ -175,7 +175,7 @@ impl Box3 {
     ///
     /// A poisoned axis has no center, and this says so with `NaN`
     /// rather than with the midpoint of a bracket that stands for
-    /// nothing: the refusal is asked by name because the ring keeps
+    /// nothing: the refusal is asked by name because interval arithmetic keeps
     /// its refusal in the decoration and a refused axis carries
     /// ordinary endpoints.
     pub(crate) fn center(self) -> Point3<f64> {
@@ -287,10 +287,10 @@ fn norm_sq(q: [Interval; 3]) -> Interval {
 ///
 /// Implemented for the kinds whose meters form is a ring expression
 /// with no root: plane, sphere, cylinder. **Cone and torus yield
-/// poison** — their meters forms carry a `sqrt` the C9 ring
-/// deliberately lacks (`√(w·w)`), and converting their polynomial
-/// composites back to meters needs a certified reciprocal of a
-/// quantity the ring cannot bound tightly enough to be useful. No
+/// poison** — their meters forms carry a `sqrt` certification arithmetic
+/// deliberately does not take (`√(w·w)`; C9), and converting their
+/// polynomial composites back to meters needs a certified reciprocal of a
+/// quantity certification arithmetic cannot bound tightly enough to be useful. No
 /// rung-3 arm implemented in this PR routes them here; an arm that
 /// wanted to would have to land that conversion first, which is
 /// exactly the per-arm retirement rule (C12.1). [`Surface::Nurbs`] has
@@ -530,7 +530,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
                 };
                 // Homogeneous coefficients A = w·P. The weight is `f64`
                 // structure and the control point is the caller's
-                // scalar, so the product is formed IN THE RING — the
+                // scalar, so the product is formed IN INTERVAL ARITHMETIC — the
                 // seam, not a collapse.
                 let (rw0, rw1) = (Interval::from_certified(w0), Interval::from_certified(w1));
                 let a0 = [
@@ -613,7 +613,7 @@ impl<'a, T: CertifiedBounds> NurbsBoxes<'a, T> {
 
     /// A certified box for `∂S/∂u` (or `∂S/∂v`) over the rectangle, via
     /// the quotient rule `S_d = (A_d − S·w_d)/w` evaluated entirely on
-    /// hulls. Poison when the weight hull touches zero (the ring
+    /// hulls. Poison when the weight hull touches zero (interval arithmetic
     /// refuses the divisor) or the net is malformed.
     pub(crate) fn deriv_box(&self, u0: f64, u1: f64, v0: f64, v1: f64, along_u: bool) -> Box3 {
         let ((su0, su1), (sv0, sv1)) = self.cells(u0, u1, v0, v1);
@@ -973,9 +973,9 @@ mod tests {
     /// **The M6-2 seam requires the certified door.**
     ///
     /// [`Interval::from_certified`] is the only way an evaluation
-    /// scalar enters the C9 ring here, and it is the one place the
+    /// scalar enters certification arithmetic here, and it is the one place the
     /// operand's own verdict is read — an operand whose bracket is sound
-    /// but whose computation left a domain arrives capped at the ring's
+    /// but whose computation left a domain arrives capped at interval arithmetic's
     /// poison, and nothing across the seam consults the evaluation
     /// scalar again.
     /// The rows sweep the operand across the domain boundary: the
@@ -989,7 +989,7 @@ mod tests {
 
         use super::{Box3, Point3, Surface, Vec3, implicit_enclosure};
 
-        /// One named entry point from an evaluation scalar into the ring.
+        /// One named entry point from an evaluation scalar into certification arithmetic.
         type Crossing = (&'static str, fn(Interval) -> Interval);
 
         /// `sqrt([a, 4])`: `Trv` with finite endpoints when `a < 0` forces

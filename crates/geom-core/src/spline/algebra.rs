@@ -32,13 +32,13 @@
 //! ring, off the SAME [`Step`] list — same targets, same sources, same
 //! order. The two differ in the coefficient the combination is taken
 //! with, and they must: the projective applier's `λ` is an `f64`
-//! quotient of weights, while the ring applier re-derives the Boehm
+//! quotient of weights, while interval arithmetic applier re-derives the Boehm
 //! ratios `α = (u − U_j)/Δ` and `β = (U_{j+p} − u)/Δ` from the knots
 //! they are made of ([`Step::Combo`]'s `ratio`) so that they round
 //! OUTWARD. A ring consumer that took the stored `λ` and padded it by a
 //! guessed number of ulps would be asserting a bound nobody derived;
-//! re-deriving the ratios in the ring makes the insertion widen like
-//! every other step of an enclosure. The ring applier takes HOMOGENEOUS
+//! re-deriving the ratios in certification arithmetic makes the insertion widen like
+//! every other step of an enclosure. Interval arithmetic applier takes HOMOGENEOUS
 //! coefficients, where the combination is the plain convex one and no
 //! `λ` is needed.
 
@@ -136,7 +136,7 @@ enum Src {
 /// Carried as INGREDIENTS and not as values, because the two appliers
 /// need them at two precisions: `f64`, folded into the projective `λ`
 /// below, and outward-rounded ring quotients for
-/// [`CurvePlan::apply_ring`]. A stored `f64` ratio would leave the ring
+/// [`CurvePlan::apply_ring`]. A stored `f64` ratio would leave interval arithmetic
 /// applier padding a rounded number by a guess.
 #[derive(Clone, Copy, Debug)]
 struct Ratio {
@@ -529,7 +529,7 @@ pub fn refine_plan(
 /// channel of a rational description are themselves polynomial
 /// B-splines. The schedule is the arm a ring consumer wants
 /// ([`CurvePlan::apply_ring`]): the plan's own `λ` is then the
-/// `f64`-rounded insertion ratio, which the ring applier does not read.
+/// `f64`-rounded insertion ratio, which interval arithmetic applier does not read.
 ///
 /// Unit weights are the net's real weights and not a stand-in, and what
 /// they buy is the positivity precondition for free — nothing else, since
@@ -937,8 +937,8 @@ mod tests {
         cur
     }
 
-    /// **The two arithmetics stay in step, and the ring one stays where
-    /// the described coefficients are.** The ring applier reads the SAME
+    /// **The two arithmetics stay in step, and the interval one stays where
+    /// the described coefficients are.** The interval applier reads the SAME
     /// [`Step`] list as the point applier, so "same targets, same
     /// sources" is structural rather than tested; what a row can break
     /// is the arithmetic that hangs off it, and these four claims are
@@ -948,11 +948,11 @@ mod tests {
     ///    every degree and every split count.
     /// 2. **A carry is the coefficient itself**, bitwise: nothing is
     ///    combined, so nothing rounds, and an enclosure wider than a
-    ///    point would mean the ring applier had touched a carry.
+    ///    point would mean interval arithmetic applier had touched a carry.
     /// 3. **No slot leaves the described hull by more than the ratios'
     ///    own rounding.** In ℝ a refined coefficient is a convex
     ///    combination of the described ones, so it lies in their hull;
-    ///    in the ring the two ratios round outward independently and
+    ///    in certification arithmetic the two ratios round outward independently and
     ///    `α_hi + β_hi` exceeds 1, so a slot reaches a little past that
     ///    hull. The excursion is bounded by the same width claim 4
     ///    bounds, and it is that allowance — not a fresh tolerance —
@@ -1068,7 +1068,7 @@ mod tests {
 
     /// **The bulge, measured.** A refined coefficient is a convex
     /// combination of two described ones, so in ℝ it lies between them
-    /// — and with EQUAL adjacent coefficients it equals them. The ring
+    /// — and with EQUAL adjacent coefficients it equals them. Interval arithmetic
     /// applier cannot say that: `α` and `β` are outward-rounded
     /// independently, so `α_hi + β_hi` exceeds 1 and `β·c + α·c`
     /// comes out as a bracket straddling `c` rather than the point `c`.

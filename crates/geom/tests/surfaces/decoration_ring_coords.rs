@@ -1,7 +1,7 @@
 //! **The control-net bracket seam follows the certified door** — the
 //! surface half of `tests/curves/decoration_ring_coords.rs`.
 //!
-//! `NurbsSurface::ring_coords` lifts the control net into the C9 ring,
+//! `NurbsSurface::ring_coords` lifts the control net into certification arithmetic,
 //! one `Interval` per coefficient, by reading each coefficient's
 //! bracket. At the `Interval` scalar a bracket can be sound and still
 //! inadmissible: `sqrt([−1, 4])` clamps to `[0, 2]` and records the

@@ -23,7 +23,7 @@
 //! contribution is `σ·∫ u(t)·v'(t) dt` over the stored carrier
 //! interval.
 //!
-//! # The integrand substrate is the C9 ring
+//! # The integrand substrate is certification arithmetic
 //!
 //! Every enclosure here is [`Interval`] arithmetic — no
 //! transcendental is ever *evaluated* on the certified path. The two
@@ -352,7 +352,7 @@ fn pt(x: f64) -> Interval {
 /// degree-8 alternating-series pair
 /// `1 − s²/2 + s⁴/24 − s⁶/720 ≤ cos s ≤ … + s⁸/40320` (truncations of
 /// an alternating series with decreasing terms — decreasing needs
-/// s² ≤ 56, ample here; both ends formed in the ring so their own
+/// s² ≤ 56, ample here; both ends formed in certification arithmetic so their own
 /// rounding is outward). Poison outside the domain.
 /// **Safe by construction, and that is why the re-mint below needs no
 /// refusal**: every operand is `pt` of a finite `f64` and every
@@ -406,7 +406,7 @@ fn rotate(c: Interval, s: Interval, ch: Interval, sh: Interval) -> (Interval, In
 /// `(cos, sin)` at exact offset `off` from a base enclosure:
 /// argument-halved series + double-angle squaring. `off` is halved
 /// (exactly — powers of two) until ≤ 0.05, the series pair bounds that
-/// seed (truncation below the ring's own ulp there), and the rotation
+/// seed (truncation below interval arithmetic's own ulp there), and the rotation
 /// is rebuilt by `k` double-angle steps `(c, s) → (c² − s², 2cs)` —
 /// the width amplification is 2^k on a ~1e-16 seed (≈ 1e-14 for a
 /// full-period offset), NOT the exponential-in-|off| compounding a
@@ -453,7 +453,7 @@ fn trig_over(base: (Interval, Interval), off: f64, d: f64) -> (Interval, Interva
     let at = trig_at(base, off);
     // The `.max`/`.min` below are NOT the poison-swallowing shape
     // `Interval::clamped_to` exists for: `d` is a finite nonnegative
-    // f64 by the guard above, so this ring arithmetic cannot produce
+    // f64 by the guard above, so this certification arithmetic cannot produce
     // poison and there is no NaN for `f64::max` to absorb. `base` is the
     // operand that can be poison, and it reaches only `trig_at`/`rotate`,
     // which clamp through `clamped_to`.
@@ -579,7 +579,7 @@ fn edge_metric_length(e: &TrimEdgeQ, radius: Interval) -> f64 {
 /// One side of an enclosure, **keeping the refusal**: `NaN` whenever
 /// the enclosure may not certify.
 ///
-/// The ring carries its refusal in the decoration, so a refused
+/// Interval arithmetic carries its refusal in the decoration, so a refused
 /// bracket's endpoints are ordinary numbers and a bare `.lo()`/`.hi()`
 /// hands a consumer a plausible bound with nothing behind it. `NaN` is
 /// what every consumer on these paths already reads as "no bound" —
@@ -880,7 +880,7 @@ pub fn cylinder_cut_face_rounds<T: Decide>(
 
 /// Interval de Boor: a nonrational scalar B-spline evaluated at an
 /// exact parameter with ring-bracketed coefficients — the thin `f(m)`
-/// the composite rule needs on spline channels. Pure ring arithmetic
+/// the composite rule needs on spline channels. Pure certification arithmetic
 /// (knots are `f64` structure; every knot difference is formed in the
 /// ring so its rounding is outward, matching `deriv_coeff`).
 fn bspline_eval_ring(kv: &KnotVector, coeffs: &[Interval], t: f64) -> Interval {
@@ -1582,7 +1582,7 @@ impl PatchGrid {
     ///
     /// Mathematically identical to [`PatchGrid::channel`]'s v-then-u
     /// order (a tensor collapse commutes); the association differs, so
-    /// the ring rounding does — which is why only the rational lane,
+    /// the outward rounding does — which is why only the rational lane,
     /// whose numbers are its own, uses it. Its point is that every
     /// cell in one column of the composite grid shares the SAME u
     /// collapse, so hoisting it out of the inner loop turns a
@@ -1627,7 +1627,7 @@ fn grid_vec(g: Option<&PatchGrid>, u: Collapse<'_>, v: Collapse<'_>) -> RVec3 {
 /// bracketed outward — no Gaussian trust anywhere: the rule's
 /// algebraic exactness for polynomials of degree ≤ m (m odd; m + 1
 /// for even m) is a theorem, the nodes are rational, and the
-/// enclosure carries only the ring divisions' rounding. `None` when
+/// enclosure carries only interval arithmetic divisions' rounding. `None` when
 /// `m` is outside the supported window (the fraction arithmetic's
 /// `i128` headroom, m ≤ 12 — callers fall back to the composite
 /// rule).
@@ -1719,7 +1719,7 @@ fn clipped_spans(kv: &KnotVector, lo: f64, hi: f64) -> Vec<(f64, f64, f64)> {
 /// knot-span rectangle the integrand `f = S·(S_u×S_v)` is one
 /// polynomial of degree ≤ 3p−1 per direction, so the tensor closed
 /// Newton–Cotes rule of order `3p` integrates it EXACTLY — the whole
-/// enclosure width is the nodes' and weights' ring rounding. `None`
+/// enclosure width is the nodes' and weights' outward rounding. `None`
 /// when the rule order leaves the supported window (degree > 4 per
 /// direction), in which case the caller runs the composite rounds.
 fn patch_flux_exact(
@@ -2055,7 +2055,7 @@ impl Ladder {
     /// `N = A·(A_u×A_v)` has v-degree `q + q + (q−1)`, so the
     /// order-`3q` rule integrates it with no truncation error at all;
     /// what the returned enclosure carries is the nodes' and weights'
-    /// ring rounding and the de Boor recurrence's own widening.
+    /// outward rounding and the de Boor recurrence's own widening.
     ///
     /// **The subdivision is per span and not per cell**, and that is
     /// load-bearing rather than tidy. One `Collapse::AtSpan` read
@@ -2117,7 +2117,7 @@ fn rv_add(a: RVec3, b: RVec3) -> RVec3 {
 /// A curve is at least as long as any polygon inscribed in it, and
 /// ADDING a vertex can only lengthen that polygon (triangle
 /// inequality) — so the bound is sound at any schedule and monotone
-/// in refinement. Every difference and root is formed in the ring, so
+/// in refinement. Every difference and root is formed in certification arithmetic, so
 /// `lo()` is outward-rounded and the bound survives its own
 /// arithmetic.
 ///
@@ -2164,7 +2164,7 @@ fn rv_add(a: RVec3, b: RVec3) -> RVec3 {
 /// boundary; the departure is the caller's certified
 /// `boundary_defect`.
 ///
-/// **The result is clamped at zero.** The ring sum's lower endpoint
+/// **The result is clamped at zero.** Interval arithmetic sum's lower endpoint
 /// rounds outward, so a face whose chords are all sub-ulp returns a
 /// small NEGATIVE number (measured: −3.16e-322 on a 1e-12 face at
 /// offset 1e6). Zero is an equally valid, weaker certified lower
@@ -2247,7 +2247,7 @@ pub fn boundary_chord_perimeter_lo(
 ///
 /// A width is an area and the perimeter a length, so the ratio is
 /// dimensionless and a body remodelled at another scale reads the
-/// same gauge — down to the point where the ring's own rounding
+/// same gauge — down to the point where interval arithmetic's own rounding
 /// stops being scale-free. Below that, a sub-ulp face's chords
 /// vanish, `perimeter_lo` clamps to zero and the face exits to the
 /// relative arm. So: scale-free over the range where the enclosure
@@ -3031,7 +3031,7 @@ fn last_round_refuses<T: Decide>(last_round_len: f64, target_len: f64, band: Ban
 /// ([`Ladder::num_uu`]) — the rational extension is a division, not a
 /// new geometry. Weights are `f64` structure and strictly positive
 /// (checked exactly, C6), so `w`'s control hull excludes zero on every
-/// cell and the ring division is defined; a hull that does not is
+/// cell and interval arithmetic division is defined; a hull that does not is
 /// poison, and poison refuses typed rather than answering wide.
 ///
 /// # The rule, the remainder, and why there is no exact lane
@@ -3768,7 +3768,7 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     };
 
     // ---- The exact per-span lane first (fn docs): one tensor
-    // Newton–Cotes pass whose enclosure width is ring rounding only.
+    // Newton–Cotes pass whose enclosure width is outward rounding only.
     // The composite rounds below are the fallback for degrees outside
     // the rule window (> 4 per direction). ----
     if let Some(exact) =
@@ -5797,7 +5797,7 @@ mod tests {
         );
         // Anti-vacuity, ε-KEYED rather than waived. The INTEGRAL rows
         // ride the exact per-span Newton–Cotes lane, whose width is
-        // ring rounding only — ε-independent, so they must certify on
+        // outward rounding only — ε-independent, so they must certify on
         // EVERY row of the matrix. The RATIONAL rows ride the O(h²)
         // composite against an ε-coupled target, so they certify at the
         // corpus ε and coarser and refuse typed below it; that boundary
@@ -6274,7 +6274,7 @@ mod tests {
         encloses(b.flux, c * 0.5, "Q1 flux");
         encloses(b.area, 0.5, "Q1 area");
         // The chord polygon is integrated EXACTLY and a degree-1 image
-        // IS its chord, so the only width here is ring rounding — the
+        // IS its chord, so the only width here is outward rounding — the
         // target is four decades above it at every ε the matrix draws.
         let target = QUAD_TARGET_LEN_FACTOR * Tol::witness().get().eps;
         assert!(
@@ -6727,7 +6727,7 @@ mod tests {
     /// numbers were the arithmetic's rounding and not the rule's error:
     /// that mutant is refinement-invariant too — its answer is wrong by
     /// `1.95e-6` at BOTH rounds — so the old gate was separating an
-    /// exact zero from one ulp of luck. The C9 ring pads only where an
+    /// exact zero from one ulp of luck. Certification arithmetic pads only where an
     /// operation is inexact now, so an enclosure is no longer symmetric
     /// about the round-to-nearest value and its midpoint carries that
     /// asymmetry: the shipped order reads two ulps apart (`1.11e-16` on
@@ -6789,7 +6789,7 @@ mod tests {
             r0.flux,
             r2.flux
         );
-        // …and it is exact to ring rounding, not merely consistent: a
+        // …and it is exact to outward rounding, not merely consistent: a
         // composite short of the degree would agree only to its own
         // error. **Short of the degree, not short of the order**: a
         // closed Newton–Cotes rule on an EVEN interval count is exact
@@ -6801,7 +6801,7 @@ mod tests {
         // every parity.
         assert!(
             r0.flux.width() < 1e-9 * r0.flux.mag().max(1.0),
-            "Q9: the exact lane's width is the nodes' and weights' ring rounding, got {:e}",
+            "Q9: the exact lane's width is the nodes' and weights' outward rounding, got {:e}",
             r0.flux.width()
         );
     }
@@ -6956,7 +6956,7 @@ mod tests {
     /// function states in capitals: a dropped knot cut leaves the
     /// sub-chord straddling a knot by the guard's own width, the
     /// Newton–Cotes exactness argument fails on it, and no term pays.
-    /// The guard's width is the same order as the ring rounding the
+    /// The guard's width is the same order as the outward rounding the
     /// lane calls its whole enclosure.
     ///
     /// The fixture puts the chart's `u` knot four ulps of the chord's

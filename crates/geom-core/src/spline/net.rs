@@ -1,6 +1,6 @@
 //! **Tensor-product coefficient nets** — the two-dimensional companion
 //! of [`super::hull`]'s scalar coefficient lines: a rectangular grid of
-//! ring enclosures, its per-direction derivative assembly, and the
+//! certification enclosures, its per-direction derivative assembly, and the
 //! window hull that reads a bound off it.
 //!
 //! # Why this is here and not in a consumer
@@ -73,7 +73,7 @@ use super::algebra::CurvePlan;
 use super::knots::KnotVector;
 use crate::interval::Interval;
 
-/// A rectangular tensor coefficient net of ring enclosures, stored
+/// A rectangular tensor coefficient net of certification enclosures, stored
 /// **row-major** (`u`-major): entry `(i, j)` — `u` index `i`, `v` index
 /// `j` — lives at `i * nv + j`.
 ///
@@ -315,7 +315,7 @@ impl TensorNet {
         self.diff_v(|c| kv.difference_coeffs(c))
     }
 
-    /// **Refines the net along `u` IN THE RING**: the insertion chain is
+    /// **Refines the net along `u` IN INTERVAL ARITHMETIC**: the insertion chain is
     /// applied to each `u`-line by [`CurvePlan::apply_ring`], so the
     /// answer ENCLOSES the refined net of the described coefficients
     /// instead of being a rounded copy of it. That is the difference
@@ -324,7 +324,7 @@ impl TensorNet {
     ///
     /// The net must be HOMOGENEOUS for this to mean what it says — the
     /// weight net `w`, or one channel of `w·P` — because that is the
-    /// form in which insertion is the plain affine combination the ring
+    /// form in which insertion is the plain affine combination interval arithmetic
     /// applier takes.
     ///
     /// One schedule for every line: a Boehm step's targets, sources and
@@ -567,7 +567,7 @@ mod tests {
     fn diff_matches_the_knot_difference() {
         let kv = KnotVector::unit_segment(core::num::NonZeroUsize::MIN);
         let n = TensorNet::from_rows(&[vec![pt(0.0), pt(1.0)], vec![pt(2.0), pt(5.0)]]);
-        // The ring rounds outward, so each answer is ENCLOSED, not
+        // Interval arithmetic rounds outward, so each answer is ENCLOSED, not
         // equalled (D4 ¶2: a bound, never an estimate).
         let holds = |iv: Interval, x: f64| iv.lo() <= x && x <= iv.hi();
         let du = n.diff_u_knots(&kv);

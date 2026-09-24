@@ -193,7 +193,7 @@ fn the_ring_bezier_decomposition_still_breaks_where_the_structure_says() {
                     .collect()
             })
             .collect();
-        let data = CurveRingData::new(&kv, &weights, &coords).expect("valid ring data");
+        let data = CurveRingData::new(&kv, &weights, &coords).expect("valid enclosure data");
         let form = linear_composite(&data, &[1.0, -2.0, 0.5], 0.75).expect("3 channels");
 
         let (lo, hi) = kv.domain();

@@ -16,11 +16,11 @@
 //!    carrier as the same-shifted `(A_x, A_y, A_z, W_C)`; the parameter
 //!    curve `(U, V, W_P) = (w·u, w·v, w)` is chart-valued and carries
 //!    no center. The residual is shift-invariant in exact arithmetic,
-//!    but the ring's outward rounding scales with coefficient
+//!    but interval arithmetic's outward rounding scales with coefficient
 //!    magnitude — unshifted, a wall 1e6 m from the origin costs six
 //!    orders of bound (the PR 7b review's executed witness). No
 //!    division happens until the very last per-span quotient, so every
-//!    intermediate is polynomial and the ring's products stay
+//!    intermediate is polynomial and interval arithmetic's products stay
 //!    exact-up-to-rounding.
 //! 2. **Bézier decomposition, tensor-product.** The surface is
 //!    decomposed by knot insertion **in u and in v** — the tensor
@@ -48,7 +48,7 @@
 //!    coordinate `d`: `num_d = N_d·W_C − A_d·N_w`, `den = N_w·W_C`, and
 //!    `num_d/den = S(P(t))_d − C_d(t)` **exactly** (the common factor
 //!    divides out). Per-span coefficient hulls of numerator and
-//!    denominator, the rational quotient per span (the ring refuses a
+//!    denominator, the rational quotient per span (interval arithmetic refuses a
 //!    zero-touching divisor, so a degenerate denominator poisons
 //!    loudly), hulled across spans.
 //!
@@ -66,8 +66,8 @@
 //! width (~1e-2 m on the M5 wall fixture) no matter how small the true
 //! residual (~1e-10 m) is. Composition-then-hull instead forms the
 //! coefficients of the **single polynomial** `num_d = N_d·W_C − A_d·N_w`
-//! in the ring: the large, correlated parts of the two products are the
-//! *same numbers* and subtract to ring rounding, so the surviving
+//! in certification arithmetic: the large, correlated parts of the two products are the
+//! *same numbers* and subtract to outward rounding, so the surviving
 //! coefficients are the residual polynomial's own — small because the
 //! residual is small — and the convexity fact (a Bernstein polynomial
 //! lies in the hull of its coefficients) turns them into a sup bound at
@@ -137,7 +137,7 @@ use crate::real::Bounds;
 /// A tensor-product NURBS surface's structure plus ring-lifted control
 /// coordinates — the surface-side data-in shape. `coords[d][i]` is the
 /// `d`-th coordinate (`d < 3`) of control point `i` in the **row-major
-/// `iu·nv + iv` layout** as a ring enclosure.
+/// `iu·nv + iv` layout** as a certification enclosure.
 #[derive(Clone, Debug)]
 pub struct SurfaceRingData<'a> {
     ku: &'a KnotVector,
@@ -211,7 +211,7 @@ impl<'a> SurfaceRingData<'a> {
 // ---------------------------------------------------------------------
 
 /// The composite residual `S(P(t)) − C(t)`, bounded: per shared
-/// `t`-span, one certified ring enclosure per coordinate. Where the
+/// `t`-span, one certified certification enclosure per coordinate. Where the
 /// curve module's [`super::CompositeForm`] is one global rational form,
 /// this is per-span data — the surface's Bézier **cell** serving a span
 /// changes along the curve, so no single rational form spans the
@@ -403,7 +403,7 @@ struct SpanRows<'a> {
 /// The residual enclosure of one `t`-span against one surface cell:
 /// the module-docs composition, the difference formed at the
 /// coefficient level, then hull quotients. `[Interval; 3]`, poison
-/// entries wherever the ring poisons (budget, zero-touching
+/// entries wherever interval arithmetic poisons (budget, zero-touching
 /// denominator).
 fn cell_residual(
     surf: &[&TensorSpans; 4],
@@ -503,7 +503,7 @@ fn cells_touched(breaks: &[f64], lo: f64, hi: f64) -> (usize, usize) {
 }
 
 /// The composite residual `S(P(t)) − C(t)` per coordinate, in certified
-/// per-span ring enclosures (module docs: the pipeline, the
+/// per-span certification enclosures (module docs: the pipeline, the
 /// cancellation note, and the degree budget).
 ///
 /// `pcurve` is the 2-channel parameter curve `P(t) = (u(t), v(t))` in
@@ -568,8 +568,8 @@ pub fn surface_curve_residual(
     //
     // A refused coefficient has no center to give, and it says so with
     // `NaN` — which `Interval::point` refuses, so the whole
-    // composition poisons. The refusal is asked by name because the
-    // ring keeps it in the decoration: reading `.lo()` off a refused
+    // composition poisons. The refusal is asked by name because it
+    // lives in the decoration: reading `.lo()` off a refused
     // coefficient would hand back an ordinary number and shift every
     // channel by it, laundering the refusal out of the SURFACE's
     // coefficients (the carrier's own would still carry it).

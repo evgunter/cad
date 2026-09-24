@@ -159,13 +159,13 @@ pub(crate) fn any_poison<T: Real, P: ControlPoint<T>>(control: &[P]) -> bool {
         .any(|p| p.channels().into_iter().any(Real::is_poison))
 }
 
-/// The net's coordinate channels as ring enclosures, in channel order
+/// The net's coordinate channels as certification enclosures, in channel order
 /// — `[x, y]` for a plane net, `[x, y, z]` for a space net, each in
 /// the net's own flat index order.
 ///
 /// **The bracket seam.** Knots, weights and degree are `f64`
 /// structure, so the only scalar-typed data in a payload is the
-/// control net — and a control point enters the C9 ring through its
+/// control net — and a control point enters certification arithmetic through its
 /// own bracket, never through an evaluation. At `f64` the bracket is
 /// the value (`lo` = `hi`), so this is bitwise what an `f64`-only form
 /// produces; at the interval scalar each coefficient carries its

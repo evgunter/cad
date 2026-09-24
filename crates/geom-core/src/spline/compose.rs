@@ -12,7 +12,7 @@
 //!
 //! # The pipeline (the rehearsal's, generalized)
 //!
-//! 1. Lift the homogeneous channels in the ring: per coordinate `d`,
+//! 1. Lift the homogeneous channels in certification arithmetic: per coordinate `d`,
 //!    `G_d,i = w_i·(x_d,i − c_d)` (center-shifted **before** any
 //!    product — forming `|P|² − 2P·c + …` instead would cancel
 //!    catastrophically in the coefficients, and an interval bound
@@ -20,14 +20,14 @@
 //!    the weight channel `W_i = w_i`.
 //! 2. Bézier-decompose each channel: knot insertion to full interior
 //!    multiplicity, **structure** (positions, counts) read from the
-//!    `f64` knot vector, **coefficients** combined in the ring with the
+//!    `f64` knot vector, **coefficients** combined in certification arithmetic with the
 //!    insertion `α` formed as a ring quotient of knot enclosures (an
 //!    `f64`-rounded `α` would silently drop its rounding error).
 //! 3. Per span, exact Bernstein products: degree `da × db → da + db`
 //!    with the binomial weights `C(da,i)·C(db,j)/C(da+db,k)` computed
 //!    as ring quotients (several are not `f64`-representable).
 //! 4. Bounds: per-span coefficient hulls of numerator and denominator,
-//!    the quotient per span (the ring refuses a zero-touching divisor,
+//!    the quotient per span (interval arithmetic refuses a zero-touching divisor,
 //!    so a degenerate denominator poisons loudly), hulled across spans.
 //!
 //! # Scaling conventions (what the bound means)
@@ -35,10 +35,11 @@
 //! With unit `normal`/`axis` data the composites are the standard
 //! signed residuals: meters for [`ImplicitSurface::Plane`], meters² for
 //! sphere/cylinder/cone, meters⁴ for the torus. Axis normalization for
-//! the quadratic terms is **exact in the ring** — `(Q·a)²` enters as
-//! `T²/|a|²` with `|a|²` a ring enclosure — so a non-unit axis changes
+//! the quadratic terms is **exact in certification arithmetic** — `(Q·a)²` enters as
+//! `T²/|a|²` with `|a|²` a certification enclosure — so a non-unit axis changes
 //! nothing for those terms; the plane's linear normalization would need
-//! a square root, which the ring deliberately lacks, so the plane
+//! a square root, which certification arithmetic deliberately does not
+//! take (C9), so the plane
 //! composite is `n·(P − p₀)` as given (meters only for unit `n`).
 //!
 //! # C6 and the poison posture
@@ -118,7 +119,7 @@ impl core::error::Error for ComposeError {}
 
 /// A NURBS curve's structure plus ring-lifted control coordinates —
 /// the data-in shape every composite consumes. `coords[d][i]` is the
-/// `d`-th coordinate of control point `i` as a ring enclosure (a plain
+/// `d`-th coordinate of control point `i` as a certification enclosure (a plain
 /// `f64` control point lifts via [`Interval::point`]; a perturbed
 /// or interval-valued one via [`Interval::from_bounds`]).
 #[derive(Clone, Debug)]
@@ -279,8 +280,8 @@ impl BernsteinSpans {
 /// homogeneous channel of `Interval`s, folded in place, with `α` a
 /// ring quotient that rounds **outward** under D9's fixed association.
 /// A shared body would have to make that widening conditional on the
-/// scalar, which is the one thing the ring exists to make
-/// unconditional.
+/// scalar, which is the one thing certification arithmetic exists to
+/// make unconditional.
 fn insert_once_ring(
     knots: &mut Vec<f64>,
     p: usize,
@@ -303,7 +304,7 @@ fn insert_once_ring(
             // Q_i = c_i (carry below the affected window).
             out.push(coeffs[i]);
         } else if i + s <= k {
-            // Window k−p+1 ..= k−s: the ring combination.
+            // Window k−p+1 ..= k−s: interval arithmetic combination.
             let alpha = (up - Interval::point(knots[i]))
                 / (Interval::point(knots[i + p]) - Interval::point(knots[i]));
             out.push(coeffs[i - 1] + (coeffs[i] - coeffs[i - 1]) * alpha);
@@ -397,7 +398,7 @@ const BINOM_EXACT_MAX: usize = 54;
 /// composite coefficient built from it and fails every `≤ ε`
 /// certification loudly (D4 ¶2) — a rounded weight would instead be a
 /// silently unsound enclosure. (Forming the weights as ring quotients
-/// was considered and rejected: the ring's products widen outward
+/// was considered and rejected: interval arithmetic's products widen outward
 /// unconditionally, which would break the rehearsal's ratified
 /// bit-identity pin for the exact small-degree cases.)
 fn binom_row(n: usize) -> Vec<f64> {
@@ -447,7 +448,7 @@ fn bern_mul_row(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
 
 /// The Bernstein product's weight rows for ONE degree pair, carrying
 /// that pair: `row(k)[i − lo(k)] = C(da,i)·C(db,k−i)/C(da+db,k)` as
-/// the ring quotient, over the `i` the convolution actually visits
+/// interval arithmetic quotient, over the `i` the convolution actually visits
 /// (`lo(k) = k − db` clamped at zero, up to `min(k, da)`), in the
 /// ascending order [`bern_mul_row_into`] folds them in.
 ///
@@ -540,7 +541,7 @@ fn build_bern_weights(da: usize, db: usize) -> BernWeights {
 /// **Retained memory**, all of it for the life of the process and
 /// never freed: `(BINOM_EXACT_MAX + 1)² = 55 × 55` `OnceLock` slots,
 /// plus, for each pair actually asked for, that pair's table —
-/// `da + db + 1` rows holding `(da + 1)·(db + 1)` ring values in
+/// `da + db + 1` rows holding `(da + 1)·(db + 1)` certification values in
 /// total. A structural memo of a pure function, like [`binom_table`]
 /// one level down.
 fn bern_weights(da: usize, db: usize) -> Cow<'static, BernWeights> {
@@ -728,7 +729,7 @@ pub struct CompositeForm {
 impl CompositeForm {
     /// Per-span certified enclosures of the composite's values: the
     /// numerator hull divided by the denominator hull, span by span.
-    /// The ring refuses a zero-touching divisor, so a degenerate
+    /// Interval arithmetic refuses a zero-touching divisor, so a degenerate
     /// denominator yields a poisoned (NaN-bracket) entry — fail-loud.
     pub fn span_bounds(&self) -> Vec<Interval> {
         self.num
@@ -779,7 +780,7 @@ pub enum ImplicitSurface {
         radius: f64,
     },
     /// `f(P) = |Q|² − (Q·â)² − r²` with `Q = P − c`, `â = a/|a|`
-    /// (meters²; the `|a|²` normalization is exact in the ring).
+    /// (meters²; the `|a|²` normalization is exact in certification arithmetic).
     Cylinder {
         /// A point `c` on the axis.
         point: [f64; 3],
@@ -813,7 +814,7 @@ pub enum ImplicitSurface {
     },
 }
 
-/// `Σ_d a_d²` as a ring enclosure (ascending `d`, `acc + p·p`).
+/// `Σ_d a_d²` as a certification enclosure (ascending `d`, `acc + p·p`).
 fn axis_norm2(axis: &[f64; 3]) -> Interval {
     let mut acc = Interval::zero();
     for a in axis {
@@ -1184,7 +1185,7 @@ mod tests {
         let ring = lift(&coords);
         let data = CurveRingData::new(&kv, &w, &ring).unwrap();
         // Non-unit axis on purpose: the |a|² normalization is exact in
-        // the ring, so the bound is still the meters² residual.
+        // interval arithmetic, so the bound is still the meters² residual.
         let cyl = ImplicitSurface::Cylinder {
             point: [0.0, 0.0, 1.0],
             axis: [0.0, 0.0, 3.0],
@@ -1262,7 +1263,7 @@ mod tests {
 
     /// **The convolution this unit replaced, kept verbatim**: the body
     /// [`bern_mul_row`] had before the weight table existed, with the
-    /// binomial rows read and the ring quotient formed inside the
+    /// binomial rows read and interval arithmetic quotient formed inside the
     /// coefficient loop. It is the oracle for every bit-identity row
     /// here and in [`super::patch`], so those rows pin the memo
     /// against the code it retired rather than against a second typing
@@ -1302,7 +1303,7 @@ mod tests {
             .collect()
     }
 
-    /// Bitwise identity of a ring value: NaN endpoints compare equal
+    /// Bitwise identity of a certification value: NaN endpoints compare equal
     /// to each other and to nothing else, which is what a poisoned
     /// weight has to preserve.
     pub(super) fn same_bits(x: Interval, y: Interval) -> bool {
@@ -1451,7 +1452,7 @@ mod tests {
             ))
         ));
         // A zero axis reaches the denominator as a zero-touching
-        // divisor: the ring refuses, the bound poisons (NaN), and NaN
+        // divisor: interval arithmetic refuses, the bound poisons (NaN), and NaN
         // fails every ≤ ε certification (D4 ¶2).
         let coords3 = lift(&[vec![0.0, 1.0], vec![0.0, 1.0], vec![0.0, 1.0]]);
         let data3 = CurveRingData::new(&kv, &w, &coords3).unwrap();

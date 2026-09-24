@@ -17,7 +17,7 @@
 //! residual is (the retirement recorded in [`super::tensor`]'s docs,
 //! at one parameter). Forming the difference's **coefficients**
 //! instead makes the large correlated parts the same numbers, which
-//! subtract to ring rounding; what survives is the residual
+//! subtract to outward rounding; what survives is the residual
 //! polynomial's own coefficient net, and the convexity fact (a
 //! Bernstein polynomial lies in the hull of its coefficients, in each
 //! parameter, hence in the tensor hull) turns it into a sup bound at

@@ -438,8 +438,8 @@ const ROW_COUNT: usize = 11_151;
 
 /// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order.
 ///
-/// **Re-captured when the C9 ring became a newtype over the backend**
-/// (`0x606f_ae2d_7244_63e4` before): the ring padded one representable
+/// **Re-captured when certification arithmetic became a newtype over the backend**
+/// (`0x606f_ae2d_7244_63e4` before): interval arithmetic padded one representable
 /// step outward on every operation and the backend pads only where the
 /// operation was inexact. Exactly 28 of these 11 151 rows moved, all of
 /// them a `derivative_span_hull` or `derivative_domain_hull` endpoint

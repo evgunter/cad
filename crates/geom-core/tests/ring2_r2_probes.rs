@@ -1,8 +1,8 @@
 //! **RING-2 review probes (R2 lane).** Three things the review had to
 //! execute rather than read:
 //!
-//! 1. the crossing carries a refused scalar's real endpoints into the
-//!    ring *as poison*, and every guard the spec keeps (`hull`,
+//! 1. the crossing carries a refused scalar's real endpoints into
+//!    certification arithmetic *as a refusal*, and every guard the spec keeps (`hull`,
 //!    `clamped_to`, `contains`, `width`, `mag`, `powi(0)`) refuses it;
 //! 2. the hazard the register names is real at the type: a refused
 //!    quotient answers `true` to the comparison an unguarded consumer
@@ -67,7 +67,8 @@ fn a_trv_scalar_with_real_endpoints_crosses_as_poison_with_its_endpoints() {
     ] {
         assert!(!y.is_certified(), "{y:?}");
     }
-    // A ring crossing into a ring keeps the endpoints and the refusal.
+    // A refused interval crossing into certification arithmetic keeps the
+    // endpoints and the refusal.
     let rr = Interval::from_certified(r);
     assert!(
         !rr.is_certified() && (rr.lo(), rr.hi()) == (0.0, 2.0),
@@ -92,7 +93,7 @@ fn a_refused_quotient_answers_true_to_the_unguarded_comparison() {
     let q = ri(-2.0, -1.0) / ri(0.0, 5e-324);
     assert!(!q.is_certified());
     // The consumer spelling the register lists at 20 sites: TRUE on a
-    // value that refuses. This is what every `is_poison()`-first
+    // value that refuses. This is what every `is_certified()`-first
     // rewrite exists for.
     assert!(q.hi() < 0.0, "{q:?}");
     assert!(q.hi().is_finite(), "{q:?}");
@@ -443,7 +444,7 @@ fn the_sign_clamps_one_subnormal_step_is_the_only_direction_the_newtype_gives_ba
     println!("powi(-2) at 1e-160: newtype {p:?} retired {q:?}");
 
     // The four corners the differential pins the newtype's side of
-    // (`ring_interval_differential::the_subnormal_and_overflow_corners_are_where_the_newtype_gives_width_back`),
+    // (`interval_backend_differential::the_subnormal_and_overflow_corners_are_where_the_newtype_gives_width_back`),
     // measured HERE against the retired ring itself, which is the
     // only place in the tree that still has one.
     let sq = ri(t, t).sqr();

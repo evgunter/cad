@@ -56,10 +56,10 @@
 //! body nobody runs is the state that roster exists to end, and this
 //! one had no reason to be in it.
 //!
-//! Refusal is not free-standing: what a refusal *does* is cross into the
-//! ring as poison. The last rows pin that, per corpus member, at
+//! Refusal is not free-standing: what a refusal *does* is cross into
+//! certification arithmetic as a refusal. The last rows pin that, per corpus member, at
 //! [`Interval::from_certified`] — the one body every lane scalar
-//! reaches the C9 ring through.
+//! reaches certification arithmetic through.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -132,7 +132,7 @@ fn f64_corpus() -> Vec<(String, f64)> {
 }
 
 /// `f64`'s poison is NaN and nothing else: ∞ is not poison (D4's Q1
-/// residue), so it certifies the degenerate bracket it is and the ring
+/// residue), so it certifies the degenerate bracket it is and interval arithmetic
 /// crossing — not this door — is where it stops.
 #[test]
 fn the_f64_door_refuses_exactly_its_nans() {
@@ -156,10 +156,10 @@ fn the_f64_door_refuses_exactly_its_nans() {
 
 // -------------------------------------------------------- Interval
 
-/// Seeds spanning both ring states and both infinite sides, plus every
-/// value the ring's own operations reach from them. `x / [0, 0]` and
-/// `[0, 0] * [−∞, ∞]` are how ring poison arrives without being written
-/// down.
+/// Seeds spanning both states (certified and refused) and both infinite
+/// sides, plus every value the certification doors and operators reach
+/// from them. `x / [0, 0]` and `[0, 0] * [−∞, ∞]` are how refusals
+/// arrive without being written down.
 fn ring_corpus() -> Vec<(String, Interval)> {
     let seeds = [
         ("[0,0]", Interval::point(0.0)),
@@ -188,11 +188,12 @@ fn ring_corpus() -> Vec<(String, Interval)> {
     out
 }
 
-/// **The row S86 is about.** The ring's poison is the decoration it
-/// carries (`dec < Def`, NaI and empty below that), so `is_poison` is its
-/// whole domain-violation channel and the door has to consult it — a
-/// refused ring's endpoints are ordinary numbers and certify nothing. Before the fix this sweep went red on the first
-/// poisoned member, which certified `Some((NaN, NaN))`.
+/// **The row S86 is about.** A refusal is the decoration it
+/// carries (`dec < Def`, NaI and empty below that), so `is_certified` is
+/// its whole domain-violation channel and the door has to consult it — a
+/// refused enclosure's endpoints are ordinary numbers and certify
+/// nothing. A door that certified on the endpoints alone reds here on
+/// the first refused member.
 #[test]
 fn the_ring_door_refuses_exactly_its_poison() {
     let (mut certified, mut refused) = (0, 0);
@@ -201,13 +202,13 @@ fn the_ring_door_refuses_exactly_its_poison() {
         assert_eq!(
             ok,
             r.is_certified(),
-            "{tag} = {r:?}: the ring door and `is_poison` disagree"
+            "{tag} = {r:?}: the certified door and `is_certified` disagree"
         );
         if ok {
             assert_eq!(
                 r.certified_bracket(),
                 Some((r.lo(), r.hi())),
-                "{tag}: a certified ring must hand over its own endpoints"
+                "{tag}: a certified enclosure must hand over its own endpoints"
             );
             certified += 1;
         } else {
@@ -220,7 +221,7 @@ fn the_ring_door_refuses_exactly_its_poison() {
 /// Poison has to be **reachable by arithmetic**, or the refusing half of
 /// the sweep above is a hand-built seed testing itself.
 ///
-/// Every producer inside the ring is a division: an explicit one by a
+/// Every producer inside certification arithmetic is a division: an explicit one by a
 /// divisor not proven away from zero, or a negative integer power,
 /// which is the reciprocal of the positive one. The three rows below
 /// are the three shapes a division answers with — the empty set, an
@@ -253,7 +254,7 @@ fn ring_poison_is_reached_by_arithmetic_not_only_by_construction() {
 
 /// **The shape that launders: a refusal whose endpoints are REAL.**
 ///
-/// The two rows above are the ring's poison, which is a NaN pair, and
+/// The two rows above are a refusal, which is a NaN pair, and
 /// the backend answers the first of them with the empty set — also NaN
 /// ends. Neither witnesses the case this file exists for, because a
 /// NaN end is caught by property 1 whatever carries it.
@@ -289,10 +290,8 @@ fn a_backend_refusal_can_carry_real_endpoints() {
             "{tag}: the endpoints are real, which is the whole point"
         );
     }
-    // The ring refuses both by poisoning, so nothing reads past them
-    // today; the pair is here because the RING-2 newtype answers with
-    // the brackets above and `is_poison` becomes the only thing that
-    // says no.
+    // Both refuse, and the brackets above are what a refusal carries:
+    // `is_certified` is the only thing that says no.
     assert!(
         !(Interval::from_bounds(-2.0, -1.0) / Interval::from_bounds(0.0, 5e-324)).is_certified()
     );
@@ -307,7 +306,7 @@ fn a_backend_refusal_can_carry_real_endpoints() {
 
 /// **A refusal crosses as poison, at the door's expense rather than the
 /// constructor's.** `from_certified` is the one body every lane scalar
-/// reaches the C9 ring through, and the claim it used to rest on —
+/// reaches certification arithmetic through, and the claim it used to rest on —
 /// *`from_bounds` rejects the NaN pair downstream* — is now redundant
 /// rather than load-bearing. Pinned per corpus member so it stays a
 /// verified agreement and not an assumption.
@@ -325,7 +324,7 @@ fn every_refused_ring_crosses_as_poison() {
         } else {
             assert!(
                 crossed.is_certified(),
-                "{tag}: a CERTIFIED operand crossed as poison. The ring \
+                "{tag}: a CERTIFIED operand crossed as poison. Interval arithmetic \
                  cannot hold a closed side at infinity, so nothing it \
                  certifies may be rejected by `from_bounds`."
             );
@@ -335,7 +334,7 @@ fn every_refused_ring_crosses_as_poison() {
     // Two-sided deliberately: with only the refused counter, a door that
     // refused EVERYTHING would leave this row green while every other row
     // went red, and this is the row about what refusal does.
-    assert_non_vacuous("the ring crossing", certified, refused);
+    assert_non_vacuous("interval arithmetic crossing", certified, refused);
 }
 
 /// The f64 half of the same crossing, stated as the exact boundary:

@@ -445,9 +445,9 @@ macro_rules! nurbs_curve {
                         None => v,
                         Some(m) => m.min(v),
                     });
-                    // `w′`'s SIGNED hull, from the ring-rounded
-                    // coefficients. The refusal is asked by name: the
-                    // ring keeps it in the decoration, so a
+                    // `w′`'s SIGNED hull, from outward-rounded
+                    // coefficients. The refusal is asked by name: it
+                    // lives in the decoration, so a
                     // coefficient that may not certify carries
                     // ordinary endpoints and would widen the hull by a
                     // number instead of collapsing the whole bound.
@@ -1234,7 +1234,7 @@ macro_rules! nurbs_curve {
             /// - `sup|w′| ≤ max_i |q_i|` over the weight spline's own
             ///   derivative coefficients, taken through
             ///   [`spline::SplineCoeffs::derivative_coeffs`] so the knot
-            ///   difference is rounded in the ring, not at `f64`.
+            ///   difference is rounded in certification arithmetic, not at `f64`.
             ///
             /// **The denominator is `w_max`, not `w_min`.** `w` itself
             /// is a convex combination of the active weights, so
@@ -1290,7 +1290,7 @@ macro_rules! nurbs_curve {
             ///
             /// At `f64` the assembly runs in nearest rounding, like
             /// every other `Real`-generic bound in the kernel: the
-            /// weight-derivative hulls come through the ring (correctly
+            /// weight-derivative hulls come through certification arithmetic (correctly
             /// rounded), but the chord normalisation and the hull folds
             /// do not, so the `f64` reading is a bound only up to about
             /// a relative ulp. **The `Interval` instantiation is the
@@ -1623,9 +1623,9 @@ fn binomial(k: usize, i: usize) -> f64 {
 }
 
 impl<T: geom_core::CertifiedBounds> NurbsCurve3<T> {
-    /// The control coordinates lifted to ring points — the data-in
+    /// The control coordinates lifted to enclosure points — the data-in
     /// shape of `geom_core::spline::compose`: channel `d`, point `i`,
-    /// as `[x, y, z]` channels of ring enclosures. Pair with
+    /// as `[x, y, z]` channels of certification enclosures. Pair with
     /// [`Self::knots`] and [`Self::weights`] to build a `CurveRingData`
     /// for composite bounds. The bracket seam this reads the net
     /// through is the shared one (`net::ring_coords`).
@@ -1636,7 +1636,7 @@ impl<T: geom_core::CertifiedBounds> NurbsCurve3<T> {
 
 impl<T: geom_core::CertifiedBounds> NurbsCurve2<T> {
     /// [`NurbsCurve3::ring_coords`] at two channels: `[x, y]` channels
-    /// of ring enclosures, through the same bracket seam and the same
+    /// of certification enclosures, through the same bracket seam and the same
     /// body.
     pub fn ring_coords(&self) -> Vec<Vec<Interval>> {
         net::ring_coords(&self.control)

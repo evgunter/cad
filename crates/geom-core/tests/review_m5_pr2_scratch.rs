@@ -1,4 +1,4 @@
-//! **Adopted adversarial-review scratch suite for the C9 ring** (M5 PR 2
+//! **Adopted adversarial-review scratch suite for certification arithmetic** (M5 PR 2
 //! review, APPROVE-WITH-FIX-PASS). Recreated faithfully from the review's
 //! description after its scratch worktree was collected.
 //!
@@ -442,7 +442,7 @@ fn dyadic(rng: &mut fuzz::Rng, mant_bits: u32, exp_span: i32) -> (f64, bool, u12
 }
 
 /// Lane 4 — exact dyadic chains. `(a+b)·c` and `a·b+c` on short-mantissa
-/// dyadics: the ring's two-step enclosure must still contain the exact
+/// dyadics: interval arithmetic's two-step enclosure must still contain the exact
 /// real value of the whole chain, which is what certification composes.
 fn lane_chains(rng: &mut fuzz::Rng, cases: usize) -> u64 {
     let mut n = 0;

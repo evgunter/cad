@@ -62,7 +62,7 @@
 //!   the divisor at least `r`. Conversion: `δ_s = S / r`.
 //! * **INV-C3 (zero-radius cylinder → distance to the LINE).** The
 //!   cylinder composite is `(|Q|² − (Q·â)² − r²)` with `Q = P − p₀`
-//!   and `â` the unit axis; at `r = 0` (an exact ring value —
+//!   and `â` the unit axis; at `r = 0` (an exact certification value —
 //!   `compose` forms `r²` as `Interval::point(0).sqr()`, the zero
 //!   interval, and refuses no radius) it is exactly `dist(P, line)²`,
 //!   meters². Conversion: `δ_line = √S` — no divisor, no hypothesis.
@@ -1013,7 +1013,7 @@ mod tests {
     }
 
     /// The line pins' budget. The composite's certified sup carries
-    /// the ring arithmetic's rounding slack, and the `√sup` metre
+    /// the certification arithmetic's rounding slack, and the `√sup` metre
     /// conversion (INV-C3) turns a few-ulp slack on a centimetre-scale
     /// `dist²` into a ~2.5e-9 m FLOOR — an exact chord's certified
     /// residual is that floor, not zero (the dm1 census's measured
@@ -1222,7 +1222,7 @@ mod tests {
         let knots = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
         let (a, b) = (Point3::new(0.0, 0.0, 0.0), Point3::new(0.04, 0.0, 0.0));
         let mut tight_checks = 0;
-        // Deltas sit ABOVE the ring-slack floor (EPS_LINE's doc), so
+        // Deltas sit ABOVE the interval-slack floor (EPS_LINE's doc), so
         // the tightness half measures the certificate and not the
         // slack; below the floor only the soundness half is meaningful.
         for delta in [1e-8f64, 1e-7, 5e-7] {

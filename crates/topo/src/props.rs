@@ -84,7 +84,7 @@ impl<T: Real> MassProperties<T> {
     /// # The ends are RECONSTRUCTED, and what that costs
     ///
     /// The stored form is a midpoint and a half-width
-    /// (`quad_lane::mid_pad`), so neither end here is the ring
+    /// (`quad_lane::mid_pad`), so neither end here is interval arithmetic
     /// interval's own endpoint: each is two `f64` roundings away from
     /// it (the halving that built the pair, and this arithmetic). The
     /// LOWER end is the one that now decides an ACCEPTANCE — check 7
@@ -2030,13 +2030,10 @@ fn classify_shells_via<T: Decide>(
 /// certification rights — `f64`, the telemetry probe, the interval
 /// scalar, and `Sym` over any of those; a [`geom_core::Dual`] carries a
 /// bracket (D1) and still may not certify (DL1), which is the missing
-/// [`geom_core::CertifiedEnclosure`] impl and nothing else. The tree's
-/// fifth `CertifiedEnclosure` impl, `geom_core::Interval`, is a
-/// bracket CURRENCY (the ring the certified reads hand back) and not a
-/// scalar — it implements no [`Decide`], so no door forms at it and no
-/// wiring row is owed. That roster is not left to this sentence:
+/// [`geom_core::CertifiedEnclosure`] impl and nothing else. That roster
+/// is not left to this sentence:
 /// `topo/tests/certified_enclosure_impl_census.rs` counts the impls in
-/// the tree against `wiring_rows`' instantiations and reds on a sixth
+/// the tree against `wiring_rows`' instantiations and reds on a
 /// certifying scalar that has no row here. This type
 /// carries that fact to the passes that run at both kinds of scalar:
 /// its one constructor is [`QuadLane::certified`], at
@@ -2583,7 +2580,7 @@ mod quad_lane {
     /// A refused enclosure has no midpoint and no width, and answers
     /// `NaN` for both — which is what every consumer of this pair
     /// already carries through `T::from_f64`. The refusal is asked by
-    /// name: the ring keeps it in the decoration, so a refused
+    /// name: interval arithmetic keeps it in the decoration, so a refused
     /// enclosure's two endpoints are ordinary numbers and their
     /// average would be a plausible mass property with nothing behind
     /// it.
@@ -3181,9 +3178,10 @@ mod quad_lane {
         ///
         /// A bracket can be sound and still inadmissible:
         /// `sqrt([−1, 4]) + 1` is `[1, 3]` with decoration `Trv`.
-        /// `Interval` has no decoration channel, so the quadrature
-        /// lane's scalars have to be refused HERE or a certified flux
-        /// enclosure gets built from a quantity that was clamped out of
+        /// The crossing into certification arithmetic reads the verdict
+        /// here and caps the decoration at `Trv`, so the quadrature
+        /// lane's scalars are refused HERE rather than a certified flux
+        /// enclosure being built from a quantity that was clamped out of
         /// its own domain.
         #[cfg(feature = "interval")]
         #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -3210,7 +3208,7 @@ mod quad_lane {
                 let r = Interval::from_certified(trv_pos());
                 assert!(
                     !r.is_certified(),
-                    "a domain-violated scalar crossed into the ring as {r:?} — \
+                    "a domain-violated scalar crossed into certification arithmetic as {r:?} — \
                      the bracket door does not read decorations, so the \
                      quadrature lane certifies a flux built from it"
                 );

@@ -106,7 +106,7 @@ fn the_minimal_degree_one_pair_has_one_derivative_coefficient() {
     let pair = k.with_coeffs(&c).unwrap();
     let q = pair.derivative_coeffs();
     assert_eq!(q.len(), 1);
-    // The ring widens every op by an ulp, so containment, not equality.
+    // Interval arithmetic widens every op by an ulp, so containment, not equality.
     let encloses = |r: Interval| r.lo() <= 3.0 && 3.0 <= r.hi() && r.hi() - r.lo() < 1e-12;
     assert!(encloses(q[0]), "{:?}", (q[0].lo(), q[0].hi()));
     assert!(encloses(pair.derivative_domain_hull()));

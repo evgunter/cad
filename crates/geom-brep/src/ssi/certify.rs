@@ -29,14 +29,15 @@
 //! A sampled max is not a bound, and a marched-and-fitted curve lies
 //! about the locus *precisely between samples*. Two mechanisms, one per
 //! operand kind, both pure convexity facts about control coefficients
-//! (C9's ring, no evaluation, no interval feature):
+//! (C9's certification arithmetic: no evaluation, no root, no transcendental):
 //!
 //! - **analytic**: `geom_core::spline::compose` composes the surface's
 //!   polynomial implicit form with the carrier and returns a certified
 //!   per-span hull of the composite. Its units are the composite's, so
 //!   this module converts to meters **exactly** — `÷ 2R` for the sphere
 //!   and cylinder, identity for the plane. Cone and torus are *not*
-//!   converted: their meters forms carry a root the ring lacks, so an
+//!   converted: their meters forms carry a root, which certification
+//!   arithmetic does not take (C9), so an
 //!   arm wanting them must land that conversion first
 //!   ([`super::enclose`] carries the same boundary, same reason).
 //! - **NURBS**: `sup_t |S(P(t)) − C(t)|` bounded by the
@@ -45,7 +46,7 @@
 //!   is enclosed as ONE composite whose ring coefficients are hulled
 //!   per span, so the cancellation that is the whole content of
 //!   `S(P(t)) = C(t)` survives into the bound. Every coefficient is a
-//!   ring enclosure; nothing is sampled.
+//!   certification enclosure; nothing is sampled.
 //!
 //!   This replaced PR 7's per-span first-order enclosure
 //!   (`rad_C + |C(m) − S(P(m))| + rad_S`), which was sound but scaled
@@ -185,10 +186,10 @@ pub struct SsiCertificate<T: Real> {
     pub on_locus_max: T,
     /// Limb 2: the certified **sup-norm** bound over the whole span, in
     /// meters. This is the number that certifies. **Ring-derived**: the
-    /// C9 ring produces an `f64` upper bound (that is what a hull bound
+    /// certification produces an `f64` upper bound (that is what a hull bound
     /// IS), lifted here so consumers band one scalar; at the interval
     /// scalar it is a thin enclosure of that bound, and the widening of
-    /// a lifted operand has already been paid inside the ring.
+    /// a lifted operand has already been paid inside interval arithmetic.
     pub hull_sup: T,
     /// Limb 3: the tube's radius, in meters. **Ladder structure**
     /// (C6's `f64` selection lane), lifted for uniformity — no decision
@@ -282,7 +283,7 @@ fn exact3<T: Bounds>(p: [T; 3]) -> Option<[f64; 3]> {
 ///
 /// `Err` names the reason, which the caller turns into an
 /// [`SsiError::UnsupportedCertificate`] verbatim: the kinds whose
-/// meters form carries a root the ring cannot take (cone, torus), NURBS
+/// meters form carries a root certification arithmetic does not take (cone, torus), NURBS
 /// (no implicit form), and — since M6-2 — an operand whose structural
 /// parameters are not exact at the caller's scalar (see [`exact`]).
 fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &'static str> {
@@ -343,7 +344,7 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
         }
         Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             Err("no ring-computable meters composite for this surface kind \
-             (cone/torus need a certified root the exact-arithmetic ring lacks; \
+             (cone/torus need a certified root, which certification arithmetic does not take; \
              a spline stand-in and its offset description have no implicit form \
              to build one from)")
         }
@@ -387,7 +388,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     let coords = fine.ring_coords();
     let data = CurveRingData::new(fine.knots(), fine.weights(), &coords).map_err(|_| {
         SsiError::UnsupportedCertificate {
-            what: "the fitted carrier's ring data is malformed",
+            what: "the fitted carrier's enclosure data is malformed",
         }
     })?;
     let composite = compose::implicit_composite(&data, &form).map_err(|_| {
@@ -395,7 +396,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             what: "the implicit composite refused the fitted carrier",
         }
     })?;
-    // The ring answers with an `f64` upper bound — that is what a hull
+    // Interval arithmetic answers with an `f64` upper bound — that is what a hull
     // bound is — and it is lifted here so the limb is banded at the
     // caller's scalar like every other residual (field docs).
     let sup = T::from_f64(composite.sup_bound() * to_meters);
@@ -488,13 +489,13 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     let coords = carrier.ring_coords();
     let cdata = CurveRingData::new(carrier.knots(), carrier.weights(), &coords).map_err(|_| {
         SsiError::UnsupportedCertificate {
-            what: "the fitted carrier's ring data is malformed",
+            what: "the fitted carrier's enclosure data is malformed",
         }
     })?;
     let pcoords = pcurve.ring_coords();
     let pdata = CurveRingData::new(pcurve.knots(), pcurve.weights(), &pcoords).map_err(|_| {
         SsiError::UnsupportedCertificate {
-            what: "the traced pcurve's ring data is malformed",
+            what: "the traced pcurve's enclosure data is malformed",
         }
     })?;
     let scoords = surface.ring_coords();
@@ -505,7 +506,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         &scoords,
     )
     .map_err(|_| SsiError::UnsupportedCertificate {
-        what: "the NURBS operand's ring data is malformed",
+        what: "the NURBS operand's enclosure data is malformed",
     })?;
     let (t0c, t1c) = carrier.domain();
     #[allow(clippy::cast_precision_loss)]
@@ -520,7 +521,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         })?
         .sup_bound();
     // Unlike the analytic arm, the NURBS arm needs NO exactness gate:
-    // every coefficient of every operand entered the ring through its
+    // every coefficient of every operand entered interval arithmetic through its
     // own bracket (`ring_coords`), so a widened control net widens the
     // composite and the bound stays honest.
     let sup = T::from_f64(sup);
@@ -581,7 +582,7 @@ fn box_chain<T: Decide + Bounds + CertifiedEnclosure>(
         // lifted: it is a value branch, which generic evaluation code
         // may not take (Q1), and it bought nothing. A degenerate span
         // (zero-length tangent) divided by zero poisons `e`, the graph
-        // margin's ring enclosure poisons with it, and
+        // margin's certification enclosure poisons with it, and
         // `zero_free_lower_bound` reports 0 — the same typed refusal
         // the guarded zero vector produced, reached without a branch.
         let t = fine.deriv(T::from_f64(0.5 * (a + b)));
@@ -907,7 +908,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             rungs: ladder.len() as u32,
         });
     };
-    // The margin is the ring's zero-free lower bound (`f64`, C9); the
+    // The margin is interval arithmetic's zero-free lower bound (`f64`, C9); the
     // lever arm is the caller's scalar, so the product — the number the
     // trilean classifies — is scalar-typed.
     let transversality = Margin::levered(T::from_f64(margin), arm);
@@ -1004,11 +1005,11 @@ mod tests {
 
     /// The chart tube's plane-normal crossing, at the `Interval` scalar.
     ///
-    /// The three components of the plane normal enter the C9 ring through
+    /// The three components of the plane normal enter certification arithmetic through
     /// their own brackets, and at `Interval` a bracket can be sound and
     /// still inadmissible: `sqrt([−1, 4]) + 1` is `[1, 3]` with decoration
-    /// `Trv`. `Interval` has no decoration channel, so a normal that
-    /// cannot certify has to be refused at the crossing — otherwise the
+    /// `Trv`. The crossing caps that decoration at `Trv`, so a normal
+    /// that cannot certify is refused at the crossing — otherwise the
     /// transversality margin is a positive number computed from a plane
     /// equation that was never evaluated where it was asked for.
     #[cfg(feature = "interval")]

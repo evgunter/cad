@@ -25,7 +25,7 @@
 //!   bounded domain is excluded, accounted, or the operation refuses
 //!   typed at the named floor. It is also the seed generator, so
 //!   "marching finds it" never depends on luck.
-//! - [`enclose`] supplies every certified bound, in the C9 ring only.
+//! - [`enclose`] supplies every certified bound, in certification arithmetic only.
 //!
 //! # The two arms wired here (spec §5, minimal by rule)
 //!
@@ -99,7 +99,7 @@
 //! **exactly** (`÷2R`), so limb 2 certifies with no invented scale
 //! factor. The torus's composite is quartic (m⁴) and its conversion
 //! back to meters needs a certified reciprocal of `A + 4Rρ`, which
-//! needs a square root the C9 ring deliberately does not have. Shipping
+//! needs a square root certification arithmetic deliberately does not have. Shipping
 //! the pair whose certificate is *exact* rather than the pair whose
 //! certificate would need a new unratified mechanism is the same
 //! judgment C12.1 makes everywhere: retire arms one at a time, with
@@ -641,7 +641,7 @@ pub struct SsiDomain {
 }
 
 impl SsiDomain {
-    /// The slab as a ring box.
+    /// The slab as a enclosure box.
     fn slab(&self) -> Box3 {
         Box3::around(self.center, self.half_extent)
     }

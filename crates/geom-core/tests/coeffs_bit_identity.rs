@@ -227,8 +227,8 @@ const ROW_COUNT: usize = 960;
 
 /// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order.
 ///
-/// **Re-captured when the C9 ring became a newtype over the backend**
-/// (`0xdedc_bc91_037f_daab` before): the ring padded one representable
+/// **Re-captured when certification arithmetic became the backend's**
+/// (`0xdedc_bc91_037f_daab` before): the retired arithmetic padded one representable
 /// step outward on every operation unconditionally, and the backend
 /// pads only where the operation was inexact. 436 of this corpus's 960
 /// rows moved TIGHTER and none moved looser, so every door's bracket
@@ -244,7 +244,7 @@ const SPOT: &[(&str, u64)] = &[
     ("d2m2.rat.f64.hull_rat@4.hi", 0x4002_4fdf_3b64_5a1d),
     // Tighter by two steps: the derivative-hull fold's differences
     // and sums are exact at these coefficients, so the backend's
-    // witnesses fire where the ring padded anyway.
+    // witnesses fire where the retired arithmetic padded anyway.
     ("d3.nr.ring.dhull@5.lo", 0xc002_8106_24dd_2f1d),
     // Tighter by two steps, same cause one door over: the rational
     // derivative-domain hull's exact steps stop being padded.
@@ -255,7 +255,7 @@ const SPOT: &[(&str, u64)] = &[
     ("d4.nr.f64.hull@7.hi", 0x4002_4fdf_3b64_5a1d),
     // Tighter by four steps (a `hi` on a negative value, so the bit
     // pattern rises): the degree-4 derivative coefficient is a chain
-    // of exact differences, and the ring padded each one.
+    // of exact differences, and the retired arithmetic padded each one.
     ("d4.nr.f64.dcoeff.3.hi", 0xc017_cac0_8312_6e98),
     ("d4.rat.ring.domain_rat.lo", 0xbff8_0000_0000_0000),
 ];

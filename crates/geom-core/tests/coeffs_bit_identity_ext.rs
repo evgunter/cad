@@ -173,9 +173,9 @@ fn rows() -> Rows {
 const ROW_COUNT: usize = 3403;
 /// FNV-1a 64 over `"{name} {bits:#018x}\n"`, the shipped suite's digest shape.
 ///
-/// **Re-captured when the C9 ring became a newtype over the backend**
+/// **Re-captured when certification arithmetic became a newtype over the backend**
 /// (`0x9897_c316_665d_3ab0` before), for the reason the default
-/// corpus's digest gives: the ring's unconditional one-step outward
+/// corpus's digest gives: interval arithmetic's unconditional one-step outward
 /// pad per operation is gone and the backend's exactness witnesses
 /// stand in its place. 1 590 of these 3 403 rows moved TIGHTER and
 /// none moved looser.

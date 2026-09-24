@@ -1,9 +1,9 @@
-//! **Exact-arithmetic soundness fuzz of the C9 interval ring** (M5 PR 2,
+//! **Exact-arithmetic soundness fuzz of certification arithmetic** (M5 PR 2,
 //! acceptance family 1).
 //!
 //! Every containment claim below is checked against the **exact** value
 //! of the operation over the reals — never against a second
-//! floating-point evaluation, which would only prove the ring agrees
+//! floating-point evaluation, which would only prove interval arithmetic agrees
 //! with the thing it is supposed to bound.
 //!
 //! # Comparator provenance
