@@ -5,6 +5,8 @@ title: three predicates in topo answer 'are these one chart' with different rung
 status: open
 opened: 2026-09-14
 refs: [two-provenance-free-keys-holding-one-surface-read-as-two-charts, 2594]
+priority: P2
+cost: D
 ---
 
 

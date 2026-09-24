@@ -2084,3 +2084,28 @@ re-worded here. The DR-1 row rides as this PR's last commit. The
 m7-8 row stays open and carries the `[ev]` proposal, which opens from
 main once this lands. Slot 2 is concluded: it ran undrawn, as the
 suspension requires.
+
+## Block TOPO-B5 concluded; the `[ev]` PR opened; the next two units cut (2026-09-24)
+
+PR 2594 merged (`0efe5c224`) and PR 3148 merged (`6def0e026`), so all
+three slots are concluded. The block's CONCLUDED record is published
+to `docs/MODEL-AB-LOG.md`, and slot 2 is recorded as unconsumed by
+that protocol (DR-1 instead). PR 3148 was merged forward over PR 2594
+after its green run, and topo was re-run locally on the merged head
+(770 + 594 + 14 + 11) before merging, since the two touch disjoint
+code.
+
+PR 3156 (`[ev]`) asks two questions:
+- whether the re-basing gate may get a bit-identity door (recommended:
+  no, the two-call split stays);
+- whether `topo::query`'s production bit compare is a precedent or a
+  violation (recommended: a violation; the repair is TQUERY's).
+
+`needs_ev: true` is set on the m7-8 row there.
+
+Cut next, briefs on their items, both DUAL: `kev`'s two doors (Ev's
+(c); `S93` closes with it) and minting the row at the mint site
+(phase 1 is the closed-form split under `Decide`). `plan.md`'s Order
+drops the block machinery and names the queue behind them.
+`three-spellings-of-one-chart-…` gets its missing `priority`/`cost`
+(P2, D).
