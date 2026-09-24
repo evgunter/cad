@@ -1036,3 +1036,21 @@ backtracking gate refused; merging main forward also needed the gate's
 `edit` — by `pointer_mut`, so a vanished slot fails the test instead of
 `[..]` inserting it. The orchestrator releases the program: `status:
 ready`, with the remaining open rows dispatchable.
+
+## `port/wrap-a`: three rows to review (2026-09-24)
+
+One lane, three rows, one PR. `refusal-messages-render-floats-through-f64-display`:
+`geom_core::Readable` is the one rendering of an `f64` in a refusal
+(positional inside `[1e-4, 1e16)` and at zero, scientific outside), and
+the spline stack's refusals route through it — the row's three sites
+plus nine siblings the sweep found, `SplineError::DomainInvalid` among
+them. The remainder of the class, in eight other crates, is filed as
+`work/issues/refusal-floats-outside-the-spline-stack-render-through-f64-display`.
+`stackup-report-joins-rendered-blockers-on-a-mark-they-may-contain`:
+the row's second join never existed (it was `serialize`'s name list);
+the one real join is replaced by one blocker per line under a count,
+held by a census test and a split-back test, and the three name-joins
+that rely on EDIT's in-flight name door are recorded on that row. `D341`:
+`node_kind.rs` forced a word, never a constructor; `surface_census.rs`
+now welds every `Node` variant and datum shape to its `Node.*`
+constructors, and records `Sweep` as unbound with its reason.
