@@ -305,6 +305,94 @@ impl<T: Real> Surface<T> {
             Surface::Approx(a) => Some(a.fit()),
         }
     }
+
+    /// **The representability margins of this surface's datum
+    /// conventions** — each quantity a variant's docs require to be
+    /// strictly positive for its stored datum to describe a 2-manifold
+    /// at all, named by the datum it constrains. This is the one place
+    /// each bound is written:
+    ///
+    /// - `Cylinder`, `Sphere`: `radius` (radius `> 0`);
+    /// - `Cone`: `half_angle` and `π/2 − half_angle`
+    ///   (`half_angle ∈ (0, π/2)`: at `0` the cone is a line, at `π/2`
+    ///   a plane);
+    /// - `Torus`: `minor_radius` (the `r > 0` half of the ring
+    ///   convention `R > r > 0`). The other half, `R > r`, relates two
+    ///   datums rather than bounding one, and is not a margin here;
+    /// - `Plane`, `Nurbs`, `Approx`: none — a plane's frame carries
+    ///   no scalar convention, and a spline's datum is its net
+    ///   ([`NurbsSurface::net_state`]).
+    ///
+    /// **Nothing is decided here.** The quantities are computed at `T`
+    /// and returned; whether one is positive is the consumer's
+    /// question, asked with the consumer's posture. Evaluation does not
+    /// ask it — a value outside a convention evaluates as given, per
+    /// the crate docs' conventional-and-unchecked rule — and a margin
+    /// of a poisoned datum is poison.
+    pub fn representability_margins(&self) -> Vec<(SurfaceDatum, T)> {
+        match self {
+            Surface::Cylinder { radius, .. } | Surface::Sphere { radius, .. } => {
+                vec![(SurfaceDatum::Radius, *radius)]
+            }
+            Surface::Cone { half_angle, .. } => vec![
+                (SurfaceDatum::HalfAngle, *half_angle),
+                (
+                    SurfaceDatum::HalfAngle,
+                    T::pi() * T::from_f64(0.5) - *half_angle,
+                ),
+            ],
+            Surface::Torus { minor_radius, .. } => {
+                vec![(SurfaceDatum::MinorRadius, *minor_radius)]
+            }
+            Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => Vec::new(),
+        }
+    }
+}
+
+/// A stored datum of an analytic [`Surface`] — the FIELD, named apart
+/// from the variant that carries it (a cylinder's and a sphere's
+/// `radius` are both [`SurfaceDatum::Radius`]). A consumer naming a
+/// datum names the surface kind beside it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SurfaceDatum {
+    /// A plane's or cylinder's `origin`.
+    Origin,
+    /// A plane's `normal`.
+    Normal,
+    /// The seam direction `u_ref` of any analytic kind.
+    URef,
+    /// The `axis` of a cylinder, cone, sphere or torus.
+    Axis,
+    /// A cylinder's or sphere's `radius`.
+    Radius,
+    /// A cone's `apex`.
+    Apex,
+    /// A cone's `half_angle`.
+    HalfAngle,
+    /// A sphere's or torus's `center`.
+    Center,
+    /// A torus's `major_radius`.
+    MajorRadius,
+    /// A torus's `minor_radius`.
+    MinorRadius,
+}
+
+impl SurfaceDatum {
+    /// The datum's field name, as the variant spells it.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Origin => "origin",
+            Self::Normal => "normal",
+            Self::URef => "u_ref",
+            Self::Axis => "axis",
+            Self::Radius => "radius",
+            Self::Apex => "apex",
+            Self::HalfAngle => "half_angle",
+            Self::Center => "center",
+            Self::MajorRadius => "major_radius",
+            Self::MinorRadius => "minor_radius",
+        }
+    }
 }
 
 impl<T: SpanLocate> Surface<T> {

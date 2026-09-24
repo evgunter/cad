@@ -149,6 +149,6 @@ pub use projection_policy::{
 };
 pub use surfaces::{
     ApproxSurface, ApproxWindow, KnotMirrorError, NetState, NurbsSurface, OffsetCertificate,
-    Surface, SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceProjection,
+    Surface, SurfaceDatum, SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceProjection,
     SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow,
 };
