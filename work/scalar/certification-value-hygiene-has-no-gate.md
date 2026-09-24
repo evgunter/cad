@@ -7,7 +7,7 @@ priority: P3
 cost: D
 opened: 2026-09-24
 rides_with: ring-5-certification-doors-as-a-trait
-refs: [ring-3-ring-dissolves-into-interval, ring-3-residue-outside-its-fence, H5, public-ring-names-spell-the-retired-type, certification-doors-have-no-differential]
+refs: [ring-3-ring-dissolves-into-interval, ring-3-residue-outside-its-fence, H5, public-ring-names-spell-the-retired-type, certification-doors-have-no-differential, certification-gate-gaps-3-and-5-have-no-follow-up, certification-refusal-still-called-poison-outside-the-importers, rustc-suggests-importing-real-in-a-certification-file]
 ---
 
 ## Finding
@@ -100,22 +100,36 @@ it closes with that unit:
 - **1** — closed: the doors are the sealed `Certification` trait in
   `geom_core::interval::certification`, imported by name; an importer's
   production code has no `Real` in scope, so `x.is_poison()` and the
-  transcendentals are E0599 on an `Interval` there, and
-  `scripts/gates/certification-doors.sh` holds the separation. The two
-  mixed files separated (`topo/src/props/quad_lane.rs`;
+  transcendentals are E0599 on a value typed `Interval` there, and
+  `scripts/gates/certification-doors.sh` holds the separation (and, by
+  its REEXPORT rule, that the module path stays the only path to the
+  doors). The two mixed files separated (`topo/src/props/quad_lane.rs`;
   `probe_tube_chart`'s certification tail into `ssi/enclose.rs`).
   Residue: the holders that call no door, which the gate names as its
-  KNOWN GAP 2 and the census keeps.
+  KNOWN GAP 2 and the census keeps (`ssi/certify.rs`'s refused-window
+  check among them, where an `is_poison` would pass every row today);
+  generic lane code over `Bounds`/`CertifiedBounds`/`Decide` in an
+  importer, which reaches `Real` at `T = Interval` by design and enters
+  certification only through `Interval::from_certified` (the gate's
+  KNOWN GAP 6); and GAPs 3 and 5, filed as
+  `certification-gate-gaps-3-and-5-have-no-follow-up`.
 - **2** — closed: `hull` exists only on the trait; the private second
   evaluation name is `enclosure_hull_of`; the gate forbids
   `enclosure_hull`/`SpanLocate` in an importer.
-- **3** — closed: the NaI constructor is `Certification::refused`; the
-  moved door rows and `spline/hull.rs`'s section say "refuse".
+- **3** — closed inside the importers: the NaI constructor is
+  `Certification::refused`, and the fifteen `CERT_IMPORTERS` files say
+  "refused" for the certification refusal (the fix pass's sweep, after
+  both reviews found it half done; `TensorNet::poisoned` became
+  `TensorNet::refused`). Outside them — the holders and the
+  certification test files — it is
+  `certification-refusal-still-called-poison-outside-the-importers`.
 - **5** — the doc half closed (the backend differential's module doc
   says what it cannot see); the door-level differential is its own row,
   `certification-doors-have-no-differential`.
 - **4** — its own row, `public-ring-names-spell-the-retired-type`.
-- **6** — closed: the census's `gated_to!` names every crate it walks.
+- **6** — closed: the census's `gated_to!` names every crate it walks,
+  and its `the_suite_is_gated_to_every_crate_it_walks` row holds the
+  hand list to the walk, so a new crate reds rather than going ungated.
 - **7** — closed: the trait is the list; `interval.rs`, the census and
   C9 point at it.
 

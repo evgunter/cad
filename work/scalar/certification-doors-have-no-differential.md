@@ -4,6 +4,8 @@ kind: issue
 title: no differential stands over the certification doors that are more than a delegate (hull, clamped_to, contains, width, mag)
 status: open
 opened: 2026-09-24
+priority: P3
+cost: D
 ---
 
 

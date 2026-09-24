@@ -4,6 +4,8 @@ kind: issue
 title: CurveRingData, SurfaceRingData, ring_coords and apply_ring name the retired ring type's role in the public API
 status: open
 opened: 2026-09-24
+priority: P4
+cost: D
 ---
 
 
