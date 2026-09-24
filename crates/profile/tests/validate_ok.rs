@@ -43,7 +43,7 @@ fn rectangle_canonical_form() {
     assert_eq!(vp.loops().len(), 1);
     let lp = &vp.loops()[0];
     assert_eq!(lp.role(), LoopRole::Outer);
-    // Canonical start = lexicographic minimum = (0, 0); CCW input
+    // Canonical start = the authored start (0, 0); CCW input
     // preserved verbatim.
     let vs = lp.vertices();
     assert_eq!(vs.len(), 4);
@@ -80,7 +80,7 @@ fn circle_as_two_arcs_is_the_minimal_closed_carrier() {
     let vp = ok(&profile(vec![circle_h(0.0, 0.0, 2.0)]));
     let lp = &vp.loops()[0];
     assert_eq!(lp.role(), LoopRole::Outer);
-    // Canonical start: the lexicographic minimum (−2, 0).
+    // Canonical start: the authored start (−2, 0).
     let v0 = lp.vertices()[0].pos();
     assert_eq!((v0.x, v0.y), (-2.0, 0.0));
     assert_eq!(kinds(&vp, 0), vec!['+', '+']);
@@ -111,7 +111,7 @@ fn annulus_roles_and_hole_reorientation() {
     assert_eq!(kinds(&vp, 0), vec!['+', '+']);
     assert_eq!(kinds(&vp, 1), vec!['-', '-']);
     assert_eq!(vp.loops()[1].vertices()[0].bulge(), -1.0);
-    // Canonical starts: lexicographic minima of each circle.
+    // Canonical starts: each circle's authored start.
     let o0 = vp.loops()[0].vertices()[0].pos();
     let h0 = vp.loops()[1].vertices()[0].pos();
     assert_eq!((o0.x, o0.y), (-2.0, 0.0));
@@ -135,16 +135,16 @@ fn rounded_rectangle_alternates_lines_and_ccw_arcs() {
     let vp = ok(&profile(vec![rounded_rect(4.0, 3.0, 0.5)]));
     let lp = &vp.loops()[0];
     assert_eq!(lp.role(), LoopRole::Outer);
-    // Lexicographic minimum vertex: (0, 0.5) — the input's closing
-    // vertex — so the canonical chain starts with its corner arc.
+    // The authored start: (0.5, 0) — the input's first vertex — so the
+    // canonical chain starts with the bottom side, then its corner arc.
     let v0 = lp.vertices()[0].pos();
-    assert_eq!((v0.x, v0.y), (0.0, 0.5));
-    assert_eq!(kinds(&vp, 0), vec!['+', 'L', '+', 'L', '+', 'L', '+', 'L']);
-    // Corner arc geometry: the first canonical segment is the corner
-    // about (0.5, 0.5) with radius 0.5.
-    match lp.segments()[0].kind {
+    assert_eq!((v0.x, v0.y), (0.5, 0.0));
+    assert_eq!(kinds(&vp, 0), vec!['L', '+', 'L', '+', 'L', '+', 'L', '+']);
+    // Corner arc geometry: the second canonical segment is the corner
+    // about (3.5, 0.5) with radius 0.5.
+    match lp.segments()[1].kind {
         SegmentKind::Arc { center, radius, .. } => {
-            assert!((center.x - 0.5).abs() < 1e-12);
+            assert!((center.x - 3.5).abs() < 1e-12);
             assert!((center.y - 0.5).abs() < 1e-12);
             assert!((radius - 0.5).abs() < 1e-12);
         }

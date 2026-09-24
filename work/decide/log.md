@@ -328,3 +328,70 @@ Arm OPUS per the block's draw (byte 248 ⇒ fable at slot 2); v7 IN, the
 full v6 dual, the review ordinal claimed on `main` at the dual's
 dispatch (DECIDE's band, 8601 expected). Brief
 `/home/user/sym-briefs/unit-9-brief.md`, sha256 in its sidecar.
+
+## SYM-9 in review (2026-09-22)
+
+Block DECIDE-B1 slot 1, arm OPUS. PR #3083 against `props/sign-hull`.
+The retry ladder: a decision every rung of the first attempt refuses is
+re-asked with a rule that opens an atom shut. Phase 1's tables chose
+the two kept-atom attempts over the wider ring by measurement — the
+ring recovers a strict subset at 4.4x to 11.6x. Twelve decisions on R2's
+link (the ten `rule-g-trades-sixteen-…` records as lost) and six on R2's
+filleted bracket. Rows: the rule-G row answered to its last shape and
+downgraded to P2; the decision-read cost row read and left where it is;
+one new row filed on SYM's slate for the pad's unmeasurable replay.
+
+## SYM-9 fix pass (2026-09-24)
+
+Both reviews MERGEABLE-AFTER-FIXES; the union taken. The first cut ran
+the ladder inside every rules differential (it rode
+`SymbolicDials::default()`), which read rule G's own cost on the link as
+recovered; the differentials now run with no ladder and DECIDE-3's link
+pin is rule G's trade again. On the release leaf instrument the ladder
+adds 36 % on the bracket, 14 % on the link and 12.5 % on the pad, all
+three over the 1.6 s line before it — so the drive ships no ladder and
+`SymRetry::kept_atom` is the dial. The decision read measured at zero
+on that instrument for those three documents. One row filed on SYM's
+slate (the retry attempts' missing cross-check).
+
+## SYM-9 delta (2026-09-24)
+
+R1's delta on `7fd643159` MERGEABLE, recommending the default's reversal;
+ruled. `DEFAULT_SYM_RETRY` is `SymRetry::kept_atom()` again, shipped across
+the 1.6 s line as a disclosed trade with the rule-A attempt named the
+weaker half; the rules differentials stay at no ladder. A gated drive row
+now reads the ladder's `retried=` line and its sentence.
+
+## SYM-9 merged (2026-09-24): the retry ladder — block DECIDE-B1 slot 1; the block closes
+
+PR #3083 into `props/sign-hull` (head `32efb3abc`, run 36026935338 green
+on the full matrix; the state-sync commit on top). A refused decision
+may retry — rule G shut, then rule A shut — on the early, top-residual
+and door rungs; the first attempt is identical with the ladder and
+without it, so `numeric` only falls. It ships ON by default across the
+1.6 s line as a disclosed trade, as rule E did: the link gains twelve
+theorems (the ten rule G's default costs `carrier_on_surface_2` among
+them), the bracket six registrations, the plate, annulus, boss and pad
+nothing; +1.0 s / +2.4 s / +16 s on the three documents the shipped
+rules already put over the line. Every rules differential runs at
+`SymRetry::none()` on both sides. The ring retry is measured and not
+shipped (a subset of the kept atom's recovery at 4× at 512 bits; thirteen
+more bracket decisions at 11.6× at 1024). SYM's ring item closed on it.
+
+Review: the dual on `7b3924cf1` — R1 (OPUS) MERGEABLE-AFTER-FIXES
+2/7/7, R2 (FABLE) MERGEABLE-AFTER-FIXES 1/8/5; both found by execution
+the ladder riding every rules differential and so blunting DECIDE-3's
+per-predicate gate, and R1 that the leaf instrument had not been run.
+Union fix pass A–U at `7fd643159` (the differentials at `none()`, the
+release leaf instrument run, identical attempts not walked, one walk
+door with a restoring scope, the growth guard a measured dial, both
+reviewers' rows adopted). The orchestrator's ruling on B had the fix
+pass set the default to none because the documents the ladder acts on
+are over the line; R1's delta showed the shipped rules put them there
+(the link at 72× its M10-9 leaf) and the ladder moves none across it,
+and the ruling was REVERSED — the ladder ships on — at `32efb3abc` with
+R1's D1–D4. Protocol: SYM-9 dispatched under a drawn arm before Ev
+suspended the A/B protocol on 2026-09-23, so it finishes under it and
+its row is recorded on `main`; the orchestrator field spans Fable →
+Opus 5.5. **Block DECIDE-B1 closes** with slot 2 (DECIDE-4) unconsumed,
+per the suspension; DECIDE-4 runs on Opus under the review tiers.
