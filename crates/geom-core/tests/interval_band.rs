@@ -17,7 +17,6 @@
 //! — and 0.5·ε / 20·ε are exact-or-commuting scalings, so no product can
 //! cross the thresholds ε and 10·ε.)
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;

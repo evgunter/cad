@@ -8,7 +8,6 @@
 //! adds is a door the crate's own suites can call, so a measurement of
 //! the plate's ceiling does not have to live in a demo that is not run
 //! under the ε matrix.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 // A `tests/` fixture door whose only consumer is the probe-gated census
 // suite, so a default-feature build sees it unused. The workspace lint

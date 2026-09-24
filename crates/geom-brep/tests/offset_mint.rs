@@ -620,7 +620,6 @@ fn ambiguity_band_escalates_with_predicate_names() {
 // The interval lane: enclosures contain, refusals escalate honestly
 // ---------------------------------------------------------------------
 
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use crate::shared::interval::{ip, iv3 as iv};

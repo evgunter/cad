@@ -41,7 +41,6 @@
 //! carried-datum arm on its way to the carrier mint's refusal — each
 //! new `decide` site of that unit reached where escalation is real.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;

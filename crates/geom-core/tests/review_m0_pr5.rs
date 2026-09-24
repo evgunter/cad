@@ -7,14 +7,11 @@
 //! Sections mirror the review charter parts 1.1–1.5, plus the review
 //! extras (6: interval chain-rule width, 7: the `powi(2)` fix the review
 //! proposed — since adopted in `src/dual.rs`, so section 6's quality
-//! checks assert the *fixed* behavior). `Dual<Interval>` sections are
-//! gated on the `interval` feature; everything else runs in the default
-//! build.
+//! checks assert the *fixed* behavior).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(clippy::excessive_precision, clippy::approx_constant)]
 
-#[cfg(feature = "interval")]
 use geom_core::predicate::Sign;
 use geom_core::predicate::{Band, Decide};
 use geom_core::real::Real;
@@ -468,7 +465,6 @@ fn f64_powi2_is_bit_identical_to_multiplication() {
 // The Dual<Interval> halves of sections 1, 3, 4, 6, 7.
 // ---------------------------------------------------------------------
 
-#[cfg(feature = "interval")]
 mod dual_interval {
     use geom_core::real::Bounds;
     use geom_core::{Interval, MarginDiag};

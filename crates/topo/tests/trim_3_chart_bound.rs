@@ -13,7 +13,6 @@
 //! asserted with definite outcomes — there is no ε-conditional early
 //! return anywhere in this file.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;

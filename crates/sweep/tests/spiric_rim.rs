@@ -646,7 +646,6 @@ fn a_spiric_rim_splits_at_its_mid_parameter() {
     );
 }
 
-#[cfg(feature = "interval")]
 mod interval_rows {
     use geom_core::{Bounds, Interval, Real};
 

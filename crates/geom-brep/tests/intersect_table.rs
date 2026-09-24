@@ -1054,7 +1054,6 @@ fn the_cylinder_sphere_route_note_names_the_declared_arm() {
 // The interval lane: classification replays and residuals enclose zero
 // ---------------------------------------------------------------------
 
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use crate::shared::interval::{ip, iv3 as iv};

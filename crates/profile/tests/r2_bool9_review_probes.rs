@@ -8,7 +8,7 @@
 //!    crossing is the identity — so it measures the walk and not the
 //!    conversion. These rows re-spell BOTH retired walks verbatim and
 //!    compare, on a loop with arcs, bulges, declared joints and a
-//!    reversed orientation, at `f64` and (under `--features interval`)
+//!    reversed orientation, at `f64` and
 //!    at the certified interval scalar.
 //! 2. The door census's writer pattern is a fixed needle list. This
 //!    row replays that list against a call spelling the tree actually
@@ -149,7 +149,6 @@ fn r2_embed_carries_the_declaration_list_unnormalised() {
 /// `from_f64` is no longer the identity — the arm the unit's receipt
 /// does not reach, and the one both production callers actually use
 /// (`loft`'s `Decide` scalar, `embed_profile`'s evaluation scalar).
-#[cfg(feature = "interval")]
 #[test]
 fn r2_embed_is_both_retired_walks_at_the_interval_scalar() {
     use geom_core::{Bounds, Interval};

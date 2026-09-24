@@ -374,9 +374,8 @@ fn the_f64_crossing_admits_exactly_the_finite() {
     assert_non_vacuous("the f64 crossing", crossed, poisoned);
 }
 
-// ----------------------------------------------- the gated implementors
+// -------------------------------------------- the interval implementors
 
-#[cfg(feature = "interval")]
 mod interval_lane {
     use geom_core::{Interval, Real};
 

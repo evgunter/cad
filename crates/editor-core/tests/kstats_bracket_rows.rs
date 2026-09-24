@@ -384,7 +384,6 @@ fn the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass_at_f64_and_dual()
     );
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn the_profile_nodes_log_under_the_pinned_lift_is_the_pre_pass_at_interval() {
     let at_f64 = pinned_profile_log::<f64>();
@@ -491,7 +490,6 @@ fn a_memo_hit_drops_its_frame_at_f64() {
     a_memo_hit_drops_its_frame::<f64>();
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn a_memo_hit_drops_its_frame_at_interval() {
     a_memo_hit_drops_its_frame::<geom_core::Interval>();

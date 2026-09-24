@@ -1,4 +1,5 @@
-//! Regression pin for #99: the full tour must run green at every
+//! Regression pin for #99: the full tour — its scene walk and its
+//! certified cells (`demo-tour certified`) — must run green at every
 //! supported tolerance row. **Green means exit 0, and that is the
 //! whole contract** — [`run_tour`] asserts nothing else, and nothing
 //! else is available to assert.
@@ -32,8 +33,9 @@
 //! panicked. The data now encodes exact tangency; these tests keep the
 //! whole tour honest at 1e-6 and 1e-12 alongside the default.
 
-use std::process::Command;
+use std::process::{Command, Output};
 
+/// The scene walk into a scratch directory, then the certified cells.
 fn run_tour(eps: Option<&str>) {
     let outdir = std::env::temp_dir().join(format!(
         "demo-tour-eps-pin-{}-{}",
@@ -42,8 +44,16 @@ fn run_tour(eps: Option<&str>) {
     ));
     let _ = std::fs::remove_dir_all(&outdir);
     std::fs::create_dir_all(&outdir).expect("create outdir");
+    let walk = run_demo(outdir.as_os_str(), eps);
+    let _ = std::fs::remove_dir_all(&outdir);
+    assert_green("<outdir>", eps, &walk);
+    let certified = run_demo("certified".as_ref(), eps);
+    assert_green("certified", eps, &certified);
+}
+
+fn run_demo(arg: &std::ffi::OsStr, eps: Option<&str>) -> Output {
     let mut cmd = Command::new(env!("CARGO_BIN_EXE_demo-tour"));
-    cmd.arg(&outdir);
+    cmd.arg(arg);
     match eps {
         Some(e) => {
             cmd.env("CAD_TOLERANCE_EPS", e);
@@ -52,11 +62,13 @@ fn run_tour(eps: Option<&str>) {
             cmd.env_remove("CAD_TOLERANCE_EPS");
         }
     }
-    let output = cmd.output().expect("spawn demo-tour");
-    let _ = std::fs::remove_dir_all(&outdir);
+    cmd.output().expect("spawn demo-tour")
+}
+
+fn assert_green(arg: &str, eps: Option<&str>, output: &Output) {
     assert!(
         output.status.success(),
-        "tour failed at eps {:?} ({}):\n--- stdout tail ---\n{}\n--- stderr ---\n{}",
+        "`demo-tour {arg}` failed at eps {:?} ({}):\n--- stdout tail ---\n{}\n--- stderr ---\n{}",
         eps,
         output.status,
         {
