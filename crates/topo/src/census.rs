@@ -2828,7 +2828,7 @@ pub(crate) enum Undecided {
     NoVertex,
     /// Arm 2: the point-in-solid door could not place a vertex near
     /// the boundary (escalated, every ray grazed, or its loop walk).
-    WitnessUndecided,
+    WitnessTooClose,
     /// Arm 2: an instance of (near-)zero signed volume.
     ZeroVolume,
     /// Arm 2: an instance whose closed-form volume is uncertified.
@@ -2841,6 +2841,7 @@ pub(crate) enum Undecided {
 
 impl Undecided {
     /// Every reason, in declaration order.
+    #[cfg(any(test, feature = "test-support"))]
     pub(crate) const ALL: [Self; 17] = [
         Self::CurvedWithinReach,
         Self::NoSoundReach,
@@ -2854,7 +2855,7 @@ impl Undecided {
         Self::DeclaredFacePair,
         Self::AllOn,
         Self::NoVertex,
-        Self::WitnessUndecided,
+        Self::WitnessTooClose,
         Self::ZeroVolume,
         Self::VolumeUncertified,
         Self::FaceKindUnsupported,
@@ -2863,6 +2864,7 @@ impl Undecided {
 
     /// Whether arm 1 raises it, on a face pair; arm 2 raises the rest,
     /// on a solid pair.
+    #[cfg(any(test, feature = "test-support"))]
     pub(crate) fn on_faces(self) -> bool {
         matches!(self, Self::CurvedWithinReach | Self::NoSoundReach)
     }
@@ -2924,7 +2926,7 @@ impl Undecided {
                 "one has no corner to test, so nothing places it. There is no way through \
                  yet for this shape; if they are not meant to meet, move them apart"
             }
-            Self::WitnessUndecided => {
+            Self::WitnessTooClose => {
                 "a corner of one lies too close to the other's boundary to place at this \
                  tolerance. Recourse: move the parts apart, or lower the tolerance"
             }
@@ -2952,7 +2954,7 @@ impl Undecided {
     pub(crate) fn of_point_in_solid(e: &crate::boolean::PointInSolidError) -> Self {
         use crate::boolean::PointInSolidError as E;
         match e {
-            E::Escalated { .. } | E::RayExhausted | E::Loop(_) => Self::WitnessUndecided,
+            E::Escalated { .. } | E::RayExhausted | E::Loop(_) => Self::WitnessTooClose,
             E::ZeroVolumeBody => Self::ZeroVolume,
             E::VolumeUncertified => Self::VolumeUncertified,
             E::KindUnsupported { .. }
