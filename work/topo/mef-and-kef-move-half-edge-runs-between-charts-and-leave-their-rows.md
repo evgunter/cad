@@ -2,13 +2,14 @@
 id: mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows
 kind: issue
 title: mef and kef move a RUN of half-edges between loops of different faces; the rows on that run keep their keys and change chart, silently where the new face mints nothing
-status: review
+status: closed
 opened: 2026-09-14
 refs: [loop-reparenting-euler-ops-leave-rows-certified-against-the-wrong-chart, half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete]
 priority: P0
 cost: H
 branch: topo/mef-kef-runs-carry-or-drop-rows
 pr: 2603
+closed: 2026-09-24
 ---
 
 Found and measured by the class sweep of
@@ -116,3 +117,22 @@ run needs a `run_rows` twin — announce on `work/trim/log.md`.
 Branch `topo/mef-kef-runs-carry-or-drop-rows`. PR title: "TOPO: mef
 and kef carry or drop the rows of the run they move". Do not close the
 item; the dual runs at review.
+
+## Closed (2026-09-24, PR 2603)
+
+`mef`'s chord surgery and `kef`'s unsplice now decide once, with
+`same_chart`, whether the run they move stays on its chart. They carry
+its rows if it does and drop them through the one predicate-free
+removal, `Body::drop_rows`, if it does not. `kef` makes that decision
+in its plan phase. Both doors are declared `Transfers`. The residues
+went to their owners' slates when they were filed:
+`work/topo/mint-face-surface-and-sense-reads-key-equality-where-same-chart-reads-provenance`,
+`work/origin/set-surface-source-stamps-a-recipe-without-checking-the-descriptions-agree`,
+`work/meta/tracker-paths-in-crate-doc-comments-rot-on-a-program-re-cut`,
+`work/trim/pcurves-docs-claim-a-recycled-slot-can-read-another-half-edges-row`,
+plus the run doors' measurements on
+`work/pcert/validate-pcurves-cannot-tell-a-never-minted-face-from-an-emptied-one`.
+The minted halves' rows remain the ruled minting unit's
+(`half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`).
+PR 2594's `drop_face_rows` folds onto `drop_rows` in PR 2594's
+merge-forward, because that PR lands second.
