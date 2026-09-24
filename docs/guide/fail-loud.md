@@ -490,19 +490,19 @@ The Python boundary refuses before a bad value ever reaches the
 kernel. Dimensions are checked by construction:
 
 ```python
-from pncad import DimensionError, Expr, LiteralError, Node, PncadError, deg, mm
+from pncad import Expr, LiteralError, Node, PncadError, QuantityOpMismatch, deg, mm
 
 try:
     25 * mm + 90 * deg
     raise AssertionError("expected a typed refusal")
-except DimensionError as err:
+except QuantityOpMismatch as err:
     assert (err.op, err.left, err.right) == ("+", "length", "angle")
 
 # A bare number is not a length either — the dimension is named.
 try:
     25 * mm + 3
     raise AssertionError("expected a typed refusal")
-except DimensionError as err:
+except QuantityOpMismatch as err:
     assert err.right == "scalar"
 
 # Non-finite values are refused where they enter, not where they explode.
@@ -514,7 +514,7 @@ except (LiteralError, TypeError) as err:
         assert err.kind == "non_finite"
 
 # Every one of these is a PncadError, so a caller can catch the family.
-assert issubclass(DimensionError, PncadError)
+assert issubclass(QuantityOpMismatch, PncadError)
 ```
 
 Export refuses in the same style. `ExportError` names the node and,

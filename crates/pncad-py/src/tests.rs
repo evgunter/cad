@@ -119,7 +119,7 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Edit => "EditError",
             ErrorClass::Evaluation(_) => "EvaluationError",
             ErrorClass::Validation(_) => "ValidationError",
-            ErrorClass::Dimension => "DimensionError",
+            ErrorClass::QuantityOp => "QuantityOpMismatch",
             ErrorClass::FmtQuantity => "FmtQuantityError",
             ErrorClass::Literal => "LiteralError",
             ErrorClass::Parse => "ParseError",
@@ -160,7 +160,7 @@ fn error_classes_name_the_python_hierarchy() {
         // `validation_refusal_tag` are what pin the reasons themselves.
         ErrorClass::Evaluation(crate::errors::EvalReason::NodeFailed),
         ErrorClass::Validation(crate::errors::ValidationRefusal::Validate),
-        ErrorClass::Dimension,
+        ErrorClass::QuantityOp,
         ErrorClass::FmtQuantity,
         ErrorClass::Literal,
         ErrorClass::Parse,
@@ -1472,7 +1472,7 @@ fn declare_error_tags_are_stable() {
 /// **Scope: the literal-construction door only.** It is one of TWO
 /// doors that reach the document layer's `DimensionError`; the other
 /// is `load`, and
-/// `the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusal`
+/// `the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal`
 /// below is its half. Read the two together — either alone is a
 /// premise that excludes the mode the other covers.
 #[test]
@@ -1741,24 +1741,19 @@ fn expression_evaluation_tags_are_stable() {
 /// hand-edited save file reaches the genuine dimension-mismatch arms
 /// with no new binding at all — six of them, executed here.
 ///
-/// Today they arrive in Python as `PersistError` with `variant ==
-/// "unreadable"` — the persistence door's one refusal for valid JSON
-/// its types reject, recourse attached — because the deserializer
-/// `Debug`-formats the structured refusal into a serde message and
-/// serde classifies that as data it could not place. That is a real
-/// misrouting and it is **issue #694**, not this crate's to fix: a
-/// dimension mismatch is not "vocabulary this build lacks", and a
-/// `format!("{err:?}")` message is not the "typed exception carrying
-/// the structured error" this crate's taxonomy promises.
+/// They arrive as `PersistError` with `variant == "dimension"` and the
+/// failing check's own tag as `inner_variant`, which is what this pins:
+/// the STRUCTURE crosses, not a sentence about it, and the word comes
+/// from `expr_dimension_error_tag` — the same map the expression text
+/// door draws `ParseError.kind` from.
 ///
-/// What this test is for is the DECISION the fix will force. When
-/// #694 gives these a typed class, this assertion goes red, and
-/// whoever changes it has to answer the question the three names make
-/// easy to get wrong: a dimension mismatch from the load path is not
-/// a `LiteralError` (nothing about it is a literal) and it is not the
-/// quantity boundary's `DimensionError` either.
+/// The class names the DOOR rather than the type, as it does at the
+/// other two: a save file's dimension mismatch is not a literal-value
+/// refusal and it is not the quantity boundary's operator check, and
+/// the branchable fact — which check refused — rides beside the stage
+/// in one vocabulary instead of being split across three.
 #[test]
-fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusal() {
+fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() {
     let tol = Tol::witness();
     use pncad::document::{
         Datum, DocEdit, Expr, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save,
@@ -1808,8 +1803,12 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusa
 
     // Every case replaces the FIRST literal in the document, so this
     // is driven by the wire SHAPE rather than by a node id.
-    let length = serde_json::json!({ "Literal": { "value": 1.0, "dim": "Length" } });
-    let angle = serde_json::json!({ "Literal": { "value": 1.0, "dim": "Angle" } });
+    // The `unit` field is REQUIRED on the wire, and a literal written
+    // without one refuses as a missing field before the rebuild runs at
+    // all — which is a refusal about the schema, not about dimensions,
+    // and would make every case below prove the wrong thing.
+    let length = serde_json::json!({ "Literal": { "value": 1.0, "dim": "Length", "unit": "m" } });
+    let angle = serde_json::json!({ "Literal": { "value": 1.0, "dim": "Angle", "unit": "rad" } });
     let cases = [
         ("mismatch", serde_json::json!({ "Add": [length, angle] })),
         (
@@ -1852,12 +1851,18 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusa
             .unwrap_or_else(|| panic!("{arm}: an ill-dimensioned save file must refuse"));
         assert_eq!(
             persist_error_tag(&err),
-            "unreadable",
-            "{arm}: the load path's dimension refusal has changed class \
-             (#694). It is neither a literal-value refusal nor the \
-             quantity boundary's operator check — decide which typed \
-             class it raises, and say so on both Python classes' docs, \
-             before updating this pin"
+            "dimension",
+            "{arm}: the load path's dimension refusal must reach the door \
+             as its own arm, not as vocabulary this build lacks"
+        );
+        let pncad::document::PersistError::Dimension { error, .. } = &err else {
+            panic!("{arm}: the tag says dimension but the arm does not: {err:?}")
+        };
+        assert_eq!(
+            expr_dimension_error_tag(error),
+            arm,
+            "{arm}: the structured refusal crosses whole, so WHICH check \
+             failed is branchable from Python"
         );
     }
 }
@@ -4689,6 +4694,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "merged_chord",
             "merged_chord_off_rim",
             "missing_upstream",
+            "seam_line_sides",
             "seam_vertex_parentage",
             "split_lineage_cycle",
             "unnamed",
@@ -4919,6 +4925,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "persist_error_tag",
         values: &[
+            "dimension",
             "display_unit",
             "distribution",
             "edit_replay",
@@ -5578,7 +5585,19 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("corrupt", 3),
     ("cosurface_escalated", 2),
     ("dangling_geometry", 2),
-    ("dimension", 2),
+    // Three, and ALL THREE are one fact: `parse_error_tag`,
+    // `persist_error_tag` and `edit_error_tag` each mean "the document
+    // layer's dimension checker refused", at the text door, the load
+    // door and the edit door, and each carries that refusal's own tag
+    // beside the word — `EditError::Dimension` holds the very same
+    // `DimensionError` the other two do
+    // (`crate::tags::edit_inner_variant_tag`). An earlier reading of
+    // this row had `edit_error_tag`'s down as a DIFFERENT question — a
+    // slot's declared dimension against the expression handed to it,
+    // which is `SlotDimensionMismatch`, a different arm — and calling
+    // them different is what made the three-door divergence in
+    // `PersistError`'s `EditReplay` projection invisible.
+    ("dimension", 3),
     ("edge", 2),
     ("empty", 2),
     ("empty_boolean", 2),
@@ -6952,6 +6971,16 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
             name: "a_quantity_operator_mismatch_carries_structure_not_prose",
             holds: "the rendered message",
         }],
+    },
+    MintingItem {
+        owner: "DIMENSION_DOORS",
+        literals: 0,
+        held_by: &[Holder::Outside(
+            "nothing: it is a `#[doc(hidden)]` anchor whose whole content is a \
+             six-row prose table, and the count that table fixes was written \
+             three ways with two different numbers before it existed, which is \
+             `work/lib/the-dimension-door-table-is-prose-nothing-re-derives.md`",
+        )],
     },
     MintingItem {
         owner: "ErrorClass::class_name",
