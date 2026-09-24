@@ -229,8 +229,11 @@ pub struct BooleanNaming {
     /// new-face column through `graft_faces` for result keys).
     pub face_fragments_b: Vec<(FaceKey, FaceKey)>,
     /// The reduction's declared-contact records BEFORE result
-    /// remapping (A rows in A-clone = result keys, B rows in B-CLONE
-    /// = operand keys): the mint-time crossing correspondences the
+    /// remapping: each row's A column in A-CLONE keys and its B column
+    /// in B-CLONE keys — the result's keys on whichever side is
+    /// `Direct`, the graft's source keys on a `Grafted` side, and keys
+    /// of no body in the result on an `Absent` side. The mint-time
+    /// crossing correspondences the
     /// naming layer reads even when one side's key was consumed
     /// (`BooleanBody::contacts` drops such rows by design).
     pub reduction_contacts: ContactRecords,
@@ -2581,12 +2584,12 @@ mod tests {
         let BooleanError::NurbsExtentUnsupported { .. } = err else {
             panic!("expected the NURBS re-gate, got {err:?}");
         };
-        // The refusal names the lift blocker, so the recourse is
-        // discoverable from the error alone.
+        // The refusal names the face kind that stopped it and ends on
+        // what the person can do; the lift blocker is the variant's
+        // rustdoc, not the sentence.
         let msg = err.to_string();
-        assert!(msg.contains("NurbsSurface::project"), "{msg}");
-        assert!(msg.contains("implicit_residual"), "{msg}");
-        assert!(msg.contains("re-gated"), "{msg}");
+        assert!(msg.contains("spline (NURBS) face"), "{msg}");
+        assert!(msg.contains("Recourse: "), "{msg}");
     }
 
     /// The D5 descendant chase, pinned at the mechanism level (M3

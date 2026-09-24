@@ -163,7 +163,7 @@ fn r1_a_hostless_rim_on_a_ringed_host_carves_under_the_recourse_that_promises_it
          {FILLET3_ASSEMBLY_RECOURSE}"
     );
     assert!(
-        FILLET3_ASSEMBLY_RECOURSE.contains("whole outer cycle"),
+        FILLET3_ASSEMBLY_RECOURSE.contains("a whole latitude rim"),
         "and conditions on the rim being that face's whole outer cycle: \
          {FILLET3_ASSEMBLY_RECOURSE}"
     );

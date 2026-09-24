@@ -17,11 +17,11 @@ use crate::fixture::{fname, wall};
 use editor_core::{NamingError, NodeErrorKind, ProfileDoc, RimShare, SitedRef};
 use geom_core::Tol;
 
-/// The sentence `NamingError::Emission` opens with, written out because
-/// what this suite is about is a reader meeting it: a refusal reached
-/// from a legal recipe must NOT read as a report that the result body
-/// is wrong.
-const BUG_FRAMING: &str = "inconsistent with the result body";
+/// The sentence every emission-bug refusal opens with, written out
+/// because what this suite is about is a reader meeting it: a refusal
+/// reached from a legal recipe must NOT read as a kernel bug report.
+const BUG_FRAMING: &str =
+    "name emission found a kernel bug — an invariant it relies on does not hold";
 
 fn volume(body: &topo::Body<f64>) -> f64 {
     topo::mass_properties(body, Tol::witness())

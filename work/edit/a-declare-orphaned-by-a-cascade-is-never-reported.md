@@ -208,7 +208,7 @@ a function of `(document, edit)` and reports what that one delete
 did. The NET over an ACTION is the CASCADE door's answer —
 `Session::commit_action` in the viewer; Python has no cascade door —
 and nothing computes it. So the cancellation is filed where that door
-lives: `work/chrome/cascade-delete-shows-the-strand-count.md` gains a
+lives: `work/offer/cascade-delete-shows-the-strand-count.md` gains a
 `## Widened (2026-09-19, PR #2874)` section saying the affordance owes
 the net of strands AND orphans over the doomed set, with the
 reviewer's one-line filter and the probe that measures it. The arm's

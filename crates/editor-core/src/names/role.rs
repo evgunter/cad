@@ -894,12 +894,27 @@ pub enum RoleSeg {
         of: NameRef,
     },
     /// A zip-minted seam entity: the crossing of an A-operand entity
-    /// and a B-operand entity (edges: face × face; vertices:
-    /// edge × face / face × edge), by their operand names.
+    /// and a B-operand entity, by their operand names. An edge is
+    /// face × face. A vertex is edge × edge, edge × face or
+    /// face × edge, face × face (every incident seam line agreeing on
+    /// one face pair), or edge × vertex / vertex × edge (the partner
+    /// read from the reduction's contact records); a pair that
+    /// crosses more than once carries a `Fragment(OrderAlong)` after
+    /// it. A seam JUNCTION — the vertex where k ≥ 2 seam lines meet
+    /// and no operand edge does — is named by the sorted run of those
+    /// lines' face × face `Seam` segments, one segment per line and
+    /// nothing after them.
+    ///
+    /// In a pair boolean's table `a` is the A side and `b` the B side.
+    /// In a UNION's published table they are not: a union has no A
+    /// and B, so its collapse puts the two sides in name order
+    /// (`emit_union::seam_line`), and `a` is only the lesser name.
     Seam {
-        /// The A-side crossing entity's name.
+        /// The A-side crossing entity's name (the lesser name, in a
+        /// union's table).
         a: NameRef,
-        /// The B-side crossing entity's name.
+        /// The B-side crossing entity's name (the greater name, in a
+        /// union's table).
         b: NameRef,
     },
     /// An F7 merged face: the sorted, FLAT set of constituent names
@@ -1313,20 +1328,21 @@ pub(crate) use name_free_seg;
 /// (`emit_union`'s `collapse`) and rebuilds its tail. Only the
 /// negative answer is common, so only the negative answer is
 /// shared, and it is shared as an or-pattern for the reason
-/// [`name_free_seg`] is: none of the three loses its exhaustiveness,
-/// so a variant added to [`RoleSeg`] and not added here still stops
-/// every one of those builds. What changes is that "the boolean
-/// emitter does not mint this" is ONE decision at one site instead of
-/// three that can be made differently.
+/// [`name_free_seg`] is: neither match loses its exhaustiveness, so a
+/// variant added to [`RoleSeg`] and not added here still stops the
+/// build. What changes is that "the boolean emitter does not mint
+/// this" is ONE decision at one site instead of two that can be made
+/// differently.
 ///
 /// The seven it leaves out are the boolean table's own vocabulary:
 /// [`RoleSeg::OutputBody`], [`RoleSeg::FromA`], [`RoleSeg::FromB`],
 /// [`RoleSeg::FromMember`], [`RoleSeg::Seam`], [`RoleSeg::Merged`]
-/// and [`RoleSeg::Fragment`]. Each of the three sites decides those
+/// and [`RoleSeg::Fragment`]. Each of the two matches decides those
 /// for itself, because that is exactly where they differ:
 /// `FromA`/`FromB` are the fold's INTERNAL space (descended through
-/// by the rewrite, denoting nothing to the routing walk), and a
-/// `Fragment` is a tail segment rather than a head one.
+/// by the rewrite), a `Seam` heads a name alone or as a junction's
+/// run of lines, and a `Fragment` is a tail segment rather than a head
+/// one.
 macro_rules! never_in_a_boolean_table {
     () => {
         $crate::names::RoleSeg::Cap(_)

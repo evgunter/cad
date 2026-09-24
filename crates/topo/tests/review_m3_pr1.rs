@@ -621,7 +621,9 @@ fn revert_on_split_body_involution_and_posture() {
     assert_eq!(validate_closed(&reverted), Ok(()));
     assert_eq!(
         validate_geometric(&reverted, Tol::witness()),
-        Err(vec![ValidationError::NegativeVolume]),
+        Err(vec![ValidationError::NegativeVolume {
+            solid: reverted.solids().next().expect("one solid").0
+        }]),
         "tier 3 on the reverted body must fail with exactly NegativeVolume"
     );
     let rvol = topo::mass_properties(&reverted, Tol::witness())

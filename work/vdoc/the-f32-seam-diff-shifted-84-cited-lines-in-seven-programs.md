@@ -55,7 +55,7 @@ whose bodies describe the tree BEFORE the fix, leaving **72** out of
 fence.
 
 - work/chrome/display-budget-rows-restate-three-private-constants.md &mdash; **2**
-- work/chrome/viewer-substituted-value-class-is-crate-wide.md &mdash; **1**
+- work/vgeom/viewer-substituted-value-class-is-crate-wide.md &mdash; **1**
 - work/vdoc/cfg-test-bare-spans-have-no-stated-disposition.md &mdash; **4**
 - work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope.md &mdash; **6**
 - work/vdoc/every-crate-root-reexport-is-a-second-path-not-the-only-one.md &mdash; **1**

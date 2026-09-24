@@ -565,20 +565,20 @@ impl From<FitError> for OffsetFitError {
 impl core::fmt::Display for OffsetFitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Meter(e) => write!(f, "fit_offset refused at a door meter: {e}"),
-            Self::PatchBound(e) => write!(f, "fit_offset: {e}"),
-            Self::Fit(e) => write!(f, "fit_offset: the interpolation stack refused: {e}"),
-            Self::Structure(e) => write!(f, "fit_offset: spline structure refused: {e}"),
+            Self::Meter(e) => write!(f, "the offset surface could not be fitted: {e}"),
+            Self::PatchBound(e) => write!(f, "{e}"),
+            Self::Fit(e) => write!(f, "the offset surface's interpolation refused: {e}"),
+            Self::Structure(e) => write!(f, "the offset surface's spline structure refused: {e}"),
             Self::InvalidRequest { d, tolerance } => write!(
                 f,
-                "fit_offset: the request is not fittable — offset distance {d} m must be \
+                "the offset request is not fittable — offset distance {d} m must be \
                  finite and non-zero, tolerance {tolerance} m finite and positive; both are \
                  this call's own arguments, so supply them from the request rather than \
                  from a derived quantity that went non-finite"
             ),
             Self::NonFiniteSample { uv } => write!(
                 f,
-                "fit_offset: the base surface evaluated to a non-finite offset point at \
+                "the base surface evaluated to a non-finite offset point at \
                  (u, v) = ({}, {}) — poison in, refusal out: the door meters admitted this \
                  sample in bound, so the base's own description is what to repair, not the \
                  offset request",
@@ -591,7 +591,7 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "fit_offset: the round budget of {budget} refinement rounds ran out on a \
+                "the offset fit's round budget of {budget} refinement rounds ran out on a \
                  {}x{} sample grid with the bound still converging — the achieved sup \
                  bound is {achieved} m against a tolerance of {tolerance} m; the lever is \
                  OFFSET_FIT_BUDGET; nothing uncertified is returned",
@@ -605,7 +605,7 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "fit_offset: the per-direction sample cap of {cap} stopped the refinement \
+                "the offset fit's per-direction sample cap of {cap} stopped the refinement \
                  loop on a {}x{} sample grid after {rounds} of {OFFSET_FIT_BUDGET} rounds — \
                  the next round's schedule would exceed the cap — with an achieved sup \
                  bound of {achieved} m against a tolerance of {tolerance} m; the lever is \
@@ -621,7 +621,7 @@ impl core::fmt::Display for OffsetFitError {
                 last_finite: None,
             } => write!(
                 f,
-                "fit_offset: the refinement loop stopped on a {}x{} sample grid after \
+                "the offset fit's refinement loop stopped on a {}x{} sample grid after \
                  {rounds} rounds without any round producing a finite sup bound, at \
                  d = {d} m against a tolerance of {tolerance} m — the certifying limb \
                  answered +∞ on every grid reached, so there is no achieved bound to \
@@ -640,7 +640,7 @@ impl core::fmt::Display for OffsetFitError {
                 last_finite: Some(b),
             } => write!(
                 f,
-                "fit_offset: the refinement loop stopped on a {}x{} sample grid after \
+                "the offset fit's refinement loop stopped on a {}x{} sample grid after \
                  {rounds} rounds with a non-finite sup bound on its last grid, at d = {d} m \
                  against a tolerance of {tolerance} m — a coarser grid reached {b} m and \
                  the finer one lost it, so the schedule is the lever and {b} m is the \
@@ -654,7 +654,7 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "fit_offset: the refinement loop STALLED on a {}x{} sample grid after \
+                "the offset fit's refinement loop STALLED on a {}x{} sample grid after \
                  {rounds} rounds — bisecting every failing cell in both directions did \
                  not lower the achieved sup bound of {achieved} m, against a tolerance \
                  of {tolerance} m, so the remaining round budget cannot reach it and \
@@ -677,7 +677,7 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "fit_offset: {} measured {bound} m against a tolerance of {tolerance} m \
+                "the offset fit's {} measured {bound} m against a tolerance of {tolerance} m \
                  — a fit handed in does not certify at the tolerance asked (an on-locus \
                  max above it is a fit wrong where the samples looked; a hull sup above it \
                  is a bound too weak between them), so re-fit through fit_offset at this \
@@ -2128,7 +2128,14 @@ impl Composite {
         let e_mig_sq = RingInterval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
             + RingInterval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
             + RingInterval::point(mig(self.e[2].cell_hull(su, sv))).sqr();
-        let e_mig_iv = RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt;
+        // The re-mint through `point` was poison-preserving only
+        // while a refused square had NaN endpoints. It does not: the
+        // refusal is asked by name and carried across by hand.
+        let e_mig_iv = if e_mig_sq.is_poison() {
+            RingInterval::poison()
+        } else {
+            RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt
+        };
         let m_sup = self.m_tilde_sup(su, sv);
         let e_proj_iv = if m_sup > 0.0 && m_sup.is_finite() {
             RingInterval::point(mig(self.dd.cell_hull(su, sv))) / (RingInterval::point(m_sup) * wt)
@@ -2150,9 +2157,15 @@ impl Composite {
     /// bound by ulps, which "certified" does not permit.
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
     fn cell_bound(&self, su: usize, sv: usize, floor: f64, d: f64) -> f64 {
+        // **Every refusal below is asked by name before its
+        // endpoint is read.** The ring's poison is its decoration, so
+        // a refused hull carries ordinary endpoints: `w_lo > 0.0` and
+        // `w_lo.is_finite()` are both TRUE of one, and so is the
+        // `hi.is_finite()` at the end. `f64::INFINITY` is the whole
+        // function's answer for anything not proved.
         let w = self.w.cell_hull(su, sv);
         let w_lo = w.lo();
-        if !(w_lo > 0.0) || !w_lo.is_finite() {
+        if w.is_poison() || !(w_lo > 0.0) || !w_lo.is_finite() {
             return f64::INFINITY;
         }
         // `w̃ = w·w_fit`, the weight `Ẽ`, `X` and the sign witness are
@@ -2160,18 +2173,20 @@ impl Composite {
         // both factors, and it is proved here rather than assumed.
         let wt = self.wt.cell_hull(su, sv);
         let wt_lo = wt.lo();
-        if !(wt_lo > 0.0) || !wt_lo.is_finite() {
+        if wt.is_poison() || !(wt_lo > 0.0) || !wt_lo.is_finite() {
             return f64::INFINITY;
         }
         // The sign witness: `sign(E·n) = sign(D)` (the denominator
         // `w·‖M̃‖` is positive), and the normal-component bound below
         // needs `E·n` to carry `d`'s sign.
         let dh = self.dd.cell_hull(su, sv);
-        if !(if d > 0.0 {
-            dh.lo() > 0.0
-        } else {
-            dh.hi() < 0.0
-        }) {
+        if dh.is_poison()
+            || !(if d > 0.0 {
+                dh.lo() > 0.0
+            } else {
+                dh.hi() < 0.0
+            })
+        {
             return f64::INFINITY;
         }
         let abs_d = RingInterval::point(d.abs());
@@ -2180,6 +2195,9 @@ impl Composite {
         // sound lower bound, and the only thing either is read for is
         // its low end — so the selection hands back that number
         // rather than the interval it came out of.
+        if e_mig_iv.is_poison() || e_proj_iv.is_poison() {
+            return f64::INFINITY;
+        }
         let e_hull_lo = e_mig_iv.lo().max(e_proj_iv.lo());
         // | ‖E‖ − |d| | = |X| / (w̃²·(‖E‖ + |d|)).
         let x_mag = RingInterval::from_bounds(0.0, self.x.cell_hull(su, sv).mag());
@@ -2201,11 +2219,17 @@ impl Composite {
         // that is larger. The three are lower bounds on the same
         // norm, so their max is one too — the same `max`, spelled the
         // same way.
+        if dist_iv.is_poison() {
+            return f64::INFINITY;
+        }
         let e_floor = e_hull_lo.max(d.abs() - dist_iv.hi());
         if !(e_floor > 0.0) {
             return f64::INFINITY;
         }
         let bound = dist_iv + tau_iv + tau_iv.sqr() / RingInterval::point(e_floor);
+        if bound.is_poison() {
+            return f64::INFINITY;
+        }
         let hi = bound.hi();
         if hi.is_finite() { hi } else { f64::INFINITY }
     }

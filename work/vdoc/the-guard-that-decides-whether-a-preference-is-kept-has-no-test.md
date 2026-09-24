@@ -4,7 +4,7 @@ kind: issue
 title: the guard and the badge that decide whether a preference is kept are unreachable from the suite, at any level
 status: open
 opened: 2026-09-10
-refs: [hover-route-for-an-absent-chooser-has-no-test, wasm-theme-choice-is-offered-and-silently-not-kept]
+refs: [hover-route-for-an-absent-chooser-has-no-test]
 priority: P4
 cost: E
 ---

@@ -9,7 +9,7 @@
 //! must say where the failure is and must NOT recite what it was —
 //! the defect that reading gives is four instance rows carrying the
 //! same paragraph of refusal prose — and the row it points at must be
-//! one this same tree badges FAILED, or "upstream failure at node 5"
+//! one this same tree badges FAILED, or "upstream failure at feature 5"
 //! sends the user somewhere there is nothing to read.
 
 // Panicking is a test's failure mechanism (workspace lint note).
@@ -63,6 +63,13 @@ fn a_failing_document_renders_failed_and_poisoned_from_the_typed_payloads() {
                 message.as_deref(),
                 Some(tree::downstream_wording(extrude).as_str()),
                 "a poisoned row POINTS at the cause's row; it does not recite it"
+            );
+            // It names that row by `tree::node_number`, the chrome's one
+            // spelling of a node's number.
+            let pointer = message.as_deref().unwrap_or_default();
+            assert!(
+                pointer.contains(&tree::node_number(extrude)),
+                "the pointer spells its row as `tree::node_number` does: {pointer}"
             );
         }
         other => panic!("expected Poisoned, got {other:?}"),
@@ -746,5 +753,58 @@ fn a_band_refusal_reaches_the_whole_document_and_blames_no_row() {
         text.contains(BAND_PROBE_DONE),
         "the child exited 0 without reaching its assertions — a filter that \
          matches nothing greens. Child output:\n{text}"
+    );
+}
+
+/// **A document whose only non-`Ok` row is POISONED is not
+/// building** — the axis `tree::has_faults` reads, and the one that
+/// is easy to collapse into [`RowStatus::tone`]'s.
+///
+/// Every other `has_faults` assertion in this tree stands on a
+/// document that also carries a `Failed` row, so dropping `Poisoned`
+/// from the fault policy — or rewriting that policy as "any
+/// actionable row", which is the natural-looking collapse — reddens
+/// nowhere but here.
+///
+/// **Which fixes the shape of the fixture.** A `Poisoned` row's
+/// `through` names a row THIS TREE badges `Failed`
+/// ([`RowStatus::Poisoned`]'s own doc), so no tree can hold a poisoned
+/// row, a healthy cause and nothing else — and a tree that did hold a
+/// `Failed` row would satisfy the policy through that row instead,
+/// which is the case already covered. The one shape that carries this
+/// claim is therefore the one the tree draws when the chain does NOT
+/// end at a failure: `Poisoned { message: None }`, which
+/// `tree::poisoned_through` mints for exactly that, reporting the
+/// broken invariant as absence rather than inventing a cause. `None`
+/// is the honest message here for the same reason: the wording
+/// `tree::downstream_wording` writes points at a row that carries the
+/// cause, and no row here does.
+#[test]
+fn a_downstream_failure_alone_is_a_fault_the_reader_cannot_act_on() {
+    use pncad::document::RecipeNodeId;
+
+    let row = |id: u64, status: RowStatus| tree::TreeRow {
+        id: RecipeNodeId(id),
+        kind: "Transform",
+        pose: None,
+        depth: 0,
+        root: false,
+        status,
+        note: None,
+        repair_at: None,
+    };
+    let rows = [
+        row(1, RowStatus::Ok),
+        row(
+            2,
+            RowStatus::Poisoned {
+                through: RecipeNodeId(1),
+                message: None,
+            },
+        ),
+    ];
+    assert!(
+        tree::has_faults(&rows),
+        "a row showing someone else's failure still says the document is not building: {rows:?}"
     );
 }

@@ -329,74 +329,99 @@ impl From<EulerOpError> for SplitReduceError {
     }
 }
 
+/// The recourse a split's escalations carry: a split takes no
+/// declarations, so its plane is the first lever.
+pub(crate) use geom_core::SPLIT_PLANE_RECOURSE as SPLIT_COINCIDENCE_RECOURSE;
+
 impl core::fmt::Display for SplitReduceError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        use geom_core::RANGE_RECOURSE;
         match self {
-            Self::Band(e) => write!(f, "split_reduce: invalid band: {e}"),
-            Self::CurvedBooleanUnsupported { face, kind } => write!(
+            Self::Band(e) => write!(f, "{e}"),
+            // Raised by the operand gate for ANY face of such a kind in
+            // the body, before the plane is consulted, so no placement
+            // of the plane is a way through. The gate also reports a
+            // face whose surface does not resolve under the spline
+            // kind, which is why that arm names both.
+            // The gate reports a face whose surface does not resolve as
+            // `Nurbs` (`classify::gate_operand`), so that arm says both
+            // things it can mean, and names the second as the corrupt
+            // body it is rather than as a feature not built yet.
+            Self::CurvedBooleanUnsupported {
+                kind: geom_brep::SurfaceKind::Nurbs,
+                ..
+            } => write!(
                 f,
-                "split_reduce: face {face:?}: {}",
-                geom_brep::intersect::route(*kind, geom_brep::SurfaceKind::Plane)
-                    .refusal(*kind, geom_brep::SurfaceKind::Plane)
+                "the body has a spline (NURBS) face, which the split cannot cut yet, or a \
+                 face with no surface, which means the body is corrupt. There is no way \
+                 through yet"
             ),
-            Self::CurvedEdgeUnsupported { edge } => write!(
+            Self::CurvedBooleanUnsupported { kind, .. } => write!(
                 f,
-                "split_reduce: edge {edge:?} has a NURBS carrier — a rung-3 carrier in \
-                 an INPUT operand. The general rung itself is implemented (SSI); this \
-                 gate has not retired, and gates retire one arm at a time"
+                "the body has {}, and the split cannot cut a body with such a face \
+                 yet. There is no way through yet",
+                match kind {
+                    geom_brep::SurfaceKind::Approx => "an approximated spline face",
+                    geom_brep::SurfaceKind::Cone => "a cone face",
+                    geom_brep::SurfaceKind::Sphere => "a sphere face",
+                    geom_brep::SurfaceKind::Torus => "a torus face",
+                    geom_brep::SurfaceKind::Plane => "a plane face",
+                    geom_brep::SurfaceKind::Cylinder => "a cylinder face",
+                    geom_brep::SurfaceKind::Nurbs => "a spline (NURBS) face",
+                }
             ),
-            Self::CrossingEscalated { edge, diag } => write!(
+            Self::CurvedEdgeUnsupported { .. } => write!(
                 f,
-                "split_reduce: the plane-crossing root on conic edge {edge:?} grazes the \
-                 edge end — an ill-conditioned operand/plane pair at this tolerance \
-                 (F6): {diag}"
+                "the body has an edge on a spline (NURBS) or spiric curve, which the split \
+                 cannot take yet. There is no way through yet"
             ),
-            Self::TangencyUnsupported { face, vertex } => write!(
+            Self::CrossingEscalated { diag, .. } => write!(
                 f,
-                "split_reduce: the split plane is tangent to curved face {face:?} at \
-                 vertex {vertex:?} — the transversality margin dies along the contact; \
-                 tangent loci are TangentIntersection (C7) territory, constructed at \
-                 M5 PR 9, never marched into"
+                "the split plane grazes the end of a curved edge ({}). Recourse: \
+                 {SPLIT_COINCIDENCE_RECOURSE}",
+                diag.payload()
+            ),
+            Self::TangencyUnsupported { .. } => write!(
+                f,
+                "the split plane is tangent to a curved face at a vertex, and a tangent \
+                 cut is not supported yet. Recourse: move the split plane off the tangency"
             ),
             Self::ScaffoldingOperand { edge } => write!(
                 f,
-                "split_reduce: operand carries null-edge scaffolding at {edge:?} (mid-surgery \
-                 body, not a splittable operand)"
+                "the body carries null-edge scaffolding at {edge:?}: a mid-surgery body, \
+                 not one a split can take"
             ),
-            Self::SliverVertex { vertex, diag } => write!(
+            Self::SliverVertex { diag, .. } => write!(
                 f,
-                "split_reduce: vertex {vertex:?} lies in the sliver band of the split plane \
-                 ({diag}); the operand/plane pair is ill-conditioned at this tolerance — \
-                 resolve by explicit repair/adoption, never by snapping"
+                "a vertex lies within tolerance of the split plane ({}). Recourse: \
+                 {SPLIT_COINCIDENCE_RECOURSE}",
+                diag.payload()
             ),
-            Self::SliverSector { vertex, face, diag } => write!(
+            Self::SliverSector { diag, .. } => write!(
                 f,
-                "split_reduce: sector classification escalated at vertex {vertex:?} \
-                 (face {face:?}): {diag}"
+                "which side of the split plane a face leaves a vertex on is too close to \
+                 call ({}). Recourse: {SPLIT_COINCIDENCE_RECOURSE}",
+                diag.payload()
             ),
-            Self::NonFiniteSectorChord { vertex, face } => write!(
+            Self::NonFiniteSectorChord { .. } => write!(
                 f,
-                "split_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has no \
-                 finite length \u{2014} its components overflow the norm, or one of them \
-                 is not a number; scale the geometry into the session's range"
+                "a chord at a vertex has no finite length (a component overflows the norm \
+                 or is not a number). Recourse: {RANGE_RECOURSE}"
             ),
-            Self::UnderflowedSectorChord { vertex, face } => write!(
+            Self::UnderflowedSectorChord { .. } => write!(
                 f,
-                "split_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has a \
-                 length that underflowed out of the format \u{2014} its components are too \
-                 small for the norm to hold, so it measures exactly zero while still \
-                 naming a direction; no tolerance reaches this, scale the geometry into \
-                 the session's range"
+                "a chord at a vertex has a length that underflows to zero. Recourse: \
+                 {RANGE_RECOURSE}"
             ),
             Self::ConsecutiveOnSectors { vertex } => write!(
                 f,
-                "split_reduce: consecutive ON entries survived rule (a) at vertex {vertex:?} \
-                 (coplanar sector escaped the gate — invariant violation)"
+                "consecutive on-plane sectors survived at vertex {vertex:?}, which the \
+                 coplanar gate rules out (kernel bug)"
             ),
             Self::CorruptOperand { vertex } => write!(
                 f,
-                "split_reduce: neighborhood of vertex {vertex:?} could not be walked \
-                 (broken orbit or lone vertex)"
+                "the neighborhood of vertex {vertex:?} could not be walked (broken orbit \
+                 or lone vertex)"
             ),
             Self::CrossingInsertion {
                 edge,
@@ -404,10 +429,10 @@ impl core::fmt::Display for SplitReduceError {
                 source,
             } => write!(
                 f,
-                "split_reduce: crossing insertion refused on edge {edge:?} (endpoints \
-                 {u:?}/{v:?} straddle the plane): {source}"
+                "inserting the plane crossing on edge {edge:?} (endpoints {u:?}/{v:?}) \
+                 refused: {source}"
             ),
-            Self::Euler(e) => write!(f, "split_reduce: euler operation refused: {e}"),
+            Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
         }
     }
 }
@@ -538,7 +563,7 @@ impl core::fmt::Display for SplitError {
             Self::Reduce(e) => write!(f, "{e}"),
             Self::Join(e) => write!(f, "{e}"),
             Self::Finish(e) => write!(f, "{e}"),
-            Self::Pcurves(e) => write!(f, "split: {e}"),
+            Self::Pcurves(e) => write!(f, "{e}"),
         }
     }
 }

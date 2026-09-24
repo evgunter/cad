@@ -516,7 +516,7 @@ BOUNDS_ALLOWLIST=(
   'crates/geom-brep/src/certify.rs 1 M7-8 2026-09-02, the lane split as a BOUND'
   'crates/topo/src/euler.rs 1 M7-8 2026-09-02, the lane split as a BOUND'
   # M9-2 PR-1, the chart-region overlap predicate.
-  'crates/topo/src/chart_region.rs 26 M9-2 PR-1, the chart-region overlap predicate'
+  'crates/topo/src/chart_region.rs 28 M9-2 PR-1, the chart-region overlap predicate; the region door value `RegionLane::certified` and its wiring row at the same bound'
   # 2026-08-29, the advisory-check registry.
   'crates/editor-core/src/checks.rs 4 2026-08-29, the advisory-check registry'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
@@ -1317,7 +1317,7 @@ plant_where_clause_near_misses() {
   {
     printf 'pub fn a<T>(_t: T) where T: CertifiedBounds {}\n'
     printf 'pub fn b<T, U>(_t: T, _u: U) where T: Decide, U: Bounds {}\n'
-    printf 'impl<T> ChartRegionLane for geom_core::Sym<T>\n'
+    printf 'impl<T> PcurveFittedLane for geom_core::Sym<T>\n'
     printf 'where\n'
     printf '    geom_core::Sym<T>: Decide,\n'
     printf '    T: geom_core::CertifiedBounds,\n'

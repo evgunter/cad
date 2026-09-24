@@ -2,11 +2,14 @@
 id: a-field-bound-to-a-written-value-shows-a-product-that-overflowed
 kind: issue
 title: Two number_field sites bind a unit-converted product, so a field shows inf for a value the document holds
-status: open
+status: closed
 opened: 2026-09-21
 priority: P1
 cost: D
 refs: [renders-that-multiply-a-finite-guarded-length-spell-the-product-inf, a-bare-field-still-commits-its-own-render]
+branch: vgeom/field-product
+pr: 3067
+closed: 2026-09-22
 ---
 
 

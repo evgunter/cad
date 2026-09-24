@@ -886,6 +886,7 @@ fn torax_the_sphere_lune_next_door_is_the_props_inventory() {
                     },
                     ..
                 },
+                ..
             }]
         ),
         "the cavity's lens face refuses at the meridian-great fit: {errors:?}"
