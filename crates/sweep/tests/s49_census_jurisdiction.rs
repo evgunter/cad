@@ -69,19 +69,7 @@ fn cylinder(z0: f64, rot: f64) -> Body<f64> {
 /// A planar-only brick: half-width `h` about the axis, `z ∈ [z0, z0 +
 /// 1]`. Every edge is a line, so every face is line-bounded.
 fn brick(z0: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        [(-h, -h), (h, -h), (h, h), (-h, h)]
-            .into_iter()
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    sweep::test_support::brick((-h, h), (-h, h), (z0, z0 + 1.0), Tol::witness())
 }
 
 /// The pair as one two-instance arena.

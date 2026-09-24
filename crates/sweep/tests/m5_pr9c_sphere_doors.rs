@@ -40,7 +40,7 @@ use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
-use topo::boolean::{PointInSolidError, SolidContainment, point_in_solid};
+use topo::boolean::{SolidContainment, point_in_solid};
 
 /// The half-disc of the `ball` acceptance: a unit semicircle from
 /// (0, −1) through (1, 0) to (0, 1), closed by the on-axis diameter.
@@ -149,13 +149,11 @@ fn sphere_pierce_reads_the_material_side_from_the_discriminant() {
 /// classifies through it instead of refusing.
 ///
 /// The row is kept, per the S9 pattern, as the record of the frontier
-/// it used to pin — and it now pins where the quarter lune DOES still
-/// stop, which is a different door entirely: a ray from outside a
-/// quarter ball can miss the body, and the at-infinity verdict then
+/// it used to pin — and it pins the door after it: a ray from outside
+/// a quarter ball can miss the body, and the at-infinity verdict then
 /// needs the body's signed volume, which the closed-form props lane
-/// will not certify for a rimless band whose meridians lie on two
-/// different great circles (that arm hardcodes the azimuthal width at
-/// π). Typed, and naming the volume rather than the chart.
+/// gives a rimless band whose meridians lie on two different great
+/// circles (the wedge arm). Both sides of the quarter ball answer.
 #[test]
 fn a_trimmed_sphere_face_is_classified_through_its_chart_rectangle() {
     let vp = validated(vec![half_disc()]);
@@ -172,15 +170,13 @@ fn a_trimmed_sphere_face_is_classified_through_its_chart_rectangle() {
         point_in_solid(&t.body, Point3::new(0.3, 0.1, -0.3), band(), Tol::witness()).unwrap(),
         SolidContainment::In
     );
-    // The at-infinity side, where the props lane stops.
-    let err =
-        point_in_solid(&t.body, Point3::new(-0.3, 0.1, 0.3), band(), Tol::witness()).unwrap_err();
-    let PointInSolidError::VolumeUncertified = err else {
-        panic!("expected the at-infinity volume refusal, got {err:?}");
-    };
-    let msg = err.to_string();
-    assert!(msg.contains("HEALTHY"), "{msg}");
-    assert!(msg.contains("Recourse"), "{msg}");
+    // The at-infinity side: a ray from here can miss the quarter ball,
+    // and the verdict is then read off the body's signed volume, which
+    // the props lane certifies for the lune (the wedge arm).
+    assert_eq!(
+        point_in_solid(&t.body, Point3::new(-0.3, 0.1, 0.3), band(), Tol::witness()).unwrap(),
+        SolidContainment::Out
+    );
 }
 
 /// The construction rows for the two frontiers this unit EXECUTED and
@@ -240,7 +236,9 @@ fn curved_revert_reverts_the_ball_instead_of_refusing() {
     assert_eq!(topo::validate_closed(&rev), Ok(()));
     assert_eq!(
         topo::validate_geometric(&rev, Tol::witness()),
-        Err(vec![topo::ValidationError::NegativeVolume])
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: rev.solids().next().expect("one solid").0
+        }])
     );
     assert_eq!(
         topo::mass_properties(&rev, Tol::witness())
@@ -297,7 +295,10 @@ fn the_die_pips_shape_now_stops_typed_at_its_own_tangency() {
     let msg = err.to_string();
     assert!(!msg.contains("no representation"), "{msg}");
     assert!(!msg.contains("no seam lane"), "{msg}");
-    assert!(msg.contains("refused typed"), "{msg}");
+    assert!(
+        msg.contains("cannot be sure whether one lies inside the other"),
+        "{msg}"
+    );
 }
 
 /// NOTE row (PR 9c review, F4): the TANGENT ray. A schedule direction

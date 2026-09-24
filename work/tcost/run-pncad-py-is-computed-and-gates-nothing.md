@@ -4,6 +4,8 @@ kind: issue
 title: RUN_PNCAD_PY survives the axis it keyed: computed on every run, read by no job
 status: open
 opened: 2026-09-12
+priority: P4
+cost: E
 ---
 
 

@@ -2,8 +2,11 @@
 id: affine3-try-map-the-fallible-walk-has-no-kernel-door
 kind: issue
 title: Affine3::try_map: the fallible per-coordinate walk over an Affine3 has no kernel door, so editor-core keeps a private one
-status: open
+status: closed
+closed: 2026-09-16
 opened: 2026-09-08
+pr: 2743
+branch: props/affine-try-map
 ---
 
 The per-coordinate walk over an `Affine3` — twelve components through
@@ -76,3 +79,30 @@ folded in rather than filed thrice:
   `anchor.rs`'s `embed_profile`, `sweep/src/loft.rs:242`,`:276`) says
   which it chose or why. Either the door decides, or the choice is a
   typed argument.
+
+## Closed
+
+Landed on PR #2743 (run 35078417437 green on the fix head). The kernel
+owns the fallible per-coordinate walk now: `Vec3::try_map`,
+`Mat3::try_map`, `Affine3::try_map`, with `SketchPlane::try_map` over
+them in `profile`. First refusal returned, no arithmetic, columns and
+translation in their places.
+
+The open call this item left to PROPS — whether `map` keeps its own
+body or becomes `try_map` over `Infallible` — went the second way, for
+the item's own reason: two bodies would have moved the walk from two
+copies with two owners to two copies with one owner, which is the same
+defect smaller. Bit identity is therefore not pinned by `map` against
+`try_map`, which is now a tautology, but by measuring EACH against a
+hand-written third spelling that neither calls, over a corpus carrying
+signed zeros, the largest subnormal, the infinities and a NaN.
+
+The suite is what this unit should be remembered for. A transposed
+column reds eleven rows; removing the short-circuit reds exactly one,
+which is the sharpest evidence available that the rows are independent.
+The lane's own lifting row first read the walk's output back THROUGH
+the walk, so a column swap was re-applied by the readout and cancelled
+— it passed under the mutation it was named for. The lane found that
+itself, fixed it to read through an independent spelling, and wrote the
+lesson into the row; the review lane reproduced the near-miss in both
+directions.

@@ -116,6 +116,22 @@ impl Fnv {
                 self.s(*minor);
                 self.v3(u_ref);
             }
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => {
+                self.u64(44);
+                self.p3(center);
+                self.v3(axis);
+                self.v3(u_ref);
+                self.s(*major_radius);
+                self.s(*minor_radius);
+                self.s(*offset);
+            }
             Curve3::Nurbs(n) => {
                 self.u64(43);
                 self.u64(n.control().len() as u64);
@@ -270,11 +286,11 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                         d.u64(12);
                         d.p3(position);
                     }
-                    ValuePayload::Datum(DatumValue::Frame { origin, u, v }) => {
+                    ValuePayload::Datum(DatumValue::Frame(f)) => {
                         d.u64(23);
-                        d.p3(origin);
-                        d.v3(&u.get());
-                        d.v3(&v.get());
+                        d.p3(&f.origin());
+                        d.v3(&f.u().get());
+                        d.v3(&f.v().get());
                     }
                     // Tag 24, appended: both spellings of an in-plane
                     // axis, so a drift in the numbers a revolve

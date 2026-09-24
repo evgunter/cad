@@ -5,53 +5,31 @@
 //! are watertight, volume-sane, deterministic, and inside the δ + ε
 //! promise BY MEASUREMENT.
 //!
-//! The elbow is `sweep::test_support`'s corpus body, shared with the
-//! suite that brackets its volume and with the STEP fixture; the
-//! prism is still the #212 fixture's construction, constant for
-//! constant (`step-export`'s `loft_prism`). Between them they carry
-//! the degree-1×2 and 1×3 wall classes the lane was promoted for.
+//! Both bodies are `sweep::test_support`'s: the elbow, shared with the
+//! suite that brackets its volume and with the STEP fixture, and the
+//! `loft_prism` the STEP corpus and the editor's corpus document are
+//! also built from — so this suite meters the same solid they do
+//! rather than a restatement of it. Between them they carry the
+//! degree-1×2 and 1×3 wall classes the lane was promoted for.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::FRAC_PI_2;
 
 use geom::Surface;
-use geom_core::{Affine3, Vec3};
 use mesh::cert::dist_point_triangle;
 use mesh::validate::{check_mesh, signed_volume, triangle_count};
-use sweep::loft_body;
 // The `swept_elbow` corpus body (#212 / #210) — a 0.5 m square carried
 // through a 90° arc of radius 3 at nine stations, v-degree 3, so walls
 // of degree 1×3 — is `sweep::test_support`'s, shared with the suite
 // that derives its Pappus bracket and with the STEP fixture.
-use sweep::test_support::{ELBOW_H, ELBOW_R, swept_elbow};
-use topo::Body;
-
 use crate::common;
-use common::quad;
 use geom_core::Tol;
-
-/// The `loft_prism` corpus body (#212): squares at z = 0 and 2, the
-/// non-affine trapezoid at z = 1, v-degree 2 — walls degree 1×2,
-/// derived V = 9 m³ exactly (`sweep/tests/m6_loft_body.rs`).
-fn loft_prism() -> Body<f64> {
-    let sections = vec![
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-        quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
-    ];
-    let places: Vec<Affine3<f64>> = [0.0, 1.0, 2.0]
-        .iter()
-        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect();
-    loft_body::<f64>(&sections, &places, 2, Tol::witness())
-        .expect("shape (iii) loft builds")
-        .body
-}
+use sweep::test_support::{ELBOW_H, ELBOW_R, loft_prism, swept_elbow};
 
 #[test]
 fn loft_prism_tessellates_watertight_and_volume_sane() {
-    let body = loft_prism();
+    let body = loft_prism(Tol::witness());
     let mesh =
         mesh::tessellate(&body, 6e-3, Tol::witness()).expect("the NURBS-walled loft tessellates");
     check_mesh(&mesh).expect("watertight, manifold, outward");
@@ -86,7 +64,7 @@ fn swept_elbow_tessellates_watertight_and_volume_sane() {
 /// and the certified bound dominating the measurement both times.
 #[test]
 fn delta_pair_measured_deviation_is_dominated_by_the_promise() {
-    let body = loft_prism();
+    let body = loft_prism(Tol::witness());
     let eps = common::eps();
     let coarse = 3e-2;
     let fine = 6e-3;

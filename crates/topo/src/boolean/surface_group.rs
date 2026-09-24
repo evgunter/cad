@@ -122,12 +122,7 @@ pub(super) fn surface_group<T: Decide>(
                     continue;
                 }
             }
-            let Some(neighbour) = body
-                .mate(he)
-                .and_then(|m| body.get_half_edge(m))
-                .and_then(|h| body.get_loop(h.parent_loop))
-                .map(|l| l.face)
-            else {
+            let Some(neighbour) = body.mate(he).and_then(|m| body.face_of_half_edge(m)) else {
                 return Err(member);
             };
             if !members.contains(&neighbour) {

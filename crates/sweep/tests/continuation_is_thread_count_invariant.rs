@@ -55,10 +55,11 @@
 //! reading still refuses, which is the coarse arc loft.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::{arc_section, on_pool, quad, quad_verdicts, quintic_prism, stacked};
+use crate::common::{arc_section, on_pool, quad_verdicts, quintic_prism, stacked};
 use geom_core::sym::{SymBudget, SymCounts, with_session};
 use geom_core::{Sym, Tol};
 use sweep::loft_body;
+use sweep::test_support::loft_prism;
 use topo::Body;
 
 fn arc_loft(s: f64) -> Body<f64> {
@@ -72,30 +73,16 @@ fn arc_loft(s: f64) -> Body<f64> {
     .body
 }
 
-/// `loft_prism`, rebuilt from the corpus document's own sections
-/// (`editor-core/tests/corpus/loft_prism.rs`). Polyline sections, so
-/// the walls are described splines on the quadrature lane.
-fn loft_prism() -> Body<f64> {
-    let sq = quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
-    let d = 0.375;
-    let tr = quad([(-1.0 - d, -1.0), (1.0 + d, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
-    loft_body::<f64>(
-        &[sq.clone(), tr, sq],
-        &stacked(&[0.0, 1.0, 2.0], 1.0),
-        2,
-        Tol::witness(),
-    )
-    .expect("the prism lofts")
-    .body
-}
-
 fn roster() -> Vec<(String, Body<f64>)> {
     let eps = Tol::witness().get().eps;
     let mut out: Vec<(String, Body<f64>)> = [1.0e11, 1.0e9]
         .iter()
         .map(|k| (format!("arc_loft_{k:e}eps"), arc_loft(k * eps)))
         .collect();
-    out.push(("loft_prism".to_string(), loft_prism()));
+    // Polyline sections, so `loft_prism`'s walls are described splines
+    // on the quadrature lane — the lane whose continuation this row is
+    // about, and the one the arc lofts above do not reach.
+    out.push(("loft_prism".to_string(), loft_prism(Tol::witness())));
     out.push(("quintic_prism".to_string(), quintic_prism()));
     out
 }

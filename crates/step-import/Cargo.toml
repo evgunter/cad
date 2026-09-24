@@ -54,6 +54,11 @@ step-export = { path = "../step-export" }
 # against the source body's. Dev-only, same posture as step-export
 # above.
 sweep = { path = "../sweep" }
+# `test-support` ON: this crate's suites census a body through
+# `topo::test_support::arena_counts`, the kernel's ONE producer of
+# arena lengths, rather than re-walking the arenas beside it. Dev-only,
+# so no shipped build reaches the facade.
+topo = { path = "../topo", features = ["test-support"] }
 # review-probe only
 # `test-support` ON for the `profile::RawLoop` fixture door (that
 # trait's docs carry the argument); dev-only, so no shipped build of

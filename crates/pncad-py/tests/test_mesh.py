@@ -367,9 +367,38 @@ class TestStlExport(unittest.TestCase):
         self.assertEqual(declared, self.mesh.triangle_count)
         self.assertTrue(data[:80].startswith(b"pncad, exported from Python"))
 
-    def test_both_writers_have_a_default(self):
-        self.assertTrue(self.mesh.to_stl_ascii().startswith("solid "))
-        self.assertEqual(len(self.mesh.to_stl_binary()[:80]), 80)
+    def test_both_writers_default_to_the_kernels_own_options(self):
+        """An omitted keyword IS the Rust default — the same file a
+        Rust caller writing no options gets.
+
+        Pinned the way `TestStepExport.test_the_defaults_are_the_rust_defaults`
+        pins `step_string`'s: the no-argument call must equal the call
+        that states the kernel's own value. Naming the two constants is
+        what makes this an assertion about FORWARDING rather than about
+        emptiness — a door that forwarded some other name would pass a
+        "not empty" check and fails this one. They are the kernel's
+        `SolidName::default()` and `BinaryHeader::default()`; if either
+        moves, this test reds and is re-baselined with it.
+
+        The emptiness rows stay underneath because they are the
+        specific regression: both doors defaulted their keyword to
+        `""`, so `solid <name>` came back a bare `solid ` and the
+        header field 80 zero bytes."""
+        self.assertEqual(
+            self.mesh.to_stl_ascii(), self.mesh.to_stl_ascii(solid_name="part")
+        )
+        self.assertEqual(
+            self.mesh.to_stl_binary(),
+            self.mesh.to_stl_binary(
+                header="binary STL; CAD kernel tessellation export"
+            ),
+        )
+        first_line = self.mesh.to_stl_ascii().splitlines()[0]
+        self.assertTrue(first_line.startswith("solid "))
+        self.assertNotEqual(first_line, "solid ")
+        self.assertEqual(self.mesh.to_stl_ascii().count("facet normal"),
+                         self.mesh.triangle_count)
+        self.assertNotEqual(self.mesh.to_stl_binary()[:80], b"\x00" * 80)
 
     def test_an_unwritable_solid_name_refuses_at_the_call(self):
         """Validated, not sanitized: a newline would make

@@ -2,11 +2,13 @@
 id: EXCH-H1
 kind: unit
 title: degree-1 line promotion and the ExtrudedPoint rung in nurbs_iso_derive
-status: spec
+status: closed
 opened: 2026-09-03
 branch: exch/h1-degree-one-line
 parent: step-import-degree-one-line-promotion
 refs: [388, 389]
+closed: 2026-09-17
+pr: 1798
 ---
 
 The two halves of `step-import-degree-one-line-promotion`, landed

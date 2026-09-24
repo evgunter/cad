@@ -37,7 +37,10 @@ fn band() -> Band {
 
 /// A unit cube body translated by `(dx, dy, dz)`.
 fn cube_at(dx: f64, dy: f64, dz: f64) -> Body<f64> {
-    common::mapped_cube(|x, y, z| Point3::new(x + dx, y + dy, z + dz))
+    common::mapped_cube(
+        |x, y, z| Point3::new(x + dx, y + dy, z + dz),
+        Tol::witness(),
+    )
 }
 
 /// Grafts `b`'s solid into `a` (two instances in one arena).
@@ -399,7 +402,10 @@ fn r1_probe_tangent_locus_gap_row_is_scale_covariant() {
 /// STALE — the assembly must never validate through the bridge.
 #[test]
 fn r1_delta_probe_bridged_nested_pair_stays_loud() {
-    let outer = common::mapped_cube(|x, y, z| Point3::new(4.0 * x, 4.0 * y, 4.0 * z));
+    let outer = common::mapped_cube(
+        |x, y, z| Point3::new(4.0 * x, 4.0 * y, 4.0 * z),
+        Tol::witness(),
+    );
     let inner = cube_at(1.5, 1.5, 1.5);
     let body = assembly(&outer, &inner);
     // Bridge the solids with a bogus record: one vertex of each cube.

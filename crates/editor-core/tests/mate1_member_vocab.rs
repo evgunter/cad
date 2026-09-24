@@ -16,71 +16,18 @@
 
 use crate::fixture;
 
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit, DocRef,
-    DocumentId, EntityKind, EvalOptions, Evaluation, Expr, Frame, MateFrame, MatePrimitive,
-    MateRole, Node, PartResolver, PatternKind, ProfileDoc, RecipeNodeId, ResolveFailure,
-    ResolveFault, RoleSeg, SitedRef, StableName, assemble, clusters, content_pin, evaluate,
-    solve_document,
+    Alignment, AssemblyError, AxisSense, CapEnd, ContactClass, DocEdit, DocumentId, EntityKind,
+    Expr, Frame, MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, RecipeNodeId,
+    RoleSeg, StableName, assemble, clusters,
 };
-use fixture::{insert, len, on_frame, relations, scl, step};
+use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
+use fixture::{door_refusal, in_copy, insert, len, on_frame, relations, run, scl, solve, step};
 use geom_core::Tol;
 
-// ---- Substrate (the stub resolver, as in the sibling suites) ----
-
-#[derive(Debug, Default)]
-struct StubStore {
-    docs: BTreeMap<DocumentId, ProfileDoc>,
-}
-
-impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
-        let pin = content_pin(&doc, tol).expect("the pin computes");
-        let id = doc.id();
-        self.docs.insert(id, doc);
-        DocRef { id, pin }
-    }
-}
-
-impl PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
-        let fail = |fault, message: &str| ResolveFailure {
-            fault,
-            message: message.to_string(),
-        };
-        let doc = self
-            .docs
-            .get(&doc_ref.id)
-            .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        let found = content_pin(doc, Tol::witness()).expect("the pin computes");
-        if found != doc_ref.pin {
-            return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
-        }
-        Ok(doc.clone())
-    }
-}
-
-fn opts(store: StubStore) -> EvalOptions {
-    EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    }
-}
-
-fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
-}
+// ---- Substrate (the shared resolver, `fixture::resolver`) ----
 
 // ---- Documents ----
-
-/// An axis-aligned block part: `[x]×[y]` at `z0`, extruded `dz`. Its
-/// extrude is [`PART_BODY`], so the part's caps name through it.
-/// The extrude in a one-block part document. A block is three nodes
-/// — the sketch frame, the profile drawn on it, then the extrude.
-const PART_BODY: RecipeNodeId = RecipeNodeId(2);
 
 fn block_part(label: &str, x: (f64, f64), y: (f64, f64), z0: f64, dz: f64) -> ProfileDoc {
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -106,37 +53,6 @@ fn leg_part(label: &str) -> ProfileDoc {
     block_part(label, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0)
 }
 
-/// A face of `instance`'s part product, named through the instance
-/// qualifier — the plain member spelling.
-fn in_part(instance: RecipeNodeId, cap: CapEnd) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: instance,
-        path: vec![RoleSeg::InPart {
-            of: StableName {
-                kind: EntityKind::Face,
-                node: PART_BODY,
-                path: vec![RoleSeg::Cap(cap)],
-            }
-            .into(),
-        }],
-    }
-}
-
-/// A face of pattern copy `i` — the `Instance(i)` spelling the rider
-/// makes canonical: the PATTERN node as head, the master's own name
-/// under the qualifier.
-fn in_copy(pattern: RecipeNodeId, i: u32, master: StableName) -> StableName {
-    StableName {
-        kind: EntityKind::Face,
-        node: pattern,
-        path: vec![RoleSeg::Instance {
-            i,
-            of: master.into(),
-        }],
-    }
-}
-
 fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
     MateFrame {
         origin,
@@ -155,8 +71,8 @@ fn seat_mate(
     sense: AxisSense,
 ) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
-        a: SitedRef::at_mint(a),
-        b: SitedRef::at_mint(b),
+        a: crate::fixture::head(a),
+        b: crate::fixture::head(b),
         class: ContactClass::Rest,
         alignment: Alignment {
             a: frame(origin, [0.0, 0.0, 1.0]),
@@ -184,9 +100,9 @@ fn four_legs(
     RecipeNodeId,
     RecipeNodeId,
     RecipeNodeId,
-    StubStore,
+    PartStore,
 ) {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part(&format!("{label}-leg")), Tol::witness());
     let top_ref = store.insert(top_part, Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
@@ -254,7 +170,8 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
         "the mate joins the top into the pattern's cluster; the gauge is the leg (document-first)"
     );
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "the mate solves — no fault");
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
     assert_eq!(poses.gauge(top), Some(leg));
@@ -279,7 +196,7 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
     );
 
     // End to end: the evaluation runs the same solve; no node refuses.
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &o);
     assert!(
         matches!(ev.result(mate), Some(editor_core::NodeResult::Ok(_))),
         "the mate evaluates: {:?}",
@@ -298,7 +215,7 @@ fn a_mate_to_a_pattern_copy_places_the_other_member_at_the_derived_pose() {
 /// own step angle.
 #[test]
 fn a_circular_pattern_copy_rotates_the_solved_member() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("mate1-circ-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("mate1-circ-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-circ"), Tol::witness());
@@ -337,7 +254,8 @@ fn a_circular_pattern_copy_rotates_the_solved_member() {
     );
     let mate = mate.expect("the mate mints");
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(mate), None, "the mate solves — no fault");
 
     // Hand-composed from θ alone: copy 1 is the master rotated θ about
@@ -378,8 +296,8 @@ fn two_seats(
     label: &str,
     spacing: f64,
     top_x: (f64, f64),
-) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], StubStore) {
-    let mut store = StubStore::default();
+) -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2], PartStore) {
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part(&format!("{label}-leg")), Tol::witness());
     let top_ref = store.insert(
         block_part(&format!("{label}-top"), top_x, (0.0, 1.0), 0.0, 0.5),
@@ -437,7 +355,8 @@ fn two_seats(
 #[test]
 fn a_consistent_sibling_loop_declares_and_verifies() {
     let (doc, _, [m0, m1], store) = two_seats("mate1-loop-ok", 1.5, (0.0, 2.5));
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(m0), None);
     assert_eq!(poses.fault(m1), None);
     assert_eq!(
@@ -451,7 +370,7 @@ fn a_consistent_sibling_loop_declares_and_verifies() {
         "the sibling seat closes a loop: non-tree, declaring"
     );
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &o);
     let result = assemble(&doc, &ev, Tol::witness());
     // The branch this fixture takes is `Ok` with both declarations
     // minted — asserted hard, so the row reds if loop verification
@@ -476,7 +395,8 @@ fn a_consistent_sibling_loop_declares_and_verifies() {
 #[test]
 fn an_inconsistent_sibling_loop_dies_at_the_closing_mates_verification() {
     let (doc, _, [m0, m1], store) = two_seats("mate1-loop-bad", 4.0, (0.0, 2.5));
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(
         poses.fault(m1),
         None,
@@ -484,7 +404,7 @@ fn an_inconsistent_sibling_loop_dies_at_the_closing_mates_verification() {
     );
     assert_eq!(poses.role(m1), Some(MateRole::Declaring));
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &o);
     let result = assemble(&doc, &ev, Tol::witness());
     let Err(AssemblyError::AtRest { findings }) = &result else {
         panic!("an inconsistent loop is a finding against the document, got {result:?}");
@@ -513,11 +433,11 @@ fn an_inconsistent_sibling_loop_dies_at_the_closing_mates_verification() {
 #[test]
 fn mates_never_solve_pattern_parameters() {
     let (doc, pattern, [m0, m1], store) = two_seats("mate1-pin-spacing", 3.0, (0.0, 2.5));
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(poses.fault(m0), None);
     assert_eq!(poses.fault(m1), None);
 
-    let o = opts(store);
     let ev = run(&doc, &o);
     let result = assemble(&doc, &ev, Tol::witness());
     let Err(AssemblyError::AtRest { findings }) = &result else {
@@ -572,7 +492,7 @@ fn mates_never_solve_pattern_parameters() {
 /// left factor OUTSIDE the fold, so it cannot absorb the clash.
 #[test]
 fn conflicting_mates_on_one_copy_refuse_contradictory() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("mate1-contra-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("mate1-contra-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-contra"), Tol::witness());
@@ -612,7 +532,8 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
     let m0 = m0.expect("mate 0 mints");
     let m1 = m1.expect("mate 1 mints");
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     let fault = poses.fault(m0).expect("the pair's fold refuses");
     assert!(
         matches!(
@@ -636,7 +557,7 @@ fn conflicting_mates_on_one_copy_refuse_contradictory() {
 /// that vanished — the leg's face is there, under the pattern's row.
 #[test]
 fn the_master_name_spelling_refuses_read_below_a_root() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("mate1-pin-master-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("mate1-pin-master-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-pin-master"), Tol::witness());
@@ -667,16 +588,21 @@ fn the_master_name_spelling_refuses_read_below_a_root() {
     );
     let mate = mate.expect("the mate mints");
 
-    let ev = run(&doc, &opts(store));
+    let ev = run(&doc, &with_resolver(store));
     let result = assemble(&doc, &ev, Tol::witness());
-    let Err(AssemblyError::Reference {
-        mate: named,
-        side,
-        why,
-        ..
-    }) = &result
-    else {
+    let Err(AssemblyError::Mint { refusals }) = &result else {
         panic!("the master-name seat refuses at the gate, got {result:?}");
+    };
+    let [
+        editor_core::MintRefusal::Reference {
+            mate: named,
+            side,
+            why,
+            ..
+        },
+    ] = refusals.as_slice()
+    else {
+        panic!("one mate refused, so one row: {refusals:?}");
     };
     assert_eq!(*named, mate);
     assert_eq!(*side, editor_core::MateSide::A);
@@ -696,7 +622,7 @@ fn the_master_name_spelling_refuses_read_below_a_root() {
 /// vocabulary head does.
 #[test]
 fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("mate1-fence-leg"), Tol::witness());
     let top_ref = store.insert(leg_part("mate1-fence-top"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-fence"), Tol::witness());
@@ -713,25 +639,23 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         },
     );
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
-    // Copy 5 of a count-2 pattern: no such member.
-    let (doc, stale) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: seat_mate(
-                in_copy(pattern, 5, in_part(leg, CapEnd::End)),
-                in_part(top, CapEnd::Start),
-                [0.0, 0.0, 1.0],
-                AxisSense::Aligned,
-            ),
-        },
+    // Copy 5 of a count-2 pattern: no such member. A head that
+    // resolves to no member is a fact about the mate alone, so the
+    // edit door refuses it where it is authored, with the solve's own
+    // fault: the walk's, naming the pattern.
+    let fault = door_refusal(
+        &doc,
+        seat_mate(
+            in_copy(pattern, 5, in_part(leg, CapEnd::End)),
+            in_part(top, CapEnd::Start),
+            [0.0, 0.0, 1.0],
+            AxisSense::Aligned,
+        ),
     );
-    let stale = stale.expect("the mate mints");
-    let poses = solve_document(&doc, Tol::witness());
-    let fault = poses.fault(stale).expect("an out-of-range copy refuses");
     assert!(
         matches!(
             fault,
-            editor_core::MateFault::DanglingHead { head, .. } if *head == pattern
+            editor_core::MateFault::DanglingHead { head, .. } if head == pattern
         ),
         "a copy index past the count is a dangling head at the pattern: {fault:?}"
     );
@@ -752,7 +676,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
             },
         },
     );
-    let mut store2 = StubStore::default();
+    let mut store2 = PartStore::default();
     let other_ref = store2.insert(leg_part("mate1-fence-other"), Tol::witness());
     let (doc2, other) = insert(doc2, Node::instantiate_part(other_ref));
     let master_face = StableName {
@@ -760,30 +684,26 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
         node: extrude,
         path: vec![RoleSeg::Cap(CapEnd::End)],
     };
-    let (doc2, m) = step(
-        doc2,
-        DocEdit::InsertNode {
-            node: seat_mate(
-                in_copy(body_pattern, 0, master_face),
-                in_part(other, CapEnd::Start),
-                [0.0, 0.0, 1.0],
-                AxisSense::Aligned,
-            ),
-        },
+    let fault2 = door_refusal(
+        &doc2,
+        seat_mate(
+            in_copy(body_pattern, 0, master_face),
+            in_part(other, CapEnd::Start),
+            [0.0, 0.0, 1.0],
+            AxisSense::Aligned,
+        ),
     );
-    let m = m.expect("the mate mints");
-    let poses2 = solve_document(&doc2, Tol::witness());
-    let fault2 = poses2.fault(m).expect("a patterned non-instance refuses");
     assert!(
         matches!(
             fault2,
             // The node the walk STOPPED at: it gets through the
             // pattern's copy qualifier and stops on the body the
             // pattern replicates, which is no member.
-            editor_core::MateFault::DanglingHead { head, .. } if *head == extrude
+            editor_core::MateFault::DanglingHead { head, .. } if head == extrude
         ),
         "a pattern of a non-instance stands no member: {fault2:?}"
     );
+    let _ = store2;
 }
 
 /// INVARIANT: two DISTINCT copies of one pattern are a pair like any
@@ -792,7 +712,7 @@ fn out_of_vocabulary_pattern_heads_still_refuse_dangling() {
 /// BOTH sides is still the self-mate refusal.
 #[test]
 fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
-    let mut store = StubStore::default();
+    let mut store = PartStore::default();
     let leg_ref = store.insert(leg_part("mate1-selfpair-leg"), Tol::witness());
     let doc = ProfileDoc::empty(DocumentId::derive("mate1-selfpair"), Tol::witness());
     let (doc, leg) = insert(doc, Node::instantiate_part(leg_ref));
@@ -821,33 +741,32 @@ fn sibling_copies_declare_and_one_copy_twice_is_a_self_mate() {
         },
     );
     let declared = declared.expect("the mate mints");
-    let (doc, selfish) = step(
-        doc,
-        DocEdit::InsertNode {
-            node: seat_mate(
-                in_copy(pattern, 2, in_part(leg, CapEnd::End)),
-                in_copy(pattern, 2, in_part(leg, CapEnd::End)),
-                [0.0, 0.0, 1.0],
-                AxisSense::Aligned,
-            ),
-        },
+    // One copy on both sides: the self-mate refusal, a fact about the
+    // mate alone, met at the edit door with the solve's own fault.
+    let fault = door_refusal(
+        &doc,
+        seat_mate(
+            in_copy(pattern, 2, in_part(leg, CapEnd::End)),
+            in_copy(pattern, 2, in_part(leg, CapEnd::End)),
+            [0.0, 0.0, 1.0],
+            AxisSense::Aligned,
+        ),
     );
-    let selfish = selfish.expect("the mate mints");
+    assert!(
+        matches!(
+            fault,
+            editor_core::MateFault::SelfMate { instance, .. } if instance == leg
+        ),
+        "one member on both sides is the self-mate refusal: {fault:?}"
+    );
 
-    let poses = solve_document(&doc, Tol::witness());
+    let o = with_resolver(store);
+    let poses = solve(&doc, &o, Tol::witness());
     assert_eq!(
         poses.role(declared),
         Some(MateRole::Declaring),
         "sibling copies of one pattern declare — never a tree edge"
     );
     assert_eq!(poses.fault(declared), None);
-    let fault = poses.fault(selfish).expect("one copy twice refuses");
-    assert!(
-        matches!(
-            fault,
-            editor_core::MateFault::SelfMate { instance, .. } if *instance == leg
-        ),
-        "one member on both sides is the self-mate refusal: {fault:?}"
-    );
     let _ = store;
 }

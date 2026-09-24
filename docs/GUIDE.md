@@ -4,12 +4,6 @@
 questions, and export them. It is a library first — everything below
 runs headless, from Rust or from Python, with no GUI in the loop.
 
-One honest note before anything else: **`pncad` is a placeholder
-name.** The project has not been named yet (design question Q9). The
-crate, the Python module, and the prose all say `pncad` today, and
-all of it will be renamed together when the real name is chosen. The
-placeholder is deliberately greppable.
-
 What makes this kernel different from a modelling toolkit you may
 have used before is that **it refuses**. When two faces coincide and
 you have not said they coincide, when a fillet has no corner to sit
@@ -36,8 +30,11 @@ the *document* layer — nodes, edits, evaluation — rather than
 wrapping the Rust authoring calls one for one. Section 2.8 shows why
 that is a deliberate design choice and not a shortfall.
 
-Nothing is published to crates.io or PyPI yet — the project is
-unnamed, so there is nothing to publish under. Build from source.
+Nothing is published to crates.io or PyPI yet, because the project
+has no name to publish under: **`pncad` is a placeholder** (design
+question Q9). The crate, the Python module and the prose all say
+`pncad` today and will be renamed together when the real name is
+chosen; the placeholder is deliberately greppable. Build from source.
 
 ### 1.2 Rust: build, and a first model in a dozen lines
 
@@ -157,17 +154,13 @@ stores the canonical row because there is no notation to keep.
 
 - Section 2 is the canonical journey, end to end, in both languages.
 - Section 3 is parametric modelling — the document layer proper.
-- The corpus index (`docs/guide/examples.md`) maps every worked
-  example in the repo to what it demonstrates.
-- The fail-loud tour (`docs/guide/fail-loud.md`) is the refusal
-  vocabulary, layer by layer.
-- Selecting entities (`docs/guide/selecting.md`) is how you name a
-  face or an edge so a later step can refer to it.
-- Assemblies (`docs/guide/assembly.md`) is the step past one
-  document: a workspace of parts, instances of them, mates, and the
-  gate that says the result is valid at rest.
-- The north-star audit (`docs/guide/north-star-audit.md`) says
-  exactly which demos Python can author today.
+- Section 4 indexes the companion pages — the worked-example corpus,
+  the refusal vocabulary, selecting entities, meshing, assemblies —
+  and is the only list of them, so that it cannot drift from a second
+  copy up here.
+
+If you are here because something already refused and you want to read
+the error rather than the journey, skip to `docs/guide/fail-loud.md`.
 
 ## 2. The canonical journey
 
@@ -448,10 +441,17 @@ to share a plane bind the id once and pass it twice — which is a fact
 about the document now, with something in the document to be a fact
 about.
 
-Rigidity (u, v unit and perpendicular) is **conventional data,
-unchecked**, in Python exactly as in Rust: a non-rigid frame yields a
-well-defined skewed sketch, not poison, and the kernel's geometric
-validation is what certifies a body at rest.
+Rigidity (u, v unit and perpendicular) is **the door's, not yours**,
+in Python exactly as in Rust. `SketchPlane.from_frame(origin, u, v)`
+and `doc.sketch_frame(u=..., v=...)` ORTHONORMALIZE the pair you give
+them: `u` is normalized and kept, `v` yields whatever component of it
+lies along `u`, so a `v` leaning 45 degrees into `u` comes back
+perpendicular and the numbers you read off the plane are not the
+numbers you wrote. A pair that spans NO plane — parallel,
+antiparallel, or either direction zero — raises `FrameError` rather
+than building a degenerate sketch; that refusal is new, and a
+previously total constructor can now fail. The kernel's geometric
+validation still certifies a body at rest, as before.
 
 ```python
 from pncad import Doc, Expr, Node, SketchPlane, evaluate, m
@@ -546,9 +546,7 @@ fn slab(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Result<Body<f64>, E> {
         .line_to(p2(x.1, y.1), tol)?
         .line_to(p2(x.0, y.1), tol)?
         .line_to(Start, tol)?;
-    let plane = SketchPlane::from_frame(
-        p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0),
-    );
+    let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
     let profile = validated(plane, vec![rect.into()], tol)?;
     Ok(extrude(&profile, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 }
@@ -592,7 +590,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -647,7 +645,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -676,7 +674,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -749,7 +747,7 @@ use pncad::prelude::*;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -789,7 +787,7 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -800,8 +798,13 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
 # let props = mass_properties(&result.body, tol)?;
 # let mesh = tessellate(&result.body, 0.0005, tol).expect("tessellate");
-// 1. The mesh is a closed 2-manifold — no boundary edges, no
-//    non-manifold junctions. A refusal here is fail-loud, not a hint.
+// 1. The mesh is the mesh of a SOLID: it carries triangles, every
+//    face's patch carries some, and the triangle set is closed and
+//    consistently wound — no boundary edges, no non-manifold
+//    junctions. A refusal here is fail-loud, not a hint. Emptiness is
+//    part of the contract rather than a consequence of it: every
+//    closure condition is universal over edges, so a mesh of nothing
+//    would satisfy all of them by having none.
 check_mesh(&mesh).expect("a watertight mesh");
 
 // 2. Its signed volume is positive: the winding really is outward.
@@ -834,7 +837,7 @@ use pncad::step_import::StepImport;
 #         .line_to(p2(x.1, y.1), tol)?
 #         .line_to(p2(x.0, y.1), tol)?
 #         .line_to(Start, tol)?;
-#     let plane = SketchPlane::from_frame(p3(0.0, 0.0, z.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+#     let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, z.0)));
 #     Ok(extrude(&validated(plane, vec![rect.into()], tol)?, Extrusion::Distance(real(z.1 - z.0)), tol)?.body)
 # }
 # let mm = |v: f64| (v * MM).meters();
@@ -1252,11 +1255,15 @@ square = doc.insert(
 )
 cube = doc.insert(Node.extrude(square, Expr.length_in(1, m)))
 
-# A ball, revolved as two quarter arcs, sunk H into the top face.
+# A ball, revolved as two quarter arcs on one carrier, sunk H into the
+# top face: the second arc leaves along the first's tangent (a declared
+# tangent joint at the equator) and is derived from that tangent and
+# its target.
 half = (
     Open.at((0 * m, -R * m))
     .arc_to(Bulge((R * m, 0 * m), math.tan(math.pi / 8)))
-    .arc_continue((0 * m, R * m))
+    .tangent()
+    .tangent_arc_to((0 * m, R * m))
     .line_to(Start)
 )
 frame = doc.sketch_frame(
@@ -1679,7 +1686,7 @@ let hole = LoopProgram::Circle {
 
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1736,7 +1743,7 @@ use pncad::prelude::*;
 # let hole = LoopProgram::Circle { centre: [len(1.0), len(1.0)], radius: len(0.25) };
 # let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 # let mut insert = |doc: &Doc<ProfileProgram>, node| {
-#     let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("applies");
+#     let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &pncad::document::RefusingReach).expect("applies");
 #     (applied.doc, applied.record.minted.expect("minted"))
 # };
 # let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
@@ -1752,7 +1759,7 @@ let thicker = apply(&doc, &DocEdit::SetParam {
     node: plate,
     slot: SlotId::Distance,
     expr: len(1.0),
-}, tol)?.doc;
+}, tol, &pncad::document::RefusingReach)?.doc;
 
 // Pass the PRIOR evaluation: the frame and the profile are
 // untouched, so their values are reused by content key and only the
@@ -1832,10 +1839,10 @@ let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 doc = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
     value: DocParam::continuous(Dimension::Length, 0.25),
-}, tol)?.doc;
+}, tol, &pncad::document::RefusingReach)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
-    let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("the edit applies");
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, &pncad::document::RefusingReach).expect("the edit applies");
     (applied.doc, applied.record.minted.expect("a minted id"))
 };
 
@@ -1911,7 +1918,7 @@ assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 let bigger = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
     value: DocParam::continuous(Dimension::Length, 0.4),
-}, tol)?.doc;
+}, tol, &pncad::document::RefusingReach)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
 assert_eq!(ev2.reused, 4);     // both frames and the tab's whole
@@ -1972,7 +1979,7 @@ let tol = Tol::witness();
 let mut doc = Doc::<ProfileProgram>::empty_derived("guide-distributions", tol);
 
 let declare = |doc: &Doc<ProfileProgram>, name: &str, value: DocParam| {
-    apply(doc, &DocEdit::SetDocParam { name: ParamName::new(name), value }, tol)
+    apply(doc, &DocEdit::SetDocParam { name: ParamName::new(name), value }, tol, &pncad::document::RefusingReach)
         .expect("the declaration applies").doc
 };
 
@@ -2017,7 +2024,7 @@ assert!(format!("{}", refusal.unwrap_err()).contains("plate_t"));
 doc = apply(&doc, &DocEdit::SetDocParamValue {
     name: ParamName::new("bore_r"),
     value: DocParamValue::Continuous(0.0045),
-}, tol)?.doc;
+}, tol, &pncad::document::RefusingReach)?.doc;
 assert!(doc.params()[&ParamName::new("bore_r")].distribution().is_some());
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```

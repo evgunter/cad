@@ -23,10 +23,10 @@ fn a_placed_copy_grafts_and_the_union_certifies() {
     // corners, and tier 3 names un-upgraded chords by design. It is run
     // on the SOURCE, so the descriptions the graft has to bridge are
     // `Intersection` ones holding surface keys — which is the point.
-    let mut src = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut src);
-    let mut dst = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut dst);
+    let mut src = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut src, Tol::witness());
+    let mut dst = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut dst, Tol::witness());
     // 10 mm clear of the unit cube: disjoint, so the union is a body.
     let map = Affine3::translation(Vec3::new(10.0, 0.0, 0.0));
     let placed = topo::transform_rigid(&src, &map, Tol::witness()).expect("a rigid map");
@@ -86,10 +86,10 @@ fn a_placed_copy_grafts_and_the_union_certifies() {
 /// kernel door rather than through the reader.
 #[test]
 fn two_placed_copies_of_one_source_are_two_independent_solids() {
-    let mut src = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut src);
-    let mut dst = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut dst);
+    let mut src = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut src, Tol::witness());
+    let mut dst = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut dst, Tol::witness());
     for dx in [10.0, 20.0] {
         let placed = topo::transform_rigid(
             &src,
@@ -122,10 +122,10 @@ fn two_placed_copies_of_one_source_are_two_independent_solids() {
 /// Two described cubes, `dx` apart, as one two-solid body — the
 /// multi-solid source these rows graft.
 fn two_solid_source(dx: f64) -> topo::Body<f64> {
-    let mut a = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut a);
-    let mut b = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut b);
+    let mut a = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut a, Tol::witness());
+    let mut b = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut b, Tol::witness());
     let b = topo::transform_rigid(
         &b,
         &Affine3::translation(Vec3::new(dx, 0.0, 0.0)),
@@ -182,10 +182,10 @@ fn a_multi_solid_graft_equals_sequential_single_solid_grafts() {
         // The same two solids as separate bodies (what the sequential
         // path grafts): rebuilt exactly as `two_solid_source` built
         // them, before they were joined.
-        let mut first = geometric_cube::<f64>().body;
-        describe_as_intersections(&mut first);
-        let mut second = geometric_cube::<f64>().body;
-        describe_as_intersections(&mut second);
+        let mut first = geometric_cube::<f64>(Tol::witness()).body;
+        describe_as_intersections(&mut first, Tol::witness());
+        let mut second = geometric_cube::<f64>(Tol::witness()).body;
+        describe_as_intersections(&mut second, Tol::witness());
         let second = topo::transform_rigid(
             &second,
             &Affine3::translation(Vec3::new(10.0, 0.0, 0.0)),
@@ -195,14 +195,14 @@ fn a_multi_solid_graft_equals_sequential_single_solid_grafts() {
         vec![first, second]
     };
 
-    let mut at_once = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut at_once);
+    let mut at_once = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut at_once, Tol::witness());
     let keys =
         topo::graft_disjoint_all(&mut at_once, &multi, Tol::witness()).expect("the N-solid graft");
     assert_eq!(keys.len(), 2, "one key per source solid");
 
-    let mut one_by_one = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut one_by_one);
+    let mut one_by_one = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut one_by_one, Tol::witness());
     let seq: Vec<_> = pieces
         .iter()
         .map(|p| topo::graft_disjoint(&mut one_by_one, p, Tol::witness()).expect("a single graft"))
@@ -280,8 +280,8 @@ fn two_grafts_of_one_multi_solid_source_share_no_key() {
         Tol::witness(),
     )
     .expect("a rigid map");
-    let mut dst = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut dst);
+    let mut dst = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut dst, Tol::witness());
     let base: std::collections::BTreeSet<_> = dst.faces().map(|(k, _)| k).collect();
 
     let first = topo::graft_disjoint_all(&mut dst, &multi, Tol::witness()).expect("graft one");
@@ -319,10 +319,10 @@ fn per_solid_and_aggregate_gates_both_still_bite_on_a_multi_solid_source() {
     // A source whose SECOND solid is un-upgraded (tier 3 names its
     // chords): the per-solid gate refuses that piece, by itself, and
     // the caller knows which one because it is the subject.
-    let mut good = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut good);
+    let mut good = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut good, Tol::witness());
     let raw = topo::transform_rigid(
-        &geometric_cube::<f64>().body,
+        &geometric_cube::<f64>(Tol::witness()).body,
         &Affine3::translation(Vec3::new(10.0, 0.0, 0.0)),
         Tol::witness(),
     )
@@ -342,8 +342,8 @@ fn per_solid_and_aggregate_gates_both_still_bite_on_a_multi_solid_source() {
     // travelled with the entity, it was not laundered by the graft.
     let mut bad = good.clone();
     topo::graft_disjoint(&mut bad, &raw, Tol::witness()).expect("a graft is not a gate");
-    let mut dst = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut dst);
+    let mut dst = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut dst, Tol::witness());
     topo::graft_disjoint_all(&mut dst, &bad, Tol::witness())
         .expect("the transplant itself succeeds");
     assert!(
@@ -368,8 +368,8 @@ fn per_solid_and_aggregate_gates_both_still_bite_on_a_multi_solid_source() {
         Tol::witness(),
     )
     .expect("a rigid map");
-    let mut dst = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut dst);
+    let mut dst = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut dst, Tol::witness());
     topo::graft_disjoint_all(&mut dst, &clean, Tol::witness()).expect("the N-solid door");
     assert_eq!(dst.solids().count(), 3);
     assert_eq!(
@@ -385,7 +385,7 @@ fn per_solid_and_aggregate_gates_both_still_bite_on_a_multi_solid_source() {
 /// of them) — the flipped case is `graft_disjoint_all`'s.
 #[test]
 fn the_n_solid_door_refuses_an_empty_source_and_the_single_door_still_refuses_n() {
-    let mut dst = geometric_cube::<f64>().body;
+    let mut dst = geometric_cube::<f64>(Tol::witness()).body;
     let err = topo::graft_disjoint_all(&mut dst, &topo::Body::<f64>::new(), Tol::witness())
         .expect_err("no solid to graft");
     assert!(format!("{err:?}").contains("JoinDesync"), "{err:?}");
@@ -432,8 +432,8 @@ fn each_grafted_solid_carries_its_own_source_provenance() {
 #[test]
 fn the_keyed_door_bridges_every_source_entity_into_the_destination() {
     let src = two_solid_source(10.0);
-    let mut dst = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut dst);
+    let mut dst = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut dst, Tol::witness());
 
     let keys = topo::graft_disjoint_all_keyed(&mut dst, &src, Tol::witness())
         .expect("the keyed N-solid graft");
@@ -480,8 +480,8 @@ fn the_keyed_door_bridges_every_source_entity_into_the_destination() {
 /// boolean path accepts as an operand.
 #[test]
 fn the_onto_door_fuses_into_one_solid_without_changing_the_census() {
-    let mut src = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut src);
+    let mut src = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut src, Tol::witness());
     let placed = topo::transform_rigid(
         &src,
         &Affine3::translation(Vec3::new(10.0, 0.0, 0.0)),
@@ -521,8 +521,8 @@ fn the_onto_door_fuses_into_one_solid_without_changing_the_census() {
 /// solid to land in.
 #[test]
 fn the_onto_door_refuses_a_destination_that_is_not_there() {
-    let mut src = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut src);
+    let mut src = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut src, Tol::witness());
     let mut a = topo::Body::<f64>::new();
     let keys = topo::graft_disjoint_all_keyed(&mut a, &src, Tol::witness()).expect("a graft");
     // `keys`' solids belong to `a`, not to this fresh destination.
@@ -537,8 +537,8 @@ fn the_onto_door_refuses_a_destination_that_is_not_there() {
 /// moving one on top of another refuses naming the pair.
 #[test]
 fn the_placement_certificate_certifies_and_refuses_by_pair() {
-    let mut proto = geometric_cube::<f64>().body;
-    describe_as_intersections(&mut proto);
+    let mut proto = geometric_cube::<f64>(Tol::witness()).body;
+    describe_as_intersections(&mut proto, Tol::witness());
     let sep = topo::Separation::of(&proto, Tol::witness()).expect("the prototype's boxes");
     let at = |x: f64| Affine3::translation(Vec3::new(x, 0.0, 0.0));
 

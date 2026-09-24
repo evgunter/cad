@@ -79,7 +79,7 @@ fn gapped(m0: f64, m1: f64) -> Vec<LoopEdge<f64>> {
 }
 
 fn flux_bits(loop_: &[LoopEdge<f64>]) -> Result<(u64, u64), PropsError> {
-    curved_face(&torus(), loop_, 1.0, band()).map(|c| (c.flux.to_bits(), c.area.to_bits()))
+    curved_face(&torus(), loop_, true, band()).map(|c| (c.flux.to_bits(), c.area.to_bits()))
 }
 
 /// **The pieces of a chain must MEET.** This row was written to show
@@ -148,7 +148,7 @@ fn a_chain_that_closes_on_itself_refuses_by_one_name_at_every_rotation() {
         what: "torus meridian pieces close a loop with no rim",
     };
     for k in 0..3 {
-        let got = curved_face(&torus(), &full(k), 1.0, band())
+        let got = curved_face(&torus(), &full(k), true, band())
             .map(|c| (c.flux.to_bits(), c.area.to_bits()));
         println!("rotation {k}: {got:?}");
         assert_eq!(got, Err(closed.clone()), "rotation {k}: the flux lane");

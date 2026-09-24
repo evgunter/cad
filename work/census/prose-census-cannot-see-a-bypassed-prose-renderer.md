@@ -5,6 +5,8 @@ title: prose_census cannot see a Display that delegates, nor a Debug that spells
 status: open
 opened: 2026-09-06
 refs: [the-prose-word-for-a-kind-has-four-spellings-and-only-display-is-censused, 2053]
+priority: P4
+cost: E
 ---
 
 
@@ -99,3 +101,45 @@ dispatch estimate made by reading the row against the tree on
 2026-09-11, not a verdict on the finding, and a lane that finds it wrong
 says so in its PR. The id, the `track:` letter where the row carries
 one, and the body above are unchanged by the move.
+
+## Two more Gap-2 instances, and a way the two blind spots feed each other (2026-09-16, EDIT's `edit/error-prose`)
+
+Measured while repairing `editor-core`'s `Debug`-in-prose sites. Added
+here as evidence rather than as a second row, per
+`docs/prompts/implementer-discipline.md` §6.
+
+**`PersistError::DisplayUnit` rendered `Dimension` through `Debug` at
+two placeholders** (`crates/editor-core/src/persist/mod.rs`):
+`"… is declared {declared:?} but its display unit measures {unit:?}"`,
+both fields `crate::expr::Dimension`. `Dimension` is the type this row's
+founding defect was about, its `Display` is "the one home of the
+dimension-in-prose rule", and the census was green over both
+placeholders for exactly the reason stated above: `Dimension` is
+fieldless, so `declaration_verdict` answers `Prose` and the site is not
+in any roster, flagged or allowlisted. Repaired in that unit.
+
+It is also a counter-example to a closed row's closing claim.
+`work/fix/verb-and-dimension-render-through-debug`'s *What landed*
+section says *"Re-swept: no `Dimension` reaches any user surface through
+`Debug` anywhere in the tree"* — that re-sweep found the four viewer
+labels and missed this door, which has been in `editor-core` throughout.
+A sweep with no instrument behind it is what Gap 2 costs: there is no
+guard that would have disagreed.
+
+**`StepArg` is the same shape as the `SlotId` instance this row already
+names.** `crates/editor-core/src/persist/check.rs`'s `ProgramFault`
+rendered `{arg:?}` over a `StepArg`, which is fieldless and carries an
+inherent `StepArg::label()` — no `Display`, exactly like `SlotId`. So a
+bypass verdict keyed on `Display` would miss it too, which is the second
+data point for the question this row leaves open ("whether the verdict
+keys on `Display` or on 'a prose renderer, however spelled'").
+
+**The interaction worth knowing before either row is taken.** That
+`{arg:?}` site was NOT silently passed — it sat in `UNDECIDED`, because
+its binding is introduced by a nested pattern
+(`work/fix/census-cannot-type-a-nested-pattern-binding`). Repairing that
+row alone would have resolved the binding to `StepArg`, and the site
+would have moved from a named blind spot to a silent `Prose` pass. A
+census that gets better at typing bindings gets *quieter* about this
+class until Gap 2 is closed, so the two rows want ordering, or one
+lane.

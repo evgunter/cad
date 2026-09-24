@@ -264,6 +264,7 @@ fn single_qualifier_flip_changes_exactly_the_names_through_it() {
             eval: &ev1,
         },
         vanished[0],
+        Tol::witness(),
     );
     let Resolution::Failed(fail) = res else {
         panic!("expected Failed, got {res:?}");
@@ -277,6 +278,7 @@ fn single_qualifier_flip_changes_exactly_the_names_through_it() {
             predicate: "name_frag_side_of",
             from: geom_core::Sign::Negative,
             to: geom_core::Sign::Positive,
+            source: editor_core::FlipSource::VerdictLog,
         }
     );
 }
@@ -303,7 +305,9 @@ fn dropped_fused_vertex_identity_diagnoses_honestly() {
     );
     // M4 PR 5: the slide's flush planes are declared (the disjoint
     // position keeps the same coplanarity, so ONE declare serves both).
-    let (doc, decl) = fixture::declare_x_offset_flush(doc, a, b0);
+    // The B side is read at the TRANSFORM, the boolean's operand;
+    // a transform carries `b0`'s names verbatim (N1).
+    let (doc, decl) = fixture::declare_x_offset_flush_at(doc, (a, a), (transform, b0));
     let (doc, u) = insert(
         doc,
         Node::Boolean {
@@ -377,6 +381,7 @@ fn fused_vertex_scenario(
             },
             RunCtx { doc, eval: &ev1 },
             name,
+            Tol::witness(),
         );
         let Resolution::Failed(f) = res else {
             panic!("expected Failed for {name:?}, got {res:?}");
@@ -394,8 +399,12 @@ fn fused_vertex_scenario(
         // on a recipe edit or structural parameter that did not
         // happen. Under the realized sweep the recorded evidence can
         // honestly be ABSENT (the disjoint prior pruned every pair —
-        // module comment above), in which case exactly the documented
-        // evidence-free fallback naming the MINTING node is admitted.
+        // module comment above), in which case the answers that claim
+        // no cause are admitted, both at the MINTING node: the
+        // documented evidence-free fallback, and the group-size table
+        // fact. This is a closed list of `Diagnosis` arms — when N5
+        // gains an arm, decide here whether it is honest without a
+        // recorded flip.
         let honest_flip = matches!(
             diagnosis,
             Diagnosis::PredicateFlip { .. } | Diagnosis::Cascade { .. }
@@ -404,7 +413,7 @@ fn fused_vertex_scenario(
             diagnosis,
             Diagnosis::RecipeEdit {
                 edit: editor_core::RecipeEditRef::NodeChanged { node }
-            } if *node == name.node
+            } | Diagnosis::GroupResized { node, .. } if *node == name.node
         );
         match strategy {
             topo::SweepStrategy::Idealized => assert!(

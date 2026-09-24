@@ -51,21 +51,6 @@ fn lens(z0: f64, h: f64) -> Body<f64> {
     extrude(&profile, Extrusion::Distance(h), tol).unwrap().body
 }
 
-fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
-    let tol = Tol::witness();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(x0, y0), 0.0),
-        ProfileVertex::new(p2(x1, y0), 0.0),
-        ProfileVertex::new(p2(x1, y1), 0.0),
-        ProfileVertex::new(p2(x0, y1), 0.0),
-    ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
-}
-
 /// A lens solid in z ∈ [0, 1] and a small box standing on its top cap,
 /// as ONE two-solid body. The box's four bottom vertices sit in the
 /// cap's plane and well inside its outline, so the census's v-on-f
@@ -74,7 +59,7 @@ fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
 fn lens_under_a_box() -> Body<f64> {
     let tol = Tol::witness();
     let mut body = lens(0.0, 1.0);
-    let b = boxx(-0.2, 0.2, -0.1, 0.1, 1.0, 2.0);
+    let b = sweep::test_support::brick((-0.2, 0.2), (-0.1, 0.1), (1.0, 2.0), tol);
     topo::graft_disjoint(&mut body, &b, tol).expect("two disjoint solids in one body");
     body
 }

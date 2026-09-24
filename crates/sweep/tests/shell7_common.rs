@@ -8,6 +8,7 @@
 use geom::Curve3;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::test_support::tube_frame;
 use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
 use topo::{Body, EdgeKey, FaceKey, ReplaceFaceError, ShellError, VertexKey};
 
@@ -65,9 +66,12 @@ pub(crate) fn drum(r: f64, h: f64) -> Body<f64> {
 /// The tube door's full torus about `y`, seam at `u_ref = x`.
 pub(crate) fn tube_torus(major: f64, minor: f64) -> Body<f64> {
     tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol(),
+        ),
         major,
         TubeWindow::Full,
         minor,
@@ -80,9 +84,12 @@ pub(crate) fn tube_torus(major: f64, minor: f64) -> Body<f64> {
 /// Its hollow twin.
 pub(crate) fn tube_torus_hollow(major: f64, minor: f64, wall: f64) -> Body<f64> {
     tube_along_arc_hollow::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol(),
+        ),
         major,
         TubeWindow::Full,
         minor,

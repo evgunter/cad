@@ -2,9 +2,12 @@
 id: loud-skip-marker-is-a-hand-kept-idiom
 kind: issue
 title: The loud-skip marker is a hand-kept idiom in eight files, each copy naming its rows by hand and admitting it goes stale silently
-status: open
+status: closed
 opened: 2026-09-04
 refs: [1776]
+closed: 2026-09-15
+pr: 2656
+parent: loud-stand-down-announcements-are-discarded-by-the-gate
 ---
 
 
@@ -330,3 +333,184 @@ have preserved a quotation the source no longer contains, which is the
 still resolves and now misdescribes. The VIEW lane's sweep read the
 shift as a true move because the surrounding lines still matched; the
 quoted sentence is what moved out from under it.
+
+## Re-derived (2026-09-15, lane C)
+
+**VERDICT: REPRODUCES**, and the row's own predicted cost has already
+been paid once, silently, in `crates/viewer/tests/error_display.rs`. The
+two questions the 2026-09-11 section left open are settled below: Entry 1
+is a **member that is dead, not a citation that drifted**, and the
+"every copy admits it" sentence is **wider than the tree** — three of ten
+copies say it.
+
+### The population today
+
+`grep -rn "lane_skipped" --include=*.rs crates/ demos/ tools/ benches/`
+returns fourteen lines, the same split CITE derived: **ten `#[cfg]`-gated
+marker `fn` declarations**, two prose exclusions
+(`crates/test-utils/src/vacuity.rs`, `crates/step-import/tests/cert5_r1_import_probes.rs`)
+and two `println!` strings in a RUNTIME diagnostic
+(`crates/editor-core/tests/m10_5_r1_probes_interval.rs`, twice, not
+`#[cfg]` markers). `grep -rln "Loud skip"` returns the same ten files;
+`grep -rln 'SKIPPED ('` returns those ten plus `vacuity.rs`. **Ten is
+confirmed at this base**, so the title's "eight" is two short and the two
+CITE named (`crates/sweep/tests/review_fillet_e3_probes.rs`,
+`crates/sweep/tests/blend_margin_payload_interval.rs`) are members by
+shape: both are `#[cfg(not(feature = "interval"))] #[test] fn
+interval_lane_skipped_no_certified_coverage_here` whose whole body is a
+`println!`.
+
+### What each copy's `println!` actually enumerates
+
+This is the defect, so it is derived per copy rather than counted:
+
+| copy (`fn` name where it differs) | names rows by hand? |
+| --- | --- |
+| `crates/viewer/src/lib.rs` `app_lane_skipped_no_app_feature_coverage_here` | **no** — names the FEATURE and one row as an illustration |
+| `crates/sweep/tests/review_fillet_e3_probes.rs` | **no** — *"contributes NO certified coverage in this run."* and nothing else |
+| `crates/viewer/tests/chrome_labels.rs` | yes — two subjects, and the gated `mod chrome` carries exactly two rows |
+| `crates/viewer/tests/error_display.rs` | yes — **ONE row named, TWO gated. See below.** |
+| `crates/viewer/tests/panel_display.rs` | yes — one row named by its full `fn` name, one gated |
+| `crates/sweep/tests/m5_s12_curved_ops_interval.rs` | yes — four rows named; all four resolve |
+| `crates/sweep/tests/m5_s13_pips_interval.rs` | yes — two named, two gated |
+| `crates/sweep/tests/m6_surgery_interval.rs` | yes — one named, one gated |
+| `crates/topo/tests/m6_2_fitted_at_rest.rs` | yes — one named, one gated |
+| `crates/sweep/tests/blend_margin_payload_interval.rs` | yes — names *"the enclosure arm"*, singular; three rows are gated |
+
+So **eight of ten still carry a hand-kept enumeration**, and fix shape 2
+has been applied to exactly one (`viewer/src/lib.rs`); the tenth
+(`review_fillet_e3_probes.rs`) never had one.
+
+### The predicted failure has fired — `crates/viewer/tests/error_display.rs`
+
+Its marker's own rustdoc says, verbatim:
+
+> **This row closes no gate and cannot fail** — its payload is its NAME
+> in the PASS list. It names ONE row, so a second `app`-gated row added
+> to this file leaves the marker quietly incomplete; nothing mechanical
+> says so.
+
+That second row exists. The file carries **two** `#[cfg(feature =
+"app")] #[test]` rows — `indeterminate_wording_forwards_the_causes_own_words`
+and `startup_error_forwards_every_payload_arm` — and the marker
+`app_lane_skipped_startup_error_arms_not_checked_here` names only the
+second. A default-feature run is told that `StartupError`'s forwarding is
+unchecked and is told nothing about `indeterminate_wording`. This is the
+row's `## Finding` cost sentence — *"a ninth `app`-gated row added to
+`panel_display.rs` leaves its marker quietly wrong, and nothing anywhere
+notices"* — realised in a sibling file. It is the strongest evidence the
+row has and it did not exist when the row was filed.
+
+### Settled: Entry 1 is a dead MEMBER
+
+`app_lane_skipped_no_chrome_or_gpu_coverage_here` resolves nowhere in the
+tree (the fourteen-line `lane_skipped` grep above is exhaustive over
+`crates/`, `demos/`, `tools/`, `benches/`). `crates/viewer/src/lib.rs`
+carries `fn app_lane_skipped_no_app_feature_coverage_here`
+(`#[cfg(all(test, not(feature = "app")))]`) whose `println!` names the
+feature and, as an illustration of what the feature costs, the
+pipeline-creation smoke row — no list to edit when the
+`#[cfg(feature = "app")]` block gains or loses a module. Its paragraph
+(`"**This row closes no gate and cannot fail.**… the roster is the
+`#[cfg(feature = "app")]` block above, which the compiler keeps, so there
+is no hand-kept enumeration here to go stale"`) is the reversal CITE
+recorded, and it is still there.
+
+**Ruling proposed: the member is dead and the row lost nothing by it.**
+The subject the row named is gone and what replaced it is not an instance
+of the class the `## Finding` defines. The population is ten because two
+were never in the table, not nine-plus-one. `viewer/src/lib.rs` should be
+kept in the file as the **worked example of fix shape 2** — it is the
+only copy that has been converted and the conversion held — and dropped
+from the membership list.
+
+### Settled: "every copy admits in its own rustdoc that it goes stale"
+
+**Three of ten.** `grep -rn "This row closes no gate and cannot fail"`
+returns four files; of those:
+
+- `chrome_labels.rs` — *"the list it recites is kept by hand and a stale
+  one would read exactly like a current one"* — admits it;
+- `error_display.rs` — *"It names ONE row, so a second `app`-gated row
+  added to this file leaves the marker quietly incomplete"* — admits it;
+- `panel_display.rs` — *"It names the row by hand, so a second
+  `app`-gated row added to this file leaves the marker quietly
+  incomplete"* — admits it;
+- `viewer/src/lib.rs` — the reversal; admits nothing because there is
+  nothing to admit.
+
+The six `interval_lane_skipped_…` copies carry a **"Loud skip."**
+paragraph that argues why the announcement exists and says nothing about
+staleness. So the `## Finding`'s universal is wrong in the tree and was
+wrong at 2026-09-11 too; CITE's "three of the eight" is right and the
+denominator is ten. **The underlying defect is untouched by this** —
+eight copies do carry hand-kept lists whatever their prose says.
+
+### The relation to `loud-stand-down-announcements-are-discarded-by-the-gate`
+
+Different population, and the two compound rather than overlap.
+`test_utils::vacuity::stood_down` is a `println!` inside a row that RAN;
+these ten are `#[cfg]`-gated rows that exist only because their siblings
+did not compile, and `vacuity.rs`'s own module docs deliberately exclude
+them (*"a different idiom and deliberately not converted: their entire
+body is the announcement"*). Checked here: `.github/workflows/ci.yml`
+carries exactly one `--success-output` anywhere, on the
+`cargo nextest run -p viewer --features app` GPU-smoke job — the lane
+where the `app` markers do **not** compile. Every gating
+`cargo nextest run` that DOES compile these markers (the archived
+default and interval matrix runs) passes no `--success-output`, whose
+default is `never`.
+
+**The consequence for this row, which is new and sharpens it.** Each
+marker's stated payload is split in two and only half survives the gate:
+the `fn` NAME reaches the PASS list and is read; **the `println!` body —
+which is precisely the hand-kept enumeration this row is about — is
+discarded by every gating run**. So the eight hand-kept lists are not
+merely stale-prone: on the gate nobody can read them at all. That is an
+argument for fix shape 2 (drop the enumeration, keep the name) that the
+row did not have, and it means the cost of the staleness is borne only by
+a human reading a local run.
+
+### Out of fence, still wrong
+
+`crates/test-utils/src/vacuity.rs` still says *"The four whole-binary
+`interval_lane_skipped_no_certified_coverage_here` rows"* and there are
+**six**. CITE reported this on 2026-09-11 and it is unrepaired. It is a
+`crates/test-utils` comment — S-TCOST's glob — not this lane's to touch.
+
+**Recommendation (orchestrator's call).** Keep open; retitle to "ten
+copies" if the title is ever re-cut, take fix shape 2 (the `lib.rs`
+conversion is the worked example), and repair `error_display.rs`'s
+marker in the same unit since it is already incomplete.
+
+## Closed — TINT-2, PR #2656 (2026-09-15)
+
+Closed with its carrier, `loud-stand-down-announcements-are-discarded-by-the-gate`;
+that row holds the full account.
+
+**The population was ten, not the title's eight, and the repair is one
+macro** — `test_utils::loud_skip_marker!` — carrying all nine in-fence
+sites. The tenth, `crates/viewer/src/lib.rs`, is `src/` and out of
+fence; it is filed as `work/view/viewer-lib-marker-claims-the-log-carries-its-sentence`
+rather than edited.
+
+**Three copies were FALSE, not the one the review first named.** The
+row's predicted failure had fired more widely than anyone had counted:
+
+| file | `#[test]` rows before the gated block | the claim it made |
+|---|---|---|
+| `crates/topo/tests/m6_2_fitted_at_rest.rs` | 4 | false — 3 ungated |
+| `crates/viewer/tests/error_display.rs` | 16 | false — 15 ungated |
+| `crates/viewer/tests/panel_display.rs` | 17 | false — 16 ungated |
+
+Each said, in one of three spellings, that its file's rows are the gated
+ones — while fifteen and sixteen of them run right there. **The macro's
+wording closes the class by construction** rather than patching three
+sites: it says only that *the rows this file gates behind `feature`* are
+not compiled here, which is true of an empty binary and of one with
+sixteen ungated rows alike.
+
+**The hand-kept enumeration is gone in both halves.** The `println!`
+bodies no longer name rows, and the two marker NAMES that were
+themselves enumerations were renamed — the name being the half that
+reaches the PASS list and is read.

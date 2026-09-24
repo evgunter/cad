@@ -19,50 +19,27 @@ fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<
         .unwrap()
 }
 
-/// An axis-aligned brick `[x0,x1]×[y0,y1]×[z0,z1]`.
-pub fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let lp = ProfileLoop::polygon([
-        Point2::new(x.0, y.0),
-        Point2::new(x.1, y.0),
-        Point2::new(x.1, y.1),
-        Point2::new(x.0, y.1),
-    ]);
-    extrude(
-        &validated(
-            SketchPlane::from_frame(
-                Point3::new(0.0, 0.0, z.0),
-                Vec3::new(1.0, 0.0, 0.0),
-                Vec3::new(0.0, 1.0, 0.0),
-            ),
-            lp,
-        ),
-        Extrusion::Distance(z.1 - z.0),
-        Tol::witness(),
-    )
-    .unwrap()
-    .body
-}
+/// An axis-aligned brick `[x0,x1]×[y0,y1]×[z0,z1]`, as the kernel's
+/// own test-support crate spells it. Re-exported rather than
+/// re-declared: this module's copy was the same six lines as
+/// [`sweep::test_support::brick`], and so is `stl`'s.
+pub use sweep::test_support::brick;
 
 /// The unit cube `[0,1]³` — the spike's 6/12/8 reference shape.
 pub fn cube() -> Body<f64> {
-    brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0))
+    sweep::test_support::cube(1.0, Tol::witness())
 }
 
 /// A pocketed die at `[x0,x0+1]³`: unit cube minus a centered
 /// 0.5×0.5×0.5 pocket opening through the TOP face (the M3 die shape;
 /// exact volume 0.875). A genuine boolean result: the top face carries
-/// a ring (the pocket mouth).
+/// a ring (the pocket mouth). The kernel's own fixture — `stl`'s
+/// review suite builds the same die from the same door.
+pub use sweep::test_support::pocket_die;
+
+/// [`pocket_die`] at `Tol::witness()`, this module's tolerance.
 pub fn die(x0: f64, y0: f64, z0: f64) -> Body<f64> {
-    let cube = brick((x0, x0 + 1.0), (y0, y0 + 1.0), (z0, z0 + 1.0));
-    let cutter = brick(
-        (x0 + 0.25, x0 + 0.75),
-        (y0 + 0.25, y0 + 0.75),
-        (z0 + 0.5, z0 + 1.5),
-    );
-    let BooleanResult::Body(b) = subtract(&cube, &cutter, Tol::witness()).unwrap() else {
-        panic!("die subtract is a body");
-    };
-    b.body
+    pocket_die(x0, y0, z0, Tol::witness())
 }
 
 /// Two pocketed dies kissing at the corner `(1,1,1)` — the M3 R6
@@ -80,8 +57,8 @@ pub fn kiss_assembly() -> Body<f64> {
 /// A∖B with B strictly inside A: `[0,3]³` minus `[1,2]³` — the Voided
 /// boolean result (outer shell + reverted void shell; cavity volume 1).
 pub fn voided() -> Body<f64> {
-    let a = brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0));
-    let b = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
+    let a = brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), Tol::witness());
+    let b = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0), Tol::witness());
     let BooleanResult::Body(result) = subtract(&a, &b, Tol::witness()).unwrap() else {
         panic!("voided subtract is a body");
     };
@@ -671,7 +648,7 @@ pub fn die_pips() -> Body<f64> {
     assert_eq!(tool.shells().count(), 21, "21 disjoint sphere shells");
     boolean_op_with(
         BooleanOp::Subtract,
-        &brick((0.0, L), (0.0, L), (0.0, L)),
+        &brick((0.0, L), (0.0, L), (0.0, L), Tol::witness()),
         &tool,
         &topo::BooleanDeclarations::none(),
         SweepStrategy::Realized,
@@ -684,14 +661,19 @@ pub fn die_pips() -> Body<f64> {
     .clone()
 }
 
-/// Census tuple (faces, edges, vertices) of a body — the kernel-side
-/// oracle the parse-back reconstruction must match.
-pub fn census(body: &Body<f64>) -> (usize, usize, usize) {
-    (
-        body.faces().count(),
-        body.edges().count(),
-        body.vertices().count(),
-    )
+/// The body's `(faces, edges, vertices)` — the kernel-side oracle the
+/// parse-back reconstruction must match, in the shape an independent
+/// STEP importer reports per shell.
+///
+/// **Named for the quantity, not for "the census".** `step-import`'s
+/// suites carry a five-component census of the same body and neither
+/// is the other's tuple; one name over two field sets is the drift
+/// `topo-arena-census-duplicate-spellings` is about. Both read the
+/// kernel's ONE producer of arena lengths rather than re-walking the
+/// arenas, so a transposition here is a transposition of named fields.
+pub fn fev_census(body: &Body<f64>) -> (usize, usize, usize) {
+    let c = topo::test_support::arena_counts(body);
+    (c.faces, c.edges, c.vertices)
 }
 
 /// The M6 composed die (unit 1): [`die_pips`]'s pipped cube filleted
@@ -758,37 +740,7 @@ pub fn composed_die() -> Body<f64> {
 /// as `sweep/tests/m6_loft_body.rs` (where V = 9 m³ is derived) and
 /// the editor-core corpus document `loft_prism`.
 pub fn loft_prism() -> Body<f64> {
-    let sections = vec![
-        quad(PRISM_SQUARE),
-        quad(PRISM_TRAPEZOID),
-        quad(PRISM_SQUARE),
-    ];
-    sweep::loft_body::<f64>(&sections, &lofted_at_z(&[0.0, 1.0, 2.0]), 2, Tol::witness())
-        .expect("shape (iii) loft builds")
-        .body
-}
-
-/// A closed four-line quad section (one loop) in the LIB-U3 profile
-/// vocabulary — the plainest INTEGRAL profile: unit weights, no arc
-/// anywhere.
-fn quad(pts: [(f64, f64); 4]) -> sweep::Section {
-    vec![ProfileLoop::polygon(
-        pts.iter().map(|&(x, y)| Point2::new(x, y)),
-    )]
-}
-
-/// The prism loft's end section: the square `[-1, 1]²`.
-const PRISM_SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-/// Its middle section: the NON-AFFINE trapezoid whose two bottom
-/// corners flare by ±d, d = 0.375 — what makes the walls genuinely
-/// curved in v rather than ruled.
-const PRISM_TRAPEZOID: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-
-/// Section placements: pure translations up the world z-axis.
-fn lofted_at_z(zs: &[f64]) -> Vec<geom_core::Affine3<f64>> {
-    zs.iter()
-        .map(|z| geom_core::Affine3::translation(Vec3::new(0.0, 0.0, *z)))
-        .collect()
+    sweep::test_support::loft_prism(Tol::witness())
 }
 
 /// **The non-uniform loft (#210 / #207).** [`loft_prism`]'s own three
@@ -828,12 +780,8 @@ fn lofted_at_z(zs: &[f64]) -> Vec<geom_core::Affine3<f64>> {
 /// which is the derived volume. The `.expect` sidecar carries the
 /// integration step by step and pins it against the kernel.
 pub fn nonuniform_loft() -> Body<f64> {
-    let sections = vec![
-        quad(PRISM_SQUARE),
-        quad(PRISM_TRAPEZOID),
-        quad(PRISM_SQUARE),
-    ];
-    let places = lofted_at_z(&[0.0, 1.0, 3.0]);
+    let sections = sweep::test_support::loft_prism_sections();
+    let places = sweep::test_support::stacked_at(&[0.0, 1.0, 3.0]);
     // The `t` the doc comment derives above, ASKED rather than
     // re-derived (LIB-U5 deliverable 1).
     assert_eq!(

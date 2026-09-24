@@ -19,6 +19,7 @@ use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use sweep::test_support::tube_frame;
 use sweep::{Revolution, RevolveAxis, TubeError, TubeWindow, revolve, tube_along_arc};
 use topo::Body;
 
@@ -27,9 +28,12 @@ const MINOR: f64 = 0.5;
 
 fn tube_donut() -> Body<f64> {
     tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            Tol::witness(),
+        ),
         R,
         TubeWindow::Full,
         MINOR,
@@ -159,14 +163,22 @@ fn tube_donut_volume_is_pappus_exact() {
     );
 }
 
-/// A window builds the wedge (caps present), and the degenerate /
-/// full-range / non-exact-frame doors refuse typed.
+/// A window builds the wedge (caps present), and the degenerate and
+/// full-range window doors refuse typed.
+///
+/// The door has no frame refusals left: the spine frame arrives as an
+/// `OrthoFrame`, decided at its mint, so a non-unit axis and a
+/// reference off perpendicular are no longer refusals at all — the
+/// two rows below say what the mint does with each instead.
 #[test]
 fn tube_window_and_refusal_doors() {
     let wedge = tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            Tol::witness(),
+        ),
         R,
         TubeWindow::Arc { t0: 0.25, t1: 1.75 },
         MINOR,
@@ -184,23 +196,51 @@ fn tube_window_and_refusal_doors() {
 
     let build = |axis: Vec3<f64>, u_ref: Vec3<f64>, window| {
         tube_along_arc::<f64>(
-            Point3::new(0.0, 0.0, 0.0),
-            axis,
-            u_ref,
+            tube_frame(Point3::new(0.0, 0.0, 0.0), axis, u_ref, Tol::witness()),
             R,
             window,
             MINOR,
             Tol::witness(),
         )
     };
-    assert!(matches!(
-        build(Vec3::unit_y() * 1.5, Vec3::unit_x(), TubeWindow::Full),
-        Err(TubeError::NonUnitAxis)
-    ));
-    assert!(matches!(
-        build(Vec3::unit_y(), Vec3::unit_y(), TubeWindow::Full),
-        Err(TubeError::NonUnitURef | TubeError::FrameNotOrthogonal)
-    ));
+    // **A non-unit axis is no longer a refusal**: the frame mint
+    // normalizes it, so the body is the one the unit axis builds, face
+    // for face and number for number.
+    let scaled = build(Vec3::unit_y() * 1.5, Vec3::unit_x(), TubeWindow::Full)
+        .expect("a scaled axis names the same spine")
+        .body;
+    let unit = build(Vec3::unit_y(), Vec3::unit_x(), TubeWindow::Full)
+        .expect("the unit axis builds")
+        .body;
+    assert_eq!(scaled.faces().count(), unit.faces().count());
+    assert_eq!(
+        topo::mass_properties(&scaled, Tol::witness())
+            .expect("mass properties")
+            .volume
+            .to_bits(),
+        topo::mass_properties(&unit, Tol::witness())
+            .expect("mass properties")
+            .volume
+            .to_bits(),
+        "the normalized axis builds the same torus, bit for bit"
+    );
+    // **A reference ON the axis line still refuses** — it names no
+    // radial — and it refuses at the FRAME MINT, under the direction
+    // door's own vocabulary, before the tube door is reached.
+    assert_eq!(
+        geom_core::OrthoFrame::from_axis_and_reference(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_y(),
+            "m6_tube_probe_axis",
+            geom_core::Band::linear(Tol::witness()).expect("the witness band"),
+        )
+        .unwrap_err(),
+        geom_core::OrthoFrameError {
+            axis: geom_core::OrthoAxis::V,
+            error: geom_core::UnitVec3Error::Degenerate,
+        }
+    );
     assert!(matches!(
         build(
             Vec3::unit_y(),
@@ -224,9 +264,12 @@ fn tube_window_and_refusal_doors() {
     // SHARED revolve decide — the no-fork claim, executed.
     assert!(matches!(
         tube_along_arc::<f64>(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::unit_y(),
-            Vec3::unit_x(),
+            tube_frame(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::unit_y(),
+                Vec3::unit_x(),
+                Tol::witness()
+            ),
             0.4,
             TubeWindow::Full,
             MINOR,
@@ -252,9 +295,12 @@ mod certified {
     #[test]
     fn the_tube_donut_certifies_and_encloses_pappus_at_interval() {
         let t = tube_along_arc::<Interval>(
-            Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-            Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
-            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+            tube_frame(
+                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+                Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                Tol::witness(),
+            ),
             iv(R),
             TubeWindow::Full,
             iv(MINOR),

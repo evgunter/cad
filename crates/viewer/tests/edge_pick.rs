@@ -26,12 +26,12 @@ use crate::common;
 
 use pncad::document::{Evaluation, Frame, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol};
-use pncad::select::{Resolution, RunCtx, resolve};
+use pncad::select::{HitTestError, Resolution, RunCtx, resolve};
 use viewer::camera::Camera;
 use viewer::display::DisplayView;
 use viewer::input::{PickAction, ViewportSize};
 use viewer::marks;
-use viewer::pickindex::{EDGE_PICK_RADIUS_PX, EdgeId, PickIndex, PickKinds};
+use viewer::pickindex::{EDGE_PICK_RADIUS_PX, EdgeId, PickIndex, PickKinds, PictureKey};
 use viewer::scene::{self, PLATE_EXTENT, PLATE_HOLE_RADIUS};
 use viewer::session::{DocSession, EdgeSelection, Hovered, Selection, SessionOp};
 
@@ -66,7 +66,13 @@ fn index_of(session: &DocSession) -> PickIndex {
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, generation, delta(), session.tol()).expect("the plate indexes")
+    PickIndex::build(
+        doc,
+        eval,
+        PictureKey::of(generation, delta()),
+        session.tol(),
+    )
+    .expect("the plate indexes")
 }
 
 /// The landed evaluation, for the doors that take one.
@@ -75,6 +81,27 @@ fn eval_of(session: &DocSession) -> &Evaluation<f64> {
 }
 
 /// Every drawn edge of the plate, with the polyline it is drawn as.
+/// How far along `ray` the nearest drawn surface sits, or `None` for
+/// a miss.
+///
+/// The door answers one face, nothing, or a certified TIE between
+/// several — and a tie is still a surface: the tied answers pairwise
+/// overlap, so the smallest of their parameters is what "is anything
+/// in front" reads.
+fn nearest_surface(
+    index: &PickIndex,
+    eval: &Evaluation<f64>,
+    ray: &pncad::select::Ray,
+) -> Option<f64> {
+    match index.pick_for(eval, ray, &DisplayView::none()) {
+        Ok(hit) => hit.map(|hit| hit.t),
+        Err(HitTestError::Ambiguous { hits }) => {
+            hits.iter().map(|hit| hit.t).min_by(f64::total_cmp)
+        }
+        Err(other) => panic!("no refusal: {other}"),
+    }
+}
+
 fn drawn_edges(index: &PickIndex, node: RecipeNodeId) -> Vec<(EdgeId, Vec<Point3<f64>>)> {
     index
         .edges_in(node, 0)
@@ -421,10 +448,14 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
             Point3::new((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, (a.z + b.z) * 0.5),
         );
         let ray = camera.ray_through(cursor, pane()).expect("un-projects");
-        let Some(front) = index
-            .pick_for(eval, &ray, &DisplayView::none())
-            .expect("no refusal")
-        else {
+        // **A certified tie is still a surface in front.** The ray
+        // through an edge's own pixel lands ON that edge, so it very
+        // often meets both faces sharing it and the door names both
+        // rather than choosing. The question this row asks is how near
+        // the nearest surface is, and every tied answer answers it —
+        // so the nearest of them is read, which is what the viewer's
+        // own occlusion probe does.
+        let Some(front) = nearest_surface(&index, eval, &ray) else {
             continue;
         };
         // How far along the ray the edge's own midpoint sits.
@@ -437,7 +468,7 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
         // number is the point: it says the two populations this row
         // sorts are far enough apart that any sane threshold separates
         // them.
-        if front.t >= depth * (1.0 - 1.0e-6) {
+        if front >= depth * (1.0 - 1.0e-6) {
             continue; // visible at its own pixel — not this row's subject
         }
         checked += 1;
@@ -447,8 +478,7 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
         assert_ne!(
             picked.as_ref().map(viewer::pickindex::EdgePick::id),
             Some(id),
-            "an edge {depth} deep behind a surface at {} was picked through the solid",
-            front.t
+            "an edge {depth} deep behind a surface at {front} was picked through the solid"
         );
     }
     assert!(
@@ -626,6 +656,117 @@ fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
     assert!(overlay.is_empty(), "a face selection marks no edge");
 }
 
+// --- the two halves' opposite conventions ----------------------------
+
+/// **One gesture, two answers to "is this hovered?", and the
+/// difference is deliberate.** Hovering what is already selected
+/// leaves `Highlight::hovered` carrying the selected patch's id —
+/// `gpu`'s `fs_main` tests the selected lane first, so the face path
+/// rules downstream where the fragment can see both — while
+/// `EdgeOverlay::hovered` comes back EMPTY, because the overlay is a
+/// value a test reads and an edge vertex carries exactly one lane, so
+/// the selection is settled in the value rather than left to the pass's
+/// draw order (`marks::edge_overlay` says why).
+///
+/// Each half is already pinned on its own, a file apart:
+/// `select_pick.rs`'s
+/// `the_highlight_is_a_function_of_the_scene_and_the_selection` and
+/// `the_overlay_marks_the_selected_and_hovered_edges_and_nothing_else`
+/// above. Neither says the other exists, so a lane that reds one of
+/// them has no way to learn that the opposite convention next door is
+/// the intended one. This row is the pair, asserted together: swapping
+/// the two conventions reds it whichever way the swap goes.
+///
+/// The two negative assertions each carry their own control — a hover
+/// on a DIFFERENT edge must still fill `hovered`, and the selected
+/// patch's id must not be `NOTHING` — so neither can pass by the mark
+/// having stopped working altogether.
+#[test]
+fn a_hover_on_the_selection_is_kept_by_the_face_mark_and_dropped_by_the_edge_mark() {
+    let tol = Tol::witness();
+    let (mut session, extrude) = plate_session(tol);
+    let index = index_of(&session);
+
+    // The face half: both lanes carry the picked patch.
+    let face = index
+        .face_at(
+            eval_of(&session),
+            &pncad::select::Ray {
+                origin: Point3::new(0.005, 0.005, 1.0),
+                dir: pncad::geom_core::Vec3::new(0.0, 0.0, -1.0),
+            },
+        )
+        .expect("no refusal")
+        .expect("a ray onto the plate hits it");
+    session.perform(SessionOp::Select(Selection::Face(face.clone())));
+    session.perform(SessionOp::Hover(Some(Hovered::Face(face))));
+    let lit = marks::highlight(&index, session.selection(), session.hover());
+    assert_ne!(
+        lit.selected,
+        viewer::pickindex::IdMap::NOTHING,
+        "the control: the picked patch is marked at all"
+    );
+    assert_eq!(
+        lit.hovered, lit.selected,
+        "the face mark keeps a hover that is the selection; the shader rules"
+    );
+
+    // The edge half: the hovered lane is dropped.
+    let (rim, _) = hole_rim(&index, extrude);
+    let selection = EdgeSelection {
+        name: index
+            .edge_name_of(rim)
+            .expect("a drawn edge has a name")
+            .clone(),
+        node: extrude,
+        body: 0,
+    };
+    let other = drawn_edges(&index, extrude)
+        .into_iter()
+        .find(|(id, run)| *id != rim && run.len() >= 2)
+        .expect("the plate draws more than one edge");
+    session.perform(SessionOp::Select(Selection::Edge(selection.clone())));
+
+    session.perform(SessionOp::Hover(Some(Hovered::Edge(EdgeSelection {
+        name: index
+            .edge_name_of(other.0)
+            .expect("a drawn edge has a name")
+            .clone(),
+        node: extrude,
+        body: 0,
+    }))));
+    let elsewhere = marks::edge_overlay(
+        &index,
+        &DisplayView::none(),
+        session.selection(),
+        session.hover(),
+    );
+    assert!(
+        !elsewhere.hovered.is_empty(),
+        "the control: a hover off the selection does fill the hovered lane"
+    );
+
+    session.perform(SessionOp::Hover(Some(Hovered::Edge(selection))));
+    let on_it = marks::edge_overlay(
+        &index,
+        &DisplayView::none(),
+        session.selection(),
+        session.hover(),
+    );
+    assert!(
+        !on_it.selected.is_empty(),
+        "the control: the selected edge is still marked"
+    );
+    assert!(
+        on_it.hovered.is_empty(),
+        "the edge mark drops a hover that is the selection; nothing downstream could"
+    );
+    assert!(
+        !on_it.hovered_probed,
+        "the dropped lane carries no probe flag either"
+    );
+}
+
 // --- survival -------------------------------------------------------
 
 /// The ratified resolution-failure semantics, on the edge arm: the
@@ -679,6 +820,122 @@ fn deleting_the_feature_leaves_the_edge_selection_unresolved() {
         session.hover(),
     );
     assert!(overlay.is_empty(), "a vanished edge lights nothing");
+}
+
+// --- the pixel measure ------------------------------------------------
+
+/// **A viewport no pixel distance can be measured in picks no edge,
+/// and refuses nothing about the cursor.**
+///
+/// The edge rule measures PIXELS, and a pixel distance is arithmetic
+/// over numbers `ViewportSize` scales: `viewer::pickindex`'s
+/// `segment_distance_px` squares a pixel separation, which overflows
+/// past about `1.34e154`, and the quotient that follows is `inf/inf`.
+/// So the walk can be handed a projection that is not a measurement
+/// **with every input to the door finite** — no cursor, placement or
+/// mesh position has to be a `NaN`, and the two routes that would
+/// need one are closed upstream anyway (`Camera::ray_through` refuses
+/// a cursor that is not a number, and `Camera::project` answers
+/// `None` for a position that is not).
+///
+/// Before the admission at `best_segment`, such a segment took
+/// neither side of `distance > EDGE_PICK_RADIUS_PX`, was installed as
+/// the best, held its boundary against every later candidate, and
+/// handed its `NaN` pixel to the occlusion probe — so the door
+/// refused with `the camera's cursor x is NaN`, **naming the caller's
+/// cursor for a pixel the walk had computed**.
+///
+/// The rows are a pair, because neither half says anything alone. The
+/// scales are one picture in different pixel units: the aspect is
+/// `pane()`'s at every one of them, so the camera, the projection and
+/// the NDC are identical and the only thing that changes is the size
+/// of the number the measure is taken in.
+///
+/// **What this does NOT claim.** `ViewportSize` is unbounded above and
+/// is a door-level input; no screen is 1e155 pixels across and no
+/// user-reachable producer of one was found.
+#[test]
+fn a_viewport_no_pixel_distance_can_be_measured_in_picks_no_edge() {
+    let tol = Tol::witness();
+    let (session, extrude) = plate_session(tol);
+    let index = index_of(&session);
+    let eval = eval_of(&session);
+    let aspect = pane().aspect().expect("a positive aspect");
+    let camera = common::framed(aspect);
+    let (rim, points) = hole_rim(&index, extrude);
+    let at = (points.len() - 1) / 2;
+    let wide = |scale: f64| ViewportSize {
+        width_px: 1.28 * scale,
+        height_px: 0.72 * scale,
+    };
+    // The cursor is DERIVED at each scale — the midpoint of the two
+    // pixels the drawn segment's own endpoints land on, so it is ON
+    // the chord the walk measures against whatever the viewport
+    // measures in. (The projection of the 3-D midpoint is not: the
+    // perspective divide puts it off the chord by a fraction of the
+    // chord, and a fraction of `1e100` pixels is not within a
+    // six-pixel radius. The row would then be measuring the fixture.)
+    let cursor_in = |viewport: ViewportSize| {
+        let pixel = |point: Point3<f64>| {
+            let ndc = camera
+                .project(point, viewport.aspect().expect("a positive aspect"))
+                .expect("the projection is defined")
+                .expect("a framed point is in front of the eye");
+            viewport
+                .cursor_of([ndc[0], ndc[1]])
+                .expect("a viewport with area names a pixel")
+        };
+        let (a, b) = (pixel(points[at]), pixel(points[at + 1]));
+        [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5]
+    };
+
+    // Measurable: the answer is the rim, at a distance that is one.
+    for scale in [1.0e2_f64, 1.0e100, 1.0e150] {
+        let viewport = wide(scale);
+        let pick = index
+            .edge_at_for(
+                eval,
+                &camera,
+                viewport,
+                cursor_in(viewport),
+                &DisplayView::none(),
+            )
+            .expect("a finite cursor names a ray whatever the viewport measures in")
+            .unwrap_or_else(|| {
+                panic!("the cursor is the rim segment's own midpoint, at {scale:e} across")
+            });
+        assert_eq!(
+            pick.id(),
+            rim,
+            "the same picture answers the same edge at {scale:e} pixels across"
+        );
+        assert!(
+            pick.distance_px.is_finite() && pick.distance_px <= EDGE_PICK_RADIUS_PX,
+            "the pick carries a measurement, not {} at {scale:e}",
+            pick.distance_px
+        );
+    }
+
+    // Past the measure: nothing is picked, and nothing is refused
+    // about the cursor the caller passed.
+    for scale in [1.0e160_f64, 1.0e200] {
+        let viewport = wide(scale);
+        let answer = index
+            .edge_at_for(
+                eval,
+                &camera,
+                viewport,
+                cursor_in(viewport),
+                &DisplayView::none(),
+            )
+            .expect("a pixel the walk could not measure is not the caller's cursor");
+        assert!(
+            answer.as_ref().is_none_or(
+                |pick| pick.distance_px.is_finite() && pick.distance_px <= EDGE_PICK_RADIUS_PX
+            ),
+            "whatever is answered at {scale:e} is within the radius by construction"
+        );
+    }
 }
 
 // --- the display view ------------------------------------------------
@@ -808,10 +1065,12 @@ fn a_faces_only_pick_answers_the_face_where_an_unfiltered_one_answers_the_edge()
     // the filter exists to keep reachable.
     assert_eq!(
         index
-            .face_under_cursor(eval, &camera, pane(), cursor, &DisplayView::none())
+            .faces_under_cursor(eval, &camera, pane(), cursor, &DisplayView::none())
             .expect("un-projects")
-            .map(|under| under.name),
-        Some(face.name.clone()),
+            .into_iter()
+            .map(|under| under.name)
+            .collect::<Vec<_>>(),
+        vec![face.name.clone()],
         "the filtered answer is the ray path's own face, unnarrowed"
     );
 
@@ -904,5 +1163,95 @@ fn an_edges_only_pick_answers_nothing_where_an_unfiltered_one_answers_the_face()
             .expect("un-projects")
             .is_none(),
         "and hovers nothing, so the picture agrees with the click"
+    );
+}
+
+/// **A cursor the FACE pick ties on still picks the edge.**
+///
+/// A cursor on a shared edge is the pixel a user aims an edge with,
+/// and it is also where the face pick ties — the ray meets both faces
+/// the edge belongs to and the arithmetic orders neither. Seeding the
+/// edge search on the face ANSWER therefore refuses the edge pick
+/// exactly where an edge is what the cursor means; the seed is a
+/// depth instead (`PickIndex::front_of`), and only the face answer
+/// refuses.
+///
+/// The fixture is the shipped plate's own drawn edges, swept at every
+/// segment midpoint: the sweep both finds the tied cursors and pins
+/// the edge door over all of them. The premise is asserted, so a
+/// plate that stopped producing tied cursors reds here rather than
+/// passing vacuously.
+#[test]
+fn a_cursor_the_face_pick_ties_on_still_picks_the_edge() {
+    let tol = Tol::witness();
+    let (session, extrude) = plate_session(tol);
+    let index = index_of(&session);
+    let aspect = pane().aspect().expect("a positive aspect");
+    let camera = common::framed(aspect);
+    let eval = eval_of(&session);
+    let mut tied_cursors = 0usize;
+    let mut edge_refused = 0usize;
+    let mut edge_missed = 0usize;
+    let mut cursors = 0usize;
+    let mut edges_hit = std::collections::BTreeSet::new();
+    let mut edges_all = 0usize;
+    let mut example = String::new();
+    for (id, points) in drawn_edges(&index, extrude) {
+        edges_all += 1;
+        for pair in points.windows(2) {
+            let mid = Point3::new(
+                (pair[0].x + pair[1].x) * 0.5,
+                (pair[0].y + pair[1].y) * 0.5,
+                (pair[0].z + pair[1].z) * 0.5,
+            );
+            let cursor = pixel_of(&camera, mid);
+            cursors += 1;
+            let faces = index
+                .faces_under_cursor(eval, &camera, pane(), cursor, &DisplayView::none())
+                .expect("the cursor un-projects");
+            if faces.len() < 2 {
+                continue;
+            }
+            tied_cursors += 1;
+            edges_hit.insert(format!("{id:?}"));
+            match index.edge_at_for(eval, &camera, pane(), cursor, &DisplayView::none()) {
+                Ok(Some(pick)) => {
+                    if example.is_empty() {
+                        example = format!("tied at {cursor:?}, edge pick answered {pick:?}");
+                    }
+                }
+                Ok(None) => {
+                    edge_missed += 1;
+                    if example.is_empty() {
+                        example = format!("tied at {cursor:?}, edge pick answered NOTHING");
+                    }
+                }
+                Err(error) => {
+                    edge_refused += 1;
+                    if example.is_empty() {
+                        example = format!("tied at {cursor:?}, edge pick REFUSED: {error}");
+                    }
+                }
+            }
+        }
+    }
+    println!(
+        "# tied cursors {tied_cursors} of {cursors}, on {} of {edges_all} drawn edges; the \
+         edge pick refuses at {edge_refused} of them and answers nothing at {edge_missed}; \
+         {example}",
+        edges_hit.len()
+    );
+    assert!(
+        tied_cursors > 0,
+        "the row's premise: the plate's drawn edges produce cursors the face pick ties on \
+         ({cursors} cursors over {edges_all} edges)"
+    );
+    assert_eq!(
+        edge_refused, 0,
+        "a cursor the face pick ties on takes the EDGE pick down with it: {example}"
+    );
+    assert_eq!(
+        edge_missed, 0,
+        "the cursor is on a drawn edge's own midpoint, so the edge door answers it: {example}"
     );
 }

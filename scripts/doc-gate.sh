@@ -23,7 +23,7 @@
 #
 # --document-private-items is deliberate: much of the load-bearing prose
 # sits on private functions (span_offset, span_indices,
-# frame_from_unit_aim), and without the flag those are never rendered and
+# OrthoFrame::from_aim), and without the flag those are never rendered and
 # never checked.
 #
 # WHY private_intra_doc_links IS ALLOWED. That lint fires when a public
@@ -162,7 +162,7 @@
 #
 # THE EXCEPTION IS ONE ROOT, AND IT IS NAMED. `interval-transcendentals`
 # is documented under DEFAULT features, a ruling this repo has already
-# made once: ci.yml's `interval backend crate` job is "deliberately the
+# made once: interval.yml's `interval backend crate` job is "deliberately the
 # crate's DEFAULT feature set: without `oracle-inari` there is no
 # inari/gmp-mpfr-sys and no C toolchain in the graph". That crate's ONLY
 # feature is that test-only oracle (its manifest: `src/` must never
@@ -828,7 +828,7 @@ gate() {
   # and only the `app`-gated ones (which drag ~140 eframe/wgpu crates in)
   # are skipped. Ev's viewer-CI-posture ruling, 2026-08-27, recorded in the
   # closed GUI program's log, which left the tracker with that program's
-  # directory in DOC-LEDGER sweep 5 and reads at
+  # directory and reads at
   # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`;
   # the caller decides, this script only obeys, and the
   # hosted caller passes the flag off the change filter's seed-keyed

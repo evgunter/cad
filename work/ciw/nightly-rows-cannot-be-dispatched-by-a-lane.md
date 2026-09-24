@@ -4,6 +4,8 @@ kind: issue
 title: no agent here can workflow_dispatch, so a nightly-only row lands unverified
 status: open
 opened: 2026-09-09
+priority: P4
+cost: E
 ---
 
 

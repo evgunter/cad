@@ -4,6 +4,8 @@ kind: issue
 title: shell of a POLE-TOUCHING sphere refuses Certification(ResidualExceeded MappedSource) where the two-arc sphere shells
 status: open
 opened: 2026-09-09
+priority: P0
+cost: H
 ---
 
 

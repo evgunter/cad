@@ -57,12 +57,14 @@
 //! undeclared-contact hard error naming the guilty pair (a proper
 //! pierce is categorically undeclarable) and certifies where
 //! declared; cross-solid proximity with a curved side (against a
-//! curved OR planar partner, F5) and one instance's extents nested
-//! inside another's REFUSE as `CensusUndecidable` — the conservative
-//! loudness backstop for the classes no arm can examine yet (the
-//! C9-ring conformal-rest / partial-embedding class; C6's
-//! interference class, representable only through recorded
-//! gate-skips that do not exist yet). A pair of PLANAR faces is left
+//! curved OR planar partner, F5) REFUSES as `CensusUndecidable` — the
+//! conservative loudness backstop for the class no arm can examine yet
+//! (the C9-ring conformal-rest / partial-embedding class); one
+//! instance's extents nested inside another's go to the material
+//! test, which clears a part sitting in a concavity and refuses an
+//! embedded one typed (`InstanceInterference` — recorded gate-skips,
+//! the declaration that would admit it, do not exist yet). A pair of
+//! PLANAR faces is left
 //! to the sweeps only when both are bounded entirely by line edges,
 //! which is what puts a whole boundary in front of them — so an
 //! arc-bounded planar face (a cylinder's cap) is backstopped like a
@@ -313,11 +315,11 @@ mod tests {
     use geom_core::Tol;
 
     use crate::body::Body;
-    use crate::fixtures::ops_cube;
     use crate::instance::graft_disjoint;
+    use crate::test_support_fixtures::declined_cube;
 
     fn cube() -> Body<f64> {
-        ops_cube(Tol::witness()).body
+        declined_cube::<f64>(Tol::witness()).body
     }
 
     /// **Disjointness.** The graft adds a SECOND solid; every arena

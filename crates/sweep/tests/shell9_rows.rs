@@ -24,12 +24,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::Vec3;
+use geom_core::{Tol, Vec3};
+use sweep::test_support::block;
 use topo::Body;
 
 use super::shell7_common::{face_of_he, tol};
 use super::shell8_common::cap;
-use super::verbs_shell::{boxy, tube, vessel};
+use super::verbs_shell::{tube, vessel};
 
 /// One line per stored row, in half-edge-slot order: the half-edge,
 /// its face, the parameter window and the image.
@@ -70,7 +71,7 @@ fn shelled(label: &str, body: &Body<f64>, t: f64, open: &[topo::FaceKey]) {
 /// builds.
 #[test]
 fn shell9_rows_verbs_shell_corpus() {
-    let b = boxy(2.0, 3.0, 4.0);
+    let b = block(2.0, 3.0, 4.0, Tol::witness());
     shelled("box sealed", &b, 0.25, &[]);
     let v = vessel(1.0, 2.0);
     shelled("vessel sealed", &v, 0.2, &[]);

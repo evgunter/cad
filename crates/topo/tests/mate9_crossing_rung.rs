@@ -66,7 +66,7 @@ use topo::{Body, CensusContact, ContactRecords, FaceKey, PatchContact, Validatio
 /// [`common::straddle_seat`] as this file's tuple:
 /// `(body, post_top, post_side_x030, shelf_bottom, shelf_side_y030)`.
 fn straddle_parts() -> (Body<f64>, FaceKey, FaceKey, FaceKey, FaceKey) {
-    let seat = common::straddle_seat();
+    let seat = common::straddle_seat(Tol::witness());
     (
         seat.body,
         seat.post_top,
@@ -150,11 +150,13 @@ fn a_transverse_crossing_refuses_naming_the_side_verdict() {
         &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
         0.5,
         1.0,
+        Tol::witness(),
     );
     let shelf: common::Prism<f64> = common::prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     let mut body = post.body;
     let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
@@ -207,16 +209,19 @@ fn a_verified_pair_elsewhere_backs_no_crossing() {
         &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
         0.0,
         0.5,
+        Tol::witness(),
     );
     let flush: common::Prism<f64> = common::prism_z(
         &[(0.70, 0.05), (0.80, 0.05), (0.80, 0.25), (0.70, 0.25)],
         0.0,
         0.5,
+        Tol::witness(),
     );
     let shelf: common::Prism<f64> = common::prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     let mut body = post.body;
     let fkeys = topo::graft_disjoint_all_keyed(&mut body, &flush.body, Tol::witness()).unwrap();
@@ -318,16 +323,19 @@ fn an_unverified_point_holding_pair_backs_no_crossing() {
         &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
         0.0,
         0.5,
+        Tol::witness(),
     );
     let shelf: common::Prism<f64> = common::prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     let block: common::Prism<f64> = common::prism_z(
         &[(0.10, 0.30), (0.30, 0.30), (0.30, 0.50), (0.10, 0.50)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     let post_top = post.top_face;
     let mut body = post.body;
@@ -368,11 +376,13 @@ fn the_pierce_stays_categorical() {
         &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
         0.0,
         1.0,
+        Tol::witness(),
     );
     let shelf: common::Prism<f64> = common::prism_z(
         &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
         0.5,
         0.54,
+        Tol::witness(),
     );
     let mut body = post.body;
     let keys = topo::graft_disjoint_all_keyed(&mut body, &shelf.body, Tol::witness()).unwrap();
@@ -399,5 +409,110 @@ fn the_pierce_stays_categorical() {
         bare, with_declaration,
         "no declaration reaches a pierce: the class is categorical \
          until C6's era, by name"
+    );
+}
+
+/// **The `None` path through the public door, at the scalar that has no
+/// other.** The straddle seat rebuilt at `Dual64` and declared, run
+/// through `validate_pseudomanifold_structural` — the tier-3′ door a
+/// dual body goes by — passes tiers 1–3 (it is the certified seat's
+/// value channel, bit for bit) and reaches the census, whose pass
+/// holds no region door: the declared pair is exactly one
+/// `CensusLaneUnsupported` naming it, and the two crossings the
+/// certified door sees backed are the hard findings the undeclared
+/// seat has. The `_structural` door at `f64` says the same on the
+/// same seat, which is the point: the refusal is the DOOR's, and the
+/// dual is only the scalar that has no other door.
+#[test]
+fn the_structural_door_at_a_dual_refuses_the_declared_seat_typed_and_backs_no_crossing() {
+    use geom_core::Dual64;
+    let tol = Tol::witness();
+    let post: common::Prism<Dual64> = common::prism_z(
+        &[(0.30, 0.20), (0.60, 0.20), (0.60, 0.42), (0.30, 0.42)],
+        0.0,
+        0.5,
+        tol,
+    );
+    let shelf: common::Prism<Dual64> = common::prism_z(
+        &[(0.0, 0.0), (0.9, 0.0), (0.9, 0.30), (0.0, 0.30)],
+        0.5,
+        0.54,
+        tol,
+    );
+    let mut dual = post.body;
+    let keys = topo::graft_disjoint_all_keyed(&mut dual, &shelf.body, tol).unwrap();
+    let pair = (post.top_face, keys.face(shelf.bottom_face).unwrap());
+
+    fn lane_refusals(errors: &[ValidationError]) -> Vec<&ValidationError> {
+        errors
+            .iter()
+            .filter(|e| matches!(e, ValidationError::CensusLaneUnsupported { .. }))
+            .collect()
+    }
+    let structural = |body: &Body<Dual64>, records: &ContactRecords| -> Vec<ValidationError> {
+        topo::validate_pseudomanifold_structural(body, records, tol).expect_err(
+            "the census pass at a dual holds no region door, so the declared seat refuses",
+        )
+    };
+
+    let bare = structural(&dual, &ContactRecords::default());
+    let bare_crossings = crossings(&bare);
+    assert_eq!(
+        bare_crossings.len(),
+        2,
+        "the undeclared seat's two crossings: {bare:?}"
+    );
+    assert!(
+        lane_refusals(&bare).is_empty(),
+        "no declaration, no consult: {bare:?}"
+    );
+
+    let found = structural(&dual, &declared(&[pair]));
+    let refusals = lane_refusals(&found);
+    assert_eq!(
+        refusals.len(),
+        1,
+        "one declared pair, one refusal: {found:?}"
+    );
+    assert_eq!(
+        *refusals[0],
+        ValidationError::CensusLaneUnsupported {
+            subject: topo::CensusSubject::FacePair(pair.0, pair.1),
+        }
+    );
+    assert_eq!(
+        crossings(&found),
+        bare_crossings,
+        "the declared pair backs nothing through a door that holds no region door: {found:?}"
+    );
+
+    // The same door at `f64`, on the same seat, keyed the same way:
+    // the refusal is the door's and not the scalar's.
+    let (seat, post_top, _, shelf_bottom, _) = straddle_parts();
+    assert_eq!(
+        (post_top, shelf_bottom),
+        pair,
+        "the two seats are built in one arena order"
+    );
+    let at_f64 = topo::validate_pseudomanifold_structural(&seat, &declared(&[pair]), tol)
+        .expect_err("the `_structural` door at f64 holds no region door either");
+    let shape = |errors: &[ValidationError]| -> Vec<String> {
+        errors
+            .iter()
+            .map(|e| match e {
+                ValidationError::UndeclaredContact { contact, .. } => format!("{contact:?}"),
+                other => format!("{other:?}"),
+            })
+            .collect()
+    };
+    assert_eq!(
+        shape(&at_f64),
+        shape(&found),
+        "the `_structural` verdict is the same at f64 and at the dual, the witnesses' scalar \
+         rendering aside"
+    );
+    assert!(
+        errors(&seat, &declared(&[pair])).is_empty(),
+        "and the certified door, holding the region door, certifies the seat"
     );
 }

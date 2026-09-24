@@ -149,7 +149,7 @@
 use core::f64::consts::PI;
 
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Vec2, Vec3};
+use pncad::geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Vec2, Vec3};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane, Via};
 use pncad::sweep::blend::BlendError;
@@ -159,7 +159,7 @@ use pncad::sweep::{
 };
 use pncad::topo::{Body, BooleanError, Operand, TransformError};
 
-use crate::scalar::Scalar;
+use crate::scalar::{Scalar, authored_frame, axis_frame, sketch_frame};
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::{p2, p3, polygon, v2, v3, validated};
 use pncad::geom_core::Tol;
@@ -264,9 +264,12 @@ fn sketch_axis<S: Scalar>() -> RevolveAxis<S> {
 fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64, tol: Tol) -> (Body<S>, WedgeFrames<S>) {
     let sense = if spec.turn >= 0.0 { -1.0 } else { 1.0 };
     let revolved = tube_along_arc(
-        spec.center.map(S::from_f64),
-        v3(0.0, sense, 0.0),
-        spec.radial.map(S::from_f64),
+        axis_frame(
+            spec.center.map(S::from_f64),
+            v3(0.0, sense, 0.0),
+            spec.radial.map(S::from_f64),
+            tol,
+        ),
         S::from_f64(spec.ring),
         TubeWindow::Arc {
             t0: S::from_f64(0.0),
@@ -399,7 +402,7 @@ fn lantern<S: Scalar>(
     // flower axis (into the flower), u the in-plane radial — the
     // flower axis turned a quarter turn in the plant's own plane,
     // i.e. crossed with ŷ.
-    let plane = SketchPlane::from_frame(attach, dir.cross(Vec3::unit_y()), dir).map(S::from_f64);
+    let plane = sketch_frame(attach, dir.cross(Vec3::unit_y()), dir, tol).map(S::from_f64);
     revolve(
         &validated(
             plane,
@@ -475,7 +478,12 @@ fn corm<S: Scalar>(
         .line_to(Start, tol)
         .expect("corm bore wall")
         .into();
-    let plane = SketchPlane::from_frame(p3(0.0, 0.0, top_z), v3(1.0, 0.0, 0.0), v3(0.0, 0.0, -1.0));
+    let plane = sketch_frame(
+        p3(0.0, 0.0, top_z),
+        v3(1.0, 0.0, 0.0),
+        v3(0.0, 0.0, -1.0),
+        tol,
+    );
     revolve(
         &validated(plane, vec![lp], tol).expect("corm profile validates"),
         sketch_axis(),
@@ -595,7 +603,6 @@ fn bud<S: Scalar>(
         // the direction `lean` radians round from its own place.
         let l = rad(phi + lean);
         let (st, ct) = (tilt.sin(), tilt.cos());
-        let a = (dir * ct + l * st).normalize();
         // The wedge STARTS half a span before the segment's
         // place — and then sweeps AWAY from it, not across it:
         // `revolve` turns right-handed about the sketch axis,
@@ -610,13 +617,15 @@ fn bud<S: Scalar>(
         // off the realized centre is `lean + span`, still nowhere
         // near the achiral star, and still a pinwheel.
         //
-        // Rejected from the tilted axis, since that radial is only
-        // perpendicular to the BUD's axis, not to this segment's.
-        let start = rad(phi - 0.5 * span);
-        let u = start.reject_from(a).normalize();
-        // All three share the ATTACHMENT: the tilt splays their
-        // tips, not their bellies.
-        let plane = SketchPlane::from_frame(attach, u, a).map(S::from_f64);
+        // The segment's own axis and the wedge's start radial,
+        // DECIDED together: the axis is kept as the frame's `w` and
+        // the radial yields its component along it, since that radial
+        // is only perpendicular to the BUD's axis, not to this
+        // segment's. All three share the ATTACHMENT: the tilt splays
+        // their tips, not their bellies.
+        let spine = axis_frame::<f64>(attach, dir * ct + l * st, rad(phi - 0.5 * span), tol);
+        let a = spine.w().get();
+        let plane = sketch_frame(attach, spine.u().get(), a, tol).map(S::from_f64);
         revolve(
             &validated(
                 plane,
@@ -756,7 +765,7 @@ fn leaf<S: Scalar>(
     curl: f64,
     tol: Tol,
 ) -> Body<S> {
-    let (d, v, u) = blade_frame(dir, up);
+    let (d, v, u) = blade_frame(dir, up, tol);
     // The spine: a circular arc of length `len` turning through `curl`
     // in the (d, v) plane, i.e. radius len/curl, sampled exactly.
     let r = len / curl;
@@ -771,7 +780,7 @@ fn leaf<S: Scalar>(
     let path = pncad::geom::NurbsCurve3::interpolate(&pts, 3).expect("the leaf spine interpolates");
     // The skinning lane's own door is `f64` (`sweep_body` takes an
     // `Affine3<f64>`), so this frame is not lifted at all.
-    let place = Affine3::from_frame(base, u, v);
+    let place = authored_frame(base, u, v, tol).to_affine();
     // The kite, wound counterclockwise in the sketch (s, t) frame:
     // margin, keel, margin, ridge.
     let loops: Vec<ProfileLoop<f64>> = vec![
@@ -1050,13 +1059,19 @@ impl Plan {
 /// `len` turning through `curl` toward `up`, sampled at `stations`
 /// exact points. Two live walls bound what this can be asked for: the
 /// tip may not close to a point (a zero-width section is a degenerate
-/// segment), and the spine may not turn past π — the loft's stacking
-/// trilean is an END-TO-END statement, `cos(curl/2)` for a planar arc
-/// spine, so past a half turn of total position stacking it refuses
-/// `ReversedStacking` (its own filed frontier, #368).
+/// segment), and each SLAB — each adjacent pair of stations — may not
+/// turn past π, because the loft's stacking statement is a fold over
+/// those pairs and a slab that turns further stacks against its own
+/// base section's normal and refuses `ReversedStacking` naming itself.
+/// So the bound is on `curl / (stations − 1)`, not on `curl`: a blade
+/// may coil as far as its sampling supports.
+///
+/// `review_probes::the_spine_curl_wall_re_measured` pins both sides of
+/// that wall (13.0 rad coils at 17 stations; 10.0 rad refuses at 4).
+/// Past a full turn the spine returns through its own body and the
+/// kernel has no gate that says so — see the sweep crate's
+/// `bool6_per_slab_stacking::a_curl_past_a_full_turn_builds_a_spine_that_revisits_itself`.
 #[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness
-/// `review_probes::the_spine_curl_wall_re_measured` pins both sides
-/// of the curl wall (3.0 builds, 3.5 refuses typed).
 fn lofted_blade<S: Scalar>(
     base: Point3<f64>,
     dir: Vec3<f64>,
@@ -1087,7 +1102,7 @@ fn try_lofted_blade<S: Scalar>(
     stations: usize,
     tol: Tol,
 ) -> Result<pncad::sweep::Lofted<S>, pncad::sweep::LoftError> {
-    let (d, v, u) = blade_frame(dir, up);
+    let (d, v, u) = blade_frame(dir, up, tol);
     let r = len / curl;
     let mut sections: Vec<Vec<ProfileLoop<f64>>> = Vec::with_capacity(stations);
     let mut places: Vec<Affine3<f64>> = Vec::with_capacity(stations);
@@ -1107,7 +1122,7 @@ fn try_lofted_blade<S: Scalar>(
         let uu = u * ct + vk * st;
         let vv = vk * ct - u * st;
         sections.push(plan.at(s).outline(tol));
-        places.push(Affine3::from_frame(p, uu, vv));
+        places.push(authored_frame(p, uu, vv, tol).to_affine());
     }
     loft_body::<S>(&sections, &places, LEAF_V_DEGREE, tol)
 }
@@ -1200,17 +1215,20 @@ fn sepals<S: Scalar>(
 type BladeFrame = (Vec3<f64>, Vec3<f64>, Vec3<f64>);
 
 /// The right-handed `(d, v, u)` blade frame: `d` the spine's start
-/// tangent, `v` the `up` vector rejected from it ([`Vec3::reject_from`],
-/// whose grouping is the kernel's contract and not this file's), and
-/// `u = v x d`, so a sketch plane built on `(u, v)` has `d` for its
-/// normal. Shared by [`leaf`] and [`lofted_blade`] so the swept and
-/// lofted blades sit in the SAME frame — the difference between them
-/// is the verb, not the placement.
-fn blade_frame(dir: Vec3<f64>, up: Vec3<f64>) -> BladeFrame {
-    let d = dir.normalize();
-    let v = up.reject_from(d).normalize();
-    let u = v.cross(d);
-    (d, v, u)
+/// tangent, `v` the direction the blade curls toward, and `u = v x d`,
+/// so a sketch plane built on `(u, v)` has `d` for its normal. Shared
+/// by [`leaf`] and [`lofted_blade`] so the swept and lofted blades sit
+/// in the SAME frame — the difference between them is the verb, not
+/// the placement.
+///
+/// `d` and `v` are the MINT's, not this file's: [`axis_frame`] keeps
+/// the tangent and yields `up` to it at the run's band, which is the
+/// same decision every other frame in the tour goes through. `u` is
+/// then an exact cross of two witnesses — no length left to decide.
+fn blade_frame(dir: Vec3<f64>, up: Vec3<f64>, tol: Tol) -> BladeFrame {
+    let f = axis_frame::<f64>(Point3::origin(), dir, up, tol);
+    let (d, v) = (f.w().get(), f.u().get());
+    (d, v, v.cross(d))
 }
 
 // ---------------------------------------------------------------
@@ -1846,7 +1864,12 @@ fn weld_circle<S: Scalar>(
 /// y = 0), as a revolve of a half-disc whose diameter lies on the
 /// axis — the shape a tepal seam would be carved with.
 fn ball<S: Scalar>(c: Point3<f64>, r: f64, tol: Tol) -> Body<S> {
-    let plane = SketchPlane::from_frame(c.map(S::from_f64), v3(1.0, 0.0, 0.0), v3(0.0, 0.0, 1.0));
+    let plane = sketch_frame(
+        c.map(S::from_f64),
+        v3(1.0, 0.0, 0.0),
+        v3(0.0, 0.0, 1.0),
+        tol,
+    );
     // Algebra-authored (LIB-G1): centre-first, with the sphere's own
     // centre authored and the bulge derived at lowering.
     let lp = Open
@@ -2061,8 +2084,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    extrusion is deferred past M2. The probe pins that door, not
     //    the out-of-plane blade, which the scene above builds live.
     let leafp = {
-        let plane =
-            SketchPlane::from_frame(p3(0.0, 0.0, 0.0), v3(1.0, 0.0, 0.0), v3(0.0, 1.0, 0.0));
+        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.0)));
         // Algebra-authored (LIB-G1): via-point arcs (see `leaf`).
         let lp = Open
             .at(p2(0.0, 0.0))
@@ -3675,56 +3697,75 @@ mod review_probes {
         s.atan2(c)
     }
 
-    /// **The spine curl wall, pinned from both sides.** Through π the
-    /// loft builds; past spine turn π it refuses `ReversedStacking`,
-    /// because the stacking trilean is an END-TO-END statement (mean
-    /// last-section displacement against the first section's normal —
-    /// for a planar arc spine that is `cos(curl/2)`, negative past π),
-    /// not a per-slab one. That wall is filed as its own frontier
-    /// (#368); if either side of this pin moves, re-derive the
-    /// `lofted_blade` prose with it.
+    /// **The spine curl wall, re-measured against the per-slab
+    /// stacking fold.** The wall is no longer at spine turn π and is
+    /// no longer about how far the spine goes. The loft's stacking
+    /// statement is a fold over adjacent section pairs, each decided
+    /// against its own base section's normal, so a blade whose spine
+    /// turns a full circle and more builds as long as each of its
+    /// slabs advances — and at [`LOFT_STATIONS`] stations each slab
+    /// carries 1/16 of the turn.
+    ///
+    /// What remains is a SAMPLING wall, at per-slab turn π, i.e. total
+    /// curl `(stations − 1)·π`. This probe pins it from both sides in
+    /// the scene's own vocabulary by lofting the same blade at four
+    /// stations, where the wall is at `3π ≈ 9.42` rad, and the
+    /// refusal NAMES the slab that walls. At [`LOFT_STATIONS`] the
+    /// blade coils past two full turns and still builds, so the
+    /// refusal side is pinned at four stations instead.
     #[test]
     fn the_spine_curl_wall_re_measured() {
-        // Through π the blade builds.
-        for curl in [0.45, 1.0, 2.0, 2.5, 2.8, 3.0] {
-            let out = try_lofted_blade::<f64>(
+        let blade = |curl: f64, stations: usize| {
+            try_lofted_blade::<f64>(
                 LEAF_A_BASE,
                 LEAF_A_DIR,
                 LEAF_A_UP,
                 LEAF_A_LEN,
                 -curl,
                 leaf_a_plan(),
-                LOFT_STATIONS,
+                stations,
                 Tol::witness(),
-            );
+            )
+        };
+        // Through π and far past it: every one of these refused
+        // `ReversedStacking` above 3.0 rad under the end-to-end
+        // statement, on a summary none of their slabs disagreed with.
+        for curl in [0.45, 1.0, 2.0, 2.5, 2.8, 3.0, 3.5, 4.7, 6.0, 9.0, 13.0] {
+            let out = blade(curl, LOFT_STATIONS);
             assert!(
                 out.is_ok(),
-                "curl {curl} rad refused ({:?}) — the span-meter wall is BACK; \
+                "curl {curl} rad over {LOFT_STATIONS} stations refused ({:?}) — \
+                 each slab turns {:.4} rad, nowhere near the per-slab wall at π; \
                  re-derive this probe and the lofted_blade prose",
-                out.err()
+                out.err(),
+                curl / ((LOFT_STATIONS - 1) as f64),
             );
         }
-        // The standing wall: past π, the end-to-end stacking trilean
-        // reverses — TYPED, and pinned by variant so it fails loud if
-        // the loft's stacking statement ever changes shape.
-        for curl in [3.5, 4.7, 6.0] {
-            let out = try_lofted_blade::<f64>(
-                LEAF_A_BASE,
-                LEAF_A_DIR,
-                LEAF_A_UP,
-                LEAF_A_LEN,
-                -curl,
-                leaf_a_plan(),
-                LOFT_STATIONS,
-                Tol::witness(),
-            );
-            assert!(
-                matches!(out, Err(pncad::sweep::LoftError::ReversedStacking)),
-                "curl {curl} rad: expected the end-to-end ReversedStacking wall, \
-                 got {out:?} — the stacking wall moved; re-derive this probe, \
-                 the lofted_blade prose, and the filed frontier together"
-            );
-        }
+        // The wall that remains is per-slab, and at THIS scene's
+        // sampling it is out of reach: 13.0 rad over 17 stations is
+        // 0.81 rad per slab and still builds. Coarsen the sampling and
+        // it comes into range — 10.0 rad over FOUR stations is 3.33
+        // rad per slab, past π, and the refusal names the slab.
+        //
+        // Measured while re-deriving this probe, and worth knowing
+        // before anyone reads the four-station row as the whole story:
+        // at four, five, six and eight stations the blade meets a
+        // DIFFERENT wall first — `nurbs_span_meter` escalating inside
+        // the Euler assembly (#222's meter) — from 3.0 rad upward, so
+        // the build side of the per-slab wall is not reachable at the
+        // same station count as its refusal side in this scene. Both
+        // sides ARE executed together, on a bare arc spine, in
+        // `crates/sweep/tests/bool6_per_slab_stacking.rs`.
+        let out = blade(10.0, 4);
+        assert!(
+            matches!(
+                out,
+                Err(pncad::sweep::LoftError::ReversedStacking { slab: 0 })
+            ),
+            "10.0 rad over 4 stations is 3.33 rad per slab: expected the per-slab \
+             wall, naming slab 0, got {out:?} — the stacking wall moved; re-derive \
+             this probe, the lofted_blade prose, and KERNEL-VERBS together"
+        );
     }
 
     /// **The wall list, run by the test suite and not only by the

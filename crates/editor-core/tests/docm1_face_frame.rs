@@ -28,9 +28,9 @@ use editor_core::{
     face_frame,
 };
 use geom_brep::SurfaceKind;
-use geom_core::{Tol, Vec3};
+use geom_core::{Tol, UnitVec3, Vec3};
 use topo::readback;
-use topo::{CurveKind, DatumValue, UnitVec3};
+use topo::{CurveKind, DatumValue};
 
 fn len(v: f64) -> Expr {
     Expr::literal(v, Dimension::Length).expect("a length literal")
@@ -422,15 +422,15 @@ fn frame_of(
     ev: &editor_core::Evaluation<f64>,
     node: RecipeNodeId,
 ) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
-    let ValuePayload::Datum(DatumValue::Frame { origin, u, v }) =
+    let ValuePayload::Datum(DatumValue::Frame(f)) =
         &ev.value(node).expect("the frame evaluated").payload
     else {
         panic!("a frame value");
     };
     (
-        *origin - geom_core::Point3::origin(),
-        UnitVec3::get(*u),
-        UnitVec3::get(*v),
+        f.origin() - geom_core::Point3::origin(),
+        UnitVec3::get(f.u()),
+        UnitVec3::get(f.v()),
     )
 }
 
@@ -580,7 +580,7 @@ fn a3_spin_rotates_about_the_outward_normal_and_is_a_continuous_angle_slot() {
     let (doc, frame) = fixture::insert(doc, face_frame_node(cube, top_cap(cube), theta));
     let ev2 = eval(&doc);
     let pose = face_frame(&ev, cube, &top_cap(cube)).expect("the top cap");
-    let n = if pose.sense { pose.axis } else { -pose.axis };
+    let n = geom_brep::OutwardNormal::from_chart(pose.axis, pose.sense).vec();
     let u_ref = pose.u_ref.expect("a plane fixes u_ref");
     let expected_u = u_ref * theta.cos() + n.cross(u_ref) * theta.sin();
     let (_, u, v) = frame_of(&ev2, frame);
@@ -601,6 +601,7 @@ fn a3_spin_rotates_about_the_outward_normal_and_is_a_continuous_angle_slot() {
                 expr,
             },
             Tol::witness(),
+            &editor_core::RefusingReach,
         )
     };
     let turned = set(ang(-theta)).expect("an angle goes in").doc;
@@ -681,9 +682,14 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
     // its node is live, and the table lacks it — N5's `Vanished`.
     let gone = fixture::fname(cube, fixture::wall(7));
     let rebind = |doc: &ProfileDoc, from: StableName, to: StableName| {
-        apply(doc, &DocEdit::Rebind { from, to }, Tol::witness())
-            .expect("a rebind between face names applies")
-            .doc
+        apply(
+            doc,
+            &DocEdit::Rebind { from, to },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("a rebind between face names applies")
+        .doc
     };
     let broken = rebind(&doc, top_cap(cube), gone.clone());
     let ev = eval(&broken);

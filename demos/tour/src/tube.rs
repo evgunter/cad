@@ -31,6 +31,7 @@ use pncad::geom::Surface;
 use pncad::geom_core::{Point3, Vec3};
 use pncad::sweep::{TubeWindow, tube_along_arc};
 
+use crate::scalar::axis_frame;
 use crate::{SceneBody, Stop, View};
 use pncad::geom_core::Tol;
 
@@ -57,9 +58,12 @@ pub(crate) const DELTA: f64 = 1e-2;
 /// The tube-door stop.
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let tube = tube_along_arc::<f64>(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        axis_frame(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::unit_y(),
+            Vec3::unit_x(),
+            tol,
+        ),
         R,
         TubeWindow::Arc { t0: T0, t1: T1 },
         MINOR,

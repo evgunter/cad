@@ -24,29 +24,26 @@
 use editor_core::{DocEdit, ProfileDoc};
 use pncad::geom_core::Tol;
 use viewer::readout;
-use viewer::scene::{self, DisplayTolerance, ProbeStop, TRIANGLE_BUDGET};
+use viewer::scene::{
+    self, DisplayTolerance, INITIAL_DELTA, ProbeStop, SCALE_PROBE_DELTA, TRIANGLE_BUDGET,
+};
 use viewer::session::DocSession;
 
 use crate::corpus;
 
-/// The δ the application starts on (`app::INITIAL_DELTA`, which is
-/// `cfg`-gated behind the `app` feature and so is restated here; the
-/// rows below say what the gallery ring and the startup plate cost AT
-/// this δ, so a change to the number that matters moves them).
-const INITIAL_DELTA: f64 = 1.0e-4;
-
-/// How much coarser than the δ it prices a rung of the fit's ladder
-/// runs (`scene`'s `PROBE_FACTOR`, which is private to it and so is
-/// restated here; the rung bound below is read against this number, so
-/// a change to it moves what this row asserts).
-const PROBE_FACTOR: f64 = 8.0;
-
-/// A request the gallery ring exceeds the budget at: a decade finer
-/// than the starting δ, where the ring's ~1.6·10⁵ triangles at 0.1 mm
-/// become ~1.6·10⁶ (the 1/δ law `fit_delta` solves). The budget rows
-/// need a document that is actually over budget, and since the torus
-/// sizing spends its chord bound without slack the ring is not one at
-/// the starting δ any more.
+/// A request the gallery ring exceeds the budget at, where the ring's
+/// ~1.6·10⁵ triangles at 0.1 mm become ~1.6·10⁶ (the 1/δ law
+/// `fit_delta` solves). The budget rows need a document that is
+/// actually over budget, and since the torus sizing spends its chord
+/// bound without slack the ring is not one at the starting δ any more.
+///
+/// **Chosen to be over budget, not derived from [`INITIAL_DELTA`].**
+/// It is a decade finer than the starting δ as both stand, but that
+/// is an observation rather than the requirement: what this constant
+/// has to be is a request the fixture exceeds the budget at, and
+/// spelling it `INITIAL_DELTA / 10.0` would break the row the moment
+/// the starting δ coarsened — a decade under a coarser start is a δ
+/// this same doc records as INSIDE the budget.
 const OVER_BUDGET_DELTA: f64 = 1.0e-5;
 
 /// The tour's gallery ring, as the committed fixture.
@@ -59,7 +56,7 @@ fn gallery_ring(tol: Tol) -> DocSession {
 /// The same fixture as a document, for the rows that open every
 /// document the same way.
 fn gallery_ring_doc(tol: Tol) -> ProfileDoc {
-    let text = include_str!("gallery_ring.pncad");
+    let text = crate::common::GALLERY_RING;
     // The fixture is stamped at the ε it was born at; `doc_io.rs` owns
     // the re-stamp and the proof that ε is its only ε-dependent byte.
     // Here the document only has to LOAD, so the born-at ε is fine and
@@ -233,6 +230,72 @@ fn a_coarsened_picture_says_so_in_both_numbers() {
     }
 }
 
+/// The coarsest δ [`DisplayTolerance::new`] accepts: the largest whose
+/// millimetre value is still an `f64`.
+///
+/// **It is also the largest the δ field can commit**, which is why the
+/// door's bound is this number and not one someone picked. The field
+/// parses millimetres and commits `mm * 1.0e-3`
+/// (`crate::pane::view`'s `delta_field`), so the coarsest δ a person
+/// can name is `f64::MAX * 1.0e-3` — and
+/// [`the_door_refuses_a_delta_whose_millimetre_value_is_not_one`]
+/// measures that this is exactly where the millimetre product stops
+/// being finite. Everything past it is a δ only the crate's own
+/// arithmetic could reach.
+const COARSEST_DELTA: f64 = f64::MAX * 1.0e-3;
+
+/// **The property, over one δ the door accepts**: the render reads back
+/// through the millimetre conversion the δ field commits with, and
+/// lands on a δ the door accepts within the render's own stated
+/// accuracy.
+///
+/// **The character bound is asserted separately**
+/// ([`fits_and_reads_back_as_a_delta`]), because it is not part of the
+/// property: from `1.7975e305` up the millimetre value is in the band
+/// `readout` spells exactly rather than in four figures (its
+/// `the_top_of_the_type_is_spelled_exactly`), and that spelling is
+/// twenty-two characters.
+fn reads_back_as_a_delta(d: DisplayTolerance) {
+    let text = d.render_mm();
+    // BOTH factors below are spelled here DELIBERATELY rather than
+    // read from the code, and they are two different numbers.
+    //
+    // `1.0e3` is the render's: this row checks that `render_mm`
+    // applies it, so reading `scene::MM_PER_METRE` would make the
+    // check agree with the render by construction.
+    //
+    // `1.0e-3` is the δ FIELD's commit factor (`pane::view`'s
+    // `delta_field`), which the field spells itself. Restating it
+    // states independently that the two are inverses — which is the
+    // coincidence `DisplayTolerance::new`'s doc argues its bound
+    // from, and which no constant in the crate holds.
+    let mm = d.get() * 1.0e3;
+    let read: f64 = text.parse().unwrap_or_else(|error| {
+        panic!("δ {mm} mm renders as {text}, which is not a number at all: {error}")
+    });
+    assert!(
+        DisplayTolerance::new(read * 1.0e-3).is_ok(),
+        "δ {mm} mm renders as {text}, which is not a δ this door accepts"
+    );
+    assert!(
+        readout::reads_back(&text, mm),
+        "δ {mm} mm renders as {text}, further from it than the render's own grid"
+    );
+}
+
+/// [`reads_back_as_a_delta`], and inside the character bound — which is
+/// every δ below the band at the top of the type.
+fn fits_and_reads_back_as_a_delta(d: DisplayTolerance) {
+    let text = d.render_mm();
+    assert!(
+        text.chars().count() <= readout::MAX_CHARS,
+        "δ {} mm renders as {text}, past the {} character bound",
+        d.get() * 1.0e3,
+        readout::MAX_CHARS
+    );
+    reads_back_as_a_delta(d);
+}
+
 /// **No δ renders as a number a δ cannot be.** The field, the badge and
 /// the sentence above all show δ as millimetres of text, and `{:.3}`
 /// over millimetres reads `0.000` below half a micrometre — a value
@@ -240,47 +303,36 @@ fn a_coarsened_picture_says_so_in_both_numbers() {
 /// in force as a number they can act on. All three go through
 /// [`DisplayTolerance::render_mm`] now, so this row covers all three.
 ///
-/// The property is the whole range, so the row sweeps it: every δ from
-/// `f64`'s smallest subnormal to a kilometre renders as text that fits
-/// the bound, reads back through the millimetre conversion the δ field
-/// commits with, and lands on a δ the door accepts within the render's
-/// own stated accuracy.
+/// **The population is every δ the door accepts, and the row reaches
+/// both ends of it.** A geometric grid carries the millimetre and metre
+/// magnitudes a user types; the ends it cannot reach are named, and they
+/// now include the TOP — [`COARSEST_DELTA`], the band below it where the
+/// millimetre value is spelled exactly, and the last δ under that band.
+/// The row used to stop at a kilometre, three hundred decades short,
+/// and so stated a universal it never tested at the end where the
+/// millimetre conversion is what gives way.
+///
+/// **What the door REFUSES is the other half of the same claim**, and
+/// it is pinned next door rather than here:
+/// [`the_door_refuses_a_delta_whose_millimetre_value_is_not_one`] names
+/// where the accepted set now ends, so "every δ the door accepts" is a
+/// population with a stated edge rather than one this row's grid
+/// happens to stop at.
 ///
 /// **This is where the δ door's own acceptance is checked**, and it is
 /// deliberately not checked a second time inside the render. The render
 /// asks one question — does this text read back as the value — and for
-/// a strictly positive δ that implies the rest; the implication is what
+/// a δ this door accepts that implies the rest; the implication is what
 /// this row measures, over the whole type, rather than something the
 /// render restates as a predicate no input can falsify.
 #[test]
 fn no_delta_renders_as_a_number_a_delta_cannot_be() {
-    let reads_back_as_a_delta = |value: f64| {
-        let d = delta(value);
-        let text = d.render_mm();
-        let mm = d.get() * 1.0e3;
-        assert!(
-            text.chars().count() <= readout::MAX_CHARS,
-            "δ {mm} mm renders as {text}, past the {} character bound",
-            readout::MAX_CHARS
-        );
-        let read: f64 = text.parse().unwrap_or_else(|error| {
-            panic!("δ {mm} mm renders as {text}, which is not a number at all: {error}")
-        });
-        assert!(
-            DisplayTolerance::new(read * 1.0e-3).is_ok(),
-            "δ {mm} mm renders as {text}, which is not a δ this door accepts"
-        );
-        assert!(
-            (read - mm).abs() <= readout::REL_TOLERANCE * mm,
-            "δ {mm} mm renders as {text}, further from it than the render's own accuracy"
-        );
-    };
     // The grid the round-trip measurement used, a decade below the
     // kernel's finest to a decade above the coarsest δ a user types.
     let mut sampled: u32 = 0;
     let mut value = 1.0e-12_f64;
     while value < 1.0e-1 {
-        reads_back_as_a_delta(value);
+        fits_and_reads_back_as_a_delta(delta(value));
         sampled += 1;
         value *= 1.01;
     }
@@ -288,7 +340,81 @@ fn no_delta_renders_as_a_number_a_delta_cannot_be() {
     // And the ends of the type, which a geometric grid does not reach:
     // the smallest subnormal, the smallest normal, a kilometre.
     for end in [5.0e-324, f64::MIN_POSITIVE, 1.0e3] {
-        reads_back_as_a_delta(end);
+        fits_and_reads_back_as_a_delta(delta(end));
+    }
+    // The three decades under the top, which the grid above stops a
+    // hundred decades short of. A ×1.01 step steps clean over the band
+    // at the top, so the band's own members are named below rather than
+    // sampled.
+    let mut value = 1.0e303_f64;
+    while value <= COARSEST_DELTA {
+        fits_and_reads_back_as_a_delta(delta(value));
+        value *= 1.01;
+    }
+    // The band, where the character bound is what gives way and the
+    // property is all that is owed: its first δ, the coarsest δ there
+    // is, and — one `f64` below the band — the last δ four figures
+    // still carry, which is nine characters again.
+    const BAND_LOW: f64 = 1.7975e305;
+    for end in [BAND_LOW, COARSEST_DELTA] {
+        reads_back_as_a_delta(delta(end));
+    }
+    fits_and_reads_back_as_a_delta(delta(f64::from_bits(BAND_LOW.to_bits() - 1)));
+    // And PAST the bound, where the door's own answer decides: a δ it
+    // accepts owes this property like any other, and a δ it refuses is
+    // the row next door. Written as a condition rather than as a
+    // refusal because the claim here is about the render — on a tree
+    // whose door has no upper bound these are accepted and render as
+    // `inf`, and this is the assertion that says so.
+    for past in [1.0e306, 1.0e307, f64::MAX] {
+        if let Ok(d) = DisplayTolerance::new(past) {
+            reads_back_as_a_delta(d);
+        }
+    }
+}
+
+/// **The top of the type is a refusal, not a render** — the other half
+/// of `no_delta_renders_as_a_number_a_delta_cannot_be`, and the reason
+/// that row's universal is true rather than untested.
+///
+/// A δ past [`COARSEST_DELTA`] is finite and strictly positive and
+/// `mesh::tessellate` would take it, so the door's old predicate
+/// accepted it — and [`DisplayTolerance::render_mm`] multiplies by a
+/// thousand, so what a user read was `inf`: not a δ the door accepts,
+/// and infinitely far from the value. No text can repair that, because
+/// the millimetre value is not an `f64` at all; what the door holds is
+/// the only place the render's domain can be made total.
+///
+/// **The bound is measured here rather than asserted from a constant.**
+/// It is where `δ * 1.0e3` stops being finite, and that is exactly
+/// `f64::MAX * 1.0e-3` — the largest δ the field's own commit path
+/// (`mm * 1.0e-3` over a finite `mm`) can name. So the narrowing takes
+/// nothing a person could have typed.
+#[test]
+fn the_door_refuses_a_delta_whose_millimetre_value_is_not_one() {
+    assert!(
+        (COARSEST_DELTA * 1.0e3).is_finite(),
+        "the coarsest δ still has a millimetre value"
+    );
+    let past = f64::from_bits(COARSEST_DELTA.to_bits() + 1);
+    assert!(
+        (past * 1.0e3).is_infinite(),
+        "and one `f64` further there is none — {past} is the bound's other side"
+    );
+    assert!(
+        DisplayTolerance::new(COARSEST_DELTA).is_ok(),
+        "so the door accepts every δ a millimetre reading names"
+    );
+    for refused in [past, 1.0e306, 1.0e307, f64::MAX] {
+        assert!(
+            refused.is_finite() && refused > 0.0,
+            "{refused} is a length the old predicate accepted"
+        );
+        assert!(
+            DisplayTolerance::new(refused).is_err(),
+            "δ {refused} has no millimetre value, so the door owes a refusal \
+             rather than a render of infinity"
+        );
     }
 }
 
@@ -306,25 +432,32 @@ fn the_two_deltas_the_fixed_three_decimal_render_lied_about() {
 }
 
 /// **What the render does to a budget δ's seventeen significant
-/// figures: it shows four.** `fit_delta` solves `constant / budget`, so
-/// a δ the budget chose is a quotient with no short spelling at all —
-/// and no field is wide enough for one. Four figures is what the
-/// character bound buys, which is why this text is a render and never a
-/// commit path.
+/// figures: it shows the ones the grid asks for.** `fit_delta` solves
+/// `constant / budget`, so a δ the budget chose is a quotient with no
+/// short spelling at all. The render's grid is capped a decade below ε,
+/// so the figures it keeps here are the ones that tell this δ from the
+/// next one the kernel could distinguish — seven, not four and not
+/// seventeen — and this text is still a render and never a commit path.
 #[test]
-fn a_budget_delta_renders_as_four_significant_figures() {
+fn a_budget_delta_renders_to_the_grid_rather_than_to_its_figures() {
     // A constant in triangle·metres, exactly as `fit_delta` forms it.
     let constant = 0.374_612_345_678_901_2_f64;
     #[allow(clippy::cast_precision_loss)]
     let solved = constant / TRIANGLE_BUDGET as f64;
     let d = delta(solved);
-    let exact = format!("{}", d.get() * 1.0e3);
+    let mm = d.get() * 1.0e3;
+    let exact = format!("{mm}");
     assert_eq!(exact, "0.0003746123456789012", "seventeen figures");
+    let rendered = d.render_mm();
+    assert_eq!(rendered, "0.0003746123", "and the render keeps seven");
     assert!(
-        exact.chars().count() > readout::MAX_CHARS,
-        "and no field this crate has is that wide"
+        readout::reads_back(&rendered, mm),
+        "which is the whole claim: {rendered} names {mm} on the render's grid"
     );
-    assert_eq!(d.render_mm(), "0.0003746", "four of them");
+    assert!(
+        exact.chars().count() > rendered.chars().count(),
+        "a δ the budget chose has no spelling this short that is exact"
+    );
 }
 
 /// Every document the budget is asked about, in one place: every
@@ -953,14 +1086,19 @@ fn the_budget_commits_the_delta_it_always_has() {
                 .unwrap_or_else(|error| panic!("{document} fits at {requested}: {error}"));
             // The per-rung bound, on every document the fit is ever
             // asked about: a rung is PLACED at
-            // `TRIANGLE_BUDGET / PROBE_FACTOR` triangles, and what it
-            // counts meets that up to the law's own error. The 1% is
-            // that error and nothing else — the largest rung the
-            // corpus produces is 121_272, under the placement itself.
-            // Sizing a probe off the REQUEST had no bound at all: at
-            // 0.01 mm `hollow_tube_ring` ran one of 1_452_960.
-            #[allow(clippy::cast_precision_loss)]
-            let placed = TRIANGLE_BUDGET as f64 / PROBE_FACTOR;
+            // `scene::placed_rung_cost` triangles, and what it counts
+            // meets that up to the law's own error. The 1% is that
+            // error and nothing else — the largest rung the corpus
+            // produces is 121_272, under the placement itself. Sizing
+            // a probe off the REQUEST had no bound at all: at 0.01 mm
+            // `hollow_tube_ring` ran one of 1_452_960.
+            //
+            // The bound is READ rather than restated, and that does
+            // not make this row circular: the other side of the
+            // comparison is a count tessellated from a real body, so a
+            // ladder that placed its probe elsewhere still exceeds
+            // this and says so.
+            let placed = scene::placed_rung_cost();
             #[allow(clippy::cast_precision_loss)]
             let largest = fitted.largest_probe as f64;
             assert!(
@@ -1130,9 +1268,10 @@ fn a_bodys_count_has_stopped_falling_by_its_own_extent() {
         let body = session
             .landed_body()
             .unwrap_or_else(|| panic!("{document} gathers"));
-        // The δ the scale probe runs at (`scene`'s SCALE_PROBE_DELTA,
-        // which is private; the row states the number it depends on).
-        let scale = 1.0e9;
+        // The δ the scale probe runs at, read from the ladder rather
+        // than restated: the rows below are about the first rung's
+        // count, which is the count AT this δ whatever it is.
+        let scale = SCALE_PROBE_DELTA;
         let extent = extent_of(body, scale, tol);
         assert!(
             extent > 0.0 && extent.is_finite(),

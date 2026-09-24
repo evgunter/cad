@@ -8,16 +8,16 @@
 //! not. Nothing here names `DocSession`, `ViewerApp` or `egui`.
 //!
 //! **What is hand-maintained here is the mirror, not the membership.**
-//! The five enums declare themselves and their `ALL` in one
+//! The enums declared here declare themselves and their `ALL` in one
 //! declaration through the crate's `vocabulary!` macro
 //! (`crates/viewer/src/vocab.rs`), so no list on this page can fall
-//! behind the enum beside it. A vocabulary the KERNEL owns is held the
-//! same way from the other end — the boolean operations are drawn from
-//! `topo::BooleanOp::ALL` and only their labels are written here, at an
-//! exhaustive match. What no compiler holds is the mirror itself:
-//! whether `PathVerb` still names every `PathStep` is forced by
-//! `PathVerb::of`'s exhaustive match, while a DELIBERATELY PARTIAL
-//! list claims no completeness and so cannot be held to it.
+//! behind the enum beside it. A vocabulary the KERNEL owns is not
+//! mirrored at all: the boolean operations, the path verbs, the arc
+//! modes and the target forms are drawn from the kernel's own `ALL`
+//! and only their words are written here, at an exhaustive match (the
+//! verbs not even that — `profile::Verb`'s `Display` is its word). What
+//! no compiler holds is a DELIBERATELY PARTIAL list, which claims no
+//! completeness and so cannot be held to it.
 //! Both partial mirrors on this page are held to the weaker thing that
 //! IS true of them: `partial_mirror!` (`crates/viewer/src/vocab.rs`)
 //! classifies every variant of the mirrored enum as offered here or as
@@ -38,12 +38,11 @@
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
 use pncad::document::{BooleanOp, Dimension, MatePrimitive};
-use pncad::profile::{ArcSide, ArcSweep};
+use pncad::profile::{ArcMode, TargetKind};
 use pncad::quantity::UnitDef;
 
 use crate::props;
 use crate::session::DatumSpec;
-use crate::sketch::{ArcSpec, PathStep, PathTarget};
 use crate::vocab::{partial_mirror, vocabulary};
 
 vocabulary! {
@@ -91,70 +90,72 @@ pub(crate) fn boolean_op_label(op: BooleanOp) -> &'static str {
 }
 
 vocabulary! {
-    /// The add-datum form's kind choice — one form, and **four of
-    /// [`crate::session::DatumSpec`]'s five arms**. An enum rather
-    /// than an index into a label list, so every consumer matches
-    /// exhaustively and a fifth kind cannot leave a silent wildcard
-    /// arm behind.
+    /// The add-datum form's kind choice — one form, and **every arm of
+    /// [`crate::session::DatumSpec`]**. An enum rather than an index
+    /// into a label list, so every consumer matches exhaustively and a
+    /// new kind cannot leave a silent wildcard arm behind.
     ///
-    /// The arm this does not offer is `AxisInPlane`, a sketch axis:
-    /// it needs a frame PICK before it has coordinates, which is not
-    /// what this form collects. So the mirror is deliberately partial
-    /// in one direction — every kind here lowers to a spec
-    /// ([`crate::pane::create`]'s match is exhaustive over this enum), and not
-    /// every spec has a kind here.
+    /// Two kinds need a PICK as well as numbers, and they pick from
+    /// different places. `AxisInPlane`'s frame is a document node,
+    /// chosen from the frames the document holds, and its origin and
+    /// direction are that frame's own 2-D coordinates; it is the only
+    /// node the revolve tool's axis seat admits. `FaceFrame`'s picks
+    /// are a face in the VIEWPORT and the body-denoting node the ray
+    /// met, which no combo can list, so its seat is the selection
+    /// itself ([`crate::session::face_frame_seat`] is the gate above
+    /// it). Each states the sentence its own unmet seat reads, at
+    /// [`DatumKindChoice::unmet_seat`].
     ///
     /// **`Choice` because `viewer::DatumKind` is a different type** —
     /// the tag [`crate::datums::DatumDraw`] carries for how a datum is
     /// DRAWN, which partitions the datum VALUES rather than selecting
     /// among the specs. This crate already spells a form's choice
     /// apart from the thing chosen among that way
-    /// ([`PatternKindChoice`], [`crate::blend::BlendKindChoice`]), and
-    /// this was the one form choice that did not. The two carry the
-    /// same four members today only because `AxisInPlane` happens to
-    /// be both the spec this form does not author and the value that
-    /// tag collapses onto `Axis` — nothing holds that identity and
-    /// nothing should, since a datum that drew distinctly but needed a
-    /// PICK to author would be a member there and none here. `ALL` is
-    /// this side's alone in consequence: it is the radio row's
-    /// offering, in form order, and a drawing's tag claims no such
-    /// thing.
+    /// ([`PatternKindChoice`], [`crate::blend::BlendKindChoice`]). The
+    /// two do not have the same members: an axis in a sketch is its
+    /// own choice here, because authoring one takes a frame pick, and
+    /// is drawn as the axis it is, so the draw tag has no member for
+    /// it. `ALL` is this side's alone in consequence: it is the radio
+    /// row's offering, in form order, and a drawing's tag claims no
+    /// such thing.
     ///
-    /// **A partial mirror, told when `DatumSpec` grows.** The
-    /// direction the compiler already held is kind-to-spec:
-    /// `pane::create`'s lowering match is exhaustive over
-    /// this enum, so a choice with no spec to lower to does not
-    /// build. Spec-to-kind was held by nothing, so a `DatumSpec` arm
-    /// this form SHOULD offer could arrive with no form edit and
-    /// nothing saying so — not hypothetical, since `AxisInPlane` is
-    /// exactly that, and the revolve tool ships with a seat no form
-    /// can fill in consequence.
-    /// The `partial_mirror!` invocation below is the roster that now
-    /// classifies every `DatumSpec` arm as offered here or as
-    /// deliberately absent with its reason. It takes the `onto` shape
-    /// rather than a seat roster because the offering is an ENUM whose
-    /// `ALL` is projected from its declaration, so naming a
-    /// counterpart there already says the radio row draws it
+    /// **Held to `DatumSpec` by a roster.** The direction the compiler
+    /// already held is kind-to-spec: `Drafts::datum_spec`'s lowering
+    /// match is exhaustive over this enum, so a choice with no spec to lower
+    /// to does not build. The `partial_mirror!` invocation below holds
+    /// spec-to-kind: every `DatumSpec` arm is classified as offered
+    /// here or as deliberately absent with its reason, so a new arm
+    /// cannot arrive with no form edit and nothing saying so. An empty
+    /// absent section means the form offers the whole spec. It takes
+    /// the `onto` shape rather than a seat roster because the offering
+    /// is an ENUM whose `ALL` is projected from its declaration, so
+    /// naming a counterpart there already says the radio row draws it
     /// (`crates/viewer/src/vocab.rs`).
     ///
     /// **That roster holds nothing between this enum and
-    /// [`crate::datums::DatumKind`]**, which stay two types whose four
-    /// members match by coincidence: what it mirrors is `DatumSpec`,
+    /// [`crate::datums::DatumKind`]**: what it mirrors is `DatumSpec`,
     /// and the draw tag is not party to it.
     ///
     /// **Declared in FORM order**, which is the order [`DatumKindChoice::ALL`]
     /// is projected in and therefore the order the radio row is drawn
     /// in: the frame sits next to the plane because that is the choice
     /// a reader is actually making — the same surface, with or without
-    /// a stated direction on it.
+    /// a stated direction on it — and the axis in a sketch sits next to
+    /// the axis for the same reason. The frame on a face sits next to
+    /// the frame by the same rule one step on: a frame you type and a
+    /// frame you pick are the same choice, differently sourced.
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub(crate) enum DatumKindChoice {
         /// A plane datum.
         Plane = "plane",
         /// A sketch frame — an oriented plane.
         Frame = "frame",
-        /// An axis datum.
+        /// A sketch frame read off a picked face.
+        FaceFrame = "frame on face",
+        /// An axis datum, in world coordinates.
         Axis = "axis",
+        /// An axis written in a picked sketch frame — a revolve's axis.
+        AxisInPlane = "axis in sketch",
         /// A point datum.
         Point = "point",
     }
@@ -163,22 +164,46 @@ vocabulary! {
     pub(crate) const ALL;
 }
 
+impl DatumKindChoice {
+    /// **What this kind is still waiting for**, when it is waiting for
+    /// a pick — the sentence the add-datum form shows over a held
+    /// button, and `None` for a kind that has no pick to wait for.
+    ///
+    /// One sentence per kind rather than one for the form: the two
+    /// picking kinds want different things from different places (a
+    /// frame from the document, a face from the viewport), so a single
+    /// sentence over the button is false of whichever kind is not
+    /// showing.
+    ///
+    /// **The `Some` half is exactly the set `Drafts::datum_spec`
+    /// answers `Ok(None)` for**, which is a fact about two functions in
+    /// two modules and is therefore asserted rather than asked to be
+    /// believed (`drafts::tests::the_unmet_seat_sentence_follows_the_kind`).
+    ///
+    /// **The frame-on-a-face sentence is READ, not written here.** The
+    /// face-frame gate refuses an empty pick with the same sentence
+    /// ([`crate::session::FaceFrameFault::NoFace`]), so the two are one
+    /// string at its one home and cannot drift apart.
+    pub(crate) fn unmet_seat(self) -> Option<&'static str> {
+        match self {
+            Self::AxisInPlane => Some("pick a frame to write the axis in"),
+            Self::FaceFrame => Some(crate::session::NO_FACE_PICKED),
+            Self::Plane | Self::Frame | Self::Axis | Self::Point => None,
+        }
+    }
+}
+
 partial_mirror! {
     DatumSpec, onto DatumKindChoice,
     offered [
         Plane { .. } => Plane,
         Axis { .. } => Axis,
         Point { .. } => Point,
+        AxisInPlane { .. } => AxisInPlane,
         Frame { .. } => Frame,
+        FaceFrame { .. } => FaceFrame,
     ],
-    absent [
-        AxisInPlane { .. } => "its frame is a PICK and not a field, and \
-                               this form authors plain numbers; making it \
-                               authorable moves this entry to the offered \
-                               section and grows the enum above by one, \
-                               which is what the revolve tool's unfillable \
-                               seat asks for",
-    ],
+    absent [],
 }
 
 vocabulary! {
@@ -204,224 +229,86 @@ vocabulary! {
     pub(crate) const ALL;
 }
 
-vocabulary! {
-    /// **The authoring verbs the path form offers**, with the names the
-    /// algebra itself gives them.
-    ///
-    /// A tag beside [`PathStep`] rather than a method on it: the form
-    /// needs to name a verb BEFORE it has a step (the "add" control's
-    /// choice), and a step needs to name its own verb (the row's combo),
-    /// so the tag is the thing both hold. [`PathVerb::fresh`] is the one
-    /// place a default step per verb is written.
-    ///
-    /// **Declared in the algebra's own order**, which is the order
-    /// [`PathVerb::ALL`] is projected in and the order the "add step"
-    /// menu offers.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum PathVerb {
-        /// Bind the tip's position.
-        At = "at",
-        /// Bind the tip's outgoing direction, absolutely.
-        Angle = "angle",
-        /// Bind it by exact components.
-        Toward = "toward",
-        /// Leave along the incoming tangent.
-        Tangent = "tangent",
-        /// Leave along its reverse.
-        Cusp = "cusp",
-        /// Leave at an angle from it.
-        Turn = "turn",
-        /// A straight leg of a stated length.
-        Line = "line",
-        /// A straight leg to a target.
-        LineTo = "line_to",
-        /// A sharp arc leg.
-        ArcTo = "arc_to",
-        /// An arc leg leaving along the bound direction.
-        TangentArcTo = "tangent_arc_to",
-        /// A structural vertex on the incoming carrier.
-        ArcContinue = "arc_continue",
-        /// Round the corner: line in, line out.
-        Fillet = "fillet",
-        /// Round it with an arc on the arrival side.
-        FilletArc = "fillet_arc",
-        /// Round it with an arc on the incoming side.
-        ArcFillet = "arc_fillet",
-        /// Round it with an arc on both.
-        ArcFilletArc = "arc_fillet_arc",
-        /// The anchor a fillet's arrival side is aimed at.
-        FarEndTo = "to (far end)",
-        /// The seam fillet's close.
-        CloseTo = "to Start (close)",
-    }
-
-    /// Every verb with the word the chrome shows for it, in the
-    /// algebra's own order — the "add step" menu and the row combo's
-    /// options, which draw an option per entry and read the word off
-    /// the entry. No row can check this list: the type is `pub(crate)`
-    /// behind the `app` feature, so no integration test sees it — the
-    /// coverage gap #1385 names, and the reason the membership has to
-    /// be held by the projection rather than by a test.
-    pub(crate) const ALL;
-
-    /// This verb's word, for the one place a verb is asked on its own:
-    /// the combo's closed face, which names the verb of the step the
-    /// row is showing. The same literal the list above carries, so the
-    /// closed face and the options it opens on cannot disagree.
-    pub(crate) fn label;
-}
-
-impl PathVerb {
-    /// Which verb a step names.
-    pub(crate) fn of(step: &PathStep) -> Self {
-        match step {
-            PathStep::At(_) => Self::At,
-            PathStep::Angle(_) => Self::Angle,
-            PathStep::Toward { .. } => Self::Toward,
-            PathStep::Tangent => Self::Tangent,
-            PathStep::Cusp => Self::Cusp,
-            PathStep::Turn(_) => Self::Turn,
-            PathStep::Line(_) => Self::Line,
-            PathStep::LineTo(_) => Self::LineTo,
-            PathStep::ArcTo(_) => Self::ArcTo,
-            PathStep::TangentArcTo(_) => Self::TangentArcTo,
-            PathStep::ArcContinue(_) => Self::ArcContinue,
-            PathStep::Fillet(_) => Self::Fillet,
-            PathStep::FilletArc { .. } => Self::FilletArc,
-            PathStep::ArcFillet { .. } => Self::ArcFillet,
-            PathStep::ArcFilletArc { .. } => Self::ArcFilletArc,
-            PathStep::FarEndTo(_) => Self::FarEndTo,
-            PathStep::CloseTo => Self::CloseTo,
-        }
-    }
-
-    /// A step of this verb with the form's starting numbers.
-    ///
-    /// **Millimetre-scale, never zero.** A leg of length zero and a
-    /// fillet of radius zero are both geometry refusals, so a fresh
-    /// step that carried them would put the form in a refusing state
-    /// the moment a verb was added — which reads as the form
-    /// rejecting the verb rather than waiting for its number.
-    pub(crate) fn fresh(self) -> PathStep {
-        let point = [0.01, 0.0];
-        let arc = ArcSpec::Radius {
-            r: 0.01,
-            side: ArcSide::Left,
-        };
-        match self {
-            Self::At => PathStep::At([0.0, 0.0]),
-            Self::Angle => PathStep::Angle(0.0),
-            Self::Toward => PathStep::Toward { dx: 1.0, dy: 0.0 },
-            Self::Tangent => PathStep::Tangent,
-            Self::Cusp => PathStep::Cusp,
-            Self::Turn => PathStep::Turn(0.0),
-            Self::Line => PathStep::Line(0.01),
-            Self::LineTo => PathStep::LineTo(PathTarget::Point(point)),
-            Self::ArcTo => PathStep::ArcTo(arc),
-            Self::TangentArcTo => PathStep::TangentArcTo(PathTarget::Point(point)),
-            Self::ArcContinue => PathStep::ArcContinue(point),
-            Self::Fillet => PathStep::Fillet(0.001),
-            Self::FilletArc => PathStep::FilletArc {
-                radius: 0.001,
-                spec: arc,
-            },
-            Self::ArcFillet => PathStep::ArcFillet {
-                spec: arc,
-                radius: 0.001,
-            },
-            Self::ArcFilletArc => PathStep::ArcFilletArc {
-                spec: arc,
-                radius: 0.001,
-                spec2: arc,
-            },
-            Self::FarEndTo => PathStep::FarEndTo(point),
-            Self::CloseTo => PathStep::CloseTo,
-        }
+/// The word the arc-mode picker shows for a mode of the KERNEL's
+/// [`ArcMode`], whose `ALL` the picker offers.
+///
+/// **A match, not a table**, for the reason [`boolean_op_label`] is
+/// one: a mode the vocabulary gains reaches the picker from
+/// `ArcMode::ALL` with no membership edit here, and has no word until
+/// this match gives it one — a compile error, not a missing option.
+/// The verbs need no such function: `profile::Verb`'s own `Display`
+/// is the authoring spelling, declared on the transition table's row.
+pub(crate) fn arc_mode_label(mode: ArcMode) -> &'static str {
+    match mode {
+        ArcMode::Radius => "radius",
+        ArcMode::Bulge => "bulge",
+        ArcMode::Via => "via",
+        ArcMode::Center => "centre",
+        ArcMode::Sweep => "sweep",
+        ArcMode::ArcLen => "arc length",
     }
 }
 
-vocabulary! {
-    /// **Which of [`ArcSpec`]'s six modes the form is offering** — the
-    /// tag [`PathVerb`] is, for the reason it is one: the picker needs to
-    /// name a mode before there is a spec in it, and a spec needs to name
-    /// its own mode. An index into a label table would couple the two by
-    /// position, so a reordered table would silently relabel every mode.
-    ///
-    /// **Declared in the vocabulary's own order**, which is the order
-    /// [`ArcMode::ALL`] is projected in and the order the picker
-    /// offers.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum ArcMode {
-        /// The carrier's radius and the side its centre is on.
-        Radius = "radius",
-        /// The endpoint and an authored bulge.
-        Bulge = "bulge",
-        /// A point the arc passes through, and the endpoint.
-        Via = "via",
-        /// The carrier centre, the travel sense, and the endpoint.
-        Center = "centre",
-        /// The carrier and how far round it to go.
-        Sweep = "sweep",
-        /// The carrier and the distance travelled along it.
-        ArcLen = "arc length",
-    }
-
-    /// Every mode with the word the picker shows for it, in the
-    /// vocabulary's own order — the picker's options, one per entry,
-    /// each reading its word off the entry.
-    pub(crate) const ALL;
-
-    /// This mode's word, for the one place a mode is asked on its own:
-    /// the picker's closed face, which names the mode the spec is in.
-    pub(crate) fn label;
-}
-
-impl ArcMode {
-    /// Which mode a spec is in.
-    pub(crate) fn of(spec: &ArcSpec) -> Self {
-        match spec {
-            ArcSpec::Radius { .. } => Self::Radius,
-            ArcSpec::Bulge { .. } => Self::Bulge,
-            ArcSpec::Via { .. } => Self::Via,
-            ArcSpec::Center { .. } => Self::Center,
-            ArcSpec::Sweep { .. } => Self::Sweep,
-            ArcSpec::ArcLen { .. } => Self::ArcLen,
-        }
-    }
-
-    /// A spec of this mode with the form's starting numbers —
-    /// millimetre-scale and never degenerate, for the reason
-    /// [`PathVerb::fresh`]'s are.
-    pub(crate) fn fresh(self) -> ArcSpec {
-        let target = PathTarget::Point([0.01, 0.0]);
-        match self {
-            Self::Radius => ArcSpec::Radius {
-                r: 0.01,
-                side: ArcSide::Left,
-            },
-            Self::Bulge => ArcSpec::Bulge { target, b: 0.5 },
-            Self::Via => ArcSpec::Via {
-                q: [0.005, 0.005],
-                target,
-            },
-            Self::Center => ArcSpec::Center {
-                c: [0.0, 0.0],
-                winding: ArcSweep::Ccw,
-                target,
-            },
-            Self::Sweep => ArcSpec::Sweep {
-                r: 0.01,
-                side: ArcSide::Left,
-                angle: core::f64::consts::FRAC_PI_2,
-            },
-            Self::ArcLen => ArcSpec::ArcLen {
-                r: 0.01,
-                side: ArcSide::Left,
-                len: 0.01,
-            },
-        }
+/// The word a target control shows for a form of the KERNEL's
+/// [`TargetKind`] — [`arc_mode_label`]'s rule, one level down.
+pub(crate) fn target_kind_label(kind: TargetKind) -> &'static str {
+    match kind {
+        TargetKind::Point => "point",
+        TargetKind::Start => "Start (close)",
+        TargetKind::StartArriving => "Start, arriving tangent",
     }
 }
+
+/// **Whether a path editor may change its program's SHAPE** — the
+/// verbs, their order and number, each arc's mode, side and winding,
+/// each target's form, a split circle's count — or only its numbers.
+///
+/// The add-profile form's editor is one editor with two doors. Opened
+/// on nothing it authors a new node and every control is live
+/// ([`ShapeEdits::Free`]). Opened on a committed profile it commits as
+/// slot writes, and the document's edit vocabulary writes a program's
+/// ARGUMENTS and has no door that rewrites its shape, so the controls
+/// that would are shown and not taken ([`ShapeEdits::Locked`], said
+/// once over the list as [`SHAPE_LOCKED`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ShapeEdits {
+    /// Every control is live.
+    Free,
+    /// The shape controls are drawn disabled.
+    Locked,
+}
+
+impl ShapeEdits {
+    /// Whether the shape controls take input.
+    pub(crate) fn free(self) -> bool {
+        self == Self::Free
+    }
+}
+
+/// What a locked editor says about its greyed controls, once, above
+/// the list.
+pub(crate) const SHAPE_LOCKED: &str = "the numbers are editable here; the shape (the steps, \
+     their verbs and order, arc modes, sides and targets) is not — the document has no edit that \
+     rewrites a committed profile's program";
+
+/// The fewest subdivisions the `circle_split` count field offers —
+/// the kernel's own floor (`profile::Step::CircleSplit`'s `n`, which
+/// refuses below two at replay).
+pub(crate) const MIN_CIRCLE_SPLIT: usize = 2;
+
+/// The most subdivisions the `circle_split` count field offers.
+///
+/// A product cap and not the kernel's: the kernel takes any count, but
+/// the form's preview replays the loop every frame, and replaying it
+/// builds one vertex per subdivision. A thousand vertices is far past
+/// any subdivision a seam is aligned with and still cheap to redraw.
+///
+/// **It binds AUTHORING only.** A committed profile can hold a larger
+/// count (the document admits any), and the same field shows it when
+/// the editor is opened on that profile: the field is drawn with
+/// `clamp_existing_to_range(false)`, so the cap limits what a drag or
+/// a typed number can make and never rewrites a count it was handed.
+pub(crate) const MAX_CIRCLE_SPLIT: usize = 1024;
 
 /// One drag tick of a LENGTH field, in metres — half a millimetre.
 /// The creation forms' and the property panel's alike ([`drag_tick`]
@@ -492,7 +379,7 @@ pub(crate) fn drag_tick(dimension: Dimension) -> f64 {
 /// this module, which holds the four constants and [`drag_tick`]
 /// beside this type; what is still open is those hand-picked call
 /// sites, which sit in `widgets`, [`crate::pane::create`] and
-/// [`crate::pane::properties`] (`work/chrome/drag-tick-has-three-homes.md`).
+/// [`crate::pane::properties`] (`work/forms/drag-tick-has-three-homes.md`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FieldWriting {
     /// The unit the field shows and authors in — [`props::rendering_unit`]'s

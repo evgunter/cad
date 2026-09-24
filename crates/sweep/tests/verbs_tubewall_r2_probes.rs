@@ -25,6 +25,7 @@ use core::f64::consts::PI;
 
 use geom::Surface;
 use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::tube_frame;
 use sweep::{Revolved, TubeError, TubeWindow, tube_along_arc, tube_along_arc_hollow};
 use topo::Body;
 
@@ -39,9 +40,7 @@ fn build(
     wall: f64,
 ) -> Result<Revolved<f64>, TubeError> {
     tube_along_arc_hollow::<f64>(
-        c(),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(c(), Vec3::unit_y(), Vec3::unit_x(), Tol::witness()),
         major,
         window,
         minor,
@@ -263,8 +262,8 @@ fn r2_the_bore_has_a_nonempty_escalating_zone() {
 /// can reach `tube_wall`/`tube_wall_bore`/`tube_wall_gap`. The finding
 /// was accepted and fixed, so the row is amended to pin the CORRECTED
 /// naming rather than deleted: an escalation carrying a hollow-only
-/// predicate name says `tube_along_arc_hollow`, and the arms both
-/// doors share say `tube door` rather than picking one.
+/// predicate name says `the hollow tube`, and the arms both
+/// doors share say `the tube` rather than picking one.
 #[test]
 fn r2_escalation_from_a_wall_predicate_reports_the_hollow_doors_name() {
     let err = build(2.0, TubeWindow::Full, 0.5, f64::NAN).expect_err("a poisoned wall refuses");
@@ -279,27 +278,18 @@ fn r2_escalation_from_a_wall_predicate_reports_the_hollow_doors_name() {
         source.predicate
     );
     assert!(
-        msg.starts_with("tube_along_arc_hollow escalated:"),
+        msg.starts_with("the hollow tube escalated:"),
         "a hollow-only predicate must name the hollow door: {msg}"
     );
-    // And the shared arms do NOT claim either door: a non-unit axis
-    // is raised identically by both.
-    let shared = build(2.0, TubeWindow::Full, 0.5, 0.125);
-    let _ = shared;
-    let frame = tube_along_arc_hollow::<f64>(
-        c(),
-        Vec3::unit_y() * 1.5,
-        Vec3::unit_x(),
-        2.0,
-        TubeWindow::Full,
-        0.5,
-        0.125,
-        Tol::witness(),
-    )
-    .expect_err("a non-unit axis refuses");
+    // And a SHARED arm does not claim either door: a reversed window
+    // is raised identically by both. (The frame arms are gone — the
+    // door takes a witness, so a non-unit axis is normalized at the
+    // mint rather than refused here.)
+    let shared = build(2.0, TubeWindow::Arc { t0: 1.5, t1: 0.5 }, 0.5, 0.125)
+        .expect_err("a reversed window refuses");
     assert!(
-        frame.to_string().starts_with("tube door: "),
-        "a shared arm names neither door: {frame}"
+        shared.to_string().starts_with("the tube's "),
+        "a shared arm names neither door: {shared}"
     );
 }
 
@@ -410,9 +400,7 @@ fn r2_hollow_plus_bore_is_the_solid_tube() {
         };
         let hollow = build(major, window, minor, wall).expect("hollow builds");
         let solid = tube_along_arc::<f64>(
-            c(),
-            Vec3::unit_y(),
-            Vec3::unit_x(),
+            tube_frame(c(), Vec3::unit_y(), Vec3::unit_x(), Tol::witness()),
             major,
             window,
             minor,
@@ -420,9 +408,7 @@ fn r2_hollow_plus_bore_is_the_solid_tube() {
         )
         .expect("solid builds");
         let bore = tube_along_arc::<f64>(
-            c(),
-            Vec3::unit_y(),
-            Vec3::unit_x(),
+            tube_frame(c(), Vec3::unit_y(), Vec3::unit_x(), Tol::witness()),
             major,
             window,
             minor - wall,
@@ -457,9 +443,7 @@ fn r2_hollow_plus_bore_is_the_solid_tube() {
 #[test]
 fn r2_solid_door_dump_is_deterministic() {
     let a = tube_along_arc::<f64>(
-        c(),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(c(), Vec3::unit_y(), Vec3::unit_x(), Tol::witness()),
         2.0,
         TubeWindow::Arc { t0: 0.25, t1: 1.75 },
         0.5,
@@ -467,9 +451,7 @@ fn r2_solid_door_dump_is_deterministic() {
     )
     .expect("solid elbow");
     let b = tube_along_arc::<f64>(
-        c(),
-        Vec3::unit_y(),
-        Vec3::unit_x(),
+        tube_frame(c(), Vec3::unit_y(), Vec3::unit_x(), Tol::witness()),
         2.0,
         TubeWindow::Arc { t0: 0.25, t1: 1.75 },
         0.5,
@@ -698,19 +680,23 @@ fn short(e: &TubeError) -> String {
     s.chars().take(90).collect()
 }
 
-/// The refusal ORDER: the wall arms are decided before the frame, so
-/// a call that is wrong in both ways reports the WALL. Recorded
-/// because the shipped suite never puts a bad wall and a bad frame in
-/// the same call, and because it is the one place the hollow door's
-/// verdict sequence differs in kind from the solid door's.
+/// The refusal ORDER: the hollow door's three WALL arms are decided
+/// first, before the window arms and before anything is minted, so a
+/// call that is wrong in both ways reports the WALL. Recorded because
+/// the shipped suite never puts a bad wall and a bad window in the
+/// same call, and because the wall verdicts are what a full period's
+/// cavity insertion then carries as its containment evidence.
+///
+/// The frame is not in this ordering and cannot be: the door takes an
+/// `OrthoFrame`, so a frame that is wrong refuses at its own mint,
+/// before this door is called at all.
 #[test]
-fn r2_wall_verdicts_preempt_the_frame_verdicts() {
+fn r2_wall_verdicts_preempt_the_window_verdicts() {
     let e = tube_along_arc_hollow::<f64>(
-        c(),
-        Vec3::unit_y() * 1.5, // not unit: the solid door's NonUnitAxis
-        Vec3::unit_x(),
+        tube_frame(c(), Vec3::unit_y(), Vec3::unit_x(), Tol::witness()),
         2.0,
-        TubeWindow::Full,
+        // A window of zero span, which this door refuses on its own.
+        TubeWindow::Arc { t0: 1.0, t1: 1.0 },
         0.5,
         0.0, // and a zero wall
         Tol::witness(),
@@ -744,9 +730,12 @@ mod certified {
         wall: f64,
     ) -> Result<Revolved<Interval>, TubeError> {
         tube_along_arc_hollow::<Interval>(
-            Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-            Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
-            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+            tube_frame(
+                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+                Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                Tol::witness(),
+            ),
             iv(major),
             window,
             iv(minor),

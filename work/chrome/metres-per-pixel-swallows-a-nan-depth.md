@@ -2,8 +2,10 @@
 id: metres-per-pixel-swallows-a-nan-depth
 kind: issue
 title: View::metres_per_pixel_at's floor substitutes a scale for two different non-scales
-status: open
+status: closed
 opened: 2026-09-12
+closed: 2026-09-15
+branch: chrome/datums-substitution-sweep
 ---
 
 ## Finding
@@ -97,3 +99,37 @@ widen.
 
 `crates/viewer/src/datums.rs` — CHROME's and VIEW's by the territories
 table; filed on CHROME's slate.
+
+## Closed
+
+Fixed on branch `chrome/datums-substitution-sweep`.
+`View::metres_per_pixel_at` returns `Option<f64>` and refuses a scale
+that is not a positive finite length, which is arms 1 and 2 at once —
+the row's point that the two produce an identical drawing is why one
+door answers both. Arm 3 follows from it: a `look_at` that is not a
+place makes the patch's CENTRE not a place, and the centre is where
+the scale is read, so the ruling refuses and the NaN geometry never
+leaves the module.
+
+**The ripple stayed inside `datums.rs`.** `metres_per_pixel_at`,
+`screen_metres_at` and `half_patch_at` are all private; the public
+`grid_pitch` and `datum_view` keep their signatures. The two call
+sites that moved are `screen_metres_at`'s product (now `?`) and
+`grid`'s pitch read (`metres_per_pixel_at(centre).and_then(grid_pitch)`).
+
+**The zero-depth argument is revisited, not deleted.** The site's
+case for the floor was that a degenerate drawing beats a division by
+zero. The division is no longer the alternative: every consumer of
+the scale takes an `Option` and draws nothing, so what the floor
+bought was a patch about `1e-305 m` across — a length the view did
+not lend. Asserted by `datum_draw::a_datum_at_the_eye_draws_no_mark`.
+
+Asserted also by
+`datum_draw::a_look_at_that_is_not_a_place_draws_only_the_marks_that_ignore_it`,
+which keeps the row's other half honest: the point's cross and the
+plane's and frame's origin-scaled marks are NOT refused, because they
+never read `look_at`.
+
+**Residue, filed rather than disclosed here:** the refusal has no
+name at the door (`datum-view-propagates-rather-than-refusing-by-name`)
+and no word to the reader (`a-datum-the-view-cannot-scale-vanishes-without-a-word`).

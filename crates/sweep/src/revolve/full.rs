@@ -374,7 +374,7 @@ fn build_wire<T: Decide>(
             r#loop: seed.r#loop,
         },
         qw[1],
-        placed_segment_spec(&segs[wseg(0)], place, frame.n3, qw[0], qw[1]),
+        placed_segment_spec(&segs[wseg(0)], place, frame.n3, qw[0], qw[1], tol),
         tol,
     )?;
     hes.push(first.he_plus);
@@ -386,7 +386,7 @@ fn build_wire<T: Decide>(
                 he2: prev.he_minus,
             },
             qw[i + 1],
-            placed_segment_spec(&segs[wseg(i)], place, frame.n3, qw[i], qw[i + 1]),
+            placed_segment_spec(&segs[wseg(i)], place, frame.n3, qw[i], qw[i + 1], tol),
             tol,
         )?;
         hes.push(m.he_plus);
@@ -428,6 +428,7 @@ fn build_wire<T: Decide>(
                 frame,
                 half,
                 axis_c,
+                tol,
             ),
             tol,
         )?;
@@ -464,7 +465,7 @@ fn build_wire<T: Decide>(
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
-            placed_segment_spec(&segs[wseg(i)], place_pi, n_pi, qpi[i], qpi[i + 1]),
+            placed_segment_spec(&segs[wseg(i)], place_pi, n_pi, qpi[i], qpi[i + 1], tol),
             surface,
             tol,
         )?;
@@ -527,7 +528,7 @@ fn build_wire<T: Decide>(
         let rim = qpi[i] - center;
         // The same rim identity as `revolve::surfaces`', at the same
         // guarantee (its comment carries the argument).
-        crate::swept::register_rim_identity(rim, cls.verts[wseg(i)].r);
+        crate::swept::register_rim_identity(rim, cls.verts[wseg(i)].r, tol);
         let spec = EdgeCurveSpec {
             description: geom_brep::EdgeDescriptionSpec::Scaffold(
                 geom_brep::MappedCurve::RevolvedPoint {

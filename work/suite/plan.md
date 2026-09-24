@@ -8,15 +8,14 @@ A/B ordinal band **SUITE = 4200–4299**.
 
 ## Charter
 
-One shape, eight rows: **a test helper that was copied instead of
+One shape, seven rows: **a test helper that was copied instead of
 shared, or a suite that carries a stub of something that now exists.**
 `S392`'s eighteen fixture sites, `S52` and
 `topo-arena-census-duplicate-spellings` (which are the same open
 residue seen from two directions — a generic `cube<T: Real>` and the
-local body builders in three crates' suites), `genus` spelled eleven
-times and growing one copy per suite exactly as its row predicted, the
-eleven part-resolver stubs in `editor-core`'s mate and assembly suites,
-and `S391`'s two orientation helpers.
+local body builders in three crates' suites), the part-resolver stubs
+copied across `editor-core`'s mate and assembly suites, and `S391`'s
+two orientation helpers.
 
 Plus two rows that are test-side but not duplication: `D114`'s
 differential probe, and `D403`'s tour walls that no probe drives.
@@ -44,25 +43,59 @@ read them settles that.
 
 | item | class | what it is | where the work lands |
 | --- | --- | --- | --- |
-| `S391` | **M** | Rename vs second centroid-chord helper, and both live readers need re-arguing | `crates/sweep/tests/common/orient.rs` (`stack_axis`), `crates/sweep/tests/m8_14_long_turn_sweep.rs` |
-| `genus-rings-helper-spelled-nine-times` | **M** | Mechanical deletions, but the shared home must cross a separate workspace; copies now 11, not 9. | new home in `crates/topo/src/test_support*`, re-export via `crates/pncad/src/`, deletions in `crates/topo/src/review_m1_pr{3,4}.rs`, `crates/sweep/tests/{verbs_shell,verbs_shell_r2_probes,verbs_shell_r2b,shellfix1_r1_probes}.rs`, `demos/tour/src/*.rs`, `demos/tour/tests/*.rs` |
-| `S52` | **M** | Open remainder is a scalar generalization plus a 3-crate fixture consolidation | roll-up territory: `crates/topo/src/test_support_impl.rs`, `crates/sweep/src/test_support.rs`, `crates/{topo,sweep,mesh,step-export,editor-core,stl}/tests/**`, `crates/*/Cargo.toml`, `scripts/gates/test-features-dev-only.sh`. **2 sub-rows still open** (generic `cube<T: Real>` in `crates/sweep/tests/m6_surgery_interval.rs`; local body builders in `crates/{mesh,step-export,editor-core}/tests/`); the rest landed in #668/#679 |
-| `topo-arena-census-duplicate-spellings` | **M** | Same open remainder as S52: scalar generalization plus 3-crate fixture sharing | `crates/sweep/tests/m6_surgery_interval.rs` + `crates/sweep/src/test_support.rs` (generic `cube`), `crates/{mesh,step-export,editor-core}/tests/` body builders (items 1–3 landed in #679) |
-| `editor-core-suites-carry-eleven-part-resolver-stubs` | **M** | Migrate ten-plus suites, reconcile drift between copied stubs and helpers | `crates/editor-core/tests/fixture/`, `crates/editor-core/tests/{mate1_member_vocab,mate1_r1_probes,mate1r2_probes,mate6_gather_mints,mate6r1_shared,mate6r2_probes,asm_r2b_assembly,fix_pattern_mate_crossing,rev_fix_xsplit_unreachable,msolve1_transform_aware,msolve2_member_chain}.rs` |
-| `D114` | **M** | New differential instrument; what "bit-identity vs f64" asserts needs deciding and corpus plumbing | `crates/editor-core/tests/m5_pr5_corpus_probe.rs`, `crates/editor-core/tests/m4_pr8_k_probe.rs`, new differential test in `crates/editor-core/tests/`; Track K fence `scripts/gates/*`, `tools/*`, `docs/K-REPORT.md` |
-| `D403` | **M** | Row's own first question is lift-a-helper vs drive `stops()`; not settled | `demos/tour/src/teapot.rs` (`stops`, walls 2–3) |
-| `S392` | **H** | 18 sites, six crates plus tour, tool and Python; cross-track population, four unconvertible | `crates/sweep/tests/*` (8 sites), `crates/mesh/tests/*` (4), `crates/editor-core/tests/corpus/loft_prism.rs`, `crates/step-export/tests/common/mod.rs` + `tests/fixtures/*.expect`, `crates/step-import/tests/review_probes_m7_3.rs`, `crates/pncad-py/tests/test_north_star.py`, `demos/tour/src/skinned.rs`, `tools/tess-meter/tests/rows.rs`, `crates/sweep/src/skin.rs` |
+| `S391` | **M** | Rename vs second centroid-chord helper, and both live readers need re-arguing | `crates/sweep/tests/common/orient.rs` (`first_wall_chord`, renamed from `stack_axis` by the unit), `crates/sweep/tests/m8_14_long_turn_sweep.rs`, `crates/sweep/tests/turning_orientation.rs` |
+| `S52` | **M** (the two rows) / **H** (the class behind them) | Closed by a scalar-generic family in `crates/sweep/src/test_support.rs` reached through a featured dev edge | `crates/sweep/src/test_support.rs` (the home: `extruded` + `prism`/`brick`/`block`/`cube`/`corners`/`pocket_die`), `crates/{sweep,mesh,stl,step-export,step-import,editor-core}/tests/**`, three new `[dev-dependencies]` edges, `scripts/gates/test-features-dev-only.sh` |
+| `topo-arena-census-duplicate-spellings` | **M** | Passenger (`rides_with: S52`); its §1–§3 verified closed, and the census name-drift taken rather than filed | `crates/{step-export,step-import}/tests/common/mod.rs` (`fev_census` / `arena_census`, both onto `topo::test_support::arena_counts`), `crates/sweep/tests/wild.rs` (`face_census`) |
+| `editor-core-suites-carry-eleven-part-resolver-stubs` | **M** | Seventeen suites over two crates, not the row's eleven; the reconciliation was the unit and the migration was the easy half | `crates/editor-core/tests/fixture/resolver.rs` (the home and its guard), seventeen suites in `crates/editor-core/tests/` and `crates/viewer/tests/msolve3_placer_refused.rs` |
+| `D114` | **M** | New differential instrument; bit-identity settled by `Probe`'s own newtype, corpus plumbing built | `crates/editor-core/tests/m4_pr8_k_probe.rs` (the differential), `crates/editor-core/tests/fixture/value_channel.rs` (the shared feed), `crates/editor-core/tests/{m5_pr5_corpus_probe,m10_di_dual_corpus}.rs`. The Track K fence held: nothing under `scripts/gates/` (GUARD's), `tools/` or `docs/K-REPORT.md` (INSTR's) was edited; four rows were filed on their owners instead |
+| `D403` | **M** | Lift vs drive `stops()` settled as lift; the class has a second member | `demos/tour/src/teapot.rs` (`wall_probes`, walls 2–3), `demos/tour/src/torusvessel.rs` (`wall_probes`, wall 1), `demos/README.md` |
+| `S392` | **H** on population, **M** on difficulty | 24 sites, not 18; 20 converted onto S52's home, 4 deliberately not | `crates/sweep/src/test_support.rs` (`loft_prism`, `loft_prism_at`, `loft_prism_sections`, `PRISM_*`, `stacked_at`), `crates/{sweep,mesh,editor-core,step-export}/tests/**`, `tools/tess-meter/tests/rows.rs`, three `[dev-dependencies]` edges. Not converted, each with a reason: `crates/step-import/tests/review_probes_m7_3.rs`, `demos/tour/src/skinned.rs`, `crates/pncad-py/tests/test_north_star.py`, `docs/GUIDE.md` |
+
+## Exit criteria
+
+This program opened without a criteria section, which is a defect in its
+own charter: `docs/DOC-LEDGER.md` records that an exit walk quotes its
+plan's criteria verbatim, and a plan with none leaves the walk nothing
+to quote. Written here before the evidence, so the walk can check them
+rather than paraphrase a charter.
+
+- **X1.** Every row on the slate is `closed`, or `deferred` with its
+  ratification cited in the body. No row is left `parked` on a trigger
+  this program could have fired.
+- **X2. A duplication row closes by a shared home, not by a deletion.**
+  For each, the thing that was copied is spelled **once**, and the
+  reviewer's standing question is answered at every call site the unit
+  touched: does the shared helper still make that suite's intent
+  readable, or has the suite become a call into a fixture nobody reads?
+  A row that closes because its copies were deleted without a home is
+  not closed against this criterion.
+- **X3.** Each unit states what its sweep pattern could **not** match.
+  A sweep whose blind spot is unstated is an unverified claim, not a
+  negative result, and this program's own `S392` is the receipt for what
+  that costs — its first count was a truncated grep read as a
+  population.
+- **X4. No unit minted a fresh instance of the defect it closed.** This
+  is the trap `docs/prompts/reviewer-style-lane.md` records for exactly
+  this shape of work, and naming it in a PR body has never prevented it;
+  only a reader who did not write the fix has caught it. The walk names
+  who checked, per unit.
+- **X5.** Every residue a lane disclosed has its **own file**, on this
+  slate or on the owning program's, minted at the moment of disclosure.
+  A residue disclosed only in a `## Closed` section or a PR body is
+  invisible to the re-homing sweep and dies with this directory.
+- **X6. The program claimed no paths, start to finish.** `paths` stays
+  empty in `program.md`, every unit announced to S-TINT (and `D403` to
+  SHELL, whose scenes it touches by courtesy), and no `keep_out` clause
+  anywhere in the tree had to be written to accommodate a claim this
+  program made.
 
 ## Order
 
 `S391` opens — two helpers, one rename, and it is the smallest thing
-here. Then `genus-rings-helper-…`, whose only real question is that the
-shared home has to cross into a separate cargo workspace to reach the
-`demos/tour` copies.
-
-Then the `S52` / `topo-arena-census` pair as one unit, then the
-`editor-core` stub migration (which is eleven suites and is where the
-drift between copies has to be reconciled rather than merged away).
+here. Then the `S52` / `topo-arena-census` pair as one unit, then the
+`editor-core` stub migration, where the drift between copies has to be
+reconciled rather than merged away and the suite population has to be
+re-counted before anything moves.
 
 `D114` and `D403` are instrument rows and independent of the rest.
 `S392` goes last: eighteen sites over six crates plus a tool, a demo and

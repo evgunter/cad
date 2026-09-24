@@ -327,6 +327,24 @@ boundary between "where you said the parts meet" and "where they
 actually do", kept visible. (Nothing yet mints a mate frame from a
 selected face; that is issue #944.)
 
+**What the solve would refuse about a mate on its own, the insert
+refuses.** A head that resolves to no member, one member named
+twice, a class outside the vocabulary, a frame with no definite
+direction, a primitive-and-rider pair the coset table has no row
+for, a clocking rider that contradicts the frame coincidence it rides
+— each is a fact about the mate alone, which the solve records
+against the mate whenever it reads the datum. So `Doc.insert` asks
+the solve's own per-mate admission and raises `EditError` with
+variant `mate_refused`, `fault` carrying the solve's `MateFault`
+whole. The rider on a coincidence is decided over the mated parts'
+extent, so that one needs `resolver=` at the insert; everything else
+is decided on the datum alone. The doors decide edits and the solve
+decides states: a verdict about a *pair* — under-determined, two
+mates that contradict each other — is the solve's, met at evaluation
+as below, and so is a per-mate fault a mate comes to carry after
+insert — a head a rebind or a shrunk pattern strands, a `Part`
+re-pointed at another copy, a file whose snapshot holds one.
+
 **Ask `class_admission` before you author a class.** The solve and the
 gate admit different sets, and the table is one value both read:
 
@@ -536,11 +554,17 @@ than the one it might become.
 
 Two doors, and they check different things.
 
-`solve_document(doc)` folds the mates: per-pair cosets along a
-deterministic spanning tree, producing each instance's pose relative
-to its cluster gauge. It is **total** — a refusing cluster must not
-fail an unrelated one, so refusals are read back per node through
-`SolvedPoses.fault` rather than raised. It inspects **no geometry**.
+`solve_document(doc, resolver=store)` folds the mates: per-pair
+cosets along a deterministic spanning tree, producing each instance's
+pose relative to its cluster gauge. It is **total** — a refusing
+cluster must not fail an unrelated one, so refusals are read back per
+node through `SolvedPoses.fault` rather than raised. It inspects no
+geometry except each mated part's own extent — an upper bound taken
+from its evaluated body, which is why it crosses the same `resolver=`
+seam `evaluate` does — and that extent enters only as the lever a
+parallelism verdict is decided over: a tilt is priced across the parts
+that carry it, at their scale. Without a resolver every mate on a part
+faults `mate_unleverable`.
 
 `assemble(doc, evaluation)` is the **at-rest gate**: it gathers the
 product, mints every solved mate's declaration into contact records,
@@ -652,7 +676,7 @@ def bench(primitive=None, class_=ContactClass.Rest):
 
 stand, (post_a, shelf_i, post_b), mates = bench()
 
-solved = solve_document(stand)
+solved = solve_document(stand, resolver=store)
 assert all(solved.fault(n) is None for n in (post_a, shelf_i, post_b, *mates))
 # Both mates PLACED a child — that is what `Determining` means. A
 # mate that solved nothing and is carried to evaluation as a pure
@@ -710,12 +734,12 @@ from pncad import (
     Doc,
     DocEdit,
     DocRef,
+    EditError,
     EntityKind,
     Expr,
     Frame,
     MateFrame,
     MatePrimitive,
-    MateSide,
     NamePat,
     Node,
     ProductError,
@@ -793,7 +817,7 @@ mate = doc.insert(
                   AxisSense.Aligned),
     )
 )
-fault = solve_document(doc).fault(mate)
+fault = solve_document(doc, resolver=store).fault(mate)
 assert fault.variant == "mate_under"
 assert fault.residual.variant == "planar"
 assert fault.residual.normal == (0.0, 0.0, 1.0)
@@ -820,17 +844,23 @@ try:
     assemble(doc, evaluate(doc, resolver=store))
     raise AssertionError("expected a typed refusal")
 except AssemblyError as refusal:
-    assert refusal.variant == "no_at_rest_record"
-    assert refusal.mate == mate
-    assert refusal.class_ == ContactClass.Tangent
+    # `refusals` is EVERY mate that did not mint, in document order,
+    # so two broken mates are two repairs from one call.
+    assert refusal.variant == "unminted_mates"
+    (row,) = refusal.refusals
+    assert row.variant == "no_at_rest_record"
+    assert row.mate == mate
+    assert row.class_ == ContactClass.Tangent
 
-# 3. A REFERENCE THAT IS NOT A FACE. A mate declares a FACE PAIR; an
-#    edge is a different statement, refused rather than widened — and
-#    the refusal says which side, and what the name did denote.
+# 3. A HEAD THAT IS NOT A FACE — refused where the mate is BUILT, not
+#    at the gate. A mate declares a FACE PAIR, and the kernel says so
+#    in the TYPE of a head, so a Rust caller cannot write this mate at
+#    all. Python holds names as opaque text, so `Node.mate` asks the
+#    same constructor on your behalf and refuses at the call.
 doc, post_i, shelf_i = two_instances()
 ev = evaluate(doc, resolver=store)
 edge = sorted(ev.all_edges(post_i))[0]
-mate = doc.insert(
+try:
     Node.mate(
         post_i, edge,
         shelf_i, instance_cap(ev, shelf_i, CapEnd.Start),
@@ -838,16 +868,10 @@ mate = doc.insert(
         Alignment(post_seat, seat_a, MatePrimitive.frame_coincidence(),
                   AxisSense.Aligned),
     )
-)
-try:
-    assemble(doc, evaluate(doc, resolver=store))
     raise AssertionError("expected a typed refusal")
-except AssemblyError as refusal:
-    assert refusal.variant == "mate_reference_refused"
-    assert refusal.mate == mate and refusal.side == MateSide.A
-    assert refusal.why.variant == "ref_not_a_face"
-    assert refusal.why.kind == "edge"
-    assert refusal.why.width is None      # a tie would carry one
+except EditError as refusal:
+    assert refusal.variant == "mate_head_not_a_face"
+    assert "edge" in str(refusal)
 
 # 4. NOTHING TO GATHER. Evaluated with no resolver, the instance
 #    produced no body, so the GATHER refuses before the gate runs —
@@ -859,7 +883,7 @@ try:
     raise AssertionError("expected a typed refusal")
 except AssemblyError as refusal:
     assert refusal.variant == "root_failed"
-    assert refusal.node is not None and refusal.mate is None
+    assert refusal.node is not None and refusal.refusals is None
 try:
     product(doc, evaluate(doc))
     raise AssertionError("expected a typed refusal")
@@ -881,8 +905,13 @@ names the minted declaration it is about, by the two stable names the
 mate was authored in — the recourse is in the error. `uncertified` is the declared
 direction's **frontier**: nothing refuted, nothing undeclared, the
 census simply declined to certify, so nothing was decided either way.
-Everything else — `mate_reference_refused`, `no_at_rest_record`, and
-the gather's own tags — refuses before any verdict exists.
+Everything else refuses before any verdict exists:
+`unminted_mates` (this document's own mates that did not mint),
+`carried_mint_refusal` (the same for mates of documents below it), and
+the gather's own tags. The two mint arms carry `refusals` — **every**
+mate that did not mint, in document order, never just the first — and
+each row carries its own word, `mate_reference_refused` or
+`no_at_rest_record`.
 
 That middle group is worth internalising, because it is the one place
 on this page where a refusal is not a statement about your model. A

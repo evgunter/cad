@@ -17,19 +17,34 @@
 //! wants one concrete type. Kind agreement is enforced at emission
 //! (the table refuses a name whose kind disagrees with its entity).
 //!
+//! **One caller does want the kind at COMPILE time**, and gets it from
+//! a type beside the tag rather than instead of it: a mate head is a
+//! [`FaceName`], a `StableName` whose tag is `Face` by construction.
+//! The tag is still the runtime fact everything else reads — the
+//! wrapper adds a door, it does not replace the field — and it exists
+//! for the one place where what the name denotes is fixed by the
+//! statement being made rather than discovered from it.
+//!
 //! # Locators (spec D2, cited)
 //!
-//! [`ProfileEdgeRef`]/[`ProfileVertexRef`] carry the profile's OWN
-//! canonical combinatorial identity — `profile::ValidatedProfile`'s
-//! loop order (outer first, then holes in the DESCRIPTION's order —
-//! recipe data) and each loop's canonical chain indices, whose
-//! canonical start is selected through the exact-order band
-//! (`canonical_order_x`/`_y`, `crates/profile/src/validate.rs`):
+//! [`ProfileEdgeRef`]/[`ProfileVertexRef`] carry a profile's OWN
+//! combinatorial identity, never a bare enumeration index. As an
+//! emitter mints them that identity is `profile::ValidatedProfile`'s
+//! canonical form — its loop order (outer first, then holes in the
+//! DESCRIPTION's order — recipe data) and each loop's canonical chain
+//! indices, whose canonical start is selected through the exact-order
+//! band (`canonical_order_x`/`_y`, `crates/profile/src/validate.rs`):
 //! total, rotation-invariant, and a function of recipe structure plus
-//! recorded verdicts — NOT bare enumeration indices. The sweep
-//! emitters (`Extruded`, `Revolved`) index their output maps by
-//! exactly these identities, which is what makes sweep naming a
-//! mechanical zip.
+//! recorded verdicts. The sweep emitters (`Extruded`, `Revolved`)
+//! index their output maps by exactly these identities, which is what
+//! makes sweep naming a mechanical zip.
+//!
+//! What the NAME TABLE publishes is that identity only for a
+//! hand-built profile. For a program loop `eval::anchor` rewrites
+//! every emitted ref canonical → program before the table is
+//! published, so the ref a consumer holds is the one the program's
+//! own step order authored — see the two types' docs and DM8
+//! (`crates/editor-core/REFERENCES.md`).
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
@@ -180,23 +195,71 @@ impl From<StableName> for NameRef {
     }
 }
 
+// The five walks below read `Held` rather than `NameRef`, and each
+// binds every one of its fields: a third field on `Held` is an E0027
+// at all five and has to be given a rendering, a comparison or a
+// stated reason to sit outside one. Without the patterns it would land
+// outside every one of them with no error anywhere, which is what this
+// buys — the handle's own field is the `Arc`, and reading THROUGH it
+// ties these impls to nothing.
+//
+// **No census sees this and none can.** The arrival census keys on the
+// impl's own self type, and every read here goes through `self.0` — a
+// tuple index into a private inner type it does not resolve. It
+// reports these impls as reading no field at all, and its own
+// blind-spot list says so
+// (`crates/test-utils/tests/hand_written_impl_census.rs`, which names
+// this file as the standing example; whether that verdict should
+// change is
+// `work/tint/census-answers-no-field-read-for-a-walk-that-reads-a-field.md`).
+// `Deref`, `AsRef` and `Borrow` are not in the group: each hands back
+// `&StableName`, so its return TYPE names the one field it projects
+// and there is no list that could be short.
+//
+// `Serialize` is not in the group either and NOT for that reason — a
+// style review caught this sentence claiming it was. It returns
+// `Result<S::Ok, S::Error>`, which names nothing, and it projects
+// `self.0.name` in its body: the same shape this group is about. It
+// sits outside because the handle has no wire form at all, which the
+// note above its impl states; that reason is about serialization, not
+// about return types.
+//
+// `NameRef::name()` and `stamped_for_tests()` read `Held`'s fields too
+// and are covered by nothing here. The group's scope is the impls
+// BELOW it, which is itself a hand-written list of impls no
+// declaration holds — a sixth walk added under `Ord` would inherit
+// this claim without being in it. Recorded rather than closed; the
+// closing instrument would be a per-impl population, which is
+// `work/tint/the-per-impl-sight-anchor-is-a-suppression-list-that-shrinks.md`.
+
 // The rendering a `NameRef` gave: the name, with no wrapper of
 // its own. Name digests are taken over this text.
 impl core::fmt::Debug for NameRef {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.name.fmt(f)
+        // The stamp is a cache of an order, never part of the value
+        // (D9), so it is outside the text a digest is taken over.
+        let Held { name, stamp: _ } = &*self.0;
+        name.fmt(f)
     }
 }
 
 impl core::fmt::Display for NameRef {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.name.fmt(f)
+        let Held { name, stamp: _ } = &*self.0;
+        name.fmt(f)
     }
 }
 
 impl PartialEq for NameRef {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0) || self.0.name == other.0.name
+        // Stamp outside equality by D9: two names that differ only in
+        // whether a walk stamped them are the same name.
+        let Held { name, stamp: _ } = &*self.0;
+        let Held {
+            name: other_name,
+            stamp: _,
+        } = &*other.0;
+        Arc::ptr_eq(&self.0, &other.0) || name == other_name
     }
 }
 
@@ -204,7 +267,10 @@ impl Eq for NameRef {}
 
 impl core::hash::Hash for NameRef {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
-        self.0.name.hash(state);
+        // Agrees with `PartialEq` above, so the stamp is outside this
+        // for the same reason and must stay outside it.
+        let Held { name, stamp: _ } = &*self.0;
+        name.hash(state);
     }
 }
 
@@ -213,9 +279,16 @@ impl Ord for NameRef {
         if Arc::ptr_eq(&self.0, &other.0) {
             return core::cmp::Ordering::Equal;
         }
+        // Both fields are read here — the stamp as the O(1) cache of
+        // the structural order, the name as the answer it caches.
+        let Held { name, stamp } = &*self.0;
+        let Held {
+            name: other_name,
+            stamp: other_stamp,
+        } = &*other.0;
         let (a, b) = (
-            self.0.stamp.load(Ordering::Relaxed),
-            other.0.stamp.load(Ordering::Relaxed),
+            stamp.load(Ordering::Relaxed),
+            other_stamp.load(Ordering::Relaxed),
         );
         // One walk stamped both, so their positions ARE their
         // structural order. A zero stamp has epoch 0, which no walk
@@ -223,7 +296,7 @@ impl Ord for NameRef {
         if a != 0 && (a >> 32) == (b >> 32) {
             return (a as u32).cmp(&(b as u32));
         }
-        self.0.name.cmp(&other.0.name)
+        name.cmp(other_name)
     }
 }
 
@@ -252,7 +325,6 @@ impl<'de> serde::Deserialize<'de> for NameRef {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum EntityKind {
     /// A whole body.
     Body,
@@ -287,6 +359,150 @@ impl EntityKind {
             Self::Body | Self::Face | Self::Vertex => "a",
             Self::Edge => "an",
         }
+    }
+}
+
+/// Why a [`StableName`] could not be read as a [`FaceName`].
+///
+/// One field, because there is one fact: a name's kind is data on the
+/// name, so the only thing the constructor can report is what it found
+/// instead. `found` is the word every entity-kind refusal in this
+/// crate spells its answer with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct NotAFaceName {
+    /// What the name denotes.
+    pub found: EntityKind,
+}
+
+impl core::fmt::Display for NotAFaceName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "the name denotes {} {}, and a face is required here",
+            self.found.article(),
+            self.found.noun()
+        )
+    }
+}
+
+impl core::error::Error for NotAFaceName {}
+
+/// **A [`StableName`] that denotes a FACE, by construction.**
+///
+/// Not to be confused with `tess-meter`'s `FaceName`, a validated text
+/// token in a mesh report: one short name, two unrelated types, and
+/// `demos/tour` uses both — which is why that binary spells each by
+/// full path.
+///
+/// A name's kind is data on the name — readable with no product, no
+/// table and no evaluation — so a caller that requires a face can
+/// require it in the TYPE rather than re-asking the question at every
+/// door. [`crate::SitedFace`] is the carrier a mate's heads are made
+/// of, and that is what makes a mate whose head names an edge a
+/// program that does not compile rather than a document some door has
+/// to refuse.
+///
+/// **Where a `FaceName` comes from — the whole census, and its one
+/// home.** Three boundaries turn DATA into a face name and each calls
+/// [`FaceName::new`], which is where the kind is still a question:
+///
+/// - the WIRE — this type's `Deserialize`, so a file whose mate head
+///   or interface crossing names an edge refuses at the load door's
+///   own parse;
+/// - the PYTHON binding's name-from-text door
+///   (`pncad-py`'s `py::doc`), which answers the refusal as a typed
+///   Python error;
+/// - the VIEWER's picked face (`viewer`'s mate tool), where a pick is
+///   data until the kind is asked.
+///
+/// Inside the crate a face name is never re-asked, only re-derived:
+/// `FaceName::map_derivation` (crate-private, below) is the single
+/// door, and its signature cannot change a kind. The split's remap
+/// (`refactor::remap_face`) and the `Rebind` repair
+/// (`Node::rebind_payload_names`) are its two callers.
+///
+/// The inner name is reachable by [`Deref`](core::ops::Deref) and
+/// [`AsRef`], never by a public field: a field could be assigned and
+/// the invariant would last exactly until someone did.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize)]
+#[serde(transparent)]
+pub struct FaceName(StableName);
+
+impl FaceName {
+    /// The checked constructor — the ONE way a `FaceName` is made.
+    pub fn new(name: StableName) -> Result<Self, NotAFaceName> {
+        if name.kind == EntityKind::Face {
+            Ok(Self(name))
+        } else {
+            Err(NotAFaceName { found: name.kind })
+        }
+    }
+
+    /// The name back out, owned.
+    pub fn into_name(self) -> StableName {
+        self.0
+    }
+
+    /// **The one in-crate way a face name is re-made**: this face's
+    /// DERIVATION rewritten, its kind untouched.
+    ///
+    /// `rewrite` is handed the minting node and the role path — the
+    /// whole of what a name derives from — and answers the new pair.
+    /// It is never handed the KIND and cannot return one, so a rewrite
+    /// that produced a non-face is not a state this signature can
+    /// express: there is no arm to refuse, assert away or call
+    /// unreachable. That is the difference from [`FaceName::new`],
+    /// which is the door for data whose kind is still a question.
+    ///
+    /// # Errors
+    ///
+    /// Whatever `rewrite` answers — the rewrite's own miss, carried
+    /// through unchanged.
+    pub(crate) fn map_derivation<E>(
+        &self,
+        rewrite: impl FnOnce(RecipeNodeId, &[RoleSeg]) -> Result<(RecipeNodeId, RolePath), E>,
+    ) -> Result<Self, E> {
+        let (node, path) = rewrite(self.0.node, &self.0.path)?;
+        Ok(Self(StableName {
+            kind: self.0.kind,
+            node,
+            path,
+        }))
+    }
+}
+
+impl core::ops::Deref for FaceName {
+    type Target = StableName;
+
+    fn deref(&self) -> &StableName {
+        &self.0
+    }
+}
+
+impl AsRef<StableName> for FaceName {
+    fn as_ref(&self) -> &StableName {
+        &self.0
+    }
+}
+
+// The name's own rendering, forwarded: a face name reads the same
+// wherever it is held, and a wrapper that re-spelled it would be a
+// second vocabulary for one fact.
+impl core::fmt::Display for FaceName {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+// THE WIRE'S DOOR. `Deserialize` goes through [`FaceName::new`], so a
+// file whose mate head names an edge is refused where the bytes are
+// read — in the load door's own `PersistError::Unreadable` class,
+// which is what "this build's types rejected these bytes" means — and
+// no walk downstream has to re-ask the question.
+impl<'de> serde::Deserialize<'de> for FaceName {
+    fn deserialize<D: serde::Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        let name = StableName::deserialize(de)?;
+        Self::new(name).map_err(serde::de::Error::custom)
     }
 }
 
@@ -340,7 +556,6 @@ pub type RolePath = Vec<RoleSeg>;
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum CapEnd {
     /// Where the sweep vector ends: on the sketch plane translated by
     /// it.
@@ -350,30 +565,44 @@ pub enum CapEnd {
     Start,
 }
 
-/// A profile edge (segment) by canonical combinatorial identity
-/// (module docs: the profile crate's canonical form, cited — not a
-/// bare index).
+/// A profile edge (segment) by combinatorial identity, never a bare
+/// index — and WHICH identity depends on where the ref came from: the
+/// profile crate's canonical form (module docs, cited) for a
+/// hand-built profile, the program's own step order for a program
+/// loop, whose refs `eval::anchor` rewrites canonical → program
+/// before the name table is published, so that a parameter edit
+/// cannot renumber a frozen selection. DM8
+/// (`crates/editor-core/REFERENCES.md`) rules on the published
+/// anchoring and names the one exception: a loft's sections are all
+/// anchored by section 0's map.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
 pub struct ProfileEdgeRef {
-    /// Canonical loop: 0 = outer, then holes in description order.
+    /// The loop: canonical loop order (0 = outer, then holes in
+    /// description order) as minted, the program's own loop index
+    /// once published for a program loop.
     pub loop_index: u32,
-    /// Canonical segment index within the loop's chain.
+    /// The edge's index along that loop's chain, in the same
+    /// anchoring the loop index carries.
     pub segment: u32,
 }
 
-/// A profile vertex by canonical combinatorial identity: vertex `v`
-/// starts segment `v` of its loop's canonical chain.
+/// A profile vertex by combinatorial identity, under the same two
+/// anchorings as [`ProfileEdgeRef`] and by the same rewrite: vertex
+/// `v` starts segment `v` of its loop's chain, canonical as minted
+/// and program-order once published for a program loop (DM8).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
 pub struct ProfileVertexRef {
-    /// Canonical loop index.
+    /// The loop, in the anchoring [`ProfileEdgeRef::loop_index`]
+    /// describes.
     pub loop_index: u32,
-    /// Canonical vertex index (the start vertex of segment `vertex`).
+    /// The vertex's index along that loop's chain (the start vertex
+    /// of segment `vertex`), in the same anchoring.
     pub vertex: u32,
 }
 
@@ -381,7 +610,6 @@ pub struct ProfileVertexRef {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum MeridianEnd {
     /// Partial: the start-cap side (on the sketch plane).
     Start,
@@ -399,7 +627,6 @@ pub enum MeridianEnd {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum SplitHalf {
     /// Material on the tool plane's normal side.
     Above,
@@ -444,7 +671,6 @@ impl SplitHalf {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum SideVerdict {
     /// Every off-plane probe decided positive.
     Positive,
@@ -474,8 +700,8 @@ pub enum Qualifier {
     ///
     /// "Oriented" means **outward**-oriented: a partner face's
     /// reference plane takes its normal from the face's material side
-    /// — `topo::Face::sense_sign()` times the stored chart normal (M5
-    /// S10). The verdicts are signs against that plane, so the
+    /// — the stored chart normal with `topo::Face::sense` folded in
+    /// (M5 S10). The verdicts are signs against that plane, so the
     /// orientation sense is part of the geometry these names are
     /// covariant with; see `emit_topo::face_plane`.
     SideOf(Vec<(StableName, SideVerdict)>),
@@ -546,7 +772,6 @@ pub enum Qualifier {
 // unconditionally, so this attribute guards only a FUTURE variant that
 // carries fields. Its siblings above carry it for the same reason;
 // issue #1308 owns the workspace-wide disposition.
-#[serde(deny_unknown_fields)]
 pub enum RimSupport {
     /// The HOST support: the planar one wherever the rim has one (on a
     /// ladder rim, the face carrying the rim as a ring), otherwise the
@@ -621,11 +846,12 @@ pub enum RoleSeg {
     /// member's own names are therefore a function of the member's
     /// identity alone — neither its position nor how many members
     /// precede it — which is what lets a member be dropped without
-    /// renaming the rest. A declaration written in these names keeps
-    /// that identity through the fold's MERGES: a member's face that a
-    /// declared merge has consumed resolves, at the step its pair is
-    /// fed to, to the accumulation's `Merged` row whose flat
-    /// constituent set holds it. A face consumed any other way — by a
+    /// renaming the rest. A declaration, which names a member's entity
+    /// SITED at that member and is rewritten into this wrapper at the
+    /// routing door, keeps that identity through the fold's MERGES: a
+    /// member's face that a declared merge has consumed resolves, at
+    /// the step its pair is fed to, to the accumulation's `Merged` row
+    /// whose flat constituent set holds it. A face consumed any other way — by a
     /// split, by containment, or inside a merged row later fragmented
     /// — is not looked through, and a pair naming it is order-shaped
     /// ([`crate::Node::Union`] states the bound).
@@ -638,7 +864,7 @@ pub enum RoleSeg {
     /// `Fragment(OrderAlong)` rows from one member to the other and
     /// changes the merged face's carrier origin. Measured on a bare
     /// [`crate::Node::Boolean`] with no union in the picture
-    /// (`work/docm/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`),
+    /// (`work/wire/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`),
     /// so it is the verb's asymmetry showing through a fold rather
     /// than anything the fold or this segment adds.
     ///
@@ -668,12 +894,27 @@ pub enum RoleSeg {
         of: NameRef,
     },
     /// A zip-minted seam entity: the crossing of an A-operand entity
-    /// and a B-operand entity (edges: face × face; vertices:
-    /// edge × face / face × edge), by their operand names.
+    /// and a B-operand entity, by their operand names. An edge is
+    /// face × face. A vertex is edge × edge, edge × face or
+    /// face × edge, face × face (every incident seam line agreeing on
+    /// one face pair), or edge × vertex / vertex × edge (the partner
+    /// read from the reduction's contact records); a pair that
+    /// crosses more than once carries a `Fragment(OrderAlong)` after
+    /// it. A seam JUNCTION — the vertex where k ≥ 2 seam lines meet
+    /// and no operand edge does — is named by the sorted run of those
+    /// lines' face × face `Seam` segments, one segment per line and
+    /// nothing after them.
+    ///
+    /// In a pair boolean's table `a` is the A side and `b` the B side.
+    /// In a UNION's published table they are not: a union has no A
+    /// and B, so its collapse puts the two sides in name order
+    /// (`emit_union::seam_line`), and `a` is only the lesser name.
     Seam {
-        /// The A-side crossing entity's name.
+        /// The A-side crossing entity's name (the lesser name, in a
+        /// union's table).
         a: NameRef,
-        /// The B-side crossing entity's name.
+        /// The B-side crossing entity's name (the greater name, in a
+        /// union's table).
         b: NameRef,
     },
     /// An F7 merged face: the sorted, FLAT set of constituent names
@@ -777,18 +1018,29 @@ pub enum RoleSeg {
         support: NameRef,
     },
     /// A blend foot: where a support's two trimlines meet, retracted
-    /// from a source corner vertex. One source vertex yields one foot
-    /// per incident support.
+    /// from the source vertex where the band ends. One such vertex
+    /// yields one foot per incident support, whether the band ends at
+    /// a corner or at a transverse cap.
     FootVertex {
-        /// The source corner vertex.
+        /// The source vertex the band ends at.
         vertex: NameRef,
         /// The support face the foot lies in.
         support: NameRef,
     },
-    /// A corner arc: where an octant meets one of its three incident
-    /// blends.
-    CornerArc {
-        /// The source corner vertex the octant rounds.
+    /// **The arc where a blend band closes at a source vertex**, keyed
+    /// by the source edge whose blend it bounds.
+    ///
+    /// A structural role, not a geometric classification. The octant
+    /// seam — three convex edges, the arc parting the band from the
+    /// octant [`RoleSeg::CornerFace`] names — and the transverse
+    /// cut-off — a ruled band meeting a cap, the arc parting the band
+    /// from the cap — are two CONFIGURATIONS of the one role, told
+    /// apart by the body and by the minting node rather than by this
+    /// word, the reading [`RimSupport`] states for its own pair.
+    /// `(vertex, edge)` is unique under both: a source vertex is one
+    /// configuration or the other and never both.
+    EndArc {
+        /// The source vertex the band closes at.
         vertex: NameRef,
         /// The source edge whose blend the arc bounds.
         edge: NameRef,
@@ -814,8 +1066,8 @@ pub enum RoleSeg {
     /// The vertex where the band's MATE-side trimline crossed a source
     /// edge running off the rim (on a ladder rim, a cap meridian).
     BandCross(NameRef),
-    /// The surviving piece of a source edge the band's trimline cut
-    /// (the shortened meridian).
+    /// The surviving piece of a source edge the band's trimline cut —
+    /// on a ladder rim a cap meridian, on a ruled band a cap rim edge.
     BandCut(NameRef),
     /// A band's SLIT: the double-traversed torus meridian that keeps
     /// the annular band RING-FREE (`sweep::blend::surgery`'s donut
@@ -894,9 +1146,11 @@ pub enum RoleSeg {
 /// hand-spelled name gets wrong silently until emission refuses it.
 ///
 /// The loop index is [`ProfileEdgeRef::loop_index`] and spells what
-/// that field spells: 0 = outer, then holes in description order. No
-/// loop is privileged by these builders — a hole's band is `band` at
-/// its own loop, and `seg` indexes THAT loop's canonical chain.
+/// that field spells, `seg` what [`ProfileEdgeRef::segment`] spells:
+/// the anchoring the published table carries, canonical for a
+/// hand-built profile and the program's own step order for a program
+/// loop (DM8). No loop is privileged by these builders — a hole's
+/// band is `band` at its own loop.
 #[must_use]
 pub fn band(node: RecipeNodeId, loop_index: u32, seg: u32) -> StableName {
     StableName {
@@ -1009,7 +1263,7 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         | RoleSeg::CornerFace(_)
         | RoleSeg::TrimEdge { .. }
         | RoleSeg::FootVertex { .. }
-        | RoleSeg::CornerArc { .. }
+        | RoleSeg::EndArc { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
@@ -1068,27 +1322,27 @@ pub(crate) use name_free_seg;
 /// PATTERN rather than a predicate.
 ///
 /// A union's value is a fold of the pair verb, so a fold table is a
-/// boolean table and this is the same list for both. Three matches
+/// boolean table and this is the same list for both. Two matches
 /// classify segments by it and each does something different with the
 /// half it does recognize — the rewrite descends a name's head
-/// (`emit_union`'s `collapse`), rebuilds its tail, and the routing
-/// walk (`eval::wire`'s `latest_member`) reads member ids out of it.
-/// Only the negative answer is common, so only the negative answer is
+/// (`emit_union`'s `collapse`) and rebuilds its tail. Only the
+/// negative answer is common, so only the negative answer is
 /// shared, and it is shared as an or-pattern for the reason
-/// [`name_free_seg`] is: none of the three loses its exhaustiveness,
-/// so a variant added to [`RoleSeg`] and not added here still stops
-/// every one of those builds. What changes is that "the boolean
-/// emitter does not mint this" is ONE decision at one site instead of
-/// three that can be made differently.
+/// [`name_free_seg`] is: neither match loses its exhaustiveness, so a
+/// variant added to [`RoleSeg`] and not added here still stops the
+/// build. What changes is that "the boolean emitter does not mint
+/// this" is ONE decision at one site instead of two that can be made
+/// differently.
 ///
 /// The seven it leaves out are the boolean table's own vocabulary:
 /// [`RoleSeg::OutputBody`], [`RoleSeg::FromA`], [`RoleSeg::FromB`],
 /// [`RoleSeg::FromMember`], [`RoleSeg::Seam`], [`RoleSeg::Merged`]
-/// and [`RoleSeg::Fragment`]. Each of the three sites decides those
+/// and [`RoleSeg::Fragment`]. Each of the two matches decides those
 /// for itself, because that is exactly where they differ:
 /// `FromA`/`FromB` are the fold's INTERNAL space (descended through
-/// by the rewrite, denoting nothing to the routing walk), and a
-/// `Fragment` is a tail segment rather than a head one.
+/// by the rewrite), a `Seam` heads a name alone or as a junction's
+/// run of lines, and a `Fragment` is a tail segment rather than a head
+/// one.
 macro_rules! never_in_a_boolean_table {
     () => {
         $crate::names::RoleSeg::Cap(_)
@@ -1116,7 +1370,7 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::CornerFace(_)
             | $crate::names::RoleSeg::TrimEdge { .. }
             | $crate::names::RoleSeg::FootVertex { .. }
-            | $crate::names::RoleSeg::CornerArc { .. }
+            | $crate::names::RoleSeg::EndArc { .. }
             | $crate::names::RoleSeg::BandFace(_)
             | $crate::names::RoleSeg::BandTrim { .. }
             | $crate::names::RoleSeg::BandFoot(_)

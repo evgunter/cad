@@ -95,6 +95,7 @@ use crate::contact::ContactClass;
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, VertexKey};
 use crate::euler::{FaceSurface, MefSite};
 use crate::euler_ring::MekrSite;
+use crate::face_normal::plane_outward_normal;
 use crate::geometry::SurfaceKey;
 use crate::splitting::finish::single_solid;
 use crate::validate::decide;
@@ -555,7 +556,6 @@ pub fn flush_pair_relation<T: Decide>(
 /// by one it can.
 pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierDesc<T>> {
     let f = body.get_face(face)?;
-    let sign = f.sense_sign::<T>();
     // `sense` is the material-side bit: true means the face's outward
     // normal IS the chart normal, which for a sphere/cylinder chart
     // points away from the centre/axis. Read as a BIT, never as a
@@ -565,7 +565,7 @@ pub fn face_carrier<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<CarrierD
     match body.get_surface(f.surface) {
         Some(geom::Surface::Plane { origin, normal, .. }) => Some(CarrierDesc::Plane {
             origin: *origin,
-            normal: *normal * sign,
+            normal: plane_outward_normal(f, *normal).vec(),
         }),
         Some(geom::Surface::Sphere { center, radius, .. }) => Some(CarrierDesc::Sphere {
             center: *center,

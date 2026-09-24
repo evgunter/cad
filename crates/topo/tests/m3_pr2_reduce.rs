@@ -81,7 +81,7 @@ fn vertex_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> VertexKey {
 /// null-edge census — the whole reduction end to end.
 #[test]
 fn notched_block_reduction() {
-    let fixture = prism::<f64>(NOTCHED, 1.0);
+    let fixture = prism::<f64>(NOTCHED, 1.0, Tol::witness());
     let operand_counts = (
         fixture.body.vertices().count(),
         fixture.body.edges().count(),
@@ -209,7 +209,7 @@ fn bucket_entries(
 /// land on **different** vertex copies.
 #[test]
 fn tangent_edge_aoa_goes_below() {
-    let fixture = prism::<f64>(NOTCHED, 1.0);
+    let fixture = prism::<f64>(NOTCHED, 1.0, Tol::witness());
     let plane = plane_y1();
     let (tip_b, tip_t) = (
         vertex_at(&fixture.body, 4.0, 1.0, 0.0),
@@ -259,7 +259,7 @@ fn tangent_edge_aoa_goes_below() {
 /// bisector run becomes a **dangling** null edge.
 #[test]
 fn touching_wedge_bob_goes_above() {
-    let fixture = prism::<f64>(MIRRORED, 1.0);
+    let fixture = prism::<f64>(MIRRORED, 1.0, Tol::witness());
     let plane = plane_y1();
     let (tip_b, tip_t) = (
         vertex_at(&fixture.body, 4.0, 1.0, 0.0),
@@ -303,7 +303,7 @@ fn touching_wedge_bob_goes_above() {
 #[test]
 fn rule_a_mirror_senses() {
     // Notched: floor face outward +y — flanking entries BELOW.
-    let fx = prism::<f64>(NOTCHED, 1.0);
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
     let (a, b) = (
         vertex_at(&fx.body, 7.0, 1.0, 0.0),
         vertex_at(&fx.body, 6.0, 1.0, 0.0),
@@ -312,7 +312,7 @@ fn rule_a_mirror_senses() {
     assert_eq!(to_other, vec![PlaneSide::Below]);
 
     // Mirrored: ceiling face outward −y — flanking entries ABOVE.
-    let fx = prism::<f64>(MIRRORED, 1.0);
+    let fx = prism::<f64>(MIRRORED, 1.0, Tol::witness());
     let (a, b) = (
         vertex_at(&fx.body, 6.0, 1.0, 0.0),
         vertex_at(&fx.body, 7.0, 1.0, 0.0),
@@ -328,7 +328,7 @@ fn rule_a_mirror_senses() {
 /// vertex. Checked at the V-notch tip where all three faces differ.
 #[test]
 fn orbit_sector_adjacency_mirror() {
-    let fx = prism::<f64>(NOTCHED, 1.0);
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
     let body = &fx.body;
     let tip = vertex_at(body, 4.0, 1.0, 0.0);
     let anchor = body.get_vertex(tip).unwrap().emanating.unwrap();
@@ -366,7 +366,7 @@ fn orbit_sector_adjacency_mirror() {
 /// side).
 #[test]
 fn cube_coplanar_top_both_senses() {
-    let cube = common::geometric_cube::<f64>();
+    let cube = common::geometric_cube::<f64>(Tol::witness());
     for (nz, expect) in [(1.0, PlaneSide::Below), (-1.0, PlaneSide::Above)] {
         let plane = SplitPlane {
             origin: Point3::new(0.0, 0.0, 1.0),
@@ -419,7 +419,7 @@ fn sliver_vertex_escalates() {
         (2.0, 1.0 + 3.0 * eps),
         (0.0, 1.0 + 3.0 * eps),
     ];
-    let fx = prism::<f64>(&profile, 1.0);
+    let fx = prism::<f64>(&profile, 1.0, Tol::witness());
     match split_reduce(&fx.body, &plane_y1(), Tol::witness()) {
         Err(SplitReduceError::SliverVertex { .. }) => {}
         other => panic!("expected SliverVertex, got {other:?}"),
@@ -433,7 +433,7 @@ fn curved_face_refuses() {
     // Since M5 PR 5 the gate consults THE C5 table: cylinder faces
     // PASS (the rung-2 arm landed); a torus face still refuses, typed,
     // citing its rung routing (per-arm retirement, C12.1).
-    let mut cube = common::geometric_cube::<f64>();
+    let mut cube = common::geometric_cube::<f64>(Tol::witness());
     cube.body
         .set_face_surface(
             cube.seed.face,
@@ -456,9 +456,17 @@ fn curved_face_refuses() {
         ) => {
             assert_eq!(face, cube.seed.face);
             let msg = e.to_string();
+            // The operand gate refuses a torus face ANYWHERE in the
+            // body, before the plane is read: the sentence must not
+            // claim the plane crosses it, nor offer a plane placement
+            // as the way through.
             assert!(
-                msg.contains("routes to") && msg.contains("general rung"),
+                msg.contains("the body has a torus face") && msg.contains("no way through"),
                 "{msg}"
+            );
+            assert!(
+                !msg.contains("cross") && !msg.contains("Recourse"),
+                "the gate's refusal claims a crossing or a plane recourse: {msg}"
             );
         }
         other => panic!("expected CurvedBooleanUnsupported(Torus), got {other:?}"),
@@ -471,7 +479,7 @@ fn curved_face_refuses() {
 /// ON vertex.
 #[test]
 fn crossing_split_arrangement() {
-    let fx = prism::<f64>(NOTCHED, 1.0);
+    let fx = prism::<f64>(NOTCHED, 1.0, Tol::witness());
     let red = split_reduce(&fx.body, &plane_y1(), Tol::witness()).unwrap();
     let crossing = *red
         .on_vertices
@@ -520,7 +528,7 @@ fn crossing_split_arrangement() {
 fn interval_lane_notched_and_wedge() {
     use geom_core::Interval;
     for (profile, tip_expected) in [(NOTCHED, 2usize), (MIRRORED, 2usize)] {
-        let fx = prism::<Interval>(profile, 1.0);
+        let fx = prism::<Interval>(profile, 1.0, geom_core::Tol::witness());
         let red = split_reduce(&fx.body, &plane_y1::<Interval>(), Tol::witness()).unwrap();
         assert_eq!(red.on_vertices.len(), 10);
         assert_eq!(red.null_edges.len(), 12);
@@ -573,12 +581,9 @@ fn non_finite_sector_chord_names_the_cause_and_no_tolerance_recourse() {
         face: topo::FaceKey::default(),
     }
     .to_string();
-    assert!(msg.contains("split_reduce:"), "{msg}");
+    assert!(!msg.contains("split_reduce"), "no stage prefix: {msg}");
     assert!(msg.contains("has no finite length"), "{msg}");
-    assert!(
-        msg.contains("scale the geometry into the session's range"),
-        "{msg}"
-    );
+    assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
     assert!(!msg.contains("zero length"), "{msg}");
     // The coincidence recourse is what a band refusal offers; this is
     // not one, and offering it would name a lever that cannot move.

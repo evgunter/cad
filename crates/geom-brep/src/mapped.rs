@@ -172,10 +172,13 @@ impl<T: Real> SketchSegment<T> {
 /// into 3-space, combined per variant so incoherent pairings are
 /// unrepresentable.
 ///
-/// Placements map sketch coordinates `(x, y)` to
-/// `place · (x, y, 0)`; rigidity of the placement (orthonormal linear
-/// part) is conventional data, unchecked — exactly the `profile`
-/// crate's `SketchPlane` posture.
+/// Placements map sketch coordinates `(x, y)` to `place · (x, y, 0)`.
+/// Rigidity of the placement (orthonormal linear part) is not decided
+/// here and not re-examined here: what arrives is whatever built the
+/// map, and a placement minted from a frame witness
+/// (`profile::SketchPlane::from_frame`, over `geom_core::OrthoFrame`)
+/// carries that decision with it while one assigned by hand carries
+/// only its own source's.
 #[derive(Clone, Copy, Debug)]
 pub enum MappedCurve<T: Real> {
     /// A sketch segment under a rigid placement — cap rims, revolve

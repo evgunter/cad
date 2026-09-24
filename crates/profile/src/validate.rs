@@ -138,6 +138,7 @@ use geom_core::{
     Vec2,
 };
 
+use crate::path::num;
 use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
 use crate::structure::{
     CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
@@ -254,6 +255,13 @@ pub enum FilletLegCarrier {
 }
 
 impl fmt::Display for FilletLegCarrier {
+    /// Both scalars render through `path::num`, the one grid
+    /// this crate's refusal sentences are spelled on: this sentence is
+    /// interpolated into
+    /// [`crate::path::CornerReason::AnchorOutsideTrimmedExtent`]'s,
+    /// whose own scalars are already shortened, so a raw `f64` here
+    /// would put the arithmetic's noise inside a sentence otherwise
+    /// free of it.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Line => f.write_str("straight"),
@@ -262,7 +270,9 @@ impl fmt::Display for FilletLegCarrier {
                 angular_margin,
             } => write!(
                 f,
-                "circular (carrier radius {radius} m, angular margin {angular_margin} rad)"
+                "circular (carrier radius {radius} m, angular margin {angular_margin} rad)",
+                radius = num(radius),
+                angular_margin = num(angular_margin)
             ),
         }
     }
@@ -345,14 +355,9 @@ impl fmt::Display for NoCornerReason {
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_TURN_INBAND_RECOURSE: &str = "this corner's turn is metered through its lever arm — the sine of the angle between the \
-     legs times the shorter leg's extent — so either the angle is degenerate at any precision \
-     you could care about, and which kind is below the tolerance, or the angle is real and the \
-     leg is too short to state it: if the legs run smoothly into each other, keep them and \
-     declare the tangency (the joint's index in the loop's tangent_joints); if they double back, \
-     that is a cusp and the kernel refuses it; if the angle is real, give the shorter leg a \
-     longer extent, which is the lever a leg of a few tolerances does not have; otherwise move \
-     the geometry so a real corner exists (or lower the tolerance)";
+pub const FILLET_TURN_INBAND_RECOURSE: &str = "if the legs run smoothly into each other, declare the tangency (tangent_joints); \
+     if they double back, the cusp is refused; if the angle is real, give the shorter \
+     leg a longer extent; otherwise move the geometry";
 
 /// The recourse for a corner that admits no tangent circle of the
 /// requested radius — one sentence for the definite refusal and for the
@@ -416,14 +421,8 @@ pub const FILLET_NO_CORNER_RECOURSE: &str =
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered by projecting the fillet's centre back onto that leg's \
-     carrier, and the projection divides by the offset radius rho = R - sigma*tau*r, so a \
-     fillet radius this close to the leg's carrier radius cannot place the tangent point \
-     within tolerance: move the fillet radius away from that leg's carrier radius — that is \
-     the direction, and the window is bounded, because the threshold this lever is measured \
-     against grows as the corner's squared scale and that scale carries rho itself, so on a \
-     scene rho already dominates a larger move refuses again. Where it does, what is left is \
-     to bring the corner's carriers closer together, or lower the tolerance";
+pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "move the fillet radius away from that leg's carrier radius (a large move can \
+     refuse again), or bring the corner's carriers closer together, or lower the tolerance";
 
 /// The recourse for a fillet radius sitting within the band of a leg's
 /// own carrier radius, where the sign of ρ = R − σ·τ·r — and with it
@@ -452,12 +451,8 @@ pub const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered b
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_ENCLOSING_RECOURSE: &str = "on the side the corner turns toward, a fillet radius above the leg's own carrier radius \
-     puts that carrier INSIDE the fillet circle, and the corner with it, so the arc could not \
-     touch the corner it would round — and whether this radius is above or below that carrier \
-     radius is itself below the tolerance here: move the radius clearly away from the leg's \
-     carrier radius, downward, and expect to go well below it (a circle that large need not \
-     be tangent to both of this corner's carriers at all)";
+pub const FILLET_ENCLOSING_RECOURSE: &str = "the fillet radius is too close to the leg's own carrier radius to tell whether the \
+     fillet would swallow that carrier: move the radius well below the carrier radius";
 
 /// The recourse for a radius whose tangent points fall outside their
 /// legs — shared by the definite refusal and the in-band escalation.
@@ -505,10 +500,8 @@ pub const FILLET_FIT_RECOURSE: &str =
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_FLATTENED_RECOURSE: &str = "the stored sagitta goes as r(1 - cos(theta/2)), so turn the corner further, or round \
-     it with a LARGER radius while the scene still resolves one; a corner too shallow for \
-     both is one no arc of any radius can be stored at, and the lever that always works \
-     is to drop the fillet and leave the corner sharp";
+pub const FILLET_FLATTENED_RECOURSE: &str = "turn the corner further, or use a LARGER radius while the scene still resolves \
+     one; if the corner is too shallow for both, drop the fillet and leave the corner sharp";
 
 /// **The recourse for a fillet whose carrier the scene cannot resolve.**
 ///
@@ -535,10 +528,8 @@ pub const FILLET_FLATTENED_RECOURSE: &str = "the stored sagitta goes as r(1 - co
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "a carrier clearance is a difference of lengths at the scene's own magnitude, and such \
-     a difference resolves only to about that magnitude times 2^-52 — so a LARGER radius \
-     makes this worse, not better: use a smaller radius, or place the geometry nearer the \
-     origin, or drop the fillet and leave the corner sharp";
+pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "use a smaller radius (a LARGER one makes this worse), place the geometry nearer \
+     the origin, or drop the fillet and leave the corner sharp";
 
 /// **The recourse when the stored form's own classification is in
 /// band** — the undecided twin of the two above.
@@ -560,11 +551,9 @@ pub const FILLET_SCENE_RESOLUTION_RECOURSE: &str = "a carrier clearance is a dif
      `test-support`; interior in every other build"
     )
 )]
-pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "this run cannot say whether the loop would hold the tangency: either the arc is too \
-     shallow to store as an arc (turn the corner further, or use a larger radius) or the \
-     carrier clearance is finer than the scene resolves (use a smaller radius, or place \
-     the geometry nearer the origin) — dropping the fillet settles it either way, and so \
-     does lowering the tolerance";
+pub const FILLET_STORED_FORM_INBAND_RECOURSE: &str = "the arc may be too shallow to store (turn the corner further, or use a larger \
+     radius) or too fine for the scene (use a smaller radius, or move nearer the \
+     origin); dropping the fillet, or lowering the tolerance, settles either";
 
 /// The recourse for a fillet leg with no extent to round against.
 ///
@@ -624,13 +613,172 @@ pub fn fillet_recourse_for(predicate: &str) -> Option<&'static str> {
     })
 }
 
+/// Every predicate this crate decides whose ONLY recourse is the shared
+/// coincidence clause the escalation's own payload already carries,
+/// with what its margin measures.
+///
+/// Each of these meters a separation, a length or a side — a quantity
+/// whose levers are exactly the three [`COINCIDENCE_RECOURSE`] names
+/// (declare the coincidence, move the geometry, lower the tolerance).
+/// A door that could add a fourth lever for one of them owes it a
+/// sentence of its own and takes the name off this list.
+///
+/// **Being here is a DECISION and reads as one.**
+/// [`crate::PathError::Escalated`] renders a listed name with the
+/// shared clause and says nothing about a gap; a name that is neither
+/// routed to a sentence nor listed here renders
+/// [`geom_core::MissingRecourse`], which is the honest answer for a
+/// name nobody has looked at. Silence is not available to either.
+///
+/// The reasons are what each margin IS, not where the escalation
+/// travels: which error type carries a refusal is a fact about the call
+/// graph that nothing here computes.
+/// `recourse_roster::every_decided_name_is_routed_or_listed_with_its_reason`
+/// holds this list against the names the crate's `src` actually
+/// decides, in both directions.
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
+    (
+        "arc_apex_identity",
+        "two arc apexes told apart by their separation",
+    ),
+    (
+        "arc_span",
+        "an arc's span, as the clearance between its chord's reach and its apex",
+    ),
+    (
+        "canonical_order_x",
+        "two points ordered by their x difference, at the exact-order band",
+    ),
+    (
+        "canonical_order_y",
+        "two points ordered by their y difference, at the exact-order band",
+    ),
+    (
+        "collinear_overlap",
+        "the overlap of two collinear segments along their shared carrier",
+    ),
+    (
+        "contact_at_shared_vertex",
+        "a contact point told apart from a loop vertex by their separation",
+    ),
+    (
+        "line_span",
+        "how far inside a segment a point falls, from whichever end is nearer",
+    ),
+    (
+        "loop_orientation",
+        "a loop's signed area, levered by its perimeter",
+    ),
+    ("path_arc_bulge", "an authored bulge told apart from zero"),
+    (
+        "path_arc_center_equidistant",
+        "an authored centre's two radii told apart",
+    ),
+    (
+        "path_arc_center_radius",
+        "an authored radius metered against zero",
+    ),
+    ("path_arc_chord", "an authored chord metered against zero"),
+    (
+        "path_arc_sweep",
+        "an authored sweep angle metered against zero",
+    ),
+    (
+        "path_arc_via_offset",
+        "a via point's lateral offset from the chord it bulges",
+    ),
+    (
+        "path_carrier_identity",
+        "two arc carriers told apart by their centre separation plus their radius difference",
+    ),
+    (
+        "path_carrier_meet",
+        "whether a ray and a circle meet at all: the circle's radius against the ray's \
+         perpendicular distance from its centre",
+    ),
+    (
+        "path_circle_radius",
+        "a circle's radius metered against zero",
+    ),
+    (
+        "path_collinear_target",
+        "a declared target's lateral miss from the tip's direction",
+    ),
+    (
+        "path_corner_advance",
+        "where the corner sits along a STRAIGHT side's carrier — forward of the incoming \
+         anchor, or back from the arrival's",
+    ),
+    (
+        "path_corner_advance_arc",
+        "the same window on a CIRCULAR carrier: the swept extent from the anchor forward to \
+         the corner, levered to metres",
+    ),
+    (
+        "path_corner_reach_arc",
+        "the swept extent from the corner forward to a circular arrival's anchor, levered to \
+         metres",
+    ),
+    (
+        "path_corner_turn",
+        "the turn BETWEEN the two carriers at the corner, levered by the anchor separation",
+    ),
+    (
+        "path_director_norm",
+        "a director's length metered against zero",
+    ),
+    (
+        "path_fillet_radius",
+        "an authored fillet radius metered against zero",
+    ),
+    (
+        "path_seam_arrival_lever",
+        "the lever arm the seam arrival's own turn and side gates are metered through",
+    ),
+    (
+        "ray_advance",
+        "how far along a containment ray a crossing falls",
+    ),
+    (
+        "ray_side",
+        "which side of a containment ray a point falls on",
+    ),
+];
+
+/// What [`SHARED_CLAUSE_ONLY`] records for `predicate`, if it is listed.
+#[must_use]
+#[cfg_attr(
+    not(any(test, feature = "test-support")),
+    allow(
+        unreachable_pub,
+        reason = "re-exported by the crate root only under \
+     `test-support`; interior in every other build"
+    )
+)]
+pub fn shared_clause_only(predicate: &str) -> Option<&'static str> {
+    SHARED_CLAUSE_ONLY
+        .iter()
+        .find(|(name, _)| *name == predicate)
+        .map(|(_, reason)| *reason)
+}
+
 /// Typed validation failure — the closed error enum of
 /// [`Profile::validate`] (D4 ¶3: every failure is typed and actionable;
 /// D9: never a panic). All indices reference the *input* profile.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ProfileError {
-    /// The run's tolerance could not form a classification band
-    /// (misconfigured ε — see [`BandError`]).
+    /// The run's tolerance could not form a classification band — a
+    /// misconfigured ε **or** K, the two arms
+    /// [`Band::linear`](geom_core::Band::linear)'s `# Errors` states
+    /// with their conditions.
     Band(BandError),
     /// The profile has no loops — there is no region to sweep.
     EmptyProfile,
@@ -786,7 +934,7 @@ impl fmt::Display for ProfileError {
             Self::TangentialContact { first, second } => write!(
                 f,
                 "tangential contact between {first} and {second}: touching without \
-                 crossing is semantically indeterminate — {COINCIDENCE_RECOURSE} (D4)"
+                 crossing is semantically indeterminate — {COINCIDENCE_RECOURSE}"
             ),
             Self::TangentJointOutOfRange {
                 loop_index,
@@ -848,6 +996,28 @@ impl fmt::Display for ProfileError {
                 // the S6 two-tolerance sweep): the recourse levers ride
                 // `{source}` (the shared carrier); this addendum adds
                 // only the site-specific mechanics of the declare lever.
+                //
+                // IT IS KEYED ON A (SITE, NAME) PAIR, and it appends
+                // nothing for every other pair. That default is honest
+                // because the note is not a recourse: the levers are
+                // already rendered by `{source}`, and a pair it does not
+                // match is one with no extra MECHANICS to add, never one
+                // whose recourse is missing. A recourse that went silent
+                // here would be the failure this crate's own roster
+                // exists to stop — see `validate::SHARED_CLAUSE_ONLY`,
+                // where a predicate with nothing beyond the shared clause
+                // says so out loud.
+                //
+                // The three names below ALSO carry a sentence at
+                // `PathError::Escalated`'s stored-form arm, and the two
+                // deliberately differ: here the segment pair is one the
+                // CALLER authored, so the declare lever is theirs to
+                // pull and this note says how; there the loop is one the
+                // fillet door is about to store, so declaring is advice
+                // about a declaration the caller never wrote, and the
+                // arm names the stored form's own two levers instead.
+                // `review_recourse_roster_r2_probes` pins this key;
+                // `fillet_recourse_followability` pins the other.
                 let near_tangency = matches!(site, EscalationSite::SegmentPair(_, _))
                     && matches!(
                         source.predicate,
@@ -865,7 +1035,7 @@ impl fmt::Display for ProfileError {
                 }
                 Ok(())
             }
-            Self::Structure(r) => write!(f, "guided validation: {r}"),
+            Self::Structure(r) => write!(f, "{r}"),
         }
     }
 }

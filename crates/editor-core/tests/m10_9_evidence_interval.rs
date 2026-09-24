@@ -42,43 +42,45 @@ type NamedStudy = (&'static str, Box<dyn Fn(f64) -> ProfileDoc>);
 type StudyAtCeiling<'a> = (&'static str, f64, Study<'a>);
 
 /// The two rule sets this unit is a differential between: the shipped
-/// tier with the registered-identity door open, and M10-8's exactly
-/// (`SymRules::shipped_without_the_door`).
+/// tier with the registered-identity door open, and the same tier with
+/// the door shut (`SymRules::shipped_without_the_door` — shipped minus
+/// the door and nothing else; M10-8's tier itself is `a0_alone()`).
 fn door_rows() -> [(&'static str, SymRules); 2] {
     [
-        ("door OFF (M10-8)", SymRules::shipped_without_the_door()),
-        ("door ON  (M10-9)", SymRules::shipped()),
+        (
+            "door OFF (shipped minus the door)",
+            SymRules::shipped_without_the_door(),
+        ),
+        ("door ON  (shipped)", SymRules::shipped()),
     ]
 }
 
-/// The four documents, each as a function of the SCALE of its real
-/// study, so a ceiling is a multiple of the study a user would ask for.
+/// The five documents, in THIS file's reporting order — the builders
+/// themselves live once, in the gating half's measured table
+/// (`m10_9_pins_interval::measured_studies`), so a document that is
+/// re-cut moves in one place (R1 S1; this file used to carry a second
+/// copy of all five).
 fn documents(tol: Tol) -> Vec<NamedStudy> {
-    vec![
-        (
-            "two_hole_plate",
-            Box::new(move |s: f64| crate::m10_7_plate::plate(5.0e-5 * s, 1.0e-5 * s, tol).0)
-                as Box<dyn Fn(f64) -> ProfileDoc>,
-        ),
-        (
-            "r2_filleted_bracket",
-            Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
-        ),
-        (
-            "r1_annulus",
-            Box::new(move |s: f64| crate::m10_8_r1_probes_interval::annulus(s, tol).0),
-        ),
-        (
-            "r2_rounded_pad",
-            Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
-        ),
-        // R2's own arc document, adopted so the corrected diagnosis is
-        // read on the same five documents both reviews measured.
-        (
-            "r2_link",
-            Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
-        ),
+    let mut by_name: BTreeMap<&'static str, Box<dyn Fn(f64) -> ProfileDoc>> =
+        crate::m10_9_pins_interval::measured_studies(tol)
+            .into_iter()
+            .map(|study| (study.name, study.at))
+            .collect();
+    [
+        "two_hole_plate",
+        "r2_filleted_bracket",
+        "r1_annulus",
+        "r2_rounded_pad",
+        "r2_link",
     ]
+    .into_iter()
+    .map(|name| {
+        let at = by_name
+            .remove(name)
+            .unwrap_or_else(|| panic!("{name} is not in measured_studies"));
+        (name, at)
+    })
+    .collect()
 }
 
 /// **The ceilings, door OFF and door ON, and THE OVER-BAND SET AT
@@ -329,11 +331,11 @@ fn the_two_fillet_forms() {
         // And what the door answers when the registrant states it.
         println!(
             "   register(|h_registrant|, r) -> {:?}",
-            h_registrant.abs().register_equal(r)
+            h_registrant.abs().register_equal(r, Tol::witness())
         );
         println!(
             "   register(|h_consumer|,   r) -> {:?}",
-            h_consumer.abs().register_equal(r)
+            h_consumer.abs().register_equal(r, Tol::witness())
         );
     });
     println!("   counts {counts:?}");
@@ -343,8 +345,7 @@ fn the_two_fillet_forms() {
 /// the door was a wider coefficient ring: the plate's rim residual needs
 /// ~640 bits and up, and the shipped bound is 256
 /// (`geom_core::sym::COEFF_BITS`,
-/// M10's closed `plate-rim-residual-needs-the-wide-coefficient-ring`,
-/// `docs/DOC-LEDGER.md` sweep 13).
+/// M10's closed `plate-rim-residual-needs-the-wide-coefficient-ring`).
 ///
 /// `COEFF_BITS` is a compile-time constant, so this row is run three
 /// times against three edited values (256, 1024, 4096) and the numbers

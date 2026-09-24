@@ -4,6 +4,8 @@ kind: issue
 title: A program's keep_out announces its crossings into another program's files, and the owning program has no record of them
 status: open
 opened: 2026-09-12
+priority: P3
+cost: D
 ---
 
 

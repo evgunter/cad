@@ -31,7 +31,7 @@ use core::f64::consts::PI;
 
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::{Extrusion, extrude};
+use sweep::test_support::brick;
 use topo::{Body, BooleanError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -40,18 +40,6 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 fn vol(body: &Body<f64>) -> f64 {
     topo::mass_properties(body, Tol::witness()).unwrap().volume
-}
-
-/// A brick `[x0,x1] × [y0,y1] × [z0,z1]` via extrude.
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
-    let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(z.1 - z.0), Tol::witness())
-        .unwrap()
-        .body
 }
 
 /// The vase's bulge-arc data, shared by the fixture and the analytic
@@ -180,7 +168,7 @@ fn the_vase_fixture_actually_carries_a_torus_face() {
 fn a_granted_crossing_union_with_a_torus_band_completes_in_containment() {
     for sphere_caps in [true, false] {
         let a = vase_with_caps(sphere_caps);
-        let b = brick((-1.0, 1.0), (0.55, 0.93), (-1.0, 1.0));
+        let b = brick((-1.0, 1.0), (0.55, 0.93), (-1.0, 1.0), Tol::witness());
         let out = match topo::union(&a, &b, Tol::witness()) {
             Err(
                 BooleanError::CurvedPairUnsupported { .. }
@@ -237,7 +225,7 @@ fn a_granted_crossing_union_with_a_torus_band_completes_in_containment() {
 #[test]
 fn the_same_union_posed_into_the_torus_box_refuses_naming_the_pair() {
     let a = vase();
-    let b = brick((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0));
+    let b = brick((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0), Tol::witness());
     let err = topo::union(&a, &b, Tol::witness())
         .expect_err("a torus face whose box may meet the brick must gate the union");
     let BooleanError::CurvedPairUnsupported {
@@ -272,7 +260,7 @@ fn the_same_union_posed_into_the_torus_box_refuses_naming_the_pair() {
 #[test]
 fn a_disjoint_union_with_a_torus_face_is_admitted_and_now_answered() {
     let a = donut();
-    let b = brick((5.0, 6.0), (0.0, 1.0), (0.0, 1.0));
+    let b = brick((5.0, 6.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let out = match topo::union(&a, &b, Tol::witness()) {
         Err(
             BooleanError::CurvedPairUnsupported { .. }
@@ -316,7 +304,7 @@ fn a_disjoint_union_with_a_torus_face_is_admitted_and_now_answered() {
 /// face's boundary, so a relabel is exactly what its box arithmetic
 /// sees.
 fn brick_with_face(surface: geom::Surface<f64>) -> Body<f64> {
-    let mut b = brick((2.0, 3.0), (0.0, 1.0), (0.0, 1.0));
+    let mut b = brick::<f64>((2.0, 3.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     let face = b
         .faces()
         .find(|(_, f)| match b.get_surface(f.surface) {
@@ -335,7 +323,12 @@ fn brick_with_face(surface: geom::Surface<f64>) -> Body<f64> {
 /// A small probe brick centred at `p`.
 fn probe_at(p: Point3<f64>) -> Body<f64> {
     let s = 0.02;
-    brick((p.x - s, p.x + s), (p.y - s, p.y + s), (p.z - s, p.z + s))
+    brick(
+        (p.x - s, p.x + s),
+        (p.y - s, p.y + s),
+        (p.z - s, p.z + s),
+        Tol::witness(),
+    )
 }
 
 /// **Row 4 — cone-slab soundness at a TILTED axis**, the pose no

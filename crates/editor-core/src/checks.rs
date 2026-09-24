@@ -47,10 +47,7 @@ use std::sync::Arc;
 use core::fmt;
 
 use geom_core::{BandError, CertifiedBounds, Decide, Tol};
-use topo::{
-    AtRestPolicy, Body, ContactRecords, PropsQuadLane, ShellClassifyError, ShellRole,
-    classify_shells,
-};
+use topo::{AtRestPolicy, Body, ContactRecords, ShellClassifyError, ShellRole, classify_shells};
 
 use crate::doc::Doc;
 use crate::eval::Evaluation;
@@ -576,9 +573,9 @@ impl crate::finding::Finding for CheckFinding {
             ),
             CheckEvidence::StaleExpectation { expected } => write!(
                 f,
-                "an expectation of {expected} component(s) has no subject — the body \
-                 vanished (a boolean may have consumed the whole part) or the key names \
-                 no root output; remove the ChecksConfig::expected_components entry or \
+                "an expectation of {expected} component(s) has no subject: the body \
+                 vanished (a boolean may have consumed the part) or the key names no root \
+                 output. Recourse: remove the ChecksConfig::expected_components entry, or \
                  fix the root"
             ),
             CheckEvidence::NotSeparated {
@@ -586,15 +583,13 @@ impl crate::finding::Finding for CheckFinding {
                 other_output,
             } => write!(
                 f,
-                "not certifiably disjoint from root {} output {other_output}: the \
-                 product gathers both, so any space they share is gathered twice",
+                "not certifiably disjoint from root {} output {other_output}, so any space \
+                 they share is gathered twice",
                 other_root.0
             ),
-            CheckEvidence::SeparationUnavailable { reason, .. } => write!(
-                f,
-                "no pair of this product's solids could be checked for separation: \
-                 {reason}"
-            ),
+            CheckEvidence::SeparationUnavailable { reason, .. } => {
+                write!(f, "separation could not be checked: {reason}")
+            }
             CheckEvidence::ChartCoherence { finding } => {
                 let what = match finding.condition {
                     topo::CoherenceCondition::MeridianClosure { .. } => {
@@ -610,8 +605,8 @@ impl crate::finding::Finding for CheckFinding {
                 };
                 write!(
                     f,
-                    "{what} {:e} m apart (gap {:e} chart units x lever {:e} m, band {:e} m)",
-                    finding.metres, finding.gap, finding.lever, finding.eps
+                    "{what} {:e} m apart (band {:e} m)",
+                    finding.metres, finding.eps
                 )
             }
             CheckEvidence::ChartCoherenceUnexamined { unexamined } => {
@@ -637,8 +632,7 @@ impl crate::finding::Finding for CheckFinding {
                 }
             }
             CheckEvidence::ChartCoherenceUnavailable => f.write_str(
-                "this evaluation's decision lane carries no chart-coherence examination, \
-                 so this body's chart coordinates were not read at all",
+                "this evaluation's lane does not examine chart coherence, so nothing was read",
             ),
         }
     }
@@ -646,34 +640,27 @@ impl crate::finding::Finding for CheckFinding {
     fn recourse(&self) -> &str {
         match &self.evidence {
             CheckEvidence::Connectedness { .. } => {
-                "a stray component usually means a boolean that did not reach its operand \
-                 or an instance placed nowhere; if the disjoint body is deliberate, state \
-                 the expected count for this root output in ChecksConfig::expected_components"
+                "Recourse: a stray component usually means a boolean that missed its operand \
+                 or an instance placed nowhere; if it is deliberate, state the expected count \
+                 in ChecksConfig::expected_components"
             }
             CheckEvidence::Escalated { .. } => {
-                "a shell's volume is too close to zero for a certified outer/void \
-                 orientation read; thicken or remove the degenerate geometry, or lower \
-                 the tolerance"
+                "Recourse: thicken or remove the degenerate geometry, or lower the tolerance"
             }
             CheckEvidence::NotSeparated { .. } => {
-                "usually a recipe that grew a second sink by accident: a feature left \
-                 dangling when its consumer was rewired is still a product root, so \
-                 delete it or feed it into the root downstream of it. Two roots meant \
-                 to TOUCH want a mate, whose declaration the assembly door certifies; \
-                 two meant to INTERPENETRATE want a boolean, not a gather"
+                "Recourse: usually a feature left dangling as a second product root, so \
+                 delete it or feed it downstream; roots meant to TOUCH want a mate, and \
+                 roots meant to INTERPENETRATE want a boolean"
             }
             CheckEvidence::ChartCoherence { .. } => {
-                "the body states one chart coordinate twice and the two statements differ \
-                 by this many metres. It is a MEASUREMENT and nothing refuses on it: read \
-                 the metres against the band and decide whether this source is stated \
-                 finely enough for what you are doing with it — an imported part usually \
-                 wants re-exporting at more digits, a minted one is a kernel finding"
+                "a MEASUREMENT, not a refusal: judge the metres against the band; an \
+                 imported part usually wants re-exporting at more digits, and a minted one \
+                 is a kernel finding"
             }
             CheckEvidence::ChartCoherenceUnexamined { unexamined } => match unexamined.why {
                 topo::Unexaminable::Corrupt { .. } => {
-                    "a structural read failed on this loop; topo::validate is the door that \
-                     names the defect in its own vocabulary, and this resident only reports \
-                     that it could not get past it"
+                    "the body's structural validation names the defect this read could not \
+                     get past"
                 }
                 // A scaffolding edge and a trimmed face are lane
                 // boundaries, not defects: the report names them so
@@ -683,9 +670,8 @@ impl crate::finding::Finding for CheckFinding {
                 | topo::Unexaminable::NonIsoCarrier { .. } => "",
             },
             CheckEvidence::ChartCoherenceUnavailable => {
-                "the examination is defined at the f64 lane; evaluate the document at f64 \
-                 to measure it, or turn this check off rather than reading its silence as \
-                 a clean body"
+                "Recourse: evaluate the document at f64 to measure it, or turn this check \
+                 off rather than reading its silence as a clean body"
             }
             CheckEvidence::Unsupported { .. }
             | CheckEvidence::StaleExpectation { .. }
@@ -795,6 +781,21 @@ pub enum ChecksError {
     },
 }
 
+/// **The pairing predicate's finding, in this door's vocabulary.**
+///
+/// A2a's rule is one predicate (`ident::mispaired`) and one arm per
+/// error type over it. The projection lives HERE, at the type that
+/// owns the arm, so a door that runs the predicate writes `?` or
+/// `m.into()` and no site re-spells which field goes where.
+impl From<crate::ident::Mispaired> for ChecksError {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        }
+    }
+}
+
 impl ChecksError {
     /// [`ChecksError::Product`] built from ONE subject: the class a
     /// consumer matches and the sentence a reader reads travel
@@ -868,14 +869,16 @@ impl core::error::Error for CheckRefusal {}
 /// - [`Subject::Product`] — the gather succeeded and this is it. It
 ///   must be a product OF THE PAIR the door is handed
 ///   ([`run_checks_on`] refuses otherwise).
-/// - [`Subject::NoBodyRoots`] — no root denotes a body at all: an
-///   empty document, or one holding only sketches and datums. Not a
-///   failure to run the registry. A resident that needs a body has no
+/// - [`Subject::NoBodyRoots`] — no root denotes a body at all, the
+///   reading [`product::ProductErrorKind::means_no_body`] states and
+///   this arm carries ([`Subject::refused`] routes a gather refusal
+///   of that class here). A resident that needs a body has no
 ///   subject here and contributes no finding; a resident that does not
 ///   (connectedness reads the evaluation) runs exactly as it would
 ///   otherwise.
 /// - [`Subject::Unavailable`] — there is no subject and the reason is
-///   carried. Either the gather REFUSED, or no enabled resident reads
+///   carried. Either the gather REFUSED for a cause that is not the
+///   absence above, or no enabled resident reads
 ///   a subject and none was taken
 ///   ([`ChecksConfig::needs_a_subject`]). A
 ///   subject-reading resident that is enabled and meets this arm makes
@@ -902,16 +905,32 @@ pub enum Subject<'a, T: Decide> {
 }
 
 impl<T: Decide> Subject<'_, T> {
-    /// [`Subject::Unavailable`] built from ONE refusal: `kind` is the
-    /// class a consumer matches, `reason` the gather's own sentence a
-    /// reader reads. Both come off the same error, which is the
-    /// invariant this door holds and a hand-built literal does not —
-    /// so a caller deriving its own subject from a gather that refused
-    /// goes through here rather than writing the two fields itself.
+    /// The subject a gather REFUSAL is — and which of two arms it is
+    /// is decided HERE, on [`product::ProductErrorKind::means_no_body`].
+    ///
+    /// **A gather refusal is two different facts, and this is where
+    /// they part.** The one class that predicate reads as an ABSENCE
+    /// rather than a fault becomes [`Subject::NoBodyRoots`]: a merely
+    /// empty document is checkable, and routing it to
+    /// [`Subject::Unavailable`] would make a subject-reading resident
+    /// refuse [`ChecksError::Product`] over it — the outcome that arm
+    /// exists to prevent. Every other class is a refusal and becomes
+    /// `Unavailable`. Because the routing lives here, a caller holding
+    /// a gather error hands it over whole rather than re-deriving a
+    /// classification that has one home.
+    ///
+    /// **The `Unavailable` it builds carries ONE refusal**: `kind` is
+    /// the class a consumer matches, `reason` the gather's own sentence
+    /// a reader reads, and both come off the same error — the pairing
+    /// invariant this door holds and a hand-built literal does not.
     #[must_use]
     pub fn refused(source: &product::ProductError) -> Self {
+        let kind = source.kind();
+        if kind.means_no_body() {
+            return Self::NoBodyRoots;
+        }
         Self::Unavailable {
-            kind: Some(source.kind()),
+            kind: Some(kind),
             reason: source.to_string(),
         }
     }
@@ -977,7 +996,6 @@ pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCoherence
     }
     let subject = match product::product_recorded(doc, ev, tol) {
         Ok(ref gathered) => return run_checks_on(doc, ev, Subject::Product(gathered), cfg, tol),
-        Err(product::ProductError::NoBodyRoots) => Subject::NoBodyRoots,
         Err(ref source) => Subject::refused(source),
     };
     run_checks_on(doc, ev, subject, cfg, tol)
@@ -1014,12 +1032,7 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCohere
     cfg: &ChecksConfig,
     tol: Tol,
 ) -> Result<ChecksReport, ChecksError> {
-    let pairing = |found| {
-        crate::ident::mispaired(doc.id(), found).map(|m| ChecksError::EvaluationOfAnotherDocument {
-            expected: m.expected,
-            found: m.found,
-        })
-    };
+    let pairing = |found| crate::ident::mispaired(doc.id(), found).map(ChecksError::from);
     if let Some(refusal) = pairing(ev.document) {
         return Err(refusal);
     }
@@ -1055,7 +1068,7 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCohere
 /// The connectedness resident's own pass (I1(0b)) — [`run_checks`]'s
 /// body before the registry grew a second resident, moved out
 /// unchanged so each resident is independently `Off`-able.
-fn connectedness<P, T: Decide + PropsQuadLane>(
+fn connectedness<P, T: Decide + CertifiedBounds>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
@@ -1498,6 +1511,49 @@ mod tests {
         };
         assert_eq!(door, *kind);
         assert_eq!(prose, refusal.to_string());
+    }
+
+    /// INVARIANT: the subject door ROUTES the refusal it is handed.
+    /// The one class [`product::ProductErrorKind::means_no_body`]
+    /// reads as an ABSENCE — `ProductError::NoBodyRoots`, a document
+    /// that simply denotes no body — becomes [`Subject::NoBodyRoots`];
+    /// every other class becomes [`Subject::Unavailable`].
+    ///
+    /// That arm is the one refusal that must not go through the
+    /// unavailable door: a merely empty document routed there makes
+    /// every enabled subject-reading resident refuse
+    /// [`ChecksError::Product`] over a document where nothing has gone
+    /// wrong. The routing lives in the door precisely so no caller
+    /// has to remember it.
+    ///
+    /// **Which arm is which is not written down on the left.** The arm
+    /// the door picks is compared against what the CLASSIFICATION says
+    /// of the same error, so a door that stopped reading it reds here
+    /// while a re-classification moves both sides together — and the
+    /// set of classes that read as an absence is pinned where it is
+    /// stated, at `product`'s `exactly_one_arm_reads_as_no_body`.
+    #[test]
+    fn the_subject_door_routes_an_absence_away_from_the_unavailable_arm() {
+        for refusal in [
+            crate::ProductError::NoBodyRoots,
+            crate::ProductError::RootPoisoned {
+                node: RecipeNodeId(7),
+                through: RecipeNodeId(2),
+            },
+        ] {
+            let absence = refusal.kind().means_no_body();
+            let subject: Subject<'_, f64> = Subject::refused(&refusal);
+            assert_eq!(
+                matches!(subject, Subject::NoBodyRoots),
+                absence,
+                "{refusal:?}: the door's arm must follow the classification"
+            );
+            assert_eq!(
+                matches!(subject, Subject::Unavailable { .. }),
+                !absence,
+                "{refusal:?}: and the arm it is NOT is the refusing one"
+            );
+        }
     }
 
     /// INVARIANT: a subject that is absent because nothing ASKED for

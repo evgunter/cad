@@ -4,6 +4,8 @@ kind: issue
 title: widening the coefficient ring can lose discharges: a frozen node matches itself as one opaque indeterminate, and the same node expanded may not close
 status: open
 opened: 2026-09-14
+priority: P0
+cost: D
 ---
 
 
@@ -77,3 +79,85 @@ the walk keeps an atom opaque where opening it buys nothing — which is
 a policy the early walk does not have today (it folds whatever a rule
 reaches). Not this program's next unit; recorded so the dual that takes
 the bulge family's freezes reads its own split against this.
+
+## A second mechanism: SYM-5's rule E scale step (2026-09-14)
+
+Found by SYM-5 PR-2's review R2, by execution. The ring's width is not
+only reached by a document's own coefficients: a RULE can widen them.
+Rule E (the quotient's common factor, `SymRules::common_factor`)
+canonicalises a quotient's scale by multiplying both halves by `1/|s|`,
+with `s` the denominator's coefficient at its smallest monomial — so
+every numerator coefficient gains `s`'s odd part in ITS denominator,
+up to `s`'s bits wider.
+
+The demonstration, `geom-core/tests/sym_rule_e_rows`'s
+`rule_e_can_cost_a_theorem_to_the_coefficient_ring`: with
+`P = (x + |1/q|)/(x + 0.1)` and `q = 3^126` (200 bits), the unscaled
+`P` lets rule A substitute and the product by `h` fit
+`rational::COEFF_BITS`; scaled by `1/0.1` (52 bits) `P`'s coefficients
+are 252 bits, the product needs 259, and BOTH sides freeze to two
+different indeterminates. `without_rule_e` reaches the theorem;
+`shipped` does not.
+
+So rule E is monotone in TERMS and in DEGREE and not in the third
+budget, and "no measured document lost a decision" is a measurement on
+the documents SYM-5 names and never a structural fact.
+
+**The next shape, not taken.** A scale choice that provably adds no
+bits would close it: scaling only when the pivot coefficient is a
+DYADIC UNIT (`±2^k`, whose reciprocal adds nothing to any
+coefficient's odd part) keeps the canonicalisation for every quotient
+whose pivot is a power of two and leaves the rest alone. That is a
+narrower canonical form — two spellings whose pivots differ by a
+non-dyadic factor would stop meeting — so it trades reach for width
+and wants its own measurement before it is taken.
+
+## A third measurement: SYM-8's rule F (2026-09-15)
+
+This row's `abs` patches are re-taken, against the narrower predicate
+SYM-8's rule F uses. Patch C folded `abs(X) = X` for a SYNTACTICALLY
+NON-NEGATIVE `X` and lost ten decisions on R1's boss with patch A at
+256 bits; rule F folds only where `X` is manifestly POSITIVE — every
+term non-negative and at least one term strictly positive, with
+`sqrt`/`abs` atoms counting as positive only when their own argument
+is. The boss's atom is `abs((5/8)·sqrt(L²))`, whose `sqrt` is over a
+BARE SQUARE: non-negative, not positive, so the predicate declines it.
+
+Measured (the split at the nominal, whole, rule F off → on):
+
+| document | rule F off | rule F on |
+| --- | --- | --- |
+| R1's segment boss at `bulge = 2` | the shipped table | **bit-identical**, every row |
+| R2's D-tab, bulge a literal `0.4` | the shipped table | **bit-identical** |
+| R2's D-tab, bulge a parameter | the shipped table | **bit-identical** |
+| its whole-certifying ceiling (boss) | `9.3559e2 .. 9.3595e2 · ε` | identical to the digit |
+
+So the narrowed predicate does not re-take the loss this row recorded:
+rule F never fires on the bulge family. `sym_rule_f_rows`'s
+`abs(sqrt(t²)) − sqrt(t²)` row is the pin that keeps it declining.
+
+**But the class is alive, and rule F pays it once.** On R2's rounded
+pad, at the scale it certifies whole at, the same 1953 decisions split
+`symbolic_zero: 858, registered: 104, numeric: 991` with the rule off
+and `854 / 128 / 971` with it on — 24 decisions into the door, twenty
+out of `numeric` and FOUR out of `symbolic_zero`. `frozen` is 2750 at
+both dials and no ceiling on any of the eight measured documents moves
+by a digit. Those four are this row's mechanism exactly: the early walk
+was cancelling OVER an opaque `abs` atom, opening it expands both sides
+into forms the ring must now close, and where it cannot the theorem is
+lost — here the registry re-takes them, so no decision is lost, but the
+claim is weakened from a theorem the tier proved to an axiom a
+constructor stated. A unit that folds an atom owes this reading, not
+only the predicate it is after; SYM-8's is the third.
+
+**And it is not rule E's hazard twice.** Rule E's loss is demonstrated
+at the SCALAR — `sym_rule_e_rows::rule_e_can_cost_a_theorem_to_the_coefficient_ring`,
+a hand-built residual at a 200-bit coefficient — and no measured
+document pays it. Rule F's is realised ON a measured document, at the
+scale that document certifies whole at. Both reviews of SYM-8 read the
+spec's Phase-1.3 stop clause as literally tripped by it; the SYM
+orchestrator ratified the ship-on as a spec deviation on 2026-09-21
+(`work/decide/SYM-8.md`). The guard that was missing is in:
+`m10_9_pins_interval`'s `Study` now pins `symbolic_zero` beside
+`registered` on all five documents, so the next four theorems to leave
+red rather than living in a comment.

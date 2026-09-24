@@ -4,6 +4,8 @@ kind: unit
 title: The area pad: the next lever on what a refused patch face still pays
 status: open
 opened: 2026-09-03
+priority: P4
+cost: E
 ---
 
 TCOST-K1 (PR 1652) stopped the patch lanes from running a schedule

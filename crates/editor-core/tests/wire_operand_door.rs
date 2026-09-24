@@ -148,7 +148,11 @@ fn wired() -> (
                node: Node<ProfileProgram>,
                input: RecipeNodeId|
      -> ProfileDoc {
-        match d.apply(&DocEdit::InsertNode { node }, Tol::witness()) {
+        match d.apply(
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        ) {
             Ok(applied) => {
                 rows.push(Row {
                     what,
@@ -511,8 +515,10 @@ fn every_operand_refusal_names_the_phrase_asked_for_and_the_family_found() {
 /// sets it equates.
 ///
 /// **What these rows cannot see**, stated so the receipt is honest: a
-/// refusal built in another module (`mate/member.rs` builds one —
-/// `work/docm/the-third-datum-axis-phrase-lives-in-mate-member.md`),
+/// refusal built in another module (`mate/member.rs` builds one; it
+/// reads `eval::phrase::DATUM_AXIS` since #2984, so the phrase is
+/// shared and only the construction is out of this scan's reach — the
+/// row that asked for it closed with DOOR),
 /// a phrase reached through a helper that takes it as an argument from
 /// elsewhere, the other kind-mismatch vocabularies in this crate
 /// (`work/wire/the-entity-kind-door-has-six-spellings.md` enumerates

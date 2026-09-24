@@ -20,15 +20,16 @@ fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
 }
 
-/// The face's outward-normal sign, read off the sense BIT (the D6
-/// per-file inventory counts the `\u{00b1}1` accessor by name, and a review
-/// probe must not perturb that census).
-fn sgn(b: &crate::Body<f64>, f: crate::entity::FaceKey) -> f64 {
-    if b.get_face(f).unwrap().sense {
-        1.0
-    } else {
-        -1.0
-    }
+/// The face's sense bit, read off the body.
+fn sense_of(b: &crate::Body<f64>, f: crate::entity::FaceKey) -> bool {
+    b.get_face(f).unwrap().sense
+}
+
+/// Whether `q` is on the material side of a face with implicit
+/// residual `r` there: the residual is negative inside the surface's
+/// chart, and the face's bit says whether inside is material.
+fn material_side(sense: bool, r: f64) -> bool {
+    if sense { r < 0.0 } else { r > 0.0 }
 }
 
 /// **Oracle 1 — the volume says which region is material.**
@@ -95,11 +96,11 @@ fn r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement() {
         u_ref: Vec3::unit_x(),
     };
     // Read the two walls' senses off the body rather than assuming.
-    let s_inner = sgn(&p.body, p.face_side[2]);
-    let s_outer = sgn(&p.body, p.face_side[0]);
-    let material = |q: Point3<f64>, si: f64, so: f64| {
-        si * geom_brep::implicit_residual(&inner, q) < 0.0
-            && so * geom_brep::implicit_residual(&outer, q) < 0.0
+    let s_inner = sense_of(&p.body, p.face_side[2]);
+    let s_outer = sense_of(&p.body, p.face_side[0]);
+    let material = |q: Point3<f64>, si: bool, so: bool| {
+        material_side(si, geom_brep::implicit_residual(&inner, q))
+            && material_side(so, geom_brep::implicit_residual(&outer, q))
     };
     // x = 0.1 off the kiss: the crescent there is y ∈ (x²/4, x²/2) =
     // (0.0025, 0.005). Midpoint 0.00375 is material; 0.001 (below the
@@ -122,10 +123,10 @@ fn r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement() {
     );
     // Revert negates every outward normal, so every membership flips.
     let r = p.body.revert().unwrap();
-    let r_inner = sgn(&r, p.face_side[2]);
-    let r_outer = sgn(&r, p.face_side[0]);
-    assert_eq!(r_inner, -s_inner);
-    assert_eq!(r_outer, -s_outer);
+    let r_inner = sense_of(&r, p.face_side[2]);
+    let r_outer = sense_of(&r, p.face_side[0]);
+    assert_eq!(r_inner, !s_inner);
+    assert_eq!(r_outer, !s_outer);
     assert!(!material(inside, r_inner, r_outer));
     // The reverted body's verdict is the SLIT, and the geometry agrees:
     // the crescent is now void from both walls' point of view, so the

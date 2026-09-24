@@ -12,6 +12,7 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::pellet;
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
@@ -58,27 +59,6 @@ fn notched() -> Body<Interval> {
     )
     .unwrap()
     .body
-}
-
-/// The pellet strictly inside the notch (the S10 witness fixture).
-fn pellet() -> Body<Interval> {
-    let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
-        p2(0.9, 1.25),
-        p2(1.1, 1.25),
-        p2(1.1, 1.35),
-        p2(0.9, 1.35),
-    ]);
-    let plane = SketchPlane::from_frame(
-        p3(0.0, 0.0, 0.3),
-        geom_core::Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
-        geom_core::Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
-    );
-    let vp = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&vp, Extrusion::Distance(iv(0.4)), Tol::witness())
-        .unwrap()
-        .body
 }
 
 #[test]

@@ -82,8 +82,8 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
     let s = SymRules::shipped();
     assert_eq!(SymRules::default(), s, "one default");
     assert!(
-        s.trig_of_atan && s.early_ab && s.sqrt_square && s.pythagoras,
-        "rule D and rules A/B per node ship: {s:?}"
+        s.trig_of_atan && s.early_ab && s.sqrt_square && s.pythagoras && s.common_factor,
+        "rule D, rules A/B per node and rule E ship: {s:?}"
     );
     assert!(
         s.early && s.const_fold && s.registered,
@@ -95,19 +95,34 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
     );
     let off = SymRules::without_the_algebra();
     assert!(
-        !off.trig_of_atan && !off.early_ab && !off.sqrt_square && !off.pythagoras,
+        !off.trig_of_atan
+            && !off.early_ab
+            && !off.sqrt_square
+            && !off.pythagoras
+            && !off.common_factor
+            && !off.manifest_sign,
         "the algebra off: {off:?}"
     );
+    // SIX dials since SYM-8: rule E (the quotient's common factor,
+    // SYM-5) and rule F (the manifest sign, SYM-8) are form-level
+    // algebra in the early walk like the other four, and
+    // `without_the_algebra` is M10-9's tier bit for bit, which had
+    // neither. `m10_9_pins_interval` holds M10-9's rows under it. A
+    // dial left out of this list makes the differential one against a
+    // tier that never existed — SYM-8's review found exactly that, with
+    // rule F on BOTH sides of it.
     assert_eq!(
         SymRules {
             trig_of_atan: true,
             early_ab: true,
             sqrt_square: true,
             pythagoras: true,
+            common_factor: true,
+            manifest_sign: true,
             ..off
         },
         s,
-        "`without_the_algebra` differs from `shipped` in the four algebra dials and nothing else"
+        "`without_the_algebra` differs from `shipped` in the six algebra dials and nothing else"
     );
 }
 

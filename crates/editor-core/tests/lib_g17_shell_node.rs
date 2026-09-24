@@ -48,11 +48,7 @@ use topo::readback::euler_counts;
 
 /// A name under the shell node wrapping one source name in a role.
 fn shelled(shell: RecipeNodeId, kind: EntityKind, seg: RoleSeg) -> StableName {
-    StableName {
-        kind,
-        node: shell,
-        path: vec![seg],
-    }
+    fixture::minted(kind, shell, seg)
 }
 
 /// The three names the cup's rows read: the rim of the top, the cavity
@@ -283,6 +279,7 @@ fn a_rebuild_moves_the_forms_and_keeps_the_names() {
             expr: fixture::len(cup::T_BUMPED),
         },
         Tol::witness(),
+        &editor_core::RefusingReach,
     )
     .expect("the wall bumps")
     .doc;
@@ -481,8 +478,8 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     }
     assert_eq!(
         e.to_string(),
-        "the shell op refused: shell: the wall thickness (-0.125 m) is not certifiably \
-         positive, so there is no thin solid to build"
+        "the shell op refused: the wall thickness (-0.125 m) is not certifiably \
+         positive. Recourse: supply a positive thickness"
     );
 
     // (d) a half-chart designation on the vessel: the kernel's
@@ -519,11 +516,10 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
         }
         other => panic!("expected the shell op's refusal, got {other:?}"),
     }
-    // The op row's tail quotes arena keys, so it is prefix-pinned.
     let text = e.to_string();
     assert!(
-        text.starts_with("the shell op refused: shell: ")
-            && text.contains("shares its chart and was not"),
+        text.starts_with("the shell op refused: ")
+            && text.contains("another face on its chart was not"),
         "the partial-chart refusal text moved: {text}"
     );
     // (e) a CURVED designated face: the belly is a sphere zone, and a
@@ -664,7 +660,7 @@ fn both_documents_round_trip_through_persistence() {
         let empty = ProfileDoc::empty_derived("lib-g17-roundtrip", Tol::witness());
         let mut expected = empty.clone();
         for edit in &d.edits {
-            expected = apply(&expected, edit, Tol::witness())
+            expected = editor_core::apply_logged(&expected, edit, Tol::witness())
                 .expect("a corpus edit applies")
                 .doc;
         }

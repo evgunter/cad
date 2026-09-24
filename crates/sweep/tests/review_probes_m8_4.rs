@@ -12,7 +12,7 @@
 
 use crate::common::approx::band;
 use geom::Curve3;
-use geom::{NurbsSurface, Surface};
+use geom::Surface;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
@@ -100,28 +100,23 @@ fn seam_on_chart(reverse_v: bool) -> Option<(Body<f64>, topo::HalfEdgeKey, topo:
     let mut body = offset_square_prism();
     let (edge, flat, bowed, he_bowed) = flat_bowed_seam(&body);
     let bowed = if reverse_v {
-        let n = match body.get_surface(bowed) {
-            Some(Surface::Nurbs(n)) => (**n).clone(),
+        // `reversed_v` is the door that says what this costs: it is the
+        // same point set only on a mirror-symmetric `knots_v`, and the
+        // refusal that would otherwise be silent lands here, payload
+        // and all.
+        let flipped = match body.get_surface(bowed) {
+            Some(Surface::Nurbs(n)) => Surface::Nurbs(Arc::new(
+                n.reversed_v()
+                    .expect("mirror-symmetric v knots: the reversal is the same point set"),
+            )),
             other => panic!("the bowed wall is a described chart: {other:?}"),
         };
-        let (nu, nv) = n.control_counts();
-        let mut control = Vec::with_capacity(nu * nv);
-        let mut weights = Vec::with_capacity(nu * nv);
-        for i in 0..nu {
-            for j in (0..nv).rev() {
-                control.push(n.control()[i * nv + j]);
-                weights.push(n.weights()[i * nv + j]);
-            }
-        }
-        let flipped = Surface::Nurbs(Arc::new(
-            NurbsSurface::new(n.knots_u().clone(), n.knots_v().clone(), control, weights).unwrap(),
-        ));
         let (fk, _) = body
             .faces()
             .find(|(_, f)| f.surface == bowed)
             .expect("the bowed wall has a face");
         body.set_face_surface(fk, FaceSurface::New(flipped))
-            .expect("the v-reversed chart is the same point set")
+            .expect("the bowed wall's face key resolves")
     } else {
         bowed
     };

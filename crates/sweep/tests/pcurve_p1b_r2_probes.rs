@@ -28,14 +28,12 @@ use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::blend::fillet_edges;
-use sweep::test_support::cube;
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
+use sweep::test_support::{cube, loft_prism};
+use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::query;
 use topo::{Body, EdgeKey, FaceKey, ValidationError};
 
-use crate::common;
 use crate::common::approx::band;
-use common::quad;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -180,20 +178,7 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
 
     // Loft — the cap rims that go through the scaffolding door until
     // their planes exist.
-    let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let lofted = loft_body::<f64>(
-        &[quad(square), quad(trapezoid), quad(square)],
-        &[
-            Affine3::identity(),
-            Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-            Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
-        ],
-        2,
-        Tol::witness(),
-    )
-    .expect("the loft builds");
-    bodies.push(("loft prism", lofted.body));
+    bodies.push(("loft prism", loft_prism(Tol::witness())));
 
     // Booleans — the two lanes the spec named by file:line, plus a
     // curved pair.
@@ -457,20 +442,7 @@ fn r2_the_converted_edges_have_measurable_epsilon_headroom() {
             ),
         ),
     ];
-    let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
-    if let Ok(l) = loft_body::<f64>(
-        &[quad(square), quad(trapezoid), quad(square)],
-        &[
-            Affine3::identity(),
-            Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
-            Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
-        ],
-        2,
-        Tol::witness(),
-    ) {
-        bodies.push(("loft prism", l.body));
-    }
+    bodies.push(("loft prism", loft_prism(Tol::witness())));
 
     let mut worst: (f64, String) = (0.0, "none".to_string());
     let mut converted = 0usize;
@@ -624,7 +596,7 @@ fn r2_the_declared_arm_of_the_retired_refusal_is_reachable_at_rest() {
 /// cannot be what escalated there.
 #[test]
 fn r2_the_die_fixtures_supports_are_all_planes() {
-    let c = cube(1.0, Tol::witness());
+    let c = cube::<f64>(1.0, Tol::witness());
     let kinds: Vec<bool> = c
         .faces()
         .map(|(_, f)| matches!(c.get_surface(f.surface), Some(Surface::Plane { .. })))

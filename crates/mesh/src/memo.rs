@@ -259,14 +259,34 @@ pub struct PatchMemo {
     misses: usize,
 }
 
+/// **The dump is held to the declaration**: `Self` is destructured
+/// exhaustively, so a field added to [`PatchMemo`] is an E0027
+/// unbound-pattern error rather than a value silently absent from every
+/// dump. `entries` is carried as its COUNT — the fact a dump is asked
+/// for, where the map itself is every patch's triangles.
+///
+/// Two fields are not carried at all, so this ends in
+/// `finish_non_exhaustive`: `finish` claims every field is shown and
+/// these are not. `next_id` is the mint counter, an implementation
+/// detail of identity rather than a fact about the memo's contents;
+/// `closed` qualifies the counters beside it and is the one a reader of
+/// `hits`/`misses` would want — `work/mesh/memo-dumps-hide-the-closed-bit-the-counters-depend-on.md`.
 impl core::fmt::Debug for PatchMemo {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            entries,
+            next_id: _,
+            picture,
+            closed: _,
+            hits,
+            misses,
+        } = self;
         f.debug_struct("PatchMemo")
-            .field("entries", &self.entries.len())
-            .field("picture", &self.picture)
-            .field("hits", &self.hits)
-            .field("misses", &self.misses)
-            .finish()
+            .field("entries", &entries.len())
+            .field("picture", picture)
+            .field("hits", hits)
+            .field("misses", misses)
+            .finish_non_exhaustive()
     }
 }
 
@@ -1115,6 +1135,22 @@ impl KeyWriter {
                 self.f64(*minor);
                 self.v3(*u_ref);
             }
+            Curve3::Spiric {
+                center,
+                axis,
+                u_ref,
+                major_radius,
+                minor_radius,
+                offset,
+            } => {
+                self.u8(4);
+                self.p3(*center);
+                self.v3(*axis);
+                self.v3(*u_ref);
+                self.f64(*major_radius);
+                self.f64(*minor_radius);
+                self.f64(*offset);
+            }
             Curve3::Nurbs(n) => {
                 self.u8(3);
                 self.nurbs3(n);
@@ -1211,6 +1247,69 @@ mod tests {
             },
             sense: true,
             loops: vec![vec![edge(1.0, [10, 11, 12]), edge(2.0, [12, 13, 10])]],
+        }
+    }
+
+    /// **Every carrier kind writes its own tag byte.** Two kinds sharing
+    /// a tag would let a spiric-bounded face and a spline-bounded one
+    /// of the same field bytes fold to one key; the tag is the first
+    /// byte `curve3` writes, so the five kinds' tags are read off the
+    /// writer directly and asserted pairwise distinct.
+    #[test]
+    fn every_carrier_kind_writes_a_distinct_tag() {
+        let frame = (Point3::origin(), Vec3::unit_z(), Vec3::unit_x());
+        let kinds: [(&str, Curve3<f64>); 5] = [
+            (
+                "line",
+                Curve3::Line {
+                    origin: frame.0,
+                    dir: frame.1,
+                },
+            ),
+            (
+                "circle",
+                Curve3::Circle {
+                    center: frame.0,
+                    axis: frame.1,
+                    radius: 1.0,
+                    u_ref: frame.2,
+                },
+            ),
+            (
+                "ellipse",
+                Curve3::Ellipse {
+                    center: frame.0,
+                    axis: frame.1,
+                    major: 2.0,
+                    minor: 1.0,
+                    u_ref: frame.2,
+                },
+            ),
+            (
+                "spiric",
+                Curve3::Spiric {
+                    center: frame.0,
+                    axis: frame.1,
+                    u_ref: frame.2,
+                    major_radius: 1.2,
+                    minor_radius: 0.225,
+                    offset: 0.05,
+                },
+            ),
+            ("nurbs", Curve3::nurbs_placeholder()),
+        ];
+        let tags: Vec<(&str, u8)> = kinds
+            .iter()
+            .map(|(name, c)| {
+                let mut w = KeyWriter::default();
+                w.curve3(c);
+                (*name, w.0[0])
+            })
+            .collect();
+        for (i, a) in tags.iter().enumerate() {
+            for b in &tags[i + 1..] {
+                assert_ne!(a.1, b.1, "{} and {} share the tag byte {}", a.0, b.0, a.1);
+            }
         }
     }
 

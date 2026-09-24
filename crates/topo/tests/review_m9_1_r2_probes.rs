@@ -6,7 +6,7 @@
 
 use crate::common;
 
-use common::{flush_declarations, prism_z};
+use common::{brick, flush_declarations};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::boolean::carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
@@ -198,14 +198,9 @@ fn probe_cylinder_axis_near_tie_three_outcomes() {
 /// than vacuously true.
 #[test]
 fn probe_replay_partial_eq_bites_on_mutation() {
-    let a = prism_z::<f64>(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 0.0, 1.0).body;
-    let b = prism_z::<f64>(
-        &[(0.5, 0.25), (1.5, 0.25), (1.5, 1.25), (0.5, 1.25)],
-        1.0,
-        2.0,
-    )
-    .body;
-    let decls = flush_declarations(&a, &b);
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<f64>((0.5, 1.5), (0.25, 1.25), (1.0, 2.0), Tol::witness());
+    let decls = flush_declarations(&a, &b, Tol::witness());
     let BooleanResult::Body(x) = union_with(&a, &b, &decls, Tol::witness()).unwrap() else {
         panic!("overlapping union cannot be empty");
     };
@@ -232,7 +227,7 @@ fn probe_replay_partial_eq_bites_on_mutation() {
 /// M9-2's).
 #[test]
 fn probe_census_gate_contradicts_curve_and_refuses_patch() {
-    let a = prism_z::<f64>(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 0.0, 1.0).body;
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
     // Pick any edge and its two adjacent faces: a brick's dihedral is
     // 90 degrees, so a tangency claim along that edge is a lie.
     let (ek, edge) = a.edges().next().expect("brick has edges");

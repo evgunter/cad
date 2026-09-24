@@ -159,8 +159,10 @@ pub enum ProductError {
         /// Its nearest failed ancestor.
         through: RecipeNodeId,
     },
-    /// No root denotes a body — a profile-only or datum-only document
-    /// has no product for a door that needs one.
+    /// No root denotes a body: there is no product for a door that
+    /// needs one, and nothing has gone wrong. The reading, and the
+    /// documents that are in this state, are
+    /// [`ProductErrorKind::means_no_body`]'s.
     NoBodyRoots,
     /// The kernel's disjoint-graft door refused a source body.
     Graft {
@@ -197,20 +199,31 @@ pub enum ProductError {
     },
 }
 
+/// **The pairing predicate's finding, in this door's vocabulary.**
+///
+/// A2a's rule is one predicate (`ident::mispaired`) and one arm per
+/// error type over it. The projection lives HERE, at the type that
+/// owns the arm, so a door that runs the predicate writes `?` or
+/// `m.into()` and no site re-spells which field goes where.
+impl From<crate::ident::Mispaired> for ProductError {
+    fn from(m: crate::ident::Mispaired) -> Self {
+        Self::EvaluationOfAnotherDocument {
+            expected: m.expected,
+            found: m.found,
+        }
+    }
+}
+
 // The human-readable rendering (LIB-DOORS F6 shape): each arm states
 // the PROBLEM and FORWARDS its payload's own `Display` — the kernel's
 // refusals and validity findings both carry one, so no arm re-states
 // them (and none Debug-dumps them). A validity-finding list renders
-// one kernel finding per indented line, the finding sink's list
-// shape; node ids render plain, names as kind + minting node.
+// one kernel finding per indented line through the finding sink's own
+// `render_lines`, which is where that shape lives for the whole layer;
+// node ids render plain, names as kind + minting node.
 impl core::fmt::Display for ProductError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let list = |f: &mut core::fmt::Formatter<'_>, errors: &[ValidationError]| {
-            for error in errors {
-                write!(f, "\n  {error}")?;
-            }
-            Ok(())
-        };
+        let list = crate::finding::render_lines::<&ValidationError, _>;
         match self {
             Self::EvaluationOfAnotherDocument { expected, found } => write!(
                 f,
@@ -343,6 +356,56 @@ pub enum ProductErrorKind {
     ProductInvalid,
     /// [`ProductError::ContactLineage`].
     ContactLineage,
+}
+
+impl ProductErrorKind {
+    /// Whether this class means the DOCUMENT denotes no body at all —
+    /// nothing to gather, rather than something gone wrong.
+    ///
+    /// **The one home of that reading.** Every consumer of a gather
+    /// refusal draws this line before it can act on one, and it is the
+    /// one line all of them draw the same way, so it is drawn here and
+    /// cited rather than re-argued at each site. Consumers that badge
+    /// or report call it the empty-document reading; the class itself
+    /// is about the roots, which is why this is not named for them.
+    ///
+    /// [`ProductErrorKind::NoBodyRoots`] is the only class where there
+    /// is nothing to gather rather than something wrong: a document
+    /// with no body-denoting root — a fresh one, one holding only
+    /// sketches and datums, one whose last feature was just deleted.
+    /// Every other class is a refusal, with a cause the error carries.
+    ///
+    /// **What a consumer does with either answer stays the consumer's,
+    /// in both directions.** `true` says there is nothing to gather; it
+    /// does not say nothing is wrong where the CALLER stands, and a
+    /// caller that needed a body may be entitled to fail over its
+    /// absence. `eval::parts`'s `product_fault` is the live case:
+    /// instantiating a body-less part document is a fault of the
+    /// instantiate node, so it renders this class as a part fault like
+    /// any other. `false` says the class IS a refusal, not that this
+    /// consumer is the one to report it — a consumer whose other
+    /// channels already carry some of those classes still decides that
+    /// for itself.
+    ///
+    /// Exhaustive over [`ProductErrorKind`], so a class cannot be added
+    /// without being classified here. **That is the whole of what the
+    /// compiler buys**: a [`ProductError`] arm added under an EXISTING
+    /// class inherits that class's answer silently, and nothing reds.
+    #[must_use]
+    pub fn means_no_body(self) -> bool {
+        match self {
+            Self::NoBodyRoots => true,
+            Self::EvaluationOfAnotherDocument
+            | Self::UnknownNode
+            | Self::Naming
+            | Self::RootFailed
+            | Self::RootPoisoned
+            | Self::Graft
+            | Self::SolidInvalid
+            | Self::ProductInvalid
+            | Self::ContactLineage => false,
+        }
+    }
 }
 
 impl ProductError {
@@ -652,10 +715,7 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     // two documents' node ids overlap, which two documents built from
     // one recipe always do.
     if let Some(m) = crate::ident::mispaired(doc.id(), evaluation.document) {
-        return Err(ProductError::EvaluationOfAnotherDocument {
-            expected: m.expected,
-            found: m.found,
-        });
+        return Err(m.into());
     }
     // Pass 1: every root's value, refused whole. "No partial products"
     // means a FAILED root refuses even when a later root would have
@@ -1038,6 +1098,44 @@ mod tests {
             );
             seen.push(err.kind());
         }
+    }
+
+    /// **What this reads is the SET, and the set is what a bug moves.**
+    ///
+    /// [`ProductErrorKind::means_no_body`] is exhaustive over the KIND,
+    /// so its answer for any one class is fixed the moment it compiles
+    /// and asserting that answer alone names nothing. What is not fixed
+    /// is which of the arms [`every_arm`] builds answer `true`. That
+    /// set moves when an existing class is re-classified, and when
+    /// [`ProductError::kind`] re-projects a built arm onto a class
+    /// carrying the other answer — both red here, naming the arms that
+    /// came back.
+    ///
+    /// **It is a floor, not a bijection, and the gap is the census's
+    /// own.** A [`ProductError`] arm added under an EXISTING kind and
+    /// left out of [`every_arm`] would read as no-body with nothing
+    /// red anywhere: not here, because the roster never sees it; not at
+    /// the predicate, which is exhaustive over the kind and not over
+    /// the error; and not at [`ProductError::kind`], where projecting a
+    /// new arm onto an existing kind compiles. That is exactly the hole
+    /// `each_kind_has_an_arm_and_each_built_arm_projects_to_its_own_kind`
+    /// states above, and no guard closes it: the roster is hand-written
+    /// because stable Rust cannot enumerate an enum's variants, so a
+    /// bijection is not available to be asserted. This row states what
+    /// it has rather than what would be better.
+    #[test]
+    fn exactly_one_arm_reads_as_no_body() {
+        let reads_no_body: Vec<String> = every_arm()
+            .iter()
+            .filter(|err| err.kind().means_no_body())
+            .map(|err| format!("{err:?}"))
+            .collect();
+        assert_eq!(
+            reads_no_body,
+            vec![format!("{:?}", ProductError::NoBodyRoots)],
+            "no root denoting a body is the only gather refusal that is \
+             an absence rather than a fault"
+        );
     }
 
     /// **The refusal calls a node a ROOT only when it is one.**

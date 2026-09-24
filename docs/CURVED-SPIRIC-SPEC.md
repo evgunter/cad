@@ -354,9 +354,10 @@ MassPropsError::Face { source: PropsError::NotIsoRectangle { what: "torus bounda
 edge is not a circle" }, .. } }] }` from the cavity's torus wall, which precedes its
 caps in arena order; if a cap is visited first the payload is `loop_vector_area`'s
 `Unimplemented` — the row quotes whichever the run shows and names the other. The
-lune's row today reads `NotIsoRectangle { what: "props_band_coplanar" }`
-(`torax_the_sphere_lune_next_door_is_the_props_inventory`): same door, different
-premise — the acceptance says so rather than claiming identity.
+lune's row reads `NotIsoRectangle { what: "props_meridian_great" }` on the
+CAVITY's lens face — the operand's own wall measures since the rim-free wedge
+arm (`torax_the_sphere_lune_next_door_is_the_props_inventory`): same door,
+different premise — the acceptance says so rather than claiming identity.
 
 ## 5. STEP export (Q4(i)) and what import does
 

@@ -9,12 +9,13 @@
 use geom_core::{Point2, Tol};
 use profile::{ProfileLoop, ProfileVertex, RawLoop};
 use sweep::Revolution;
+use sweep::test_support::block;
 use topo::{Body, FaceKey};
 
 use super::common::latitude_seam::two_arc_sphere;
 use super::shell7_common::{drum, p2, revolved, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::beside;
-use super::verbs_shell::{boxy, tube, vessel};
+use super::verbs_shell::{tube, vessel};
 
 fn rows(label: &str, body: &Body<f64>) {
     let mut n = 0;
@@ -110,7 +111,7 @@ fn r2_dump_the_corpus() {
     let tth = tube_torus_hollow(2.0, 0.5, 0.1);
     shelled("tube torus hollow", &tth, 0.02, &[]);
 
-    let b = boxy(2.0, 3.0, 4.0);
+    let b = block(2.0, 3.0, 4.0, Tol::witness());
     shelled("box", &b, 0.25, &[]);
     let v = vessel(1.0, 2.0);
     shelled("vessel", &v, 0.2, &[]);
@@ -121,7 +122,11 @@ fn r2_dump_the_corpus() {
     let hollow = topo::shell(&v, 0.2, tol()).expect("hollows").body;
     shelled("hollow vessel again", &hollow, 0.05, &[]);
 
-    let pair = beside(&boxy(2.0, 2.0, 2.0), &vessel(1.0, 2.0), 6.0);
+    let pair = beside(
+        &block(2.0, 2.0, 2.0, Tol::witness()),
+        &vessel(1.0, 2.0),
+        6.0,
+    );
     shelled("box beside vessel", &pair, 0.2, &[]);
     shelled(
         "box beside vessel opened",

@@ -49,7 +49,7 @@ use pyo3::types::PyString;
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
-use crate::tags::{inline_error_tag, split_error_tag, update_error_tag};
+use crate::tags::{inline_error_tag, interface_crossing_tag, split_error_tag, update_error_tag};
 use pncad::document as d;
 use pncad::tolerance::Tol;
 
@@ -78,27 +78,27 @@ fn document_id(text: &str) -> PyResult<d::DocumentId> {
 /// to. The wrapped form is what the remainder's mate now reads, and
 /// re-wrapping is the split's own rebind, so storing it twice would be
 /// storing a derivable fact.
+///
+/// Both are FACE names — a crossing is written out of the two heads of
+/// a mate, and each head names a face — so the kind is fixed by the
+/// record's type and neither getter can answer anything else.
+///
+/// Those two and the class are the whole of it: a crossing carries no
+/// provenance, and the kernel's `InterfaceCrossing::Mate` says why.
 #[pyclass(frozen, module = "pncad", skip_from_py_object)]
 #[derive(Clone)]
 pub(crate) struct InterfaceCrossing(d::InterfaceCrossing);
 
 #[pymethods]
 impl InterfaceCrossing {
-    /// The stable tag. One arm today, `mate`: a crossing is whatever
-    /// KIND of edge crossed, and mates are the only kind that can.
+    /// The stable tag: `mate`, the one word today — a crossing is
+    /// whatever KIND of edge crossed the cut, and a mate is the only
+    /// kind that can.
+    // The map is `crate::tags::interface_crossing_tag`, whose words
+    // `TAG_INVENTORY` pins.
     #[getter]
     fn variant(&self) -> &'static str {
-        match self.0 {
-            d::InterfaceCrossing::Mate { .. } => "mate",
-        }
-    }
-
-    /// The crossing mate, in the remainder.
-    #[getter]
-    fn mate(&self) -> NodeId {
-        match self.0 {
-            d::InterfaceCrossing::Mate { mate, .. } => NodeId(mate),
-        }
+        interface_crossing_tag(&self.0)
     }
 
     /// The class the crossing declares.
@@ -250,7 +250,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             none(),
             none(),
         ),
-        E::PartNameReachesRemainder { node: n, name } => (
+        E::PartNameReachesRemainder { node: n, name, .. } => (
             id(n),
             none(),
             none(),
@@ -260,7 +260,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             named(name),
             none(),
         ),
-        E::NameStraddlesCut { name } | E::BodyNameCrossesCut { name } => (
+        E::NameStraddlesCut { name, .. } | E::BodyNameCrossesCut { name } => (
             none(),
             none(),
             none(),
@@ -313,9 +313,9 @@ pub(crate) struct SplitOutcome {
     remainder: d::ProfileDoc,
     part: d::ProfileDoc,
     remainder_edits: Vec<d::DocEdit<d::ProfileProgram>>,
-    remainder_maintenance: Vec<d::ClusterMaintenance>,
+    remainder_maintenance: Vec<d::Maintenance>,
     part_edits: Vec<d::DocEdit<d::ProfileProgram>>,
-    part_maintenance: Vec<d::ClusterMaintenance>,
+    part_maintenance: Vec<d::Maintenance>,
     instance: NodeId,
     node_map: Vec<(NodeId, NodeId)>,
 }
@@ -406,16 +406,25 @@ impl SplitOutcome {
 ///
 /// Raises `SplitError`, typed.
 #[pyfunction]
+#[pyo3(signature = (doc, cut, part_id, *, resolver=None))]
 pub(crate) fn split(
     py: Python<'_>,
     doc: &Doc,
     cut: Vec<NodeId>,
     part_id: &str,
+    resolver: Option<&super::store::Workspace>,
 ) -> PyResult<SplitOutcome> {
     let tol = Tol::witness();
     let part_id = document_id(part_id)?;
     let set: BTreeSet<d::RecipeNodeId> = cut.iter().map(|n| n.0).collect();
-    let out = d::split(&doc.inner, &set, part_id, tol).map_err(|err| split_err(py, &err))?;
+    // The cut's edits can move a cluster's gauge (an instance leaves
+    // the remainder for the part), so the split levers through the
+    // same seam `evaluate(doc, resolver=)` crosses — plus the part it
+    // is minting, which it holds itself; absent, an edit that needs a
+    // solved frame of another part refuses typed.
+    let store = resolver.map(super::store::Workspace::resolver);
+    let out = d::split(&doc.inner, &set, part_id, tol, store.as_ref())
+        .map_err(|err| split_err(py, &err))?;
     Ok(SplitOutcome {
         remainder: out.remainder,
         part: out.part,
@@ -533,7 +542,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         ),
         E::InstanceBodyNameReferenced { name }
         | E::ForeignInstanceName { name }
-        | E::StrandedPartName { name } => (
+        | E::StrandedPartName { name, .. } => (
             none(),
             none(),
             named(name),
@@ -581,7 +590,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
 pub(crate) struct InlineOutcome {
     doc: d::ProfileDoc,
     edits: Vec<d::DocEdit<d::ProfileProgram>>,
-    maintenance: Vec<d::ClusterMaintenance>,
+    maintenance: Vec<d::Maintenance>,
     node_map: Vec<(NodeId, NodeId)>,
 }
 
@@ -644,8 +653,7 @@ pub(crate) fn inline(
 ) -> PyResult<InlineOutcome> {
     let tol = Tol::witness();
     let store = resolver.resolver();
-    let out = d::inline(&doc.inner, instance.0, store.as_ref(), tol)
-        .map_err(|err| inline_err(py, &err))?;
+    let out = d::inline(&doc.inner, instance.0, &store, tol).map_err(|err| inline_err(py, &err))?;
     Ok(InlineOutcome {
         doc: out.doc,
         edits: out.edits,

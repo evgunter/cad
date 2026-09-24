@@ -31,10 +31,18 @@ use geom_core::{SymRules, Tol};
 use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 
 /// **The D-tab's whole table at the nominal**, the literal's and the
-/// parameter's alike — asserted on both, so the equality is a pinned
-/// fact and not a copy. What stands: `carrier_matches_mapped_source`
-/// 18 of 180 and `carrier_endpoint_start` 4 of 36 (the rim identity
-/// `‖q − c‖ = r`, the plate's own former ceiling residual), on the
+/// parameter's alike on every row but one — asserted on both, so the
+/// equality is a pinned fact and not a copy, and the one row that
+/// PARTS is supplied per document by [`d_tab_table`]. What stands:
+/// `carrier_matches_mapped_source` 12 of 180 on the literal and 16 on
+/// the parameter (it was 18 on both until SYM-5's rule E).
+/// `carrier_endpoint_start`'s last 4 of 36 went with SYM-5's
+/// rule E (the quotient's common factor): they are 24/0/12/0 now, the
+/// rim identity `‖q − c‖ = r` through the DOOR at every sample — the
+/// rule cancels the shared factor in the rim's re-normalised quotient,
+/// so the residual the registrant states about reaches the form
+/// instead of freezing. No theorem moved; four NUMERIC decisions
+/// became registered ones. On the
 /// coefficient ring — `fl(0.4) = 3602879701896397·2^-53` puts an odd
 /// 52-bit denominator under every sagitta coefficient, the radius
 /// `L(1+b²)/(4b)` folds (A0) to a constant with a 156-bit numerator on
@@ -62,9 +70,8 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("carrier_circles_identity", [3, 0, 0, 0]),
     ("carrier_cyl_axis_parallel", [1, 0, 0, 0]),
     ("carrier_endpoint_end", [24, 0, 12, 0]),
-    ("carrier_endpoint_start", [24, 0, 8, 4]),
+    ("carrier_endpoint_start", [24, 0, 12, 0]),
     ("carrier_line_circle", [0, 0, 0, 5]),
-    ("carrier_matches_mapped_source", [126, 0, 36, 18]),
     ("carrier_on_surface_1", [135, 0, 0, 9]),
     ("carrier_on_surface_2", [117, 0, 0, 27]),
     ("chord_side", [4, 0, 0, 10]),
@@ -92,14 +99,19 @@ const D_TAB_AT_THE_NOMINAL: &[(&str, [u64; 4])] = &[
     ("witness_on_surface_2", [13, 0, 0, 3]),
 ];
 
-/// **The boss at `bulge = 2`, whole.** What stands: `carrier_matches_mapped_source`
-/// 6 of 54 numeric — the samples at `q = 3/2, 5/2, 7/2` of both rims,
-/// where the odd half-multiples' closed forms over the chord's 50-bit
-/// mantissa freeze at the coefficient ring's width (a 512-bit ring
-/// takes all six and moves the ceiling `8.26e2 → 9.36e2·ε`, onto
-/// `line_span`); `carrier_on_surface_2` 27 of 90, `witness_on_surface_2`
-/// 3 of 10, `carrier_on_surface_1` 9 of 90 and `witness_on_surface_1`
-/// 1 of 10 — the arc carrier's radius `abs(signed_radius)` (the
+/// **The boss at `bulge = 2`, whole.** `carrier_matches_mapped_source`
+/// is 72/0/54/0 since SYM-5's rule E: the last 6 of 54 numeric — the
+/// samples at `q = 3/2, 5/2, 7/2` of both rims, whose odd
+/// half-multiples' closed forms over the chord's 50-bit mantissa froze
+/// at the coefficient ring's width — are through the DOOR once the
+/// shared factor in the quotient is cancelled and the coefficients
+/// stay inside the ring (a 512-bit ring used to be what took them, and
+/// moved the ceiling `8.26e2 → 9.36e2·ε` onto `line_span`). No theorem
+/// moved; eighteen `carrier_on_surface_2` decisions and two
+/// `witness_on_surface_2` became THEOREMS with it. What stands:
+/// `carrier_on_surface_2` 9 of 90 (it was 27), `witness_on_surface_2`
+/// 1 of 10 (it was 3), `carrier_on_surface_1` 9 of 90 and
+/// `witness_on_surface_1` 1 of 10 — the arc carrier's radius `abs(signed_radius)` (the
 /// profile's `seg.rs`), `abs((5/8)·sqrt(L²))` with `L` the chord, a
 /// non-constant argument A0 does not fold, standing squared against
 /// its own square spelled without the `abs`; and behind the `abs`, the
@@ -123,9 +135,9 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("carrier_endpoint_end", [12, 0, 12, 0]),
             ("carrier_endpoint_start", [12, 0, 12, 0]),
             ("carrier_line_circle", [0, 0, 0, 3]),
-            ("carrier_matches_mapped_source", [72, 0, 48, 6]),
+            ("carrier_matches_mapped_source", [72, 0, 54, 0]),
             ("carrier_on_surface_1", [81, 0, 0, 9]),
-            ("carrier_on_surface_2", [63, 0, 0, 27]),
+            ("carrier_on_surface_2", [81, 0, 0, 9]),
             ("contact_at_shared_vertex", [4, 0, 0, 5]),
             ("datum_unit_norm", [0, 0, 0, 2]),
             ("dihedral_arm", [0, 0, 0, 80]),
@@ -146,12 +158,23 @@ fn m10_bulge_the_bosss_split_at_the_nominal() {
             ("vertex_separation", [0, 0, 0, 8]),
             ("witness_at_mid_parameter", [10, 0, 0, 0]),
             ("witness_on_surface_1", [9, 0, 0, 1]),
-            ("witness_on_surface_2", [7, 0, 0, 3]),
+            ("witness_on_surface_2", [9, 0, 0, 1]),
         ],
     );
 }
 
-/// The D-tab with its bulge a literal `0.4`: [`D_TAB_AT_THE_NOMINAL`].
+/// The whole D-tab table for one of the two spellings:
+/// [`D_TAB_AT_THE_NOMINAL`] plus the one row where the literal and the
+/// parameter PART.
+fn d_tab_table(mapped_source: [u64; 4]) -> Vec<(&'static str, [u64; 4])> {
+    let mut out = D_TAB_AT_THE_NOMINAL.to_vec();
+    out.push(("carrier_matches_mapped_source", mapped_source));
+    out
+}
+
+/// The D-tab with its bulge a literal `0.4`: [`D_TAB_AT_THE_NOMINAL`],
+/// with `carrier_matches_mapped_source` 126/0/42/12 — six of the
+/// eighteen that used to stand went to the DOOR with SYM-5's rule E.
 #[test]
 fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
     let tol = Tol::witness();
@@ -159,13 +182,18 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a literal)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        D_TAB_AT_THE_NOMINAL,
+        &d_tab_table([126, 0, 42, 12]),
     );
 }
 
-/// The D-tab with its bulge a document parameter: the SAME table as
-/// the literal's ([`D_TAB_AT_THE_NOMINAL`]) — at the nominal the bulge's
-/// sign is not what blocks, the ring is, on the same nodes. The sign
+/// The D-tab with its bulge a document parameter: the same table as
+/// the literal's ([`D_TAB_AT_THE_NOMINAL`]) except on ONE row. At the
+/// nominal the bulge's sign is not what blocks on any of the shared
+/// rows, the ring is, on the same nodes — but with SYM-5's rule E the
+/// two part on `carrier_matches_mapped_source`: 126/0/42/12 on the
+/// literal against 126/0/38/16 here, so four of the six the rule takes
+/// on the literal it does not take when the bulge is a parameter. The
+/// sign
 /// enters where the dyadic control shows it once the ring is out of
 /// the way: the carrier's span `4·atan|b|` (`sweep`'s `arc_span`)
 /// mints `abs(b)` and `sqrt(1 + abs(b)²)` where the pushforward's
@@ -179,6 +207,6 @@ fn m10_bulge_the_d_tabs_parameter_split_at_the_nominal() {
     assert_split(
         "d_tab (bulge a parameter)",
         &split_at_the_nominal(&doc, SymRules::shipped(), tol),
-        D_TAB_AT_THE_NOMINAL,
+        &d_tab_table([126, 0, 38, 16]),
     );
 }

@@ -42,13 +42,22 @@ test-utils = { path = "../test-utils" }
 # trait's docs carry the argument); dev-only, so no shipped build of
 # this crate reaches it.
 profile = { path = "../profile", features = ["test-support"] }
-# `test-support` ON: the corpus swept elbow this crate exports is
-# `sweep::test_support`'s rather than a per-crate rebuild of the same
-# six constants. NOT every construction here: `examples/` keeps an
-# independent rebuild on purpose, because its whole question is whether
-# one reaches the committed bytes. Dev-only by construction, so the
-# feature reaches no shipped build of this crate (that module's docs).
+# `test-support` ON: the corpus swept elbow and the acceptance boxes
+# this crate exports are `sweep::test_support`'s rather than a per-crate
+# rebuild of the same constants (S52). That reaches `examples/` too,
+# which builds the committed corpus from the same `tests/common`
+# module it always has -- so an edit to one of those fixtures
+# re-authors the committed `.step` bytes. It is not silent:
+# `committed_fixtures_are_byte_golden` runs on every PR over the SAME
+# builders, so the edit that would move the bytes is the PR that goes
+# red. Dev-only by construction, so the feature reaches no shipped
+# build of this crate (that module's docs).
 sweep = { path = "../sweep", features = ["test-support"] }
+# `test-support` ON: this crate's suites census a body through
+# `topo::test_support::arena_counts`, the kernel's ONE producer of
+# arena lengths, rather than re-walking the arenas beside it. Dev-only,
+# so no shipped build reaches the facade.
+topo = { path = "../topo", features = ["test-support"] }
 # Float-printer round-trip property tests.
 proptest = { workspace = true }
 # Parse-back oracles (F6 decision: dev-dependencies ONLY — the writer

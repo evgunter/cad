@@ -90,7 +90,7 @@ fn vertices_at(body: &Body<f64>, x: f64, y: f64, z: f64) -> usize {
 /// invariant under plane orientation; only the piece-ASSIGNMENT is.
 #[test]
 fn mirrored_fixture_flipped_plane_succeeds() {
-    let fx = prism::<f64>(MIRRORED, 1.0);
+    let fx = prism::<f64>(MIRRORED, 1.0, Tol::witness());
     let result = split(&fx.body, &plane(1.0, -1.0), Tol::witness()).unwrap();
     // "above" w.r.t. −n = the y < 1 material: the three floor pieces.
     let (pieces, slab) = (body_of(&result.above), body_of(&result.below));
@@ -127,7 +127,7 @@ fn mirrored_fixture_flipped_plane_succeeds() {
 #[test]
 fn notched_fixture_orientation_table() {
     for (profile, pinched_above_under_plus) in [(NOTCHED, true), (MIRRORED, false)] {
-        let fx = prism::<f64>(profile, 1.0);
+        let fx = prism::<f64>(profile, 1.0, Tol::witness());
         let v0 = mass_properties(&fx.body, Tol::witness()).unwrap().volume;
         for ny in [1.0, -1.0] {
             let r = split(&fx.body, &plane(1.0, ny), Tol::witness()).unwrap();

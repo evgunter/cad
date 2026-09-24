@@ -10,17 +10,22 @@
 //!   point-at affordance anywhere).
 //! - [`path_start_frame`] — the profile frame at the start of a swept
 //!   path: local **+Z** is the path tangent, so the local XY plane is
-//!   the profile plane (P1: the Gram–Schmidt recipe hand-rolled at
-//!   every sweep call site, each copy carrying its own
-//!   degenerate-axis dodge).
+//!   the profile plane. It is where the sweep corpus and the demo tour
+//!   get that frame; the pain row it answers (P1) was the Gram–Schmidt
+//!   recipe written out at each sweep call site, every copy carrying
+//!   its own degenerate-axis dodge.
 //! - [`mirror_across_plane`] — reflection across a plane (P6: no
 //!   mirror anywhere, so symmetric arrangements are placed by hand,
 //!   one leaf at a time).
 //!
-//! Nothing here is a new type. A frame IS an [`Affine3`]: the linear
+//! All three return an [`Affine3`], the general affine map: the linear
 //! part's columns are the frame's local +X/+Y/+Z axes in world
 //! coordinates, and the translation is the frame's origin. Composition,
-//! inversion, and application are [`Affine3`]'s, unchanged.
+//! inversion, and application are [`Affine3`]'s, unchanged. The two
+//! aiming constructors build their axes through [`OrthoFrame`], the
+//! witness that RECORDS the orthonormality they decided, and convert;
+//! [`mirror_across_plane`] cannot, because a reflection is not a frame
+//! (`det = −1`).
 //!
 //! # The roll convention (one sentence, pinned)
 //!
@@ -52,9 +57,10 @@
 //! 3. **[`path_start_frame`] has a named ladder.** No reference is
 //!    authored (a sweep's profile frame is conventional), so the
 //!    ladder is world **+Z, then world +X**, in that order; a rung is
-//!    taken only on a *definite* off-axis decision, and both the
-//!    coincident and the ambiguous outcomes advance to the next rung
-//!    (an ambiguous reference is not a usable reference).
+//!    taken only when its offset off the tangent line is a *decided*
+//!    direction, and every other outcome — coincident, ambiguous, or a
+//!    length the format could not hold — advances to the next rung (an
+//!    ambiguous reference is not a usable reference).
 //! 4. **True degeneracy refuses, typed.** A zero-length tangent
 //!    refuses [`FrameInput::Tangent`] — a tangent that merely
 //!    MEASURES zero because its length underflowed is clause 5's, not
@@ -65,8 +71,11 @@
 //!    it. "Known" is doing real work there — see the variant's docs
 //!    for the enclosure that is not ruled out.
 //! 5. **Both format questions are asked before sign.** Every length
-//!    here is classified by `definitely_positive`, which asks
-//!    [`is_finite_length`] first: a direction past
+//!    here is a vector's own norm decided by [`UnitVec3::new`] — the
+//!    aim's and the tangent's directly, the roll offset's inside
+//!    `OrthoFrame::from_aim` — so all of them are classified by
+//!    the same three questions in the same order, and the first is
+//!    [`is_finite_length`](crate::is_finite_length): a direction past
 //!    [`Vec3::normalize`]'s ~1e154 overflow band has an infinite
 //!    norm, which is maximally DEFINITE to the classifier and
 //!    normalizes to the zero vector, so deciding the sign first
@@ -74,7 +83,7 @@
 //!    [`FrameError::NonFiniteLength`], and it names the
 //!    [`FrameVector`] whose length is not a number.
 //!
-//!    It then asks [`is_underflowed_length`], against that vector's
+//!    It then asks [`is_underflowed_length`](crate::is_underflowed_length), against that vector's
 //!    largest `|component|` as the witness ([`Vec3::norm_witness`]).
 //!    A direction below [`Vec3::normalize`]'s ~1e-162 underflow band
 //!    squares to zero, so its norm is EXACTLY zero and the sign
@@ -95,7 +104,7 @@
 //!    So clause 5 bites at `f64` and `Probe` and waves an enclosure
 //!    through to the sign decision below. No live caller instantiates
 //!    this module at `Interval` today; the honest scope is stated at
-//!    [`is_finite_length`] itself.
+//!    [`is_finite_length`](crate::is_finite_length) itself.
 //!
 //! The ladder is a *convention*, and conventions are discontinuous:
 //! the frame flips as the tangent crosses the ladder's switch-over.
@@ -128,12 +137,9 @@
 //! typestate; here the ladder applies). Sharing the words is the whole
 //! win; sharing an abstraction would cost a layer.
 
-use crate::k_stats::decide;
-use crate::linalg::{Affine3, Mat3, Point3, Vec3};
-use crate::predicate::{
-    Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Sign,
-};
-use crate::real::{Real, is_finite_length, is_underflowed_length};
+use crate::linalg::{Affine3, Mat3, OrthoFrame, Point3, UnitVec3, UnitVec3Error, Vec3};
+use crate::predicate::{Band, BandError, COINCIDENCE_RECOURSE, Decide, Indeterminate};
+
 use crate::tolerance::Tol;
 
 /// Which input a [`FrameError::Degenerate`] refusal is about.
@@ -178,7 +184,7 @@ pub enum FrameInput {
     ///
     /// What IS provably dead is the combination of this input with
     /// [`FrameError::NonFiniteLength`], because the ladder decides its
-    /// rungs with a bare `decide` rather than through the funnel that
+    /// rungs with a bare `decide` rather than through either road that
     /// raises that arm. [`FrameVector`] is the type that removes it.
     ReferenceLadder,
     /// [`mirror_across_plane`]'s plane normal, whose length was not
@@ -205,11 +211,13 @@ impl FrameInput {
 ///
 /// [`FrameInput`] has a fifth member, [`FrameInput::ReferenceLadder`],
 /// which names a pair of unit CONSTANTS rather than anything a caller
-/// hands in. Structurally the ladder never asks this question at all:
-/// it decides its rungs with a bare [`decide`] rather than through
-/// `definitely_positive`, which is the only site that raises
-/// [`FrameError::NonFiniteLength`] — so nothing can construct a
-/// non-finite refusal naming the ladder. Reusing [`FrameInput`] here
+/// hands in. Structurally the ladder never reports this fact at all:
+/// a rung whose offset is not a decided length — non-finite,
+/// underflowed, degenerate or in-band alike — ADVANCES the ladder, and
+/// the only refusal the ladder itself raises is the exhausted one,
+/// [`FrameError::Degenerate`] at [`FrameInput::ReferenceLadder`] — so
+/// nothing can construct a non-finite refusal naming the ladder.
+/// Reusing [`FrameInput`] here
 /// would make that dead combination REPRESENTABLE, and — because the
 /// payload crosses to Python as a tag word — would mint
 /// `non_finite_reference_ladder`, an FFI word for a state no input
@@ -320,129 +328,52 @@ impl core::fmt::Display for FrameError {
                 input,
                 indeterminate,
             } => {
-                write!(f, "frame: degenerate {}", input.name())?;
+                write!(f, "the frame's {} is degenerate", input.name())?;
                 if let Some(i) = indeterminate {
                     write!(f, " ({})", i.payload())?;
                 }
-                write!(f, "; {COINCIDENCE_RECOURSE}")
+                write!(f, ". Recourse: {COINCIDENCE_RECOURSE}")
             }
             FrameError::NonFiniteLength { input } => write!(
                 f,
-                "frame: {} has no finite length \u{2014} its components overflow the \
-                 norm, or one of them is not a number; scale the geometry into the \
-                 session's range",
-                input.name()
+                "the frame's {} has no finite length (a component overflows the norm or \
+                 is not a number). Recourse: {}",
+                input.name(),
+                crate::predicate::RANGE_RECOURSE
             ),
             FrameError::UnderflowedLength { input } => write!(
                 f,
-                "frame: {}'s length underflowed out of the format \u{2014} its components \
-                 are too small for the norm to hold, so it measures exactly zero while \
-                 still naming a direction; no tolerance reaches this, scale the geometry \
-                 into the session's range",
-                input.name()
+                "the frame's {} has a length that underflowed out of the format, though \
+                 it still names a direction. Recourse: {}",
+                input.name(),
+                crate::predicate::RANGE_RECOURSE
             ),
-            FrameError::Band(e) => write!(f, "frame: {e}"),
+            FrameError::Band(e) => write!(f, "{e}"),
         }
     }
 }
 
 impl core::error::Error for FrameError {}
 
-/// Classifies a **length** margin (metres) as definitely positive,
-/// mapping every other outcome onto a typed refusal for `input`.
-///
-/// The margin is a length by construction at each call site — a vector
-/// norm, or the norm of a cross product with a unit vector (which is
-/// the perpendicular distance from the vector's tip to the unit
-/// vector's line) — so [`Margin::of`] is the honest door and the
-/// metre band applies without a lever.
-///
-/// **Three questions, in this order.** Is the length a finite NUMBER
-/// ([`is_finite_length`]); did it UNDERFLOW out of the format
-/// ([`is_underflowed_length`]); and only then which side of zero is it
-/// on. An infinite length is maximally definite to [`Decide`], so
-/// asking the sign first answers `Positive`, and the caller's
-/// `normalize` then divides by ∞ and hands back the zero vector —
-/// every site below normalizes exactly the quantity it decided here,
-/// which is what makes one gate at this one funnel cover all four.
-///
-/// The underflowed length is the same failure at the other end, and it
-/// is not loud: the norm is exactly zero, the decision below answers
-/// `Zero` DEFINITELY at every eps, and the refusal names a degenerate
-/// input whose recourse — move the geometry, widen the band — cannot
-/// work, because the squared norm is zero at every tolerance. Asked
-/// second because a poisoned or overflowed length makes
-/// [`is_underflowed_length`]'s two ratios non-finite for a reason that
-/// has nothing to do with underflow.
-///
-/// `witness` is the largest `|component|` of the vector `length` is the
-/// norm of — [`Vec3::norm_witness`], and that pairing is the
-/// predicate's whole contract. The two arrive as separate scalars
-/// rather than as the vector itself because `length` is the quantity
-/// each caller goes on to decide and normalize, evaluated once at the
-/// call site; the pair is spelled on adjacent lines at all four.
-///
-/// **Both gates are POINT-scalar gates**, exactly as the module docs'
-/// clause 5 says of the first: at `T = Interval` the finiteness
-/// question is a no-op and the underflow question answers `false` by
-/// construction, because a norm whose lower end underflowed still
-/// ENCLOSES the true length.
-///
-/// **K consequence.** Both arms refuse BEFORE [`decide`], so neither a
-/// non-finite nor an underflowed length contributes a sample to the
-/// funnel under any of this module's four predicate names. That is the
-/// intent for the second exactly as for the first: the sample it used
-/// to contribute was an exactly-zero margin recorded as a definite
-/// `Zero`, which is telemetry about a length the format failed to hold
-/// rather than about a direction the caller does not have.
-fn definitely_positive<T: Decide>(
-    name: &'static str,
-    length: T,
-    witness: T,
-    band: Band,
-    input: FrameVector,
-) -> Result<(), FrameError> {
-    if !is_finite_length(length) {
-        return Err(FrameError::NonFiniteLength { input });
-    }
-    if is_underflowed_length(length, witness) {
-        return Err(FrameError::UnderflowedLength { input });
-    }
-    match decide(name, Margin::of(length), band) {
-        Ok(Sign::Positive) => Ok(()),
-        Ok(_) => Err(FrameError::Degenerate {
+/// A refusal of [`UnitVec3::new`] in this module's vocabulary, for
+/// the caller-supplied vector it was about. Total: the constructor
+/// asks its three questions — finite, underflowed, which side of zero
+/// — on the vector's own norm, so every normalizing door here mints
+/// the witness through it under its own funnel name and maps the four
+/// facts onto this module's four refusals, arm for arm.
+fn refused_direction(e: UnitVec3Error, input: FrameVector) -> FrameError {
+    match e {
+        UnitVec3Error::NonFiniteLength => FrameError::NonFiniteLength { input },
+        UnitVec3Error::UnderflowedLength => FrameError::UnderflowedLength { input },
+        UnitVec3Error::Degenerate => FrameError::Degenerate {
             input: input.into(),
             indeterminate: None,
-        }),
-        Err(i) => Err(FrameError::Degenerate {
+        },
+        UnitVec3Error::Escalated(i) => FrameError::Degenerate {
             input: input.into(),
             indeterminate: Some(i),
-        }),
+        },
     }
-}
-
-/// The one recipe, shared by [`point_at`] and [`path_start_frame`]:
-/// the right-handed frame at `origin` whose local +Z is the **unit**
-/// `aim` and whose roll is fixed by `reference` per the module docs'
-/// convention.
-///
-/// `cross_len` is the already-decided `|reference × aim|` and
-/// `perp` the cross product itself, passed in so the caller's ladder
-/// can decide the same quantity without recomputing it (one evaluation,
-/// one rounding).
-///
-/// Evaluation order (fixed, D9): `x̂ = perp / cross_len`, then
-/// `ŷ = aim × x̂`, then the columns in the order (x̂, ŷ, aim) with
-/// translation `origin − O`.
-fn frame_from_unit_aim<T: Real>(
-    origin: Point3<T>,
-    aim: Vec3<T>,
-    perp: Vec3<T>,
-    cross_len: T,
-) -> Affine3<T> {
-    let x = perp / cross_len;
-    let y = aim.cross(x);
-    Affine3::from_parts(Mat3::from_cols(x, y, aim), origin - Point3::origin())
 }
 
 /// A frame at `eye` whose local **+Z axis aims at `target`**, with roll
@@ -457,8 +388,9 @@ fn frame_from_unit_aim<T: Real>(
 /// local origin lands on `eye`.
 ///
 /// Evaluation order (fixed, D9): `aim = target − eye`; the aim length
-/// is decided; `ẑ = aim / |aim|`; `perp = roll_reference × ẑ` and its
-/// length decided; then [`frame_from_unit_aim`]'s order.
+/// is decided; `ẑ = aim / |aim|`; `perp = roll_reference × ẑ`; then
+/// `OrthoFrame::from_aim`'s order, which decides `perp`'s length,
+/// divides by it, and crosses.
 ///
 /// # Errors
 ///
@@ -485,26 +417,36 @@ pub fn point_at<T: Decide>(
     roll_reference: Vec3<T>,
     tol: Tol,
 ) -> Result<Affine3<T>, FrameError> {
+    Ok(point_at_frame(eye, target, roll_reference, tol)?.to_affine())
+}
+
+/// [`point_at`]'s frame as the WITNESS it is built from, before the
+/// conversion to a placement — the same ladder, so a caller that
+/// needs the aim as a [`UnitVec3`] (its `w`) beside the affine holds
+/// the decision the ladder made rather than re-asking it or reading
+/// a column back off the map. `point_at` is this door's `to_affine`,
+/// so the two are one construction and agree bit for bit by
+/// construction.
+///
+/// The evaluation order, the roll convention and the refusals are
+/// [`point_at`]'s, stated there once.
+///
+/// # Errors
+///
+/// Exactly [`point_at`]'s.
+pub fn point_at_frame<T: Decide>(
+    eye: Point3<T>,
+    target: Point3<T>,
+    roll_reference: Vec3<T>,
+    tol: Tol,
+) -> Result<OrthoFrame<T>, FrameError> {
     let band = Band::linear(tol).map_err(FrameError::Band)?;
     let aim = target - eye;
-    definitely_positive(
-        "frame_point_at_aim",
-        aim.norm(),
-        aim.norm_witness(),
-        band,
-        FrameVector::Aim,
-    )?;
-    let unit = aim.normalize();
-    let perp = roll_reference.cross(unit);
-    let len = perp.norm();
-    definitely_positive(
-        "frame_point_at_roll_offset",
-        len,
-        perp.norm_witness(),
-        band,
-        FrameVector::RollReference,
-    )?;
-    Ok(frame_from_unit_aim(eye, unit, perp, len))
+    let unit = UnitVec3::new(aim, "frame_point_at_aim", band)
+        .map_err(|e| refused_direction(e, FrameVector::Aim))?;
+    let perp = roll_reference.cross(unit.get());
+    OrthoFrame::from_aim(eye, unit, perp, "frame_point_at_roll_offset", band)
+        .map_err(|e| refused_direction(e.error, FrameVector::RollReference))
 }
 
 /// The profile frame at the start of a swept path: a frame at `origin`
@@ -544,30 +486,26 @@ pub fn path_start_frame<T: Decide>(
     tol: Tol,
 ) -> Result<Affine3<T>, FrameError> {
     let band = Band::linear(tol).map_err(FrameError::Band)?;
-    definitely_positive(
-        "frame_path_start_tangent",
-        tangent.norm(),
-        tangent.norm_witness(),
-        band,
-        FrameVector::Tangent,
-    )?;
-    let unit = tangent.normalize();
-    // The ladder, in order. A rung is taken only on a DEFINITE
-    // off-axis decision: both the coincident outcome (the rung is the
-    // tangent line) and the in-band outcome (too close to it to fix a
-    // roll) advance. The last classification is kept so the refusal
-    // can carry the payload the ladder ended on.
+    let unit = UnitVec3::new(tangent, "frame_path_start_tangent", band)
+        .map_err(|e| refused_direction(e, FrameVector::Tangent))?;
+    // The ladder, in order. A rung is taken only when its offset is a
+    // DECIDED direction: every other outcome — the rung lies on the
+    // tangent line, the offset is too close to it to fix a roll, or
+    // its length left the format at either end — advances. The last
+    // in-band classification is kept so the refusal can carry the
+    // payload the ladder ended on.
     let mut last = None;
     for (name, reference) in [
         ("frame_path_start_reference_z", Vec3::unit_z()),
         ("frame_path_start_reference_x", Vec3::unit_x()),
     ] {
-        let perp = reference.cross(unit);
-        let len = perp.norm();
-        match decide(name, Margin::of(len), band) {
-            Ok(Sign::Positive) => return Ok(frame_from_unit_aim(origin, unit, perp, len)),
-            Ok(_) => last = None,
-            Err(i) => last = Some(i),
+        let perp = reference.cross(unit.get());
+        match OrthoFrame::from_aim(origin, unit, perp, name, band) {
+            Ok(frame) => return Ok(frame.to_affine()),
+            Err(e) => match e.error {
+                UnitVec3Error::Escalated(i) => last = Some(i),
+                _ => last = None,
+            },
         }
     }
     Err(FrameError::Degenerate {
@@ -666,14 +604,11 @@ pub fn mirror_across_plane<T: Decide>(
     tol: Tol,
 ) -> Result<Affine3<T>, FrameError> {
     let band = Band::linear(tol).map_err(FrameError::Band)?;
-    definitely_positive(
-        "frame_mirror_normal",
-        normal.norm(),
-        normal.norm_witness(),
-        band,
-        FrameVector::MirrorNormal,
-    )?;
-    let n = normal.normalize();
+    // The witness is read back at once: the Householder entries are
+    // its components, and no door below takes the type.
+    let n = UnitVec3::new(normal, "frame_mirror_normal", band)
+        .map_err(|e| refused_direction(e, FrameVector::MirrorNormal))?
+        .get();
     let two = T::from_f64(2.0);
     let t = n * two;
     let linear = Mat3::from_cols(
@@ -690,6 +625,91 @@ pub fn mirror_across_plane<T: Decide>(
 mod tests {
     use super::*;
     use crate::tolerance::Tol;
+
+    /// **`point_at` IS `point_at_frame`'s placement**, pinned where a
+    /// reader can see it rather than left to the one-line body: over
+    /// a grid of aims (every combination of signed units, halves,
+    /// in-band and sub-band lengths, underflowing and overflowing
+    /// magnitudes, the non-finite values), six references and four
+    /// origins, the affine and the frame's `to_affine` agree bit for
+    /// bit and the two doors refuse with one `FrameError`.
+    #[test]
+    fn point_at_is_point_at_frame_to_affine_bit_for_bit() {
+        let tol = Tol::witness();
+        let eps = tol.eps();
+        let vals = [
+            0.0,
+            -0.0,
+            1.0,
+            -1.0,
+            0.5,
+            -0.3,
+            3.0 * eps,
+            0.5 * eps,
+            1e-200,
+            1e200,
+            f64::NAN,
+            f64::INFINITY,
+        ];
+        let refs = [
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 1.0, 1e-12),
+            Vec3::new(-0.0, 3e-9, 1.0),
+        ];
+        let origins = [
+            Point3::origin(),
+            Point3::new(1e6, -1e6, 1e6),
+            Point3::new(-0.0, -0.0, -0.0),
+        ];
+        let bits = |a: &Affine3<f64>| {
+            let l = a.linear;
+            [
+                l.c0.x,
+                l.c0.y,
+                l.c0.z,
+                l.c1.x,
+                l.c1.y,
+                l.c1.z,
+                l.c2.x,
+                l.c2.y,
+                l.c2.z,
+                a.translation.x,
+                a.translation.y,
+                a.translation.z,
+            ]
+            .map(f64::to_bits)
+        };
+        let (mut placed, mut refused) = (0_u32, 0_u32);
+        for x in vals {
+            for y in vals {
+                for z in vals {
+                    for r in refs {
+                        for eye in origins {
+                            let target = eye + Vec3::new(x, y, z);
+                            let affine = point_at(eye, target, r, tol);
+                            let frame = point_at_frame(eye, target, r, tol);
+                            match (affine, frame) {
+                                (Ok(a), Ok(f)) => {
+                                    placed += 1;
+                                    assert_eq!(bits(&a), bits(&f.to_affine()), "at {x} {y} {z}");
+                                }
+                                (Err(a), Err(f)) => {
+                                    refused += 1;
+                                    assert_eq!(a, f, "at {x} {y} {z}");
+                                }
+                                (a, f) => panic!("the doors disagree at {x} {y} {z}: {a:?} {f:?}"),
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(
+            placed > 0 && refused > 0,
+            "{placed} placed, {refused} refused"
+        );
+    }
 
     /// The frame's twelve entries, in column order then translation —
     /// the whole map, bit for bit. Orientation pins compare these, so a
@@ -1282,10 +1302,7 @@ mod tests {
         .to_string();
         assert!(s.contains("path tangent"), "{s}");
         assert!(s.contains("no finite length"), "{s}");
-        assert!(
-            s.contains("scale the geometry into the session's range"),
-            "{s}"
-        );
+        assert!(s.contains(crate::predicate::RANGE_RECOURSE), "{s}");
         assert!(!s.contains(COINCIDENCE_RECOURSE), "{s}");
     }
 }

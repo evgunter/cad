@@ -394,7 +394,7 @@ pub(super) fn sweep_loop<T: Decide>(
                 he2: hes[j],
             },
             rq[j],
-            revolved_strut_spec(segs[j].a, cls.verts[j].r, qs[j], frame, theta, axis_c),
+            revolved_strut_spec(segs[j].a, cls.verts[j].r, qs[j], frame, theta, axis_c, tol),
             tol,
         )?;
         struts.push(Some(m));
@@ -453,7 +453,7 @@ pub(super) fn sweep_loop<T: Decide>(
         };
         let mef = body.mef(
             MefSite::Chords { he1, he2 },
-            placed_segment_spec(&segs[j], place_end, n_end, rq[j], rq[next]),
+            placed_segment_spec(&segs[j], place_end, n_end, rq[j], rq[next], tol),
             surface,
             tol,
         )?;

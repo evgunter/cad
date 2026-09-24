@@ -36,6 +36,7 @@ use geom_brep::offset_fit::{
 use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, patch_regularity};
 use geom_brep::patch_bound::patch_cells_refined;
 use geom_core::Point3;
+use geom_core::spline::KnotVector;
 
 use crate::shared::fixture::{bumpy_patch, kv1, kv2, quarter_cylinder, sphere_band};
 use crate::shared::sample::{grid, worst_offset_residual};
@@ -155,6 +156,48 @@ fn cylinder_fit_matches_the_closed_form_both_signs() {
             );
         }
     }
+}
+
+/// The fit lives on the base's own chart rectangle BIT FOR BIT: its
+/// interpolation runs on `[0, 1]²` and is re-expressed onto the base's
+/// `(u, v)` window with the ends assigned, so the certificate's
+/// pointwise claim is about the same parameters on both sides. The
+/// base is built by hand on a `u` window whose computed end misses —
+/// `0.3 + (0.9 − 0.3)` is an ulp above `0.9` — so a fit whose ends
+/// were mapped rather than assigned would sit an ulp past the chart.
+/// Pins the domain only, not the interpolation's interior schedule.
+#[test]
+fn the_fit_lives_on_the_base_chart_window_bit_for_bit() {
+    let (ulo, uhi, vlo, vhi) = (0.3_f64, 0.9_f64, 0.2_f64, 1.7_f64);
+    assert_eq!(
+        (ulo + (uhi - ulo)).to_bits(),
+        uhi.to_bits() + 1,
+        "the u window no longer documents the pin"
+    );
+    let unit = quarter_cylinder(1.25, 0.75);
+    let base = NurbsSurface::new(
+        KnotVector::clamped(vec![ulo, ulo, ulo, uhi, uhi, uhi], 2).unwrap(),
+        KnotVector::clamped(vec![vlo, vlo, vhi, vhi], 1).unwrap(),
+        unit.control().to_vec(),
+        unit.weights().to_vec(),
+    )
+    .unwrap();
+    let (fit, cert) = fit_offset_at(&base, 0.3, 3e-4, band())
+        .unwrap_or_else(|e| panic!("fit_offset refused the re-charted cylinder: {e}"));
+    assert!(cert.hull_sup <= 3e-4, "certified sup {}", cert.hull_sup);
+    let bits = |(a, b): (f64, f64)| (a.to_bits(), b.to_bits());
+    assert_eq!(
+        bits(fit.knots_u().domain()),
+        (ulo.to_bits(), uhi.to_bits()),
+        "u domain: {:?}",
+        fit.knots_u().domain()
+    );
+    assert_eq!(
+        bits(fit.knots_v().domain()),
+        (vlo.to_bits(), vhi.to_bits()),
+        "v domain: {:?}",
+        fit.knots_v().domain()
+    );
 }
 
 #[test]
@@ -491,46 +534,160 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
     }
 }
 
-/// **A stall on the last round is a stall.** On the bumpy patch at
-/// `d = 1e-6` the bound falls to 2.5e-9 on round 4, RISES to 1.5e-8 on
-/// round 5 (the guard falls back to marking both directions) and
-/// rises again to 6.9e-7 on round 6, the budget's last. The strongest
-/// step gained nothing, which is the stall guard's own admission set,
-/// and it must be `RefinementStalled` there as on any earlier round:
-/// a refusal that says "still converging, raise the round budget" on
-/// a bound that went up twice sends the caller to the wrong knob.
+/// **The budget's last round, and which face it wears.** The stall
+/// guard's refusal wants TWO non-improving rounds running, the second
+/// past a both-directions marking; a single non-improving round is
+/// not it, and the loop must reach the round budget's own face there
+/// rather than the stall's — a refusal saying "the strongest step
+/// gained nothing" on a loop that was given one weaker step sends the
+/// caller to the wrong knob.
+///
+/// The bumpy patch at `d = 1e-4` is that shape at an unreachable
+/// `1e-15`: it exhausts the budget carrying `1.070770e-8`, a finite
+/// bound above the tolerance. `RefinementStalled` is reached by no
+/// fixture in this suite's corpus (module docs, "Reachability"), and
+/// `budget_faces`'s census is the standing count of which faces the
+/// corpus does reach.
+///
+/// **The row asserts that the last round really did not improve**,
+/// because the name says so and a schedule change could otherwise
+/// leave it green over a loop that was never the shape it claims. The
+/// loop exposes no per-round trace, but it does not need to: the
+/// refinement schedule is a function of `(base, d)` alone — the
+/// tolerance decides only WHERE the walk stops — so a request whose
+/// tolerance an earlier round already met certifies ON that round and
+/// hands back exactly the bound this run stepped off. The ladder read
+/// back that way, at `d = 1e-4`:
+///
+/// ```text
+/// round 0   1.8219683e-5   (144 cells)
+/// round 1   6.5173320e-8   (224 cells)
+/// round 5   6.0173058e-9   (782 cells)
+/// round 6   8.3524739e-9   — the budget face, HIGHER than round 5
+/// ```
+///
+/// **Re-read when the C9 ring became a newtype over the backend**
+/// (rounds 1, 5 and 6 were `6.5173322e-8`, `6.0173184e-9` and
+/// `1.0707700e-8`): the ring padded one representable step outward on
+/// every operation of `cell_bound`'s assembly and the backend pads
+/// only where the operation is inexact, so every rung came in tighter
+/// and round 0 by less than its own printed precision. The SHAPE the
+/// row is about is unmoved — round 6 is still higher than round 5, and
+/// still the lone non-improving round.
+///
+/// Round 6 is the non-improving one, and it is a LONE one: round 5
+/// came in under `1e-8` where round 4 did not, so round 5 improved,
+/// so the marking that built round 6's grid was the directional one
+/// rather than the both-directions fallback — which is the admission
+/// set the stall's refusal wants and does not have here.
 #[test]
-fn a_stall_on_the_budgets_last_round_is_the_stall_not_the_budget() {
+fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
     let base = bumpy_patch();
-    match fit_offset_at(&base, 1e-6, 1e-9, band()) {
-        Err(OffsetFitError::RefinementStalled {
-            rounds,
+    let achieved = match fit_offset_at(&base, 1e-4, 1e-15, band()) {
+        Err(OffsetFitError::BudgetExhausted {
+            budget,
             grid,
             achieved,
-            ..
+            tolerance,
         }) => {
-            assert_eq!(
-                rounds as usize, OFFSET_FIT_BUDGET,
-                "the stall is on the last round"
+            assert_eq!(budget, OFFSET_FIT_BUDGET);
+            assert!(achieved.is_finite() && achieved > tolerance);
+            assert!(
+                (achieved - 8.3524739e-9).abs() < achieved * 1e-5,
+                "the budget face carries {achieved:e}"
             );
-            assert!(achieved.is_finite());
-            eprintln!("last-round stall: rounds={rounds} grid={grid:?} achieved={achieved:.3e}");
+            eprintln!("budget face: grid={grid:?} achieved={achieved:.7e}");
+            achieved
         }
-        other => panic!("a last-round stall was not refused as a stall: {other:?}"),
-    }
+        other => panic!("the budget's last round did not wear the budget's face: {other:?}"),
+    };
+    // The round the budget face stepped off, read back through the
+    // door. `1e-8` is met by round 5 and by no round before it.
+    let (_, prev) = fit_offset_at(&base, 1e-4, 1e-8, band())
+        .unwrap_or_else(|e| panic!("the round before the budget face refused: {e}"));
+    assert!(
+        prev.rounds == 5 && (prev.hull_sup - 6.0173058e-9).abs() < prev.hull_sup * 1e-5,
+        "the ladder moved: round {} carries {:e}",
+        prev.rounds,
+        prev.hull_sup
+    );
+    // THE CLAIM IN THE NAME. The budget's last round gained nothing.
+    assert!(
+        achieved > prev.hull_sup,
+        "the last round improved ({:e} against {achieved:e}), so this fixture no longer \
+         exercises a non-improving round and the row's name is no longer its claim",
+        prev.hull_sup
+    );
+    // And it is a SINGLE one, which `prev.rounds == 5` above is what
+    // says: the loop stops at the FIRST round under the tolerance, so
+    // a `1e-8` request that ran to round 5 is a run where round 4's
+    // bound was still above `1e-8` and round 5's was below it. Round
+    // 5 therefore improved, and round 6's grid came from a
+    // directional marking. Two non-improving rounds in a row, the
+    // second past a both-directions marking, is the stall's admission
+    // set, and this is not it.
+    //
+    // The ordering this row does NOT pin: the stall verdict is taken
+    // before the budget test, and round 6's verdict is
+    // `BothDirections` rather than `Refuse`, so swapping the two
+    // blocks yields the budget face either way. Filed as
+    // `work/props/offset-fit-stall-face-has-no-fixture`.
 }
 
-/// **The never-finite face.** At `d = 1e-7` and `1e-8` on the quarter
-/// cylinder the certificate limb answers `+∞` on every grid the loop
-/// reaches — the small-`|d|` denominator's componentwise floor never
-/// clears zero — and the cap stops it after four refinement rounds
-/// with no finite bound ever produced. A refusal that "carries the
-/// achieved bound" must not carry `inf` there: the face says there is
-/// no number, and prints none.
+/// **What the floor on `‖E‖` reaches on a non-analytic base.** The
+/// bumpy patch at `d = 1e-6` certifies at `5.059e-10` on the third
+/// round's 609 cells — three orders below `|d|`, on a patch with no
+/// closed form to check against, which is why the row pins the
+/// digits rather than a ratio.
+///
+/// **Re-pinned when the C9 ring became a newtype over the backend**
+/// (`7.6102e-10` before): the ring padded one representable step
+/// outward on every operation of `cell_bound`'s assembly and the
+/// backend pads only where the operation is inexact, so the same
+/// certificate on the same 609 cells comes in a third tighter.
+#[test]
+fn the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre() {
+    let base = bumpy_patch();
+    let (_, cert) = fit_offset_at(&base, 1e-6, 1e-9, band())
+        .unwrap_or_else(|e| panic!("the bumpy patch refused a 1e-9 request: {e}"));
+    assert_eq!((cert.rounds, cert.cells), (3, 609));
+    assert!(
+        (cert.hull_sup - 5.0593e-10).abs() < cert.hull_sup * 1e-3,
+        "the bumpy patch certifies at {:e}",
+        cert.hull_sup
+    );
+}
+
+/// **The never-finite face, and where it starts.** At `d = 1e-8` and
+/// `1e-9` on the quarter cylinder the certificate limb answers `+∞`
+/// on every grid the loop reaches — the sign witness does not pass on
+/// the cells that carry the sup — and the cap stops it after four
+/// refinement rounds with no finite bound ever produced. A refusal
+/// that "carries the achieved bound" must not carry `inf` there: the
+/// face says there is no number, and prints none.
+///
+/// One decade up the face is not reached: `d = 1e-7` certifies at
+/// `5.8508e-7` on the fifth round's 1144 cells. The row pins that
+/// boundary, because the two faces are one decade apart and a change
+/// that moved either would otherwise move it silently.
+///
+/// **Re-pinned when the C9 ring became a newtype over the backend**
+/// (`5.8550e-7` before): the retired unconditional one-step pad per
+/// operation is gone from `cell_bound`'s assembly. The boundary this
+/// row draws is unmoved — `1e-8` and `1e-9` still never become
+/// finite, and this decade still certifies.
 #[test]
 fn a_bound_that_never_became_finite_refuses_with_no_number() {
     let base = quarter_cylinder(1.0, 1.0);
-    for d in [1e-7_f64, 1e-8] {
+    let (_, cert) = fit_offset_at(&base, 1e-7, 1e-3, band())
+        .unwrap_or_else(|e| panic!("d = 1e-7 no longer certifies: {e}"));
+    assert_eq!((cert.rounds, cert.cells), (5, 1144));
+    assert!(
+        (cert.hull_sup - 5.8508e-7).abs() < 5e-11,
+        "d = 1e-7 certifies at {:e}",
+        cert.hull_sup
+    );
+    for d in [1e-8_f64, 1e-9] {
         match fit_offset_at(&base, d, 1e-3, band()) {
             Err(OffsetFitError::BoundNotFinite {
                 rounds,
@@ -576,29 +733,28 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
 }
 
 /// **The small-`|d|` row, and the limit it pins.** The certificate's
-/// normal component divides `|X|` by `w²·(‖E‖ + |d|)`. Bounding that
-/// denominator below by `2|d|` alone made the reported accuracy scale
-/// like `1/|d|` and, once `dist` reached `|d|`, collapsed every cell
-/// to `+∞` — a micron-scale offset on a metre-scale patch certified
-/// as `inf`. The composite therefore carries `Ẽ` and takes a DIRECT
-/// mignitude lower bound on `‖E‖`, which is what makes the row below
-/// finite at all.
+/// normal component divides `|X|` by `w̃²·(‖E‖ + |d|)`, and the
+/// composite bounds `‖E‖` below directly rather than falling back on
+/// `2|d|` for that denominator: a fallback that scales the reported
+/// accuracy like `1/|d|` and collapses every cell to `+∞` as soon as
+/// `dist` reaches `|d|`, which is a micron-scale offset on a
+/// metre-scale patch certifying as `inf`.
 ///
-/// What it does NOT do is make the bound scale with `|d|`: at
-/// `d = 1e-6` the certified sup sits near `3.2e-4` — sound, finite,
-/// and hundreds of times `|d|`. Recentring the composite's nets was
-/// the restructure expected to move this, and at the origin it did
-/// not: the remaining slack is not rounding on large intermediates.
-/// Measured per cell, the sup is 96% its `τ²/‖E‖` term (`3.10e-4` of
-/// `3.22e-4`), and that term is large because `‖E‖` is bounded below
-/// by a componentwise mignitude assembly reading `1.58e-8` where
-/// `‖E‖ ≈ 1e-6` — each component of `E ≈ d·n` straddles zero as the
-/// normal rotates across the cell. What moves this row is a lower
-/// bound that reads the three components together.
+/// The floor on `‖E‖` reads the three components TOGETHER, through
+/// the sign witness `D` (module docs), which is what keeps the bound
+/// near `|d|`'s own scale: at `d = 1e-6` the certified sup is
+/// `1.707e-5`, seventeen times `|d|`, on the same 308-cell grid a
+/// componentwise floor certified at `3.222e-4`. The sup cell's
+/// decomposition and the two readings of `‖E‖` behind that factor are
+/// `offset_fit`'s own row.
 ///
 /// The row pins both halves: a reachable tolerance certifies, and an
 /// unreachable one refuses typed rather than reporting a number it
-/// cannot support.
+/// cannot support. `1e-9` is the second half — the fit's own absolute
+/// accuracy does not reach it, and the grid the bound wants exceeds
+/// the sample cap first, at `achieved = 3.754e-7`. That bound is
+/// carried by `τ` (`2.05e-7` of it), the tangential term, which
+/// divides by the regularity floor rather than by `‖E‖`.
 #[test]
 fn a_micron_scale_offset_certifies_and_names_its_limit() {
     let base = quarter_cylinder(1.0, 1.0);
@@ -614,6 +770,16 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
     assert!(
         worst <= cert.hull_sup,
         "d = {d}: certified sup {} UNDER-reports the sampled max {worst}",
+        cert.hull_sup
+    );
+    assert!(
+        (cert.hull_sup - 1.7072e-5).abs() < 5e-9,
+        "the certified sup is {:e}",
+        cert.hull_sup
+    );
+    assert!(
+        cert.hull_sup < 20.0 * d,
+        "the bound is {:e}, no longer within twenty times |d|",
         cert.hull_sup
     );
     eprintln!(
@@ -633,6 +799,11 @@ fn a_micron_scale_offset_certifies_and_names_its_limit() {
         Err(OffsetFitError::SampleCapReached {
             achieved, rounds, ..
         }) => {
+            assert_eq!(rounds, 5);
+            assert!(
+                (achieved - 3.7544e-7).abs() < 5e-11,
+                "the cap stop carries {achieved:e}"
+            );
             eprintln!(
                 "small-d: 1e-9 refused typed at the cap after {rounds} rounds, achieved = {achieved:.3e}"
             );
@@ -691,35 +862,36 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
 /// ring's rounding on the intermediates scaled with the base's
 /// coordinate magnitude, and a micron offset on a metre part a
 /// kilometre from the origin certified as `inf` while the same part
-/// at the origin certified at 3.2e-4.
+/// at the origin certified at 1.7072e-5.
 ///
 /// The composite now builds every net against one recentring origin
 /// (the base control net's bbox midpoint), which is exact in ℝ and
 /// leaves every claim identical.
 ///
 /// **The row states its true domain, because the invariance is not
-/// unlimited.** Measured on the decade ladder at `d = 1e-6`:
+/// unlimited.** Measured on the decade ladder at `d = 1e-6`, every
+/// station on the SAME 308-cell grid:
 ///
 /// ```text
-/// 1e0..1e4   3.2215e-4 .. 3.2219e-4   flat to 4 figures
-/// 1e5        3.2288e-4               1.002x the origin
-/// 1e6        3.3078e-4               1.027x
-/// 1e7        4.1422e-4               1.286x
-/// 1e8        4.4346e-7               0.0014x — TIGHTER
-/// 1e9        5.1654e-6
+/// 1e0..1e4   1.7072e-5   flat to five figures
+/// 1e5        1.7073e-5   1.00006x the origin
+/// 1e6        1.7082e-5   1.0006x
+/// 1e7        1.7168e-5   1.0056x
+/// 1e8        1.8223e-5   1.0674x
+/// 1e9        4.6979e-5   2.751x
 /// 1e10       refused: BoundNotFinite, last_finite None — no grid reached one
 /// ```
 ///
 /// So the band is asserted where the claim is meaningful — out to
-/// 1e6, where rounding still tracks the recentred patch — and the
+/// 1e7, where rounding still tracks the recentred patch — and the
 /// stations beyond it are pinned for what is actually true of them:
-/// containment, which holds at every finite station. It does not hold
-/// that the bound is monotone in the shift. At 1e8 the refinement
-/// loop takes a different trajectory (364 cells over 5 rounds against
-/// 308 over 4) and lands on a better fit, so the bound there is not
-/// comparable with the origin's in either direction. At 1e10 the door
-/// refuses typed rather than return something uncertified, which is
-/// the honest end of the ladder and is pinned as such.
+/// containment, which holds at every finite station. The ladder is
+/// monotone in the shift as far as it was measured, and the row does
+/// not assert that either: monotonicity would be a claim about the
+/// refinement schedule, which is the kernel's and not this row's
+/// subject. At 1e10 the door refuses typed rather than return
+/// something uncertified, which is the honest end of the ladder and
+/// is pinned as such.
 ///
 /// Containment at each station is what stops the invariance being
 /// bought by a bound that stopped bounding.
@@ -742,26 +914,25 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
         )
         .unwrap()
     };
-    // The stations, not every decade: as measured, `fit_offset` takes
-    // the SAME trajectory (308 cells over 4 rounds) at every shift
-    // from the origin through 1e7, and the same larger one (364 over
-    // 5) at 1e8 and 1e9, so a decade that reproduces a neighbour's
-    // trajectory re-derives a bound already asserted. What is kept is
-    // one station per distinct behaviour: the origin's baseline,
-    // three in-band stations up to the band edge at 1e6, the first
-    // out-of-band station, the station where the trajectory changes,
+    // The stations, not every decade: as measured, `fit_offset` walks
+    // the SAME 308-cell grid at every shift from the origin through
+    // 1e9, and the ladder in this row's doc is flat to five figures
+    // from 1e0 to 1e4, so a decade inside the flat run re-derives a
+    // bound already asserted. What is kept is one station per
+    // distinct reading: the origin's baseline, the far end of the
+    // flat run, the three stations where the digits walk away from it
+    // (1e5, 1e6, 1e7 — the band edge), the two out-of-band stations,
     // and the refusal below.
     //
-    // That trajectory reading is UNGUARDED, deliberately. The
-    // schedule it describes is the kernel's, not this row's, and
-    // pinning `cells`/`rounds` here would turn any refinement
-    // improvement red in a row whose subject is recentring
-    // invariance. What lapses if the schedule moves is only the
-    // coverage argument for the decades not visited: every station
-    // this row does visit still asserts containment, and the
-    // invariance band is still asserted where the claim is
-    // meaningful.
-    for e in [0i32, 3, 5, 6, 7, 8] {
+    // That grid reading is UNGUARDED, deliberately. The schedule it
+    // describes is the kernel's, not this row's, and pinning
+    // `cells`/`rounds` here would turn any refinement improvement red
+    // in a row whose subject is recentring invariance. What lapses if
+    // the schedule moves is only the coverage argument for the
+    // decades not visited: every station this row does visit still
+    // asserts containment, and the invariance band is still asserted
+    // where the claim is meaningful.
+    for e in [0i32, 4, 5, 6, 7, 8, 9] {
         let shift = if e == 0 { 0.0 } else { 10f64.powi(e) };
         let base = shifted(shift);
         let (fit, cert) = fit_offset_at(&base, d, 1e-2, band())
@@ -776,9 +947,9 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
         );
         if e == 0 {
             at_origin = cert.hull_sup;
-        } else if e <= 6 {
+        } else if e <= 7 {
             // The invariance band, where the claim is meaningful.
-            // Measured worst over this range is 1.027x at 1e6.
+            // Measured worst over this range is 1.0056x at 1e7.
             assert!(
                 cert.hull_sup <= at_origin * 1.05,
                 "shift 1e{e}: hull_sup {} is more than 5% above the same patch at the \

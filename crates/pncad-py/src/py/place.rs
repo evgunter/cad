@@ -172,6 +172,67 @@ pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> P
     )
 }
 
+/// A FRAME WITNESS mint's refusal, as the same `FrameError` exception
+/// the ladder constructors raise.
+///
+/// One exception class for "this is no frame", whichever door was
+/// asked: the human message is the kernel's own prose, `variant` is
+/// [`crate::tags::ortho_frame_error_tag`]'s word, and the classifier
+/// payload is [`crate::escalation`]'s, so a caller reads `margin`,
+/// `zero`, `escalate` and `predicate` off an escalated mint exactly as
+/// it reads them off an escalated ladder.
+pub(crate) fn ortho_frame_err(py: Python<'_>, err: &pncad::geom_core::OrthoFrameError) -> PyErr {
+    use pncad::geom_core::UnitVec3Error;
+
+    let none = || py.None();
+    let text = |s: &str| PyString::new(py, s).unbind().into_any();
+    let real = |x: f64| -> Py<PyAny> {
+        match x.into_pyobject(py) {
+            Ok(value) => value.into_any().unbind(),
+        }
+    };
+    let maybe = |x: Option<f64>| match x {
+        Some(x) => real(x),
+        None => none(),
+    };
+    let (margin, margin_low, margin_high, zero, escalate, predicate) = match err.error {
+        UnitVec3Error::Escalated(i) => {
+            let e = crate::escalation::escalation(&i);
+            (
+                maybe(e.margin),
+                maybe(e.margin_low),
+                maybe(e.margin_high),
+                real(e.zero),
+                real(e.escalate),
+                match e.predicate {
+                    Some(t) => text(t),
+                    None => none(),
+                },
+            )
+        }
+        UnitVec3Error::Degenerate
+        | UnitVec3Error::NonFiniteLength
+        | UnitVec3Error::UnderflowedLength => (none(), none(), none(), none(), none(), none()),
+    };
+    typed_err(
+        py,
+        ErrorClass::Frame,
+        err.to_string(),
+        &[
+            ("variant", text(crate::tags::ortho_frame_error_tag(err))),
+            ("inner_variant", none()),
+            ("margin", margin),
+            ("margin_low", margin_low),
+            ("margin_high", margin_high),
+            ("zero", zero),
+            ("escalate", escalate),
+            ("predicate", predicate),
+            ("field", none()),
+            ("value", none()),
+        ],
+    )
+}
+
 /// A dimensioned triple as the kernel's bare metres.
 fn meters(v: (Length, Length, Length)) -> [f64; 3] {
     [v.0.0.meters(), v.1.0.meters(), v.2.0.meters()]

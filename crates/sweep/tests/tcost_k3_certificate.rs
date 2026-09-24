@@ -375,7 +375,9 @@ fn a_refusing_arm_returns_no_properties_through_either_door() {
         (
             "inverted ball",
             &inverted,
-            topo::ValidationError::NegativeVolume,
+            topo::ValidationError::NegativeVolume {
+                solid: topo::SolidKey::default(),
+            },
         ),
         (
             "half-inverted ball",

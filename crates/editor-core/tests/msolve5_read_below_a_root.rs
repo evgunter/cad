@@ -13,6 +13,24 @@
 //! Nothing is admitted here that was refused: every row that refused
 //! before refuses still, and the control (the same document read AT
 //! the pattern, with the instance spelling) holds as it did.
+//!
+//! **The kind question is not asked here any more, and no row for it
+//! belongs here.** A mate head is a `SitedFace` over a `FaceName`, so
+//! "what does this name denote" is decided by the head's TYPE: the
+//! three rows this file used to carry — a root's body, the same body
+//! read below a root, a tied edge at the pattern and below it — each
+//! built a document that cannot be written now, and a row measuring a
+//! state nothing can reach measures nothing. What replaced them is
+//! `SitedFace`'s own `compile_fail` row (a `Node::Mate` will not take
+//! a bare `StableName`), `edit_one_predicate`'s load-door row (a file
+//! whose head is retyped on the wire refuses at the constructor the
+//! wire calls), and `test_assembly_author.py`'s (the binding calls the
+//! same constructor where a Python caller builds the mate).
+//!
+//! The ladder's remaining rungs are the ones that need a PRODUCT, and
+//! they are what this file measures: which entity a head resolves to
+//! (`Vanished`), how many (`Ambiguous`), and where it is rooted
+//! (`ReadBelowARoot`).
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -20,17 +38,15 @@
 
 use crate::fixture;
 
-use std::sync::Arc;
-
 use editor_core::{
-    Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, Datum, DocEdit,
-    DocumentId, EntityKind, Entry, EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive,
-    MateRole, MateSide, NameTable, Node, NodeResult, PartSelect, PatternKind, ProductError,
-    ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg, SitedRef, StableName,
-    ValuePayload, product, solve_document,
+    Alignment, AssemblyError, AxisSense, BooleanOp, CapEnd, ContactClass, DocEdit, DocumentId,
+    EntityKind, Entry, EvalOptions, Evaluation, Expr, LeverRefusal, MateFault, MateFrame,
+    MatePrimitive, MateRole, MateSide, MintRefusal, Node, NodeErrorKind, NodeResult, PartSelect,
+    PatternKind, ProductError, ProfileDoc, ProfileProgram, RecipeNodeId, RefusedRef, RoleSeg,
+    SitedFace, StableName, product,
 };
-use fixture::resolver::{PART_BODY, PartStore, in_part};
-use fixture::{gate, in_copy, insert, len, on_frame, run, scl, step, xform};
+use fixture::resolver::{PART_BODY, PartStore, in_part, with_resolver};
+use fixture::{gate, in_copy, insert, len, on_frame, run, scl, solve, step, xform};
 use geom_core::Tol;
 
 // ---- the scene ----
@@ -110,43 +126,6 @@ fn slotted_part(label: &str) -> ProfileDoc {
     doc
 }
 
-/// A U-shaped prism split by the plane `x = 4`, which cuts both arms
-/// of the U: the split's rows tie the fragments of each cut edge
-/// under one name, so the part's product holds TIED EDGE rows.
-fn u_split_part(label: &str) -> ProfileDoc {
-    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-    let (doc, p) = on_frame(
-        doc,
-        [0.0, 0.0, 0.0],
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-        vec![U_OUTLINE.to_vec()],
-    );
-    let (doc, body) = insert(
-        doc,
-        Node::Extrude {
-            profile: p,
-            distance: len(2.0),
-        },
-    );
-    assert_eq!(body, PART_BODY);
-    let (doc, plane) = insert(
-        doc,
-        Node::Datum(Datum::Plane {
-            origin: [len(4.0), len(0.0), len(0.0)],
-            normal: [scl(1.0), scl(0.0), scl(0.0)],
-        }),
-    );
-    let (doc, _) = insert(
-        doc,
-        Node::Split {
-            target: body,
-            tool: plane,
-        },
-    );
-    doc
-}
-
 /// `base` (the slab) and `top` (the block), then `T(top)` lifted well
 /// clear of the slab and `P(T(top))`, a two-copy linear pattern of it.
 struct Scene {
@@ -166,10 +145,7 @@ fn lifted(label: &str, top_part: ProfileDoc) -> Scene {
         Tol::witness(),
     );
     let top_ref = store.insert(top_part, Tol::witness());
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
@@ -215,17 +191,9 @@ fn scene_no_pattern(label: &str) -> Scene {
     lifted(label, box_part(&format!("{label}-top"), 1.0, TOP_HEIGHT))
 }
 
-/// The node's own table, as the gate reads it.
-fn table_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> &NameTable {
-    let Some(NodeResult::Ok(v)) = ev.result(node) else {
-        panic!("node {} did not evaluate: {:?}", node.0, ev.result(node));
-    };
-    &v.name_table
-}
-
 /// The first TIED row of `kind` in the node's table.
 fn tied_row(ev: &Evaluation<f64>, node: RecipeNodeId, kind: EntityKind) -> (StableName, u32) {
-    table_of(ev, node)
+    fixture::table(ev, node)
         .iter()
         .find_map(|(n, e)| match e {
             Entry::Tied(c) if n.kind == kind => {
@@ -239,7 +207,7 @@ fn tied_row(ev: &Evaluation<f64>, node: RecipeNodeId, kind: EntityKind) -> (Stab
 /// A `Rest` mate seating `b`'s bottom cap on `a`'s top cap by frame
 /// coincidence, both frames in their member's own part coordinates
 /// and both axes outward, so the block stands ON the slab.
-fn seat(a: SitedRef, b: SitedRef) -> Node<ProfileProgram> {
+fn seat(a: SitedFace, b: SitedFace) -> Node<ProfileProgram> {
     Node::Mate {
         a,
         b,
@@ -271,11 +239,16 @@ fn mated(doc: ProfileDoc, mate: Node<ProfileProgram>) -> (ProfileDoc, RecipeNode
 /// The `Reference` refusal's three fields, or a panic naming what the
 /// gate said instead.
 fn reference_refusal(err: &AssemblyError) -> (RecipeNodeId, MateSide, &RefusedRef) {
-    let AssemblyError::Reference {
-        mate, side, why, ..
-    } = err
-    else {
+    let AssemblyError::Mint { refusals } = err else {
         panic!("expected the reference refusal, got {err:?}");
+    };
+    let [
+        MintRefusal::Reference {
+            mate, side, why, ..
+        },
+    ] = refusals.as_slice()
+    else {
+        panic!("expected one reference refusal, got {refusals:?}");
     };
     (*mate, *side, why)
 }
@@ -290,11 +263,11 @@ fn reference_refusal(err: &AssemblyError) -> (RecipeNodeId, MateSide, &RefusedRe
 #[test]
 fn the_issues_document_refuses_read_below_a_root_naming_the_transform() {
     let s = scene("msolve5-a1");
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
-    let b = SitedRef::new(s.xf, in_part(s.top, CapEnd::Start));
+    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
+    let b = crate::fixture::head_at(s.xf, in_part(s.top, CapEnd::Start));
     let (doc, mate) = mated(s.doc, seat(a, b));
 
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(
         poses.fault(mate).is_none(),
         "the solve places a mate read at the transform: {:?}",
@@ -323,13 +296,13 @@ fn the_issues_document_refuses_read_below_a_root_naming_the_transform() {
 #[test]
 fn read_at_the_pattern_with_the_instance_spelling_the_gate_holds() {
     let s = scene("msolve5-control");
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
-    let b = SitedRef::new(
+    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
+    let b = crate::fixture::head_at(
         s.pattern,
         in_copy(s.pattern, 0, in_part(s.top, CapEnd::Start)),
     );
     let (doc, mate) = mated(s.doc, seat(a, b));
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
     let ev = run(&doc, &s.opts);
     assert!(
@@ -360,10 +333,10 @@ fn a_mate_read_at_a_part_root_over_the_pattern_holds() {
         "the Part consumed the pattern's root: {:?}",
         doc.roots()
     );
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
-    let b = SitedRef::new(part, in_copy(s.pattern, 0, in_part(s.top, CapEnd::Start)));
+    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
+    let b = crate::fixture::head_at(part, in_copy(s.pattern, 0, in_part(s.top, CapEnd::Start)));
     let (doc, mate) = mated(doc, seat(a, b));
-    let poses = solve_document(&doc, Tol::witness());
+    let poses = solve(&doc, &s.opts, Tol::witness());
     assert!(poses.fault(mate).is_none(), "{:?}", poses.fault(mate));
     let ev = run(&doc, &s.opts);
     assert!(
@@ -400,8 +373,8 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
             .into(),
         }],
     };
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
-    let b = SitedRef::new(s.xf, nowhere);
+    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
+    let b = crate::fixture::head_at(s.xf, nowhere);
     let (doc, mate) = mated(s.doc, seat(a, b));
     let ev = run(&doc, &s.opts);
     let err = gate(&doc, &ev).expect_err("a name nothing answers to refuses");
@@ -410,91 +383,12 @@ fn a_name_the_operand_does_not_spell_stays_vanished() {
     assert_eq!(*why, RefusedRef::Vanished);
 }
 
-// ---- what it is precedes where it is rooted ----
-
-/// A mate naming a root's BODY refuses `NotAFace { kind: Body }`. The
-/// product's table is silent on it — the product's own body is
-/// nobody's root body, so body rows do not carry — and the operand's
-/// own table answers with a body: a non-face never mints anywhere,
-/// so the gate says what the name IS before asking where it is
-/// rooted. (On main this row refused `Vanished`; it still refuses.)
-#[test]
-fn a_mate_naming_a_roots_body_refuses_not_a_face() {
-    let s = scene("msolve5-body-row");
-    let body = StableName {
-        kind: EntityKind::Body,
-        node: s.base,
-        path: vec![RoleSeg::OutputBody],
-    };
-    let a = SitedRef::at_mint(body.clone());
-    let b = SitedRef::new(
-        s.pattern,
-        in_copy(s.pattern, 0, in_part(s.top, CapEnd::Start)),
-    );
-    let (doc, mate) = mated(s.doc, seat(a, b));
-    let ev = run(&doc, &s.opts);
-    let Some(editor_core::NodeResult::Ok(value)) = ev.result(s.base) else {
-        panic!("the base evaluates");
-    };
-    assert!(
-        value.name_table.lookup(&body).is_some(),
-        "the root's own table spells its body"
-    );
-    assert!(doc.roots().contains(&s.base));
-    let err = gate(&doc, &ev).expect_err("a body reference never mints");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::A));
-    assert_eq!(
-        *why,
-        RefusedRef::NotAFace {
-            kind: EntityKind::Body
-        }
-    );
-}
-
-/// The same body read BELOW a root — `T(top)`'s body, read at `T`
-/// under the pattern — refuses `NotAFace { kind: Body }` too, not
-/// `ReadBelowARoot`: the kind question is asked before the root
-/// question, so a non-face is a non-face wherever it is read.
-#[test]
-fn a_body_read_below_a_root_refuses_not_a_face_before_the_root_question() {
-    let s = scene("msolve5-body-below");
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
-    let body = StableName {
-        kind: EntityKind::Body,
-        node: s.top,
-        path: vec![RoleSeg::OutputBody],
-    };
-    let ev0 = run(&s.doc, &s.opts);
-    let Some(editor_core::NodeResult::Ok(value)) = ev0.result(s.xf) else {
-        panic!("the transform evaluates");
-    };
-    assert!(
-        value.name_table.lookup(&body).is_some(),
-        "the transform's own table spells the instance's body"
-    );
-    let b = SitedRef::new(s.xf, body);
-    let (doc, mate) = mated(s.doc, seat(a, b));
-    assert!(!doc.roots().contains(&s.xf));
-    let ev = run(&doc, &s.opts);
-    let err = gate(&doc, &ev).expect_err("a body reference never mints");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(
-        *why,
-        RefusedRef::NotAFace {
-            kind: EntityKind::Body
-        }
-    );
-}
-
-// ---- ties: unique or tied, the kind question comes first ----
+// ---- ties: the product decides its own ----
 
 /// A TIED face read at `T` below the pattern refuses `ReadBelowARoot
-/// { at: T }` — a tie among faces below a root is still read below a
-/// root. The same tie read AT the pattern with the instance spelling
-/// is the product's own row, and the product decides its own ties:
-/// `Ambiguous { width: 2 }`.
+/// { at: T }` — a tie below a root is still read below a root. The same tie
+/// read AT the pattern with the instance spelling is the product's own
+/// row, and the product decides its own ties: `Ambiguous { width: 2 }`.
 #[test]
 fn a_tied_face_below_a_root_refuses_read_below_a_root_and_at_the_root_ambiguous() {
     let s = scene_with("msolve5-tied-face", slotted_part("msolve5-tied-face-top"));
@@ -502,9 +396,9 @@ fn a_tied_face_below_a_root_refuses_read_below_a_root_and_at_the_root_ambiguous(
     let (tied, width) = tied_row(&ev0, s.xf, EntityKind::Face);
     assert_eq!(tied.node, s.top, "the tie is worn by the instance");
     assert_eq!(width, 2);
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
+    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
 
-    let b = SitedRef::new(s.xf, tied.clone());
+    let b = crate::fixture::head_at(s.xf, tied.clone());
     let (doc, mate) = mated(s.doc.clone(), seat(a.clone(), b));
     let ev = run(&doc, &s.opts);
     assert!(
@@ -516,42 +410,7 @@ fn a_tied_face_below_a_root_refuses_read_below_a_root_and_at_the_root_ambiguous(
     assert_eq!((named, side), (mate, MateSide::B));
     assert_eq!(*why, RefusedRef::ReadBelowARoot { at: s.xf });
 
-    let b = SitedRef::new(s.pattern, in_copy(s.pattern, 0, tied));
-    let (doc, mate) = mated(s.doc, seat(a, b));
-    let ev = run(&doc, &s.opts);
-    let err = gate(&doc, &ev).expect_err("a tie is never broken by picking");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(*why, RefusedRef::Ambiguous { width });
-}
-
-/// A TIED EDGE read at `T` below the pattern refuses `NotAFace {
-/// kind: Edge }`: the kind question is asked before the root question
-/// for a tied entry exactly as for a unique one — the name's kind is
-/// every candidate's kind. The same tie AT the pattern is the
-/// product's own row and answers `Ambiguous`, as every tie the
-/// product holds does.
-#[test]
-fn a_tied_edge_below_a_root_refuses_not_a_face() {
-    let s = scene_with("msolve5-tied-edge", u_split_part("msolve5-tied-edge-top"));
-    let ev0 = run(&s.doc, &s.opts);
-    let (tied, width) = tied_row(&ev0, s.xf, EntityKind::Edge);
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
-
-    let b = SitedRef::new(s.xf, tied.clone());
-    let (doc, mate) = mated(s.doc.clone(), seat(a.clone(), b));
-    let ev = run(&doc, &s.opts);
-    let err = gate(&doc, &ev).expect_err("an edge never mints");
-    let (named, side, why) = reference_refusal(&err);
-    assert_eq!((named, side), (mate, MateSide::B));
-    assert_eq!(
-        *why,
-        RefusedRef::NotAFace {
-            kind: EntityKind::Edge
-        }
-    );
-
-    let b = SitedRef::new(s.pattern, in_copy(s.pattern, 0, tied));
+    let b = crate::fixture::head_at(s.pattern, in_copy(s.pattern, 0, tied));
     let (doc, mate) = mated(s.doc, seat(a, b));
     let ev = run(&doc, &s.opts);
     let err = gate(&doc, &ev).expect_err("a tie is never broken by picking");
@@ -599,8 +458,8 @@ fn an_operand_under_an_empty_boolean_root_still_refuses_read_below_a_root() {
         "the boolean consumed the transform's root: {:?}",
         doc.roots()
     );
-    let a = SitedRef::at_mint(in_part(s.base, CapEnd::End));
-    let b = SitedRef::new(s.xf, in_part(s.top, CapEnd::Start));
+    let a = crate::fixture::head(in_part(s.base, CapEnd::End));
+    let b = crate::fixture::head_at(s.xf, in_part(s.top, CapEnd::Start));
     let (doc, mate) = mated(doc, seat(a, b));
     let ev = run(&doc, &s.opts);
     assert!(
@@ -616,9 +475,10 @@ fn an_operand_under_an_empty_boolean_root_still_refuses_read_below_a_root() {
 // ---- an operand that is not live never reaches the gate ----
 
 /// The top part cannot be resolved, so `top`, `T` and `P` are failed
-/// or poisoned — while the SOLVE, which evaluates nothing, places the
-/// mate (`Determining`) and the mate IS a live value. What keeps the
-/// gate from reading a table that does not exist is not the solve:
+/// or poisoned — and the SOLVE, whose lever is the mated parts' own
+/// extent, faults the mate with the part (`Unleverable`, carrying the
+/// resolver's fault), so the mate is a failed node too. What keeps the
+/// gate from reading a table that does not exist is still not the solve:
 /// every live node sits under some root, so the gather's first pass
 /// refuses the document at that root before any mate is read.
 #[test]
@@ -634,15 +494,12 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         box_part("msolve5-poisoned-top", 1.0, TOP_HEIGHT),
         Tol::witness(),
     );
-    let opts = EvalOptions {
-        resolver: Some(Arc::new(store)),
-        ..EvalOptions::default()
-    };
+    let opts = with_resolver(store);
     let doc = ProfileDoc::empty(DocumentId::derive("msolve5-poisoned"), Tol::witness());
     let (doc, base) = insert(doc, Node::instantiate_part(base_ref));
     let (doc, top) = insert(doc, Node::instantiate_part(top_ref));
     let (doc, xf) = insert(doc, xform(top, [0.0, 0.0, 10.0], [0.0, 0.0, 1.0], 0.0));
-    let (doc, pattern) = insert(
+    let (doc, _) = insert(
         doc,
         Node::Pattern {
             input: xf,
@@ -653,15 +510,31 @@ fn a_poisoned_operand_never_reaches_the_gate() {
             },
         },
     );
-    let a = SitedRef::at_mint(in_part(base, CapEnd::End));
-    let b = SitedRef::new(xf, in_part(top, CapEnd::Start));
+    let a = crate::fixture::head(in_part(base, CapEnd::End));
+    let b = crate::fixture::head_at(xf, in_part(top, CapEnd::Start));
     let (doc, mate) = mated(doc, seat(a, b));
-    let poses = solve_document(&doc, Tol::witness());
-    assert_eq!(poses.role(mate), Some(MateRole::Determining));
+    // The mate has no lever without its part: it faults in the
+    // resolver's own voice, and the fault reaches its cluster.
+    let poses = solve(&doc, &opts, Tol::witness());
+    assert_eq!(poses.role(mate), Some(MateRole::Refused));
+    let fault = poses
+        .fault(mate)
+        .cloned()
+        .expect("the mate faults with its part");
+    assert!(
+        matches!(
+            &fault,
+            MateFault::Unleverable {
+                refusal: LeverRefusal::PartUnresolved { instance, .. },
+                ..
+            } if *instance == top
+        ),
+        "{fault:?}"
+    );
     let ev = run(&doc, &opts);
     assert!(
         matches!(ev.result(top), Some(NodeResult::Failed(_))),
-        "the instance fails to resolve: {:?}",
+        "the instance fails: {:?}",
         ev.result(top)
     );
     assert!(
@@ -670,17 +543,21 @@ fn a_poisoned_operand_never_reaches_the_gate() {
         ev.result(xf)
     );
     assert!(
-        matches!(ev.result(mate), Some(NodeResult::Ok(v)) if matches!(v.payload, ValuePayload::Mate(_))),
-        "the mate itself is live: {:?}",
+        matches!(ev.result(mate), Some(NodeResult::Failed(e)) if matches!(&e.kind, NodeErrorKind::Mate(f) if **f == fault)),
+        "the mate carries the same fault: {:?}",
         ev.result(mate)
     );
+    // The mate fault reached the base instance — the cluster's other
+    // member, and the document's first root — so the gather refuses
+    // at THAT failed root, before the poisoned pattern root and before
+    // any reference is read.
     let err = gate(&doc, &ev).expect_err("the gather refuses");
     assert!(
         matches!(
             &err,
             AssemblyError::Product(e)
-                if matches!(**e, ProductError::RootPoisoned { node, .. } if node == pattern)
+                if matches!(**e, ProductError::RootFailed { node } if node == base)
         ),
-        "the gather refuses at the poisoned root before any reference is read: {err:?}"
+        "the gather refuses at the failed root before any reference is read: {err:?}"
     );
 }

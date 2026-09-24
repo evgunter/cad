@@ -6,6 +6,8 @@ status: open
 opened: 2026-08-27
 github: 1057
 refs: [VERBS-C5ARMS, 1048]
+priority: P1
+cost: H
 ---
 
 ## From GitHub issue 1057
@@ -38,3 +40,18 @@ coaxial cone×cylinder, 2026-09-05). What this issue still blocks on is
 not a section arm: the Klein wall-pair debt (rows 3/4/8) waits on the
 spiric rim carrier — `docs/CURVED-SPIRIC-DESIGN.md`, ratified
 2026-09-04, a CURVED unit to cut.
+
+**2026-09-13 (CURVED-SPIRIC PR-1a).** The elbow's rim now mints as
+`Curve3::Spiric` (the kernel half of rows 3/4/8's carrier debt), and
+the measurement moved the elbow's wall to a door the spec did not
+predict: `shell`/`shell_open` on the klein elbow refuse at the
+EQUATOR SEAMS' re-author (`offset_axial_reauthor_plane` — a disc's
+profile vertices revolve into `RevolvedPoint`-declared chart seams
+whose corner the moved cap displaces off the sketch plane;
+`torax_axial`, `verbs_shell`, `torax_interval`, `shell7_seam_corner`).
+The sectioned torus VESSEL, whose band has no such seam, reaches tier
+3 and stops at the props door (`spiric_rim`, the tour's `torusvessel`
+wall 1). Two doors now stand between the elbow and its re-authoring:
+the seam re-author (an orchestrator question raised by PR-1a) and the
+props quadrature lane for a spiric-bounded face (the spiric unit's
+PR-2, after PR-1b's pcurve variant and STEP spline).

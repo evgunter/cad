@@ -12,18 +12,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-/// **Loud skip.** Without `--features interval` this binary is empty;
-/// announce the skip so a lane that silently lost its certified rows
-/// stays visible in the battery log.
-#[cfg(not(feature = "interval"))]
-#[test]
-fn interval_lane_skipped_no_certified_coverage_here() {
-    println!(
-        "SKIPPED (no --features interval): m6_surgery_interval.rs \
-         contributes NO certified coverage in this run — the composed \
-         die's bracketed-volume row runs only in the interval lane."
-    );
-}
+test_utils::loud_skip_marker!(
+    feature = "interval",
+    row = interval_lane_skipped_no_certified_coverage_here,
+    absent = "certified coverage of the M6 composition surgery",
+);
 
 #[cfg(feature = "interval")]
 mod certified {
@@ -33,9 +26,10 @@ mod certified {
     use geom::Curve3;
     use geom::Surface;
     use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
+    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop};
     use sweep::blend::build::fillet_edges;
-    use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+    use sweep::test_support::{cube, sketch_from_axes};
+    use sweep::{Revolution, RevolveAxis, revolve};
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
     use topo::{Body, BooleanDeclarations, mass_properties};
 
@@ -53,28 +47,6 @@ mod certified {
         Point2::new(iv(x), iv(y))
     }
 
-    fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
-        Profile::new(SketchPlane::xy(), loops)
-            .validate(Tol::witness())
-            .unwrap()
-    }
-
-    fn cube() -> Body<Interval> {
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::polygon([
-            p2(0.0, 0.0),
-            p2(DIE_L, 0.0),
-            p2(DIE_L, DIE_L),
-            p2(0.0, DIE_L),
-        ]);
-        extrude(
-            &validated(vec![lp]),
-            Extrusion::Distance(iv(DIE_L)),
-            Tol::witness(),
-        )
-        .unwrap()
-        .body
-    }
-
     /// One +Z-poled pip ball at the top face centre — the die_pips
     /// CORPUS discipline: the sketch frame is chosen so the revolve
     /// axis IS the face normal (u = +X, v = +Z), so the chart is
@@ -90,10 +62,11 @@ mod certified {
             ProfileVertex::new(p2(0.0, PIP_R), iv(0.0)),
         ]);
         let profile = Profile::new(
-            SketchPlane::from_frame(
+            sketch_from_axes(
                 geom_core::Point3::new(iv(0.0), iv(0.0), iv(0.0)),
                 Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
                 Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
+                Tol::witness(),
             ),
             vec![lp],
         )
@@ -172,7 +145,7 @@ mod certified {
     fn interval_one_pip_composed_die_is_bracketed() {
         let pipped = boolean_op_with(
             BooleanOp::Subtract,
-            &cube(),
+            &cube(DIE_L, Tol::witness()),
             &pip_ball(),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,

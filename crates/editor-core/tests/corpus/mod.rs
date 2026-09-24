@@ -95,7 +95,7 @@ pub struct CorpusDoc {
     /// One-line description (printed in the latency table).
     pub about: &'static str,
     /// The recorded edit log (applied to the empty snapshot).
-    pub edits: Vec<DocEdit<ProfileProgram>>,
+    pub edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
     /// The replayed current state (empty snapshot + `edits`).
     pub doc: ProfileDoc,
     /// The node carrying the document's headline solid, if it has one
@@ -129,9 +129,14 @@ impl CorpusDoc {
 
     /// The bumped document (the incremental-recompute probe's input).
     pub fn bumped(&self) -> ProfileDoc {
-        apply(&self.doc, &self.bump, Tol::witness())
-            .expect("corpus bump edit must apply")
-            .doc
+        apply(
+            &self.doc,
+            &self.bump,
+            Tol::witness(),
+            &editor_core::RefusingReach,
+        )
+        .expect("corpus bump edit must apply")
+        .doc
     }
 }
 
@@ -367,8 +372,22 @@ pub const NODE_KINDS: [&str; 21] = [
     "Assertion",
 ];
 
-/// The edit kinds a document exercises (the coverage tally's domain).
-pub const EDIT_KINDS: [&str; 15] = [
+/// The edit kinds the corpus is required to exercise — the coverage
+/// tally's DOMAIN, not the `DocEdit` vocabulary.
+///
+/// It is a SUBSET, deliberately and visibly: `SetMembers`, `SetRoots`,
+/// `SetPlacement` and `UpdateReference` are arms of `DocEdit` that no
+/// corpus document authors, and listing them here would report four
+/// permanent misses rather than covering anything. What guards the
+/// vocabulary itself is not this list but [`edit_kind`]'s match, which
+/// is exhaustive with no wildcard: a further `DocEdit` arm fails the
+/// BUILD there and its author then decides whether the corpus should
+/// exercise it, rather than the arm slipping in unnamed.
+///
+/// `m4_pr8_corpus`'s `vocabulary_coverage_is_total` reads this list and
+/// the tally in both directions, so a kind listed and never exercised
+/// is as red as a kind exercised and never listed.
+pub const EDIT_KINDS: [&str; 17] = [
     "InsertNode",
     "DeleteNode",
     "SetParam",
@@ -376,6 +395,8 @@ pub const EDIT_KINDS: [&str; 15] = [
     "SetExpression",
     "SetDocParam",
     "SetDocParamValue",
+    "SetDocParamUnit",
+    "SetDocParamDistribution",
     "Rebind",
     "ReWitness",
     "ReWitnessBulk",
@@ -557,6 +578,8 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetExpression { .. } => "SetExpression",
         DocEdit::SetDocParam { .. } => "SetDocParam",
         DocEdit::SetDocParamValue { .. } => "SetDocParamValue",
+        DocEdit::SetDocParamUnit { .. } => "SetDocParamUnit",
+        DocEdit::SetDocParamDistribution { .. } => "SetDocParamDistribution",
         DocEdit::Rebind { .. } => "Rebind",
         DocEdit::ReWitness { .. } => "ReWitness",
         DocEdit::ReWitnessBulk { .. } => "ReWitnessBulk",
@@ -601,7 +624,12 @@ pub fn vocabulary() -> (Tally, Tally, Tally) {
             );
         }
         let mut seen_e = BTreeSet::new();
-        for e in d.edits.iter().chain(std::iter::once(&d.bump)) {
+        for e in d
+            .edits
+            .iter()
+            .map(|e| &e.edit)
+            .chain(std::iter::once(&d.bump))
+        {
             seen_e.insert(edit_kind(e));
             if let DocEdit::InsertNode { node } = e {
                 note(node, &mut seen_n, &mut seen_s);

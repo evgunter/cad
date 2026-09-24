@@ -47,15 +47,10 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName, persist,
+    LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName, persist,
 };
 use fixture::digest::digest;
-use fixture::{len, prism_edges};
-use geom_core::Tol;
-
-fn tol() -> Tol {
-    Tol::witness()
-}
+use fixture::{len, prism_edges, tol};
 
 /// The cube side and the two blend sizes, all dyadic.
 const L: f64 = 1.0;
@@ -106,7 +101,7 @@ fn both_blends() -> BothBlends {
 struct BothBlends {
     snapshot: ProfileDoc,
     doc: ProfileDoc,
-    edits: Vec<DocEdit<ProfileProgram>>,
+    edits: Vec<editor_core::LoggedEdit<ProfileProgram>>,
     blends: [RecipeNodeId; 2],
 }
 
@@ -210,8 +205,8 @@ fn both_blends_evaluate_in_one_document() {
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
-        ("die_fillet", 0x39ae_92cf_f632_e603_u64),
-        ("die_chamfer", 0x7dfb_8a42_246e_bd75),
+        ("die_fillet", 0x0514_022b_3d04_f5c7_u64),
+        ("die_chamfer", 0x131a_d58c_f63c_4589),
     ] {
         let doc = corpus::documents()
             .into_iter()

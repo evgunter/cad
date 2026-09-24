@@ -1,13 +1,23 @@
-//! The tolerance-coupled band constructors ([`Band::linear`] /
-//! [`Band::angular_at`]) against the run's global [`Tolerance`].
+//! The tolerance-coupled band constructors ([`Band::linear`],
+//! [`Band::linear_at`] and [`Band::angular_at`]) against the run's
+//! global [`Tolerance`], and both reachable arms of their `# Errors`.
 //!
-//! This lives in its own integration-test binary — i.e. its own process —
-//! per the funnel-test discipline (see `src/tolerance.rs`'s test module):
+//! The funnel-test discipline (see `src/tolerance.rs`'s test module):
 //! the global tolerance commits exactly once per process, the lib test
 //! binary's single global-touching test owns that binary's commitment,
-//! and `tests/tolerance_init.rs` owns the explicit-`init` path. This file
-//! must contain exactly ONE `#[test]` (a second would race it for first
-//! touch of the global).
+//! and `tests/tolerance_init.rs` owns the explicit-`init` path. Exactly
+//! ONE test here reads the committed global in-process
+//! — `bands_track_the_global_tolerance` — because a second would race
+//! it for first touch.
+//!
+//! **The arm rows commit a PATHOLOGICAL tolerance, so each takes its own
+//! process.** They are `#[ignore]`d probes re-exec'd by
+//! `both_band_error_arms_are_reachable`, the `ambiguity_k_env.rs`
+//! pattern: the spawner touches no global itself, and a probe is inert
+//! in an ordinary run. Each probe commits its pair through the REAL
+//! [`Tolerance::init`] — which runs the same private `validate` the env
+//! path runs — so the premise *"the run's own validator admits this"*
+//! is the door's answer and not a restatement of its conditions.
 //!
 //! Deliberately NO explicit `init` here: the global self-initializes from
 //! the environment on the first `Band::linear(Tol::witness())` call, so the multi-ε CI
@@ -21,6 +31,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
+use geom_core::tolerance::{DEFAULT_K, Tolerance};
 use geom_core::{Band, BandError, BandField, Decide, MarginDiag, Sign};
 
 #[test]
@@ -91,4 +102,240 @@ fn bands_track_the_global_tolerance() {
         .expect_err("the band midpoint lies inside the ambiguity band");
     assert_eq!(sliver.margin, MarginDiag::Value(mid));
     assert_eq!(sliver.band, band);
+}
+
+// ---------------------------------------------------------------------
+// Both reachable arms of the constructors' `# Errors`, through the real
+// doors, at tolerances the real validator admits.
+// ---------------------------------------------------------------------
+
+/// The least K [`Tolerance`] admits: the first double above 1.
+fn least_k() -> f64 {
+    1.0f64.next_up()
+}
+
+/// ε = 2⁻¹⁰²³ = 2⁵¹·2⁻¹⁰⁷⁴ — the LARGEST ε that still collapses, and it
+/// collapses only on the tie: the exact product is n + ½ with n even, so
+/// round-half-to-even lands back on n. One ulp above this ε nothing
+/// collapses at any admitted K.
+fn collapse_boundary_eps() -> f64 {
+    f64::from_bits(1u64 << 51)
+}
+
+/// Commits `tolerance` through the door that validates it, and hands
+/// back the witness. Panics if the validator refuses, which is the
+/// premise these probes rest on.
+fn commit(eps: f64, k: f64) -> Tol {
+    Tolerance::init(Tolerance { eps, k })
+        .expect("the run's own validator admits this pair — that is the premise");
+    let tol = Tol::witness();
+    assert_eq!((tol.eps(), tol.k()), (eps, k), "the committed pair is ours");
+    tol
+}
+
+/// PROBE (own process). The COLLAPSE arm on the door the sentence is
+/// on: a committed ε of 2⁻¹⁰²³ with the least admitted K, and
+/// `Band::linear` itself returns `Empty`.
+#[test]
+#[ignore]
+fn probe_collapse_arm_on_linear() {
+    let eps = collapse_boundary_eps();
+    let tol = commit(eps, least_k());
+    assert_eq!(
+        Band::linear(tol),
+        Err(BandError::Empty {
+            zero: eps,
+            escalate: eps,
+        }),
+        "K·ε rounds back onto ε at the boundary ε, so linear has no band"
+    );
+    println!("PROBE collapse-on-linear OK at eps={eps:e}");
+}
+
+/// PROBE (own process). The OVERFLOW arm on the same door, at the
+/// largest ε the validator admits and the ratified default K.
+#[test]
+#[ignore]
+fn probe_overflow_arm_on_linear() {
+    let tol = commit(f64::MAX, DEFAULT_K);
+    assert_eq!(
+        Band::linear(tol),
+        Err(BandError::InvalidValue {
+            field: BandField::Escalate,
+            value: f64::INFINITY,
+        }),
+        "K·ε overflows at ε = f64::MAX, so escalate is not a threshold"
+    );
+    println!("PROBE overflow-on-linear OK");
+}
+
+/// PROBE (own process). The boundary and the region, read through
+/// `Band::linear_at` at an ORDINARY committed ε with the least admitted
+/// K — so the run itself is sane and only the named scale is not.
+#[test]
+#[ignore]
+fn probe_collapse_region_through_linear_at() {
+    let tol = commit(1e-9, least_k());
+    let boundary = collapse_boundary_eps();
+    let above = f64::from_bits((1u64 << 51) + 1);
+    let min_subnormal = f64::from_bits(1);
+
+    assert!(Band::linear(tol).is_ok(), "the RUN's own ε forms a band");
+    for (eps, why) in [
+        (min_subnormal, "the smallest ε there is"),
+        (boundary, "the largest ε that collapses, on the tie"),
+    ] {
+        assert_eq!(
+            Band::linear_at(tol, eps),
+            Err(BandError::Empty {
+                zero: eps,
+                escalate: eps,
+            }),
+            "{why}: {eps:e}"
+        );
+    }
+    assert!(
+        Band::linear_at(tol, above).is_ok(),
+        "one ulp above the boundary nothing collapses: {above:e}"
+    );
+
+    // NO NORMAL ε COLLAPSES — every binade, at both ends of its
+    // significand. This is the half of the claim that says the hazard
+    // needs a subnormal ε, and it is checked rather than asserted.
+    for e in -1022..=1023 {
+        let bottom = 2.0f64.powi(e);
+        let top = bottom * 1.999_999_999_999_999_8;
+        for eps in [bottom, top] {
+            assert!(
+                !matches!(Band::linear_at(tol, eps), Err(BandError::Empty { .. })),
+                "a NORMAL ε collapsed at the least admitted K: 2^{e} → {eps:e}"
+            );
+        }
+    }
+
+    // The overflow arm through the same door, and the region's other
+    // knob: at the ratified default K nothing collapses at all.
+    assert_eq!(
+        Band::linear_at(tol, f64::MAX),
+        Err(BandError::InvalidValue {
+            field: BandField::Escalate,
+            value: f64::INFINITY,
+        })
+    );
+    println!("PROBE linear_at-region OK: boundary 2^-1023, no normal ε collapses");
+}
+
+/// PROBE (own process). `Band::angular_at` reaches the collapse arm at
+/// an ORDINARY ε, through the LEVER ARM — a caller argument, not a run
+/// setting, and the session-box extent the method recommends is the
+/// documented road to a large one.
+#[test]
+#[ignore]
+fn probe_angular_collapse_through_the_lever_arm() {
+    let tol = commit(1e-9, least_k());
+    let arm = 1e300;
+    let theta = tol.eps() / arm;
+    assert!(
+        theta > 0.0 && theta < f64::MIN_POSITIVE,
+        "the derived angle is a nonzero subnormal: {theta:e}"
+    );
+    assert_eq!(
+        Band::angular_at(tol, arm),
+        Err(BandError::Empty {
+            zero: theta,
+            escalate: theta,
+        }),
+        "an ordinary ε and a large arm reach Empty through angular_at"
+    );
+    println!("PROBE angular-collapse OK: theta={theta:e}");
+}
+
+/// PROBE (own process). `angular_at`'s THIRD residue: the derived angle
+/// underflows to zero, refused on `zero` rather than on `escalate`. The
+/// rule is about the pair — θ ties to 0 at `lever_arm` ≥ ε·2¹⁰⁷⁵ — and
+/// the boundary is SHARP: one ulp under that arm the angle is a nonzero
+/// subnormal and the band forms.
+#[test]
+#[ignore]
+fn probe_angular_underflow_third_residue() {
+    let tol = commit(1e-16, DEFAULT_K);
+    let boundary_arm = tol.eps() / f64::from_bits(1) * 2.0; // ε·2¹⁰⁷⁵
+    assert_eq!(
+        boundary_arm, 4.048_045_066_146_212_3e307,
+        "the boundary arm at ε = 1e-16, as the `# Errors` text states it"
+    );
+    assert_eq!(tol.eps() / boundary_arm, 0.0, "θ ties to even = 0 there");
+    assert_eq!(
+        Band::angular_at(tol, boundary_arm),
+        Err(BandError::InvalidValue {
+            field: BandField::Zero,
+            value: 0.0,
+        })
+    );
+    assert_eq!(
+        Band::angular_at(tol, f64::MAX),
+        Err(BandError::InvalidValue {
+            field: BandField::Zero,
+            value: 0.0,
+        }),
+        "and every larger arm with it"
+    );
+    let inside = f64::from_bits(boundary_arm.to_bits() - 1);
+    assert!(
+        tol.eps() / inside > 0.0 && Band::angular_at(tol, inside).is_ok(),
+        "one ulp under the boundary arm the angle survives and the band forms"
+    );
+    println!("PROBE angular-underflow OK: boundary arm {boundary_arm:e}");
+}
+
+/// **Both arms of the constructors' `# Errors` are reachable from a
+/// tolerance the run's own validator admits** — the claim
+/// `Band::linear`'s `# Errors` makes, and the reason a refusal carries
+/// the `BandError` instead of discarding it: the two ends want opposite
+/// repairs (lower ε; raise ε or K).
+///
+/// Each row is a re-exec'd child because each commits a different
+/// global. `editor-core`'s `band_refusals_name_which_band_failure_they_caught`
+/// (`tests/wire_band_cause.rs`) carries the other half — that the
+/// refusals which forward a `BandError` render the cause verbatim.
+#[test]
+fn both_band_error_arms_are_reachable() {
+    for probe in [
+        "probe_collapse_arm_on_linear",
+        "probe_overflow_arm_on_linear",
+        "probe_collapse_region_through_linear_at",
+        "probe_angular_collapse_through_the_lever_arm",
+        "probe_angular_underflow_third_residue",
+    ] {
+        spawn_probe(probe);
+    }
+}
+
+/// Re-execs this binary at one `#[ignore]`d probe, in its own process so
+/// the probe can commit its own global. Names the probe by MODULE PATH:
+/// `tests/all.rs` aggregates every suite into one binary, so libtest
+/// sees it as `<this_module>::<probe>`.
+fn spawn_probe(probe: &str) {
+    let exe = std::env::current_exe().expect("test exe path");
+    let filter = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::{probe}"),
+        None => probe.to_string(),
+    };
+    let out = std::process::Command::new(&exe)
+        .args([filter.as_str(), "--ignored", "--exact", "--nocapture"])
+        .env_remove("CAD_TOLERANCE_EPS")
+        .env_remove("CAD_AMBIGUITY_K")
+        .output()
+        .expect("the probe process spawns");
+    assert!(
+        out.status.success(),
+        "{probe} failed:\n{}\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stdout).contains("1 passed"),
+        "{probe} did not RUN (a filter that matches nothing also exits 0):\n{}",
+        String::from_utf8_lossy(&out.stdout)
+    );
 }

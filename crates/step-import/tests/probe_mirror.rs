@@ -3,7 +3,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
-use common::census;
+use common::arena_census;
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
@@ -74,7 +74,7 @@ fn place_both(axis: &str, refd: &str, origin: &str) -> String {
 #[test]
 fn mirror_smuggling_and_rigid_roundtrip() {
     let base = solid(&twobody());
-    let (v0, c0, b0) = (vol(&base), census(&base), bbox(&base));
+    let (v0, c0, b0) = (vol(&base), arena_census(&base), bbox(&base));
     println!("baseline: vol={v0} census={c0:?} bbox={b0:?}");
 
     // (1) Genuine rigid motion: rotate 90 deg about z (ref +x -> +y)
@@ -84,10 +84,10 @@ fn mirror_smuggling_and_rigid_roundtrip() {
     println!(
         "rot90+t: vol={} census={:?} bbox={:?}",
         vol(&r),
-        census(&r),
+        arena_census(&r),
         bbox(&r)
     );
-    assert_eq!(c0, census(&r), "rigid: census invariant");
+    assert_eq!(c0, arena_census(&r), "rigid: census invariant");
     assert!(
         (v0 - vol(&r)).abs() <= 1e-9 * v0.abs(),
         "rigid: volume invariant"
@@ -102,10 +102,10 @@ fn mirror_smuggling_and_rigid_roundtrip() {
     println!(
         "neg-axis: vol={} census={:?} bbox={:?}",
         vol(&n),
-        census(&n),
+        arena_census(&n),
         bbox(&n)
     );
-    assert_eq!(c0, census(&n));
+    assert_eq!(c0, arena_census(&n));
     assert!(
         (v0 - vol(&n)).abs() <= 1e-9 * v0.abs(),
         "neg axis is still rigid"
@@ -115,7 +115,7 @@ fn mirror_smuggling_and_rigid_roundtrip() {
     // about the projected ref? still det +1). Rigid or typed refusal.
     let dbl = place_both("0.,0.,-1.", "-1.,0.,0.", "0.,0.,0.");
     let d = solid(&dbl);
-    println!("double-neg: vol={} census={:?}", vol(&d), census(&d));
+    println!("double-neg: vol={} census={:?}", vol(&d), arena_census(&d));
     assert!(
         (v0 - vol(&d)).abs() <= 1e-9 * v0.abs(),
         "double-neg is still rigid"

@@ -168,7 +168,7 @@ fn the_tiny_pair_floor_variant_refuses_typed() {
         floor_scale: SsiDomain::floor_scale_for(FLOOR_CLAMP_METRES, band()),
     };
     match run(cyl, d) {
-        Err(SsiError::ExhaustivenessInconclusive { .. }) => {}
+        Err(SsiError::ExhaustivenessInconclusive(_)) => {}
         Err(SsiError::FitSampleBudget { samples, budget }) => {
             assert_eq!(
                 budget, SSI_MAX_FIT_SAMPLES,

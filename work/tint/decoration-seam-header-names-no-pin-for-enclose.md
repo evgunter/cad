@@ -5,6 +5,8 @@ title: decoration_seam.rs's header says the ssi::enclose crossing is pinned by n
 status: open
 opened: 2026-09-04
 track: W
+priority: P3
+cost: E
 ---
 
 
@@ -84,3 +86,52 @@ crossing*, Track Q, closed 2026-09-04) recorded no closing PR — the 1533
 in its own `refs:` was CERT-M1, where it was filed, not where it landed
 — so there is no number to re-aim at and the reference is dropped. It is
 recoverable at the SHA sweep 11 names.
+
+## Re-derived (2026-09-15, lane D)
+
+**VERDICT: REPRODUCES** — both halves, verbatim, and the roster's count
+is still correct.
+
+**The stale bullet is unchanged.**
+`crates/geom-core/tests/decoration_seam.rs`'s header still closes its
+four-bullet roster with:
+
+> - `geom_brep::ssi::enclose`'s, which **no row named here pins**.
+
+**The pin it denies is still there.** `crates/geom-brep/src/ssi/enclose.rs`
+carries `mod decoration_seam` under `#[cfg(feature = "interval")]`, doc'd
+*"The M6-2 seam requires the certified door"*, with all three rows the
+finding names:
+`every_ring_crossing_refuses_exactly_where_the_decoration_degrades`,
+`no_crossing_may_be_rebounded_to_the_bracket_door`,
+`a_violated_radius_poisons_the_pad`.
+
+**The roster's population re-derived, since "a roster with a count in it
+is what the finding was about".** `grep -rln 'RingInterval::from_certified'
+--include=*.rs crates/*/src/` returns six files. Two are `geom-core`'s
+own — `spline/hull.rs` (the crossing this suite DOES reach, named
+separately in the header) and `real.rs`, whose single occurrence is
+prose in a comment, not a call. The remaining **four** are exactly the
+header's four: `geom/src/net.rs` (`ring_coords`),
+`geom-brep/src/ssi/certify.rs` (3 reads),
+`geom-brep/src/ssi/enclose.rs` (36 reads) and `topo/src/props.rs`.
+**"four other places in `crates/*/src`" is still true.** Only the fourth
+bullet's disposition is wrong.
+
+**What this re-derivation cannot settle.** The row's *"all three green
+under `--features interval` (measured 2026-09-04)"* is a run claim and
+no run was made here (lane constraint). It does not block the fix: the
+correction is to name three rows that exist, and their existence is a
+reading fact. If someone wants the greenness re-confirmed it is
+`cargo test -p geom-brep --features interval ssi::enclose::tests::decoration_seam`
+— green means the header can name them flatly, red means the header's
+current sentence is accidentally closer to true and the finding changes
+shape.
+
+**D384's overlapping half is stale-fixed and worth knowing here**:
+`enclose.rs` has no private `ring` alias any more — every crossing is a
+direct `RingInterval::from_certified(…)` call. D289 landed.
+
+**Blind spot.** Only `crates/*/src` was swept, per the header's own
+scope; `demos/`, `tools/` and `interval-transcendentals/` were not
+checked for callers.

@@ -55,12 +55,10 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyString};
 
-use crate::errors::ErrorClass;
+use crate::errors::{ErrorClass, StlRefusal};
 use crate::py::quantity::Length;
 use crate::py::typed_err;
-use crate::tags::{
-    binary_header_error_tag, solid_name_error_tag, stl_error_tag, tessellate_error_tag,
-};
+use crate::tags::tessellate_error_tag;
 use pncad::mesh;
 use pncad::stl;
 
@@ -125,6 +123,25 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
             );
             Ok(())
         }
+        // The face is a key and does not cross; the KIND of surface it
+        // lies on is a word, and it is the part of the refusal a caller
+        // can sort by.
+        T::MeridianFreeCurvedFace { surface, .. } => {
+            fields[4] = (
+                "note",
+                PyString::new(py, surface.name()).unbind().into_any(),
+            );
+            Ok(())
+        }
+        // The same shape, for the same reason: the KIND is the sortable
+        // part of the refusal and the face key does not cross.
+        T::SingleColumnCurvedFace { surface, .. } => {
+            fields[4] = (
+                "note",
+                PyString::new(py, surface.name()).unbind().into_any(),
+            );
+            Ok(())
+        }
         T::Band { error } => {
             fields[4] = (
                 "note",
@@ -147,29 +164,6 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
     typed_err(py, ErrorClass::Tessellate, err.to_string(), &fields)
 }
 
-/// Everything that can refuse a `to_stl_*` call, as ONE value.
-///
-/// Four refusals share the `StlError` exception class because they
-/// refuse the same CALL — the writers' own, the two validated option
-/// newtypes' (which are this call's keyword arguments), and the
-/// boundary's own non-UTF-8 residue. Naming them together is what
-/// lets the projection below be a single exhaustive match instead of
-/// four, so an arm added to any of the three kernel enums arrives
-/// here as a compile error.
-enum StlRefusal<'a> {
-    /// The writers' refusal: the mesh and the sink.
-    Write(&'a stl::StlError),
-    /// The `solid <name>` name the ASCII writer was handed.
-    Name(&'a stl::SolidNameError),
-    /// The 80-byte header the binary writer was handed.
-    Header(&'a stl::BinaryHeaderError),
-    /// The ASCII writer emitted bytes that are not UTF-8. Not a
-    /// kernel arm: the writer emits ASCII by construction, so this is
-    /// a kernel defect surfaced rather than lossily replaced, and it
-    /// is spelled here because the caller sees it on this class.
-    NotUtf8(&'a std::string::FromUtf8Error),
-}
-
 /// Raise `StlError` with the refusing party's own message, a stable
 /// `variant`, and the arm's payload.
 ///
@@ -180,9 +174,19 @@ enum StlRefusal<'a> {
 /// `detail` is one concept under two spellings — the underlying
 /// reporter's own words, whether that reporter is the output sink or
 /// the UTF-8 decoder — and crosses on one name.
+///
+/// The `variant` is [`crate::tags::stl_refusal_tag`] over the whole
+/// refusal, read once above the match: this door's arms decide the
+/// PAYLOAD, and the word is the tag module's for every arm including
+/// the boundary's own. That is what puts each of them where the tag
+/// inventory reads it. It pins those words; it does not stop a raise
+/// site elsewhere spelling one, and what makes this the only site is
+/// that nothing else raises `ErrorClass::StlExport`.
 fn stl_err(py: Python<'_>, refusal: StlRefusal<'_>) -> PyErr {
     use StlRefusal as R;
     use stl::{BinaryHeaderError as H, SolidNameError as N, StlError as W};
+
+    let variant = crate::tags::stl_refusal_tag(refusal);
 
     let none = || py.None();
     // A field whose own construction failed degrades to `None` rather
@@ -197,9 +201,8 @@ fn stl_err(py: Python<'_>, refusal: StlRefusal<'_>) -> PyErr {
         }
     };
 
-    let (variant, message, triangle, index, count, character, len, detail) = match refusal {
+    let (message, triangle, index, count, character, len, detail) = match refusal {
         R::Write(err @ W::DegenerateTriangle { triangle: t }) => (
-            stl_error_tag(err),
             err.to_string(),
             obj((t[0], t[1], t[2])
                 .into_pyobject(py)
@@ -211,7 +214,6 @@ fn stl_err(py: Python<'_>, refusal: StlRefusal<'_>) -> PyErr {
             none(),
         ),
         R::Write(err @ W::IndexOutOfRange { index: i }) => (
-            stl_error_tag(err),
             err.to_string(),
             none(),
             int(u64::from(*i)),
@@ -221,7 +223,6 @@ fn stl_err(py: Python<'_>, refusal: StlRefusal<'_>) -> PyErr {
             none(),
         ),
         R::Write(err @ W::TooManyTriangles { count: c }) => (
-            stl_error_tag(err),
             err.to_string(),
             none(),
             none(),
@@ -231,7 +232,6 @@ fn stl_err(py: Python<'_>, refusal: StlRefusal<'_>) -> PyErr {
             none(),
         ),
         R::Write(err @ W::Io(source)) => (
-            stl_error_tag(err),
             err.to_string(),
             none(),
             none(),
@@ -241,7 +241,6 @@ fn stl_err(py: Python<'_>, refusal: StlRefusal<'_>) -> PyErr {
             text(&source.to_string()),
         ),
         R::Name(err @ N::Unrepresentable { character: c }) => (
-            solid_name_error_tag(err),
             err.to_string(),
             none(),
             none(),
@@ -251,7 +250,6 @@ fn stl_err(py: Python<'_>, refusal: StlRefusal<'_>) -> PyErr {
             none(),
         ),
         R::Header(err @ H::TooLong { len: bytes }) => (
-            binary_header_error_tag(err),
             err.to_string(),
             none(),
             none(),
@@ -261,7 +259,6 @@ fn stl_err(py: Python<'_>, refusal: StlRefusal<'_>) -> PyErr {
             none(),
         ),
         R::Header(err @ H::SniffsAscii) => (
-            binary_header_error_tag(err),
             err.to_string(),
             none(),
             none(),
@@ -271,7 +268,6 @@ fn stl_err(py: Python<'_>, refusal: StlRefusal<'_>) -> PyErr {
             none(),
         ),
         R::NotUtf8(source) => (
-            "not_utf8",
             format!("stl export: the ASCII writer emitted non-UTF-8 bytes: {source}"),
             none(),
             none(),
@@ -402,18 +398,25 @@ impl Mesh {
     /// a character outside the printable ASCII the single-line grammar
     /// admits refuses here, as `StlError` with a
     /// `solid_name_unrepresentable` variant, rather than being
-    /// sanitized into a file no parser can read.
-    #[pyo3(signature = (solid_name=""))]
-    fn to_stl_ascii(&self, py: Python<'_>, solid_name: &str) -> PyResult<String> {
-        let name =
-            stl::SolidName::new(solid_name).map_err(|err| stl_err(py, StlRefusal::Name(&err)))?;
+    /// sanitized into a file no parser can read. Omitted, the name is
+    /// the Rust default — the generic part name `AsciiOptions::default`
+    /// carries, so the file this door writes with no arguments is the
+    /// file a Rust caller gets with none. Its options are a literal
+    /// naming every field, held to `AsciiOptions` by the surface
+    /// census's options roster.
+    #[pyo3(signature = (solid_name=None))]
+    fn to_stl_ascii(&self, py: Python<'_>, solid_name: Option<&str>) -> PyResult<String> {
+        let defaults = stl::AsciiOptions::default();
+        let options = stl::AsciiOptions {
+            solid_name: solid_name
+                .map(stl::SolidName::new)
+                .transpose()
+                .map_err(|err| stl_err(py, StlRefusal::Name(&err)))?
+                .unwrap_or(defaults.solid_name),
+        };
         let mut out = Vec::new();
-        stl::write_ascii(
-            &self.inner,
-            &stl::AsciiOptions { solid_name: name },
-            &mut out,
-        )
-        .map_err(|err| stl_err(py, StlRefusal::Write(&err)))?;
+        stl::write_ascii(&self.inner, &options, &mut out)
+            .map_err(|err| stl_err(py, StlRefusal::Write(&err)))?;
         // The writer emits ASCII by construction (the name is
         // validated printable-ASCII and the numbers are formatted), so
         // a decode failure here would be a kernel defect, surfaced
@@ -427,13 +430,26 @@ impl Mesh {
     /// conventionally the producer. It is validated: a header that
     /// does not fit, or one that would make the file sniff as ASCII
     /// STL, refuses here as `StlError` rather than being truncated or
-    /// written.
-    #[pyo3(signature = (header=""))]
-    fn to_stl_binary<'py>(&self, py: Python<'py>, header: &str) -> PyResult<Bound<'py, PyBytes>> {
-        let header =
-            stl::BinaryHeader::new(header).map_err(|err| stl_err(py, StlRefusal::Header(&err)))?;
+    /// written. Omitted, the header is the Rust default — the
+    /// producer text `BinaryOptions::default` carries, not 80 zero
+    /// bytes. Its options are a literal naming every field, held to
+    /// `BinaryOptions` by the surface census's options roster.
+    #[pyo3(signature = (header=None))]
+    fn to_stl_binary<'py>(
+        &self,
+        py: Python<'py>,
+        header: Option<&str>,
+    ) -> PyResult<Bound<'py, PyBytes>> {
+        let defaults = stl::BinaryOptions::default();
+        let options = stl::BinaryOptions {
+            header: header
+                .map(stl::BinaryHeader::new)
+                .transpose()
+                .map_err(|err| stl_err(py, StlRefusal::Header(&err)))?
+                .unwrap_or(defaults.header),
+        };
         let mut out = Vec::new();
-        stl::write_binary(&self.inner, &stl::BinaryOptions { header }, &mut out)
+        stl::write_binary(&self.inner, &options, &mut out)
             .map_err(|err| stl_err(py, StlRefusal::Write(&err)))?;
         Ok(PyBytes::new(py, &out))
     }

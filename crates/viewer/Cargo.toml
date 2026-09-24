@@ -206,9 +206,17 @@ test-utils = { path = "../test-utils" }
 # tree names these crates directly. Dev-only: nothing shipped reaches
 # them through this crate, and none of them is a serde edge.
 geom-core = { path = "../geom-core" }
+# The unit table: the corpus `kitchen_sink` document names `MM` to
+# exercise the notation edit, which is a display unit and therefore a
+# row of this table rather than anything `editor-core` re-exports.
+quantity = { path = "../quantity" }
 topo = { path = "../topo" }
 geom-brep = { path = "../geom-brep" }
 profile = { path = "../profile", features = ["test-support"] }
+# `test-support` ON here too: the corpus `loft_prism` document authors
+# the kernel's own loft-fixture section polygons rather than a second
+# spelling of them, so the mounted tree names `sweep::test_support`.
+sweep = { path = "../sweep", features = ["test-support"] }
 
 # --- the colourblind check's oracle (tests/theme.rs) ---
 #

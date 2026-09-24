@@ -15,13 +15,14 @@
 
 use geom_core::{Point2, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::test_support::block;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, SolidKey};
 
 use crate::common::approx::band;
 use crate::shell8_common::{beside, cap, charts_of, deep_dump, tol};
 use crate::shell9_rows::rows;
-use crate::verbs_shell::{boxy, tube, vessel};
+use crate::verbs_shell::{tube, vessel};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -152,7 +153,11 @@ fn shell10_r2_dump_corpus() {
     }
 
     // The doors, directly, naming one solid of several.
-    let mut pair = beside(&vessel(1.0, 2.0), &boxy(2.0, 3.0, 4.0), 10.0);
+    let mut pair = beside(
+        &vessel(1.0, 2.0),
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        10.0,
+    );
     topo::mint_pcurves(&mut pair, tol()).unwrap();
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     let mut work = pair.clone();
@@ -164,9 +169,13 @@ fn shell10_r2_dump_corpus() {
         .unwrap();
     dump("planar door, box of vessel+box", &work);
 
-    let mut four = beside(&boxy(2.0, 3.0, 4.0), &vessel(1.0, 2.0), 10.0);
+    let mut four = beside(
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &vessel(1.0, 2.0),
+        10.0,
+    );
     four = beside(&four, &tube(0.6, 1.0, 2.0), 20.0);
-    four = beside(&four, &boxy(2.0, 2.0, 2.0), 30.0);
+    four = beside(&four, &block(2.0, 2.0, 2.0, Tol::witness()), 30.0);
     topo::mint_pcurves(&mut four, tol()).unwrap();
     let solids: Vec<SolidKey> = four.solids().map(|(k, _)| k).collect();
     let mut work = four.clone();

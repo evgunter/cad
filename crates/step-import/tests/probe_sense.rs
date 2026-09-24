@@ -5,7 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
-use common::census;
+use common::arena_census;
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 
@@ -23,7 +23,7 @@ fn probe(tag: &str, text: &str, base_vol: f64) {
             let v = topo::mass_properties(&body, Tol::witness()).map(|m| m.volume);
             println!(
                 "{tag}: IMPORTED census={:?} t1={t1:?} t2={t2:?} t3ok={} vol={v:?}",
-                census(&body),
+                arena_census(&body),
                 t3.is_ok()
             );
             // Silent misgeometry = imports, all tiers green, volume moved.

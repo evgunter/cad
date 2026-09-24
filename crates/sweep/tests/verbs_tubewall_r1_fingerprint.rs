@@ -11,6 +11,7 @@
 
 use geom::Surface;
 use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::tube_frame;
 use sweep::{TubeWindow, tube_along_arc};
 
 /// WORD-wise FNV — one `u64` per step, where `common::fnv1a` folds one
@@ -32,9 +33,12 @@ fn solid_door_fingerprint() {
     let mut h: u64 = 0xCBF2_9CE4_8422_2325;
     for window in [TubeWindow::Arc { t0: 0.25, t1: 1.75 }, TubeWindow::Full] {
         let t = tube_along_arc::<f64>(
-            Point3::new(0.0, 0.0, 0.0),
-            Vec3::unit_y(),
-            Vec3::unit_x(),
+            tube_frame(
+                Point3::new(0.0, 0.0, 0.0),
+                Vec3::unit_y(),
+                Vec3::unit_x(),
+                Tol::witness(),
+            ),
             2.0,
             window,
             0.5,

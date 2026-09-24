@@ -53,7 +53,7 @@ use std::collections::BTreeMap;
 use pncad::document::{
     BooleanOp, BooleanValue, CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, DocParamValue,
     EvalOptions, Evaluation, Expr, LoopProgram, Node, ParamName, PatternKind, ProfileProgram,
-    RecipeNodeId, ValuePayload, apply, evaluate, parse_expr,
+    RecipeNodeId, RefusingReach, ValuePayload, apply, evaluate, parse_expr,
 };
 use pncad::geom_core::Tol;
 use pncad::topo::Body;
@@ -146,7 +146,8 @@ fn blade_polygon() -> LoopProgram {
 fn build_doc(tol: Tol) -> Recipe {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("impeller", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
-        let applied = apply(doc, &DocEdit::InsertNode { node }, tol).expect("insert node");
+        let applied =
+            apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("insert node");
         *doc = applied.doc;
         applied.record.minted.expect("insert mints an id")
     };
@@ -161,6 +162,7 @@ fn build_doc(tol: Tol) -> Recipe {
             value: DocParam::Count { value: COUNTS[0] },
         },
         tol,
+        &RefusingReach,
     )
     .expect("the blade count declares");
     doc = applied.doc;
@@ -281,6 +283,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 value: DocParamValue::Count(n),
             },
             tol,
+            &RefusingReach,
         )
         .expect("the blade count edits");
         doc = applied.doc;

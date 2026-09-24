@@ -2,7 +2,10 @@
 id: two-face-sphere-split-measures-zero-volume
 kind: issue
 title: "props: a closed sphere split into two faces by the same two meridian arcs measures volume 0.0 — one parse hands both faces the same levels"
-status: open
+status: closed
+closed: 2026-09-16
+pr: 2741
+branch: props/sphere-pole-side
 opened: 2026-09-02
 github: 1598
 refs: [723, 1571, 1565]
@@ -45,3 +48,89 @@ Moved from `work/cert/` to `work/props/` on S-CERT's exit walk PR
 and header are unchanged; the directory is the claim (`work/README.md`).
 The `## Home` section above naming `work/cert/` is superseded by this
 line and is kept as the record of why the file was filed there.
+
+## Refused typed (PROPS sphere-pole-side, 2026-09-15)
+
+The two faces parse to the same levels because a level says a latitude
+and never says which side of it the material is on. The half-cap's rim
+sits at `lo` with its interior above; the complement's sits at `lo`
+with its interior BELOW, all the way to the south pole, so the chart
+rectangle the levels fold is not its domain.
+`require_rim_interior_sides` decides that per rim — σ must point INTO
+`[lo, hi]` from where the rim sits — and the complement refuses
+`NotIsoRectangle { what: "props_rim_interior_side" }`.
+
+Face A is unmoved: it still measures `πR²(1 − sin v₀)` exactly, which
+is why the branch door could not be the fix (citing it from
+`curved_face` would have retracted CERT-1's three pole rows, and those
+are green). The closed sphere now reports the refusal naming the
+complement instead of `Ok { volume: 0.0 }`, and the three-face split of
+the same sphere measures `4π/3`.
+
+A row per traversal direction, as this issue asked, in
+`crates/geom-brep/tests/props_sphere_pole_side.rs`'s
+`the_l_shaped_complement_refuses_by_its_own_name`: which of the two
+faces is the cap is the SENSE bit's to say, so the row runs the pair
+under both bits and pins that the measuring one measures and the other
+refuses, each way round. The body-level rows are MESH's two,
+`mesh11_arc_branch::mass_properties_reports_the_interior_side_refusal_on_the_half_cap`
+and the re-aimed `mesh7r1_probes` row.
+
+**What the gate can and cannot take.** `boundary_material_sign` — tier
+3's check 6 — consumes the same parse and cannot ask σ: σ needs
+`Face::sense`, and that function deliberately does not read it, because
+check 6 IS the comparison of the boundary's encoding against the bit.
+What it can ask, and now does, is the sense-free residue —
+`unanimous_rim_side`, *every rim encodes the same side* — which the
+dual review showed is not a tautology: on a face carrying a rim at `lo`
+and a rim at `hi` traversed the same way, the old first-rim read
+answered `Encoded(Positive)` or `Encoded(Negative)` according to which
+rim the loop walk handed over first, an anchor-relative ANSWER rather
+than an anchor-relative recorded verdict. The rim-only cap it answers
+`MaterialSign::Unencoded`. **This face is the residue**: the half-cap
+and its complement have ONE rim each, so unanimity has nothing to
+compare, and no sense-free derivation can separate them.
+
+**Classification, and the recourse there is not.** The complement is
+D2 addendum **row 2** — valid input, lane not built — which is what
+`require_rims_at_extremes`' own doc files `NotIsoRectangle` under. What
+row 2 usually costs is a `pad > 0` enclosure; here it costs the whole
+answer, because `topo::props`' dispatch routes structurally on the
+carrier kind and a circle-bounded sphere face never reaches the
+quadrature lane. A caller's recourse is to STATE the face as
+iso-rectangles — the three-face split of this same sphere measures
+`4π/3` exactly. The state this issue recorded for three months — an
+ADMITTED input answered wrongly — has no row in the addendum at all;
+that gap is filed as
+`d2-addendum-has-no-row-for-an-admitted-input-answered-wrongly`.
+
+## Closed
+
+Landed on PR #2741 (run 35081606164 green). The half-cap and its
+L-shaped complement parsed to the same levels, so their flux
+contributions cancelled and a closed sphere measured `0.0`. They no
+longer do: `props_rim_interior_side` requires every rim's interior side
+to point INTO the face's extent, which the complement's does not, so it
+refuses typed while its partner still measures exactly. Which of the
+pair refuses is the sense bit's call, pinned both ways round. The
+three-face sphere whose third face is a rim-only cap now reports
+`4π/3`.
+
+**There is no recourse lane, and the docs that said otherwise are
+corrected at five sites.** `topo::props` dispatches structurally — only
+an ellipse- or NURBS-trimmed boundary or a spline chart reaches the
+quadrature lane — so a circle-bounded sphere face refused by
+`curved_face` is final. D2 addendum row 2 is still the classification,
+but what it costs here is the whole answer rather than a wider pad.
+What a caller does instead is STATE the face as iso-rectangles: split
+the notch out with a meridian, which is what the three-face sphere
+does.
+
+The dual also found a face neither this item nor the unit had claimed:
+a staircase with two rims whose traversals contradict, which the closed
+form answered at 57% of the truth with a zero pad. It refuses now, and
+the material-sign gate — which cannot read σ, since σ carries the sense
+bit that gate's own check compares against — takes the sense-free
+residue instead: every rim's boundary-encoded side must agree. That
+removes an anchor-relative definite ANSWER from the gate, not merely an
+anchor-relative recorded verdict.

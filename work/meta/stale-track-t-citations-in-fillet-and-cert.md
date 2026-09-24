@@ -2,8 +2,9 @@
 id: stale-track-t-citations-in-fillet-and-cert
 kind: issue
 title: Three citations to Track T's rows in fillet's and cert's slates are stale
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-20
 ---
 
 
@@ -55,3 +56,19 @@ against the code-quality K–X fences. Id, body and header are unchanged;
 the directory is the claim (`work/README.md`). Any `## Home` section
 above naming `work/issues/` is superseded by this line and is kept as
 the record of why the file was parked there.
+
+## Closed (2026-09-20)
+
+Both halves were discharged in this row's own body and the tree has
+since removed what was left of either. FILLET's half landed on
+2026-09-05 (PR 1964); CERT's half went with `work/cert/plan.md` at
+sweep 7. The one residue the body records — `work/fillet/plan.md:71`,
+*"left as written, the exit walk quotes it verbatim"* — is moot:
+neither `work/fillet/` nor `work/cert/` is in the tree, both having
+gone with their programs' closing sweeps and being recoverable at the
+SHAs `docs/DOC-LEDGER.md` names.
+
+Nothing was left to do, which is the finding: the row stayed open for
+sixteen days after its last live half was discharged, because closing
+it was nobody's dispatched unit. `work/README.md`'s new "The tracker
+is not comprehensive" clause is the answer to that shape.

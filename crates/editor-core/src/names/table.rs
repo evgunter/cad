@@ -77,6 +77,26 @@ impl EntityKey {
             _ => None,
         }
     }
+
+    /// **The vertex this key denotes, or `None`** — the third
+    /// projection, and NOT [`EntityKey::face`]'s twin in the way the
+    /// other two are twins.
+    ///
+    /// `face` and `edge` are handed to `eval::wire`'s entity door as
+    /// `read` function pointers, so the door mints the `Found` word
+    /// from the key they decline. This one is read directly, by
+    /// `resolve_declarations`'s same-operand projection, where the
+    /// kind was already decided from the NAME and a `None` here means
+    /// the table broke its own rule rather than that a caller named
+    /// the wrong kind. If a road ever wants a vertex through that
+    /// door, this is the projection to hand it — which would make the
+    /// three genuinely alike.
+    pub(crate) fn vertex(self) -> Option<VertexKey> {
+        match self {
+            Self::Vertex(k) => Some(k),
+            _ => None,
+        }
+    }
 }
 
 /// A forward entry: unique, or the N2 tie (≥ 2 equally-admissible
@@ -110,12 +130,24 @@ pub struct NameTable {
 // SCHEDULE-dependent bit — which reader reached it first — so it must
 // not be printable into a message, a digest or a golden, and this impl
 // is what keeps it off every one of them.
+//
+// `Self` is destructured exhaustively, so a field added to the
+// declaration is an E0027 unbound-pattern error rather than a value
+// silently absent from every dump; `sealed` binds to `_`, which is what
+// makes the omission a decision a reader can see and the compiler still
+// forces. `finish_non_exhaustive` is what that `_` arm stands for —
+// `finish` would claim the schedule-dependent bit is shown.
 impl core::fmt::Debug for NameTable {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self {
+            forward,
+            reverse,
+            sealed: _,
+        } = self;
         f.debug_struct("NameTable")
-            .field("forward", &self.forward)
-            .field("reverse", &self.reverse)
-            .finish()
+            .field("forward", forward)
+            .field("reverse", reverse)
+            .finish_non_exhaustive()
     }
 }
 

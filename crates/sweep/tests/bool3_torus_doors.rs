@@ -65,11 +65,12 @@
 use crate::revolve_common;
 
 use crate::common::approx::band;
-use geom_core::{Band, Point3, Tol, Vec3};
+use geom_core::{Band, Point3, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::*;
-use sweep::{Extrusion, Revolution, extrude, revolve};
+use sweep::test_support::brick;
+use sweep::{Revolution, revolve};
 use topo::{Body, BooleanError, PointInSolidError, SolidContainment, point_in_solid};
 
 /// The donut's torus: centre at the origin, axis `+y`.
@@ -173,17 +174,6 @@ fn quarter_spool() -> Body<f64> {
     )
     .unwrap()
     .body
-}
-
-fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(x.0, y.0), p2(x.1, y.0), p2(x.1, y.1), p2(x.0, y.1)]);
-    let plane = SketchPlane::new(geom_core::Affine3::translation(Vec3::new(0.0, 0.0, z.0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(z.1 - z.0), Tol::witness())
-        .unwrap()
-        .body
 }
 
 fn pis(body: &Body<f64>, q: Point3<f64>) -> SolidContainment {
@@ -705,7 +695,7 @@ fn the_clamp_floor_clears_the_torus_tangency_shell() {
 #[test]
 fn a_disjoint_union_with_a_donut_now_assembles() {
     let a = donut();
-    let b = brick((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0));
+    let b = brick((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0), Tol::witness());
     let out = match topo::union(&a, &b, Tol::witness()) {
         Ok(out) => out,
         Err(BooleanError::Containment(e)) => panic!(
@@ -758,7 +748,7 @@ fn the_kind_refusal_no_longer_names_the_torus() {
         kind: geom_brep::SurfaceKind::Nurbs,
     }
     .to_string();
-    assert!(msg.contains("HEALTHY"), "{msg}");
+    assert!(msg.contains("The solid itself is fine"), "{msg}");
     assert!(!msg.contains("corrupt"), "{msg}");
     assert!(
         !msg.contains("torus"),
@@ -774,11 +764,11 @@ fn the_kind_refusal_no_longer_names_the_torus() {
         face: body.faces().next().unwrap().0,
     }
     .to_string();
-    assert!(msg.contains("HEALTHY"), "{msg}");
+    assert!(msg.contains("The solid itself is fine"), "{msg}");
     assert!(msg.contains("Recourse"), "{msg}");
     assert!(
-        msg.contains("no chart singularity"),
-        "the refusal must say why a wrapped window is believed here: {msg}"
+        msg.contains("(parallels and meridians)"),
+        "the recourse names the boundary the torus arm can read: {msg}"
     );
 }
 

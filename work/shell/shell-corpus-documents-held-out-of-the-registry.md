@@ -4,6 +4,8 @@ kind: issue
 title: cup and vessel sit beside the corpus registry: the Dual64 row and the shell door's certification rights
 status: open
 opened: 2026-09-06
+priority: P3
+cost: E
 ---
 
 `corpus/cup.rs` and `corpus/vessel.rs` are corpus documents that sit

@@ -29,7 +29,6 @@ use crate::node::{RecipeNodeId, SlotId};
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
-#[serde(deny_unknown_fields)]
 pub enum Dimension {
     /// A length, canonically meters (units erase before kernel `T`).
     Length,
@@ -387,6 +386,36 @@ impl UnitSym {
         *row
     }
 
+    /// The dimension this unit MEASURES — the other half of the
+    /// pairing [`Self::canonical_for`] makes, read in the opposite
+    /// direction.
+    ///
+    /// **The one place that reading is spelled**, and every caller that
+    /// needs it asks here rather than re-laddering it: the expression
+    /// TEXT door (`parse`, on a suffix), [`Expr::literal_with_unit`] at
+    /// construction, [`crate::DocParam::with_display_unit`] at the
+    /// parameter's notation door, `write_doc_param` at the
+    /// create-or-replace door, and the save/load validator's parameter
+    /// walk (`persist::check`). Callers restating one `match` are that
+    /// many chances for them to disagree about what `mm` measures —
+    /// and the parser's copy was worse than a duplicate, because the
+    /// dimension it derived was then handed to a door that derives the
+    /// same thing from the same unit to check the two against each
+    /// other.
+    ///
+    /// Total: the table's quantity column has three rows and
+    /// [`Dimension`] has a variant for each. `Count` is not among them
+    /// — a count is an integer and names no notation — which is why a
+    /// `Count` parameter has no unit door rather than a unit that
+    /// measures counts.
+    pub fn measures(self) -> Dimension {
+        match self.def().quantity() {
+            quantity::UnitQuantity::Length => Dimension::Length,
+            quantity::UnitQuantity::Angle => Dimension::Angle,
+            quantity::UnitQuantity::Scalar => Dimension::Scalar,
+        }
+    }
+
     /// The unit a value of `dim` is written in when nothing else was
     /// authored: metres, radians, or the dimensionless row.
     ///
@@ -411,6 +440,38 @@ impl UnitSym {
             Dimension::Scalar | Dimension::Count => quantity::ONE.def(),
         };
         Self::from_def(&row)
+    }
+
+    /// The symbol for an AUTHORED unit on a value of dimension `dim`.
+    ///
+    /// The one home of "a unit measures what its value holds". Every
+    /// door that attaches a notation a caller CHOSE — the literal
+    /// constructor [`Expr::literal_with_unit`] and
+    /// [`crate::RecordedNotation::set`], which writes one down before
+    /// any literal exists — asks this, so the two cannot come to
+    /// disagree about which pairings are legal. [`Self::canonical_for`]
+    /// is the same relation in the other direction: the unit a
+    /// dimension picks when nobody chose one.
+    ///
+    /// # Errors
+    ///
+    /// [`DimensionError::DisplayUnitMismatch`] when the unit's quantity
+    /// is not `dim` (a `mm` on a bulge).
+    pub(crate) fn checked_for(
+        dim: Dimension,
+        unit: quantity::UnitDef,
+    ) -> Result<Self, DimensionError> {
+        // Total since the #650 seal: a `UnitDef` is a table row, so
+        // it has a code (see `UnitSym::from_def`).
+        let sym = Self::from_def(&unit);
+        let measured = sym.measures();
+        if measured != dim {
+            return Err(DimensionError::DisplayUnitMismatch {
+                unit: measured,
+                literal: dim,
+            });
+        }
+        Ok(sym)
     }
 
     /// The code for a table row, by symbol — TOTAL, exactly as
@@ -461,9 +522,10 @@ impl UnitSym {
 
 /// A stored continuous literal: the canonical-units value plus its
 /// per-literal DISPLAY unit (LIB-SWITCH §4g, U8b folded into the v4
-/// break). The unit is presentation metadata under D7's hard rules —
-/// it is EXCLUDED from equality here (so [`Expr::bit_eq`], content
-/// keys, and naming keys are all display-unit-blind by construction),
+/// break). The unit is presentation metadata under DESIGN.md D6's hard
+/// rules — it is EXCLUDED from equality here (so [`Expr::bit_eq`],
+/// content keys, and naming keys are all display-unit-blind by
+/// construction),
 /// excluded from [`Expr::literal_bits`], and ignored by evaluation;
 /// the value stays canonical meters/radians regardless.
 ///
@@ -498,9 +560,16 @@ pub(crate) struct Lit {
 // regressed, and makes it exact rather than threshold-dependent.
 //
 // It pins the PADDED size, and claims no more: re-inlining the row
-// goes red here, and so does any growth past 16 bytes, but the six
-// padding bytes beside the one-byte code are free (adding a
-// `[u8; 6]` field here still compiles).
+// goes red here, and so does any growth past 16 bytes, and the six
+// padding bytes beside the one-byte code are free OF THIS ASSERTION —
+// a `[u8; 6]` field added here leaves it silent.
+//
+// It no longer compiles, though, and that is new as of the destructure
+// below: such a field is now an E0027 at both of `PartialEq`'s
+// patterns. The parenthetical here said "still compiles" and was true
+// until that repair landed in the same diff; a style review executed
+// it. What this assertion does not see is unchanged — the tie that
+// sees it is the pattern, not the size.
 //
 // (`Expr` itself is not pinned: its size is the largest `ExprKind`
 // variant and moves for unrelated reasons. `Lit` is where the
@@ -520,10 +589,23 @@ impl Lit {
 impl PartialEq for Lit {
     /// IEEE-semantic on the VALUE only — the display unit is
     /// presentation metadata and never part of expression identity
-    /// (D7; two literals differing only in display unit are the same
-    /// expression).
+    /// (DESIGN.md D6; two literals differing only in display unit are
+    /// the same expression).
     fn eq(&self, other: &Self) -> bool {
-        self.value == other.value
+        // Bound by name on both sides so the omission is the
+        // compiler's business: a third field on `Lit` is an E0027
+        // here and has to be given a reason or a comparison.
+        let Self {
+            value,
+            // Presentation metadata, outside expression identity
+            // (DESIGN.md D6).
+            display_unit: _,
+        } = self;
+        let Self {
+            value: other_value,
+            display_unit: _,
+        } = other;
+        value == other_value
     }
 }
 
@@ -656,29 +738,16 @@ impl Expr {
     /// agree with `dim` ([`DimensionError::DisplayUnitMismatch`]);
     /// everything [`Expr::literal`] refuses is refused here too.
     ///
-    /// The unit is presentation metadata (D7): it round-trips through
-    /// persistence and feeds the display formatter, but never enters
-    /// [`Expr::bit_eq`], [`Expr::literal_bits`], content/naming keys,
-    /// or evaluation.
+    /// The unit is presentation metadata (DESIGN.md D6): it round-trips
+    /// through persistence and feeds the display formatter, but never
+    /// enters [`Expr::bit_eq`], [`Expr::literal_bits`], content/naming
+    /// keys, or evaluation.
     pub fn literal_with_unit(
         value: f64,
         dim: Dimension,
         unit: quantity::UnitDef,
     ) -> Result<Self, DimensionError> {
-        let unit_dim = match unit.quantity() {
-            quantity::UnitQuantity::Length => Dimension::Length,
-            quantity::UnitQuantity::Angle => Dimension::Angle,
-            quantity::UnitQuantity::Scalar => Dimension::Scalar,
-        };
-        if unit_dim != dim {
-            return Err(DimensionError::DisplayUnitMismatch {
-                unit: unit_dim,
-                literal: dim,
-            });
-        }
-        // Total since the #650 seal: a `UnitDef` is a table row, so
-        // it has a code (see `UnitSym::from_def`).
-        let sym = UnitSym::from_def(&unit);
+        let sym = UnitSym::checked_for(dim, unit)?;
         // Run literal()'s refusal doors, then attach the unit.
         let mut e = Self::literal(value, dim)?;
         if let ExprKind::Literal(ref mut lit) = e.kind {
@@ -1149,6 +1218,16 @@ pub enum EvalError {
     UnknownParam(ParamName),
     /// A parameter bound with a different dimension than the ref
     /// recorded at construction.
+    ///
+    /// The dimension fact at EVALUATION, where the edit and load
+    /// doors spell it `{Slot,Payload}DocParamDimension`. It is named
+    /// by the fact alone because the address is not this arm's to
+    /// carry: the wrapper supplies it
+    /// ([`crate::eval::NodeErrorKind::Expr`] a node and a slot,
+    /// [`crate::eval::NodeErrorKind::PayloadExpr`] a node and a
+    /// payload), and it forwards this refusal unaltered.
+    /// [`crate::edit::EditError`]'s enum doc is where that convention
+    /// and its two families are stated.
     ParamDimensionMismatch {
         /// The parameter name.
         name: ParamName,
@@ -1200,9 +1279,8 @@ impl core::fmt::Display for EvalError {
         match self {
             Self::UnknownParam(name) => write!(
                 f,
-                "parameter {:?} has no binding in the evaluation environment — declare \
-                 the document parameter or fix the reference",
-                name.0
+                "parameter {name} has no binding in the evaluation environment — declare \
+                 the document parameter or fix the reference"
             ),
             Self::ParamDimensionMismatch {
                 name,
@@ -1210,8 +1288,7 @@ impl core::fmt::Display for EvalError {
                 found,
             } => write!(
                 f,
-                "parameter {:?} is referenced as {expected} but bound as {found}",
-                name.0
+                "parameter {name} is referenced as {expected} but bound as {found}"
             ),
             Self::CountExprInContinuousEval => f.write_str(
                 "a count expression does not evaluate continuously — promote it \
@@ -1306,7 +1383,7 @@ fn eval_inner<T: Real>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError
     }
     match &expr.kind {
         // The display unit is presentation metadata: evaluation reads
-        // only the canonical value (D7; LIB-SWITCH §4g).
+        // only the canonical value (DESIGN.md D6; LIB-SWITCH §4g).
         K::Literal(lit) => Ok(T::from_f64(lit.value)),
         K::CountLiteral(_) => Err(EvalError::CountExprInContinuousEval),
         K::Param(name) => match params.bindings.get(name) {

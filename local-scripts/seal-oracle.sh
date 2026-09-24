@@ -36,12 +36,16 @@ CAD=${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
 # compiler (D9 / L2) has a single source of truth — the toolchain file".
 # This read used to take `Cargo.toml`'s `rust-version`, which is the
 # workspace's MSRV DECLARATION: a floor a consumer's compiler must clear,
-# not the compiler this workspace is built with. The two carry the same
-# string today and nothing requires them to — an MSRV may sit below the
-# pin for as long as the code still compiles there — so a probe built off
-# `rust-version` is a probe built on whichever floor was last declared,
-# while what this oracle reports is a fact about the compiler that runs
-# it. The probes are scratch crates under /tmp with their own
+# not the compiler this workspace is built with. They are still two
+# different claims, and this read must come from the pin — but they no
+# longer drift freely: `scripts/gates/msrv-floor-equals-channel.sh`
+# holds every declared floor EQUAL to the channel, so "an MSRV may sit
+# below the pin" describes what the field MEANS rather than what this
+# tree does. The distinction is what keeps this read correct on the day
+# that gate is deleted (its header says when, and names Q9): a probe
+# built off `rust-version` is a probe built on whichever floor was last
+# declared, while what this oracle reports is a fact about the compiler
+# that runs it. The probes are scratch crates under /tmp with their own
 # `[workspace]`, so rustup's directory override does not reach them and
 # the toolchain has to be named explicitly; this is where that name comes
 # from. $TOOLCHAIN in the environment still overrides it, which is how a

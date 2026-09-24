@@ -24,14 +24,15 @@
 use core::f64::consts::PI;
 use std::time::Instant;
 
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, Tol, Vec3};
+use sweep::test_support::block;
 use topo::{Body, FaceKey, SolidKey};
 
 use crate::common::approx::band;
 use crate::shell8_common::{
     beside, cap, charts_of, deep_dump, face_of_he, faces_of, solid_of, tol, volume,
 };
-use crate::verbs_shell::{boxy, tube, v, vessel};
+use crate::verbs_shell::{tube, v, vessel};
 
 /// The stored rows of `solid`'s faces, in half-edge-slot order.
 fn rows_of(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
@@ -131,7 +132,11 @@ fn check(label: &str, body: &Body<f64>) {
 #[test]
 fn r2_e2e_box_beside_vessel_opened_on_the_vessels_void_ceiling() {
     let (t, t2) = (0.05, 0.02);
-    let pair = beside(&boxy(2.0, 3.0, 4.0), &vessel(1.0, 2.0), 10.0);
+    let pair = beside(
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &vessel(1.0, 2.0),
+        10.0,
+    );
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     let ves = solids[1];
     let ves_shell = pair.get_solid(ves).unwrap().shells[0];
@@ -186,9 +191,13 @@ fn r2_e2e_box_beside_vessel_opened_on_the_vessels_void_ceiling() {
 #[test]
 fn r2_e2e_four_solids_hollowed_once_then_one_opened() {
     let (t, t2) = (0.05, 0.02);
-    let mut four = beside(&boxy(2.0, 3.0, 4.0), &vessel(1.0, 2.0), 10.0);
+    let mut four = beside(
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        &vessel(1.0, 2.0),
+        10.0,
+    );
     four = beside(&four, &tube(0.6, 1.0, 2.0), 20.0);
-    four = beside(&four, &boxy(2.0, 2.0, 2.0), 30.0);
+    four = beside(&four, &block(2.0, 2.0, 2.0, Tol::witness()), 30.0);
     assert_eq!(four.solids().count(), 4);
 
     let started = Instant::now();
@@ -244,7 +253,11 @@ fn r2_e2e_four_solids_hollowed_once_then_one_opened() {
 /// same vessel offset alone — no reader of the door reached the box.
 #[test]
 fn r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable() {
-    let pair = beside(&vessel(1.0, 2.0), &boxy(2.0, 3.0, 4.0), 10.0);
+    let pair = beside(
+        &vessel(1.0, 2.0),
+        &block(2.0, 3.0, 4.0, Tol::witness()),
+        10.0,
+    );
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     let (ves, bx) = (solids[0], solids[1]);
     let victim = faces_of(&pair, bx)[0];

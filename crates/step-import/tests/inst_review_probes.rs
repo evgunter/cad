@@ -17,7 +17,7 @@
 
 use crate::common;
 
-use common::{census, freecad_fixture};
+use common::{arena_census, freecad_fixture};
 use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
@@ -154,8 +154,8 @@ fn three_instances_of_one_component() {
         &extra_instance(36, 4_000_000_000_101, 60.0, 0.0, 0.0, 0.0),
     );
     let body = import(&text);
-    let (s, sh, f, e, v) = census(&body);
-    let (bs, bsh, bf, be, bv) = census(&base);
+    let (s, sh, f, e, v) = arena_census(&body);
+    let (bs, bsh, bf, be, bv) = arena_census(&base);
     // Box census from the base body's own solid 0 (6 faces, 12 edges,
     // 8 vertices, 1 shell): two extra copies add exactly that.
     assert_eq!(

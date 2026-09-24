@@ -46,6 +46,16 @@ use pncad::select as s;
 // ---------------------------------------------------------------
 
 /// Which entity kind a name denotes.
+///
+/// These four member names are a THIRD Python-visible spelling of
+/// this vocabulary, beside `crate::tags::entity_kind_tag`'s words
+/// (`RefusedRef.kind`) and `crate::tags::entity_id_tag`'s (a census
+/// subject). Those two are pinned to each other in `src/tests.rs`;
+/// this one reaches Python as an IDENTIFIER, with no literal for a
+/// word census to read — what holds it is `tests/test_stubs.py`,
+/// which compares this class's attributes against `pncad.pyi`'s
+/// `Final` members name for name, in both directions. What no
+/// instrument holds is the capitalisation between the two spellings.
 #[pyclass(eq, eq_int, frozen, hash, module = "pncad", from_py_object)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[allow(
@@ -132,7 +142,7 @@ pub(crate) enum SegTag {
     CornerFace,
     TrimEdge,
     FootVertex,
-    CornerArc,
+    EndArc,
     BandFace,
     BandTrim,
     BandFoot,
@@ -184,7 +194,7 @@ impl SegTag {
             Self::CornerFace => s::SegTag::CornerFace,
             Self::TrimEdge => s::SegTag::TrimEdge,
             Self::FootVertex => s::SegTag::FootVertex,
-            Self::CornerArc => s::SegTag::CornerArc,
+            Self::EndArc => s::SegTag::EndArc,
             Self::BandFace => s::SegTag::BandFace,
             Self::BandTrim => s::SegTag::BandTrim,
             Self::BandFoot => s::SegTag::BandFoot,
@@ -359,6 +369,7 @@ pub(crate) enum CurveKind {
     Line,
     Circle,
     Ellipse,
+    Spiric,
     Nurbs,
 }
 
@@ -368,6 +379,7 @@ impl CurveKind {
             Self::Line => s::CurveKind::Line,
             Self::Circle => s::CurveKind::Circle,
             Self::Ellipse => s::CurveKind::Ellipse,
+            Self::Spiric => s::CurveKind::Spiric,
             Self::Nurbs => s::CurveKind::Nurbs,
         }
     }
@@ -696,6 +708,56 @@ impl GeomPred {
     }
 }
 
+/// **The `SelectRefusal` class's whole attribute shape**, with
+/// `reason` filled and every payload attribute present and `None`.
+///
+/// One declaration for the two doors that raise this class, so the
+/// house every-attribute-always-present rule cannot hold at one of
+/// them and not the other: a caller that reads `err.name` after
+/// catching a `SelectRefusal` gets `None`, never an `AttributeError`,
+/// whichever door refused. A door whose arm carries a payload
+/// overwrites its own entries through [`fill`], by NAME; the
+/// contact-class crossing in `crate::py::flush` carries none and takes
+/// the list as it stands.
+pub(crate) fn refusal_fields(py: Python<'_>, reason: &str) -> Vec<(&'static str, Py<PyAny>)> {
+    let none = || py.None().into_any();
+    vec![
+        ("reason", PyString::new(py, reason).unbind().into_any()),
+        ("name", none()),
+        ("predicate", none()),
+        ("matched", none()),
+        ("candidates", none()),
+        ("datum", none()),
+        ("found", none()),
+        ("dim", none()),
+    ]
+}
+
+/// Fill one of [`refusal_fields`]' entries with the payload an arm
+/// carries.
+///
+/// **By name, and the failure it forecloses is specific.** The order
+/// of that list is not a contract and its MEMBERSHIP is: a door that
+/// wrote `fields[1]` would not mis-name an attribute if the list were
+/// reordered, it would overwrite a different one and DROP the entry
+/// that used to sit there — reinstating, for one attribute, the
+/// `AttributeError` the shared list exists to remove. So an attribute
+/// the list does not declare is a panic here rather than a silent
+/// push: the argument is a literal in this file, so an attribute the
+/// list does not declare is a binding bug the code can observe, which
+/// is what `unreachable!` is for here (D9's D2 addendum) rather than
+/// an input-reachable failure.
+fn fill(fields: &mut [(&'static str, Py<PyAny>)], attribute: &str, payload: Py<PyAny>) {
+    let Some(slot) = fields.iter_mut().find(|(name, _)| *name == attribute) else {
+        unreachable!(
+            "`{attribute}` is not one of the SelectRefusal attributes \
+             `refusal_fields` declares, so writing it here would drop \
+             one that is"
+        )
+    };
+    slot.1 = payload;
+}
+
 /// Raise `SelectRefusal` mirroring the kernel's refusal: `reason` is
 /// the arm's stable tag (`crate::tags::select_refusal_tag`), and the
 /// per-arm payload rides as attributes that are ALWAYS present —
@@ -710,22 +772,11 @@ impl GeomPred {
 /// contract; the message is prose.
 pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
     use s::SelectRefusal as R;
-    let reason = select_refusal_tag(err);
-    let none = || py.None().into_any();
     let text = |v: &str| PyString::new(py, v).unbind().into_any();
     // `name` renders through `name_text` — the same alphabet every
     // other door speaks. A serialization failure surfaces as its own
     // raise rather than being swallowed.
-    let mut fields: Vec<(&str, Py<PyAny>)> = vec![
-        ("reason", text(reason)),
-        ("name", none()),
-        ("predicate", none()),
-        ("matched", none()),
-        ("candidates", none()),
-        ("datum", none()),
-        ("found", none()),
-        ("dim", none()),
-    ];
+    let mut fields = refusal_fields(py, select_refusal_tag(err));
     let message = match err {
         R::InBand {
             name,
@@ -736,8 +787,8 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
                 Ok(t) => t,
                 Err(failed) => return failed,
             };
-            fields[1] = ("name", text(&name));
-            fields[2] = ("predicate", text(predicate));
+            fill(&mut fields, "name", text(&name));
+            fill(&mut fields, "predicate", text(predicate));
             format!(
                 "a candidate's decided margin is inside the ambiguity band \
                  for `{predicate}` — neither side of the comparison is \
@@ -754,7 +805,7 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
                 Ok(t) => t,
                 Err(failed) => return failed,
             };
-            fields[1] = ("name", text(&name));
+            fill(&mut fields, "name", text(&name));
             // `usize` → Python int is infallible: the error type is
             // `Infallible`, discharged by matching the empty enum.
             let int_obj = |v: usize| -> Py<PyAny> {
@@ -763,8 +814,8 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
                     Err(never) => match never {},
                 }
             };
-            fields[3] = ("matched", int_obj(*matched));
-            fields[4] = ("candidates", int_obj(*candidates));
+            fill(&mut fields, "matched", int_obj(*matched));
+            fill(&mut fields, "candidates", int_obj(*candidates));
             format!(
                 "a tied name's candidates disagree under the filter \
                  ({matched} of {candidates} match) — a name cannot be \
@@ -776,7 +827,7 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
                 Ok(t) => t,
                 Err(failed) => return failed,
             };
-            fields[1] = ("name", text(&name));
+            fill(&mut fields, "name", text(&name));
             format!(
                 "a decided atom could not read a candidate's position \
                  (the read-back refusal, surfaced rather than swallowed): \
@@ -788,15 +839,15 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
                 Ok(bound) => bound.unbind().into_any(),
                 Err(failed) => return failed,
             };
-            fields[5] = ("datum", datum_obj);
-            fields[6] = ("found", text(found));
+            fill(&mut fields, "datum", datum_obj);
+            fill(&mut fields, "found", text(found));
             format!(
                 "the node `datum_distance` references is not an evaluated \
                  datum (found: {found})"
             )
         }
         R::NotALength { dim } => {
-            fields[7] = ("dim", text(dimension_tag(*dim)));
+            fill(&mut fields, "dim", text(dimension_tag(*dim)));
             "the comparand of a distance must be a length".to_string()
         }
         R::PairInBand {
@@ -808,8 +859,8 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
                 Ok(t) => t,
                 Err(failed) => return failed,
             };
-            fields[1] = ("name", text(&a));
-            fields[2] = ("predicate", text(predicate));
+            fill(&mut fields, "name", text(&a));
+            fill(&mut fields, "predicate", text(predicate));
             format!(
                 "a candidate pair's verify-door margin is inside the \
                  ambiguity band for `{predicate}`: {source}"
@@ -893,7 +944,7 @@ mod growth_tripwire {
             s::SegTag::CornerFace => SegTag::CornerFace,
             s::SegTag::TrimEdge => SegTag::TrimEdge,
             s::SegTag::FootVertex => SegTag::FootVertex,
-            s::SegTag::CornerArc => SegTag::CornerArc,
+            s::SegTag::EndArc => SegTag::EndArc,
             s::SegTag::BandFace => SegTag::BandFace,
             s::SegTag::BandTrim => SegTag::BandTrim,
             s::SegTag::BandFoot => SegTag::BandFoot,
@@ -942,6 +993,7 @@ mod growth_tripwire {
             s::CurveKind::Line => CurveKind::Line,
             s::CurveKind::Circle => CurveKind::Circle,
             s::CurveKind::Ellipse => CurveKind::Ellipse,
+            s::CurveKind::Spiric => CurveKind::Spiric,
             s::CurveKind::Nurbs => CurveKind::Nurbs,
         }
     }

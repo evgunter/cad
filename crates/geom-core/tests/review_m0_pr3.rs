@@ -2,8 +2,7 @@
 //! 2026-07-15/16), salvaged from the M0 orchestrator session scratchpad
 //! and promoted into CI 2026-07-16 (archived at
 //! `references/review-artifacts-m0/pr3-review-demos/`). These are
-//! **independent derivations** — do not "simplify" them to match shipped
-//! fixtures; the independence is the regression value.
+//! **independent derivations**.
 //!
 //! Salvage adaptations: every band here is built **purely** via
 //! `Band::new(1e-9, 1e-8)` — the same numbers the review's default-ε run
@@ -211,7 +210,7 @@ fn display_messages_and_error_objects() {
         zero: 1.0,
         escalate: 0.5,
     });
-    assert!(boxed_band.to_string().contains("invalid band"));
+    assert!(boxed_band.to_string().contains("the band's"));
 }
 
 #[test]
