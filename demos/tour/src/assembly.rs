@@ -199,17 +199,41 @@ fn head(instance: RecipeNodeId, local: &StableName) -> SitedFace {
     SitedFace::at_mint(name)
 }
 
-/// Inserts a node and returns its minted id.
+/// Inserts a node that is not a mate and returns its minted id.
 ///
-/// Every edit the scenes author through here INSERTS — an instance, a
-/// mate, a pattern, a placement — and an insert never moves a
+/// Every node the scenes insert through here — an instance, a pattern,
+/// a sketch — is admitted on its own datum, and an insert never moves a
 /// cluster's gauge (a new mate JOINS clusters; the survivor keeps its
-/// gauge), so the maintenance never asks the reach and the refusing
-/// one is the honest value. The edits that do move a gauge — the
-/// split and the inline below — take the workspace's own reach.
+/// gauge), so neither the door nor the maintenance asks the reach and
+/// the refusing one is the honest value. A mate goes through
+/// [`insert_mate`]; the edits that move a gauge — the split and the
+/// inline below — take the workspace's own reach.
 fn insert(doc: &mut ProfileDoc, node: Node<ProfileProgram>, tol: Tol) -> RecipeNodeId {
-    let applied =
-        apply(doc, &DocEdit::InsertNode { node }, tol, &RefusingReach).expect("the insert applies");
+    insert_through(doc, node, tol, &RefusingReach)
+}
+
+/// Inserts a mate through `reach` — the workspace's — and returns its
+/// minted id. The door admits a mate by reading its parts: it resolves
+/// a side that names a face ([`post_seat`]) from the part's own face,
+/// as it levers a coincidence's rider over the parts' extent, so the
+/// insert takes the reach an evaluation would use.
+fn insert_mate(
+    doc: &mut ProfileDoc,
+    node: Node<ProfileProgram>,
+    tol: Tol,
+    reach: &dyn MateReach,
+) -> RecipeNodeId {
+    insert_through(doc, node, tol, reach)
+}
+
+fn insert_through(
+    doc: &mut ProfileDoc,
+    node: Node<ProfileProgram>,
+    tol: Tol,
+    reach: &dyn MateReach,
+) -> RecipeNodeId {
+    let applied = apply(doc, &DocEdit::InsertNode { node }, tol, reach)
+        .unwrap_or_else(|err| panic!("the insert applies: {err:?}"));
     *doc = applied.doc;
     applied.record.minted.expect("an insert mints an id")
 }
@@ -491,6 +515,7 @@ fn stand_doc(
     shelf_bottom: &StableName,
     primitive: MatePrimitive,
     tol: Tol,
+    reach: &dyn MateReach,
 ) -> Stand {
     let mut doc = ProfileDoc::empty(DocumentId::derive("pncad-demo-stand"), tol);
     let post_a = insert(&mut doc, Node::instantiate_part(post), tol);
@@ -506,7 +531,7 @@ fn stand_doc(
     let shelf_i = insert(&mut doc, Node::instantiate_part(shelf), tol);
     let post_b = insert(&mut doc, Node::instantiate_part(post), tol);
 
-    let mate_1 = insert(
+    let mate_1 = insert_mate(
         &mut doc,
         Node::Mate {
             a: head(post_a, post_top),
@@ -521,8 +546,9 @@ fn stand_doc(
             },
         },
         tol,
+        reach,
     );
-    let mate_2 = insert(
+    let mate_2 = insert_mate(
         &mut doc,
         Node::Mate {
             a: head(shelf_i, shelf_bottom),
@@ -537,6 +563,7 @@ fn stand_doc(
             },
         },
         tol,
+        reach,
     );
     Stand {
         doc,
@@ -926,6 +953,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         shelf_bottom,
         MatePrimitive::PlanarRest { offset: 0.0 },
         tol,
+        &reach,
     );
     let poses = solve_document(&under.doc, &reach, tol);
     let fault = poses
@@ -956,8 +984,9 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         shelf_bottom,
         MatePrimitive::FrameCoincidence,
         tol,
+        &reach,
     );
-    let clash = insert(
+    let clash = insert_mate(
         &mut contra.doc,
         Node::Mate {
             a: head(contra.post_a, post_top),
@@ -974,6 +1003,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
             },
         },
         tol,
+        &reach,
     );
     let poses = solve_document(&contra.doc, &reach, tol);
     let fault = poses
@@ -1004,6 +1034,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
         shelf_bottom,
         MatePrimitive::FrameCoincidence,
         tol,
+        &reach,
     );
     edit(
         &mut tangent.doc,
@@ -1022,7 +1053,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
             tol,
             &reach,
         );
-        insert(
+        insert_mate(
             &mut swapped,
             Node::Mate {
                 a,
@@ -1031,6 +1062,7 @@ fn refusals(ws: &Workspace, parts: &Parts, tol: Tol) {
                 alignment,
             },
             tol,
+            &reach,
         );
     }
     let ev = run(&swapped, &with_store(ws), tol);
@@ -1670,6 +1702,10 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
 
     let (layout, pattern, shelf_i) = layout_doc(parts.post, parts.shelf, tol);
     ws.create(&layout, tol).expect("the layout is stored");
+    // The stand's mates name the post's cap face, so the door that
+    // inserts them reads the parts: through the workspace's reach.
+    let store = store(&ws);
+    let reach = PartReach::<f64>::with_resolver(Some(&store), tol);
     let stand = stand_doc(
         parts.post,
         parts.shelf,
@@ -1677,6 +1713,7 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
         &parts.shelf_bottom,
         MatePrimitive::FrameCoincidence,
         tol,
+        &reach,
     );
     ws.create(&stand.doc, tol).expect("the stand is stored");
 

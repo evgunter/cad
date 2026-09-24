@@ -327,13 +327,21 @@ fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
         sense: AxisSense::Aligned,
         clocking: None,
     };
+    // The datum term over the two sides' resolved frames — both are
+    // authored vectors here, so resolution is the projection.
+    let lever = |a: &Alignment| {
+        a.lever_arm(
+            a.a.authored_vectors().expect("an authored side"),
+            a.b.authored_vectors().expect("an authored side"),
+        )
+    };
     // A datum at the origin contributes NOTHING — no metre stands in
     // for the parts, which the solve adds from their own bodies.
-    assert_eq!(at(0.0).lever_arm(), 0.0);
+    assert_eq!(lever(&at(0.0)), 0.0);
     // A datum at a nanometre contributes a nanometre: no floor, no
     // refusal — the parts on either side carry the lever.
-    assert_eq!(at(1e-9).lever_arm(), 1e-9);
-    assert_eq!(at(1e-3).lever_arm(), 1e-3);
+    assert_eq!(lever(&at(1e-9)), 1e-9);
+    assert_eq!(lever(&at(1e-3)), 1e-3);
     // Both origins and every authored length SUM: an upper bound on
     // the datum's own extent, never the larger of them.
     let rest = Alignment {
@@ -343,7 +351,7 @@ fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
         sense: AxisSense::Opposed,
         clocking: None,
     };
-    assert_eq!(rest.lever_arm(), 3.0e-3 + 4.0e-3 + 2.0e-3);
+    assert_eq!(lever(&rest), 3.0e-3 + 4.0e-3 + 2.0e-3);
 }
 
 // ------------------------------------------------------------ e2e

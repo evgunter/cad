@@ -1908,7 +1908,7 @@ class TestMateFrameFromFace(BenchWorkspace):
 
     def test_the_mate_follows_the_edited_face(self):
         cap = self.post_cap(self.post)
-        doc, post_i, shelf_i, mate = self.seated(
+        doc, _post_i, shelf_i, mate = self.seated(
             "from-face-follows", MateFrame.from_face(cap)
         )
         evaluate(doc, resolver=self.ws).value(mate)

@@ -193,7 +193,7 @@ impl AuthoredFrame {
     /// term of the lever ([`Alignment::lever_arm`]).
     fn origin_norm(&self) -> f64 {
         let [x, y, z] = self.origin;
-        (x * x + y * y + z * z).sqrt()
+        (x.powi(2) + y.powi(2) + z.powi(2)).sqrt()
     }
 }
 
@@ -249,12 +249,11 @@ pub struct FaceFrame {
 /// at the mate, the side, the instance and the part
 /// ([`MateFault::FaceUnresolved`]) and keeps taking authored vectors.
 ///
-/// On the wire the two arms are untagged, each inner struct closed
-/// over its own keys: a frame written as three vectors reads as
-/// [`Self::Authored`] unchanged, one written as a face name reads as
-/// [`Self::FromFace`], and a key neither arm has refuses.
+/// On the wire the arm is externally tagged — `{"Authored": {…}}` or
+/// `{"FromFace": {…}}` — and each inner struct is closed over its own
+/// keys: the tag decides the arm before a field is read, a stray key on
+/// either arm refuses, and a frame with no tag refuses.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(untagged)]
 pub enum MateFrame {
     /// Three authored vectors in the part's coordinates.
     Authored(AuthoredFrame),

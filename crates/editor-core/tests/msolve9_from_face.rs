@@ -313,16 +313,36 @@ fn a1_the_mate_follows_the_edited_face() {
     let text = save(&s.doc, &[], Tol::witness()).expect("saves");
     let body = wire::wire_body(&text);
     let node = &body["snapshot"]["nodes"][s.mate.0.to_string()];
-    let a = &node["Mate"]["alignment"]["a"];
-    assert!(a.get("face").is_some(), "the face name is the state: {a}");
-    assert!(
-        a.get("origin").is_none() && a.get("axis").is_none(),
-        "no vectors beside it: {a}"
+    let side = |s: &str| {
+        node["Mate"]["alignment"][s]
+            .as_object()
+            .unwrap_or_else(|| panic!("side {s} is a tagged object"))
+            .clone()
+    };
+    let a = side("a");
+    assert_eq!(
+        a.keys().collect::<Vec<_>>(),
+        ["FromFace"],
+        "the face side's one tag: {a:?}"
     );
-    let b = &node["Mate"]["alignment"]["b"];
+    let face = &a["FromFace"];
     assert!(
-        b.get("origin").is_some() && b.get("face").is_none(),
-        "the authored side: {b}"
+        face.get("face").is_some(),
+        "the face name is the state: {a:?}"
+    );
+    assert!(
+        face.get("origin").is_none() && face.get("axis").is_none(),
+        "no vectors beside it: {a:?}"
+    );
+    let b = side("b");
+    assert_eq!(
+        b.keys().collect::<Vec<_>>(),
+        ["Authored"],
+        "the authored side's one tag: {b:?}"
+    );
+    assert!(
+        b["Authored"].get("origin").is_some() && b["Authored"].get("face").is_none(),
+        "the authored side: {b:?}"
     );
 }
 
@@ -747,6 +767,18 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
         "the badge names the face: {fault}"
     );
 
+    // The insert as its door recorded it, while the face was the
+    // post's: the entry carries the rows that door minted, which is
+    // what replay re-applies.
+    let logged = DocEdit::InsertNode {
+        node: s.doc.node(s.mate).expect("the mate").clone(),
+    };
+    let (unmated, _) = step_with(s.doc.clone(), DocEdit::DeleteNode { id: s.mate }, &reach);
+    let recorded = unmated
+        .apply(&logged, Tol::witness(), &reach)
+        .expect("admitted while the face exists")
+        .cluster_rows();
+
     // The face vanishes AFTER insert: the post document becomes a
     // revolved round post under the same id — no extrude, so no
     // `Cap(End)` row at all — and the old name is nobody's. The
@@ -788,9 +820,10 @@ fn a_vanished_name_refuses_no_such_name_at_the_door_and_at_evaluation_never_at_l
 
     // The load: the logged insert replays with no store and the
     // document loads; what it then evaluates to is the solve's.
-    let log = vec![LoggedEdit::bare(DocEdit::InsertNode {
-        node: s.doc.node(s.mate).expect("the mate").clone(),
-    })];
+    let log = vec![LoggedEdit {
+        edit: logged,
+        maintenance: recorded,
+    }];
     // Deleting the mate splits the cluster, and the block's new gauge
     // needs the prior solved frame — through the store's reach, since
     // a `FromFace` side is resolved from the part.
@@ -935,24 +968,63 @@ fn both_arms_round_trip_and_a_stray_key_on_either_refuses() {
     );
     let again = save(&loaded.doc, &[], Tol::witness()).expect("re-saves");
     assert_eq!(again, text, "byte for byte");
-    for side in ["a", "b"] {
-        let doctored = wire::doctored(&text, |wire| {
+    // Side `a` names the face, side `b` authors vectors: a stray key
+    // inside either arm refuses, and so does one beside the tag.
+    for (side, arm) in [("a", "FromFace"), ("b", "Authored")] {
+        let inside = wire::doctored(&text, |wire| {
+            wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"][side][arm]["stray"] =
+                serde_json::json!(1);
+        });
+        let beside = wire::doctored(&text, |wire| {
             wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"][side]["stray"] =
                 serde_json::json!(1);
         });
-        let err = load(&doctored, Tol::witness()).expect_err("a stray key refuses");
+        // Inside the arm, the closed struct refuses the key; beside the
+        // tag, the reader meets a second entry where the tagged object
+        // must close, and refuses it as malformed.
+        let err = load(&inside, Tol::witness()).expect_err("a stray key inside refuses");
         assert!(
             matches!(err, PersistError::Unreadable { .. }),
-            "side {side}: this build's types refuse the bytes, got {err:?}"
+            "side {side}, inside {arm}: this build's types refuse the bytes, got {err:?}"
+        );
+        let err = load(&beside, Tol::witness()).expect_err("a stray key beside refuses");
+        assert!(
+            matches!(err, PersistError::Parse { .. }),
+            "side {side}, beside {arm}: a second key where the tag's object closes, got {err:?}"
         );
     }
 }
 
-/// **Every tracked document loads with its mate frames read as
-/// authored and re-saves byte for byte**: the untagged wire reads
-/// three vectors as `Authored` unchanged, so C5 holds over the corpus.
+/// **A frame with no tag refuses**: the arm's own keys, written bare
+/// where the tag belongs — the shape a frame had before the arm — are
+/// not a frame on this wire, whichever arm's keys they are, and no
+/// reader tries the arms in turn to find one they fit.
 #[test]
-fn c5_every_tracked_document_reads_its_frames_as_authored_and_re_saves_identically() {
+fn an_untagged_frame_refuses_whichever_arms_keys_it_carries() {
+    let s = seat("msolve9-untagged", 1.0);
+    let text = save(&s.doc, &[], Tol::witness()).expect("saves");
+    for (side, arm) in [("a", "FromFace"), ("b", "Authored")] {
+        let doctored = wire::doctored(&text, |wire| {
+            let frame =
+                &mut wire["snapshot"]["nodes"][s.mate.0.to_string()]["Mate"]["alignment"][side];
+            let inner = frame[arm].take();
+            assert!(inner.is_object(), "side {side} carries the {arm} arm");
+            *frame = inner;
+        });
+        let err = load(&doctored, Tol::witness()).expect_err("an untagged frame refuses");
+        assert!(
+            matches!(err, PersistError::Unreadable { .. }),
+            "side {side}, the {arm} keys untagged: got {err:?}"
+        );
+    }
+}
+
+/// **Every tracked document loads and re-saves byte for byte, and
+/// every mate frame it carries is spelled with its tag**: the corpus
+/// is on this wire, not the one before the arm, so no reader has an
+/// older shape to accept.
+#[test]
+fn c5_every_tracked_document_loads_on_the_tagged_wire_and_re_saves_identically() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let listed = std::process::Command::new("git")
         .args(["ls-files", "-z", "--", "*.pncad"])
@@ -982,24 +1054,55 @@ fn c5_every_tracked_document_reads_its_frames_as_authored_and_re_saves_identical
             }
             Err(e) => panic!("{}: loads with no store: {e}", path.display()),
         };
-        for node in loaded
+        // Every alignment the file spells — the snapshot's mates and
+        // any the edit log inserts or re-aligns — by its wire alone.
+        let mut frames = 0usize;
+        every_alignment(&wire::wire_body(&text), &mut |alignment| {
+            for side in ["a", "b"] {
+                let frame = &alignment[side];
+                let tags: Vec<_> = frame
+                    .as_object()
+                    .map(|o| o.keys().cloned().collect())
+                    .unwrap_or_default();
+                assert!(
+                    tags == ["Authored"] || tags == ["FromFace"],
+                    "{}: side {side} is spelled with its tag: {frame}",
+                    path.display()
+                );
+                frames += 1;
+            }
+        });
+        let mates = loaded
             .doc
             .order()
             .iter()
-            .filter_map(|&id| loaded.doc.node(id))
-        {
-            if let Node::Mate { alignment, .. } = node {
-                assert!(
-                    alignment.a.authored_vectors().is_some()
-                        && alignment.b.authored_vectors().is_some(),
-                    "{}: a tracked mate's frames read as authored",
-                    path.display()
-                );
-            }
-        }
+            .filter(|&&id| matches!(loaded.doc.node(id), Some(Node::Mate { .. })))
+            .count();
+        assert!(
+            frames >= 2 * mates,
+            "{}: the walk met every mate's two frames",
+            path.display()
+        );
         let again = save(&loaded.snapshot, &loaded.edits, Tol::witness())
             .unwrap_or_else(|e| panic!("{}: re-saves: {e}", path.display()));
         assert_eq!(again, text, "{}: re-saves byte for byte", path.display());
+    }
+}
+
+/// Calls `f` on every `"alignment"` object in a wire body, wherever it
+/// sits — a snapshot node or an edit-log entry.
+fn every_alignment(value: &serde_json::Value, f: &mut dyn FnMut(&serde_json::Value)) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (key, inner) in map {
+                if key == "alignment" {
+                    f(inner);
+                }
+                every_alignment(inner, f);
+            }
+        }
+        serde_json::Value::Array(items) => items.iter().for_each(|v| every_alignment(v, f)),
+        _ => {}
     }
 }
 
