@@ -801,8 +801,8 @@ fn the_suite_is_gated_to_every_crate_it_walks() {
     );
     assert_eq!(
         named, walked,
-        "{SELF}'s gated_to! (left) is not every crates/*/src this census walks plus {GATE} \
-         (right). A crate the walk reads and the list does not name is walked on every run \
+        "{SELF}'s gated_to! list, on the left, is not every crates/*/src this census walks plus {GATE} \
+         (on the right). A crate the walk reads and the list does not name is walked on every run \
          and gated on none that touches it: name it in the list"
     );
 }
