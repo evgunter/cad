@@ -1713,3 +1713,27 @@ protocol at `c3129311bd`, identical brief (`ring5-review-brief.frozen.md`,
 sha256 `9acf5d7a…`), ten claims, told to report a refused edit rather
 than route around it and not to change system configuration. The PR
 thread held only the fence comment when they were briefed.
+
+## RING-5 dual delivered; fix pass dispatched (2026-09-24)
+
+R1 APPROVE-WITH-FIXES 0/5/4 (+8 style); R2 APPROVE-WITH-FIXES 0/6/3
+(+10 style). Fair pair: no refused edit on either (compound shell
+commands refused by the worktree guard were re-run as scripts — same
+capability); R2 disclosed seeing R1's nextest command line in `pgrep`,
+no findings. Blinded coding (byte 14): 23 groups, 12 bilateral; no
+tally candidate (no MAJOR). Bilateral by execution: generic lane code
+(`T: Bounds`/`Decide`, `Real` subtraits) reaches `Real`'s methods at
+`T = Interval` with no `Real` token — C9's new sentence false as a
+universal; a same-name `pub use` re-export escapes the module-path key.
+Ruled (`ring5-fix-pass.md`): the lane route is by design (53
+transcendental calls across 7 importers, all lane evaluation entering
+certification through `from_certified`), so C9 and the gate say it
+exactly as a stated gap — no blanket transcendental rule; a REEXPORT
+rule; the census adopts the gate's production cut (R1's executed
+deadlock); decision 2 rewritten with the true caller table (63/67 in
+certification-only files); "poison" → "refused" finished in the
+importers; R2's surviving `is_poison` mutant at `certify.rs:679` is an
+equivalent mutant today (the certification hull maps every refusal to
+NaI) — stated at the site, the file named in GAP 2; stale locators
+incl. SSI's open P0 row's citation corrected. Fix pass dispatched on
+Opus ~17:40Z. DR row drafted (`ring5-dual-row.md`), held for merge.
