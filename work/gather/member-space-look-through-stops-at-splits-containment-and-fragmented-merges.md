@@ -1,12 +1,14 @@
 ---
 id: member-space-look-through-stops-at-splits-containment-and-fragmented-merges
-kind: issue
+kind: unit
 title: A member-space declaration resolves through merges only: a face consumed by a split, by containment, or inside a fragmented merged row is still order-shaped
-status: open
+status: review
 opened: 2026-09-07
 refs: [2073, does-n3-retire-loudly-generalise-to-the-folds-other-compositions]
 priority: P0
 cost: H
+branch: gather/member-space-typed-refusals
+pr: 3143
 ---
 
 ## What
