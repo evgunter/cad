@@ -1937,3 +1937,22 @@ MAJOR and the second MINOR, so they are bilateral. The implementer
 lane lost its tokens and wall time twice over, and they are recorded
 as missing data. Slot 1 is concluded. PR 2594 lands second and folds
 its face door onto `drop_rows` in its merge-forward.
+
+## PR 2594 merged forward over PR 2603; the face door folds onto `drop_rows` (2026-09-24)
+
+PR 2603 went green first and merged first (`af04748de`), so PR 2594
+lands second and owns the seam. Main is merged into its branch
+(`29aa4b345`), and `drop_face_rows` now hands its `stored_rows` walk
+to `drop_rows`. That leaves one removal under every chart-changing
+door.
+- `same_chart`'s `pub(crate)` merged identically.
+- `pcurves.rs`'s two prose hunks now name all six doors.
+- In the shared test file, the two appended sections both stand (run
+  doors, then setter). The duplicated `flat()` helper is kept once,
+  and both sections were checked to be verbatim against their sides.
+- The module doc and the setter section's opener no longer count the
+  doors above them.
+
+Local on the merged head: `cargo test -p topo` (762 + 594 + 14 + 11),
+and clippy `-p topo --all-targets -D warnings` is clean. The row for
+ordinal 2712 rides after this head goes green on hosted CI.
