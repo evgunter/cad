@@ -6,7 +6,8 @@ status: open
 priority: P3
 cost: D
 opened: 2026-09-24
-refs: [ring-3-ring-dissolves-into-interval, ring-3-residue-outside-its-fence, H5]
+rides_with: ring-5-certification-doors-as-a-trait
+refs: [ring-3-ring-dissolves-into-interval, ring-3-residue-outside-its-fence, H5, public-ring-names-spell-the-retired-type, certification-doors-have-no-differential]
 ---
 
 ## Finding
@@ -90,3 +91,31 @@ type again (the thing RING-3 dissolved, so that is Ev's call, via H5).
 Item 4 is a rename. Item 5 wants a door-level differential or its
 honest re-description. Items 6-7 are mechanical: widen `gated_to!` to
 every crate the walk reads, and state the door list once and link it.
+
+## Disposition (RING-5)
+
+RING-5 (`ring-5-certification-doors-as-a-trait`) carries this row, and
+it closes with that unit:
+
+- **1** — closed: the doors are the sealed `Certification` trait in
+  `geom_core::interval::certification`, imported by name; an importer's
+  production code has no `Real` in scope, so `x.is_poison()` and the
+  transcendentals are E0599 on an `Interval` there, and
+  `scripts/gates/certification-doors.sh` holds the separation. The two
+  mixed files separated (`topo/src/props/quad_lane.rs`;
+  `probe_tube_chart`'s certification tail into `ssi/enclose.rs`).
+  Residue: the holders that call no door, which the gate names as its
+  KNOWN GAP 2 and the census keeps.
+- **2** — closed: `hull` exists only on the trait; the private second
+  evaluation name is `enclosure_hull_of`; the gate forbids
+  `enclosure_hull`/`SpanLocate` in an importer.
+- **3** — closed: the NaI constructor is `Certification::refused`; the
+  moved door rows and `spline/hull.rs`'s section say "refuse".
+- **5** — the doc half closed (the backend differential's module doc
+  says what it cannot see); the door-level differential is its own row,
+  `certification-doors-have-no-differential`.
+- **4** — its own row, `public-ring-names-spell-the-retired-type`.
+- **6** — closed: the census's `gated_to!` names every crate it walks.
+- **7** — closed: the trait is the list; `interval.rs`, the census and
+  C9 point at it.
+
