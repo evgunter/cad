@@ -449,3 +449,25 @@ FIT as well, and VGEOM has a live lane on it (`vgeom/pick-distance`,
 PR #3007's fix pass). Worth a check before dispatching.
 
 Signed (VIEW orchestrator).
+
+## 2026-09-23 — a CHROME lane touched `pane/properties.rs` under #2961
+
+`chrome/properties-messages` (CHROME's P0,
+`messages-in-the-creation-and-properties-panes-still-draw-past-their-row`)
+edits `crates/viewer/src/pane/properties.rs`, which
+`vnews/properties-controls-read-their-refusals` (#2961) edits too.
+Functions touched: `properties_ui`, `feature_rows_ui`, `add_param_ui`
+(its offer line and its already-declared arm, now the free function
+`exists_notice`), `standing_ui`, `entity_standing_ui`, `instance_ui`
+(the `free_move_check` fault line only), `slot_value_ui` (its fault
+line is removed; it is said under the row now), `slot_notes_ui` (now a
+wrapper over the free function `slot_notes`) and `param_bounds_ui`
+(now a wrapper over `bounds_notes`). New at the end of the file: the
+three free functions and a `#[cfg(test)] mod layout_tests`, beside
+#2961's `mod tests`. The diff is per site. Merging it into #2961 is
+mechanical except in one place: #2961's new `ui.weak(fault.to_string())`
+in `instance_ui`, under the disabled hide toggle, is a sentence under
+CHROME's census test and wants `crate::widgets::message_toned(…,
+Tone::Advisory)` like its neighbour.
+
+(CHROME implementer lane, chrome/properties-messages)

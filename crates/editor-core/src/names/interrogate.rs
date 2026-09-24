@@ -146,56 +146,56 @@ impl core::fmt::Display for InterrogateError {
         match self {
             Self::NodeNotEvaluated { node } => write!(
                 f,
-                "interrogate: node {} has no result in this evaluation — the name is against a \
+                "node {} has no result in this evaluation — the name is against a \
                  node this run did not produce (a canceled suffix, or an id from another \
                  document)",
                 node.0
             ),
             Self::NodeFailed { node } => write!(
                 f,
-                "interrogate: node {} failed, so it has no name table to read — fix the node's \
+                "node {} failed, so it has no name table to read — fix the node's \
                  own failure before asking about its names",
                 node.0
             ),
             Self::NodePoisoned { node, through } => write!(
                 f,
-                "interrogate: node {} is poisoned by the failure at node {}, so it has no name \
+                "node {} is poisoned by the failure at node {}, so it has no name \
                  table to read — the repair is upstream, at node {}",
                 node.0, through.0, through.0
             ),
             Self::NoSuchName => f.write_str(
-                "interrogate: nothing in this node answers to that name — the selection is \
+                "nothing in this node answers to that name — the selection is \
                  stale (an upstream edit removed what it named) or the name belongs to another \
                  node",
             ),
             Self::Ambiguous { candidates } => write!(
                 f,
-                "interrogate: {candidates} entities answer to that name equally well, so there \
+                "{candidates} entities answer to that name equally well, so there \
                  is no single geometry to report — a tie is recorded, never broken silently"
             ),
             Self::WrongKind { wanted, found } => write!(
                 f,
-                "interrogate: kind mismatch — this door reads {}, and the name denotes {}; \
+                "kind mismatch — this door reads {}, and the name denotes {}; \
                  ask the door for the kind the name actually names",
                 wanted.noun(),
                 found.noun()
             ),
             Self::WholeBody => f.write_str(
-                "interrogate: the name denotes a whole body, which has no single frame — ask \
+                "the name denotes a whole body, which has no single frame — ask \
                  about one of its faces, edges, or vertices instead",
             ),
             Self::NoBodies { payload } => write!(
                 f,
-                "interrogate: this node's value is a {payload} and carries no bodies at all, so \
+                "this node's value is a {payload} and carries no bodies at all, so \
                  there is no geometry to read"
             ),
             Self::NoSuchBody { index } => write!(
                 f,
-                "interrogate: the name carries output-body index {index}, which this node's \
+                "the name carries output-body index {index}, which this node's \
                  value does not have — the emission and the value disagree, so this is a kernel \
                  bug"
             ),
-            Self::Readback(error) => write!(f, "interrogate: {error}"),
+            Self::Readback(error) => write!(f, "{error}"),
         }
     }
 }

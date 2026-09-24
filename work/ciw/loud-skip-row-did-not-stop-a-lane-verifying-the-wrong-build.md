@@ -4,7 +4,7 @@ kind: issue
 title: The loud-skip row makes the app-feature gap visible to a CI log and not to a lane, and a lane verified an entirely app-gated diff without it
 status: open
 opened: 2026-09-06
-refs: [loud-skip-marker-says-two-modules-and-there-are-six, 1848, 2026]
+refs: [1848, 2026]
 priority: P4
 cost: E
 ---

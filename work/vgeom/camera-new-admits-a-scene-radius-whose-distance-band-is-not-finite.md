@@ -2,10 +2,13 @@
 id: camera-new-admits-a-scene-radius-whose-distance-band-is-not-finite
 kind: issue
 title: Camera::new admits a finite scene radius whose distance band is not finite, so max_distance is inf before any render sees it
-status: open
+status: closed
 opened: 2026-09-21
+closed: 2026-09-22
 priority: P1
 cost: E
+branch: vgeom/camera-band
+pr: 3062
 refs: [renders-that-multiply-a-finite-guarded-length-spell-the-product-inf, finite-bounds-yield-an-infinite-scene-radius]
 ---
 

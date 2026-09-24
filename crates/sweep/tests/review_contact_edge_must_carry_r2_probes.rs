@@ -316,8 +316,20 @@ fn r2_the_recourse_names_the_peak_and_the_smaller_radius_past_it() {
         "the rod at R/r = 1.5, margin 0.75·Kε",
     );
     assert!(
-        shown.contains("past that peak only a smaller radius raises it"),
+        shown.contains(
+            "smaller on one curving the band's own way, where the margin is past its peak"
+        ),
         "the rendered sentence names the peak and the direction past it: {shown}"
+    );
+    // Each branch is scoped to the support that makes it true: the SUM
+    // branch (a support curving away from the band) grows with the
+    // radius and has no peak, and a slim corner arc is levered DOWN
+    // under the tolerance, where it builds — it is never "raised".
+    assert!(
+        shown.contains("larger on a plane support or one curving away from the band")
+            && shown.contains("slim corner arc, which then builds conventionally")
+            && !shown.contains("on a curved one"),
+        "every clause is true at the support it names: {shown}"
     );
 
     let mut table =

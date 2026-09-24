@@ -594,13 +594,13 @@ fn the_spine_kind_recourse_names_a_family_for_every_arm() {
     // name.
     let family = |arm: BlendArm| -> Option<&'static str> {
         if arm.is_coaxial_torus() {
-            Some("a rim they share as coaxial surfaces of revolution")
+            Some("coaxial surfaces of revolution sharing a rim")
         } else if arm.is_ruled() || arm.is_plane_plane() {
             // Both mint a cylinder band about a straight spine; the
             // plane–plane pair reaches its closed form before the
             // shared-sheet reduction, but a caller reading the sentence
             // is told about the request, not the branch.
-            Some("along a ruling shared by two supports that are each a plane or a cylinder")
+            Some("planes or cylinders sharing a ruling")
         } else {
             None
         }

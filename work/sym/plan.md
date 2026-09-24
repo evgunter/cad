@@ -27,6 +27,20 @@ Re-scoped 2026-09-20 by SYM's priority-seam cut
 | None | `the-span-identity-is-not-a-theorem-of-the-floats` | None | the arc span identity is a theorem of the reals and not of the floats: an adversarial torus at minor radius 1e18 contradicts it at the witness |
 | None | `the-witness-slack-is-eps-independent` | None | the door's f64 witness is a relative constant, not the run's eps: at a tight eps row it is many band-widths loose |
 
+## SYM-14 — requested by Ev (2026-09-22, P1), MERGED
+
+`SYM-14` merged 2026-09-22 (#3073): the chain demo — four links joined
+with an angular error at each joint, its dispersion drawn like the
+plate's, and the certified lane measured on it: the symbolic tier
+certifies the four-link chain whole at 0.111 of the study and the
+enclosure per joint is drawn beside the cloud (half the pin radius at
+the tip, whatever the link count); the plain interval lane refuses at
+every link count. Rows it left at P1 with Ev's request: the wedge wall
+(and why the box moves with ε), the arm straddle, the plain-interval
+refusal, the façade row (on LIB), and
+`the-chain-demo-detects-no-self-intersection` (Ev, on #3073; its
+certified half blocked on CLEAR's `symbolic-tier-and-clearance-engine`).
+
 ## Order
 
 `sym-f64-far-placement-trips-the-theorem-vs-numeric-assert` first: a
@@ -54,9 +68,15 @@ architectural decision on the `Decide` door's contract per witness
 kind, H / STRUCTURAL, block SYM-B3 slot 0; the two placement-freeze
 rows are the default IN (they change what the tier decides on a
 document) and are triaged when spec'd (SYM-12 = the derived-frame
-freeze's next shape, H / NUMERIC, slot 1);
+freeze's next shape, H / NUMERIC, slot 1 — CLOSED 2026-09-22, #3046:
+rule F's negative arm; its seam with DECIDE-3,
+`the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`,
+is scheduled at the `props/sign-hull` merge, whoever merges it owing
+the ladder and the eight with both units in);
 `leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
-(SYM-13, D / STRUCTURAL, slot 2) is IN as a receipt-contract decision;
+(SYM-13, D / STRUCTURAL, slot 2, Opus by the block's draw) is IN as a
+receipt-contract decision — MERGED 2026-09-22 (#3054; the spec deleted with its ledger entry; block SYM-B3 concluded),
+branch `sym/13-leaf-need`;
 the ring item and the pcurve row are triaged when spec'd (the latter
 is not certainly SYM's). The block's pre-draw fields and draw are on
 `sym/b3-block`.

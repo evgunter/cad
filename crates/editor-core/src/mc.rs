@@ -560,7 +560,16 @@ enum Reading {
 /// shortcut cancels catastrophically when the mean dominates the
 /// spread, which is exactly the regime a tolerance study lives in (a
 /// 0.6 m web with a 0.02 mm spread).
-fn summarize(values: &[f64]) -> (f64, f64, f64, f64) {
+///
+/// **Public because a consumer that checks its own replay against
+/// [`monte_carlo`]'s report has to run THIS reduction, not one like
+/// it.** The tour's two density cells each summarize their own replay
+/// and require the four numbers to equal a report's bit for bit; while
+/// this was private they did it through hand transcriptions of these
+/// six lines, and the copies had already dropped both guards below. A
+/// bitwise comparison whose two sides are two spellings is a
+/// comparison of the spellings, so the reduction is a door.
+pub fn summarize(values: &[f64]) -> (f64, f64, f64, f64) {
     if values.is_empty() {
         return (f64::NAN, f64::NAN, f64::NAN, f64::NAN);
     }

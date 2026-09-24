@@ -69,6 +69,7 @@
 
 use core::ops::RangeInclusive;
 
+use super::algebra::CurvePlan;
 use super::knots::KnotVector;
 use crate::ring_interval::RingInterval;
 
@@ -317,6 +318,93 @@ impl TensorNet {
     pub fn diff_v_knots(&self, kv: &KnotVector) -> Self {
         self.diff_v(|c| kv.difference_coeffs(c))
     }
+
+    /// **Refines the net along `u` IN THE RING**: the insertion chain is
+    /// applied to each `u`-line by [`CurvePlan::apply_ring`], so the
+    /// answer ENCLOSES the refined net of the described coefficients
+    /// instead of being a rounded copy of it. That is the difference
+    /// between a bound on the patch a caller described and a bound on
+    /// the one `f64` refinement happened to produce.
+    ///
+    /// The net must be HOMOGENEOUS for this to mean what it says — the
+    /// weight net `w`, or one channel of `w·P` — because that is the
+    /// form in which insertion is the plain affine combination the ring
+    /// applier takes.
+    ///
+    /// One schedule for every line: a Boehm step's targets, sources and
+    /// ratio come from the knot structure alone, which the `u` direction
+    /// shares across all `nv` lines. An empty chain is the identity.
+    ///
+    /// **A net whose extent the schedule was not built for POISONS**, at
+    /// the new extent, and the guard is on the extent rather than on the
+    /// answer's length because the answer's length cannot report it.
+    /// [`CurvePlan::apply_ring`] answers its own plan's control count
+    /// whatever it is handed — that is what makes it total — so a line
+    /// LONGER than the schedule expects comes back the right length with
+    /// its tail silently dropped, which is a hull over fewer
+    /// coefficients than the net has and therefore too NARROW. A shorter
+    /// line poisons on its own, through the missing sources. Neither is
+    /// reachable from a caller that built the schedule from the same
+    /// direction it is refining, and both are refused rather than
+    /// argued: an insertion chain adds exactly one coefficient per plan,
+    /// so `nu_new == nu + plans.len()` is the whole test.
+    #[must_use]
+    pub fn refine_u(&self, plans: &[CurvePlan]) -> Self {
+        let Some(last) = plans.last() else {
+            return self.clone();
+        };
+        let nu_new = last.knots().control_count();
+        if nu_new != self.nu + plans.len() {
+            return Self::poisoned(nu_new, self.nv);
+        }
+        let mut c = vec![RingInterval::poison(); nu_new * self.nv];
+        for j in 0..self.nv {
+            let mut line = self.column(j);
+            for plan in plans {
+                line = plan.apply_ring(&line);
+            }
+            for (i, q) in line.iter().enumerate() {
+                if let Some(slot) = c.get_mut(i * self.nv + j) {
+                    *slot = *q;
+                }
+            }
+        }
+        Self {
+            nu: nu_new,
+            nv: self.nv,
+            c,
+        }
+    }
+
+    /// [`TensorNet::refine_u`] along `v`, per `v`-line, with the same
+    /// extent guard.
+    #[must_use]
+    pub fn refine_v(&self, plans: &[CurvePlan]) -> Self {
+        let Some(last) = plans.last() else {
+            return self.clone();
+        };
+        let nv_new = last.knots().control_count();
+        if nv_new != self.nv + plans.len() {
+            return Self::poisoned(self.nu, nv_new);
+        }
+        let mut c = vec![RingInterval::poison(); self.nu * nv_new];
+        for i in 0..self.nu {
+            let mut line = self.row(i).to_vec();
+            for plan in plans {
+                line = plan.apply_ring(&line);
+            }
+            for (j, q) in line.iter().enumerate() {
+                if let Some(slot) = c.get_mut(i * nv_new + j) {
+                    *slot = *q;
+                }
+            }
+        }
+        Self {
+            nu: self.nu,
+            nv: nv_new,
+            c,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -326,6 +414,128 @@ mod tests {
 
     fn pt(x: f64) -> RingInterval {
         RingInterval::point(x)
+    }
+
+    /// The refinement schedule for one direction: every nonempty span of
+    /// `kv` cut into `splits` equal pieces.
+    fn chain(kv: &KnotVector, splits: usize) -> Vec<crate::spline::CurvePlan> {
+        let mut add = Vec::new();
+        for span in kv.first_span()..=kv.last_span() {
+            if !kv.span_is_nonempty(span) {
+                continue;
+            }
+            let (lo, hi) = (kv.knots()[span], kv.knots()[span + 1]);
+            for k in 1..splits {
+                #[allow(clippy::cast_precision_loss)]
+                let t = lo + (hi - lo) * (k as f64 / splits as f64);
+                if t > lo && t < hi {
+                    add.push(t);
+                }
+            }
+        }
+        crate::spline::algebra::refine_plan_homogeneous(kv, &add).unwrap()
+    }
+
+    /// **Ring refinement is the per-line chain, scattered back** — each
+    /// direction's own claim, and the one a transposed index would break.
+    /// Refining along `u` must answer, at every `v` index, exactly what
+    /// the chain answers for that column read on its own; refining along
+    /// `v` the same for each row. An empty chain is the identity in both.
+    #[test]
+    fn refinement_is_the_per_line_chain_in_each_direction() {
+        let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv_v = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
+        // Distinct per-slot values, so a transposed scatter cannot pass.
+        #[allow(clippy::cast_precision_loss)]
+        let net = TensorNet::from_fn(nu, nv, |i, j| pt((i * 10 + j) as f64));
+        let plans_u = chain(&kv_u, 3);
+        let refined_u = net.refine_u(&plans_u);
+        assert_eq!(refined_u.nv(), nv);
+        assert_eq!(
+            refined_u.nu(),
+            plans_u.last().unwrap().knots().control_count()
+        );
+        for j in 0..nv {
+            let mut want = net.column(j);
+            for plan in &plans_u {
+                want = plan.apply_ring(&want);
+            }
+            let got = refined_u.column(j);
+            assert_eq!(got.len(), want.len());
+            for (i, (g, w)) in got.iter().zip(&want).enumerate() {
+                assert!(
+                    g.lo().to_bits() == w.lo().to_bits() && g.hi().to_bits() == w.hi().to_bits(),
+                    "u-refined ({i}, {j}) = [{:.17e}, {:.17e}], the column's own chain \
+                     gives [{:.17e}, {:.17e}]",
+                    g.lo(),
+                    g.hi(),
+                    w.lo(),
+                    w.hi()
+                );
+            }
+        }
+        let plans_v = chain(&kv_v, 4);
+        let refined_v = net.refine_v(&plans_v);
+        assert_eq!(refined_v.nu(), nu);
+        assert_eq!(
+            refined_v.nv(),
+            plans_v.last().unwrap().knots().control_count()
+        );
+        for i in 0..nu {
+            let mut want = net.row(i).to_vec();
+            for plan in &plans_v {
+                want = plan.apply_ring(&want);
+            }
+            let got = refined_v.row(i);
+            assert_eq!(got.len(), want.len());
+            for (j, (g, w)) in got.iter().zip(&want).enumerate() {
+                assert!(
+                    g.lo().to_bits() == w.lo().to_bits() && g.hi().to_bits() == w.hi().to_bits(),
+                    "v-refined ({i}, {j}) disagrees with the row's own chain"
+                );
+            }
+        }
+        // An empty chain is the identity, bitwise, in both directions.
+        for identity in [net.refine_u(&[]), net.refine_v(&[])] {
+            assert_eq!((identity.nu(), identity.nv()), (nu, nv));
+            for (a, b) in identity.as_flat().iter().zip(net.as_flat()) {
+                assert_eq!(a.lo().to_bits(), b.lo().to_bits());
+            }
+        }
+    }
+
+    /// **A net whose extent the schedule was not built for comes back
+    /// POISONED at the new extent** — never short, and never silently
+    /// finite over coefficients that are not this net's. The direction
+    /// that needed the guard is the LONG one: the applier answers its
+    /// plan's extent from whatever prefix it can source, so a long line
+    /// would otherwise refine as if its tail did not exist, giving a hull
+    /// too narrow rather than too wide.
+    #[test]
+    fn refining_a_net_of_the_wrong_extent_poisons_rather_than_answers() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let plans = chain(&kv, 2);
+        let n_new = plans.last().unwrap().knots().control_count();
+        // The schedule is for 3 coefficients per line. BOTH directions of
+        // mismatch: 5 would be silently truncated by the applier, 2 would
+        // poison through its missing sources. Neither may answer finitely.
+        for extent in [5usize, 2] {
+            let net =
+                TensorNet::from_fn(extent, 2, |i, _| pt(f64::from(u32::try_from(i).unwrap())));
+            let refined = net.refine_u(&plans);
+            assert_eq!((refined.nu(), refined.nv()), (n_new, 2));
+            assert!(
+                refined.as_flat().iter().all(|r| r.is_poison()),
+                "a {extent}-coefficient line refined by a 3-coefficient schedule answered \
+                 a finite slot — a hull over coefficients that are not this net's"
+            );
+        }
+        // And the same guard on the other direction.
+        let net = TensorNet::from_fn(2, 5, |_, j| pt(f64::from(u32::try_from(j).unwrap())));
+        let refined = net.refine_v(&plans);
+        assert_eq!((refined.nu(), refined.nv()), (2, n_new));
+        assert!(refined.as_flat().iter().all(|r| r.is_poison()));
     }
 
     /// The two constructors agree, and the layout is `u`-major.

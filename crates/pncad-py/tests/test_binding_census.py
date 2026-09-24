@@ -2146,14 +2146,11 @@ NOT_BOUND = {
     "EditRecord": SHAPE,
     # Python's document keeps no edit log: `Doc.save` writes an empty
     # log and `load` replays below the wrapper, so the logged entry
-    # (an edit with the cluster-maintenance rows it performed), the
-    # replay door that re-applies those rows, and the migration door
-    # that re-derives them for a log from before they were recorded
-    # have no Python shape to bind.
+    # (an edit with the cluster-maintenance rows it performed) and the
+    # replay door that re-applies those rows have no Python shape to
+    # bind.
     "LoggedEdit": SHAPE,
     "apply_logged": SHAPE,
-    "replay_entry": SHAPE,
-    "load_with": SHAPE,
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
     # `Evaluation.canceled`, bound at LIB-B-CANCEL.
@@ -2625,6 +2622,21 @@ NOT_BOUND = {
     # second door.
     "table_gap": INTERIOR,
     "validated": INTERIOR,
+    # **The MC lane's reduction, which `monte_carlo` has already
+    # applied by the time anything crosses.** `summarize` is public so
+    # that a Rust consumer holding its OWN replay of the lane's draws
+    # can reduce it with the function the report was reduced with — the
+    # tour's two density cells check their replay against a `McReport`
+    # bit for bit, and a transcription of the reduction would make that
+    # a comparison of two spellings. Python cannot pose that question:
+    # producing a replay needs `sample_offsets`, which is itself
+    # `gap: B-MC-DRAWS` below, and the four numbers a Python caller
+    # wants are already fields of the `McMeasure` rows `monte_carlo`
+    # hands back. So there is nothing here a Python caller cannot say —
+    # not a debt, a door they arrive behind. If B-MC-DRAWS is ever
+    # answered this moves with it, because a caller replaying draws in
+    # Python would then need exactly this reduction to compare.
+    "summarize": INTERIOR,
     # **The gathered-product doors, one family, and they are what the
     # binding CALLS.** `Product` is the document's product with
     # everything the gather knows about it, `product_recorded` is the
@@ -3433,6 +3445,8 @@ MEMBERS_BOUND_AS = {
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedDomain": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedShape": "TessellateError.variant",
+    "TessellateError::MeridianFreeCurvedFace": "TessellateError.variant",
+    "TessellateError::SingleColumnCurvedFace": "TessellateError.variant",
     "TessellateError::Band": "TessellateError.variant",
     "UpdateError::NoSuchReference": "UpdateError.variant",
     "UpdateError::AlreadyPinned": "UpdateError.variant",

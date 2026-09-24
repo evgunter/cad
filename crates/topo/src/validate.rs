@@ -7,10 +7,15 @@
 //! Each certifying tier has a **certificate form** beside it —
 //! [`validate_geometric_certificate`], its `_declared` twin, and
 //! [`validate_pseudomanifold_certificate`] — which runs the same pass
-//! and returns the [`crate::MassProperties`] its check 7 derived
-//! instead of dropping it. Same verdicts, one certified quadrature; the
-//! `()`-returning doors above ARE those calls with the value mapped
-//! away.
+//! and returns a whole-body [`crate::MassProperties`] instead of
+//! dropping what check 7 derived. Same verdicts, and one certified
+//! quadrature per SOLID, check 7's subject: on the overwhelmingly
+//! common one-solid body that is one quadrature for the pass and the
+//! returned value IS the object check 7 decided on, while a body
+//! holding several solids pays a further arena-wide reporting read for
+//! the body-level number, because no one solid's read is the body's
+//! (`check7_subjects`). The `()`-returning doors above ARE those calls
+//! with the value mapped away.
 //!
 //! # The two validity tiers (ratified via the M1-PLAN conversation)
 //!
@@ -1079,13 +1084,22 @@ pub enum ValidationError {
         /// material side its boundary traversal encodes.
         face: FaceKey,
     },
-    /// Tier 3: the body's exact-B-rep signed volume is **definitely
+    /// Tier 3: `solid`'s exact-B-rep signed volume is **definitely
     /// negative** — global orientation corruption (the +V invariant,
-    /// M2 PR 7). The margin is `V / A_total` (a length: the mean
-    /// boundary displacement of the volume defect), classified against
-    /// the run's linear band; `Zero` and escalated margins are exempt
-    /// (escalation never flips valid → invalid).
-    NegativeVolume,
+    /// M2 PR 7). The margin is `V / A` over that solid's own faces (a
+    /// length: the mean boundary displacement of the volume defect),
+    /// classified against the run's linear band; `Zero` and escalated
+    /// margins are exempt (escalation never flips valid → invalid).
+    ///
+    /// **The subject is the SOLID, and a body's total is not a
+    /// substitute for it.** A total is a sum, and a sum hides a sign: a
+    /// reverted part beside a larger ordinary solid totals positive
+    /// while the part is inside-out, and the total says nothing about
+    /// either. One refusal per solid, each naming its own.
+    NegativeVolume {
+        /// The solid whose oriented boundary encloses negative volume.
+        solid: SolidKey,
+    },
     /// Tier 3: the exact-B-rep volume for the +V invariant could not
     /// be computed — a face's boundary fell outside the M2
     /// iso-rectangle inventory or its closed-form classification
@@ -1131,6 +1145,9 @@ pub enum ValidationError {
     /// the honest word, and [`crate::mass_properties`] called directly
     /// has no guard at all.
     VolumeUncomputable {
+        /// The solid whose volume the +V invariant was reading. Check
+        /// 7's subject is the solid, so its refusal names one too.
+        solid: SolidKey,
         /// The mass-properties failure.
         source: crate::props::MassPropsError,
     },
@@ -2032,14 +2049,16 @@ impl fmt::Display for ValidationError {
                  orientation) — the face is inside-out; the two orientation encodings \
                  of a curved face must state the same side"
             ),
-            Self::NegativeVolume => f.write_str(
-                "the body's exact-B-rep signed volume is definitely negative — global \
-                 orientation corruption (+V invariant; every closed body's outward-oriented \
-                 boundary encloses positive volume)",
-            ),
-            Self::VolumeUncomputable { source } => write!(
+            Self::NegativeVolume { solid } => write!(
                 f,
-                "the exact-B-rep volume for the +V invariant could not be computed: {source}"
+                "solid {solid:?}'s exact-B-rep signed volume is definitely negative — global \
+                 orientation corruption (+V invariant; every solid's outward-oriented \
+                 boundary encloses positive volume)"
+            ),
+            Self::VolumeUncomputable { solid, source } => write!(
+                f,
+                "the exact-B-rep volume of solid {solid:?}, for the +V invariant, could not \
+                 be computed: {source}"
             ),
             // The TWO-arm menu (SELECT-DESIGN §3d, ratified), not the
             // three-arm decidability sentence: a contact refusal is
@@ -2646,6 +2665,25 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///    then the minus face when distinct; first failing sample, one
 ///    error per edge–face pair). Curved-face containment is NOT
 ///    checked (the not-yet-checked list below; #638).
+/// 6. **Loop-role and sense orientation** (faces, arena order): a
+///    planar face's loop windings against its outward normal
+///    ([`ValidationError::LoopRoleInverted`]) and a curved face's
+///    stored `sense` bit against the material side its own boundary
+///    traversal encodes ([`ValidationError::CurvedSenseInverted`]).
+/// 7. **The +V invariant, PER SOLID** (solids, arena order): each
+///    solid's own faces enclose definitely-positive volume, decided
+///    from a certified enclosure at the round its sign stops being in
+///    doubt ([`ValidationError::NegativeVolume`], naming the solid;
+///    [`ValidationError::VolumeUncomputable`] where the quadrature
+///    produces no enclosure at all or the sign is still indefinite
+///    when the schedule runs out). The margin is `V / A` over that
+///    solid's faces, a length; `Zero` and escalated margins are
+///    exempt. **The subject is the solid and not the body**: a body's
+///    total is a sum, and a sum hides a sign — an inside-out part
+///    beside a larger ordinary solid totals positive.
+/// 8. **Stored pcurve caches** ([`ValidationError::Pcurve`]).
+/// 9. **Ring versus outer loop** — disjointness and nesting
+///    ([`ValidationError::RingMeetsOuter`] and its siblings).
 ///
 /// **Coarse gate** (the pass-11 philosophy): the geometric passes run
 /// only when tiers 1–2 are clean — structural defects void geometric
@@ -2700,6 +2738,25 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   therefore exempt — such a body's flips, single-face AND
 ///   whole-body, certify green today; executed on the tilted-section
 ///   cylinder and pinned as residual).
+/// - **A shell NESTED inside another shell's cavity.** No tier reads
+///   where one shell of a solid sits relative to another. What that
+///   leaves unchecked is precisely a solid holding an `Outer` shell, a
+///   `Void`, and a second `Outer` INSIDE that void
+///   (`work/atrest/tier-3-does-not-check-shell-roles-per-solid`): the
+///   nesting is the claim, and tier 3 has no at-rest containment walk
+///   for it — the same family as check 9's deferred nesting half and
+///   `validate-tier3-curved-boundary-containment`.
+///
+///   **The COUNT is not the gap**, and that is measured rather than
+///   assumed. A solid holding several `Outer` shells is what four
+///   doors produce ON PURPOSE — `graft onto`, the boolean coplanar
+///   split, `subtract`'s two-shell complement and the editor's placed
+///   union — and how many material components a product should
+///   have is answered one layer up, as `editor_core`'s
+///   `CheckId::Connectedness` finding against an authored expectation.
+///   Tier 3 refusing that count would make tier 3 wrong, not the doors:
+///   `work/atrest/one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`
+///   carries the 36 rows that settled it.
 /// - **Curve conventional-invariant certification** (unit `dir`/`axis`,
 ///   `u_ref ⊥ axis`): partially implied by the residual checks (a
 ///   non-unit frame breaks the carrier-vs-description comparisons),
@@ -2954,7 +3011,7 @@ fn structural_declared_via<
         band,
         &mut marks,
         tol,
-        &|_, _, _| None,
+        &|_, _, _, _| None,
         nurbs_lane,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
@@ -2981,40 +3038,44 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
-    // ONE certified quadrature, held and then handed on: the check
-    // decides on this object and the caller receives this object —
-    // refined to the round where THIS check's certification is
-    // complete, which is where the enclosure's sign stops being in
-    // doubt, and continuable from there by a caller who wants the
-    // number.
+    // ONE certified quadrature PER SOLID, held and then handed on: the
+    // check decides on these objects and the caller receives the body
+    // certificate they assemble to — each refined to the round where
+    // THIS check's certification is complete, which is where that
+    // solid's enclosure's sign stops being in doubt, and continuable
+    // from there by a caller who wants the number.
     //
-    // ONE decision, too, and that is load-bearing rather than tidy:
-    // the walk stops on the verdict it returns, so no second reading
-    // of a different round's enclosure can disagree with the round it
-    // stopped at, and the check's predicates are metered once per
-    // round rather than twice.
-    let settled = crate::props::sign_certified(
-        body,
-        band,
-        tol,
-        |e| match plus_v_decide(e, band) {
-            PlusVOutcome::Pass => Some(PlusVVerdict::Pass),
-            PlusVOutcome::Refuse => Some(PlusVVerdict::Refuse),
-            PlusVOutcome::Undecided => None,
-        },
-        |refusal| plus_v_at_target(PlusVOutcome::Undecided, refusal),
-    );
-    let (errors, certificate) = match settled {
-        Ok((verdict, certificate)) => (plus_v_errors(&verdict), Ok(certificate)),
-        Err(source) => (
-            vec![ValidationError::VolumeUncomputable {
-                source: source.clone(),
-            }],
-            Err(source),
-        ),
-    };
+    // ONE decision per solid, too, and that is load-bearing rather
+    // than tidy: each walk stops on the verdict it returns, so no
+    // second reading of a different round's enclosure can disagree
+    // with the round it stopped at, and the check's predicates are
+    // metered once per round rather than twice.
+    let mut errors = Vec::new();
+    let mut parts = Vec::new();
+    for (solid, faces) in check7_subjects(body) {
+        match crate::props::sign_certified(
+            body,
+            &faces,
+            band,
+            tol,
+            |e| match plus_v_decide(e, band) {
+                PlusVOutcome::Pass => Some(PlusVVerdict::Pass),
+                PlusVOutcome::Refuse => Some(PlusVVerdict::Refuse),
+                PlusVOutcome::Undecided => None,
+            },
+            |refusal| plus_v_at_target(PlusVOutcome::Undecided, refusal),
+        ) {
+            Ok((verdict, certificate)) => {
+                errors.extend(plus_v_errors(solid, &verdict));
+                parts.push(certificate);
+            }
+            Err(source) => errors.push(ValidationError::VolumeUncomputable { solid, source }),
+        }
+    }
     if errors.is_empty() {
-        Ok(certificate_of_a_clean_verdict(Some(certificate)))
+        Ok(crate::props::SignCertificate::assembled(
+            body, band, tol, parts,
+        ))
     } else {
         Err(errors)
     }
@@ -3037,6 +3098,18 @@ pub(crate) type Check7Certificate<T> =
 /// state is a bug in the composition above, not a reachable input —
 /// D9's bug-state half, announced rather than papered over with a
 /// fabricated value.
+///
+/// **The `Some(Err(..))` arm needs its own argument, because the object
+/// handed here is not always the object the verdicts were made on.**
+/// Check 7 decides per SOLID, while a body of several solids reports
+/// through a read over the whole face arena, so those are two reads.
+/// They are not independent ones: tier 1 partitions the arena into the
+/// solids (`check7_subjects` carries that argument), every face belongs
+/// to exactly one subject, and a face refuses the same way in whichever
+/// read visits it — so the arena read's failure set is exactly the
+/// UNION of the per-solid reads'. An empty verdict vector says every
+/// per-solid read came back clean, and an empty union cannot contain
+/// the refusal this arm would be handed.
 fn certificate_of_a_clean_verdict<C>(
     certificate: Option<Result<C, crate::props::MassPropsError>>,
 ) -> C {
@@ -3047,6 +3120,60 @@ fn certificate_of_a_clean_verdict<C>(
              battery and reports its own refusal as VolumeUncomputable"
         ),
     }
+}
+
+/// **Check 7's subject**: one entry per solid of
+/// `body`, carrying that solid's faces in FACE-ARENA order
+/// ([`Body::faces_of_solid`]).
+///
+/// The subject is the solid because the invariant is about a solid. A
+/// body's total is a sum over its solids, and a sum hides a sign.
+///
+/// **A body holding ONE solid hands back the face arena itself**, in
+/// arena order and entire — so the per-solid read IS the whole-body
+/// read, term for term, round for round and bit for bit, and the
+/// overwhelmingly common body pays nothing for the check's subject
+/// having moved. That is an EQUIVALENCE and not a special case, and
+/// tier 1 is what makes it one, by four checks run before this one:
+/// [`ValidationError::DanglingTopology`] refuses a `Shell::solid` or a
+/// `Face::shell` that does not resolve,
+/// [`ValidationError::OrphanEntity`] refuses a shell no solid lists
+/// and a face no shell lists, [`ValidationError::MultiplyOwned`]
+/// refuses either listed twice, and
+/// [`ValidationError::BackPointerMismatch`] refuses a stored
+/// back-pointer that disagrees with the owner. Together: the solids
+/// partition the shells and the shells partition the faces, so
+/// `faces_of_solid`'s back-pointer selection and a `Solid::shells`
+/// walk name the same set, and over one solid that set is the arena.
+///
+/// **What is strictly NEEDED for the one-solid case is narrower than
+/// that.** [`ValidationError::DanglingTopology`] on `Shell::solid` and
+/// on `Face::shell` alone already forces every face of the arena to
+/// resolve to the one solid there is, which is the whole of what makes
+/// `faces_of_solid` hand the arena back entire. The other three are
+/// what the caller actually buys, and they are what carries the
+/// statement from a covering to a PARTITION, which is what a body of
+/// several solids needs and what [`crate::SignCertificate::assembled`]
+/// asserts.
+///
+/// **The gate that supplies the premise is tier 2, not the battery's
+/// own `if`.** Every door that reaches check 7 opens with
+/// `validate_closed(body)?`, which runs tier 1 first:
+/// `structural_declared_via` — the half [`validate_geometric`] and its
+/// `_declared` twin compose in front of `validate_geometric_certified`
+/// — `contact_marks_declared`, and `pseudomanifold_certificate_via`.
+/// The battery's `if errors.is_empty()` gates check 7 on the battery's
+/// OWN checks 1–6, which is a different premise and not this one.
+fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
+    body.solids
+        .iter()
+        .map(|(solid_key, _)| {
+            let Some(faces) = body.faces_of_solid(solid_key) else {
+                unreachable!("a key read out of the solid arena does not resolve in it")
+            };
+            (solid_key, faces)
+        })
+        .collect()
 }
 
 /// [`validate_geometric`] with the body's **declared contacts** in
@@ -3132,14 +3259,14 @@ pub fn validate_geometric_certificate_declared<
 ///
 /// One home, because it was two: [`tier3_local_checks`] and
 /// [`contact_marks_declared`] each spelled this closure out, and two
-/// spellings of one derivation are two places for the count of
-/// certified quadratures per gate to drift apart.
+/// spellings of one derivation are two places for what a gate derives,
+/// and over which faces, to drift apart.
 fn reporting_certificate<T: geom_core::Decide>(
     quad_lane: Option<crate::props::QuadLane<T>>,
-) -> impl Fn(&Body<T>, Band, Tol) -> Check7Certificate<T> {
-    move |body, band, tol| {
-        Some(crate::props::mass_properties_with(
-            body, band, tol, quad_lane,
+) -> impl Fn(&Body<T>, &[FaceKey], Band, Tol) -> Check7Certificate<T> {
+    move |body, faces, band, tol| {
+        Some(crate::props::mass_properties_of(
+            body, faces, band, tol, quad_lane,
         ))
     }
 }
@@ -3277,15 +3404,17 @@ fn plus_v_decide<T: geom_core::Decide>(
 /// one place, so the lane-dispatched and the certified derivations are
 /// two ways of getting the argument and not two copies of the check.
 fn plus_v_invariant<T: geom_core::Decide>(
+    solid: SolidKey,
     subject: &Result<crate::props::MassProperties<T>, crate::props::MassPropsError>,
     band: Band,
 ) -> Vec<ValidationError> {
     match subject {
-        Ok(subject) => plus_v_errors(&plus_v_at_target(
-            plus_v_decide(subject.enclosure(), band),
-            None,
-        )),
+        Ok(subject) => plus_v_errors(
+            solid,
+            &plus_v_at_target(plus_v_decide(subject.enclosure(), band), None),
+        ),
         Err(source) => vec![ValidationError::VolumeUncomputable {
+            solid,
             source: source.clone(),
         }],
     }
@@ -3312,11 +3441,12 @@ fn plus_v_at_target(
 }
 
 /// Check 7's verdict as the tier's error vector.
-fn plus_v_errors(verdict: &PlusVVerdict) -> Vec<ValidationError> {
+fn plus_v_errors(solid: SolidKey, verdict: &PlusVVerdict) -> Vec<ValidationError> {
     match verdict {
         PlusVVerdict::Pass => Vec::new(),
-        PlusVVerdict::Refuse => vec![ValidationError::NegativeVolume],
+        PlusVVerdict::Refuse => vec![ValidationError::NegativeVolume { solid }],
         PlusVVerdict::Uncomputable(source) => vec![ValidationError::VolumeUncomputable {
+            solid,
             source: source.clone(),
         }],
     }
@@ -3610,13 +3740,15 @@ fn contact_marks_declared_via<
 /// refusal — a refusal is `Some(Err(..))` and the battery turns it into
 /// the [`ValidationError`] in the vector.
 ///
-/// The hook yields the DERIVATION and not the verdict so that exactly
-/// one certified quadrature exists per gate and the battery can hand it
-/// on: `plus_v_invariant` — the whole decision, in one place — is
+/// The hook yields the DERIVATION and not the verdict so that each of
+/// check 7's subjects is derived exactly once per gate — one per solid,
+/// `check7_subjects` being what the battery iterates — and the battery
+/// can hand a derivation on: `plus_v_invariant` — the whole decision,
+/// in one place — is
 /// applied by the battery to whatever the hook derived, which is what
 /// keeps the lane-dispatched and the certified derivations two ways of
 /// getting the argument rather than two copies of the check.
-type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, Band, Tol) -> Check7Certificate<T>;
+type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, &[FaceKey], Band, Tol) -> Check7Certificate<T>;
 
 /// [`tier3_local_checks`] with the check-4 contact marks KEPT (the
 /// same pass — never classifying twice; the mark is the verdict the
@@ -4625,9 +4757,30 @@ pub(crate) fn tier3_local_checks_marked<
         // compute, `plus_v_invariant` reads it, and the object stays
         // alive for the caller that asked for it. A door with no
         // check-7 derivation answers `None` and makes no verdict.
-        if let Some(derived) = plus_v(body, band, tol) {
-            errors.extend(plus_v_invariant(&derived, band));
-            certificate = Some(derived);
+        let subjects = check7_subjects(body);
+        for (solid, faces) in &subjects {
+            if let Some(derived) = plus_v(body, faces, band, tol) {
+                errors.extend(plus_v_invariant(*solid, &derived, band));
+                // **The body's certificate, when the check's subject
+                // already IS the body.** With one solid, `faces` is
+                // the face arena in arena order, so this derivation is
+                // the whole-body one bit for bit and the door hands
+                // back the object check 7 decided on, computed once.
+                // (`check7_subjects` carries the tier-1 argument.)
+                if subjects.len() == 1 {
+                    certificate = Some(derived);
+                }
+            }
+        }
+        if subjects.len() != 1 {
+            // More than one solid (or none): no subject's derivation
+            // is the body's, so the certificate this door hands back
+            // is a SEPARATE reporting read of the whole boundary. It
+            // is the number the door promises and not a second copy of
+            // the check — the verdicts above are the check, and they
+            // were made per solid.
+            let arena = crate::query::all_faces(body);
+            certificate = plus_v(body, &arena, band, tol);
         }
     }
 
@@ -5357,12 +5510,20 @@ pub fn validate_pseudomanifold_structural<
     validate_pseudomanifold_certificate_structural(body, contacts, tol).map(|_| ())
 }
 
-/// **[`validate_pseudomanifold`], handing back the enclosure its check
-/// 7 derived** — the tier-3′ door's certificate form, and
+/// **[`validate_pseudomanifold`], handing back a whole-body
+/// enclosure** — the tier-3′ door's certificate form, and
 /// [`validate_geometric_certificate`]'s claim verbatim one tier up: the
-/// same pass, the same verdicts, one certified quadrature, and the
-/// returned properties are THE object check 7 decided on rather than a
-/// second computation of it.
+/// same pass, the same verdicts, and one certified quadrature per
+/// SOLID, which is check 7's subject.
+///
+/// **Whether the value IS the object check 7 decided on depends on how
+/// many solids the body holds.** Over one solid it is: that solid's
+/// faces are the face arena in arena order, so the check's own read is
+/// the whole-body read and nothing is recomputed. Over several, no one
+/// subject's read is the body's, so the number comes back from a
+/// further arena-wide REPORTING read taken in the same pass — the value
+/// this door promises, and not a second copy of the check, whose
+/// verdicts were made per solid and are unchanged by it.
 ///
 /// **This door is the one the import path pays.** A single-solid
 /// `step-import` skips the per-solid tier-3 gate as an identity at one
@@ -7302,8 +7463,9 @@ mod tests {
                 r#loop: t.loop_a,
             },
             ValidationError::CurvedSenseInverted { face: t.face_a },
-            ValidationError::NegativeVolume,
+            ValidationError::NegativeVolume { solid: t.solid },
             ValidationError::VolumeUncomputable {
+                solid: t.solid,
                 source: crate::props::MassPropsError::Band {
                     error: band_error(),
                 },
@@ -9377,7 +9539,7 @@ mod offset_fit_door_rows {
             band,
             &mut marks,
             tol,
-            &|_, _, _| None,
+            &|_, _, _, _| None,
             None,
             door,
         );

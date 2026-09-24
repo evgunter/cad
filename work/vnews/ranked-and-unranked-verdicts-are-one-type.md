@@ -4,7 +4,7 @@ kind: issue
 title: A ranked verdict and a policy's verdict are the same type, so which door a call site must use is carried only by prose
 status: open
 opened: 2026-09-06
-refs: [status-line-writers-bypass-the-ranking, camera-fold-clears-status-line, 2026]
+refs: [2026]
 priority: P1
 cost: D
 ---

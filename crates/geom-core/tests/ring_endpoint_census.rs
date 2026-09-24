@@ -142,6 +142,18 @@ const ROSTER: &[(&str, usize, usize, &str)] = &[
         "the mignitude, the two norm assemblies and the curvature join all refuse by name",
     ),
     (
+        "crates/geom-brep/src/patch_bound.rs",
+        2,
+        2,
+        "both are in `rational_cells`, and only one of them is guarded by the \
+         `is_poison()` this counts — blind spot 2. That one is the refined weight \
+         licence, which asks by name before reading `lo`. The other is the cell \
+         CENTROID, safe because a centre is a translation choice and no enclosure \
+         rests on it: the site takes each refined control point's midpoint and \
+         contributes `0` for a non-finite one, so a refused point still yields a \
+         finite centre and the widened hulls report the trouble",
+    ),
+    (
         "crates/geom-brep/src/props/quad.rs",
         17,
         12,

@@ -1784,7 +1784,9 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
     };
     let finding = |attribution| AtRestFinding {
         attribution,
-        error: topo::ValidationError::NegativeVolume,
+        error: topo::ValidationError::NegativeVolume {
+            solid: topo::SolidKey::default(),
+        },
     };
     let msg = AssemblyError::AtRest {
         findings: vec![
@@ -1839,6 +1841,14 @@ fn the_refusal_renders_attribution_prose_never_debug_guts() {
 /// node), and `AssemblyError::Product` forwards the whole rendering,
 /// so the assembly surface leaks no `Debug` structure through this
 /// arm either.
+///
+/// A key spelled `SolidKey(1v1)` in that prose is NOT what this row
+/// bans: naming the entity a finding is about is `ValidationError`'s
+/// house vocabulary, used by every variant of it that names one. What
+/// is banned is the error TYPES' own `Debug` — the names in `guts`
+/// below. The keys here are fabricated defaults, so the needle stops
+/// at the prose stem rather than pinning a null key's spelling as
+/// though it were user-facing text.
 #[test]
 fn the_gather_refusals_render_prose_never_debug_guts() {
     use editor_core::ProductError;
@@ -1847,8 +1857,12 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
         ProductError::SolidInvalid {
             node: RecipeNodeId(3),
             errors: vec![
-                topo::ValidationError::NegativeVolume,
-                topo::ValidationError::NegativeVolume,
+                topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                },
+                topo::ValidationError::NegativeVolume {
+                    solid: topo::SolidKey::default(),
+                },
             ],
         },
         ProductError::Naming {
@@ -1870,10 +1884,11 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     let expected: [&[&str]; 3] = [
         &[
             "root 3's solid is not valid at rest (2 finding(s)):",
-            "\n  the body's exact-B-rep signed volume is definitely negative",
+            "\n  solid ",
+            "'s exact-B-rep signed volume is definitely negative",
         ],
         &["root 2's face name (minted by node 1) collides"],
-        &["grafting root 5 refused: boolean_reduce: invalid band:"],
+        &["grafting root 5 refused: the band's "],
     ];
     for (error, needles) in cases.into_iter().zip(expected) {
         // Through the assembly surface, exactly as a caller sees it.

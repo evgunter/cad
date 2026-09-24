@@ -1700,18 +1700,6 @@ fn local_binding_span(
 /// some of them leaves the guard green over the rest.
 const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[
     (
-        "crates/editor-core/src/edit.rs",
-        "EditError",
-        "path",
-        1,
-        "`ExprPath` is a named-field struct. This one BLOCKS A DOOR \
-         rather than only degrading a message: \
-         `path_off_tree` is what an expression-path edit refuses with, \
-         so binding that edit would panic the gate exactly where the \
-         door is supposed to refuse (work/lib/\
-         the-expression-path-edit-cannot-refuse-as-prose.md)",
-    ),
-    (
         "crates/editor-core/src/eval/mod.rs",
         "NodeErrorKind",
         "slot",
@@ -1809,7 +1797,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/boolean/mod.rs",
         "BooleanError",
         POSITIONAL,
-        8,
+        3,
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
