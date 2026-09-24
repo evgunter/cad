@@ -1635,7 +1635,8 @@ fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option
 /// the record it keeps beside its name table
 /// ([`crate::names::FragmentGroups`]) under the name's BASE
 /// ([`fragment_base`]): the entities of that node's output that descend
-/// from the group's parent, however each is spelled. A member passing
+/// from the group's parent by the emitter's own descent, however each
+/// is spelled. A member passing
 /// through undivided under its upstream name counts, and so does an N3
 /// `Merged` face the parent survives in. At a UNION the output is the
 /// published body, so a group a fold step formed counts the DISTINCT
@@ -1645,7 +1646,9 @@ fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option
 /// a later merged face holding two pieces counts once. Whichever step
 /// spelled the base, the count is that one number. Both records are
 /// the MINTING node's own (`name.node`), because the group is what
-/// that node's emission divided.
+/// that node's emission divided. A piece a later step re-mints under a
+/// seam name of its own (a `Seam` edge zipped along the piece's line)
+/// is not the parent's descendant by that descent and is not counted.
 ///
 /// Two TIED parents share one base. Where the emitter groups by parent
 /// ENTITY — a face or an edge by the operand entity it descends from,
@@ -1657,7 +1660,7 @@ fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option
 /// group, no one parent's count is on record, and the rung declines.
 ///
 /// `now == 0` says no entity of the node's output is in that group:
-/// none descends from the parent there, or — for a split, whose group
+/// none descends from the parent there by the emitter's descent, or — for a split, whose group
 /// is a face AND a side — none on that side.
 ///
 /// # When it answers, and when it declines

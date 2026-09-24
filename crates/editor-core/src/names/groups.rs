@@ -20,7 +20,9 @@
 //! (`resolve::group_resized`) reads that record ([`FragmentGroups`])
 //! rather than counting spellings. One membership rule, the emitter's,
 //! with two readers: the qualifier the emitter mints, and the count the
-//! rung reports. No reader matches entities by name.
+//! rung reports. Membership is never matched by name; the one
+//! name match is the rung's query, a union's fold-space bases collapsed
+//! to the queried base, and two bases that collapse to one decline.
 //!
 //! What a group counts is the number of DISTINCT entities of the node's
 //! output that descend from the group's parent within that group. For

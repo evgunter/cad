@@ -187,9 +187,11 @@ current run, the diagnosis is `GroupResized { node, was, now }`. The group is
 the one the emitter formed, read from the record it keeps beside the table
 (`names::FragmentGroups`, not persisted), not re-derived from the names: it
 counts the distinct entities of the node's output descended from the parent
-within the group, however each is spelled — an undivided pass-through, an N3
-`Merged` survivor, and at a union the published entities a fold step's group
-descends to, followed by entity through every later step. Two tied parents that
+within the group by the emitter's own descent, however each is spelled — an
+undivided pass-through, an N3 `Merged` survivor, and at a union the published
+entities a fold step's group descends to, followed by entity through every
+later step. A piece a later step re-mints under a seam name of its own is not
+a descendant by that descent and is not counted. Two tied parents that
 share a base are two groups, each counted on its own, where the emitter groups
 by parent entity; where it groups by parent names (the seam lanes) their
 pieces share one group and the rung declines. That is a statement about two
