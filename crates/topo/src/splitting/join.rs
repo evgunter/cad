@@ -35,9 +35,9 @@
 //! polygon is the one-sided tangency residue PR 2's adjudication
 //! record promised to refuse here, typed
 //! [`SplitJoinError::DegenerateSection`] — refuses a positive-area
-//! polygon carrying that same residue as a zero-width spur, the same
-//! way (`split_section_spur`; `Sweep::refuse_section_spur`), and
-//! writes the F9 record.
+//! polygon carrying a tangent contact as a zero-width spur
+//! ([`SplitJoinError::SectionSpur`], `split_section_spur`;
+//! `Sweep::refuse_section_spur`), and writes the F9 record.
 
 use geom_core::{Band, Decide, Margin, Point3, Sign};
 use slotmap::SecondaryMap;
@@ -398,27 +398,34 @@ impl<T: Decide> Sweep<T> {
 impl<T: Decide> Sweep<T> {
     /// Refuse a completed polygon that carries a **spur**: a vertex at
     /// which the loop runs out along a straight edge and straight back,
-    /// so the vertex before it and the vertex after it coincide.
+    /// so the vertex before it and the vertex after it coincide
+    /// ([`SplitJoinError::SectionSpur`]).
     ///
-    /// A spur is the one-sided tangency residue the area certificate
-    /// refuses as [`SplitJoinError::DegenerateSection`] when it forms a
-    /// polygon of its own — a plane touching the solid along an edge
-    /// mints null edges along that edge, and they join into a zero-area
-    /// loop. When that contact instead meets a REAL section, its null
-    /// edges join into the real polygon's loop as an out-and-back
-    /// excursion. The polygon's net area is then the real section's,
-    /// positive, and [`Self::certify_section_area`] passes it; the
-    /// excursion survives into both halves as a zero-width slit, with
-    /// two below-side copies of every vertex along it. This is the same
-    /// residue in a different place, so it is refused the same way, and
-    /// the verdict on a tangent contact no longer depends on whether it
-    /// touches a real section.
+    /// Where it comes from: a plane tangent to the solid along an edge
+    /// mints null edges along that edge. When the tangent side is the
+    /// run's above side the contact's null edges close a polygon of
+    /// their own, zero-area, and [`Self::certify_section_area`] refuses
+    /// it ([`SplitJoinError::DegenerateSection`]). [`super::split`]
+    /// reads that refusal as a below-side pinch and reruns under the
+    /// mirrored plane; if the plane also cuts the solid somewhere the
+    /// contact reaches, the mirrored run joins the contact's null edges
+    /// into that real section's loop as an out-and-back excursion. Its
+    /// net area is the real section's, positive, and the area test
+    /// passes it — the pinch lane would turn the one-sided-tangency
+    /// refusal into a success whose halves carry a zero-width slit.
+    /// This refuses that excursion, so the tangency stays refused (the
+    /// public `split` then surfaces the direct run's
+    /// `DegenerateSection`).
     ///
     /// The margin is the distance between the tip's two neighbours
-    /// (`split_section_spur`, a length through [`Margin::norm3`]); it is
-    /// decided only where BOTH of the tip's edges are straight, since
-    /// two conic edges between one pair of points bound a lens, which
-    /// has area.
+    /// (`split_section_spur`, a length through [`Margin::norm3`]).
+    /// **Only straight tips are decided.** A curved out-and-back — the
+    /// loop running out along an arc and back along the same arc — is
+    /// a spur too (its two excesses cancel; it bounds nothing), but
+    /// telling it from two DIFFERENT arcs between one pair of points,
+    /// which do bound area, needs a carrier comparison this check does
+    /// not make. That gap is filed as
+    /// `work/reach/split-section-spur-guard-skips-curved-spurs.md`.
     ///
     /// `first` is a half-edge of the below loop's cycle, as
     /// [`Self::certify_section_area`] resolved it.
@@ -458,7 +465,7 @@ impl<T: Decide> Sweep<T> {
                 Margin::norm3(after - before),
                 self.band,
             ) {
-                Ok(Sign::Zero) => return Err(SplitJoinError::DegenerateSection { face }),
+                Ok(Sign::Zero) => return Err(SplitJoinError::SectionSpur { face }),
                 Ok(_) => {}
                 Err(diag) => return Err(SplitJoinError::Escalated { face, diag }),
             }

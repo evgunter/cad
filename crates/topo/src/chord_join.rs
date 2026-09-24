@@ -194,17 +194,36 @@ pub enum SplitJoinError {
     /// residue (rule (b) adjudication record): no degenerate body is
     /// ever emitted.
     ///
-    /// Per RUN this fires iff the pinched pieces lie on the NEGATIVE
-    /// side of the run's plane normal (the below side, where the
-    /// ch. 14 insertion mints no vertex copies). Since M3 PR 6a (D7)
-    /// the public [`crate::splitting::split`] consumes this refusal as the pinch
-    /// trigger and reruns under the mirrored plane — where the
-    /// pinched fans are ABOVE runs and mint their copies — so op
-    /// success is orientation-independent; the error still surfaces
-    /// from [`crate::splitting::split`] when BOTH orientations refuse (a genuine
-    /// both-sided zero-area residue) and from the join lane directly
-    /// (e.g. [`crate::splitting::plane_section`], which has no sides to swap).
+    /// A run reaches it two ways: a below-side PINCH (pieces meeting
+    /// at a tip line on the NEGATIVE side of the run's plane normal,
+    /// where the ch. 14 insertion mints no vertex copies), and a
+    /// one-sided TANGENCY (the plane touches the solid along an edge
+    /// or at a point, and the contact's null edges close a polygon of
+    /// their own). Since M3 PR 6a (D7) the public
+    /// [`crate::splitting::split`] consumes this refusal as the pinch
+    /// trigger and reruns under the mirrored plane — where pinched
+    /// fans are ABOVE runs and mint their copies — so a pinch's
+    /// success is orientation-independent. The rerun cannot tell a
+    /// tangency from a pinch, so it reruns a tangency too; a tangency
+    /// alone refuses again there, and one whose contact meets a real
+    /// section refuses [`Self::SectionSpur`]. The error surfaces from
+    /// [`crate::splitting::split`] when the mirror run also refuses,
+    /// and from the join lane directly (e.g.
+    /// [`crate::splitting::plane_section`], which has no sides to
+    /// swap).
     DegenerateSection {
+        /// The completed null face.
+        face: FaceKey,
+    },
+    /// A completed section polygon of positive area carries a SPUR: its
+    /// loop runs out along a straight edge the plane only touches and
+    /// straight back. The spur is a one-sided tangency's contact joined
+    /// into a real section's polygon instead of closing one of its own;
+    /// it would leave a zero-width slit in both halves, with two copies
+    /// of every vertex along it on one side. Refused, as the tangency
+    /// standing alone is ([`Self::DegenerateSection`]); no degenerate
+    /// body is ever emitted.
+    SectionSpur {
         /// The completed null face.
         face: FaceKey,
     },
@@ -375,6 +394,12 @@ impl SplitJoinError {
                 f,
                 "a section is degenerate: it bounds zero area (a one-sided tangency), so \
                  one side has no real material. Recourse: {recourse}"
+            ),
+            Self::SectionSpur { .. } => write!(
+                f,
+                "a section doubles back on itself: the plane only touches the solid along \
+                 an edge, and that contact runs out of a real section and straight back, \
+                 which would leave a zero-width slit in both pieces. Recourse: {recourse}"
             ),
             Self::RingHoming(e) => match e {
                 crate::splitting::PointInLoopError::Escalated { diag, .. } => write!(
@@ -2598,6 +2623,11 @@ mod tests {
         let msg = SplitJoinError::DegenerateSection { face }.to_string();
         assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
         assert!(!msg.contains("declare"), "{msg}");
+
+        let msg = SplitJoinError::SectionSpur { face }.to_string();
+        assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
+        assert!(!msg.contains("declare"), "{msg}");
+        assert!(!msg.contains("zero area"), "{msg}");
 
         let msg = SplitJoinError::Escalated {
             face,

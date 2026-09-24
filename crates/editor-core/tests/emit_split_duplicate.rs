@@ -3,12 +3,14 @@
 //!
 //! `a` and `b` meet flush along x, declared on all four families; `g`
 //! is a slab at x = 1.2..1.3 that the plane y + z = 2 really cuts. The
-//! plane touches the union along its top/far rim y = z = 1. In the
-//! orders that fuse with `g` folded before `b`, that contact joined the
-//! slab's section as a spur, the Below half carried two copies of each
-//! vertex along the rim, and the split's names collided
-//! (`Naming(Duplicate)`). The join refuses the spur now, exactly as it
-//! refuses the contact standing alone — the controls below.
+//! plane touches the union along its top/far rim y = z = 1. The
+//! split's direct run refuses that contact on area, as it refuses the
+//! contact standing alone (the controls below); its pinch lane then
+//! reran under the mirrored plane, where the contact joined the slab's
+//! section as a spur and the run SUCCEEDED — the Below half carried two
+//! copies of each vertex along the rim, and the split's names collided
+//! (`Naming(Duplicate)`). The join refuses the spur now, so the direct
+//! run's `DegenerateSection` is what the split reports.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
