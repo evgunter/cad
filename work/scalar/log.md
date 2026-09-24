@@ -1447,3 +1447,21 @@ RING-4's PR is #3154 (`[ev]`: Q1, `DESIGN.md:266`, one `memories/`
 example); the §0 cost gate did not stop it; the fence and the SHELL-3
 seam (CLEAR's engine was planned "behind `interval`") are posted on
 the PR. Its implementer is on CI.
+
+## RING-4 in review (single, full) (2026-09-24)
+
+RING-4's implementer handed back: PR #3154 at `16b1e3441f`, hosted run
+35962718340 green (29 success, 1 push-only skip), `mergeable_state`
+clean. §0's cost gate read GO on the three-run aggregate (+31 % job,
++36 % archive step); one sample alone reads +52 %. The decision section
+puts that reading to Ev (per-aggregate vs per-sample is Ev's call).
+Coverage receipt: before-interval and after test sets are equal (9521),
+and before-default minus after is the six deleted loud-skip rows. The
+certified code now also runs the tour's two narrations in the render
+and tess-budget lanes (116 s → ~12 min each, filed on CIW).
+`docs/prompts/implementer-discipline.md` §2 is re-worded (deviation;
+waits for Ev with the rest). One Opus full reviewer was dispatched
+~07:25Z on the frozen head (`/home/user/scalar-briefs/ring4-review-brief.md`,
+twelve claims, coverage first). Merge order with RING-3: independent in
+code; whichever lands second merges main (RING-3 renamed three gated
+test files that RING-4 un-gates).
