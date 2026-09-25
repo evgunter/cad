@@ -579,7 +579,7 @@ pub(crate) fn point_in_carrier_loop<T: Decide>(
             }
             LoopEdge::Conic(k) => {
                 let (x, y) = k.unit(q);
-                let rho = (x * x + y * y).sqrt();
+                let rho = (x.powi(2) + y.powi(2)).sqrt();
                 if decide(
                     "point_in_arc_loop_conic_on",
                     Margin::levered(rho - T::one(), k.lever),
@@ -644,11 +644,11 @@ fn conic_crossings<T: Decide>(
     let (px, py) = k.unit(q);
     let (dx, dy) = (d.dot(k.u) / k.a, d.dot(k.v) / k.b);
     // `d` is unit and in the conic's plane, so `(dx, dy)` is nonzero.
-    let dn = (dx * dx + dy * dy).sqrt();
+    let dn = (dx.powi(2) + dy.powi(2)).sqrt();
     let (ex, ey) = (dx / dn, dy / dn);
     let along = px * ex + py * ey;
     let (hx, hy) = (px - ex * along, py - ey * along);
-    let disc = T::one() - (hx * hx + hy * hy);
+    let disc = T::one() - (hx.powi(2) + hy.powi(2));
     // `(1 − h²)/2` is the unit circle's `(r² − h²)/2r`: levered by the
     // conic's smaller semi-axis it is a length (exact for a circle).
     match decide(
@@ -673,7 +673,7 @@ fn conic_crossings<T: Decide>(
             Sign::Zero => return Ok(None),
         }
         let (hx, hy) = (px + dx * t, py + dy * t);
-        let hn = (hx * hx + hy * hy).sqrt();
+        let hn = (hx.powi(2) + hy.powi(2)).sqrt();
         match k.in_window((hx / hn, hy / hn), band)? {
             Sign::Positive => crossings += 1,
             Sign::Negative => {}
