@@ -55,3 +55,15 @@ rather than minting a second copy. **Single FULL review**: concurrency
 and the D9 bit claims have to be believed, not just read. It runs
 alongside the first wave; its only ground in common with the others is
 `editor-core`.
+
+## 2026-09-25 — the lanes resume after the weekly limit
+
+All four lanes stopped at the weekly usage limit on 2026-09-24 at about
+05:30 UTC, each with its work pushed and its worktree clean. They were
+resumed on 2026-09-25 from their transcripts. PR 3142's full review had
+already been adjudicated and its fix pass was mid-flight.
+
+Incoming from main: `product-instance-output-body-index-saturates` (P4,
+E), filed by the index-narrowing sweep. It is folded into the E-row
+batch, because it is a one-site change of the same shape the batch
+already carries.
