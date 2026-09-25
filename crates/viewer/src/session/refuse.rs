@@ -589,10 +589,13 @@ impl Refusal {
     ///
     /// "Dragging an expression-driven dimension → refuse, with an
     /// affordance" is a ratified micro-decision whose WORDING is part
-    /// of the decision, so it is composed once and every surface that
-    /// shows it — the status line, the inline note under the slot row —
-    /// calls this. Two independently-built copies is how the wording
-    /// drifts from the decision.
+    /// of the decision, so it is composed once and **every surface
+    /// that shows it calls this** — through this function, or through
+    /// the `Display` of a [`Refusal::DrivenByExpression`] the surface
+    /// is holding. The surfaces are not listed here: a list is a
+    /// census of call sites that nothing re-derives, and the rule is
+    /// what does the work. Two independently-built copies is how the
+    /// wording drifts from the decision.
     pub fn affordance(params: &[ParamName], current: Option<SlotValue>) -> String {
         let over = if params.is_empty() {
             "an expression".to_owned()
