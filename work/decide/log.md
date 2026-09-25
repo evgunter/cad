@@ -426,3 +426,99 @@ both avoided.
 The item leaves it to Ev with the orchestrator. The spec has Phase 1
 count both routes on today's tree, and stops before either is
 implemented. The sign-free part (Phase 2a) does not wait on it.
+
+## 2026-09-25 — DECIDE-4 merged into `props/sign-hull` (#3192)
+
+**What landed.**
+- Phase 1's attribution, and rule G's exact quotient (a root whose
+  argument's denominator divides its numerator exactly is minted over
+  the quotient).
+- The boss's last value-free residual is taken. The boss now certifies
+  0.73 of its real study, bounded by a real margin (`dihedral_wedge`).
+- No other split moves on nine documents, at +0–3% leaf cost.
+
+**What was filed.** The trade: a root re-keyed to `sqrt(Q)` no longer
+meets the split spelling `sqrt(N)/sqrt(D)`. It is filed as
+`the-exact-quotient-re-keys-a-root-the-split-met` (P2); the remedy is a
+canonical factorisation of a root's argument.
+
+**What is still open.** The bulge's sign waits on Ev's fork (`[ev]`
+#3186), and `rule-d-reaches-the-unit-bulge-only` stays open on it. If
+the ruling is route B, it is its own unit, since DECIDE-4 closed before
+the ruling.
+
+**The review.**
+- The dual on `334bb2aa2` gave APPROVE-WITH-FIXES twice: R1 0/7/4 and
+  R2 0/5/5. It was coded blind, byte 19, with no tally candidate and a
+  fair pair.
+- The adjudicated union fix pass A–L ran at `bfb059b7f`.
+- R1's delta found that the budget-sized step cap made one declined
+  division cost 0.78 s at the drive's budget. It was fixed at
+  `de02c07a1`: two necessary monomial conditions before any step, and a
+  remainder map so a step is linear in `|d|`. It now takes 0.3 ms.
+
+**Figures (harness).**
+
+| lane | tokens | time |
+| --- | --- | --- |
+| implementer, first pass | 481k | 250 min |
+| implementer, fix pass | 171k | 100 min |
+| implementer, second pass | 39k | 35 min |
+| R1 | 287k | 52 min |
+| R1's delta | 88k | 32 min |
+| R2 | 292k | 51 min |
+| coder | 73k | — |
+## 2026-09-24 — DECIDE-4 stops on the sign: the fork goes to Ev
+
+DECIDE-4's Phase 1 is pushed on `decide/4-bulge-reach` (`200123f29`).
+The evidence is the item's section "What stands on DECIDE-3's and
+SYM-9's tree (DECIDE-4)" on that branch: the per-cause tables, the
+renders, both routes counted and costed, and the leaf times.
+
+- **(ii) is empty.** DECIDE-3's `abs_square` and canonical root took
+  what SYM-3 counted.
+- **One value-free decision is left:** the boss's `arc_span`, which
+  bounds the boss's ceiling (`1.0309e3·ε`). It is a polynomial common
+  factor under a root, which rule E's monomial factor misses. That is
+  Phase 2a, and it proceeds.
+- **(iii) is non-empty:** four decisions on the `0.5` parameter
+  control, with eight frozen behind them. Phase 2b stops.
+
+The fork is written into the item (`needs_ev: true`) on the `[ev]` PR.
+The recommendation is route B, the span spelled from the decided turn.
+Route A as the dial stands is rejected: it raises `numeric` on every
+document. The apothem's sign is a second, smaller question, proposed as
+its own item.
+
+Also measured, not asked: on the plate and the bracket, `restrict`'s
+sub-arcs meet no arc-family decision. That closes the sweep's blind
+spot (i) for those two documents only.
+
+## 2026-09-25 — Ev rules the bulge's sign (#3186): route B, and the apothem as its own item
+
+Ev, on #3186: "both recommendations sound good!"
+
+- **Decision 1.** The sweep spells the carrier's span from the turn it
+  already decided, `4·atan(σ·b)` in `placed_segment_spec`. DECIDE-4 had
+  merged its review cycle before the ruling, so per its spec this is its
+  own unit, DECIDE-5, cut from `props/sign-hull` once #3192 lands.
+- **Decision 2.** The apothem's sign is filed as
+  `the-apothems-sign-is-a-value-read` (P2, cost H). Its candidate is a
+  narrowed rule C behind the door, with a structural look first.
+
+`rule-d-reaches-the-unit-bulge-only` clears `needs_ev` and closes when
+DECIDE-5 lands.
+
+
+## 2026-09-25 — DECIDE-5 spec'd: the arc's span from the decided turn (route B), single FULL review
+
+Ev's Decision 1 on #3186 is cut as DECIDE-5 (`docs/DECIDE-5-SPEC.md`).
+The branch is `decide/5-span-from-the-turn`, from `props/sign-hull` at
+`bd2bf0c85`, and its PR targets `props/sign-hull`. Opus implementer.
+
+**Review tier: single FULL review.** The design is ruled. The change is
+a few lines at one constructor site, and whether it is right can be
+settled by reading plus a handful of probes: the value channel's
+bit-identity, the `Zero`-turn convention, the span identity's proof
+comment, and the re-baselines, the link's four lost theorems above all.
+None of that needs a second independent reviewer to believe.

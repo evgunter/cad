@@ -2219,7 +2219,7 @@ pub enum Maintenance {
     /// (`dm7_delete_strands::the_orphan_transient_is_cancellable_at_the_cascade_door`),
     /// so the CASCADE door — the caller that holds
     /// [`cascade_delete_order`]'s answer — is where the net over an
-    /// action is computed, and nothing computes it today.
+    /// action is computed, by [`MaintenanceNet`].
     OrphanedDeclare {
         /// The `Declare` left with no consumer. It is LIVE in the
         /// document this edit produced — the surviving node is the
@@ -3160,6 +3160,227 @@ impl<P> Applied<P> {
                 | Maintenance::StrandedAppearance { .. }
                 | Maintenance::OrphanedDeclare { .. }
                 | Maintenance::Rebound { .. } => None,
+            })
+            .collect()
+    }
+}
+
+/// **An action's maintenance, net of what the action itself made
+/// moot** — the rows several accepted edits reported, folded into what
+/// is true of the document the action ENDS at.
+///
+/// [`Applied::maintenance`] is a function of one `(document, edit)`
+/// pair and answers what that edit did. An action — a cascade delete
+/// ([`cascade_delete_order`]'s sequence), a program written as several
+/// one-slot writes — is several edits, and a row one of them reported
+/// can be about nothing the action leaves behind. This is the one
+/// spelling of which rows survive, so every caller that holds a
+/// sequence (the viewer's session, the pre-click count a chrome states
+/// before a cascade) answers the same.
+///
+/// Fed one accepted edit at a time with [`Self::push`], in the order
+/// they applied; closed with [`Self::finish`] against the document the
+/// last one produced.
+///
+/// # What survives
+///
+/// - A [`Maintenance::Rebound`] is about where a NAME is now. A later
+///   edit that rebinds its `to` again moves it on: the two rows are one
+///   move, from the first `from` to the last `to`, at the first row's
+///   position. A later edit after which no carrier holds its `to`
+///   ended the move — the name was stranded (that edit's own strand
+///   row says where it went) or its carrier was deleted — and so did a
+///   later edit whose own strand row names the `to` (a delete of the
+///   node that minted it), and the row is dropped, because its sentence ("every carrier of the name still
+///   denotes what it did") is no longer true. So is a later edit that
+///   rebinds ANOTHER name onto its `to`: a program map is injective
+///   over the segments it keeps, so a name another lands on was not
+///   kept. A move that ends where it began is no move at all.
+/// - A [`Maintenance::Strand`] survives when its carrier is live at the
+///   end AND still holds the stranded name: a carrier a later edit
+///   deleted, or whose name a later edit rewrote (a [`DocEdit::Rebind`]
+///   repairs exactly this), strands nothing.
+/// - A [`Maintenance::StrandedAppearance`] survives when the store
+///   still holds its key.
+/// - A [`Maintenance::OrphanedDeclare`] survives when the declaration
+///   is live at the end AND nothing consumes it: a later edit that
+///   deleted it, or gave it a consumer, took the report back.
+/// - A [`Maintenance::Cluster`] act always survives: it is registry
+///   state replay re-applies ([`LoggedEdit`]), not a claim about the
+///   end document.
+///
+/// Surviving rows keep the order the edits reported them in, each
+/// edit's rows in [`Applied::maintenance`]'s own order.
+///
+/// **One edit's rebounds are ONE map, not a sequence** — a swap
+/// reports `a → b` and `b → a` together — so an edit's rows are read
+/// against what EARLIER edits left, never against each other.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MaintenanceNet {
+    rows: Vec<Maintenance>,
+}
+
+impl MaintenanceNet {
+    /// No edit yet.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Fold in one accepted edit — its rows, read against the document
+    /// it produced, which [`Applied`] carries together, so the rows are
+    /// a door's by construction and the pairing cannot be got wrong.
+    ///
+    /// # Panics
+    ///
+    /// When two surviving rebounds would name one `to`, which no
+    /// sequence of accepted edits produces — so the panic is a bug in
+    /// this fold or in the door, not a state a caller can build:
+    ///
+    /// - **One edit's rebounds have distinct `to`s.** The only producer
+    ///   of [`Maintenance::Rebound`] is `reshape_report`, reached from
+    ///   [`DocEdit::SetProgram`] and from a value edit's
+    ///   `reanchor_report`. It reports one row per `from` (it dedups on
+    ///   the name before pushing), and its map is injective: kept
+    ///   segments map injectively and retired images are strands, not
+    ///   rebounds (its own doc). A value edit that renumbers several
+    ///   profiles runs it once per profile, over the names spelled in
+    ///   that profile's numbering — the names of the sweeps anchored on
+    ///   it, and [`Node::anchoring_profile`] names at most one profile
+    ///   per node — so two profiles' rows rewrite disjoint names into
+    ///   disjoint names.
+    /// - **[`DocEdit::Rebind`] reports no rebound.** It is the one door
+    ///   that MERGES names by design (every carrier of `from` now holds
+    ///   `to`, which others may already hold), and it answers with an
+    ///   empty maintenance list; its effect reaches this fold only
+    ///   through `after`, where an earlier rebound whose `to` it
+    ///   rewrote is no longer held and is dropped.
+    /// - **Induction over `push`.** Suppose the surviving `to`s are
+    ///   distinct before this edit. An earlier row chains onto the
+    ///   edit's row whose `from` is its `to`; distinct `to`s find
+    ///   distinct rows (the edit's `from`s are distinct), and the row it
+    ///   chains onto is not pushed again. An earlier row that does not
+    ///   chain survives only when no row of the edit lands on its `to`.
+    ///   The edit's own unchained rows have distinct `to`s, and none
+    ///   equals a chained row's, since those ARE the edit's other `to`s.
+    ///   So the survivors' `to`s are distinct after it.
+    pub fn push<P>(&mut self, edit: &Applied<P>) {
+        self.fold(&edit.maintenance, &edit.doc);
+    }
+
+    /// [`Self::push`] from rows written by hand rather than read off
+    /// a door, for the rows that hold the fold's rebound rules on
+    /// sequences no pair of real edits reaches cheaply. It bypasses the
+    /// pairing [`Self::push`] enforces, so a hand row CAN reach the
+    /// panic [`Self::push`] documents; that is what the row holding the
+    /// panic uses it for.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn push_rows<P>(&mut self, rows: &[Maintenance], after: &Doc<P>) {
+        self.fold(rows, after);
+    }
+
+    fn fold<P>(&mut self, rows: &[Maintenance], after: &Doc<P>) {
+        let held = |name: &StableName| {
+            after.name_carriers().any(|carrier| match carrier {
+                NameCarrier::Payload { name: now, .. } | NameCarrier::Store { name: now } => {
+                    now == name
+                }
+            })
+        };
+        // A later edit that STRANDS the name an earlier one moved took
+        // the move back: the carrier holds the name still, but the name
+        // denotes nothing, which is the strand row's sentence and not
+        // the rebound's.
+        let stranded = |name: &StableName| {
+            rows.iter().any(|row| match row {
+                Maintenance::Strand { name: lost, .. }
+                | Maintenance::StrandedAppearance { name: lost } => lost == name,
+                Maintenance::Cluster(_)
+                | Maintenance::OrphanedDeclare { .. }
+                | Maintenance::Rebound { .. } => false,
+            })
+        };
+        let mut onward = vec![false; rows.len()];
+        let mut kept: Vec<Maintenance> = Vec::with_capacity(self.rows.len() + rows.len());
+        for earlier in self.rows.drain(..) {
+            let Maintenance::Rebound { from, to } = earlier else {
+                kept.push(earlier);
+                continue;
+            };
+            let chained = rows.iter().enumerate().find_map(|(at, row)| match row {
+                Maintenance::Rebound {
+                    from: moved,
+                    to: next,
+                } if *moved == to => Some((at, next)),
+                Maintenance::Rebound { .. }
+                | Maintenance::Cluster(_)
+                | Maintenance::Strand { .. }
+                | Maintenance::StrandedAppearance { .. }
+                | Maintenance::OrphanedDeclare { .. } => None,
+            });
+            if let Some((at, next)) = chained {
+                onward[at] = true;
+                kept.push(Maintenance::Rebound {
+                    from,
+                    to: next.clone(),
+                });
+                continue;
+            }
+            let landed_on = rows
+                .iter()
+                .any(|row| matches!(row, Maintenance::Rebound { to: now, .. } if *now == to));
+            if !landed_on && !stranded(&to) && held(&to) {
+                kept.push(Maintenance::Rebound { from, to });
+            }
+        }
+        kept.extend(
+            rows.iter()
+                .zip(onward)
+                .filter(|(_, folded)| !folded)
+                .map(|(row, _)| row.clone()),
+        );
+        let mut spellings: Vec<&StableName> = kept
+            .iter()
+            .filter_map(|row| match row {
+                Maintenance::Rebound { to, .. } => Some(to),
+                Maintenance::Cluster(_)
+                | Maintenance::Strand { .. }
+                | Maintenance::StrandedAppearance { .. }
+                | Maintenance::OrphanedDeclare { .. } => None,
+            })
+            .collect();
+        let count = spellings.len();
+        spellings.sort();
+        spellings.dedup();
+        assert_eq!(
+            spellings.len(),
+            count,
+            "two surviving rebounds name one spelling, which no sequence of accepted edits \
+             produces (`MaintenanceNet::push`'s proof): {kept:?}"
+        );
+        self.rows = kept;
+    }
+
+    /// The rows that survive, against `end` — the document the last
+    /// pushed edit produced.
+    pub fn finish<P: crate::ProfilePayload>(self, end: &Doc<P>) -> Vec<Maintenance> {
+        let consumed = |declare: RecipeNodeId| {
+            end.order().iter().any(|id| {
+                end.node(*id)
+                    .is_some_and(|node| node.inputs().contains(&declare))
+            })
+        };
+        self.rows
+            .into_iter()
+            .filter(|row| match row {
+                Maintenance::Strand { node, name } => end
+                    .node(*node)
+                    .is_some_and(|carrier| carrier.payload_names().contains(&name)),
+                Maintenance::StrandedAppearance { name } => end.appearance().contains_key(name),
+                Maintenance::OrphanedDeclare { declare } => {
+                    end.node(*declare).is_some() && !consumed(*declare)
+                }
+                Maintenance::Rebound { from, to } => from != to,
+                Maintenance::Cluster(_) => true,
             })
             .collect()
     }
