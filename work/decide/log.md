@@ -495,3 +495,28 @@ row.
 | implementer, fix pass | 81k | 82 min |
 | reviewer | 248k | 54 min |
 
+
+## 2026-09-25 — DECIDE-6 spec'd: the decision read's cost, single FULL review
+
+**Why this unit.** Both P1 rows on the slate are gated:
+- `declared-tangency-needs-the-registered-identity-door` waits on ROUND's
+  `fillet-tangency-is-not-the-constructors-node`, which is still open;
+- `revolve-carriers-state-only-the-rim` stays filed until a measured
+  document is bounded by a revolve carrier (E6).
+
+The next unit is therefore a P2. DECIDE-6 takes
+`decision-read-triples-the-plate-pin-suites-wall-time` (cost D): a
+measured 3.7× on the plate's dev pin suite, with three cheap answers
+written in the row. It comes before the H rows because it is the
+cheapest, it is measured, and none of its answers changes a decision.
+The apothem's value read and the quotient's factorisation are the
+alternatives, both H.
+
+**Review tier: single FULL review.** The change is a cost change behind
+an invariant that the pins and a receipt-equality row check. Whether the
+invariant holds takes executing the pre-pass against the enclosure, not
+only reading it, hence FULL. It is reversible and not a design decision,
+so it is not DUAL.
+
+Spec `docs/DECIDE-6-SPEC.md`. Branch `decide/6-read-cost` from
+`props/sign-hull` at `1264640fa`.
