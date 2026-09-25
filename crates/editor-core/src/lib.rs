@@ -109,7 +109,8 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, LoopProvenance,
-    Maintenance, ProvenanceFault, RETIRED_FLOOR, apply, apply_logged, cascade_delete_order,
+    Maintenance, MaintenanceNet, ProvenanceFault, RETIRED_FLOOR, apply, apply_logged,
+    cascade_delete_order,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,
