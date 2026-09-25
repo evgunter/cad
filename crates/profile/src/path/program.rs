@@ -111,9 +111,14 @@ use geom_core::Tol;
 /// **The tag half of a payload vocabulary — THREE projections of one
 /// variant list.**
 ///
-/// Given a payload enum's variant names, this expands exactly three
-/// things: the payload-free tag enum, that tag's `ALL` (every variant,
-/// in declaration order), and the payload → tag read-back method. It
+/// Given a tag enum spelled `pub enum Tag { $($name),* }`, a payload
+/// enum `P<T: Real>` with the same variant names, and a read-back
+/// `fn read(&P)`, this expands exactly three things: the payload-free
+/// tag enum, that tag's `ALL` (every variant, in declaration order),
+/// and the payload → tag read-back method. The tag is spelled as an
+/// `enum` item at each call site so that a reader searching for its
+/// declaration — and `pncad-py`'s prose census, which resolves
+/// `profile::Verb` by one — finds it under its own name. It
 /// is called from inside `target_forms!`, `arc_modes!` and
 /// `transition_table!`, each of which declares its payload enum from
 /// the same list and hands the names here, so the three tag halves are
@@ -141,12 +146,11 @@ use geom_core::Tol;
 macro_rules! tag_projections {
     (
         $(#[doc = $tdoc:literal])*
-        tag $tag:ident of $payload:ident;
+        pub enum $tag:ident { $($name:ident),* }
         $(#[doc = $adoc:literal])*
         const ALL;
         $(#[doc = $rdoc:literal])*
-        fn $read:ident;
-        variants { $($name:ident)* }
+        fn $read:ident(&$payload:ident);
     ) => {
         $(#[doc = $tdoc])*
         #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -217,7 +221,7 @@ macro_rules! target_forms {
             /// inside a verb AND inside an arc spec, so a form that fails to
             /// reach a downstream spelling is invisible to both the
             /// verb-keyed and the mode-keyed checks.
-            tag TargetKind of Target;
+            pub enum TargetKind { $($name),* }
             /// Every target form the vocabulary declares, in declaration
             /// order — enumerated from the same declaration as the
             /// variants, so a census keyed on it grows with the
@@ -231,8 +235,7 @@ macro_rules! target_forms {
             /// form it is, and re-deriving that by matching the forms at
             /// every such site is how a new form goes missing from one
             /// of them.
-            fn kind;
-            variants { $($name)* }
+            fn kind(&Target);
         }
     };
 }
@@ -328,15 +331,14 @@ macro_rules! arc_modes {
             /// exactly as [`Verb`] is for the verb vocabulary: the mode
             /// travels INSIDE a verb, so a mode that fails to reach a
             /// downstream spelling is invisible to every verb-keyed check.
-            tag ArcMode of ArcData;
+            pub enum ArcMode { $($name),* }
             /// Every arc mode the vocabulary declares, in declaration
             /// order — enumerated from the same declaration as the
             /// variants, so a census keyed on it grows with the
             /// vocabulary rather than behind it.
             const ALL;
             /// The mode this spec names.
-            fn mode;
-            variants { $($name)* }
+            fn mode(&ArcData);
         }
     };
 }
@@ -593,15 +595,14 @@ macro_rules! transition_table {
             /// `verbs::Verb` (an operation on a body). No signature takes
             /// both; outside the owning crate, prose spells the crate and
             /// code imports at most one of the two per file.
-            tag Verb of Step;
+            pub enum Verb { $($name),* }
             /// Every verb the table declares, in declaration order —
             /// the row set, enumerated from the same declaration, so
             /// the replay-coverage census cannot fall behind a verb
             /// the table gains (`tests/path_program.rs`).
             const ALL;
             /// The verb this step names.
-            fn verb;
-            variants { $($name)* }
+            fn verb(&Step);
         }
 
         /// The word the verb is CALLED — the authoring spelling, which
