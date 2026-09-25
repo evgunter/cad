@@ -159,3 +159,21 @@ disclosed: the accessor macros now read `target_roles` through
 D), for every non-target role, and LIB's
 `prose-census-negative-reads-are-guarded-only-by-a-non-empty-allowlist`
 (P3).
+
+## 2026-09-25 — the member-space unit goes to its dual review
+
+PR 3143 is green on `24c97a729`. Ev's #3200 and EMIT's #3213 took
+containment out of the unit, so what is left is
+`FoldConsumption { Split, FragmentedMerge }`: typed refusals with no
+offer. It composes with #3213 through
+`drop_consumed(look_through_merges(..)?)`. The lane found that the
+"interval failures" it had stopped on did not exist. Those runs had been
+cancelled by newer pushes; the real blocker was `mergeable_state: dirty`.
+
+Dual review dispatched under `docs/DUAL-REVIEW-PROTOCOL.md` at
+`c3129311b`: R1 and R2 run concurrently on the frozen head `24c97a729`
+from one brief (scratchpad `dual3143-brief.md`, sha256 `ff9c2451…40c9c`),
+and the two differ only in lane name and target dir. Class **M /
+STRUCTURAL**. Triage reason, recorded at spec time: it adds refusal
+vocabulary to the naming layer, which every member-space declaration
+reads and which would be hard to change later.
