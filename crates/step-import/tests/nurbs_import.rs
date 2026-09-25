@@ -40,8 +40,7 @@ use crate::common;
 use common::import_body;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
-use profile::RawLoop;
-use profile::{ProfileLoop, ProfileVertex};
+use profile::test_support::bulge_loop;
 use step_import::{ImportOptions, import_step};
 use sweep::{Section, loft_body};
 
@@ -53,8 +52,8 @@ use sweep::{Section, loft_body};
 /// carry.
 fn native_arc_loft() -> topo::Body<f64> {
     let arc_section = |s: f64| -> Section {
-        let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
-        vec![ProfileLoop::new(vec![
+        let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
+        vec![bulge_loop(vec![
             v(-s, -s, 0.0),
             // tan(π/8) on the +x side: a quarter-circle bulge-out.
             v(s, -s, 0.4142135623730951),
