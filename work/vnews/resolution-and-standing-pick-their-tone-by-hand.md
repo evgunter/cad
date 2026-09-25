@@ -83,3 +83,68 @@ available at that site.
 The decision the row states is unchanged and now covers more: these
 values are `pncad`'s and `crate::display`'s, so where a tone for a
 non-viewer value lives is still what has to be settled first.
+
+## Decided (2026-09-25): the tone lives on `Standing`
+
+**`Standing::tone()`** (`crates/viewer/src/session/select.rs` — the
+type has moved there from `props.rs`), total like `RowStatus::tone`:
+`Actionable` for a deleted node, an undeclared parameter, a name that
+failed to resolve and one the evaluation could not answer for;
+`Advisory` for nothing selected, a live selection, and a pick with no
+evaluation behind it yet. The match is exhaustive over the kernel's
+`Resolution`, so a verdict the kernel grows has to answer it here.
+
+**Why this home and not the other two.**
+
+- *A free function keyed on `Resolution`* reaches the resolution arms
+  only. The deleted-node and undeclared-parameter arms are not
+  `Resolution`s, so they would need a second home for the same rule,
+  and the "no evaluation yet" arm is not a `Resolution` either — it is
+  `Standing`'s own `Option`.
+- *A wrapper the pane builds first* already exists: it is `Standing`.
+  The session builds it from the kernel's verdict, and `live()` and
+  `unresolved()` are two readings of that verdict for the chrome. A
+  second wrapper would be a second copy of the same interpretation.
+- Nothing enters `pncad`: the kernel's verdict stays the kernel's, and
+  how loud a viewer draws it is decided by the viewer's own value.
+
+**The pane.** `standing_ui`'s node arm draws `toned("deleted", …,
+standing.tone())`; its parameter arm and the parameter panel's own
+`"that parameter is gone"` both read `standing.tone()` — those two were
+one fact in one frame drawn in two tones, `Actionable` above and
+`Advisory` below (the words half stays
+`three-spellings-say-a-parameter-is-not-declared`'s). The resolution
+arms moved into `pane::properties::entity_verdict`, a free function the
+headless harness reaches: it composes the words per arm from the
+verdict's payload and draws them once, in `standing.tone()` — the rule
+`a-tree-rows-message-line-picks-its-affordance-by-hand` states.
+
+**The widened population, disposed.**
+
+- `pane/create.rs`, the part chooser's scan refusal: **fixed**, by a
+  tone stated at the site. It was body colour by omission; it is now
+  `Tone::Actionable`, once, with the reason at the site — every refusal
+  that reaches the arm (`Refusal::NoDocumentDirectory`,
+  `Refusal::Workspace`, `DocSession::part_catalogue`'s two) leaves the
+  chooser with nothing to offer until the reader saves or repairs the
+  directory and rescans. A literal and not a value, because this site
+  varies no tone across arms.
+- `pane/properties.rs`, the free-move probe's fault, and `hide_toggle`'s:
+  **left, with the reason at each site**. Both are single-tone:
+  past the section's kind gate the only faults that arrive are a mate
+  placing the instance and geometry fused with another's, which are the
+  document as written.
+- `pane/properties.rs`, `slot_group_ui`'s two `ui.weak` over a
+  dimension: the control case, as before — secondary text, not a tone.
+- `entity_verdict`'s rebind count under a failure: secondary text under
+  a verdict that carries the tone; the site says so.
+
+**Receipts.** `pane::properties::verdict_tests` reads the colour off
+the paint (`pane::headless::Landed::ink`, added here) and holds it
+against fixed colours — `Theme::DEFAULT.unresolved` and egui's own weak
+text — for a vanished face (and its offer count), an indeterminate
+edge, and a pick with no evaluation. Planting `Failed(_) =>
+Tone::Advisory` in `Standing::tone` reds the first; swapping the
+arms of `app::toned` reds all three. `session::select::tests` holds
+the node and parameter arms, which no headless drive reaches, against
+fixed `Tone`s.

@@ -154,7 +154,7 @@ impl ViewerBehavior<'_> {
                         ui,
                         "that parameter is gone",
                         &self.theme,
-                        Tone::Advisory,
+                        standing.tone(),
                     );
                 }
             }
@@ -519,7 +519,10 @@ impl ViewerBehavior<'_> {
             Err(fault) => {
                 // The typed ineligibility, shown where the control
                 // would be — the same sentence the op would refuse
-                // with.
+                // with. Advisory for every fault that reaches here: the
+                // admission faults end the section above, which leaves
+                // a mate placing the instance — the document working
+                // as written, which asks nothing of the reader.
                 crate::widgets::message_toned(ui, fault.to_string(), &self.theme, Tone::Advisory);
             }
             Ok(()) => {
@@ -1098,6 +1101,10 @@ fn hide_toggle(
         egui::Checkbox::new(shown, "shown in viewport"),
     );
     if let Err(fault) = addressable {
+        // Advisory: past the section's own kind gate the one fault
+        // left is geometry fused into a drawn root with another
+        // instance's, which is what the document says and nothing a
+        // reader got wrong.
         crate::widgets::message_toned(ui, fault.to_string(), theme, Tone::Advisory);
     }
     toggle.changed()
