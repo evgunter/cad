@@ -456,7 +456,8 @@ fn a_fragments_side_of_partners_are_one_order_in_every_member_order() {
             let (doc, y) = block(doc, (-1.0, 2.0), (0.3, 0.4), 0.5, 3.5);
             let m = [a, b, y];
             let members: Vec<RecipeNodeId> = p.iter().map(|&i| m[i]).collect();
-            let (doc, u, _) = declared_union(doc, &members, flush_pairs((a, a), (b, b)));
+            let pairs = flush_pairs(&doc, (a, a), (b, b));
+            let (doc, u, _) = declared_union(doc, &members, pairs);
             let ev = run(&doc);
             bindings(&ev, u)
                 .into_iter()

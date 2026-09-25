@@ -167,6 +167,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![bracket],
+                ids: Vec::new(),
             }),
         },
     );
@@ -197,6 +198,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![fillet_loop],
+                ids: Vec::new(),
             }),
         },
     );
@@ -246,7 +248,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Node::chamfer(
                 editor_core::RecipeNodeId(6),
                 Expr::literal(0.1, Dimension::Length).expect("finite"),
-                fixture::prism_edges(editor_core::RecipeNodeId(6), 4),
+                fixture::prism_edges(&doc, editor_core::RecipeNodeId(6), 4),
             ),
         },
     );

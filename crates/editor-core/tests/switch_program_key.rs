@@ -44,6 +44,7 @@ fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
                 node: Node::Profile(ProfileProgram {
                     plane: PLANE,
                     loops,
+                    ids: Vec::new(),
                 }),
             },
             Tol::witness(),
@@ -154,6 +155,7 @@ fn resolved_values_feed_the_key() {
                             ],
                             radius: Expr::param(ParamName::new("r"), Dimension::Length),
                         }],
+                        ids: Vec::new(),
                     }),
                 },
                 Tol::witness(),
@@ -208,6 +210,7 @@ fn a_carrier_centre_respelled_keys_identically() {
                         ],
                         radius: Expr::literal(0.5, Dimension::Length).unwrap(),
                     }],
+                    ids: Vec::new(),
                 }),
             },
             Tol::witness(),
@@ -264,6 +267,7 @@ fn doc_with_r(value: f64, loops: Vec<LoopProgram>) -> ProfileDoc {
                 node: Node::Profile(ProfileProgram {
                     plane: PLANE,
                     loops,
+                    ids: Vec::new(),
                 }),
             },
             Tol::witness(),

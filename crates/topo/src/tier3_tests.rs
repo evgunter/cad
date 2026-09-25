@@ -19,7 +19,7 @@ use geom_core::{Point3, Vec3};
 
 use crate::contact::{ContactClass, DeclaredContact};
 use crate::euler::FaceSurface;
-use crate::fixtures::test_curve;
+use crate::fixtures::{refile_shells, test_curve};
 use crate::validate::{
     MaterialArmOutcome, ValidationError, material_arm_error, material_arm_outcome, validate,
     validate_geometric, validate_geometric_declared,
@@ -1915,29 +1915,6 @@ fn cube_solid(body: &mut Body<f64>, origin: (f64, f64, f64), s: f64, inside_out:
 /// The solid keys of `body`, in arena order.
 fn solids_of(body: &Body<f64>) -> Vec<crate::entity::SolidKey> {
     body.solids().map(|(k, _)| k).collect()
-}
-
-/// Every shell of `donor` refiled under `keeper`, and `donor` removed —
-/// the raw-arena spelling of "these shells are one solid's".
-fn refile_shells(
-    body: &mut Body<f64>,
-    donor: crate::entity::SolidKey,
-    keeper: crate::entity::SolidKey,
-) {
-    let moved = body.shells_of_solid(donor).expect("a live donor").to_vec();
-    for shell in &moved {
-        body.get_shell_mut(*shell).expect("a live shell").solid = keeper;
-    }
-    body.get_solid_mut(keeper)
-        .expect("a live keeper")
-        .shells
-        .extend(moved);
-    body.get_solid_mut(donor)
-        .expect("a live donor")
-        .shells
-        .clear();
-    body.solids.remove(donor);
-    body.solid_provenance.remove(donor);
 }
 
 /// The axis-aligned extent of `shell`'s stored vertex positions.

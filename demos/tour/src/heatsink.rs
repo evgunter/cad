@@ -140,6 +140,7 @@ fn build_doc(tol: Tol) -> Recipe {
         Node::Profile(ProfileProgram {
             plane: base_plane,
             loops: base_loops,
+            ids: Vec::new(),
         }),
     );
     let base_e = insert(
@@ -157,6 +158,7 @@ fn build_doc(tol: Tol) -> Recipe {
         Node::Profile(ProfileProgram {
             plane: fin_plane,
             loops: fin_loops,
+            ids: Vec::new(),
         }),
     );
     let fin_e = insert(

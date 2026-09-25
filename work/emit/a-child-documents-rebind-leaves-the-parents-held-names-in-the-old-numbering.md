@@ -2,11 +2,12 @@
 id: a-child-documents-rebind-leaves-the-parents-held-names-in-the-old-numbering
 kind: issue
 title: A child document's rebind does not reach the parent assembly's names spelled in its numbering; UpdateReference moves the pin and rewrites no name
-status: parked
+status: closed
 opened: 2026-09-24
 priority: P0
 cost: H
-blocked_on: [profile-pieces-are-named-by-minted-step-ids]
+closed: 2026-09-25
+pr: 3223
 ---
 
 

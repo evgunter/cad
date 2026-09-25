@@ -905,15 +905,17 @@ BOUND_AS = {
     # cross at the two carriers' second words.
     "NamingError": "EvaluationError.inner_kind",
     "ProgramRefusal": "EditError.inner_variant",
-    # The whole-program edit's two payload types. `LoopProvenance` is
-    # what `DocEdit.set_program` takes as its `provenance` argument —
-    # a list of `(from, steps)` tuples, one per loop, which is the
-    # struct's two fields spelled as Python data rather than a class
-    # of its own. `ProvenanceFault` is what
-    # `EditError::ProvenanceMalformed` carries, and its seven arms
-    # cross at the carrier's second word.
-    "LoopProvenance": "DocEdit.set_program",
-    "ProvenanceFault": "EditError.inner_variant",
+    # The profile step ids. A `StepId` is what `Doc.step_ids` answers
+    # and `DocEdit.set_program` takes, one int per authored step (a
+    # kept id, or `None` for a new step), which is the newtype spelled
+    # as Python data rather than a class of its own. `StepIdFault` is
+    # what `EditError::StepIdsRefused` carries, and its arms cross at
+    # the carrier's second word.
+    "StepId": "Doc.step_ids",
+    "StepIdFault": "EditError.inner_variant",
+    # `PiecesFault` is what `NodeErrorKind::ProfilePieces` carries, and
+    # its arms cross at that carrier's second word.
+    "PiecesFault": "EvaluationError.inner_kind",
     # `MetaVersionError` is the same row one arm over, and it arrives
     # by the same reading failing. It was `NOT_CARRIED` under "the
     # curated face is a different shape", qualified: it is a nested
@@ -1227,6 +1229,13 @@ BOUND_AS = {
     "SlotId": "EditError.slot",
     "InputFault": "EditError.variant",
     "NodeMap": "SplitOutcome.node_map",
+    "StepMap": "SplitOutcome.step_map",
+    # What a `StepMapDiverged` refusal carries; the arm crosses as its
+    # tag word.
+    "StepMapDivergence": "SplitError.variant",
+    # A profile's pieces cross as opaque text, one per canonical
+    # segment, which is what the role-name doors take.
+    "ProfilePieces": "Doc.pieces",
     "PlacementRuleFault": "EditError.variant",
     "RootFault": "EditError.variant",
     "RAD": "rad",
@@ -2374,12 +2383,6 @@ NOT_BOUND = {
     "ProfileDoc": SHAPE,
     "ProfileLift": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
-    # The floor of the retired index space — the coordinate
-    # `SetProgram` retires a stranded name to. A Python caller reads
-    # the retired spelling off the `strand` row's `name` and rebinds
-    # from it; it never mints one, so the number is not a door here
-    # (`test_document.py`'s strand row pins the spelling by value).
-    "RETIRED_FLOOR": SHAPE,
     "Real": SHAPE,
     "RecordedNotation": f"{GAP}: B-PATH-NOTATION the notation a recorded path leg was authored in",
     "RecordedProgramError": SHAPE,
@@ -2652,6 +2655,8 @@ NOT_BOUND = {
     "ParamEnv": INTERIOR,
     "Profile": INTERIOR,
     "ProfileEdgeRef": INTERIOR,
+    "PieceRole": INTERIOR,
+    "SectionCircle": INTERIOR,
     "ProfileLoop": INTERIOR,
     "ProfileProgram": INTERIOR,
     "ProfileVertexRef": INTERIOR,
@@ -2681,6 +2686,8 @@ NOT_BOUND = {
     "StepArg": INTERIOR,
     "StepSegmentsError": f"{GAP}: B-STEP-SEGMENTS the refusal of the door "
     "that says which profile edges an authored step became",
+    "CanonicalSegment": f"{GAP}: B-STEP-SEGMENTS the canonical position that "
+    "door answers in",
     "Surface": INTERIOR,
     "ValidatedLoop": INTERIOR,
     "ValidatedProfile": INTERIOR,
@@ -3243,12 +3250,6 @@ MEMBERS_BOUND_AS = {
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
     "Maintenance::OrphanedDeclare": "Maintenance.variant",
-    # `Maintenance::Rebound` needs a profile name a reshaping moved:
-    # `Node.fillet` takes a name selection and `DocEdit.set_program`
-    # is bound, and `test_document.py`'s
-    # `test_a_reshaped_program_rebinds_a_fillets_name_and_reports_it`
-    # is the Python program that makes one appear.
-    "Maintenance::Rebound": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
     "DistributionFault::NominalOutsideSupport": "DistributionFault.variant",
@@ -3261,7 +3262,8 @@ MEMBERS_BOUND_AS = {
     "EditError::SelectionNotCanonical": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
     "EditError::SetProgramOnNonProfile": "EditError.variant",
-    "EditError::ProvenanceMalformed": "EditError.variant",
+    "EditError::StepIdsRefused": "EditError.variant",
+    "EditError::NameStepNeverMinted": "EditError.variant",
     "EditError::TooFewMembers": "EditError.variant",
     "EditError::DeleteWouldDangle": "EditError.variant",
     "EditError::UnknownSlot": "EditError.variant",
@@ -3345,7 +3347,9 @@ MEMBERS_BOUND_AS = {
     "InlineError::InstanceBodyNameReferenced": "InlineError.variant",
     "InlineError::ForeignInstanceName": "InlineError.variant",
     "InlineError::StrandedPartName": "InlineError.variant",
+    "InlineError::NameOnDroppedStep": "InlineError.variant",
     "InlineError::Edit": "InlineError.variant",
+    "InlineError::StepMapDiverged": "InlineError.variant",
     "MateFault::PosesOfAnotherDocument": "MateFault.variant",
     "MateFault::Frame": "MateFault.variant",
     "MateFault::ClassNotAdmitted": "MateFault.variant",
@@ -3466,10 +3470,12 @@ MEMBERS_BOUND_AS = {
     "SplitError::UncutParamReference": "SplitError.variant",
     "SplitError::PartNameReachesRemainder": "SplitError.variant",
     "SplitError::NameStraddlesCut": "SplitError.variant",
+    "SplitError::NameOnDroppedStep": "SplitError.variant",
     "SplitError::BodyNameCrossesCut": "SplitError.variant",
     "SplitError::Pin": "SplitError.variant",
     "SplitError::PartEdit": "SplitError.variant",
     "SplitError::RemainderEdit": "SplitError.variant",
+    "SplitError::StepMapDiverged": "SplitError.variant",
     "StepImportError::Syntax": "StepImportError.variant",
     "StepImportError::DanglingReference": "StepImportError.variant",
     "StepImportError::WrongEntityType": "StepImportError.variant",

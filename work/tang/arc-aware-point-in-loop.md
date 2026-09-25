@@ -88,3 +88,13 @@ in-chat direction): the plan's lane that carries this item is in
   class no longer needs this issue's walk. `boolean::contain::disc_side`
   is `pub(crate)` as of ATREST-5, so that third can close by the same
   dispatch `contfp` does, independently of the arc-aware walk.
+
+## A torus-free standalone fixture (GERM, 2026-09-25)
+
+GERM's dumbbell measurement lane reproduced a `contain::contfp` `OnBoundary`
+→ `Escalated{bool_contfp_boundary}` with no torus and no F7 in play:
+a rectangle touching the axis, `Revolution::Partial(3π/2)`, unioned with a
+box sitting on its top cap. The query point is the axis point, which is the
+cap arcs' common centre and is collinear with the loop's straight edges.
+(Its diag also reads `margin: Invalid`.) The same door stops the
+longitudinal spelling of the revolved dumbbell.

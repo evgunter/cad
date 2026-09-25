@@ -1278,6 +1278,7 @@ fn resolution_status_tags_are_stable() {
                 LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                     .expect("finite corners"),
             ],
+            ids: Vec::new(),
         }),
     );
     let (doc, extrude) = insert(
@@ -1805,6 +1806,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
             node: Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![square],
+                ids: Vec::new(),
             }),
         },
         tol,
@@ -2324,7 +2326,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocParamValue,
         DocumentId, EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
-        ProvenanceFault, RecipeNodeId, RootFault, SlotId,
+        RecipeNodeId, RootFault, SlotId, StepId, StepIdFault,
     };
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};
@@ -2352,12 +2354,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::SetMembersOnNonList { node: id(1) }, &["node"]);
     carries(&E::SetProgramOnNonProfile { node: id(1) }, &["node"]);
     carries(
-        &E::ProvenanceMalformed {
+        &E::StepIdsRefused {
             node: id(1),
-            fault: ProvenanceFault::LoopCount {
-                loops: 1,
-                provenance: 2,
-            },
+            fault: StepIdFault::Repeated { step: StepId(2) },
         },
         &["node"],
     );
@@ -2568,6 +2567,11 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // ---- names, kinds and appearance ----
     for arm in [
         E::DeclareNamesMissingNode { name: named() },
+        E::NameStepNeverMinted {
+            name: named(),
+            step: StepId(9),
+            next_step: 4,
+        },
         E::RebindTargetMissingNode { name: named() },
         E::RebindUnknownName { name: named() },
         E::RebindIdentity { name: named() },
@@ -4399,6 +4403,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_non_finite",
             "meta_not_set",
             "meta_unversioned",
+            "name_step_never_minted",
             "name_unresolved_in_evaluation",
             "non_finite_alignment",
             "non_finite_doc_param",
@@ -4412,7 +4417,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_on_non_instance",
             "placement_rule_mismatch",
             "profile_program_refused",
-            "provenance_malformed",
             "read_site_missing_node",
             "rebind_appearance_collision",
             "rebind_identity",
@@ -4428,6 +4432,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slot_dimension_mismatch",
             "slot_doc_param_dimension",
             "slot_unknown_doc_param",
+            "step_ids_refused",
             "structural_slot_needs_structural_edit",
             "too_few_members",
             "unknown_node",
@@ -4453,7 +4458,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_version_error_tag",
             "node_error_tag",
             "program_refusal_tag",
-            "provenance_fault_tag",
+            "step_id_fault_tag",
         ],
     },
     TagEntry {
@@ -4593,9 +4598,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "inline_edit",
             "instance_body_name_referenced",
             "instance_consumed",
+            "name_on_dropped_step",
             "not_an_instance",
             "param_conflict",
             "part_carries_metadata",
+            "step_map_diverged",
             "stranded_part_name",
             "unknown_node",
             "unplaceable_frame",
@@ -4657,7 +4664,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "gauge_rewrite",
             "join",
             "orphaned_declare",
-            "rebound",
             "split",
             "strand",
             "stranded_appearance",
@@ -4796,6 +4802,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "profile",
             "profile_anchor",
             "profile_lane_replay",
+            "profile_pieces",
             "profile_replay",
             "revolve",
             "seed",
@@ -4841,6 +4848,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "naming_error_tag",
             "param_attach_error_tag",
             "param_box_error_tag",
+            "pieces_fault_tag",
             "profile_error_tag",
             "readback_error_tag",
             "replay_error_tag",
@@ -4986,6 +4994,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "pieces_fault_tag",
+        values: &["length", "no_ids", "no_record", "no_step_id"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "placement_rule_fault_tag",
         values: &[
             "empty_placement_list",
@@ -5041,7 +5054,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "program_refusal_tag",
-        values: &["geometry", "record", "resolve", "transition", "validate"],
+        values: &[
+            "geometry",
+            "pieces",
+            "resolve",
+            "step_ids",
+            "transition",
+            "unminted",
+            "validate",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5052,19 +5073,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "promoted_kind_tag",
         values: &["cylinder", "plane"],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "provenance_fault_tag",
-        values: &[
-            "loop_count",
-            "no_such_old_loop",
-            "no_such_old_step",
-            "old_loop_continued_twice",
-            "old_step_continued_twice",
-            "step_count",
-            "step_of_new_loop",
-        ],
         delegates: &[],
     },
     TagEntry {
@@ -5302,6 +5310,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_alignment",
             "measure_refs",
             "metadata_unversioned",
+            "name_step_beyond_counter",
             "order_mismatch",
             "payload_doc_param_dimension",
             "payload_unknown_doc_param",
@@ -5313,6 +5322,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slot_dimension",
             "slot_doc_param_dimension",
             "slot_unknown_doc_param",
+            "step_ids",
             "witness_on_missing_node",
             "witness_site",
         ],
@@ -5328,6 +5338,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "body_name_crosses_cut",
             "empty_cut",
+            "name_on_dropped_step",
             "name_straddles_cut",
             "operand_severed_from_mate",
             "part_edit",
@@ -5336,6 +5347,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "remainder_edit",
             "severed_edge",
             "split_pin",
+            "step_map_diverged",
             "torn_cluster",
             "uncut_param_reference",
             "unknown_cut_node",
@@ -5350,6 +5362,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "stale_declaration_tag",
         values: &["curve_locus", "patch", "vertex_on_face", "vertex_vertex"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "step_id_fault_tag",
+        values: &[
+            "beyond_counter",
+            "loop_count",
+            "not_this_profiles",
+            "preminted",
+            "repeated",
+            "shape",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5665,6 +5689,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("io", 2),
     ("join", 3),
     ("measure_malformed", 2),
+    // A split's and an inline's refusal of a name on a dropped step: one
+    // fact (`editor_core::refactor::Unmapped::Step`), one word.
+    ("name_on_dropped_step", 2),
     ("no_at_rest_record", 2),
     ("no_such_body", 2),
     ("node_failed", 4),
@@ -5699,6 +5726,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("slot_doc_param_dimension", 2),
     ("slot_unknown_doc_param", 2),
     ("split", 2),
+    ("step_ids", 2),
+    ("step_map_diverged", 2),
     ("structure", 3),
     ("tolerance_conflict", 2),
     ("transition", 2),
@@ -9364,6 +9393,7 @@ mod product_memo_rows {
                 d::ProgramStep::LineTo(d::ProgramTarget::Point([lit(0.0), lit(s)])),
                 d::ProgramStep::LineTo(d::ProgramTarget::Start),
             ])],
+            ids: Vec::new(),
         })
     }
 

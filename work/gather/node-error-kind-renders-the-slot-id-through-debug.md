@@ -2,10 +2,12 @@
 id: node-error-kind-renders-the-slot-id-through-debug
 kind: issue
 title: NodeErrorKind's two slot renderings dump SlotId where SlotId::label is the prose spelling
-status: open
+status: closed
 opened: 2026-09-16
 priority: P1
 cost: E
+closed: 2026-09-24
+pr: 3141
 ---
 
 
@@ -50,3 +52,18 @@ this file as the reason it stands.
 
 The sibling sites it did repair, for the shape: `EditError` (six arms),
 `ProgramFault`, `ProgramRefusal` and `resolve::Diagnosis`.
+
+## Closed
+
+PR 3141. Both arms of `NodeErrorKind`'s `Display` (`Expr`, `MissingSlot`,
+`crates/editor-core/src/eval/mod.rs`) render the slot through
+`SlotId::label`, so a profile slot reads `loop 0 step 2 · centre x`. The
+`KNOWN_BRACED` row (`crates/pncad-py/src/prose_census.rs`) is struck, and
+the census's two-way comparison is green without it. The guard added is
+`display_contract::a_node_refusal_names_its_slot_by_its_label`, which
+builds both arms over a `SlotId::Profile` and bans its variant words and
+braces. Under the old `{slot:?}` spelling it goes red.
+
+Sweep: `:?}` inside `NodeErrorKind`'s `Display` impl. Three hits: the two
+fixed here, and `SeedPinnedSection`'s `{:?}` over `param.0`, which is a
+`String` and is quoted on purpose. That one is not this shape.
