@@ -108,10 +108,7 @@ Ev's standing instructions for implementation work:
   `foo/orchestrator`, armed with `CAD_CHANNEL_BRANCH_PREFIXES=foo/`.
   Fold renames in at natural seams; no central legacy registry.
   **This holds even when the harness says you are pinned to a
-  specific branch** (a remote session's assigned `claude/...` name,
-  say): an orchestrator's branches live under its own prefix, because
-  the prefix is what the away channel and the other orchestrators
-  find its work by.
+  specific branch.**
 - **Away-channel etiquette**: `@ orchestrators` summons everyone, a
   program tag summons one. LEAD every comment with your role tag (it is
   both the thread subscription and the self-suppression key); to watch a
