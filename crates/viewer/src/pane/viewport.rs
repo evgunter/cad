@@ -793,27 +793,27 @@ impl ViewerBehavior<'_> {
         // answer waiting for it — `disagreement` still owns the
         // freshness rule, this only declines to do the work when no
         // question is outstanding at all.
+        //
+        // **The ray path's refusal travels to the comparison typed.**
+        // A refusal is not a miss, and `idpass::disagreement` reads the
+        // difference; a ray path that could not be asked at all — no
+        // evaluation to ask it of — is no comparison either, not an
+        // empty answer.
         let outstanding = self.id_log.outstanding();
-        let from_ray: Vec<_> = outstanding
-            .and_then(|_| {
-                let index = on_screen?;
-                let eval = self.session.evaluation()?;
-                index
-                    .faces_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
-                    .ok()
-            })
-            .unwrap_or_default()
-            .into_iter()
-            .map(|face| face.name)
-            .collect();
-        if let Some(report) = on_screen.and_then(|index| {
+        let compared = outstanding.and_then(|_| {
+            let index = on_screen?;
+            let eval = self.session.evaluation()?;
+            let from_ray: Result<Vec<_>, _> = index
+                .faces_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
+                .map(|faces| faces.into_iter().map(|face| face.name).collect());
             idpass::disagreement(
                 index,
                 self.id_answer.load(Ordering::Relaxed),
                 outstanding,
-                &from_ray,
+                from_ray.as_deref(),
             )
-        }) {
+        });
+        if let Some(report) = compared {
             self.notices.push(report.notice());
         }
 
@@ -908,10 +908,12 @@ mod tests {
     use crate::camera::{Camera, CameraOp, fold_recorded};
     use crate::frame::{self, product_badge};
     use crate::idpass;
-    use crate::input::{self, InputMap, PointerButton, ViewportEvent};
+    use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
     use crate::marks;
     use crate::pickcache::{self, NotIndexed};
-    use crate::pickindex::{IdMap, PickIndex, PictureKey};
+    use crate::display::DisplayView;
+    use crate::pickindex::{IdMap, PickError, PickIndex, PickKinds, PictureKey};
+    use pncad::select::HitTestError;
     use crate::props::SlotValue;
     use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, SessionOp};
@@ -1380,7 +1382,7 @@ mod tests {
         let serial = 7u32;
         let nothing = (u64::from(serial) << 32) | u64::from(IdMap::NOTHING);
         let report =
-            idpass::disagreement(&index, nothing, Some(serial), std::slice::from_ref(&named))
+            idpass::disagreement(&index, nothing, Some(serial), Ok(std::slice::from_ref(&named)))
                 .expect("nothing-under-the-cursor against a named face is a disagreement");
         assert_eq!(report.from_gpu, None, "the id pass answered nothing");
         assert_eq!(report.from_ray, vec![named], "the ray answered a face");
@@ -1388,6 +1390,84 @@ mod tests {
         assert!(
             drawn_index(Some(&index), None).is_none(),
             "a picture with no index behind it is compared against no index"
+        );
+    }
+
+    /// **A ray path that REFUSED is not a ray path that named
+    /// nothing.**
+    ///
+    /// The refusal is planted the way the kernel declines one: the
+    /// index is asked about an evaluation of ANOTHER document, which
+    /// its hit test refuses before reading a table. Beside it the id
+    /// pass names a face the plate really draws. The comparison is no
+    /// verdict — the refused path made no claim to contradict — where
+    /// the same id-pass answer against an empty ANSWER is a
+    /// disagreement, so the two are told apart by the type and not
+    /// merely by luck of the fixture.
+    ///
+    /// The last assertion is the argument for no verdict rather than a
+    /// third sentence: the hover path, asked the same question on the
+    /// same frame, already refuses with the same value, and that
+    /// refusal has its own words (`frame::pick_refusal`).
+    #[test]
+    fn a_refused_ray_path_is_no_verdict_against_a_named_face() {
+        let tol = Tol::witness();
+        let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let index = plate_index(&session, a_delta(0.5));
+        let (twin, _extrude) = scene::plate_with_hole(tol).expect("the twin authors");
+        let mut other = DocSession::inline(twin, tol);
+        other.pump();
+        let foreign = other.evaluation().expect("the twin lands");
+
+        let camera = framed();
+        let pane = ViewportSize {
+            width_px: 1600.0,
+            height_px: 900.0,
+        };
+        let centre = [800.0, 450.0];
+        let display = DisplayView::none();
+        let refusal = index
+            .faces_under_cursor(foreign, &camera, pane, centre, &display)
+            .expect_err("an evaluation of another document is refused");
+        assert!(
+            matches!(
+                refusal,
+                PickError::HitTest(HitTestError::EvaluationOfAnotherDocument { .. })
+            ),
+            "the planted refusal is the kernel declining: {refusal:?}"
+        );
+
+        let id = index.ids().ids().next().expect("the plate draws patches");
+        let named = index
+            .name_of(id)
+            .expect("an id of this index has an entry")
+            .as_ref()
+            .expect("and the plate's patches name cleanly")
+            .clone();
+        let serial = 7u32;
+        let face = (u64::from(serial) << 32) | u64::from(id);
+
+        assert_eq!(
+            idpass::disagreement(&index, face, Some(serial), Err(&refusal)),
+            None,
+            "a refused ray path is compared against nothing"
+        );
+        assert_eq!(
+            idpass::disagreement(&index, face, Some(serial), Ok(&[])),
+            Some(idpass::Disagreement {
+                from_gpu: Some(named),
+                from_ray: Vec::new(),
+            }),
+            "while a ray path that answered nothing is contradicted by the face"
+        );
+        assert_eq!(
+            index
+                .hovered_for(foreign, &camera, pane, centre, &display, PickKinds::Any)
+                .expect_err("the hover asks the same hit test"),
+            refusal,
+            "and the hover path refuses with the same value, which it says itself"
         );
     }
 
