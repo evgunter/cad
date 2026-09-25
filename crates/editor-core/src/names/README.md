@@ -16,6 +16,7 @@ the name↔entity table and re-resolution is a lookup, never a match.
 | N4 `NameTable`, `Entry::{Unique,Tied}`, `EntityRef` | `table.rs` |
 | N4 emission, `NamingError` | `emit.rs` (helpers, totality check), `emit_sweep.rs` (extrude/revolve/loft), `emit_topo.rs` (boolean, split, N3 merge), `emit_union.rs` (the n-ary union: member-keying in, collapse out), `emit_blend.rs` behind `emit_fillet.rs`/`emit_chamfer.rs`, `emit_shell.rs` (the shell: survivors `FromTarget`, cavity twins `Inner`, a chart's rim `Rim` of its first designated face, a hole's promoted annulus `HoleRim`) |
 | N2 discriminators; tie propagation | `discriminate.rs`; `defer.rs` |
+| A path's canonical form: its name-ordered positions (N3 sets, `SideOf` partners, a junction's lines, a union seam's sides), and what ordering a union seam does to its ranks | `canonical.rs`, which the mint, the union's collapse and every rewrite of a published name end in; `seam_pair.rs` (which seam line a rank lies on) |
 | N5 `ResolveError`, `Diagnosis`, tombstones, offers; diff engine; hit-testing; `Rebind` | `crates/editor-core/src/resolve/mod.rs`; `resolve/vdiff.rs`; `resolve/hit.rs`, `resolve/pick.rs`; `edit.rs` |
 | N6 `GeomSource` | `crates/topo/src/source.rs`; consumers `crates/topo/src/merge_faces.rs`, `crates/topo/src/boolean/plane_eq.rs` |
 | Which node minted a named entity (`NameOrigin`); name → geometry (`denotation`, `face_frame`, ...) | `attribute.rs`; `interrogate.rs` |
@@ -33,8 +34,8 @@ enum grouped by op: extrude (`Cap`, `Lateral`, ...), revolve (`Band`, `Pole`,
 (`SectionFace`, `SectionEdge`, `SplitFragment`, ...), blend (shared by fillet and
 chamfer, told apart by the minting node), `InPart`, pattern `Instance { i, of }`
 with `i` recipe-structural. Role arguments are themselves names; profile locators
-(`ProfileEdgeRef`, `ProfileVertexRef`) are the profile crate's canonical
-combinatorial identities, never enumeration indices.
+(`ProfileEdgeRef`, `ProfileVertexRef`) name a profile piece by the id its step
+was minted with, never by its position (below).
 Names contain no floats and no arena keys; a pass-through op (Transform,
 split-intact entity, a `Part`'s projection of one half or one instance) adds no
 segment, so `node` stays the original minter. Names
@@ -52,6 +53,49 @@ answer there, and the run's tips are the only named on-axis vertices. Totality
 is the check on that silence — `check_total` refuses a table leaving a LIVE body
 vertex unnamed, so a `None` standing over surviving geometry cannot pass.
 
+**N1, the profile pieces: authored things are named by minted ids.** A name
+spells what the author made by the id it was minted with, and what the kernel
+made by the verdicts that decided it. Nodes already follow this rule, and so do
+union members (`FromMember`, DM4). Profile pieces follow it as well:
+
+- **The id.** Every step of a profile program carries a `StepId` in the recipe.
+  It is minted from the document's monotone counter when the step is authored,
+  by `InsertNode` or `SetProgram`. Like a `RecipeNodeId`, it is never
+  positional and never reused, and it is unique across the whole document.
+- **The role.** A step draws its pieces from a fixed list of roles, one list
+  per verb:
+  - the run into a fillet, the fillet's arc, and the run out of it;
+  - piece `k` of a `circle_split` (the `n` is structural);
+  - the one carrier of a `circle`.
+- **The locator.** `ProfileEdgeRef { step, role }` names the piece that role
+  of that step drew. `ProfileVertexRef { step, role }` names the vertex where
+  that piece starts, in authored order. A locator holds no loop index and no
+  segment index.
+- **What cannot move it.** None of these changes what a locator denotes:
+  - a value edit;
+  - a change in which loop is the outer one, or in which way a loop runs;
+  - a document parameter passing through a state that does not replay;
+  - a `SetProgram` that keeps the step;
+  - a pin update over a child document that kept the step.
+- **Undrawn pieces vanish rather than alias.**
+  - A role the current values do not draw has no piece. An example is a run
+    that a `Zero` fit suppresses. A locator on it resolves `Vanished` until
+    the values draw it again.
+  - Two pieces on one carrier can be drawn as a single segment. That segment
+    answers to the earlier piece in authored order, and the later piece's
+    locator resolves `Vanished`.
+  - A step that `SetProgram` drops takes its id with it. A name on that step
+    keeps its spelling and resolves `Vanished`, and DM7's report names it.
+    Because the id is never minted again, no later program can draw it.
+- **The canonical numbering is not a name.** It is still the order in which
+  the emitters, the loft's correspondence and the viewer's per-segment marks
+  iterate (V3, DM8). When the name table is published, the naming anchor maps
+  each canonical segment to the step and role that drew it.
+- **Loft walls.** A loft pairs canonical segment `k` of every section into one
+  wall (DM8). The wall is named by the pieces that pairing joined: one locator
+  per section. If a value edit changes which pieces pair, the old wall's name
+  vanishes. It does not follow `k` to the new pairing.
+
 **N2 — Split discriminators are covariant margined predicates.** When one source
 yields n fragments, `Fragment(Qualifier)` follows the parent-bearing segment:
 `Qualifier::SideOf`, a sign vector of `name_frag_side_of` verdicts against the
@@ -62,8 +106,18 @@ the seam pair's `n_a × n_b` (the pair's `a` face first, one orientation
 whichever step cut the line; a union reading the pair in name order reads a
 swapped pair's rank from the other end), and otherwise — any other edge, or a
 seam between two same-named faces (two placements of one prototype) — the
-parent's own oriented carrier. Both run through `k_stats`, so fragment identity changes only at a
-recorded flip; an in-band margin refuses (`NamingError::Escalated`), never a
+parent's own oriented carrier. One case counts CELLS rather than fragments:
+a union's piece of a member edge, `FromMember(m, e)` + `OrderAlong { rank, of }`.
+The finished body's vertices on `e`'s segment (`name_frag_on_member_edge`)
+cut it into cells numbered along `e`'s oriented carrier in `m`'s body; `of`
+counts cells, not pieces — cells held by another member or by none count too,
+so some ranks below `of` index a cell no piece of `m` holds — and `rank` is
+the first cell the piece covers. That is an ordinal along the parent's
+oriented carrier, and it moves with neither member order nor which member
+keeps a flush stretch, as far as the boolean's output is itself order-free
+(`emit_union::rank_member_edges`). A seam vertex cites such an edge whole,
+`FromMember(m, e)`, never a piece. The verdicts run through `k_stats`,
+so fragment identity changes only at a recorded flip; an in-band margin refuses (`NamingError::Escalated`), never a
 silent pick, and an ambient tolerance that forms no classification band at all
 refuses (`NamingError::Band`) carrying the band constructor's own diagnostic —
 the overflow and the collapse want opposite repairs, so the refusal says which
@@ -180,12 +234,21 @@ records — and reports the first partner whose side changed, marked
 `FlipSource::ShadowExec` so no reader mistakes it for a line of a log. The
 GROUP-SIZE rung (`resolve::group_resized`, whose docs say why a fragment name
 can vanish with no flip) needs a prior run: when the last-good table at the
-minting node carried the name, and the rows spelled by its base — bare, or
-with one `Fragment` qualifier, a tie counting each candidate — number `was`
-entities there and `now ≠ was` in the current table, the diagnosis is
-`GroupResized { node, was, now }`. That is a statement about two recorded
-tables, not a claimed flip and not a claim about where the parent entity
-went. The ladder orders cause before effect: the flips, the qualifier delta,
+minting node carried the name, and the group its emitter divided the
+fragment's parent into held `was` entities there and holds `now ≠ was` in the
+current run, the diagnosis is `GroupResized { node, was, now }`. The group is
+the one the emitter formed, read from the record it keeps beside the table
+(`names::FragmentGroups`, not persisted), not re-derived from the names: it
+counts the distinct entities of the node's output descended from the parent
+within the group by the emitter's own descent, however each is spelled — an
+undivided pass-through, an N3 `Merged` survivor, and at a union the published
+entities a fold step's group descends to, followed by entity through every
+later step. A piece a later step re-mints under a seam name of its own is not
+a descendant by that descent and is not counted. Two tied parents that
+share a base are two groups, each counted on its own, where the emitter groups
+by parent entity; where it groups by parent names (the seam lanes) their
+pieces share one group and the rung declines. That is a statement about two
+recorded groups, not a claimed flip. The ladder orders cause before effect: the flips, the qualifier delta,
 the doc-diff lanes and `Upstream` name a cause, the group-size change is an
 effect whose cause the evidence does not hold, so it runs after every cause-naming rung
 and before the fallback. A collapsed fragment's undivided base, when it

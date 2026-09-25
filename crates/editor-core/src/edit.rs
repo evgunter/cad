@@ -2219,7 +2219,7 @@ pub enum Maintenance {
     /// (`dm7_delete_strands::the_orphan_transient_is_cancellable_at_the_cascade_door`),
     /// so the CASCADE door — the caller that holds
     /// [`cascade_delete_order`]'s answer — is where the net over an
-    /// action is computed, and nothing computes it today.
+    /// action is computed, by [`MaintenanceNet`].
     OrphanedDeclare {
         /// The `Declare` left with no consumer. It is LIVE in the
         /// document this edit produced — the surviving node is the
@@ -2615,9 +2615,11 @@ struct SegmentMap {
     /// read is `None` and every name on it strands; empty where the
     /// canonical loop order itself cannot be read.
     old_naming: Vec<Option<crate::eval::LoopAnchor>>,
-    /// The new program's naming anchor: program order → the canonical
-    /// locator a name is spelled in.
-    new_naming: crate::eval::ProfileNaming,
+    /// The new program's naming anchor, per CANONICAL loop: program
+    /// order → the canonical locator a name is spelled in. `None` for
+    /// a loop whose anchor cannot be read, and every name that would
+    /// land on it strands.
+    new_naming: Vec<Option<crate::eval::LoopAnchor>>,
 }
 
 /// One locator's image under a [`SegmentMap`].
@@ -2656,7 +2658,10 @@ impl SegmentMap {
             Vec<Option<crate::eval::LoopAnchor>>,
         )>,
         old_loops: usize,
-        new: (&[CheckedRecords<'_, '_>], crate::eval::ProfileNaming),
+        new: (
+            &[CheckedRecords<'_, '_>],
+            Vec<Option<crate::eval::LoopAnchor>>,
+        ),
         provenance: &[LoopProvenance],
     ) -> Result<Self, ProgramRefusal> {
         let (new, new_naming) = new;
@@ -2751,24 +2756,14 @@ impl SegmentMap {
         self.old_naming.get(l as usize).copied().flatten()
     }
 
-    /// New program loop `li` → its canonical position and anchor. Every
-    /// new program loop is some canonical loop — the anchor was derived
-    /// from this program's own validation.
-    fn new_anchor(&self, li: u32) -> (u32, crate::eval::LoopAnchor) {
+    /// New program loop `li` → its canonical position and anchor;
+    /// `None` where the new naming cannot read that loop.
+    fn new_anchor(&self, li: u32) -> Option<(u32, crate::eval::LoopAnchor)> {
         use crate::program::program_index as ix;
-        let Some((cl, a)) = self
-            .new_naming
-            .loops
+        self.new_naming
             .iter()
             .enumerate()
-            .find(|(_, a)| a.program_loop == li)
-        else {
-            unreachable!(
-                "the new program's naming anchor was derived from its own validation, \
-                 which assigns every program loop a canonical loop"
-            )
-        };
-        (ix(cl), *a)
+            .find_map(|(cl, a)| a.filter(|a| a.program_loop == li).map(|a| (ix(cl), a)))
     }
 
     /// The retired coordinate of a CANONICAL locator `(l, index)` of
@@ -2780,7 +2775,10 @@ impl SegmentMap {
             .old_anchor(l)
             .map(|a| self.retired(a.program_loop, index))
         {
-            Some((li, at)) if li < RETIRED_FLOOR => (self.new_anchor(li).0, at),
+            Some((li, at)) if li < RETIRED_FLOOR => match self.new_anchor(li) {
+                Some((cl, _)) => (cl, at),
+                None => (RETIRED_FLOOR + l, index),
+            },
             _ => (RETIRED_FLOOR + l, index),
         }
     }
@@ -2808,10 +2806,10 @@ impl SegmentMap {
             return retired();
         }
         match self.kept(a.program_loop, a.segment(e.segment)) {
-            Some((li, s)) => {
-                let (cl, na) = self.new_anchor(li);
-                Some(Image::Kept(at((cl, na.canonical_segment(s)))))
-            }
+            Some((li, s)) => match self.new_anchor(li) {
+                Some((cl, na)) => Some(Image::Kept(at((cl, na.canonical_segment(s))))),
+                None => retired(),
+            },
             None => retired(),
         }
     }
@@ -2848,7 +2846,9 @@ impl SegmentMap {
         if n_new == 0 {
             return retired();
         }
-        let (cl, na) = self.new_anchor(loop_index);
+        let Some((cl, na)) = self.new_anchor(loop_index) else {
+            return retired();
+        };
         Some(Image::Kept(at((
             cl,
             na.canonical_vertex((segment + 1) % n_new),
@@ -3160,6 +3160,227 @@ impl<P> Applied<P> {
                 | Maintenance::StrandedAppearance { .. }
                 | Maintenance::OrphanedDeclare { .. }
                 | Maintenance::Rebound { .. } => None,
+            })
+            .collect()
+    }
+}
+
+/// **An action's maintenance, net of what the action itself made
+/// moot** — the rows several accepted edits reported, folded into what
+/// is true of the document the action ENDS at.
+///
+/// [`Applied::maintenance`] is a function of one `(document, edit)`
+/// pair and answers what that edit did. An action — a cascade delete
+/// ([`cascade_delete_order`]'s sequence), a program written as several
+/// one-slot writes — is several edits, and a row one of them reported
+/// can be about nothing the action leaves behind. This is the one
+/// spelling of which rows survive, so every caller that holds a
+/// sequence (the viewer's session, the pre-click count a chrome states
+/// before a cascade) answers the same.
+///
+/// Fed one accepted edit at a time with [`Self::push`], in the order
+/// they applied; closed with [`Self::finish`] against the document the
+/// last one produced.
+///
+/// # What survives
+///
+/// - A [`Maintenance::Rebound`] is about where a NAME is now. A later
+///   edit that rebinds its `to` again moves it on: the two rows are one
+///   move, from the first `from` to the last `to`, at the first row's
+///   position. A later edit after which no carrier holds its `to`
+///   ended the move — the name was stranded (that edit's own strand
+///   row says where it went) or its carrier was deleted — and so did a
+///   later edit whose own strand row names the `to` (a delete of the
+///   node that minted it), and the row is dropped, because its sentence ("every carrier of the name still
+///   denotes what it did") is no longer true. So is a later edit that
+///   rebinds ANOTHER name onto its `to`: a program map is injective
+///   over the segments it keeps, so a name another lands on was not
+///   kept. A move that ends where it began is no move at all.
+/// - A [`Maintenance::Strand`] survives when its carrier is live at the
+///   end AND still holds the stranded name: a carrier a later edit
+///   deleted, or whose name a later edit rewrote (a [`DocEdit::Rebind`]
+///   repairs exactly this), strands nothing.
+/// - A [`Maintenance::StrandedAppearance`] survives when the store
+///   still holds its key.
+/// - A [`Maintenance::OrphanedDeclare`] survives when the declaration
+///   is live at the end AND nothing consumes it: a later edit that
+///   deleted it, or gave it a consumer, took the report back.
+/// - A [`Maintenance::Cluster`] act always survives: it is registry
+///   state replay re-applies ([`LoggedEdit`]), not a claim about the
+///   end document.
+///
+/// Surviving rows keep the order the edits reported them in, each
+/// edit's rows in [`Applied::maintenance`]'s own order.
+///
+/// **One edit's rebounds are ONE map, not a sequence** — a swap
+/// reports `a → b` and `b → a` together — so an edit's rows are read
+/// against what EARLIER edits left, never against each other.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MaintenanceNet {
+    rows: Vec<Maintenance>,
+}
+
+impl MaintenanceNet {
+    /// No edit yet.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Fold in one accepted edit — its rows, read against the document
+    /// it produced, which [`Applied`] carries together, so the rows are
+    /// a door's by construction and the pairing cannot be got wrong.
+    ///
+    /// # Panics
+    ///
+    /// When two surviving rebounds would name one `to`, which no
+    /// sequence of accepted edits produces — so the panic is a bug in
+    /// this fold or in the door, not a state a caller can build:
+    ///
+    /// - **One edit's rebounds have distinct `to`s.** The only producer
+    ///   of [`Maintenance::Rebound`] is `reshape_report`, reached from
+    ///   [`DocEdit::SetProgram`] and from a value edit's
+    ///   `reanchor_report`. It reports one row per `from` (it dedups on
+    ///   the name before pushing), and its map is injective: kept
+    ///   segments map injectively and retired images are strands, not
+    ///   rebounds (its own doc). A value edit that renumbers several
+    ///   profiles runs it once per profile, over the names spelled in
+    ///   that profile's numbering — the names of the sweeps anchored on
+    ///   it, and [`Node::anchoring_profile`] names at most one profile
+    ///   per node — so two profiles' rows rewrite disjoint names into
+    ///   disjoint names.
+    /// - **[`DocEdit::Rebind`] reports no rebound.** It is the one door
+    ///   that MERGES names by design (every carrier of `from` now holds
+    ///   `to`, which others may already hold), and it answers with an
+    ///   empty maintenance list; its effect reaches this fold only
+    ///   through `after`, where an earlier rebound whose `to` it
+    ///   rewrote is no longer held and is dropped.
+    /// - **Induction over `push`.** Suppose the surviving `to`s are
+    ///   distinct before this edit. An earlier row chains onto the
+    ///   edit's row whose `from` is its `to`; distinct `to`s find
+    ///   distinct rows (the edit's `from`s are distinct), and the row it
+    ///   chains onto is not pushed again. An earlier row that does not
+    ///   chain survives only when no row of the edit lands on its `to`.
+    ///   The edit's own unchained rows have distinct `to`s, and none
+    ///   equals a chained row's, since those ARE the edit's other `to`s.
+    ///   So the survivors' `to`s are distinct after it.
+    pub fn push<P>(&mut self, edit: &Applied<P>) {
+        self.fold(&edit.maintenance, &edit.doc);
+    }
+
+    /// [`Self::push`] from rows written by hand rather than read off
+    /// a door, for the rows that hold the fold's rebound rules on
+    /// sequences no pair of real edits reaches cheaply. It bypasses the
+    /// pairing [`Self::push`] enforces, so a hand row CAN reach the
+    /// panic [`Self::push`] documents; that is what the row holding the
+    /// panic uses it for.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn push_rows<P>(&mut self, rows: &[Maintenance], after: &Doc<P>) {
+        self.fold(rows, after);
+    }
+
+    fn fold<P>(&mut self, rows: &[Maintenance], after: &Doc<P>) {
+        let held = |name: &StableName| {
+            after.name_carriers().any(|carrier| match carrier {
+                NameCarrier::Payload { name: now, .. } | NameCarrier::Store { name: now } => {
+                    now == name
+                }
+            })
+        };
+        // A later edit that STRANDS the name an earlier one moved took
+        // the move back: the carrier holds the name still, but the name
+        // denotes nothing, which is the strand row's sentence and not
+        // the rebound's.
+        let stranded = |name: &StableName| {
+            rows.iter().any(|row| match row {
+                Maintenance::Strand { name: lost, .. }
+                | Maintenance::StrandedAppearance { name: lost } => lost == name,
+                Maintenance::Cluster(_)
+                | Maintenance::OrphanedDeclare { .. }
+                | Maintenance::Rebound { .. } => false,
+            })
+        };
+        let mut onward = vec![false; rows.len()];
+        let mut kept: Vec<Maintenance> = Vec::with_capacity(self.rows.len() + rows.len());
+        for earlier in self.rows.drain(..) {
+            let Maintenance::Rebound { from, to } = earlier else {
+                kept.push(earlier);
+                continue;
+            };
+            let chained = rows.iter().enumerate().find_map(|(at, row)| match row {
+                Maintenance::Rebound {
+                    from: moved,
+                    to: next,
+                } if *moved == to => Some((at, next)),
+                Maintenance::Rebound { .. }
+                | Maintenance::Cluster(_)
+                | Maintenance::Strand { .. }
+                | Maintenance::StrandedAppearance { .. }
+                | Maintenance::OrphanedDeclare { .. } => None,
+            });
+            if let Some((at, next)) = chained {
+                onward[at] = true;
+                kept.push(Maintenance::Rebound {
+                    from,
+                    to: next.clone(),
+                });
+                continue;
+            }
+            let landed_on = rows
+                .iter()
+                .any(|row| matches!(row, Maintenance::Rebound { to: now, .. } if *now == to));
+            if !landed_on && !stranded(&to) && held(&to) {
+                kept.push(Maintenance::Rebound { from, to });
+            }
+        }
+        kept.extend(
+            rows.iter()
+                .zip(onward)
+                .filter(|(_, folded)| !folded)
+                .map(|(row, _)| row.clone()),
+        );
+        let mut spellings: Vec<&StableName> = kept
+            .iter()
+            .filter_map(|row| match row {
+                Maintenance::Rebound { to, .. } => Some(to),
+                Maintenance::Cluster(_)
+                | Maintenance::Strand { .. }
+                | Maintenance::StrandedAppearance { .. }
+                | Maintenance::OrphanedDeclare { .. } => None,
+            })
+            .collect();
+        let count = spellings.len();
+        spellings.sort();
+        spellings.dedup();
+        assert_eq!(
+            spellings.len(),
+            count,
+            "two surviving rebounds name one spelling, which no sequence of accepted edits \
+             produces (`MaintenanceNet::push`'s proof): {kept:?}"
+        );
+        self.rows = kept;
+    }
+
+    /// The rows that survive, against `end` — the document the last
+    /// pushed edit produced.
+    pub fn finish<P: crate::ProfilePayload>(self, end: &Doc<P>) -> Vec<Maintenance> {
+        let consumed = |declare: RecipeNodeId| {
+            end.order().iter().any(|id| {
+                end.node(*id)
+                    .is_some_and(|node| node.inputs().contains(&declare))
+            })
+        };
+        self.rows
+            .into_iter()
+            .filter(|row| match row {
+                Maintenance::Strand { node, name } => end
+                    .node(*node)
+                    .is_some_and(|carrier| carrier.payload_names().contains(&name)),
+                Maintenance::StrandedAppearance { name } => end.appearance().contains_key(name),
+                Maintenance::OrphanedDeclare { declare } => {
+                    end.node(*declare).is_some() && !consumed(*declare)
+                }
+                Maintenance::Rebound { from, to } => from != to,
+                Maintenance::Cluster(_) => true,
             })
             .collect()
     }
@@ -3665,9 +3886,10 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
     let reconcile = edit.moves_the_mate_graph();
     // The report read at the door that made it: DM7's strands and the
     // declarations a delete orphaned, or the strands and the rebounds
-    // a reshaped program made. Two edits fill this — `DeleteNode`,
-    // the only edit that removes a node, and `SetProgram`, the only
-    // edit that moves what a profile's segments are; `Rebind` moves
+    // a reshaped program made. `DeleteNode` fills it, the only edit
+    // that removes a node; `SetProgram`, which moves what a profile's
+    // segments are; and a value edit that moves a profile's canonical
+    // numbering (`reanchor_report`, after the match). `Rebind` moves
     // references onto a live name at the author's word and reports
     // nothing.
     let mut reported: Vec<Maintenance> = Vec::new();
@@ -3911,14 +4133,9 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             // (`eval::anchor::replay_naming`), stranding only the loops
             // whose sense or order that cannot decide.
             let old_replayed = payload.replay_records(&env, tol).ok();
-            let old_checked = old_replayed.as_ref().and_then(|(loops, records)| {
-                let checked = checked_replay(old_loops, loops, records).ok()?;
-                let naming = match crate::eval::naming_of(loops, tol) {
-                    Some(n) => n.loops.into_iter().map(Some).collect(),
-                    None => crate::eval::replay_naming(loops).unwrap_or_default(),
-                };
-                Some((checked, naming))
-            });
+            let old_checked = old_replayed
+                .as_ref()
+                .and_then(|replayed| read_side(old_loops, replayed));
             let Some(new_naming) = crate::eval::naming_of(&new_loops, tol) else {
                 unreachable!(
                     "the new program validated at this door a moment ago, and its naming \
@@ -3939,25 +4156,15 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                     .as_ref()
                     .map(|(checked, naming)| (checked.as_slice(), naming.clone())),
                 old_loops.len(),
-                (&new_checked, new_naming),
+                (
+                    &new_checked,
+                    new_naming.loops.iter().copied().map(Some).collect(),
+                ),
                 provenance,
             )
             .map_err(refused)?;
             new.nodes.insert(*node, probe);
-            // Whose locators are spelled in this profile's coordinates:
-            // the sweeps over it. Every other node's names hold them
-            // only inside carried names, which the walk descends.
-            let anchored = new
-                .order
-                .iter()
-                .copied()
-                .filter(|id| {
-                    new.nodes
-                        .get(id)
-                        .is_some_and(|n| n.anchoring_profile() == Some(*node))
-                })
-                .collect();
-            reported = reshape_report(&mut new, &mut ProgramRemap::new(&map, anchored))?;
+            reported = carry_names(&mut new, *node, &map)?;
             // Structural whatever moved: the edit's class is a
             // rewrite of program structure — verbs, order, count —
             // and the record classifies the edit, as
@@ -4385,6 +4592,15 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             }
         }
     }
+    // A value edit that moves a profile's canonical numbering — a
+    // hole jumped past its outer loop, a loop's sense flipped — is the
+    // event `SetProgram` reports, with the program unchanged: the
+    // names spelled in that profile's numbering are carried across it
+    // through the same map and reported through the same door.
+    let renumbered = value_edit_profiles(doc, edit);
+    if !renumbered.is_empty() {
+        reported.extend(reanchor_report(doc, &mut new, &renumbered, tol)?);
+    }
     let mut maintenance = reported;
     if reconcile {
         maintenance.extend(
@@ -4398,6 +4614,223 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
         record,
         maintenance,
     })
+}
+
+/// **The profiles a value edit can renumber**: the ones whose program
+/// reads the value it writes. A slot edit reaches the node it names —
+/// a profile only where that node is one; a document-parameter edit
+/// that moves a value reaches every profile whose program references
+/// the parameter ([`crate::ProfilePayload::references`]).
+///
+/// Exhaustive with no wildcard arm, so an edit that begins to write a
+/// value a program reads has to say so here or stop compiling. Every
+/// other arm writes no value a program reads — a notation or an
+/// annotation moves no nominal — or is `SetProgram`, which carries its
+/// own names.
+fn value_edit_profiles<P: crate::ProfilePayload>(
+    doc: &Doc<P>,
+    edit: &DocEdit<P>,
+) -> Vec<RecipeNodeId> {
+    let is_profile = |id: &RecipeNodeId| matches!(doc.nodes.get(id), Some(Node::Profile(_)));
+    match edit {
+        DocEdit::SetParam { node, .. } | DocEdit::SetStructuralParam { node, .. } => {
+            Some(*node).filter(is_profile).into_iter().collect()
+        }
+        DocEdit::SetExpression { path, .. } => {
+            Some(path.node).filter(is_profile).into_iter().collect()
+        }
+        DocEdit::SetDocParam { name, .. } | DocEdit::SetDocParamValue { name, .. } => doc
+            .order
+            .iter()
+            .copied()
+            .filter(|id| matches!(doc.nodes.get(id), Some(Node::Profile(p)) if p.references(name)))
+            .collect(),
+        DocEdit::InsertNode { .. }
+        | DocEdit::DeleteNode { .. }
+        | DocEdit::SetMembers { .. }
+        | DocEdit::SetProgram { .. }
+        | DocEdit::SetDocParamUnit { .. }
+        | DocEdit::SetDocParamDistribution { .. }
+        | DocEdit::Rebind { .. }
+        | DocEdit::ReWitness { .. }
+        | DocEdit::ReWitnessBulk { .. }
+        | DocEdit::SetAppearance { .. }
+        | DocEdit::ClearAppearance { .. }
+        | DocEdit::SetTolerance { .. }
+        | DocEdit::SetAppearanceMeta { .. }
+        | DocEdit::ClearAppearanceMeta { .. }
+        | DocEdit::SetRoots { .. }
+        | DocEdit::SetPlacement { .. }
+        | DocEdit::UpdateReference { .. } => Vec::new(),
+    }
+}
+
+/// **Carry the names across a value edit that moved a profile's
+/// canonical numbering**, and report every one it moved or stranded.
+///
+/// Published names are spelled in each profile's CANONICAL numbering
+/// (DM8): outer loop first, each loop in its canonical sense from its
+/// authored start. Two of those facts are decisions about geometry —
+/// which loop is outer, and each loop's sense — so a value edit can
+/// move them without touching the program: a hole's radius jumped
+/// until it encloses the outer loop, or a vertex moved across its
+/// loop. The program's steps are unchanged, so every step still draws
+/// what it drew; what changed is which canonical locator each drawn
+/// segment answers to. That is a [`SegmentMap`] under the identity
+/// provenance, read through each side's own anchor, and the names are
+/// carried and reported by [`carry_names`] — the door `SetProgram`
+/// reports through — rather than left spelling what the numbering now
+/// gives to another segment.
+///
+/// A profile whose numbering the edit did not move is untouched, so
+/// the ordinary value edit reports nothing. A side whose numbering
+/// cannot be read — it does not replay, its record does not describe
+/// it, or its loops cannot be ordered — takes `SetProgram`'s rule for
+/// an unreadable old program on either side: every name spelled in the
+/// profile's numbering strands, reported, and nothing is guessed kept.
+/// A loop one side cannot read the sense of strands the names on it
+/// alone (`eval::anchor::replay_naming`). A name already retired is
+/// untouched, so an edit between two unreadable states reports nothing
+/// it has already reported. The last numbering the profile was
+/// published in is not recipe state, so a round trip through an
+/// unreadable state strands rather than restoring
+/// (`work/emit/a-value-edits-last-published-numbering-is-not-recipe-state.md`).
+fn reanchor_report<P: Clone + crate::ProfilePayload>(
+    old: &Doc<P>,
+    new: &mut Doc<P>,
+    profiles: &[RecipeNodeId],
+    tol: Tol,
+) -> Result<Vec<Maintenance>, EditError> {
+    // Which nodes' own locators each profile's numbering spells, read
+    // once: a profile nothing sweeps is one this edit cannot renumber a
+    // name of, and is passed over before either side is replayed.
+    let mut sweeps: std::collections::BTreeMap<
+        RecipeNodeId,
+        std::collections::BTreeSet<RecipeNodeId>,
+    > = std::collections::BTreeMap::new();
+    for id in &new.order {
+        if let Some(profile) = new.nodes.get(id).and_then(Node::anchoring_profile) {
+            sweeps.entry(profile).or_default().insert(*id);
+        }
+    }
+    let mut rows = Vec::new();
+    for &node in profiles {
+        let Some(anchored) = sweeps.remove(&node) else {
+            continue;
+        };
+        let Some(map) = numbering_move(old, new, node, tol)? else {
+            continue;
+        };
+        rows.extend(reshape_report(new, &mut ProgramRemap::new(&map, anchored))?);
+    }
+    Ok(rows)
+}
+
+/// The nodes whose OWN locators are spelled in `profile`'s numbering:
+/// the sweeps over it ([`Node::anchoring_profile`]). Every other
+/// node's names hold them only inside carried names, which
+/// [`reshape_report`]'s walk descends.
+fn anchored_on<P>(doc: &Doc<P>, profile: RecipeNodeId) -> std::collections::BTreeSet<RecipeNodeId> {
+    doc.order
+        .iter()
+        .copied()
+        .filter(|id| {
+            doc.nodes
+                .get(id)
+                .is_some_and(|n| n.anchoring_profile() == Some(profile))
+        })
+        .collect()
+}
+
+/// **Carry every name spelled in `profile`'s numbering through `map`**
+/// and report what moved or stranded — the one tail `SetProgram` and a
+/// value edit that moved the numbering share.
+fn carry_names<P>(
+    doc: &mut Doc<P>,
+    profile: RecipeNodeId,
+    map: &SegmentMap,
+) -> Result<Vec<Maintenance>, EditError> {
+    let anchored = anchored_on(doc, profile);
+    reshape_report(doc, &mut ProgramRemap::new(map, anchored))
+}
+
+/// One side of a numbering change, read: each loop's checked records
+/// and the naming anchor per canonical loop
+/// ([`crate::eval::readable_naming`]). `None` where the record does not
+/// describe the programs; the anchor is empty where the loops cannot
+/// be ordered. The one reader of an old program `SetProgram` and a
+/// value edit share.
+fn read_side<'p, 'r>(
+    programs: &'p [crate::program::LoopProgram],
+    replayed: &'r crate::program::Replayed,
+) -> Option<(
+    Vec<CheckedRecords<'p, 'r>>,
+    Vec<Option<crate::eval::LoopAnchor>>,
+)> {
+    let (loops, records) = replayed;
+    let checked = checked_replay(programs, loops, records).ok()?;
+    Some((checked, crate::eval::readable_naming(loops)))
+}
+
+/// The [`SegmentMap`] carrying `node`'s names from `old`'s numbering
+/// to `new`'s; `None` where the numbering did not move
+/// ([`reanchor_report`]). A side that cannot be read gives the map
+/// that strands every name.
+fn numbering_move<P: Clone + crate::ProfilePayload>(
+    old: &Doc<P>,
+    new: &Doc<P>,
+    node: RecipeNodeId,
+    tol: Tol,
+) -> Result<Option<SegmentMap>, EditError> {
+    let (Some(Node::Profile(before)), Some(Node::Profile(after))) =
+        (old.nodes.get(&node), new.nodes.get(&node))
+    else {
+        return Ok(None);
+    };
+    let (Some(old_programs), Some(new_programs)) = (before.loops(), after.loops()) else {
+        return Ok(None);
+    };
+    let old_replayed = before.replay_records(&old.param_env::<f64>(), tol).ok();
+    let new_replayed = after.replay_records(&new.param_env::<f64>(), tol).ok();
+    let old_side = old_replayed
+        .as_ref()
+        .and_then(|r| read_side(old_programs, r))
+        .filter(|(_, naming)| !naming.is_empty());
+    let new_side = new_replayed
+        .as_ref()
+        .and_then(|r| read_side(new_programs, r))
+        .filter(|(_, naming)| !naming.is_empty());
+    let refused = |refusal| EditError::ProfileProgramRefused {
+        node,
+        refusal: Box::new(refusal),
+    };
+    let (Some((old_checked, old_naming)), Some((new_checked, new_naming))) = (old_side, new_side)
+    else {
+        // An unreadable side: every name strands, `SetProgram`'s rule.
+        return SegmentMap::build(None, old_programs.len(), (&[], Vec::new()), &[])
+            .map(Some)
+            .map_err(refused);
+    };
+    // What a name's spelling reads: which program loop each canonical
+    // loop is, and whether it is reversed. A segment count a slot edit
+    // moves is another question
+    // (`work/edit/a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names.md`).
+    let numbering = |n: &[Option<crate::eval::LoopAnchor>]| -> Vec<Option<(u32, bool)>> {
+        n.iter()
+            .map(|a| a.map(|a| (a.program_loop, a.reversed)))
+            .collect()
+    };
+    if numbering(&old_naming) == numbering(&new_naming) {
+        return Ok(None);
+    }
+    SegmentMap::build(
+        Some((&old_checked, old_naming)),
+        old_programs.len(),
+        (&new_checked, new_naming),
+        &LoopProvenance::identity(new_programs),
+    )
+    .map(Some)
+    .map_err(refused)
 }
 
 /// A witness edit's site check: the store's key rule

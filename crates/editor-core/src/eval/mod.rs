@@ -35,7 +35,7 @@ pub(crate) use wire::{
 };
 
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue};
-pub(crate) use anchor::{naming_of, replay_naming};
+pub(crate) use anchor::{naming_of, readable_naming, replay_naming};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::{DirectionRefusal, FramePlacement};
 
@@ -242,6 +242,12 @@ pub struct NodeValue<T: Decide> {
     /// (body, arena key). Rides the value, so memo reuse transfers
     /// names with geometry (the content key is the proof).
     pub name_table: Arc<NameTable>,
+    /// The fragment groups the node's emitter formed
+    /// ([`crate::names::FragmentGroups`]): the membership the
+    /// diagnosis ladder's group-size rung counts. Rides the value with
+    /// the names it was minted beside; like the verdict log, it is
+    /// not persisted.
+    pub fragment_groups: Arc<crate::names::FragmentGroups>,
     /// The DECLARED CONTACT RECORDS the node's output body 0 carries
     /// (ASM-R2b D-1's contacts channel; [`crate::eval::wire::OpOut`]
     /// states the invariant). Empty for every op but instantiate — a
@@ -1729,11 +1735,9 @@ pub enum NodeErrorKind {
         /// which no road can have written ([`entity_door::Found`]).
         found: entity_door::Found,
     },
-    /// The clearance engine refused a `min_clearance` measurement,
-    /// typed and by its own class name (E7's refusal vocabulary,
-    /// carried into the document vocabulary by
-    /// [`crate::measure::MinClearanceRefusal`]).
-    MeasureClearanceRefused(crate::measure::MinClearanceRefusal),
+    /// The clearance engine refused a `min_clearance` measurement: its
+    /// own typed refusal (E7's refusal vocabulary), carried unaltered.
+    MeasureClearanceRefused(crate::clearance::ClearanceRefusal),
     /// An `Assertion`'s bound is dimensioned differently from the
     /// measure it constrains — comparing metres with radians is a
     /// document fault, refused rather than compared.
@@ -2235,7 +2239,14 @@ impl core::fmt::Display for NodeErrorKind {
                 found.article(),
                 found.noun()
             ),
-            Self::MeasureClearanceRefused(refusal) => write!(f, "{refusal}"),
+            Self::MeasureClearanceRefused(refusal) => {
+                write!(f, "the clearance engine refused `{}`", refusal.name())?;
+                let payload = refusal.payload();
+                if !payload.is_empty() {
+                    write!(f, " ({payload})")?;
+                }
+                Ok(())
+            }
             Self::AssertionDimension { measured, bound } => write!(
                 f,
                 "the assertion's bound is {} {bound} and the measure it constrains is \
@@ -3468,6 +3479,7 @@ where
             result: NodeResult::Ok(NodeValue {
                 payload: out.payload,
                 name_table: out.names,
+                fragment_groups: out.groups,
                 contacts: out.contacts,
                 carried: out.carried,
                 verdicts: Arc::new(recorded.verdicts),

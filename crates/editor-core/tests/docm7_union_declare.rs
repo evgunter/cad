@@ -440,15 +440,15 @@ fn a_declared_pair_routes_by_member_id_and_survives_a_reorder() {
     };
     assert_eq!(merged(&ev, union), 4);
     assert_eq!(merged(&ev2, union2), 4);
-    // And the asymmetry, ASSERTED rather than explained: reordering
-    // swaps which of the two touching members the pair verb sees as
-    // operand A, and the pair emitter is not symmetric in that role.
-    // The rim edges the merge splits are the A-side member's, so the
-    // `Fragment(OrderAlong)` rows sit on `a`'s rims under (a, far, b)
-    // and on `b`'s under (b, a, far). Volume, counts and the four
-    // merges are the same; which member's names move is the PAIR
-    // verb's, and this node inherits it
+    // Reordering swaps which of the two touching members the pair verb
+    // sees as operand A, and the pair emitter is not symmetric in that
+    // role: the flush stretch is named for the A-side member
     // (`work/docm/the-pair-verbs-declared-merge-is-asymmetric-in-its-operands.md`).
+    // What no longer follows it is which member's rims carry a
+    // `Fragment(OrderAlong)`: the union numbers a member edge's pieces by
+    // the cells the finished body cuts it into, counting the cells the
+    // other member holds (`emit_union::rank_member_edges`), so both
+    // members' cut rims are ranked in both orders.
     let fragmented_members = |ev: &Evaluation<f64>, id: RecipeNodeId| {
         let mut out: Vec<RecipeNodeId> = table(ev, id)
             .iter()
@@ -462,8 +462,10 @@ fn a_declared_pair_routes_by_member_id_and_survives_a_reorder() {
         out.dedup();
         out
     };
-    assert_eq!(fragmented_members(&ev, union), vec![a]);
-    assert_eq!(fragmented_members(&ev2, union2), vec![b2]);
+    let mut both = vec![a, b];
+    both.sort();
+    assert_eq!(fragmented_members(&ev, union), both);
+    assert_eq!(fragmented_members(&ev2, union2), both);
     // The two documents are built separately, so the ids are the same
     // ones in the same seats: `a` is the first block of both.
     assert_eq!((a, b), (a2, b2));

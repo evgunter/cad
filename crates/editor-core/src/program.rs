@@ -545,6 +545,18 @@ pub trait ProfilePayload {
     fn expr_mut(&mut self, _slot: SlotId) -> Option<&mut Expr> {
         None
     }
+    /// Whether any expression of this program reads the document
+    /// parameter `name` — over [`ProfilePayload::slots`], so every
+    /// payload answers it the one way.
+    fn references(&self, name: &ParamName) -> bool {
+        let mut refs = Vec::new();
+        for slot in self.slots() {
+            if let Some(e) = self.expr(slot) {
+                e.param_refs(&mut refs);
+            }
+        }
+        refs.iter().any(|(n, _)| n == name)
+    }
     /// The authoring-time check (VQ9): resolve + replay + validate
     /// under the CURRENT parameter environment, refusing typed at the
     /// edit door. The evaluation-time twin re-checks under every
@@ -1785,13 +1797,7 @@ impl ProfileProgram {
     /// program (a loft's or a sweep's section) asks before a seed on
     /// that parameter is silently embedded as a constant.
     pub fn references(&self, name: &ParamName) -> bool {
-        let mut refs = Vec::new();
-        for slot in ProfilePayload::slots(self) {
-            if let Some(e) = ProfilePayload::expr(self, slot) {
-                e.param_refs(&mut refs);
-            }
-        }
-        refs.iter().any(|(n, _)| n == name)
+        ProfilePayload::references(self, name)
     }
 
     /// Resolves every loop at f64 — [`resolve_loops`] over this

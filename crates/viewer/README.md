@@ -626,8 +626,8 @@ something to read an answer off:
 
     rg -n --no-heading 'let\s+&?([a-z_]\w*::)*[A-Z]\w*\s*\{' crates/viewer/src | wc -l
 
-which prints **24**. Drop the `| wc -l` and it prints one line per
-bind, and no hit is in a comment. The reading half sorts those 24, and
+which prints **25**. Drop the `| wc -l` and it prints one line per
+bind, and no hit is in a comment. The reading half sorts those 25, and
 every member is named so the sort can be argued with rather than
 trusted:
 
@@ -646,7 +646,7 @@ trusted:
   crate's — a field arriving there is a version bump's news, which is
   the upgrade hold `scroll_event`'s own doc calls nominal, and not a
   value of ours whose account has fallen behind it.
-- **The remaining fourteen binds are the thirteen censuses below.**
+- **The remaining fifteen binds are the fourteen censuses below.**
   `PartialEq for Camera` spends two of them, the second over
   `Point3`'s coordinates, which is the one place a census here reaches
   past this crate's own fields.
@@ -662,7 +662,7 @@ because leaving it out is how the two toolkit binds above went unseen
 by an earlier taking of this rule, which then reported a smaller
 population with nothing to say it was short.
 
-Thirteen censuses, none of them a dump:
+Fourteen censuses, none of them a dump:
 
 | census | costs, if it misses a field |
 |---|---|
@@ -672,6 +672,7 @@ Thirteen censuses, none of them a dump:
 | `Display for StoreError` | a store's failure carries a fact the sentence does not say |
 | `Display for Message` | **nothing, by design** — this account is deliberately partial, and that is exactly why the tie is worth having: it makes the NEXT field's omission a decision someone made rather than one nobody noticed |
 | `Display for Withdrawal` | a field joins a value whose whole job is to word itself and goes unworded |
+| `frame::outcome_notices` | a field of `OpOutcome` reaches the chrome and is never worded — an edit's consequence the door reported and the one client never shows, which is what DM7's report exists to end |
 | `Withdrawal::all` | a KIND of withdrawal reaches the chrome's notices and is never worded — the fan-out from a `PruneReport` that three hand-written `extend` calls in `app`-gated code used to do, where no row could execute it |
 | `Display for Disagreement` | the doc above it argues both halves are load-bearing; a third field left out would falsify that sentence silently |
 | `Display for BlendTarget` | a refusal names a scope narrower than the target it refused on |
@@ -689,7 +690,7 @@ it destructures at all: an accessor call is a field READ, so a census
 assembled from accessors is a hand list again and a seventh field
 would leave it silently short.
 
-Three of the thirteen name a field the walk deliberately does not
+Four of the fourteen name a field the walk deliberately does not
 spend. `PickCache::forget` binds `seam: _` and must: the seam is the
 service, not the picture, so forgetting it would drop the worker along
 with the answer it is holding. `DisplayState::clear` binds `revision`
@@ -702,7 +703,11 @@ the arm — because the subject ROUTES the message: it is what retires
 it (`frame::StatusUpdate::Expire`) and what a joined rank-2 line takes
 as its own subject. It does not RANK; `frame::frame_status` ranks by
 SOURCE. A line that printed its own routing would say to the user what
-the chrome says to itself.
+the chrome says to itself. `frame::outcome_notices` binds four of
+`OpOutcome`'s six fields to `_`: the committed and previewed edits are
+the act itself, the minted ids are what a form reads back, and the
+refusal is ranked above every notice by `frame::frame_status` on its
+own.
 
 **A `match` is exhaustive over VARIANTS, not over a variant's FIELDS.**
 The six `Display`s above are the struct half of a population of 41
@@ -969,7 +974,9 @@ names no window. `tree::RowStatus::badge`
 is the same shape at the row rather than the toolbar.
 
 Notices — a tool's declined pick, a survival drop, a
-`frame::Withdrawal` — are typed values with `Display`, joined into rank
+`frame::Withdrawal`, an accepted edit's `Maintenance` row (a name
+stranded or rewritten in place, a declaration left unconsumed) — are
+typed values with `Display`, joined into rank
 2 by `frame_status` with one separator. None of them composes prose
 about another value's failure: the failure renders itself, and what the
 chrome adds is its own subject.

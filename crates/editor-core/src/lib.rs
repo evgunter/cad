@@ -109,7 +109,8 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, LoopProvenance,
-    Maintenance, ProvenanceFault, RETIRED_FLOOR, apply, apply_logged, cascade_delete_order,
+    Maintenance, MaintenanceNet, ProvenanceFault, RETIRED_FLOOR, apply, apply_logged,
+    cascade_delete_order,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,
@@ -140,21 +141,21 @@ pub use mc::{
 };
 pub use measure::{
     ASSERT_BOUND, AssertionDir, AssertionVerdict, Certified, MeasureExpr, MeasurePrimitive,
-    MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, MinClearanceRefusal,
-    UnevaluatedReason, WINDOW_TIGHTENING,
+    MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, UnevaluatedReason,
+    WINDOW_TIGHTENING,
 };
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
     EntityKind, EntityRef, Entry, FIT_DEFERRAL, FaceName, FlushEvidence, FlushFinding, FlushRung,
-    GeomPred, InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError,
-    NotAFaceName, OpGroup, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport,
-    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
-    SideVerdict, SplitHalf, StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
-    all_vertices, attribute, band, band_pi, band_rim, carried, declare, declare_all, declare_node,
-    denotation, edge_carrier_kind, edge_frame, face_carrier_kind, face_frame,
-    find_flush_candidates, meridian_vertex, select, select_where, vertex_position,
+    FragmentGroups, GeomPred, InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef,
+    NameTable, NamingError, NotAFaceName, OpGroup, ProfileEdgeRef, ProfileVertexRef, Qualifier,
+    RimShare, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal,
+    Selector, Side, SideVerdict, SplitHalf, StableName, SurfaceKindSet, TagPat, all_bodies,
+    all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim, carried, declare,
+    declare_all, declare_node, denotation, edge_carrier_kind, edge_frame, face_carrier_kind,
+    face_frame, find_flush_candidates, meridian_vertex, select, select_where, vertex_position,
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, MeasureNodeFault,
@@ -182,7 +183,9 @@ pub use program::{
 pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
-pub use refactor::{InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split};
+pub use refactor::{
+    InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, remap_name, split,
+};
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
 };
