@@ -23,13 +23,14 @@ There is no `Point3<f64>` to call `map` on, so `map` does not serve
 them without first building one (`Point3::new(x, y, z).map(T::from_f64)`),
 which no site does.
 
-**43 groups**, measured at the lane's fold head with the unit's
+**44 groups**, re-taken at the lane's head after merging `main` at
+`4968e6862` with the unit's
 denominator-first instrument (every `<path>::from_f64(`/`::constant(`
 call whose argument is a component read or a bare `x`/`y`/`z`, over
 `git ls-files` with no path argument, grouped by file, callee and
 receiver) plus its callee-agnostic second pass (any `F(R.x), F(R.y)`):
 
-- **Bare coordinates, 34**: `crates/pncad/src/authoring.rs` ×5 (the
+- **Bare coordinates, 35**: `crates/pncad/src/authoring.rs` ×5 (the
   public `p2`/`p3`/`v2`/`v3` doors and `polygon`'s `at`),
   `crates/sweep/src/test_support.rs` ×3 (`corners`, `waisted_at`,
   `bowl_at`), `crates/topo/src/test_support_fixtures.rs` ×2 (the prism
@@ -39,7 +40,8 @@ receiver) plus its callee-agnostic second pass (any `F(R.x), F(R.y)`):
   `crates/profile/tests/{cert4r2_e2e,interval_lane,review_s2_probe,scalar_channels_probe}.rs`,
   `crates/sweep/tests/{cert_m2r1_passes,extrude_interval,issue93_az_intersect,m5_pr6_pcurves,mass_props_interval,review_m2_pr4_interval,review_m2_pr5_interval,review_m2_pr7_interval,revolve_interval,sf2a_r2_interval_probe}.rs`
   (eight of those ten are the same `fn p2(x, y) -> Point2<Interval>`),
-  `crates/topo/tests/{cube_doors_agree,review_m3_pr3_rings}.rs`.
+  `crates/topo/tests/{cube_doors_agree,review_m3_pr3_rings}.rs`, and
+  an `iv` closure in `crates/geom-core/src/real.rs`'s test module.
 - **A `[f64; N]` row, 8**: `crates/topo/src/boolean/solid_contain.rs`,
   `chart_bound.rs`, `chart_region.rs` (`SCHEDULE_2D`),
   `splitting/containment.rs`, `splitting/order.rs` — five PRODUCTION
