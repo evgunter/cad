@@ -2,7 +2,7 @@
 id: DECIDE-7
 kind: unit
 title: rule G's leaf cost: where inside the canonical root the time goes, and the part that can go with every decision unchanged
-status: dispatched
+status: review
 opened: 2026-09-25
 priority: P2
 cost: D

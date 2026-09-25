@@ -203,3 +203,62 @@ difference. The time is in the per-node reduction of the forms rule G
 leaves, and two thirds of the pad's release difference is that
 reduction asked again of a form it already answered. Phase 2 takes
 the reduction memo.
+
+## What DECIDE-7 took, and what it moved
+
+**The per-node reduction's memo** (`sym.rs`'s `reduce_per_node`, on
+`Session::reductions`). `algebra::reduce_steps` at `EARLY_STEPS` is
+answered from a per-session table:
+- The key is the input FORM (bucketed by digest, compared whole), the
+  rules and the ring bound.
+- A form with no exponent past one is reduced directly and not kept.
+
+The argument that the memo answers what the reduction builds is on
+the function's doc. The unit row is
+`sym::tests::the_reduction_memo_answers_what_the_reduction_builds`.
+
+**Every decision unchanged, every form unchanged:**
+- **Receipts**, release, `m10_10_leaf_cost_with_and_without_the_algebra`
+  with `CAD_M10_10_COLUMNS=rules`, before (`dda28cef8`) and after: the
+  plate at `1e2·ε` and at 1, the bracket, the annulus, the pad, the
+  link and the boss are identical, the diff of the two outputs with
+  times stripped being empty.
+- **Splits at the nominal**, `m10_10_splits_at_the_nominal_under_a_rule_set`:
+  identical for the plate, the bracket and the annulus. The row is
+  killed at the pad's nominal on this box in both runs (memory), so it
+  reaches neither the link nor the boss.
+- **Walk ledgers** (every walk's call and form counts, frozen counts
+  and the digest chain of every form built): identical before and
+  after on the pad's release leaf (both rule sets), the pad's dev leaf
+  and the link's dev leaf.
+- **The split pins**: `m10_10_pins_interval` passes, 7 of 7.
+
+**Timings.**
+
+| leaf | before | after |
+| --- | --- | --- |
+| pad, release, best of 3 | 74.18 s | 28.85 s |
+| link, release, best of 3 | 8.56 s | 4.82 s |
+| bracket, release, best of 3 | 2.09 s | 1.38 s |
+| pad, release, rule G shut, best of 3 | 17.15 s (one take, DECIDE-6) | 11.09 s |
+| link, release, rule G shut, best of 3 | 3.83 s (one take, DECIDE-6) | 2.45 s |
+| pad, dev, one take | 280.6 s (DECIDE-6) | 133.90 s |
+| pad, dev, rule G shut, one take | 122.4 s (DECIDE-6) | 85.48 s |
+| link, dev, one take | 36.10 s | 23.99 s |
+| `m10_10_pins_interval`, dev, `--test-threads 2` | 339.23 s | 179.34 s |
+
+Before is `dda28cef8` (the phase-1 head) and after is the memo, both
+on this box. The memo helps rule G shut too, since the reduction runs
+under both rule sets.
+
+**What rule G still costs.** On the pad's release leaf it now costs
+17.76 s (28.85 against 11.09 s), down from 57 s.
+
+The profiled replay after the memo (release pad, shipped) puts
+22.00 s in the per-node reduction against 4.53 s shut. 10.62 s of it
+is 100 first-time refusals at the quotient's product on the term
+pre-bound. That residue is filed on the sym slate as
+`work/sym/the-substituted-numerator-is-built-before-the-quotients-pre-bound-refuses-it`.
+
+The reading that rule G's magnitude door never reaches rule C is
+filed as `work/decide/rule-gs-magnitude-door-never-asks-rule-c`.

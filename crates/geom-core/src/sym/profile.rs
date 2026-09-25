@@ -592,6 +592,10 @@ impl ReadProfile {
     }
 }
 
+/// A refused reduction's cause, site and note — the key its label is
+/// built once for ([`reduce_exit`]).
+type RefusalKey = (&'static str, &'static str, Option<FreezeCause>);
+
 // The install / take scaffold is `report`'s, spelled again: two
 // `Cell`s and a `RefCell` of a different payload, which is less than a
 // generic would cost to name. `report.rs` says the same at its copy.
@@ -638,7 +642,7 @@ thread_local! {
     /// The substitution step running (`algebra`'s `site!`), and the
     /// label [`reduce_exit`] builds from it and the refusal's note.
     static REDUCE_SITE: Cell<&'static str> = const { Cell::new("") };
-    static REDUCE_LABELS: RefCell<BTreeMap<(&'static str, &'static str, Option<FreezeCause>), &'static str>> =
+    static REDUCE_LABELS: RefCell<BTreeMap<RefusalKey, &'static str>> =
         const { RefCell::new(BTreeMap::new()) };
 
     /// The forms this session's per-node reductions were asked over, by
