@@ -3178,7 +3178,17 @@ pub(super) fn flank<T: Decide>(
     back: usize,
     fwd: usize,
 ) -> Option<((HalfEdgeKey, VertexKey), (HalfEdgeKey, VertexKey))> {
-    let walk = loop_walk(body, lp)?;
+    flank_in(&loop_walk(body, lp)?, at, back, fwd)
+}
+
+/// [`flank`]'s arithmetic on a walk already read: `None` exactly where
+/// the walk does not carry the keyed half-edge.
+fn flank_in(
+    walk: &[(HalfEdgeKey, VertexKey, EdgeKey)],
+    at: impl Fn(&(HalfEdgeKey, VertexKey, EdgeKey)) -> bool,
+    back: usize,
+    fwd: usize,
+) -> Option<((HalfEdgeKey, VertexKey), (HalfEdgeKey, VertexKey))> {
     let k = walk.len();
     let pos = walk.iter().position(at)?;
     let (h1, v1, _) = walk[(pos + k - back) % k];
@@ -3186,11 +3196,22 @@ pub(super) fn flank<T: Decide>(
     Some(((h1, v1), (h2, v2)))
 }
 
-/// [`flank`] on a face's OUTER cycle, refusing typed where the cycle
-/// does not walk or does not carry the keyed half-edge — the ruled
-/// band's and the corner arc's spelling, whose chords always hang in an
-/// outer cycle (the cut-off `mef` leaves a cap's rings on the cap; a
-/// support with a ring is refused at the plan).
+/// [`flank`] on the one cycle of `face` — its outer cycle or one of
+/// its rings — that carries the keyed half-edge: the ruled band's and
+/// the corner arc's spelling. The chord hangs in whichever cycle holds
+/// the run it cuts off, and `mef` keeps that cycle's outer/ring
+/// designation on the old face, so a cap whose crease ends sit in a
+/// ring (a D-shaped through-hole) is cut off in that ring exactly as a
+/// cap whose crease ends sit in its outer cycle is cut off there; the
+/// face's other cycles stay on the old face either way. A support's
+/// chord always finds its outer cycle: a support with a ring is refused
+/// at the ruled plan, and a corner arc's merged strip is minted
+/// ring-free.
+///
+/// Refuses typed where a cycle does not walk, or where not exactly one
+/// cycle of the face carries the keyed half-edge — the key names one
+/// position in one cycle, so none or several is a body that does not
+/// hold together where the carve reads it.
 pub(super) fn chord_site<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3198,17 +3219,28 @@ pub(super) fn chord_site<T: Decide>(
     back: usize,
     fwd: usize,
 ) -> Result<(HalfEdgeKey, HalfEdgeKey, VertexKey, VertexKey), BlendError> {
-    let outer = body
+    let fd = body
         .get_face(face)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face whose cycle a chord spans"))?
-        .outer;
-    let ((he1, v1), (he2, v2)) = flank(body, outer, at, back, fwd).ok_or_else(|| {
-        not_intact(
+        .ok_or_else(|| not_intact(EntityId::Face(face), "a face whose cycle a chord spans"))?;
+    let mut carrying = Vec::with_capacity(1);
+    for &lp in core::iter::once(&fd.outer).chain(fd.rings.iter()) {
+        let walk = loop_walk(body, lp).ok_or_else(|| {
+            not_intact(
+                EntityId::Loop(lp),
+                "a cycle of a face a chord spans does not walk",
+            )
+        })?;
+        if let Some(site) = flank_in(&walk, &at, back, fwd) {
+            carrying.push(site);
+        }
+    }
+    let [((he1, v1), (he2, v2))] = carrying[..] else {
+        return Err(not_intact(
             EntityId::Face(face),
-            "a face's outer cycle does not walk, or does not carry the half-edge the carve \
+            "not exactly one cycle of the face a chord spans carries the half-edge the carve \
              keys on",
-        )
-    })?;
+        ));
+    };
     Ok((he1, he2, v1, v2))
 }
 

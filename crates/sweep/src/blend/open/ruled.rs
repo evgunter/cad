@@ -55,7 +55,12 @@
 //! `fillet_h7_transverse_cap::the_d_profile_rod_carves_through_a_cap_arc_past_pi`)
 //! and a rod's section standing on a block's top edge (concave,
 //! `ΔV = +2·A·L`,
-//! `review_fillet_h7_r1_probes::a_sunk_rod_has_concave_ruled_creases_that_add_material`).
+//! `review_fillet_h7_r1_probes::a_sunk_rod_has_concave_ruled_creases_that_add_material`),
+//! and a block with a D-shaped through-hole, whose concave creases end
+//! in the caps' RINGS rather than their outer cycles (`ΔV = +2·A·L`,
+//! `band_ruled_d_hole::a_d_hole_fillets_both_creases_at_the_rod_closed_form`).
+//! Which of the cap's cycles the cut-off arc spans is read, not
+//! assumed: the one carrying the old vertex.
 //! The convex side has a boolean-built twin beside it — the rod with a
 //! flat, `rod ∖ box`, at
 //! `fillet_h7_transverse_cap::the_rod_with_a_flat_fillets_both_creases_at_the_prism_closed_form`.
@@ -76,8 +81,8 @@ use crate::blend::battery::cap_incidence;
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
     ContactCarrier, Described, SourceFaces, SplitFragments, chord_site, face_of_half, halves_of,
-    loop_of_half, not_intact, op, point_of, retire_fragment, seam_split_param, split_fragment,
-    unbuilt_chain, unbuilt_geometry,
+    not_intact, op, point_of, retire_fragment, seam_split_param, split_fragment, unbuilt_chain,
+    unbuilt_geometry,
 };
 
 /// One transverse cap of a ruled link, as the plan read it.
@@ -120,11 +125,11 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
     ///
     /// [`BlendError::UnsupportedGeometry`] when the link's band is not
     /// a cylinder or a trimline not a line; [`BlendError::UnsupportedChain`]
-    /// when a support carries a ring or the crease is not on its
-    /// support's outer cycle, or when a cap rim is itself requested;
-    /// [`BlendError::BodyNotIntact`] when an end is not among the
-    /// verdict's transverse caps, or its incidence is not the cap the
-    /// verdict classified.
+    /// when a support carries a ring, or when a cap rim is itself
+    /// requested; [`BlendError::BodyNotIntact`] when the crease's
+    /// halves do not lie in the supports the verdict names, an end is
+    /// not among the verdict's transverse caps, or its incidence is not
+    /// the cap the verdict classified.
     pub(in crate::blend) fn plan(
         body: &Body<T>,
         link: AdmittedOpen<'a, T>,
@@ -159,37 +164,37 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
             trim_origin(&l.blend.trim_b.0)?,
         );
 
-        // The supports: ring-free, and carrying the crease on their
-        // outer cycle. A ring on a curved support is not carried
-        // through by this carve, and a crease on a ring would put the
-        // trimline `mef` across a ring's loop. The CAP's rings are NOT
-        // checked, deliberately: the cut-off `mef` runs on the cap's
-        // outer cycle and leaves the old face's rings on the old face,
-        // so a bored rod's cap keeps its bore
-        // (`review_fillet_h7_r1_probes::a_cap_carrying_a_ring_keeps_it_through_the_cut_off`).
+        // The supports: each carries its half of the crease, and is
+        // ring-free — a ring on a curved support is not carried
+        // through by this carve. Together the two put the crease on
+        // the support's OUTER cycle (a half-edge's loop is a cycle of
+        // its face, and a ring-free face has one), which is where the
+        // trimline `mef` hangs ([`chord_site`]). The CAP's rings are NOT
+        // checked, deliberately: the cut-off `mef` runs on whichever of
+        // the cap's cycles carries the crease's end ([`chord_site`]) and
+        // leaves every other cycle on the old face — so a bored rod's
+        // cap keeps its bore
+        // (`review_fillet_h7_r1_probes::a_cap_carrying_a_ring_keeps_it_through_the_cut_off`),
+        // and a D-shaped through-hole, whose creases end in the caps'
+        // rings, is cut off in the ring and keeps it, rounded
+        // (`band_ruled_d_hole::a_d_hole_fillets_both_creases_at_the_rod_closed_form`).
         let (hp, hm) = halves_of(body, edge)
             .ok_or_else(|| not_intact(EntityId::Edge(edge), "a ruled link's edge"))?;
         for (face, half) in [(l.face_a, hp), (l.face_b, hm)] {
             let fd = body
                 .get_face(face)
                 .ok_or_else(|| not_intact(EntityId::Face(face), "a ruled link's support"))?;
+            if face_of_half(body, half) != Some(face) {
+                return Err(not_intact(
+                    EntityId::Edge(edge),
+                    "a ruled link's half-edges do not lie in the faces the verdict names",
+                ));
+            }
             if !fd.rings.is_empty() {
                 return Err(unbuilt_chain(
                     edge,
                     "a ruled band's support face carries a ring, which its curved support cannot \
              carry through",
-                ));
-            }
-            if loop_of_half(body, half) != Some(fd.outer) {
-                return Err(unbuilt_chain(
-                    edge,
-                    "a ruled band's edge is not on its support's outer cycle",
-                ));
-            }
-            if face_of_half(body, half) != Some(face) {
-                return Err(not_intact(
-                    EntityId::Edge(edge),
-                    "a ruled link's half-edges do not lie in the faces the verdict names",
                 ));
             }
         }
@@ -331,10 +336,13 @@ pub(in crate::blend) fn ruled_phase<T: Decide + Bounds>(
     let mut described: Described<T> = Vec::new();
 
     // ---- (1) Per cap: split both rims at their feet, then `mef` the
-    // cut-off arc across the cap between the two feet. The run from
-    // the first foot through the old vertex to the second is what
-    // moves onto the new face, so the new face is the SLIVER and the
-    // cap keeps its key, surface, sense and rings. ----
+    // cut-off arc across the cap between the two feet, in the cap's
+    // cycle that carries the old vertex — its outer cycle, or a ring
+    // where the crease runs along a through-hole. The run from the
+    // first foot through the old vertex to the second is what moves
+    // onto the new face, so the new face is the SLIVER and the cap
+    // keeps its key, surface, sense, the cut cycle's outer/ring
+    // designation, and its other cycles. ----
     let mut slivers: Vec<(SplitFragments, SplitFragments)> = Vec::with_capacity(2);
     for end in &plan.ends {
         let v = end.vertex;
