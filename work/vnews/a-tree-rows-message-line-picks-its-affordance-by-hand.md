@@ -2,8 +2,11 @@
 id: a-tree-rows-message-line-picks-its-affordance-by-hand
 kind: issue
 title: The feature row's message line re-spells frame::Affordance as a link-or-weak choice
-status: open
+status: closed
 opened: 2026-09-20
+branch: vnews/salience-read-from-the-value
+pr: 3230
+closed: 2026-09-25
 priority: P1
 cost: E
 ---

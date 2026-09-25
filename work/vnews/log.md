@@ -515,3 +515,25 @@ vseam. Only doc text changed there: `SHAPE_LOCKED`'s doc and
 list, because the step controls' disabled hovers now read it too.
 `pane/profile.rs`'s Revert moved into `apply_and_revert`, and Apply
 moved with it.
+
+## 2026-09-25 — the tone unit's two residue rows close; a VNEWS lane crosses into `session/select.rs`
+
+`vnews/salience-read-from-the-value` (#3230) closes
+`a-tree-rows-message-line-picks-its-affordance-by-hand` and
+`resolution-and-standing-pick-their-tone-by-hand`. Each row states its
+decision. **Announced crossings:**
+- `crates/viewer/src/session/select.rs`, which CHROME and VSEAM own:
+  `Standing` gains `tone()`, and the file gains a test module for it.
+- `pane/properties.rs`, shared with AUTHOR, CHROME and VGEOM: the
+  resolution arms move into a free `entity_verdict`, and
+  `entity_standing_ui` takes the `Standing` in place of its
+  `resolution` and `live` arguments.
+- `pane/create.rs`: the part chooser's scan refusal takes
+  `Tone::Actionable` where it had the body colour.
+- `app.rs`, which CHROME and VSEAM own: `toned`'s doc only.
+- `crate::pane::headless::Landed` gains `ink`, the colour a galley was
+  painted in.
+
+Filed: `a-verdict-drawn-outside-a-tone-has-no-value-to-read`. Moved
+from `work/issues/`: `preview-error-picks-its-tone-by-hand-in-a-comment`,
+because `pane/profile.rs` is VNEWS-claimed today.

@@ -2,8 +2,11 @@
 id: resolution-and-standing-pick-their-tone-by-hand
 kind: issue
 title: The properties pane picks weak-or-coloured by hand from Resolution and Standing
-status: open
+status: closed
 opened: 2026-09-19
+branch: vnews/salience-read-from-the-value
+pr: 3230
+closed: 2026-09-25
 priority: P1
 cost: E
 ---
