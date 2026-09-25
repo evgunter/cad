@@ -235,7 +235,7 @@ impl ResolveError {
         name: &StableName,
         at: StableName,
         node: RecipeNodeId,
-        width: u32,
+        width: usize,
     ) -> Self {
         Self::Ambiguous {
             name: name.clone(),
@@ -946,7 +946,7 @@ pub struct TieWitness {
     /// base name on an `order_along` over-tie).
     pub at: StableName,
     /// How many equally-admissible candidates tie there.
-    pub width: u32,
+    pub width: usize,
 }
 
 /// The last-good table entry of a vanished name (N5: entity kind,
@@ -1164,7 +1164,7 @@ fn enrich_impl<T: Decide, P: PriorCtx>(
         && let Some(Entry::Tied(ents)) = v.name_table.lookup(&loss.name)
     {
         return Resolution::Failed(ResolutionFailure {
-            error: ResolveError::ambiguous(&loss.name, loss.name.clone(), *at, ents.len() as u32),
+            error: ResolveError::ambiguous(&loss.name, loss.name.clone(), *at, ents.len()),
             offers: Vec::new(),
         });
     }
@@ -1446,7 +1446,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         }
         Some((node, Entry::Tied(ents))) => {
             return Resolution::Failed(ResolutionFailure {
-                error: ResolveError::ambiguous(name, name.clone(), node, ents.len() as u32),
+                error: ResolveError::ambiguous(name, name.clone(), node, ents.len()),
                 offers: Vec::new(),
             });
         }
@@ -1461,7 +1461,7 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
         match lookup(new.eval, &base) {
             Some((node, Entry::Tied(ents))) => {
                 return Resolution::Failed(ResolutionFailure {
-                    error: ResolveError::ambiguous(name, base, node, ents.len() as u32),
+                    error: ResolveError::ambiguous(name, base, node, ents.len()),
                     offers: Vec::new(),
                 });
             }

@@ -346,7 +346,7 @@ fn both_doors_forward_one_sentence() {
 #[test]
 fn at_names_each_position() {
     let solid = RecipeNodeId(2);
-    let cases: &[(&str, Vec<u32>, Option<u32>)] = &[
+    let cases: &[(&str, Vec<u32>, Option<usize>)] = &[
         ("canonical", vec![0, 2, 4], None),
         ("swap at 0", vec![2, 0, 4], Some(0)),
         ("swap at 1", vec![0, 4, 2], Some(1)),

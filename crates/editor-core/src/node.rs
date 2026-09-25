@@ -1376,9 +1376,9 @@ pub enum InputFault {
     /// a corrupt file, and is refused rather than repaired.
     RepeatedDesignation {
         /// The position of the entry's first occurrence.
-        first: u32,
+        first: usize,
         /// The position at which it is named again.
-        again: u32,
+        again: usize,
     },
     /// A SORTED designation is not in canonical form. A blend's
     /// `selection` ([`Node::Fillet`], [`Node::Chamfer`]) is the payload
@@ -1400,7 +1400,7 @@ pub enum InputFault {
         /// sentence spells both out because a reader comparing two
         /// entries wants both numbers in front of them; the payload
         /// carries the one that is data.
-        at: u32,
+        at: usize,
     },
 }
 
@@ -2924,10 +2924,7 @@ impl<P> Node<P> {
         if let Node::Shell { open, .. } = self {
             for (again, name) in open.iter().enumerate() {
                 if let Some(first) = open[..again].iter().position(|n| n == name) {
-                    return Some(InputFault::RepeatedDesignation {
-                        first: first as u32,
-                        again: again as u32,
-                    });
+                    return Some(InputFault::RepeatedDesignation { first, again });
                 }
             }
         }
@@ -2939,7 +2936,7 @@ impl<P> Node<P> {
         if let Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } = self
             && let Some(at) = selection.windows(2).position(|w| w[0] >= w[1])
         {
-            return Some(InputFault::SelectionNotCanonical { at: at as u32 });
+            return Some(InputFault::SelectionNotCanonical { at });
         }
         None
     }
@@ -3798,10 +3795,9 @@ impl<P> Node<P> {
         };
         let mut prims = Vec::new();
         expr.primitives(&mut prims);
-        let arity = u32::try_from(refs.len()).unwrap_or(u32::MAX);
         for prim in prims {
             for index in prim.refs() {
-                if index >= arity {
+                if !usize::try_from(index).is_ok_and(|i| i < refs.len()) {
                     return Some(MeasureNodeFault::RefIndexOutOfRange {
                         verb: prim.verb(),
                         index,

@@ -2148,3 +2148,32 @@ mod walk_tests {
         );
     }
 }
+
+#[cfg(test)]
+mod to_u32_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{NamingError, to_u32};
+
+    /// The last value a `u32` holds narrows exactly; the first one past
+    /// it is refused with the caller's own sentence, never saturated
+    /// onto `u32::MAX` where it would share that value's name.
+    #[test]
+    fn narrows_to_the_bound_and_refuses_past_it() {
+        let max = usize::try_from(u32::MAX).expect("a 32-bit or wider usize");
+        assert_eq!(to_u32(max, "unused").ok(), Some(u32::MAX));
+        assert_eq!(to_u32(0, "unused").ok(), Some(0));
+        let Some(past) = max.checked_add(1) else {
+            return; // a 32-bit usize holds no value past the bound
+        };
+        assert!(
+            matches!(
+                to_u32(past, "the caller's sentence"),
+                Err(NamingError::Emission {
+                    what: "the caller's sentence"
+                })
+            ),
+            "one past u32::MAX is refused, not saturated"
+        );
+    }
+}
