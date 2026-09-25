@@ -2013,8 +2013,11 @@ impl ImportReport {
 
     fn __repr__(&self) -> String {
         format!(
-            "ImportReport(volume={} m^3, {} normalization(s), {} promotion(s), {} instance(s))",
-            self.enclosure.volume,
+            "ImportReport(volume={}, {} normalization(s), {} promotion(s), {} instance(s))",
+            match &self.enclosure {
+                Ok(enclosure) => format!("{} m^3", enclosure.volume),
+                Err(_) => "unmeasured".to_owned(),
+            },
             self.normalizations.len(),
             self.promotions.len(),
             self.instances.len()
