@@ -54,7 +54,7 @@
 //! of ε any more (it was `1.25e3 · ε` before A1, and `7.81e2 · ε` under
 //! M10-7's, M10-8's and M10-9's tiers alike). What bounds that CEILING
 //! is `assert_bound`'s ENCLOSURE straddling zero — dependency widening
-//! of a real margin, not a flip (`work/sym/real-margin-dependency-widening`):
+//! of a real margin, not a flip (`work/tier/real-margin-dependency-widening`):
 //! the margin `web − floor = 1e-4 + 2·Δhs − Δr_a − Δr_b` is affine, its
 //! true range at the ceiling is `[5.8e-5, 1.4e-4]` m, positive
 //! everywhere, and the real flip first enters the box at 0.625 of the
@@ -81,15 +81,18 @@
 //! cap is a cost wall, not a reach: raising it leaves the link
 //! byte-identical), so the scaffold residual stands there and their
 //! answers are still ε-scale, waiting on that residual's retirement
-//! (PCURVE/D3). And the mechanism's reach is the UNIT bulge — this
-//! plate's circles: a parameter bulge is entirely outside it and a
-//! literal bulge other than 1 leaves residue
-//! (`work/sym/rule-d-reaches-the-unit-bulge-only`). So the honest
-//! general statement is: **a real study on circle-authored geometry
-//! certifies up to its real flips, and a study whose arcs carry a
-//! frame the budget freezes, or a bulge that is not 1, still gets an
-//! ε-scale answer.** `work/sym/symbolic-tier-census` carries what
-//! bounds each document, with numbers.
+//! (PCURVE/D3). And the mechanism folds whole at the UNIT bulge — this
+//! plate's circles. At any other bulge, a document parameter's
+//! included, the carrier's span meets the pushforward's through the
+//! arc's decided turn (`4·atan(σ·b)`), and what stands is the
+//! coefficient ring (a bulge like `fl(0.4)`), the term budget and the
+//! sign of the apothem (`work/decide/rule-d-reaches-the-unit-bulge-only`).
+//! So the honest general statement is: **a real study on
+//! circle-authored geometry certifies up to its real flips, and a study
+//! whose arcs carry a frame the budget freezes, or a bulge whose forms
+//! the ring or the budget freezes, still gets an ε-scale answer.**
+//! `work/tier/symbolic-tier-census` carries what bounds each document,
+//! with numbers.
 //!
 //! Where a leaf refuses it is not silence: the receipt says how many
 //! and why (here, all at the leaf budget), and the coverage says where
@@ -252,7 +255,7 @@ fn real_study(tol: Tol) {
                  certified leaves [{:.4e}, {:.4e}] m (the web is affine in the parameters, \
                  so that range is exact): padding {:.2e} m below and {:.2e} m above — the \
                  interval lane's dependency widening, proportional to the leaf's width \
-                 (work/props/certified-hull-padding-is-the-leaf-width-not-the-lane)",
+                 (work/stack/certified-hull-padding-is-the-leaf-width-not-the-lane)",
                 report.worst_case.lo,
                 report.worst_case.hi,
                 slack.true_lo,
@@ -273,21 +276,23 @@ fn real_study(tol: Tol) {
                  web − floor = 1e-4 + 2·Δhs − Δr_a − Δr_b is affine, its true range at the \
                  ceiling is [5.8e-5, 1.4e-4] m > 0 everywhere while the enclosure is \
                  [−2.1e-9, 2.0e-4], and the real flip first enters the box at 0.625 of \
-                 the study (work/sym/real-margin-dependency-widening). The LEAVES certify \
+                 the study (work/tier/real-margin-dependency-widening). The LEAVES certify \
                  up to that flip: every refusal above is the leaf budget, sitting along \
                  the surface where the web crosses the floor, and refining a refused leaf \
                  leaves assert_bound alone over the band. What moved it: M10-9's door \
-                 registers the rim ‖q − c‖ = r and the span carrier.eval(4·atan|b|) = \
-                 q_to; M10-10's rule D writes sin/cos of q·atan(bulge) in closed form and \
+                 registers the rim ‖q − c‖ = r and the span carrier.eval(4·atan(σ·b)) = \
+                 q_to, σ the arc's decided turn; M10-10's rule D writes sin/cos of q·atan(bulge) in closed form and \
                  rules A/B per node close the ring (carrier_matches_mapped_source 72, \
                  carrier_on_surface_2 72, witness_on_surface_2 8 decisions); A1 folds the \
                  chart's phase atan2(0, r²/sqrt(r²)) to the zero form and cos π to −1 \
                  (pcurve_map_residual 36). No value was read by any of them. The reach: \
-                 the unit bulge (this plate's circles) — a parameter bulge is outside the \
-                 mechanism and a literal bulge other than 1 leaves residue \
-                 (work/sym/rule-d-reaches-the-unit-bulge-only); what still bounds R2's \
+                 the unit bulge (this plate's circles) folds whole; at any other bulge, a \
+                 parameter's included, the carrier's span meets the pushforward's through \
+                 the arc's decided turn, and what stands is the coefficient ring (a bulge \
+                 like fl(0.4)), the term budget and the sign of the apothem \
+                 (work/decide/rule-d-reaches-the-unit-bulge-only); what still bounds R2's \
                  bracket and link is the term budget freezing their carrier frames' \
-                 squared components (work/sym/symbolic-tier-census)."
+                 squared components (work/tier/symbolic-tier-census)."
             );
         }
         Err(StackupRefusal::NothingCertified {

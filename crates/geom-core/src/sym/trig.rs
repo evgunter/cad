@@ -10,8 +10,9 @@
 //! A sketch arc is pushed forward through `sin(s·θ)` and `−2·sin²(s·θ/2)`
 //! with `θ = 4·atan(bulge)` (`geom-brep`'s `SketchSegment::eval`), and
 //! its carrier is evaluated through `cos t`, `sin t` at
-//! `t = (i/8)·4·atan|bulge|` (`Curve3::circle_at` over the certifier's
-//! schedule). Held opaque, `sin(½·atan b)` and `cos(atan b)` are two
+//! `t = (i/8)·4·atan(σ·bulge)`, `σ` the arc's decided turn
+//! (`Curve3::circle_at` over the certifier's schedule; the span is
+//! `sweep`'s `turned_span`). Held opaque, `sin(½·atan b)` and `cos(atan b)` are two
 //! unrelated indeterminates and the residual between the spellings is
 //! not the zero form anywhere the trig has not collapsed. Written in
 //! closed form both sides are rational functions of `X` and one
@@ -56,8 +57,8 @@
 //! (`atan(X)/3` has no closed form this module states), or an atom
 //! over a poisoned argument, all stay opaque, which is the conservative
 //! direction. The certifier's schedule produces `q = i/2` and `i/4` for
-//! `i ∈ 0..=8` (`sample_param` at `θ = 4·atan|b|`, and the pushforward's
-//! `s·θ` and `s·θ/2` at `s = i/8`) plus the mid-parameter `2·atan|b|`;
+//! `i ∈ 0..=8` (`sample_param` at `θ = 4·atan(σ·b)`, and the pushforward's
+//! `s·θ` and `s·θ/2` at `s = i/8`) plus the mid-parameter `2·atan(σ·b)`;
 //! the bounds hold those with room and nothing folds past them.
 //!
 //! The `sqrt` atoms this module mints are recorded like every other
@@ -68,11 +69,14 @@
 //! is the carrier's `abs(signed_radius)` (which no rule squares away)
 //! over the coefficient ring's width (the odd half-multiples' closed
 //! forms freeze at `COEFF_BITS`); with the bulge a document PARAMETER
-//! `b`, the carrier's span `4·atan|b|` and the pushforward's `4·atan b`
-//! mint `sqrt(1 + abs(b)²)` and `sqrt(1 + b²)` — two atoms for one
-//! quantity, related only through the sign of `b`, which no value-free
-//! rule reads (`m10_10_evidence_interval` at `CAD_M10_10_DOC=r1_segment_boss`
-//! and the `r2_d_tab_*` documents; the pins in `m10_bulge_interval`).
+//! `b`, the carrier's span is spelled from the turn `σ` the profile
+//! decided, `4·atan(σ·b)` (`sweep`'s `turned_span`), so it and the
+//! pushforward's `4·atan b` mint the one atom `sqrt(1 + b²)`. Spelled
+//! `4·atan|b|`, the carrier would mint `sqrt(1 + abs(b)²)` beside it —
+//! two atoms for one quantity, related only through the sign of `b`,
+//! which no value-free rule reads (`m10_10_evidence_interval` at
+//! `CAD_M10_10_DOC=r1_segment_boss` and the `r2_d_tab_*` documents; the
+//! pins in `m10_bulge_interval`).
 //!
 //! **The second fold: `atan2(0, N) = 0` for an `N` non-negative by its
 //! syntax** (`manifest::nonneg`, which is where that predicate lives

@@ -52,9 +52,11 @@
 //!   segment and `axis = −n` for a clockwise one, so that increasing
 //!   carrier parameter always runs along the segment's traversal —
 //!   satisfying the ratified `he_plus` forward contract with positive
-//!   parameter spans. The span is **θ = 4·atan|bulge|**, from the
-//!   stored bulge (the sanctioned re-inspection; never endpoint
-//!   `atan2`). A carrier circle's `u_ref` points from the center at the
+//!   parameter spans. The span is **θ = 4·atan(σ·b)**, from the
+//!   stored bulge `b` signed by the turn `σ` the profile decided (the
+//!   sanctioned re-inspection; never endpoint `atan2`). `σ` is the
+//!   certified sign of `b`, so `σ·b` is `|b|` to the bit, and the span
+//!   is the atom the pushforward's `4·atan b` mints. A carrier circle's `u_ref` points from the center at the
 //!   segment's start vertex; a shared side cylinder's `u_ref` comes
 //!   from the first segment of its cosurface run in sweep order (seam
 //!   placement is conventional data, D2 — no `Seam` edges exist in an

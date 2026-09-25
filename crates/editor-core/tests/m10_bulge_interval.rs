@@ -58,13 +58,17 @@ use crate::m10_8_harness::{assert_split, split_at_the_nominal};
 /// `witness_on_surface_1` 1 on the same ring and, on the parameter,
 /// the radius's `abs(R(b))`. At the dyadic control `bulge = 0.5`
 /// (evidence only) the ring is out of the way on the on-surface
-/// residuals — on the parameter control `carrier_on_surface_2` 27 → 6
-/// (all six frozen on terms and degree), `carrier_on_surface_1` 9 → 0,
+/// residuals — on the parameter control `carrier_on_surface_2` 27 → 4
+/// under the drive's ladder (all four frozen on terms and degree; 6
+/// with one attempt per rung), `carrier_on_surface_1` 9 → 0,
 /// `witness_on_surface_2` 3 → 0, `witness_on_surface_1` 1 → 0,
 /// `carrier_endpoint_start` 4 → 0 — and `carrier_matches_mapped_source`
-/// is 16 there: four of them stand on the sign of `b` in the open and
-/// twelve are frozen, eight of those on the bulk of the sign's second
-/// atom (`m10_bulge_renders.txt` attributes each). A 512-bit ring
+/// is 6 there under the ladder (8 with one attempt per rung), every one
+/// frozen. The carrier's span is spelled from the decided turn
+/// (`sweep`'s `turned_span`), so the decisions that stood on the sign
+/// of `b` in the open, and those whose freeze stood on the bulk of the
+/// sign's second atom, are gone (`m10_bulge_renders.txt` attributes
+/// what is left). A 512-bit ring
 /// (SYM-3's measurement, before rule E) took the literal's
 /// `carrier_on_surface_2` to 18 and its `carrier_on_surface_1` to 0.
 /// The literal's shipped CEILING is not the residue: 0.56 of
@@ -232,12 +236,12 @@ fn m10_bulge_the_d_tabs_literal_split_at_the_nominal() {
 /// SYM-5's rule E the two part on `carrier_matches_mapped_source`:
 /// 126/0/42/12 on the literal against 126/0/38/16 here, so four of the
 /// six the rule takes on the literal it does not take when the bulge
-/// is a parameter. The sign of `b` enters where the dyadic control
-/// shows it once the ring is out of the way: the carrier's span `4·atan|b|` (`sweep`'s `arc_span`)
-/// mints `abs(b)` and `sqrt(1 + abs(b)²)` where the pushforward's
-/// `4·atan b` mints `sqrt(1 + b²)` — two atoms for one quantity,
-/// related only through the sign of `b` — and the radius
-/// `abs(L(1+b²)/(4b))` carries it too.
+/// is a parameter. The carrier's span is spelled from the decided turn
+/// (`sweep`'s `turned_span`, `4·atan(σ·b)`), so it mints the atom the
+/// pushforward's `4·atan b` mints, `sqrt(1 + b²)`, and not a second
+/// one over `abs(b)`; at `0.4` the ring stands in front of that, and
+/// this table is the same under either spelling. The radius
+/// `abs(L(1+b²)/(4b))` carries the sign of `b`.
 #[test]
 fn m10_bulge_the_d_tabs_parameter_split_at_the_nominal() {
     let tol = Tol::witness();
