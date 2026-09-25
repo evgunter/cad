@@ -30,7 +30,8 @@ suspended 2026-09-23). DECIDE-4 merged 2026-09-25 (#3192): Phase 1's attribution
 that is not 1, and rule G's exact quotient, which takes the boss's last
 value-free residual. Ev ruled the bulge's sign on #3186 (2026-09-25):
 route B, the sweep spelling the arc's span `4·atan(σ·b)` from the turn
-it already decided, is DECIDE-5 and next. `rule-d-reaches-the-unit-bulge-only`
+it already decided, is DECIDE-5, dispatched 2026-09-25
+(`docs/DECIDE-5-SPEC.md`). `rule-d-reaches-the-unit-bulge-only`
 closes with it. The apothem's sign is its own row,
 `the-apothems-sign-is-a-value-read`.
 `a0-leaves-max-and-min-of-constants-opaque` closed with DECIDE-3 and

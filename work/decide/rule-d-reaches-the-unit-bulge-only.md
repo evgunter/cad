@@ -2,7 +2,7 @@
 id: rule-d-reaches-the-unit-bulge-only
 kind: issue
 title: rule D's reach is the unit bulge: a parameter bulge is outside the mechanism and a literal bulge other than 1 leaves residue — the next ceiling class after M10-10
-status: open
+status: dispatched
 opened: 2026-09-12
 refs: [2100, plate-ceiling-is-now-the-scaffold-pushforward, symbolic-tier-census]
 parent: SYM-3

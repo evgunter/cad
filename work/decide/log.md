@@ -509,3 +509,16 @@ Ev, on #3186: "both recommendations sound good!"
 `rule-d-reaches-the-unit-bulge-only` clears `needs_ev` and closes when
 DECIDE-5 lands.
 
+
+## 2026-09-25 — DECIDE-5 spec'd: the arc's span from the decided turn (route B), single FULL review
+
+Ev's Decision 1 on #3186 is cut as DECIDE-5 (`docs/DECIDE-5-SPEC.md`).
+The branch is `decide/5-span-from-the-turn`, from `props/sign-hull` at
+`bd2bf0c85`, and its PR targets `props/sign-hull`. Opus implementer.
+
+**Review tier: single FULL review.** The design is ruled. The change is
+a few lines at one constructor site, and whether it is right can be
+settled by reading plus a handful of probes: the value channel's
+bit-identity, the `Zero`-turn convention, the span identity's proof
+comment, and the re-baselines, the link's four lost theorems above all.
+None of that needs a second independent reviewer to believe.
