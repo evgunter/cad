@@ -30,7 +30,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, assert_naming_totality, rod_chord_at, rod_creases,
@@ -62,10 +62,10 @@ fn volume(body: &Body<f64>) -> f64 {
 }
 
 fn rect(x0: f64, x1: f64, y0: f64, y1: f64) -> ProfileLoop<f64> {
-    ProfileLoop::new(
+    bulge_loop(
         [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
             .collect(),
     )
 }
@@ -166,13 +166,13 @@ fn block_with_section(sunk: bool) -> Body<f64> {
     // clockwise about the centre for the rising section arc (positive
     // bulge), clockwise for the dipping wall arc (negative bulge).
     let bulge = if sunk { c.section_bulge } else { -c.wall_bulge };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(-1.0, -1.0), 0.0),
-        ProfileVertex::new(Point2::new(1.0, -1.0), 0.0),
-        ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-        ProfileVertex::new(Point2::new(xv, 0.0), bulge),
-        ProfileVertex::new(Point2::new(-xv, 0.0), 0.0),
-        ProfileVertex::new(Point2::new(-1.0, 0.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(-1.0, -1.0), 0.0),
+        (Point2::new(1.0, -1.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(xv, 0.0), bulge),
+        (Point2::new(-xv, 0.0), 0.0),
+        (Point2::new(-1.0, 0.0), 0.0),
     ]);
     extruded(SketchPlane::xy(), vec![lp], L)
 }
@@ -345,9 +345,9 @@ fn a_support_carrying_a_ring_refuses_at_the_ruled_plan() {
 /// pinned to `ROD_FLAT`), optionally with a coaxial bore.
 fn d_rod(flat: f64, bore: Option<f64>) -> Body<f64> {
     let c = rod_chord_at(flat);
-    let mut loops = vec![ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(flat, c.half), c.wall_bulge),
-        ProfileVertex::new(Point2::new(flat, -c.half), 0.0),
+    let mut loops = vec![bulge_loop(vec![
+        (Point2::new(flat, c.half), c.wall_bulge),
+        (Point2::new(flat, -c.half), 0.0),
     ])];
     if let Some(b) = bore {
         loops.push(
@@ -441,11 +441,11 @@ fn requesting_a_cap_rim_beside_the_crease_refuses_typed() {
 fn a_tall_cylinder_wall_rim_carves_past_a_two_pi_meridian() {
     let body = sweep::test_support::revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 7.0), 0.0),
-            ProfileVertex::new(Point2::new(0.5, 7.5), 0.0),
-            ProfileVertex::new(Point2::new(0.0, 7.5), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 7.0), 0.0),
+            (Point2::new(0.5, 7.5), 0.0),
+            (Point2::new(0.0, 7.5), 0.0),
         ],
         sweep::Revolution::Full,
         tol(),

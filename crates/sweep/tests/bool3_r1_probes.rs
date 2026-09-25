@@ -18,8 +18,7 @@ use crate::revolve_common;
 
 use crate::common::approx::band;
 use geom_core::{Point3, Tol, Vec3};
-use profile::RawLoop;
-use profile::{ProfileLoop, ProfileVertex};
+use profile::test_support::bulge_loop;
 use revolve_common::*;
 use sweep::{Revolution, revolve};
 use topo::{Body, SolidContainment, point_in_solid};
@@ -29,10 +28,7 @@ const MINOR: f64 = 0.3;
 const EXT: f64 = R + MINOR;
 
 fn donut() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(R, -MINOR), 1.0),
-        ProfileVertex::new(p2(R, MINOR), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(R, -MINOR), 1.0), (p2(R, MINOR), 1.0)]);
     revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -153,10 +149,7 @@ fn r1_the_shell_guard_window_versus_the_rejected_sqrt_law() {
 #[test]
 fn r1_the_spindle_refusals_asked_one_at_a_time() {
     // (1) `revolve` at construction: a profile that really is a spindle.
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.2, -0.5), 1.0),
-        ProfileVertex::new(p2(0.2, 0.5), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.2, -0.5), 1.0), (p2(0.2, 0.5), 1.0)]);
     let got = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -173,10 +166,7 @@ fn r1_the_spindle_refusals_asked_one_at_a_time() {
     assert!(got.is_err(), "the spindle must not be mintable by revolve");
 
     // (2) a spindle that only just is one (R just under r).
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.499, -0.5), 1.0),
-        ProfileVertex::new(p2(0.499, 0.5), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.499, -0.5), 1.0), (p2(0.499, 0.5), 1.0)]);
     let got = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -192,10 +182,7 @@ fn r1_the_spindle_refusals_asked_one_at_a_time() {
     );
 
     // (3) the horn case R == r exactly, the boundary of the convention.
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.5, -0.5), 1.0),
-        ProfileVertex::new(p2(0.5, 0.5), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.5, -0.5), 1.0), (p2(0.5, 0.5), 1.0)]);
     let got = revolve(
         &validated(vec![lp]),
         axis_y(),

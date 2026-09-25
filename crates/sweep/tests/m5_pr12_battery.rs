@@ -14,8 +14,7 @@ use crate::common::operands;
 use geom_brep::SurfaceKind;
 use geom_core::{Affine3, Point2, Vec2, Vec3};
 use geom_core::{MarginDiag, Tol};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::arms::BlendArm;
 use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
@@ -41,11 +40,7 @@ fn notched() -> Body<f64> {
         (1.0, 2.0),
         (0.0, 2.0),
     ];
-    let lp = ProfileLoop::new(
-        pts.into_iter()
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
+    let lp = bulge_loop(pts.into_iter().map(|(x, y)| (p2(x, y), 0.0)).collect());
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -56,10 +51,7 @@ fn notched() -> Body<f64> {
 
 /// A radius-`r` ball centred at `c` (the S13 authoring).
 fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -r), 1.0),
-        ProfileVertex::new(p2(0.0, r), 0.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.0, -r), 1.0), (p2(0.0, r), 0.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();

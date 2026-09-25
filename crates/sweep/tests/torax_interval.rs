@@ -46,7 +46,7 @@
 use geom::Surface;
 use geom_core::tolerance::DEFAULT_EPS;
 use geom_core::{Bounds, Interval, MarginDiag, Point2, Real, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use test_utils::vacuity::stood_down;
 use topo::{Body, ShellError, ValidationError};
@@ -127,11 +127,11 @@ fn interval_the_torus_barrel_hollows_and_encloses_its_corners() {
     let (u, v) = (lo - c, hi - c);
     let bulge = (u.perp_dot(v).atan2(u.dot(v)) / iv(4.0)).tan();
     let body = revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), iv(0.0)),
-            ProfileVertex::new(lo, bulge),
-            ProfileVertex::new(hi, iv(0.0)),
-            ProfileVertex::new(p2(0.0, 8.0 / 64.0), iv(0.0)),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), iv(0.0)),
+            (lo, bulge),
+            (hi, iv(0.0)),
+            (p2(0.0, 8.0 / 64.0), iv(0.0)),
         ]),
         Revolution::Full,
     );
@@ -265,9 +265,9 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
     let tol = Tol::witness();
     let profile = Profile::new(
         SketchPlane::<Interval>::xy(),
-        vec![ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -0.3), iv(0.0)),
-            ProfileVertex::new(p2(0.0, 0.3), iv(-1.0)),
+        vec![bulge_loop(vec![
+            (p2(0.0, -0.3), iv(0.0)),
+            (p2(0.0, 0.3), iv(-1.0)),
         ])],
     )
     .validate(tol)
@@ -340,9 +340,9 @@ fn interval_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
     let r = 0.275_f64;
     let profile = Profile::new(
         SketchPlane::<Interval>::xy(),
-        vec![ProfileLoop::new(vec![
-            ProfileVertex::new(p2(-r, 0.0), iv(1.0)),
-            ProfileVertex::new(p2(r, 0.0), iv(1.0)),
+        vec![bulge_loop(vec![
+            (p2(-r, 0.0), iv(1.0)),
+            (p2(r, 0.0), iv(1.0)),
         ])],
     )
     .validate(tol)

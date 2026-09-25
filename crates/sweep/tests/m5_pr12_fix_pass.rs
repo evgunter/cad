@@ -6,11 +6,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use profile::RawLoop;
 
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use geom_core::{MarginDiag, Tol};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::{Extrusion, extrude};
@@ -19,9 +18,9 @@ use topo::query;
 use topo::{Body, BooleanDeclarations, MassPropsError, ValidationError};
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
+    let lp = bulge_loop(
         pts.iter()
-            .map(|(x, y)| ProfileVertex::new(Point2::new(*x, *y), 0.0))
+            .map(|(x, y)| (Point2::new(*x, *y), 0.0))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])

@@ -25,8 +25,8 @@ use crate::common;
 use common::pinned;
 use geom_core::Tol;
 use geom_core::{Point2, Vec2};
-use profile::RawLoop;
 use profile::{ArcSweep, Bulge, Center, Open, Profile, ProfileLoop, SketchPlane, Start, Via};
+use profile::{RawLoop, test_support::bulge_loop};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -83,10 +83,10 @@ fn recorded(name: &str, algebra: &ProfileLoop<f64>) -> ProfileLoop<f64> {
         .find(|(n, _, _)| *n == name)
         .map(|(_, t, j)| (*t, *j))
         .unwrap_or_else(|| panic!("no recorded fixture named {name:?}"));
-    let mut lp = ProfileLoop::new(
+    let mut lp = bulge_loop(
         table
             .iter()
-            .map(|&[x, y, bulge]| profile::ProfileVertex::new(p2(x, y), bulge))
+            .map(|&[x, y, bulge]| (p2(x, y), bulge))
             .collect(),
     );
     lp = lp.with_tangent_joints(joints.to_vec());
@@ -271,8 +271,9 @@ fn assert_loops_identical(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f64>) {
         let (ab, hb) = (algebra.bulges()[i], hand.bulges()[i]);
         assert_eq!(ab.to_bits(), hb.to_bits(), "vertex {i} bulge: {ab} vs {hb}");
         // The two doors lower alike: the emission layer names each
-        // segment's kind from its verb and the fixture door reads it
-        // off the bulge, and the canonical segments agree bit for bit.
+        // segment's kind by the one lowering rule and `bulge_loop`
+        // reaches that same rule, so the canonical segments agree bit
+        // for bit.
         assert_eq!(
             segment_bits(algebra.segments()[i]),
             segment_bits(hand.segments()[i]),
@@ -607,10 +608,7 @@ fn circle_matches_the_raw_corpus_convention() {
     for (cx, cy, r) in [(0.0, 0.0, 1.0), (-1.5, 0.0, 0.7), (2.0, 2.0, 0.5)] {
         let algebra = profile::circle(p2(cx, cy), r, Tol::witness()).unwrap();
         let algebra = pinned(algebra);
-        let hand = ProfileLoop::new(vec![
-            profile::ProfileVertex::new(p2(cx + r, cy), 1.0),
-            profile::ProfileVertex::new(p2(cx - r, cy), 1.0),
-        ]);
+        let hand = bulge_loop(vec![(p2(cx + r, cy), 1.0), (p2(cx - r, cy), 1.0)]);
         assert_loops_identical(&algebra, &hand);
         assert_validate_identically(&algebra, &hand);
     }

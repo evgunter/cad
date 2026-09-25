@@ -12,3 +12,11 @@ blocked_on: [geom-brep-sketch-segment-full-turn]
 
 
 Unit 3 of the #3218 lowering. `build_loop_segs` admits n = 1 with |Δθ| = 2π. Extrude builds `mvfs` + `mef(Lone)` (holes: `kemr` + `mef(Lone)` + `kfmrh`), and the strut is described as a seam. `build_chain` gets an n = 1 arm, and so do `axis.rs`'s full-carrier arms. `resolve_chain_opt` admits n = 1. `SWEEP_FRONTIER`'s premise is re-worded. Red-first rows from raw fixtures, including a boolean on an extruded periodic wall with a seam strut (no evidence one has ever run). Survey §2.
+
+**Prerequisite found in #3231's review.** `map_scalar`, `reversed` and
+the lift's `rotated` re-lower each segment from (chord, kept bulge). For
+a one-segment full circle the chord is zero, and the result is a NaN
+centre and zero radius. So before this unit admits n = 1, re-lowering
+must carry the stored carrier and not re-derive it. That is
+`store-constructed-carriers`' change. Either take that change first, or
+do the carrier-carrying half of it here and say so.

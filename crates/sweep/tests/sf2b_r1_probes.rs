@@ -23,7 +23,7 @@
 
 use crate::common::approx::band;
 use geom_core::{Band, Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
 
@@ -38,13 +38,13 @@ const T: f64 = 1.0 / 128.0;
 /// that cylinder's axis nor sit normal to it. `is_axial` must say no,
 /// and the body must keep the per-chart door's own typed refusal.
 fn bulged_box() -> Body<f64> {
-    let lp = RawLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
         // The bulge on the (w,0)->(w,d) edge: sweep < pi, transversal
         // at both junctions.
-        ProfileVertex::new(p2(0.05, 0.0), 0.5),
-        ProfileVertex::new(p2(0.05, 0.04), 0.0),
-        ProfileVertex::new(p2(0.0, 0.04), 0.0),
+        (p2(0.05, 0.0), 0.5),
+        (p2(0.05, 0.04), 0.0),
+        (p2(0.0, 0.04), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -58,11 +58,11 @@ fn bulged_box() -> Body<f64> {
 fn wedge_of(angle: f64, r: f64, h: f64) -> Body<f64> {
     let profile = Profile::new(
         SketchPlane::xy(),
-        vec![ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), 0.0),
-            ProfileVertex::new(p2(r, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
+        vec![bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(r, 0.0), 0.0),
+            (p2(r, h), 0.0),
+            (p2(0.0, h), 0.0),
         ])],
     )
     .validate(Tol::witness())
@@ -183,10 +183,7 @@ fn r1p2_a_sliver_wedge_with_no_cavity_must_refuse() {
 fn r1p4_a_bare_ball_hollows_to_its_closed_form() {
     let tol = Tol::witness();
     let r: f64 = 3.0 / 64.0;
-    let lp: ProfileLoop<f64> = RawLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 1.0),
-        ProfileVertex::new(p2(0.0, 2.0 * r), 0.0),
-    ]);
+    let lp: ProfileLoop<f64> = bulge_loop(vec![(p2(0.0, 0.0), 1.0), (p2(0.0, 2.0 * r), 0.0)]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the half-disc validates");
@@ -309,11 +306,11 @@ fn r1p5_the_axis_gates_third_outcome_is_unreachable_from_the_sweeps() {
     let meridian = || {
         Profile::new(
             SketchPlane::xy(),
-            vec![ProfileLoop::new(vec![
-                ProfileVertex::new(p2(0.0, 0.0), 0.0),
-                ProfileVertex::new(p2(r, 0.0), 0.0),
-                ProfileVertex::new(p2(r, h), 0.0),
-                ProfileVertex::new(p2(0.0, h), 0.0),
+            vec![bulge_loop(vec![
+                (p2(0.0, 0.0), 0.0),
+                (p2(r, 0.0), 0.0),
+                (p2(r, h), 0.0),
+                (p2(0.0, h), 0.0),
             ])],
         )
         .validate(tol)

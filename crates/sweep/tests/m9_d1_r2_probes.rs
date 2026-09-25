@@ -15,7 +15,7 @@ use crate::revolve_common;
 
 use geom_core::Point2;
 use geom_core::Tol;
-use profile::{ProfileLoop, ProfileVertex, RawLoop, ValidatedProfile};
+use profile::{ProfileLoop, ValidatedProfile, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::{Revolution, Revolved, revolve};
 
@@ -46,10 +46,7 @@ fn assert_pole_at(t: &Revolved<f64>, li: usize, v: usize, p: Point2<f64>) {
 /// (bulge 1), closed on-axis. The two poles are at distinct axial
 /// heights, so a swapped export cannot pass.
 fn off_center_meridian() -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.5), 1.0),
-        ProfileVertex::new(p2(0.0, 2.5), 0.0),
-    ])
+    bulge_loop(vec![(p2(0.0, 0.5), 1.0), (p2(0.0, 2.5), 0.0)])
 }
 
 #[test]
@@ -104,11 +101,11 @@ fn partial_wedge_pole_export_is_direction_safe_both_signs() {
 /// copies).
 #[test]
 fn full_two_segment_axis_run_exports_run_ends_and_only_run_ends() {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.5, 1.0), 0.0),
-        ProfileVertex::new(p2(0.0, 2.0), 0.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(1.5, 1.0), 0.0),
+        (p2(0.0, 2.0), 0.0),
+        (p2(0.0, 1.0), 0.0),
     ]);
     let vp = validated(vec![lp]);
     let bot = canon_index(&vp, 0, p2(0.0, 0.0));
@@ -131,16 +128,13 @@ fn full_two_segment_axis_run_exports_run_ends_and_only_run_ends() {
 /// and the per-loop export indexing does not cross loops.
 #[test]
 fn partial_with_hole_exports_outer_poles_and_no_hole_poles() {
-    let outer = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -2.0), 1.0),
-        ProfileVertex::new(p2(0.0, 2.0), 0.0),
-    ]);
+    let outer = bulge_loop(vec![(p2(0.0, -2.0), 1.0), (p2(0.0, 2.0), 0.0)]);
     // A small CW square hole around (1, 0), strictly inside.
-    let hole = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.7, -0.3), 0.0),
-        ProfileVertex::new(p2(0.7, 0.3), 0.0),
-        ProfileVertex::new(p2(1.3, 0.3), 0.0),
-        ProfileVertex::new(p2(1.3, -0.3), 0.0),
+    let hole = bulge_loop(vec![
+        (p2(0.7, -0.3), 0.0),
+        (p2(0.7, 0.3), 0.0),
+        (p2(1.3, 0.3), 0.0),
+        (p2(1.3, -0.3), 0.0),
     ]);
     for theta in [core::f64::consts::FRAC_PI_2, -core::f64::consts::FRAC_PI_2] {
         let vp = validated(vec![outer.clone(), hole.clone()]);
@@ -175,10 +169,10 @@ fn partial_with_hole_exports_outer_poles_and_no_hole_poles() {
 /// subdivision vertex is deleted with the run.
 #[test]
 fn full_ball_with_subdivided_diameter_exports_run_end_poles_only() {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(0.0, -1.0), 1.0),
+        (p2(0.0, 1.0), 0.0),
+        (p2(0.0, 0.0), 0.0),
     ]);
     let vp = validated(vec![lp]);
     let south = canon_index(&vp, 0, p2(0.0, -1.0));

@@ -137,6 +137,7 @@ When you do run locally:
   you have attributed to yourself — read `/proc/<pid>/environ` for your own
   `CARGO_TARGET_DIR`, which is the other reason that directory has to be
   yours alone.
+- **Prefix every file you write to a shared scratchpad with your lane's name.**
 - **`--workspace` is not every cargo root, and the roots outside it are
   not covered uniformly.** `Cargo.toml` `exclude`s `benches`, `demos`,
   `tools` and `interval-transcendentals`, so

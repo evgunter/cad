@@ -26,8 +26,8 @@ use geom_core::Tol;
 use profile::RawLoop;
 use profile::lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
 use profile::{
-    Bulge, Open, ProfileLoop, ProfileVertex, Segment, Start, Step, Target, Verb, circle,
-    circle_split, replay,
+    Bulge, Open, ProfileLoop, Segment, Start, Step, Target, Verb, circle, circle_split, replay,
+    test_support::bulge_loop,
 };
 
 /// The coarse bucket a census row falls in.
@@ -322,21 +322,21 @@ fn refusal(loop_: &ProfileLoop<f64>) -> Option<LiftRefusal> {
     lift(loop_, Tol::witness()).err()
 }
 
-fn vert(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(Point2::new(x, y), bulge)
+fn vert(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), bulge)
 }
 
 #[test]
 fn structural_walls_are_named() {
     // Too few vertices.
-    let one = ProfileLoop::new(vec![vert(0.0, 0.0, 0.0)]);
+    let one = bulge_loop(vec![vert(0.0, 0.0, 0.0)]);
     assert_eq!(
         refusal(&one),
         Some(LiftRefusal::TooFewVertices { vertices: 1 })
     );
 
     // Non-finite authored data.
-    let nan = ProfileLoop::new(vec![
+    let nan = bulge_loop(vec![
         vert(0.0, 0.0, 0.0),
         vert(f64::NAN, 1.0, 0.0),
         vert(1.0, 1.0, 0.0),

@@ -1,4 +1,4 @@
-//! **The raw scalar-lift door, rung by rung**: `ProfileVertex::map`,
+//! **The raw scalar-lift door, rung by rung**:
 //! `ProfileLoop::map_scalar`, `Profile::map_scalar`.
 //!
 //! The claim under test is that the lift is STRUCTURAL — every stored
@@ -14,7 +14,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Dual64, Point2, Real, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 
 /// The fixture's vertices as `(x, y, bulge)`, authored here and read
 /// by every row as the source of truth: a negative coordinate, a
@@ -35,10 +35,10 @@ const JOINTS: [usize; 2] = [1, 2];
 const ORIGIN: (f64, f64, f64) = (-1.5, 0.25, 3.0);
 
 fn source_loop() -> ProfileLoop<f64> {
-    ProfileLoop::new(
+    bulge_loop(
         VERTS
             .iter()
-            .map(|&(x, y, b)| ProfileVertex::new(Point2::new(x, y), b))
+            .map(|&(x, y, b)| (Point2::new(x, y), b))
             .collect(),
     )
     .with_tangent_joints(JOINTS.to_vec())
@@ -67,17 +67,6 @@ fn is_lift_of(got: Dual64, want: f64, what: &str) {
         "{what}: a lifted scalar carries no tangent, got {}",
         got.deriv
     );
-}
-
-#[test]
-fn the_vertex_rung_carries_each_scalar_through_f() {
-    for &(x, y, b) in &VERTS {
-        let lifted: ProfileVertex<Dual64> =
-            ProfileVertex::new(Point2::new(x, y), b).map(Dual64::from_f64);
-        is_lift_of(lifted.pos().x, x, "x");
-        is_lift_of(lifted.pos().y, y, "y");
-        is_lift_of(lifted.bulge(), b, "bulge");
-    }
 }
 
 #[test]
