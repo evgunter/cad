@@ -91,10 +91,10 @@ pub struct EditPayload<'a> {
     /// entry that does not sort strictly before the one after it.
     /// Both are one index into one payload list, so they share the
     /// attribute rather than minting a second word for it.
-    pub first: Option<u32>,
+    pub first: Option<usize>,
     /// The position at which a repeat is named AGAIN — carried only by
     /// `RepeatedDesignation`, the one fault that names two entries.
-    pub again: Option<u32>,
+    pub again: Option<usize>,
     /// A refused scalar the door names in its own right — a
     /// tolerance's ε.
     pub value: Option<f64>,

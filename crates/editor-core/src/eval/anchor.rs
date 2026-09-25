@@ -201,21 +201,28 @@ pub(crate) struct ProfilePre {
 /// an internal invariant break (validate's exact-reindexing contract),
 /// surfaced typed by the caller, never a panic.
 ///
-/// The match covers vertex POSITIONS, segment BULGES, and the declared
-/// joint set. Positions alone are NOT enough (PR #291 review MAJOR-1,
-/// both reviewers, executed): on a 2-vertex loop the forward and
-/// reversed maps agree on every position (index arithmetic mod 2), so
-/// a reversed hole circle — `circle()` lowers CCW, canonicalization
-/// orients holes CW — would recover `reversed: false` and swap the two
-/// semicircles' program names. Bulges disambiguate the parity exactly:
-/// canonicalization's reversal NEGATES bulges (bit-exact sign flip)
-/// and reindexes them (canonical segment k = program segment n−1−k
-/// traversed backward), while the identity carries them verbatim — so
-/// the bulge condition holds for precisely one orientation whenever
-/// any segment is an arc. (An all-straight loop
-/// has ±0.0 bulges either way, but needs n ≥ 3 to close, where
-/// positions already decide.) Declared joints ride the same maps and
-/// are checked as sets.
+/// The match covers vertex POSITIONS, the BULGE each segment was
+/// lowered from, and the declared joint set. Positions alone are NOT
+/// enough (PR #291 review MAJOR-1, both reviewers, executed): on a
+/// 2-vertex loop the forward and reversed maps agree on every position
+/// (index arithmetic mod 2), so a reversed hole circle — `circle()`
+/// lowers CCW, canonicalization orients holes CW — would recover
+/// `reversed: false` and swap the two semicircles' program names.
+/// Bulges disambiguate the parity exactly: canonicalization's reversal
+/// NEGATES bulges (bit-exact sign flip) and reindexes them (canonical
+/// segment k = program segment n−1−k traversed backward), while the
+/// identity carries them verbatim — so the bulge condition holds for
+/// precisely one orientation whenever any segment is an arc. (An
+/// all-straight loop has ±0.0 bulges either way, but needs n ≥ 3 to
+/// close, where positions already decide.) The bulge is the datum
+/// matched rather than an arc's sweep because it is present on every
+/// segment of both loops: a sub-tolerance arc is a validated `Line`
+/// with no sweep. Matching positions and bulges matches the stored
+/// segments too, because every stored segment is lowered from exactly
+/// those: its kind by the exact-zero rule (a line iff its bulge is
+/// ±0, which negation preserves) and an arc's carrier and sweep from
+/// its two positions and bulge alone. Declared joints
+/// ride the same maps and are checked as sets.
 pub(crate) fn derive_naming(
     validated: &ValidatedProfile<f64>,
     program_loops: &[ProfileLoop<f64>],
@@ -226,36 +233,44 @@ pub(crate) fn derive_naming(
         let mut found = None;
         'progs: for (pi, pl) in program_loops.iter().enumerate() {
             let pv = &pl.vertices();
-            let n = pv.len();
-            if n != cv.len() || n == 0 {
+            if pv.len() != cv.len() || pv.is_empty() {
                 continue;
             }
+            // An anchor stores its loop and count as `u32`; one that
+            // does not fit is no anchor, and the derivation fails typed
+            // rather than anchoring to a wrapped loop.
+            let program_loop = u32::try_from(pi).ok()?;
+            let n = u32::try_from(pv.len()).ok()?;
             let bits = |p: &geom_core::Point2<f64>| (p.x.to_bits(), p.y.to_bits());
             for reversed in [false, true] {
                 let a = LoopAnchor {
-                    program_loop: pi as u32,
+                    program_loop,
                     reversed,
-                    len: n as u32,
+                    len: n,
                 };
-                let vmap = |k: usize| a.vertex(k as u32) as usize;
-                let smap = |k: usize| a.segment(k as u32) as usize;
-                let positions_ok = (0..n).all(|k| bits(&cv[k].pos()) == bits(&pv[vmap(k)].pos()));
+                let vmap = |k: u32| a.vertex(k) as usize;
+                let smap = |k: u32| a.segment(k) as usize;
+                let positions_ok = (0..n).all(|k| bits(&cv[k as usize]) == bits(&pv[vmap(k)]));
                 if !positions_ok {
                     continue;
                 }
                 // Bulges: verbatim forward, negated under reversal —
                 // bit-exact either way.
                 let bulges_ok = (0..n).all(|k| {
-                    let pb = pv[smap(k)].bulge();
+                    let pb = pl.bulges()[smap(k)];
                     let want = if reversed { -pb } else { pb };
-                    cv[k].bulge().to_bits() == want.to_bits()
+                    vl.segments()[k as usize].bulge.to_bits() == want.to_bits()
                 });
                 if !bulges_ok {
                     continue;
                 }
                 // Declared joints as SETS under the vertex map
                 // (canonical joints are canonical vertex indices).
-                let mut mapped: Vec<usize> = vl.tangent_joints().iter().map(|&j| vmap(j)).collect();
+                let mut mapped: Vec<usize> = vl
+                    .tangent_joints()
+                    .iter()
+                    .map(|&j| u32::try_from(j).ok().map(vmap))
+                    .collect::<Option<_>>()?;
                 mapped.sort_unstable();
                 let mut prog_joints = pl.tangent_joints().to_vec();
                 prog_joints.sort_unstable();
@@ -342,19 +357,20 @@ pub(crate) fn replay_naming(loops: &[ProfileLoop<f64>]) -> Option<Vec<Option<Loo
 /// vertex plus each arc's signed circular segment.
 fn signed_area(lp: &ProfileLoop<f64>) -> f64 {
     let vs = lp.vertices();
-    let Some(first) = vs.first() else {
+    let Some(&o) = vs.first() else {
         return 0.0;
     };
-    let o = first.pos();
     let n = vs.len();
     let mut twice = 0.0;
     let mut arcs = 0.0;
-    for (k, v) in vs.iter().enumerate() {
-        let (a, b) = (v.pos(), vs[(k + 1) % n].pos());
+    for (k, (&a, segment)) in vs.iter().zip(lp.segments()).enumerate() {
+        let b = vs[(k + 1) % n];
         twice += (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
-        let bulge = v.bulge();
-        if bulge != 0.0 {
-            let theta = 4.0 * bulge.atan();
+        if let profile::Segment::Arc { .. } = segment {
+            // θ through std's `atan` on the lowering's bulge, not the
+            // stored sweep (which is `libm`'s): the two can differ in
+            // the last ulp, and this area orders the loops.
+            let theta = 4.0 * lp.bulges()[k].atan();
             let chord2 = (b.x - a.x).powi(2) + (b.y - a.y).powi(2);
             let half = (0.5 * theta).sin();
             let r2 = chord2 / (4.0 * half.powi(2));
@@ -374,4 +390,78 @@ fn signed_area(lp: &ProfileLoop<f64>) -> f64 {
 /// profile, per edit.
 pub(crate) fn readable_naming(loops: &[ProfileLoop<f64>]) -> Vec<Option<LoopAnchor>> {
     replay_naming(loops).unwrap_or_default()
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use geom_core::{Point2, Tol};
+    use profile::{Bulge, Open, Start};
+
+    /// The 2 × 2 square whose first side is `arc_to(Bulge { b })`.
+    fn zero_bulge_square(b: f64) -> ProfileLoop<f64> {
+        let t = Tol::witness();
+        Open.at(Point2::new(0.0, 0.0))
+            .arc_to(
+                Bulge {
+                    p: Point2::new(2.0, 0.0),
+                    b,
+                },
+                t,
+            )
+            .unwrap()
+            .line_to(Point2::new(2.0, 2.0), t)
+            .unwrap()
+            .line_to(Point2::new(0.0, 2.0), t)
+            .unwrap()
+            .line_to(Start, t)
+            .unwrap()
+            .loop_
+    }
+
+    /// The same square with its first side split by a `tangent_arc_to`
+    /// through a point straight ahead of the incoming leg.
+    fn collinear_tangent_arc_square() -> ProfileLoop<f64> {
+        let t = Tol::witness();
+        Open.at(Point2::new(0.0, 0.0))
+            .angle(0.0, t)
+            .unwrap()
+            .line(1.0, t)
+            .unwrap()
+            .tangent()
+            .tangent_arc_to(Point2::new(2.0, 0.0), t)
+            .unwrap()
+            .line_to(Point2::new(2.0, 2.0), t)
+            .unwrap()
+            .line_to(Point2::new(0.0, 2.0), t)
+            .unwrap()
+            .line_to(Start, t)
+            .unwrap()
+            .loop_
+    }
+
+    /// A zero-bulge side encloses what the chord polygon does, and the
+    /// replay-only anchor agrees with the validated one — the agreement
+    /// the `SetProgram` door asserts on every program it admits.
+    fn reads_as_the_square(lp: ProfileLoop<f64>) {
+        assert_eq!(signed_area(&lp).to_bits(), 4.0_f64.to_bits(), "{lp:?}");
+        let loops = [lp];
+        let validated = naming_of(&loops, Tol::witness())
+            .map(|n| n.loops.into_iter().map(Some).collect::<Vec<_>>());
+        assert!(validated.is_some(), "the square validates");
+        assert_eq!(replay_naming(&loops), validated);
+    }
+
+    #[test]
+    fn a_zero_bulge_arc_to_names_as_its_square() {
+        for b in [0.0, -0.0] {
+            reads_as_the_square(zero_bulge_square(b));
+        }
+    }
+
+    #[test]
+    fn a_collinear_tangent_arc_names_as_its_square() {
+        reads_as_the_square(collinear_tangent_arc_square());
+    }
 }

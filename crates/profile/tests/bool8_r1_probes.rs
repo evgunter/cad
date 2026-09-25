@@ -57,19 +57,16 @@ fn probe_inheritance_is_bitwise_across_many_legs_of_unequal_length() {
     // Recover `u` from the FIRST leg only, where it is exact: the chain
     // starts at the origin and `lens[0]` is a power of two, so
     // `(v[1]-v[0])/lens[0]` is lossless.
-    let u = (
-        (v[1].pos().x - v[0].pos().x) / lens[0],
-        (v[1].pos().y - v[0].pos().y) / lens[0],
-    );
+    let u = ((v[1].x - v[0].x) / lens[0], (v[1].y - v[0].y) / lens[0]);
     // Now assert every later vertex is EXACTLY `prev + u*len`, using
     // that same recovered `u`. This isolates the direction from the
     // position arithmetic: the `+` is replicated here, so a mismatch
     // can only mean a different direction value was used.
     for i in 1..lens.len() {
-        let want = (v[i].pos().x + u.0 * lens[i], v[i].pos().y + u.1 * lens[i]);
+        let want = (v[i].x + u.0 * lens[i], v[i].y + u.1 * lens[i]);
         assert_eq!(
             (want.0.to_bits(), want.1.to_bits()),
-            (v[i + 1].pos().x.to_bits(), v[i + 1].pos().y.to_bits()),
+            (v[i + 1].x.to_bits(), v[i + 1].y.to_bits()),
             "leg {i} did not use the SAME direction value: the tangent was \
              re-derived somewhere instead of moved wholesale"
         );
@@ -102,16 +99,10 @@ fn probe_realized_displacements_do_round_even_though_the_direction_does_not() {
         .map(pinned)
         .unwrap();
     let v = lp.vertices();
-    let u = (
-        (v[1].pos().x - v[0].pos().x) / lens[0],
-        (v[1].pos().y - v[0].pos().y) / lens[0],
-    );
+    let u = ((v[1].x - v[0].x) / lens[0], (v[1].y - v[0].y) / lens[0]);
     let mut drifted = 0usize;
     for i in 0..lens.len() {
-        let d = (
-            v[i + 1].pos().x - v[i].pos().x,
-            v[i + 1].pos().y - v[i].pos().y,
-        );
+        let d = (v[i + 1].x - v[i].x, v[i + 1].y - v[i].y);
         if d.0.to_bits() != (u.0 * lens[i]).to_bits() || d.1.to_bits() != (u.1 * lens[i]).to_bits()
         {
             drifted += 1;
@@ -159,8 +150,8 @@ fn probe_unequal_legs_need_not_have_a_vanishing_cross_product() {
             .map(pinned)
             .unwrap();
         let v = lp.vertices();
-        let d1 = (v[1].pos().x - v[0].pos().x, v[1].pos().y - v[0].pos().y);
-        let d2 = (v[2].pos().x - v[1].pos().x, v[2].pos().y - v[1].pos().y);
+        let d1 = (v[1].x - v[0].x, v[1].y - v[0].y);
+        let d2 = (v[2].x - v[1].x, v[2].y - v[1].y);
         let cross = d1.0 * d2.1 - d1.1 * d2.0;
         total += 1;
         if cross != 0.0 {
@@ -202,11 +193,7 @@ fn probe_no_junction_is_minted_and_nothing_is_declared() {
         &[1, 2, 3],
         "each continuation declares its own joint"
     );
-    let v: Vec<_> = lp
-        .vertices()
-        .iter()
-        .map(|x| (x.pos().x, x.pos().y))
-        .collect();
+    let v: Vec<_> = lp.vertices().iter().map(|x| (x.x, x.y)).collect();
     assert_eq!(
         v,
         vec![

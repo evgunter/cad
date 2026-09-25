@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-19
 priority: P1
 cost: E
-rides_with: frame-rs-says-the-per-subject-line-is-a-question-for-ev
 ---
 
 Found by the sweep `is-instance-collapses-absent-and-wrong-kind`
@@ -155,3 +154,44 @@ sentence being repaired is a doc comment in this program's own file.
 The ruling and its searches are in
 `work/vnews/rank-one-discards-the-frames-other-news`, the canonical
 home; it is cited here rather than restated.
+
+## The doc line landed; the rename did not, 2026-09-24 (`vnews/frame-rs-prose-pass`)
+
+**The doc line.** `folded_moved`'s first line now asks the question the
+value answers — *whether a folded event stream is a camera event at
+all: it applied a camera operation, refused one, or both* — and says
+`true` does not say whether the camera moved. **A correction to this
+row's premise, made in review:** a refused fold is not always a fold
+that moved nothing. `camera::Folded::applied` is *"a prefix of the
+input"*, so a stream that orbits and then hits a refused operation
+moved the camera AND refused, and `land` takes the camera it reached.
+Only a fold whose FIRST operation refused moved nothing; the doc says
+so. The *"what this buys"* paragraph now defends the guard in the same
+terms: `land` is where a camera event becomes application state — the
+camera the fold reached and the refusal that stopped it.
+
+**One more sibling, fixed in the same pass:** the assertion message in
+`frame.rs`'s `a_clean_fold_keeps_a_message_it_did_not_write` said *"a
+fold that moved nothing never reaches the line at all"* — false for a
+fold whose first operation refused, which moved nothing and reaches the
+line. It now says *"a fold that is no camera event"*.
+
+**The rename was not taken, and this row stays open on it.** The lane's
+judgement: the rename is worth doing on the merits the adjudication
+gives — the name is read more than the doc line, and it now sits over
+a doc line that says the name is too narrow — but it is not a prose
+pass. It reaches `pane/viewport.rs` (VNEWS's, VGEOM's and VSEAM's),
+`crates/viewer/tests/frame_policy.rs`'s two `folded_moved` rows and
+`crates/viewer/README.md`'s `frame` charter row (both VDOC's), where a
+serialized one-file doc slot reaches one file. So it is left as its own
+unit rather than widened into this one.
+
+**The rename's population has one prose member the table above does
+not list as prose:** `pane/viewport.rs`'s comment over the `land`
+guard (~`:436-442` at this base) says *"Landed only when the fold
+actually MOVED something"* — the same claim the doc line made, over the
+same call. It is fixed with the rename, or re-worded on its own by
+whichever lane next holds that file; it is not `frame.rs`'s, so this
+pass left it.
+
+The carrier this rode on is closed, so `rides_with:` is removed.

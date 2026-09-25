@@ -9,6 +9,13 @@ rust-version.workspace = true
 workspace = true
 
 [features]
+# The variant rosters behind `topo`'s sample-coverage row
+# (`topo::test_support_samples`): with this on, the enums a
+# `topo::ValidationError` renders through derive a companion
+# discriminant enum (`strum::EnumDiscriminants`), so a variant added
+# here is a gap in that row by construction, not by a hand-kept list.
+# Test-only: enabled through `topo`'s `test-support` alone.
+test-support = ["dep:strum"]
 # K-telemetry recording scalar (`k_stats::Probe`), opt-in. Probe is a
 # `Real` instantiation like `Interval`, so every generic-over-`Real` body
 # monomorphizes at it — measured 2026-08-12 at 20.0% of geom-brep's LLVM
@@ -69,6 +76,8 @@ identity-pass-testing = []
 sym-profile-testing = []
 
 [dependencies]
+# Optional: `test-support` above.
+strum = { version = "0.28", features = ["derive"], optional = true }
 libm = { workspace = true }
 # The symbolic tier's exact coefficient ring (`sym::Rat`, M10-8): see
 # the workspace table for why an `i128` was not enough.

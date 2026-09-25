@@ -98,3 +98,118 @@ new pin uses subtracted rather than literal scalars, since `0.008` and
 correctly with no helper at all.
 
 Signed (FIX orchestrator).
+
+## 2026-09-25 — a PATHS orchestrator picks the track up
+
+Status `ready` → `active`. Ev's first ask for this sitting is
+`lower-profiles-to-carrier-and-interval-not-vertex-and-bulge` (EMIT's
+filing from #3202): let a circle be one edge by lowering to a
+carrier + interval form instead of vertex + bulge. First step is the
+survey the row asks for — a read-only lane mapping every reader of the
+bulge form (profile, sweep, editor-core, persist, Python, demos) and
+what each needs from a carrier + interval form — then an `[ev]` PR
+against PATHS-DESIGN §2a.1/§6 (the M2 closed-carrier precedent) with
+the design choices it surfaces.
+
+Orchestrator branch is the session's assigned branch, not
+`paths/orchestrator` (the remote session names it); unit branches keep
+the `paths/` prefix.
+
+The track is over budget (38.5/30). Splitting along the priority seam
+is deferred until the lowering survey says how many rows it absorbs or
+spawns — several slate rows (the closers, `circle_split`, the lift
+comparator) may change shape under a carrier + interval lowering.
+
+## 2026-09-25 — the lowering survey is in; `[ev]` PR opened
+
+The survey is kept on the row itself
+(`lower-profiles-to-carrier-and-interval-not-vertex-and-bulge.md`,
+"Survey"). Corrections to the row as filed: D1's "Profile format"
+clause is touched, not only PATHS-DESIGN §2a.1; geom-brep's
+`SketchSegment` carries its own copy of the bulge form and every
+profile-built edge goes through it; the saved file holds programs, never
+the lowered form, so the only format break is in names; the symbolic
+tier keys on the circle's unit bulge. There are seven hand copies of the
+bulge→carrier formula, not three.
+
+The `[ev]` PR re-words D1's Profile-format clause, PATHS-DESIGN §2a.1
+and the profile README to the recommended form (A2: verbatim vertices +
+`Line | Arc{centre, radius, Δθ}`, consistency verified at validate) and
+asks the forks. Settled on #3202 and not re-asked: EMIT ships step ids
+first with `Piece(0/1)` circles and takes the second names break.
+Proposed unit cut, 0 → 6, is in the survey's §5.
+
+## 2026-09-25 — Ev's first round on the lowering `[ev]` PR
+
+Ev agreed q2 (geom-brep follows the profile form) and q4 (`Bulge` stays
+as a path-algebra arc mode; `RawLoop` keeps vertex + bulge as its input).
+On q1 Ev asked whether a zero-redundancy form exists, e.g. three points.
+The PR body's "no zero-redundancy form works" was too strong and is
+corrected: counting dof, a full turn is the blow-up of a = b in the
+partial-arc family, so every condition-free form (Z: bulge or via point
+plus a separate full-turn arm) reads a full turn differently, and A2
+trades that split for a verified carrier. A2 is still recommended, and
+Z is offered as coherent. On q3 Ev asked whether `circle` should be
+sugar for `circle_split(n = 1)`. The proposed answer is one kernel,
+with `circle` kept as its own verb in the program so it reads back as
+written. Both q1 and q3 await Ev.
+
+## 2026-09-25 — Ev rules q1 (A2) and q3 on #3218; q4 reopens
+
+Ev chose A2 ("not super elegant but it seems principled and easy to work
+with") and agreed q3 (`circle` lowers through `circle_split`'s kernel
+with n = 1 and stays its own verb). The doc texts are re-worded to match.
+On q4 Ev had thought the vertex + bulge fixture door (`RawLoop`) was
+already gone, and finds it odd to keep bulge alive for that door alone.
+It is dev-only (absent from shipped builds since BOOL-9 / Q1 half ii).
+Its users are about 290 test files and a handful of in-crate `#[cfg(test)]`
+modules. The proposal is to keep the fixture door, since validate has
+to be tested on tables the algebra refuses, but have it take the
+canonical segments. `ProfileVertex` as a bulge record retires, and the
+fixtures migrate through a helper that calls the algebra's own `Bulge`
+lowering, so the only bulge→carrier converter left is the algebra's.
+Ev asked what bulge residue would be left in the kernel under the q4
+plan. Answer on #3218: one fixture constructor stays in `profile`
+behind the existing `raw_door!` test gate, taking canonical segments
+and containing no bulge. The bulge helper moves to test-support and
+forwards to the algebra. `bulge_from_center`/`_via` retire from
+`pncad`, with an announcement to LIB first. The bulge accessor is
+deleted in the unit that removes its last reader. `arc_to(Bulge)` is
+the only survivor. The doc texts no longer promise a "derived view".
+
+## 2026-09-25 — #3218 ruled and merged; six build units filed
+
+Ev gave a 👍 on the residue answer, which closes q4. The row carries the
+ruling and has moved to `spec`, with `needs_ev` cleared. Units 1–6 are
+filed as its children. Unit 1 (`canonical-segment-type-in-profile`) is
+dispatchable, and 2–6 are parked on their predecessor. Review tier for
+unit 1: **dual**. It is an architectural change with broad reach, and
+its byte-identity claim is what every later unit stands on. An
+announced-seam note goes on EMIT's log for unit 4's `Piece(0/1)` →
+`Carrier` re-spelling.
+
+## 2026-09-25 — lowering unit 1 merges (#3224, DR-5)
+
+`canonical-segment-type-in-profile` is closed. Both dual reviewers found
+the same MAJOR (a b = 0 arc verb stored a poisoned carrier, which made
+the anchor's area NaN and `lift` emit `ArcTo(b:0)`). It is fixed at the
+root: the stored kind is the exact-zero read at every lowering. The
+tally is unchanged at 0 because the MAJOR was bilateral.
+
+Class-level findings recorded:
+- "Is this a line?" has two layers: the stored exact-zero kind and the
+  validated ε-kind. The two are documented on `Segment`.
+- 4·atan b is spelled in about six places. Units 2 and 5 own them.
+- Bulge stays in storage until unit 5 retires it.
+
+Orchestrator's own miss: the implementer never compiled the
+probe-feature tests, and hosted `clippy --all-features` and
+`k-lint dev-probe` went red. Unit briefs now say `--all-features`.
+
+Next dispatchable:
+- `fixture-door-takes-canonical-segments`: mechanical, D, single
+  review;
+- `geom-brep-sketch-segment-full-turn`: H, dual review.
+
+Both are unblocked by this merge. They touch different crates and can
+run in parallel.

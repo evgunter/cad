@@ -27,15 +27,15 @@
 //! walks the body's arenas (face → loops → half-edge cycles), flattens
 //! each loop into [`geom_brep::LoopEdge`]s, and sums. The tier-3
 //! validator's two check-7 derivations consume that walk without any
-//! new inter-crate dependency: the reporting one through
-//! [`mass_properties_with`], and the certified one through
-//! [`sign_certified`], which is the same walk stopped at the round the
-//! validator's own certification is complete.
+//! new inter-crate dependency: every check-7 door decides through
+//! [`sign_walk`], which is the reporting walk ([`mass_properties_with`])
+//! stopped at the round the validator's own decision is complete, and
+//! hands back the [`SignCertificate`] a caller continues to the number.
 
 use core::fmt;
 
 use geom::Surface;
-use geom_brep::props::quad::{FaceCutBounds, RoundOutcome, RoundWindow};
+use geom_brep::props::quad::{RoundOutcome, RoundWindow};
 use geom_brep::props::{
     CarrierId, FaceContribution, LoopEdge, PropsError, curved_face, planar_face,
 };
@@ -176,6 +176,12 @@ impl From<LoopEdgesError> for MassPropsError {
 
 /// Typed failure of [`mass_properties`] (closed enum, D4 ¶3).
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(MassPropsErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum MassPropsError {
     /// The run's tolerance cannot form a band.
     Band {
@@ -332,9 +338,8 @@ pub fn mass_properties_structural<T: Decide>(
 }
 
 /// [`mass_properties`] against a caller-built band and the caller's
-/// quadrature lane (the tier-3 validator's entry — it builds its band
-/// once at operation entry, and hands in the lane its own bound names
-/// or `None` where it names no right).
+/// quadrature lane, over the whole face arena in arena order — the
+/// reporting walk, run to the target in one entry per face.
 pub(crate) fn mass_properties_with<T: Decide>(
     body: &Body<T>,
     band: Band,
@@ -342,38 +347,19 @@ pub(crate) fn mass_properties_with<T: Decide>(
     quad: Option<QuadLane<T>>,
 ) -> Result<MassProperties<T>, MassPropsError> {
     let faces = crate::query::all_faces(body);
-    mass_properties_of(body, &faces, band, tol, quad)
+    mass_properties_impl(body, &faces, band, &reporting_hook(quad), tol)
 }
 
-/// [`mass_properties_with`] restricted to `faces` — the same lane at
-/// the same level, summed over exactly the faces named and in the order
-/// given. [`mass_properties_with`] is this door over the face arena, so
-/// a caller handing the whole arena pays it term for term.
-///
-/// [`sign_certified`]'s reporting-level twin, for the doors that
-/// dispatch through the scalar's own lane instead of certifying: tier
-/// 3's check 7 asks it about ONE solid's faces, because a body's total
-/// volume is a sum and a sum hides a sign.
-pub(crate) fn mass_properties_of<T: Decide>(
-    body: &Body<T>,
-    faces: &[FaceKey],
-    band: Band,
-    tol: Tol,
-    quad: Option<QuadLane<T>>,
-) -> Result<MassProperties<T>, MassPropsError> {
-    mass_properties_impl(body, faces, band, &reporting_hook(quad), tol)
-}
-
-/// **The hook at the REPORTING level, one home**: the lane the caller
-/// holds, over the whole schedule, its answer always `Converged`
-/// because a reporting read has no window to stop in — and `Ok(None)`,
-/// no lane and not attempted, when the caller holds none. One function
-/// rather than a closure at each site: the whole-body walk
+/// **The hook at the REPORTING level**: [`round_hook`] entered once
+/// over the whole schedule and read at the target
+/// ([`RoundOutcome::into_target`]), so its answer is always `Converged`
+/// — a reporting read has no window to stop in — or `Ok(None)` when
+/// the caller holds no lane. The whole-body walk
 /// ([`mass_properties_with`]) and the per-shell walk
-/// ([`classify_shells_of`]) read at the same level through the same
-/// hook, and two copies of that are two things to keep equal. The
-/// closure captures a `Copy` of the lane and nothing else, so it is
-/// `Sync` as [`QuadHook`] needs.
+/// ([`classify_shells_of`]) read through it; it is the sign-level hook
+/// at one window rather than a second spelling of the lane, so the two
+/// levels cannot drift apart. The closure captures a `Copy` of the lane
+/// and nothing else, so it is `Sync` as [`QuadHook`] needs.
 #[allow(clippy::type_complexity)]
 fn reporting_hook<T: Decide>(
     quad: Option<QuadLane<T>>,
@@ -387,42 +373,59 @@ fn reporting_hook<T: Decide>(
     RoundWindow,
 ) -> Result<Option<RoundOutcome>, PropsError>
 + Sync {
-    move |body, surface, outer, hes, band, tol, _window| match quad {
-        Some(lane) => lane
-            .cut_face(body, surface, outer, hes, band, tol)
-            .map(|bounds| Some(RoundOutcome::Converged(bounds))),
+    let rounds = round_hook(quad);
+    move |body, surface, outer, hes, band, tol, _window| {
+        rounds(body, surface, outer, hes, band, tol, RoundWindow::SCHEDULE)?
+            .map(|outcome| outcome.into_target().map(RoundOutcome::Converged))
+            .transpose()
+    }
+}
+
+/// **The hook at SIGN level, one home**: the lane the caller holds,
+/// entered over exactly the [`RoundWindow`] the walk asks for, so a
+/// walk may stop between rounds and resume later — and `Ok(None)`, the
+/// closed form, when the caller holds none. [`reporting_hook`] is this
+/// hook at the whole schedule.
+///
+/// With [`QuadLane::certified`] this is the certified quadrature, round
+/// by round; with `None` every face is the closed form's, finished at
+/// round 0, and a face that needed the quadrature refuses typed there
+/// ([`face_flux`]'s `None` arm) — so a walk through this hook refuses
+/// exactly where the reporting walk over the same lane does.
+#[allow(clippy::type_complexity)]
+fn round_hook<T: Decide>(
+    quad: Option<QuadLane<T>>,
+) -> impl Fn(
+    &Body<T>,
+    &Surface<T>,
+    &[LoopEdge<T>],
+    &[HalfEdgeKey],
+    Band,
+    Tol,
+    RoundWindow,
+) -> Result<Option<RoundOutcome>, PropsError>
++ Sync
++ Copy {
+    move |body, surface, outer, hes, band, tol, window| match quad {
+        Some(lane) => {
+            (lane.cut_face_rounds)(body, surface, outer, hes, band, tol, window).map(Some)
+        }
         None => Ok(None),
     }
 }
 
-/// The certified lane's hook, one home: the windowed
-/// [`quad_lane::cut_face`], which is what makes
-/// [`mass_properties`] at a certifying scalar and [`sign_certified`]
-/// the same quadrature entered at two levels rather than two
-/// quadratures.
-#[allow(clippy::type_complexity)]
-fn certified_hook<T: Decide + geom_core::CertifiedBounds>(
-    body: &Body<T>,
-    surface: &Surface<T>,
-    outer: &[LoopEdge<T>],
-    hes: &[HalfEdgeKey],
-    band: Band,
-    tol: Tol,
-    window: RoundWindow,
-) -> Result<Option<RoundOutcome>, PropsError> {
-    quad_lane::cut_face_rounds(body, surface, outer, hes, band, tol, window).map(Some)
-}
-
-/// **The certified quadrature at SIGN level** — the certified
-/// quadrature NAMED (not selected), refined only as far as the
-/// caller's own certification needs and no further.
+/// **The face walk at SIGN level** — the caller's lane, refined only
+/// as far as the caller's own decision needs and no further.
 ///
-/// The certified body is handed in directly rather than asked of the
-/// scalar's lane, so the bound is the one the quadrature itself
-/// carries and a scalar that may not certify cannot form the call.
-/// That is [`crate::validate_geometric`]'s certified half: the +V
-/// invariant is a claim about an enclosure, and a claim no bracket can
-/// be certified for is not a weaker claim, it is not this claim.
+/// The lane is an argument, exactly as it is to [`mass_properties_with`]:
+/// [`QuadLane::certified`] from a door whose bound names the right —
+/// which is how [`crate::validate_geometric`] and the certified tier-3′
+/// doors enter it — or `None` from a `_structural` door, where every
+/// face is the closed form's and one that needed the quadrature refuses
+/// typed. A scalar that may not certify cannot construct the first, so
+/// what this walk can claim is fixed by what the caller could hand it,
+/// and the certificate it returns carries the same lane on to
+/// [`SignCertificate::refine_to_target`].
 ///
 /// `settled` is handed the body's running volume enclosure after every
 /// round and answers whether what IT is deciding is decided. The walk
@@ -471,38 +474,32 @@ fn certified_hook<T: Decide + geom_core::CertifiedBounds>(
 /// order is the whole-body walk, term for term and round for round;
 /// the restriction is which faces are visited and nothing else.
 ///
-/// **This family is a single door where its three neighbours are
-/// pairs** — [`mass_properties_with`]/[`mass_properties_of`],
-/// [`mass_properties_closed_form`]/[`mass_properties_closed_form_of`],
-/// [`classify_shells`]/[`classify_shells_of`] each keep a whole-body
-/// wrapper beside the restricted spelling, and this one has none. That
-/// is deliberate: the only caller certifies per solid, so a wrapper
-/// handing [`crate::query::all_faces`] would be dead code carrying a
-/// whole-body claim nothing exercises.
+/// **This family is a single door where two of its neighbours are
+/// pairs** — [`mass_properties_closed_form`]/[`mass_properties_closed_form_of`]
+/// and [`classify_shells`]/[`classify_shells_of`] each keep a
+/// whole-body wrapper beside the restricted spelling, and this one has
+/// none. That is deliberate: every caller decides per solid, so a
+/// wrapper handing [`crate::query::all_faces`] would be dead code
+/// carrying a whole-body claim nothing exercises.
 ///
 /// # Errors
 ///
 /// [`MassPropsError`], as [`mass_properties`].
-pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds, V>(
+pub(crate) fn sign_walk<'b, T: Decide, V>(
     body: &'b Body<T>,
     faces: &[FaceKey],
     band: Band,
     tol: Tol,
+    quad: Option<QuadLane<T>>,
     settle: impl Fn(VolumeEnclosure<T>) -> Option<V>,
     last_word: impl Fn(Option<MassPropsError>) -> V,
 ) -> Result<(V, SignCertificate<'b, T>), MassPropsError> {
+    let hook = round_hook(quad);
     // Round 0 over every face, then the rounds after it over the faces
     // still open — both idiom 1 into slots in the caller's order, both
     // composed sequentially in it ([`mass_properties_impl`]'s note).
     let mut runs = decide_faces(faces, |&face_key| {
-        face_flux(
-            body,
-            face_key,
-            band,
-            &certified_hook::<T>,
-            tol,
-            RoundWindow::at(0),
-        )
+        face_flux(body, face_key, band, &hook, tol, RoundWindow::at(0))
     })?;
     let mut round = 0usize;
     loop {
@@ -529,6 +526,7 @@ pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds, V>(
                     body,
                     band,
                     tol,
+                    quad,
                     runs,
                     refused,
                 },
@@ -546,14 +544,7 @@ pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds, V>(
             .map(|(slot, run)| (slot, run.face))
             .collect();
         let decided = decide_faces(&open, |&(_, face_key)| {
-            face_flux(
-                body,
-                face_key,
-                band,
-                &certified_hook::<T>,
-                tol,
-                RoundWindow::at(round),
-            )
+            face_flux(body, face_key, band, &hook, tol, RoundWindow::at(round))
         })?;
         for ((slot, _), run) in open.iter().zip(decided) {
             runs[*slot] = run;
@@ -585,22 +576,33 @@ pub(crate) fn sign_certified<'b, T: Decide + geom_core::CertifiedBounds, V>(
 /// pre-empt an earlier face's budget one, which is a different answer
 /// and not merely a different order. Every site below points here
 /// rather than restating it.
+///
+/// # The lane rides with it
+///
+/// A certificate is continued through the lane it was derived through
+/// — [`QuadLane::certified`] from a certified door, `None` from a
+/// `_structural` one — so [`Self::refine_to_target`] reads the same
+/// quadrature the check read, at whatever scalar the door was called
+/// at. A certificate derived with no lane has no round left open (every
+/// face is closed-form, finished at round 0), so its continuation is
+/// the fold of what it already holds.
 pub struct SignCertificate<'b, T: Decide> {
     body: &'b Body<T>,
     band: Band,
     tol: Tol,
+    quad: Option<QuadLane<T>>,
     runs: Vec<FaceRun<T>>,
     refused: Option<(FaceKey, PropsError)>,
 }
 
-impl<T: Decide + geom_core::CertifiedBounds> fmt::Debug for SignCertificate<'_, T> {
+impl<T: Decide> fmt::Debug for SignCertificate<'_, T> {
     /// The certificate, not the body it reads: the bracket, the rounds
     /// its faces reached, and whether a number is still refused.
     ///
     /// # Why this does not render in braced struct shape
     ///
     /// **Not one of the four things below is a field of this type, and
-    /// not one of this type's five fields is rendered under its own
+    /// not one of this type's six fields is rendered under its own
     /// name.** The bracket and the surface area are folded out of
     /// `runs`, the open round is a maximum over a field of `FaceRun`,
     /// and the refusal comes through [`Self::target_refusal`]. So the
@@ -610,7 +612,7 @@ impl<T: Decide + geom_core::CertifiedBounds> fmt::Debug for SignCertificate<'_, 
     /// emit, and `finish_non_exhaustive` exists to say when such a
     /// dump is partial, so the braces tell a reader these ARE the
     /// fields. That is already false of every element here, and a
-    /// sixth field could not make it any falser. The braces are what
+    /// seventh field could not make it any falser. The braces are what
     /// goes, and a reading of the certificate is what this says it is.
     ///
     /// # The correspondence that IS here, and is tied
@@ -642,6 +644,9 @@ impl<T: Decide + geom_core::CertifiedBounds> fmt::Debug for SignCertificate<'_, 
             // certificate's.
             band: _,
             tol: _,
+            // The lane the continuation reads with — the door's, not
+            // a property of the enclosure below.
+            quad: _,
             runs,
             // Rendered through `Self::target_refusal`, which is where
             // the rule for reading it — first refusing face in arena
@@ -671,7 +676,7 @@ impl<T: Decide + geom_core::CertifiedBounds> fmt::Debug for SignCertificate<'_, 
     }
 }
 
-impl<'b, T: Decide + geom_core::CertifiedBounds> SignCertificate<'b, T> {
+impl<'b, T: Decide> SignCertificate<'b, T> {
     /// **The body's certificate, assembled from its parts'** — the
     /// runs of certificates taken over disjoint face sets, re-ordered
     /// into FACE-ARENA order.
@@ -684,6 +689,17 @@ impl<'b, T: Decide + geom_core::CertifiedBounds> SignCertificate<'b, T> {
     /// single part covering the whole arena — which is what a body
     /// holding one solid hands here — comes back unchanged, run for
     /// run and round for round.
+    ///
+    /// `body`, `band`, `tol` and `quad` are what every part was derived
+    /// against and what the assembled certificate continues with. The
+    /// parts of one check are one door's walks, so they agree, and that
+    /// is asserted below rather than assumed: a part read at another
+    /// band, of another body or through another lane would sum terms
+    /// that are not one enclosure. The lane is compared by PRESENCE —
+    /// the only thing a caller chooses, since [`QuadLane::certified`] is
+    /// the one value it can hold; its pointer is `wiring_rows`' to pin,
+    /// and function-pointer equality is not a reliable identity to
+    /// panic on (a function may have several addresses).
     ///
     /// # Panics
     ///
@@ -698,10 +714,24 @@ impl<'b, T: Decide + geom_core::CertifiedBounds> SignCertificate<'b, T> {
     /// tier 1 has already validated, so a gap is a bug in the
     /// composition above rather than a body state (D9's bug-state
     /// half).
-    pub(crate) fn assembled(body: &'b Body<T>, band: Band, tol: Tol, parts: Vec<Self>) -> Self {
+    pub(crate) fn assembled(
+        body: &'b Body<T>,
+        band: Band,
+        tol: Tol,
+        quad: Option<QuadLane<T>>,
+        parts: Vec<Self>,
+    ) -> Self {
         let mut by_face: slotmap::SecondaryMap<FaceKey, FaceRun<T>> = slotmap::SecondaryMap::new();
         let mut handed = 0usize;
         for part in parts {
+            assert!(
+                core::ptr::eq(part.body, body)
+                    && part.band == band
+                    && part.tol == tol
+                    && part.quad.is_some() == quad.is_some(),
+                "a sign certificate assembled from a part derived against another body, band, \
+                 tolerance or lane"
+            );
             for run in part.runs {
                 handed += 1;
                 by_face.insert(run.face, run);
@@ -725,13 +755,18 @@ impl<'b, T: Decide + geom_core::CertifiedBounds> SignCertificate<'b, T> {
             body,
             band,
             tol,
+            quad,
             runs,
             refused,
         }
     }
 
-    /// The certified volume bracket and its lever, at the round the
-    /// walk stopped on.
+    /// The volume bracket and its lever, at the round the walk stopped
+    /// on — as sound as the lane it was derived through: a CERTIFIED
+    /// bracket from [`QuadLane::certified`] at a certifying scalar, and
+    /// the closed form's value with pads of `0` from a `_structural`
+    /// door, which at a point scalar such as `f64` is a computed value
+    /// and not a certified enclosure.
     #[must_use]
     pub fn enclosure(&self) -> VolumeEnclosure<T> {
         fold_runs(&self.runs).0.enclosure()
@@ -791,15 +826,17 @@ impl<'b, T: Decide + geom_core::CertifiedBounds> SignCertificate<'b, T> {
             body,
             band,
             tol,
+            quad,
             mut runs,
             refused,
         } = self;
+        let hook = round_hook(quad);
         let resume = |face, round: usize| {
             face_flux(
                 body,
                 face,
                 band,
-                &certified_hook::<T>,
+                &hook,
                 tol,
                 RoundWindow {
                     first: round + 1,
@@ -876,6 +913,73 @@ impl<'b, T: Decide + geom_core::CertifiedBounds> SignCertificate<'b, T> {
     #[must_use]
     pub fn target_refusal(&self) -> Option<&PropsError> {
         self.refused.as_ref().map(|(_, e)| e)
+    }
+
+    /// **The number, or what is left when there is none** —
+    /// [`Self::refine_to_target`], with its refusal CLASSIFIED and the
+    /// bracket kept where one exists.
+    ///
+    /// A continuation refuses in two ways that a consumer must tell
+    /// apart. The schedule running out (a face's
+    /// [`PropsError::QuadratureBudget`]) is the case this certificate
+    /// exists for: the sign was decided, the body is valid, and its
+    /// volume is not measurable at this ε — so the bracket the check
+    /// decided on is the whole of what the quadrature is entitled to
+    /// say, and it comes back in [`TargetUnreached::bracket`]. Every
+    /// other refusal (an escalated decision, a poisoned bound, a
+    /// degenerate lever — met in a round the check never needed) leaves
+    /// no enclosure a caller may read, and the bracket is `None`.
+    ///
+    /// This is the one home of that classification: the import reader,
+    /// the Python measurement door and the tour ask it here rather than
+    /// each matching `geom_brep`'s refusal vocabulary two crates down.
+    ///
+    /// # Errors
+    ///
+    /// [`TargetUnreached`], carrying [`Self::refine_to_target`]'s
+    /// refusal verbatim.
+    pub fn measure(self) -> Result<MassProperties<T>, TargetUnreached<T>> {
+        let sign_level = self.enclosure();
+        self.refine_to_target().map_err(|refusal| {
+            let bracket = matches!(
+                refusal,
+                MassPropsError::Face {
+                    source: PropsError::QuadratureBudget { .. },
+                    ..
+                }
+            )
+            .then_some(sign_level);
+            TargetUnreached { refusal, bracket }
+        })
+    }
+}
+
+/// **A volume the continuation could not reach**
+/// ([`SignCertificate::measure`]): the refusal, and — exactly when the
+/// refusal is the schedule running out — the sign-level bracket the
+/// check decided on.
+#[derive(Clone, Debug)]
+pub struct TargetUnreached<T: Real> {
+    /// The refusal the reporting door makes on the same body, verbatim.
+    pub refusal: MassPropsError,
+    /// The bracket the certificate held before the continuation ran,
+    /// `Some` iff `refusal` is a face's
+    /// [`PropsError::QuadratureBudget`]: the body's sign is decided and
+    /// its volume lies in this bracket, which is as sound as the lane
+    /// it was derived through ([`SignCertificate::enclosure`]).
+    pub bracket: Option<VolumeEnclosure<T>>,
+}
+
+impl<T: Real> fmt::Display for TargetUnreached<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // The bracket is a field, not prose: its ends are the scalar's
+        // own values, which this impl has no `Display` for, and a
+        // caller that wants them reads `bracket`.
+        fmt::Display::fmt(&self.refusal, f)?;
+        if self.bracket.is_some() {
+            f.write_str(" (the volume's sign is decided; its sign-level bracket is kept)")?;
+        }
+        Ok(())
     }
 }
 
@@ -1286,7 +1390,7 @@ mod face_walk_composition_tests {
 /// reds here.
 ///
 /// The certificate is built by hand because no body produces that
-/// order: `sign_certified` leaves a face open only when its window
+/// order: [`sign_walk`] leaves a face open only when its window
 /// ended WITHOUT a refusal, so a real certificate's outstanding
 /// refusals and its open faces never collide in one walk this way.
 #[cfg(test)]
@@ -1342,6 +1446,7 @@ mod continuation_refusal_order_tests {
                     body: &body,
                     band,
                     tol: Tol::witness(),
+                    quad: Some(QuadLane::certified()),
                     runs: vec![
                         run_of(early, None, Some(outstanding())),
                         run_of(skeletal, Some(0), None),
@@ -1384,6 +1489,7 @@ mod continuation_refusal_order_tests {
             body: &body,
             band,
             tol: Tol::witness(),
+            quad: Some(QuadLane::certified()),
             runs: vec![run_of(skeletal, Some(0), None)],
             refused: None,
         }
@@ -2080,50 +2186,33 @@ fn classify_shells_via<T: Decide>(
 #[allow(clippy::type_complexity)]
 pub struct QuadLane<T: Decide> {
     /// The certified flux/area enclosures of one curved-cut face, over
-    /// the whole schedule — `quad_lane::cut_face`, and nothing else can
-    /// be written here (`wiring_rows` pins the pointer).
-    cut_face: fn(
+    /// the round window it is handed — `quad_lane::cut_face_rounds`,
+    /// and nothing else can be written here (`wiring_rows` pins the
+    /// pointer).
+    cut_face_rounds: fn(
         &Body<T>,
         &Surface<T>,
         &[LoopEdge<T>],
         &[HalfEdgeKey],
         Band,
         Tol,
-    ) -> Result<FaceCutBounds, PropsError>,
+        RoundWindow,
+    ) -> Result<RoundOutcome, PropsError>,
 }
 
 impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
     /// The certified quadrature — the whole inventory of this door, and
-    /// the only constructor there is. Its body is `quad_lane::cut_face`,
-    /// the same function [`sign_certified`]'s hook names directly, so
-    /// [`mass_properties`] at a certifying scalar and the certified
-    /// validator are one quadrature entered at two levels rather than
-    /// two quadratures.
+    /// the only constructor there is. Its body is
+    /// `quad_lane::cut_face_rounds`, entered by the reporting walk over
+    /// the whole schedule and by [`sign_walk`] one round window at a
+    /// time, so [`mass_properties`] at a certifying scalar and the
+    /// certified validator are one quadrature entered at two levels
+    /// rather than two quadratures.
     #[must_use]
     pub const fn certified() -> Self {
         Self {
-            cut_face: quad_lane::cut_face::<T>,
+            cut_face_rounds: quad_lane::cut_face_rounds::<T>,
         }
-    }
-}
-
-impl<T: Decide> QuadLane<T> {
-    /// The door's one operation, reached by the reporting hook.
-    ///
-    /// # Errors
-    ///
-    /// [`PropsError`] from the quadrature lane (budget, unsupported
-    /// inventory, escalations).
-    fn cut_face(
-        self,
-        body: &Body<T>,
-        surface: &Surface<T>,
-        outer: &[LoopEdge<T>],
-        hes: &[HalfEdgeKey],
-        band: Band,
-        tol: Tol,
-    ) -> Result<FaceCutBounds, PropsError> {
-        (self.cut_face)(body, surface, outer, hes, band, tol)
     }
 }
 
@@ -2225,15 +2314,16 @@ impl<T: Decide> ShellDoor<T> {
 mod wiring_rows {
     use super::{AtRestPolicy, QuadLane, ShellDoor, quad_lane};
 
-    /// `Ok(())` when the quadrature door holds `quad_lane::cut_face`;
-    /// otherwise the name of the field that moved.
+    /// `Ok(())` when the quadrature door holds
+    /// `quad_lane::cut_face_rounds`; otherwise the name of the field
+    /// that moved.
     fn holds_the_certified_quadrature<T: super::Decide + geom_core::CertifiedBounds>()
     -> Result<(), &'static str> {
         if !std::ptr::fn_addr_eq(
-            QuadLane::<T>::certified().cut_face,
-            quad_lane::cut_face::<T> as fn(_, _, _, _, _, _) -> _,
+            QuadLane::<T>::certified().cut_face_rounds,
+            quad_lane::cut_face_rounds::<T> as fn(_, _, _, _, _, _, _) -> _,
         ) {
-            return Err("cut_face is not `quad_lane::cut_face`");
+            return Err("cut_face_rounds is not `quad_lane::cut_face_rounds`");
         }
         Ok(())
     }
@@ -2256,7 +2346,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_quadrature::<f64>(),
             Ok(()),
-            "`QuadLane::<f64>::certified()` holds something other than `quad_lane::cut_face`"
+            "`QuadLane::<f64>::certified()` holds something other than `quad_lane::cut_face_rounds`"
         );
     }
 
@@ -2267,7 +2357,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_quadrature::<geom_core::Sym<f64>>(),
             Ok(()),
-            "`QuadLane::<Sym<f64>>::certified()` holds something other than `quad_lane::cut_face`"
+            "`QuadLane::<Sym<f64>>::certified()` holds something other than `quad_lane::cut_face_rounds`"
         );
     }
 
@@ -2277,7 +2367,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_quadrature::<geom_core::Probe>(),
             Ok(()),
-            "`QuadLane::<Probe>::certified()` holds something other than `quad_lane::cut_face`"
+            "`QuadLane::<Probe>::certified()` holds something other than `quad_lane::cut_face_rounds`"
         );
     }
 
@@ -2286,7 +2376,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_certified_quadrature::<geom_core::interval::Interval>(),
             Ok(()),
-            "`QuadLane::<Interval>::certified()` holds something other than `quad_lane::cut_face`"
+            "`QuadLane::<Interval>::certified()` holds something other than `quad_lane::cut_face_rounds`"
         );
     }
 
@@ -2796,7 +2886,7 @@ mod quad_lane {
     // `Decide + Bounds + CertifiedEnclosure`, which no `Dual`
     // implements — a dual carries a bracket since D1 (2026-08-19) and
     // still may not certify — and [`super::QuadLane::certified`], the
-    // one door from the reporting walks into `cut_face`, carries the
+    // one door from the face walks into `cut_face_rounds`, carries the
     // same bound. So the module stays uninstantiable at a dual.
     use geom::Curve3;
     use geom::Surface;
@@ -2913,25 +3003,14 @@ mod quad_lane {
     }
 
     /// The certified flux/area enclosures of one curved-cut face
-    /// (module docs of `geom_brep::props::quad`): the cylinder chart's
-    /// closed-form lane plus the described-NURBS patch lane (M6-3);
-    /// cone/sphere/torus charts MINT stored pcurves since M6-3 (walk
-    /// row 4) but their chart-normal flux algebra is not written —
-    /// they refuse typed naming that true blocker.
-    pub(super) fn cut_face<T: Decide + Bounds + CertifiedEnclosure>(
-        body: &Body<T>,
-        surface: &Surface<T>,
-        outer: &[LoopEdge<T>],
-        hes: &[HalfEdgeKey],
-        band: Band,
-        tol: Tol,
-    ) -> Result<FaceCutBounds, PropsError> {
-        cut_face_rounds(body, surface, outer, hes, band, tol, RoundWindow::SCHEDULE)?.into_target()
-    }
-
-    /// [`cut_face`] over a [`RoundWindow`] — the same lanes, entered
-    /// and left where the window says (the quadrature module's two
-    /// levels).
+    /// (module docs of `geom_brep::props::quad`) over a [`RoundWindow`]
+    /// — the cylinder chart's closed-form lane plus the described-NURBS
+    /// patch lane (M6-3), entered and left where the window says (the
+    /// quadrature module's two levels); [`super::QuadLane`] holds this
+    /// and reads it at either level. Cone/sphere/torus charts MINT
+    /// stored pcurves since M6-3 (walk row 4) but their chart-normal
+    /// flux algebra is not written — they refuse typed naming that true
+    /// blocker.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn cut_face_rounds<T: Decide + Bounds + CertifiedEnclosure>(
         body: &Body<T>,
@@ -3646,11 +3725,12 @@ mod face_list_door_tests {
                     let faces = body
                         .faces_of_solid(solid)
                         .expect("a solid the body yielded");
-                    let (positive, part) = sign_certified(
+                    let (positive, part) = sign_walk(
                         &body,
                         &faces,
                         band,
                         tol,
+                        Some(QuadLane::certified()),
                         |e: VolumeEnclosure<f64>| (e.volume_lo > 0.0).then_some(true),
                         |_| false,
                     )
@@ -3659,9 +3739,10 @@ mod face_list_door_tests {
                     part
                 })
                 .collect();
-            let assembled = SignCertificate::assembled(&body, band, tol, parts)
-                .refine_to_target()
-                .unwrap();
+            let assembled =
+                SignCertificate::assembled(&body, band, tol, Some(QuadLane::certified()), parts)
+                    .refine_to_target()
+                    .unwrap();
             let whole = crate::mass_properties(&body, tol).unwrap();
             assert_eq!(
                 (

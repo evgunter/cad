@@ -84,10 +84,15 @@ fn the_vertex_rung_carries_each_scalar_through_f() {
 fn the_loop_rung_carries_the_vertex_order_and_the_joint_set() {
     let lifted: ProfileLoop<Dual64> = source_loop().map_scalar(Dual64::from_f64);
     assert_eq!(lifted.vertices().len(), VERTS.len());
-    for (v, &(x, y, b)) in lifted.vertices().iter().zip(VERTS.iter()) {
-        is_lift_of(v.pos().x, x, "x");
-        is_lift_of(v.pos().y, y, "y");
-        is_lift_of(v.bulge(), b, "bulge");
+    for ((v, &lb), &(x, y, b)) in lifted
+        .vertices()
+        .iter()
+        .zip(lifted.bulges())
+        .zip(VERTS.iter())
+    {
+        is_lift_of(v.x, x, "x");
+        is_lift_of(v.y, y, "y");
+        is_lift_of(lb, b, "bulge");
     }
     assert_eq!(
         lifted.tangent_joints(),
@@ -110,10 +115,10 @@ fn the_profile_rung_carries_the_plane_and_the_loop_order() {
     for lp in &lifted.loops {
         assert_eq!(lp.vertices().len(), VERTS.len());
         assert_eq!(lp.tangent_joints(), JOINTS.as_slice());
-        for (v, &(x, y, b)) in lp.vertices().iter().zip(VERTS.iter()) {
-            is_lift_of(v.pos().x, x, "x");
-            is_lift_of(v.pos().y, y, "y");
-            is_lift_of(v.bulge(), b, "bulge");
+        for ((v, &lb), &(x, y, b)) in lp.vertices().iter().zip(lp.bulges()).zip(VERTS.iter()) {
+            is_lift_of(v.x, x, "x");
+            is_lift_of(v.y, y, "y");
+            is_lift_of(lb, b, "bulge");
         }
     }
 }
@@ -122,14 +127,14 @@ fn the_profile_rung_carries_the_plane_and_the_loop_order() {
 fn the_lift_to_f64_is_the_identity_down_to_the_sign_of_a_zero() {
     let lifted: Profile<f64> = source_profile().map_scalar(f64::from_f64);
     for lp in &lifted.loops {
-        for (v, &(x, y, b)) in lp.vertices().iter().zip(VERTS.iter()) {
-            assert!(v.pos().x.to_bits() == x.to_bits(), "x");
+        for ((v, lb), &(x, y, b)) in lp.vertices().iter().zip(lp.bulges()).zip(VERTS.iter()) {
+            assert!(v.x.to_bits() == x.to_bits(), "x");
             assert!(
-                v.pos().y.to_bits() == y.to_bits(),
+                v.y.to_bits() == y.to_bits(),
                 "the signed zero survives: got {}, want {y}",
-                v.pos().y
+                v.y
             );
-            assert!(v.bulge().to_bits() == b.to_bits(), "bulge");
+            assert!(lb.to_bits() == b.to_bits(), "bulge");
         }
     }
 }
@@ -142,8 +147,8 @@ fn the_lift_to_interval_is_point_wide() {
     use geom_core::{Bounds, Interval};
     let lifted: Profile<Interval> = source_profile().map_scalar(Interval::from_f64);
     for lp in &lifted.loops {
-        for (v, &(x, y, b)) in lp.vertices().iter().zip(VERTS.iter()) {
-            for (got, want) in [(v.pos().x, x), (v.pos().y, y), (v.bulge(), b)] {
+        for ((v, &lb), &(x, y, b)) in lp.vertices().iter().zip(lp.bulges()).zip(VERTS.iter()) {
+            for (got, want) in [(v.x, x), (v.y, y), (lb, b)] {
                 assert!(
                     got.lo().to_bits() == want.to_bits() && got.hi().to_bits() == want.to_bits(),
                     "[{}, {}] is not the point enclosure of {want}",

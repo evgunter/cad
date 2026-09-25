@@ -2,12 +2,13 @@
 id: rule-d-reaches-the-unit-bulge-only
 kind: issue
 title: rule D's reach is the unit bulge: a parameter bulge is outside the mechanism and a literal bulge other than 1 leaves residue — the next ceiling class after M10-10
-status: dispatched
+status: closed
 opened: 2026-09-12
 refs: [2100, plate-ceiling-is-now-the-scaffold-pushforward, symbolic-tier-census]
 parent: SYM-3
 priority: P1
 cost: D
+closed: 2026-09-25
 ---
 
 **Filed by M10-10's fix pass from both reviews' end-to-end probes**
@@ -902,3 +903,91 @@ does not reach them; only a value read does. **The decision: filed as
 its own DECIDE item**, with the narrowed rule C as its candidate, not
 folded into DECIDE-4.
 
+## The span from the decided turn (DECIDE-5, Ev's Decision 1 on #3186)
+
+`sweep`'s `placed_segment_spec` spells the arc carrier's span
+`4·atan(σ·b)` through `turned_span`, `σ` the turn the profile decided
+(`path_arc_bulge`, `segment_straightness`). `swept::turn_negates` is the
+one reading of a turn, `Zero` included, for `turn_axis`, `turned_span`
+and `centre_on_material_side`. The value channel is bit-identical: a
+probe compared the two spellings' bits at every arc lowered by the sweep
+and editor-core suites, and none differed (`work/decide/DECIDE-5.md`,
+Phase 1). `arc_span` keeps its one caller, revolve's `π − θ` margin, as
+`span_magnitude`.
+
+**Route B's before-numbers, re-taken on the change itself** (dev,
+ε = 1e-9, the render row with the drive's ladder, as DECIDE-4 took them),
+and the same with DECIDE-4's exact quotient in:
+
+| document, predicate | before | after |
+| --- | --- | --- |
+| `0.5` parameter control, `carrier_matches_mapped_source` | 126/0/38/16 | 126/0/48/6 |
+| `0.5` parameter control, `carrier_on_surface_2` | 138/0/0/6 | 140/0/0/4 |
+| its ceiling (release) | `4.3375e2 .. 4.3392e2 · ε`, `carrier_matches_mapped_source` 1/90 | `5.1078e2 .. 5.1098e2 · ε`, `carrier_matches_mapped_source` 1/89 |
+| R2's link, `carrier_matches_mapped_source` | 108/0/40/32 | 108/0/62/10 |
+| R2's link, `carrier_on_surface_2` | 92/0/6/10 | 88/0/8/12 |
+
+On the control the ladder now retries 4 (it retried nothing before). One
+attempt per rung reads `carrier_matches_mapped_source` 126/0/46/8 and
+`carrier_on_surface_2` 138/0/0/6. `sqrt(4 + abs(1 + 2·bulge)²)` is in
+none of its asked forms (`CAD_M10_10_NEEDLES`, 2 → 0 in the dump). The
+four (iii) decisions are gone, and so are the eight (i) freezes that
+stood on that atom. The apothem-sign (iv) six are untouched, with forms
+identical to the character. `m10_bulge_renders.txt` re-takes the
+control's section.
+
+**Unmoved:** the boss and both `0.4` D-tabs' nominal splits (the
+`m10_bulge_interval` pins, green on the change); the plate, the annulus,
+the boss and the bracket receipts at the nominal
+(`sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`); the pad's
+counts at the scale it certifies whole (`m10_9_no_registrant_lies_on_any_measured_document`,
+at 1e-6, 1e-9 and 1e-12); every ε-relative ceiling the gating pins hold,
+the link's at `4.930e2 .. 4.934e2 · ε` among them (at 1e-9 locally; the
+hosted run holds the other two rows). The literal `0.5` control was not
+re-taken.
+
+**The link's four theorems** are a net, rendered on
+`rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`. Eight go to
+the door because the ladder's rule-G-shut attempt freezes on the
+coefficient ring (a 512-bit ring takes all eight back). Four come back
+as theorems where the carrier's span meets the pushforward's atom. Two
+door answers go numeric on the term budget. No value-free rule is
+missing for any of them, so none is filed.
+
+**Leaf cost** (release, one whole-box leaf, `ON + the ladder`, best of
+three, `CAD_M10_10_TAKES=3`; before is the same tree with the one call
+spelled `span_magnitude`):
+
+| document | before | after |
+| --- | --- | --- |
+| plate `1e2·ε` | 0.346 s | 0.353 s |
+| plate, real study | 0.346 s | 0.350 s |
+| bracket | 3.823 s | 2.890 s |
+| annulus | 0.369 s | 0.366 s |
+| pad | 142.797 s | 88.562 s |
+| link | 19.137 s | 10.745 s |
+| boss `1e2·ε` | 0.247 s | 0.243 s |
+
+Every receipt on those leaves is unmoved but the link's, which reads
+`[553, 0, 96, 453]` retried 12 → `[549, 0, 120, 433]` retried 16.
+
+**What is left of this item** is the ring at `fl(0.4)`: the `0.4`
+D-tabs' splits are the same under either spelling, because the ring
+stands in front of the sign.
+
+## Closed (2026-09-25)
+
+The item's title describes the tier as it was filed. Rule D's reach is
+no longer the unit bulge alone:
+- DECIDE-4's exact quotient (#3192) took the boss's last value-free
+  residual, and the boss certifies 0.73 of its real study;
+- DECIDE-5 (#3214, Ev's route B on #3186) spells the carrier's span
+  from the arc's decided turn, so a parameter bulge's sign meets the
+  pushforward's.
+
+What stands at a bulge that is not 1 is not this item's any more:
+- **the coefficient ring** at a bulge like `fl(0.4)`, and **the term
+  budget**: both on `work/tier/symbolic-tier-census`, whose reach
+  paragraph carries the D-tab and the link's two term-and-degree
+  decisions;
+- **the apothem's sign**: `work/decide/the-apothems-sign-is-a-value-read`.
