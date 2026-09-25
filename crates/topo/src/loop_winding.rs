@@ -104,20 +104,20 @@ pub(crate) fn conic_segment_term<T: Real>(
     forward: bool,
 ) -> Option<(Vec3<T>, T)> {
     let (t0, t1) = curve.params();
-    let (axis, sa, sb) = match *curve.carrier() {
-        geom::Curve3::Circle { axis, radius, .. } => (axis, radius, radius),
+    // `(axis, sa, sb, the larger semi-axis)`. The circle's lever is its
+    // radius itself, not `radius.max(radius)`: the same value, but at a
+    // symbolic scalar a `max` node is opaque where the radius is not.
+    let (axis, sa, sb, reach) = match *curve.carrier() {
+        geom::Curve3::Circle { axis, radius, .. } => (axis, radius, radius, radius),
         geom::Curve3::Ellipse {
             axis, major, minor, ..
-        } => (axis, major, minor),
+        } => (axis, major, minor, major.max(minor)),
         geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
             return None;
         }
     };
     let span = if forward { t1 - t0 } else { t0 - t1 };
-    Some((
-        axis * (sa * sb * (span - span.sin())),
-        span.abs() * sa.max(sb),
-    ))
+    Some((axis * (sa * sb * (span - span.sin())), span.abs() * reach))
 }
 
 impl<T: Decide> Body<T> {

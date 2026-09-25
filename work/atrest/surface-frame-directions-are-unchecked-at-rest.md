@@ -93,10 +93,10 @@ frame's six ε-slack margins at the kind's radius (cylinder and sphere
 `r`, torus `R + r`; `geom::surfaces::frame_margins`), read by check 1's
 one `Bounds::lo` compare and refused as
 `UnrepresentableSurfaceDatum { datum: Axis | URef, end }`. Pinned by
-the frame rungs of the same test (a `u_ref` one part in a million long
+the frame rungs of the same test (a `u_ref` 100 ε long
 at `r = 1`, a half-length sphere axis, a tilted torus `u_ref`) and the
 inside rows of `datums_inside_their_conventions_draw_no_datum_verdict`
-(a `u_ref` one part in 1e12 long, a plane frame of length 3).
+(a `u_ref` ε/100 long, a plane frame of length 3).
 
 **`geom`'s crate docs made true**: the conventions paragraph now says
 what check 1 certifies and what it does not. The uncertified half is

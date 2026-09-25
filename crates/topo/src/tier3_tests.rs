@@ -669,12 +669,12 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             Verdict::Poisoned,
         ),
         (
-            "cylinder, u_ref one part in a million long",
+            "cylinder, u_ref 100 eps long at r = 1",
             Surface::Cylinder {
                 origin: o,
                 axis: Vec3::unit_z(),
                 radius: 1.0,
-                u_ref: Vec3::new(1.0 + 1e-6, 0.0, 0.0),
+                u_ref: Vec3::new(1.0 + 100.0 * tol.get().eps, 0.0, 0.0),
             },
             K::Cylinder,
             D::URef,
@@ -766,12 +766,12 @@ fn datums_inside_their_conventions_draw_no_datum_verdict() {
         ),
         ("ring torus", torus(2.0, 0.5)),
         (
-            "cylinder, u_ref one part in 1e12 long (1e-12 m of locus at r = 1)",
+            "cylinder, u_ref eps/100 long at r = 1",
             Surface::Cylinder {
                 origin: pt(0.0, 0.0, 0.0),
                 axis: Vec3::unit_z(),
                 radius: 1.0,
-                u_ref: Vec3::new(1.0 + 1e-12, 0.0, 0.0),
+                u_ref: Vec3::new(1.0 + 0.01 * tol.get().eps, 0.0, 0.0),
             },
         ),
         (
@@ -861,10 +861,12 @@ fn pillow_with_carrier(
 /// (the carried row's measurement); each is now refused, first, by
 /// name.
 ///
-/// The honest twin — the same arc with its datums righted — is
-/// asserted clean, so the refusal is the datum's and not the fixture's.
-/// The bulge side is chosen at run time as the one the face's
-/// orientation admits, and exactly one side must.
+/// The honest twins — the same arcs with their datums righted — mint
+/// and draw no carrier-datum verdict, so the refusal is the datum's and
+/// not the fixture's. (They are not clean: a bulged chord leaves one of
+/// the pillow's two coplanar faces wound against its bit, which check 6
+/// refuses on either bulge side; that verdict is the fixture's and
+/// rides after the datum's.)
 #[test]
 fn check_1_names_the_carrier_datum_that_describes_no_curve() {
     use crate::query::CurveKind as K;
@@ -889,16 +891,19 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
         minor: 0.3,
         u_ref,
     };
-    let sides: Vec<Vec3<f64>> = [Vec3::unit_z(), -Vec3::unit_z()]
-        .into_iter()
-        .filter(|&axis| {
-            let (circ, _) = pillow_with_carrier(circle(axis), 0.0, pi, tol).unwrap();
-            let (ell, _) = pillow_with_carrier(ellipse(axis, 0.5, -x), 0.0, pi, tol).unwrap();
-            validate_geometric(&circ, tol).is_ok() && validate_geometric(&ell, tol).is_ok()
-        })
-        .collect();
-    assert_eq!(sides.len(), 1, "exactly one bulge side is honest");
-    let axis = sides[0];
+    let axis = Vec3::unit_z();
+    for (name, honest) in [
+        ("circle", circle(axis)),
+        ("ellipse", ellipse(axis, 0.5, -x)),
+    ] {
+        let (body, _) = pillow_with_carrier(honest, 0.0, pi, tol).unwrap();
+        let errs = validate_geometric(&body, tol).err().unwrap_or_default();
+        assert_eq!(
+            curve_datum_verdicts(&errs),
+            vec![],
+            "the honest {name} draws no carrier-datum verdict: {errs:?}"
+        );
+    }
     enum Verdict {
         Poisoned,
         Unrepresentable(geom::ConventionEnd),
@@ -997,7 +1002,8 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     let verdict = |c: &Curve3<f64>| {
         analytic_datum_verdicts(poisoned_curve_datums(c), c.representability_margins(band))
     };
-    let cases: Vec<(&str, Curve3<f64>, Option<V<D>>)> = vec![
+    type Row = (&'static str, Curve3<f64>, Option<V<D>>);
+    let cases: Vec<Row> = vec![
         ("honest line", Curve3::Line { origin: o, dir: x }, None),
         (
             "line, zero dir",
