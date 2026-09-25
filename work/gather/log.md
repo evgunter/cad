@@ -102,3 +102,25 @@ one inside a merged row that a later step fragmented. The member-space
 lane brought main in and dropped its containment arm to match (branch
 `gather/member-space-typed-refusals`, `7271fde5e`). The pairwise
 pre-pass itself is `wire_union`'s, a WIRE/EMIT unit, and not ours.
+
+## 2026-09-25 — the two-roots unit merges; its P0 residue is dispatched
+
+PR 3142 merged: one body placed under two roots now refuses at the
+product's entry as `PlacedUnderTwoRoots`, before any root is read. It
+had a single FULL review, and its fix pass landed on the same PR. The review
+found a pre-existing FALSE refusal. Two halves of one split, taken as
+two `Part` roots over an N2 tie the plane separates, refuse `Naming`,
+because a `Part`'s projection narrows the tie to `Unique` before the
+gather sees it. Filed P0 as
+`product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique`
+and dispatched at once (`gather/split-halves-tie-merge`).
+
+**The orchestrator's direction:** it applies the existing rule. Rows
+under one tied name merge into one `Entry::Tied`, which already holds
+when the split itself is the root. So the gather has to see the
+upstream tie through the projection. A lone `Part` root's published
+name does not change. If the lane finds that it must change, it stops
+and reports the fork. Tier: single FULL review.
+
+Also filed from 3142: `three-walks-over-the-name-carrying-edges` (P1),
+and MSOLVE's `the-solve-accepts-a-body-placed-under-two-roots`.
