@@ -30,7 +30,7 @@ call whose argument is a component read or a bare `x`/`y`/`z`, over
 `git ls-files` with no path argument, grouped by file, callee and
 receiver) plus its callee-agnostic second pass (any `F(R.x), F(R.y)`):
 
-- **Bare coordinates, 35**: `crates/pncad/src/authoring.rs` ×5 (the
+- **Bare coordinates, 33**: `crates/pncad/src/authoring.rs` ×5 (the
   public `p2`/`p3`/`v2`/`v3` doors and `polygon`'s `at`),
   `crates/sweep/src/test_support.rs` ×3 (`corners`, `waisted_at`,
   `bowl_at`), `crates/topo/src/test_support_fixtures.rs` ×2 (the prism
