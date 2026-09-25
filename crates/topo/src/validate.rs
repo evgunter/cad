@@ -10196,6 +10196,7 @@ mod offset_fit_door_rows {
 #[allow(clippy::expect_used, clippy::panic)]
 mod door_roster {
     use std::collections::BTreeSet;
+    use test_utils::source::{code_only, comments_only, sentinel_region};
 
     const SOURCE: &str = include_str!("validate.rs");
     const LIB: &str = include_str!("lib.rs");
@@ -10210,58 +10211,69 @@ mod door_roster {
     /// The suffixes, in the one order they compose in.
     const SUFFIXES: [&str; 3] = ["_certificate", "_declared", "_structural"];
 
-    fn roster() -> Vec<&'static str> {
-        let begin = SOURCE
-            .find("//! <!-- door-roster:begin -->")
-            .expect("the module doc carries the roster's begin marker");
-        let end = SOURCE
-            .find("//! <!-- door-roster:end -->")
-            .expect("the module doc carries the roster's end marker");
-        SOURCE[begin..end]
+    /// The roster, read from the module doc's PROSE between its two
+    /// markers — so the markers and the list are found only where a
+    /// reader of the rendered doc would find them.
+    fn roster() -> Vec<String> {
+        let prose = comments_only(SOURCE);
+        let region = sentinel_region(
+            &prose,
+            "validate.rs's door roster",
+            "<!-- door-roster:begin -->",
+            "<!-- door-roster:end -->",
+        );
+        prose[region]
             .lines()
-            .skip(1)
+            .map(str::trim)
+            .filter(|line| !line.is_empty() && *line != "//!")
             .map(|line| {
                 line.strip_prefix("//! - `")
                     .and_then(|rest| rest.strip_suffix('`'))
                     .unwrap_or_else(|| panic!("a roster line is \"//! - `door`\": {line:?}"))
+                    .to_owned()
             })
             .collect()
     }
 
-    /// Every top-level `pub fn` this file defines, less the formless two.
-    fn defined() -> BTreeSet<&'static str> {
-        SOURCE
+    /// Every top-level `pub fn` this file defines, less the formless two,
+    /// read from the CODE view (a `pub fn` in a comment or a literal is
+    /// not a door).
+    fn defined() -> BTreeSet<String> {
+        code_only(SOURCE)
             .lines()
             .filter_map(|line| line.strip_prefix("pub fn "))
             .map(|rest| {
                 let end = rest
                     .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
                     .unwrap_or(rest.len());
-                &rest[..end]
+                rest[..end].to_owned()
             })
-            .filter(|name| !FORMLESS.contains(name))
+            .filter(|name| !FORMLESS.contains(&name.as_str()))
             .collect()
     }
 
     /// Every function the crate root re-exports from this module, less
     /// the formless two (the re-export list's lower-case names).
-    fn exported() -> BTreeSet<&'static str> {
-        let start = LIB
-            .find("pub use validate::{")
+    fn exported() -> BTreeSet<String> {
+        let code = code_only(LIB);
+        let open = "pub use validate::{";
+        let start = code
+            .find(open)
             .expect("the crate root re-exports the validators");
-        let body = &LIB[start + "pub use validate::{".len()..];
+        let body = &code[start + open.len()..];
         let body = &body[..body.find('}').expect("the re-export list closes")];
         body.split(',')
             .map(str::trim)
             .filter(|name| name.starts_with(|c: char| c.is_ascii_lowercase()))
             .filter(|name| !FORMLESS.contains(name))
+            .map(str::to_owned)
             .collect()
     }
 
     #[test]
     fn door_roster_is_the_exported_set() {
         let listed = roster();
-        let roster: BTreeSet<&str> = listed.iter().copied().collect();
+        let roster: BTreeSet<String> = listed.iter().cloned().collect();
         assert_eq!(
             roster.len(),
             listed.len(),
@@ -10270,18 +10282,18 @@ mod door_roster {
         let defined = defined();
         assert_eq!(
             defined.difference(&roster).collect::<Vec<_>>(),
-            Vec::<&&str>::new(),
+            Vec::<&String>::new(),
             "a public door this file defines that the roster lacks"
         );
         assert_eq!(
             roster.difference(&defined).collect::<Vec<_>>(),
-            Vec::<&&str>::new(),
+            Vec::<&String>::new(),
             "a roster door this file does not define"
         );
         let exported = exported();
         assert_eq!(
             exported.symmetric_difference(&roster).collect::<Vec<_>>(),
-            Vec::<&&str>::new(),
+            Vec::<&String>::new(),
             "the crate root's re-exports and the roster disagree"
         );
     }
@@ -10292,7 +10304,7 @@ mod door_roster {
     /// decision, never a spelling drift.
     #[test]
     fn every_door_is_a_stem_and_ordered_suffixes_with_its_structural_twin() {
-        let roster: BTreeSet<&str> = roster().into_iter().collect();
+        let roster: BTreeSet<String> = roster().into_iter().collect();
         for door in &roster {
             let stem = STEMS
                 .iter()
@@ -10305,7 +10317,7 @@ mod door_roster {
             assert_eq!(rest, "", "{door}: suffixes out of order or unknown");
             if !door.ends_with("_structural") {
                 let twin = format!("{door}_structural");
-                assert!(roster.contains(twin.as_str()), "{door} has no {twin}");
+                assert!(roster.contains(&twin), "{door} has no {twin}");
             }
         }
     }
