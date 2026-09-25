@@ -323,6 +323,130 @@ pub struct SymProfile {
     /// the unnamed `AxisScalar::axis`, and a drive binds its axes
     /// through `axis_named`.
     pub opaque_ids: Vec<BTreeSet<u128>>,
+    /// **The decision read's cost** ([`ReadProfile`]).
+    pub read: ReadProfile,
+}
+
+/// **The decision read's cost** (`signed::decision`, and
+/// `signed::order` in front of it at `min`/`max`): how often it is
+/// asked, what it answers, WHY it declines, and where its time goes —
+/// the measurement that says which of the cheap answers before the
+/// enclosure would pay.
+///
+/// A decline's cause is the first failure the enclosure itself meets,
+/// in its own order (the denominator's half, then the numerator's;
+/// terms in order, ids in order): an indeterminate with no bracket
+/// at the top level of a half (`unbracketed@0`) or inside an atom's
+/// argument (`unbracketed@k`, `k` atom levels down), with what it is (an
+/// atom's op, or `opaque` for an id no atom was minted for); an atom
+/// past the depth cap (`depth exhausted`); an enclosure that came back
+/// poisoned; or a half that straddles zero. `prepass` counts the
+/// declines where an id-walk over both halves finds an unbracketed id
+/// or an exhausted depth — the ones a walk could answer before a
+/// single interval is built.
+#[derive(Clone, Debug, Default)]
+pub struct ReadProfile {
+    /// Reads asked at the `Select` door.
+    pub select: u64,
+    /// Reads asked at `min`/`max` (`signed::order`), before the
+    /// difference is built.
+    pub order: u64,
+    /// Of those, the ones whose difference `a − b` was refused or
+    /// poisoned, so `signed::decision` was never asked.
+    pub order_refused: u64,
+    /// Time building `a − b` at `min`/`max`.
+    pub order_diff: Duration,
+    /// Reads that returned an arm.
+    pub settled: u64,
+    /// Declines, by cause (see the type's doc).
+    pub declines: BTreeMap<String, u64>,
+    /// Wall time inside `signed::decision`, every call.
+    pub time: Duration,
+    /// Of it, stripping the manifestly positive content.
+    pub strip: Duration,
+    /// Of it, the enclosure (`enclose_deep`, both halves).
+    pub enclose: Duration,
+    /// Declines an id-walk over both halves proves (see the type's doc).
+    pub prepass: u64,
+    /// The wall time of the calls in `prepass` — what a pre-pass could
+    /// save at most, before its own cost.
+    pub prepass_time: Duration,
+    /// Of it, the enclosure alone.
+    pub prepass_enclose: Duration,
+    /// The id-walk's own time over every call — the pre-pass's cost,
+    /// measured by running it beside the read.
+    pub walk: Duration,
+    /// Reads whose decision form's digest this session had already
+    /// read — what a per-session memo keyed by the digest would hit.
+    pub repeats: u64,
+    /// The wall time of those repeats.
+    pub repeat_time: Duration,
+    /// Reads whose two halves the id-walk passes, by the deepest atom
+    /// level the enclosure enters (0: parameters and π alone), with the
+    /// ones that settled beside: `(asked, settled)`.
+    pub depth: BTreeMap<usize, (u64, u64)>,
+}
+
+/// What the instrument learned about one call of the read, beside its
+/// answer.
+pub(super) struct ReadClass {
+    /// The decline's cause, `None` where the read settled.
+    pub cause: Option<String>,
+    /// Whether the id-walk proves the decline before any enclosure.
+    pub prepass: bool,
+    /// The deepest atom level the enclosure enters, where the id-walk
+    /// passes both halves.
+    pub depth: Option<usize>,
+    /// The id-walk's own time.
+    pub walk: Duration,
+}
+
+impl ReadProfile {
+    /// The read's table, as text.
+    #[must_use]
+    pub fn render(&self) -> String {
+        use core::fmt::Write as _;
+        let mut f = String::new();
+        let calls = self.select + self.order - self.order_refused;
+        let _ = writeln!(
+            f,
+            "read: select {} order {} (a-b refused {}, {:?})  asked {}  settled {}  \
+             declined {}",
+            self.select,
+            self.order,
+            self.order_refused,
+            self.order_diff,
+            calls,
+            self.settled,
+            calls - self.settled
+        );
+        let _ = writeln!(
+            f,
+            "read time {:?}: strip {:?}, enclose {:?}",
+            self.time, self.strip, self.enclose
+        );
+        for (cause, n) in &self.declines {
+            let _ = writeln!(f, "  decline {cause:<34} {n}");
+        }
+        let _ = writeln!(
+            f,
+            "pre-pass answers {} declines ({:?} of read time, {:?} of it enclosing); \
+             the id-walk costs {:?} over every call",
+            self.prepass, self.prepass_time, self.prepass_enclose, self.walk
+        );
+        let _ = writeln!(
+            f,
+            "digest memo: {} repeats ({:?} of read time)",
+            self.repeats, self.repeat_time
+        );
+        for (d, (asked, settled)) in &self.depth {
+            let _ = writeln!(
+                f,
+                "  enclosable at depth {d}: asked {asked} settled {settled}"
+            );
+        }
+        f
+    }
 }
 
 // The install / take scaffold is `report`'s, spelled again: two
@@ -343,6 +467,13 @@ thread_local! {
     /// [`Walk::charged`], so a retry's forms land in their own buckets
     /// and the first attempt's rows are what they were.
     static ATTEMPT: Cell<u8> = const { Cell::new(0) };
+
+    /// The decision forms this session's reads have already asked, by
+    /// digest ([`ReadProfile::repeats`]).
+    static READ_SEEN: RefCell<BTreeSet<u128>> = const { RefCell::new(BTreeSet::new()) };
+
+    /// Whether the read running was asked by `signed::order`.
+    static IN_ORDER: Cell<bool> = const { Cell::new(false) };
 }
 
 /// Installs the profile on this thread, dropping anything recorded.
@@ -623,6 +754,7 @@ pub(super) fn trig_done(t0: Option<Instant>) {
 pub(super) fn session_start() {
     if active() {
         OPAQUE_LEAF.with(|s| s.borrow_mut().clear());
+        READ_SEEN.with(|s| s.borrow_mut().clear());
     }
 }
 
@@ -634,6 +766,79 @@ pub(super) fn session_done(nodes: usize, atoms: usize) {
         p.nodes += nodes as u64;
         p.atoms += atoms as u64;
         p.opaque_ids.push(opaque);
+    });
+}
+
+/// Whether the profile is installed — the read's instrument runs its
+/// id-walk only then.
+pub(super) fn installed() -> bool {
+    active()
+}
+
+/// `signed::order` opened (`true`) or closed (`false`) a read: the
+/// calls inside are charged to `min`/`max`.
+pub(super) fn read_in_order(on: bool) {
+    IN_ORDER.set(on);
+}
+
+/// `signed::order` built (or refused) its difference.
+pub(super) fn read_order(t0: Option<Instant>, refused: bool) {
+    with(|p| {
+        p.read.order += 1;
+        p.read.order_diff += elapsed(t0);
+        p.read.order_refused += u64::from(refused);
+    });
+}
+
+/// One half's positive content stripped.
+pub(super) fn read_strip(t0: Option<Instant>) {
+    with(|p| p.read.strip += elapsed(t0));
+}
+
+/// One half enclosed.
+pub(super) fn read_enclose(t0: Option<Instant>) {
+    with(|p| p.read.enclose += elapsed(t0));
+}
+
+/// The enclosure time so far — the mark [`read_done`] reads a call's
+/// own enclosure time against.
+pub(super) fn read_enclose_mark() -> Duration {
+    let mut d = Duration::ZERO;
+    with(|p| d = p.read.enclose);
+    d
+}
+
+/// One read finished: its time, its form's digest, and what the
+/// instrument learned about it.
+pub(super) fn read_done(t0: Option<Instant>, mark: Duration, digest: u128, class: &ReadClass) {
+    let spent = elapsed(t0);
+    let repeat = active() && !READ_SEEN.with(|s| s.borrow_mut().insert(digest));
+    let in_order = IN_ORDER.get();
+    with(|p| {
+        let r = &mut p.read;
+        if !in_order {
+            r.select += 1;
+        }
+        r.time += spent;
+        r.walk += class.walk;
+        match &class.cause {
+            None => r.settled += 1,
+            Some(c) => *r.declines.entry(c.clone()).or_default() += 1,
+        }
+        if class.prepass {
+            r.prepass += 1;
+            r.prepass_time += spent;
+            r.prepass_enclose += r.enclose.saturating_sub(mark);
+        }
+        if repeat {
+            r.repeats += 1;
+            r.repeat_time += spent;
+        }
+        if let Some(d) = class.depth {
+            let e = r.depth.entry(d).or_default();
+            e.0 += 1;
+            e.1 += u64::from(class.cause.is_none());
+        }
     });
 }
 

@@ -604,3 +604,5 @@ mod wire_rv_unknown;
 mod decide_1_self_dot_interval;
 #[path = "decide_3_split_rows_interval.rs"]
 mod decide_3_split_rows_interval;
+#[path = "decide_6_read_cost_interval.rs"]
+mod decide_6_read_cost_interval;

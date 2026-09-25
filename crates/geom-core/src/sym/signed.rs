@@ -435,16 +435,33 @@ fn strip_positive_content(p: &Poly, sess: &Session) -> Poly {
 /// the caller marks the form `gated` and the discharge is counted
 /// `sign_gated`.
 pub(super) fn decision(d: &Form, sess: &Session) -> Option<bool> {
+    #[cfg(feature = "sym-profile-testing")]
+    let (t0, mark) = (super::profile::clock(), super::profile::read_enclose_mark());
+    let out = read_decision(d, sess);
+    #[cfg(feature = "sym-profile-testing")]
+    if super::profile::installed() {
+        let class = instrument::classify(d, sess, out.is_some());
+        super::profile::read_done(t0, mark, d.digest(), &class);
+    }
+    out
+}
+
+fn read_decision(d: &Form, sess: &Session) -> Option<bool> {
     if d.poisoned {
         return None;
     }
     let enclose = |p: &Poly| {
-        enclose_deep(
-            &strip_positive_content(p, sess),
-            &sess.params,
-            &sess.atoms,
-            0,
-        )
+        #[cfg(feature = "sym-profile-testing")]
+        let t0 = super::profile::clock();
+        let stripped = strip_positive_content(p, sess);
+        #[cfg(feature = "sym-profile-testing")]
+        super::profile::read_strip(t0);
+        #[cfg(feature = "sym-profile-testing")]
+        let t0 = super::profile::clock();
+        let e = enclose_deep(&stripped, &sess.params, &sess.atoms, 0);
+        #[cfg(feature = "sym-profile-testing")]
+        super::profile::read_enclose(t0);
+        e
     };
     let den = enclose(&d.den)?;
     let den_positive = if manifest::positive(&Form::poly(d.den.clone()), sess) || den.lo() > 0.0 {
@@ -475,17 +492,142 @@ pub(super) fn order(
     sess: &Session,
     budget: SymBudget,
 ) -> Option<Form> {
-    let diff = a.add(&b.neg()?, budget)?;
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = super::profile::clock();
+    let diff = b.neg().and_then(|nb| a.add(&nb, budget));
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::read_order(t0, diff.as_ref().is_none_or(|d| d.poisoned));
+    let diff = diff?;
     if diff.poisoned {
         return None;
     }
-    let mut out = match (op, decision(&diff, sess)?) {
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::read_in_order(true);
+    let le = decision(&diff, sess);
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::read_in_order(false);
+    let mut out = match (op, le?) {
         (SymOp::Max, true) | (SymOp::Min, false) => b.clone(),
         (SymOp::Max, false) | (SymOp::Min, true) => a.clone(),
         _ => return None,
     };
     out.gated = true;
     Some(out)
+}
+
+/// The read's INSTRUMENT (`sym-profile-testing` only): why one call of
+/// [`decision`] declined, whether an id-walk over its two halves could
+/// have said so before enclosing, and how deep its enclosure reaches.
+/// It re-reads what the read read and decides nothing.
+#[cfg(feature = "sym-profile-testing")]
+mod instrument {
+    use super::super::profile::ReadClass;
+    use super::super::{AtomInfo, INDET_PI, IndetMap, Session, SymOp, manifest};
+    use super::{ENCLOSE_DEPTH, Form, Poly, enclose_deep, strip_positive_content};
+
+    /// The id-walk: `Ok(deepest atom level entered)` — 0 where `p`
+    /// carries parameters and π alone, `k + 1` where an atom met `k`
+    /// levels down is entered — when every id of `p` has a bracket at
+    /// the depth the enclosure would meet it; the first failure in the
+    /// enclosure's own order otherwise.
+    fn reach(
+        p: &Poly,
+        params: &IndetMap<(f64, f64)>,
+        atoms: &IndetMap<AtomInfo>,
+        depth: usize,
+    ) -> Result<usize, String> {
+        let mut deepest = 0;
+        for (m, _) in p.terms() {
+            for &(id, _) in m {
+                if id == INDET_PI || params.contains_key(&id) {
+                    continue;
+                }
+                let Some(atom) = atoms.get(&id) else {
+                    return Err(format!("unbracketed@{depth} opaque"));
+                };
+                let arity = match atom.op {
+                    SymOp::Sqrt | SymOp::Abs => 1,
+                    SymOp::Min | SymOp::Max => 2,
+                    other => return Err(format!("unbracketed@{depth} {other:?}")),
+                };
+                if depth >= ENCLOSE_DEPTH {
+                    return Err("depth exhausted".into());
+                }
+                deepest = deepest.max(depth + 1);
+                for arg in &atom.args[..arity] {
+                    let Some(arg) = arg.as_deref() else {
+                        return Err(format!("unbracketed@{depth} {:?} arity", atom.op));
+                    };
+                    if arg.poisoned {
+                        return Err(format!("poisoned argument@{depth}"));
+                    }
+                    deepest = deepest.max(reach(&arg.num, params, atoms, depth + 1)?);
+                    deepest = deepest.max(reach(&arg.den, params, atoms, depth + 1)?);
+                }
+            }
+        }
+        Ok(deepest)
+    }
+
+    pub(in super::super) fn classify(d: &Form, sess: &Session, settled: bool) -> ReadClass {
+        if d.poisoned {
+            return ReadClass {
+                cause: Some("poisoned form".into()),
+                prepass: false,
+                depth: None,
+                walk: std::time::Duration::ZERO,
+            };
+        }
+        let den = strip_positive_content(&d.den, sess);
+        let num = strip_positive_content(&d.num, sess);
+        let w0 = std::time::Instant::now();
+        let rd = reach(&den, &sess.params, &sess.atoms, 0);
+        let rn = reach(&num, &sess.params, &sess.atoms, 0);
+        let walk = w0.elapsed();
+        let prepass = rd.is_err() || rn.is_err();
+        let depth = match (&rd, &rn) {
+            (Ok(a), Ok(b)) => Some((*a).max(*b)),
+            _ => None,
+        };
+        if settled {
+            return ReadClass {
+                cause: None,
+                prepass,
+                depth,
+                walk,
+            };
+        }
+        // The read's own order: the denominator's half first, and its
+        // sign before the numerator is looked at.
+        let cause = match rd {
+            Err(c) => c,
+            Ok(_) => match enclose_deep(&den, &sess.params, &sess.atoms, 0) {
+                None => "poison (den)".into(),
+                Some(dv) => {
+                    let signed = manifest::positive(&Form::poly(d.den.clone()), sess)
+                        || dv.lo() > 0.0
+                        || dv.hi() < 0.0;
+                    if !signed {
+                        "straddle (den)".into()
+                    } else {
+                        match rn {
+                            Err(c) => c,
+                            Ok(_) => match enclose_deep(&num, &sess.params, &sess.atoms, 0) {
+                                None => "poison (num)".into(),
+                                Some(_) => "straddle (num)".into(),
+                            },
+                        }
+                    }
+                }
+            },
+        };
+        ReadClass {
+            cause: Some(cause),
+            prepass,
+            depth,
+            walk,
+        }
+    }
 }
 
 #[cfg(test)]
