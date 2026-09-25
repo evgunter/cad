@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-24
 priority: P1
 cost: H
-needs_ev: true
 ---
 
 
@@ -112,3 +111,11 @@ member pair: at most n(n−1)/2 two-member unions, with pairs whose
 closed boxes are disjoint skipped. The kernel's BVH prunes within each
 of those pair booleans, but `wire_union` has no member-level box
 pruning today, so that has to be added.
+
+## Ruled (2026-09-25)
+
+Ev ruled the pairwise contact rule on #3200. The `UndeclaredContact`
+arm of this row is built by `union-contact-is-judged-pairwise-before-the-fold`.
+The row stays open for the arms other programs own:
+- `DeclareResolve` belongs to GATHER's look-through row;
+- `RayExhausted` belongs to REACH's row.

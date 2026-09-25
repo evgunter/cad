@@ -310,7 +310,12 @@ the member-space declaration channel is DOCM-7 (PR 2028), re-sited at
 the members by Ev on EDIT's fourth `[ev]` PR (#2795, 2026-09-17;
 `a-declared-union-has-no-one-pass-authoring-path`), built by the unit
 that row names; the flat
-`Merged` mint, the look-through and its bound are DOCM-8 (PR 2073).*
+`Merged` mint, the look-through and its bound are DOCM-8 (PR 2073).
+The contact rule (every pairwise contact is judged before the fold and
+must be declared, a covered contact included; a declared contact is
+satisfied wherever the fold meets it) was ruled by Ev on EMIT's `[ev]`
+PR #3200 (2026-09-25), and is built by the unit
+`union-contact-is-judged-pairwise-before-the-fold`.*
 
 ## DM5 — A node's inputs are pairwise distinct
 
