@@ -55,6 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "band_subdivided_side_walls.rs"]
+mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]
 mod bool1_fix_pass;
 #[path = "bool1_r1_probes.rs"]
