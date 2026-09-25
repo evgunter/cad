@@ -2543,6 +2543,11 @@ impl fmt::Display for ValidationError {
                     RingContact::Vertex { .. } => "at a corner",
                     RingContact::VertexOnEdge { .. } => "where a corner meets an edge",
                     RingContact::Edge { .. } => "along an edge",
+                    RingContact::OuterVertexOnEdge { .. } => {
+                        "where an outline corner meets the hole's edge"
+                    }
+                    RingContact::Circles { .. } => "where the two circles cross or touch",
+                    RingContact::EdgesMeet { .. } => "where two edges meet",
                 }
             ),
             Self::RingContactEscalated { source, .. } => write!(
