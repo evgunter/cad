@@ -266,3 +266,29 @@ The rows' `blocked_on` fields are updated to match.
 **Unit 2's tier: dual.** It is the shared numeric representation of
 every profile-built edge, and it is expected to move bits in ulps. Its
 spec forbids any decision flip.
+
+## 2026-09-25 — unit 2 (#3254) stops on three moved decisions
+
+The implementer stopped, as the spec requires, on three results:
+- **Recut refusal becomes Ok.** At Interval / 1e-12 the recut now
+  decides. The likely cause is that `restrict` keeps the exact parent
+  carrier.
+- **r1_annulus certifies less.** Its certified fraction fell at
+  eps = 1e-6.
+- **`sym_thin_strip` loses Theorems.** Four decisions went from Theorem
+  to NumericZero, and the cause has not been attributed.
+
+Rulings, sent to the lane:
+1. **The recut flip** is accepted only on a demonstrated soundness
+   check: the restricted enclosure must contain the true sub-arc. The
+   escalation constant is re-pinned against a fixture that still
+   reaches it. If no fixture does, a row goes to the constant's owner.
+2. **The ceiling fall** is attributed by toggling each change. The
+   `abs` span against the sign-by-turn span is my call if that turns
+   out to be the trade. The pinned ceiling is never lowered.
+3. **The lost Theorems** are attributed against main alone first. They
+   are not re-baselined until attributed.
+4. **The `turned_span` conflict** with DECIDE's `props/sign-hull` is
+   announced on DECIDE's log.
+
+Review stays dual, dispatched once these settle.
