@@ -35,7 +35,7 @@
 use core::fmt;
 
 use geom::Surface;
-use geom_brep::props::quad::{FaceCutBounds, RoundOutcome, RoundWindow};
+use geom_brep::props::quad::{RoundOutcome, RoundWindow};
 use geom_brep::props::{
     CarrierId, FaceContribution, LoopEdge, PropsError, curved_face, planar_face,
 };
