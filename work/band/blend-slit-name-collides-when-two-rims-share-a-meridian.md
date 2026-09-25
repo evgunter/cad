@@ -196,3 +196,28 @@ requests and builds the same three band tori bit for bit. Only the
 single-request spelling is unavailable.
 
 Signed (WIRE orchestrator).
+
+## Closed by the band discriminator — and the slit was not the only collision
+
+**The fix is in the kernel record, not a topological read.** The surgery
+pushes each slit row inside the band's own phase, holding that band's
+chain, so `rec.slits` grows the slitting band's chain source edges (sorted,
+the set its `bands` row carries) and `RoleSeg::BandSlit` becomes
+`{ edge, band }`, the `BandTrim { edge, support }` shape. Reading the band
+back off the face incident to the slit edge would work today (the slit is
+double-traversed on its own band face) but would make the name a
+function of the body's adjacency after the carve rather than of the
+birth record, which is what the emitter's no-matching contract rules
+out.
+
+**The finding's premise was one row short.** With only the slit
+discriminated, the three-rim request refused one row later, at
+`Naming(Duplicate { … BandCross(… Meridian(Seam, … segment: 1 …)) })`:
+a band's MATE-side trimline crosses the same seam its slit comes off, so
+two bands ending at one meridian segment also mint two crossing
+vertices on one source meridian. `rec.meridian_splits` and
+`RoleSeg::BandCross` grow the same band set. `BandCut` (the surviving
+meridian piece) needs none: a band that splits a piece an earlier band
+recorded retires that row first (`surgery::split_fragment`, and the
+annulus arm's `retain` before its seam splits), so one meridian's
+surviving pieces are recorded once each.

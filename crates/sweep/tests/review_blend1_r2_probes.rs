@@ -364,7 +364,11 @@ fn a_seam_split_bands_birth_rows_key_uniquely() {
             .chain(rec.meridian_remnants.iter().map(|(k, _)| format!("e{k:?}")))
             .chain(rec.slits.iter().map(|(k, _, _)| format!("e{k:?}")))
             .chain(rec.rim_feet.iter().map(|(k, _)| format!("v{k:?}")))
-            .chain(rec.meridian_splits.iter().map(|(k, _, _)| format!("v{k:?}")))
+            .chain(
+                rec.meridian_splits
+                    .iter()
+                    .map(|(k, _, _)| format!("v{k:?}")),
+            )
             .collect();
         let n = minted.len();
         minted.sort();

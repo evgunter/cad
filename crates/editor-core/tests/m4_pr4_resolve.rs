@@ -944,7 +944,9 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         // A set.
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().any(under),
         // A source edge and the band that crossed or slit it.
-        RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => under(edge) || band.iter().any(under),
+        RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
+            under(edge) || band.iter().any(under)
+        }
         // ANOTHER document's id space: a local name and a part-local
         // name that print alike are different names, so a walk that
         // descended here would report occurrences that are not.
