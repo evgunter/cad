@@ -234,10 +234,7 @@ fn part_window(opener: &egui::Ui) -> egui::Window<'static> {
 /// the op's own refusal — read off the entry, not minted here.
 fn part_entry(ui: &mut egui::Ui, theme: &Theme, entry: &PartEntry) -> bool {
     let refusal = entry.refusal();
-    let mut pick = ui.add_enabled(refusal.is_none(), egui::Button::new(entry.file_name()));
-    if let Some(refusal) = refusal {
-        pick = pick.on_disabled_hover_text(refusal.to_string());
-    }
+    let picked = crate::app::refusable_button(ui, entry.file_name(), refusal.as_ref());
     ui.add(
         egui::Label::new(crate::app::toned(
             entry.id.to_string(),
@@ -246,7 +243,7 @@ fn part_entry(ui: &mut egui::Ui, theme: &Theme, entry: &PartEntry) -> bool {
         ))
         .truncate(),
     );
-    pick.clicked()
+    picked
 }
 
 /// **What the add-profile form calls the frame it offers to mint.**

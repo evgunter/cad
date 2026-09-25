@@ -44,7 +44,7 @@ pub use predicate::{
 pub use readable::Readable;
 pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Real, Witness, is_finite_length,
-    is_underflowed_length,
+    is_underflowed_length, is_zero_length,
 };
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
 pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRules};

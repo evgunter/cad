@@ -158,8 +158,10 @@ pub enum Surface<T: Real> {
     ///   `radial(u)·cos α − axis·sin α` for `v > 0` (tilted outward,
     ///   perpendicular to the generator) and its negation for `v < 0`.
     /// - `half_angle` strictly inside (0, π/2) by convention: 0
-    ///   degenerates to a line, π/2 to a plane — both rejected upstream
-    ///   (evaluated as-is here, like every conventional invariant).
+    ///   degenerates to a line, π/2 to a plane — evaluated as-is here,
+    ///   like every conventional invariant; the net at rest is
+    ///   `topo::validate`'s tier-3 check 1, which reads
+    ///   [`Surface::representability_margins`].
     Cone {
         /// The apex point (`v = 0`).
         apex: Point3<T>,
@@ -222,8 +224,10 @@ pub enum Surface<T: Real> {
     ///   refuses them at construction, but the other door that can mint a
     ///   torus (`step-import`'s `TOROIDAL_SURFACE`) reads both radii
     ///   verbatim — so the net covering BOTH is `topo::validate`'s tier-3
-    ///   check 1, which reports `DegenerateTorus` on any face carrying one
-    ///   at rest.
+    ///   check 1, which refuses any face carrying one at rest: a tube
+    ///   radius that is not positive as `UnrepresentableSurfaceDatum`
+    ///   (through [`Surface::representability_margins`]), and a horn or
+    ///   spindle (`R ≤ r`) as `DegenerateTorus`.
     /// - Chart normal: `radial(u)·cos v + axis·sin v` — out of the tube
     ///   — since `∂u × ∂v = (that)·(r·(R + r·cos v))` and
     ///   `R + r·cos v > 0` for a ring torus. No chart singularities on
@@ -303,6 +307,167 @@ impl<T: Real> Surface<T> {
             | Surface::Torus { .. } => None,
             Surface::Nurbs(n) => Some(n),
             Surface::Approx(a) => Some(a.fit()),
+        }
+    }
+
+    /// **The representability margins of this surface's datum
+    /// conventions** — each quantity a variant's docs require to be
+    /// strictly positive for its stored datum to describe a 2-manifold
+    /// at all, named by the datum it constrains and the END of the
+    /// convention it measures:
+    ///
+    /// - `Cylinder`, `Sphere`: `radius`, lower end (`radius > 0`);
+    /// - `Cone`: `half_angle` at both ends — `half_angle` (lower: at `0`
+    ///   the cone is a line) and `π/2 − half_angle` (upper: at `π/2` it
+    ///   is a plane);
+    /// - `Torus`: `minor_radius`, lower end (the `r > 0` half of the
+    ///   ring convention `R > r > 0`). The other half, `R > r`, relates
+    ///   two datums rather than bounding one, and is not a margin here;
+    /// - `Plane`, `Nurbs`, `Approx`: none — a plane's frame carries no
+    ///   scalar convention, and a spline's datum is its net
+    ///   ([`NurbsSurface::net_state`]).
+    ///
+    /// **This is the one place in code these bounds are computed for
+    /// the at-rest check**, and it is not the only place they are
+    /// stated: the variant docs above state them in prose,
+    /// `step-import`'s `CONICAL_SURFACE` arm restates the cone's as an
+    /// `f64` literal, and `geom_brep`'s section arms decide the same
+    /// datums (`pt_tube_guard`, `coc_cylinder_radius`) on the
+    /// tolerance band rather than against zero — a different posture
+    /// on the same fact, recorded where each is.
+    ///
+    /// **Nothing is decided here.** The quantities are computed at `T`
+    /// and returned; whether one is positive is the consumer's
+    /// question, asked with the consumer's posture. Evaluation does not
+    /// ask it — a value outside a convention evaluates as given, per
+    /// the crate docs' conventional-and-unchecked rule — and a margin
+    /// of a poisoned datum is poison. The variants are destructured
+    /// without `..`, so a field a variant gains is a compile error
+    /// here rather than a convention this door silently omits.
+    pub fn representability_margins(&self) -> [Option<RepresentabilityMargin<T>>; 2] {
+        let lower = |datum, margin| {
+            Some(RepresentabilityMargin {
+                datum,
+                end: ConventionEnd::Lower,
+                margin,
+            })
+        };
+        match self {
+            Surface::Cylinder {
+                origin: _,
+                axis: _,
+                radius,
+                u_ref: _,
+            }
+            | Surface::Sphere {
+                center: _,
+                radius,
+                axis: _,
+                u_ref: _,
+            } => [lower(SurfaceDatum::Radius, *radius), None],
+            Surface::Cone {
+                apex: _,
+                axis: _,
+                half_angle,
+                u_ref: _,
+            } => [
+                lower(SurfaceDatum::HalfAngle, *half_angle),
+                Some(RepresentabilityMargin {
+                    datum: SurfaceDatum::HalfAngle,
+                    end: ConventionEnd::Upper,
+                    margin: T::pi() * T::from_f64(0.5) - *half_angle,
+                }),
+            ],
+            Surface::Torus {
+                center: _,
+                axis: _,
+                major_radius: _,
+                minor_radius,
+                u_ref: _,
+            } => [lower(SurfaceDatum::MinorRadius, *minor_radius), None],
+            Surface::Plane {
+                origin: _,
+                normal: _,
+                u_ref: _,
+            }
+            | Surface::Nurbs(_)
+            | Surface::Approx(_) => [None, None],
+        }
+    }
+}
+
+/// One representability margin ([`Surface::representability_margins`]):
+/// the datum it bounds, which end of the datum's convention it
+/// measures, and the quantity — strictly positive exactly when the
+/// datum is inside that end.
+#[derive(Clone, Copy, Debug)]
+pub struct RepresentabilityMargin<T> {
+    /// The datum the margin bounds.
+    pub datum: SurfaceDatum,
+    /// Which end of the datum's convention the margin measures.
+    pub end: ConventionEnd,
+    /// The margin itself, at the surface's scalar.
+    pub margin: T,
+}
+
+/// Which end of a datum's convention a margin measures — the refusal's
+/// way of saying TOO SMALL (a radius of zero, a cone closed to a line)
+/// from TOO LARGE (a cone opened to a plane).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ConventionEnd {
+    /// The datum must lie above this end (`radius > 0`, `half_angle > 0`).
+    Lower,
+    /// The datum must lie below this end (`half_angle < π/2`).
+    Upper,
+}
+
+/// A stored datum of an analytic [`Surface`] — the FIELD, named apart
+/// from the variant that carries it (a cylinder's and a sphere's
+/// `radius` are both [`SurfaceDatum::Radius`]). A consumer naming a
+/// datum names the surface kind beside it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SurfaceDatum {
+    /// A plane's or cylinder's `origin`.
+    Origin,
+    /// A plane's `normal`.
+    Normal,
+    /// The seam direction `u_ref` of any analytic kind.
+    URef,
+    /// The `axis` of a cylinder, cone, sphere or torus.
+    Axis,
+    /// A cylinder's or sphere's `radius`.
+    Radius,
+    /// A cone's `apex`.
+    Apex,
+    /// A cone's `half_angle`.
+    HalfAngle,
+    /// A sphere's or torus's `center`.
+    Center,
+    /// A torus's `major_radius`.
+    MajorRadius,
+    /// A torus's `minor_radius`.
+    MinorRadius,
+}
+
+impl SurfaceDatum {
+    /// The datum's field name, as the variant spells it.
+    ///
+    /// **Hand-kept against the variants' field names**, and nothing
+    /// derives it: a renamed field leaves this string stale with
+    /// nothing red. The exhaustive match only guarantees every datum
+    /// HAS a name.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Origin => "origin",
+            Self::Normal => "normal",
+            Self::URef => "u_ref",
+            Self::Axis => "axis",
+            Self::Radius => "radius",
+            Self::Apex => "apex",
+            Self::HalfAngle => "half_angle",
+            Self::Center => "center",
+            Self::MajorRadius => "major_radius",
+            Self::MinorRadius => "minor_radius",
         }
     }
 }
@@ -619,6 +784,45 @@ mod tests {
 
     fn t_axis() -> Vec3<f64> {
         Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0)
+    }
+
+    /// The cone's two margins place each end of `(0, π/2)` exactly and
+    /// label it: the datum AT an end has a margin of zero at that end
+    /// (not a small positive one), and a datum ONE ULP inside either
+    /// end has two positive margins — so a bound written with any
+    /// tolerance, or as `π − α` or `α − π/2`, reds here.
+    #[test]
+    fn cone_margins_vanish_exactly_at_each_end_of_the_convention() {
+        let cone = |half_angle: f64| Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            half_angle,
+            u_ref: Vec3::unit_x(),
+        };
+        let margins = |a: f64| -> Vec<(ConventionEnd, f64)> {
+            cone(a)
+                .representability_margins()
+                .into_iter()
+                .flatten()
+                .map(|m| {
+                    assert_eq!(m.datum, SurfaceDatum::HalfAngle);
+                    (m.end, m.margin)
+                })
+                .collect()
+        };
+        use ConventionEnd::{Lower, Upper};
+        assert_eq!(margins(0.0), vec![(Lower, 0.0), (Upper, FRAC_PI_2)]);
+        assert_eq!(margins(FRAC_PI_2), vec![(Lower, FRAC_PI_2), (Upper, 0.0)]);
+        let just_above_zero = f64::from_bits(1);
+        let just_below_half_pi = f64::from_bits(FRAC_PI_2.to_bits() - 1);
+        for a in [just_above_zero, just_below_half_pi, FRAC_PI_6] {
+            assert!(
+                margins(a).iter().all(|(_, m)| *m > 0.0),
+                "{a:e} is inside the convention: {:?}",
+                margins(a)
+            );
+        }
+        assert!(margins(2.0)[1].1 < 0.0);
     }
 
     fn t_uref() -> Vec3<f64> {
