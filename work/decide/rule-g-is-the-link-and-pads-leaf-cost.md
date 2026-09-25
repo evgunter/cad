@@ -211,11 +211,23 @@ the reduction memo.
 answered from a per-session table:
 - The key is the input FORM (bucketed by digest, compared whole), the
   rules and the ring bound.
-- A form with no exponent past one is reduced directly and not kept.
+- An entry also keeps the ids its reduction looked up in the atom
+  table and missed, and answers only while they are all still absent.
+  That makes it exact by construction.
+- Input and output are held as `Arc`s shared with the walk memo, and
+  the table is capped at `REDUCTION_FORMS` entries (the pad keeps
+  2,161, or 4,217 with the ladder).
+- A form none of whose squared ids is in the table
+  (`algebra::squared`) is its own answer, and no entry is made.
 
 The argument that the memo answers what the reduction builds is on
-the function's doc. The unit row is
-`sym::tests::the_reduction_memo_answers_what_the_reduction_builds`.
+the function's doc. The rows are in `sym::tests`:
+`the_reduction_memo_answers_what_the_reduction_builds`,
+`a_bucket_mate_with_another_input_is_a_miss`,
+`every_ladder_attempt_is_its_own_key`, `the_gate_is_in_the_key` and
+`an_atom_minted_after_a_reduction_is_a_miss`. Peak memory, measured
+on the release leaf instrument before and after the fix pass: the pad
+877 → 885 MB and the link 176 → 185 MB.
 
 **Every decision unchanged, every form unchanged:**
 - **Receipts**, release, `m10_10_leaf_cost_with_and_without_the_algebra`
