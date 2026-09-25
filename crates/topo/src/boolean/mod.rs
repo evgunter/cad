@@ -71,6 +71,9 @@ pub mod carrier_eq;
 pub(crate) mod combine;
 pub mod contact_verify;
 mod contain;
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg(test)]
+pub(crate) use contain::ContainErrorKind;
 mod finish;
 pub(crate) mod insert;
 mod join;
@@ -1656,21 +1659,20 @@ impl core::fmt::Display for BooleanError {
                      face. Recourse: {COINCIDENCE_RECOURSE}"
                 )
             }
+            // The one reason true at every site, never the margin
+            // payload (`contact::CONTRADICTION_REASON`). The faces are
+            // the first and second operands' (the declaration's own
+            // order).
             Self::ContactContradicted {
-                declaration,
-                margin,
-                steer,
+                declaration, steer, ..
             } => write!(
                 f,
-                "the declared {} contact between faces {:?} and {:?} is \
-                 contradicted by {} — every definite verdict wins over every declaration; \
+                "the declared {} contact between the operands' faces is contradicted: {}. \
                  {}{}",
                 declaration.class.name(),
-                declaration.a,
-                declaration.b,
-                margin.payload(),
-                crate::contact::CONTACT_RECOURSE,
-                steer.map(|s| format!(" — {s}")).unwrap_or_default(),
+                crate::contact::CONTRADICTION_REASON,
+                crate::contact::CONTRADICTION_RECOURSE,
+                crate::contact::steer_clause(*steer),
             ),
             Self::DeclarationContradicted { diag } => write!(
                 f,

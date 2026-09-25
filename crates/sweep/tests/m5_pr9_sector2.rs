@@ -226,8 +226,19 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
         .find(|e| matches!(e, topo::ValidationError::TangentNotIntrinsic { .. }))
         .map(|e| format!("{e}"))
         .unwrap();
-    assert!(msg.contains("jet-determinate"), "{msg}");
-    assert!(msg.contains("G2"), "{msg}");
+    assert!(
+        msg.starts_with(
+            "an edge where two faces meet tangentially is stored as a sketch curve, though \
+             their surfaces determine it."
+        ),
+        "{msg}"
+    );
+    assert!(
+        msg.ends_with(
+            "There is no way through: this is a kernel defect or a damaged file; report it"
+        ),
+        "{msg}"
+    );
 }
 
 #[test]
