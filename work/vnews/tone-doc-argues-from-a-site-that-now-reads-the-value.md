@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-19
 priority: P4
 cost: E
-rides_with: frame-rs-says-the-per-subject-line-is-a-question-for-ev
 ---
 
 
@@ -132,3 +131,21 @@ says states it, which is a fact about this crate's code and not a
 design choice. The general finding lives once, in
 `work/vnews/rank-one-discards-the-frames-other-news`'s adjudication
 section.
+
+## The two `frame.rs` members landed, 2026-09-24 (`vnews/frame-rs-prose-pass`)
+
+- **`Tone`'s header** no longer says the Features pane argues the rule
+  or that no value stated it. It says the feature tree's rows follow
+  the same rule, stated by `tree::RowStatus::tone` — a poisoned row is
+  `Tone::Advisory` — that both families state a tone as a value, and
+  that `app::toned` is the one place a tone becomes a colour.
+- **`product_badge`'s doc** keeps its argument and changes its
+  attribution: `RowStatus::tone` makes a poisoned row `Advisory`, the
+  Features pane draws that value, and a badge shouting about the same
+  poisoning would have the chrome say both things at once.
+
+The carrier those two rode on is closed, so `rides_with:` is removed:
+**this row stays open with its `theme.rs` member alone**
+(`Theme::unresolved`'s doc re-deriving the classification), which the
+adjudication above leaves on the territory question `theme.rs` is
+waiting on. The `README.md` member was never this row's.

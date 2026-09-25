@@ -87,3 +87,73 @@ Same shape as `work/vnews/ratified-is-asserted-across-viewer-src-and-some-was-ne
 — a claim in prose that no mechanism holds true — and the two are worth
 reading together, but they are different populations and neither
 subsumes the other.
+
+## Closed 2026-09-24 (`vnews/frame-rs-prose-pass`)
+
+Every number the row lists was re-read against the tree, and each one
+was dropped rather than updated; where a count was worth keeping, the
+thing that holds it is named instead. Line numbers below are the merge
+base's and will rot; the symbols will not.
+
+**The row's five, plus one its table missed.**
+
+| site | what it said | what it says now |
+|---|---|---|
+| module header, *"Held state"* paragraph | *"the sweep that sorted eighteen writers"* | what sorting the line's writers needs; no number |
+| module header, *"The line: news, ranked"* | *"Seventeen of the eighteen writers"* | *every writer but one*, with the derivation (a write to `ViewerApp`'s `notices`, which `ViewerBehavior` lends the panes) and why no row guards it: a grep finds the population and no type bounds it |
+| same, next paragraph | *"The eighteenth"* | *"The exception"* |
+| `SeamSubject`'s doc | *"its twelve sites"* — **fourteen** today (`pane/create.rs` ten, `app.rs` two, `pane/profile.rs` two) | *"its call sites"* |
+| `tool_news`'s own doc — **not in the table** | *"its twelve sites"*, *"all twelve"* twice | the derivation (every `frame::tool_news` call under `crates/viewer/src`) and why it is unguarded, at the site |
+| `dialog_dir`'s doc | *"the three places it could"* | *"the candidates its signature takes"*, which is what holds the count |
+
+**The table's instrument could not see `tool_news`'s own doc**: it
+listed the one `twelve` it met, and the same number sat three more
+times in the function it counts. A population of counts is found by
+grepping for number words, not by following the one that went stale.
+
+**The sweep, and what it found beyond the row.** A grep over every
+`//` line of `frame.rs` for the spelled numbers one to twenty and for
+ordinals, each hit read for *does this count a population the file does
+not derive*. Four more members, one of them already false:
+
+- **`Withdrawal`'s doc, *"three of the four say instance
+  N"*** (`AdmissionFault`'s arms) — **false**: two say *instance N*
+  and two, `NoSuchNode` and `NotAnInstance`, say *node N*. Now names
+  the arms.
+- the `Withdrawal` `Display` comment's *"four sentences … a fifth"* —
+  number dropped; it names the `Display` match as what makes a new arm
+  an edit there.
+- `SeamSubject`'s *"the scene, the δ field and the pick index are three
+  seams"* — contradicted `SCENE_SEAM`'s own doc, which says the δ field
+  IS the scene seam. Now names the two constants.
+- `startup_notices`'s *"Three of `prefs::Notice`'s four arms"* and
+  *"two of those four arms"* — now names the arms (`WrongType`,
+  `UnknownTheme`, `UnknownPreset`; `UnknownKey`, `WrongType`), which
+  stay true when an arm is added.
+
+**Not members, and why:** *"at four call sites"* (module header),
+*"four badges each picked"* and *"The family was four members"*
+(`Badge`'s docs) are past-tense counts of a history and cannot go
+stale; *"the three display seams"* (module header), *"four more on
+it"* (`joined_subject`), *"The four this does not word"*
+(`outcome_notices`, destructured, so a new field is E0027) are each
+followed by the named list that derives them; *"Three of the five
+subjects"* counts this file's own enum; *"exactly three non-`Ok`
+states"* (`product_badge`) names its guard,
+`the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`.
+
+**What the grep could not match, and the second pass shaped at it:**
+digits, and count words outside one-to-twenty (*dozen*, *pair*,
+*sole*). A second grep over comment lines for digits and those words
+found one more, **`// # The subject-assigning doors`' *"The dozen
+writers that assign `ViewerApp::status` directly"*** — stale twice
+over, since no writer assigns the field directly any more. The count
+and the stale verb are gone; the rest of that paragraph is not this
+row's. What neither pass can see is a count spelled as a phrase
+(*"every one of the …"*) with no number word at all; that is a read,
+not a grep.
+
+**Filed across the fence:** `crates/viewer/README.md`'s mirror of the
+eighteen/seventeen pair. This row said it *"is filed there"*; no VDOC
+row carried it, so it is filed now as
+`work/vdoc/viewer-readme-counts-the-status-line-writers-by-hand`.

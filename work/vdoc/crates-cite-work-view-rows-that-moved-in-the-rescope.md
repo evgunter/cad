@@ -29,7 +29,6 @@ resolve; 26 do not.** VIEW's re-scope of 2026-09-17 moved rows to `vnews`, `vgeo
 |---|---|---|
 | `crates/viewer/src/session/op.rs:1083` | `environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere` | `work/vnews/` |
 | `crates/viewer/tests/gesture_table.rs:908` | the same | `work/vnews/` |
-| `crates/viewer/src/frame.rs:657`, `:704` | `one-line-one-subject-loses-a-mixed-frames-expiry` | `work/vnews/` |
 | `crates/viewer/src/app.rs:1986` | `projection-fault-has-no-sweeper` | `work/vseam/` |
 | `crates/viewer/src/frame.rs:1895` | the same | `work/vseam/` |
 | `crates/viewer/src/pane/viewport.rs:390`, `:597` | the same | `work/vseam/` |
@@ -96,3 +95,21 @@ rows citing moved CODE); this is code citing moved TRACKER rows.
 `renamed-module-leaves-citations-in-two-other-programs` is the same
 direction as that one at a smaller scale. Neither ranges over `work/`
 paths written inside `crates/`.
+
+## Crossing from VNEWS, 2026-09-24 (`vnews/frame-rs-prose-pass`)
+
+VNEWS's `frame.rs` prose pass rewrote the sentence at `frame.rs:657`
+(`frame_status`'s doc) under
+`work/vnews/frame-rs-says-the-per-subject-line-is-a-question-for-ev`,
+whose own text gave it the choice of repairing the path or leaving it.
+It repaired it, at both `frame.rs` sites of
+`one-line-one-subject-loses-a-mixed-frames-expiry` (`frame_status`'s
+and `joined_subject`'s docs), and struck that line from the table
+above, so this row's pass does not repoint them a second time.
+
+**One more, since this row's sweep.** `startup-notices-need-holding-to-badge`,
+listed above as still resolving in `work/view/`, has since moved to
+`work/vseam/`. Its `frame.rs` citation (the module header's *"The line:
+news, ranked"* section) was repointed by the same pass; its
+`crates/viewer/README.md` citation (the status-line section, ~`:859`)
+is this row's and is not fixed.

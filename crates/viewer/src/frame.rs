@@ -1254,7 +1254,7 @@ pub fn cursor_status(step: IdStep) -> StatusUpdate {
 /// — a poisoned row is [`Tone::Advisory`], deliberately QUIET, so the
 /// eye goes to the failed row a reader can do something about. Both
 /// families state a tone as a value and neither picks a colour:
-/// `app::toned` is the one place a tone becomes one.
+/// `app::toned` is the one place a tone becomes a colour.
 ///
 /// **The colour is REDUNDANT either way**, which is
 /// [`crate::theme::Theme::unresolved`]'s own stated contract: every
