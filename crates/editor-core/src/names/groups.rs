@@ -248,6 +248,13 @@ impl FragmentGroups {
         })
     }
 
+    /// Whether this is a union's record, read through its fold
+    /// ([`FragmentGroups::folded`]): its names are in the union's
+    /// member space, where a seam's sides are in name order.
+    pub(crate) fn is_folded(&self) -> bool {
+        matches!(self.0, Read::Folded { .. })
+    }
+
     /// Each group's count under `base`, one per group (two tied parents
     /// give two), empty when no group is. `None` when no one parent's
     /// count is on record: a group tied parents share, a union's base
