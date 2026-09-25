@@ -1622,13 +1622,7 @@ mod tests {
             display: &display,
         };
         assert_eq!(
-            cursor_news(
-                &fixture.index,
-                asked,
-                fixture.answer,
-                log.outstanding(),
-                true
-            ),
+            cursor_news(&fixture.index, asked, answer, log.outstanding(), true),
             None,
             "the pick path said this refusal; the comparison adds nothing"
         );
@@ -1657,13 +1651,7 @@ mod tests {
             .faces_under_cursor(foreign, &moved, fixture.pane, at, &display)
             .expect_err("the moved ray is refused");
         assert_eq!(
-            cursor_news(
-                &fixture.index,
-                unasked,
-                fixture.answer,
-                log.outstanding(),
-                false
-            ),
+            cursor_news(&fixture.index, unasked, answer, log.outstanding(), false),
             Some(frame::pick_refusal(&refusal)),
             "the comparison says the refusal in the pick path's own words"
         );
