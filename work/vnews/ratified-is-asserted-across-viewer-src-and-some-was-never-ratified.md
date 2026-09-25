@@ -8,6 +8,11 @@ priority: P2
 cost: D
 ---
 
+**Read §The census (2026-09-24) first.** It is the population of
+record, and it supersedes three things in the sections above it: the
+35-line count, the claim that `platform.rs` and `theme.rs` are
+unclaimed, and the FALSE reading of `Standing`'s GQ7 claim, which the
+census finds PARTIAL.
 
 Filed by VNEWS's frame.rs-cluster adjudication (2026-09-20), which
 found one instance, proved it, and was told — correctly — that it had
@@ -164,7 +169,11 @@ means the line matches the rule but asserts no ratification.
   it Ev's.** PR #2462 (`e9824abf3`, 2026-09-12, not an `[ev]` PR)
   moved agent-written README paragraphs into that file. The pick-index,
   fit-seam, `app`-feature and wasm paragraphs, and *"GUI-3's §5
-  ratification"*, arrived that way. So every verdict below traces its
+  ratification"*, arrived that way. Ev did approve the move itself: the
+  PR body opens *"Ev approved this shape in chat (2026-09-12)"*. What
+  he approved was where to cut one file into two. No paragraph was
+  rewritten, and approving the cut does not ratify each paragraph that
+  crossed it. So every verdict below traces its
   clause to the commit that first wrote it, never to the file it sits
   in now. Filed as `work/issues/gui-design-holds-agent-text-that-reads-as-ratified`.
 - The G-clause sources: G1, G2 and the three micro-decisions (now G4)
@@ -203,7 +212,7 @@ found none).
 | `blend.rs` `FREEZE_NOTE` (:74) | ratified #217 semantics | TRUE | the same |
 | `frame.rs` `acts` (:571) | the expression-driven affordance is ratified | TRUE | G4, `5267a9193`. The row's worked example (at `:565` when filed) holds |
 | `frame.rs` `Affordance::Opens` (:1271) | *"the ratified argument the checks badge carries"* | **FALSE** | `checks badge` occurs 0 times in `GUI-DESIGN.md` and `docs/DESIGN.md`; `findings window\|opens a window\|window listing` occurs 0 times in `docs/`, `memories/`, `work/`; the only backing is `crates/viewer/README.md:944-946`. Origin `bce8486e9` (2026-09-01, *"GUI fixes: … a findings window"*) and `4db112ada`. No log entry records a ruling (checked the GUI log at `a1425f92f^:work/gui/log.md`) |
-| `frame.rs` `creation_offer` (:2177) | *"The ratified pattern is refuse-then-offer"* | **PARTIAL** | Refuse-with-an-offer is ratified for ONE case: G4's drag, where the offer is to edit the expression. The parse door's unknown-name refusal offering to CREATE a parameter is `02befd6a9` (agent, 2026-08-28). The GUI log calls it *"the ratified refuse-then-offer pattern"* (PR #1129 entry, *"Evan-requested"*), which is an agent's word for a generalisation. `refuse-then-offer` occurs 0 times in any design doc. The row's *"FALSE so far"* is corrected to PARTIAL |
+| `frame.rs` `creation_offer` (:2177) | *"The ratified pattern is refuse-then-offer"* | **PARTIAL** | Refuse-with-an-offer is ratified for ONE case: G4's drag, where the offer is to edit the expression. The parse door's unknown-name refusal offering to CREATE a parameter is `02befd6a9` (agent, 2026-08-28). The GUI log calls it *"the ratified refuse-then-offer pattern"* (PR #1129 entry, *"Ev-requested"*), which is an agent's word for a generalisation. `refuse-then-offer` occurs 0 times in any design doc. The row's *"FALSE so far"* is corrected to PARTIAL |
 | `pane/profile.rs` `tests::drawing_a_locked_split_circle_above_the_cap_leaves_it_alone` (:502) | D4's micron-to-kilometre coverage | TRUE | D4 ¶1, `9f0bb4d91` |
 | the same test (:527) | K = 10 is ratified | TRUE | `docs/DESIGN.md` *"K = 10 is the permanent ratified default (#89 CLOSED)"*, `184f0f813` *"Evan's #169 rulings: #89 CLOSED (K=10 permanent"* |
 | `session/refuse.rs` `Refusal::DrivenByExpression` (:146) | a direct numeric edit is refused, citing the ratified affordance | **PARTIAL** | G4 decides the drag. A typed `set_slot` is not a drag, and the G4 clause does not reach it |
@@ -215,7 +224,7 @@ found none).
 | `app.rs` `ViewerApp::perform_batch` (:1099) | dragging shows the ratified affordance | TRUE | G4: a drag |
 | `tree.rs` module docs (:5) | GQ2's ratified codomain | TRUE | GQ2, `57d762ef1` |
 | `tree.rs` module docs (:6) | the ratified error rule | TRUE | micro-decision 2 (G4), `5267a9193`: *"failures are typed values … never exceptions or strings"* |
-| `platform.rs` module docs (:16) | `no-ambient-env.sh` *"ratifies"* that the environment reads have ONE home | **FALSE** | The viewer's allowlist entry was agent-added in PR #1125, *"flagged for Evan's retroactive glance"* (GUI log, post-close maintenance, 2026-08-28). I found no follow-up there or in the VIEW log. `scripts/gates/README.md` (Ratified, PR 2067) never mentions the viewer entry |
+| `platform.rs` module docs (:16) | `no-ambient-env.sh` *"ratifies"* that the environment reads have ONE home | **FALSE** | The viewer's allowlist entry was agent-added in PR #1125, *"flagged for Ev's retroactive glance"* (GUI log, post-close maintenance, 2026-08-28). I found no follow-up there or in the VIEW log. `scripts/gates/README.md` (Ratified, PR 2067) never mentions the viewer entry |
 | `platform.rs` `prefs_path` (:170) | *"CONTRACT-RATIFIED holds vacuously"* | OUT | This is row 1 of the gate's four-row test (`no-ambient-env.sh:25`). The sentence says the row holds vacuously and claims no ratification |
 | `platform.rs` `running_under_wsl` (:239) | the gate's allowlist entry ratifies one home | **FALSE** | as `:16` |
 | `platform.rs` `launch_dir` (:258) | CONTRACT-RATIFIED holds vacuously | OUT | as `:170` |
@@ -227,7 +236,7 @@ found none).
 | `session/select.rs` `Standing` (:268) | *"the ratified resolution-failure semantics"* | TRUE | `crates/editor-core/src/names/README.md` N5 *"Typed resolution failure"*; `docs/SELECT-DESIGN.md` §4 (Ev-ratified, `d3f4517f1`); GUI-PLAN GUI-2: *"Tools survive a selected ref vanishing (the ratified resolution-failure semantics)"* |
 | `bounds.rs` module docs (:69) | the ratified terminal sliver | TRUE | `docs/ERROR-DESIGN.md`: *"Terminal sliver … → refuse, never refine"* (`28b174f6e`; ratified PR #110) |
 | `camera.rs` `Camera::ray_through` (:837) | the ratified interval-square rule | TRUE | `scripts/gates/README.md` (Ratified, PR 2067, `4b3ed4478`) keeps `interval-square-allowlist.sh` as a grep. The rule's earlier home was a memory, retired by `4ffcde545` with *"the CI step is now the rule's home"* |
-| `theme.rs` module docs (:13) | colour precedence is *"ratified in `crates/viewer/README.md`"* | **PARTIAL** | The precedence IS ratified: G5, `df8cc2787`, *"(Evan, 2026-08-30)"*. The home cited is wrong: the README is the implementation record |
+| `theme.rs` module docs (:13) | colour precedence is *"ratified in `crates/viewer/README.md`"* | **PARTIAL** | The precedence IS ratified: G5, `df8cc2787`, *"(Evan, 2026-08-30)"*. The home cited is wrong: the README is the implementation record. The pointer was right when written: `df8cc2787` cited `docs/GUI-DESIGN.md`, and `585b3422f` repointed it to the README when the design moved there. It went stale when PR #2462 moved G5 back out to `GUI-DESIGN.md` and left the pointer behind, a second casualty of that move |
 | `display.rs` module docs (:14) | free-move is never persisted — *"G3's ratified boundary"* | **PARTIAL** | G3 said so (`d972a1b36`). DI5 (`crates/editor-core/IDENTITY.md`, ratified in chat 2026-09-04, `087779036`) reverses it: *"The viewer may record a free-moved placement persistently"*. The tree still matches G3 because DI5 is unbuilt (`work/vseam/no-persistent-setplacement-session-op`), but the sentence presents a reversed decision as the standing one |
 | `display.rs` `AdmissionFault::NoSuchNode` (:167) | `Standing`'s *"ratified rule"* is that the vanished reference is rendered *"while the affordances that need a live entity switch off"* | **PARTIAL** | Survival is ratified (GUI-PLAN GUI-2 and SELECT-DESIGN §4, as at `select.rs:268`). The switch-off clause, which is the half this sentence rests on, is in no design doc. Its only statement is `Standing`'s own doc |
 | `display.rs` `DisplayState::free_move` (:734) | *"the ratified change (DI5)"* | TRUE | DI5, `087779036` |
@@ -253,10 +262,12 @@ The row names the blind spot: *"settled"*, *"the GUI plan's rulings"*,
   `session/probe.rs:167`, `widgets.rs:1533`, `gpu.rs:68,1544` and
   `drafts.rs:1103`. `frame.rs:163` and `op.rs:321` do name design
   questions, but tracked ones, and neither claims a ratification.
-- **Sweep 2b, clause ids used as authority:** a clause id (`G[1-5]`,
-  `GQ[1-7]`, `D[1-9]`, `DI`, `DM`, `A`, `N`, `E`, `L`, `S`, `V`, `W`,
-  `DS` plus a number) cited in a comment. It gives 118 lines. I did
-  **not** verdict them. I spot-checked four: *"G3's honesty
+- **Sweep 2b, clause ids used as authority:**
+  `grep -rnI -E "\b(G[1-5]|GQ[1-7]|D[1-9]|DI[1-5]|DM[1-8]|A[1-9][0-9]?|N[1-7]|W[1-9]|E[1-9][0-9]?|L[1-8]|S[1-4]|V[1-8]|DS[1-9])('s)?\b" --include=*.rs crates/viewer/src | grep -E '^[^:]+:[0-9]+:\s*//' | grep -vi ratif`.
+  That gives 118 lines. The `E[1-9][0-9]?` arm is deliberate: it
+  matches ERROR-DESIGN's E1–E12 but not rustc error codes. A looser
+  `[A-Z]+[0-9]+` form gives 133, and the extra 15 are all `E0…` rustc
+  codes. I did **not** verdict the 118. I spot-checked four: *"G3's honesty
   requirement"* matches `d972a1b36` (*"an honesty requirement, not a
   solver one"*); A11 exists in `crates/editor-core/ASSEMBLY.md`;
   `pickindex.rs` `PickKinds`'s *"GQ7's open clause"* is below; and
@@ -285,9 +296,9 @@ The row names the blind spot: *"settled"*, *"the GUI plan's rulings"*,
 | `matetool.rs` `MateToolState` (:364) | the two sequential picks of the ruling | TRUE | the same |
 | `app.rs` `ViewerApp::ui` body (:1916) | the two-sequential-picks ruling | TRUE | the same |
 | `props.rs` module docs (:10) | v1's ruling was canonical units | TRUE | GUI-PLAN *"Units: canonical meters/radians"*, marked superseded at Ev's request by `2cd5a267d`; the doc says what changed from it |
-| `matetool.rs` module docs (:60) | tools survive a vanished pick, *"GQ7's recorded constraint, the GUI-2 semantics"* | TRUE | GQ7 as Ev wrote it (`5267a9193`): *"tools must survive the referenced entity vanishing under them"*. That was an open question, then ratified as GUI-PLAN GUI-2 |
+| `matetool.rs` module docs (:60) | tools survive a vanished pick, *"GQ7's recorded constraint, the GUI-2 semantics"* | TRUE | GQ7 recorded *"tools must survive the referenced entity vanishing under them"* (`5267a9193`), but as an OPEN question: that file puts GQ7 under `## Open questions`. The survival half was ratified later, by `docs/SELECT-DESIGN.md` §4 (`d3f4517f1`, 2026-08-09) and GUI-PLAN GUI-2 (2026-08-27). The comment's *"the GUI-2 semantics"* names the ratification |
 | `pickindex.rs` `PickKinds` (:164) | filter presentation is GQ7's open clause | TRUE | `docs/SELECT-DESIGN.md` §4 keeps it *"still deferred to sketcher/tree design time"* |
-| `session/select.rs` `Standing` (:274) | vanished-is-a-state and switch-off is *"the whole of GQ7's recorded constraint (tools survive the referenced entity vanishing)"* | **PARTIAL** | The parenthesis is GQ7's own text (`5267a9193`) and it is ratified through GUI-2. The switch-off clause is in no design doc. **This corrects the orchestrator's retraction** at `work/vnews/plan.md` §Dispatch rules, which found the sentence absent from today's GQ7 and concluded the constraint was never GQ7's. GQ7 recorded the survival half: `4eda8abec` (2026-08-28) re-homed it to SELECT-DESIGN §4. What was never recorded is the switch-off half |
+| `session/select.rs` `Standing` (:274) | vanished-is-a-state and switch-off is *"the whole of GQ7's recorded constraint (tools survive the referenced entity vanishing)"* | **PARTIAL** | The parenthesis is GQ7's own text (`5267a9193`), recorded there as an open question. The survival half was ratified by `docs/SELECT-DESIGN.md` §4 (`d3f4517f1`, 2026-08-09, which decided the re-homing) and GUI-PLAN GUI-2 (2026-08-27). `4eda8abec` (2026-08-28) only deleted the clause from GUI-DESIGN. The switch-off clause is in no design doc. This agrees with the orchestrator's 2026-09-20 retraction, which said the switch-off clause is not GQ7's ratified constraint. The census adds only that the survival half is ratified, so the sentence is PARTIAL rather than FALSE |
 | `session/probe.rs` `evaluate_with` (:269) | *"the seam's ruled cancel-and-restart policy"* | **PARTIAL** | GUI-PLAN rules *"busy indicator + the shipped `CancelToken`"*. RESTART-on-a-new-edit is the implementation (`a9a660b83`), and `cancel-and-restart` occurs in no ruling |
 | `platform.rs` `prefs_path` (:162) | *"the ruling in `scripts/gates/no-ambient-env.sh`"* | **FALSE** | as `platform.rs:16` |
 | `prefs.rs` `FileStore::new` (:532) | *"the one-door ruling"* in that gate | **FALSE** | the same |
@@ -332,7 +343,7 @@ The claims:
 | `the-range-button-…:43` | quotes `refuse.rs:478` | **PARTIAL** | inherits that verdict |
 | `the-range-button-…:52` | the row shows *"the ratified affordance"* | **PARTIAL** | as `:2` |
 | `log.md:150` | *"a third spelling of the ratified affordance"* | **PARTIAL** | as `the-range-button-…` |
-| `log.md:329` | *"`Standing`'s second clause is GQ7's ratified constraint"* | **FALSE** | the switch-off clause (see `select.rs:274`). The retraction lives only at `plan.md` §Dispatch rules; the log entry is uncorrected |
+| `log.md:329` | *"`Standing`'s second clause is GQ7's ratified constraint"* | **FALSE** | the switch-off clause (see `select.rs:274`). The orchestrator's 2026-09-20 retraction corrected the plan, not this log entry |
 | `program.md:12` (`keep_out`) | *"the GUI-3 section 5 seam and GQ7 are ratified design in crates/viewer/GUI-DESIGN.md and a revision is an ev PR"* | **PARTIAL** | Ratified: GQ7's single-select (GUI-PLAN) and GQ6's toolkit row (`dc5f15444`, 2026-08-16). Not ratified: GQ7's pick-priority text, which is agent-recorded (`f3411bbf1`, *"Nothing here widens GQ7"*), and *"the §5 seam-friction re-take is GO"*, which is an orchestrator's reading at GUI-3's merge. SELECT-DESIGN §4 (ratified) leaves the slimmed GQ7 *"still deferred"* |
 | `plan.md:204` | `frame.rs`'s checks-badge line is unratified | TRUE | as `frame.rs:1271` (the line number has since moved) |
 | `plan.md:205` | *"refuse-then-offer"* is unratified | **PARTIAL** | as `frame.rs:2177`: G4's drag half is ratified |
@@ -360,7 +371,7 @@ the row's four refuse-then-offer sites).
 - **FALSE**: `frame_policy.rs:1162`, *"The checks badge is a BUTTON,
   and that is ratified"* (as `frame.rs:1271`).
 
-`grep -niI ratif crates/viewer/README.md` gives 16 lines, and they are
+`grep -niI ratif crates/viewer/README.md` gives 15 lines, and they are
 **not verdicted here**. Most use *"ratified list/kind"* as the README
 gate's own vocabulary, which is a different sense of the word. They
 are handed to VDOC with the rule.
@@ -369,13 +380,17 @@ are handed to VDOC with the rule.
 
 **Rule 1**, for the row's population, counts lines: every `ratif*` in
 a `.rs` file under `crates/viewer/src`. Re-run at this merge base it
-gives the first table. That is more lines than the filing's 35 in 17
-files: `readout.rs` and `pane/profile.rs` gained members since, and
-`frame.rs`'s line numbers moved. The difference is the tree, not the
+gives the first table. The filing counted 35 lines in 17 files. The 4
+extra lines: `readout.rs` gained 1, `pane/profile.rs` gained 2, and
+`widgets.rs:292` was added by `8e904637c` (2026-09-21). `frame.rs`'s
+line numbers also moved. The difference is the tree, not the
 rule. Rule 1 cannot see a ratification asserted without the word.
 **Rules 2a and 2b** were run at that gap. Every hit of 2a has a
 disposition. 2b is counted, spot-checked and **not verdicted**: 118
-clause-id citations remain the unexercised part of this census. They
+clause-id citations remain the unexercised part of this census. The
+review sampled 20 of them and got about 15 TRUE, 2 PARTIAL, 1 FALSE
+and 2 OUT. On that rate, roughly 12 to 25 of the 118 would come back
+FALSE or PARTIAL. That is an estimate, not a verdict. They
 are a class of their own, *"X's rule"*, and the rule for re-deriving
 them is stated above. A citation that names neither a clause nor
 Ev — *"by design"*, *"as decided"* — is matched by neither sweep. That
@@ -416,7 +431,7 @@ filed one row per owning slate:
   holding `widgets.rs:292` and `props.rs:77` (both PARTIAL).
 - **VDOC**: `work/vdoc/viewer-tests-assert-ratifications-that-are-not`,
   holding `frame_policy.rs:1162` (FALSE), `story_parametric.rs:11,391`
-  and `panel_edits.rs:423` (PARTIAL), and the README's 16 unverdicted
+  and `panel_edits.rs:423` (PARTIAL), and the README's 15 unverdicted
   lines.
 - **GUARD**: `work/guard/gates-readme-cites-a-deleted-memory`, a
   side-finding. `scripts/gates/README.md:111` cites

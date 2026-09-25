@@ -43,8 +43,10 @@ holds the searches. This row is the list of members on VSEAM's ground.
   vanished-is-a-state plus *"the affordances that need a live entity
   switch off"* the whole of *"GQ7's recorded constraint (tools survive
   the referenced entity vanishing)"*. The parenthesis is GQ7's own
-  text as first written (`5267a9193`), ratified through the GUI plan's
-  GUI-2. The switch-off clause is in no design document.
+  text as first written (`5267a9193`), where it was an open question.
+  The survival half was ratified later by `docs/SELECT-DESIGN.md` §4
+  (`d3f4517f1`, 2026-08-09) and the GUI plan's GUI-2 (2026-08-27). The
+  switch-off clause is in no design document.
 - `crates/viewer/src/session/probe.rs` `evaluate_with` (:269) cites
   *"the seam's ruled cancel-and-restart policy"*. The GUI plan's ruling
   is *"busy indicator + the shipped `CancelToken`"*. Restart is the
