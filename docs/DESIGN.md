@@ -378,7 +378,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   carrier, Δθ agrees with them mod 2π), and those consistency
   conditions are verified at validate, never trusted. Bulge
   (b = tan(Δθ/4), DXF-compatible) is one of the path algebra's arc
-  modes, lowered into this form, and a derived view — not the storage. Winding is invisible to users (roles derive from
+  modes, lowered into this form once, at the algebra — not the
+  storage. Winding is invisible to users (roles derive from
   containment). Downstream re-inspection of arc geometry uses the
   stored carrier data, never endpoint atan2.
 - **Declared-tangency discipline**: profiles refuse undeclared

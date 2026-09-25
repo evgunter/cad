@@ -168,3 +168,11 @@ to be tested on tables the algebra refuses, but have it take the
 canonical segments. `ProfileVertex` as a bulge record retires, and the
 fixtures migrate through a helper that calls the algebra's own `Bulge`
 lowering, so the only bulge→carrier converter left is the algebra's.
+Ev asked what bulge residue would be left in the kernel under the q4
+plan. Answer on #3218: one fixture constructor stays in `profile`
+behind the existing `raw_door!` test gate, taking canonical segments
+and containing no bulge. The bulge helper moves to test-support and
+forwards to the algebra. `bulge_from_center`/`_via` retire from
+`pncad`, with an announcement to LIB first. The bulge accessor is
+deleted in the unit that removes its last reader. `arc_to(Bulge)` is
+the only survivor. The doc texts no longer promise a "derived view".
