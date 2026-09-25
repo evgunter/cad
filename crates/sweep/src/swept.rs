@@ -48,7 +48,7 @@ use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, SketchSegment};
 use geom_core::sym::SymRegistration;
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec2, Vec3,
+    Affine3, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };
 use topo::{Body, EulerOpError, FaceKey, SurfaceKey};
 
@@ -112,6 +112,8 @@ pub(crate) enum SweptKind<T: Real> {
     Arc {
         center: Point2<T>,
         radius: T,
+        /// The signed sweep Δθ in swept traversal (negated by reversal).
+        sweep: T,
         /// Turn sense in swept traversal: `Positive` = counterclockwise
         /// in sketch coordinates. Never `Zero` (upstream classification;
         /// kept total — a `Zero` would take the `Positive` arm).
@@ -141,8 +143,8 @@ pub(crate) fn centre_on_material_side(canonical_turn: Sign) -> bool {
 }
 
 /// The sketch-level chord data this module's lowering reads from a
-/// swept segment: endpoints in swept traversal order, the bulge in
-/// that order, and the carrier class.
+/// swept segment: endpoints in swept traversal order, and the carrier
+/// class (with an arc's carrier and sweep) in that order.
 ///
 /// It is a trait and not just [`SweptSeg`] because a verb may carry
 /// more than a swept traversal does — extrude's record adds a
@@ -154,8 +156,6 @@ pub(crate) trait SweptChord<T: Real> {
     fn a(&self) -> Point2<T>;
     /// End point, sketch coordinates.
     fn b(&self) -> Point2<T>;
-    /// The bulge in swept traversal order.
-    fn bulge(&self) -> T;
     /// The carrier class in swept traversal order.
     fn kind(&self) -> SweptKind<T>;
 }
@@ -175,8 +175,6 @@ pub(crate) struct SweptSeg<T: Real> {
     pub(crate) a: Point2<T>,
     /// End point.
     pub(crate) b: Point2<T>,
-    /// The bulge in swept traversal (negated by reversal).
-    pub(crate) bulge: T,
     /// The carrier class in swept traversal order.
     pub(crate) kind: SweptKind<T>,
     /// Canonical index of the start vertex. Error reporting only.
@@ -199,9 +197,6 @@ impl<T: Real> SweptChord<T> for SweptSeg<T> {
     fn b(&self) -> Point2<T> {
         self.b
     }
-    fn bulge(&self) -> T {
-        self.bulge
-    }
     fn kind(&self) -> SweptKind<T> {
         self.kind
     }
@@ -209,7 +204,7 @@ impl<T: Real> SweptChord<T> for SweptSeg<T> {
 
 /// Builds the swept traversal of one canonical loop: forward, or
 /// reversed via the profile crate's reversal involution (endpoints
-/// swapped, bulge negated, turn flipped).
+/// swapped, sweep negated, turn flipped; the carrier kept).
 ///
 /// **The one home of that involution for a validated loop** — every
 /// caller that has one comes through here. Each verb reverses for its
@@ -233,37 +228,30 @@ pub(crate) fn swept_segments<T: Real>(
     let n = segs.len();
     let mut out = Vec::with_capacity(n);
     for j in 0..n {
-        let (s, a, b, bulge, canonical_vertex, canonical_segment) = if reverse {
+        let (s, a, b, canonical_vertex, canonical_segment) = if reverse {
             let s = &segs[n - 1 - j];
-            (
-                s,
-                s.end,
-                s.start,
-                T::zero() - s.bulge,
-                (n - j) % n,
-                n - 1 - j,
-            )
+            (s, s.end, s.start, (n - j) % n, n - 1 - j)
         } else {
             let s = &segs[j];
-            (s, s.start, s.end, s.bulge, j, j)
+            (s, s.start, s.end, j, j)
         };
         let kind = match s.kind {
             profile::SegmentKind::Line => SweptKind::Line,
             profile::SegmentKind::Arc {
                 center,
                 radius,
+                sweep,
                 turn,
-                ..
             } => SweptKind::Arc {
                 center,
                 radius,
+                sweep: if reverse { T::zero() - sweep } else { sweep },
                 turn: if reverse { turn.flip() } else { turn },
             },
         };
         out.push(SweptSeg {
             a,
             b,
-            bulge,
             kind,
             canonical_vertex,
             canonical_segment,
@@ -273,55 +261,90 @@ pub(crate) fn swept_segments<T: Real>(
 }
 
 /// The segment as a `geom-brep` sketch segment (the description's
-/// authoritative source data).
+/// authoritative source data): the endpoints verbatim, and an arc's
+/// carrier and sweep as the traversal carries them.
 ///
 /// A free function over the accessors rather than a provided method:
-/// the point of the trait is that the four accessors are all a verb
+/// the point of the trait is that the three accessors are all a verb
 /// gets to supply, and a provided method is one an impl may quietly
 /// override — which would put the body back to two.
 pub(crate) fn sketch_segment<T: Real, S: SweptChord<T>>(seg: &S) -> SketchSegment<T> {
-    match seg.kind() {
-        SweptKind::Line => SketchSegment::Line {
-            a: seg.a(),
-            b: seg.b(),
+    sketch_segment_of(seg.a(), seg.b(), seg.kind())
+}
+
+/// A CANONICAL profile segment as a `geom-brep` sketch segment — the
+/// same field-for-field mapping as [`sketch_segment`], for the readers
+/// that consume a validated segment outside any swept traversal (the
+/// revolve axis classification, the loft's walls).
+pub(crate) fn canonical_sketch_segment<T: Real>(
+    s: &profile::ValidatedSegment<T>,
+) -> SketchSegment<T> {
+    match s.kind {
+        profile::SegmentKind::Line => SketchSegment::Line {
+            a: s.start,
+            b: s.end,
         },
-        SweptKind::Arc { .. } => SketchSegment::Arc {
-            a: seg.a(),
-            b: seg.b(),
-            bulge: seg.bulge(),
+        profile::SegmentKind::Arc {
+            center,
+            radius,
+            sweep,
+            ..
+        } => SketchSegment::Arc {
+            a: s.start,
+            b: s.end,
+            centre: center,
+            radius,
+            sweep,
         },
     }
 }
 
-/// The arc apex (the profile crate's exact sagitta closed form:
-/// `midpoint − n̂·(L·b/2)`, n̂ the left normal of the chord direction) —
-/// an on-carrier interior point of the segment, and the point that
-/// keeps a 2-vertex loop plane-determining.
-///
-/// Takes the raw chord data rather than a [`SweptChord`]: the axis
-/// classification needs the apex of a canonical profile segment, which
-/// is not part of any swept traversal.
-pub(crate) fn arc_apex<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> Point2<T> {
-    let chord = b - a;
-    let len = chord.norm();
-    let u = chord.normalize();
-    let nhat = Vec2::new(T::zero() - u.y, u.x);
-    let mid = a.lerp(b, T::from_f64(0.5));
-    mid - nhat * (len * bulge * T::from_f64(0.5))
+fn sketch_segment_of<T: Real>(a: Point2<T>, b: Point2<T>, kind: SweptKind<T>) -> SketchSegment<T> {
+    match kind {
+        SweptKind::Line => SketchSegment::Line { a, b },
+        SweptKind::Arc {
+            center,
+            radius,
+            sweep,
+            ..
+        } => SketchSegment::Arc {
+            a,
+            b,
+            centre: center,
+            radius,
+            sweep,
+        },
+    }
 }
 
-/// The arc parameter span |Δθ| = 4·atan|b|, on the bulge the segment
-/// was lowered from — never endpoint `atan2`.
+/// The arc apex: the carrier point at mid-sweep, which is the
+/// segment's own evaluation at `s = ½` ([`SketchSegment::eval`]) — an
+/// on-carrier interior point of the segment, and the point that keeps
+/// a 2-vertex loop plane-determining. A line has no apex; its
+/// evaluation at `½` is the chord midpoint.
+pub(crate) fn arc_apex<T: Real>(seg: &SketchSegment<T>) -> Point2<T> {
+    seg.eval(T::from_f64(0.5))
+}
+
+/// The arc parameter span |Δθ|: the sweep signed by the segment's
+/// decided turn (`turn_axis`'s reading — a clockwise turn negates).
 ///
-/// Equal at `f64` to the canonical segment's `|sweep|` (atan is odd;
-/// at an interval that straddles zero, `|4·atan b|` and `4·atan|b|`
-/// are different enclosures), and spelled on the bulge rather than read off the sweep because the
-/// symbolic tier normalizes the two expressions differently: this one
-/// is the opaque atom `atan(|b|)` the swept span identity
-/// ([`register_span_identity`]) is stated about, and the bulge is what
-/// the `geom-brep` sketch segment beside it still carries.
-pub(crate) fn arc_span<T: Real>(bulge: T) -> T {
-    T::from_f64(4.0) * bulge.abs().atan()
+/// The turn is the profile's certified sign of the sweep, so at `f64`
+/// this is `|sweep|` to the bit, and at `Interval` it is `|sweep|`'s
+/// enclosure for every sweep whose box keeps its sign — which a
+/// classified arc's does. It is spelled through the turn rather than
+/// through `abs` because the symbolic tier reads forms: the span is
+/// then `±sweep`, the very node the pushforward
+/// ([`SketchSegment::eval`]) turns through, and rule D folds both
+/// through the one `atan` atom the lowering minted
+/// (`geom_core::sym::trig`). `abs(sweep)` would be an atom the tier
+/// cannot see through. [`register_span_identity`] is stated about this
+/// span.
+pub(crate) fn arc_span<T: Real>(turn: Sign, sweep: T) -> T {
+    match turn {
+        Sign::Positive | Sign::Zero => sweep,
+        Sign::Negative => T::zero() - sweep,
+    }
 }
 
 /// The turn-signed carrier axis (crate docs): `+normal` for a
@@ -448,9 +471,9 @@ pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T, tol: Tol) 
 /// own `param_end` IS the segment's far vertex, componentwise, and
 /// this is the site that guarantees it.
 ///
-/// **The proof, and it is two lines.** The bulge an arc is lowered
-/// from is `b = tan(θ/4)` BY DEFINITION of the lowering, so the
-/// span `param_end = 4·atan|b|` is exactly the arc's turned angle θ
+/// **The proof, and it is two lines.** The sweep an arc carries is its
+/// signed turned angle θ BY DEFINITION of the lowering, and the span
+/// `param_end` is that sweep signed by the decided turn, i.e. `|θ|`
 /// (`arc_span`). The sagitta closed forms put the centre on the chord's
 /// perpendicular bisector at the apothem (`profile::seg`), so `q_from`
 /// and `q_to` are both at `radius` from it — the rim identity above —
@@ -460,15 +483,14 @@ pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T, tol: Tol) 
 /// circle carrier `eval(t) = c + frame(axis, u_ref, t).radial · r`
 /// with `u_ref = (q_from − c)/‖q_from − c‖`, so `eval(θ) = q_to`.
 ///
-/// **Why the tier cannot prove it for itself.** `θ = 4·atan|b|` reaches
-/// the normal form as the opaque atom `atan(|b|)` inside `cos` and
-/// `sin` atoms; the tier holds no functional identity of any atom (its
-/// module docs say so), so `cos(4·atan|b|)` and the polynomial in `b`
-/// that `q_to − c` is are two unrelated indeterminates. Measured:
-/// with the rim identity registered and this one not, the residual
-/// `carrier_endpoint_end` is what bounds the two-hole plate, its
-/// rendered form carrying `cos(4·atan(1·abs(1)))` verbatim
-/// (M10's closed `plate-ceiling-is-now-the-arc-span-identity`).
+/// **Why the tier cannot prove it for itself.** The lowering's sweep
+/// `θ = 4·atan b` reaches the normal form as the atom `atan(b)` inside
+/// `cos` and `sin` atoms; outside rule D's closed forms the tier holds
+/// no functional identity of any atom (its module docs say so), so
+/// `cos(θ)` and the polynomial in `b` that `q_to − c` is are two
+/// unrelated indeterminates (M10's closed
+/// `plate-ceiling-is-now-the-arc-span-identity` measured this residual,
+/// `carrier_endpoint_end`, bounding the two-hole plate).
 ///
 /// **What it touches: nothing.** `carrier.eval(param_end)` is
 /// evaluated here and thrown away; node ids are content hashes, so the
@@ -511,8 +533,8 @@ pub(crate) fn register_span_identity<T: Real>(
 /// The edge spec of a profile segment carried into 3-space by one
 /// placement: `PlacedSegment` description, line or circle carrier per
 /// the crate docs' carrier conventions (arc axis = turn-signed plane
-/// normal, span θ = 4·atan|b| on the bulge the segment was lowered
-/// from — see [`arc_span`]).
+/// normal, span |Δθ| from the segment's sweep and turn — see
+/// [`arc_span`]).
 ///
 /// `place` and `normal` are the placement the segment is lowered
 /// through and its plane normal — the sketch placement for a base
@@ -545,6 +567,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
         SweptKind::Arc {
             center,
             radius,
+            sweep,
             turn,
         } => {
             let c_world = place.transform_point(Point3::new(center.x, center.y, T::zero()));
@@ -560,7 +583,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
                 radius,
                 u_ref: rim.normalize(),
             };
-            let param_end = arc_span(seg.bulge());
+            let param_end = arc_span(turn, sweep);
             // The SPAN identity, at the same guarantee
             // (`register_span_identity` carries the proof). The
             // carrier and the span are bound out first so the
@@ -596,7 +619,7 @@ pub(crate) fn cap_points<T: Real, S: SweptChord<T>>(
     for (j, s) in segs.iter().enumerate() {
         pts.push(qs[j]);
         if matches!(s.kind(), SweptKind::Arc { .. }) {
-            let apex = arc_apex(s.a(), s.b(), s.bulge());
+            let apex = arc_apex(&sketch_segment(s));
             pts.push(place.transform_point(Point3::new(apex.x, apex.y, T::zero())));
         }
     }
@@ -653,11 +676,13 @@ pub(crate) fn cosurface<T: Decide, S: SweptChord<T>>(
                 center: c1,
                 radius: r1,
                 turn: t1,
+                ..
             },
             SweptKind::Arc {
                 center: c2,
                 radius: r2,
                 turn: t2,
+                ..
             },
         ) => {
             if t1 != t2 {

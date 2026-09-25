@@ -211,8 +211,9 @@
 //! the zero form, and `sin`/`cos` at an exact half-multiple of π is
 //! its constant. Nothing folds at any other argument shape. The two
 //! spellings of an arc — the pushforward's `sin(s·θ)`, `−2·sin²(s·θ/2)`
-//! at `θ = 4·atan b` and the carrier's `cos t`, `sin t` at `t =
-//! (i/8)·4·atan|b|` — are then rational functions of the same atoms,
+//! at `θ = 4·atan b` (the lowering's stored sweep) and the carrier's
+//! `cos t`, `sin t` at `t = (i/8)·σ·θ` (the span, the sweep signed by
+//! the decided turn σ) — are then rational functions of the same atoms,
 //! and **rules A/B per node** ([`SymRules::early_ab`]) close the ring:
 //! the substitution is linear (`algebra::poly_subst_square` accumulates
 //! one numerator over one common denominator), bounded by
@@ -299,8 +300,11 @@
 //! residual's retirement for arc carriers (PCURVE/D3). On the pad the
 //! fillet's identity-shaped `line_span` is a `Min` over frozen
 //! 60-term, degree-16 products (`work/sym/symbolic-tier-census`).
-//! And the reach is the UNIT bulge: a parameter bulge is outside the
-//! mechanism (R2's D-tab: `3.52e2 · ε` on and off alike) and a literal
+//! And the reach was measured at the UNIT bulge: a parameter bulge was
+//! outside the mechanism while the carrier's span was spelled `atan|b|`
+//! (R2's D-tab: `3.52e2 · ε` on and off alike; the span now shares the
+//! pushforward's atom, `trig`'s header, and the D-tab's nominal split
+//! is unmoved by it — its forms freeze on the ring first) and a literal
 //! bulge other than 1 leaves residue — at M10-10 R1's boss at bulge 2
 //! stood at `carrier_matches_mapped_source` 6 of 54 and
 //! `carrier_on_surface_2` 27 of 90 numeric with its ceiling unmoved;
@@ -4720,8 +4724,9 @@ mod tests {
     /// the SPAN identity `carrier.eval(θ) = q_to` (M10-9 amendment A1;
     /// `sweep::swept::register_span_identity`). The far endpoint is
     /// reached by rotating the rim vector through the span, so the
-    /// residual carries `cos`/`sin` atoms of `4·atan|b|` that no rule
-    /// relates to the polynomial `q_to − c` is: it is registered per
+    /// residual carries `cos`/`sin` of the span `4·atan b`, which no
+    /// rule relates to the independently built far vertex: it is
+    /// registered per
     /// COMPONENT, because the consumer asks
     /// `carrier.eval(t1).distance(end)`.
     ///
@@ -4729,7 +4734,7 @@ mod tests {
     fn span(theta: f64, off: f64) -> [[Sym<f64>; 2]; 3] {
         let (vx, vy) = (p("vx", 3.0), p("vy", 4.0));
         let b = p("b", theta);
-        let (sn, cs) = (Sym::from_f64(4.0) * b.abs().atan()).sin_cos();
+        let (sn, cs) = (Sym::from_f64(4.0) * b.atan()).sin_cos();
         // The rotated rim vector, as a circle carrier's `eval` builds
         // it, plus the centre.
         let (cx, cy) = (p("cx", 1.0), p("cy", -2.0));
@@ -4740,7 +4745,7 @@ mod tests {
         // rather than a tautology, and what keeps it out of the cyclic
         // arm. Its value is the same real, computed the same way;
         // `off` displaces it into a claim that is FALSE.
-        let (s0, c0) = (4.0 * theta.abs().atan()).sin_cos();
+        let (s0, c0) = (4.0 * theta.atan()).sin_cos();
         let (qx, qy) = (
             p("qx", 1.0 + (3.0 * c0 - 4.0 * s0) + off),
             p("qy", -2.0 + (3.0 * s0 + 4.0 * c0) + off),
@@ -4895,20 +4900,24 @@ mod tests {
     }
 
     /// **The two spellings of one arc meet.** The certifier's carrier
-    /// sample `cos t`, `sin t` at `t = 4·atan|b|·(i/8)` against the
-    /// pushforward's `sin(s·θ)` and `1 − 2·sin²(s·θ/2)` at `θ =
-    /// 4·atan b`, `s = i/8`, for a bulge that is a LITERAL (the circle
-    /// kernel's `1`, so `|b|` folds under A0) and for a parameter
-    /// bulge — where `atan|b|` and `atan b` are two atoms and the
-    /// residual stays numeric, which is the honest limit this rule
-    /// draws: the turn sign the carrier's axis carries is a `Sign`,
-    /// not a form.
+    /// sample `cos t`, `sin t` at `t = σ·θ·(i/8)` — the span, the stored
+    /// sweep `θ = 4·atan b` signed by the decided turn σ
+    /// (`sweep::swept::arc_span`) — against the pushforward's
+    /// `sin(s·θ)` and `1 − 2·sin²(s·θ/2)` at `s = i/8`, for a LITERAL
+    /// bulge (the circle kernel's `1`) and for a parameter bulge of
+    /// either sign. About the turn-signed axis the carrier turns by
+    /// `σ·t` in the sketch plane, so its sine enters with σ. Both sides
+    /// read the one `atan b` atom, so the parameter bulge meets too:
+    /// no value of `b` is read.
     #[test]
     fn rule_d_meets_the_carrier_and_the_pushforward_at_every_sample() {
-        let (rows, _) = with_session(budget(), || {
-            let b = Sym::from_f64(1.0);
+        let spellings = |b: Sym<f64>, sigma: f64| {
             let theta = Sym::from_f64(4.0) * b.atan();
-            let span = Sym::from_f64(4.0) * b.abs().atan();
+            let span = if sigma < 0.0 {
+                Sym::zero() - theta
+            } else {
+                theta
+            };
             let one = Sym::from_f64(1.0);
             let two = Sym::from_f64(2.0);
             (0..=8)
@@ -4918,27 +4927,25 @@ mod tests {
                     let (st, ct) = t.sin_cos();
                     let sin = (s * theta).sin_cos().0;
                     let cos_m1 = -(two * (s * theta * Sym::from_f64(0.5)).sin_cos().0.powi(2));
-                    (how(st - sin), how(ct - (cos_m1 + one)))
+                    (
+                        how(Sym::from_f64(sigma) * st - sin),
+                        how(ct - (cos_m1 + one)),
+                    )
                 })
                 .collect::<Vec<_>>()
-        });
+        };
+        let (rows, _) = with_session(budget(), || spellings(Sym::from_f64(1.0), 1.0));
         assert!(
             rows.iter().all(|r| *r == ("theorem", "theorem")),
             "literal bulge: {rows:?}"
         );
-        let (rows, _) = with_session(budget(), || {
-            let b = p("bulge", 0.7);
-            let theta = Sym::from_f64(4.0) * b.atan();
-            let span = Sym::from_f64(4.0) * b.abs().atan();
-            let s = Sym::from_f64(3.0 / 8.0);
-            let (st, _) = (span * s).sin_cos();
-            how(st - (s * theta).sin_cos().0)
-        });
-        assert_eq!(
-            rows, "numeric",
-            "a parameter bulge: `atan|b|` and `atan b` are two atoms, and no rule here \
-             reads the sign that would relate them"
-        );
+        for (bv, sigma) in [(0.7, 1.0), (-0.7, -1.0)] {
+            let (rows, _) = with_session(budget(), || spellings(p("bulge", bv), sigma));
+            assert!(
+                rows.iter().all(|r| *r == ("theorem", "theorem")),
+                "a parameter bulge at {bv}, turn {sigma}: {rows:?}"
+            );
+        }
     }
 
     /// **Nothing folds at an argument that is not `q·atan(X)`**: an

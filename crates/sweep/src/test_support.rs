@@ -749,6 +749,33 @@ pub const ELBOW_STATIONS: usize = 9;
 /// The v-degree the elbow's stations are interpolated at.
 pub const ELBOW_V_DEGREE: usize = 3;
 
+/// The arc from `a` to `b` with `bulge` as a `geom-brep` sketch
+/// segment, carrying the carrier and sweep the profile's arc lowering
+/// (`arc_to(Bulge)`'s, through [`bulge_loop`]) stores — no arithmetic
+/// of its own.
+///
+/// # Panics
+///
+/// If `bulge` is exactly zero, which lowers to a line.
+pub fn bulge_arc(a: Point2<f64>, b: Point2<f64>, bulge: f64) -> SketchSegment<f64> {
+    let lp = bulge_loop(vec![(a, bulge), (b, 0.0)]);
+    let profile::Segment::Arc {
+        centre,
+        radius,
+        sweep,
+    } = lp.segments()[0]
+    else {
+        panic!("a zero bulge lowers to a line, not an arc");
+    };
+    SketchSegment::Arc {
+        a,
+        b,
+        centre,
+        radius,
+        sweep,
+    }
+}
+
 /// **The elbow's path**: a quarter circle of radius [`ELBOW_R`] in the
 /// world YZ plane, starting at the origin with tangent `+z` — so the
 /// identity-placed profile, which lies in the world XY plane, is
@@ -757,17 +784,18 @@ pub const ELBOW_V_DEGREE: usize = 3;
 /// through that centre.
 ///
 /// The sketch arc runs `(0,0) → (R,R)` with `bulge = tan(θ/4) =
-/// tan(π/8)`, i.e. a 90° turn; the placement rotates the sketch plane
-/// by −π/2 about the world y-axis, sending sketch `(x, y)` to world
+/// tan(π/8)`, i.e. a 90° turn, lowered as the profile lowers it
+/// ([`bulge_arc`]); the placement rotates the sketch plane by −π/2
+/// about the world y-axis, sending sketch `(x, y)` to world
 /// `(0, y, x)`.
 pub fn elbow_path() -> NurbsCurve3<f64> {
     segment_curve(
         0,
-        SketchSegment::Arc {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(ELBOW_R, ELBOW_R),
-            bulge: (core::f64::consts::PI / 8.0).tan(),
-        },
+        bulge_arc(
+            Point2::new(0.0, 0.0),
+            Point2::new(ELBOW_R, ELBOW_R),
+            (core::f64::consts::PI / 8.0).tan(),
+        ),
         Affine3::rotation_about_axis(
             Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),

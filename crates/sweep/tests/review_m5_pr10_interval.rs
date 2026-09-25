@@ -6,9 +6,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsSurface;
-use geom_brep::SketchSegment;
 use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec3};
 use sweep::skin::{loft_geometry, segment_curve, sweep_geometry};
+use sweep::test_support::bulge_arc;
 
 use crate::common;
 use common::chain;
@@ -50,11 +50,7 @@ fn review_interval_containment_dense_loft_and_sweep() {
     // A curved path: rotated frames exercise every affine component.
     let path = segment_curve(
         0,
-        SketchSegment::Arc {
-            a: Point2::new(0.0, 0.0),
-            b: Point2::new(3.0, 3.0),
-            bulge: 0.4,
-        },
+        bulge_arc(Point2::new(0.0, 0.0), Point2::new(3.0, 3.0), 0.4),
         Affine3::identity(),
     )
     .expect("path");

@@ -3548,19 +3548,21 @@ mod tests {
         EdgeCurve::certify(spec.clone(), p, p, |_| None, band()).unwrap();
     }
 
-    /// A placed-arc mapped curve against a circle carrier: the quarter
-    /// arc of PR 2's bulge conventions, certified against its Circle3.
+    /// A placed-arc mapped curve against a circle carrier: the
+    /// counterclockwise quarter of the unit circle, certified against
+    /// its Circle3.
     #[test]
     fn placed_arc_certifies_against_circle_carrier() {
         use core::f64::consts::FRAC_PI_2;
-        let bulge = (core::f64::consts::PI / 8.0).tan();
         let place = Affine3::translation(Vec3::new(0.0, 0.0, 1.0));
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
                 segment: SketchSegment::Arc {
                     a: Point2::new(1.0, 0.0),
                     b: Point2::new(0.0, 1.0),
-                    bulge,
+                    centre: Point2::new(0.0, 0.0),
+                    radius: 1.0,
+                    sweep: FRAC_PI_2,
                 },
                 place,
             }),

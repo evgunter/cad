@@ -105,8 +105,18 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             name: "r2_link",
             certifies_at: 4.930e2,
             refuses_at: 4.934e2,
-            registered: 90,
-            symbolic_zero: 515,
+            // 90 / 515 until the carrier's span was spelled as the
+            // stored sweep signed by the decided turn (`swept::arc_span`)
+            // instead of `4·atan|b|`: the span then shares the
+            // pushforward's `atan b` atom, and of the link's 1102
+            // decisions 20 move INTO the door — 10 out of `numeric` and
+            // TEN out of `symbolic_zero` (505 now). Those ten are the
+            // same class as the pad's four above (a residual the early
+            // walk was cancelling over reshaped, then re-taken by the
+            // registry). `frozen` is 1060 either way, nothing is
+            // refused or contradicted, and no ceiling moves.
+            registered: 110,
+            symbolic_zero: 505,
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {

@@ -306,14 +306,24 @@ const PLATE_MAX_TERMS: usize = 288;
 /// loop now starts where it was authored rather than at its lex-min
 /// vertex, so the walks meet the same forms in another order. Every
 /// count is unchanged; only the digest chains moved.
+///
+/// Re-captured again when the sketch pushforward began reading the
+/// segment's stored carrier and sweep (`geom_brep::SketchSegment`)
+/// instead of re-deriving its centre from the chord and bulge at every
+/// evaluation: the walks build 70 fewer plain and early forms, 32 fewer
+/// door forms and one fewer assertion form: the pushforward reads the
+/// lift's centre node rather than rebuilding one from its own chord,
+/// which was a distinct node wherever a traversal runs the canonical
+/// segment backwards (the plate's reversed holes). Calls, frozen counts
+/// and every decision count are unchanged.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 15030 frozen 672 digest e6c2bc06f3154db439dcd98c928a1b18\n\
-     Plain/Assertion calls 462 forms 2594 frozen 372 digest 37efdb25fdaa51c62baab603f47eedcb\n\
+     Plain/Decision calls 951 forms 14960 frozen 672 digest b5ca46139a985fe9eeadee33abb6447c\n\
+     Plain/Assertion calls 462 forms 2593 frozen 372 digest 2b55a993a1b5dc6bf4404a75fd189f26\n\
      Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 320 forms 7979 frozen 8 digest 3551739d5d60cd4be669d11b4e08530c\n\
-     Early/Assertion calls 462 forms 3406 frozen 104 digest 0fe6f525b8bea5da7c1eca362f553f43\n\
+     Early/Decision calls 320 forms 7909 frozen 8 digest efb1aaa1b36dc099be2446c32901d187\n\
+     Early/Assertion calls 462 forms 3405 frozen 104 digest 6963b4f5a7b6d56be0b01122c9ce497a\n\
      Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 330 forms 11884 frozen 104 digest 83bd5b09f38911dc29f21c19e208ea1a\n\
+     Door/Decision calls 330 forms 11852 frozen 104 digest e715e1e70d4ae46064a54bfb87d1e796\n\
      Door/Assertion calls 190 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

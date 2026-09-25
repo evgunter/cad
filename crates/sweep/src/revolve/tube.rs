@@ -471,8 +471,8 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
 /// duplication nothing will find. S131.)
 ///
 /// The two arguments are the two bits `swept_segments` carries. `turn`
-/// is the TRAVERSAL's own sense (its bulge follows: `+1` for a
-/// positive half-turn, `-1` for a negative one). `reversed` says
+/// is the TRAVERSAL's own sense (its sweep follows: `+π` for a
+/// positive half-turn, `−π` for a negative one). `reversed` says
 /// whether this traversal is the reversal of its canonical chain,
 /// which is what permutes the canonical labels — the involution's
 /// `(n - j) % n` / `n - 1 - j` written out for `n = 2`. The three
@@ -492,17 +492,23 @@ fn circle_traversal<T: Real>(
         Point2::new(center.x - radius, T::zero()),
         Point2::new(center.x + radius, T::zero()),
     );
-    let bulge = match turn {
-        Sign::Positive => T::one(),
-        Sign::Negative | Sign::Zero => T::zero() - T::one(),
+    // The half-turn, spelled as the arc lowering spells a unit-bulge
+    // arc's sweep (`4·atan 1`), not as `T::pi()`: the certifier
+    // samples it at fractions `i/8`, and the symbolic tier folds the
+    // trig of `q·atan 1` in closed form (rule D) where a fraction of
+    // `π` other than a half-multiple stays an atom.
+    let half_turn = T::from_f64(4.0) * T::one().atan();
+    let sweep = match turn {
+        Sign::Positive | Sign::Zero => half_turn,
+        Sign::Negative => T::zero() - half_turn,
     };
     let arc = |a, b, canonical_vertex, canonical_segment| SweptSeg {
         a,
         b,
-        bulge,
         kind: SweptKind::Arc {
             center,
             radius,
+            sweep,
             turn,
         },
         canonical_vertex,
