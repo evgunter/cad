@@ -95,11 +95,14 @@ branch, of which one row is new (`separation::owner_index`), against
 760 at the merge base. The rows' docs lost their review archaeology
 ("the PR's row", "the review's third mutant") and state what they pin.
 
-**The twelve `.expect("a live solid")` sites** this row was to collect
-now sit in one module, and **they are not collapsed** onto a local
-adapter. The adapter would be the one-line `faces_of` wrapper the
-`faces_of` unit deleted onto `Body::faces_of_solid`; each site names
-the door it reads, and nothing goes stale with them.
+**The `.expect("a live solid")` sites** this row was to collect are
+**ten** in `offset_together.rs` at this row's close (`git grep -n
+'expect("a live solid")' -- crates`: ten there and one in
+`tier3_tests.rs`), not the twelve `listing-a-solids-faces-…` counted —
+two went with the deleted copies' helpers. **They are not collapsed**
+onto a local adapter: the adapter would be the one-line `faces_of`
+wrapper the `faces_of` unit deleted onto `Body::faces_of_solid`; each
+site names the door it reads, and nothing goes stale with them.
 
 **Citations updated with the move**: `re_scope`'s rustdoc
 (`offset_together.rs`), and the open rows that named the module —
