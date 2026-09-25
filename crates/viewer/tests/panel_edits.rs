@@ -13,7 +13,7 @@
 
 use crate::common;
 
-use pncad::document::{DocEdit, DocParam, ParamName, SlotId};
+use pncad::document::{Dimension, DocEdit, DocParam, ParamName, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
 use pncad::quantity::WrittenLength;
