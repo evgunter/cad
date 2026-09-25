@@ -1,9 +1,9 @@
 //! Review probes for the ring-cycle ruled cut-off (PR 3243).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tol};
+use geom_core::{Point2, Sign, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
-use sweep::blend::fillet_edges;
+use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::rod_creases;
 use sweep::{Extrusion, extrude};
 use topo::{Body, mass_properties, validate_geometric};
@@ -35,6 +35,11 @@ const XS: f64 = 0.8; // slot end
 /// reflex, so the cylinder-plane creases there are CONVEX, and they end
 /// in the caps' rings.
 fn keyhole_block() -> Body<f64> {
+    keyhole_block_with(Vec::new())
+}
+
+/// [`keyhole_block`] with further profile loops (bores) through it.
+fn keyhole_block_with(extra: Vec<ProfileLoop<f64>>) -> Body<f64> {
     let xs0 = (BR * BR - W * W).sqrt();
     let sweep = core::f64::consts::TAU - 2.0 * W.atan2(xs0);
     let ring = bulge_loop(vec![
@@ -43,7 +48,9 @@ fn keyhole_block() -> Body<f64> {
         (Point2::new(XS, -W), 0.0),
         (Point2::new(XS, W), 0.0),
     ]);
-    let p = Profile::new(SketchPlane::xy(), vec![square(1.0), ring])
+    let mut loops = vec![square(1.0), ring];
+    loops.extend(extra);
+    let p = Profile::new(SketchPlane::xy(), loops)
         .validate(tol())
         .expect("the keyholed profile validates");
     extrude(&p, Extrusion::Distance(1.0), tol())
@@ -102,4 +109,54 @@ fn a_keyhole_fillets_its_convex_ring_creases_at_the_closed_form() {
         let want = -2.0 * keyhole_cut(r);
         assert!((dv - want).abs() < 1e-12, "r {r}: ΔV {dv} vs {want}");
     }
+}
+
+/// A round profile loop: two semicircles about `(x, y)`.
+fn bore(x: f64, y: f64, a: f64) -> ProfileLoop<f64> {
+    bulge_loop(vec![
+        (Point2::new(x + a, y), 1.0),
+        (Point2::new(x - a, y), 1.0),
+    ])
+}
+
+/// **A bore in the sliver a keyhole crease's cut-off removes refuses**,
+/// where the cut-off runs in the cap's keyhole RING and the bore is a
+/// second ring of the same cap. At r = 0.1 the upper junction's ball
+/// centre is `c = (√0.27, 0.3)` and its old vertex `V = (√0.21, 0.2)`,
+/// so the sliver lies within `0.1 ≤ ‖p − c‖ ≤ ‖V − c‖ ≈ 0.1173`; the
+/// bore at `(0.4623, 0.204)` spans `‖p − c‖ ∈ [0.1108, 0.1128]`, wholly
+/// in the material the band removes.
+#[test]
+fn a_bore_in_a_keyhole_creases_removed_sliver_refuses_ring_clearance() {
+    let body = keyhole_block_with(vec![bore(0.4623, 0.204, 0.001)]);
+    validate_geometric(&body, tol()).expect("the bored keyhole block is tier-3 valid");
+    let creases = rod_creases(&body);
+    assert_eq!(creases.len(), 2, "the two disc/slot junctions");
+    match fillet_edges(&body, &creases, 0.1, tol()).map_err(|e| e.error) {
+        Err(BlendError::RingClearance { face, margin }) => {
+            assert_eq!(margin.sign, Sign::Negative, "definite, got {margin}");
+            let f = body.get_face(face).expect("the refusal names a source face");
+            assert_eq!(f.rings.len(), 2, "the face named is a cap: keyhole and bore");
+        }
+        Err(other) => panic!("expected RingClearance at the cap, got {other:?}"),
+        Ok(_) => panic!(
+            "the carve returned a body keeping the bore on a cap that no longer covers it"
+        ),
+    }
+}
+
+/// **A bore clear of both slivers carves at the keyhole's closed form**,
+/// carried through untouched: `ΔV = −2·A·L` as without it.
+#[test]
+fn a_bore_clear_of_a_keyhole_creases_sliver_carves_at_the_closed_form() {
+    let body = keyhole_block_with(vec![bore(-0.75, 0.75, 0.1)]);
+    validate_geometric(&body, tol()).expect("the bored keyhole block is tier-3 valid");
+    let creases = rod_creases(&body);
+    let vol0 = volume(&body);
+    let out = fillet_edges(&body, &creases, 0.1, tol())
+        .unwrap_or_else(|e| panic!("a clear bore carves, got {e}"));
+    validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier 3, {e:?}"));
+    let dv = volume(&out.body) - vol0;
+    let want = -2.0 * keyhole_cut(0.1);
+    assert!((dv - want).abs() < 1e-12, "ΔV {dv} vs {want}");
 }

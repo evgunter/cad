@@ -148,6 +148,8 @@ mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
 
+#[path = "band_ruled_cap_ring.rs"]
+mod band_ruled_cap_ring;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
 #[path = "bitdump.rs"]
