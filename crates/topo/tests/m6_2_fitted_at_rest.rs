@@ -171,7 +171,10 @@ fn the_dual_runs_the_lane_free_checks_and_refuses_at_check_four() {
     let band = Band::linear(Tol::witness()).unwrap();
     let lift = Dual64::from_f64;
     let carrier = geom::Curve3::Nurbs(std::sync::Arc::new(built.carrier.map_scalar(lift)));
-    let (cylinder, sphere) = (built.cylinder.map_scalar(lift), built.sphere.map_scalar(lift));
+    let (cylinder, sphere) = (
+        built.cylinder.map_scalar(lift),
+        built.sphere.map_scalar(lift),
+    );
     let w = built.window;
     let window = ChartWindow {
         u_min: lift(w.u_min),

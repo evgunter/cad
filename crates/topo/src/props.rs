@@ -2537,8 +2537,11 @@ impl AtRestPolicy for geom_core::Probe {
         None
     }
 
-    /// The recording scalar is `f64` with a sink attached, so it
-    /// carries exactly what `f64` carries — here, the door.
+    /// Certification rights, not the scalar a derivation is written
+    /// in, decide this door: the recording scalar's arithmetic is
+    /// `f64`'s, observed, and it holds `geom_core::CertifiedBounds`, so
+    /// it derives fitted pcurves through the same generic bodies —
+    /// where the offset fit above, written at `f64` alone, stays out.
     fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
         Some(geom_brep::FittedLane::certified())
     }
@@ -2676,10 +2679,13 @@ where
     /// **A dual does not certify** (DL1), and a fitted pcurve's
     /// certificate — like the image and chart feet it is certified
     /// over — is certification arithmetic, so no `Dual` can hold the
-    /// door ([`geom_brep::FittedLane::certified`]'s bound). A dual body
-    /// therefore never carries a fitted cache, because one cannot be
-    /// built there, and its mint refuses typed where a general image
-    /// would be derived.
+    /// door ([`geom_brep::FittedLane::certified`]'s bound). No fitted
+    /// or `General` cache is built at a dual: the mint derives no
+    /// general image and measures no chart foot here, and a `General`
+    /// image a construction STATES in the face's own chart reaches the
+    /// fitted lane's checks, which refuse typed at check 4 — after
+    /// checks 1–3, which read no door and so answer as at every other
+    /// scalar.
     fn fitted_lane() -> Option<geom_brep::FittedLane<Self>> {
         None
     }

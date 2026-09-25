@@ -13,8 +13,10 @@
 //! D2/OQ4 stand carrier-primary: the intensional description is
 //! authoritative, the 3-D carrier is the authoritative *machinery*, and
 //! a pcurve is a peer **cache** — never a peer of the description. A
-//! [`PcurveCache`] is therefore constructible only through
-//! [`PcurveCache::certify`] (its fields are private), exactly as
+//! [`PcurveCache`] is therefore constructible only through its
+//! certifying doors ([`PcurveCache::certify`],
+//! [`PcurveCache::certify_fitted`], [`PcurveCache::certify_general`])
+//! or from a cache one of them built (its fields are private), exactly as
 //! [`crate::EdgeCurve`] is: an uncertified pcurve is unrepresentable.
 //!
 //! # The parameter contract (spec §2, D1 verbatim)
@@ -765,9 +767,11 @@ pub enum PcurveCertifyError {
     /// genuine mismatch — a harmonic image claimed for a spline
     /// carrier, which no constructor mints.
     UnsupportedCarrier,
-    /// A [`Pcurve::Fitted`] cache was offered to a scalar with **no
-    /// certified fitted lane** — the refusal a consumer holding no
-    /// [`crate::FittedLane`] gives. A dual scalar may not certify (D1,
+    /// A [`Pcurve::Fitted`] or [`Pcurve::General`] image reached check
+    /// 4 of the fitted lane at a scalar with **no certified fitted
+    /// lane** — no [`crate::FittedLane`] to derive its C2 certificate
+    /// with (and, in the mint, none to derive a general image or a
+    /// chart foot with). A dual scalar may not certify (D1,
     /// 2026-08-19), so certification arithmetic (C9) is not reachable
     /// from it and the C2.2 hull bound does not exist there; the
     /// refusal is typed and static rather than a silent success.
@@ -1450,8 +1454,10 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
 
 /// A certified pcurve cache: the chart image, the carrier-parameter
 /// interval it is certified over, and the [`PcurveCertificate`] of the
-/// run. Constructible only through [`PcurveCache::certify`] — the
-/// fields are private, so an uncertified pcurve is unrepresentable
+/// run. Constructible only through its certifying doors
+/// ([`PcurveCache::certify`], [`PcurveCache::certify_fitted`],
+/// [`PcurveCache::certify_general`]) or from a cache one of them built —
+/// the fields are private, so an uncertified pcurve is unrepresentable
 /// (D4 ¶2 made structural, exactly as for [`crate::EdgeCurve`]).
 ///
 /// `Clone`, not `Copy`, for the reason [`Pcurve`] is not.
@@ -1613,7 +1619,7 @@ impl<T: Decide> PcurveCache<T> {
     /// may certify can hold one ([`crate::FittedLane`]), so this door
     /// cannot be called at a scalar that may not.
     ///
-    /// Three consumers are waiting on it, in decreasing firmness:
+    /// Two consumers are waiting on it, in decreasing firmness:
     ///
     /// 1. **Mint-side wiring of the general-circle route** — the
     ///    oblique-trihedron octant faces whose boundary circles are
@@ -1663,8 +1669,17 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
         lane: crate::FittedLane<T>,
     ) -> Result<Self, PcurveCertifyError> {
-        let certificate =
-            run_fitted_checks(&image, t0, t1, carrier, surface, mate, window, band, Ok(lane))?;
+        let certificate = run_fitted_checks(
+            &image,
+            t0,
+            t1,
+            carrier,
+            surface,
+            mate,
+            window,
+            band,
+            Ok(lane),
+        )?;
         Ok(Self {
             pcurve: Pcurve::Fitted(image),
             param_start: t0,

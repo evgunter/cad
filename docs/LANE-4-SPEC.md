@@ -59,6 +59,12 @@ make `f64` structural validation refuse a body the `f64` mint built.
    arm unchanged; the `impl` block becomes `impl<T: Decide>`;
    `run_fitted_checks` takes the door. `mint_face` matches the `Option`
    before calling `certify_general`.
+   **Amended by the fix-pass ruling (2026-09-24, R2 M1):** the refusal
+   order is the base's. `certify_general` takes `Option<FittedLane<T>>`
+   and the name as `recertify` does, `mint_face` hands it the policy's
+   answer unmatched, and `run_fitted_checks` asks for the door only at
+   check 4, so a `None` door refuses after checks 1–3 in both arms.
+   `certify_fitted` keeps the non-`Option` door.
 4. **`lane_name` → argument.** Its three readers (`pcurve_cache.rs`
    check 4, `pcurves.rs`'s `derive_general_image`, `transform.rs`'s
    `map_approx` — the offset-fit refusal LANE-0 routed through it) read

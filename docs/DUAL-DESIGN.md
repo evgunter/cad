@@ -96,7 +96,10 @@ validate IS asking it to certify.
 certified gates: the evaluation service gains a scalar-policy seam
 — certified validation (the product gather's `validate_geometric`,
 the offset fit's `OffsetFitLane::recertify`, the fitted pcurves'
-`FittedLane`, the hollowing verb's `ShellDoor`, the census door) runs
+`FittedLane` — the door their certificate is derived through, which
+no `Dual` can hold, so the pcurve mint and the tier-3 pcurve pass
+refuse typed at the check that asks for it — the hollowing verb's
+`ShellDoor`, the census door) runs
 at scalars with certification rights (f64's decide-with-escalation
 lane and `Interval`), and is
 structurally absent at `Dual`. This

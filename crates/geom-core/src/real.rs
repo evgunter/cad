@@ -1196,9 +1196,9 @@ pub mod bounds_allowlist {
     //! box-chain enclosure). Its refusing side is **not** empty:
     //! the fitted door (`geom_brep::FittedLane`, answered by
     //! `topo::AtRestPolicy::fitted_lane`) is held at `f64`,
-    //! [`Probe`](crate::Probe) and the interval scalar and absent at
-    //! [`Dual`](crate::Dual), dual bodies really validating and really not
-    //! holding a fitted cache. That door's module, `geom_brep::fitted_lane`,
+    //! [`Probe`](crate::Probe), the interval scalar and `Sym` over any of
+    //! them, and absent at [`Dual`](crate::Dual), dual bodies really
+    //! validating and really not holding a fitted cache. That door's module, `geom_brep::fitted_lane`,
     //! is the fitted lane's own seam and not a widening of it: its
     //! constructor (`FittedLane::certified`) and that constructor's
     //! pointer-identity helper carry the certification RIGHT the value

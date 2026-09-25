@@ -107,7 +107,9 @@ fn lamina<T: AtRestPolicy>(carrier: Carrier) -> (Body<T>, [FaceKey; 2]) {
             tol,
         )
         .unwrap();
-    let he_dc = body.find_half_edge(seed.face, cd.vertex, bc.vertex).unwrap();
+    let he_dc = body
+        .find_half_edge(seed.face, cd.vertex, bc.vertex)
+        .unwrap();
     let closed = body
         .mef_chord(
             MefSite::Chords {
@@ -118,7 +120,10 @@ fn lamina<T: AtRestPolicy>(carrier: Carrier) -> (Body<T>, [FaceKey; 2]) {
         )
         .unwrap();
 
-    let edges: Vec<_> = body.edges().map(|(key, edge)| (key, edge.he_plus)).collect();
+    let edges: Vec<_> = body
+        .edges()
+        .map(|(key, edge)| (key, edge.he_plus))
+        .collect();
     for (edge, he_plus) in edges {
         let start = body.get_half_edge(he_plus).unwrap().start;
         let end = body
@@ -185,7 +190,12 @@ fn a_line_carrier_leaves_the_face_uncached<T: AtRestPolicy>() {
         .half_edges()
         .filter(|(he, _)| body.pcurve(*he).is_some())
         .count();
-    assert_eq!(rows, 0, "no half-edge carries a row, at {}", T::scalar_name());
+    assert_eq!(
+        rows,
+        0,
+        "no half-edge carries a row, at {}",
+        T::scalar_name()
+    );
 }
 
 /// A spline carrier passes check 1 and refuses on its missing mate —
@@ -236,7 +246,11 @@ macro_rules! rows_at {
 rows_at!(at_f64, f64);
 rows_at!(at_interval, geom_core::Interval);
 rows_at!(at_sym_f64, geom_core::Sym<f64>);
-rows_at!(#[cfg(feature = "probe")] at_probe, geom_core::Probe);
+rows_at!(
+    #[cfg(feature = "probe")]
+    at_probe,
+    geom_core::Probe
+);
 // The scalar with no fitted door: its verdicts are the certifying
 // scalars' verdicts, because both rows fail a check that runs before
 // the door is asked for.

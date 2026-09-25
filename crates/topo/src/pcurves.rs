@@ -1869,11 +1869,11 @@ fn mint_faces<T: AtRestPolicy>(
             // `validate_pcurves`); refusing the whole construction
             // would claim a coverage the lane does not have. The
             // class's certified route EXISTS (`certify_fitted`'s
-            // Circle-carrier arm, mate from the edge's description);
-            // wiring it into this pass needs the fitted door's
-            // `AtRestPolicy` bound on every constructor and is banked
-            // with that ripple — banked in no milestone plan and in no
-            // carried-items register. Every OTHER failure — a covered
+            // Circle-carrier arm, mate from the edge's description), and
+            // this pass already holds its door (`AtRestPolicy::fitted_lane`);
+            // what is missing is a mint site that reaches that arm —
+            // banked in no milestone plan and in no carried-items
+            // register. Every OTHER failure — a covered
             // class whose residuals, envelope, continuity or closure
             // refuse — is a genuine defect and propagates.
             Err(PcurveMintError::Certify {
