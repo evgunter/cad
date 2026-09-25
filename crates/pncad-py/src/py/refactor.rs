@@ -272,7 +272,7 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             named(name),
             none(),
         ),
-        E::Pin { .. } | E::PartEdit { .. } | E::RemainderEdit { .. } => (
+        E::Pin { .. } | E::PartEdit { .. } | E::RemainderEdit { .. } | E::StepMapDiverged(_) => (
             none(),
             none(),
             none(),
@@ -566,7 +566,7 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
             none(),
             none(),
         ),
-        E::Edit { .. } => (
+        E::Edit { .. } | E::StepMapDiverged(_) => (
             none(),
             none(),
             none(),
