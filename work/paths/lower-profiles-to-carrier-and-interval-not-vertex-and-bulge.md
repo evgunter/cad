@@ -2,11 +2,10 @@
 id: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
 kind: issue
 title: A profile lowers to vertex + bulge, which cannot express a full turn, so every circle is split in two and the lowered pieces diverge from the authored path; lower to one canonical carrier + interval form instead
-status: open
+status: spec
 opened: 2026-09-25
 priority: P1
 cost: H
-needs_ev: true
 ---
 
 
@@ -452,3 +451,22 @@ and 5 move goldens. Unit 1 is the largest: about 25 source files plus
   population (two-vertex circles) shrinks. Re-measure.
 - The SWEEP node frontier (`eval/wire.rs::SWEEP_FRONTIER`): its premise
   changes, so the owner should be told.
+
+## Ruling (Ev, #3218, 2026-09-25)
+
+- q1: **A2**. Vertices are stored verbatim, and each segment is
+  `Line | Arc { centre, radius, Δθ }`. Consistency is verified at
+  validate. The dof argument for why every condition-free form needs a
+  full-turn case split is on the PR.
+- q2: geom-brep's `SketchSegment` follows.
+- q3: `circle` lowers through `circle_split`'s kernel with n = 1, and
+  stays its own verb.
+- q4: the dev-only `RawLoop` fixture door takes canonical segments.
+  `ProfileVertex` retires, and fixtures migrate through a test-support
+  helper that forwards to `arc_to(Bulge)`. `bulge_from_center`/`_via`
+  retire. `arc_to(Bulge)` is the one surviving bulge surface.
+
+Build units (children of this row): `canonical-segment-type-in-profile`,
+`geom-brep-sketch-segment-full-turn`, `one-segment-loop-through-builders`,
+`circle-lowers-to-one-segment`, `store-constructed-carriers`,
+`pncad-surface-for-canonical-segments`.

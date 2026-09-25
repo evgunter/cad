@@ -176,3 +176,14 @@ forwards to the algebra. `bulge_from_center`/`_via` retire from
 `pncad`, with an announcement to LIB first. The bulge accessor is
 deleted in the unit that removes its last reader. `arc_to(Bulge)` is
 the only survivor. The doc texts no longer promise a "derived view".
+
+## 2026-09-25 — #3218 ruled and merged; six build units filed
+
+Ev gave a 👍 on the residue answer, which closes q4. The row carries the
+ruling and has moved to `spec`, with `needs_ev` cleared. Units 1–6 are
+filed as its children. Unit 1 (`canonical-segment-type-in-profile`) is
+dispatchable, and 2–6 are parked on their predecessor. Review tier for
+unit 1: **dual**. It is an architectural change with broad reach, and
+its byte-identity claim is what every later unit stands on. An
+announced-seam note goes on EMIT's log for unit 4's `Piece(0/1)` →
+`Carrier` re-spelling.
