@@ -56,7 +56,8 @@
 //! `profile/src/path.rs`'s line×line fillet turn side;
 //! `sweep/src/revolve/axis.rs`'s radial extent;
 //! `sweep/src/blend/arms.rs`'s cone nappe;
-//! `topo/src/boolean/solid_contain.rs`'s `cbrt`. That list is not
+//! `topo/src/boolean/solid_contain.rs`'s `cbrt` and the Cardano
+//! radicand that shares its sign with `Q`. That list is not
 //! prose: `sym_rule_f_rows`'s
 //! `the_copysign_mint_sites_the_tree_holds_are_these` greps the
 //! shipped sources and reds when a site appears or goes, so the day a
