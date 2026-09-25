@@ -95,7 +95,7 @@ pub use delete::DeleteAffordance;
 pub use op::{CancelDoor, FreeMoveName, GestureName, OpOutcome, SessionOp, ValueGestureName};
 pub use probe::{BoundsReading, BoundsTarget};
 pub use refuse::{
-    FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, admits, face_frame_seat,
+    FaceFrameFault, NO_FACE_PICKED, NodeKindWanted, Refusal, Step, admits, face_frame_seat,
 };
 pub use select::{EdgeSelection, FaceSelection, Hovered, Selection, Standing};
 
@@ -1231,8 +1231,8 @@ impl DocSession {
                 }
                 Err(refusal) => OpOutcome::refused(refusal),
             },
-            SessionOp::Undo => self.step(true),
-            SessionOp::Redo => self.step(false),
+            SessionOp::Undo => self.step(Step::Undo),
+            SessionOp::Redo => self.step(Step::Redo),
             SessionOp::CancelEvaluation => {
                 self.eval.cancel();
                 OpOutcome::default()
@@ -1869,15 +1869,24 @@ impl DocSession {
         }
     }
 
-    /// Undo (`toward_root`) or redo.
-    fn step(&mut self, toward_root: bool) -> OpOutcome {
-        let moved = if toward_root {
-            self.history.undo()
-        } else {
-            self.history.redo()
+    /// Undo or redo, by the direction the op names.
+    ///
+    /// **The refusal is the MOVE's own answer**, not a pre-check: the
+    /// door attempts the step and refuses on the `None` the attempt
+    /// returns, so a history whose `can_step` half ever disagreed with
+    /// its move half would fail here rather than report a clean
+    /// outcome for a step that did not happen. The chrome's
+    /// [`Refusal::nothing_to_step`] composes the same refusal VALUE
+    /// ahead of the click, because a button has to decide whether to
+    /// offer the move; one composition of the words, two readings of
+    /// the history, and this one is the one that acts.
+    fn step(&mut self, direction: Step) -> OpOutcome {
+        let moved = match direction {
+            Step::Undo => self.history.undo(),
+            Step::Redo => self.history.redo(),
         };
         if moved.is_none() {
-            return OpOutcome::refused(Refusal::NothingToDo);
+            return OpOutcome::refused(Refusal::NothingToDo { direction });
         }
         // The document moved, so the display state's derived facts
         // (which instances exist; which are mate-constrained) may have
@@ -1941,10 +1950,10 @@ impl DocSession {
     /// fields going the other way: no path and no resolver, because
     /// nothing backs this document until it is saved.
     fn new_document(&mut self, name: &str) -> OpOutcome {
-        let name = name.trim();
-        if name.is_empty() {
-            return OpOutcome::refused(Refusal::EmptyName);
-        }
+        let name = match Refusal::new_document_name(name) {
+            Ok(name) => name,
+            Err(refusal) => return OpOutcome::refused(refusal),
+        };
         self.history = History::new(Doc::empty_derived(name, self.tol));
         self.path = None;
         self.resolver = None;

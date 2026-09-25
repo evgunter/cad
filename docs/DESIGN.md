@@ -369,12 +369,19 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   ∂u × ∂v with no "outward" contract — topology carries sense. A seam
   is defined SPATIALLY (the u_ref half-plane meridian), which on
   mirror-nappe cones differs from chart u = 0.
-- **Profile format**: a profile loop is a vertex chain with bulge
-  (b = tan(θ/4) of the arc to the next vertex, DXF-compatible) — zero
-  representation-consistency conditions by construction; closed
-  carriers split into ≥ 2 vertices; winding is invisible to users
-  (roles derive from containment). Downstream re-inspection of arc
-  geometry uses the stored bulge/carrier data, never endpoint atan2.
+- **Profile format**: a profile loop is a vertex chain whose segments
+  are each a carrier plus a signed interval on it — a line (the chord
+  between its two vertices), or an arc (centre, radius and signed sweep
+  Δθ, |Δθ| ≤ 2π). Vertices are stored verbatim and are authoritative; a
+  full turn is ONE segment at ONE vertex (|Δθ| = 2π), so a closed
+  carrier is one edge. The form is redundant (the vertices lie on the
+  carrier, Δθ agrees with them mod 2π), and those consistency
+  conditions are verified at validate, never trusted. Bulge
+  (b = tan(Δθ/4), DXF-compatible) is one of the path algebra's arc
+  modes, lowered into this form once, at the algebra — not the
+  storage. Winding is invisible to users (roles derive from
+  containment). Downstream re-inspection of arc geometry uses the
+  stored carrier data, never endpoint atan2.
 - **Declared-tangency discipline**: profiles refuse undeclared
   definite-Zero tangency at junctions (`UndeclaredTangency`, with a
   repair menu); declarations are verified, never trusted

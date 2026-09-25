@@ -129,12 +129,16 @@ fn undo_at_the_root_and_redo_at_a_leaf_refuse_rather_than_wrap() {
     let (mut session, _extrude) = session(tol);
     assert!(matches!(
         session.perform(SessionOp::Undo).refusal,
-        Some(viewer::Refusal::NothingToDo)
+        Some(viewer::Refusal::NothingToDo {
+            direction: viewer::session::Step::Undo
+        })
     ));
     set_thickness(&mut session, 0.010);
     assert!(matches!(
         session.perform(SessionOp::Redo).refusal,
-        Some(viewer::Refusal::NothingToDo)
+        Some(viewer::Refusal::NothingToDo {
+            direction: viewer::session::Step::Redo
+        })
     ));
     assert!(!session.history().can_redo());
     assert!(session.history().can_undo());
