@@ -219,17 +219,17 @@ use pncad::document::{
 };
 use pncad::select::{HitTestError, NodePickError};
 
+use crate::blend::BlendEvent;
 use crate::camera::CameraError;
 use crate::camera::Folded;
 use crate::display::{AdmissionFault, PruneReport, Withdrawn};
 use crate::idpass::IdStep;
+use crate::matetool::MateToolEvent;
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
-use crate::blend::BlendEvent;
-use crate::matetool::MateToolEvent;
 use crate::seats::SeatEvent;
 use crate::session::{AtRestBadge, OpOutcome, Outstanding, Refusal, SessionOp};
 use crate::tools::ToolNotice;

@@ -2,10 +2,11 @@
 id: rank-one-discards-the-frames-other-news
 kind: issue
 title: A frame's refusal discards its notices, and a discarded free-move placement is not recoverable
-status: open
+status: closed
 opened: 2026-09-04
 priority: P0
 cost: D
+closed: 2026-09-25
 ---
 
 Disclosed by `opoutcome-superseded-has-no-production-reader`'s fix,
@@ -176,3 +177,30 @@ supersession are BOTH `Subject::Document`, the per-subject line that
 would NOT deliver this row's case. The two rows are adjacent and
 independent rather than one conversation; that row's own adjudication
 section states the same finding from its side.
+
+## Closed 2026-09-25 — a loss rides beside a refusal
+
+**The rule, a property of the message:** a rank-2 notice rides beside
+a refusal when it reports state an accepted edit TOOK from the viewer,
+which no history holds (`frame::Loss::Irrecoverable`). Undo and redo
+govern the document only, so nothing the user can do returns it. It is
+set where the message is made, through one module-private door
+(`Message::lost`), and `frame_status` reads it without asking what
+refused. The rule and the population it sorts are stated once, in
+`frame_status`'s `# The ranking`.
+
+- **Admitted**: every `Withdrawal` (superseded free move, dropped
+  hide, killed drag) and a tool's survival drop (`frame::tool_notice`'s
+  lost-pick arms — mate, seated, and blend's `TargetLost`/`EdgesLost`).
+- **Left under the refusal**: a declined pick and a panel's own
+  refusal (nothing taken), maintenance rows (an edit the document's
+  history holds), and the pick/index/δ/store/fold refusals and the id
+  pass's disagreement (nothing changed).
+
+`app::perform_batch` did not change. The two sites in `app` that turn
+a tool event into a notice (`ViewerApp::sync_scene`'s survival drops,
+`ViewerApp::ui`'s declined picks) moved from `frame::tool_news(x.to_string())` to
+`frame::tool_notice`, because the event's arm is what says whether a
+pick was lost and rendered text cannot.
+
+Residue filed: `a-refusal-and-a-loss-from-one-fault-say-it-twice`.
