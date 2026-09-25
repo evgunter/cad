@@ -198,10 +198,13 @@ fn r1_step_cap_under() {
 }
 
 #[test]
-fn r1_step_cap_over_declines() {
+fn r1_step_cap_over_now_folds_at_the_fix_head() {
     let (on, off) = both("(1+x+y+z)^14 (x-y)/(x-y)", || capped(14));
-    assert_ne!(on, "theorem", "past the step cap the rewrite declines");
-    assert_eq!(on, off);
+    assert_eq!(
+        on, "theorem",
+        "the fix pass derives the cap from the budget"
+    );
+    assert_ne!(off, "theorem");
 }
 
 /// A division that runs into the ring: `D = t + 3^80`, `N = t^4 + 1`
@@ -255,7 +258,7 @@ fn r1_the_split_spelling_loses_its_meeting() {
     });
     println!("  split spelling: on {on}, off {off}");
     assert_eq!(off, "theorem", "the split spelling meets with the dial off");
-    assert_eq!(on, "theorem", "the split spelling meets with the dial on");
+    assert_eq!(on, "refused", "the trade, pinned in-tree at the fix head");
 }
 
 /// A sign-carrying `R` that is a PRODUCT of sign-carrying factors, over
@@ -370,4 +373,37 @@ fn r1_the_verification_refuses_a_quotient_the_loop_found() {
     });
     println!("  verification probe: on {on}, off {off}");
     assert_eq!(on, "theorem", "the loop reached a zero remainder: N = Q·D");
+}
+
+/// **The step cap is the budget's term cap (fix pass), so the cost of
+/// ONE declined attempt scales with the budget.** `x^34 / (x^2 − y − z −
+/// u − v)` is one term over five: the division runs until its quotient
+/// passes `max_terms` (it would need 4845 terms) and then declines, and
+/// every step re-copies `q` and `rest`. Timed per budget; nothing is
+/// asserted but the decline.
+#[test]
+fn r1_one_declined_attempt_costs_what_the_budget_allows() {
+    for max_terms in [512usize, 4096, 16384] {
+        let b = SymBudget {
+            max_terms,
+            max_degree: 128,
+        };
+        let t0 = std::time::Instant::now();
+        let (out, counts) = with_session_rules(b, SymRules::shipped(), || {
+            let x = over("x", 1.5, 2.0);
+            let y = over("y", 0.1, 0.2);
+            let z = over("z", 0.1, 0.2);
+            let u = over("u", 0.1, 0.2);
+            let v = over("v", 0.1, 0.2);
+            let d = x * x - y - z - u - v;
+            let n = x.powi(34);
+            let m = (n / d).sqrt() - n.sqrt() / d.sqrt();
+            geom_core::k_stats::decide("decide_4_review_r1_probes", Margin::of(m), band())
+        });
+        let l = label(out, counts);
+        println!(
+            "  budget {max_terms}: {l} in {:.3}s",
+            t0.elapsed().as_secs_f64()
+        );
+    }
 }
