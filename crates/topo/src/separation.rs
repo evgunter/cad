@@ -111,31 +111,6 @@ use crate::boolean::BooleanError;
 use crate::boolean::boxes::{face_box, sweep_pad};
 use crate::entity::SolidKey;
 
-/// Every face's padded box, in face-arena order: the boxes both
-/// [`Separation::of`] and [`Separation::hull_of`] read.
-fn padded_face_boxes<T: Decide + Bounds>(
-    body: &Body<T>,
-    tol: Tol,
-) -> Result<Vec<Aabb>, BooleanError> {
-    let band = Band::linear(tol).map_err(|_| BooleanError::ClassificationInvariant {
-        what: "placement separation: the ambient tolerance band is unusable",
-    })?;
-    let pad = sweep_pad(band);
-    body.faces().map(|(f, _)| face_box(body, f, pad)).collect()
-}
-
-/// The hull of `boxes`. The hull of nothing is the poison box, which
-/// overlaps everything, so a face-less prototype can never be certified,
-/// and the caller's own "graft source holds no solid" refusal is what
-/// actually fires.
-fn hull_of_boxes(boxes: &[Aabb]) -> Aabb {
-    boxes
-        .iter()
-        .copied()
-        .reduce(|a, b| a.hull(&b))
-        .unwrap_or_else(Aabb::poison)
-}
-
 /// A pair of placements the certificate could not separate: their padded
 /// boxes meet, so the union of those two copies is not provably a
 /// disjoint union.
@@ -177,24 +152,34 @@ impl Separation {
     /// face whose loop is unwalkable is not a body), and
     /// `ClassificationInvariant` when the ambient band is unusable.
     pub fn of<T: Decide + Bounds>(proto: &Body<T>, tol: Tol) -> Result<Self, BooleanError> {
-        let boxes = padded_face_boxes(proto, tol)?;
-        let hull = hull_of_boxes(&boxes);
+        let band = Band::linear(tol).map_err(|_| BooleanError::ClassificationInvariant {
+            what: "placement separation: the ambient tolerance band is unusable",
+        })?;
+        let pad = sweep_pad(band);
+        let mut boxes = Vec::new();
+        for (f, _) in proto.faces() {
+            boxes.push(face_box(proto, f, pad)?);
+        }
+        // A face-less prototype encloses nothing; the hull of nothing is
+        // the poison box, which overlaps everything — so a face-less
+        // prototype can never be certified, and the caller's own
+        // "graft source holds no solid" refusal is what actually fires.
+        let hull = boxes
+            .iter()
+            .copied()
+            .reduce(|a, b| a.hull(&b))
+            .unwrap_or_else(Aabb::poison);
         let tree = Bvh::build(&boxes);
         Ok(Self { boxes, hull, tree })
     }
 
-    /// The hull of `body`'s padded face boxes, and nothing else: a
-    /// conservative box of the whole body, in its own frame, by the
-    /// same boxes [`Separation::of`] builds, with no tree. Two bodies
-    /// whose hulls do not [`Aabb::overlaps`] cannot touch, by the box
-    /// rule the module docs state; a body with an unboxable face, or
-    /// with none, has the poison hull, which overlaps everything.
-    ///
-    /// # Errors
-    ///
-    /// As [`Separation::of`].
-    pub fn hull_of<T: Decide + Bounds>(body: &Body<T>, tol: Tol) -> Result<Aabb, BooleanError> {
-        padded_face_boxes(body, tol).map(|boxes| hull_of_boxes(&boxes))
+    /// The hull of every padded face box: a conservative box of the
+    /// whole body, in its own frame. Two bodies whose hulls do not
+    /// [`Aabb::overlaps`] cannot touch, by the box rule the module docs
+    /// state; a body with an unboxable face, or with none, has the
+    /// poison hull, which overlaps everything.
+    pub fn hull(&self) -> Aabb {
+        self.hull
     }
 
     /// Certifies that no two of `maps`'s placed copies can meet.

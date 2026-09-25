@@ -3463,13 +3463,17 @@ fn wire_union<
     // Contact is judged here, pairwise, and nowhere else (DM4's contact
     // rule): every member pair whose boxes meet, or that carries a
     // declaration, is its own two-member union with the pairs declared
-    // between those two members. Each
-    // member's box is the hull of its padded face boxes, the separation
-    // certificate's box rule, and a judged pair's body is discarded.
+    // between those two members. Each member's box is the separation
+    // certificate's hull of its padded face boxes, read through the one
+    // box door the certificate already has (a hull-only door would be a
+    // second compound `Decide + Bounds` seam), and a judged pair's body
+    // is discarded.
     let hulls = operands
         .iter()
         .map(|(body, _)| {
-            topo::Separation::hull_of(body.as_ref(), tol).map_err(NodeErrorKind::Boolean)
+            topo::Separation::of(body.as_ref(), tol)
+                .map(|s| s.hull())
+                .map_err(NodeErrorKind::Boolean)
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     let tables: Vec<&NameTable> = operands.iter().map(|(_, t)| t.as_ref()).collect();
@@ -3650,7 +3654,7 @@ fn wire_union<
 /// contact; this is the one place a union's contacts are decided.
 ///
 /// Each pair of members whose closed boxes meet
-/// ([`topo::Separation::hull_of`]) runs the pair verb as `m ∪ n`, handed
+/// ([`topo::Separation::hull`]) runs the pair verb as `m ∪ n`, handed
 /// the declared pairs whose two sites are `m` and `n` and nothing else.
 /// A touching pair with its contact undeclared refuses
 /// `UndeclaredContact` through [`union_refusal`], naming one face of
