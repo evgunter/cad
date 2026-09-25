@@ -15,7 +15,7 @@
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, SketchPlane, ValidatedProfile};
 use sweep::RevolveAxis;
 use topo::{Body, SplitPlane};
 
@@ -84,7 +84,7 @@ pub fn pinch_prism() -> Body<f64> {
         (0.0, 2.0),
     ]
     .into_iter()
-    .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+    .map(|(x, y)| (Point2::new(x, y), 0.0))
     .collect();
     sweep::test_support::prism(verts, 1.0, tol())
 }

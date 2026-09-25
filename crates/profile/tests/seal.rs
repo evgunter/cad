@@ -1,17 +1,20 @@
-//! The `ProfileLoop`/`ProfileVertex` seal, pinned from OUTSIDE the crate.
+//! The `ProfileLoop` seal, pinned from OUTSIDE the crate.
 //!
 //! An integration test is a separate crate, so everything here is
-//! subject to the same privacy the kernel's consumers are. Two rows:
-//! the read surface is complete, and nothing in this crate can
-//! deserialize a loop.
+//! subject to the same privacy the kernel's consumers are. Three rows:
+//! the read surface is complete, the canonical fixture door writes the
+//! stored form verbatim, and nothing in this crate can deserialize a
+//! loop.
 //!
 //! The E0451 pin — that `ProfileLoop { .. }` does not COMPILE out of
 //! crate — lives where it can be executed: a `compile_fail` doctest on
 //! [`profile::ProfileLoop`]. A row here could only observe the seal's
 //! consequences, never a compile error.
 
-use geom_core::Point2;
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use geom_core::{Point2, Tol};
+use profile::{
+    Profile, ProfileError, ProfileLoop, RawLoop, Segment, SketchPlane, test_support::bulge_loop,
+};
 
 /// The read surface is COMPLETE: every accessor, exercised against a
 /// door-built loop.
@@ -26,19 +29,19 @@ use profile::{ProfileLoop, ProfileVertex, RawLoop};
 #[test]
 fn accessors_read_back_everything_the_doors_wrote() {
     let vs = vec![
-        ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-        ProfileVertex::new(Point2::new(1.0, 0.0), 0.5),
-        ProfileVertex::new(Point2::new(1.0, 1.0), -0.25),
-        ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.5),
+        (Point2::new(1.0, 1.0), -0.25),
+        (Point2::new(0.0, 1.0), 0.0),
     ];
-    let lp: ProfileLoop<f64> = RawLoop::new(vs.clone());
+    let lp: ProfileLoop<f64> = bulge_loop(vs.clone());
 
-    // ProfileVertex: pos() and bulge() return the constructor's
-    // arguments, bit for bit.
-    for ((got, b), want) in lp.vertices().iter().zip(lp.bulges()).zip(&vs) {
-        assert_eq!(got.x.to_bits(), want.pos().x.to_bits());
-        assert_eq!(got.y.to_bits(), want.pos().y.to_bits());
-        assert_eq!(b.to_bits(), want.bulge().to_bits());
+    // vertices() and bulges() return the chain's positions and
+    // bulges, bit for bit.
+    for ((got, b), (pos, bulge)) in lp.vertices().iter().zip(lp.bulges()).zip(&vs) {
+        assert_eq!(got.x.to_bits(), pos.x.to_bits());
+        assert_eq!(got.y.to_bits(), pos.y.to_bits());
+        assert_eq!(b.to_bits(), bulge.to_bits());
     }
 
     // ProfileLoop: vertices() is the chain in traversal order;
@@ -79,20 +82,73 @@ fn accessors_read_back_everything_the_doors_wrote() {
     }
 }
 
+/// **The canonical door writes the stored form verbatim.** Every
+/// segment it is handed reads back bit for bit, with the bulge kept
+/// beside it zero for a line and tan(Δθ/4) for an arc. It can also
+/// write a table the bulge form cannot — a one-segment full circle —
+/// and deciding that table is `validate`'s: it refuses it by arity.
+#[test]
+fn the_canonical_door_writes_the_stored_form_verbatim() {
+    let bits = |x: &dyn core::fmt::Debug| format!("{x:?}");
+    let arc = Segment::Arc {
+        centre: Point2::new(1.0, 0.5),
+        radius: 0.5,
+        sweep: std::f64::consts::PI,
+    };
+    let chain = [
+        (Point2::new(0.0, 0.0), Segment::Line),
+        (Point2::new(1.0, 0.0), arc),
+        (Point2::new(1.0, 1.0), Segment::Line),
+    ];
+    let lp: ProfileLoop<f64> = RawLoop::new(chain);
+    for (k, &(pos, segment)) in chain.iter().enumerate() {
+        assert_eq!(bits(&lp.vertices()[k]), bits(&pos), "vertex {k}");
+        assert_eq!(bits(&lp.segments()[k]), bits(&segment), "segment {k}");
+    }
+    let want = [0.0, (std::f64::consts::PI / 4.0).tan(), 0.0];
+    for (k, (got, want)) in lp.bulges().iter().zip(want).enumerate() {
+        assert_eq!(got.to_bits(), want.to_bits(), "bulge {k}");
+    }
+    assert!(lp.tangent_joints().is_empty());
+
+    let circle: ProfileLoop<f64> = RawLoop::new([(
+        Point2::new(1.0, 0.0),
+        Segment::Arc {
+            centre: Point2::new(0.0, 0.0),
+            radius: 1.0,
+            sweep: std::f64::consts::TAU,
+        },
+    )]);
+    assert_eq!(circle.segments().len(), 1);
+    let refusal = Profile::new(SketchPlane::xy(), vec![circle])
+        .validate(Tol::witness())
+        .err();
+    assert!(
+        matches!(
+            refusal,
+            Some(ProfileError::TooFewVertices {
+                loop_index: 0,
+                count: 1
+            })
+        ),
+        "a one-segment circle is refused by arity, got {refusal:?}"
+    );
+}
+
 /// **Cannot-mint, at the source level.** Deserialization is the one
 /// route that could rebuild a value field-by-field without naming a
-/// door, so the seal is only worth what the absence of serde on these
-/// two types is worth. This row reads the crate's own sources and
+/// door, so the seal is only worth what the absence of serde on
+/// `ProfileLoop` is worth. This row reads the crate's own sources and
 /// refuses if that absence ever stops holding.
 ///
 /// The argument the absence completes lives at
 /// `crates/editor-core/src/persist/wire.rs`: the persisted form is the
 /// PROGRAM, and replay through the driver is the only path from stored
-/// steps to geometry. A `#[derive(Deserialize)]` landing on either type
+/// steps to geometry. A `#[derive(Deserialize)]` landing on the type
 /// here would open a second path, silently — hence a scan, not a
 /// comment.
 #[test]
-fn neither_type_can_be_deserialized() {
+fn a_loop_cannot_be_deserialized() {
     // The manifest is TOML, not Rust: its own comment rule (`#` to end
     // of line) is the reader here, and the shared Rust lexer is not
     // what it wants.
@@ -121,10 +177,7 @@ fn neither_type_can_be_deserialized() {
     // `scripts/gates/kernel-serde-free.sh` polices the dependency
     // itself, and the manifest loop above polices this crate's.
     let src = test_utils::source::code_and_literals(include_str!("../src/lib.rs"));
-    let seal_offsets = [
-        "pub struct ProfileVertex<T: Real>",
-        "pub struct ProfileLoop<T: Real>",
-    ];
+    let seal_offsets = ["pub struct ProfileLoop<T: Real>"];
     for decl in seal_offsets {
         let at = src.find(decl);
         assert!(at.is_some(), "{decl} is still declared in lib.rs");

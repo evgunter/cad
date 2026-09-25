@@ -63,7 +63,7 @@ use common::orient::{
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, OrthoFrame, Point3, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::test_support::swept_elbow_lofted;
 use sweep::{Extrusion, Lofted, Revolution, Section, extrude, loft_body, revolve};
@@ -103,11 +103,11 @@ fn notched_loops() -> Vec<ProfileLoop<f64>> {
     let b = FRAC_PI_8.tan();
     // Leaving bulges: the bottom arc bows out (+b), the top one bows
     // into the region (-b); the two sides are straight.
-    vec![<ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), b),
-        ProfileVertex::new(p2(2.0, 0.0), 0.0),
-        ProfileVertex::new(p2(2.0, 1.5), -b),
-        ProfileVertex::new(p2(0.0, 1.5), 0.0),
+    vec![bulge_loop(vec![
+        (p2(0.0, 0.0), b),
+        (p2(2.0, 0.0), 0.0),
+        (p2(2.0, 1.5), -b),
+        (p2(0.0, 1.5), 0.0),
     ])]
 }
 
@@ -118,10 +118,7 @@ fn notched_loops() -> Vec<ProfileLoop<f64>> {
 fn holed_loops() -> Vec<ProfileLoop<f64>> {
     vec![
         ProfileLoop::polygon([p2(0.0, 0.0), p2(4.0, 0.0), p2(4.0, 4.0), p2(0.0, 4.0)]),
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(1.0, 2.0), 1.0),
-            ProfileVertex::new(p2(3.0, 2.0), 1.0),
-        ]),
+        bulge_loop(vec![(p2(1.0, 2.0), 1.0), (p2(3.0, 2.0), 1.0)]),
     ]
 }
 
@@ -408,12 +405,12 @@ fn dimple_sphere_wall_mints_sense_false() {
     let b = FRAC_PI_8.tan();
     // Leaving bulges: three straight legs, then the dimple arc (-b)
     // from (0.5, 2) to the axis; the closing leg is straight.
-    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 2.0), 0.0),
-        ProfileVertex::new(p2(0.5, 2.0), -b),
-        ProfileVertex::new(p2(0.0, 1.5), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(1.0, 0.0), 0.0),
+        (p2(1.0, 2.0), 0.0),
+        (p2(0.5, 2.0), -b),
+        (p2(0.0, 1.5), 0.0),
     ]);
     let t = revolve(
         &validated(vec![lp]),
@@ -479,11 +476,11 @@ fn dimple_sphere_wall_mints_sense_false() {
 fn notched_ring_torus_band_mints_sense_false() {
     let b = FRAC_PI_8.tan();
     // The notched profile shifted to x ∈ [1, 3]: same leaving bulges.
-    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(1.0, 0.0), b),
-        ProfileVertex::new(p2(3.0, 0.0), 0.0),
-        ProfileVertex::new(p2(3.0, 1.5), -b),
-        ProfileVertex::new(p2(1.0, 1.5), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(1.0, 0.0), b),
+        (p2(3.0, 0.0), 0.0),
+        (p2(3.0, 1.5), -b),
+        (p2(1.0, 1.5), 0.0),
     ]);
     let t = revolve(
         &validated(vec![lp]),
@@ -744,11 +741,11 @@ fn loft_hole_walls_face_out_of_the_plate() {
 fn a_tapered_concave_loft_keeps_the_prism_wall_directions() {
     let prism = loft_pair(&notched_loops(), 1.0);
     let b = FRAC_PI_8.tan();
-    let scaled: Vec<ProfileLoop<f64>> = vec![<ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), b),
-        ProfileVertex::new(p2(1.6, 0.0), 0.0),
-        ProfileVertex::new(p2(1.6, 1.2), -b),
-        ProfileVertex::new(p2(0.0, 1.2), 0.0),
+    let scaled: Vec<ProfileLoop<f64>> = vec![bulge_loop(vec![
+        (p2(0.0, 0.0), b),
+        (p2(1.6, 0.0), 0.0),
+        (p2(1.6, 1.2), -b),
+        (p2(0.0, 1.2), 0.0),
     ])];
     let sections: Vec<Section> = vec![notched_loops(), scaled];
     let places = vec![
@@ -861,11 +858,11 @@ fn a_lofted_operand_refuses_the_union_check_typed() {
 /// traversal-following chart could plausibly twist.
 fn flipping_loops(sign: f64) -> Vec<ProfileLoop<f64>> {
     let b = FRAC_PI_8.tan() * sign;
-    vec![<ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), -b),
-        ProfileVertex::new(p2(2.0, 0.0), 0.0),
-        ProfileVertex::new(p2(2.0, 1.5), b),
-        ProfileVertex::new(p2(0.0, 1.5), 0.0),
+    vec![bulge_loop(vec![
+        (p2(0.0, 0.0), -b),
+        (p2(2.0, 0.0), 0.0),
+        (p2(2.0, 1.5), b),
+        (p2(0.0, 1.5), 0.0),
     ])]
 }
 

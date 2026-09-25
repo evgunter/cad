@@ -19,7 +19,7 @@
 
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey};
 
@@ -40,10 +40,8 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 pub fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     let profile = Profile::new(
         SketchPlane::xy(),
-        vec![ProfileLoop::new(
-            pts.iter()
-                .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-                .collect(),
+        vec![bulge_loop(
+            pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect(),
         )],
     )
     .validate(Tol::witness())

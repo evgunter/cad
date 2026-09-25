@@ -1277,7 +1277,7 @@ pub(crate) mod tests {
     use geom_core::Point3;
     use geom_core::Tol;
     use geom_core::spline::KnotVector;
-    use profile::RawLoop;
+    use profile::test_support::bulge_loop;
 
     /// A componentwise domination claim — every `lesser <= greater` — and
     /// the failure message of the rows that state one through it: the
@@ -2462,9 +2462,8 @@ pub(crate) mod tests {
     /// assembled body.
     fn pie_wall() -> NurbsSurface<f64> {
         use geom_core::{Affine3, Point2, Vec3};
-        let v = |x: f64, y: f64, bulge: f64| sweep::ProfileVertex::new(Point2::new(x, y), bulge);
-        let lp =
-            sweep::ProfileLoop::new(vec![v(1.0, 0.0, 0.4), v(0.0, 1.0, 0.0), v(0.0, 0.0, 0.0)]);
+        let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
+        let lp = bulge_loop(vec![v(1.0, 0.0, 0.4), v(0.0, 1.0, 0.0), v(0.0, 0.0, 0.0)]);
         let sections = vec![vec![lp.clone()], vec![lp]];
         let places: Vec<Affine3<f64>> = [0.0, 1.0]
             .iter()

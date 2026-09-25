@@ -168,7 +168,7 @@ pub(crate) struct ArcCarrier<T: Real> {
 /// the radius |L·(1 + b²)/(4b)|. Pure arithmetic over the segment's
 /// input values — no predicate runs here — and the ONE spelling of
 /// it: the lowering to the canonical form mints an arc's carrier
-/// through this ([`crate::ProfileVertex::lower_to`]), and the validated
+/// through this ([`crate::lower_to`]), and the validated
 /// form's lift rebuilds a carried arc's carrier through it, so the
 /// carrier at any scalar is one expression of the endpoints and bulge
 /// at that scalar (at a certified scalar, its own enclosure).

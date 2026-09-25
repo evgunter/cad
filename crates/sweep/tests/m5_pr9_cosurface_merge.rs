@@ -16,16 +16,15 @@
 
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 use topo::splitting::{SplitPlane, split};
 
 fn disc_cylinder() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(-0.5, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(0.5, 0.0), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(-0.5, 0.0), 1.0),
+        (Point2::new(0.5, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -118,9 +117,9 @@ fn distinct_key_curved_neighbors_stay_unmerged() {
     // The never-numeric rule, curved edition: two distinct-key,
     // value-different cylinder walls (a lens) never merge — no rung
     // licenses, the op is a no-op.
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(-0.5, 0.0), 0.3),
-        ProfileVertex::new(Point2::new(0.5, 0.0), 0.3),
+    let lp = bulge_loop(vec![
+        (Point2::new(-0.5, 0.0), 0.3),
+        (Point2::new(0.5, 0.0), 0.3),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())

@@ -83,8 +83,7 @@ test_utils::gated_to![
 
 use crate::common::{arc_section, quad_verdicts, stacked};
 use geom_core::{Point2, Tol};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::loft_body;
 use topo::{Body, MassProperties};
 
@@ -184,10 +183,10 @@ fn exhausting_prism() -> Body<f64> {
 /// stays clean and the negative volume is what refuses.
 fn ball() -> Body<f64> {
     use sweep::{Revolution, RevolveAxis, revolve};
-    let lp = ProfileLoop::new(vec![
+    let lp = bulge_loop(vec![
         // A half-circle bulge: the meridian of the ball.
-        ProfileVertex::new(Point2::new(0.0, -1.0), 1.0),
-        ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())

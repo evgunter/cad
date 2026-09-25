@@ -1313,7 +1313,7 @@ fn drawable(point: [f64; 2]) -> bool {
 /// One loop as a closed polyline: every vertex, with each bulged
 /// segment subdivided finely enough that it sags less than `chord`.
 ///
-/// The bulge convention is [`pncad::profile::ProfileVertex`]'s
+/// The bulge convention is [`pncad::profile::ProfileLoop::bulges`]'s
 /// — `b = tan(θ/4)` for the segment LEAVING each vertex, positive
 /// counterclockwise, the last vertex's belonging to the closing
 /// segment — so this reads the loop exactly as the kernel writes it

@@ -170,7 +170,7 @@ pub use revolve::{
 // are `Section`s — `profile::ProfileLoop` lists, re-exported here so
 // section authors need not depend on `profile` directly.
 pub use geom_brep::SketchSegment;
-pub use profile::{ProfileLoop, ProfileVertex};
+pub use profile::ProfileLoop;
 pub use skin::{
     LoftGeometry, Section, SkinError, loft_geometry, loft_parameters, make_compatible,
     segment_curve, skin, skin_on, skin_parameters, sweep_geometry, sweep_places,

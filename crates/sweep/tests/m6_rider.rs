@@ -13,11 +13,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use profile::RawLoop;
 
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, BooleanError};
@@ -28,10 +27,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 /// A radius-`r` ball at `c` (poles on +Y; meridian circle in z = 0).
 fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -r), 1.0),
-        ProfileVertex::new(p2(0.0, r), 0.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.0, -r), 1.0), (p2(0.0, r), 0.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
