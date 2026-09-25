@@ -468,4 +468,44 @@ the ruling.
 | R1's delta | 88k | 32 min |
 | R2 | 292k | 51 min |
 | coder | 73k | — |
+## 2026-09-24 — DECIDE-4 stops on the sign: the fork goes to Ev
+
+DECIDE-4's Phase 1 is pushed on `decide/4-bulge-reach` (`200123f29`).
+The evidence is the item's section "What stands on DECIDE-3's and
+SYM-9's tree (DECIDE-4)" on that branch: the per-cause tables, the
+renders, both routes counted and costed, and the leaf times.
+
+- **(ii) is empty.** DECIDE-3's `abs_square` and canonical root took
+  what SYM-3 counted.
+- **One value-free decision is left:** the boss's `arc_span`, which
+  bounds the boss's ceiling (`1.0309e3·ε`). It is a polynomial common
+  factor under a root, which rule E's monomial factor misses. That is
+  Phase 2a, and it proceeds.
+- **(iii) is non-empty:** four decisions on the `0.5` parameter
+  control, with eight frozen behind them. Phase 2b stops.
+
+The fork is written into the item (`needs_ev: true`) on the `[ev]` PR.
+The recommendation is route B, the span spelled from the decided turn.
+Route A as the dial stands is rejected: it raises `numeric` on every
+document. The apothem's sign is a second, smaller question, proposed as
+its own item.
+
+Also measured, not asked: on the plate and the bracket, `restrict`'s
+sub-arcs meet no arc-family decision. That closes the sweep's blind
+spot (i) for those two documents only.
+
+## 2026-09-25 — Ev rules the bulge's sign (#3186): route B, and the apothem as its own item
+
+Ev, on #3186: "both recommendations sound good!"
+
+- **Decision 1.** The sweep spells the carrier's span from the turn it
+  already decided, `4·atan(σ·b)` in `placed_segment_spec`. DECIDE-4 had
+  merged its review cycle before the ruling, so per its spec this is its
+  own unit, DECIDE-5, cut from `props/sign-hull` once #3192 lands.
+- **Decision 2.** The apothem's sign is filed as
+  `the-apothems-sign-is-a-value-read` (P2, cost H). Its candidate is a
+  narrowed rule C behind the door, with a structural look first.
+
+`rule-d-reaches-the-unit-bulge-only` clears `needs_ev` and closes when
+DECIDE-5 lands.
 
