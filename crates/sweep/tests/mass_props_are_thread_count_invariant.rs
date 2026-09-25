@@ -282,6 +282,19 @@ fn digest() -> String {
 /// shape, numeric and frozen-operand counts each rise by exactly 2,
 /// the verdicts stay `OK` / `REFUSED`, and no other line of the block
 /// moves.
+///
+/// **Re-cut at all three ε when tier 3's check 1 began reading every
+/// edge carrier's datums.** Only the `frozen` column of the two
+/// `validate_geometric` rows moves, and down: `sym_arc_loft`
+/// 2141 → 685 / 2059 → 599 / 2117 → 670 and `sym_thin_strip`
+/// 2181 → 860 / 2178 → 825 / 2179 → 858 at ε = 1e-6 / 1e-9 / 1e-12.
+/// Decisions, discharges, shapes and verdicts are unchanged. The
+/// carrier pass decides nothing; it builds its datum reads inside the
+/// session, and so interns nodes the later decisions' margins share —
+/// nodes the plain walk used to freeze as absent from its table
+/// (`geom_core::sym`'s `form_in`: "a node absent from this leaf's table
+/// is frozen here by design") and now expands. Measured by switching
+/// the pass off on a probe branch, which restores the old column.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),
