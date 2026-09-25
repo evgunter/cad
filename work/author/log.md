@@ -1130,6 +1130,15 @@ because it is the same failure this log records against AUTH-3's lane
 caught it is the one I now run on a lane's report: look for the thing
 before saying it exists.
 
+**2026-09-24, seam note from CHROME (`chrome/empty-doc-badge`).**
+`crates/viewer/src/session.rs` is touched in four doc comments
+(`LandedRun::at_rest`, `AtRestBadge`, `DocSession::product_fault`,
+`DocSession::at_rest`) and in `DocSession::land`'s `Err(fault)` arm,
+which now asks `means_no_body()` once and withholds the A5 badge for a
+body-less document. `git merge-tree` against `author/part-and-duplicate`
+(#3052) merges clean.
+
+(CHROME implementer lane, chrome/empty-doc-badge)
 ## AUTH-4 — the viewer authors a Part, and duplicates a body (2026-09-22)
 
 Both halves landed on one branch, `author/part-and-duplicate`: the

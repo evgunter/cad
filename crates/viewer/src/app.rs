@@ -1004,11 +1004,9 @@ impl ViewerApp {
                     self.fit_on_scene = false;
                     self.pending_fit = true;
                 }
-                // The gather's own verdict is NOT written here. A
-                // naming collision across roots is not a node failure,
-                // so no tree badge carries it — but it is a standing
-                // fact about the landed pair, not this frame's news,
-                // and the status line carries news
+                // The gather's own verdict is NOT written here: it is
+                // a standing fact about the landed pair, not this
+                // frame's news, and the status line carries news
                 // (`frame`'s header). It badges beside the at-rest and
                 // checks reads, off `frame::product_badge`, which is a
                 // read of held state and so cannot be stale here or
@@ -1632,9 +1630,9 @@ impl ViewerApp {
             // nothing about how a badge looks is decided here
             // (`frame::Badge`).
             //
-            // The A5 at-rest verdict, for assembly-shaped
-            // documents: the verification verdict living past the
-            // commit.
+            // The A5 at-rest verdict, when the session took one
+            // (`DocSession::at_rest`): the verification verdict
+            // living past the commit.
             if let Some(badge) = frame::at_rest_badge(self.session.at_rest()) {
                 draw_badge(ui, &self.theme, &badge);
             }
@@ -1658,10 +1656,7 @@ impl ViewerApp {
             // acting batch, while "the product on screen does not
             // gather" is true until another pair lands.
             //
-            // Which faults reach it is `frame::product_badge`'s,
-            // and it declines every state another channel carries:
-            // the three per-node arms are the feature tree's, and
-            // an empty document is the blank viewport's.
+            // Which faults reach it is `frame::badge_site`'s.
             if let Some(badge) = frame::product_badge(self.session.product_fault()) {
                 draw_badge(ui, &self.theme, &badge);
             }
