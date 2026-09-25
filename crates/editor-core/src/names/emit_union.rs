@@ -485,12 +485,18 @@ fn member_edge_piece(name: &StableName) -> Option<(RecipeNodeId, StableName, boo
 /// which ends in the canonical form (`names::canonical::rewritten`).
 ///
 /// A vertex's own trailing rank is fold history too once its name moved,
-/// so vertices are grouped by their name without it. A group holding a
-/// moved name is ranked WHOLE along the one member edge its seam cites
-/// ([`insert_ranked_or_tied`]), unmoved members included, so no bare
-/// name stands beside ranked ones; a group with no moved name keeps its
-/// names. A group of several with no single seam, or a seam citing no
-/// member edge or two, has no carrier and refuses.
+/// so vertices are grouped by their name without it. A group of several
+/// whose name is one seam citing one member edge is ranked WHOLE along
+/// that edge, oriented as it is in the member's own body
+/// ([`insert_ranked_or_tied`]), whether or not any of its names moved:
+/// the direction is then the member's, in every member order, and not
+/// the carrier the fold happened to rank along at the step that met the
+/// group. A seam citing two member edges refuses, as the collapse
+/// already does for such a group's ranks. A group with a moved name and
+/// no single seam, or a seam citing no member edge, has no carrier and
+/// refuses. A group with no moved name and no member edge to rank along
+/// keeps its names: its ranks, if any, lie along a seam line, in the
+/// orientation the collapse put in canonical form.
 fn cite_member_edges<T: geom_core::Decide>(
     t: NameTable,
     body: &topo::Body<T>,
@@ -527,24 +533,27 @@ fn cite_member_edges<T: geom_core::Decide>(
     }
     let mut tie = TieRows::default();
     for (base, rows) in vertices {
-        if !rows.iter().any(|&(_, _, moved)| moved) {
+        let moved = rows.iter().any(|&(_, _, moved)| moved);
+        if let [(name, entry, _)] = rows.as_slice() {
+            put_entry(&mut out, if moved { base } else { name.clone() }, entry)?;
+            continue;
+        }
+        let whole = |n: &StableName| member_edge_piece(n).filter(|(_, _, ranked)| !ranked);
+        let carrier = match base.path.as_slice() {
+            [RoleSeg::Seam { a, b }] => match (whole(a), whole(b)) {
+                (Some(m), None) | (None, Some(m)) => Some(m),
+                (Some(_), Some(_)) => return Err(bug(Unrankable::SidedVertexRank.what())),
+                (None, None) if moved => return Err(bug(CITED_GROUP_NO_MEMBER_EDGE)),
+                (None, None) => None,
+            },
+            _ if moved => return Err(bug(CITED_GROUP_NOT_ONE_SEAM)),
+            _ => None,
+        };
+        let Some((member, edge, _)) = carrier else {
             for (name, entry, _) in rows {
                 put_entry(&mut out, name, &entry)?;
             }
             continue;
-        }
-        if let [(_, entry, _)] = rows.as_slice() {
-            put_entry(&mut out, base, entry)?;
-            continue;
-        }
-        let whole = |n: &StableName| member_edge_piece(n).filter(|(_, _, ranked)| !ranked);
-        let [RoleSeg::Seam { a, b }] = base.path.as_slice() else {
-            return Err(bug(CITED_GROUP_NOT_ONE_SEAM));
-        };
-        let (member, edge, _) = match (whole(a), whole(b)) {
-            (Some(m), None) | (None, Some(m)) => m,
-            (Some(_), Some(_)) => return Err(bug(Unrankable::SidedVertexRank.what())),
-            (None, None) => return Err(bug(CITED_GROUP_NO_MEMBER_EDGE)),
         };
         let (member_body, member_edge) = member_edge(members, member, &edge)?;
         let seg = Segment::of_edge(member_body, member_edge)?;
