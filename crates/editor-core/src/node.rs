@@ -2032,8 +2032,9 @@ pub enum Node<P> {
     /// # The `declare` field, and why it records no position
     ///
     /// Contact is judged pairwise, before the fold: every two members
-    /// whose boxes meet are evaluated as the two-member union of just
-    /// those two, with the pairs declared between them, and two members
+    /// whose boxes meet, or between which a pair is declared, are
+    /// evaluated as the two-member union of just those two, with the
+    /// pairs declared between them, and two members
     /// that touch with the contact undeclared refuse `UndeclaredContact`
     /// exactly as a pair boolean's operands do. That holds in every
     /// member order, and for a contact a third member covers too. The

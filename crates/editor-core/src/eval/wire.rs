@@ -3382,9 +3382,10 @@ fn wire_boolean<
 ///
 /// **Contact is judged before the fold, pairwise** (DM4's contact
 /// rule): [`judge_pairwise_contact`] runs each member pair whose boxes
-/// meet as its own two-member union, and an undeclared contact refuses
-/// there, in every member order. The fold judges no contact of its
-/// own. The census still runs inside each step, because the step is
+/// meet, or that carries a declaration, as its own two-member union,
+/// and an undeclared contact refuses there, in every member order. The
+/// fold judges no contact of its own, and a step that refuses one is a
+/// bug ([`fold_step_refusal`]). The census still runs inside each step, because the step is
 /// the pair verb, and a certified pair passes it the one way the
 /// census reads a contact as declared: the pair is fed to the step
 /// that joins its two sites as a declared face pair. A pair whose
@@ -3460,16 +3461,15 @@ fn wire_union<
     };
     let buckets = route_declarations(id, members, declared, doc)?;
     // Contact is judged here, pairwise, and nowhere else (DM4's contact
-    // rule): every member pair whose boxes meet is its own two-member
-    // union with the pairs declared between those two members. Each
-    // member's box is the separation certificate's hull of its padded
-    // face boxes, and a judged pair's body is discarded.
+    // rule): every member pair whose boxes meet, or that carries a
+    // declaration, is its own two-member union with the pairs declared
+    // between those two members. Each
+    // member's box is the hull of its padded face boxes, the separation
+    // certificate's box rule, and a judged pair's body is discarded.
     let hulls = operands
         .iter()
         .map(|(body, _)| {
-            topo::Separation::of(body.as_ref(), tol)
-                .map(|s| s.hull())
-                .map_err(NodeErrorKind::Boolean)
+            topo::Separation::hull_of(body.as_ref(), tol).map_err(NodeErrorKind::Boolean)
         })
         .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     let tables: Vec<&NameTable> = operands.iter().map(|(_, t)| t.as_ref()).collect();
@@ -3530,8 +3530,9 @@ fn wire_union<
         };
         match (verb.build)(BooleanOp::Union, decls)
             .run_pair(&acc_body, &member_body, boolean_sweep, tol)
-            .map_err(|err| union_refusal(id, members, &acc_table, &member_table, err))?
-        {
+            .map_err(|err| {
+                fold_step_refusal(union_refusal(id, members, &acc_table, &member_table, err))
+            })? {
             // A union of two REAL bodies cannot be empty, and both
             // operands here are real: `body_operand` refuses a member
             // whose value is the typed empty before this line, and the
@@ -3649,7 +3650,7 @@ fn wire_union<
 /// contact; this is the one place a union's contacts are decided.
 ///
 /// Each pair of members whose closed boxes meet
-/// ([`topo::Separation::hull`]) runs the pair verb as `m ∪ n`, handed
+/// ([`topo::Separation::hull_of`]) runs the pair verb as `m ∪ n`, handed
 /// the declared pairs whose two sites are `m` and `n` and nothing else.
 /// A touching pair with its contact undeclared refuses
 /// `UndeclaredContact` through [`union_refusal`], naming one face of
@@ -3688,18 +3689,23 @@ fn judge_pairwise_contact(
     doc: &crate::doc::Doc<ProfileProgram>,
     mut judge: impl FnMut(usize, usize, BooleanDeclarations) -> Result<(), NodeErrorKind>,
 ) -> Result<(), NodeErrorKind> {
-    let position = |at: RecipeNodeId| members.iter().position(|m| *m == at);
     // The declared pairs between two DIFFERENT members, keyed by the
     // pair's positions with the lesser node id first and sided the same
     // way. A pair whose two sites are one member is that member's
-    // carried contact, not a contact between members. Every site is in
-    // the list: `route_declarations` has refused any other.
+    // carried contact, not a contact between members. Every site sites:
+    // `route_declarations` sited the same pairs through the same door
+    // and refused any that does not, so a refusal here is a bug.
+    let site = |r: &SitedRef| {
+        member_site(id, members, r, doc).map_err(|_| {
+            NodeErrorKind::Naming(names::NamingError::Emission {
+                what: PAIRWISE_SITE_UNROUTED,
+            })
+        })
+    };
     let mut between: std::collections::BTreeMap<(usize, usize), Vec<SidedPair<'static>>> =
         std::collections::BTreeMap::new();
     for ((r1, r2), class) in declared {
-        let (Some(i), Some(j)) = (position(r1.at), position(r2.at)) else {
-            continue;
-        };
+        let ((i, n1), (j, n2)) = (site(r1)?, site(r2)?);
         if i == j {
             continue;
         }
@@ -3708,21 +3714,17 @@ fn judge_pairwise_contact(
         } else {
             (j, i)
         };
-        let side = |k: usize, r: &SitedRef| {
-            let op = if k == lo {
+        let op = |k: usize| {
+            if k == lo {
                 topo::Operand::A
             } else {
                 topo::Operand::B
-            };
-            (
-                op,
-                SidedName::Rewritten(names::member_name(id, r.at, &r.name)),
-            )
+            }
         };
         between
             .entry((lo, hi))
             .or_default()
-            .push((side(i, r1), side(j, r2), *class));
+            .push(((op(i), n1), (op(j), n2), *class));
     }
     let mut by_id: Vec<usize> = (0..members.len()).collect();
     by_id.sort_by_key(|&i| members[i]);
@@ -3743,6 +3745,12 @@ fn judge_pairwise_contact(
     Ok(())
 }
 
+/// A declared pair's site did not site in the pairwise judgement,
+/// after [`route_declarations`] sited the same pair through the same
+/// door ([`member_site`]).
+const PAIRWISE_SITE_UNROUTED: &str =
+    "a union's pairwise contact judgement met a declared site the routing did not refuse";
+
 /// **A certified pair whose accumulation-side face the fold consumed
 /// whole is satisfied, and leaves the step's bucket** (DM4, the
 /// declaration channel).
@@ -3750,8 +3758,10 @@ fn judge_pairwise_contact(
 /// Consumed whole means no face row of the accumulation descends from
 /// the face: it is not a row itself, not a constituent of a merged row
 /// (those [`look_through_merges`] has already rewritten), and not the
-/// parent of a fragment, bare or inside a merged row's set. Another
-/// member contains it, so the contact has nothing left to back.
+/// parent of a fragment, bare, through a pass-through wrapper or inside
+/// a merged row's set ([`names::face_descends_from`], the one reading
+/// of "descends" the pair emitter's seam rule uses too). Another member
+/// contains it, so the contact has nothing left to back.
 ///
 /// A face that survives only in pieces is left in the bucket, and the
 /// door refuses it as the vanished name it is at this step: which of
@@ -3765,20 +3775,12 @@ fn judge_pairwise_contact(
 /// mistyped. A pair whose two sites are one member is that member's
 /// carried contact at its own step and passes through untouched.
 fn drop_consumed<'n>(bucket: Vec<SidedPair<'n>>, acc_table: &NameTable) -> Vec<SidedPair<'n>> {
-    use crate::names::RoleSeg;
-    fn descends(row: &names::StableName, face: &names::StableName) -> bool {
-        (row.node == face.node
-            && row.kind == face.kind
-            && row.path.len() > face.path.len()
-            && row.path.starts_with(&face.path))
-            || matches!(row.path.first(),
-                Some(RoleSeg::Merged(set)) if set.iter().any(|c| c == face || descends(c, face)))
-    }
     let consumed = |(op, sided): &(topo::Operand, SidedName<'n>)| {
         let face = sided.name();
         *op == topo::Operand::A
-            && acc_table.lookup(face).is_none()
-            && !acc_table.iter().any(|(row, _)| descends(row, face))
+            && !acc_table
+                .iter()
+                .any(|(row, _)| names::face_descends_from(row, face))
     };
     bucket
         .into_iter()
@@ -3967,39 +3969,54 @@ fn route_declarations(
     // bucket borrows the payload it was built from.
     let mut buckets: Vec<Vec<SidedPair<'static>>> = vec![Vec::new(); steps];
     for ((r1, r2), class) in pairs {
-        // Rung 1 first, as at both doors ([`site_operand`] is where
-        // that order is written): a name whose minting node is gone
-        // says THAT, before anything is said about which step it
-        // would have belonged to.
-        let member_of = |r: &SitedRef| -> Result<usize, NodeErrorKind> {
-            site_operand(r, members, doc, |live| NodeErrorKind::DeclareResolve {
-                error: ladder::vanished(live),
-            })
-            .map(|(i, _)| i)
-        };
-        let (i, j) = (member_of(r1)?, member_of(r2)?);
+        let ((i, n1), (j, n2)) = (
+            member_site(id, members, r1, doc)?,
+            member_site(id, members, r2, doc)?,
+        );
         // The bucket, and the side each name takes in it: the joining
         // member is operand B, and everything the fold has already
         // accumulated is operand A.
         let bucket = i.max(j).saturating_sub(1);
         let joining = bucket + 1;
-        let sided = |index: usize, r: &SitedRef| {
-            let op = if index == joining {
+        let op = |index: usize| {
+            if index == joining {
                 topo::Operand::B
             } else {
                 topo::Operand::A
-            };
-            // The rung-1 token is not carried past here: the name
-            // this mints is a NEW one, minted under the union, and
-            // the landing pays rung 1 on the name it actually reads.
-            (
-                op,
-                SidedName::Rewritten(names::member_name(id, r.at, &r.name)),
-            )
+            }
         };
-        buckets[bucket].push((sided(i, r1), sided(j, r2), *class));
+        buckets[bucket].push(((op(i), n1), (op(j), n2), *class));
     }
     Ok(buckets)
+}
+
+/// **A union's declared side, sited at its member**: the member's
+/// position in the list, and the name rewritten into the node's member
+/// space ([`names::member_name`]). The one siting door both of a
+/// union's readers of its declarations take ([`route_declarations`],
+/// [`judge_pairwise_contact`]); each picks the operand side from the
+/// position by its own rule.
+///
+/// Rung 1 first, as at both declaring doors ([`site_operand`] is where
+/// that order is written): a name whose minting node is gone says
+/// THAT, before anything is said about its site. A site the member list
+/// does not hold refuses as a vanished name (N5). The rung-1 token is
+/// not carried past here: the name this mints is a NEW one, minted
+/// under the union, and the landing pays rung 1 on the name it actually
+/// reads.
+fn member_site(
+    id: RecipeNodeId,
+    members: &[RecipeNodeId],
+    r: &SitedRef,
+    doc: &crate::doc::Doc<ProfileProgram>,
+) -> Result<(usize, SidedName<'static>), NodeErrorKind> {
+    let (i, _) = site_operand(r, members, doc, |live| NodeErrorKind::DeclareResolve {
+        error: ladder::vanished(live),
+    })?;
+    Ok((
+        i,
+        SidedName::Rewritten(names::member_name(id, r.at, &r.name)),
+    ))
 }
 
 /// **A member-space name the fold has merged away, rewritten to the
@@ -4078,14 +4095,43 @@ const MEMBER_FACE_IN_TWO_MERGES: &str =
 /// Unreachable (see the arm that raises it); surfaced typed.
 const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-empty operands";
 
+/// **The fold mints no contact verdict** (DM4's contact rule): a fold
+/// step's refusal, with a contact refusal raised as the emission bug it
+/// is.
+///
+/// Every contact a step meets is between two members' faces, and every
+/// member pair that can touch was judged before the fold
+/// ([`judge_pairwise_contact`]): an undeclared one refused there, and a
+/// certified one is fed to its step, left the bucket as satisfied
+/// ([`drop_consumed`]), or refused as the vanished name it is at that
+/// step. So a step that refuses `UndeclaredContact` or
+/// `UndeclarableContact` would be telling a caller to declare a contact
+/// the judgement already passed, and it refuses as a bug instead. Every
+/// other refusal passes through as [`union_refusal`] gave it.
+fn fold_step_refusal(refused: NodeErrorKind) -> NodeErrorKind {
+    match refused {
+        NodeErrorKind::UndeclaredContact { .. } | NodeErrorKind::UndeclarableContact { .. } => {
+            NodeErrorKind::Naming(names::NamingError::Emission {
+                what: UNION_FOLD_CONTACT_VERDICT,
+            })
+        }
+        other => other,
+    }
+}
+
+/// A union fold step refused a contact, after the pairwise judgement
+/// decided every contact between members.
+const UNION_FOLD_CONTACT_VERDICT: &str =
+    "a union fold step minted a contact verdict the pairwise judgement did not";
+
 /// A union's refusal, with every name it carries in the node's own
 /// published space.
 ///
 /// Two callers hand it tables. [`judge_pairwise_contact`] hands it two
 /// members' views, whose rows are already member entities, and that is
 /// where an undeclared contact refuses. A fold step hands it the
-/// accumulation and the joining member, and a contact refusal there is
-/// a certified pair the routing could not hand the step (DM4).
+/// accumulation and the joining member, and [`fold_step_refusal`] raises
+/// a contact refusal from there as a bug (DM4).
 ///
 /// [`refusal_menu`] resolves the raise site's face keys through the two
 /// OPERAND tables it is handed. From the second fold step on the `a`
@@ -4124,6 +4170,10 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 /// member stands for is refused
 /// [`NodeErrorKind::UndeclarableContact`] — typed, because a sited
 /// declaration cannot name a row that does not exist before the union.
+/// From [`judge_pairwise_contact`] both tables are member views, so
+/// every side is a member's own face; the merged and fold-minted arms
+/// answer only a fold step's refusal, which [`fold_step_refusal`] then
+/// raises as a bug.
 ///
 /// So this door never degrades a user's undeclared contact into an
 /// emission bug. The emission arm below is reached only when the

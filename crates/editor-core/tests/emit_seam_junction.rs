@@ -177,6 +177,11 @@ fn a_slab_crossing_a_merged_rim_is_named_by_the_rim_and_the_slab() {
     );
 }
 
+/// The member orders, spelled by member, in which the four-member
+/// document reaches the seam-vertex residue `Emission` once `(a, h)` is
+/// declared: measured, and pinned exactly.
+const SEAM_VERTEX_RESIDUE: [&str; 2] = ["ahbg", "habg"];
+
 /// **Every order of every such document names the crossing the same.**
 ///
 /// Three documents reach it: the row's four members, the same without
@@ -207,6 +212,18 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
         let Fixture { doc, a, b, g, h } = f;
         let members: Vec<_> = [a, b, g].into_iter().chain(h).collect();
         let (mut ab_first, mut g_between) = (0, 0);
+        let mut residue = BTreeSet::new();
+        let spell = |order: &[RecipeNodeId]| -> String {
+            order
+                .iter()
+                .map(|m| match *m {
+                    m if m == a => 'a',
+                    m if m == b => 'b',
+                    m if m == g => 'g',
+                    _ => 'h',
+                })
+                .collect()
+        };
         for order in permutations(&members) {
             let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
             let ev = run(&docx);
@@ -231,20 +248,28 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
                     }
                 }
                 // Declaring `(a, h)` reaches the seam-vertex residue
-                // where `a` and `h` fold before `b`, and only there
+                // in exactly the measured orders
                 // (`a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`).
                 Some(NodeErrorKind::Naming(NamingError::Emission {
                     what: "seam vertex parentage underdetermined from incident edges",
-                })) if h.is_some_and(|h| {
-                    let at = |m| order.iter().position(|x| *x == m);
-                    at(a) < at(b) && at(h) < at(b)
-                }) => {}
+                })) => {
+                    residue.insert(spell(&order));
+                }
                 Some(e @ NodeErrorKind::Naming(NamingError::Emission { .. })) => {
                     panic!("{label} {order:?}: {e}")
                 }
                 Some(_) => {}
             }
         }
+        let measured: BTreeSet<String> = if with_h {
+            SEAM_VERTEX_RESIDUE.iter().map(|o| o.to_string()).collect()
+        } else {
+            BTreeSet::new()
+        };
+        assert_eq!(
+            residue, measured,
+            "{label}: the seam-vertex residue's orders"
+        );
         assert!(
             ab_first >= 1 && g_between >= 2,
             "{label}: {ab_first} orders fold a and b first, {g_between} do not"

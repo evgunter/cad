@@ -5,6 +5,7 @@ title: Build DM4's pairwise contact rule: every touching member pair is judged a
 status: open
 opened: 2026-09-25
 priority: P1
+needs_ev: true
 cost: D
 ---
 
@@ -35,8 +36,9 @@ rule as DM4 now states it (`crates/editor-core/REFERENCES.md`):
 - Add a covered-contact row: `{a, b, h}` with `(a, h)` undeclared refuses
   in all six orders. Declared, it is satisfied in the orders where b
   consumed the face whole.
-- Add member-level box pruning so that pairs whose boxes are disjoint
-  skip the pairwise boolean. Measure the cost on the corpus's largest
+- Add member-level box pruning so that undeclared pairs whose boxes
+  are disjoint skip the pairwise boolean; a declared pair is judged
+  whatever its boxes. Measure the cost on the corpus's largest
   union.
 
 ## Scope note
@@ -45,6 +47,6 @@ The pre-pass is on WIRE's ground (`eval/wire.rs`), so name the crossing
 in the PR. A cheaper contact-only kernel door is optional, and belongs
 to REACH or ZIP.
 
-The pre-pass costs up to n(n−1)/2 two-member unions, bounded by box
-pruning. If this becomes a measured performance problem, it is raised
+The pre-pass costs up to n(n−1)/2 two-member unions, bounded by
+pruning the undeclared pairs that cannot touch. If this becomes a measured performance problem, it is raised
 to Ev to be revisited, not optimized around the rule (Ev on #3200).

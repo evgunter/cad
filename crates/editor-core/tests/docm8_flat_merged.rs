@@ -379,7 +379,14 @@ fn a_member_face_contained_whole_satisfies_its_pair_and_a_contradicted_one_refus
     let (docx, union, _) = declared_union(doc.clone(), &[a, big, touch], against(touch));
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
-    for order in [[a, big, far], [a, far, big], [big, a, far]] {
+    for order in [
+        [a, big, far],
+        [a, far, big],
+        [big, a, far],
+        [big, far, a],
+        [far, a, big],
+        [far, big, a],
+    ] {
         let (docx, union, _) = declared_union(doc.clone(), &order, against(far));
         let ev = run(&docx);
         assert!(
