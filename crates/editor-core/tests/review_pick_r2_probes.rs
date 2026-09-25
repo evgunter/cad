@@ -16,15 +16,15 @@
 use bvh::Ray;
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
 use geom_core::{Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use test_utils::fuzz;
 use topo::Body;
 
 fn cylinder(r: f64, h: f64) -> Body<f64> {
-    let disc = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(Point2::new(-r, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(r, 0.0), 1.0),
+    let disc = bulge_loop(vec![
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![disc])
         .validate(Tol::witness())

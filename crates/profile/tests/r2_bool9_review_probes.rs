@@ -46,7 +46,8 @@
 use crate::common::rounded_rect;
 use geom_core::{Point2, Real, Tol};
 use profile::{
-    Fidelity, LiftOutcome, Open, ProfileLoop, ProfileVertex, RawLoop, Start, lift_checked,
+    Fidelity, LiftOutcome, Open, ProfileLoop, RawLoop, Start, lift_checked,
+    test_support::bulge_loop,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -58,11 +59,11 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// declaration order that is not sorted, and read back reversed so the
 /// walk meets a different index order than it was authored in.
 fn awkward() -> ProfileLoop<f64> {
-    let raw: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.41421356237309503),
-        ProfileVertex::new(p2(3.0, 0.25), -0.13165249758739583),
-        ProfileVertex::new(p2(2.5, 2.0), 0.0),
-        ProfileVertex::new(p2(0.125, 1.75), 0.0),
+    let raw: ProfileLoop<f64> = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.41421356237309503),
+        (p2(3.0, 0.25), -0.13165249758739583),
+        (p2(2.5, 2.0), 0.0),
+        (p2(0.125, 1.75), 0.0),
     ])
     .with_tangent_joints(vec![2, 0]);
     raw.reversed()
@@ -74,11 +75,11 @@ fn awkward() -> ProfileLoop<f64> {
 
 /// `crates/sweep/src/loft.rs::end_profile`'s retired walk, verbatim.
 fn loft_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    <ProfileLoop<T> as RawLoop<T>>::new(
+    bulge_loop::<T>(
         lp.vertices()
             .iter()
             .zip(lp.bulges())
-            .map(|(v, &b)| ProfileVertex::new(v.map(T::from_f64), T::from_f64(b)))
+            .map(|(v, &b)| (v.map(T::from_f64), T::from_f64(b)))
             .collect(),
     )
     .with_tangent_joints(lp.tangent_joints().to_vec())
@@ -88,12 +89,12 @@ fn loft_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
 /// walk, verbatim — note it spelled the position crossing out
 /// coordinate by coordinate rather than through `Point2::map`.
 fn anchor_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    <ProfileLoop<T> as RawLoop<T>>::new(
+    bulge_loop::<T>(
         lp.vertices()
             .iter()
             .zip(lp.bulges())
             .map(|(vx, &b)| {
-                ProfileVertex::new(
+                (
                     Point2::new(T::from_f64(vx.x), T::from_f64(vx.y)),
                     T::from_f64(b),
                 )
@@ -213,6 +214,7 @@ fn r2_the_door_census_reads_the_qualified_spelling_and_says_what_it_cannot() {
         "    let t = ProfileLoop::<f64>::new(Vec::new());",
         "    let m = xs.map(ProfileLoop::new);",
         "    ProfileLoop::new(Vec::new())",
+        "    let lp = profile::test_support::bulge_loop(chain);",
     ];
     for line in caught {
         assert!(

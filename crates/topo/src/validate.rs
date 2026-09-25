@@ -2602,7 +2602,7 @@ impl fmt::Display for ValidationError {
                         "where a corner of the outline meets an edge of the hole"
                     }
                     RingContact::Circles { .. } => "where the two circles cross or touch",
-                    RingContact::EdgesMeet { .. } => "where an edge of each crosses or touches",
+                    RingContact::EdgesMeet { .. } => "where two of their edges cross or touch",
                 }
             ),
             Self::RingContactEscalated { source, .. } => write!(

@@ -47,7 +47,7 @@
 
 use geom::Surface;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, LoopBoundary, ShellError, VertexKey, transform_rigid};
 
@@ -205,11 +205,11 @@ fn torus_barrel() -> Body<f64> {
     let c = p2(6.0 / 64.0, 1.0 / 16.0);
     let (lo, hi) = (p2(3.0 / 64.0, 0.0), p2(3.0 / 64.0, 8.0 / 64.0));
     revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(lo, bulge(lo, hi, c)),
-            ProfileVertex::new(hi, 0.0),
-            ProfileVertex::new(p2(0.0, 8.0 / 64.0), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (lo, bulge(lo, hi, c)),
+            (hi, 0.0),
+            (p2(0.0, 8.0 / 64.0), 0.0),
         ]),
         Revolution::Full,
     )
@@ -222,12 +222,12 @@ fn torus_belly() -> Body<f64> {
     let c = p2(7.0 / 64.0, 5.0 / 64.0);
     let (lo, hi) = (p2(4.0 / 64.0, 1.0 / 64.0), p2(3.0 / 64.0, 8.0 / 64.0));
     revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(4.0 / 64.0, 0.0), 0.0),
-            ProfileVertex::new(lo, bulge(lo, hi, c)),
-            ProfileVertex::new(hi, 0.0),
-            ProfileVertex::new(p2(0.0, 8.0 / 64.0), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(4.0 / 64.0, 0.0), 0.0),
+            (lo, bulge(lo, hi, c)),
+            (hi, 0.0),
+            (p2(0.0, 8.0 / 64.0), 0.0),
         ]),
         Revolution::Full,
     )
@@ -498,10 +498,7 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
     let turn = Revolution::Partial(turn);
     let profile = Profile::new(
         SketchPlane::xy(),
-        vec![ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -r), 0.0),
-            ProfileVertex::new(p2(0.0, r), -1.0),
-        ])],
+        vec![bulge_loop(vec![(p2(0.0, -r), 0.0), (p2(0.0, r), -1.0)])],
     )
     .validate(tol())
     .expect("the lune's cross-section validates");
@@ -590,10 +587,7 @@ fn torax_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
     let elbow = {
         let profile = Profile::new(
             SketchPlane::xy(),
-            vec![ProfileLoop::new(vec![
-                ProfileVertex::new(p2(-r, 0.0), 1.0),
-                ProfileVertex::new(p2(r, 0.0), 1.0),
-            ])],
+            vec![bulge_loop(vec![(p2(-r, 0.0), 1.0), (p2(r, 0.0), 1.0)])],
         )
         .validate(tol())
         .expect("the elbow's cross-section validates");

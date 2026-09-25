@@ -14,7 +14,7 @@ use common::{
 use geom_core::Tol;
 use mesh::tessellate;
 use profile::ProfileLoop;
-use profile::RawLoop;
+use profile::{RawLoop, test_support::bulge_loop};
 use sweep::{Revolution, revolve};
 
 /// FNV-1a over a string (independent tiny hash, no deps).
@@ -184,10 +184,7 @@ fn survives_near_axis_vertex_arc_endpoint() {
     // row, the tessellation must either be refused typed upstream or
     // produce a watertight certified mesh — never a broken one.
     let d = 1e-7;
-    let lp = ProfileLoop::new(vec![
-        profile::ProfileVertex::new(p2(d, -1.0), 1.0),
-        profile::ProfileVertex::new(p2(d, 1.0), 0.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(d, -1.0), 1.0), (p2(d, 1.0), 0.0)]);
     let profile = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
         .validate(geom_core::Tol::witness());
     let Ok(vp) = profile else {

@@ -150,7 +150,25 @@ name order, and an edge lying along a member edge is a piece of it
 whatever the fold named it (`emit_union::Flush`). A seam vertex cites
 such an edge whole, `FromMember(m, e)`, never a piece; a vertex at a
 member vertex is that vertex, and one where a single face crosses a
-member edge is `Seam` of that edge and that face. The verdicts run through `k_stats`,
+member edge is `Seam` of that edge and that face.
+
+A union's face is named for its PARENT, read off the finished body.
+Each merged face links the member faces it lists, and linking is
+transitive; the member faces so linked are one parent, named
+`Merged` of all of them, and a member face no merge links is its own
+parent. A parent the finished body holds as one face is that face's
+name. A parent it holds as several faces qualifies each with one
+`Fragment(SideOf)`: the partners are the parents of the faces across
+the group's seam edges, each cited by its parent name. So a face
+merged and then cut, and a face cut and then merged, are both
+`Merged(set)` + `SideOf`; a face cut by two members is one `SideOf`
+over both members' walls, whether one fold step cut it or two. The
+fold's spellings are replaced, not refined: which step cut a face,
+and whether it met the cut or the merge first, depend on member
+order, and the parent and its seam partners depend only on the
+finished body.
+
+The verdicts run through `k_stats`,
 so fragment identity changes only at a recorded flip; an in-band margin refuses (`NamingError::Escalated`), never a
 silent pick, and an ambient tolerance that forms no classification band at all
 refuses (`NamingError::Band`) carrying the band constructor's own diagnostic —
@@ -172,11 +190,13 @@ union's collapse rather than flattened (the fragment carve-out is stated once,
 at `RoleSeg::Merged`). A merged row COVERS a name when the name is a constituent
 or is a merged face all of whose faces are (`names/merged.rs`), which is how the
 offers and the union's look-through read a flat set. The
-constituents retire: a union's seam cites, as each side, the face beside
-it that side retired into, and a `SideOf` partner cites the one published
-merge listing it; a constituent a published face still is (a piece a step
-cut and merged at once leaves bare) or that two published merges list is
-cited as it is (`emit_union::retire_into_merges`); referencing one fails with the merged name offered, and
+constituents retire. In a union no face publishes under a constituent's
+name: every piece of a member face a merge links is a piece of its parent
+(N2), including a piece that never itself merged. A seam cites, as each
+side, the parent of the face beside it, and a `SideOf` partner cites its
+parent. Two edges of one seam between the same two faces are two pieces of
+that seam, ranked along its line (N2), never told apart by citing a
+retired constituent. Referencing a constituent fails with the merged name offered, and
 when an edit removes the coincidence the merged name vanishes with its
 constituents offered. Numeric coplanarity never merges, so merges change only at
 recipe edits, structural parameters, or recorded flips; nothing rebinds itself.

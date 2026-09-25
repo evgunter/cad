@@ -490,8 +490,8 @@ fn ring_contacts() -> Vec<RingContact> {
             ring_edge: edge,
         },
         RingContact::Circles {
-            ring_loop: crate::LoopKey::default(),
-            outer_loop: crate::LoopKey::default(),
+            ring_loop: LoopKey::default(),
+            outer_loop: LoopKey::default(),
         },
         RingContact::EdgesMeet {
             ring_edge: edge,

@@ -26,8 +26,7 @@
 
 use geom::Surface;
 use geom_core::{Band, Point2, Tol, Vec2};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey};
 
@@ -38,9 +37,9 @@ fn band() -> Band {
 fn main() {
     // The half disc: semicircle (0,-1) -> (1,0) -> (0,1), closed on the
     // axis; revolved a full turn about y. (`revolve_ball`'s fixture.)
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(0.0, -1.0), 1.0),
-        ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
