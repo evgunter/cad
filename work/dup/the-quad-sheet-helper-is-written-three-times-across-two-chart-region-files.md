@@ -62,7 +62,10 @@ a visibility question this row has not measured.
 - Whether the two `chart_region.rs` copies are in the same `cfg` arm.
 - `face_of`'s two copies were read, not diffed.
 
-## Re-census at the merge base (2026-09-24, `dup/topo-fixture-batch`, `6db5b87f2`)
+## Re-census (2026-09-24, `dup/topo-fixture-batch`; taken at `6db5b87f2`, re-taken at `1d5922f1b`)
+
+The definition census below was re-run at `1d5922f1b`: the same 24
+helper definitions in the two files.
 
 **Instrument**: every `fn` definition in the two files, by name, in
 every `mod` block, read against each other; then the bodies built,
@@ -88,10 +91,9 @@ is not so: all three are a literal `Surface::Plane`. `r2_probes`'s
 
 **The visibility question the row left open is free**:
 `chart_region_r2_probes.rs` is `chart_region`'s child module (a
-`#[path]` `mod r2_probes`), and every block involved is `#[cfg(test)]`
-(`inf_arms_interval` also `feature = "interval"`), so a `pub(super)`
-item of `tests` resolves from every sibling block and from
-`r2_probes` with no gate change.
+`#[path]` `mod r2_probes`), and every block involved is
+`#[cfg(test)]`, so a `pub(super)` item of `tests` resolves from every
+sibling block and from `r2_probes` with no gate change.
 
 **Second pass, outside the row's scope**: `fn band`/`rect`/`sheet`/
 `face_of`/`xy_plane` definitions over `crates/topo/src` return 18
@@ -106,3 +108,19 @@ All six helpers live once, in `chart_region`'s `tests` module, as
 shared `sheet` at the unit square, with its reason ("the pipeline
 needs a body only for the loop keys its refusals name") moved to the
 call site. The PR body carries the plant table.
+
+**Members the first pass left in the same files, folded in the fix
+pass**:
+
+| helper | copies | now |
+| --- | --- | --- |
+| `xy_plane_rotated` | `r2_probes`' fn and an inline `Surface::Plane` literal in `tests::r1_probes` | one `pub(super)` fn in `tests` |
+| the `FaceUv` builder | `tests::uv_of`, `r2_mate8_probes::uv`, and closures in `tests`, `inf_arms` and `r2_probes` | one `pub(super) fn uv(outer, rings)` in `tests` |
+| `flat_chart` | `inf_arms` at `f64`, `inf_arms_interval` at `Interval` | one generic `inf_arms::flat_chart::<T>`, corners lifted by `T::from_f64` as the `Interval` copy did |
+
+**What the sheet's callers measure (plants V5/V6, re-run at
+`1d5922f1b`)**: `sheet` is reached by 9 rows (a `panic!` in it reds
+exactly those), and moving its corners — lifted 1e-3 off the plane,
+or one corner moved 0.5 in plane — reds none of them. Those rows hand
+the pipeline their own `uv` polygons and take only a face key and a
+surface from the body. That is now stated at `sheet`'s rustdoc.

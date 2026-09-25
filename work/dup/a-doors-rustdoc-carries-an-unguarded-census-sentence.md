@@ -123,9 +123,14 @@ carriers here were rewritten, not guarded:
   same *"No census is claimed here"* pointer `solid_of_face` carries,
   to `work/dup/half-edge-to-face-walk-is-spelled-once-per-suite.md`.
 - `sweep::test_support::block`: the *"seven private copies"* history
-  is gone; the sentence now says what the door is for.
+  is gone; the sentence says what the door is (a second view of
+  `brick`) and claims nothing about its callers.
 
-## The class, re-census at the merge base (`6db5b87f2`)
+## The class, census at `6db5b87f2`
+
+The counts in this section were taken at `6db5b87f2` and are not
+re-taken here; the filed row below re-took passes 2 and 3 at
+`1d5922f1b` (102 and 42).
 
 **Pass 1**, line-shaped: a `///` line holding a count of three or more
 (word or digit) followed within two words by *sites, copies,

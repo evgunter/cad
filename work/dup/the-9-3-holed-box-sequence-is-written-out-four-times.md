@@ -84,7 +84,10 @@ count.
   both are M1 acceptance tests that validate after EVERY operator, and
   that per-operator validation is plausibly their subject.
 
-## Re-census at the merge base (2026-09-24, `dup/topo-fixture-batch`, `6db5b87f2`)
+## Re-census (2026-09-24, `dup/topo-fixture-batch`; taken at `6db5b87f2`, re-taken at `1d5922f1b`)
+
+Both instruments below were re-run at `1d5922f1b` after main moved:
+the same 19 files and the same 24 hits, set-for-set.
 
 **Instrument 1, the row's needle**: files holding both `kemr(` and
 `kfmrh(`, `git grep -l` over every tracked file, no path argument.
@@ -128,9 +131,9 @@ the same "every face gets its outer loop's Newell plane" loop, and
 | `merge_faces.rs` `cube_with_membrane`, `cube_with_arena_first_membrane` | **folded** onto `test_support_fixtures::plant_ring_face` |
 | `validate.rs` `lamina_with_ring` | ring half **folded** onto `plant_ring_face`; its n-gon lamina is a sheet, not this class |
 | `validate.rs` `plane_every_face` + the two `tests/` plating loops | **folded** onto `test_support_fixtures::plane_every_face` |
-| `review_m1_pr3::carve_hole` | **kept**: the row it serves (`independent_genus_one_and_two_builds_with_hand_ledger`) claims the hand ledger after EVERY operator, plus kill hygiene and arena-untouched-by-`kfmrh` checks interleaved between them. That is the surviving clause of `memories/review-and-dependency-policy.md` — own code where a row's claim needs its own derivation — not the withdrawn "never simplify" one |
+| `review_m1_pr3::carve_hole` | **kept**: the row it serves (`independent_genus_one_and_two_builds_with_hand_ledger`) claims the hand ledger after EVERY operator, plus kill hygiene and arena-untouched-by-`kfmrh` checks interleaved between them. That is the surviving clause of `memories/review-and-dependency-policy.md` — own code where a row's claim needs its own derivation — not the withdrawn "never simplify" one. Its other caller, `failing_ring_ops_leave_lineage_pure`, does not need the ledger; it keeps `carve_hole` for the file's other coupling, the `BOX_EXTENT` check on every planted point, which `build_box`'s declined faces leave nothing geometric to catch and `drill_hole` does not carry |
 | `tests/box_with_hole.rs` `build_holed_box` | **kept**, as `cube_by_hand.rs` is: the M1 acceptance test validates after every operator, and that per-operator validation is its subject |
-| `tests/review_f7_pole_r1_probes.rs` `inset_patch_prism` | **kept**: an (f)–(i) relative, not a hole, in a file whose header records R1's fixture geometry as preserved verbatim; left as the file says |
+| `tests/review_f7_pole_r1_probes.rs` `inset_patch_prism` | **folded** onto `plant_ring_face` in the fix pass (byte-identical body at `1d5922f1b`). Its header's "preserved verbatim" was adoption history; the fold keeps the geometry, and the header now says "preserved" |
 | `euler_kill`, `euler_ring`, `movefac`, `seqgen`, `shell.rs`, `sweep/src/*`, `step-import/src/assemble.rs`, `tests/{m3_pr1_surgery,review_m1_pr5,review_m3_pr1,loop_reparenting_pcurve_rows}.rs` | not members: production ring machinery, or isolated `kemr`/`kfmrh` rows on pillows, segments and planted inner boxes — no strut → rim → membrane → tube sequence |
 
 **Byte-identity, measured**: `{:?}` of every folded fixture's body
@@ -147,3 +150,16 @@ The §9.3 surgery has one home, `test_support_fixtures`, in two levels:
 `plant_ring_face` (steps (f)–(i)) and `drill_hole` (f)–(l) on top of
 it, with `plane_every_face` and `holed_block` beside them. The PR
 body carries the plant table.
+
+**One behaviour change, outside the byte-identity check**:
+`validate.rs`'s own `plane_every_face` SKIPPED a face whose outer loop
+was empty; the shared one refuses it (a face with no polygon has no
+plane to give it). No body any caller passes has such a face, so the
+comparison above never reached that input.
+
+The fix pass also added `test_support_fixtures.rs` to the `gated_to!`
+lists of `review_m1_pr4.rs`, `review_d18.rs` and `review_d18_probes.rs`,
+which reach the moved surgery (and `declined_cube`) but named only
+`fixtures.rs`. `seqgen/random_op_sequences.rs`, the fourth list naming
+`fixtures.rs`, builds from a fresh `Body` and reaches no
+`test_support_fixtures` body, so it is unchanged.

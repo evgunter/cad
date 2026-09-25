@@ -125,7 +125,10 @@ three is a floor for one crate. The instrument that found it was prose
 at the copy site, not a structural match, so a fourth copy that says
 nothing about itself would not have been found this way either.
 
-## Re-census at the merge base (2026-09-24, `dup/topo-fixture-batch`, `6db5b87f2`)
+## Re-census (2026-09-24, `dup/topo-fixture-batch`; taken at `6db5b87f2`, re-taken at `1d5922f1b`)
+
+Instrument 1 re-run at `1d5922f1b`: the same 8 hits in the same files.
+Instrument 2 was not re-taken.
 
 **Instrument 1, the required atom**: every write of a shell's
 back-pointer, `git grep '\.solid = '` over every tracked file, no path
