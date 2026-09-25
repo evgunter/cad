@@ -25,24 +25,31 @@ docs/DESIGN-FORK-PROTOCOL.md`, after a fetch).
    is a row. A sequencing decision, a file move, or any other `[ev]`
    PR that asks no design question is not.
 2. **The pair.** One Opus and one Fable designer, dispatched
-   CONCURRENTLY with the SAME statement of the question and the same
-   pointer to `docs/prompts/designer.md`. Neither sees the
-   other's report until both are delivered.
-3. **Record the first reports before any reconciliation.** Each
-   designer's first recommendation (option, one line of argument,
-   confidence, and whether it rejected the framing) goes in the row as
-   delivered. Agreement is judged on the recommended final state, not
-   the wording.
-4. **Reconciliation.** When the two disagree, the orchestrator may
+   CONCURRENTLY with the SAME statement of the problem (no candidate
+   solutions) and the same pointer to `docs/prompts/designer.md`.
+   Neither sees the other's report until both are delivered.
+3. **Blinding.** At dispatch, one `/dev/urandom` byte (recorded)
+   assigns the labels: even → Opus is A, odd → Fable is A. The byte
+   and the mapping are committed at once to a branch under
+   `analysis/design-fork/`, never to the `[ev]` PR's branch, so
+   nothing Ev reads before deciding names a model: the PR body, the
+   row and every reconciliation round say A and B only.
+4. **Record the first reports before any reconciliation.** Each
+   designer's first recommendation (answer, one line of argument,
+   confidence, whether it rejected the framing, whether it proposed
+   changing ratified text) goes in the row as delivered. Agreement is
+   judged on the recommended final state, not the wording.
+5. **Reconciliation.** When the two disagree, the orchestrator may
    hand each the other's report, and/or dispatch further designers to
    weigh both, until there is a clear recommendation or a clearly
-   stated split. The row records each round: who was dispatched (model),
-   what they were shown, and what moved.
-5. **Record in two commits on the `[ev]` PR.** The recommendation
-   half of the row is committed when the PR opens, before Ev answers;
-   Ev's decision is filled in once Ev answers, before merge. The
-   PR body presents the recommendations; a readout does not.
-6. **Readouts are off-file**, on the standing A/B rule: a directional
+   stated split. The row records each round: who was dispatched, what
+   they were shown, and what moved; a further designer's model goes
+   in the analysis-branch record, not the row, until Ev has decided.
+6. **Record in two commits on the `[ev]` PR.** The recommendation
+   half of the row (A/B only) is committed when the PR opens, before
+   Ev answers. Once Ev answers, a second commit fills in Ev's decision
+   and the A/B→model mapping from the analysis branch, before merge.
+7. **Readouts are off-file**, on the standing A/B rule: a directional
    result ("Ev usually sides with X") creates expectancy effects on how
    forks are framed and reconciled. They live on a branch under
    `analysis/design-fork/`; an orchestrator with a fork in flight

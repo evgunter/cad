@@ -51,21 +51,25 @@ Ev's standing instructions for implementation work:
   wait for sign-off**: changes to ratified DESIGN.md decisions, and open
   questions with several viable answers where Ev's preference matters.
   When unsure which kind a decision is, treat it as a fork.
-- **Before a design fork goes to Ev, two designers weigh it** (Ev,
-  2026-09-24): one Opus and one Fable, dispatched concurrently, each
-  pointed at `docs/prompts/designer.md` BY PATH (read it in
-  full yourself — it binds how you frame the question too) and handed
-  the same statement of the question. Neither sees the other's report
-  until both are in. If they disagree, hand each the other's report
-  and/or dispatch further designers to weigh both, until there are
-  clear recommendations — or a split stated so Ev can rule on it.
-  Only then open the `[ev]` PR, whose body carries the
-  recommendations and the argument for each. Every such fork is a row
-  in the design-fork experiment ([[experiments]]), recorded per
-  `docs/DESIGN-FORK-PROTOCOL.md`.
   **A PR that adds to or changes `memories/` waits too** — that text is
   read at the start of every session, so what goes in it is Ev's call,
   not a faithful elaboration.
+- **Before a design fork goes to Ev, two designers weigh it** (Ev,
+  2026-09-24): one Opus and one Fable, dispatched concurrently, each
+  pointed at `docs/prompts/designer.md` BY PATH (read it in full
+  yourself — it binds how you frame the problem too). Hand both the
+  same statement of the PROBLEM — what needs deciding and why, and
+  where to look — never candidate solutions: the options are theirs.
+  Neither sees the other's report until both are in. If they
+  disagree, hand each the other's report and/or dispatch further
+  designers to weigh both, until there are clear recommendations — or
+  a split stated so Ev can rule on it. Only then open the `[ev]` PR:
+  its body carries each designer's `For Ev` section verbatim, labelled
+  A and B, **never saying which model wrote which** (Ev, 2026-09-25:
+  so Ev's judgement is not biased). Act on the `For the orchestrator`
+  sections yourself. Every such fork is a row in the design-fork
+  experiment ([[experiments]]), recorded per
+  `docs/DESIGN-FORK-PROTOCOL.md`.
 - **Keep an orchestrator log of decisions made unilaterally** and keep
   state-of-work knowledge in version control: the program's
   `work/<program>/log.md`, and one item file per unit, issue or ruling
