@@ -118,3 +118,24 @@ The orchestrator branch is `encl/orchestrator`
 (`memories/orchestration-model.md`, branch-prefix convention); the
 seating state sync is PR 3268, which replaces 3267 (the same commits,
 opened from the session branch before that rule reached this checkout).
+
+## `approx-surface-tolerance-...`: decided without Ev (2026-09-25)
+
+(ENCL orchestrator) Two designers were dispatched concurrently on the
+tolerance question (`memories/orchestration-model.md`; the blinding
+byte is on `analysis/design-fork/approx-surface-tolerance-is-now-always-the-runs-eps`).
+Both recommend retiring the field. One of them traced the field's
+provenance: the O2 Ev ratified has no tolerance (verified,
+`1ae5ad8ef:docs/OFFSET-DESIGN.md`), and the four-field restatement is
+agent text from ledger sweep 6. By CLAUDE.md's "check that Ev ever
+agreed", there is no ratified decision to change. So the row becomes an
+ordinary unit with the decided final state in its body, and it does not
+go to Ev. It is therefore not a design-fork log row (protocol rule 1:
+the population is forks that go to Ev as `[ev]` PRs). The analysis
+branch stays as the record of the dispatch.
+
+Off-question findings from the pair: `ApproxSurface::certify` takes any
+closure, which is a sibling of STACK's forgeable-certificate row, so the
+evidence was appended there. A rotation's `hull_sup` drift may refuse
+`ApproxRecertify` on a face that only just certifies at ε; that was
+forwarded to the tight-ε lane.
