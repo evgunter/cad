@@ -2,11 +2,11 @@
 id: a-value-edits-last-published-numbering-is-not-recipe-state
 kind: issue
 title: A profile's last published numbering is not recipe state, so a value edit through an unreadable state strands names it could carry
-status: open
+status: parked
 opened: 2026-09-24
 priority: P1
 cost: D
-needs_ev: true
+blocked_on: [profile-pieces-are-named-by-minted-step-ids]
 ---
 
 
@@ -97,3 +97,30 @@ do (`check_profile_after_slot_edit`).**
 - It is the only option under which a round trip is lossless.
 - It keeps V1 class 2.
 - It removes most of the value door's cost.
+
+## Folded into the stable-name question (2026-09-24)
+
+This row, the other `needs_ev` EMIT row on profile numbering, and EDIT's
+`a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names` share
+one cause. A profile name spells a position that is recomputed from
+current state, so any edit that moves the positions re-denotes it. All
+three are put to Ev as one question: name a profile piece
+by an id minted when its step is authored (`names/README.md`, "N1, the
+profile pieces"), or keep positions and persist a rename ledger. Under
+the id rule this row's fork does not arise, because no numbering is
+left to carry.
+
+## Linked
+
+`a-child-documents-rebind-leaves-the-parents-held-names-in-the-old-numbering`
+(P0, executed) is the cross-document case of the same question. A parent's
+names are spelled in a child's numbering, whose history the child does not
+keep, so a pin update cannot translate them. Option A here records the
+last published numbering per profile, which is the per-document half of
+the rename ledger that row needs. Decide the two together.
+
+## Ruled (2026-09-25)
+
+Ev ruled that profile pieces are named by minted step ids (N1, "the
+profile pieces"). Under that rule nothing renumbers, so this row is
+fixed by building it: parked on `profile-pieces-are-named-by-minted-step-ids`.

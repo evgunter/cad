@@ -2,10 +2,11 @@
 id: the-value-edit-numbering-check-costs-a-replay-per-swept-profile
 kind: issue
 title: The value-edit numbering check replays every swept profile that reads the edited value, twice
-status: open
+status: parked
 opened: 2026-09-24
 priority: P2
 cost: D
+blocked_on: [profile-pieces-are-named-by-minted-step-ids]
 ---
 
 
@@ -35,3 +36,9 @@ The remaining ~2.8× is the two replays per swept profile. Option A of
 old-side replay, because the published numbering would be read off the
 document. A dependency filter finer than "the program references the
 param" would remove more.
+
+## Ruled (2026-09-25)
+
+Under the minted-id rule (#3193), the value-edit numbering check is
+deleted, not made cheaper. Parked on
+`profile-pieces-are-named-by-minted-step-ids`, which closes it.

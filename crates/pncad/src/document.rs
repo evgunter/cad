@@ -70,7 +70,10 @@
 // `Applied::maintenance` answers in — the A11 cluster-record acts an
 // edit forced and the references a delete stranded (DM7) — and a
 // consumer that can hold an `Applied` in a typed field must be able to
-// hold what it carries.
+// hold what it carries. `MaintenanceNet` rides with it: a consumer
+// that applies several edits as one action (a cascade delete) folds
+// their rows into what is true of the document the action ends at, and
+// that rule has one spelling.
 // `LoopProvenance` is a field of `DocEdit::SetProgram` — a caller who
 // cannot spell it cannot author the edit — and `ProvenanceFault` is
 // what `EditError::ProvenanceMalformed` carries, so a consumer matching
@@ -81,8 +84,8 @@
 // coordinate a program might draw.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
-    LoopProvenance, Maintenance, MetaVersionError, ProgramRefusal, ProvenanceFault, RETIRED_FLOOR,
-    apply, apply_logged,
+    LoopProvenance, Maintenance, MaintenanceNet, MetaVersionError, ProgramRefusal, ProvenanceFault,
+    RETIRED_FLOOR, apply, apply_logged,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
