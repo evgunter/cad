@@ -291,7 +291,7 @@ class TestTheDoorAnswersTheKernelsOwnText(unittest.TestCase):
 
     def test_text_that_is_not_a_name_refuses_at_the_boundary(self):
         doc = Doc()
-        profile, node = ring(doc)
+        _profile, node = ring(doc)
         with self.assertRaises(ValueError):
             carried(node, "the bottom face")
 
