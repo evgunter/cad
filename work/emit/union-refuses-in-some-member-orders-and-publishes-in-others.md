@@ -43,13 +43,13 @@ member lies on the accumulation's boundary. It shares that shape with
 but is not the same defect, because the operands here are distinct and
 legal.
 
-## The contact refusal needs a ruling (measured 2026-09-25, origin/main `2139eefa8e`)
+## The contact rule: pairwise, before the fold (Ev's direction on the `[ev]` PR; measured 2026-09-25, origin/main `2139eefa8e`)
 
 **Where the check runs.** `wire_union` (`crates/editor-core/src/eval/wire.rs`)
 hands each step's two operands, the accumulation and the joining
 member, to the kernel pair verb (`run_pair`). The contact check is that
 verb's census. The union adds no check of its own, so a contact is
-judged against whatever the fold has accumulated. DM4 describes exactly
+judged against whatever the fold has accumulated. DM4 as ratified before this rule described exactly
 this: "evaluates as a fold of the kernel's pair verb in member order",
 and "two members that touch refuse `UndeclaredContact` exactly as a
 pair boolean's operands do". Every contact the fold can see is between
@@ -69,33 +69,46 @@ Scratch probe; the same pattern holds across the 24 orders of `row`.
 `a ∪ h` alone refuses `UndeclaredContact` in both orders and fuses in
 both once the pair is declared.
 
-**Why this is a fork and not a wrong operand.** Neither order-free rule
-follows from ratified text alone.
+**Ev's direction.** Every pair of members that touch must be declared,
+even where the fold has already merged a third member over the
+contact. Contact is judged pairwise in member space before the fold.
+A declared contact that another member covers is satisfied, not
+refused. DM4 in `crates/editor-core/REFERENCES.md` states this. The
+wording waits on Ev's confirmation (`needs_ev`).
 
-- *Judge pairwise in member space* (the literal "two members that
-  touch"). `row` would refuse `UndeclaredContact` in every order. The
-  recourse DM4 offers is to declare the pair, and a declaration refuses
-  in every order: the containment case of the GATHER row, which Ev
-  ruled "refuse, no offer" (PR 2677), plus the Emission row. The
-  document would then fuse in no order under any declaration. To avoid
-  that, the pairwise rule also has to change DM4's routing ("each pair
-  is fed to the fold step at which both its sites are in the
-  accumulation"), so that a declared contact another member has
-  consumed is accepted rather than refused.
-- *A contact another member covers is not a contact.* `row` would
-  refuse `UndeclaredContact` in no order; the `Vanished` orders remain
-  GATHER's. The fold cannot evaluate this at the step
-  that refuses today, because `b` has not been folded yet. It needs a
-  pass over all members before the fold, or a fold that defers contact
-  refusals to the finished body. Both depart from "a fold of the pair
-  verb in member order". The union would also fuse orders whose
-  pairwise chain refuses (`(a ∪ h) ∪ b`), so "exactly as a pair
-  boolean's operands do" would no longer describe a step.
+Rule 2, "a contact another member covers is not a contact", is
+rejected. Ev's objection: it lets a set get out of declaring a contact
+just because no single pair is blamed for it.
 
-Which one DM4 means is Ev's call. The recommendation is the second.
-The finished union is the same body either way, a covered flush
-contact leaves no trace on its boundary, and under the first rule
-`{a, b, h}` fuses in no order today, with or without the declaration.
-Once the Emission row is fixed it would fuse, declared, only in the two
-orders where `a` and `h` meet before `b`, which is order-dependent
-again.
+**Measured pairwise (scratch probe, every member pair of every flat
+case in `emit_union_rim_piece_ranks.rs`, 153 two-member unions, with
+the case's declarations for that pair).** Five pairs refuse
+`UndeclaredContact`: `row` (a, h), `rowids` (a, h), `cross` (g, cross),
+`r1three` (s1, s3) and (s2, s3). All the others fuse. `cross` and
+`r1three` already refuse in every order today (`cross` with a mix of
+four refusal kinds, `r1three` 24 of 24 `UndeclaredContact`). So the
+pre-pass adds new refusals only to `row` and `rowids`, and turns
+`cross` into a uniform `UndeclaredContact`.
+
+**What moves once this is built.**
+- Predicted: `row` and `rowids` undeclared refuse `UndeclaredContact`
+  in all 24 orders, and they leave `KNOWN_MIXED`.
+- Predicted: with (a, h) declared, they fuse in the 6 orders that fuse
+  today. The 8 orders where `a` and `h` meet before `b` keep today's
+  declared outcome: 2 `Emission` and 6 `Vanished`, the emitter row and
+  GATHER.
+- The 10 orders that refuse `Vanished` undeclared today stay
+  `Vanished`, except where the consumed face is contained whole, which
+  is now satisfied. Which of those 10 are containment and which are
+  splits is not measured.
+
+**Cost.** There is no contact-only door in the kernel. The
+cross-operand `UndeclaredCoincidence` is raised inside the boolean
+(`crates/topo/src/boolean/rest.rs`, `vtxfac.rs`, `recl.rs`). The
+detector `topo::flush::find_flush_candidates` compares carriers over
+every face pair with no region test, so it reports cosurface faces
+that never meet. The pre-pass is therefore the pair verb run on each
+member pair: at most n(n−1)/2 two-member unions, with pairs whose
+closed boxes are disjoint skipped. The kernel's BVH prunes within each
+of those pair booleans, but `wire_union` has no member-level box
+pruning today, so that has to be added.
