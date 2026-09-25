@@ -1668,6 +1668,66 @@ fn curved_edge_midpoint<T: Decide>(
     })
 }
 
+/// Which point of a region-loop half-edge anchors the probe.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Anchor {
+    /// The half-edge's start vertex (the M3 PR 5 anchor).
+    Vertex,
+    /// The half-edge's chord midpoint (issue #93).
+    EdgeMidpoint,
+    /// The point halfway ALONG a curved half-edge (its carrier at
+    /// the parameter midpoint); a straight edge offers none, its
+    /// chord midpoint having been probed by the tier before. A
+    /// conic's chord midpoint is off the edge, and can sit on the
+    /// other boundary where the edge's own interior does not: a
+    /// semicircle's is the circle's centre, which a cutter plane
+    /// through the axis holds.
+    EdgeOnCarrier,
+    /// A verified region-interior point (issue #93 —
+    /// the nested-island case): the centroid of the half-edge's
+    /// vertex triple, ACCEPTED only when the reified
+    /// [`point_in_face`](super::solid_contain::point_in_face)
+    /// certifies it strictly interior to the region face —
+    /// candidates are guesses, the gate is a predicate. Needed
+    /// when a region is bounded entirely by seam CHORDS (an
+    /// island's surround between two seam loops): every vertex
+    /// and every edge midpoint lies ON the other boundary, yet
+    /// the region interior classifies definitively.
+    RegionInterior,
+    /// A verified region-interior point from a VERTEX-PAIR CHORD
+    /// (issue #106): the midpoint of the half-edge's
+    /// start vertex and every other vertex of the region face
+    /// (its outer loop and ALL its rings), each accepted only
+    /// when `point_in_face` certifies it strictly interior.
+    /// Where the triple centroid is a local guess that a
+    /// nonconvex/annular region defeats, this tier sweeps the
+    /// face's full vertex set, so it finds an interior point
+    /// whenever the region admits a vertex-to-vertex diagonal —
+    /// the diagonal's midpoint is strictly interior by
+    /// construction, and every polygon-with-holes region of ≥ 4
+    /// vertices admits one (a triangulation without Steiner
+    /// points always exists; any of its non-boundary edges is
+    /// such a diagonal). Triangle regions carry no diagonal but
+    /// are already covered by [`Anchor::RegionInterior`].
+    RegionVertexChord,
+}
+impl Anchor {
+    /// Do this tier's candidates need the `point_in_face` strict-
+    /// interiority certificate before they may be probed? Vertices,
+    /// straight edges' midpoints and on-carrier midpoints sit ON
+    /// the region boundary by construction (the trilean's
+    /// `OnBoundary` skips the ones that matter); the region-interior
+    /// tiers are GUESSES until a reified predicate certifies them.
+    /// A curved edge's chord midpoint is neither, and is probed
+    /// uncertified: that is UNSOUND (it can read both loops alike,
+    /// `axis_lap.rs` `a_chord_midpoint_probe_reads_both_loops_alike`),
+    /// tracked by
+    /// `work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces`.
+    fn needs_interior_certificate(self) -> bool {
+        matches!(self, Anchor::RegionInterior | Anchor::RegionVertexChord)
+    }
+}
+
 /// GEOMETRIC loop-role resolution for a completed section polygon
 /// (M3 PR 5, the cookie-cutter finding): a loop of the 2-loop null
 /// face is the IN copy iff the region material adjacent to it (the
@@ -1751,65 +1811,6 @@ fn resolve_roles_geometric<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<(LoopKey, LoopKey), BooleanError> {
-    /// Which point of a region-loop half-edge anchors the probe.
-    #[derive(Clone, Copy, PartialEq, Eq)]
-    enum Anchor {
-        /// The half-edge's start vertex (the M3 PR 5 anchor).
-        Vertex,
-        /// The half-edge's chord midpoint (issue #93's second tier).
-        EdgeMidpoint,
-        /// The point halfway ALONG a curved half-edge (its carrier at
-        /// the parameter midpoint); a straight edge offers none, its
-        /// chord midpoint having been probed by the tier before. A
-        /// conic's chord midpoint is off the edge, and can sit on the
-        /// other boundary where the edge's own interior does not: a
-        /// semicircle's is the circle's centre, which a cutter plane
-        /// through the axis holds.
-        EdgeOnCarrier,
-        /// A verified region-interior point (issue #93's third tier —
-        /// the nested-island case): the centroid of the half-edge's
-        /// vertex triple, ACCEPTED only when the reified
-        /// [`point_in_face`](super::solid_contain::point_in_face)
-        /// certifies it strictly interior to the region face —
-        /// candidates are guesses, the gate is a predicate. Needed
-        /// when a region is bounded entirely by seam CHORDS (an
-        /// island's surround between two seam loops): every vertex
-        /// and every edge midpoint lies ON the other boundary, yet
-        /// the region interior classifies definitively.
-        RegionInterior,
-        /// A verified region-interior point from a VERTEX-PAIR CHORD
-        /// (issue #106's fourth tier): the midpoint of the half-edge's
-        /// start vertex and every other vertex of the region face
-        /// (its outer loop and ALL its rings), each accepted only
-        /// when `point_in_face` certifies it strictly interior.
-        /// Where the triple centroid is a local guess that a
-        /// nonconvex/annular region defeats, this tier sweeps the
-        /// face's full vertex set, so it finds an interior point
-        /// whenever the region admits a vertex-to-vertex diagonal —
-        /// the diagonal's midpoint is strictly interior by
-        /// construction, and every polygon-with-holes region of ≥ 4
-        /// vertices admits one (a triangulation without Steiner
-        /// points always exists; any of its non-boundary edges is
-        /// such a diagonal). Triangle regions carry no diagonal but
-        /// are already covered by [`Anchor::RegionInterior`].
-        RegionVertexChord,
-    }
-    impl Anchor {
-        /// Do this tier's candidates need the `point_in_face` strict-
-        /// interiority certificate before they may be probed? Vertices,
-        /// straight edges' midpoints and on-carrier midpoints sit ON
-        /// the region boundary by construction (the trilean's
-        /// `OnBoundary` skips the ones that matter); the region-interior
-        /// tiers are GUESSES until a reified predicate certifies them.
-        /// A curved edge's chord midpoint is neither, and is probed
-        /// uncertified: that is UNSOUND (it can read both loops alike,
-        /// `axis_lap.rs` `a_chord_midpoint_probe_reads_both_loops_alike`),
-        /// tracked by
-        /// `work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces`.
-        fn needs_interior_certificate(self) -> bool {
-            matches!(self, Anchor::RegionInterior | Anchor::RegionVertexChord)
-        }
-    }
     let desync = |what| BooleanError::JoinDesync { what };
     let probe = |l: LoopKey, anchor: Anchor| -> Result<Option<bool>, BooleanError> {
         let crate::entity::LoopBoundary::Cycle { first } = body
