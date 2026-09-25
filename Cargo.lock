@@ -1207,6 +1207,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "proptest",
+ "rayon",
  "strum",
  "test-utils",
 ]
@@ -4214,6 +4215,7 @@ dependencies = [
  "pollster 1.0.1",
  "profile",
  "quantity",
+ "rayon",
  "rfd",
  "sweep",
  "test-utils",

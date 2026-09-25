@@ -2,10 +2,11 @@
 id: ray-torus-root-search-finds-a-counterexample-at-eps-1e-12
 kind: issue
 title: the ray-torus root search disagrees with its geometric oracle on a rare pose at eps = 1e-12
-status: open
+status: dispatched
 opened: 2026-09-16
 priority: P0
 cost: H
+branch: germ/ray-torus-root-search
 ---
 
 

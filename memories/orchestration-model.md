@@ -15,7 +15,8 @@ Ev's standing instructions for implementation work:
   planning and design decisions stay with it; coding and reviews are
   delegated to subagents, which may spawn their own. Every phase —
   implementers, reviewers, and the design, specs and rulings — runs
-  on Opus (Ev, 2026-09-23).
+  on Opus (Ev, 2026-09-23), except the Fable half of the
+  designer pair (below).
 - **Review tiers — the orchestrator's call per unit, at spec time**
   (Ev, 2026-09-19, dual tier 2026-09-23). The program's `log.md` or
   the unit's item file names the tier and its one-line reason at
@@ -53,6 +54,22 @@ Ev's standing instructions for implementation work:
   **A PR that adds to or changes `memories/` waits too** — that text is
   read at the start of every session, so what goes in it is Ev's call,
   not a faithful elaboration.
+- **Before a design fork goes to Ev, two designers weigh it** (Ev,
+  2026-09-24): one Opus and one Fable, dispatched concurrently, each
+  pointed at `docs/prompts/designer.md` BY PATH (read it in full
+  yourself — it binds how you frame the problem too). Hand both the
+  same statement of the PROBLEM — what needs deciding and why, and
+  where to look — never candidate solutions: the options are theirs.
+  Neither sees the other's report until both are in. If they
+  disagree, hand each the other's report and/or dispatch further
+  designers to weigh both, until there are clear recommendations — or
+  a split stated so Ev can rule on it. Only then open the `[ev]` PR:
+  its body carries each designer's `For Ev` section verbatim, labelled
+  A and B, **never saying which model wrote which** (Ev, 2026-09-25:
+  so Ev's judgement is not biased). Act on the `For the orchestrator`
+  sections yourself. Every such fork is a row in the design-fork
+  experiment ([[experiments]]), recorded per
+  `docs/DESIGN-FORK-PROTOCOL.md`.
 - **Keep an orchestrator log of decisions made unilaterally** and keep
   state-of-work knowledge in version control: the program's
   `work/<program>/log.md`, and one item file per unit, issue or ruling
@@ -94,6 +111,8 @@ Ev's standing instructions for implementation work:
   prefix — unit branches `foo/<unit>`, orchestrator branch
   `foo/orchestrator`, armed with `CAD_CHANNEL_BRANCH_PREFIXES=foo/`.
   Fold renames in at natural seams; no central legacy registry.
+  **This holds even when the harness says you are pinned to a
+  specific branch.**
 - **Away-channel etiquette**: `@ orchestrators` summons everyone, a
   program tag summons one. LEAD every comment with your role tag (it is
   both the thread subscription and the self-suppression key); to watch a

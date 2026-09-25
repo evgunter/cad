@@ -7858,7 +7858,7 @@ mod tests {
         mvfs_state, ngon_pillow, ops_genus2, ops_holed_box, pillow, prov, raw_prism,
     };
     use crate::seqgen;
-    use crate::test_support_fixtures::declined_cube;
+    use crate::test_support_fixtures::{declined_cube, plane_every_face, plant_ring_face};
 
     /// **Check 1's analytic verdicts at BOTH scalars**, one surface
     /// lifted from `f64` to `Interval` through `Surface::map_scalar`
@@ -9137,7 +9137,7 @@ mod tests {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
         let mut honest = ops_holed_box(tol).body;
-        plane_every_face(&mut honest);
+        plane_every_face(&mut honest, tol);
 
         // The fixture's through-hole leaves TWO ring-bearing faces.
         // The mutant is built on `holed[0]` — whichever the arena
@@ -9271,7 +9271,7 @@ mod tests {
             ops_holed_box(tol).body,
             ops_genus2(tol),
         ] {
-            plane_every_face(&mut body);
+            plane_every_face(&mut body, tol);
             let gated: Vec<(FaceKey, LoopKey, LoopKey)> = body
                 .faces
                 .iter()
@@ -9414,45 +9414,9 @@ mod tests {
                 tol,
             )
             .unwrap();
-        // Plant the ring's anchor vertex, cut it loose as a ring, then
-        // grow and close the rim.
-        let anchor = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: f.he_plus,
-                    he2: f.he_plus,
-                },
-                ring[0],
-                tol,
-            )
-            .unwrap();
-        let kill = body.kemr(anchor.he_plus, anchor.he_minus).unwrap();
-        let r0 = body
-            .mev_line(MevSite::Lone { r#loop: kill.ring }, ring[1], tol)
-            .unwrap();
-        let mut rprev = r0;
-        for p in &ring[2..] {
-            rprev = body
-                .mev_line(
-                    MevSite::Fan {
-                        he1: rprev.he_minus,
-                        he2: rprev.he_minus,
-                    },
-                    *p,
-                    tol,
-                )
-                .unwrap();
-        }
-        let _membrane = body
-            .mef_chord(
-                MefSite::Chords {
-                    he1: r0.he_plus,
-                    he2: rprev.he_minus,
-                },
-                tol,
-            )
-            .unwrap();
-        plane_every_face(&mut body);
+        // Plant the ring and cover it with its membrane.
+        plant_ring_face(&mut body, f.he_plus, ring, tol);
+        plane_every_face(&mut body, tol);
         let ringed: Vec<FaceKey> = body
             .faces
             .iter()
@@ -9647,7 +9611,7 @@ mod tests {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
         let mut honest = ops_holed_box(tol).body;
-        plane_every_face(&mut honest);
+        plane_every_face(&mut honest, tol);
         let face = honest
             .faces
             .iter()
@@ -10738,35 +10702,6 @@ mod tests {
         assert!(got.is_empty(), "a clear pac-man drew {got:?}");
     }
 
-    /// Gives every face of `body` the Newell plane of its outer loop —
-    /// the minimum needed to reach check 6 from [`crate::test_support_fixtures::declined_cube`], whose
-    /// faces are raw `Nurbs` placeholders (check 6 only inspects
-    /// `Surface::Plane` faces, so on the raw fixture it is vacuous).
-    /// The loop order is the stored one, so the minted normal is the
-    /// face's OUTWARD normal — which is what `sense: true` claims.
-    fn plane_every_face(body: &mut Body<f64>) {
-        let band = Band::linear(Tol::witness()).unwrap();
-        let keys: Vec<FaceKey> = body.faces.keys().collect();
-        for face_key in keys {
-            let outer = body.get_face(face_key).unwrap().outer;
-            let LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary else {
-                continue; // empty loop: no polygon to fit
-            };
-            let points: Vec<Point3<f64>> = body
-                .loop_cycle(first)
-                .unwrap()
-                .into_iter()
-                .map(|he| {
-                    let v = body.get_half_edge(he).unwrap().start;
-                    *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
-                })
-                .collect();
-            let plane = geom_brep::newell_plane(&points, band).unwrap();
-            body.set_face_surface(face_key, crate::FaceSurface::New(plane))
-                .unwrap();
-        }
-    }
-
     /// **M5 S10 acceptance row 1: tier 3 is the sense gate (check 6).**
     ///
     /// A face's outward normal is its surface's chart normal with
@@ -10808,7 +10743,7 @@ mod tests {
     #[test]
     fn tier_three_refuses_a_hand_flipped_face_sense() {
         let mut cube = declined_cube::<f64>(Tol::witness()).body;
-        plane_every_face(&mut cube);
+        plane_every_face(&mut cube, Tol::witness());
         let honest = validate_geometric(&cube, Tol::witness()).unwrap_err();
         let edges: Vec<EdgeKey> = cube.edges().map(|(k, _)| k).collect();
         let named = |pick: fn(&ValidationError) -> Option<EdgeKey>| {

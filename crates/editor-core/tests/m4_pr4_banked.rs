@@ -35,7 +35,7 @@ use editor_core::{
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         prior,

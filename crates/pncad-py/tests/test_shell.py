@@ -197,7 +197,10 @@ class TestRefusals(unittest.TestCase):
         # A name the target never minted, read off a sibling document
         # whose recipe has the same node ids and one more wall: a
         # pentagon prism's fifth wall names an entity the square box's
-        # extrude never had, so it resolves to nothing there.
+        # extrude never had, so it resolves to nothing there. The box's
+        # document authors a second profile after the box, so the step
+        # the fifth wall spells is one it minted — for that profile, not
+        # the box's — and the name is a well-formed one the door admits.
         pentagon = Doc()
         five = pentagon.insert(
             Node.polygon(
@@ -219,6 +222,16 @@ class TestRefusals(unittest.TestCase):
         self.assertEqual(len(walls), 5)
         doc = Doc()
         box = blank(doc, L, H)
+        doc.insert(
+            Node.polygon(
+                [
+                    (Expr.length_in(0, m), Expr.length_in(0, m)),
+                    (Expr.length_in(1, m), Expr.length_in(0, m)),
+                    (Expr.length_in(0, m), Expr.length_in(1, m)),
+                ],
+                plane=doc.sketch_frame(),
+            )
+        )
         self.assertEqual(
             len(set(walls) - set(evaluate(doc).all_faces(box))), 1, "one wall the box lacks"
         )

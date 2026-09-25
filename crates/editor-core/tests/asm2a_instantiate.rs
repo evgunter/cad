@@ -82,7 +82,7 @@ fn with_resolver(store: StubStore) -> EvalOptions {
     }
 }
 
-fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), opts, Tol::witness())
 }
 

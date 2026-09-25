@@ -43,6 +43,7 @@ fn circle_doc(r: f64) -> ProfileDoc {
             node: Node::Profile(ProfileProgram {
                 plane: PLANE,
                 loops: vec![LoopProgram::circle(0.0, 0.0, r).unwrap()],
+                ids: Vec::new(),
             }),
         },
         Tol::witness(),
@@ -279,6 +280,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                         ],
                         radius: Expr::param(ParamName::new("r"), Dimension::Length),
                     }],
+                    ids: Vec::new(),
                 }),
             },
             Tol::witness(),
@@ -346,6 +348,7 @@ fn insert_node_checks_program_dimensions() {
             // An Angle where the Radius role demands Length.
             radius: Expr::literal(0.5, Dimension::Angle).unwrap(),
         }],
+        ids: Vec::new(),
     };
     match doc.apply(
         &DocEdit::InsertNode {
@@ -458,6 +461,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
                     spec2,
                 },
             ])],
+            ids: Vec::new(),
         };
 
         // Both roles are enumerated, once each.
