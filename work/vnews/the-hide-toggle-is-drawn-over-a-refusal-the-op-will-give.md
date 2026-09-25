@@ -119,14 +119,24 @@ fixture it shares with `fused_geometry_refuses_both_display_ops_typed`
 is extracted as `fused_pair`, so the two rows cannot come to disagree
 about what fused is.
 
-**What the change does NOT buy.** No test holds the PANEL to reading
-`display_check`, or to reading the committed document: `ViewerBehavior`
-is `pub(crate)` with about twenty borrowed fields and nothing in this
-crate can construct one, so a revert of `instance_ui` alone goes
-unnoticed by the suite. What the new row pins is the model fact the
-panel reads and the identity of the two sentences. That gap is now a
-row rather than a sentence in a PR body:
-`work/vnews/no-test-can-reach-a-pane-function`.
+**The panel half is drawn headless.** The toggle and its sentence are
+`hide_toggle`, a free function over the `Ui` — the route
+`crate::pane::headless`'s own doc prescribes — and two rows in
+`pane/properties.rs` click it: refused, it cannot be flipped and the
+fused sentence is painted under it, **planted as a literal**;
+addressable, the same click flips it and nothing is said, which keeps
+the first row from passing because the harness missed the checkbox.
+Verified red by re-introducing the defect (the toggle enabled
+regardless) and by minting a sentence in place of the fault's. The
+assembly row above also plants the fused sentence beside its
+coupling assertion; red when `FusedGeometry`'s wording is changed,
+with the coupling still green.
+
+**What no test holds**: which DOCUMENT `instance_ui` reads. That choice
+is made in the method, before it calls `hide_toggle`, and the method
+hangs off `ViewerBehavior`, which nothing in the crate constructs —
+`work/vnews/no-test-can-reach-a-pane-function`, which also names the
+shape that would close it.
 
 Filed by the same sweep and its fix pass:
 `the-unit-picker-is-offered-on-a-slot-whose-notation-is-not-the-users`

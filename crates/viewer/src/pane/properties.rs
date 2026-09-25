@@ -1416,7 +1416,10 @@ mod tests {
             matches!(refusal, Refusal::DrivenByExpression { current: None, .. }),
             "no current value to name: {refusal:?}"
         );
-        assert_eq!(refusal.to_string(), Refusal::affordance(&[thickness()], None));
+        assert_eq!(
+            refusal.to_string(),
+            Refusal::affordance(&[thickness()], None)
+        );
         assert!(refusal.to_string().contains("thickness"));
     }
 }

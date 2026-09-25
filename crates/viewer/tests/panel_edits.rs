@@ -306,7 +306,11 @@ fn the_load_door_refuses_a_count_literal_in_a_continuous_slot() {
 
     // A `CountLiteral` on the wire is `{"Count": n}`; the extrude's
     // distance is a `Length` slot.
-    let corrupt = retyped_field(&text, "distance", "{\n              \"Count\": 3\n            }");
+    let corrupt = retyped_field(
+        &text,
+        "distance",
+        "{\n              \"Count\": 3\n            }",
+    );
     match pncad::document::load(&corrupt, tol) {
         Err(pncad::document::PersistError::Snapshot(
             pncad::document::SnapshotError::SlotDimension {

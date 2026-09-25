@@ -152,31 +152,43 @@ slot and the affordance names no parameter.
 
 ### What each test holds, and how it was verified red
 
-- `a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension`
-  (`crates/viewer/tests/panel_edits.rs`) — the rows a literal document
-  produces for both a continuous and a structural `Count` slot, and
-  **both directions of the divide refused at the edit doors**
-  (`SetParam` with a Count literal, `SetStructuralParam` with a Length
-  one). Verified red by disabling `SlotId::dimension_fault` at the
-  `SetParam` door: a `CountLiteral` then lands in a `Length` slot,
-  which is the witness, and it exists only with the door removed.
-  **The file modality is executed elsewhere and cited rather than
-  copied**: `crates/editor-core/tests/load_door_slot_dimension.rs`
-  doctors a saved wire and asserts
-  `SnapshotError::SlotDimension` for two node kinds. It uses the
-  Length/Angle pair, which is immaterial — the predicate is one
-  comparison with no per-pair arm.
-- `a_driven_slots_range_button_reads_the_refusal_the_probe_would_give`
-  and two siblings (`pane/properties.rs`'s test module) — the
-  variant, its four payload fields, and the rendering. Verified red by
-  re-minting a literal in `probe_refusal`, and by refusing the literal
-  arm. The door's own half is already held by
-  `story_parametric.rs`, which asserts `ProbeBounds` on a driven slot
-  refuses `DrivenByExpression` naming the driving parameter.
+Every row below was verified red on a committed tree by PLANTING a
+wrong value, never by flipping a comparison (`work/vnews/plan.md`
+§Dispatch rules: *a test that asserts a coupling does not pin a
+mapping*).
 
-**What no test buys, for this row as much as for its sibling.** No test
-holds the PANEL to calling `probe_refusal`: `ViewerBehavior` is
-`pub(crate)` with about twenty borrowed fields and nothing in the crate
-constructs one, so a revert of `range_button`'s call alone stays green.
-That gap is now a row rather than a sentence in a PR body:
-`work/vnews/no-test-can-reach-a-pane-function`.
+`crates/viewer/tests/panel_edits.rs`, **enumerated by the modality a
+document arrives through**:
+
+- `a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension`
+  — the rows a literal document produces, for a continuous and a
+  structural `Count` slot.
+- `the_edit_doors_refuse_both_directions_of_the_count_divide` —
+  `SetParam` with a Count literal and `SetStructuralParam` with a
+  Length one, each asserting slot, `expected` and `found`. Red at the
+  FIRST assertion when `SlotId::dimension_fault` is made to pass any
+  expression into a continuous slot; red at the SECOND, with the first
+  still green, when it is made to pass any expression into a Count
+  slot. So each direction is pinned on its own.
+- `the_load_door_refuses_a_count_literal_in_a_continuous_slot` — the
+  file modality, executed here rather than cited: the saved fixture is
+  doctored in one field to `{"Count": 3}` and `pncad::document::load`
+  must answer `SnapshotError::SlotDimension` naming the node, slot and
+  both dimensions. Red when the load walk alone (`first_slot_fault`) is
+  turned off, **with the edit-door row still green** — and the red
+  run's output is the witness the original row asked for: a loaded
+  document whose extrude carries `distance: CountLiteral(3)`, which
+  exists only with that door removed.
+
+`crates/viewer/src/pane/properties.rs`'s test module:
+
+- `a_driven_slots_range_button_reads_the_refusal_the_probe_would_give`
+  and two siblings — the variant, its four payload fields, the
+  coupling to `Refusal::affordance`, and the rendering **planted as a
+  literal**. Red when `Refusal::affordance` is reworded ("edit" →
+  "change"): the coupling stays green, which is the point of planting,
+  and the literal fails.
+
+**What no test holds**: that `range_button` CALLS `probe_refusal`.
+It is a method on `ViewerBehavior`, which nothing in the crate
+constructs — `work/vnews/no-test-can-reach-a-pane-function`.

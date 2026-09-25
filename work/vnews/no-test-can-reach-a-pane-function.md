@@ -1,7 +1,7 @@
 ---
 id: no-test-can-reach-a-pane-function
 kind: issue
-title: ViewerBehavior's *_ui functions have no test that can construct one, so a panel's own decisions are unassertable
+title: what a pane METHOD decides is still unassertable — the document it reads is the case that cost a defect
 status: open
 opened: 2026-09-20
 refs: [the-hide-toggle-is-drawn-over-a-refusal-the-op-will-give, the-range-button-re-mints-the-ratified-affordance]
@@ -11,52 +11,54 @@ cost: D
 
 Recorded once, in prose, in `work/view/log.md:338` — *"the entire
 2,507-line `impl ViewerBehavior` (32 `*_ui` fns) has no direct test at
-all"* — and nowhere as a row. A closing program's log is deleted with
-its directory, so this files the fact where the sweep that re-homes
-residue can see it.
+all"* — and nowhere as a row until this one.
 
-## What it costs, measured on a unit that paid it
+## What main already has, and what it does not reach
 
-`vnews/properties-controls-read-their-refusals` (PR #2961) repaired two
-controls whose gates disagreed with their doors. **Neither repair is
-mutation-provable at the panel.** `ViewerBehavior` is `pub(crate)`,
-carries about twenty borrowed fields (a `DocSession`, a `SceneMesh`, a
-`PickIndex`, a `Camera`, four `&mut` draft stores, a `Theme`), and
-nothing in the crate constructs one — so reverting `instance_ui`'s
-document, or making `range_button` mint a sentence again, leaves every
-test green. What that lane could pin was the model values the panel
-reads and the identity of the sentences; what it could not pin is that
-the panel reads them.
+`crate::pane::headless` (`crates/viewer/src/pane.rs`) lays a pane out
+in a real `egui::Context` with no window and reads back what it
+painted — `painted_text`, `painted_after_clicking`, `landed`. Its own
+doc states the rule this row would otherwise have proposed: *"What it
+still cannot reach is a pane METHOD … A row a test must drive is
+therefore a free function over the `Ui`, and the method's job is to
+call it."*
 
-The same gap is why the `session.doc()` / `committed_doc()` defect the
-style review found could only be argued, not executed.
+`vnews/properties-controls-read-their-refusals` (PR #2961) took that
+route for the hide toggle: `hide_toggle` is a free function, and two
+headless rows click it — refused, it cannot be flipped and paints the
+door's own sentence; addressable, the same click flips it. Both were
+verified red by re-introducing the defect (a toggle enabled
+regardless) and by minting a sentence in place of the fault's.
 
-## The two shapes, and the one this crate already uses
+## What stays out of reach
 
-- **Make the panel constructible in a test** — a builder or a
-  `#[cfg(test)]` constructor over defaulted fields, with a headless
-  `egui::Ui` (`egui::Context::run_ui`, which `eval_seam.rs` and
-  `widgets.rs`'s own test module already drive). Buys assertions on
-  what a panel DRAWS and on the ops it pushes; costs a seam that has to
-  be kept honest as the struct grows.
-- **Put the decision on a value the panel reads** — what the crate
-  does today, and what closes this class elsewhere: `CancelDoor` on the
-  session, `PartEntry::refusal` on the catalogue,
-  `DeleteAffordance::of`. The panel then holds one line and the
-  decision is testable where it lives. This is the cheaper and more
-  idiomatic direction and it is NOT free: a decision hoisted out of the
-  panel has to belong to the door it mirrors, or it becomes a second
-  home for a condition (which is what the same PR's review caught in a
-  first draft that hoisted the per-instance section's gate into a door
-  that swallowed the fault `instance_check`'s doc says the caller must
-  discard at its own call site).
+**Whatever a method decides before it calls the free function.** On
+that same unit, that was the defect with the most reach:
+`instance_ui` read `session.doc()` — the previewed document — where
+`set_hidden` reads `history.doc()`. The fix is one line in the method,
+and no test can hold it, because the method borrows the whole
+application (`ViewerBehavior`: a `DocSession`, a `SceneMesh`, a
+`PickIndex`, a `Camera`, four `&mut` draft stores) and nothing in the
+crate constructs one. `range_button`'s call to `probe_refusal` is the
+same shape, more mildly.
 
-## Scope
+## The two ways to close it
 
-`impl ViewerBehavior` spans `app.rs` (VSEAM's) and every `pane/*`
-module, which four successor programs claim between them — so the ROW
-is here, on VNEWS's slate, and a unit cut from it either lands in one
-file with the others announced, or is a VIEW-level decision. The
-count in the log line is a measurement of `app.rs` on 2026-09-04 and is
-not re-derived here: `grep -c 'fn .*_ui' crates/viewer/src/pane/*.rs`
-plus `app.rs` is the instrument.
+- **Pass the decided VALUE into the free function**, not the session:
+  the method computes `display_check(committed_doc(), node)` and hands
+  over the `Result`. That is what `hide_toggle` does, and it moves the
+  toggle's behaviour into reach — but the choice of DOCUMENT stays in
+  the method, which is exactly the part that was wrong.
+- **Put the choice where the door is.** `DocSession` could answer
+  "would `SetInstanceHidden` accept this node?" itself, from the
+  document its own door reads, the way `delete_affordance` and
+  `CancelDoor::blocked` already answer for theirs. Then the panel
+  cannot pick the wrong document because it picks none, and the
+  question is testable on the session. `session.rs` is VSEAM's, so a
+  unit cut from this row is a hand-off there;
+  `work/vseam/a-panels-gate-reads-the-previewed-document-while-its-door-reads-the-committed-one`
+  is its member list.
+
+The count in the log line is a measurement of `app.rs` on 2026-09-04
+and is not re-derived here: `grep -c 'fn .*_ui'` over `app.rs` and
+`pane/*.rs` is the instrument.
