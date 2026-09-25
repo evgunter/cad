@@ -382,6 +382,10 @@ pub enum CurveDatum {
     MinorRadius,
     /// A spiric's plane stand-off `offset`.
     Offset,
+    /// A `Nurbs` carrier's control net — the one datum a spline stores
+    /// that is a number at the curve's scalar (its knots and weights are
+    /// `f64` structure, validated finite at construction).
+    Control,
 }
 
 impl CurveDatum {
@@ -404,6 +408,7 @@ impl CurveDatum {
             Self::MajorRadius => "major_radius",
             Self::MinorRadius => "minor_radius",
             Self::Offset => "offset",
+            Self::Control => "control",
         }
     }
 }
@@ -431,9 +436,9 @@ impl<T: Real> Curve3<T> {
     /// - **the frame**, for `Circle`, `Ellipse` and `Spiric`: `axis` and
     ///   `u_ref` unit and `u_ref ⊥ axis` within `band`'s ε at the
     ///   carrier's largest radius (the circle's `radius`, the larger
-    ///   semi-axis, the spiric's `R + r`) — the surface door's frame
-    ///   margins, for the same reason: a circle whose `axis` is `2·ẑ`
-    ///   evaluates an ellipse;
+    ///   semi-axis MAGNITUDE, the spiric's `R + r`) — the surface door's
+    ///   frame margins, for the same reason: a circle whose `axis` is
+    ///   `2·ẑ` evaluates an ellipse;
     /// - `Line`, `Nurbs`: none — a line's `dir` spans the same line at
     ///   any length, and a spline's datum is its net.
     ///
@@ -445,20 +450,9 @@ impl<T: Real> Curve3<T> {
         &self,
         band: Band,
     ) -> Vec<crate::RepresentabilityMargin<T, CurveDatum>> {
-        let lower = |datum, margin| crate::RepresentabilityMargin {
-            datum,
-            end: crate::ConventionEnd::Lower,
-            margin,
-        };
+        use crate::convention::{frame_margins, lower};
         let frame = |axis, u_ref, arm| {
-            crate::surfaces::frame_margins(
-                axis,
-                u_ref,
-                arm,
-                band,
-                CurveDatum::Axis,
-                CurveDatum::URef,
-            )
+            frame_margins(axis, u_ref, arm, band, CurveDatum::Axis, CurveDatum::URef)
         };
         match self {
             Curve3::Circle {
@@ -480,7 +474,7 @@ impl<T: Real> Curve3<T> {
                 lower(CurveDatum::Minor, *minor),
             ]
             .into_iter()
-            .chain(frame(*axis, *u_ref, major.max(*minor)))
+            .chain(frame(*axis, *u_ref, major.abs().max(minor.abs())))
             .collect(),
             Curve3::Spiric {
                 center: _,

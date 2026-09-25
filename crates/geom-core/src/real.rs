@@ -838,8 +838,10 @@ pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
 ///
 /// **Which doors ask it** — hand-kept, like its siblings' rosters:
 ///
-/// - `topo`'s tier-3 check 1, of a stored plane `normal`, where a zero
-///   normal is a datum that describes no locus. It does not DECIDE the
+/// - `topo`'s tier-3 check 1, of every stored direction of an analytic
+///   surface or edge carrier — a plane's `normal`, the `axis` and
+///   `u_ref` of the axisymmetric kinds, a line's `dir` — where a zero
+///   one is a datum that describes no locus. It does not DECIDE the
 ///   length (that is [`decide_unit_direction`](crate::decide_unit_direction)'s
 ///   job, metered and band-relative): a datum is asked whether it is
 ///   the zero vector, not whether it is short.

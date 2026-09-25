@@ -427,11 +427,12 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
 #[test]
 fn check_1_names_the_analytic_datum_that_describes_no_locus() {
     use geom::ConventionEnd::{Lower, Upper};
+    use geom::ConventionMeasure::{Length, Tilt, Value};
     use geom::SurfaceDatum as D;
     use geom_brep::SurfaceKind as K;
     enum Verdict {
         Poisoned,
-        Unrepresentable(geom::ConventionEnd),
+        Unrepresentable(geom::ConventionMeasure, geom::ConventionEnd),
     }
     let tol = Tol::witness();
     let o = pt(0.0, 0.0, 0.0);
@@ -469,7 +470,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             sphere(0.0),
             K::Sphere,
             D::Radius,
-            Verdict::Unrepresentable(Lower),
+            Verdict::Unrepresentable(Value, Lower),
         ),
         (
             "cone, NaN half-angle",
@@ -501,7 +502,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             cylinder(-1.0),
             K::Cylinder,
             D::Radius,
-            Verdict::Unrepresentable(Lower),
+            Verdict::Unrepresentable(Value, Lower),
         ),
         (
             "cylinder, infinite radius",
@@ -515,35 +516,35 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             sphere(-2.0),
             K::Sphere,
             D::Radius,
-            Verdict::Unrepresentable(Lower),
+            Verdict::Unrepresentable(Value, Lower),
         ),
         (
             "cone, zero half-angle",
             cone(0.0),
             K::Cone,
             D::HalfAngle,
-            Verdict::Unrepresentable(Lower),
+            Verdict::Unrepresentable(Value, Lower),
         ),
         (
             "cone, half-angle pi/2",
             cone(core::f64::consts::FRAC_PI_2),
             K::Cone,
             D::HalfAngle,
-            Verdict::Unrepresentable(Upper),
+            Verdict::Unrepresentable(Value, Upper),
         ),
         (
             "cone, half-angle past pi/2",
             cone(2.0),
             K::Cone,
             D::HalfAngle,
-            Verdict::Unrepresentable(Upper),
+            Verdict::Unrepresentable(Value, Upper),
         ),
         (
             "torus, zero tube",
             torus(2.0, 0.0),
             K::Torus,
             D::MinorRadius,
-            Verdict::Unrepresentable(Lower),
+            Verdict::Unrepresentable(Value, Lower),
         ),
         (
             "torus, NaN tube",
@@ -678,7 +679,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             },
             K::Cylinder,
             D::URef,
-            Verdict::Unrepresentable(Upper),
+            Verdict::Unrepresentable(Length, Upper),
         ),
         (
             "sphere, axis of half length",
@@ -690,7 +691,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             },
             K::Sphere,
             D::Axis,
-            Verdict::Unrepresentable(Lower),
+            Verdict::Unrepresentable(Length, Lower),
         ),
         (
             "torus, unit u_ref tilted off the axis's normal plane",
@@ -703,7 +704,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             },
             K::Torus,
             D::URef,
-            Verdict::Unrepresentable(Upper),
+            Verdict::Unrepresentable(Tilt, Upper),
         ),
         (
             "torus, zero axis",
@@ -723,12 +724,15 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         let (errs, face) = pillow_on(surface, tol);
         let expected = match verdict {
             Verdict::Poisoned => ValidationError::PoisonedSurfaceDatum { face, kind, datum },
-            Verdict::Unrepresentable(end) => ValidationError::UnrepresentableSurfaceDatum {
-                face,
-                kind,
-                datum,
-                end,
-            },
+            Verdict::Unrepresentable(measure, end) => {
+                ValidationError::UnrepresentableSurfaceDatum {
+                    face,
+                    kind,
+                    datum,
+                    measure,
+                    end,
+                }
+            }
         };
         assert_eq!(
             errs.first(),
@@ -871,6 +875,7 @@ fn pillow_with_carrier(
 fn check_1_names_the_carrier_datum_that_describes_no_curve() {
     use crate::query::CurveKind as K;
     use geom::ConventionEnd::{Lower, Upper};
+    use geom::ConventionMeasure::{Length, Value};
     use geom::Curve3;
     use geom::CurveDatum as D;
     let tol = Tol::witness();
@@ -906,7 +911,7 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
     }
     enum Verdict {
         Poisoned,
-        Unrepresentable(geom::ConventionEnd),
+        Unrepresentable(geom::ConventionMeasure, geom::ConventionEnd),
     }
     let cases: Vec<(&str, Curve3<f64>, K, D, Verdict)> = vec![
         (
@@ -928,14 +933,14 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
             ellipse(axis, -0.5, x),
             K::Ellipse,
             D::Major,
-            Verdict::Unrepresentable(Lower),
+            Verdict::Unrepresentable(Value, Lower),
         ),
         (
             "circle, axis of length 2 (it evaluates an ellipse)",
             circle(axis * 2.0),
             K::Circle,
             D::Axis,
-            Verdict::Unrepresentable(Upper),
+            Verdict::Unrepresentable(Length, Upper),
         ),
     ];
     for (name, carrier, kind, datum, verdict) in cases {
@@ -944,10 +949,11 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
         let errs = validate_geometric(&body, tol).expect_err("the carrier datum is refused");
         let expected = match verdict {
             Verdict::Poisoned => ValidationError::PoisonedCurveDatum { edge, kind, datum },
-            Verdict::Unrepresentable(end) => ValidationError::UnrepresentableCurveDatum {
+            Verdict::Unrepresentable(measure, end) => ValidationError::UnrepresentableCurveDatum {
                 edge,
                 kind,
                 datum,
+                measure,
                 end,
             },
         };
@@ -976,6 +982,7 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
 fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     use crate::validate::{DatumVerdict as V, analytic_datum_verdicts, poisoned_curve_datums};
     use geom::ConventionEnd::Lower;
+    use geom::ConventionMeasure::Value;
     use geom::Curve3;
     use geom::CurveDatum as D;
     let nan = f64::NAN;
@@ -1040,12 +1047,12 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         (
             "circle, zero radius",
             circle(o, z, 0.0, x),
-            Some(V::Unrepresentable(D::Radius, Lower)),
+            Some(V::Unrepresentable(D::Radius, Value, Lower)),
         ),
         (
             "circle, negative radius",
             circle(o, z, -1.0, x),
-            Some(V::Unrepresentable(D::Radius, Lower)),
+            Some(V::Unrepresentable(D::Radius, Value, Lower)),
         ),
         (
             "ellipse, zero minor",
@@ -1056,7 +1063,7 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
                 minor: 0.0,
                 u_ref: x,
             },
-            Some(V::Unrepresentable(D::Minor, Lower)),
+            Some(V::Unrepresentable(D::Minor, Value, Lower)),
         ),
         ("honest spiric", spiric(0.5, 0.3), None),
         (
@@ -1067,11 +1074,209 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         (
             "spiric, zero tube",
             spiric(0.0, 0.3),
-            Some(V::Unrepresentable(D::MinorRadius, Lower)),
+            Some(V::Unrepresentable(D::MinorRadius, Value, Lower)),
+        ),
+        ("finite NURBS carrier", line_net(pt(1.0, 0.0, 0.0)), None),
+        (
+            "NURBS carrier, infinite control point",
+            line_net(pt(inf, 0.0, 0.0)),
+            Some(V::Poisoned(vec![D::Control])),
+        ),
+        (
+            "NURBS carrier, NaN control point",
+            line_net(pt(0.0, nan, 0.0)),
+            Some(V::Poisoned(vec![D::Control])),
         ),
     ];
     for (name, carrier, expected) in cases {
-        assert_eq!(verdict(&carrier), expected, "{name}");
+        assert_eq!(verdict(&carrier), expected, "{name}, at f64");
+        let lifted: Curve3<geom_core::Interval> =
+            carrier.map_scalar(<geom_core::Interval as geom_core::Real>::from_f64);
+        assert_eq!(
+            analytic_datum_verdicts(
+                poisoned_curve_datums(&lifted),
+                lifted.representability_margins(band)
+            ),
+            expected,
+            "{name}, at Interval"
+        );
+    }
+}
+
+/// A two-point linear NURBS carrier from the origin to `end`.
+fn line_net(end: Point3<f64>) -> geom::Curve3<f64> {
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    geom::Curve3::Nurbs(std::sync::Arc::new(
+        geom::NurbsCurve3::new(kv, vec![pt(0.0, 0.0, 0.0), end], vec![1.0; 2]).unwrap(),
+    ))
+}
+
+/// **The frame margins' lever is the kind's radius — not 1, not its
+/// square, and for an ellipse the LARGER semi-axis magnitude,
+/// whichever field stores it.** Every row sits a frame deviation `δ`
+/// on one side of the line at the true lever and on the other side at
+/// a wrong one, so each wrong lever reddens a row:
+///
+/// - at `r = 4`, `δ = ε/2` refuses (`δ·r = 2ε`) and would pass at a
+///   lever of 1 (`ε/2`);
+/// - at `r = 4`, `δ = ε/8` passes (`δ·r = ε/2`) and would refuse at a
+///   lever of `r²` (`2ε`);
+/// - an ellipse stored `major = 1, minor = 4`: `δ = ε/2` refuses at
+///   the lever 4 and would pass at the stored `major`; and stored
+///   `major = −4, minor = 1` (a negative semi-axis) the same, where a
+///   signed `max` would read the lever as 1.
+///
+/// Surfaces (a cylinder's `u_ref` length) and carriers (a circle's and
+/// an ellipse's `axis` length), each at `f64` and at the interval
+/// scalar.
+#[test]
+fn the_frame_lever_is_the_kinds_radius() {
+    use geom::ConventionEnd::Upper;
+    use geom::ConventionMeasure::Length;
+    use geom::Curve3;
+    use geom::CurveDatum as CD;
+    use geom::SurfaceDatum as SD;
+    use geom_core::Interval;
+    let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).unwrap();
+    let eps = band.zero();
+    let o = pt(0.0, 0.0, 0.0);
+    let long = |d: f64| 1.0 + d;
+    let cylinder = |r: f64, d: f64| Surface::Cylinder {
+        origin: o,
+        axis: Vec3::unit_z(),
+        radius: r,
+        u_ref: Vec3::new(long(d), 0.0, 0.0),
+    };
+    let circle = |r: f64, d: f64| Curve3::Circle {
+        center: o,
+        axis: Vec3::new(0.0, 0.0, long(d)),
+        radius: r,
+        u_ref: Vec3::unit_x(),
+    };
+    let ellipse = |major: f64, minor: f64, d: f64| Curve3::Ellipse {
+        center: o,
+        axis: Vec3::new(0.0, 0.0, long(d)),
+        major,
+        minor,
+        u_ref: Vec3::unit_x(),
+    };
+    let surface_verdict = |s: &Surface<f64>| {
+        let lifted: Surface<Interval> = s.map_scalar(<Interval as geom_core::Real>::from_f64);
+        let at = |v: Option<crate::validate::DatumVerdict<SD>>| v;
+        (
+            at(crate::validate::analytic_datum_verdicts(
+                crate::validate::poisoned_datums(s),
+                s.representability_margins(band),
+            )),
+            at(crate::validate::analytic_datum_verdicts(
+                crate::validate::poisoned_datums(&lifted),
+                lifted.representability_margins(band),
+            )),
+        )
+    };
+    let curve_verdict = |c: &Curve3<f64>| {
+        let lifted: Curve3<Interval> = c.map_scalar(<Interval as geom_core::Real>::from_f64);
+        (
+            crate::validate::analytic_datum_verdicts(
+                crate::validate::poisoned_curve_datums(c),
+                c.representability_margins(band),
+            ),
+            crate::validate::analytic_datum_verdicts(
+                crate::validate::poisoned_curve_datums(&lifted),
+                lifted.representability_margins(band),
+            ),
+        )
+    };
+    use crate::validate::DatumVerdict as V;
+    let s_out = Some(V::Unrepresentable(SD::URef, Length, Upper));
+    let c_out = Some(V::Unrepresentable(CD::Axis, Length, Upper));
+    for (name, got, want) in [
+        (
+            "cylinder r = 4, u_ref eps/2 long",
+            surface_verdict(&cylinder(4.0, eps / 2.0)),
+            s_out,
+        ),
+        (
+            "cylinder r = 4, u_ref eps/8 long",
+            surface_verdict(&cylinder(4.0, eps / 8.0)),
+            None,
+        ),
+    ] {
+        assert_eq!(got, (want.clone(), want), "{name}: (f64, Interval)");
+    }
+    for (name, got, want) in [
+        (
+            "circle r = 4, axis eps/2 long",
+            curve_verdict(&circle(4.0, eps / 2.0)),
+            c_out.clone(),
+        ),
+        (
+            "circle r = 4, axis eps/8 long",
+            curve_verdict(&circle(4.0, eps / 8.0)),
+            None,
+        ),
+        (
+            "ellipse major 1 < minor 4, axis eps/2 long",
+            curve_verdict(&ellipse(1.0, 4.0, eps / 2.0)),
+            c_out.clone(),
+        ),
+        (
+            "ellipse major 1 < minor 4, axis eps/8 long",
+            curve_verdict(&ellipse(1.0, 4.0, eps / 8.0)),
+            None,
+        ),
+    ] {
+        assert_eq!(got, (want.clone(), want), "{name}: (f64, Interval)");
+    }
+    // A negative semi-axis is refused on its VALUE first, whatever the
+    // frame; the frame's lever for it is asked directly.
+    let neg = ellipse(-4.0, 1.0, eps / 2.0);
+    let margins = neg.representability_margins(band);
+    assert!(
+        margins.iter().any(|m| m.datum == CD::Axis
+            && m.measure == Length
+            && m.end == Upper
+            && m.margin < 0.0),
+        "the axis at |major| = 4 is off by 2 eps, and a signed max would read the lever as 1: \
+         {margins:?}"
+    );
+}
+
+/// **An elliptic arc's perimeter lever is `|Δ|` times its larger
+/// semi-axis MAGNITUDE** (`loop_winding::conic_segment_term`, read by
+/// the merge's role assigner, check 6 and the boolean join's
+/// `ring_run_ccw`), on the two ellipses the mint certifies with a
+/// stored order the lever must not trust: `minor > major`, and a
+/// negative `major` with its `u_ref` flipped (the D-2 table). A lever
+/// of `|Δ|·major` reads the first too short, a signed `max` the second;
+/// either is a lower bound on the arc length, which overstates the
+/// metered width.
+#[test]
+fn the_elliptic_lever_is_the_larger_semi_axis_magnitude() {
+    use geom::Curve3;
+    let tol = Tol::witness();
+    let pi = core::f64::consts::PI;
+    let x = Vec3::unit_x();
+    for (name, major, minor, u_ref, reach) in [
+        ("minor > major", 0.5, 0.7, -x, 0.7),
+        ("negative major, u_ref flipped", -0.5, 0.3, x, 0.5),
+    ] {
+        let carrier = Curve3::Ellipse {
+            center: pt(0.5, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            major,
+            minor,
+            u_ref,
+        };
+        let (body, edge) = pillow_with_carrier(carrier, 0.0, pi, tol)
+            .unwrap_or_else(|e| panic!("{name}: the mint certifies it: {e:?}"));
+        let curve = body
+            .get_curve_geom(body.get_edge(edge).unwrap().curve)
+            .and_then(crate::null::CurveGeom::certified)
+            .unwrap();
+        let (_, lever) = crate::loop_winding::conic_segment_term(curve, true).unwrap();
+        assert_eq!(lever, pi * reach, "{name}: the lever is |Δ| times {reach}");
     }
 }
 

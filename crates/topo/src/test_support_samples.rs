@@ -675,16 +675,24 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             label("PoisonedSurfaceDatum", &datum),
             ValidationError::PoisonedSurfaceDatum { face, kind, datum },
         ));
-        for end in geom::ConventionEnd::iter() {
-            s.push((
-                label("UnrepresentableSurfaceDatum", &datum),
-                ValidationError::UnrepresentableSurfaceDatum {
-                    face,
-                    kind,
-                    datum,
-                    end,
-                },
-            ));
+        // Every measure at every end, the frame's included: the
+        // renderings differ by measure, so each is budget-checked.
+        for measure in geom::ConventionMeasure::iter() {
+            for end in geom::ConventionEnd::iter() {
+                s.push((
+                    format!(
+                        "{}/{measure:?}",
+                        label("UnrepresentableSurfaceDatum", &datum)
+                    ),
+                    ValidationError::UnrepresentableSurfaceDatum {
+                        face,
+                        kind,
+                        datum,
+                        measure,
+                        end,
+                    },
+                ));
+            }
         }
     }
 
@@ -696,16 +704,21 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             label("PoisonedCurveDatum", &datum),
             ValidationError::PoisonedCurveDatum { edge, kind, datum },
         ));
-        for end in geom::ConventionEnd::iter() {
-            s.push((
-                label("UnrepresentableCurveDatum", &datum),
-                ValidationError::UnrepresentableCurveDatum {
-                    edge,
-                    kind,
-                    datum,
-                    end,
-                },
-            ));
+        // Every measure at every end, the frame's included: the
+        // renderings differ by measure, so each is budget-checked.
+        for measure in geom::ConventionMeasure::iter() {
+            for end in geom::ConventionEnd::iter() {
+                s.push((
+                    format!("{}/{measure:?}", label("UnrepresentableCurveDatum", &datum)),
+                    ValidationError::UnrepresentableCurveDatum {
+                        edge,
+                        kind,
+                        datum,
+                        measure,
+                        end,
+                    },
+                ));
+            }
         }
     }
 

@@ -101,3 +101,15 @@ inside rows of `datums_inside_their_conventions_draw_no_datum_verdict`
 **`geom`'s crate docs made true**: the conventions paragraph now says
 what check 1 certifies and what it does not. The uncertified half is
 filed: `unlevered-frame-conventions-are-uncertified-at-rest`.
+
+**Fix pass (review of PR 3238).** The cylinder's `u_ref`-tilt margin is
+kept for a different reason than the rest, and says so
+(`crates/geom/src/convention.rs`, `frame_margins`): a tilt `c` moves
+the cylinder's LOCUS only `≈ r·c²/2` (the axial component slides along
+the rulings), but moves `S(u, v)` at fixed `(u, v)` by `r·c` — so on
+the cylinder it guards the chart every pcurve and chart-described edge
+reads, not representability. Refusals now say which frame quantity is
+out (`ConventionMeasure::{Value, Length, Tilt}` on the margin and the
+variant): "… stores a reference direction that is not perpendicular to
+its axis …". The lever is pinned against `1` and `r²` at both scalars
+(`the_frame_lever_is_the_kinds_radius`).

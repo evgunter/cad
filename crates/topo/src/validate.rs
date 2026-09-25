@@ -846,14 +846,18 @@ pub enum ValidationError {
         kind: geom_brep::SurfaceKind,
         /// The datum outside its convention.
         datum: geom::SurfaceDatum,
+        /// Which quantity of it is out: its value (a radius, a
+        /// half-angle), or a frame direction's length or tilt.
+        measure: geom::ConventionMeasure,
         /// Which end of the convention it fails: `Lower` for a radius
         /// that is not positive or a cone closed to a line, `Upper` for
         /// a cone opened to a plane.
         end: geom::ConventionEnd,
     },
-    /// Tier 3: an edge's analytic carrier stores a datum that is not a
-    /// finite number, or a direction (`dir`, `axis`, `u_ref`) that is
-    /// the zero vector — the curve half of
+    /// Tier 3: an edge's carrier stores a datum that is not a finite
+    /// number — a `Nurbs` carrier's control net included — or a
+    /// direction (`dir`, `axis`, `u_ref`) that is the zero vector — the
+    /// curve half of
     /// [`ValidationError::PoisonedSurfaceDatum`], read the same way and
     /// for the same reason.
     ///
@@ -888,6 +892,8 @@ pub enum ValidationError {
         kind: crate::query::CurveKind,
         /// The datum outside its convention.
         datum: geom::CurveDatum,
+        /// Which quantity of it is out.
+        measure: geom::ConventionMeasure,
         /// Which end of the convention it fails.
         end: geom::ConventionEnd,
     },
@@ -2084,64 +2090,94 @@ fn surface_kind_words(kind: geom_brep::SurfaceKind) -> &'static str {
     }
 }
 
-/// A surface datum in words (its `name` is the field's identifier).
-fn datum_words(datum: geom::SurfaceDatum) -> &'static str {
-    use geom::SurfaceDatum as D;
-    match datum {
-        D::Origin => "origin",
-        D::Normal => "normal",
-        D::URef => "reference direction",
-        D::Axis => "axis",
-        D::Radius => "radius",
-        D::Apex => "apex",
-        D::HalfAngle => "half-angle",
-        D::Center => "center",
-        D::MajorRadius => "ring radius",
-        D::MinorRadius => "tube radius",
-    }
-}
-
-/// A carrier kind in words, with its article.
+/// A carrier kind in words.
 fn curve_kind_words(kind: crate::query::CurveKind) -> &'static str {
     use crate::query::CurveKind as K;
     match kind {
-        K::Line => "a straight",
-        K::Circle => "a circular",
-        K::Ellipse => "an elliptical",
-        K::Spiric => "a toric-section",
-        K::Nurbs => "a spline",
+        K::Line => "straight",
+        K::Circle => "circular",
+        K::Ellipse => "elliptical",
+        K::Spiric => "toric-section",
+        K::Nurbs => "spline",
     }
 }
 
-/// A carrier datum in words (its `name` is the field's identifier).
-fn curve_datum_words(datum: geom::CurveDatum) -> &'static str {
-    use geom::CurveDatum as D;
-    match datum {
-        D::Origin => "origin",
-        D::Dir => "direction",
-        D::Center => "center",
-        D::Axis => "axis",
-        D::URef => "reference direction",
-        D::Radius => "radius",
-        D::Major => "major semi-axis",
-        D::Minor => "minor semi-axis",
-        D::MajorRadius => "ring radius",
-        D::MinorRadius => "tube radius",
-        D::Offset => "offset",
+/// A stored datum in words, for a surface's and a carrier's alike:
+/// derived from the field's own name (`geom::SurfaceDatum::name`,
+/// `geom::CurveDatum::name`), underscores read as spaces, except where
+/// the identifier is not a word a person would use.
+fn datum_words(field: &'static str) -> std::borrow::Cow<'static, str> {
+    match field {
+        "u_ref" => "reference direction".into(),
+        "dir" => "direction".into(),
+        "major_radius" => "ring radius".into(),
+        "minor_radius" => "tube radius".into(),
+        "major" => "major semi-axis".into(),
+        "minor" => "minor semi-axis".into(),
+        "half_angle" => "half-angle".into(),
+        "control" => "control net".into(),
+        _ => field.replace('_', " ").into(),
     }
 }
 
-fn curve_datum_article(datum: geom::CurveDatum) -> &'static str {
-    match datum {
-        geom::CurveDatum::Origin | geom::CurveDatum::Axis | geom::CurveDatum::Offset => "an",
+/// `words` with its indefinite article, read off its first letter
+/// (every word these tables render is pronounced as spelled).
+fn with_article(words: &str) -> String {
+    let article = match words.chars().next() {
+        Some('a' | 'e' | 'i' | 'o' | 'u') => "an",
         _ => "a",
+    };
+    format!("{article} {words}")
+}
+
+/// What is wrong with a stored datum that fails its convention, as the
+/// object of "stores …": its value out of range, a frame direction's
+/// length, or its tilt off the axis.
+fn convention_breach(
+    field: &'static str,
+    measure: geom::ConventionMeasure,
+    end: geom::ConventionEnd,
+) -> String {
+    let datum = with_article(&datum_words(field));
+    match measure {
+        geom::ConventionMeasure::Value => format!(
+            "{datum} {} the range it allows",
+            match end {
+                geom::ConventionEnd::Lower => "at or below",
+                geom::ConventionEnd::Upper => "at or above",
+            }
+        ),
+        geom::ConventionMeasure::Length => format!("{datum} that is not unit length"),
+        geom::ConventionMeasure::Tilt => format!("{datum} that is not perpendicular to its axis"),
     }
 }
 
-fn datum_article(datum: geom::SurfaceDatum) -> &'static str {
-    match datum {
-        geom::SurfaceDatum::Origin | geom::SurfaceDatum::Axis | geom::SurfaceDatum::Apex => "an",
-        _ => "a",
+/// The recourse for a surface datum outside its convention.
+fn convention_recourse(field: &'static str, measure: geom::ConventionMeasure) -> String {
+    let words = datum_words(field);
+    match measure {
+        geom::ConventionMeasure::Value => {
+            format!("Recourse: give the {words} a value inside its range")
+        }
+        geom::ConventionMeasure::Length => {
+            format!("Recourse: store {}", with_article(&format!("unit {words}")))
+        }
+        geom::ConventionMeasure::Tilt => {
+            format!(
+                "Recourse: store {words} perpendicular to the axis",
+                words = with_article(&words)
+            )
+        }
+    }
+}
+
+/// A poisoned datum's defect in words: a direction that is not finite
+/// or is the zero vector, or a number that is not finite.
+fn poison_words(is_direction: bool) -> &'static str {
+    if is_direction {
+        "not finite, or is the zero vector"
+    } else {
+        "not a finite number"
     }
 }
 
@@ -2487,59 +2523,52 @@ impl fmt::Display for ValidationError {
             ),
             Self::PoisonedSurfaceDatum { kind, datum, .. } => write!(
                 f,
-                "a {} face's surface stores {} {} that is {}, so it describes no shape. \
-                 {DEFECT}",
-                surface_kind_words(*kind),
-                datum_article(*datum),
-                datum_words(*datum),
-                match datum {
+                "{} face's surface stores {} that is {}, so it describes no shape. {DEFECT}",
+                with_article(surface_kind_words(*kind)),
+                with_article(&datum_words(datum.name())),
+                poison_words(matches!(
+                    datum,
                     geom::SurfaceDatum::Normal
-                    | geom::SurfaceDatum::Axis
-                    | geom::SurfaceDatum::URef => "not finite, or is the zero vector",
-                    _ => "not a finite number",
-                },
+                        | geom::SurfaceDatum::Axis
+                        | geom::SurfaceDatum::URef
+                )),
             ),
             Self::UnrepresentableSurfaceDatum {
-                kind, datum, end, ..
+                kind,
+                datum,
+                measure,
+                end,
+                ..
             } => write!(
                 f,
-                "a {} face's surface stores a {} {} the range that surface allows, so it \
-                 describes no surface a face can bound. Recourse: give the {} a value \
-                 inside its range",
-                surface_kind_words(*kind),
-                datum_words(*datum),
-                match end {
-                    geom::ConventionEnd::Lower => "at or below",
-                    geom::ConventionEnd::Upper => "at or above",
-                },
-                datum_words(*datum),
+                "{} face's surface stores {}, so it does not describe the surface its \
+                 kind names. {}",
+                with_article(surface_kind_words(*kind)),
+                convention_breach(datum.name(), *measure, *end),
+                convention_recourse(datum.name(), *measure),
             ),
             Self::PoisonedCurveDatum { kind, datum, .. } => write!(
                 f,
-                "{} edge's curve stores {} {} that is {}, so it describes no curve. \
-                 {DEFECT}",
-                curve_kind_words(*kind),
-                curve_datum_article(*datum),
-                curve_datum_words(*datum),
-                match datum {
-                    geom::CurveDatum::Dir | geom::CurveDatum::Axis | geom::CurveDatum::URef => {
-                        "not finite, or is the zero vector"
-                    }
-                    _ => "not a finite number",
-                },
+                "{} edge's curve stores {} that is {}, so it describes no curve. {DEFECT}",
+                with_article(curve_kind_words(*kind)),
+                with_article(&datum_words(datum.name())),
+                poison_words(matches!(
+                    datum,
+                    geom::CurveDatum::Dir | geom::CurveDatum::Axis | geom::CurveDatum::URef
+                )),
             ),
             Self::UnrepresentableCurveDatum {
-                kind, datum, end, ..
+                kind,
+                datum,
+                measure,
+                end,
+                ..
             } => write!(
                 f,
-                "{} edge's curve stores a {} {} the range that curve allows, so it \
-                 describes no curve of its kind. {DEFECT}",
-                curve_kind_words(*kind),
-                curve_datum_words(*datum),
-                match end {
-                    geom::ConventionEnd::Lower => "at or below",
-                    geom::ConventionEnd::Upper => "at or above",
-                },
+                "{} edge's curve stores {}, so it does not describe the curve its kind \
+                 names. {DEFECT}",
+                with_article(curve_kind_words(*kind)),
+                convention_breach(datum.name(), *measure, *end),
             ),
             Self::EdgeCertification { error, .. } => {
                 let (why, recourse) = classify_certify(error);
@@ -3238,8 +3267,9 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///    torus honours D3's ring convention `R > r > 0`
 ///    ([`ValidationError::DegenerateTorus`] /
 ///    [`ValidationError::DegenerateTorusEscalated`]). Then the same
-///    datum read over every edge's analytic carrier (edges, arena
-///    order): [`ValidationError::PoisonedCurveDatum`] and
+///    datum read over every edge's carrier, a `Nurbs` carrier's control
+///    net included (edges, arena order):
+///    [`ValidationError::PoisonedCurveDatum`] and
 ///    [`ValidationError::UnrepresentableCurveDatum`], the bounds being
 ///    [`geom::Curve3::representability_margins`]'s.
 /// 2. **Carrier re-certification** (edges, arena order): every edge's
@@ -4418,17 +4448,37 @@ pub(crate) fn analytic_datum_verdicts<T: geom_core::Bounds, D: Copy>(
                 Some(core::cmp::Ordering::Greater)
             )
         })
-        .map(|m| DatumVerdict::Unrepresentable(m.datum, m.end))
+        .map(|m| DatumVerdict::Unrepresentable(m.datum, m.measure, m.end))
 }
 
 /// What [`analytic_datum_verdicts`] found, before the caller names the
 /// face or edge that carries it.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum DatumVerdict<D> {
     /// Every datum that describes no locus, in field order.
     Poisoned(Vec<D>),
-    /// The first datum outside its convention, and the end it fails.
-    Unrepresentable(D, geom::ConventionEnd),
+    /// The first datum outside its convention: the datum, the quantity
+    /// of it that is out, and the end it fails.
+    Unrepresentable(D, geom::ConventionMeasure, geom::ConventionEnd),
+}
+
+impl<D> DatumVerdict<D> {
+    /// The findings this verdict is, named by the caller's two
+    /// constructors — the one mapping from a verdict to its refusals,
+    /// for the surface pair and the carrier pair alike.
+    pub(crate) fn into_errors(
+        verdict: Option<Self>,
+        poisoned: impl Fn(D) -> ValidationError,
+        unrepresentable: impl Fn(D, geom::ConventionMeasure, geom::ConventionEnd) -> ValidationError,
+    ) -> Vec<ValidationError> {
+        match verdict {
+            None => Vec::new(),
+            Some(Self::Poisoned(datums)) => datums.into_iter().map(poisoned).collect(),
+            Some(Self::Unrepresentable(datum, measure, end)) => {
+                vec![unrepresentable(datum, measure, end)]
+            }
+        }
+    }
 }
 
 /// Is every coordinate of a stored point a finite number? The value
@@ -4488,7 +4538,7 @@ fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
 /// is refused), so the difference bites only a datum that was COMPUTED
 /// at interval type; filed as
 /// `work/germ/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo`.
-fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
+pub(crate) fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
     use geom::SurfaceDatum as D;
     use geom_core::is_finite_length as finite;
     let point = is_finite_point::<T>;
@@ -4563,7 +4613,11 @@ fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
 /// a direction) and for the same reason: a line whose `dir` is zero is
 /// a point, a circle or ellipse whose `axis` or `u_ref` is zero is a
 /// segment or a point, and a datum that is not a number describes
-/// nothing. Empty for a `Nurbs` carrier, whose datum is its net.
+/// nothing. A `Nurbs` carrier's datum is its control net, read through
+/// [`net_is_finite`] exactly as a described surface net is: a control
+/// point that is not a finite number (NaN or `±∞`) is `Control`. There
+/// is no placeholder state to tell apart here — no certified carrier
+/// can be one, because certification evaluates it.
 ///
 /// Fields destructured without `..`, as on the surface half.
 pub(crate) fn poisoned_curve_datums<T: Real>(curve: &geom::Curve3<T>) -> Vec<geom::CurveDatum> {
@@ -4613,7 +4667,7 @@ pub(crate) fn poisoned_curve_datums<T: Real>(curve: &geom::Curve3<T>) -> Vec<geo
             (D::MinorRadius, finite(*minor_radius)),
             (D::Offset, finite(*offset)),
         ],
-        C::Nurbs(_) => Vec::new(),
+        C::Nurbs(net) => vec![(D::Control, net_is_finite(net.control()))],
     };
     fields
         .into_iter()
@@ -4621,8 +4675,9 @@ pub(crate) fn poisoned_curve_datums<T: Real>(curve: &geom::Curve3<T>) -> Vec<geo
         .collect()
 }
 
-/// **Is every control point of a described net a finite number?** —
-/// check 1's answer to `geom`'s totality-and-poison rule for a NET,
+/// **Is every control point of a net a finite number?** — check 1's
+/// answer to `geom`'s totality-and-poison rule for a NET, surface or
+/// carrier,
 /// read exactly as [`poisoned_datums`] reads an analytic datum
 /// ([`geom_core::is_finite_length`], per coordinate).
 ///
@@ -4635,12 +4690,63 @@ pub(crate) fn poisoned_curve_datums<T: Real>(curve: &geom::Curve3<T>) -> Vec<geo
 /// does the stored datum describe a locus? An infinite control point
 /// does not, exactly as an infinite radius does not, so a described
 /// net that fails this read is refused as
-/// [`ValidationError::PoisonedSurfaceDescription`], the net's poison
-/// verdict. Weights need no read: they are `f64` structure, and every
+/// [`ValidationError::PoisonedSurfaceDescription`] on a face, the net's
+/// poison verdict, and as [`ValidationError::PoisonedCurveDatum`] naming
+/// `Control` on an edge carrier ([`poisoned_curve_datums`]). Weights need
+/// no read: they are `f64` structure, and every
 /// door into a net refuses a non-finite one at construction
 /// (`SplineError::NonFiniteWeight`).
-fn net_is_finite<T: Real>(net: &geom::NurbsSurface<T>) -> bool {
-    net.control().iter().all(is_finite_point)
+fn net_is_finite<T: Real>(control: &[geom_core::Point3<T>]) -> bool {
+    control.iter().all(is_finite_point)
+}
+
+/// Check 1's datum findings on one analytic surface, named for `face`
+/// ([`analytic_datum_verdicts`] over [`poisoned_datums`] and the
+/// surface's representability margins).
+pub(crate) fn surface_datum_errors<T: geom_core::Bounds>(
+    face: FaceKey,
+    surface: &Surface<T>,
+    band: Band,
+) -> Vec<ValidationError> {
+    let kind = geom_brep::SurfaceKind::of(surface);
+    DatumVerdict::into_errors(
+        analytic_datum_verdicts(
+            poisoned_datums(surface),
+            surface.representability_margins(band),
+        ),
+        |datum| ValidationError::PoisonedSurfaceDatum { face, kind, datum },
+        |datum, measure, end| ValidationError::UnrepresentableSurfaceDatum {
+            face,
+            kind,
+            datum,
+            measure,
+            end,
+        },
+    )
+}
+
+/// Check 1's datum findings on one edge carrier, named for `edge` —
+/// the carrier half of [`surface_datum_errors`].
+pub(crate) fn curve_datum_errors<T: geom_core::Bounds>(
+    edge: EdgeKey,
+    carrier: &geom::Curve3<T>,
+    band: Band,
+) -> Vec<ValidationError> {
+    let kind = crate::query::CurveKind::of(carrier);
+    DatumVerdict::into_errors(
+        analytic_datum_verdicts(
+            poisoned_curve_datums(carrier),
+            carrier.representability_margins(band),
+        ),
+        |datum| ValidationError::PoisonedCurveDatum { edge, kind, datum },
+        |datum, measure, end| ValidationError::UnrepresentableCurveDatum {
+            edge,
+            kind,
+            datum,
+            measure,
+            end,
+        },
+    )
 }
 
 /// [`tier3_local_checks`] with the check-4 contact marks KEPT (the
@@ -4735,7 +4841,7 @@ pub(crate) fn tier3_local_checks_marked<
                 // arrives here. It describes no locus, exactly as an
                 // infinite radius does not (`net_is_finite`), and is
                 // refused as the poisoned net it is.
-                NetState::Described if !net_is_finite(payload) => {
+                NetState::Described if !net_is_finite(payload.control()) => {
                     errors.push(ValidationError::PoisonedSurfaceDescription { face: face_key });
                 }
                 // Real geometry, and the checks that examine it are
@@ -4783,31 +4889,10 @@ pub(crate) fn tier3_local_checks_marked<
                 | Surface::Sphere { .. }
                 | Surface::Torus { .. }),
             ) => {
-                let kind = geom_brep::SurfaceKind::of(surface);
-                match analytic_datum_verdicts(
-                    poisoned_datums(surface),
-                    surface.representability_margins(band),
-                ) {
-                    Some(DatumVerdict::Poisoned(datums)) => {
-                        errors.extend(datums.into_iter().map(|datum| {
-                            ValidationError::PoisonedSurfaceDatum {
-                                face: face_key,
-                                kind,
-                                datum,
-                            }
-                        }));
-                        continue;
-                    }
-                    Some(DatumVerdict::Unrepresentable(datum, end)) => {
-                        errors.push(ValidationError::UnrepresentableSurfaceDatum {
-                            face: face_key,
-                            kind,
-                            datum,
-                            end,
-                        });
-                        continue;
-                    }
-                    None => {}
+                let verdicts = surface_datum_errors(face_key, surface, band);
+                if !verdicts.is_empty() {
+                    errors.extend(verdicts);
+                    continue;
                 }
                 // The torus's ring half `R > r` is a GEOMETRIC question
                 // — two datums of the body compared, not one against its
@@ -4862,31 +4947,7 @@ pub(crate) fn tier3_local_checks_marked<
         let Some(curve) = body.curves.get(edge.curve).and_then(CurveGeom::certified) else {
             continue;
         };
-        let carrier = curve.carrier();
-        let kind = crate::query::CurveKind::of(carrier);
-        match analytic_datum_verdicts(
-            poisoned_curve_datums(carrier),
-            carrier.representability_margins(band),
-        ) {
-            Some(DatumVerdict::Poisoned(datums)) => {
-                errors.extend(datums.into_iter().map(|datum| {
-                    ValidationError::PoisonedCurveDatum {
-                        edge: edge_key,
-                        kind,
-                        datum,
-                    }
-                }));
-            }
-            Some(DatumVerdict::Unrepresentable(datum, end)) => {
-                errors.push(ValidationError::UnrepresentableCurveDatum {
-                    edge: edge_key,
-                    kind,
-                    datum,
-                    end,
-                });
-            }
-            None => {}
-        }
+        errors.extend(curve_datum_errors(edge_key, curve.carrier(), band));
     }
 
     // ------------------------------------------------------------------
@@ -8141,6 +8202,7 @@ mod tests {
                     face,
                     kind: K::Cone,
                     datum: D::HalfAngle,
+                    measure: geom::ConventionMeasure::Value,
                     end: ConventionEnd::Upper,
                 }],
             ),
@@ -8156,42 +8218,15 @@ mod tests {
                     face,
                     kind: K::Cone,
                     datum: D::HalfAngle,
+                    measure: geom::ConventionMeasure::Value,
                     end: ConventionEnd::Lower,
                 }],
             ),
         ];
-        let errors = |kind, verdict: Option<DatumVerdict<geom::SurfaceDatum>>| match verdict {
-            None => vec![],
-            Some(DatumVerdict::Poisoned(datums)) => datums
-                .into_iter()
-                .map(|datum| ValidationError::PoisonedSurfaceDatum { face, kind, datum })
-                .collect(),
-            Some(DatumVerdict::Unrepresentable(datum, end)) => {
-                vec![ValidationError::UnrepresentableSurfaceDatum {
-                    face,
-                    kind,
-                    datum,
-                    end,
-                }]
-            }
-        };
         for (name, surface, expected) in rows {
-            let kind = K::of(&surface);
-            let at_f64 = errors(
-                kind,
-                analytic_datum_verdicts(
-                    poisoned_datums(&surface),
-                    surface.representability_margins(band),
-                ),
-            );
+            let at_f64 = surface_datum_errors(face, &surface, band);
             let lifted: Surface<Interval> = surface.map_scalar(Interval::from_f64);
-            let at_interval = errors(
-                kind,
-                analytic_datum_verdicts(
-                    poisoned_datums(&lifted),
-                    lifted.representability_margins(band),
-                ),
-            );
+            let at_interval = surface_datum_errors(face, &lifted, band);
             assert_eq!(at_f64, expected, "{name}, at f64");
             assert_eq!(at_interval, expected, "{name}, at Interval");
         }

@@ -90,3 +90,10 @@ negative major, circle `axis = 2·ẑ`) and
 Left out and filed: a line's unit `dir` (`unlevered-frame-conventions-are-uncertified-at-rest`)
 and the ellipse's `major > minor` ordering
 (`an-ellipse-stored-minor-over-major-passes-tier-3`).
+
+**Fix pass (review of PR 3238).** A `Nurbs` carrier's control net is
+read through the same `net_is_finite` read a surface net takes, and a
+NaN or `±∞` control point is `PoisonedCurveDatum { datum: Control }`
+(`CurveDatum::Control`) — D-3's posture carried to curve nets, so the
+spline carrier is no longer refused only by check 2's residual. The
+carrier-datum rows run at `f64` and at the interval scalar.

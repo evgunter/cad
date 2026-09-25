@@ -68,6 +68,8 @@ use std::sync::Arc;
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Point3, Real, Vec3};
 
+use crate::convention::{ConventionEnd, RepresentabilityMargin};
+
 use crate::azimuth;
 pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
 pub use nurbs::{KnotMirrorError, NetState, NurbsSurface, SurfaceJet, SurfaceJet3, SurfaceWindow};
@@ -326,9 +328,9 @@ impl<T: Real> Surface<T> {
     /// - **the frame**, for `Cylinder`, `Sphere` and `Torus`, after the
     ///   scalar conventions: `axis` and `u_ref` unit and `u_ref ⊥ axis`,
     ///   each within `band`'s coincidence threshold ε at the kind's
-    ///   radius ([`frame_margins`], which says why the frame is a
-    ///   representability convention and how the lever bounds the
-    ///   locus's movement);
+    ///   radius (`convention::frame_margins`, which says what each frame
+    ///   margin protects — the locus, and on the cylinder's tilt the
+    ///   chart — and how the lever bounds the movement);
     /// - `Plane`, `Nurbs`, `Approx`: none — a plane's frame moves no
     ///   locus a datum can lever (a non-unit `normal` or `u_ref` spans
     ///   the same plane, and a `u_ref` off `⊥ normal` tilts the chart
@@ -359,11 +361,7 @@ impl<T: Real> Surface<T> {
     /// failing margin names a non-positive radius before the frame it
     /// levers.
     pub fn representability_margins(&self, band: Band) -> Vec<RepresentabilityMargin<T>> {
-        let lower = |datum, margin| RepresentabilityMargin {
-            datum,
-            end: ConventionEnd::Lower,
-            margin,
-        };
+        use crate::convention::{frame_margins, lower};
         let frame = |axis, u_ref, arm| {
             frame_margins(
                 axis,
@@ -398,6 +396,7 @@ impl<T: Real> Surface<T> {
                 lower(SurfaceDatum::HalfAngle, *half_angle),
                 RepresentabilityMargin {
                     datum: SurfaceDatum::HalfAngle,
+                    measure: crate::ConventionMeasure::Value,
                     end: ConventionEnd::Upper,
                     margin: T::pi() * T::from_f64(0.5) - *half_angle,
                 },
@@ -420,103 +419,6 @@ impl<T: Real> Surface<T> {
             | Surface::Approx(_) => Vec::new(),
         }
     }
-}
-
-/// **The frame's representability margins** — `axis` unit, `u_ref`
-/// unit and `u_ref ⊥ axis`, each at both ends, as ε-slack quantities at
-/// the kind's lever `arm` (metres):
-///
-/// ```text
-/// ε − (‖axis‖ − 1)·arm      ε − (1 − ‖axis‖)·arm       (axis, Upper / Lower)
-/// ε − (‖u_ref‖ − 1)·arm     ε − (1 − ‖u_ref‖)·arm      (u_ref, Upper / Lower)
-/// ε − (axis · u_ref)·arm    ε + (axis · u_ref)·arm     (u_ref, Upper / Lower)
-/// ```
-///
-/// with ε the band's coincidence threshold ([`Band::zero`]). Each is
-/// strictly positive exactly when the frame is inside its convention
-/// to within ε of locus movement.
-///
-/// **Why the frame is a representability convention and not a
-/// parameterization choice.** Every axisymmetric evaluator reads the
-/// frame through `azimuth::frame` — `radial(u) = u_ref·cos u + v_ref·sin
-/// u`, `v_ref = axis × u_ref` — while the implicit forms and the
-/// section arms read `axis` and the radius as the geometric axis and
-/// radius. A `u_ref` of length `1 + δ` puts the evaluated surface at
-/// radius `r·(1 + δ)`; an `axis` of length `1 + δ` stretches `v_ref`
-/// and makes the section an ellipse; a `u_ref` tilted off `⊥ axis` by
-/// `c = axis · u_ref` tilts the evaluated circle out of its plane.
-/// Either way two consumers read two different loci off one datum,
-/// which is the representability argument, and the movement is at most
-/// the deviation times the kind's largest radius — the `arm`. That
-/// bound is conservative for the cylinder's tilt (an axial component
-/// of `u_ref` slides along the rulings and moves the locus by
-/// `r·(1 − √(1 − c²))`), and exact to first order everywhere else.
-///
-/// **With the band, and not an exact compare**: a frame minted by
-/// arithmetic — a rotation, a normalization, a cross product — is unit
-/// and orthogonal only to rounding, so an exact compare would refuse
-/// every such surface. ε is the run's own threshold below which two
-/// loci coincide.
-pub(crate) fn frame_margins<T: Real, D: Copy>(
-    axis: Vec3<T>,
-    u_ref: Vec3<T>,
-    arm: T,
-    band: Band,
-    axis_datum: D,
-    u_ref_datum: D,
-) -> [RepresentabilityMargin<T, D>; 6] {
-    let eps = T::from_f64(band.zero());
-    let one = T::one();
-    let upper = |datum, deviation: T| RepresentabilityMargin {
-        datum,
-        end: ConventionEnd::Upper,
-        margin: eps - deviation * arm,
-    };
-    let lower = |datum, deviation: T| RepresentabilityMargin {
-        datum,
-        end: ConventionEnd::Lower,
-        margin: eps + deviation * arm,
-    };
-    let axis_len = axis.norm() - one;
-    let u_ref_len = u_ref.norm() - one;
-    let tilt = axis.dot(u_ref);
-    [
-        upper(axis_datum, axis_len),
-        lower(axis_datum, axis_len),
-        upper(u_ref_datum, u_ref_len),
-        lower(u_ref_datum, u_ref_len),
-        upper(u_ref_datum, tilt),
-        lower(u_ref_datum, tilt),
-    ]
-}
-
-/// One representability margin ([`Surface::representability_margins`],
-/// or with `D` = [`crate::CurveDatum`],
-/// [`crate::Curve3::representability_margins`]): the datum it bounds,
-/// which end of the datum's convention it measures, and the quantity —
-/// strictly positive exactly when the datum is inside that end.
-#[derive(Clone, Copy, Debug)]
-pub struct RepresentabilityMargin<T, D = SurfaceDatum> {
-    /// The datum the margin bounds.
-    pub datum: D,
-    /// Which end of the datum's convention the margin measures.
-    pub end: ConventionEnd,
-    /// The margin itself, at the surface's scalar.
-    pub margin: T,
-}
-
-/// Which end of a datum's convention a margin measures — the refusal's
-/// way of saying TOO SMALL (a radius of zero, a cone closed to a line)
-/// from TOO LARGE (a cone opened to a plane).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-// Every value, for `topo`'s samples (this crate's `test-support`
-// feature, test builds only).
-#[cfg_attr(feature = "test-support", derive(strum::EnumIter))]
-pub enum ConventionEnd {
-    /// The datum must lie above this end (`radius > 0`, `half_angle > 0`).
-    Lower,
-    /// The datum must lie below this end (`half_angle < π/2`).
-    Upper,
 }
 
 /// A stored datum of an analytic [`Surface`] — the FIELD, named apart
