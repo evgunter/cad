@@ -16,9 +16,7 @@ use geom_core::{
 use profile::ValidatedProfile;
 
 use super::{RevolveAxis, RevolveError, SweptSeg};
-use crate::swept::{
-    SweptKind, arc_apex, arc_span, canonical_sketch_segment, decide, sketch_segment,
-};
+use crate::swept::{SweptKind, arc_apex, arc_span, decide};
 
 /// The classified axis in both coordinate systems: the sketch-plane
 /// line plus its placed 3-D frame. `a3`/`u3` are the **shared
@@ -201,10 +199,10 @@ pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &Axis
                 center,
                 radius,
                 sweep,
-                ..
+                turn,
             } = s.kind
             {
-                let apex = arc_apex(&canonical_sketch_segment(s));
+                let apex = arc_apex(s.start, s.end, center, radius, turn);
                 r_max = r_max.max(frame.r(apex).abs());
                 // Arc-interior radial extrema: the carrier points
                 // c ± R·ê_r, each folded in iff on the arc. A
@@ -488,7 +486,7 @@ fn classify_segment<T: Decide>(
                             });
                         }
                     }
-                    let r_apex = frame.r(arc_apex(&sketch_segment(s)));
+                    let r_apex = frame.r(arc_apex(s.a, s.b, center, radius, turn));
                     match decide("axis_arc_apex", Margin::of(r_apex), band).map_err(escalated)? {
                         Sign::Positive => {}
                         // On or below the axis: tangential/crossing

@@ -48,7 +48,7 @@ use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, SketchSegment};
 use geom_core::sym::SymRegistration;
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
+    Affine3, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec2, Vec3,
 };
 use topo::{Body, EulerOpError, FaceKey, SurfaceKey};
 
@@ -317,13 +317,32 @@ fn sketch_segment_of<T: Real>(a: Point2<T>, b: Point2<T>, kind: SweptKind<T>) ->
     }
 }
 
-/// The arc apex: the carrier point at mid-sweep, which is the
-/// segment's own evaluation at `s = ½` ([`SketchSegment::eval`]) — an
-/// on-carrier interior point of the segment, and the point that keeps
-/// a 2-vertex loop plane-determining. A line has no apex; its
-/// evaluation at `½` is the chord midpoint.
-pub(crate) fn arc_apex<T: Real>(seg: &SketchSegment<T>) -> Point2<T> {
-    seg.eval(T::from_f64(0.5))
+/// The arc apex: the carrier point at mid-sweep — an on-carrier
+/// interior point of the segment, and the point that keeps a 2-vertex
+/// loop plane-determining.
+///
+/// It lies on the chord's perpendicular bisector, one radius from the
+/// centre on the side the arc bows to: `centre − n̂·(σ·radius)`, with
+/// `n̂` the unit left normal of the chord `a → b` and σ the turn's sign
+/// (a counterclockwise arc bows to the right of its chord, a clockwise
+/// one to the left). Rational in the segment's own data, with no trig
+/// of the sweep: the apex is a fit point of a cap plane, and the
+/// rotation's `sin`/`cos` at half the sweep would put trig atoms (or,
+/// at `Interval`, their enclosures) into every cap plane built on it.
+pub(crate) fn arc_apex<T: Real>(
+    a: Point2<T>,
+    b: Point2<T>,
+    centre: Point2<T>,
+    radius: T,
+    turn: Sign,
+) -> Point2<T> {
+    let u = (b - a).normalize();
+    let nhat = Vec2::new(T::zero() - u.y, u.x);
+    let bow = match turn {
+        Sign::Positive | Sign::Zero => radius,
+        Sign::Negative => T::zero() - radius,
+    };
+    centre - nhat * bow
 }
 
 /// The arc parameter span |Δθ|: the sweep signed by the segment's
@@ -618,8 +637,14 @@ pub(crate) fn cap_points<T: Real, S: SweptChord<T>>(
     let mut pts = Vec::with_capacity(segs.len() * 2);
     for (j, s) in segs.iter().enumerate() {
         pts.push(qs[j]);
-        if matches!(s.kind(), SweptKind::Arc { .. }) {
-            let apex = arc_apex(&sketch_segment(s));
+        if let SweptKind::Arc {
+            center,
+            radius,
+            turn,
+            ..
+        } = s.kind()
+        {
+            let apex = arc_apex(s.a(), s.b(), center, radius, turn);
             pts.push(place.transform_point(Point3::new(apex.x, apex.y, T::zero())));
         }
     }
