@@ -1343,7 +1343,9 @@ pub mod bounds_allowlist {
     //! `Surface::representability_margins` — a cylinder's, sphere's or
     //! torus tube's radius, and a cone half-angle's distance from each end
     //! of `(0, π/2)` — and `Curve3::representability_margins`, a circle's
-    //! radius, an ellipse's semi-axes and a spiric's tube radius), the
+    //! radius, an ellipse's semi-axes and a spiric's tube radius — and,
+    //! for the axisymmetric kinds of both, the frame's unit-ness and
+    //! orthogonality stated as ε-slack margins at the kind's radius), the
     //! representability read. The certified half's own
     //! bracket read is `props`' certified quadrature, already ratified at
     //! the `props.rs` seam; this one compares a STORED DATUM's margin inside
@@ -1352,9 +1354,11 @@ pub mod bounds_allowlist {
     //! describe one — so the read is about whether the datum lies inside
     //! the convention its variant states and not about where geometry lies,
     //! and the value never crosses into a certificate. It takes no `k_stats` name and
-    //! no band precisely because it meters nothing — the chamfer's
-    //! `NonpositiveSize` precedent — and the geometric question beside it
-    //! (`R - r`) does go through `decide`. `S88`'s named blind spot (a
+    //! no band of its own precisely because it meters nothing — the chamfer's
+    //! `NonpositiveSize` precedent; where a convention is itself stated to
+    //! within the run's ε (the frame's), the ε is inside the margin `geom`
+    //! computes and the read still compares with zero — and the geometric
+    //! question beside it (`R - r`) does go through `decide`. `S88`'s named blind spot (a
     //! bracket read behind a renamed accessor) has no instance here any
     //! more: the accessor is gone and the read is spelled `Bounds::lo`
     //! where a grep sees it. What this entry discloses is a different

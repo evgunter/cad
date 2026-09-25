@@ -805,11 +805,14 @@ pub enum ValidationError {
     },
     /// Tier 3: a face's analytic surface stores a finite datum outside
     /// its variant's convention — a cylinder or sphere radius, or a
-    /// torus tube radius, that is not definitely positive, or a cone
-    /// half-angle not definitely inside `(0, π/2)`
-    /// ([`geom::Surface::representability_margins`], the one place in
-    /// code the at-rest bounds are computed; that door says where else
-    /// they are stated).
+    /// torus tube radius, that is not definitely positive, a cone
+    /// half-angle not definitely inside `(0, π/2)`, or a cylinder's,
+    /// sphere's or torus's frame (`axis`, `u_ref`) off unit or off
+    /// `u_ref ⊥ axis` by more than ε of locus movement at the kind's
+    /// radius ([`geom::Surface::representability_margins`], the one
+    /// place in code the at-rest bounds are computed; that door says
+    /// where else they are stated, and why a frame off its convention
+    /// is a different locus rather than a different parameterization).
     ///
     /// **Refused on representability, the torus ring convention's
     /// reason**: such a datum describes no 2-manifold a face can bound
@@ -822,8 +825,11 @@ pub enum ValidationError {
     /// **Not a metered predicate, deliberately** (the chamfer's
     /// `NonpositiveSize` precedent): whether a stored datum lies inside
     /// its convention is a fact about the DATUM, not a geometric
-    /// quantity of the body, so it takes no `k_stats` name and no band.
-    /// A zero-straddling enclosure fails it with the rest.
+    /// quantity of the body, so it takes no `k_stats` name and no band
+    /// of its own. The frame's convention is stated to within the run's
+    /// ε, and that ε is inside the margin `geom` computes; the read
+    /// still compares with zero. A zero-straddling enclosure fails it
+    /// with the rest.
     UnrepresentableSurfaceDatum {
         /// The face whose surface stores the datum.
         face: FaceKey,
@@ -2979,10 +2985,18 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   Tier 3 refusing that count would make tier 3 wrong, not the doors:
 ///   `work/atrest/one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`
 ///   carries the 36 rows that settled it.
-/// - **Curve conventional-invariant certification** (unit `dir`/`axis`,
-///   `u_ref ⊥ axis`): partially implied by the residual checks (a
-///   non-unit frame breaks the carrier-vs-description comparisons),
-///   not independently certified yet.
+/// - **The frame conventions no datum levers**: a line's unit `dir` and
+///   a plane's unit `normal` and `u_ref` (each spans the same locus at
+///   any length, so a non-unit one mis-scales a metric rather than
+///   moving a locus), and a plane's `u_ref ⊥ normal` and a cone's
+///   frame, whose locus movement grows with the face's extent rather
+///   than with any stored datum. Check 1 refuses a zero one and
+///   certifies the rest of the frame for the axisymmetric kinds
+///   ([`geom::Surface::representability_margins`],
+///   [`geom::Curve3::representability_margins`]); these are not
+///   certified: `work/atrest/unlevered-frame-conventions-are-uncertified-at-rest.md`.
+///   Nor is an ellipse's `major > minor` ordering:
+///   `work/atrest/an-ellipse-stored-minor-over-major-passes-tier-3.md`.
 ///
 /// # Errors
 ///
@@ -4014,8 +4028,8 @@ fn is_finite_point<T: Real>(p: &geom_core::Point3<T>) -> bool {
 /// are finite but whose NORM overflows (`(1e200, 0, 0)` at `f64`) is a
 /// direction, not the zero vector, and passes. Underflowed vectors pass
 /// too: not unit, but a direction. Unit-ness and orthogonality are the
-/// frame's convention, read by a different question at check 1
-/// ([`frame_margins`]), not poison.
+/// frame's convention, read by the representability question at check 1
+/// ([`geom::Surface::representability_margins`]), not poison.
 fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
     use geom_core::is_finite_length as finite;
     let components = finite(v.x) && finite(v.y) && finite(v.z);

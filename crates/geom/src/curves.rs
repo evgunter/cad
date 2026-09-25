@@ -139,9 +139,12 @@ pub enum Curve3<T: Real> {
     ///   discipline) — and are refused by [`Curve3::ellipse`], the one
     ///   deciding constructor. Like every conventional invariant the
     ///   ordering is *data* here: evaluators consume the fields as
-    ///   given, tier-3 certification owns the invariant at rest, and a
-    ///   struct-literal that bypasses the constructor owns the
-    ///   consequences (well-defined garbage, not poison).
+    ///   given, and a struct-literal that bypasses the constructor owns
+    ///   the consequences (well-defined garbage, not poison). At rest,
+    ///   tier 3 certifies `major > 0` and `minor > 0`
+    ///   ([`Curve3::representability_margins`]) and NOT the ordering: a
+    ///   swapped pair names the same ellipse through a `u_ref` along its
+    ///   minor axis.
     Ellipse {
         /// The ellipse's center.
         center: Point3<T>,

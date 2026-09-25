@@ -57,11 +57,20 @@
 //!   convention, `u_ref ⊥ axis` (⊥ `normal`) by convention.
 //!   Constructors do not renormalize (a hidden normalize would
 //!   silently reparameterize; D6's meters-per-parameter contract is the
-//!   caller's to establish) and evaluators consume the fields as given.
-//!   Tier-3 geometric validation certifies the invariants at rest;
+//!   caller's to establish) and evaluators consume the fields as given;
 //!   violating them yields well-defined garbage (a non-arc-length
 //!   parameterization, an elliptical "circle"), not poison and not a
-//!   panic.
+//!   panic. **At rest, `topo`'s tier-3 check 1 certifies what moves a
+//!   locus a datum can lever**: no direction may be the zero vector,
+//!   and the `axis`/`u_ref` frame of a cylinder, sphere, torus, circle,
+//!   ellipse or spiric must be unit and orthogonal to within the run's
+//!   ε of locus movement at the kind's radius
+//!   ([`Surface::representability_margins`],
+//!   [`Curve3::representability_margins`]). It does NOT certify a
+//!   line's unit `dir` or a plane's unit `normal`/`u_ref` — each spans
+//!   the same locus at any length — nor a plane's `u_ref ⊥ normal` or
+//!   a cone's frame, whose locus movement grows with the face's extent
+//!   rather than with a stored datum.
 //!
 //! # Totality and poison (geom-core's policy, inherited)
 //!
