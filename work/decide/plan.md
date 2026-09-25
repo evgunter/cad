@@ -32,6 +32,10 @@ value-free residual. DECIDE-5 merged 2026-09-25 (#3214): Ev's route B on
 turn. `rule-d-reaches-the-unit-bulge-only` closed with it; its ring and
 term-budget residue is the census's, and the apothem's sign is its own
 row, `the-apothems-sign-is-a-value-read`.
+DECIDE-6, dispatched 2026-09-25 (`docs/DECIDE-6-SPEC.md`), takes
+`decision-read-triples-the-plate-pin-suites-wall-time`. Both P1 rows are
+gated: the declared tangency on ROUND's open Fillet-centre row, and the
+revolve carriers on E6.
 `a0-leaves-max-and-min-of-constants-opaque` closed with DECIDE-3 and
 `coefficient-ring-width-is-not-monotone-in-reach` (SYM's) with SYM-9.
 
