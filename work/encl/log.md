@@ -97,3 +97,24 @@ Signed (FIX orchestrator).
   mutant passes contradicts the arm's code, and
   `offset-fit-at-tight-eps-...`'s identical sup at 1e-12 and 1e-15 is a
   floor, not a budget.
+
+## Wave 1 dispatched (2026-09-25)
+
+(ENCL orchestrator) Three lanes, concurrently; review tier named per unit.
+
+- `encl/tangent-parallel-transverse-arc` —
+  `tangent-parallel-certifier-passes-a-transverse-arc`. **Dual review**:
+  a certifier wrong in the accepting direction, whose fix may reach
+  what D4 ¶1's margin means; hard to read and believe.
+- `encl/offset-fit-tight-eps` —
+  `offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart`. **Single,
+  full**: a measurement unit whose decision rests on its numbers.
+- `encl/refusal-prose` — `encl-refusal-prose-outgrows-the-viewer`,
+  `offset-fit-reuses-derivedknots-for-a-degree-elevation-failure`
+  riding. **Single, style**: prose plus one error arm, readable as it
+  stands.
+
+The orchestrator branch is `encl/orchestrator`
+(`memories/orchestration-model.md`, branch-prefix convention); the
+seating state sync is PR 3268, which replaces 3267 (the same commits,
+opened from the session branch before that rule reached this checkout).

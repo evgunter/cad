@@ -2,10 +2,12 @@
 id: offset-fit-reuses-derivedknots-for-a-degree-elevation-failure
 kind: issue
 title: Composite::build reports a failed degree elevation as PatchBoundError::DerivedKnots, so the message describes a derivative knot vector that was never built
-status: open
+status: dispatched
 opened: 2026-09-21
 priority: P4
 cost: E
+rides_with: encl-refusal-prose-outgrows-the-viewer
+branch: encl/refusal-prose
 ---
 
 
