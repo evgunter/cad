@@ -173,6 +173,15 @@ impl Separation {
         Ok(Self { boxes, hull, tree })
     }
 
+    /// The hull of every padded face box: a conservative box of the
+    /// whole body, in its own frame. Two bodies whose hulls do not
+    /// [`Aabb::overlaps`] cannot touch, by the box rule the module docs
+    /// state; a body with an unboxable face, or with none, has the
+    /// poison hull, which overlaps everything.
+    pub fn hull(&self) -> Aabb {
+        self.hull
+    }
+
     /// Certifies that no two of `maps`'s placed copies can meet.
     ///
     /// `Ok(())` is the certificate. `Err(PlacementsMeet)` names the first
