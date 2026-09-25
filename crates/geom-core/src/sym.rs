@@ -3334,7 +3334,12 @@ fn form_in(
                             Some(g) if *g == f => "unchanged",
                             Some(_) => "reduced",
                         };
-                        profile::reduce_outcome(t0, outcome, even_powers(&f, &sess.atoms));
+                        profile::reduce_outcome(
+                            t0,
+                            f.digest(),
+                            outcome,
+                            even_powers(&f, &sess.atoms),
+                        );
                     }
                     reduced
                         .filter(|g| within(budget, g))

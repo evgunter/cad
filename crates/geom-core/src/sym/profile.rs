@@ -315,6 +315,18 @@ pub struct SymProfile {
     /// the unreduced form), against which atom kinds the form carried to
     /// an even power before it ran.
     pub reduce_by: BTreeMap<(&'static str, &'static str), Timed>,
+    /// The per-node reductions asked over a form this session had
+    /// already reduced (by the form's digest, the rules and the ring
+    /// held fixed within a session's first attempt), by outcome — what a
+    /// per-session memo of the reduction keyed by its input would
+    /// answer.
+    pub reduce_repeats: BTreeMap<&'static str, Timed>,
+    /// The per-node reductions that REFUSED, by cause — the ring or a
+    /// product refused a step, a step's result was past the budget, the
+    /// step cap ran out, or the call site's budget check refused a form
+    /// no step had changed — with their time and the steps they had
+    /// taken, summed.
+    pub reduce_refusals: BTreeMap<&'static str, (Timed, u64)>,
     /// Rules A/B over the top residual (`algebra::reduce` in
     /// `discharge`).
     pub reduce_top: Timed,
@@ -618,6 +630,20 @@ thread_local! {
     /// named, and the argument digests this session's `canonical` has
     /// seen ([`RootProfile::repeats`]).
     static ROOT_DEPTH: Cell<u32> = const { Cell::new(0) };
+
+    /// Why the last per-node reduction refused, and at which step
+    /// ([`reduce_exit`]).
+    static REDUCE_EXIT: Cell<Option<(&'static str, usize)>> = const { Cell::new(None) };
+
+    /// The substitution step running (`algebra`'s `site!`), and the
+    /// label [`reduce_exit`] builds from it and the refusal's note.
+    static REDUCE_SITE: Cell<&'static str> = const { Cell::new("") };
+    static REDUCE_LABELS: RefCell<BTreeMap<(&'static str, &'static str, Option<FreezeCause>), &'static str>> =
+        const { RefCell::new(BTreeMap::new()) };
+
+    /// The forms this session's per-node reductions were asked over, by
+    /// digest ([`SymProfile::reduce_repeats`]).
+    static REDUCE_SEEN: RefCell<BTreeSet<u128>> = const { RefCell::new(BTreeSet::new()) };
     static ROOT_BRANCH: Cell<Option<&'static str>> = const { Cell::new(None) };
     static ROOT_SEEN: RefCell<BTreeSet<u128>> = const { RefCell::new(BTreeSet::new()) };
 }
@@ -902,11 +928,55 @@ fn timed(t: &mut Timed, t0: Option<Instant>) {
     t.time += elapsed(t0);
 }
 
-/// One per-node reduction finished, classified ([`SymProfile::reduce_by`]).
-pub(super) fn reduce_outcome(t0: Option<Instant>, outcome: &'static str, powers: &'static str) {
+/// **Why a reduction refused** — noted at `algebra::reduce_steps`'s
+/// refusal arm with the step it refused at, read by the next
+/// [`reduce_outcome`].
+pub(super) fn reduce_exit(cause: &'static str, step: usize) {
+    if active() {
+        // The site and the refusal's note ride in the label: one
+        // leaked string per distinct triple, a handful per run.
+        let key = (cause, REDUCE_SITE.get(), NOTE.get());
+        let label = REDUCE_LABELS.with(|l| {
+            *l.borrow_mut().entry(key).or_insert_with(|| {
+                let (c, site, note) = key;
+                Box::leak(format!("{c} at {site} ({note:?})").into_boxed_str())
+            })
+        });
+        REDUCE_EXIT.set(Some((label, step)));
+    }
+}
+
+/// The substitution step running (`algebra`'s `site!`).
+#[inline]
+pub(super) fn reduce_site(site: &'static str) {
+    if active() {
+        REDUCE_SITE.set(site);
+    }
+}
+
+/// One per-node reduction finished, classified ([`SymProfile::reduce_by`]),
+/// and a refusal by its cause and the step it came at
+/// ([`SymProfile::reduce_refusals`]).
+pub(super) fn reduce_outcome(
+    t0: Option<Instant>,
+    input: u128,
+    outcome: &'static str,
+    powers: &'static str,
+) {
+    let exit = REDUCE_EXIT.take();
+    let repeat = active() && !REDUCE_SEEN.with(|s| s.borrow_mut().insert(input));
     with(|p| {
         timed(&mut p.reduce, t0);
         timed(p.reduce_by.entry((outcome, powers)).or_default(), t0);
+        if repeat {
+            timed(p.reduce_repeats.entry(outcome).or_default(), t0);
+        }
+        if outcome == "refused" {
+            let (cause, step) = exit.unwrap_or(("the site's budget check", 0));
+            let e = p.reduce_refusals.entry(cause).or_default();
+            timed(&mut e.0, t0);
+            e.1 += step as u64;
+        }
     });
 }
 
@@ -927,6 +997,7 @@ pub(super) fn session_start() {
         OPAQUE_LEAF.with(|s| s.borrow_mut().clear());
         READ_SEEN.with(|s| s.borrow_mut().clear());
         ROOT_SEEN.with(|s| s.borrow_mut().clear());
+        REDUCE_SEEN.with(|s| s.borrow_mut().clear());
     }
 }
 
@@ -1455,6 +1526,22 @@ impl SymProfile {
                 f,
                 "  reduce {outcome:<9} over {powers:<14} {:6} in {:?}",
                 t.calls, t.time
+            );
+        }
+        for (outcome, t) in &self.reduce_repeats {
+            let _ = writeln!(
+                f,
+                "  repeated input, {outcome:<9} {:6} in {:?}",
+                t.calls, t.time
+            );
+        }
+        for (cause, (t, steps)) in &self.reduce_refusals {
+            let _ = writeln!(
+                f,
+                "  refused: {cause:<30} {:6} in {:?} (mean step {:.1})",
+                t.calls,
+                t.time,
+                mean(*steps, t.calls)
             );
         }
         let _ = writeln!(

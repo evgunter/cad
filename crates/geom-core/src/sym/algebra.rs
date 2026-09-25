@@ -146,6 +146,16 @@ fn powers(p: &Poly, n: u32, budget: SymBudget) -> Option<Vec<Poly>> {
     Some(out)
 }
 
+/// Names the step of a substitution running, for the cost profile's
+/// note of where a refused reduction refused; nothing without the
+/// profile's feature.
+macro_rules! site {
+    ($site:literal) => {
+        #[cfg(feature = "sym-profile-testing")]
+        super::profile::reduce_site($site);
+    };
+}
+
 /// Substitutes `id²` by `repl = N / D` in one polynomial: `id^e →
 /// (N/D)^(e/2)·id^(e%2)`, over ONE common denominator `D^h` with `h`
 /// the largest `e/2` in the polynomial — every term `t·id^e` becomes
@@ -161,7 +171,9 @@ fn poly_subst_square(poly: &Poly, id: u128, repl: &Form, budget: SymBudget) -> O
     }
     let half = |m: &Mono| exp_of(m, id) / 2;
     let h = poly.monos().map(half).max().unwrap_or(0);
+    site!("the powers of N");
     let nums = powers(&repl.num, h, budget)?;
+    site!("the powers of D");
     let dens = powers(&repl.den, h, budget)?;
     let mut acc = Poly::zero();
     for (mono, coeff) in poly.terms() {
@@ -173,10 +185,14 @@ fn poly_subst_square(poly: &Poly, id: u128, repl: &Form, budget: SymBudget) -> O
             .collect();
         let term = Poly::term(rest, coeff.clone());
         let k = e / 2;
+        site!("N^k · D^(h-k)");
         let factor = nums
             .get(k as usize)?
             .mul(dens.get((h - k) as usize)?, budget)?;
-        acc = acc.add(&term.mul(&factor, budget)?)?;
+        site!("term · factor");
+        let product = term.mul(&factor, budget)?;
+        site!("the running sum");
+        acc = acc.add(&product)?;
     }
     let out = Form::quotient(acc, dens.into_iter().nth(h as usize)?);
     Some(Form {
@@ -190,6 +206,7 @@ fn poly_subst_square(poly: &Poly, id: u128, repl: &Form, budget: SymBudget) -> O
 fn apply(f: &Form, sq: &Square, budget: SymBudget) -> Option<Form> {
     let num = poly_subst_square(&f.num, sq.id, &sq.x, budget)?;
     let den = poly_subst_square(&f.den, sq.id, &sq.x, budget)?;
+    site!("the quotient's product");
     let out = num.mul(&den.recip()?, budget)?;
     Some(Form {
         gated: out.gated || f.gated,
@@ -230,18 +247,27 @@ pub(super) fn reduce_steps(
         return Some(f.clone());
     }
     let mut cur = f.clone();
-    for _ in 0..steps {
+    for _step in 0..steps {
         let Some(sq) = find_square(&cur, rules, atoms, budget) else {
             return Some(cur);
         };
-        cur = apply(&cur, &sq, budget)?;
+        let Some(next) = apply(&cur, &sq, budget) else {
+            #[cfg(feature = "sym-profile-testing")]
+            super::profile::reduce_exit("the ring or a product refused", _step);
+            return None;
+        };
+        cur = next;
         if cur.poisoned {
             return Some(cur);
         }
         if !within(budget, &cur) {
+            #[cfg(feature = "sym-profile-testing")]
+            super::profile::reduce_exit("past the budget", _step);
             return None;
         }
     }
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::reduce_exit("past the step cap", steps);
     None
 }
 
