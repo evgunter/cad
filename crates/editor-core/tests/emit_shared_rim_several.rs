@@ -16,8 +16,8 @@ use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, ru
 use crate::fixture::{edge_of, member_entity, table};
 
 use editor_core::{
-    CapEnd, EntityKind, NamingError, NodeErrorKind, ProfileDoc, ProfileEdgeRef, Qualifier,
-    RecipeNodeId, RoleSeg, StableName,
+    CapEnd, EntityKind, NamingError, NodeErrorKind, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
+    StableName,
 };
 use geom_core::Tol;
 
@@ -146,7 +146,8 @@ fn every_member_edge_lies_on_its_source(
 fn the_chord_is_named_as_the_rim_piece_it_lies_on() {
     let (doc, ids) = document(&[A, B, G], &[0, 1, 2]);
     let (a, b, g) = (ids[0], ids[1], ids[2]);
-    let (docx, union, _) = declared_union(doc, &[a, b, g], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (docx, union, _) = declared_union(doc, &[a, b, g], pairs);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let rim = StableName {
@@ -154,10 +155,7 @@ fn the_chord_is_named_as_the_rim_piece_it_lies_on() {
         node: a,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment: 2,
-            },
+            crate::fixture::piece(&docx, a, 0, 2),
         )],
     };
     let near =
@@ -223,7 +221,7 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
             let (docx, union, _) = declared_union(
                 doc.clone(),
                 &members,
-                flush_pairs((ids[0], ids[0]), (ids[1], ids[1])),
+                flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1])),
             );
             let ev = run(&docx);
             match failure(&ev, union) {
@@ -239,8 +237,9 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
             }
         }
     }
-    // 100 cells of this corpus fused on main and 60 more fuse now (two
-    // more get past the rim and refuse an undeclarable contact at the
-    // fourth member); the count pins both halves.
-    assert_eq!(fused, 160, "cells fused");
+    // 148 cells fuse. `row` and `rowids` refuse in all 24 orders here,
+    // because their (a, h) contact is undeclared and contact is judged
+    // pairwise (DM4); the 6 orders of each that fused when the fold
+    // judged contact, with `b` covering it, are the 12 the count lost.
+    assert_eq!(fused, 148, "cells fused");
 }

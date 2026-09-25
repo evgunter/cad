@@ -30,7 +30,7 @@
 
 use crate::common;
 
-use common::{ang, insert, len, len3, plate_index, scl3, shape};
+use common::{ang, len, len3, plate_index, scl3, session_insert, shape};
 use pncad::document::{
     Dimension, Doc, Node, NodeErrorKind, NodeResult, ProfileProgram, RecipeNodeId, SlotId,
 };
@@ -63,7 +63,7 @@ fn session(tol: Tol) -> DocSession {
 /// A cube of `side`, authored through the creation doors.
 fn boxed(session: &mut DocSession, side: f64) -> RecipeNodeId {
     let plane = common::xy_frame_in(session);
-    let profile = insert(
+    let profile = session_insert(
         session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),
@@ -73,7 +73,7 @@ fn boxed(session: &mut DocSession, side: f64) -> RecipeNodeId {
             })],
         },
     );
-    insert(
+    session_insert(
         session,
         SessionOp::AddExtrude {
             profile,
@@ -185,7 +185,7 @@ fn commit(session: &mut DocSession, tools: &mut Tools, op: SessionOp) -> RecipeN
         tools.commits_open_tool(&op),
         "the op is the open tool's one committed edit"
     );
-    let node = insert(session, op);
+    let node = session_insert(session, op);
     tools.close();
     assert_eq!(tools.open_kind(), None, "a landed edit closes its tool");
     node
@@ -346,7 +346,7 @@ fn the_all_edges_door_refuses_a_target_with_no_edges() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let target = boxed(&mut session, SIDE);
-    let datum = insert(
+    let datum = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Point {
@@ -508,7 +508,7 @@ fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
     selection.push(stray.clone());
     let wanted = selection.len();
 
-    let fillet = insert(
+    let fillet = session_insert(
         &mut session,
         SessionOp::AddFillet {
             target,
@@ -643,7 +643,7 @@ fn the_blend_door_refuses_a_target_that_is_not_a_body() {
     session.pump();
     let selection = all_edge_names(&session, target);
     let plane = common::xy_frame_in(&mut session);
-    let profile = insert(
+    let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),
@@ -717,7 +717,7 @@ fn an_empty_set_refuses_at_the_tool_and_at_evaluation() {
 
     // The op door itself admits one — a recipe is allowed to be
     // unfinished — and evaluation is where it refuses.
-    let fillet = insert(
+    let fillet = session_insert(
         &mut session,
         SessionOp::AddFillet {
             target,
@@ -827,7 +827,7 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let target = boxed(&mut session, SIDE);
-    let plane = insert(
+    let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
@@ -836,7 +836,7 @@ fn the_all_edges_door_narrows_to_the_body_it_was_asked_about() {
             },
         },
     );
-    let split = insert(
+    let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target,
@@ -928,7 +928,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
     let mut session = session(tol);
     let a = boxed(&mut session, SIDE);
     let raw_b = boxed(&mut session, SIDE);
-    let b = insert(
+    let b = session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: raw_b,
@@ -937,7 +937,7 @@ fn an_upstream_edit_that_strands_held_edges_drops_them_and_says_so() {
             rotation_angle: ang(0.0),
         },
     );
-    let union = insert(
+    let union = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: pncad::document::BooleanOp::Union,

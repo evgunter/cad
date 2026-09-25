@@ -134,6 +134,7 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNode
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![pad_loop],
+        ids: Vec::new(),
     }));
     let thickness = len(1.2e-3);
     let body = r.insert(Node::Extrude {
@@ -147,6 +148,7 @@ pub(crate) fn pad(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNode
             centre: [len(0.0), len(0.0)],
             radius: plen("bore_r"),
         }],
+        ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
         profile: bore_profile,

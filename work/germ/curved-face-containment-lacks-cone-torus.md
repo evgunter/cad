@@ -2,12 +2,13 @@
 id: curved-face-containment-lacks-cone-torus
 kind: issue
 title: curved_face_containment has no cone or torus arm while point_in_solid now answers both kinds
-status: open
+status: dispatched
 opened: 2026-09-01
 github: 1484
 refs: [1464, 1425]
 priority: P0
 cost: H
+branch: germ/torus-doors
 ---
 
 ## From GitHub issue 1484

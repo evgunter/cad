@@ -42,7 +42,7 @@ use geom_core::Tol;
 // on its private helpers.
 // ---------------------------------------------------------------
 
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         prior,

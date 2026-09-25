@@ -209,7 +209,7 @@ fn a_validated_profile_with_an_undrawable_arc_is_counted_undrawn() {
             Step::LineTo(Target::Start),
         ],
     };
-    let profile = common::insert(
+    let profile = common::session_insert(
         &mut session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),

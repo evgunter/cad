@@ -823,6 +823,35 @@ It is documented and not detected, because telling it apart needs the
 body. The change is additive to N5 and was not taken to Ev, per his
 ruling on #3115.
 
+## 2026-09-25 — union contact is judged pairwise before the fold (PR 3213)
+
+`wire_union` now judges every member pair as `m ∪ n` before the fold,
+using only the declarations sited at those two members:
+- pairs are visited in node-id order;
+- undeclared pairs whose boxes are disjoint are pruned.
+
+Consequences:
+- **Undeclared contact.** An undeclared contact, covered or not,
+  refuses in every order.
+- **Declared contact.** It is satisfied wherever the fold meets it. A
+  face the fold consumed whole satisfies its pair.
+- **Measured.** `row` and `rowids` refuse undeclared in all 24 orders,
+  and fuse in the same 6 once declared. `KNOWN_MIXED` went from 25 to
+  23.
+- **Cost.** Dense unions cost about 3× more; the die is unchanged.
+  Ev's note on cost is in DM4.
+
+Ev's two rulings on #3213 ("yes these both sound good!"):
+- a declared pair is judged whatever its boxes;
+- a fold step's contact refusal becomes an `Emission` bug assertion,
+  and the `UndeclarableContact` paragraph is re-worded.
+
+The review found the code correct, and the fixes landed:
+- two rows over-admitted orders;
+- two helpers were duplicated;
+- one silent `continue` became an assertion.
+
+Filed: wire P1 `a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`.
 ## 2026-09-25 — union face names go to Ev: re-derive over the merge closure
 
 The fork on `union-face-names-follow-fold-order` went to Ev. The
@@ -933,3 +962,44 @@ Measured, the rule:
 
 Refusing would have refused 134 of 248 fused orders.
 `union-face-names-follow-fold-order` becomes the build.
+
+## 2026-09-25 — profile pieces are named by minted step ids (PR 3223)
+
+N1's rule is built, as Ev ruled it on #3193 and #3202:
+- every profile step carries a `StepId`, minted from the document's
+  step counter and never reused;
+- a profile locator is `{ step, role }`;
+- a tube's sections are named structurally, as `Section { Outer | Bore }`;
+- a loft wall or seam holds one locator per section.
+
+The positional rename machinery is deleted: `LoopProvenance`, the
+`SegmentMap` rewrite, `RETIRED_FLOOR`, `reanchor_report` and the
+signed-area anchor. The wire format breaks, and the goldens are
+re-baselined.
+
+Nothing renumbers any more:
+- the held name in `asm_parent_held_names` survives a pin update;
+- EDIT's zero-fit chain keeps its names;
+- a dropped step's names vanish, with a DM7 report.
+
+Review found one alias (B1): a fillet claimed the next step's tangent
+arc as its run out, so dropping that step moved a paint silently. It is
+fixed, with the run out tied to its arrival carrier. The implementer
+was lost to a container restart mid-unit, and a second lane finished
+the fix pass.
+
+Closed:
+- `a-child-documents-rebind-leaves-the-parents-held-names-in-the-old-numbering`
+  (P0);
+- `a-value-edits-last-published-numbering-is-not-recipe-state`;
+- `the-value-edit-numbering-check-costs-a-replay-per-swept-profile`.
+
+Notes left on:
+- EDIT's zero-fit and stranded-names rows;
+- WIRE's two signed-area rows, which are now moot.
+
+Filed:
+- P3 `a-fillets-run-out-rides-by-segment-kind-only`;
+- P2 `sibling-branches-mint-one-step-id-for-different-steps` (via the
+  PR);
+- the Python handles remainder, `python-spells-a-piece-by-its-authoring-calls-step-handle`.

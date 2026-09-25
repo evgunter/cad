@@ -1806,10 +1806,12 @@ mod tests {
                 of: StableName {
                     kind: EntityKind::Edge,
                     node: RecipeNodeId(m),
-                    path: vec![RoleSeg::LateralEdge(crate::names::role::ProfileVertexRef {
-                        loop_index: 0,
-                        vertex: 0,
-                    })],
+                    path: vec![RoleSeg::LateralEdge(
+                        crate::names::role::ProfileVertexRef::Piece {
+                            step: crate::node::StepId(0),
+                            role: crate::names::PieceRole::Leg,
+                        },
+                    )],
                 }
                 .into(),
             }],
@@ -2028,10 +2030,12 @@ mod tests {
         let edge = StableName {
             kind: EntityKind::Edge,
             node: m,
-            path: vec![RoleSeg::LateralEdge(crate::names::role::ProfileVertexRef {
-                loop_index: 0,
-                vertex: 0,
-            })],
+            path: vec![RoleSeg::LateralEdge(
+                crate::names::role::ProfileVertexRef::Piece {
+                    step: crate::node::StepId(0),
+                    role: crate::names::PieceRole::Leg,
+                },
+            )],
         };
         let piece = |rank| {
             let mut n = member_name(union, m, &edge);

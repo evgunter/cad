@@ -19,7 +19,7 @@
 
 use crate::common;
 
-use common::{insert, len, shape};
+use common::{len, session_insert, shape};
 use pncad::document::{Doc, ValuePayload};
 use pncad::document::{LoopProgram, ProgramArcData, ProgramStep, ProgramTarget};
 use pncad::geom_core::Point2;
@@ -92,14 +92,14 @@ fn a_line_chain_previews_and_authors_the_same_square() {
 
     let mut session = session(tol);
     let plane = common::xy_frame_in(&mut session);
-    let profile = insert(
+    let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&square(side))],
         },
     );
-    let extrude = insert(
+    let extrude = session_insert(
         &mut session,
         SessionOp::AddExtrude {
             profile,
@@ -543,7 +543,7 @@ fn continue_to_and_the_declared_arrival_author_through_the_door() {
 
     let mut session = session(tol);
     let plane = common::xy_frame_in(&mut session);
-    insert(
+    session_insert(
         &mut session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),

@@ -6,8 +6,9 @@
 use eframe::egui;
 use pncad::document::{Axis3, Dimension, Frame, Node, ParamName, RecipeNodeId};
 use pncad::quantity::{self, UnitDef};
+use pncad::select::Resolution;
 
-use crate::app::{ViewerBehavior, chrome, indeterminate_wording};
+use crate::app::{ViewerBehavior, indeterminate_wording, toned};
 use crate::display::free_move_check;
 use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
 use crate::frame::Tone;
@@ -39,7 +40,10 @@ impl ViewerBehavior<'_> {
             }
             Selection::Node(node) => {
                 let groups = self.session.slot_groups();
-                if groups.is_empty() {
+                // `live()` for the reason the pick arm below reads it:
+                // a deleted node has no parameters because it has no
+                // node, and the header above has already said which.
+                if groups.is_empty() && standing.live() {
                     crate::widgets::message_toned(
                         ui,
                         "this feature carries no parameters",
@@ -135,6 +139,7 @@ impl ViewerBehavior<'_> {
                                 },
                             },
                             self.ops,
+                            self.notices,
                         );
                         // **The unit is the picker's to say.** A
                         // parameter's notation is a fact the document
@@ -148,14 +153,15 @@ impl ViewerBehavior<'_> {
                         self.param_unit_ui(ui, &row);
                     });
                     self.param_bounds_ui(ui, &row);
-                } else {
-                    crate::widgets::message_toned(
-                        ui,
-                        "that parameter is gone",
-                        &self.theme,
-                        Tone::Advisory,
-                    );
                 }
+                // No row is an undeclared parameter, and nothing is
+                // drawn for it here: the header above has said so
+                // ([`standing_verdict`]), loud, and this panel says a
+                // fact once — the rule `failure_lines` keeps for a
+                // failed tree row and `instance_ui` keeps for a
+                // vanished instance. The header's `present` reads the
+                // same document this lookup does
+                // (`DocSession::standing`), so the two are one answer.
             }
         }
         ui.separator();
@@ -391,111 +397,50 @@ impl ViewerBehavior<'_> {
     /// would be two policies.
     pub(crate) fn standing_ui(&mut self, ui: &mut egui::Ui, standing: &Standing) {
         match standing {
-            Standing::Empty => {}
+            Standing::Empty | Standing::Param { .. } => {}
             Standing::Node { node, present } => {
                 ui.horizontal(|ui| {
                     ui.label(crate::tree::node_number(*node));
-                    if *present {
-                        if delete_button(ui, self.session, *node) {
-                            self.ops.push(SessionOp::DeleteNode { node: *node });
-                        }
-                    } else {
-                        ui.colored_label(chrome(self.theme.unresolved), "deleted");
+                    if *present && delete_button(ui, self.session, *node) {
+                        self.ops.push(SessionOp::DeleteNode { node: *node });
                     }
+                    // Beside the number, which is the node it is about.
+                    standing_verdict(ui, &self.theme, standing);
                 });
+                return;
             }
-            Standing::Param { name, present } => {
-                if !present {
-                    crate::widgets::message_toned(
-                        ui,
-                        format!("parameter {} is no longer declared", name.0),
-                        &self.theme,
-                        Tone::Actionable,
-                    );
-                }
+            Standing::Face { face, .. } => {
+                self.entity_header_ui(ui, "face", face.feature(), standing);
             }
-            Standing::Face { face, resolution } => {
-                self.entity_standing_ui(
-                    ui,
-                    "face",
-                    face.feature(),
-                    resolution.as_deref(),
-                    standing.live(),
-                );
-            }
-            Standing::Edge { edge, resolution } => {
-                self.entity_standing_ui(
-                    ui,
-                    "edge",
-                    edge.feature(),
-                    resolution.as_deref(),
-                    standing.live(),
-                );
+            Standing::Edge { edge, .. } => {
+                self.entity_header_ui(ui, "edge", edge.feature(), standing);
             }
         }
+        standing_verdict(ui, &self.theme, standing);
     }
 
-    /// A picked entity's header: which feature it belongs to, the
-    /// delete that feature offers, and the typed resolution verdict.
+    /// A picked entity's header line: which feature it belongs to, and
+    /// the delete that feature offers. Its verdict is
+    /// [`standing_verdict`]'s, on the lines under it.
     ///
     /// **One rendering for every kind of picked entity**, taking the
     /// noun as an argument: a face and an edge differ in what they are
-    /// called and in nothing else this panel does, and two copies of
-    /// the verdict ladder is how the two come to report a vanished
-    /// referent differently.
-    pub(crate) fn entity_standing_ui(
+    /// called and in nothing else this line does.
+    fn entity_header_ui(
         &mut self,
         ui: &mut egui::Ui,
         noun: &str,
         feature: RecipeNodeId,
-        resolution: Option<&pncad::select::Resolution>,
-        live: bool,
+        standing: &Standing,
     ) {
         ui.horizontal(|ui| {
             // The feature that MADE the entity, so the button deletes
             // what the label names.
             ui.label(format!("{noun} of {}", crate::tree::node_number(feature)));
-            if live && delete_button(ui, self.session, feature) {
+            if standing.live() && delete_button(ui, self.session, feature) {
                 self.ops.push(SessionOp::DeleteNode { node: feature });
             }
         });
-        // The typed verdict, rendered from the resolution machinery's
-        // own payload — never a sentence composed here about somebody
-        // else's refusal.
-        match resolution {
-            None => {
-                crate::widgets::message_toned(
-                    ui,
-                    "no evaluation yet to resolve this against",
-                    &self.theme,
-                    Tone::Advisory,
-                );
-            }
-            Some(pncad::select::Resolution::Resolved(_)) => {}
-            Some(pncad::select::Resolution::Failed(failure)) => {
-                crate::widgets::message_toned(
-                    ui,
-                    format!("this {noun} is gone: {}", failure.error),
-                    &self.theme,
-                    Tone::Actionable,
-                );
-                if !failure.offers.is_empty() {
-                    // A count and a fixed literal, so a name.
-                    ui.weak(format!(
-                        "{} rebind candidate(s) offered",
-                        failure.offers.len()
-                    ));
-                }
-            }
-            Some(pncad::select::Resolution::Indeterminate(cause)) => {
-                crate::widgets::message_toned(
-                    ui,
-                    indeterminate_wording(noun, cause),
-                    &self.theme,
-                    Tone::Actionable,
-                );
-            }
-        }
     }
 
     /// The selected instance's display controls: the hide toggle and
@@ -513,9 +458,8 @@ impl ViewerBehavior<'_> {
     /// verdict, from the same `doc().node(..)` lookup, directly above
     /// this section. The rule's other clause is that *the affordances
     /// that need a live entity switch off*, which is this. Saying it
-    /// again here would be one fact spelled twice in one pane, which is
-    /// what the parameter half of this panel already does and is not a
-    /// pattern to copy.
+    /// again here would be one fact spelled twice in one pane, which
+    /// this panel does nowhere.
     ///
     /// **The section's gate and the toggle's are two different tests,
     /// and each control reads the one its own door runs.**
@@ -566,7 +510,10 @@ impl ViewerBehavior<'_> {
             Err(fault) => {
                 // The typed ineligibility, shown where the control
                 // would be — the same sentence the op would refuse
-                // with.
+                // with. Advisory for every fault that reaches here: the
+                // admission faults end the section above, which leaves
+                // a mate placing the instance — the document working
+                // as written, which asks nothing of the reader.
                 crate::widgets::message_toned(ui, fault.to_string(), &self.theme, Tone::Advisory);
             }
             Ok(()) => {
@@ -774,6 +721,7 @@ impl ViewerBehavior<'_> {
                 },
             },
             self.ops,
+            self.notices,
         );
     }
 
@@ -979,6 +927,74 @@ impl ViewerBehavior<'_> {
     }
 }
 
+/// **What the selection's standing has to SAY, drawn**: the verdict on
+/// a selection that no longer denotes — a deleted node, an undeclared
+/// parameter, a picked entity whose name did not resolve — in the
+/// voice [`Standing::tone`] gives it, and the rebind count under a
+/// failed name. Draws nothing for a selection that still denotes, or
+/// for none.
+///
+/// Exhaustive over [`Standing`], so a new standing is a compile error
+/// here rather than a silent blank; and a picked entity's noun is read
+/// off its own arm, so no caller can hand this "face" for an edge.
+///
+/// The words are composed per arm — for a picked entity, the
+/// resolution machinery's own payload, never a sentence composed here
+/// about somebody else's refusal. How LOUD they are is not composed
+/// per arm: it is read once, off the value.
+///
+/// A free function over the `Ui` so a headless drive can reach it
+/// (`crate::pane::headless`).
+pub(crate) fn standing_verdict(ui: &mut egui::Ui, theme: &Theme, standing: &Standing) {
+    let tone = standing.tone();
+    let (noun, resolution) = match standing {
+        Standing::Empty
+        | Standing::Node { present: true, .. }
+        | Standing::Param { present: true, .. } => return,
+        // One word, beside the node number the caller drew.
+        Standing::Node { present: false, .. } => {
+            ui.label(toned("deleted", theme, tone));
+            return;
+        }
+        Standing::Param {
+            name,
+            present: false,
+        } => {
+            crate::widgets::message_toned(
+                ui,
+                format!("parameter {} is no longer declared", name.0),
+                theme,
+                tone,
+            );
+            return;
+        }
+        Standing::Face { resolution, .. } => ("face", resolution.as_deref()),
+        Standing::Edge { resolution, .. } => ("edge", resolution.as_deref()),
+    };
+    let said = match resolution {
+        None => Some("no evaluation yet to resolve this against".to_owned()),
+        Some(Resolution::Resolved(_)) => None,
+        Some(Resolution::Failed(failure)) => {
+            Some(format!("this {noun} is gone: {}", failure.error))
+        }
+        Some(Resolution::Indeterminate(cause)) => Some(indeterminate_wording(noun, cause)),
+    };
+    if let Some(said) = said {
+        crate::widgets::message_toned(ui, said, theme, tone);
+    }
+    if let Some(Resolution::Failed(failure)) = resolution
+        && !failure.offers.is_empty()
+    {
+        // A count and a fixed literal, so a name. Weak as secondary
+        // text rather than as a tone: the verdict above it carries the
+        // tone, and this line only counts what that verdict offers.
+        ui.weak(format!(
+            "{} rebind candidate(s) offered",
+            failure.offers.len()
+        ));
+    }
+}
+
 /// **The already-declared notice and the edit door it offers**, each
 /// on a line of its own.
 ///
@@ -1106,6 +1122,10 @@ fn hide_toggle(
         egui::Checkbox::new(shown, "shown in viewport"),
     );
     if let Err(fault) = addressable {
+        // Advisory: past the section's own kind gate the one fault
+        // left is geometry fused into a drawn root with another
+        // instance's, which is what the document says and nothing a
+        // reader got wrong.
         crate::widgets::message_toned(ui, fault.to_string(), theme, Tone::Advisory);
     }
     toggle.changed()
@@ -1421,5 +1441,157 @@ mod tests {
             Refusal::affordance(&[thickness()], None)
         );
         assert!(refusal.to_string().contains("thickness"));
+    }
+}
+
+/// **How loud the selection's verdict is drawn**, read off the paint
+/// and held against fixed colours ([`crate::pane::headless::Voices`]),
+/// through [`standing_verdict`] — the function the header calls — so
+/// a literal tone put back at any of its arms, or a swapped mapping
+/// anywhere between [`Standing::tone`] and the glyphs, turns a row red.
+#[cfg(test)]
+mod verdict_tests {
+    use editor_core::RecipeEditRef;
+    use pncad::document::{ParamName, RecipeNodeId};
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+    use pncad::select::{Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate};
+
+    use super::standing_verdict;
+    use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
+    use crate::session::{EdgeSelection, FaceSelection, Standing};
+    use crate::theme::Theme;
+
+    fn name(kind: EntityKind) -> StableName {
+        StableName {
+            kind,
+            node: RecipeNodeId(1),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        }
+    }
+
+    fn face(resolution: Option<Resolution>) -> Standing {
+        Standing::Face {
+            face: FaceSelection {
+                name: name(EntityKind::Face),
+                node: RecipeNodeId(2),
+                body: 0,
+            },
+            resolution: resolution.map(Box::new),
+        }
+    }
+
+    fn vanished(offers: Vec<StableName>) -> Resolution {
+        Resolution::Failed(ResolutionFailure {
+            error: ResolveError::NodeGone {
+                name: name(EntityKind::Face),
+                edit: RecipeEditRef::NodeDeleted {
+                    node: RecipeNodeId(1),
+                },
+            },
+            offers,
+        })
+    }
+
+    /// What [`standing_verdict`] painted for `standing`.
+    fn drawn(standing: &Standing) -> (Vec<Landed>, Voices) {
+        landed_voiced(|ui| standing_verdict(ui, &Theme::DEFAULT, standing))
+    }
+
+    /// **A name that no longer resolves is a verdict to act on**, so
+    /// it is drawn in the unresolved colour — and the rebind count
+    /// under it is secondary text, weak.
+    #[test]
+    fn a_vanished_faces_verdict_is_drawn_loud_and_its_offer_count_weak() {
+        let (painted, voices) = drawn(&face(Some(vanished(vec![name(EntityKind::Face)]))));
+        assert_eq!(
+            find_opening(&painted, "this face is gone: ").ink,
+            Some(voices.unresolved)
+        );
+        assert_eq!(
+            find(&painted, "1 rebind candidate(s) offered").ink,
+            Some(voices.weak)
+        );
+    }
+
+    /// An entity the evaluation could not answer for is a verdict to
+    /// act on too — the edge arm, and its noun off its own arm.
+    #[test]
+    fn an_indeterminate_edges_verdict_is_drawn_loud() {
+        let standing = Standing::Edge {
+            edge: EdgeSelection {
+                name: name(EntityKind::Edge),
+                node: RecipeNodeId(2),
+                body: 0,
+            },
+            resolution: Some(Box::new(Resolution::Indeterminate(
+                ResolveIndeterminate::TargetFailed {
+                    node: RecipeNodeId(1),
+                },
+            ))),
+        };
+        let (painted, voices) = drawn(&standing);
+        assert_eq!(
+            find_opening(&painted, "this edge cannot be resolved right now: ").ink,
+            Some(voices.unresolved)
+        );
+    }
+
+    /// **No evaluation yet is not a verdict about the pick**: it is
+    /// said, quietly.
+    #[test]
+    fn a_pick_with_no_evaluation_behind_it_is_said_weak() {
+        let (painted, voices) = drawn(&face(None));
+        assert_eq!(
+            find(&painted, "no evaluation yet to resolve this against").ink,
+            Some(voices.weak)
+        );
+    }
+
+    /// **A deleted node's one word is loud**, beside its number.
+    #[test]
+    fn a_deleted_nodes_verdict_is_drawn_loud() {
+        let (painted, voices) = drawn(&Standing::Node {
+            node: RecipeNodeId(3),
+            present: false,
+        });
+        assert_eq!(find(&painted, "deleted").ink, Some(voices.unresolved));
+    }
+
+    /// **An undeclared parameter is said once, loud** — the only line
+    /// the pane draws for it (`properties_ui`'s `Param` arm draws none).
+    #[test]
+    fn an_undeclared_parameters_verdict_is_drawn_loud() {
+        let (painted, voices) = drawn(&Standing::Param {
+            name: ParamName("width".to_owned()),
+            present: false,
+        });
+        assert_eq!(
+            find(&painted, "parameter width is no longer declared").ink,
+            Some(voices.unresolved)
+        );
+    }
+
+    /// **A selection that still denotes has no verdict**, so nothing
+    /// is said at all — not a quiet "fine".
+    #[test]
+    fn a_standing_that_still_denotes_says_nothing() {
+        for standing in [
+            Standing::Empty,
+            Standing::Node {
+                node: RecipeNodeId(3),
+                present: true,
+            },
+            Standing::Param {
+                name: ParamName("width".to_owned()),
+                present: true,
+            },
+        ] {
+            let (painted, _) = drawn(&standing);
+            assert!(
+                painted.is_empty(),
+                "{standing:?} painted {:?}",
+                painted.len()
+            );
+        }
     }
 }

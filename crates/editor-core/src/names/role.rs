@@ -25,31 +25,23 @@
 //! for the one place where what the name denotes is fixed by the
 //! statement being made rather than discovered from it.
 //!
-//! # Locators (spec D2, cited)
+//! # Locators
 //!
-//! [`ProfileEdgeRef`]/[`ProfileVertexRef`] carry a profile's OWN
-//! combinatorial identity, never a bare enumeration index. As an
-//! emitter mints them that identity is `profile::ValidatedProfile`'s
-//! canonical form — its loop order (outer first, then holes in the
-//! DESCRIPTION's order — recipe data) and each loop's canonical chain
-//! indices, counted from the loop's AUTHORED start along its canonical
-//! traversal (`crates/profile/README.md` V3): a function of recipe
-//! structure plus the recorded orientation and role verdicts. The sweep
-//! emitters (`Extruded`, `Revolved`)
-//! index their output maps by exactly these identities, which is what
-//! makes sweep naming a mechanical zip.
-//!
-//! What the NAME TABLE publishes is that identity, for every profile:
-//! the canonical form keeps each loop's authored start and hole order,
-//! so the ref a consumer holds is the author's own segment counted
-//! along the loop's canonical traversal — see the two types' docs and
-//! DM8 (`crates/editor-core/REFERENCES.md`).
+//! [`ProfileEdgeRef`]/[`ProfileVertexRef`] name a profile piece by what
+//! made it, never by its position (`names/README.md`, "N1, the profile
+//! pieces"): an authored piece by the [`StepId`] its step was minted
+//! with and its role in that step's fixed list, and a section a
+//! kernel door builds — a tube's outer circle or bore — by its place
+//! in that construction, under the node that owns it. The sweep
+//! emitters iterate CANONICAL segments (`crates/profile/README.md`
+//! V3), and the naming anchor (`eval::anchor`) hands them the locator
+//! each canonical segment answers to.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use super::canonical;
-use crate::node::RecipeNodeId;
+use crate::node::{RecipeNodeId, StepId};
 
 /// **The handle a role segment holds its argument [`StableName`] by**:
 /// a shared, immutable name plus one word of ORDER CACHE.
@@ -565,56 +557,131 @@ pub enum CapEnd {
     Start,
 }
 
-/// A profile edge (segment) by combinatorial identity, never a bare
-/// index: the profile crate's canonical form (module docs, cited) —
-/// canonical loop order, and segment `k` counted along the canonical
-/// traversal from the loop's AUTHORED start. No geometric choice
-/// enters it beyond each loop's orientation and which loop is the
-/// outer one, so a parameter edit renumbers a frozen selection only by
-/// flipping one of those (`eval::anchor`'s module docs), and every verb that consumes the profile — a loft's sections
-/// included — publishes the same one. DM8
-/// (`crates/editor-core/REFERENCES.md`) states how an authored step
-/// maps onto it.
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
-)]
-#[serde(deny_unknown_fields)]
-pub struct ProfileEdgeRef {
-    /// The loop, in canonical loop order: 0 = outer, then the holes
-    /// in description order. A hole described before the outer loop
-    /// carries its canonical index, not its description index.
-    pub loop_index: u32,
-    /// The edge's index along that loop's canonical chain: the
-    /// author's segment `k` for a loop authored in its canonical sense,
-    /// `n − 1 − k` for one authored against it.
-    ///
-    /// A coordinate at or above `editor_core::RETIRED_FLOOR` — as a
-    /// segment or as a loop index — is one no program draws, and is
-    /// where `DocEdit::SetProgram` RETIRES a name whose step its
-    /// reshaping dropped: the name then resolves `Vanished` at every
-    /// evaluation until it is rebound, rather than denoting whichever
-    /// segment the new program, or a later slot edit that grows the
-    /// loop, draws at its old index.
-    pub segment: u32,
+/// **Which of its step's pieces a profile piece is** — the role half
+/// of a locator, from the fixed list its verb draws. The one type is
+/// the profile crate's, which records it per segment as it replays;
+/// its docs give the lists, and its `Display` is the one spelling a
+/// user reads.
+pub use profile::PieceRole;
+
+/// **The wire spelling of [`PieceRole`]**: serde's derive for the
+/// profile crate's type, which carries no serde of its own (the kernel
+/// crates are serde-free). Externally tagged, one variant per role, so
+/// a role reads back as the variant it was written as.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(remote = "profile::PieceRole")]
+enum PieceRoleWire {
+    Leg,
+    RunIn,
+    Arc,
+    RunOut,
+    Piece(u32),
 }
 
-/// A profile vertex by combinatorial identity, in the same canonical
-/// numbering as [`ProfileEdgeRef`]: vertex `v` starts canonical segment
-/// `v` of its loop's chain — the author's vertex `v`, or `(n − v) mod
-/// n` on a loop authored against its canonical sense (DM8). A vertex
-/// index at or above `editor_core::RETIRED_FLOOR` denotes
-/// nothing, for [`ProfileEdgeRef::segment`]'s reason.
+/// **Which circle of a kernel-built section** — the tube doors'
+/// section, whose shape the node kind fixes: one circle for a solid
+/// tube, the outer circle and the bore for a hollow one.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub enum SectionCircle {
+    /// The outer circle.
+    Outer,
+    /// A hollow section's bore.
+    Bore,
+}
+
+/// **A profile edge — one piece of a profile — by what made it**,
+/// never by its position.
+///
+/// - [`ProfileEdgeRef::Piece`] names what an author drew: the piece
+///   `role` of the step minted `step`. No loop index and no segment
+///   index enters it, so a value edit, an outer/hole swap, a sense
+///   flip or a `SetProgram` that keeps the step cannot move it; a role
+///   the current values do not draw, or a step a `SetProgram` dropped,
+///   denotes nothing (N1).
+/// - [`ProfileEdgeRef::Section`] names what a kernel door built: piece
+///   `role` of one circle of a section whose shape the minting node's
+///   kind fixes (a tube's), so nothing can renumber it.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
-pub struct ProfileVertexRef {
-    /// The loop, in the canonical loop order
-    /// [`ProfileEdgeRef::loop_index`] describes.
-    pub loop_index: u32,
-    /// The vertex's index along that loop's canonical chain (the
-    /// start vertex of canonical segment `vertex`).
-    pub vertex: u32,
+pub enum ProfileEdgeRef {
+    /// The piece `role` of the authored step `step`.
+    Piece {
+        /// The step's minted id.
+        step: StepId,
+        /// Which of the step's pieces.
+        #[serde(with = "PieceRoleWire")]
+        role: PieceRole,
+    },
+    /// Piece `role` of one circle of a kernel-built section.
+    Section {
+        /// Which circle.
+        circle: SectionCircle,
+        /// Which of its pieces.
+        #[serde(with = "PieceRoleWire")]
+        role: PieceRole,
+    },
+}
+
+/// **A profile vertex by what made it**: the vertex where the piece of
+/// the same spelling starts, in authored order ([`ProfileEdgeRef`]'s
+/// two forms, read at the piece's start).
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(deny_unknown_fields)]
+pub enum ProfileVertexRef {
+    /// Where the piece `role` of the authored step `step` starts.
+    Piece {
+        /// The step's minted id.
+        step: StepId,
+        /// Which of the step's pieces starts here.
+        #[serde(with = "PieceRoleWire")]
+        role: PieceRole,
+    },
+    /// Where piece `role` of one circle of a kernel-built section
+    /// starts.
+    Section {
+        /// Which circle.
+        circle: SectionCircle,
+        /// Which of its pieces starts here.
+        #[serde(with = "PieceRoleWire")]
+        role: PieceRole,
+    },
+}
+
+impl ProfileEdgeRef {
+    /// The authored step this piece belongs to, where it is one.
+    #[must_use]
+    pub fn step(&self) -> Option<StepId> {
+        match self {
+            Self::Piece { step, .. } => Some(*step),
+            Self::Section { .. } => None,
+        }
+    }
+
+    /// The vertex where this piece starts.
+    #[must_use]
+    pub fn start(&self) -> ProfileVertexRef {
+        match *self {
+            Self::Piece { step, role } => ProfileVertexRef::Piece { step, role },
+            Self::Section { circle, role } => ProfileVertexRef::Section { circle, role },
+        }
+    }
+}
+
+impl ProfileVertexRef {
+    /// The authored step whose piece starts here, where it is one.
+    #[must_use]
+    pub fn step(&self) -> Option<StepId> {
+        match self {
+            Self::Piece { step, .. } => Some(*step),
+            Self::Section { .. } => None,
+        }
+    }
 }
 
 /// Which meridian of a revolve (the M2 band/pole/seam taxonomy).
@@ -846,6 +913,16 @@ pub enum RoleSeg {
     /// A cap vertex over a profile vertex.
     CapVertex(CapEnd, ProfileVertexRef),
 
+    // ---- Loft ----
+    /// A loft wall: the pieces the skin paired into it, one per
+    /// section, in section order. A loft's caps, rims and cap vertices
+    /// are the extrude's roles, each spelled with its own end
+    /// section's locator.
+    LoftWall(Vec<ProfileEdgeRef>),
+    /// A loft seam: the wall–wall edge through the vertices the skin
+    /// paired, one per section, in section order.
+    LoftSeam(Vec<ProfileVertexRef>),
+
     // ---- Revolve (M2 band/pole/seam taxonomy) ----
     /// A wall (band) face swept from a profile segment.
     Band(ProfileEdgeRef),
@@ -890,10 +967,12 @@ pub enum RoleSeg {
     /// routing door, keeps that identity through the fold's MERGES: a
     /// member's face that a declared merge has consumed resolves, at
     /// the step its pair is fed to, to the accumulation's `Merged` row
-    /// whose flat constituent set holds it. A face consumed any other way — by a
-    /// split, by containment, or inside a merged row later fragmented
-    /// — is not looked through, and a pair naming it is order-shaped
-    /// ([`crate::Node::Union`] states the bound).
+    /// whose flat constituent set holds it. A face another member
+    /// contained whole leaves no row behind, and a pair naming it is
+    /// satisfied. A face surviving only in pieces — split, or inside a
+    /// merged row later fragmented — is not looked through, and a pair
+    /// naming it is order-shaped ([`crate::Node::Union`] states the
+    /// bound).
     ///
     /// That is a statement about the WRAPPER, and about nothing else.
     /// Which of a union's names exist at all is still the pair verb's
@@ -1172,10 +1251,10 @@ pub enum RoleSeg {
     },
 }
 
-/// **The `[0, π)` band face swept from segment `seg` of profile loop
-/// `loop_index`** on the revolve at `node` — [`RoleSeg::Band`].
+/// **The `[0, π)` band face swept from the profile piece `piece`** on
+/// the revolve at `node` — [`RoleSeg::Band`].
 ///
-/// This and its four siblings are the MINTING direction of the
+/// This and its three siblings are the MINTING direction of the
 /// vocabulary [`SegPat::tag`](crate::SegPat::tag) matches in. A
 /// selection that is ANSWERED — [`select`](fn@crate::select),
 /// [`all_faces`](fn@super::all_faces) — needs an evaluation to answer
@@ -1184,72 +1263,55 @@ pub enum RoleSeg {
 /// minting node exists, so its names are spelled. Each builder fixes
 /// the [`EntityKind`] its role always denotes, which is the field a
 /// hand-spelled name gets wrong silently until emission refuses it.
-///
-/// The loop index is [`ProfileEdgeRef::loop_index`] and spells what
-/// that field spells, `seg` what [`ProfileEdgeRef::segment`] spells:
-/// the anchoring the published table carries, canonical for a
-/// hand-built profile and the program's own step order for a program
-/// loop (DM8). No loop is privileged by these builders — a hole's
-/// band is `band` at its own loop.
 #[must_use]
-pub fn band(node: RecipeNodeId, loop_index: u32, seg: u32) -> StableName {
+pub fn band(node: RecipeNodeId, piece: ProfileEdgeRef) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::Band(ProfileEdgeRef {
-            loop_index,
-            segment: seg,
-        })],
+        path: vec![RoleSeg::Band(piece)],
     }
 }
 
-/// **The `[π, 2π)` band face swept from segment `seg` of loop
-/// `loop_index`** — [`band`]'s twin in the wire case, where a full
-/// revolve emits every profile segment as two faces
-/// ([`RoleSeg::BandPi`]). [`EntityKind::Face`], as [`band`] is.
+/// **The `[π, 2π)` band face swept from the profile piece `piece`** —
+/// [`band`]'s twin in the wire case, where a full revolve emits every
+/// profile segment as two faces ([`RoleSeg::BandPi`]).
+/// [`EntityKind::Face`], as [`band`] is.
 #[must_use]
-pub fn band_pi(node: RecipeNodeId, loop_index: u32, seg: u32) -> StableName {
+pub fn band_pi(node: RecipeNodeId, piece: ProfileEdgeRef) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::BandPi(ProfileEdgeRef {
-            loop_index,
-            segment: seg,
-        })],
+        path: vec![RoleSeg::BandPi(piece)],
     }
 }
 
-/// **The latitude rim at vertex `vertex` of loop `loop_index`** —
-/// [`RoleSeg::BandRim`], the edge between the bands of segments
-/// `vertex − 1` and `vertex` on that loop. An [`EntityKind::Edge`].
+/// **The latitude rim at the profile vertex `vertex`** —
+/// [`RoleSeg::BandRim`], the edge between the bands of the piece
+/// ending there and the piece starting there. An [`EntityKind::Edge`].
 #[must_use]
-pub fn band_rim(node: RecipeNodeId, loop_index: u32, vertex: u32) -> StableName {
+pub fn band_rim(node: RecipeNodeId, vertex: ProfileVertexRef) -> StableName {
     StableName {
         kind: EntityKind::Edge,
         node,
-        path: vec![RoleSeg::BandRim(ProfileVertexRef { loop_index, vertex })],
+        path: vec![RoleSeg::BandRim(vertex)],
     }
 }
 
 /// **The meridian vertex at `end`** — [`RoleSeg::MeridianVertex`]:
-/// the copy of vertex `vertex` of loop `loop_index` on a wedge cap
-/// plane ([`MeridianEnd::Start`], [`MeridianEnd::End`]) on a partial
+/// the copy of the profile vertex `vertex` on a wedge cap plane
+/// ([`MeridianEnd::Start`], [`MeridianEnd::End`]) on a partial
 /// revolve, or the surviving meridian vertex ([`MeridianEnd::Seam`])
 /// on a full one. An [`EntityKind::Vertex`].
 #[must_use]
 pub fn meridian_vertex(
     end: MeridianEnd,
     node: RecipeNodeId,
-    loop_index: u32,
-    vertex: u32,
+    vertex: ProfileVertexRef,
 ) -> StableName {
     StableName {
         kind: EntityKind::Vertex,
         node,
-        path: vec![RoleSeg::MeridianVertex(
-            end,
-            ProfileVertexRef { loop_index, vertex },
-        )],
+        path: vec![RoleSeg::MeridianVertex(end, vertex)],
     }
 }
 
@@ -1381,6 +1443,8 @@ macro_rules! locator_seg {
             | $crate::names::RoleSeg::RimEdge(..)
             | $crate::names::RoleSeg::LateralEdge(_)
             | $crate::names::RoleSeg::CapVertex(..)
+            | $crate::names::RoleSeg::LoftWall(_)
+            | $crate::names::RoleSeg::LoftSeam(_)
             | $crate::names::RoleSeg::Band(_)
             | $crate::names::RoleSeg::BandRim(_)
             | $crate::names::RoleSeg::BandRimPi(_)
@@ -1400,24 +1464,24 @@ pub(crate) use name_free_seg;
 /// carries** — the four holes in the one walk [`RoleSeg::rewrite`]
 /// makes over [`RoleSeg`]'s shape.
 ///
-/// Three rewrites of a name's path exist: `eval::anchor`'s canonical →
-/// program re-anchoring of a freshly emitted locator, `refactor`'s
-/// re-mapping of node ids across a split, and the whole-program edit's
-/// segment map. What differs between them is only what each does with
-/// a locator, a carried name and a member edge; what they share —
-/// which variant carries which, and putting the rewritten path back in
-/// canonical form ([`StableName::rewrite_path`], through
-/// `names::canonical`) — is the walk, written once. This trait is the
-/// part that differs.
+/// Three walks of a name's path exist: `refactor`'s re-mapping of node
+/// and step ids across a split or an inline, the union emitter's
+/// citing of whole member edges, and [`StableName::piece_steps`]'s
+/// collection of the steps a name spells. What differs between them is
+/// only what each does with a locator, a carried name and a member
+/// edge; what they share — which variant carries which, and putting
+/// the rewritten path back in canonical form
+/// ([`StableName::rewrite_path`], through `names::canonical`) — is the
+/// walk, written once. This trait is the part that differs.
 ///
 /// Every method defaults to the identity, because "not this rewrite's
-/// concern" IS the identity: the anchor moves locators and nothing
-/// else, the split re-map moves names and member edges and no
-/// locator. A rewrite that descends into a carried name does so from
-/// its own [`SegRewrite::name`], through [`StableName::rewrite_path`]
-/// — the walk itself never recurses, so a rewriter that must not (the
-/// anchor: a carried name's locators are its minting node's, and
-/// re-anchoring them would be wrong) simply does not.
+/// concern" IS the identity: the union's citing moves member edges and
+/// nothing else, the step collection reads locators and moves nothing.
+/// A rewrite that descends into a carried name does so from its own
+/// [`SegRewrite::name`], through [`StableName::rewrite_path`] — the
+/// walk itself never recurses, so a rewriter that must not (the
+/// union's: a member's own name is final in the member) simply does
+/// not.
 pub(crate) trait SegRewrite {
     /// What stops the rewrite; [`core::convert::Infallible`] where
     /// nothing can.
@@ -1521,6 +1585,16 @@ impl RoleSeg {
             R::RimEdge(c, e) => R::RimEdge(c, w.edge(e)?),
             R::LateralEdge(v) => R::LateralEdge(w.vertex(v)?),
             R::CapVertex(c, v) => R::CapVertex(c, w.vertex(v)?),
+            R::LoftWall(es) => R::LoftWall(
+                es.into_iter()
+                    .map(|e| w.edge(e))
+                    .collect::<Result<_, _>>()?,
+            ),
+            R::LoftSeam(vs) => R::LoftSeam(
+                vs.into_iter()
+                    .map(|v| w.vertex(v))
+                    .collect::<Result<_, _>>()?,
+            ),
             R::Band(e) => R::Band(w.edge(e)?),
             R::BandRim(v) => R::BandRim(w.vertex(v)?),
             R::BandRimPi(v) => R::BandRimPi(w.vertex(v)?),
@@ -1642,6 +1716,44 @@ impl StableName {
             Ok(w.name(n)?.unwrap_or_else(|| n.clone()))
         })
     }
+
+    /// **Every authored step this name spells a piece of** — in its own
+    /// path and in every name it carries from this document. An
+    /// `InPart` argument names ANOTHER document's steps (the document
+    /// seam), so it is not read: its ids are not this document's.
+    ///
+    /// What a `SetProgram` that drops a step asks of each name the
+    /// document holds (DM7): a step id is unique across the document,
+    /// so a name that spells it is a name on that step's pieces,
+    /// whichever node minted the name.
+    pub(crate) fn piece_steps(&self) -> std::collections::BTreeSet<StepId> {
+        let mut steps = PieceSteps(std::collections::BTreeSet::new());
+        let Ok(_) = self.clone().rewrite_path(&mut steps);
+        steps.0
+    }
+}
+
+/// [`StableName::piece_steps`]'s walk: every locator's step collected,
+/// every carried name descended, nothing rewritten.
+struct PieceSteps(std::collections::BTreeSet<StepId>);
+
+impl SegRewrite for PieceSteps {
+    type Error = core::convert::Infallible;
+
+    fn edge(&mut self, e: ProfileEdgeRef) -> Result<ProfileEdgeRef, Self::Error> {
+        self.0.extend(e.step());
+        Ok(e)
+    }
+
+    fn vertex(&mut self, v: ProfileVertexRef) -> Result<ProfileVertexRef, Self::Error> {
+        self.0.extend(v.step());
+        Ok(v)
+    }
+
+    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, Self::Error> {
+        let Ok(_) = n.clone().rewrite_path(self);
+        Ok(None)
+    }
 }
 /// The [`RoleSeg`] variants a BOOLEAN emitter never mints, as a
 /// PATTERN rather than a predicate.
@@ -1675,6 +1787,8 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::RimEdge(..)
             | $crate::names::RoleSeg::LateralEdge(_)
             | $crate::names::RoleSeg::CapVertex(..)
+            | $crate::names::RoleSeg::LoftWall(_)
+            | $crate::names::RoleSeg::LoftSeam(_)
             | $crate::names::RoleSeg::Band(_)
             | $crate::names::RoleSeg::BandRim(_)
             | $crate::names::RoleSeg::BandRimPi(_)
@@ -1715,130 +1829,143 @@ pub(crate) use never_in_a_boolean_table;
 #[cfg(test)]
 mod tests {
     use super::{
-        EntityKind, MeridianEnd, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName,
-        band, band_pi, band_rim, carried, meridian_vertex,
+        EntityKind, MeridianEnd, NameRef, PieceRole, ProfileEdgeRef, RoleSeg, SectionCircle,
+        StableName, band, band_pi, band_rim, carried, meridian_vertex,
     };
-    use crate::node::RecipeNodeId;
+    use crate::node::{RecipeNodeId, StepId};
 
     /// The node every pin below mints against.
     const N: RecipeNodeId = RecipeNodeId(7);
 
+    /// The two locator forms every pin below is written at: an
+    /// authored piece and a kernel-built section's piece.
+    fn edges() -> [ProfileEdgeRef; 2] {
+        [
+            ProfileEdgeRef::Piece {
+                step: StepId(3),
+                role: PieceRole::RunOut,
+            },
+            ProfileEdgeRef::Section {
+                circle: SectionCircle::Bore,
+                role: PieceRole::Piece(1),
+            },
+        ]
+    }
+
     /// A builder mints EXACTLY the name a caller would spell by hand.
-    /// Five pins, one per builder, each written the long way — the
-    /// spelling they replace at their consumers — so a builder cannot
-    /// drift from the vocabulary without this file disagreeing with
-    /// itself. The four that take a loop are pinned on a HOLE's loop
-    /// (1) and again on the outer loop (0), because a builder that
-    /// dropped its loop argument and kept the outer loop would satisfy
-    /// a pin written only at 0.
+    /// Four pins, one per builder, each written the long way — the
+    /// spelling they replace at their consumers — at both locator
+    /// forms, so a builder cannot drift from the vocabulary without
+    /// this file disagreeing with itself.
     #[test]
     fn band_mints_the_hand_spelled_face() {
-        assert_eq!(
-            band(N, 1, 3),
-            StableName {
-                kind: EntityKind::Face,
-                node: N,
-                path: vec![RoleSeg::Band(ProfileEdgeRef {
-                    loop_index: 1,
-                    segment: 3,
-                })],
-            }
-        );
-        assert_eq!(
-            band(N, 0, 3),
-            StableName {
-                kind: EntityKind::Face,
-                node: N,
-                path: vec![RoleSeg::Band(ProfileEdgeRef {
-                    loop_index: 0,
-                    segment: 3,
-                })],
-            }
-        );
+        for e in edges() {
+            assert_eq!(
+                band(N, e),
+                StableName {
+                    kind: EntityKind::Face,
+                    node: N,
+                    path: vec![RoleSeg::Band(e)],
+                }
+            );
+        }
     }
 
     #[test]
     fn band_pi_mints_the_hand_spelled_face() {
-        assert_eq!(
-            band_pi(N, 1, 3),
-            StableName {
-                kind: EntityKind::Face,
-                node: N,
-                path: vec![RoleSeg::BandPi(ProfileEdgeRef {
-                    loop_index: 1,
-                    segment: 3,
-                })],
-            }
-        );
-        assert_eq!(
-            band_pi(N, 0, 3),
-            StableName {
-                kind: EntityKind::Face,
-                node: N,
-                path: vec![RoleSeg::BandPi(ProfileEdgeRef {
-                    loop_index: 0,
-                    segment: 3,
-                })],
-            }
-        );
+        for e in edges() {
+            assert_eq!(
+                band_pi(N, e),
+                StableName {
+                    kind: EntityKind::Face,
+                    node: N,
+                    path: vec![RoleSeg::BandPi(e)],
+                }
+            );
+        }
     }
 
     #[test]
     fn band_rim_mints_the_hand_spelled_edge() {
-        assert_eq!(
-            band_rim(N, 1, 2),
-            StableName {
-                kind: EntityKind::Edge,
-                node: N,
-                path: vec![RoleSeg::BandRim(ProfileVertexRef {
-                    loop_index: 1,
-                    vertex: 2,
-                })],
-            }
-        );
-        assert_eq!(
-            band_rim(N, 0, 2),
-            StableName {
-                kind: EntityKind::Edge,
-                node: N,
-                path: vec![RoleSeg::BandRim(ProfileVertexRef {
-                    loop_index: 0,
-                    vertex: 2,
-                })],
-            }
-        );
+        for e in edges() {
+            assert_eq!(
+                band_rim(N, e.start()),
+                StableName {
+                    kind: EntityKind::Edge,
+                    node: N,
+                    path: vec![RoleSeg::BandRim(e.start())],
+                }
+            );
+        }
     }
 
     #[test]
     fn meridian_vertex_mints_the_hand_spelled_vertex() {
+        for e in edges() {
+            assert_eq!(
+                meridian_vertex(MeridianEnd::Seam, N, e.start()),
+                StableName {
+                    kind: EntityKind::Vertex,
+                    node: N,
+                    path: vec![RoleSeg::MeridianVertex(MeridianEnd::Seam, e.start())],
+                }
+            );
+        }
+    }
+
+    /// **A piece's vertex is spelled as the piece is**: the vertex
+    /// locator a piece starts at carries the same form, step or circle,
+    /// and role — and its wire text is the edge's, which is what lets
+    /// one piece text name both.
+    #[test]
+    #[allow(clippy::expect_used)]
+    fn a_pieces_start_is_spelled_as_the_piece() {
+        for e in edges() {
+            let v = e.start();
+            assert_eq!(v.step(), e.step());
+            assert_eq!(
+                serde_json::to_string(&v).expect("serializes"),
+                serde_json::to_string(&e).expect("serializes")
+            );
+        }
         assert_eq!(
-            meridian_vertex(MeridianEnd::Seam, N, 1, 2),
-            StableName {
-                kind: EntityKind::Vertex,
-                node: N,
-                path: vec![RoleSeg::MeridianVertex(
-                    MeridianEnd::Seam,
-                    ProfileVertexRef {
-                        loop_index: 1,
-                        vertex: 2,
-                    },
-                )],
-            }
+            serde_json::to_string(&edges()[0]).expect("serializes"),
+            r#"{"Piece":{"step":3,"role":"RunOut"}}"#
         );
         assert_eq!(
-            meridian_vertex(MeridianEnd::Seam, N, 0, 2),
-            StableName {
-                kind: EntityKind::Vertex,
-                node: N,
-                path: vec![RoleSeg::MeridianVertex(
-                    MeridianEnd::Seam,
-                    ProfileVertexRef {
-                        loop_index: 0,
-                        vertex: 2,
-                    },
-                )],
-            }
+            serde_json::to_string(&edges()[1]).expect("serializes"),
+            r#"{"Section":{"circle":"Bore","role":{"Piece":1}}}"#
         );
+    }
+
+    /// **A name's piece steps are its own path's and every carried
+    /// name's of this document, and never an `InPart` argument's** —
+    /// the other document's ids are not this one's.
+    #[test]
+    fn piece_steps_read_the_names_own_document_only() {
+        let wall = |node: u64, step: u64| StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
+                step: StepId(step),
+                role: PieceRole::Leg,
+            })],
+        };
+        let carried_wall = carried(RecipeNodeId(9), wall(1, 4));
+        assert_eq!(
+            carried_wall.piece_steps().into_iter().collect::<Vec<_>>(),
+            vec![StepId(4)]
+        );
+        let foreign = StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(9),
+            path: vec![RoleSeg::InPart {
+                of: NameRef::new(wall(1, 5)),
+            }],
+        };
+        assert!(foreign.piece_steps().is_empty());
+        let section = band(N, edges()[1]);
+        assert!(section.piece_steps().is_empty(), "a section has no step");
     }
 
     /// `carried` takes the INNER name's kind, which is the one field
@@ -1846,7 +1973,7 @@ mod tests {
     /// wraps an edge and asserts the wrapper is an edge.
     #[test]
     fn carried_mints_the_hand_spelled_wrapper_and_keeps_the_kind() {
-        let inner = band_rim(N, 0, 2);
+        let inner = band_rim(N, edges()[0].start());
         let outer = RecipeNodeId(9);
         assert_eq!(
             carried(outer, inner.clone()),
