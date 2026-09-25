@@ -1359,4 +1359,206 @@ mod tests {
         let wide = geom_core::Band::new(1e-9, 2e-9).unwrap();
         assert!(Cells::of(&body, &seg, wide).is_ok());
     }
+
+    /// The pieces [`cite_member_edges`] is run on: member 5's body
+    /// holding its one edge (x = 0 → 1), that member's table naming it,
+    /// and a union body holding two lone vertices on the edge (x = 0.25
+    /// and 0.75), returned in order ALONG the member edge — the order
+    /// every ranking of a group on it has to use.
+    struct CitedGroup {
+        union: RecipeNodeId,
+        member_body: topo::Body<f64>,
+        member_table: NameTable,
+        body: topo::Body<f64>,
+        along: [topo::VertexKey; 2],
+    }
+
+    impl CitedGroup {
+        fn new() -> Self {
+            let union = RecipeNodeId(9);
+            let mut member_body = topo::Body::<f64>::new();
+            let born = member_body
+                .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
+                .expect("mvfs births a lone vertex");
+            let edge = member_body
+                .mev_line(
+                    topo::MevSite::Lone {
+                        r#loop: born.r#loop,
+                    },
+                    geom_core::Point3::new(1.0, 0.0, 0.0),
+                    geom_core::Tol::witness(),
+                )
+                .expect("mev grows the loop by one edge")
+                .edge;
+            let mut member_table = NameTable::new();
+            let keyed = member_edge(union, 5);
+            let [RoleSeg::FromMember { of, .. }] = keyed.path.as_slice() else {
+                unreachable!("member_edge is one FromMember segment")
+            };
+            member_table.insert((**of).clone(), edge_ref(edge)).unwrap();
+            let mut body = topo::Body::<f64>::new();
+            let mut lone = |x: f64| {
+                body.mvfs(geom_core::Point3::new(x, 0.0, 0.0))
+                    .expect("mvfs births a lone vertex")
+                    .vertex
+            };
+            let (low, high) = (lone(0.25), lone(0.75));
+            let seg = Segment::of_edge(&member_body, edge).unwrap();
+            let at = |v| seg.along(vertex_point(&body, v).unwrap());
+            let along = if at(low) < at(high) {
+                [low, high]
+            } else {
+                [high, low]
+            };
+            CitedGroup {
+                union,
+                member_body,
+                member_table,
+                body,
+                along,
+            }
+        }
+
+        fn members(&self) -> [Member<'_, f64>; 1] {
+            [Member {
+                node: RecipeNodeId(5),
+                body: &self.member_body,
+                table: &self.member_table,
+            }]
+        }
+
+        /// A piece of member 5's edge as the fold spells it once a step
+        /// has cut it in two.
+        fn piece(&self, rank: u32) -> StableName {
+            let mut n = member_edge(self.union, 5);
+            n.path
+                .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }));
+            n
+        }
+
+        /// A vertex name of the group: `side` against member 2's cap, in
+        /// name order as a union's seams are, ranked `rank` of 2 when
+        /// given.
+        fn named(&self, side: StableName, rank: Option<u32>) -> StableName {
+            let cap = member_cap(self.union, 2);
+            let line = if side < cap {
+                seam(side, cap)
+            } else {
+                seam(cap, side)
+            };
+            let mut path = vec![line];
+            path.extend(rank.map(|rank| RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 })));
+            vertex(self.union, path)
+        }
+
+        fn cite(&self, rows: Vec<(StableName, topo::VertexKey)>) -> Result<NameTable, NamingError> {
+            let mut t = NameTable::new();
+            for (name, v) in rows {
+                t.insert(
+                    name,
+                    crate::names::table::EntityRef {
+                        body: 0,
+                        key: EntityKey::Vertex(v),
+                    },
+                )
+                .unwrap();
+            }
+            let bnd = geom_core::Band::new(1e-9, 1e-6).unwrap();
+            cite_member_edges(t, &self.body, &self.members(), bnd)
+        }
+    }
+
+    /// **A seam-vertex group on one member edge is ranked along that
+    /// edge whether or not its vertices moved**, so `#k of 2` is the
+    /// same vertex in every member order.
+    ///
+    /// Two vertices of one seam, member 5's edge against member 2's cap.
+    /// In one member order a step cut the edge before the cap met it, so
+    /// the fold's names cite pieces and the group is re-ranked here. In
+    /// the other the edge was whole when the cap met it, so no name
+    /// moves, and the fold's ranks stand unless this pass ranks the group
+    /// itself. Here the fold ranked it the other way along the line, as
+    /// a carrier running against the member edge would: in the
+    /// accumulated body rather than the member's, or along a seam line.
+    /// No document reaches that today (no union in the review corpus
+    /// forms a group of two), which is why it is pinned on the pass.
+    #[test]
+    fn a_cited_group_ranks_along_its_member_edge_whether_or_not_it_moved() {
+        let g = CitedGroup::new();
+        let whole = member_edge(g.union, 5);
+        let [first, second] = g.along;
+        let cut = g
+            .cite(vec![
+                (g.named(g.piece(0), None), first),
+                (g.named(g.piece(1), None), second),
+            ])
+            .unwrap();
+        let whole_then = g
+            .cite(vec![
+                (g.named(whole.clone(), Some(0)), second),
+                (g.named(whole.clone(), Some(1)), first),
+            ])
+            .unwrap();
+        for (label, out) in [("cut first", &cut), ("whole when met", &whole_then)] {
+            for (rank, want) in [(0, first), (1, second)] {
+                let name = g.named(whole.clone(), Some(rank));
+                assert_eq!(
+                    out.lookup(&name),
+                    Some(&Entry::Unique(crate::names::table::EntityRef {
+                        body: 0,
+                        key: EntityKey::Vertex(want),
+                    })),
+                    "{label}: #{rank} of 2 is not the vertex {rank} along the member edge"
+                );
+            }
+            assert_eq!(out.len(), 2, "{label}: {out:?}");
+        }
+    }
+
+    /// **A group of several vertices sharing a name that is not one seam
+    /// refuses**: nothing says which line to rank them along. The name
+    /// here is a run of two lines whose first cites a piece of member 5's
+    /// edge, so the pass moves it.
+    #[test]
+    fn a_cited_group_that_is_not_one_seam_refuses() {
+        let g = CitedGroup::new();
+        let other = seam(member_cap(g.union, 3), member_cap(g.union, 4));
+        let run = |k| {
+            let one = g.named(g.piece(k), None);
+            let mut path = one.path;
+            path.push(other.clone());
+            vertex(g.union, path)
+        };
+        let err = g
+            .cite(vec![(run(0), g.along[0]), (run(1), g.along[1])])
+            .unwrap_err();
+        assert!(
+            matches!(err, NamingError::Emission { what } if what == CITED_GROUP_NOT_ONE_SEAM),
+            "{err:?}"
+        );
+    }
+
+    /// **A group on one seam neither of whose sides is a member edge
+    /// refuses**: there is no member edge to rank along. The seam's edge
+    /// side is an edge that itself cites a piece of member 5's edge, so
+    /// the pass moves it without making it a member edge.
+    #[test]
+    fn a_cited_group_with_no_member_edge_side_refuses() {
+        let g = CitedGroup::new();
+        let carrying = |k: u32| StableName {
+            kind: EntityKind::Edge,
+            node: g.union,
+            path: vec![seam(g.piece(k), member_cap(g.union, 3))],
+        };
+        let err = g
+            .cite(vec![
+                (g.named(carrying(0), None), g.along[0]),
+                (g.named(carrying(1), None), g.along[1]),
+            ])
+            .unwrap_err();
+        assert!(
+            matches!(err, NamingError::Emission { what } if what == CITED_GROUP_NO_MEMBER_EDGE),
+            "{err:?}"
+        );
+    }
 }
