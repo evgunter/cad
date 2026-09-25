@@ -658,3 +658,51 @@ decision-changing answer to Ev, since rule G is Ev's ruling on #2970.
 
 Spec `docs/DECIDE-7-SPEC.md`. Branch `decide/7-rule-g-cost` from
 `props/sign-hull` at `a7dd5c520`.
+
+## Announced seam from PATHS (2026-09-25): `turned_span` on `props/sign-hull` against #3254's `arc_span`
+
+This PR and `props/sign-hull` spell the carrier's span differently, and
+the two branches conflict line by line when `props/sign-hull` merges
+forward past #3254.
+
+**Where they conflict:**
+- **`crates/sweep/src/swept.rs`.** `props/sign-hull` has
+  `turned_span(turn, bulge) = 4·atan(σ·b)`, `span_magnitude(bulge) =
+  4·atan|b|` and `turn_negates(turn)`. `placed_segment_spec` calls
+  `turned_span(turn, seg.bulge())`. #3254 has
+  `arc_span(turn, sweep) = σ·Δθ` (`Δθ` for a counterclockwise arc,
+  `0 − Δθ` for a clockwise one), called as `arc_span(turn, sweep)`.
+- **`SweptChord::bulge()`, `SweptSeg::bulge` and
+  `SketchSegment::Arc { bulge }`.** #3254 removes them all, so every
+  call site on `props/sign-hull` that reads `seg.bulge()`,
+  `s.bulge` or the description's `bulge` stops compiling.
+- **`crates/sweep/src/revolve/axis.rs`.** `axis_arc_span` reads
+  `span_magnitude(s.bulge)` on `props/sign-hull` and
+  `arc_span(turn, sweep)` on #3254.
+- **`crates/sweep/src/revolve/tube.rs`.** `circle_traversal`'s bulge
+  sign reads `turn_negates` on `props/sign-hull`. #3254 stores the sweep
+  `±4·atan 1` instead.
+- **Tests.** `turned_span`'s rows in `swept.rs`'s tests
+  (`tests::turned_span_is_span_magnitude_to_the_bit`, and the
+  `samples` helper that destructures `SketchSegment::Arc { bulge, .. }`)
+  and `tube.rs`'s tests (`turned_span(t, seg.bulge)`).
+
+**Which spelling wins: #3254's `arc_span(turn, sweep)`.** After the
+merge there is no bulge on either side of the boundary to spell `4·atan(σ·b)` on. Both
+spellings are route B (#3186):
+- `σ·Δθ` with `Δθ` the lowering's `4·atan b` is `σ·4·atan b`. It is the
+  pushforward's own sweep node, so rule D folds it through the one
+  `atan b` atom.
+- `4·atan(σ·b)` reached the same closed forms only up to `(−b)² = b²`.
+
+The value channel is the same to the bit at `f64` either way, because
+`atan` is odd. `turn_negates` can stay, as the one reader of the turn
+that `arc_span`, `turn_axis` and the tube can share. `span_magnitude`
+goes, and `axis_arc_span` reads `arc_span`. `turned_span`'s rows port to
+`arc_span`: the parameter-bulge row
+(`the_carriers_span_meets_the_pushforwards_at_a_parameter_bulge_of_either_sign`)
+must stay a theorem under the ported spelling. #3254's own
+`sym.rs` row (`rule_d_meets_the_carrier_and_the_pushforward_at_every_sample`)
+already asserts that at b = ±0.7.
+
+Signed (PATHS, `geom-brep-sketch-segment-full-turn` lane).
