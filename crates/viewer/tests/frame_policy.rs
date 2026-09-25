@@ -27,7 +27,7 @@ use pncad::document::{
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{EntityKind, StableName};
-use pncad::select::ContactClass;
+use pncad::select::{ContactClass, HitTestError, NodePickError};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault, DisplayView, PruneReport, Withdrawn};
 use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
@@ -787,7 +787,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
 #[test]
 fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     let tol = Tol::witness();
-    let consequence = "no pick is answered and the picture is not redrawn until it builds";
+    let consequence = "until the index builds, no pick is answered and the picture is not redrawn";
 
     // A POISONED root: the extrude fails and the transform over it is
     // the root the index refuses on. The badge names the extrude.
@@ -874,6 +874,77 @@ fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
     let unread = frame::index_badge(Some(&refusal), None).expect("it badges");
     assert_eq!(unread.tone(), frame::Tone::Actionable);
     assert_eq!(unread.label(), format!("pick index: {refusal}"));
+
+    // A root that NEVER RAN, with an evaluation in hand: the tree draws
+    // it `Unevaluated` and `Advisory`, so there is no loud row above it
+    // to defer to, and quieting it would hide the only news there is.
+    let absent = RecipeNodeId(99);
+    assert!(
+        session
+            .evaluation()
+            .expect("landed")
+            .result(absent)
+            .is_none(),
+        "the fixture's absent id is absent"
+    );
+    let never_ran = pickindex::PickIndexError::Node {
+        node: absent,
+        error: NodePickError::Standing(HitTestError::NodeNotEvaluated { node: absent }),
+    };
+    let badge = frame::index_badge(Some(&never_ran), session.evaluation()).expect("it badges");
+    assert_eq!(badge.tone(), frame::Tone::Actionable);
+    assert_eq!(
+        badge.label(),
+        "pick index: root 99's bodies could not be tessellated or indexed: hit test: node 99 \
+         has no result in this evaluation — the pick names a node this run did not produce (a \
+         canceled suffix, or an id from another document)"
+    );
+}
+
+/// **The one path where the tree's blame and the index's words part**:
+/// a root the placement solve left without a pose because another mate
+/// in its cluster refused. The evaluation reports the root `Failed` in
+/// its own right, so the index's words say the ROOT failed; the tree
+/// draws the root downstream of the mate the fault blames, and the
+/// badge names that mate, because that is the row a reader can act on.
+#[test]
+fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
+    let tol = Tol::witness();
+    let bench = common::asm::bench("vnews-derived-mate", tol);
+    let mut session = common::asm::open_bench(&bench, tol);
+    let offender = common::insert(
+        &mut session,
+        SessionOp::AddMate {
+            a: common::head(common::asm::in_part(bench.post_b, &bench.post_top)),
+            b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+            class: ContactClass::Rest,
+            alignment: common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        },
+    );
+    session.pump();
+    let refusal = common::index_at(&session, common::asm::delta())
+        .expect_err("a root the solve refused refuses the index");
+    let pickindex::PickIndexError::Node {
+        node: root,
+        error: NodePickError::Standing(HitTestError::NodeFailed { node: failed }),
+    } = &refusal
+    else {
+        panic!("the root is Failed in the evaluation, not poisoned: {refusal:?}");
+    };
+    let badge = frame::index_badge(Some(&refusal), session.evaluation())
+        .expect("a refusal the cache holds is still badged");
+    assert_eq!(
+        (offender, *root, *failed),
+        (RecipeNodeId(3), RecipeNodeId(1), RecipeNodeId(1)),
+        "the fixture's ids: the index's words name the root, and the root is not the mate"
+    );
+    assert_eq!(
+        badge.label(),
+        "pick index: waits on feature 3, which failed — until the index builds, no pick \
+         is answered and the picture is not redrawn",
+        "the mate the tree blames, not the root the index's words name"
+    );
+    assert_eq!(badge.tone(), frame::Tone::Advisory);
 }
 
 /// **What the line could not do with a seam refusal.**

@@ -110,8 +110,10 @@
 //! clears `scene_fault` where a rebuild lands and [`crate::pane::viewport`]
 //! clears `projection_fault` where a matrix forms, which is the same
 //! work spelled as an assignment about the SEAM instead of a verdict
-//! about the chrome. [`index_badge`] needs none, because the pick
-//! cache was already holding its refusal. What the split buys is that
+//! about the chrome. [`index_badge`] needs none for its refusal,
+//! because the pick cache was already holding it; what it reads beside
+//! that — the landed evaluation, through the tree's blame — is held by
+//! the session and ends with the same landing. What the split buys is that
 //! no writer has to decide the fate of anyone else's sentence.
 //!
 //! So [`projection_badge`] is a badge — a read of the camera and the
@@ -1985,10 +1987,13 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// **What the chrome badges about the pick-index seam**, and `None`
 /// when the cache holds no refusal.
 ///
-/// The purest read of the three: the refusal is held by
-/// [`crate::pickcache::PickCache`] under its one-attempt-per (generation,
-/// δ) policy, so this asks the value that already knows and the badge
-/// stands for exactly as long as the policy holds the refusal.
+/// The refusal is held by [`crate::pickcache::PickCache`] under its
+/// one-attempt-per (generation, δ) policy, so the badge stands for
+/// exactly as long as the policy holds the refusal. The only other
+/// thing it reads is the landed evaluation, and only to ask the tree
+/// which row a refusal that follows from a failed node defers to (the
+/// section below); the cache clears its refusal on the landing that
+/// replaces that evaluation, so the two describe one run.
 ///
 /// It says the SEAM refused. What a pick against the missing index
 /// gets is [`unindexed_refusal`], on the line, because that is an
@@ -2011,9 +2016,27 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// two facts the cause does not. The refusal stops EVERY pick, on the
 /// healthy roots' bodies too, and it stops the picture: the scene is
 /// drawn from the index, so the viewport keeps its last picture until
-/// the index builds. Both are in the label; a pick aimed at the
-/// missing index is still refused on the line ([`unindexed_refusal`]),
-/// whose sentence points back at this badge for the reason.
+/// the index builds. Both are in the label, and nowhere else: a pick
+/// aimed at the missing index is refused on the line
+/// ([`unindexed_refusal`]), whose sentence says only that the last
+/// build refused or nothing has been evaluated yet — it gives no reason
+/// and names no node, so without this badge the reader would not learn
+/// why.
+///
+/// **The label names where the index stopped, not everything in its
+/// way.** The build returns at the FIRST root that refuses, in
+/// `doc.roots()` order, so a later root with a refusal of its own is
+/// not reached; the label says the index waits on this row and does
+/// not promise it builds once the row is fixed.
+///
+/// **The tooltip may name a different node from the label, on
+/// purpose.** The tooltip is the index's own words, which name the
+/// root the build refused on and, for a poisoned root, the kernel's
+/// nearest failed ancestor. The label names the tree's row, which for
+/// a root a mate refusal reached is the mate the fault blames rather
+/// than the root. The label is the one that matches the row a reader
+/// can act on, and the tooltip is kept unaltered because it is another
+/// layer's refusal ([`PickIndexError`]'s `Display`).
 ///
 /// Every other refusal is the index's own and stays
 /// [`Tone::Actionable`] in its own words — and so does a standing
@@ -2032,8 +2055,8 @@ pub fn index_badge(
         Some(cause) => Badge::read(
             PickIndexError::SUBJECT,
             format!(
-                "pick index: waits on {}, which failed — no pick is answered and the picture \
-                 is not redrawn until it builds",
+                "pick index: waits on {}, which failed — until the index builds, no pick is \
+                 answered and the picture is not redrawn",
                 crate::tree::node_number(cause)
             ),
             Tone::Advisory,
