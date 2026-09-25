@@ -10180,3 +10180,123 @@ mod offset_fit_door_rows {
         crate::fixtures::assert_certificates_agree("check 1's recertify door", &door, &free);
     }
 }
+
+/// The door roster, checked against the source: the module doc's list
+/// between the `door-roster` markers is the set of at-rest doors, and a
+/// door this file defines or the crate root re-exports that the list
+/// lacks — or a listed door that neither side has — fails here.
+///
+/// What it reads is source text, so what it cannot see is named: a door
+/// defined outside this file (`props`' measurement doors, or a future
+/// submodule), a door spelled by a macro or a `pub use … as` alias, a
+/// re-export further out (the `pncad` prelude, `pncad-py`), and a door
+/// whose name kept its shape while its meaning moved.
+#[cfg(test)]
+mod door_roster {
+    use std::collections::BTreeSet;
+
+    const SOURCE: &str = include_str!("validate.rs");
+    const LIB: &str = include_str!("lib.rs");
+    /// The tier-1 and tier-2 validators: public, and outside the matrix
+    /// because they take no form (the module doc says why).
+    const FORMLESS: [&str; 2] = ["validate", "validate_closed"];
+    const STEMS: [&str; 3] = ["validate_geometric", "validate_pseudomanifold", "contact_marks"];
+    /// The suffixes, in the one order they compose in.
+    const SUFFIXES: [&str; 3] = ["_certificate", "_declared", "_structural"];
+
+    fn roster() -> Vec<&'static str> {
+        let begin = SOURCE
+            .find("//! <!-- door-roster:begin -->")
+            .expect("the module doc carries the roster's begin marker");
+        let end = SOURCE
+            .find("//! <!-- door-roster:end -->")
+            .expect("the module doc carries the roster's end marker");
+        SOURCE[begin..end]
+            .lines()
+            .skip(1)
+            .map(|line| {
+                line.strip_prefix("//! - `")
+                    .and_then(|rest| rest.strip_suffix('`'))
+                    .unwrap_or_else(|| panic!("a roster line is \"//! - `door`\": {line:?}"))
+            })
+            .collect()
+    }
+
+    /// Every top-level `pub fn` this file defines, less the formless two.
+    fn defined() -> BTreeSet<&'static str> {
+        SOURCE
+            .lines()
+            .filter_map(|line| line.strip_prefix("pub fn "))
+            .map(|rest| {
+                let end = rest
+                    .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                    .unwrap_or(rest.len());
+                &rest[..end]
+            })
+            .filter(|name| !FORMLESS.contains(name))
+            .collect()
+    }
+
+    /// Every function the crate root re-exports from this module, less
+    /// the formless two (the re-export list's lower-case names).
+    fn exported() -> BTreeSet<&'static str> {
+        let start = LIB
+            .find("pub use validate::{")
+            .expect("the crate root re-exports the validators");
+        let body = &LIB[start + "pub use validate::{".len()..];
+        let body = &body[..body.find('}').expect("the re-export list closes")];
+        body.split(',')
+            .map(str::trim)
+            .filter(|name| name.starts_with(|c: char| c.is_ascii_lowercase()))
+            .filter(|name| !FORMLESS.contains(name))
+            .collect()
+    }
+
+    #[test]
+    fn door_roster_is_the_exported_set() {
+        let listed = roster();
+        let roster: BTreeSet<&str> = listed.iter().copied().collect();
+        assert_eq!(roster.len(), listed.len(), "a door listed twice: {listed:?}");
+        let defined = defined();
+        assert_eq!(
+            defined.difference(&roster).collect::<Vec<_>>(),
+            Vec::<&&str>::new(),
+            "a public door this file defines that the roster lacks"
+        );
+        assert_eq!(
+            roster.difference(&defined).collect::<Vec<_>>(),
+            Vec::<&&str>::new(),
+            "a roster door this file does not define"
+        );
+        let exported = exported();
+        assert_eq!(
+            exported.symmetric_difference(&roster).collect::<Vec<_>>(),
+            Vec::<&&str>::new(),
+            "the crate root's re-exports and the roster disagree"
+        );
+    }
+
+    /// Every door is a stem and its suffixes in their one order, and
+    /// every door holding a certified lane has its `_structural` twin
+    /// (H5 ruling 3) — so a hole in the matrix is a stated roster
+    /// decision, never a spelling drift.
+    #[test]
+    fn every_door_is_a_stem_and_ordered_suffixes_with_its_structural_twin() {
+        let roster: BTreeSet<&str> = roster().into_iter().collect();
+        for door in &roster {
+            let stem = STEMS
+                .iter()
+                .find(|stem| door.starts_with(**stem))
+                .unwrap_or_else(|| panic!("{door} begins with none of the three passes"));
+            let mut rest = &door[stem.len()..];
+            for suffix in SUFFIXES {
+                rest = rest.strip_prefix(suffix).unwrap_or(rest);
+            }
+            assert_eq!(rest, "", "{door}: suffixes out of order or unknown");
+            if !door.ends_with("_structural") {
+                let twin = format!("{door}_structural");
+                assert!(roster.contains(twin.as_str()), "{door} has no {twin}");
+            }
+        }
+    }
+}
