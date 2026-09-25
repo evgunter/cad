@@ -2151,11 +2151,11 @@ fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
         // `CONTACT_RECOURSE`): loosening ε cannot supply intent.
         ContactRefusal::Escalated { .. } => (
             "whether the declared faces touch is too close to call",
-            "Recourse: declare the contact, or move the geometry",
+            crate::contact::CONTACT_RECOURSE_MARKED,
         ),
         ContactRefusal::Undeclared { .. } => (
             "the faces touch with no declared contact behind them",
-            "Recourse: declare the contact, or move the geometry",
+            crate::contact::CONTACT_RECOURSE_MARKED,
         ),
         ContactRefusal::NotCertifiable { .. } => (
             "the kernel cannot yet check a contact between faces of these kinds",
@@ -2373,8 +2373,8 @@ impl fmt::Display for ValidationError {
             }
             Self::UndeclaredContact { contact, witness } => write!(
                 f,
-                "{contact} at {witness} is an undeclared contact. Recourse: declare the \
-                 contact, or move the geometry"
+                "{contact} at {witness} is an undeclared contact. {}",
+                crate::contact::CONTACT_RECOURSE_MARKED
             ),
             Self::StaleContactDeclaration { declaration } => write!(
                 f,
@@ -9373,9 +9373,8 @@ mod tests {
     /// figure comes from [`crate::chart_region::WITNESS_BUDGET`], so
     /// raising the cap moves this row with it instead of leaving it
     /// green over a state the guard can no longer reach; and each
-    /// arm's sentence is asserted as its carrier's own `Display`
-    /// output rather than as a fragment this row believes that
-    /// carrier emits.
+    /// arm's reason is asserted as its classifier's own output rather
+    /// than as a fragment this row believes the classifier emits.
     #[test]
     fn a_census_decline_names_the_lane_and_the_arm_that_declined() {
         let subject = CensusSubject::FacePair(FaceKey::default(), FaceKey::default());
@@ -9385,10 +9384,13 @@ mod tests {
                 cause: cause.clone(),
             }
             .to_string();
-            // The whole of what the lane said reaches the reader —
-            // `Display` on the cause, never `Debug`, which is the S6
-            // bug one variant over.
-            assert!(msg.contains(&cause.to_string()), "{msg}");
+            // The lane's reason reaches the reader as the classifier
+            // words it, with the one recourse that fits it — never the
+            // cause's `Debug`, which is the S6 bug one variant over,
+            // and never its library-caller sentence.
+            let (why, recourse) = super::classify_census_cause(&cause);
+            assert!(msg.ends_with(&format!("{why}. {recourse}")), "{msg}");
+            assert!(!msg.contains(&format!("{cause:?}")), "{msg}");
             msg
         };
 
@@ -9406,8 +9408,12 @@ mod tests {
         ));
         assert_ne!(thin, stopped);
         assert!(
-            stopped.contains(&format!("{over_cap}-segment")),
+            stopped.contains("their boundaries cross too many times for the check to finish"),
             "{stopped}"
+        );
+        assert!(
+            thin.contains("the faces' edges touch at this tolerance"),
+            "{thin}"
         );
         // And the blanket recourse the arm used to append to every
         // decline is gone: it is the inventory lanes' repair, and it
@@ -9436,7 +9442,15 @@ mod tests {
             cause: CensusUnsupportedCause::FaceUnboundable,
         }
         .to_string();
-        assert!(unboundable.contains("no boundary vertex"), "{unboundable}");
+        assert!(
+            unboundable.contains("a face has no corner to bound it by"),
+            "{unboundable}"
+        );
+        assert!(
+            contact.ends_with("There is no way through yet"),
+            "a declaration cannot move a configuration into the certifiable set, so the \
+             finding says plainly that nothing does yet: {contact}"
+        );
         assert_ne!(contact, unboundable);
     }
 

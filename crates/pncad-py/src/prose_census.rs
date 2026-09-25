@@ -2464,8 +2464,12 @@ impl fmt::Display for PlantedError {
             sources.len()
         );
         let sites = census(&sources);
+        // A floor against reading nothing, not a count to keep: it
+        // falls as `Debug` renderings leave the tree's `Display`s (the
+        // at-rest findings dropped their arena keys, 2026-09-24, taking
+        // the tree from ~340 sites to 280).
         assert!(
-            sites.len() > 300,
+            sites.len() > 200,
             "the same vacuity one level in: {} sites",
             sites.len()
         );

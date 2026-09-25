@@ -362,7 +362,7 @@ fn every_vertex_on_the_boundary_refuses_typed() {
     assert_eq!(placements.len(), 1, "{errors:?}");
     let what = undecidable_what(placements[0]).expect("the typed refusal");
     assert!(
-        what.contains("every vertex of the contained instance lies on the containing"),
+        what.contains("every corner of one lies on the other's boundary"),
         "{what}"
     );
     assert_eq!(errors.len(), 17, "{errors:?}");
@@ -641,7 +641,7 @@ fn a_spline_walled_container_is_refused_at_the_census_for_its_face_kind() {
     assert!(
         errors.iter().any(|e| matches!(
             e,
-            ValidationError::CensusUndecidable { what, .. } if what.contains("sound box")
+            ValidationError::CensusUndecidable { what, .. } if what.contains("no extent the check can bound")
         )),
         "and the census names the kind it cannot reach: {errors:?}"
     );

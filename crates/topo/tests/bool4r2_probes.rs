@@ -130,7 +130,7 @@ fn a_straddling_part_with_touch_only_crossings_is_blocked_on_an_unanalysed_touch
         matches!(
             placements[0],
             ValidationError::CensusUndecidable { what, .. }
-                if what.contains("no local side analysis yet")
+                if what.contains("the check cannot yet tell which side each is on")
         ),
         "{placements:?}"
     );
@@ -243,7 +243,7 @@ fn a_pierce_between_a_and_c_blocks_the_a_b_material_test() {
                 a: EntityId::Solid(o),
                 b: EntityId::Solid(i),
                 what,
-            } if *o == bracket && *i == part_solid && what.contains("not certified crossing-free")
+            } if *o == bracket && *i == part_solid && what.contains("another finding")
         )),
         "{placements:?}"
     );

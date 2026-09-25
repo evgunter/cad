@@ -73,7 +73,13 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
                 diag: in_band(),
                 steer: None,
             },
-            vec!["contradicted", "side_of_plane", topo::CONTACT_RECOURSE],
+            // The reason in words, read off the predicate; the
+            // predicate's name is developer detail and rides in `Debug`.
+            vec![
+                "contradicted",
+                "the geometry definitely disagrees with it",
+                topo::CONTRADICTION_RECOURSE,
+            ],
         ),
         (
             ContactRefusal::Escalated { diag: in_band() },
@@ -92,24 +98,23 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
     ];
     assert_f6_every_variant(&cases, &CONTACT_REFUSAL, &[], CONTACT_REFUSAL_FIELDS);
     // A `Fit` steer rides the contradiction rather than replacing the
-    // menu: the deferral is extra steering, not the recourse. Its own
-    // sentence names the `Fit { gap }` variant, so this arm is checked
-    // for content and dumps but not for the brace fingerprint — the
-    // brace is prose here, and the check that matters is that the
-    // rendering is still not the `Debug` dump. That is why it does not
-    // go through `assert_f6`: the shared door bans `{` unconditionally,
-    // and an arm whose own prose carries one cannot ask it not to.
+    // recourse: the deferral is extra steering. It renders in the
+    // user's words (`FIT_DEFERRAL_FOR_USERS`), never as the wire
+    // sentence with its `Fit { gap }` variant name — which is the
+    // brace this row now also refuses.
     let steered = ContactRefusal::Contradicted {
         diag: in_band(),
         steer: Some(topo::FIT_DEFERRAL),
     };
     let shown = steered.to_string();
-    for want in [topo::CONTACT_RECOURSE, topo::FIT_DEFERRAL] {
+    for want in [topo::CONTRADICTION_RECOURSE, topo::FIT_DEFERRAL_FOR_USERS] {
         assert!(shown.contains(want), "{shown:?} is missing {want:?}");
     }
     for dump in CONTACT_REFUSAL.identifiers() {
         assert!(!shown.contains(dump), "{shown:?} leaks the variant name");
     }
+    assert!(!shown.contains(topo::FIT_DEFERRAL), "{shown:?}");
+    assert!(!shown.contains('{'), "{shown:?}");
     assert_ne!(shown, format!("{steered:?}"));
     // The bare `Indeterminate` Display ends in the three-arm
     // coincidence sentence, whose "lower the tolerance" arm is wrong at

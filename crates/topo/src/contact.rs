@@ -123,6 +123,12 @@ pub const CONTACT_RECOURSE: &str = "declare the named contact class, or move the
 pub const FIT_DEFERRAL: &str = "a designed nonzero clearance is `Fit { gap }`, whose variant is \
      specified but not yet built — it lands with its first consumer";
 
+/// [`CONTACT_RECOURSE`] with the recourse marker, as a finding the
+/// viewer shows ends on it (`contact_recourse_is_one_sentence` holds
+/// the two spellings to one).
+pub(crate) const CONTACT_RECOURSE_MARKED: &str =
+    "Recourse: declare the named contact class, or move the geometry";
+
 /// What a person at the viewer reads for [`FIT_DEFERRAL`]. The constant
 /// itself is the wire's and the mate door's sentence (quoted verbatim
 /// by `editor-core`), so it cannot change; a rendered contradiction
@@ -268,8 +274,8 @@ impl core::fmt::Display for ContactRefusal {
             ),
             Self::Escalated { diag } => write!(
                 f,
-                "whether the declared faces touch is too close to call ({}), and no \
-                 declaration can decide it; {CONTACT_RECOURSE}",
+                "whether the declared faces touch escalated ({}), and no declaration can \
+                 bridge it; {CONTACT_RECOURSE}",
                 diag.payload()
             ),
             Self::Undeclared { diag } => write!(
@@ -338,6 +344,10 @@ mod tests {
     #[test]
     fn recourse_has_two_arms_and_no_tolerance_lever() {
         assert!(CONTACT_RECOURSE.contains("declare"), "{CONTACT_RECOURSE}");
+        assert_eq!(
+            CONTACT_RECOURSE_MARKED,
+            format!("Recourse: {CONTACT_RECOURSE}")
+        );
         assert!(CONTACT_RECOURSE.contains("move the geometry"));
         assert!(
             !CONTACT_RECOURSE.contains("tolerance"),

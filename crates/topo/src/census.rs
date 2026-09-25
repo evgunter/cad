@@ -4242,30 +4242,28 @@ mod tests {
     /// string literal (a predicate name is one word) and reds on one.
     #[test]
     fn the_backstop_writes_no_sentence_of_its_own() {
+        use test_utils::source::{Region, balanced_end, code_only, keeping};
         let src = include_str!("census.rs");
-        let start = src
+        let code = code_only(src);
+        let at = code
             .find("\nfn sweep_cross_solid_backstop")
             .expect("the backstop is in this file");
-        let len = src[start + 1..]
-            .find("\n}\n")
-            .expect("the backstop's closing brace");
-        let body = &src[start..start + 1 + len];
-        // Comments stripped line by line, then the literals read off the
-        // whole text: a sentence continued with `\` spans lines.
-        let code: String = body
-            .lines()
-            .map(|line| line.split("//").next().unwrap_or(""))
-            .collect::<Vec<_>>()
-            .join("\n");
-        let sentences: Vec<&str> = code
-            .split('"')
-            .skip(1)
-            .step_by(2)
-            .filter(|literal| literal.contains(' '))
+        let open = at + code[at..].find('{').expect("the backstop's body");
+        let close = balanced_end(&code, open).expect("the backstop's closing brace");
+        // Every space marked before lexing, then only the literals
+        // kept: a literal still holding a mark had a space in it — a
+        // sentence, where a predicate name is one word.
+        let marked = src[open..=close].replace(' ', "\u{1}");
+        let literals = keeping(&marked, &[Region::Literal]);
+        let sentences: Vec<String> = literals
+            .split([' ', '\n'])
+            .filter(|literal| literal.contains('\u{1}'))
+            .map(|literal| literal.replace('\u{1}', " "))
             .collect();
         assert!(
             sentences.is_empty(),
-            "the backstop writes a `what` inline; name an `Undecided` reason instead: {sentences:#?}"
+            "the backstop writes a `what` inline; name an `Undecided` reason instead: \
+             {sentences:#?}"
         );
     }
 
@@ -4423,10 +4421,9 @@ mod tests {
         let near = refusals(0.3, 0.7);
         assert!(
             !near.is_empty()
-                && near.iter().all(|r| r.contains(
-                    "a surface kind with no cheap sound box leaves the containing \
-                     instance's extent unclaimable"
-                )),
+                && near
+                    .iter()
+                    .all(|r| r.ends_with(Undecided::Unclaimable.what())),
             "the placeholder seed must reach the TYPED refusal, not the in-band \
              fallout of a NaN box: {near:?}"
         );
@@ -4516,7 +4513,7 @@ mod tests {
             .collect();
         assert_eq!(whats.len(), 1, "{errors:?}");
         assert!(
-            whats[0].contains("a face kind the point-in-solid door does not serve"),
+            whats[0] == Undecided::FaceKindUnsupported.what(),
             "{whats:?}"
         );
         assert!(

@@ -296,7 +296,9 @@ class TestTheRefusalsShape(unittest.TestCase):
     def test_the_message_is_the_kernel_s_own_diagnosis(self):
         message = str(self.refusal())
         self.assertIn("is an undeclared contact", message)
-        self.assertIn("Recourse: declare the contact, or move the geometry", message)
+        self.assertIn(
+            "Recourse: declare the named contact class, or move the geometry", message
+        )
 
     def test_the_census_findings_arrive_as_prose(self):
         """The tier-3′ arms are the ones that reach a caller through a

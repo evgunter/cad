@@ -3439,7 +3439,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
         "the finding still names its entities and its witness: {message}"
     );
     assert!(
-        message.ends_with("Recourse: declare the contact, or move the geometry"),
+        message.ends_with("Recourse: declare the named contact class, or move the geometry"),
         "the undeclared-contact recourse is the actionable half: {message}"
     );
 }

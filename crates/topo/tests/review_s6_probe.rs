@@ -16,16 +16,17 @@ use topo::{
     validate_pseudomanifold,
 };
 
-/// The recourse a message must carry exactly once. Contact-tier
-/// findings carry the TWO-arm contact menu (SELECT-DESIGN §3d,
-/// ratified: declare the named class / move the geometry); every other
-/// site keeps the three-arm decidability sentence, whose "lower the
-/// tolerance" arm is meaningful there and meaningless at a contact.
+/// The recourse a message must carry exactly once. An undeclared
+/// contact carries the TWO-arm contact menu (SELECT-DESIGN §3d,
+/// ratified: declare the named class / move the geometry); a
+/// contradicted declaration carries its own — re-declaring what the
+/// geometry refutes is no way through; every other site keeps the
+/// three-arm decidability sentence, whose "lower the tolerance" arm is
+/// meaningful there and meaningless at a contact.
 fn recourse_for(e: &ValidationError) -> &'static str {
     match e {
-        ValidationError::UndeclaredContact { .. } | ValidationError::ContactContradicted { .. } => {
-            topo::CONTACT_RECOURSE
-        }
+        ValidationError::UndeclaredContact { .. } => topo::CONTACT_RECOURSE,
+        ValidationError::ContactContradicted { .. } => topo::CONTRADICTION_RECOURSE,
         _ => COINCIDENCE_RECOURSE,
     }
 }
