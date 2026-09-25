@@ -160,10 +160,16 @@
 //!   `N` and `D` are written apart — `sqrt(N)` for `N = Q·D` is its
 //!   own atom, and meeting it needs `sqrt(Q·D) = sqrt(Q)·sqrt(D)`, a
 //!   factorisation of `N` this tier does not take. Asking the split
-//!   FIRST trades the other way and worse: it keeps that meeting but
-//!   loses the boss's (`sqrt(5p⁶)/sqrt(p⁴)` keys `|p³|/p²`, not `|p|`)
-//!   wherever the ring lets the split through. No measured document
-//!   moves on the lost shape. `decide_4_root_quotient_rows` pins both
+//!   FIRST trades the other way: it keeps that meeting, but it makes
+//!   the quotient's reach depend on the ring. Wherever the ring lets
+//!   the split through, `sqrt(5p⁶)/sqrt(p⁴)` keys `|p³|/p²` and not
+//!   `|p|`. The MEASURED boss is still taken under that order, because
+//!   there the split declines on the ring, but the dyadic twin of its
+//!   shape is not. Run split-first, `decide_4_root_quotient_rows` reds
+//!   four rows: the boss's dyadic shape, a sign-carrying square over a
+//!   squared denominator, the signed-denominator meeting, and the trade
+//!   rows. Quotient-first keys the root the same way at every ring
+//!   width. No measured document moves on the lost shape. `decide_4_root_quotient_rows` pins both
 //!   spellings as the trade, and
 //!   `work/decide/the-exact-quotient-re-keys-a-root-the-split-met`
 //!   carries them with the remedy, a canonical factorisation of a

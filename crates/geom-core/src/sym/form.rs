@@ -271,50 +271,128 @@ impl Poly {
     /// **`Q` with `self = Q·d` exactly**, for a non-constant `d`; `None`
     /// wherever `d` does not divide `self` or the division declines.
     ///
-    /// Division by the leading term under [`grlex`]: each step takes
-    /// the remainder's leading term `r`, divides it by `d`'s leading
-    /// term `l` (declining where `l`'s monomial does not divide `r`'s),
-    /// and subtracts `t·d` for that quotient term `t`. **The invariant,
-    /// held exactly at every step, is `rest = self − q·d`**: it holds
-    /// at the start (`rest = self`, `q = 0`), and a step adds `t` to
-    /// `q` and subtracts `t·d` from `rest` in the exact ring. So a
-    /// `rest` that reaches zero IS the statement `self = q·d`, and no
-    /// product needs checking afterwards. A step cannot drop a term:
-    /// every arithmetic refusal answers `None`, never a truncated form.
+    /// **Two necessary conditions first, at the cost of four monomials.**
+    /// Under the monomial order [`grlex`], `lead(Q·d) = lead(Q)·lead(d)`
+    /// and `trail(Q·d) = trail(Q)·trail(d)`, so an exact division needs
+    /// `lead(d) | lead(self)` and `trail(d) | trail(self)` as monomials.
+    /// Either failing declines before a single step — which is where
+    /// nearly every root argument that is not an exact quotient goes.
     ///
-    /// Under a monomial order `t·d`'s leading term is `t·l = r`, so each
-    /// step cancels `rest`'s leading term and adds only smaller ones,
-    /// and each `t` is a distinct monomial — so `q` gains one term per
-    /// step. The step cap is therefore the budget's own term cap: a
-    /// quotient past `budget.max_terms` terms is not a form the tier
-    /// can hold (`within` refuses it), so no second constant stands
-    /// beside the budget. Each `t·d` is one term times `d`, inside the
-    /// budget's pair bound whenever `d` is.
+    /// **Then division by the leading term.** Each step takes the
+    /// remainder's grlex-largest term `r`, the quotient term `t = r /
+    /// lead(d)` (declining where the monomial does not divide), and
+    /// subtracts `t·d` from the remainder. **The invariant, held exactly
+    /// at every step, is `rest = self − q·d`**: it holds at the start
+    /// (`rest = self`, `q = 0`), and a step adds `t` to `q` and
+    /// subtracts `t·d` from `rest` in the exact ring — `t·lead(d)` IS the
+    /// term `r` the step removed (`t`'s coefficient is `r`'s over
+    /// `lead(d)`'s, exact), and the rest of `t·d` is merged in term by
+    /// term. So a `rest` that reaches zero IS the statement `self = q·d`,
+    /// and no product needs checking afterwards. Every arithmetic refusal
+    /// answers `None`, never a truncated form.
     ///
-    /// A refusal partway (the ring, an exponent, the pair bound) leaves
-    /// the cost profile's thread-local note set, although no node
-    /// froze. It is harmless: the caller always builds a form (the
-    /// quotient's root, or the atom it would have minted), so the node
-    /// is recorded as built and the note is never read — `form_in`
-    /// clears it before the next `combine`.
+    /// **Cost.** The remainder is held in a map ordered by [`grlex`], so a
+    /// step pops its leading term in `O(log n)` and merges `|d| − 1`
+    /// products in `O(|d|·log n)`: a division that runs is linear in
+    /// its steps times `|d|`, and `q` is collected once and sorted at the
+    /// end. Under a monomial order every product is smaller than the term
+    /// it replaces, so the leading term falls at every step and each `t`
+    /// is a new monomial: `q` gains one term per step, and the step cap
+    /// is the budget's own term cap — a quotient past `budget.max_terms`
+    /// terms is not a form the tier can hold. Measured in release:
+    /// - a division the conditions decline — `geom-core`'s
+    ///   `decide_4_root_quotient_rows::a_declined_division_costs_nothing_the_budget_allows`,
+    ///   the non-divisible `sqrt(x³⁴/(x² − y − z − u − v))`, whose
+    ///   trailing term fails — takes the whole DECISION 0.3 ms at a
+    ///   4096-term budget and 0.1 ms at 65536, with zero division steps,
+    ///   where a loop that rebuilds `q` and the remainder at every step
+    ///   spends its whole cap on the same shape: 0.78 s at 4096 and
+    ///   1.06 s at 16384;
+    /// - a division that passes both conditions and runs to its end
+    ///   before declining — `(xⁿ + 1)/(x − 1)`, whose remainder is the
+    ///   constant 2 — takes 4001 steps in 1.3 ms at `n = 4000` and
+    ///   60001 steps in 20 ms at `n = 60000` (a local timing, not a row):
+    ///   linear in the steps.
+    ///
+    /// A refusal partway (the ring, an exponent) leaves the cost
+    /// profile's thread-local note set, although no node froze. It is
+    /// harmless: the caller always builds a form (the quotient's root, or
+    /// the atom it would have minted), so the node is recorded as built
+    /// and the note is never read — `form_in` clears it before the next
+    /// `combine`.
     pub(super) fn div_exact(&self, d: &Self, budget: SymBudget) -> Option<Self> {
+        use std::collections::BTreeMap;
+        use std::collections::btree_map::Entry;
+
         if self.is_zero() || d.as_constant().is_some() || d.degree() > self.degree() {
             return None;
         }
         let (dm, dc) = leading(d)?;
+        mono_div(&leading(self)?.0, dm)?;
+        mono_div(&trailing(self)?.0, &trailing(d)?.0)?;
         let inverse = dc.recip()?;
-        let mut rest = self.clone();
-        let mut q = Self::zero();
-        for _ in 0..=budget.max_terms {
-            let Some((rm, rc)) = leading(&rest) else {
-                return Some(q);
-            };
-            let t = Self::term(mono_div(rm, dm)?, rc.mul(&inverse)?);
-            rest = rest.add(&t.mul(d, budget)?.neg()?)?;
-            q = q.add(&t)?;
+        let mut rest: BTreeMap<GrlexKey, Rat> = self
+            .terms()
+            .iter()
+            .map(|(m, c)| (GrlexKey(m.clone()), c.clone()))
+            .collect();
+        let mut q: Vec<(Mono, Rat)> = Vec::new();
+        while let Some((GrlexKey(rm), rc)) = rest.pop_last() {
+            if q.len() >= budget.max_terms {
+                return None;
+            }
+            #[cfg(test)]
+            DIV_STEPS.set(DIV_STEPS.get() + 1);
+            let tm = mono_div(&rm, dm)?;
+            let tc = rc.mul(&inverse)?;
+            for (m, c) in d.terms() {
+                if m == dm {
+                    continue;
+                }
+                let product = tc.mul(c)?.neg()?;
+                match rest.entry(GrlexKey(mono_mul(&tm, m)?)) {
+                    Entry::Occupied(mut e) => {
+                        let sum = e.get().add(&product)?;
+                        if sum.is_zero() {
+                            e.remove();
+                        } else {
+                            *e.get_mut() = sum;
+                        }
+                    }
+                    Entry::Vacant(e) => {
+                        e.insert(product);
+                    }
+                }
+            }
+            q.push((tm, tc));
         }
-        None
+        q.sort_by(|a, b| a.0.cmp(&b.0));
+        Self::from_sorted_terms(q)
     }
+}
+
+/// A monomial ordered by [`grlex`] — the remainder map's key in
+/// [`Poly::div_exact`], so the leading term is the map's last.
+#[derive(PartialEq, Eq)]
+struct GrlexKey(Mono);
+
+impl Ord for GrlexKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        grlex(&self.0, &other.0)
+    }
+}
+
+impl PartialOrd for GrlexKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+#[cfg(test)]
+thread_local! {
+    /// The steps [`Poly::div_exact`] took on this thread — read by the
+    /// unit rows that pin a decline as taken BEFORE any step.
+    static DIV_STEPS: core::cell::Cell<u64> = const { core::cell::Cell::new(0) };
 }
 
 /// **The exponent of `id` in `m`** — zero where the monomial does not
@@ -961,5 +1039,32 @@ mod tests {
         let d = x_plus(Rat::new(1, 1, 100).unwrap());
         let n = Poly::term(vec![(3, 40)], Rat::one());
         assert!(n.div_exact(&d, budget()).is_none());
+    }
+
+    /// **A division that is not exact declines BEFORE any step when a
+    /// necessary monomial condition fails**: `x³⁴ / (x² − y − z − u −
+    /// v)` has `trail(d) = v` (grlex's least degree-1 term) not
+    /// dividing `trail(x³⁴) = x³⁴`, so the division takes zero steps —
+    /// the shape a rebuild-per-step loop spent the budget's whole cap on.
+    #[test]
+    fn a_failed_necessary_condition_declines_before_any_step() {
+        let mut d = Poly::term(vec![(3, 2)], Rat::one());
+        for id in [5, 7, 9, 11] {
+            d.insert(vec![(id, 1)], Rat::new(-1, 1, 0).unwrap())
+                .unwrap();
+        }
+        let n = Poly::term(vec![(3, 34)], Rat::one());
+        DIV_STEPS.set(0);
+        assert!(n.div_exact(&d, budget()).is_none());
+        assert_eq!(
+            DIV_STEPS.get(),
+            0,
+            "declined by the monomial conditions alone"
+        );
+        // And a division that does run takes one step per quotient term.
+        let exact = d.mul(&d, budget()).unwrap();
+        DIV_STEPS.set(0);
+        assert_eq!(exact.div_exact(&d, budget()), Some(d.clone()));
+        assert_eq!(DIV_STEPS.get(), d.terms().len() as u64);
     }
 }

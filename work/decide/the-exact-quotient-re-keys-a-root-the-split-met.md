@@ -33,12 +33,23 @@ it takes.
 
 ## Why no order of the two steps keeps both meetings
 
-The measurement is DECIDE-4's fix pass. Asking the split FIRST keeps these
-two shapes but loses the boss's. On a dyadic chord, `sqrt(5p⁶)/sqrt(p⁴)`
-keys `|p³|/p²` and not `|p|`. The pinned row `the_bosss_shape_folds` is
-refused under that order. The same order also gives up the meeting
-`sqrt(Q·D/D) = sqrt(Q)` wherever `D`'s sign is proved
-(`the_quotient_spelling_with_a_signed_denominator_meets`).
+The measurement is DECIDE-4's fix pass (and review r1's mutant A1). Asking
+the split FIRST keeps these two shapes, and it still takes the MEASURED
+boss: `m10_bulge_the_bosss_split_at_the_nominal` passes under it,
+because on that document the split declines on the ring and the quotient
+is asked anyway. What it loses is ring-independence. Wherever the ring
+lets the split through, `sqrt(5p⁶)/sqrt(p⁴)` keys `|p³|/p²` and not
+`|p|`, so the boss's shape on a dyadic chord is refused.
+
+Split-first reds four rows of `decide_4_root_quotient_rows`:
+- `the_bosss_shape_folds`, the dyadic twin;
+- `a_sign_carrying_quotient_root_stays_a_magnitude`, a square over a
+  squared denominator;
+- `the_quotient_spelling_with_a_signed_denominator_meets`;
+- `the_split_spelling_is_what_the_quotient_trades`.
+
+The reason the quotient stays first is that its key does not depend on
+the ring width, and those four rows.
 
 ## The remedy
 

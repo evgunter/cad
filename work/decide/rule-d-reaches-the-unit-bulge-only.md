@@ -810,7 +810,11 @@ That is +0–3%, with every receipt but the boss's unmoved.
 **It is a trade.** The re-keyed root no longer meets the split
 spelling `sqrt(N)/sqrt(D)` of the same value. Both reviews found this,
 and no measured document moves on it. Asking the split first would keep
-that meeting but lose the boss's, so neither order keeps both.
+that meeting, and it still takes the measured boss, because the split
+declines on the ring there. But it loses the boss's shape wherever the
+ring lets the split through (its dyadic twin keys `|p³|/p²`) and reds
+four rows, so neither order keeps both. The quotient stays first
+because its key does not depend on the ring width.
 `the-exact-quotient-re-keys-a-root-the-split-met` (P2, filed here)
 carries both shapes and the remedy.
 

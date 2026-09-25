@@ -80,9 +80,16 @@ fn label(out: Result<Sign, geom_core::predicate::Indeterminate>, c: SymCounts) -
 /// parameter pinned at the low end, an interior point and the high end
 /// of its box encloses zero TIGHTLY there.
 fn assert_zero_pointwise(what: &str, shape: Shape) {
-    for f in [0.0, 0.3719, 1.0] {
+    // Three points on the box's diagonal, and one OFF it: `None` pins
+    // each parameter at its own fraction, drawn from its name, so two
+    // parameters of one shape sit at different fractions of their boxes.
+    for f in [Some(0.0), Some(0.3719), Some(1.0), None] {
         let pin = |name: &str, lo: f64, hi: f64| {
-            let v = lo + f * (hi - lo);
+            let g = f.unwrap_or_else(|| {
+                let h = name.bytes().fold(7u64, |h, b| h * 31 + u64::from(b));
+                ((h as f64) * 0.618_033_988_75).fract()
+            });
+            let v = lo + g * (hi - lo);
             over(name, v, v)
         };
         let (value, _) = with_session_rules(budget(), SymRules::shipped(), || shape(&pin).value);
@@ -91,7 +98,7 @@ fn assert_zero_pointwise(what: &str, shape: Shape) {
             .expect("a certified enclosure at a point");
         assert!(
             lo <= 0.0 && hi >= 0.0 && hi - lo < 1e-9,
-            "{what}: the tier SAYS ZERO and the residual at the point {f} of the box encloses \
+            "{what}: the tier SAYS ZERO and the residual at the point {f:?} of the box encloses \
              [{lo:e}, {hi:e}] — UNSOUND"
         );
     }
@@ -100,7 +107,12 @@ fn assert_zero_pointwise(what: &str, shape: Shape) {
 /// One decision under `rules` over the whole box, and the pointwise
 /// check behind every zero it claims.
 fn decide(what: &str, rules: SymRules, shape: Shape) -> String {
-    let (out, counts) = with_session_rules(budget(), rules, || {
+    decide_under(what, budget(), rules, shape)
+}
+
+/// [`decide`] under a chosen budget.
+fn decide_under(what: &str, budget: SymBudget, rules: SymRules, shape: Shape) -> String {
+    let (out, counts) = with_session_rules(budget, rules, || {
         geom_core::k_stats::decide(
             "decide_4_root_quotient_rows",
             Margin::of(shape(&over)),
@@ -146,8 +158,11 @@ fn assert_declines(what: &str, shape: Shape) {
 /// **The boss's shape.** `h` a chord deviation, `a + h` the chord half,
 /// the chord's polynomial to the fourth power in both halves, against
 /// `sqrt(5)·|a + h|`. `a` is dyadic so `(a + h)⁶`'s coefficients stay
-/// inside the ring; what declines the split here is that `D = (a + h)⁴`
-/// carries an odd power of `h`, so no form proves its sign.
+/// inside the ring — and so the split would NOT decline here: `D = (a +
+/// h)⁴` is a perfect square, `manifest::nonneg` proves it, and the
+/// split keys the root `sqrt(5)·|p³|/p²`, which does not meet `|p|`.
+/// The quotient asked first is what takes it (on the measured boss the
+/// split declines on the ring instead, and the quotient takes it too).
 #[test]
 fn the_bosss_shape_folds() {
     assert_folds("sqrt(5 p^6 / p^4) - sqrt(5)|p|, p = 1/2 + h", |p| {
@@ -340,6 +355,89 @@ fn a_near_miss_is_not_an_exact_quotient() {
         let q = lit(2.0) + t;
         ((q.powi(3) + lit(2.0_f64.powi(-80))) / q).sqrt() - q.abs()
     });
+}
+
+/// **A declined division costs nothing the budget allows.** `x³⁴`
+/// over the non-divisor `x² − y − z − u − v`, at the drive's 4096-term
+/// budget and at 65536: the division's trailing-term condition declines
+/// it before a step (`form`'s `a_failed_necessary_condition_declines_before_any_step`
+/// pins the zero step count), where a loop that rebuilt its remainder
+/// every step spent the whole cap — 0.78 s at 4096 in release, review
+/// r1's measurement. The row asserts the decline, not a time.
+#[test]
+fn a_declined_division_costs_nothing_the_budget_allows() {
+    let shape: Shape = |p| {
+        let x = p("x", 1.5, 2.0);
+        let d = x * x - p("y", 0.1, 0.2) - p("z", 0.1, 0.2) - p("u", 0.1, 0.2) - p("v", 0.1, 0.2);
+        let n = x.powi(34);
+        (n / d).sqrt() - n.sqrt() / d.sqrt()
+    };
+    for max_terms in [4096, 65536] {
+        let b = SymBudget {
+            max_terms,
+            max_degree: 128,
+        };
+        let t0 = std::time::Instant::now();
+        let on = decide_under(
+            &format!("budget {max_terms} [on]"),
+            b,
+            SymRules::shipped(),
+            shape,
+        );
+        println!(
+            "  budget {max_terms}: {on} in {:.4}s",
+            t0.elapsed().as_secs_f64()
+        );
+        let off = decide_under(
+            &format!("budget {max_terms} [off]"),
+            b,
+            SymRules::without_root_quotient(),
+            shape,
+        );
+        assert_eq!(on, off, "a non-divisor is not the rewrite's");
+    }
+}
+
+/// **A monomial division that ignores an indeterminate of the divisor
+/// would fold a non-quotient**: `x²/y` is not a polynomial, and a
+/// division reading `x² ÷ y` as `x²` would answer `sqrt(x²/y) = |x|`.
+/// Both orders of the two ids are asked, so whichever id sorts first a
+/// divisor-only indeterminate is met.
+#[test]
+fn a_divisor_indeterminate_the_numerator_lacks_declines() {
+    assert_declines("sqrt(x^2/y) - |x|", |p| {
+        let x = p("x", 0.5, 1.0);
+        let y = p("y", 2.0, 3.0);
+        (x.powi(2) / y).sqrt() - x.abs()
+    });
+    assert_declines("sqrt(y^2/x) - |y|", |p| {
+        let x = p("x", 2.0, 3.0);
+        let y = p("y", 0.5, 1.0);
+        (y.powi(2) / x).sqrt() - y.abs()
+    });
+}
+
+/// **A division that meets the step cap declines; it never answers the
+/// quotient it had so far.** Under a 3-term budget `(x⁴ − 1)/(x − 1)`
+/// needs 4 quotient terms; the first three are `x³ + x² + x`, and a
+/// division that returned them would call `sqrt(N/D) − sqrt(x³ + x² +
+/// x)` zero, which it is not (the pointwise check reds that).
+#[test]
+fn a_division_at_the_step_cap_answers_no_partial_quotient() {
+    let small = SymBudget {
+        max_terms: 3,
+        max_degree: 128,
+    };
+    let l = decide_under(
+        "sqrt((x^4-1)/(x-1)) - sqrt(x^3+x^2+x), 3-term budget",
+        small,
+        SymRules::shipped(),
+        |p| {
+            let x = p("x", 1.5, 2.0);
+            ((x.powi(4) - lit(1.0)) / (x - lit(1.0))).sqrt() - (x.powi(3) + x.powi(2) + x).sqrt()
+        },
+    );
+    assert_ne!(l, "theorem", "the partial quotient is not the quotient");
 }
 
 // ------------------------------------------------ 3. the negative rows
