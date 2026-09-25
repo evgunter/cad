@@ -402,8 +402,7 @@ pub enum Diagnosis {
     /// A statement about the groups the two runs recorded and the seams
     /// the two tables spell on the group's parent, nothing more: it
     /// states how many entities descend from the parent, and which
-    /// cutters' seams on it appeared or vanished, not why either
-    /// changed.
+    /// seams on it only one run spells, not why either changed.
     GroupResized {
         /// The vanished name's minting node, whose two tables were
         /// counted.
@@ -412,8 +411,9 @@ pub enum Diagnosis {
         was: u32,
         /// The group's entity count now; never equal to `was`.
         now: u32,
-        /// Which cutters' seams on the group's parent the two tables
-        /// differ by, or why the tables cannot say ([`GroupCutters`]).
+        /// The seams on the group's parent only one of the two tables
+        /// spells, by cutter, or why the tables cannot say
+        /// ([`GroupCutters`]).
         cutters: GroupCutters,
     },
     /// A structural parameter changed on the derivation path.
@@ -453,8 +453,9 @@ pub enum Diagnosis {
     },
 }
 
-/// Which cutters stopped or started cutting a resized group's parent,
-/// as [`Diagnosis::GroupResized`] reads them off the minting node's two
+/// The seams on a resized group's parent that only one of the two runs
+/// spells, each named by the cutter on its other side, as
+/// [`Diagnosis::GroupResized`] reads them off the minting node's two
 /// name tables ([`group_cutters`] states the reading and its limits).
 ///
 /// A CUTTER is the operand entity on the other side of a `Seam` row
@@ -462,21 +463,28 @@ pub enum Diagnosis {
 /// meets, the seam VERTICES an edge group's parent meets. Matched on the
 /// `Seam { a, b }` pair, never on the row, so a seam that is ranked or
 /// tied in one run and single in the other is the same cutter in both.
+///
+/// A seam is a crossing, not a division: a contact that only trims or
+/// notches the parent spells one as well as a contact that divides it,
+/// so a cutter listed here is one whose seam with the parent one run
+/// spells and the other does not — which says nothing about whether
+/// that seam was one of the group's boundaries.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GroupCutters {
-    /// Both tables were read. `gone` are the cutters whose seam with the
-    /// parent the last-good table spells and the current one does not;
-    /// `new` the reverse. Each is sorted and holds every such cutter, so
-    /// a list of two says two cutters changed, and both lists empty says
-    /// the parent's seams name the same cutters in both runs.
+    /// Both tables were read in full. `gone` are the cutters whose seam
+    /// with the parent the last-good table spells and the current one
+    /// does not; `new` the reverse. Each is sorted and holds every such
+    /// cutter, so a list of two names two seams' cutters, and both lists
+    /// empty says the two tables spell seams on the parent with the same
+    /// cutters.
     ///
     /// A cutter is compared by NAME. One an upstream edit RENAMED — the
     /// same operand entity re-qualified — reads as one gone and one new;
     /// this is a statement about spelled seams, not a claim that an
     /// entity was withdrawn.
     Read {
-        /// Cutters whose seam with the parent the last-good table
-        /// spells and the current one does not.
+        /// Cutters whose seam with the parent the last-good table spells
+        /// and the current one does not.
         gone: Vec<StableName>,
         /// Cutters whose seam with the parent the current table spells
         /// and the last-good one did not.
@@ -484,7 +492,8 @@ pub enum GroupCutters {
     },
     /// The group's emitter does not bound it with `Seam` rows on one
     /// parent name: a split's (face, side) group, whose one cutter is
-    /// the tool; a seam edge's chain; a merged face's; any vertex group.
+    /// the tool; a pair boolean's own seam chain or merged face; any
+    /// vertex group.
     NotSeamBounded,
     /// Tied parents (N2) share the name the seams are spelled on, in one
     /// run or both, so a seam on that name does not say which parent's
@@ -492,8 +501,121 @@ pub enum GroupCutters {
     TiedParents,
     /// The last-good table spells no seam on the parent, so the tables
     /// hold no cutter to compare against, and an empty comparison would
-    /// read as "no cutter changed".
+    /// read as "the same cutters".
     NoSeamOnRecord,
+    /// A row of either table spells a seam on the parent in a shape the
+    /// reading does not follow (anything but one `Seam` with only
+    /// `Fragment`s after it), so a comparison would be over part of the
+    /// seams and could name a cutter gone that is merely unread.
+    SeamUnread,
+}
+
+/// One cutter as [`GroupCutters`]' sentence names it: its name, and the
+/// role it has in the entity it denotes, in words — so two walls of one
+/// extrude read as two walls rather than as one name twice.
+struct Cutter<'a>(&'a StableName);
+
+impl core::fmt::Display for Cutter<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let leaf = descent_leaf(self.0);
+        write!(f, "the {} (", self.0)?;
+        match leaf.path.first() {
+            Some(seg) => role_words(f, seg)?,
+            None => write!(f, "no role")?,
+        }
+        if leaf.node != self.0.node {
+            write!(f, ", minted by node {}", leaf.node.0)?;
+        }
+        write!(f, ")")
+    }
+}
+
+/// The name a descent chain ends at: `name` with every `FromA`,
+/// `FromB`, `FromMember` and `FromTarget` wrapper looked through and
+/// every trailing `Fragment` dropped — the entity whose role the
+/// cutter's sentence spells.
+fn descent_leaf(name: &StableName) -> &StableName {
+    let mut n = name;
+    loop {
+        let head = &n.path[..fragment_tail_start(&n.path)];
+        n = match head {
+            [RoleSeg::FromA(i) | RoleSeg::FromB(i) | RoleSeg::FromTarget(i)]
+            | [RoleSeg::FromMember { of: i, .. }] => i,
+            _ => return n,
+        };
+    }
+}
+
+/// A role segment in words. Exhaustive, so a new segment is given words
+/// here or the compile breaks.
+fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Result {
+    use crate::names::{CapEnd, MeridianEnd};
+    let cap = |e: &CapEnd| match e {
+        CapEnd::Start => "start",
+        CapEnd::End => "end",
+    };
+    let meridian = |e: &MeridianEnd| match e {
+        MeridianEnd::Start => "start",
+        MeridianEnd::End => "end",
+        MeridianEnd::Seam => "seam",
+        MeridianEnd::Pi => "half-turn",
+    };
+    let seg_of = |e: &crate::names::ProfileEdgeRef| {
+        format!("profile segment {} of loop {}", e.segment, e.loop_index)
+    };
+    let vert_of = |v: &crate::names::ProfileVertexRef| {
+        format!("profile vertex {} of loop {}", v.vertex, v.loop_index)
+    };
+    match seg {
+        RoleSeg::OutputBody => write!(f, "the output body"),
+        RoleSeg::Cap(e) => write!(f, "the {} cap", cap(e)),
+        RoleSeg::Lateral(e) => write!(f, "the side wall over {}", seg_of(e)),
+        RoleSeg::RimEdge(c, e) => write!(f, "the {} rim edge over {}", cap(c), seg_of(e)),
+        RoleSeg::LateralEdge(v) => write!(f, "the lateral edge over {}", vert_of(v)),
+        RoleSeg::CapVertex(c, v) => write!(f, "the {} cap vertex over {}", cap(c), vert_of(v)),
+        RoleSeg::Band(e) => write!(f, "the band face over {}", seg_of(e)),
+        RoleSeg::BandRim(v) => write!(f, "the band rim over {}", vert_of(v)),
+        RoleSeg::BandRimPi(v) => write!(f, "the second band rim over {}", vert_of(v)),
+        RoleSeg::BandPi(e) => write!(f, "the second band face over {}", seg_of(e)),
+        RoleSeg::Meridian(m, e) => {
+            write!(f, "the {} meridian edge over {}", meridian(m), seg_of(e))
+        }
+        RoleSeg::MeridianVertex(m, v) => {
+            write!(f, "the {} meridian vertex over {}", meridian(m), vert_of(v))
+        }
+        RoleSeg::RevolveCap(m) => write!(f, "the {} wedge cap", meridian(m)),
+        RoleSeg::Pole(v) => write!(f, "the pole over {}", vert_of(v)),
+        RoleSeg::AxisEdge(e) => write!(f, "the axis edge over {}", seg_of(e)),
+        RoleSeg::FromA(_) | RoleSeg::FromB(_) | RoleSeg::FromTarget(_) => {
+            write!(f, "a carried entity")
+        }
+        RoleSeg::FromMember { .. } => write!(f, "a union member's entity"),
+        RoleSeg::Seam { .. } => write!(f, "a boolean seam"),
+        RoleSeg::Merged(_) => write!(f, "a merged face"),
+        RoleSeg::Fragment(_) => write!(f, "a fragment"),
+        RoleSeg::SplitBody(_) => write!(f, "a split body"),
+        RoleSeg::SectionFace { .. } => write!(f, "a split's section face"),
+        RoleSeg::SectionEdge { .. } => write!(f, "a split's section edge"),
+        RoleSeg::SplitFragment { .. } => write!(f, "a split face"),
+        RoleSeg::CrossingVertex { .. } => write!(f, "a split's crossing vertex"),
+        RoleSeg::OnToolVertex { .. } => write!(f, "a vertex on a split's tool"),
+        RoleSeg::BlendFace(_) => write!(f, "a blend face"),
+        RoleSeg::CornerFace(_) => write!(f, "a blend corner face"),
+        RoleSeg::TrimEdge { .. } => write!(f, "a blend trim edge"),
+        RoleSeg::FootVertex { .. } => write!(f, "a blend foot vertex"),
+        RoleSeg::EndArc { .. } => write!(f, "a blend end arc"),
+        RoleSeg::BandFace(_) => write!(f, "a band face"),
+        RoleSeg::BandTrim { .. } => write!(f, "a band trim edge"),
+        RoleSeg::BandFoot(_) => write!(f, "a band foot"),
+        RoleSeg::BandCross(_) => write!(f, "a band crossing"),
+        RoleSeg::BandCut(_) => write!(f, "a band cut"),
+        RoleSeg::BandSlit(_) => write!(f, "a band slit"),
+        RoleSeg::Inner(_) => write!(f, "an inner entity"),
+        RoleSeg::Rim(_) => write!(f, "a rim"),
+        RoleSeg::HoleRim { hole, .. } => write!(f, "the rim of hole {hole}"),
+        RoleSeg::InPart { .. } => write!(f, "an entity of a part"),
+        RoleSeg::Instance { i, .. } => write!(f, "an entity of instance {i}"),
+    }
 }
 
 // The cutter clause of [`Diagnosis::GroupResized`]'s sentence.
@@ -501,14 +623,14 @@ impl core::fmt::Display for GroupCutters {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         fn list(f: &mut core::fmt::Formatter<'_>, names: &[StableName]) -> core::fmt::Result {
             match names {
-                [one] => write!(f, "the {one}"),
+                [one] => write!(f, "{}", Cutter(one)),
                 many => {
                     write!(f, "{} cutters (", many.len())?;
                     for (i, n) in many.iter().enumerate() {
                         if i > 0 {
                             write!(f, "; ")?;
                         }
-                        write!(f, "the {n}")?;
+                        write!(f, "{}", Cutter(n))?;
                     }
                     write!(f, ")")
                 }
@@ -547,6 +669,11 @@ impl core::fmt::Display for GroupCutters {
                 f,
                 "which cutter changed is not on record, because the last-good run spells \
                  no seam on the parent"
+            ),
+            Self::SeamUnread => write!(
+                f,
+                "which cutter changed is not on record, because a seam on the parent is \
+                 spelled in a shape this reading does not follow"
             ),
         }
     }
@@ -1811,58 +1938,101 @@ fn group_resized<U: Decide, T: Decide>(
     let base = fragment_base(name)?;
     let prior_value = prior.value(name.node)?;
     prior_value.name_table.lookup(name)?;
-    let was = match group_size(&prior_value.fragment_groups, &base)? {
-        0 => return None,
-        was => was,
-    };
+    let was = group_reading(&prior_value.fragment_groups, &base)?;
+    if was.size == 0 {
+        return None;
+    }
     let new_value = new.value(name.node)?;
-    let now = group_size(&new_value.fragment_groups, &base)?;
-    (was != now).then(|| Diagnosis::GroupResized {
+    let now = group_reading(&new_value.fragment_groups, &base)?;
+    (was.size != now.size).then(|| Diagnosis::GroupResized {
         node: name.node,
-        was,
-        now,
+        was: was.size,
+        now: now.size,
         cutters: group_cutters(
-            (&prior_value.name_table, &prior_value.fragment_groups),
-            (&new_value.name_table, &new_value.fragment_groups),
+            &prior_value.name_table,
+            &new_value.name_table,
             &base,
+            prior_value.fragment_groups.is_folded(),
+            was.parents > 1 || now.parents > 1,
         ),
+    })
+}
+
+/// One run's reading of the groups under a base: one parent's size, and
+/// how many parents' groups share the base (more than one is a tie).
+struct GroupReading {
+    size: u32,
+    parents: usize,
+}
+
+/// One parent's group size under `base` in one run's record
+/// ([`group_resized`]'s count), with the number of groups that share
+/// the base: size `0` when no group is recorded there, `None` when the
+/// groups sharing the base (a tie's) differ in size, when the record
+/// cannot be read, or when the size does not fit the diagnosis's `u32`
+/// — the rung declines rather than report a saturated size two
+/// different groups would share.
+fn group_reading(groups: &crate::names::FragmentGroups, base: &StableName) -> Option<GroupReading> {
+    let sizes = groups.sizes(base)?;
+    let size = match sizes.as_slice() {
+        [] => 0,
+        [one, rest @ ..] => {
+            if !rest.iter().all(|s| s == one) {
+                return None;
+            }
+            u32::try_from(*one).ok()?
+        }
+    };
+    Some(GroupReading {
+        size,
+        parents: sizes.len(),
     })
 }
 
 /// [`Diagnosis::GroupResized`]'s cutters: the partners of the `Seam`
 /// rows spelled on the group's parent at the minting node, in the
 /// last-good table and in the current one, and which of them only one
-/// table spells ([`GroupCutters`]).
+/// table spells ([`GroupCutters`]). A statement about spelled seams: a
+/// cutter listed is one whose seam with the parent only one run spells,
+/// whether that seam divided the parent or only trimmed it.
 ///
-/// # Which seams bound the group
+/// # Which seams are read
 ///
-/// A group is divided where the op's seams cross its parent, and the
-/// emitter spells each crossing by the two operand entities that made
-/// it (`names::emit_topo`, `name_boolean_edges` and
+/// The emitter spells each crossing of the op by the two operand
+/// entities that made it (`names::emit_topo`, `name_boolean_edges` and
 /// `name_boolean_vertices`): a seam EDGE by two faces, so a face
-/// group's pieces meet the cutting faces along seam edges; a seam
-/// VERTEX by an edge and the face, edge or vertex it met, so an edge
-/// group's pieces end at seam vertices. So the rows read are the
-/// minting node's own rows of the kind one down from the group's — an
-/// edge for a face group, a vertex for an edge group — whose path is
-/// one `Seam { a, b }`, alone or with a `Fragment` after it (the pair
-/// is matched, not the row), and one side of which is the parent. A
-/// face group's seam VERTICES (a cutter's edge piercing the face) bound
-/// no piece of the face, and a seam JUNCTION (a run of seam lines, where
-/// lines meet and no operand entity does) names no parent; neither is
-/// read.
+/// group's parent meets its cutters along seam edges; a seam VERTEX by
+/// an edge and the face, edge or vertex it met, so an edge group's
+/// parent meets them at seam vertices. So the rows read are the minting
+/// node's own rows of the kind one down from the group's — an edge for
+/// a face group, a vertex for an edge group — with a `Seam` segment one
+/// side of which is on the parent. Such a row is read when it is one
+/// `Seam { a, b }` with only `Fragment`s after it, however many (the
+/// pair is matched, not the row). Any other shape on the parent makes
+/// the whole reading [`GroupCutters::SeamUnread`]: a comparison that
+/// skipped it could name a cutter gone that was only not read. A face
+/// group's seam VERTICES (a cutter's edge piercing the face) are of the
+/// wrong kind and never read.
 ///
 /// The parent is read off the group's base, per emitter:
 /// - a pair boolean's `FromA(p)` / `FromB(p)`: the seam's A side / B
 ///   side is `p`, spelled in the operand's table, and the cutter is the
-///   other side;
-/// - a union's `FromMember { .. }`, with any fold-accumulated
-///   `Fragment` tail: the seam's sides are in name order, so either side
-///   may be the parent, and a side that is the base or the base with
-///   `Fragment`s after it (a later fold step cutting one of the group's
-///   own pieces) is on the parent; the cutter is the other side;
+///   other side, verbatim — an operand's names are its own published
+///   identity, so a cutter the operand re-qualified reads as renamed;
+/// - a union's `FromMember { .. }`, carried `Seam { .. }` line or
+///   `Merged(..)` face, with any fold-accumulated `Fragment` tail: the
+///   union's seams are in name order, so either side may be the parent,
+///   and a side that is the base with only `Fragment`s after it (a
+///   later fold step cutting one of the group's own pieces) is on it.
+///   The cutter is the other side with ITS fold-accumulated `Fragment`
+///   tail dropped: a union's trailing fragments are the fold's, not the
+///   member's, so a cutter a fold step re-ranked or stopped dividing is
+///   the same cutter. A `Seam`-headed base is the pair case's
+///   `FromA(Seam ..)` — a seam line an earlier step minted, cut by a
+///   later step's seam vertices — read the same way;
 /// - any other base — a split's `SplitFragment` (its one cutter is the
-///   tool, which is no row), a seam edge's chain, a merged face's — is
+///   tool, which is no row), a pair boolean's own seam chain (pieces of
+///   one crossing, not pieces a seam divided) or merged face — is
 ///   [`GroupCutters::NotSeamBounded`].
 ///
 /// # When it names none
@@ -1870,31 +2040,42 @@ fn group_resized<U: Decide, T: Decide>(
 /// When the groups a tie shares the base among are more than one, in
 /// either run ([`GroupCutters::TiedParents`]): the seam lanes spell a
 /// crossing on the parent's NAME, which the tie shares, so which
-/// parent's group a seam bounds is not on record. And when the
-/// last-good table spells no seam on the parent at all
-/// ([`GroupCutters::NoSeamOnRecord`]): a group the prior run divided
-/// was divided by seams, so an empty prior read is a spelling this
-/// reading does not follow, and comparing it would state "no cutter
-/// changed" on no evidence.
+/// parent's group a seam bounds is not on record. When the last-good
+/// table spells no seam on the parent at all
+/// ([`GroupCutters::NoSeamOnRecord`]): comparing an empty prior read
+/// would state "the same cutters" on no evidence. And when a seam row
+/// on the parent has a shape the reading does not follow
+/// ([`GroupCutters::SeamUnread`]).
+///
+/// # What it does not see
+///
+/// A cutter VERTEX the kernel fuses onto the parent edge
+/// (`vertex_merges`: a touch, not a crossing) is spelled as the pass-down
+/// vertex it fused into, not as a `Seam` row, so a contact that went
+/// from a crossing to a touch reads as the cutter gone. Telling the two
+/// apart needs the body, which this reading does not consult.
 fn group_cutters(
-    (prior_table, prior_groups): (&crate::names::NameTable, &crate::names::FragmentGroups),
-    (new_table, new_groups): (&crate::names::NameTable, &crate::names::FragmentGroups),
+    prior_table: &crate::names::NameTable,
+    new_table: &crate::names::NameTable,
     base: &StableName,
+    union: bool,
+    tied: bool,
 ) -> GroupCutters {
-    let Some(parent) = SeamParent::of(base) else {
+    let Some(parent) = SeamParent::of(base, union) else {
         return GroupCutters::NotSeamBounded;
     };
-    let tied = |groups: &crate::names::FragmentGroups| {
-        groups.sizes(base).is_none_or(|sizes| sizes.len() > 1)
-    };
-    if tied(prior_groups) || tied(new_groups) {
+    if tied {
         return GroupCutters::TiedParents;
     }
-    let before = parent.cutters(base, prior_table);
+    let Some(before) = parent.cutters(base, prior_table) else {
+        return GroupCutters::SeamUnread;
+    };
     if before.is_empty() {
         return GroupCutters::NoSeamOnRecord;
     }
-    let after = parent.cutters(base, new_table);
+    let Some(after) = parent.cutters(base, new_table) else {
+        return GroupCutters::SeamUnread;
+    };
     GroupCutters::Read {
         gone: before.difference(&after).cloned().collect(),
         new: after.difference(&before).cloned().collect(),
@@ -1915,33 +2096,82 @@ enum SeamParent<'a> {
 }
 
 impl<'a> SeamParent<'a> {
-    fn of(base: &'a StableName) -> Option<Self> {
+    fn of(base: &'a StableName, union: bool) -> Option<Self> {
         // A face is divided by seam edges, an edge by seam vertices;
         // nothing divides a vertex or a body.
         if !matches!(base.kind, EntityKind::Face | EntityKind::Edge) {
             return None;
         }
-        match base.path.split_first()? {
-            (RoleSeg::FromA(p), []) => Some(Self::Pair {
+        let head = &base.path[..fragment_tail_start(&base.path)];
+        match (union, head) {
+            (false, [RoleSeg::FromA(p)]) if head.len() == base.path.len() => Some(Self::Pair {
                 parent: p,
                 a_side: true,
             }),
-            (RoleSeg::FromB(p), []) => Some(Self::Pair {
+            (false, [RoleSeg::FromB(p)]) if head.len() == base.path.len() => Some(Self::Pair {
                 parent: p,
                 a_side: false,
             }),
-            (RoleSeg::FromMember { .. }, tail)
-                if tail.iter().all(|s| matches!(s, RoleSeg::Fragment(_))) =>
-            {
+            (true, [RoleSeg::FromMember { .. } | RoleSeg::Seam { .. } | RoleSeg::Merged(_)]) => {
                 Some(Self::Union)
             }
             _ => None,
         }
     }
 
+    /// Whether `side`, one side of a seam, is on the parent of the group
+    /// `base` names.
+    fn holds(&self, base: &StableName, side: &StableName) -> bool {
+        match *self {
+            Self::Pair { parent, .. } => side == parent,
+            Self::Union => {
+                side.node == base.node
+                    && side.kind == base.kind
+                    && side.path.len() >= base.path.len()
+                    && side.path[..base.path.len()] == base.path[..]
+                    && fragment_tail_start(&side.path[base.path.len()..]) == 0
+            }
+        }
+    }
+
+    /// The cutter across a seam whose sides are `(a, b)`, or `None` when
+    /// neither side is on the parent.
+    fn across<'n>(
+        &self,
+        base: &StableName,
+        a: &'n StableName,
+        b: &'n StableName,
+    ) -> Option<&'n StableName> {
+        match *self {
+            Self::Pair { a_side: true, .. } => self.holds(base, a).then_some(b),
+            Self::Pair { a_side: false, .. } => self.holds(base, b).then_some(a),
+            Self::Union if self.holds(base, a) => Some(b),
+            Self::Union if self.holds(base, b) => Some(a),
+            Self::Union => None,
+        }
+    }
+
+    /// A cutter as the two runs are compared on it: verbatim in a pair,
+    /// its fold-accumulated `Fragment` tail dropped in a union.
+    fn normalized(&self, cutter: &StableName) -> StableName {
+        match self {
+            Self::Pair { .. } => cutter.clone(),
+            Self::Union => {
+                let mut c = cutter.clone();
+                c.path.truncate(fragment_tail_start(&c.path));
+                c
+            }
+        }
+    }
+
     /// The cutters `table` spells a seam with the parent of the group
-    /// `base` names against.
-    fn cutters(&self, base: &StableName, table: &crate::names::NameTable) -> BTreeSet<StableName> {
+    /// `base` names against, or `None` when a seam row on the parent has
+    /// a shape this reading does not follow.
+    fn cutters(
+        &self,
+        base: &StableName,
+        table: &crate::names::NameTable,
+    ) -> Option<BTreeSet<StableName>> {
         let seam_kind = match base.kind {
             EntityKind::Face => EntityKind::Edge,
             _ => EntityKind::Vertex,
@@ -1951,69 +2181,33 @@ impl<'a> SeamParent<'a> {
             if row.node != base.node || row.kind != seam_kind {
                 continue;
             }
-            let (RoleSeg::Seam { a, b }, [] | [RoleSeg::Fragment(_)]) =
-                (match row.path.split_first() {
-                    Some(split) => split,
-                    None => continue,
-                })
-            else {
+            let on_parent = row.path.iter().any(|seg| match seg {
+                RoleSeg::Seam { a, b } => self.across(base, a, b).is_some(),
+                _ => false,
+            });
+            if !on_parent {
                 continue;
-            };
-            let cutter = match *self {
-                Self::Pair {
-                    parent,
-                    a_side: true,
-                } => (**a == *parent).then_some(b),
-                Self::Pair {
-                    parent,
-                    a_side: false,
-                } => (**b == *parent).then_some(a),
-                Self::Union => {
-                    if on_union_parent(a, base) {
-                        Some(b)
-                    } else if on_union_parent(b, base) {
-                        Some(a)
-                    } else {
-                        None
-                    }
-                }
-            };
-            if let Some(c) = cutter {
-                out.insert((**c).clone());
             }
+            let (RoleSeg::Seam { a, b }, tail) = row.path.split_first()? else {
+                return None;
+            };
+            if fragment_tail_start(tail) != 0 {
+                return None;
+            }
+            out.insert(self.normalized(self.across(base, a, b)?));
         }
-        out
+        Some(out)
     }
 }
 
-/// Whether a union seam's `side` is the group's parent `base`, or one of
-/// the group's own pieces a later fold step cut: the base with only
-/// `Fragment`s after it.
-fn on_union_parent(side: &StableName, base: &StableName) -> bool {
-    side.node == base.node
-        && side.kind == base.kind
-        && side.path.len() >= base.path.len()
-        && side.path[..base.path.len()] == base.path[..]
-        && side.path[base.path.len()..]
-            .iter()
-            .all(|s| matches!(s, RoleSeg::Fragment(_)))
-}
-
-/// One parent's group size under `base` in one run's record
-/// ([`group_resized`]'s count): `0` when no group is recorded there,
-/// `None` when the groups sharing the base (a tie's) differ in size,
-/// when the record cannot be read, or when the size does not fit the
-/// diagnosis's `u32` — the rung declines rather than report a
-/// saturated size two different groups would share.
-fn group_size(groups: &crate::names::FragmentGroups, base: &StableName) -> Option<u32> {
-    match groups.sizes(base)?.as_slice() {
-        [] => Some(0),
-        [one, rest @ ..] => rest
-            .iter()
-            .all(|s| s == one)
-            .then(|| u32::try_from(*one).ok())
-            .flatten(),
-    }
+/// Where the trailing run of `Fragment` segments of `path` starts: the
+/// length of what they qualify. The one reading of "a name with only
+/// fragments after it", for the parent side, the cutter side and a seam
+/// row alike ([`group_cutters`]).
+fn fragment_tail_start(path: &[RoleSeg]) -> usize {
+    path.iter()
+        .rposition(|s| !matches!(s, RoleSeg::Fragment(_)))
+        .map_or(0, |i| i + 1)
 }
 
 /// The (from, to) sign pair iff `new` differs from `old` by exactly
@@ -2593,7 +2787,8 @@ fn continuous_only_change(
 #[cfg(test)]
 mod tests {
     //! [`group_cutters`]'s reading on hand tables: which rows it reads
-    //! as a seam on the parent, and the two places it names none.
+    //! as a seam on the parent, how it compares a cutter across runs,
+    //! and the places it names none.
     #![allow(clippy::unwrap_used, clippy::expect_used)]
 
     use super::*;
@@ -2622,6 +2817,7 @@ mod tests {
         }
     }
 
+    /// A pair boolean's group of `top()`'s pieces.
     fn base() -> StableName {
         StableName {
             kind: EntityKind::Face,
@@ -2630,7 +2826,21 @@ mod tests {
         }
     }
 
-    fn seam(kind: EntityKind, a: StableName, b: StableName, tail: Option<RoleSeg>) -> StableName {
+    /// `inner` as union member `member`'s entity, with `tail` after it.
+    fn member(member: u64, inner: StableName, tail: &[RoleSeg]) -> StableName {
+        StableName {
+            kind: inner.kind,
+            node: NODE,
+            path: core::iter::once(RoleSeg::FromMember {
+                member: RecipeNodeId(member),
+                of: NameRef::new(inner),
+            })
+            .chain(tail.iter().cloned())
+            .collect(),
+        }
+    }
+
+    fn seam(kind: EntityKind, a: StableName, b: StableName, tail: &[RoleSeg]) -> StableName {
         StableName {
             kind,
             node: NODE,
@@ -2638,13 +2848,13 @@ mod tests {
                 a: NameRef::new(a),
                 b: NameRef::new(b),
             })
-            .chain(tail)
+            .chain(tail.iter().cloned())
             .collect(),
         }
     }
 
-    fn rank(rank: u32, of: u32) -> Option<RoleSeg> {
-        Some(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of }))
+    fn rank(rank: u32, of: u32) -> RoleSeg {
+        RoleSeg::Fragment(Qualifier::OrderAlong { rank, of })
     }
 
     fn table(rows: Vec<StableName>) -> NameTable {
@@ -2667,73 +2877,146 @@ mod tests {
         t
     }
 
-    fn one_group() -> FragmentGroups {
-        FragmentGroups::from_sizes([(base(), 2)])
+    /// A pair boolean's reading of `prior` against `now`.
+    fn pair(prior: Vec<StableName>, now: Vec<StableName>) -> GroupCutters {
+        group_cutters(&table(prior), &table(now), &base(), false, false)
+    }
+
+    fn read(gone: Vec<StableName>, new: Vec<StableName>) -> GroupCutters {
+        GroupCutters::Read { gone, new }
     }
 
     /// A cutter is its `Seam` pair: ranked in one run and single in the
     /// other, it is the same cutter. A pair with the parent on the B
-    /// side, a seam of the wrong kind (a face group's seam VERTEX) and a
-    /// run of seam lines are not seams on this parent: the current table
-    /// alone carries them, so a reading that took any of them would name
-    /// its cutter new.
+    /// side and a seam of the wrong kind (a face group's seam VERTEX) are
+    /// not seams on this parent: the current table alone carries them,
+    /// so a reading that took either would name its cutter new.
     #[test]
     fn a_cutter_is_its_seam_pair_on_the_parents_side_and_kind() {
         let prior = vec![
-            seam(EntityKind::Edge, top(), face(5, 1), rank(0, 2)),
-            seam(EntityKind::Edge, top(), face(5, 1), rank(1, 2)),
+            seam(EntityKind::Edge, top(), face(5, 1), &[rank(0, 2)]),
+            seam(EntityKind::Edge, top(), face(5, 1), &[rank(1, 2)]),
         ];
-        let mut run = seam(EntityKind::Edge, top(), face(5, 3), None);
+        let now = vec![
+            seam(EntityKind::Edge, top(), face(5, 1), &[]),
+            seam(EntityKind::Edge, top(), face(5, 0), &[]),
+            seam(EntityKind::Edge, face(5, 2), top(), &[]),
+            seam(EntityKind::Vertex, top(), face(5, 3), &[]),
+        ];
+        assert_eq!(pair(prior, now), read(vec![], vec![face(5, 0)]));
+    }
+
+    /// A seam row with more than one `Fragment` after its pair is read
+    /// like any other: a cutter ranked once in one run and twice in the
+    /// other is not gone.
+    #[test]
+    fn a_seam_with_a_deep_fragment_tail_is_read() {
+        let prior = vec![seam(EntityKind::Edge, top(), face(5, 1), &[rank(0, 2)])];
+        let now = vec![seam(
+            EntityKind::Edge,
+            top(),
+            face(5, 1),
+            &[rank(0, 2), rank(1, 2)],
+        )];
+        assert_eq!(pair(prior, now), read(vec![], vec![]));
+    }
+
+    /// A seam row on the parent in a shape the reading does not follow —
+    /// here a run of seam lines — makes the whole reading unread, in
+    /// either run, rather than a comparison over the rest.
+    #[test]
+    fn an_unread_seam_on_the_parent_names_none() {
+        let mut run = seam(EntityKind::Edge, top(), face(5, 3), &[]);
         run.path.push(RoleSeg::Seam {
             a: NameRef::new(top()),
             b: NameRef::new(face(5, 2)),
         });
-        let now = vec![
-            seam(EntityKind::Edge, top(), face(5, 1), None),
-            seam(EntityKind::Edge, top(), face(5, 0), None),
-            seam(EntityKind::Edge, face(5, 2), top(), None),
-            seam(EntityKind::Vertex, top(), face(5, 3), None),
-            run,
-        ];
+        let plain = || seam(EntityKind::Edge, top(), face(5, 1), &[]);
         assert_eq!(
-            group_cutters(
-                (&table(prior), &one_group()),
-                (&table(now), &one_group()),
-                &base(),
-            ),
-            GroupCutters::Read {
-                gone: vec![],
-                new: vec![face(5, 0)],
-            }
+            pair(vec![plain(), run.clone()], vec![plain()]),
+            GroupCutters::SeamUnread
+        );
+        assert_eq!(
+            pair(vec![plain()], vec![plain(), run]),
+            GroupCutters::SeamUnread
         );
     }
 
     /// A prior table with no seam on the parent names no cutter, rather
-    /// than state that none changed.
+    /// than state that the cutters are the same.
     #[test]
     fn no_seam_on_the_parent_in_the_prior_table_names_none() {
-        let now = vec![seam(EntityKind::Edge, top(), face(5, 1), None)];
+        let now = vec![seam(EntityKind::Edge, top(), face(5, 1), &[])];
+        assert_eq!(pair(vec![], now), GroupCutters::NoSeamOnRecord);
+    }
+
+    /// Two groups under one base are two tied parents, whichever run
+    /// records them, read once per run.
+    #[test]
+    fn two_groups_under_one_base_read_as_tied_parents() {
+        let one = FragmentGroups::from_sizes([(base(), 2)]);
+        let tied = FragmentGroups::from_sizes([(base(), 2), (base(), 2)]);
+        assert_eq!(group_reading(&one, &base()).unwrap().parents, 1);
+        assert_eq!(group_reading(&tied, &base()).unwrap().parents, 2);
+        let rows = || table(vec![seam(EntityKind::Edge, top(), face(5, 1), &[])]);
         assert_eq!(
-            group_cutters(
-                (&table(vec![]), &one_group()),
-                (&table(now), &one_group()),
-                &base(),
-            ),
-            GroupCutters::NoSeamOnRecord
+            group_cutters(&rows(), &rows(), &base(), false, true),
+            GroupCutters::TiedParents
         );
     }
 
-    /// Two groups under one base, in either run, are tied parents: a seam
-    /// on their shared name bounds either one.
+    /// In a union a seam's sides are in name order, the parent may be
+    /// either, and a cutter's fold-accumulated `Fragment` tail is the
+    /// fold's: a wall another member divided in one run and not in the
+    /// other, or ranked differently, is the same cutter.
     #[test]
-    fn tied_parents_in_either_run_name_none() {
-        let rows = || table(vec![seam(EntityKind::Edge, top(), face(5, 1), None)]);
-        let tied = FragmentGroups::from_sizes([(base(), 2), (base(), 2)]);
-        for (prior, now) in [(&tied, &one_group()), (&one_group(), &tied)] {
-            assert_eq!(
-                group_cutters((&rows(), prior), (&rows(), now), &base()),
-                GroupCutters::TiedParents
-            );
-        }
+    fn a_union_cutter_is_compared_without_its_fold_tail() {
+        let base = member(1, top(), &[]);
+        let wall = |tail: &[RoleSeg]| member(3, face(5, 1), tail);
+        let prior = vec![
+            seam(EntityKind::Edge, wall(&[rank(0, 2)]), base.clone(), &[]),
+            seam(
+                EntityKind::Edge,
+                base.clone(),
+                member(3, face(5, 3), &[]),
+                &[],
+            ),
+        ];
+        let now = vec![seam(
+            EntityKind::Edge,
+            base.clone(),
+            wall(&[rank(0, 3)]),
+            &[],
+        )];
+        assert_eq!(
+            group_cutters(&table(prior), &table(now), &base, true, false),
+            read(vec![member(3, face(5, 3), &[])], vec![])
+        );
+    }
+
+    /// A union group whose base is a seam line an earlier fold step
+    /// minted is read like the pair's `FromA(Seam ..)`: the later step's
+    /// seam vertices on that line, and a piece of it, name its cutters.
+    #[test]
+    fn a_union_seam_line_group_is_read() {
+        let line = seam(
+            EntityKind::Edge,
+            member(1, top(), &[]),
+            member(3, face(5, 1), &[]),
+            &[],
+        );
+        let vertex = |on: StableName, cutter: StableName| StableName {
+            kind: EntityKind::Vertex,
+            ..seam(EntityKind::Vertex, on, cutter, &[])
+        };
+        let mut piece = line.clone();
+        piece.path.push(rank(1, 2));
+        let cutter = |seg| member(4, face(6, seg), &[]);
+        let prior = vec![vertex(line.clone(), cutter(0)), vertex(cutter(1), piece)];
+        let now = vec![vertex(line.clone(), cutter(0))];
+        assert_eq!(
+            group_cutters(&table(prior), &table(now), &line, true, false),
+            read(vec![cutter(1)], vec![])
+        );
     }
 }

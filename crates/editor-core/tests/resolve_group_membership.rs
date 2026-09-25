@@ -12,6 +12,13 @@
 //! - a split that stops dividing a face: the face passes through under
 //!   its UPSTREAM name, so no row is spelled from the fragment's base,
 //!   while the emitter's group for that face and side holds the face.
+//!
+//! The same arm's `cutters` names the seams on the group's parent only
+//! one run spells, by the cutter across each (`GroupCutters`), and the
+//! later rows pin it on real documents: a cutter that stops cutting, one
+//! that starts, two at once, a union's member-space cutters in every
+//! fold order, and a cutter a fold step re-qualified that is not read as
+//! gone and new.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -735,5 +742,75 @@ fn two_cutters_that_change_at_once_are_both_named() {
     gone.sort();
     for (n, d) in rows {
         assert_eq!(d, two_to_one(u, gone.clone(), vec![]), "{n:?}");
+    }
+}
+
+/// **A cutter a fold step re-qualified is the same cutter.**
+///
+/// The plate, the bar and a small block C standing across the bar's
+/// x = x0 wall beyond the plate's near edge, united with C before the
+/// plate: C divides that wall at an earlier fold step, so the union's
+/// seam vertices between the top's x-running rim edges and the wall
+/// spell the wall with the fold's `Fragment` after it. Sliding the bar
+/// 1.5 in x takes it off C and half off the plate: the x = x0 wall is
+/// whole and still cuts each rim edge, its seam spelled without the
+/// tail, and the x = x1 wall no longer meets them (2 → 1). Read with
+/// the tail, the x = x0 wall would be gone and new at once; the fold's
+/// tail is not the member's, so it is neither, and the one cutter gone
+/// is the x = x1 wall. Ranked edges: their names embed no partner, so
+/// no cascade answers first.
+#[test]
+fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
+    for order in [[0usize, 1, 2], [1, 0, 2]] {
+        let doc = ProfileDoc::empty_derived("group-cutters-refold", Tol::witness());
+        let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+        let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+        let (doc, tr) = insert(
+            doc,
+            Node::Transform {
+                input: bar,
+                translation: [len(0.0), len(0.0), len(0.0)],
+                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+                rotation_angle: ang(0.0),
+            },
+        );
+        let (doc, c) = block(doc, (0.5, 1.5), (-0.8, -0.5), 0.0, 2.0);
+        let m = [tr, c];
+        let (doc, u) = insert(
+            doc,
+            Node::Union {
+                members: vec![m[order[0]], m[order[1]], plate],
+                declare: None,
+            },
+        );
+        let ev1 = run(&doc, None);
+        let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::X), 1.5);
+        let ev2 = silent(run(&doc2, Some(&ev1)));
+        let ev1 = silent(ev1);
+        let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, e| {
+            matches!(e, Entry::Unique(_))
+                && n.kind == editor_core::EntityKind::Edge
+                && matches!(n.path.first(),
+                    Some(RoleSeg::FromMember { member, .. }) if *member == plate)
+        });
+        assert!(
+            !rows.is_empty(),
+            "{order:?}: no rim fragment vanished, so the row pins nothing"
+        );
+        let x1_wall = StableName {
+            kind: editor_core::EntityKind::Face,
+            node: u,
+            path: vec![RoleSeg::FromMember {
+                member: tr,
+                of: editor_core::NameRef::new(wall(bar, 1)),
+            }],
+        };
+        for (n, d) in rows {
+            assert_eq!(
+                d,
+                two_to_one(u, vec![x1_wall.clone()], vec![]),
+                "{order:?}: {n:?}"
+            );
+        }
     }
 }

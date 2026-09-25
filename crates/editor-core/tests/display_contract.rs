@@ -1262,42 +1262,71 @@ fn the_shadow_exec_refusal_states_which_wall_it_hit() {
 /// The group-size diagnosis states the group fact and nothing more:
 /// how many entities the group the emitter divided the fragment's
 /// parent into held and holds, the same sentence at every count, which
-/// cutters' seams on the parent the two tables differ by — every one,
-/// or none, or why the tables cannot say — and no cause. Exact
-/// sentences, so a clause that claims more cannot slip in.
+/// seams on the parent only one run spells — every cutter, each with
+/// its role in words so two walls of one extrude read as two, or none
+/// and why the tables cannot say — and no cause. Exact sentences, so a
+/// clause that claims more cannot slip in.
 #[test]
 fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
-    use editor_core::{EntityKind, GroupCutters, RoleSeg, StableName};
-    let cutter = |kind, node| StableName {
-        kind,
-        node: RecipeNodeId(node),
-        path: vec![RoleSeg::OutputBody],
+    use editor_core::{
+        CapEnd, EntityKind, GroupCutters, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg,
+        StableName,
     };
-    let vertex = cutter(EntityKind::Vertex, 5);
-    let face = cutter(EntityKind::Face, 6);
+    let vertex = StableName {
+        kind: EntityKind::Vertex,
+        node: RecipeNodeId(5),
+        path: vec![RoleSeg::CapVertex(
+            CapEnd::End,
+            ProfileVertexRef {
+                loop_index: 0,
+                vertex: 0,
+            },
+        )],
+    };
+    let wall = |segment| StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(6),
+        path: vec![RoleSeg::Lateral(ProfileEdgeRef {
+            loop_index: 0,
+            segment,
+        })],
+    };
+    // A union member's wall, as a union's seams spell it.
+    let member_wall = StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(8),
+        path: vec![RoleSeg::FromMember {
+            member: RecipeNodeId(7),
+            of: NameRef::new(wall(2)),
+        }],
+    };
     let cases = [
         (
             GroupCutters::Read {
                 gone: vec![vertex.clone()],
                 new: vec![],
             },
-            "the parent's seams with the vertex name minted by node 5 are gone",
+            "the parent's seams with the vertex name minted by node 5 (the end cap vertex \
+             over profile vertex 0 of loop 0) are gone",
         ),
         (
             GroupCutters::Read {
                 gone: vec![],
-                new: vec![face.clone()],
+                new: vec![member_wall],
             },
-            "the parent has new seams with the face name minted by node 6",
+            "the parent has new seams with the face name minted by node 8 (the side wall \
+             over profile segment 2 of loop 0, minted by node 6)",
         ),
         (
             GroupCutters::Read {
-                gone: vec![vertex.clone(), face.clone()],
-                new: vec![face.clone()],
+                gone: vec![wall(1), wall(3)],
+                new: vec![wall(0)],
             },
-            "the parent's seams with 2 cutters (the vertex name minted by node 5; the \
-             face name minted by node 6) are gone, and the parent has new seams with the \
-             face name minted by node 6",
+            "the parent's seams with 2 cutters (the face name minted by node 6 (the side \
+             wall over profile segment 1 of loop 0); the face name minted by node 6 (the \
+             side wall over profile segment 3 of loop 0)) are gone, and the parent has new \
+             seams with the face name minted by node 6 (the side wall over profile segment \
+             0 of loop 0)",
         ),
         (
             GroupCutters::Read {
@@ -1320,6 +1349,11 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
             GroupCutters::NoSeamOnRecord,
             "which cutter changed is not on record, because the last-good run spells no \
              seam on the parent",
+        ),
+        (
+            GroupCutters::SeamUnread,
+            "which cutter changed is not on record, because a seam on the parent is \
+             spelled in a shape this reading does not follow",
         ),
     ];
     for (was, now) in [(2, 1), (3, 0), (2, 3)] {
@@ -1348,7 +1382,12 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                     "NotSeamBounded",
                     "TiedParents",
                     "NoSeamOnRecord",
-                    "OutputBody",
+                    "SeamUnread",
+                    "CapVertex",
+                    "Lateral",
+                    "FromMember",
+                    "ProfileEdgeRef",
+                    "loop_index",
                 ],
             );
         }
