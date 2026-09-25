@@ -2093,9 +2093,8 @@ where, exhaustively:
 
   **What the rule cannot match**, stated because the claim above it is a
   universal: a link whose target is reached through a `use`, since the
-  link text then carries the in-scope name and not the defining crate.
-  `sketch.rs`'s `` [`ProfileVertex`] `` is one — it resolves into
-  `pncad`, and no path-shaped sweep can see it. A bare code span naming
+  link text then carries the in-scope name and not the defining crate,
+  and no path-shaped sweep can see it. A bare code span naming
   another crate is not a link at all and is unchecked in both passes.
 
   The ruling's second clause, `nightly.yml:291-293`'s

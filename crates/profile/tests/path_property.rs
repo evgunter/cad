@@ -215,9 +215,9 @@ proptest! {
         prop_assert_eq!(algebra.vertices().len(), pts.len());
         prop_assert!(algebra.tangent_joints().is_empty());
         for (k, q) in pts.iter().enumerate() {
-            prop_assert_eq!(algebra.vertices()[k].pos().x.to_bits(), q.x.to_bits());
-            prop_assert_eq!(algebra.vertices()[k].pos().y.to_bits(), q.y.to_bits());
-            prop_assert_eq!(algebra.vertices()[k].bulge().to_bits(), 0.0f64.to_bits());
+            prop_assert_eq!(algebra.vertices()[k].x.to_bits(), q.x.to_bits());
+            prop_assert_eq!(algebra.vertices()[k].y.to_bits(), q.y.to_bits());
+            prop_assert_eq!(algebra.bulges()[k].to_bits(), 0.0f64.to_bits());
         }
         validate_ok(&algebra);
     }
@@ -257,12 +257,12 @@ proptest! {
         // (vertex 3).
         let v = &algebra.vertices();
         prop_assert_eq!(v.len(), 5);
-        let d = seg_distance(anchor, v[2].pos(), v[3].pos());
+        let d = seg_distance(anchor, v[2], v[3]);
         prop_assert!(d < 1e-9, "anchor off its side by {d:e}");
         // Authored entry/targets are vertices, bit-for-bit.
-        prop_assert_eq!(v[0].pos().x.to_bits(), 0.0f64.to_bits());
-        prop_assert_eq!(v[4].pos().x.to_bits(), 0.0f64.to_bits());
-        prop_assert_eq!(v[4].pos().y.to_bits(), h.to_bits());
+        prop_assert_eq!(v[0].x.to_bits(), 0.0f64.to_bits());
+        prop_assert_eq!(v[4].x.to_bits(), 0.0f64.to_bits());
+        prop_assert_eq!(v[4].y.to_bits(), h.to_bits());
     }
 
     /// P3 — §4 item 1 totality across the tangent band: a departure
@@ -790,9 +790,9 @@ fn the_center_mode_stores_its_authored_endpoints_verbatim() {
         .unwrap();
     let lowered = pinned(lowered);
     validate_ok(&lowered);
-    assert_eq!(lowered.vertices()[0].pos().x.to_bits(), a.x.to_bits());
-    assert_eq!(lowered.vertices()[1].pos().x.to_bits(), b.x.to_bits());
-    assert_eq!(lowered.vertices()[1].pos().y.to_bits(), b.y.to_bits());
+    assert_eq!(lowered.vertices()[0].x.to_bits(), a.x.to_bits());
+    assert_eq!(lowered.vertices()[1].x.to_bits(), b.x.to_bits());
+    assert_eq!(lowered.vertices()[1].y.to_bits(), b.y.to_bits());
 }
 
 /// G1-5 — a director spelled as components must name a direction.
@@ -857,8 +857,7 @@ fn far_end_anchor_makes_its_authored_point_a_vertex() {
         lowered
             .vertices()
             .iter()
-            .any(|v| v.pos().x.to_bits() == far.x.to_bits()
-                && v.pos().y.to_bits() == far.y.to_bits()),
+            .any(|v| v.x.to_bits() == far.x.to_bits() && v.y.to_bits() == far.y.to_bits()),
         "the authored far vertex must be on the path verbatim"
     );
 }
@@ -956,7 +955,7 @@ fn exact_fit_far_end_absorbs_its_anchor_into_the_tangent_point() {
     let nearest = lowered
         .vertices()
         .iter()
-        .map(|v| (v.pos() - anchor).norm_squared().sqrt())
+        .map(|&v| (v - anchor).norm_squared().sqrt())
         .fold(f64::INFINITY, f64::min);
     assert!(
         nearest <= Tol::witness().get().eps,
@@ -964,7 +963,7 @@ fn exact_fit_far_end_absorbs_its_anchor_into_the_tangent_point() {
     );
     // No zero-length segment was minted for the absorbed anchor.
     for w in lowered.vertices().windows(2) {
-        let d = (w[1].pos() - w[0].pos()).norm_squared().sqrt();
+        let d = (w[1] - w[0]).norm_squared().sqrt();
         assert!(d > Tol::witness().get().eps, "degenerate segment of {d} m");
     }
 }
@@ -1114,15 +1113,15 @@ fn the_carrier_bound_lens_lowers_and_keeps_its_authored_point() {
     let tip = 0.75f64.sqrt();
     let lowered = lens(0.25).unwrap();
     assert_eq!(lowered.vertices().len(), 3, "entry + two tangent points");
-    assert_eq!(lowered.vertices()[0].pos().x.to_bits(), 0.0f64.to_bits());
-    assert_eq!(lowered.vertices()[0].pos().y.to_bits(), (-tip).to_bits());
+    assert_eq!(lowered.vertices()[0].x.to_bits(), 0.0f64.to_bits());
+    assert_eq!(lowered.vertices()[0].y.to_bits(), (-tip).to_bits());
     // No vertex sits at the DERIVED corner (0, +tip): it is filleted
     // away, and the algebra never had a chance to author it.
     for v in lowered.vertices() {
         assert!(
-            (v.pos().y - tip).abs() > 1e-9 || v.pos().x.abs() > 1e-9,
+            (v.y - tip).abs() > 1e-9 || v.x.abs() > 1e-9,
             "the derived corner must not appear as a vertex: {:?}",
-            v.pos()
+            v
         );
     }
     Profile::new(SketchPlane::xy(), vec![lowered])
@@ -1479,10 +1478,10 @@ proptest! {
         let lowered = pinned(lowered);
         // (5,0) the entry, t1 on the circle, t2 on the ray, (-3,h).
         prop_assert_eq!(lowered.vertices().len(), 4);
-        let t2 = lowered.vertices()[2].pos();
+        let t2 = lowered.vertices()[2];
         prop_assert!((t2.y - h).abs() < 1e-12, "t2 rides y = h: {:?}", t2);
         prop_assert!(t2.x > 0.0, "the trim point is short of the anchor: {:?}", t2);
-        let far = lowered.vertices()[3].pos();
+        let far = lowered.vertices()[3];
         prop_assert_eq!(far.x.to_bits(), (-3.0f64).to_bits());
         prop_assert_eq!(far.y.to_bits(), h.to_bits());
         validate_ok(&lowered);
@@ -1538,9 +1537,11 @@ fn sweep_and_arclen_legs_agree_bitwise() {
         .unwrap();
     assert_eq!(by_sweep.vertices().len(), by_len.vertices().len());
     for (a, b) in by_sweep.vertices().iter().zip(by_len.vertices().iter()) {
-        assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits());
-        assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits());
-        assert_eq!(a.bulge().to_bits(), b.bulge().to_bits());
+        assert_eq!(a.x.to_bits(), b.x.to_bits());
+        assert_eq!(a.y.to_bits(), b.y.to_bits());
+    }
+    for (a, b) in by_sweep.bulges().iter().zip(by_len.bulges().iter()) {
+        assert_eq!(a.to_bits(), b.to_bits());
     }
     validate_ok(&by_sweep);
 }
@@ -1576,12 +1577,7 @@ fn fused_point_incomings_author_their_anchor_on_path() {
     validate_ok(&bulge);
     // The authored anchor (4,0) lies ON the first emitted arc's carrier
     // (it is interior to the run, not a vertex).
-    assert!(
-        !bulge
-            .vertices()
-            .iter()
-            .any(|v| v.pos().x == 4.0 && v.pos().y == 0.0)
-    );
+    assert!(!bulge.vertices().iter().any(|v| v.x == 4.0 && v.y == 0.0));
 
     // Via and Center naming the SAME carrier (centre (2, 1.5) exact):
     // the circle through (0,0), (2,−1), (4,0).
@@ -1671,16 +1667,11 @@ fn fused_tangent_incomings_and_the_far_end_arrival() {
     let sweep = chain(false);
     let len = chain(true);
     for (a, b) in sweep.vertices().iter().zip(len.vertices().iter()) {
-        assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits());
-        assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits());
+        assert_eq!(a.x.to_bits(), b.x.to_bits());
+        assert_eq!(a.y.to_bits(), b.y.to_bits());
     }
     // The far-end anchor is a vertex, exactly as on straight chains.
-    assert!(
-        sweep
-            .vertices()
-            .iter()
-            .any(|v| v.pos().x == 0.0 && v.pos().y == 3.0)
-    );
+    assert!(sweep.vertices().iter().any(|v| v.x == 0.0 && v.y == 3.0));
     validate_ok(&sweep);
 }
 
@@ -1750,9 +1741,11 @@ fn radius_and_via_arrivals_complete_via_their_binders() {
             .unwrap(),
     );
     for (va, vb) in a.vertices().iter().zip(b.vertices().iter()) {
-        assert_eq!(va.pos().x.to_bits(), vb.pos().x.to_bits());
-        assert_eq!(va.pos().y.to_bits(), vb.pos().y.to_bits());
-        assert_eq!(va.bulge().to_bits(), vb.bulge().to_bits());
+        assert_eq!(va.x.to_bits(), vb.x.to_bits());
+        assert_eq!(va.y.to_bits(), vb.y.to_bits());
+    }
+    for (va, vb) in a.bulges().iter().zip(b.bulges().iter()) {
+        assert_eq!(va.to_bits(), vb.to_bits());
     }
     validate_ok(&a);
     // Via arrival: the SAME carrier named through a point on it.
@@ -1854,9 +1847,11 @@ fn ray_extension_is_tangent_fillet_bitwise() {
     let extended = chain(true);
     let spelled = chain(false);
     for (a, b) in extended.vertices().iter().zip(spelled.vertices().iter()) {
-        assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits());
-        assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits());
-        assert_eq!(a.bulge().to_bits(), b.bulge().to_bits());
+        assert_eq!(a.x.to_bits(), b.x.to_bits());
+        assert_eq!(a.y.to_bits(), b.y.to_bits());
+    }
+    for (a, b) in extended.bulges().iter().zip(spelled.bulges().iter()) {
+        assert_eq!(a.to_bits(), b.to_bits());
     }
     assert_eq!(extended.tangent_joints(), spelled.tangent_joints());
     validate_ok(&extended);
@@ -1892,11 +1887,7 @@ fn straight_continuation_subdivides_a_run_and_validates() {
         .line_to(Start, Tol::witness())
         .map(pinned)
         .unwrap();
-    let v: Vec<_> = lp
-        .vertices()
-        .iter()
-        .map(|x| (x.pos().x, x.pos().y))
-        .collect();
+    let v: Vec<_> = lp.vertices().iter().map(|x| (x.x, x.y)).collect();
     assert_eq!(v, vec![(0.0, 0.0), (2.0, 0.0), (4.0, 0.0), (4.0, 3.0)]);
     // The subdivision DECLARES its own zero-turn joint (Ev, in-chat,
     // 2026-09-02) — declaration by construction, as `.tangent()` is.
@@ -1936,8 +1927,8 @@ fn straight_continuation_inherits_the_tangent_bitwise() {
         .map(pinned)
         .unwrap();
     let v = lp.vertices();
-    let first = (v[1].pos().x - v[0].pos().x, v[1].pos().y - v[0].pos().y);
-    let second = (v[2].pos().x - v[1].pos().x, v[2].pos().y - v[1].pos().y);
+    let first = (v[1].x - v[0].x, v[1].y - v[0].y);
+    let second = (v[2].x - v[1].x, v[2].y - v[1].y);
     assert_eq!(first.0.to_bits(), second.0.to_bits());
     assert_eq!(first.1.to_bits(), second.1.to_bits());
     let theta = first.1.atan2(first.0);
@@ -2416,8 +2407,8 @@ fn r2_probe_bitwise_inheritance_is_transitive() {
     let v = lp.vertices();
     let d = |i: usize| {
         (
-            (v[i + 1].pos().x - v[i].pos().x).to_bits(),
-            (v[i + 1].pos().y - v[i].pos().y).to_bits(),
+            (v[i + 1].x - v[i].x).to_bits(),
+            (v[i + 1].y - v[i].y).to_bits(),
         )
     };
     assert_eq!(d(0), d(1), "doubling from the origin is exact");

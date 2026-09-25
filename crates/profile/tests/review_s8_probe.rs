@@ -78,7 +78,7 @@ fn check(
         .line_to(Start, Tol::witness())
         .expect("the sharp seam closes")
         .loop_;
-    let t1 = lp.vertices()[1].pos();
+    let t1 = lp.vertices()[1];
     // The pick must round the DUMPED corner, not the pair's mirror
     // crossing (the corner is the +y-side root; the mirror is its
     // reflection across the centre line): the emitted incoming tangent

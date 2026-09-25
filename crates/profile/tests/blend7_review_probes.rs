@@ -154,12 +154,13 @@ fn fillet_arc(lp: &ProfileLoop<f64>, r: f64) -> Option<(Point2<f64>, Point2<f64>
     for i in 0..n {
         let a = lp.vertices()[i];
         let b = lp.vertices()[(i + 1) % n];
-        if a.bulge() == 0.0 {
+        let bulge = lp.bulges()[i];
+        if bulge == 0.0 {
             continue;
         }
-        let (_, rf) = circle_from_bulge(a.pos(), b.pos(), a.bulge());
+        let (_, rf) = circle_from_bulge(a, b, bulge);
         if (rf - r).abs() < 1e-6 * r.max(1.0) {
-            return Some((a.pos(), b.pos(), a.bulge()));
+            return Some((a, b, bulge));
         }
     }
     None
@@ -378,13 +379,8 @@ fn p3_unbracketed_other_crossing_build_decoded() {
          (r+R=0.7) tangent pts=({:.4},{:.4})-({:.4},{:.4}) mid-dist-from-corner={d_corner:.4}",
         pf.x, pf.y, t1.x, t1.y, t2.x, t2.y
     );
-    for v in lp.vertices() {
-        println!(
-            "P3 vertex ({:.5},{:.5}) bulge {:.5}",
-            v.pos().x,
-            v.pos().y,
-            v.bulge()
-        );
+    for (v, b) in lp.vertices().iter().zip(lp.bulges()) {
+        println!("P3 vertex ({:.5},{:.5}) bulge {:.5}", v.x, v.y, b);
     }
     // The PR's claim: externally tangent at the OTHER crossing.
     assert!((din - 0.7).abs() < 1e-9, "|P-O_in| = {din}");
