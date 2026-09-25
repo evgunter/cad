@@ -1668,3 +1668,109 @@ fn a_loft_wall_whose_pairing_changes_vanishes() {
         "no wall pairs the old wall 1's pieces, so its name denotes nothing"
     );
 }
+
+/// Every name a two-section loft of squares mints that spells a piece
+/// of `sec1`, grouped by the canonical segment `k` whose piece it
+/// spells: the wall, the seam at the vertex that piece starts at, and
+/// the top rim.
+fn upper_section_names(
+    doc: &ProfileDoc,
+    [sec0, sec1, loft]: [RecipeNodeId; 3],
+) -> Vec<[StableName; 3]> {
+    (0..4)
+        .map(|k| {
+            [
+                loft_wall(doc, loft, [sec0, sec1], k),
+                fixture::ename(
+                    loft,
+                    RoleSeg::LoftSeam(vec![
+                        fixture::vpiece(doc, sec0, 0, k),
+                        fixture::vpiece(doc, sec1, 0, k),
+                    ]),
+                ),
+                fixture::rim_edge(loft, CapEnd::End, fixture::piece(doc, sec1, 0, k)),
+            ]
+        })
+        .collect()
+}
+
+/// **A loft's names follow every section's steps, the later ones
+/// included.** A wall or seam is one locator per section, so a
+/// `SetProgram` on the upper section moves a name exactly where it
+/// moves that section's locator: reshaping it with every step kept
+/// moves none, and the loft re-skins with every name live; dropping a
+/// step strands exactly the names spelling it, each reported DM7, and
+/// those alone denote nothing afterwards. The dropped step is stated
+/// as new, so the section still draws four segments and the loft still
+/// skins.
+///
+/// The walls are carried as paint keys and the edges in a blend's
+/// selection, so both DM7 arms are read: the store's and the payload's.
+#[test]
+fn a_later_sections_reshaping_moves_a_loft_name_only_where_it_drops_a_step() {
+    let (doc, secs) = lofted("loft-later-section", square_of(1.0), square_of(1.5));
+    let [_, sec1, loft] = secs;
+    let names = upper_section_names(&doc, secs);
+    let doc = names.iter().fold(doc, |d, [wall, _, _]| paint(&d, wall));
+    let edges = names
+        .iter()
+        .flat_map(|[_, seam, rim]| [seam.clone(), rim.clone()]);
+    let (doc, blend) = insert(doc, Node::fillet(loft, len(0.05), edges.collect()));
+    let report = |n: &StableName| {
+        if n.kind == EntityKind::Face {
+            Maintenance::StrandedAppearance { name: n.clone() }
+        } else {
+            Maintenance::Strand {
+                node: blend,
+                name: n.clone(),
+            }
+        }
+    };
+    let live = |doc: &ProfileDoc| {
+        let ev = fixture::run(doc, &EvalOptions::default());
+        let table = ev
+            .value(loft)
+            .unwrap_or_else(|| panic!("the loft evaluates: {:?}", corpus::failures(&ev)))
+            .name_table
+            .clone();
+        move |n: &StableName| table.lookup(n).is_some()
+    };
+
+    // Every step kept, every point moved: no name moves.
+    let kept = accepted(&doc, sec1, vec![square_of(1.25)], keep_all(&doc, sec1));
+    assert_eq!(kept.maintenance, Vec::new(), "no step was dropped");
+    let is_live = live(&kept.doc);
+    for n in names.iter().flatten() {
+        assert!(is_live(n), "{n:?} still denotes its entity");
+    }
+
+    // The step drawing the upper section's segment 1 dropped.
+    let dropped = match fixture::piece(&doc, sec1, 0, 1) {
+        ProfileEdgeRef::Piece { step, .. } => step,
+        other => panic!("a polygon's segment is a step's piece: {other:?}"),
+    };
+    let mut ids = keep_all(&doc, sec1);
+    let at = ids[0]
+        .iter()
+        .position(|id| *id == Some(dropped))
+        .expect("the section holds the step");
+    ids[0][at] = None;
+    let applied = accepted(&doc, sec1, vec![square_of(1.5)], ids);
+    let is_live = live(&applied.doc);
+    for (k, group) in names.iter().enumerate() {
+        for n in group {
+            let reported = applied.maintenance.contains(&report(n));
+            assert_eq!(
+                reported,
+                k == 1,
+                "{n:?} is reported exactly when it spells the step"
+            );
+            assert_eq!(
+                is_live(n),
+                k != 1,
+                "{n:?} denotes nothing exactly when stranded"
+            );
+        }
+    }
+    assert_eq!(applied.maintenance.len(), 3, "{:?}", applied.maintenance);
+}

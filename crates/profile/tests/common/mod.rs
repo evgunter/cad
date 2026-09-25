@@ -373,36 +373,128 @@ pub fn assert_pieces_name_one_segment_each(closed: &ClosedLoop<f64>) {
 }
 
 /// **A fillet's run lies on its own side's carrier**: a run in on the
-/// incoming side's, a run out on the arrival side's — straight where
-/// that side is a ray, an arc where the fused verb authored an arc
-/// carrier for it. A segment on any other carrier is the piece of the
-/// step that drew it, so a run of the wrong kind is a later step's
-/// segment credited to the fillet: a name on it would move to whatever
-/// the fillet's run becomes once that step is dropped.
+/// incoming side's, a run out on the arrival side's. A segment on any
+/// other carrier is the piece of the step that drew it, so a run off
+/// its carrier is a later step's segment credited to the fillet: a name
+/// on it would move to whatever the fillet's run becomes once that step
+/// is dropped.
+///
+/// A run meets its fillet's arc at one vertex `s`, where the side's
+/// carrier is tangent to the arc. So a ray side's run is straight and
+/// collinear with the arc's tangent line at `s`, and an arc side's run
+/// is on a circle whose centre is on the arc's normal at `s` — the one
+/// circle tangent there that the side's spec also pins: its centre, its
+/// radius and side, or a point it passes through. Each is a distance in
+/// meters, compared against the run's escalation threshold Kε: a run on
+/// a definitely different carrier is past it.
 pub fn assert_runs_ride_their_carriers(closed: &ClosedLoop<f64>) {
-    use profile::{PieceRole, Step};
-    for (k, p) in closed.structure.pieces.iter().enumerate() {
-        let straight = !matches!(closed.loop_.segments()[k], profile::Segment::Arc { .. });
-        // (incoming side straight, arrival side straight) per fillet verb.
+    use profile::{ArcData, ArcSide, PieceRole, Segment, Step, Target};
+    let tol = Tol::witness();
+    let reach = tol.k() * tol.eps();
+    let pieces = &closed.structure.pieces;
+    let verts = closed.loop_.vertices();
+    let segs = closed.loop_.segments();
+    let n = verts.len();
+    for (k, p) in pieces.iter().enumerate() {
+        // The incoming and arrival carriers per fillet verb: `None` is
+        // a ray, `Some` the fused verb's authored arc spec.
         let sides = match &closed.program[p.step] {
-            Step::Fillet { .. } => (true, true),
-            Step::FilletArc { .. } => (true, false),
-            Step::ArcFillet { .. } => (false, true),
-            Step::ArcFilletArc { .. } => (false, false),
+            Step::Fillet { .. } => (None, None),
+            Step::FilletArc { spec, .. } => (None, Some(*spec)),
+            Step::ArcFillet { spec, .. } => (Some(*spec), None),
+            Step::ArcFilletArc { spec, spec2, .. } => (Some(*spec), Some(*spec2)),
             _ => continue,
         };
-        let want = match p.role {
-            PieceRole::RunIn => sides.0,
-            PieceRole::RunOut => sides.1,
+        // The side's carrier, the fillet arc's segment, and the vertex
+        // the run shares with it.
+        let (carrier, arc_at, s) = match p.role {
+            PieceRole::RunIn => (sides.0, (k + 1) % n, verts[(k + 1) % n]),
+            PieceRole::RunOut => (sides.1, (k + n - 1) % n, verts[k]),
             PieceRole::Leg | PieceRole::Arc | PieceRole::Piece(_) => continue,
         };
         assert_eq!(
-            straight,
-            want,
-            "segment {k} is {p} but is {} while that side's carrier is {}",
-            if straight { "straight" } else { "an arc" },
-            if want { "a ray" } else { "a circle" },
+            pieces[arc_at],
+            profile::Piece {
+                step: p.step,
+                role: PieceRole::Arc,
+            },
+            "segment {k} is {p}, so segment {arc_at} beside it is that fillet's arc"
         );
+        let Segment::Arc {
+            centre: fc,
+            sweep: fs,
+            ..
+        } = segs[arc_at]
+        else {
+            panic!("segment {arc_at} is {p}'s fillet arc but is straight");
+        };
+        // The arc's unit tangent at `s`, in its travel sense.
+        let (rx, ry) = (s.x - fc.x, s.y - fc.y);
+        let rl = rx.hypot(ry);
+        let (tx, ty) = (-ry / rl * fs.signum(), rx / rl * fs.signum());
+        let other = if p.role == PieceRole::RunIn {
+            verts[k]
+        } else {
+            verts[(k + 1) % n]
+        };
+        let what = format!("segment {k} is {p}");
+        match (carrier, segs[k]) {
+            (None, Segment::Line) => {
+                let across = tx * (other.y - s.y) - ty * (other.x - s.x);
+                assert!(
+                    across.abs() <= reach,
+                    "{what} but leaves its ray's line by {across:e} (Kε = {reach:e})"
+                );
+            }
+            (
+                Some(spec),
+                Segment::Arc {
+                    centre,
+                    radius,
+                    sweep,
+                },
+            ) => {
+                let along = tx * (centre.x - s.x) + ty * (centre.y - s.y);
+                assert!(
+                    along.abs() <= reach,
+                    "{what} but its circle is not tangent to the fillet arc: its centre \
+                     is {along:e} off the arc's normal (Kε = {reach:e})"
+                );
+                let on_circle = |q: Point2<f64>| (q.x - centre.x).hypot(q.y - centre.y) - radius;
+                let miss = match spec {
+                    ArcData::Center { c, .. } => (c.x - centre.x).hypot(c.y - centre.y),
+                    ArcData::Radius { r, side, .. }
+                    | ArcData::Sweep { r, side, .. }
+                    | ArcData::ArcLen { r, side, .. } => {
+                        let left = side == ArcSide::Left;
+                        assert_eq!(sweep > 0.0, left, "{what} but winds against {side:?}");
+                        r - radius
+                    }
+                    ArcData::Via { q, .. } => on_circle(q),
+                    ArcData::Bulge {
+                        target: Target::Point(q),
+                        b,
+                    } => {
+                        assert_eq!(sweep > 0.0, b > 0.0, "{what} but winds against b = {b}");
+                        on_circle(q)
+                    }
+                    ArcData::Bulge { target, .. } => {
+                        panic!("{what}: a bulge spec with a {target:?} target authors no circle")
+                    }
+                };
+                assert!(
+                    miss.abs() <= reach,
+                    "{what} but is {miss:e} off its side's circle {spec:?} (Kε = {reach:e})"
+                );
+            }
+            (carrier, seg) => panic!(
+                "{what} but is {seg:?} while that side's carrier is {}",
+                match carrier {
+                    None => "a ray".to_owned(),
+                    Some(spec) => format!("the circle of {spec:?}"),
+                }
+            ),
+        }
     }
 }
 
