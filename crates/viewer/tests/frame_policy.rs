@@ -1774,20 +1774,23 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
             &index,
             answer(7, id),
             Some(7),
-            std::slice::from_ref(&hit.name)
+            Ok(std::slice::from_ref(&hit.name))
         ),
         None
     );
     // A stale answer is not a verdict at all — nor is one with nothing
     // outstanding, which is the leave case.
     assert_eq!(
-        idpass::disagreement(&index, answer(6, id), Some(7), &[]),
+        idpass::disagreement(&index, answer(6, id), Some(7), Ok(&[])),
         None
     );
-    assert_eq!(idpass::disagreement(&index, answer(7, id), None, &[]), None);
+    assert_eq!(
+        idpass::disagreement(&index, answer(7, id), None, Ok(&[])),
+        None
+    );
     // Nothing under the cursor on both sides is agreement.
     assert_eq!(
-        idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), &[]),
+        idpass::disagreement(&index, answer(7, IdMap::NOTHING), Some(7), Ok(&[])),
         None
     );
     // A real disagreement reports both sides.
@@ -1795,7 +1798,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         &index,
         answer(7, IdMap::NOTHING),
         Some(7),
-        std::slice::from_ref(&hit.name),
+        Ok(std::slice::from_ref(&hit.name)),
     )
     .expect("nothing vs a face is a disagreement");
     assert_eq!(report.from_gpu, None);
@@ -1825,12 +1828,12 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         .clone();
     let tied = [hit.name.clone(), second];
     assert_eq!(
-        idpass::disagreement(&index, answer(7, id), Some(7), &tied),
+        idpass::disagreement(&index, answer(7, id), Some(7), Ok(&tied)),
         None,
         "the id pass named one of the tied faces, which is agreement"
     );
     let outside_id = *index.ids_of(&outside).first().expect("that face is drawn");
-    let report = idpass::disagreement(&index, answer(7, outside_id), Some(7), &tied)
+    let report = idpass::disagreement(&index, answer(7, outside_id), Some(7), Ok(&tied))
         .expect("a face outside the tie is a disagreement");
     assert_eq!(report.from_ray, tied.to_vec());
     assert!(
@@ -1910,14 +1913,14 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
             &index,
             answer(7, id),
             Some(7),
-            std::slice::from_ref(&edge.name)
+            Ok(std::slice::from_ref(&edge.name))
         )
         .is_some(),
         "an edge name against a patch name is two questions, and the check cannot know it"
     );
     // The fix: the ray side answers the question the id buffer asked.
     assert_eq!(
-        idpass::disagreement(&index, answer(7, id), Some(7), &named),
+        idpass::disagreement(&index, answer(7, id), Some(7), Ok(&named)),
         None,
         "the face under the cursor is what the id buffer named"
     );
@@ -1957,7 +1960,7 @@ fn one_name_drawn_twice_is_not_a_disagreement() {
             &index,
             answer(3, other),
             Some(3),
-            std::slice::from_ref(&hit.name)
+            Ok(std::slice::from_ref(&hit.name))
         ),
         None,
         "two ids of one name are the same answer"
