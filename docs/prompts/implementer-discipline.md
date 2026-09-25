@@ -133,17 +133,10 @@ When you do run locally:
   by abandoning the branch and re-landing the diff (CERT-M2, 2026-09-02). Read
   `git status` before every `git add`; never add with `-A` unattended.
 - **Never kill processes by pattern on a shared box.** `pkill -f cargo` or
-  `pkill -f nextest` matches every lane's build, not yours: a lane clearing
-  its own stuck run that way took down another lane's build mid-compile
-  (VNEWS, 2026-09-20). Kill only a PID you have attributed to yourself —
-  read `/proc/<pid>/environ` for your own `CARGO_TARGET_DIR`, which is the
-  other reason that directory has to be yours alone.
-- **Prefix every file you write to a shared scratchpad with your lane's
-  name.** The scratchpad is one directory for every lane in a session,
-  and a lane cannot tell whether a file there is its own: two lanes both
-  wrote `body.md`, and one published the other's PR body onto its own PR
-  (VNEWS, 2026-09-25). A generic name is a collision waiting for the
-  second lane to choose it too.
+  `pkill -f nextest` matches every lane's build, not yours. Kill only a PID
+  you have attributed to yourself — read `/proc/<pid>/environ` for your own
+  `CARGO_TARGET_DIR`, which is the other reason that directory has to be
+  yours alone.
 - **`--workspace` is not every cargo root, and the roots outside it are
   not covered uniformly.** `Cargo.toml` `exclude`s `benches`, `demos`,
   `tools` and `interval-transcendentals`, so
