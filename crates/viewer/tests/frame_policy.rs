@@ -547,7 +547,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
     let disagreement = idpass::Disagreement {
-        from_gpu: None,
+        from_gpu: idpass::IdAnswer::Nothing,
         from_ray: Vec::new(),
     };
     assert_eq!(
@@ -1801,7 +1801,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         Ok(std::slice::from_ref(&hit.name)),
     )
     .expect("nothing vs a face is a disagreement");
-    assert_eq!(report.from_gpu, None);
+    assert_eq!(report.from_gpu, idpass::IdAnswer::Nothing);
     assert_eq!(report.from_ray, vec![hit.name.clone()]);
     assert!(report.to_string().contains("disagree"));
 

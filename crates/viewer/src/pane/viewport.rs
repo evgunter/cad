@@ -1464,7 +1464,11 @@ mod tests {
             Ok(std::slice::from_ref(&named)),
         )
         .expect("nothing-under-the-cursor against a named face is a disagreement");
-        assert_eq!(report.from_gpu, None, "the id pass answered nothing");
+        assert_eq!(
+            report.from_gpu,
+            idpass::IdAnswer::Nothing,
+            "the id pass answered nothing"
+        );
         assert_eq!(report.from_ray, vec![named], "the ray answered a face");
 
         assert!(
@@ -1561,7 +1565,7 @@ mod tests {
         assert_eq!(
             idpass::disagreement(index, answer, serial, Ok(&[])),
             Some(idpass::Disagreement {
-                from_gpu: Some(fixture.named),
+                from_gpu: idpass::IdAnswer::Named(fixture.named),
                 from_ray: Vec::new(),
             }),
             "while a ray path that answered nothing is contradicted by the face"
@@ -1654,6 +1658,86 @@ mod tests {
             cursor_news(&fixture.index, unasked, answer, log.outstanding(), false),
             Some(frame::pick_refusal(&refusal)),
             "the comparison says the refusal in the pick path's own words"
+        );
+    }
+
+    /// **An id the drawn index never assigned is said as that id,
+    /// against either ray answer**, through the pane's own wiring
+    /// (`cursor_news`) over a real plate.
+    ///
+    /// An unassigned id is what a corrupt readback looks like, and
+    /// read as the clear value it was misreported both ways: as *id
+    /// buffer nothing* against a ray that named a face, and as silent
+    /// agreement against a ray that named nothing. Both cursors are
+    /// asked, so each false sentence has a row that reds on it.
+    #[test]
+    fn an_id_the_drawn_index_never_assigned_is_said_as_that_id() {
+        let tol = Tol::witness();
+        let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let index = plate_index(&session, a_delta(0.5));
+        let eval = session.evaluation().expect("the plate lands");
+        let unassigned = index.ids().ids().max().expect("the plate draws patches") + 1;
+        assert!(
+            index.name_of(unassigned).is_none(),
+            "an id past the last assigned one is no entry of this index"
+        );
+        let camera = framed();
+        let pane = ViewportSize {
+            width_px: 1600.0,
+            height_px: 900.0,
+        };
+        let display = DisplayView::none();
+        let subject = idpass::IdSubject {
+            revision: 1,
+            generation: Some(index.generation()),
+        };
+        let mut log = idpass::IdQueryLog::new();
+        let mut news = |cursor: [f64; 2]| {
+            let IdStep::Ask { serial } = log.step(Some(cursor), subject) else {
+                panic!("a new cursor is a new question");
+            };
+            let question = RayQuestion {
+                eval,
+                camera: &camera,
+                viewport: pane,
+                cursor,
+                display: &display,
+            };
+            let answer = (u64::from(serial) << 32) | u64::from(unassigned);
+            cursor_news(&index, question, answer, log.outstanding(), true)
+        };
+
+        let off = news([1.0, 1.0]);
+        assert_eq!(
+            off,
+            Some(frame::Message::new(
+                frame::Subject::Cursor,
+                format!(
+                    "picking paths disagree at the cursor: id buffer id {unassigned}, \
+                     which no patch of this picture draws, ray nothing"
+                ),
+            )),
+            "over what the ray calls empty space, the id is said, not agreed with"
+        );
+
+        let on = [800.0, 450.0];
+        let face = index
+            .faces_under_cursor(eval, &camera, pane, on, &display)
+            .expect("the ray answers at the plate's centre");
+        let [named] = &face[..] else {
+            panic!("the ray names one face at the plate's centre: {face:?}");
+        };
+        let said = news(on).expect("an unassigned id against a named face is a disagreement");
+        assert_eq!(
+            said.text(),
+            format!(
+                "picking paths disagree at the cursor: id buffer id {unassigned}, \
+                 which no patch of this picture draws, ray {} ({:?})",
+                named.name, named.name.path
+            ),
+            "the id buffer's side is the id, not nothing"
         );
     }
 
