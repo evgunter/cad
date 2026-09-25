@@ -605,12 +605,20 @@ fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Res
         RoleSeg::LoftWall(pieces) => write!(
             f,
             "the loft wall over {}",
-            pieces.iter().map(seg_of).collect::<Vec<_>>().join(", then ")
+            pieces
+                .iter()
+                .map(seg_of)
+                .collect::<Vec<_>>()
+                .join(", then ")
         ),
         RoleSeg::LoftSeam(vertices) => write!(
             f,
             "the loft seam over {}",
-            vertices.iter().map(vert_of).collect::<Vec<_>>().join(", then ")
+            vertices
+                .iter()
+                .map(vert_of)
+                .collect::<Vec<_>>()
+                .join(", then ")
         ),
         RoleSeg::Band(e) => write!(f, "the band face over {}", seg_of(e)),
         RoleSeg::BandRim(v) => write!(f, "the band rim over {}", vert_of(v)),

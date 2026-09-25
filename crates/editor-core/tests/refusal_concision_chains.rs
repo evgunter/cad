@@ -2480,8 +2480,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
     use crate::fixture::{self, ang, fname, insert, len, on_frame, square, wall};
     use editor_core::measure::{MeasureExpr, MeasurePrimitive};
     use editor_core::{
-        CancelToken, CapEnd, Datum, EvalOptions, Node, NodeResult, ProfileDoc, ProfileVertexRef,
-        SitedRef, evaluate,
+        CancelToken, CapEnd, Datum, EvalOptions, Node, NodeResult, ProfileDoc, SitedRef, evaluate,
     };
     use geom_core::Tol;
     let doc = ProfileDoc::empty_derived("refusal_concision_chains", Tol::witness());
@@ -2501,11 +2500,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
     );
     let face = fname(body, wall(&doc, body, 2));
     let edge = fixture::prism_edges(&doc, body, 4).remove(2);
-    let vertex = fixture::cap_vertex(
-        body,
-        CapEnd::End,
-        crate::fixture::vpiece(&doc, body, 0, 0),
-    );
+    let vertex = fixture::cap_vertex(body, CapEnd::End, crate::fixture::vpiece(&doc, body, 0, 0));
     let (doc, shell) = insert(doc, Node::shell(body, len(0.1), vec![edge.clone()]));
     let (doc, fillet) = insert(doc, Node::fillet(body, len(0.1), vec![face.clone()]));
     let (doc, frame) = insert(

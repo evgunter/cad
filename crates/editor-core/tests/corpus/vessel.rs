@@ -40,8 +40,8 @@
 //! every document green at `Dual64`.
 
 use editor_core::{
-    Dimension, DocEdit, Expr, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep,
-    ProfileDoc, ProfileEdgeRef, ProgramTarget, RecipeNodeId, SlotId, StableName, band, band_pi,
+    Dimension, DocEdit, Expr, LoopProgram, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, band, band_pi,
 };
 
 use crate::fixture::{ang, axis_in_plane, frame, len};

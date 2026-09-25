@@ -99,8 +99,14 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::measure(
             web,
             vec![
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(&r.doc, solid, 0))),
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                ),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                ),
             ],
         )
         .expect("both indices in range"),

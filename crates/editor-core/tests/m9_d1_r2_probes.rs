@@ -11,7 +11,7 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, EvalOptions, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram,
-    ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
 };
 use fixture::{ang, insert, len, table};
 use geom_core::Tol;

@@ -48,8 +48,8 @@
 
 use editor_core::{
     Axis3, BooleanOp, CapEnd, DocEdit, EntityKind, LoopProgram, MeridianEnd, NamePat, NameRef,
-    Node, ProfileEdgeRef, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, SegPat, SegTag, Selector, SlotId, StableName,
+    Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg,
+    SegPat, SegTag, Selector, SlotId, StableName,
 };
 
 use crate::fixture::{ang, axis_in_plane, frame, len, prism_edges, scl, xy_frame};
@@ -107,7 +107,12 @@ const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
 /// The result is still FROZEN: materializing happens once, at
 /// authoring time, and the names go into the recipe (`Node::Fillet`'s
 /// payload docs; the growth path is still `DocEdit::Rebind`).
-pub fn selection(doc: &editor_core::ProfileDoc, cube: RecipeNodeId, ball: RecipeNodeId, pipped: RecipeNodeId) -> Vec<StableName> {
+pub fn selection(
+    doc: &editor_core::ProfileDoc,
+    cube: RecipeNodeId,
+    ball: RecipeNodeId,
+    pipped: RecipeNodeId,
+) -> Vec<StableName> {
     let at = |seg: RoleSeg| StableName {
         kind: EntityKind::Edge,
         node: pipped,
@@ -123,8 +128,8 @@ pub fn selection(doc: &editor_core::ProfileDoc, cube: RecipeNodeId, ball: Recipe
         node: ball,
         path: vec![seg],
     };
-    let lower = crate::fixture::piece(&doc, ball, 0, 0);
-    let mut out: Vec<StableName> = prism_edges(&doc, cube, 4)
+    let lower = crate::fixture::piece(doc, ball, 0, 0);
+    let mut out: Vec<StableName> = prism_edges(doc, cube, 4)
         .into_iter()
         .map(|e| at(RoleSeg::FromA(e.into())))
         .collect();
@@ -180,7 +185,11 @@ pub fn selector() -> Selector {
 /// The two cavity meridians — the names the selection deliberately
 /// LEAVES OUT (the co-surface seams). Named here so the pin that
 /// checks the exclusion reads the same list the docs above describe.
-pub fn excluded_meridians(doc: &editor_core::ProfileDoc, ball: RecipeNodeId, pipped: RecipeNodeId) -> Vec<StableName> {
+pub fn excluded_meridians(
+    doc: &editor_core::ProfileDoc,
+    ball: RecipeNodeId,
+    pipped: RecipeNodeId,
+) -> Vec<StableName> {
     [MeridianEnd::Seam, MeridianEnd::Pi]
         .into_iter()
         .map(|end| StableName {
@@ -191,7 +200,7 @@ pub fn excluded_meridians(doc: &editor_core::ProfileDoc, ball: RecipeNodeId, pip
                 node: ball,
                 path: vec![RoleSeg::Meridian(
                     end,
-                    crate::fixture::piece(&doc, ball, 0, 0),
+                    crate::fixture::piece(doc, ball, 0, 0),
                 )],
             }))],
         })

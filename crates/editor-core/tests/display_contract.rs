@@ -20,9 +20,9 @@ use editor_core::{
     EvalError, FrameFault, HitTestError, InputFault, InterrogateError, Lever, LeverRefusal,
     Maintenance, MateFault, MateSide, MeasureNodeFault, MeshPickError, MetaVersionError,
     MintRefusal, NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, PartFault,
-    PersistError, PlacementRuleFault, ProgramFault, RecipeNodeId,
-    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg,
-    RootFault, Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
+    PersistError, PlacementRuleFault, ProgramFault, RecipeNodeId, RecordedProgramError, RefusedRef,
+    ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
+    SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
 };
 use geom_core::BandError;
 
@@ -1042,7 +1042,10 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 node,
                 fault: StepIdFault::Repeated { step: StepId(3) },
             },
-            vec!["profile node 5's step ids", "step id 3 stands for two steps"],
+            vec![
+                "profile node 5's step ids",
+                "step id 3 stands for two steps",
+            ],
         ),
         (
             SnapshotError::NameStepBeyondCounter {
@@ -2277,9 +2280,9 @@ fn naming_error_display_names_its_content_not_its_struct() {
                     kind: EntityKind::Edge,
                     node: RecipeNodeId(37),
                     path: vec![RoleSeg::LateralEdge(editor_core::ProfileVertexRef::Piece {
-                                step: StepId(2),
-                                role: editor_core::PieceRole::Leg,
-                            })],
+                        step: StepId(2),
+                        role: editor_core::PieceRole::Leg,
+                    })],
                 }),
             },
             vec!["member node 37", "a tie stands where one edge is needed"],
@@ -2663,7 +2666,11 @@ fn a_step_id_fault_names_the_id_or_the_count() {
                 authored: 5,
                 given: 4,
             },
-            vec!["loop 1 authors 5 steps", "4 step ids", "one id per authored step"],
+            vec![
+                "loop 1 authors 5 steps",
+                "4 step ids",
+                "one id per authored step",
+            ],
         ),
         (
             StepIdFault::NotThisProfiles { step: StepId(9) },
@@ -2687,7 +2694,10 @@ fn a_step_id_fault_names_the_id_or_the_count() {
             node: RecipeNodeId(4),
             fault: StepIdFault::Repeated { step: StepId(2) },
         },
-        &["node 4's program step ids", "step id 2 stands for two steps"],
+        &[
+            "node 4's program step ids",
+            "step id 2 stands for two steps",
+        ],
         &["StepIdsRefused", "Repeated"],
     );
     assert_f6(

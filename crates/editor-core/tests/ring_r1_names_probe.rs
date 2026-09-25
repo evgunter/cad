@@ -10,9 +10,9 @@
 
 use crate::fixture;
 
-use editor_core::{RecipeNodeId, 
+use editor_core::{
     CancelToken, EntityKind, EvalOptions, Evaluation, MeridianEnd, Node, ProfileDoc,
-    ProfileEdgeRef, RoleSeg, band, band_pi, band_rim, evaluate, meridian_vertex,
+    ProfileEdgeRef, RecipeNodeId, RoleSeg, band, band_pi, band_rim, evaluate, meridian_vertex,
 };
 use fixture::{ang, axis_in_plane, insert, minted, on_frame_keeping, table};
 use geom_core::Tol;
@@ -31,7 +31,12 @@ fn pe(doc: &editor_core::ProfileDoc, node: RecipeNodeId, l: u32, s: u32) -> Prof
     crate::fixture::piece(doc, node, l as usize, s as usize)
 }
 
-fn pv(doc: &editor_core::ProfileDoc, node: RecipeNodeId, l: u32, v: u32) -> editor_core::ProfileVertexRef {
+fn pv(
+    doc: &editor_core::ProfileDoc,
+    node: RecipeNodeId,
+    l: u32,
+    v: u32,
+) -> editor_core::ProfileVertexRef {
     crate::fixture::vpiece(doc, node, l as usize, v as usize)
 }
 
@@ -83,8 +88,12 @@ fn full_wire_holed_revolve_names_totally() {
             .is_some()
         );
         assert!(
-            t.lookup(&meridian_vertex(MeridianEnd::Seam, rev, pv(&doc, rev, 1, s)))
-                .is_some()
+            t.lookup(&meridian_vertex(
+                MeridianEnd::Seam,
+                rev,
+                pv(&doc, rev, 1, s)
+            ))
+            .is_some()
         );
     }
     // And the wire outer keeps its π-band names (loop 0).

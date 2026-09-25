@@ -5021,13 +5021,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "program_refusal_tag",
-        values: &[
-            "geometry",
-            "resolve",
-            "transition",
-            "unminted",
-            "validate",
-        ],
+        values: &["geometry", "resolve", "transition", "unminted", "validate"],
         delegates: &[],
     },
     TagEntry {
@@ -5040,7 +5034,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &["cylinder", "plane"],
         delegates: &[],
     },
-
     TagEntry {
         function: "readback_error_tag",
         values: &[

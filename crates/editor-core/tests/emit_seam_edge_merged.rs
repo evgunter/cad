@@ -17,8 +17,8 @@ use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, ru
 use crate::fixture::{edge_of, member_entity, table};
 
 use editor_core::{
-    CapEnd, EntityKind, NamingError, NodeErrorKind, ProfileDoc, ProfileEdgeRef, Qualifier,
-    RecipeNodeId, RoleSeg, StableName,
+    CapEnd, EntityKind, NamingError, NodeErrorKind, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
+    StableName,
 };
 use geom_core::Tol;
 
@@ -76,7 +76,8 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
     let (a, b, c) = (ids[0], ids[1], ids[2]);
     let mut name_sets = Vec::new();
     for order in [[b, c, a], [c, b, a]] {
-        let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
+        let (docx, union, _) =
+            declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -101,7 +102,8 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
 /// pieces, x = 0.4..0.5 and x = 0.0..0.3 at y = z = 1: cells 1 and 3 of
 /// the four the body's vertices cut it into along −x (1.0, 0.5, 0.4, 0.3,
 /// 0.0). Cell 0 is `b`'s in these orders, and cell 2 is inside `c`.
-fn assert_rim_pieces(doc: &editor_core::ProfileDoc, 
+fn assert_rim_pieces(
+    doc: &editor_core::ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
     union: RecipeNodeId,
     a: RecipeNodeId,
@@ -112,7 +114,7 @@ fn assert_rim_pieces(doc: &editor_core::ProfileDoc,
         node: a,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            crate::fixture::piece(&doc, a, 0, 2),
+            crate::fixture::piece(doc, a, 0, 2),
         )],
     };
     let piece = |rank| {
@@ -167,7 +169,8 @@ fn no_order_of_the_rows_documents_refuses_with_an_emission() {
         let (doc, ids) = document(&rest);
         let (a, b) = (ids[0], ids[1]);
         for order in permutations(&ids) {
-            let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
+            let (docx, union, _) =
+                declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
             let ev = run(&docx);
             if let Some(e) = failure(&ev, union) {
                 assert!(

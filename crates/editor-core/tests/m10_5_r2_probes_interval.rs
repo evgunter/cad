@@ -248,7 +248,11 @@ fn blocks_apart(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (r.doc, a, b)
 }
 
-fn wall_name(doc: &editor_core::ProfileDoc, node: RecipeNodeId, seg: u32) -> editor_core::StableName {
+fn wall_name(
+    doc: &editor_core::ProfileDoc,
+    node: RecipeNodeId,
+    seg: u32,
+) -> editor_core::StableName {
     fixture::fname(node, fixture::wall(doc, node, seg))
 }
 
@@ -384,7 +388,10 @@ fn the_leaf_fold_answers_the_same_question_over_a_real_drive() {
 #[test]
 fn the_combs_violation_witness_re_verifies_from_its_own_points() {
     let (doc, minted, _placed) = comb();
-    let sel = named(minted, vec![wall_name(&doc, minted, 7), wall_name(&doc, minted, 9)]);
+    let sel = named(
+        minted,
+        vec![wall_name(&doc, minted, 7), wall_name(&doc, minted, 9)],
+    );
     let report = clearance_with(
         &doc,
         &box_of("place"),
@@ -1113,8 +1120,14 @@ fn a_fold_over_zero_certified_leaves_refuses_by_name() {
 #[test]
 fn the_answer_does_not_depend_on_the_order_names_are_written_in() {
     let (doc, minted, _placed) = comb();
-    let forward = named(minted, vec![wall_name(&doc, minted, 7), wall_name(&doc, minted, 9)]);
-    let reverse = named(minted, vec![wall_name(&doc, minted, 9), wall_name(&doc, minted, 7)]);
+    let forward = named(
+        minted,
+        vec![wall_name(&doc, minted, 7), wall_name(&doc, minted, 9)],
+    );
+    let reverse = named(
+        minted,
+        vec![wall_name(&doc, minted, 9), wall_name(&doc, minted, 7)],
+    );
     let leaf = box_of("place");
     let a = clearance_with(
         &doc,
@@ -1250,7 +1263,10 @@ fn a_violation_outranks_a_refusal_and_the_receipt_shows_both() {
 #[test]
 fn the_cost_curve_is_flat_where_the_bound_is_broken() {
     let (doc, minted, _placed) = comb();
-    let sel = named(minted, vec![wall_name(&doc, minted, 7), wall_name(&doc, minted, 9)]);
+    let sel = named(
+        minted,
+        vec![wall_name(&doc, minted, 7), wall_name(&doc, minted, 9)],
+    );
     let leaf = box_of("place");
     let mut costs = Vec::new();
     for c in [2.0, 1.5, 1.0, 0.8, 0.6] {

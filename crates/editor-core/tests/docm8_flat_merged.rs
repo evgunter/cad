@@ -39,7 +39,7 @@ fn permutations(items: &[RecipeNodeId]) -> Vec<Vec<RecipeNodeId>> {
 fn chain_pairs(doc: &editor_core::ProfileDoc, chain: &[RecipeNodeId]) -> Vec<(SitedRef, SitedRef)> {
     chain
         .windows(2)
-        .flat_map(|w| flush_pairs(&doc, (w[0], w[0]), (w[1], w[1])))
+        .flat_map(|w| flush_pairs(doc, (w[0], w[0]), (w[1], w[1])))
         .collect()
 }
 
@@ -376,14 +376,10 @@ fn a_member_face_in_no_table_and_no_merged_row_keeps_the_vanished_refusal() {
     let (doc, big) = block(doc, (0.5, 3.0), (-1.0, 2.0), -1.0, 3.0);
     let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
     let named = vec![(
-            SitedRef::new(a, fname(a, wall(&doc, a, 1))),
-            SitedRef::new(far, fname(far, wall(&doc, far, 3))),
-        )];
-    let (doc, union, _) = declared_union(
-        doc,
-        &[a, big, far],
-        named,
-    );
+        SitedRef::new(a, fname(a, wall(&doc, a, 1))),
+        SitedRef::new(far, fname(far, wall(&doc, far, 3))),
+    )];
+    let (doc, union, _) = declared_union(doc, &[a, big, far], named);
     let ev = run(&doc);
     assert!(
         matches!(
@@ -499,19 +495,16 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let node = Node::declare_rest(
-            (0..4)
-                .map(|fam| {
-                    (
-                        SitedRef::new(a, fname(a, family(&doc, a, fam))),
-                        SitedRef::new(b, fname(b, family(&doc, b, fam))),
-                    )
-                })
-                .collect(),
-        );
-    let (doc, decl_ab) = insert(
-        doc,
-        node,
+        (0..4)
+            .map(|fam| {
+                (
+                    SitedRef::new(a, fname(a, family(&doc, a, fam))),
+                    SitedRef::new(b, fname(b, family(&doc, b, fam))),
+                )
+            })
+            .collect(),
     );
+    let (doc, decl_ab) = insert(doc, node);
     let (doc, inner) = insert(
         doc,
         Node::Boolean {
@@ -547,19 +540,16 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
         )
     };
     let node1 = Node::declare_rest(
-            (0..4)
-                .map(|fam| {
-                    (
-                        SitedRef::new(mid, carried(fam)),
-                        SitedRef::new(c, fname(c, family(&doc, c, fam))),
-                    )
-                })
-                .collect(),
-        );
-    let (doc, decl_mc) = insert(
-        doc,
-        node1,
+        (0..4)
+            .map(|fam| {
+                (
+                    SitedRef::new(mid, carried(fam)),
+                    SitedRef::new(c, fname(c, family(&doc, c, fam))),
+                )
+            })
+            .collect(),
     );
+    let (doc, decl_mc) = insert(doc, node1);
     let (doc, outer) = insert(
         doc,
         Node::Boolean {
@@ -576,8 +566,14 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
         let want = merged(
             outer,
             vec![
-                from_a(outer, from_b(mid, from_a(inner, fname(a, family(&doc, a, fam))))),
-                from_a(outer, from_b(mid, from_b(inner, fname(b, family(&doc, b, fam))))),
+                from_a(
+                    outer,
+                    from_b(mid, from_a(inner, fname(a, family(&doc, a, fam)))),
+                ),
+                from_a(
+                    outer,
+                    from_b(mid, from_b(inner, fname(b, family(&doc, b, fam)))),
+                ),
                 from_b(outer, fname(c, family(&doc, c, fam))),
             ],
         );

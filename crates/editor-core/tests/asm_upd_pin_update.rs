@@ -82,7 +82,11 @@ fn run(doc: &editor_core::ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
 /// session, which is the only place a stale-serving bug can hide: a
 /// fresh evaluation rebuilds the part cache from nothing, so it cannot
 /// serve yesterday's geometry no matter how the node is keyed.
-fn run_warm(doc: &editor_core::ProfileDoc, prior: &Evaluation<f64>, opts: &EvalOptions) -> Evaluation<f64> {
+fn run_warm(
+    doc: &editor_core::ProfileDoc,
+    prior: &Evaluation<f64>,
+    opts: &EvalOptions,
+) -> Evaluation<f64> {
     evaluate::<f64>(doc, Some(prior), &CancelToken::new(), opts, Tol::witness())
 }
 

@@ -19,8 +19,7 @@ use geom_core::Tol;
 #[test]
 fn the_selection_reaches_the_wire_canonical() {
     use editor_core::{
-        CapEnd, Dimension, DocEdit, Expr, Node, ProfileDoc, ProfileEdgeRef, RoleSeg, StableName,
-        apply, save,
+        CapEnd, Dimension, DocEdit, Expr, Node, ProfileDoc, RoleSeg, StableName, apply, save,
     };
 
     let square =
@@ -76,10 +75,11 @@ fn the_selection_reaches_the_wire_canonical() {
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     assert!(text.contains("\"selection\""), "the field reaches the wire");
     let sel = text.find("\"selection\"").expect("the selection block");
-    let step_of = |seg: usize| match crate::fixture::piece(&doc, editor_core::RecipeNodeId(2), 0, seg) {
-        editor_core::ProfileEdgeRef::Piece { step, .. } => step.0,
-        other => panic!("a square's side is a step's piece, got {other:?}"),
-    };
+    let step_of =
+        |seg: usize| match crate::fixture::piece(&doc, editor_core::RecipeNodeId(2), 0, seg) {
+            editor_core::ProfileEdgeRef::Piece { step, .. } => step.0,
+            other => panic!("a square's side is a step's piece, got {other:?}"),
+        };
     let spelled = |seg: usize| format!("\"step\": {}", step_of(seg));
     let zero = text[sel..].find(&spelled(0)).expect("segment 0");
     let two = text[sel..].find(&spelled(2)).expect("segment 2");

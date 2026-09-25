@@ -37,8 +37,8 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EvalOptions, Evaluation, Node, ProfileDoc, ProfileVertexRef, RecipeNodeId,
-    RimSupport, RoleSeg, evaluate,
+    CancelToken, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, RimSupport, RoleSeg,
+    evaluate,
 };
 use fixture::{ang, axis_in_plane, edge_of, insert, len, on_frame_keeping, table};
 use geom::Surface;

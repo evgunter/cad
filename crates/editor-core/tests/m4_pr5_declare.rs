@@ -20,7 +20,7 @@ use crate::fixture;
 
 use editor_core::{
     BooleanOp, BooleanValue, CapEnd, EntityKind, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    ProfileVertexRef, RecipeNodeId, RoleSeg, SitedRef, StableName, ValuePayload,
+    RecipeNodeId, RoleSeg, SitedRef, StableName, ValuePayload,
 };
 use fixture::{declare_x_offset_flush, fname, insert, len, on_frame, vname, wall};
 use geom_core::Tol;
@@ -94,7 +94,8 @@ fn kiss_base(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
 
 /// The base union's two kiss-vertex names, as the base's table
 /// carries them (FromX-wrapped operand cap vertices at (1,1,1)).
-fn kiss_vertex_names(doc: &editor_core::ProfileDoc, 
+fn kiss_vertex_names(
+    doc: &editor_core::ProfileDoc,
     a: RecipeNodeId,
     b: RecipeNodeId,
     u: RecipeNodeId,
@@ -102,18 +103,12 @@ fn kiss_vertex_names(doc: &editor_core::ProfileDoc,
     // a's (1,1) top-cap vertex: profile (0,0)(1,0)(1,1)(0,1) → vertex 2.
     let va = vname(
         a,
-        RoleSeg::CapVertex(
-            CapEnd::End,
-            crate::fixture::vpiece(&doc, a, 0, 2),
-        ),
+        RoleSeg::CapVertex(CapEnd::End, crate::fixture::vpiece(doc, a, 0, 2)),
     );
     // b's (1,1) bottom-cap vertex: profile (1,1)(2,1)(2,2)(1,2) → vertex 0.
     let vb = vname(
         b,
-        RoleSeg::CapVertex(
-            CapEnd::Start,
-            crate::fixture::vpiece(&doc, b, 0, 0),
-        ),
+        RoleSeg::CapVertex(CapEnd::Start, crate::fixture::vpiece(doc, b, 0, 0)),
     );
     (
         vname(u, RoleSeg::FromA(va.into())),
@@ -435,17 +430,11 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     // discovers cross contacts itself; v1 refuses the declaration).
     let va = vname(
         a,
-        RoleSeg::CapVertex(
-            CapEnd::End,
-            crate::fixture::vpiece(&doc, a, 0, 0),
-        ),
+        RoleSeg::CapVertex(CapEnd::End, crate::fixture::vpiece(&doc, a, 0, 0)),
     );
     let vb = vname(
         b,
-        RoleSeg::CapVertex(
-            CapEnd::End,
-            crate::fixture::vpiece(&doc, b, 0, 0),
-        ),
+        RoleSeg::CapVertex(CapEnd::End, crate::fixture::vpiece(&doc, b, 0, 0)),
     );
     let (doc, decl) = insert(
         base.clone(),

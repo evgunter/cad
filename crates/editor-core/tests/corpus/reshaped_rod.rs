@@ -31,8 +31,8 @@
 //! and the fillet; the frame and the profile are reused).
 
 use editor_core::{
-    DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, RoleSeg, SlotId, StableName, StepId,
+    DocEdit, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, RoleSeg, SlotId, StableName, StepId,
 };
 use sweep::test_support::{ROD_FILLET, ROD_FLAT, ROD_L, rod_chord_at};
 

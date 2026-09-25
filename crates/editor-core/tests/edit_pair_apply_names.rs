@@ -41,7 +41,7 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     CancelToken, CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Evaluation, HitTestError,
-    Node, ProfileDoc, ProfileEdgeRef, RecipeNodeId, RoleSeg, SlotId, apply_with_names, evaluate,
+    Node, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, apply_with_names, evaluate,
 };
 use fixture::{ename, insert, len, on_frame};
 use geom_core::Tol;
@@ -125,10 +125,7 @@ impl Twins {
 
         let fourth = ename(
             sq,
-            RoleSeg::RimEdge(
-                CapEnd::End,
-                crate::fixture::piece(&square, sq, 0, 3),
-            ),
+            RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
         );
         let edit = DocEdit::InsertNode {
             node: Node::fillet(sq, len(0.1), vec![fourth.clone()]),
@@ -303,10 +300,7 @@ fn the_pairing_is_identity_and_survives_a_new_version_of_the_document() {
 
     let fourth = ename(
         sq,
-        RoleSeg::RimEdge(
-            CapEnd::End,
-            crate::fixture::piece(&square, sq, 0, 3),
-        ),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
     );
     let edit = DocEdit::InsertNode {
         node: Node::fillet(sq, len(0.1), vec![fourth]),

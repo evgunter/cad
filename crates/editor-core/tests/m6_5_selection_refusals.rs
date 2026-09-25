@@ -162,7 +162,11 @@ fn rim(doc: &editor_core::ProfileDoc, node: RecipeNodeId, seg: u32) -> StableNam
 }
 
 /// Runs the plant and hands its typed refusal to `check`.
-fn refuses(doc: &editor_core::ProfileDoc, fillet: RecipeNodeId, check: impl FnOnce(&NodeErrorKind)) {
+fn refuses(
+    doc: &editor_core::ProfileDoc,
+    fillet: RecipeNodeId,
+    check: impl FnOnce(&NodeErrorKind),
+) {
     let ev = eval(doc);
     match ev.nodes.get(&fillet) {
         Some(NodeResult::Failed(e)) => check(&e.kind),

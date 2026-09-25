@@ -26,7 +26,11 @@ pub(crate) fn dials(rules: SymRules) -> SymbolicDials {
 
 /// Whether `doc` certifies its WHOLE analyzed box in one leaf under
 /// `dials` — `max_depth = 0`, one leaf, the receipt's `certified == 1`.
-pub(crate) fn certifies_whole_with(doc: &editor_core::ProfileDoc, dials: SymbolicDials, tol: Tol) -> bool {
+pub(crate) fn certifies_whole_with(
+    doc: &editor_core::ProfileDoc,
+    dials: SymbolicDials,
+    tol: Tol,
+) -> bool {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     drive(
         doc,

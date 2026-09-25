@@ -32,8 +32,8 @@
 //! extrude plus the second union; the kiss chain is reused).
 
 use editor_core::{
-    BooleanOp, CapEnd, Dimension, DocEdit, Expr, Node, ProfileVertexRef, RecipeNodeId, RoleSeg,
-    SitedRef, SlotId, StableName,
+    BooleanOp, CapEnd, Dimension, DocEdit, Expr, Node, RecipeNodeId, RoleSeg, SitedRef, SlotId,
+    StableName,
 };
 
 use crate::fixture;
@@ -42,11 +42,16 @@ use crate::fixture::{len, vname};
 use super::{CorpusDoc, MassPin, Recorder};
 
 /// A cap-vertex name at `node`, on the document's one outer loop.
-fn outer_cap_vertex(doc: &editor_core::ProfileDoc, node: RecipeNodeId, end: CapEnd, vertex: u32) -> StableName {
+fn outer_cap_vertex(
+    doc: &editor_core::ProfileDoc,
+    node: RecipeNodeId,
+    end: CapEnd,
+    vertex: u32,
+) -> StableName {
     fixture::cap_vertex(
         node,
         end,
-        crate::fixture::vpiece(&doc, node, 0, vertex as usize),
+        crate::fixture::vpiece(doc, node, 0, vertex as usize),
     )
 }
 

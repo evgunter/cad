@@ -18,7 +18,10 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-fn applied(doc: &editor_core::ProfileDoc, edit: DocEdit<ProfileProgram>) -> Applied<ProfileProgram> {
+fn applied(
+    doc: &editor_core::ProfileDoc,
+    edit: DocEdit<ProfileProgram>,
+) -> Applied<ProfileProgram> {
     apply(doc, &edit, Tol::witness(), &RefusingReach).expect("the edit lands")
 }
 

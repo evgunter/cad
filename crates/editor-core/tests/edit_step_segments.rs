@@ -55,8 +55,8 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, CapEnd, EntityKey, Entry, EvalOptions, Evaluation, Expr, LoopProgram, Node,
-    ProfileDoc, CanonicalSegment, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    CancelToken, CanonicalSegment, CapEnd, EntityKey, Entry, EvalOptions, Evaluation, Expr,
+    LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, RoleSeg, StepSegmentsError, ValuePayload, eval::ProfileNaming, evaluate,
 };
 use fixture::{insert, len, on_frame, tol};
@@ -1992,8 +1992,8 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
          is what this row is about, and step {emitter} emitted {}",
         r.structure.replay[0].steps[emitter]
     );
-    let got =
-        wall_radius(&ev, ext, &pv.pieces, edge).unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
+    let got = wall_radius(&ev, ext, &pv.pieces, edge)
+        .unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
     assert!(
         (got - 0.5).abs() < 1e-9,
         "the answered edge is the FILLET arc's wall, at its own radius, not {got}"
@@ -2666,8 +2666,8 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
         1,
         "and the step that drew it is not the step that emitted it"
     );
-    let got =
-        wall_radius(&ev, ext, &pv.pieces, edge).unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
+    let got = wall_radius(&ev, ext, &pv.pieces, edge)
+        .unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
     assert!(
         (got - 0.2).abs() < 1e-9,
         "the answered wall is the fillet arc's, at its own radius, not {got}"
@@ -2932,8 +2932,8 @@ fn a_reversed_via_closes_fillet_arc_reaches_its_wall() {
         panic!("one radius — got {answer:?}");
     };
     assert_eq!(*expr, radius);
-    let got =
-        wall_radius(&row.ev, row.ext, &pv.pieces, edge).unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
+    let got = wall_radius(&row.ev, row.ext, &pv.pieces, edge)
+        .unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
     assert!(
         (got - 0.5).abs() < 1e-9,
         "the FILLET arc's wall, not the Via arc's: {got}"
@@ -2950,7 +2950,8 @@ fn a_reversed_via_closes_fillet_arc_reaches_its_wall() {
         loop_index: 0,
         segment: u32::try_from(j).unwrap(),
     };
-    let got = wall_radius(&row.ev, row.ext, &pv.pieces, e).expect("the attached slot is a cylinder");
+    let got =
+        wall_radius(&row.ev, row.ext, &pv.pieces, e).expect("the attached slot is a cylinder");
     assert!(
         (got - 0.5).abs() < 1e-9,
         "the attach lands on the fillet arc's wall: {got}"
@@ -3010,8 +3011,8 @@ fn an_exact_fit_closing_fillet_arc_reaches_its_wall() {
     };
     assert_eq!(*expr, radius);
     assert_eq!(edge.segment, 2, "the closing segment");
-    let got =
-        wall_radius(&row.ev, row.ext, &pv.pieces, edge).unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
+    let got = wall_radius(&row.ev, row.ext, &pv.pieces, edge)
+        .unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
     assert!(
         (got - 0.5).abs() < 1e-9,
         "a cylinder at the fillet's radius: {got}"

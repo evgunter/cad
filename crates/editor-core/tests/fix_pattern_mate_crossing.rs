@@ -161,7 +161,10 @@ fn cut(ids: impl IntoIterator<Item = RecipeNodeId>) -> BTreeSet<RecipeNodeId> {
     ids.into_iter().collect()
 }
 
-fn crossings(doc: &editor_core::ProfileDoc, instance: RecipeNodeId) -> &editor_core::InterfaceRecord {
+fn crossings(
+    doc: &editor_core::ProfileDoc,
+    instance: RecipeNodeId,
+) -> &editor_core::InterfaceRecord {
     let Some(Node::InstantiatePart { interface, .. }) = doc.node(instance) else {
         panic!("the split minted an instance");
     };

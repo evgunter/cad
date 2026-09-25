@@ -760,7 +760,15 @@ fn spout_loft(
                 phase: ang(0.0),
             };
             let loops = vec![arcs(outer), arcs(outer * SPOUT_BORE)];
-            insert(doc, Node::Profile(ProfileProgram { plane, loops, ids: Vec::new() }), tol)
+            insert(
+                doc,
+                Node::Profile(ProfileProgram {
+                    plane,
+                    loops,
+                    ids: Vec::new(),
+                }),
+                tol,
+            )
         })
         .collect();
     insert(
@@ -874,12 +882,7 @@ fn edge_at(doc: &Doc<ProfileProgram>, sweep: RecipeNodeId, k: u32, tol: Tol) -> 
 }
 
 /// The piece starting at meridian vertex `v`, on the revolve `sweep`.
-fn vertex_at(
-    doc: &Doc<ProfileProgram>,
-    sweep: RecipeNodeId,
-    v: u32,
-    tol: Tol,
-) -> ProfileVertexRef {
+fn vertex_at(doc: &Doc<ProfileProgram>, sweep: RecipeNodeId, v: u32, tol: Tol) -> ProfileVertexRef {
     pieces_of(doc, sweep, tol)
         .vertex(0, v as usize)
         .expect("the vertex is the meridian's")
@@ -968,7 +971,10 @@ fn build_doc(tol: Tol) -> Recipe {
         Node::fillet(
             first,
             len(ROLL),
-            vec![carried(first, rims[1].clone()), carried(first, rims[2].clone())],
+            vec![
+                carried(first, rims[1].clone()),
+                carried(first, rims[2].clone()),
+            ],
         ),
         tol,
     );
@@ -1202,12 +1208,8 @@ fn rim_circle(
     let [(station, radius)] = carried[..] else {
         panic!("the rim's name denotes exactly one edge, got {carried:?}");
     };
-    let p = vertex_position(
-        ev,
-        node,
-        &meridian_vertex(MeridianEnd::Seam, node, start),
-    )
-    .expect("the meridian vertex's name denotes a vertex");
+    let p = vertex_position(ev, node, &meridian_vertex(MeridianEnd::Seam, node, start))
+        .expect("the meridian vertex's name denotes a vertex");
     assert!(
         (p.y - station).abs() < 1e-12 && (p.x.hypot(p.z) - radius).abs() < 1e-12,
         "the meridian vertex {p:?} does not stand on the circle its own rim carries \
@@ -1389,11 +1391,7 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
         .collect();
     // And the fourth question, which is the sixth finding ATTEMPTED
     // rather than described: all three rims in ONE request.
-    let together = insert(
-        &mut doc,
-        Node::fillet(lid, len(ROLL), rims),
-        tol,
-    );
+    let together = insert(&mut doc, Node::fillet(lid, len(ROLL), rims), tol);
     asked.push(("all three in ONE request", together));
     let ev = evaluate::<f64>(
         &doc,

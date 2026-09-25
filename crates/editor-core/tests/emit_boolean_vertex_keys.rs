@@ -161,7 +161,10 @@ fn the_surviving_operand_names_the_corners_in_every_order() {
         let corners = [(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)];
         for (end, h) in [(CapEnd::Start, z), (CapEnd::End, z + dz)] {
             for (i, (px, py)) in corners.into_iter().enumerate() {
-                let own = NameRef::new(vname(survivor, RoleSeg::CapVertex(end, pv(&doc, survivor, i as u32))));
+                let own = NameRef::new(vname(
+                    survivor,
+                    RoleSeg::CapVertex(end, pv(&doc, survivor, i as u32)),
+                ));
                 let seg = if kind == BooleanResultKind::OperandA {
                     RoleSeg::FromA(own)
                 } else {

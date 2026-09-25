@@ -113,7 +113,10 @@ fn table_of(
 fn filleted_blank() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m6_5_downstream", Tol::witness());
     let (doc, cube) = block(&doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, blank) = insert(&doc, Node::fillet(cube, len(0.125), prism_edges(&doc, cube, 4)));
+    let (doc, blank) = insert(
+        &doc,
+        Node::fillet(cube, len(0.125), prism_edges(&doc, cube, 4)),
+    );
     (doc, cube, blank)
 }
 

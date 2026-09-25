@@ -122,8 +122,14 @@ fn the_chamfer_removes_more_than_the_fillet_of_the_same_size() {
 /// does — a recipe's bits must not depend on click order.
 #[test]
 fn the_chamfer_door_sorts_and_dedups_its_selection() {
-    let a = fixture::ename(RecipeNodeId(1), editor_core::RoleSeg::Lateral(fixture::leg(0)));
-    let b = fixture::ename(RecipeNodeId(1), editor_core::RoleSeg::Lateral(fixture::leg(1)));
+    let a = fixture::ename(
+        RecipeNodeId(1),
+        editor_core::RoleSeg::Lateral(fixture::leg(0)),
+    );
+    let b = fixture::ename(
+        RecipeNodeId(1),
+        editor_core::RoleSeg::Lateral(fixture::leg(1)),
+    );
     let node: Node<ProfileProgram> = Node::chamfer(
         RecipeNodeId(1),
         fixture::len(0.1),
@@ -159,7 +165,10 @@ fn the_distance_slot_is_named_and_dimensioned_for_the_setback() {
 /// contract, which `payload_names` is the single answer for.
 #[test]
 fn the_selection_is_payload_names() {
-    let a = fixture::ename(RecipeNodeId(1), editor_core::RoleSeg::Lateral(fixture::leg(0)));
+    let a = fixture::ename(
+        RecipeNodeId(1),
+        editor_core::RoleSeg::Lateral(fixture::leg(0)),
+    );
     let node: Node<ProfileProgram> =
         Node::chamfer(RecipeNodeId(1), fixture::len(0.1), vec![a.clone()]);
     let names: Vec<&StableName> = node.payload_names();

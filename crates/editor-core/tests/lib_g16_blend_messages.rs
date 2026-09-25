@@ -107,10 +107,7 @@ fn messages(
     // (d) the op itself refusing: a size far too large for the cube.
     let (doc, cube) = cube_doc();
     let named = blend(cube, fixture::len(0.9), fixture::prism_edges(&doc, cube, 4));
-    let (d, n) = fixture::insert(
-        doc,
-        named,
-    );
+    let (d, n) = fixture::insert(doc, named);
     out.push(("op", msg_of(&d, n)));
     out
 }

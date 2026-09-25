@@ -20,8 +20,8 @@ use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, me
 use crate::fixture::{ename, fname, member_entity, table, vertex_of, wall};
 
 use editor_core::{
-    CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc,
-    RecipeNodeId, RoleSeg, StableName,
+    CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg,
+    StableName,
 };
 use geom_core::Tol;
 
@@ -104,10 +104,7 @@ fn crossing(
         a,
         ename(
             a,
-            RoleSeg::RimEdge(
-                cap,
-                crate::fixture::piece(doc, a, 0, 2),
-            ),
+            RoleSeg::RimEdge(cap, crate::fixture::piece(doc, a, 0, 2)),
         ),
         EntityKind::Edge,
     );
@@ -194,7 +191,8 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
         let members: Vec<_> = [a, b, g].into_iter().chain(h).collect();
         let (mut ab_first, mut g_between) = (0, 0);
         for order in permutations(&members) {
-            let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
+            let (docx, union, _) =
+                declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
             let ev = run(&docx);
             match failure(&ev, union) {
                 None => {

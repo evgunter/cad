@@ -230,7 +230,10 @@ pub fn at_the_door(
 
 /// [`at_the_door`] for a mate the door refuses on the datum alone,
 /// through the refusing reach: the fault it carries.
-pub fn door_refusal(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> editor_core::MateFault {
+pub fn door_refusal(
+    doc: &editor_core::ProfileDoc,
+    node: Node<ProfileProgram>,
+) -> editor_core::MateFault {
     match at_the_door(doc, &RefusingReach, node) {
         Err((_, fault)) => fault,
         Ok(_) => panic!("the door admitted a mate it refuses on its own datum"),
@@ -1092,7 +1095,12 @@ pub fn swept(doc: &ProfileDoc, node: RecipeNodeId) -> RecipeNodeId {
 /// # Panics
 ///
 /// Where [`pieces`] does, or where the position is past the profile.
-pub fn piece(doc: &editor_core::ProfileDoc, sweep: RecipeNodeId, l: usize, k: usize) -> ProfileEdgeRef {
+pub fn piece(
+    doc: &editor_core::ProfileDoc,
+    sweep: RecipeNodeId,
+    l: usize,
+    k: usize,
+) -> ProfileEdgeRef {
     pieces(doc, swept(doc, sweep))
         .edge(l, k)
         .expect("the canonical position is the profile's")
@@ -1104,7 +1112,12 @@ pub fn piece(doc: &editor_core::ProfileDoc, sweep: RecipeNodeId, l: usize, k: us
 /// # Panics
 ///
 /// Where [`piece`] does.
-pub fn vpiece(doc: &editor_core::ProfileDoc, sweep: RecipeNodeId, l: usize, v: usize) -> ProfileVertexRef {
+pub fn vpiece(
+    doc: &editor_core::ProfileDoc,
+    sweep: RecipeNodeId,
+    l: usize,
+    v: usize,
+) -> ProfileVertexRef {
     pieces(doc, swept(doc, sweep))
         .vertex(l, v)
         .expect("the canonical position is the profile's")

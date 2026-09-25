@@ -87,8 +87,7 @@ use crate::fixture;
 
 use editor_core::{
     CapEnd, EntityKey, EntityKind, Entry, EvalOptions, LoopProgram, NameRef, NameTable, Node,
-    ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, ProgramStep, ProgramTarget,
-    RecipeNodeId, RoleSeg, StableName,
+    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, StableName,
 };
 // The name-table and body readers, and the name-authoring shorthands,
 // live in `fixture` — one home for what this suite and
@@ -267,7 +266,12 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 
 /// One arc of a hole's rim on the filleted cap — a source rim edge, and
 /// what a [`RoleSeg::BandFace`] argument is a set of.
-fn rim_edge(doc: &editor_core::ProfileDoc, block: RecipeNodeId, rim: Rim, segment: u32) -> StableName {
+fn rim_edge(
+    doc: &editor_core::ProfileDoc,
+    block: RecipeNodeId,
+    rim: Rim,
+    segment: u32,
+) -> StableName {
     fixture::rim_edge(
         block,
         CapEnd::End,
@@ -277,7 +281,12 @@ fn rim_edge(doc: &editor_core::ProfileDoc, block: RecipeNodeId, rim: Rim, segmen
 
 /// A source rim VERTEX on the filleted cap — what a
 /// [`RoleSeg::BandFoot`] argument names.
-fn cap_vertex(doc: &editor_core::ProfileDoc, block: RecipeNodeId, rim: Rim, vertex: u32) -> StableName {
+fn cap_vertex(
+    doc: &editor_core::ProfileDoc,
+    block: RecipeNodeId,
+    rim: Rim,
+    vertex: u32,
+) -> StableName {
     fixture::cap_vertex(
         block,
         CapEnd::End,
@@ -288,10 +297,20 @@ fn cap_vertex(doc: &editor_core::ProfileDoc, block: RecipeNodeId, rim: Rim, vert
 /// The MERIDIAN descending from a rim vertex into the hole's wall — the
 /// extrude's lateral edge at the same profile vertex, and what a
 /// [`RoleSeg::BandCross`] and a [`RoleSeg::BandSlit`] argument name.
-fn meridian(doc: &editor_core::ProfileDoc, block: RecipeNodeId, rim: Rim, vertex: u32) -> StableName {
+fn meridian(
+    doc: &editor_core::ProfileDoc,
+    block: RecipeNodeId,
+    rim: Rim,
+    vertex: u32,
+) -> StableName {
     fixture::ename(
         block,
-        RoleSeg::LateralEdge(crate::fixture::vpiece(doc, block, rim.loop_index as usize, vertex as usize)),
+        RoleSeg::LateralEdge(crate::fixture::vpiece(
+            doc,
+            block,
+            rim.loop_index as usize,
+            vertex as usize,
+        )),
     )
 }
 

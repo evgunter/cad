@@ -11,9 +11,8 @@ use crate::corpus::body_of;
 use crate::wire::doctored;
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, CapEnd, DocEdit, EditError, EntityKind, Entry,
-    EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileEdgeRef,
-    ProfileVertexRef, RecipeNodeId, ResolveError, RoleSeg, SitedRef, StableName, ValuePayload,
-    evaluate,
+    EvalOptions, Evaluation, Node, NodeErrorKind, NodeResult, ProfileDoc, RecipeNodeId,
+    ResolveError, RoleSeg, SitedRef, StableName, ValuePayload, evaluate,
 };
 use fixture::{ang, fname, insert, len, on_frame, scl, step, table, wall};
 pub(crate) use fixture::{flush_pairs, member_face};
@@ -180,10 +179,7 @@ fn the_pair_boolean_declares_between_two_placements_of_one_prototype() {
     // The four flush planes, each named ONCE in the prototype's
     // vocabulary and sited at the two placements that carry it.
     let node = Node::declare_rest(flush_pairs(&doc, (m1, proto), (m2, proto)));
-    let (doc, decl) = insert(
-        doc,
-        node,
-    );
+    let (doc, decl) = insert(doc, node);
     let (doc, pair) = insert(
         doc,
         Node::Boolean {
@@ -218,13 +214,10 @@ fn a_site_that_is_neither_operand_refuses() {
     // Sited at the PROTOTYPE, whose table holds the name — but which
     // is neither operand of the boolean below.
     let node1 = Node::declare_rest(vec![(
-            SitedRef::new(proto, fname(proto, wall(&doc, proto, 0))),
-            SitedRef::new(m2, fname(proto, wall(&doc, proto, 0))),
-        )]);
-    let (doc, decl) = insert(
-        doc,
-        node1,
-    );
+        SitedRef::new(proto, fname(proto, wall(&doc, proto, 0))),
+        SitedRef::new(m2, fname(proto, wall(&doc, proto, 0))),
+    )]);
+    let (doc, decl) = insert(doc, node1);
     let (doc, pair) = insert(
         doc,
         Node::Boolean {
@@ -488,14 +481,10 @@ fn a_declared_name_that_denotes_nothing_refuses() {
     // A name the member's table does not carry — a wall the block
     // does not have: the site routes, the lookup finds nothing.
     let named2 = vec![(
-            SitedRef::new(a, fname(a, wall(&doc, a, 0))),
-            SitedRef::new(b, fname(b, RoleSeg::Lateral(crate::fixture::no_piece()))),
-        )];
-    let (doc, union, _) = declared_union(
-        doc,
-        &[a, b],
-        named2,
-    );
+        SitedRef::new(a, fname(a, wall(&doc, a, 0))),
+        SitedRef::new(b, fname(b, RoleSeg::Lateral(crate::fixture::no_piece()))),
+    )];
+    let (doc, union, _) = declared_union(doc, &[a, b], named2);
     let ev = run(&doc);
     assert!(
         matches!(
@@ -862,11 +851,7 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, far2) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
-    let vertex = fixture::cap_vertex(
-        a,
-        CapEnd::End,
-        crate::fixture::vpiece(&doc, a, 0, 0),
-    );
+    let vertex = fixture::cap_vertex(a, CapEnd::End, crate::fixture::vpiece(&doc, a, 0, 0));
     let face = fname(a, RoleSeg::Cap(CapEnd::Start));
     // Two entities of ONE member, sited there: the same pair reads as
     // that member's carried contact wherever the member sits.
@@ -1135,13 +1120,10 @@ fn a_name_the_site_does_not_carry_refuses_vanished_under_node_gone() {
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, spare) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
     let node3 = Node::declare_rest(vec![(
-            SitedRef::new(a, fname(a, wall(&doc, a, 0))),
-            SitedRef::new(b, fname(spare, wall(&doc, spare, 0))),
-        )]);
-    let (doc, decl) = insert(
-        doc,
-        node3,
-    );
+        SitedRef::new(a, fname(a, wall(&doc, a, 0))),
+        SitedRef::new(b, fname(spare, wall(&doc, spare, 0))),
+    )]);
+    let (doc, decl) = insert(doc, node3);
     let (doc, pair) = insert(
         doc,
         Node::Boolean {
@@ -1271,13 +1253,10 @@ fn a_name_the_other_operand_carries_is_not_read_at_its_site() {
     // Both sides name entities of `b`; the first is SITED at `a`,
     // whose table does not carry it.
     let node4 = Node::declare_rest(vec![(
-            SitedRef::new(a, fname(b, wall(&doc, b, 0))),
-            SitedRef::new(b, fname(b, wall(&doc, b, 2))),
-        )]);
-    let (doc, decl) = insert(
-        doc,
-        node4,
-    );
+        SitedRef::new(a, fname(b, wall(&doc, b, 0))),
+        SitedRef::new(b, fname(b, wall(&doc, b, 2))),
+    )]);
+    let (doc, decl) = insert(doc, node4);
     let (doc, pair) = insert(
         doc,
         Node::Boolean {

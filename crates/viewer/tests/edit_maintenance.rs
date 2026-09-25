@@ -24,8 +24,8 @@ use crate::common;
 use editor_core::{Attr, Rgba8};
 use pncad::document::{
     Datum, Dimension, Doc, DocEdit, DocParam, LoopProgram, Maintenance, Node, ParamName,
-    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId,
-    StepArg, cascade_delete_order,
+    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, StepArg,
+    cascade_delete_order,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, ProfileEdgeRef, RoleSeg, StableName};
@@ -36,7 +36,12 @@ use viewer::session::{DocSession, OpOutcome, SessionOp};
 /// The face name the extrude `node` mints for its lateral wall at
 /// canonical `(loop, segment)`, spelled by the piece that position is
 /// under `doc`'s current values.
-fn wall(doc: &Doc<ProfileProgram>, node: RecipeNodeId, loop_index: usize, segment: usize) -> StableName {
+fn wall(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    loop_index: usize,
+    segment: usize,
+) -> StableName {
     let Some(Node::Extrude { profile, .. }) = doc.node(node) else {
         panic!("node {} is an extrude", node.0);
     };

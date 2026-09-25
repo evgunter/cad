@@ -2485,7 +2485,11 @@ impl MaintenanceNet {
 /// of the load door's `SnapshotError::NameStepBeyondCounter`, so a
 /// document this door accepts is one the load door reads back.
 fn check_name_steps<P>(doc: &Doc<P>, name: &StableName) -> Result<(), EditError> {
-    match name.piece_steps().into_iter().find(|s| s.0 >= doc.next_step) {
+    match name
+        .piece_steps()
+        .into_iter()
+        .find(|s| s.0 >= doc.next_step)
+    {
         None => Ok(()),
         Some(step) => Err(EditError::NameStepNeverMinted {
             name: name.clone(),

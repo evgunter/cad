@@ -145,7 +145,13 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
         base.clone(),
         Node::declare_rest(vec![(
             SitedRef::new(a, fname(a, wall(&doc, a, 0))),
-            SitedRef::new(tr, fname(b0, editor_core::RoleSeg::Lateral(crate::fixture::no_piece()))),
+            SitedRef::new(
+                tr,
+                fname(
+                    b0,
+                    editor_core::RoleSeg::Lateral(crate::fixture::no_piece()),
+                ),
+            ),
         )]),
     );
     let (doc, u) = boolean(doc, decl);
@@ -174,13 +180,10 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
     let (doc, x) = block(doc, (12.0, 13.0), (0.0, 1.0), 0.0, 1.0);
     // The name is `c`'s; the site is `x`, live but not an operand.
     let node = Node::declare_rest(vec![(
-            SitedRef::new(a, fname(a, wall(&doc, a, 0))),
-            SitedRef::new(x, fname(c, wall(&doc, c, 0))),
-        )]);
-    let (doc, decl) = insert(
-        doc,
-        node,
-    );
+        SitedRef::new(a, fname(a, wall(&doc, a, 0))),
+        SitedRef::new(x, fname(c, wall(&doc, c, 0))),
+    )]);
+    let (doc, decl) = insert(doc, node);
     let (doc, u) = insert(
         doc,
         Node::Boolean {

@@ -203,7 +203,13 @@ fn remap_every_order(blocks: &[B], ops: &[Op]) -> (Vec<String>, Vec<String>, boo
                 if let (Some(Node::Profile(p1)), Some(Node::Profile(p2))) =
                     (b1.doc.node(*x), b2.doc.node(*y))
                 {
-                    steps.extend(p1.ids.iter().flatten().copied().zip(p2.ids.iter().flatten().copied()));
+                    steps.extend(
+                        p1.ids
+                            .iter()
+                            .flatten()
+                            .copied()
+                            .zip(p2.ids.iter().flatten().copied()),
+                    );
                 }
             }
         }

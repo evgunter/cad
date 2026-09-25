@@ -217,7 +217,9 @@ fn designating_a_side_wall_opens_the_cup_on_its_side() {
                 vec![StableName {
                     kind: EntityKind::Face,
                     node: n,
-                    path: vec![RoleSeg::Rim(fixture::fname(blank, fixture::wall(&doc, blank, 0)).into())],
+                    path: vec![RoleSeg::Rim(
+                        fixture::fname(blank, fixture::wall(&doc, blank, 0)).into()
+                    )],
                 }]
             );
         }

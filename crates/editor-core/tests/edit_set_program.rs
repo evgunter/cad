@@ -237,7 +237,11 @@ fn near(got: (f64, f64), want: (f64, f64)) -> bool {
 /// The sorted `(x, y, z)` corners of the face `name` denotes on the
 /// evaluated `node` — what a name DENOTES, read off the solid rather
 /// than off a spelling.
-fn corners_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId, name: &StableName) -> Vec<(f64, f64, f64)> {
+fn corners_of(
+    doc: &editor_core::ProfileDoc,
+    node: RecipeNodeId,
+    name: &StableName,
+) -> Vec<(f64, f64, f64)> {
     let ev = fixture::run(doc, &EvalOptions::default());
     let body = corpus::body_of(&ev, node);
     let mut out: Vec<(f64, f64, f64)> =
@@ -507,17 +511,20 @@ fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
 
     let next = StepId(reshaped.next_step());
     let unminted = wall_by(r.rod, next, PieceRole::Leg);
-    let never = |edit: DocEdit<ProfileProgram>| {
-        match apply(&reshaped, &edit, tol(), &editor_core::RefusingReach) {
-            Err(EditError::NameStepNeverMinted {
-                name,
-                step,
-                next_step,
-            }) => {
-                assert_eq!((name, step, next_step), (unminted.clone(), next, next.0));
-            }
-            other => panic!("a never-minted step refuses typed, got {other:?}"),
+    let never = |edit: DocEdit<ProfileProgram>| match apply(
+        &reshaped,
+        &edit,
+        tol(),
+        &editor_core::RefusingReach,
+    ) {
+        Err(EditError::NameStepNeverMinted {
+            name,
+            step,
+            next_step,
+        }) => {
+            assert_eq!((name, step, next_step), (unminted.clone(), next, next.0));
         }
+        other => panic!("a never-minted step refuses typed, got {other:?}"),
     };
     never(DocEdit::InsertNode {
         node: Node::Datum(editor_core::Datum::FaceFrame {
@@ -870,7 +877,10 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
                 unreachable!()
             };
             assert!(detail.contains(what), "{detail}");
-            assert!(e.to_string().contains(editor_core::REGENERATE_RECOURSE), "{e}");
+            assert!(
+                e.to_string().contains(editor_core::REGENERATE_RECOURSE),
+                "{e}"
+            );
         }
         other => panic!("an old file refuses Unreadable, got {other:?}"),
     };
@@ -880,7 +890,10 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
     let program = v["snapshot"]["nodes"][r.profile.0.to_string()]["Profile"]
         .as_object_mut()
         .expect("the profile node");
-    assert!(program.remove("ids").is_some(), "the program carries its ids");
+    assert!(
+        program.remove("ids").is_some(),
+        "the program carries its ids"
+    );
     let no_ids = format!("{header}\n{v}\n");
     unreadable(&no_ids, "ids");
     // A positional locator in a name, written compact so the piece is
@@ -1004,7 +1017,11 @@ fn square_and_driven_hole(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
 }
 
 /// A document parameter's value written through the value door.
-fn set_value(doc: &editor_core::ProfileDoc, name: &str, v: f64) -> editor_core::Applied<ProfileProgram> {
+fn set_value(
+    doc: &editor_core::ProfileDoc,
+    name: &str,
+    v: f64,
+) -> editor_core::Applied<ProfileProgram> {
     apply(
         doc,
         &DocEdit::SetDocParamValue {
@@ -1179,7 +1196,10 @@ fn a_parameter_through_a_state_that_does_not_replay_moves_no_name() {
     );
     let ev = fixture::run(&end.doc, &EvalOptions::default());
     let table = &ev.value(ext).expect("the extrude evaluates").name_table;
-    assert!(table.lookup(&half).is_some(), "the hole's half is named again");
+    assert!(
+        table.lookup(&half).is_some(),
+        "the hole's half is named again"
+    );
 }
 
 // ---------------------------------------------------------------- //
@@ -1440,7 +1460,8 @@ fn a_loft_wall_whose_pairing_changes_vanishes() {
     let ev = fixture::run(&applied.doc, &EvalOptions::default());
     assert!(ev.value(loft).is_some(), "{:?}", corpus::failures(&ev));
     assert!(
-        applied.doc.appearance().contains_key(&kept) && applied.doc.appearance().contains_key(&moved),
+        applied.doc.appearance().contains_key(&kept)
+            && applied.doc.appearance().contains_key(&moved),
         "both painted names keep their spelling"
     );
     let table = &ev.value(loft).expect("the loft evaluates").name_table;

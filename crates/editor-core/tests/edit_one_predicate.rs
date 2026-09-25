@@ -163,7 +163,11 @@ fn an_assertion_bound_of_the_wrong_dimension_is_refused_at_both_doors() {
 /// The saved text of `doc` plus one well-formed assertion, and that
 /// assertion's id — the rows above corrupt the text BY PATH, so they
 /// need the id to aim with.
-fn saved_assertion(doc: &editor_core::ProfileDoc, measure: RecipeNodeId, bound: Expr) -> (String, RecipeNodeId) {
+fn saved_assertion(
+    doc: &editor_core::ProfileDoc,
+    measure: RecipeNodeId,
+    bound: Expr,
+) -> (String, RecipeNodeId) {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {

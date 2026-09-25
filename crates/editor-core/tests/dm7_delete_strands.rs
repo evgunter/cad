@@ -96,7 +96,10 @@ fn paint(doc: &editor_core::ProfileDoc, name: &StableName) -> ProfileDoc {
 /// these rows delete from hold no mated instance, so the reach is the
 /// refusing one; a row whose delete moves a cluster's gauge goes
 /// through [`delete_with`] and the store's reach.
-fn delete(doc: &editor_core::ProfileDoc, id: RecipeNodeId) -> editor_core::Applied<editor_core::ProfileProgram> {
+fn delete(
+    doc: &editor_core::ProfileDoc,
+    id: RecipeNodeId,
+) -> editor_core::Applied<editor_core::ProfileProgram> {
     delete_with(doc, id, &editor_core::RefusingReach)
 }
 
@@ -352,14 +355,11 @@ fn a_delete_that_strands_nothing_reports_nothing() {
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, spare) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let node = Node::Fillet {
-            target: body,
-            radius: len(0.1),
-            selection: vec![fname(body, wall(&doc, body, 0))],
-        };
-    let (doc, _fillet) = insert(
-        doc,
-        node,
-    );
+        target: body,
+        radius: len(0.1),
+        selection: vec![fname(body, wall(&doc, body, 0))],
+    };
+    let (doc, _fillet) = insert(doc, node);
 
     let applied = delete(&doc, spare);
     assert!(
@@ -378,14 +378,11 @@ fn a_carrier_deleted_with_the_node_it_names_reports_nothing() {
     let doc = ProfileDoc::empty_derived("dm7_self", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let node1 = Node::Fillet {
-            target: body,
-            radius: len(0.1),
-            selection: vec![fname(body, wall(&doc, body, 0))],
-        };
-    let (doc, fillet) = insert(
-        doc,
-        node1,
-    );
+        target: body,
+        radius: len(0.1),
+        selection: vec![fname(body, wall(&doc, body, 0))],
+    };
+    let (doc, fillet) = insert(doc, node1);
 
     let order = cascade_delete_order(&doc, body);
     assert_eq!(order, vec![fillet, body], "the consumer goes first");
@@ -419,14 +416,11 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, other) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     let node2 = Node::Fillet {
-            target: body,
-            radius: len(0.1),
-            selection: vec![fname(body, wall(&doc, body, 0))],
-        };
-    let (doc, fillet) = insert(
-        doc,
-        node2,
-    );
+        target: body,
+        radius: len(0.1),
+        selection: vec![fname(body, wall(&doc, body, 0))],
+    };
+    let (doc, fillet) = insert(doc, node2);
     let face = fname(fillet, wall(&doc, fillet, 2));
     let (doc, derived) = insert(
         doc,
@@ -796,14 +790,11 @@ fn a_cascade_reports_each_appearance_strand_at_the_step_that_made_it() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_cascade", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let node3 = Node::Fillet {
-            target: body,
-            radius: len(0.1),
-            selection: vec![fname(body, wall(&doc, body, 0))],
-        };
-    let (doc, fillet) = insert(
-        doc,
-        node3,
-    );
+        target: body,
+        radius: len(0.1),
+        selection: vec![fname(body, wall(&doc, body, 0))],
+    };
+    let (doc, fillet) = insert(doc, node3);
     let on_fillet = fname(fillet, wall(&doc, fillet, 2));
     let on_body = fname(body, wall(&doc, body, 2));
     let doc = paint(&doc, &on_fillet);

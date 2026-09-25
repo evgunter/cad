@@ -823,10 +823,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
     let rim = minted(
         EntityKind::Edge,
         a,
-        RoleSeg::RimEdge(
-            CapEnd::End,
-            crate::fixture::piece(&doc, a, 0, 0),
-        ),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&doc, a, 0, 0)),
     );
     assert!(
         apply_with_names(
@@ -844,10 +841,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
     let bogus = minted(
         EntityKind::Edge,
         a,
-        RoleSeg::RimEdge(
-            CapEnd::End,
-            crate::fixture::no_piece(),
-        ),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::no_piece()),
     );
     let err = apply_with_names(
         &doc,

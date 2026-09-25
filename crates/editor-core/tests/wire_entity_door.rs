@@ -43,7 +43,7 @@ use crate::fixture;
 use editor_core::measure::{MeasureExpr, MeasurePrimitive};
 use editor_core::{
     CancelToken, CapEnd, Datum, EntityKind, EvalOptions, Node, NodeErrorKind, NodeResult,
-    ProfileDoc, ProfileVertexRef, RecipeNodeId, SitedRef, StableName, evaluate,
+    ProfileDoc, RecipeNodeId, SitedRef, StableName, evaluate,
 };
 use fixture::{ang, fname, insert, len, on_frame, square, wall};
 use geom_core::Tol;
@@ -55,7 +55,7 @@ fn end_cap_vertex(doc: &editor_core::ProfileDoc, node: RecipeNodeId, vertex: u32
     fixture::cap_vertex(
         node,
         CapEnd::End,
-        crate::fixture::vpiece(&doc, node, 0, vertex as usize),
+        crate::fixture::vpiece(doc, node, 0, vertex as usize),
     )
 }
 

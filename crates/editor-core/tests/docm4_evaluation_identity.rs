@@ -68,7 +68,11 @@ fn assembly_of(id: DocumentId, part_ref: DocRef) -> (ProfileDoc, Vec<RecipeNodeI
     (doc, vec![a, b])
 }
 
-fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>, opts: &EvalOptions) -> Evaluation<f64> {
+fn run(
+    doc: &editor_core::ProfileDoc,
+    prior: Option<&Evaluation<f64>>,
+    opts: &EvalOptions,
+) -> Evaluation<f64> {
     evaluate::<f64>(doc, prior, &CancelToken::new(), opts, Tol::witness())
 }
 

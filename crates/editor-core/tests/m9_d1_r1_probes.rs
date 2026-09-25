@@ -10,8 +10,8 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, EvalOptions, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram,
-    ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, StableName,
-    ValuePayload, evaluate, vertex_position,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload, evaluate,
+    vertex_position,
 };
 use fixture::{ang, insert, len, scl, table};
 use geom_core::Tol;
@@ -29,10 +29,7 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// A pole of the document's one outer loop — the only loop these
 /// revolves have, so a row names a pole by its vertex alone.
 fn outer_pole(doc: &editor_core::ProfileDoc, node: RecipeNodeId, v: u32) -> StableName {
-    fixture::pole(
-        node,
-        crate::fixture::vpiece(&doc, node, 0, v as usize),
-    )
+    fixture::pole(node, crate::fixture::vpiece(doc, node, 0, v as usize))
 }
 
 /// A revolve doc for one authored chain on the xz-authoring plane of
@@ -229,11 +226,15 @@ fn partial_subdivided_axis_run_names_the_interior_vertex_a_pole() {
     let ev = run(&doc);
     let t = table(&ev, rev);
     for v in 0..3 {
-        assert!(t.lookup(&outer_pole(&doc, rev, v)).is_some(), "pole {v} unnamed");
+        assert!(
+            t.lookup(&outer_pole(&doc, rev, v)).is_some(),
+            "pole {v} unnamed"
+        );
     }
     // The interior vertex is the run's midpoint, not a third tip.
-    let at =
-        |v| vertex_position(&ev, rev, &outer_pole(&doc, rev, v)).expect("a named pole has a position");
+    let at = |v| {
+        vertex_position(&ev, rev, &outer_pole(&doc, rev, v)).expect("a named pole has a position")
+    };
     let (a, b, c) = (at(0), at(1), at(2));
     for (mid, ends) in [(b.x, a.x + c.x), (b.y, a.y + c.y), (b.z, a.z + c.z)] {
         assert!(

@@ -16,8 +16,8 @@ use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, ru
 use crate::fixture::{edge_of, member_entity, table};
 
 use editor_core::{
-    CapEnd, EntityKind, NamingError, NodeErrorKind, ProfileDoc, ProfileEdgeRef, Qualifier,
-    RecipeNodeId, RoleSeg, StableName,
+    CapEnd, EntityKind, NamingError, NodeErrorKind, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
+    StableName,
 };
 use geom_core::Tol;
 

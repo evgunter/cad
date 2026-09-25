@@ -260,13 +260,17 @@ fn dumbbell() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 /// Selecting them by name is what keeps the acceptance rows' cost
 /// honest AND small: one candidate pair, the one the certificate is
 /// about, rather than every pair of a fourteen-face body.
-fn neck_walls(doc: &editor_core::ProfileDoc, minted_at: RecipeNodeId, read_at: RecipeNodeId) -> Selection {
+fn neck_walls(
+    doc: &editor_core::ProfileDoc,
+    minted_at: RecipeNodeId,
+    read_at: RecipeNodeId,
+) -> Selection {
     Selection {
         at: read_at,
         body: 0,
         faces: FaceScope::Named(vec![
-            fixture::fname(minted_at, fixture::wall(&doc, minted_at, 2)),
-            fixture::fname(minted_at, fixture::wall(&doc, minted_at, 9)),
+            fixture::fname(minted_at, fixture::wall(doc, minted_at, 2)),
+            fixture::fname(minted_at, fixture::wall(doc, minted_at, 9)),
         ]),
     }
 }
@@ -280,8 +284,8 @@ fn opposite_flats(doc: &editor_core::ProfileDoc, minted: RecipeNodeId) -> Select
         at: minted,
         body: 0,
         faces: FaceScope::Named(vec![
-            fixture::fname(minted, fixture::wall(&doc, minted, 0)),
-            fixture::fname(minted, fixture::wall(&doc, minted, 3)),
+            fixture::fname(minted, fixture::wall(doc, minted, 0)),
+            fixture::fname(minted, fixture::wall(doc, minted, 3)),
         ]),
     }
 }

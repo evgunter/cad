@@ -1935,21 +1935,22 @@ mod tests {
     /// and role — and its wire text is the edge's, which is what lets
     /// one piece text name both.
     #[test]
+    #[allow(clippy::expect_used)]
     fn a_pieces_start_is_spelled_as_the_piece() {
         for e in edges() {
             let v = e.start();
             assert_eq!(v.step(), e.step());
             assert_eq!(
-                serde_json::to_string(&v).unwrap(),
-                serde_json::to_string(&e).unwrap()
+                serde_json::to_string(&v).expect("serializes"),
+                serde_json::to_string(&e).expect("serializes")
             );
         }
         assert_eq!(
-            serde_json::to_string(&edges()[0]).unwrap(),
+            serde_json::to_string(&edges()[0]).expect("serializes"),
             r#"{"Piece":{"step":3,"role":"RunOut"}}"#
         );
         assert_eq!(
-            serde_json::to_string(&edges()[1]).unwrap(),
+            serde_json::to_string(&edges()[1]).expect("serializes"),
             r#"{"Section":{"circle":"Bore","role":{"Piece":1}}}"#
         );
     }

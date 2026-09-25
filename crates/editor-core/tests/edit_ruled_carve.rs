@@ -68,9 +68,8 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, EntityKind, EvalOptions, LoopProgram, NameRef, Node, ProfileDoc, ProfileEdgeRef,
-    ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, StableName,
+    CapEnd, EntityKind, EvalOptions, LoopProgram, NameRef, Node, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, StableName,
 };
 // The name-table and body readers, and the name-authoring shorthands,
 // live in `fixture` — one home for what this suite and
@@ -313,7 +312,12 @@ fn wall(doc: &editor_core::ProfileDoc, rod: RecipeNodeId, segment: u32) -> Stabl
 
 /// Both fixtures' rods extrude ONE profile loop, so a cap entity of
 /// theirs is fixed by its cap end and its index in that loop.
-fn rim_edge(doc: &editor_core::ProfileDoc, rod: RecipeNodeId, end: CapEnd, segment: u32) -> StableName {
+fn rim_edge(
+    doc: &editor_core::ProfileDoc,
+    rod: RecipeNodeId,
+    end: CapEnd,
+    segment: u32,
+) -> StableName {
     fixture::rim_edge(
         rod,
         end,
@@ -321,7 +325,12 @@ fn rim_edge(doc: &editor_core::ProfileDoc, rod: RecipeNodeId, end: CapEnd, segme
     )
 }
 
-fn cap_vertex(doc: &editor_core::ProfileDoc, rod: RecipeNodeId, end: CapEnd, vertex: u32) -> StableName {
+fn cap_vertex(
+    doc: &editor_core::ProfileDoc,
+    rod: RecipeNodeId,
+    end: CapEnd,
+    vertex: u32,
+) -> StableName {
     fixture::cap_vertex(
         rod,
         end,
@@ -659,7 +668,11 @@ fn a_coplanar_wall_is_told_from_its_twin_by_the_support_face() {
         // crease 3 on wall 2 belongs.
         let crossed = vertex_of(t, &what, &foot_name(&f, end, 4, 4));
         let p = point(body, crossed);
-        let z = point(rod, vertex_of(source, &what, &cap_vertex(&f.doc, f.rod, end, 3))).z;
+        let z = point(
+            rod,
+            vertex_of(source, &what, &cap_vertex(&f.doc, f.rod, end, 3)),
+        )
+        .z;
         assert!(
             p.z == z && (f.residual)(2, p).abs() < NEAR,
             "{what}: the crossed foot {p:?} was expected to satisfy the plane and residual \

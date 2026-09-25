@@ -218,7 +218,7 @@ fn circle_radius_edit_keeps_names() {
 /// silently repoint.
 #[test]
 fn stale_program_refs_refuse_vanished() {
-    use editor_core::{CapEnd, EntityKind, ProfileEdgeRef, RoleSeg};
+    use editor_core::{CapEnd, EntityKind, RoleSeg};
     let doc = param_rect_doc(0.5);
     let ev = evaluate::<f64>(
         &doc,
@@ -381,7 +381,12 @@ fn hole_circle_anchor_recovers_reversal() {
         let name = StableName {
             kind: EntityKind::Face,
             node: BODY,
-            path: vec![RoleSeg::Lateral(crate::fixture::piece(&doc, BODY, 1, seg as usize))],
+            path: vec![RoleSeg::Lateral(crate::fixture::piece(
+                &doc,
+                BODY,
+                1,
+                seg as usize,
+            ))],
         };
         assert!(
             table.lookup(&name).is_some(),

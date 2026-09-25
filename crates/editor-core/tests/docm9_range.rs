@@ -253,7 +253,12 @@ fn standings_and_names(
     (standings, names)
 }
 
-fn range_of(doc: &editor_core::ProfileDoc, p: &str, seed: RangeSeed, config: &DriveConfig) -> CertifiedRange {
+fn range_of(
+    doc: &editor_core::ProfileDoc,
+    p: &str,
+    seed: RangeSeed,
+    config: &DriveConfig,
+) -> CertifiedRange {
     certified_range(doc, &RangeField::Param(name(p)), seed, config, tol())
         .expect("the fixture has an axis and a witness that builds")
 }

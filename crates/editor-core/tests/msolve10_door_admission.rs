@@ -155,7 +155,12 @@ impl MateReach for Counting<'_> {
 
 /// The lever the solve forms for a mate on `ids`: both parts' reach
 /// plus the datum's own terms.
-fn lever_of(doc: &editor_core::ProfileDoc, opts: &EvalOptions, ids: &[RecipeNodeId], a: &Alignment) -> f64 {
+fn lever_of(
+    doc: &editor_core::ProfileDoc,
+    opts: &EvalOptions,
+    ids: &[RecipeNodeId],
+    a: &Alignment,
+) -> f64 {
     let reach = mate_reach::<f64>(opts, Tol::witness());
     let mut arm = a.lever_arm();
     for &id in ids {

@@ -25,9 +25,7 @@ use crate::docm7_union_declare::{declared_union, failure, flush_pairs, run};
 use crate::emit_shared_rim_several::{Bx, document, permutations, probe_corpus, rim_piece};
 use crate::fixture::{face_vertices, insert, table};
 
-use editor_core::{
-    CapEnd, EntityKey, EntityKind, Entry, Node, ProfileEdgeRef, RecipeNodeId, RoleSeg, StableName,
-};
+use editor_core::{CapEnd, EntityKey, EntityKind, Entry, Node, RecipeNodeId, RoleSeg, StableName};
 
 /// A rounded point, comparable across two evaluations.
 type P = (i64, i64, i64);
@@ -711,7 +709,8 @@ fn fam010_ranks_a_rim_the_same_way_in_both_orders() {
         )],
     };
     let span = |order: [editor_core::RecipeNodeId; 3], rank| {
-        let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
+        let (docx, union, _) =
+            declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),

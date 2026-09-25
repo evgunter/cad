@@ -25,7 +25,10 @@ use editor_core::{
 use fixture::{ang, fname, insert, len, scl, wall};
 use geom_core::Tol;
 
-fn delete(doc: &editor_core::ProfileDoc, id: RecipeNodeId) -> editor_core::Applied<editor_core::ProfileProgram> {
+fn delete(
+    doc: &editor_core::ProfileDoc,
+    id: RecipeNodeId,
+) -> editor_core::Applied<editor_core::ProfileProgram> {
     apply(
         doc,
         &DocEdit::DeleteNode { id },
@@ -49,14 +52,11 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     let doc = ProfileDoc::empty_derived("rv_self_naming", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let node = Node::Fillet {
-            target: body,
-            radius: len(0.1),
-            selection: vec![fname(body, wall(&doc, body, 0))],
-        };
-    let (doc, fillet) = insert(
-        doc,
-        node,
-    );
+        target: body,
+        radius: len(0.1),
+        selection: vec![fname(body, wall(&doc, body, 0))],
+    };
+    let (doc, fillet) = insert(doc, node);
     // The repair door moves the fillet's selection into the fillet's
     // OWN space: `to` must name a live node and nothing forbids that
     // node being the carrier itself.

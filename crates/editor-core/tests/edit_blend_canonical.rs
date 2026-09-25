@@ -18,8 +18,8 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, CapEnd, DocEdit, EditError, EntityKind, EvalOptions, InputFault, Node,
-    NodeErrorKind, NodeResult, PersistError, ProfileDoc, ProfileProgram,
-    RecipeNodeId, RoleSeg, SnapshotError, StableName, apply, evaluate, load, save,
+    NodeErrorKind, NodeResult, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg,
+    SnapshotError, StableName, apply, evaluate, load, save,
 };
 use geom_core::Tol;
 use sweep::blend::BlendKind;
