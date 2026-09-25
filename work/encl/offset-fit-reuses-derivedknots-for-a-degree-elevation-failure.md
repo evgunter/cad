@@ -4,6 +4,8 @@ kind: issue
 title: Composite::build reports a failed degree elevation as PatchBoundError::DerivedKnots, so the message describes a derivative knot vector that was never built
 status: open
 opened: 2026-09-21
+priority: P4
+cost: E
 ---
 
 

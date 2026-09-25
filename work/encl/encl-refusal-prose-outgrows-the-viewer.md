@@ -5,6 +5,8 @@ title: geom-brep: the offset meter and offset fit refusals are too long for the 
 status: open
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
+priority: P0
+cost: D
 ---
 
 
