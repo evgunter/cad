@@ -313,11 +313,19 @@ const SLAB_LEDGER: [&str; 3] = [
 /// the only change between the two captures): the plate's
 /// `Early/Decision` digest, and nothing else — every count on every
 /// line identical, the slab's ledger and both largest forms unmoved.
-/// The rewrite fires on a root the plate's decision walk mints over a
-/// quotient whose denominator divides its numerator, so the form that
-/// root is keyed on changes and no decision does (the plate's split
-/// and receipt are unmoved: `sym_9_retry_interval`'s pin reads
-/// `[811, 0, 140, 462]` either way).
+/// Its reach on the plate's nominal replay is 108 of the 208 root mints
+/// that reach it (ten distinct arguments, asked again across walks):
+/// on 76 of them the split would have keyed the root differently, on
+/// 32 it declined, and on each the quotient's root is a different form
+/// (counted by a local probe, reverted, and matching review r1's count
+/// at the rule's first head). No decision moves: the plate's split and
+/// receipt are unmoved (`sym_9_retry_interval`'s pin reads
+/// `[811, 0, 140, 462]` either way). One digest and not more is the
+/// ledger's charging rule read on this document: a memoized form is
+/// chained into the line of the walk and origin that first builds it,
+/// and these roots are first built by the decision walk — the pin
+/// holds that no other line moves, and that reading of it is not a
+/// separate measurement.
 const SLAB_MAX_TERMS: usize = 6;
 const PLATE_MAX_TERMS: usize = 252;
 
@@ -486,9 +494,8 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
         (
             "both new dials off",
             SymRules {
-                canonical_root: false,
                 decision_read: false,
-                ..SymRules::shipped()
+                ..SymRules::without_canonical_root()
             },
         ),
     ];

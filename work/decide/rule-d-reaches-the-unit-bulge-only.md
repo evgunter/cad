@@ -715,20 +715,29 @@ The parameter control's ceiling moves `4.3375e2 → 5.1078e2 · ε`
 parameter D-tab's does not (the ring is in front).
 
 **Costs**, the leaf instrument (release, one whole-box leaf, the
-`ON + the ladder` column, which is the drive's default):
+`ON + the ladder` column, which is the drive's default, best of three
+takes, `CAD_M10_10_TAKES=3`, taken at the fix pass's head: rule G's
+exact quotient shipped under all three columns). The pad's route
+columns were not taken (a pad take is about 145 s); its single takes
+at the Phase 1 head read 150.9 / 147.8 / 91.1 s.
 
 | document | shipped | route A | route B |
 | --- | --- | --- | --- |
-| plate `1e2·ε` | 0.379 s | 0.157 s | 0.382 s |
-| plate, real study | 0.408 s | 0.045 s | 0.347 s |
-| bracket | 3.909 s | 4.647 s | 3.057 s |
-| annulus | 0.375 s | 0.102 s | 0.378 s |
-| pad | 150.886 s | 147.844 s | 91.059 s |
-| link | 19.809 s | 19.613 s | 10.743 s |
+| plate `1e2·ε` | 0.349 s | 0.121 s | 0.357 s |
+| plate, real study | 0.346 s | 0.043 s | 0.361 s |
+| bracket | 3.823 s | 5.651 s | 2.857 s |
+| annulus | 0.364 s | 0.100 s | 0.371 s |
+| link | 19.332 s | 19.016 s | 10.660 s |
+| boss `1e2·ε` | 0.250 s | 0.092 s | 0.250 s |
+| pad | 145.677 s | — | — |
 
 Route A is cheaper where it abandons the door. Route B's link leaf
 reads `[549, 0, 120, 433]` retried 16 against `[553, 0, 96, 453]`
-retried 12, and the pad's is unmoved at `[890, 6, 150, 907]`.
+retried 12, and the pad's (Phase 1 head) is unmoved at
+`[890, 6, 150, 907]`.
+
+The fork is on `[ev]` #3186, not on this branch: it recommends route B,
+and the apothem's sign is its own item there.
 
 ### The class: `restrict`'s sub-arcs on the plate
 
@@ -756,27 +765,60 @@ still mints `tan(atan(b)·(s1 − s0))`.
 
 The one value-free (iv) decision is taken by
 `SymRules::root_quotient` (`crates/geom-core/src/sym/root.rs`, its
-header section "The exact quotient"). If a root's argument `N/D` has
-a denominator that divides its numerator exactly, the root is minted
-over the polynomial quotient before rule G's split. `Q` is accepted
-only when `Q·D` equals `N` term for term. It is behind its own dial,
-read with rule G's, and `SymRules::without_root_quotient` is the
-tier SYM-9 shipped.
+header section "The exact quotient"). A root whose argument `N/D` has a
+denominator that divides its numerator exactly is minted over the
+polynomial quotient `Q` before rule G's split is asked. The quotient
+comes from `Poly::div_exact` (`crates/geom-core/src/sym/form.rs`), a
+leading-term division under grlex whose exact remainder
+`rest = N − q·D` is its own proof, capped at the budget's term cap. The
+dial is read as `canonical_root && root_quotient`, and
+`SymRules::without_root_quotient` is the tier SYM-9 shipped.
 
-Measured on the nominal splits of nine documents (the plate, the
-bracket, the annulus, the link, the boss, both `0.4` D-tabs and both
-controls; `CAD_M10_10_RULES=no_q` against the shipped set): the only
-move is the boss's `arc_span` 5/0/0/1 → 6/0/0/0, a THEOREM. Its
-receipt goes `[374, 2, 96, 234]` → `[375, 2, 96, 233]`. The boss's
-whole-certifying ceiling goes `1.0309e3 · ε` → **0.7267 of its real
-study** at ε = 1e-9, and what bounds it is now `dihedral_wedge`
-`[7.50e-9, 5.48e-2]` 1/58, a real margin. That puts it in
-`real-margin-dependency-widening`'s class with the annulus. The two
-parameter D-tabs' ceilings do not move. The plate's walk ledger moves
-one digest (`Early/Decision`) with every count identical. Leaf cost
-(release, one take): noise-level on the six instrument documents, and
-the boss's leaf goes 0.246 → 0.324 s.
+**What it moves.** Measured on the nominal splits of nine documents
+(the plate, the bracket, the annulus, the link, the boss, both `0.4`
+D-tabs and both controls; `CAD_M10_10_RULES=no_q` against the shipped
+set), the only move is the boss's `arc_span` 5/0/0/1 → 6/0/0/0, a
+THEOREM, and its receipt `[374, 2, 96, 234]` → `[375, 2, 96, 233]`.
 
-It does not reach a shared factor where neither half divides the
-other (a GCD), and it does not reach an `abs` over such a quotient.
-No measured decision stands on either.
+**The boss's ceiling.** It goes from `1.0309e3 · ε` to **0.5024,
+0.7267 and 0.7271 of its real study** at ε = 1e-6, 1e-9 and 1e-12.
+What bounds it at each row is now `dihedral_wedge`, 1/58, a real
+margin, which puts it in `real-margin-dependency-widening`'s class
+beside the annulus. The two parameter D-tabs' ceilings are unmoved at
+all three rows: `3.52e2 · ε` and `4.34e2 · ε`, both bounded by
+`carrier_matches_mapped_source`.
+
+**The walk ledger.** On the plate's nominal replay the rule returns a
+quotient on 108 of 208 root mints (ten distinct arguments), and it
+changes that root's form on each. The ledger moves one digest,
+`Early/Decision`, and every count is identical.
+
+**Leaf cost** (release, best of three, off → on):
+
+| document | off | on |
+| --- | --- | --- |
+| plate `1e2·ε` | 0.339 s | 0.349 s |
+| plate, real study | 0.342 s | 0.346 s |
+| annulus | 0.364 s | 0.364 s |
+| bracket | 3.807 s | 3.823 s |
+| link | 19.427 s | 19.332 s |
+| pad | 144.495 s | 145.677 s |
+| boss `1e2·ε` | 0.245 s | 0.250 s |
+
+That is +0–3%, with every receipt but the boss's unmoved.
+
+**It is a trade.** The re-keyed root no longer meets the split
+spelling `sqrt(N)/sqrt(D)` of the same value. Both reviews found this,
+and no measured document moves on it. Asking the split first would keep
+that meeting but lose the boss's, so neither order keeps both.
+`the-exact-quotient-re-keys-a-root-the-split-met` (P2, filed here)
+carries both shapes and the remedy.
+
+**What it does not reach.** It does not take a shared factor where
+neither half divides the other (a GCD), and it does not reach an `abs`
+over such a quotient. No measured decision stands on either.
+
+**The renders.** `m10_bulge_renders.txt` is re-taken at the fix head.
+Every form attributed to (iii) or (iv) is written uncut, and evaluating
+them at the points above reproduces each class. The boss's former
+residual is kept as its base-tree render.

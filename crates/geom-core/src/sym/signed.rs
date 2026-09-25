@@ -46,7 +46,7 @@
 
 use core::f64::consts::PI;
 
-use super::form::{Form, Mono, Poly, exp_of};
+use super::form::{Form, Mono, Poly, leading, mono_div, trailing};
 use super::rational::Rat;
 use super::{AtomInfo, INDET_PI, IndetMap, Session, SymBudget, SymOp, manifest, quotient};
 use crate::ring_interval::RingInterval;
@@ -56,26 +56,6 @@ use crate::ring_interval::RingInterval;
 /// a non-square polynomial from being chased term by term.
 const ROOT_TERMS: usize = 64;
 
-/// The exponent of `id` in `m` (zero where absent).
-/// A graded-lexicographic comparison: total degree first, then the
-/// exponent vector over `ids` — a monomial order, which the
-/// leading-term recurrence below needs (the map's own `Vec` order is
-/// not one). Allocation-free: it runs over every term of every
-/// argument the early walk offers, and the first cut's per-term key
-/// vector was the cost of the whole walk.
-fn cmp_mono(a: &Mono, b: &Mono, ids: &[u128]) -> core::cmp::Ordering {
-    let deg = |m: &Mono| m.iter().map(|(_, e)| *e).sum::<u32>();
-    deg(a).cmp(&deg(b)).then_with(|| {
-        for &id in ids {
-            let o = exp_of(a, id).cmp(&exp_of(b, id));
-            if o != core::cmp::Ordering::Equal {
-                return o;
-            }
-        }
-        core::cmp::Ordering::Equal
-    })
-}
-
 /// Every indeterminate id of `p`, sorted.
 fn ids_of(p: &Poly) -> Vec<u128> {
     let mut ids: Vec<u128> = p.monos().flat_map(|m| m.iter().map(|(i, _)| *i)).collect();
@@ -84,38 +64,11 @@ fn ids_of(p: &Poly) -> Vec<u128> {
     ids
 }
 
-/// The leading term of `p` under the graded-lex order over `ids`.
-fn lead<'a>(p: &'a Poly, ids: &[u128]) -> Option<(&'a Mono, Rat)> {
-    p.terms()
-        .iter()
-        .max_by(|(a, _), (b, _)| cmp_mono(a, b, ids))
-        .map(|(m, c)| (m, c.clone()))
-}
-
 /// The monomial whose square is `m`, if every exponent is even.
 fn mono_sqrt(m: &Mono) -> Option<Mono> {
     m.iter()
         .map(|&(i, e)| (e % 2 == 0).then_some((i, e / 2)))
         .collect()
-}
-
-/// `t / r` as monomials, if `r` divides `t`.
-fn mono_div(t: &Mono, r: &Mono) -> Option<Mono> {
-    let mut out: Mono = Vec::with_capacity(t.len());
-    for &(i, e) in t {
-        let re = r.iter().find(|(j, _)| *j == i).map_or(0, |(_, e)| *e);
-        if re > e {
-            return None;
-        }
-        if e - re > 0 {
-            out.push((i, e - re));
-        }
-    }
-    // Every factor of `r` must appear in `t`.
-    if r.iter().any(|(j, _)| !t.iter().any(|(i, _)| i == j)) {
-        return None;
-    }
-    Some(out)
 }
 
 /// **The exact polynomial square root**: `Some(r)` with `r² == x` as
@@ -141,13 +94,13 @@ pub(super) fn poly_sqrt(x: &Poly, budget: SymBudget) -> Option<Poly> {
         return Some(Poly::zero());
     }
     let ids = ids_of(x);
-    let (lm, lc) = lead(x, &ids)?;
+    let (lm, lc) = leading(x)?;
     let r0m = mono_sqrt(lm)?;
     let r0c = lc.sqrt_exact()?;
     // The trailing term of a square is the square of the root's
     // trailing term: an odd exponent or a non-square coefficient there
     // settles it without building anything.
-    let (tm, tc) = trail(x, &ids)?;
+    let (tm, tc) = trailing(x)?;
     mono_sqrt(tm)?;
     tc.sqrt_exact()?;
     // And a square polynomial takes a square VALUE at every rational
@@ -171,7 +124,7 @@ pub(super) fn poly_sqrt(x: &Poly, budget: SymBudget) -> Option<Poly> {
         if root.terms().len() >= cap {
             return None;
         }
-        let (tm, tc) = lead(&rem, &ids)?;
+        let (tm, tc) = leading(&rem)?;
         let nm = mono_div(tm, &r0m)?;
         let nc = tc.mul(&twice.recip()?)?;
         // rem -= 2·root·t + t²
@@ -220,14 +173,6 @@ fn is_square_at_a_point(x: &Poly, ids: &[u128]) -> bool {
         };
     }
     acc.sqrt_exact().is_some()
-}
-
-/// The trailing term of `p` under the graded-lex order over `ids`.
-fn trail<'a>(p: &'a Poly, ids: &[u128]) -> Option<(&'a Mono, Rat)> {
-    p.terms()
-        .iter()
-        .min_by(|(a, _), (b, _)| cmp_mono(a, b, ids))
-        .map(|(m, c)| (m, c.clone()))
 }
 
 /// The monomial `m^e` as a polynomial with coefficient one.

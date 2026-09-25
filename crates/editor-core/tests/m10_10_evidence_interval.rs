@@ -251,9 +251,11 @@ fn m10_10_the_four_residuals_rendered_at_the_nominal() {
             let i = index.entry(s.predicate).or_default();
             let at = *i;
             *i += 1;
+            // `Invalid` is a domain violation the tier is never asked
+            // about, and `Definite` a sign the numeric channel settled.
             if !matches!(
                 s.outcome,
-                ShapeOutcome::NumericZero | ShapeOutcome::Indeterminate | ShapeOutcome::Invalid
+                ShapeOutcome::NumericZero | ShapeOutcome::Indeterminate
             ) {
                 continue;
             }
