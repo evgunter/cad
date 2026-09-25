@@ -4060,12 +4060,11 @@ fn attach_contact<T: Decide + Bounds>(
         // description is the plain intersection locus. Calling it a
         // TANGENT intersection would claim normal-parallelism along
         // the locus that the geometry does not have. The description
-        // is chosen for what the geometry IS, not for what the
-        // certifier would catch: a cut-off arc mis-described as a
-        // tangent intersection of band and cap certifies and passes
-        // tier 3 today (the `TangentParallel` margin `sin θ / |κ_rel|`
-        // admits a 90° crossing —
-        // `work/props/tangent-parallel-certifier-passes-a-transverse-arc.md`).
+        // is chosen for what the geometry IS; a cut-off arc
+        // mis-described as a tangent intersection of band and cap is
+        // refused at the attachment gate by the `TangentParallel`
+        // check (`sin θ` levered by `1/|κ_rel|`, here the band's
+        // radius).
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
         EdgeDescriptionSpec::Intersection { s1, s2, witness }
     } else {
