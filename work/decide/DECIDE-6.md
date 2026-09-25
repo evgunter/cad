@@ -2,7 +2,7 @@
 id: DECIDE-6
 kind: unit
 title: the decision read's cost: decline before enclosing, with every decision unchanged
-status: dispatched
+status: review
 opened: 2026-09-25
 priority: P2
 cost: D
