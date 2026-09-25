@@ -119,3 +119,22 @@ The track is over budget (38.5/30). Splitting along the priority seam
 is deferred until the lowering survey says how many rows it absorbs or
 spawns — several slate rows (the closers, `circle_split`, the lift
 comparator) may change shape under a carrier + interval lowering.
+
+## 2026-09-25 — the lowering survey is in; `[ev]` PR opened
+
+The survey is kept on the row itself
+(`lower-profiles-to-carrier-and-interval-not-vertex-and-bulge.md`,
+"Survey"). Corrections to the row as filed: D1's "Profile format"
+clause is touched, not only PATHS-DESIGN §2a.1; geom-brep's
+`SketchSegment` carries its own copy of the bulge form and every
+profile-built edge goes through it; the saved file holds programs, never
+the lowered form, so the only format break is in names; the symbolic
+tier keys on the circle's unit bulge. There are seven hand copies of the
+bulge→carrier formula, not three.
+
+The `[ev]` PR re-words D1's Profile-format clause, PATHS-DESIGN §2a.1
+and the profile README to the recommended form (A2: verbatim vertices +
+`Line | Arc{centre, radius, Δθ}`, consistency verified at validate) and
+asks the forks. Settled on #3202 and not re-asked: EMIT ships step ids
+first with `Piece(0/1)` circles and takes the second names break.
+Proposed unit cut, 0 → 6, is in the survey's §5.

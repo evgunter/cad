@@ -372,11 +372,10 @@ from and no verb that follows it.
 It authors **no seam**. That is the load-bearing property. PQ4 (§6: a
 closed loop's seam sits at a junction or fillet; closing mid-side is
 refused) is a rule about CHAINS, and it is untouched — a chain still
-cannot close mid-carrier. The conventional split into two semicircles
-at the ±x poles is the primitive's PRIVATE lowering, exactly the M2
-closed-carrier precedent: a detail of how a closed carrier reaches a
-vertex+bulge document, not a junction anyone said. The two joints are
-same-carrier identities, so nothing is declared tangent — there is no
+cannot close mid-carrier. The primitive lowers to ONE segment: a
+full turn (Δθ = 2π) on its carrier at one vertex, at +x (angle 0 from
+the centre). That vertex is where a swept wall's seam sits; it is not
+a junction anyone said, and nothing is declared tangent — there is no
 tangency to declare, it is one circle.
 
 §6's PQ4 entry records that same M2 precedent as "considered and
@@ -393,13 +392,13 @@ downstream naming depends on the seam structure (the tour's boss wants
 three 120° arcs so a boolean can cross a three-face rim seam) authors
 it with `circle_split(centre, r, n, phase)` instead — the
 declared-subdivision closed carrier: `n` arcs of equal sweep, first
-vertex at `phase` from +x, `n ≥ 2` or `CircleSplitCount`. Its vertices
+vertex at `phase` from +x, `n ≥ 1` or `CircleSplitCount`. Its vertices
 are DECLARED TANGENT JOINTS on one carrier — the sixth round's word for
 what an earlier draft called "structural subdivisions": the "one
 carrier" fact is the emission layer's bookkeeping, not a lattice
 decision — so it too authors no seam and PQ4 stays untouched; the
-count and phase are simply authored data rather than a
-private lowering detail.
+count and phase are simply authored data. `n = 1` is `circle` with an
+authored phase: one full-turn segment whose vertex sits at `phase`.
 
 **Refusals**: `r` not definitely positive (`NonpositiveCircleRadius`),
 through the same funnel as the other sign gates.
