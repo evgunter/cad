@@ -10,11 +10,10 @@ cost: E
 
 
 
-**Filed here because the file has no owner.** `crates/viewer/src/pane/
-profile.rs` is claimed by CHROME (dormant) and VIEW (not dispatching)
-and by none of VIEW's four successors — the gap
-`work/view/viewer-src-files-no-successor-claims` names. Route it when
-that gap closes.
+**Owner: VNEWS.** Filed first under `work/issues/`, when
+`crates/viewer/src/pane/profile.rs` had no dispatching owner (the gap
+`work/view/viewer-src-files-no-successor-claims` names); it is
+VNEWS-claimed today, and the row moved here on 2026-09-25 (below).
 
 Found by the sweep of `work/vnews/tone-is-a-value-in-frame-and-a-
 comment-in-two-panes`, as the **re-derivation of that row's third

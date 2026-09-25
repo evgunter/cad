@@ -349,18 +349,27 @@ impl Standing {
     /// read off the value, as [`crate::tree::RowStatus::tone`] reads
     /// it off a row.
     ///
-    /// A selection that names something gone is
-    /// [`Tone::Actionable`]: a deleted node, an undeclared parameter,
-    /// a picked entity whose name failed to resolve, and one the
-    /// evaluation could not answer for. Each asks the reader to
-    /// reselect, rebind or repair the node it waits on, and each
-    /// switches off the affordances [`Standing::live`] gates.
+    /// A selection that no longer denotes is [`Tone::Actionable`], and
+    /// each arm names what the reader does about it:
+    ///
+    /// - a deleted node or an undeclared parameter: reselect;
+    /// - a picked entity whose name failed to resolve: rebind it to one
+    ///   of the offers, or reselect;
+    /// - one the evaluation could not answer for
+    ///   ([`Resolution::Indeterminate`]): repair the node it waits on
+    ///   when that node failed or was poisoned (the repair is at the
+    ///   failure, upstream for a poisoned one), or re-evaluate when a
+    ///   canceled run left it without a result — nothing else will
+    ///   start that run.
+    ///
+    /// Each also switches off the affordances [`Standing::live`] gates.
     ///
     /// Everything else is [`Tone::Advisory`]: nothing selected, a
     /// selection that still denotes, and a picked entity with no
     /// evaluation behind it yet — "we cannot tell" is not a verdict
     /// about the pick, and the evaluation that answers it is already
-    /// on its way.
+    /// on its way, which is the difference from a canceled run's
+    /// suffix above.
     ///
     /// **Here and not on the kernel's [`Resolution`]**, which is the
     /// resolution machinery's verdict and has no reason to know how

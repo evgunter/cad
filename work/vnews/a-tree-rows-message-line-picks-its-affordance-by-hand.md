@@ -87,7 +87,7 @@ than implied by which arm it stands in; and where the classification
 is the *presence* of a payload, the value owes the payload as an
 `Option` and nothing more. `resolution-and-standing-pick-their-tone-
 by-hand` is the same rule's other half: `pane::properties::
-entity_verdict` still composes its words per arm, and reads its tone
+standing_verdict` still composes its words per arm, and reads its tone
 once off `Standing::tone`.
 
 **The one tone left at the site says why.** The words under a failed
@@ -100,3 +100,12 @@ be the one loud row twice.
 reds it. `a_failed_rows_words_are_weak_under_its_loud_badge` reads the
 paint's colour (`pane::headless::Landed::ink`) against egui's own weak
 colour: passing `row.status.tone()` at the site reds it.
+
+**Recorded, not taken (#3230 review, S7).** The link target is now
+split across two values: `RowStatus::jump()` answers a poisoned row's,
+and `TreeRow::repair_at` a failed row's second line. `repair_at` is a
+`pub` field whose "only on a `Failed` row" invariant is held by
+`tree::rows` constructing it that way, not by the type. Folding it into
+`RowStatus::Failed { message, repair_at }` would make both one value
+and the invariant structural; it touches every `Failed { .. }` pattern
+in the crate, so it is left for a unit that owns `tree.rs`'s shape.

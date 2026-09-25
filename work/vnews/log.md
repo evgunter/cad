@@ -524,16 +524,25 @@ moved with it.
 decision. **Announced crossings:**
 - `crates/viewer/src/session/select.rs`, which CHROME and VSEAM own:
   `Standing` gains `tone()`, and the file gains a test module for it.
-- `pane/properties.rs`, shared with AUTHOR, CHROME and VGEOM: the
-  resolution arms move into a free `entity_verdict`, and
-  `entity_standing_ui` takes the `Standing` in place of its
-  `resolution` and `live` arguments.
-- `pane/create.rs`: the part chooser's scan refusal takes
-  `Tone::Actionable` where it had the body colour.
+- `pane/properties.rs`, shared with AUTHOR, CHROME and VGEOM: every
+  standing verdict is drawn by one free `standing_verdict`;
+  `entity_standing_ui` becomes the header-only `entity_header_ui`; the
+  parameter panel's duplicate `"that parameter is gone"` line is
+  deleted, and a deleted node no longer claims to carry no parameters.
+- `crates/viewer/src/session/refuse.rs`: `FaceFrameFault` gains
+  `tone()`.
+- `crates/viewer/src/parts.rs`: `PartChooser` gains `tone()`.
+- `pane/create.rs`: the part chooser's body becomes the free
+  `part_listing`, reading `PartChooser::tone`, and drops its quiet
+  `"no directory"` header; the face-frame fault reads
+  `FaceFrameFault::tone`; the add-profile form's held reason is a typed
+  `Held`.
 - `app.rs`, which CHROME and VSEAM own: `toned`'s doc only.
-- `crate::pane::headless::Landed` gains `ink`, the colour a galley was
-  painted in.
+- `crate::pane::headless` gains `Landed::ink`, `Voices`,
+  `landed_voiced` and `find_opening`.
 
 Filed: `a-verdict-drawn-outside-a-tone-has-no-value-to-read`. Moved
 from `work/issues/`: `preview-error-picks-its-tone-by-hand-in-a-comment`,
 because `pane/profile.rs` is VNEWS-claimed today.
+Filed on VDOC: `viewer-readme-counts-one-tone-function-outside-frame`
+(the README is VDOC's carve-out).

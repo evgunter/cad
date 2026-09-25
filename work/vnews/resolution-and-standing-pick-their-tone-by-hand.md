@@ -111,44 +111,68 @@ evaluation behind it yet. The match is exhaustive over the kernel's
 - Nothing enters `pncad`: the kernel's verdict stays the kernel's, and
   how loud a viewer draws it is decided by the viewer's own value.
 
-**The pane.** `standing_ui`'s node arm draws `toned("deleted", …,
-standing.tone())`; its parameter arm and the parameter panel's own
-`"that parameter is gone"` both read `standing.tone()` — those two were
-one fact in one frame drawn in two tones, `Actionable` above and
-`Advisory` below (the words half stays
-`three-spellings-say-a-parameter-is-not-declared`'s). The resolution
-arms moved into `pane::properties::entity_verdict`, a free function the
-headless harness reaches: it composes the words per arm from the
-verdict's payload and draws them once, in `standing.tone()` — the rule
-`a-tree-rows-message-line-picks-its-affordance-by-hand` states.
+**The pane.** Every arm's words are drawn by one free function,
+`pane::properties::standing_verdict`, exhaustive over `Standing` and
+reading its tone once off `standing.tone()`: the deleted node's one
+word, the undeclared parameter's sentence, and a picked entity's
+resolution verdict with its rebind count. The entity's noun is read off
+its own arm, so no caller hands it one. `standing_ui` draws the header
+line (number, delete button, the "face of" label) and calls it.
 
-**The widened population, disposed.**
+**A fact is said once in this pane** — the principle `failure_lines`
+keeps for a failed tree row (loud at the badge, the words under it
+quiet) and `instance_ui` keeps for a vanished instance (silent under
+the header that said so). The parameter panel's own `"that parameter
+is gone"` line was one fact in one frame in two tones, `Actionable`
+above and `Advisory` below; it is **gone**, not re-toned, since the
+header already says it loud. For the same reason a **deleted** node no
+longer draws *"this feature carries no parameters"* under its loud
+`deleted` — that sentence was false (the node carries nothing because
+it is not there) and is now gated on `standing.live()`, as the pick arm
+already was.
 
-- `pane/create.rs`, the part chooser's scan refusal: **fixed**, by a
-  tone stated at the site. It was body colour by omission; it is now
-  `Tone::Actionable`, once, with the reason at the site — every refusal
-  that reaches the arm (`Refusal::NoDocumentDirectory`,
-  `Refusal::Workspace`, `DocSession::part_catalogue`'s two) leaves the
-  chooser with nothing to offer until the reader saves or repairs the
-  directory and rescans. A literal and not a value, because this site
-  varies no tone across arms.
-- `pane/properties.rs`, the free-move probe's fault, and `hide_toggle`'s:
-  **left, with the reason at each site**. Both are single-tone:
-  past the section's kind gate the only faults that arrive are a mate
-  placing the instance and geometry fused with another's, which are the
-  document as written.
+**The widened population, disposed.** The rule
+(`a-tree-rows-message-line-picks-its-affordance-by-hand`) is that the
+value owes the tone wherever the tone varies across its arms; where a
+site admits one arm only, the literal stays, **and the literal is still
+checked**.
+
+- `pane/create.rs`, the part chooser: **the value carries it**,
+  `parts::PartChooser::tone`. An empty listing (the open document's own
+  file has gone from its directory) and a refusal are `Actionable`, a
+  listing is `Advisory`; the chooser's body is the free
+  `pane::create::part_listing`. The header draws nothing for a chooser
+  with no directory, since the refusal under it says exactly that — the
+  old quiet `"no directory"` was the same fact in the other voice.
+- `pane/create.rs`, the datum form's face-frame fault: **the value
+  carries it**, `session::FaceFrameFault::tone`. A fault about the pick
+  (`NotOneBody`, `NotPlanar`, `Unresolved` — the last the same stale
+  pick `Standing::Face` draws loud in the header) is `Actionable`; a
+  seat not yet answerable (`NoFace`, `NotLanded`) is `Advisory`.
+- `pane/create.rs`, the add-profile form's held reason: **typed**,
+  `pane::create::Held`. It was one `&'static str` for three prompts
+  (`Advisory`) and one refused input — a bore at least as wide as the
+  radius — which is `Actionable`.
+- `pane/create.rs`, the mate tool's admission line: **left**. It reports
+  the admission table's verdict on a class, which asks nothing of the
+  reader.
+- `pane/properties.rs`, the free-move probe's fault and `hide_toggle`'s:
+  **left, with the reason at each site, and the literal re-checked**.
+  Past the section's kind gate the only faults that arrive are a mate
+  placing the instance and geometry fused with another's — the document
+  as written, which asks nothing of the reader.
 - `pane/properties.rs`, `slot_group_ui`'s two `ui.weak` over a
-  dimension: the control case, as before — secondary text, not a tone.
-- `entity_verdict`'s rebind count under a failure: secondary text under
-  a verdict that carries the tone; the site says so.
+  dimension: secondary text, not a tone.
 
-**Receipts.** `pane::properties::verdict_tests` reads the colour off
-the paint (`pane::headless::Landed::ink`, added here) and holds it
-against fixed colours — `Theme::DEFAULT.unresolved` and egui's own weak
-text — for a vanished face (and its offer count), an indeterminate
-edge, and a pick with no evaluation. Planting `Failed(_) =>
-Tone::Advisory` in `Standing::tone` reds the first.
-`session::select::tests` holds the node and parameter arms, which no
-headless drive reaches, against fixed `Tone`s; planting `Advisory` for
-a vanished node or parameter reds it. (The mutation run is named in
-PR #3230.)
+**Receipts.** Every row reads the colour off the paint
+(`pane::headless::Landed::ink`) and holds it against fixed colours
+(`pane::headless::Voices`: `Theme::DEFAULT.unresolved` and egui's own
+weak text), through the free function the pane calls — so a literal put
+back at a draw site goes red as well as a wrong value:
+`pane::properties::verdict_tests` (a vanished face and its offer count,
+an indeterminate edge, no evaluation, a deleted node, an undeclared
+parameter, and silence for a standing that still denotes) and
+`pane::create::tone_tests` (the chooser's three answers, the face-frame
+faults, the held reason). `session::select::tests` holds
+`Standing::tone`'s node and parameter arms against fixed `Tone`s. The
+mutation runs are named in PR #3230.

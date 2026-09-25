@@ -304,6 +304,105 @@ pub(crate) fn profile_plane_row(
     );
 }
 
+/// **The chooser's answer, drawn**: the directory it read, then the
+/// parts on offer or what it has to say instead — and the entry that
+/// was clicked, when one was.
+///
+/// How loud the answer is, is the chooser's to say
+/// ([`PartChooser::tone`]), read once for the two arms that draw a
+/// sentence rather than a list.
+///
+/// A chooser with no directory draws no header line: it has refused
+/// for exactly that reason ([`crate::session::Refusal::NoDocumentDirectory`],
+/// minted from the same resolver its directory is), and a quiet "no
+/// directory" above the loud refusal would be one fact in two voices.
+///
+/// A free function over the `Ui` so a headless drive can reach it
+/// (`crate::pane::headless`).
+fn part_listing(ui: &mut egui::Ui, theme: &Theme, chooser: &PartChooser) -> Option<DocumentId> {
+    if let Some(dir) = chooser.dir() {
+        crate::widgets::message_toned(
+            ui,
+            format!("parts in {}", dir.display()),
+            theme,
+            Tone::Advisory,
+        );
+    }
+    let mut chosen = None;
+    match chooser.offered() {
+        // An EMPTY listing is not "no parts here": `PartChooser::tone`
+        // says why, and why it is loud. The sentence says it to the
+        // reader.
+        Ok([]) => {
+            crate::widgets::message_toned(
+                ui,
+                "this directory holds no documents at all — not even the open document's own \
+                 file, which has gone from it",
+                theme,
+                chooser.tone(),
+            );
+        }
+        Ok(entries) => {
+            for entry in entries {
+                if part_entry(ui, theme, entry) {
+                    chosen = Some(entry.id);
+                }
+            }
+        }
+        // The refusing layer's own sentence — the store's or the
+        // directory rule's — never one composed here.
+        Err(refusal) => {
+            crate::widgets::message_toned(ui, refusal.to_string(), theme, chooser.tone());
+        }
+    }
+    chosen
+}
+
+/// **A face-frame fault under the datum form**, in the voice the fault
+/// gives itself ([`FaceFrameFault::tone`]). `NoFace` draws nothing: it
+/// is the form's unmet seat, which the form has already asked for in
+/// the same words from its one home.
+///
+/// A free function over the `Ui` so a headless drive can reach it.
+fn face_frame_fault(ui: &mut egui::Ui, theme: &Theme, fault: &FaceFrameFault) {
+    if *fault != FaceFrameFault::NoFace {
+        crate::widgets::message_toned(ui, fault.to_string(), theme, fault.tone());
+    }
+}
+
+/// **Why the add-profile button is held**, when it is — and how loud
+/// that is, which depends on which of two things it is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Held {
+    /// The form is waiting for its next input: a frame, a shape, a
+    /// first step. The form asking, [`Tone::Advisory`].
+    Waiting(&'static str),
+    /// An input the reader gave is refused, and the button stays shut
+    /// until they change it: [`Tone::Actionable`].
+    Refused(&'static str),
+}
+
+impl Held {
+    fn words(self) -> &'static str {
+        match self {
+            Self::Waiting(words) | Self::Refused(words) => words,
+        }
+    }
+
+    fn tone(self) -> Tone {
+        match self {
+            Self::Waiting(_) => Tone::Advisory,
+            Self::Refused(_) => Tone::Actionable,
+        }
+    }
+}
+
+/// The held button's reason, drawn in its own voice. A free function
+/// over the `Ui` so a headless drive can reach it.
+fn held_line(ui: &mut egui::Ui, theme: &Theme, held: Held) {
+    crate::widgets::message_toned(ui, held.words(), theme, held.tone());
+}
+
 impl ViewerBehavior<'_> {
     /// The creation section (GAUTH-1): the add-datum, add-profile and
     /// extrude forms plus the modal revolve tool. Each form is
@@ -513,63 +612,7 @@ impl ViewerBehavior<'_> {
         let mut close = false;
         if let Some(chooser) = self.part_chooser.as_ref() {
             part_window(ui).show(ui.ctx(), |ui| {
-                match chooser.dir() {
-                    Some(dir) => {
-                        crate::widgets::message_toned(
-                            ui,
-                            format!("parts in {}", dir.display()),
-                            &self.theme,
-                            Tone::Advisory,
-                        );
-                    }
-                    None => {
-                        ui.weak("no directory");
-                    }
-                }
-                match chooser.offered() {
-                    // An EMPTY listing is not "no parts here": a
-                    // saved session's own file is in its own
-                    // directory, so the only way to scan clean and
-                    // find nothing is for that file to have gone
-                    // away underneath the session. Say that, since
-                    // it is also why the instances already placed
-                    // will stop resolving.
-                    Ok([]) => {
-                        crate::widgets::message_toned(
-                            ui,
-                            "this directory holds no documents at all — not even the open \
-                                 document's own file, which has gone from it",
-                            &self.theme,
-                            Tone::Advisory,
-                        );
-                    }
-                    Ok(entries) => {
-                        for entry in entries {
-                            if part_entry(ui, &self.theme, entry) {
-                                chosen = Some(entry.id);
-                            }
-                        }
-                    }
-                    // The refusing layer's own sentence — the
-                    // store's or the directory rule's — never one
-                    // composed here.
-                    //
-                    // Actionable, and stated here once because every
-                    // refusal that arrives takes it: a scan refuses
-                    // for a document with no file to list beside, or
-                    // for the directory's own fault
-                    // (`DocSession::part_catalogue`), and either way
-                    // the chooser offers nothing until the reader
-                    // saves or repairs the directory and rescans.
-                    Err(refusal) => {
-                        crate::widgets::message_toned(
-                            ui,
-                            refusal.to_string(),
-                            &self.theme,
-                            Tone::Actionable,
-                        );
-                    }
-                }
+                chosen = part_listing(ui, &self.theme, chooser);
                 ui.horizontal(|ui| {
                     if ui
                         .button("Rescan")
@@ -708,10 +751,8 @@ impl ViewerBehavior<'_> {
         }
         // `NoFace` is the unmet seat above, in the same words from its
         // one home: the sentence asking for the pick is drawn once.
-        if let Some(fault) = refused
-            && *fault != FaceFrameFault::NoFace
-        {
-            crate::widgets::message_toned(ui, fault.to_string(), &self.theme, Tone::Advisory);
+        if let Some(fault) = refused {
+            face_frame_fault(ui, &self.theme, fault);
         }
         if ui
             .add_enabled(
@@ -890,17 +931,17 @@ impl ViewerBehavior<'_> {
             &mut self.drafts.profile_plane,
         );
         let shape = self.drafts.profile_shape;
-        let mut blocked: Option<&'static str> = None;
+        let mut blocked: Option<Held> = None;
         // Stated before the shape check so the FIRST thing a person is
         // told is the thing they have to do first.
         if self.drafts.profile_plane.is_none() {
-            blocked = Some("pick a frame to draw on");
+            blocked = Some(Held::Waiting("pick a frame to draw on"));
         }
         match shape {
             // No shape chosen: the form is at rest. It says what it is
             // waiting for and draws nothing — no fields to fill in for
             // a shape nobody picked, and no preview in the viewport.
-            None => blocked = blocked.or(Some("choose a shape to add")),
+            None => blocked = blocked.or(Some(Held::Waiting("choose a shape to add"))),
             Some(ShapeKind::Circle) => {
                 let unit = self.drafts.length_unit.def();
                 ui.horizontal(|ui| {
@@ -931,11 +972,11 @@ impl ViewerBehavior<'_> {
                 if self.drafts.profile_bored
                     && self.drafts.profile_bore >= self.drafts.profile_radius
                 {
-                    blocked = Some(
+                    blocked = Some(Held::Refused(
                         "the bore must be smaller than the radius — which loop is the \
                          hole is decided by containment, so a larger bore would swap \
                          the roles rather than refuse",
-                    );
+                    ));
                 }
             }
             Some(ShapeKind::Rectangle) => {
@@ -978,12 +1019,12 @@ impl ViewerBehavior<'_> {
                 // this the empty list drew the lattice's own refusal
                 // about a program nobody had started writing.
                 if self.drafts.profile_path.is_empty() {
-                    blocked = Some("add a step to the chain");
+                    blocked = Some(Held::Waiting("add a step to the chain"));
                 }
             }
         }
-        if let Some(reason) = blocked {
-            crate::widgets::message_toned(ui, reason, &self.theme, Tone::Advisory);
+        if let Some(held) = blocked {
+            held_line(ui, &self.theme, held);
         }
         // **What the loops would draw, said before they are
         // authored.** The preview ran the commit door's own ladder,
@@ -2039,5 +2080,133 @@ mod layout_tests {
         // text does: the window sits wherever egui places it.
         let pane = egui::Rect::from_min_size(egui::pos2(left, 0.0), egui::vec2(REGION, 1.0));
         assert_inside(pane, said);
+    }
+}
+
+/// **How loud this pane's verdicts are drawn**, read off the paint and
+/// held against fixed colours ([`crate::pane::headless::Voices`]),
+/// through the free functions the pane calls — so a literal tone put
+/// back at a draw site, or a value that answers the wrong tone, turns
+/// a row red.
+#[cfg(test)]
+mod tone_tests {
+    use std::path::PathBuf;
+
+    use pncad::document::{DocumentId, RecipeNodeId};
+    use pncad::prelude::SurfaceKind;
+
+    use super::{Held, face_frame_fault, held_line, part_listing};
+    use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
+    use crate::parts::{PartCensus, PartChooser, PartEntry};
+    use crate::session::{FaceFrameFault, Refusal};
+    use crate::theme::Theme;
+
+    fn listed(
+        dir: Option<&str>,
+        offered: Result<Vec<PartEntry>, Refusal>,
+    ) -> (Vec<Landed>, Voices) {
+        let chooser = PartChooser::opened(PartCensus::taken(dir.map(PathBuf::from), offered));
+        landed_voiced(|ui| {
+            part_listing(ui, &Theme::DEFAULT, &chooser);
+        })
+    }
+
+    /// **A chooser with no directory says so once, loud** — the
+    /// refusal's own sentence, and no quiet "no directory" over it.
+    #[test]
+    fn a_chooser_with_no_directory_says_so_once_and_loud() {
+        let (painted, voices) = listed(None, Err(Refusal::NoDocumentDirectory));
+        assert_eq!(
+            find_opening(&painted, "save the document first").ink,
+            Some(voices.unresolved)
+        );
+        assert_eq!(
+            painted.len(),
+            1,
+            "one line: {:?}",
+            painted.iter().map(|l| &l.text).collect::<Vec<_>>()
+        );
+    }
+
+    /// **An empty listing is loud**: the open document's own file has
+    /// gone, and what is placed will stop resolving. The directory it
+    /// read is a report, and quiet.
+    #[test]
+    fn an_empty_listing_is_drawn_loud_under_a_quiet_header() {
+        let (painted, voices) = listed(Some("/parts"), Ok(Vec::new()));
+        assert_eq!(
+            find_opening(&painted, "this directory holds no documents at all").ink,
+            Some(voices.unresolved)
+        );
+        assert_eq!(find(&painted, "parts in /parts").ink, Some(voices.weak));
+    }
+
+    /// **A listing is a report**, and its entries' ids are quiet.
+    #[test]
+    fn a_listing_is_drawn_quiet() {
+        let id = DocumentId(7);
+        let (painted, voices) = listed(
+            Some("/parts"),
+            Ok(vec![PartEntry {
+                id,
+                path: PathBuf::from("/parts/bracket.pncad"),
+                open_document: false,
+            }]),
+        );
+        assert_eq!(find(&painted, "parts in /parts").ink, Some(voices.weak));
+        assert_eq!(find(&painted, &id.to_string()).ink, Some(voices.weak));
+    }
+
+    /// **A face-frame fault about the pick is loud**; one about a seat
+    /// not yet answerable is quiet.
+    #[test]
+    fn a_face_frame_fault_takes_the_voice_the_fault_gives_it() {
+        let (painted, voices) = landed_voiced(|ui| {
+            face_frame_fault(
+                ui,
+                &Theme::DEFAULT,
+                &FaceFrameFault::NotPlanar {
+                    carrier: SurfaceKind::Cylinder,
+                },
+            );
+            face_frame_fault(
+                ui,
+                &Theme::DEFAULT,
+                &FaceFrameFault::NotOneBody {
+                    at: RecipeNodeId(4),
+                },
+            );
+            face_frame_fault(ui, &Theme::DEFAULT, &FaceFrameFault::NotLanded);
+        });
+        assert_eq!(
+            find_opening(&painted, "a sketch frame is read off a PLANAR face").ink,
+            Some(voices.unresolved)
+        );
+        assert_eq!(
+            find_opening(&painted, "feature 4's value is several bodies").ink,
+            Some(voices.unresolved)
+        );
+        assert_eq!(
+            find_opening(&painted, "the document has not evaluated yet").ink,
+            Some(voices.weak)
+        );
+    }
+
+    /// **The add-profile form's held reason**: a refused input is loud,
+    /// the form waiting for one is quiet.
+    #[test]
+    fn a_held_profile_button_says_why_in_the_reasons_own_voice() {
+        let (painted, voices) = landed_voiced(|ui| {
+            held_line(ui, &Theme::DEFAULT, Held::Refused("the bore is too wide"));
+            held_line(ui, &Theme::DEFAULT, Held::Waiting("choose a shape to add"));
+        });
+        assert_eq!(
+            find(&painted, "the bore is too wide").ink,
+            Some(voices.unresolved)
+        );
+        assert_eq!(
+            find(&painted, "choose a shape to add").ink,
+            Some(voices.weak)
+        );
     }
 }

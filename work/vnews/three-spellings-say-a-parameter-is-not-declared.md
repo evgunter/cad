@@ -68,11 +68,14 @@ VNEWS's: `crates/viewer/src/pane/properties.rs` and
 `paths`. `crates/viewer/src/session.rs` is read, not edited — the door
 already raises the right variant.
 
-## The tone half is settled (2026-09-25)
+## The tone half is settled, and one spelling is gone (2026-09-25)
 
 The two chrome spellings were also drawn in two TONES in one frame —
 `Actionable` for `standing_ui`'s, `Advisory` for the panel's
-`"that parameter is gone"`. Both now read `Standing::tone()`
-(`resolution-and-standing-pick-their-tone-by-hand`), so whichever
-spelling survives this row keeps the one tone. The words are
-untouched and remain this row's.
+`"that parameter is gone"`. PR #3230 settled it by the rule that the
+pane says a fact once: the panel's `"that parameter is gone"` line is
+**deleted**, since the header above it already says the same fact, loud
+(`pane::properties::standing_verdict`, reading `Standing::tone()`). Two
+spellings are left — the header's `"parameter {name} is no longer
+declared"` and the session refusal's — and which words they share is
+still this row's question.

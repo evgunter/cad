@@ -33,6 +33,7 @@ use editor_core::edit::UNDECLARED_PARAM_RECOURSE;
 use crate::combine;
 use crate::display::{AdmissionFault, DisplayFault};
 use crate::docio::DocIoError;
+use crate::frame::Tone;
 use crate::history::History;
 use crate::props::{self, SlotValue};
 use crate::session::FaceSelection;
@@ -819,6 +820,32 @@ pub enum FaceFrameFault {
         /// The carrier kind the tag read answered.
         carrier: SurfaceKind,
     },
+}
+
+impl FaceFrameFault {
+    /// **How loud the datum form draws this fault** — the salience a
+    /// surface reads off the value, as
+    /// [`crate::session::Standing::tone`] reads it off a selection.
+    ///
+    /// A fault about the PICK is [`Tone::Actionable`]: a face on
+    /// several bodies, a curved face, and a name that does not resolve
+    /// each refuse what the reader chose, and the form stays shut until
+    /// they choose again. [`Self::Unresolved`] is a stale pick, the
+    /// fact `Standing::Face` draws loud in the header of the same pane,
+    /// so it takes the same tone here.
+    ///
+    /// A seat not yet answerable is [`Tone::Advisory`]: no face picked
+    /// is the form asking for one, and no evaluation yet is "we cannot
+    /// tell", which the landing evaluation answers on its own.
+    #[must_use]
+    pub fn tone(&self) -> Tone {
+        match self {
+            Self::NoFace | Self::NotLanded => Tone::Advisory,
+            Self::NotOneBody { .. } | Self::Unresolved { .. } | Self::NotPlanar { .. } => {
+                Tone::Actionable
+            }
+        }
+    }
 }
 
 impl core::fmt::Display for FaceFrameFault {
