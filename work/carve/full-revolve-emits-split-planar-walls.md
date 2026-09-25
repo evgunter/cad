@@ -55,10 +55,12 @@ is CARVE's (`revolve/*`), with the naming half in the emitter.
 
 ## Put to Ev (2026-09-25)
 
-Both designers recommend the same seat: the full revolve runs the
-structural merge as its own documented final stage, the boolean gate is
-unchanged, and a merged planar wall is named plain `Band(s)`, with no
-`BandPi(s)` and no pole vertex. The `[ev]` PR asks Ev about that, about
-F7's wording (a general rule, or a widened enumeration), and whether the
-π revolve is answered now or separately. Its implementation shares ONE
-final-stage merge with `swept-continuation-walls-reach-the-boolean-unmerged`.
+Ev, on the `[ev]` PR: "it sounds like the fix should be to [have it] stop
+doing that and just emit the right thing to begin with; is that
+impossible/blocked?" It is not blocked. The two-band split exists only so a
+curved wall's pole or apex keeps valence 2. The PR now states the answer
+that way: the full revolve CONSTRUCTS each planar wall as one face, so F7
+is unchanged (no revolve mints a same-key planar adjacency, and no merge
+stage is needed). The merged-wall naming both designers recommended
+follows: plain `Band(s)`, with no `BandPi(s)` and no `Pole` for a planar
+segment. The π revolve stays a separate, parked question.
