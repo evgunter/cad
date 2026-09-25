@@ -2,9 +2,13 @@
 
 `profile` is the kernel's planar sketch layer. A profile is a set of
 closed loops on a `SketchPlane`; a loop is a vertex chain in which each
-vertex carries a **bulge** b = tan(θ/4) for the segment leaving it (b = 0
-a line, otherwise a circular arc of signed included angle θ), so every
-segment lies on a line or circle **carrier**. Loops are authored through
+segment is a **carrier** plus a signed interval on it — a line between
+its two vertices, or a circular arc stored as centre, radius and signed
+sweep Δθ with |Δθ| ≤ 2π, so a full circle is one segment at one vertex.
+Vertices are stored verbatim and are authoritative; validation verifies
+that they lie on their carriers. The **bulge** b = tan(Δθ/4) (b = 0 a
+line) is the `arc_to(Bulge { p, b })` mode's input, lowered to the
+carrier form once, at the algebra. Loops are authored through
 the PATHS algebra, a typestate lattice whose closing verbs return both
 the lowered `ProfileLoop` and the **program** that produced it (the verb
 sequence as data). In a document the program is the profile's
@@ -64,14 +68,18 @@ pinned for every closing verb the suites author
 `Expr`: coordinates, lengths and radii are Length; `angle`, `turn` and
 the `circle_split` phase are Angle; bulges and `toward` director
 components are Scalar. Structural data (the verb tag, `Start`,
-side/winding tags, the `circle_split` count) stays literal; changing it
-is re-authoring. An expression is addressed
+side/winding tags, the `circle_split` count) stays literal; no slot
+edit changes it. An expression is addressed
 `SlotId::Profile { loop_, step, arg: StepArg }`, `StepArg` being the
-closed per-verb role enum; step indices are stable because structure
-changes only by re-authoring. Evaluation resolves the program at f64
+closed per-verb role enum; step indices are stable under every slot
+edit because structure changes only by `DocEdit::SetProgram`, which
+replaces a live profile's program whole under a stated provenance and
+reports every name its reshaping strands and rebinds every name it
+moves (`crates/editor-core/REFERENCES.md` DM7; *ruled by Ev on EDIT's
+`[ev]` PR #2904, 2026-09-20*). Evaluation resolves the program at f64
 (`ProfileProgram::resolve`), replays it, embeds the loops into the lane
 scalar and validates there. Structure (junction classes, fillet fits and
-candidate picks, canonical start, loop roles) is selected once, at f64,
+candidate picks, loop orientation, loop roles) is selected once, at f64,
 identically for every scalar lane (the rule the code cites as C6), which
 is why profile expressions are f64-pinned while node magnitude slots are
 lane-live. Under `ProfileLift::Guided` the same program is also resolved
@@ -89,14 +97,19 @@ and the naming anchor are derived values: memoized per node under a
 content key that hashes the program's structure and resolved values
 (and the lane-resolved values under `Guided`), never persisted, rebuilt
 on load; D9 makes the rebuild bit-exact. Profile-entity names
-(`ProfileEdgeRef`/`ProfileVertexRef`) for program loops index
-program-structural positions: `eval/anchor.rs` recovers each loop's
-canonical rotation and reversal as a `LoopAnchor` by bit-matching the
-canonical loop against the replayed one and remaps emitted names
-canonical → program order, so nothing geometric enters an index and a
-continuous edit cannot renumber. `validate` still canonicalizes
-(lex-min start, outer counterclockwise) for downstream geometry.
-Structural edits may renumber; stale selections then refuse Vanished.
+(`ProfileEdgeRef`/`ProfileVertexRef`) index CANONICAL positions, and
+the canonical form keeps what the author wrote wherever validity allows:
+`validate` orients each loop (outer counterclockwise, holes clockwise)
+and keeps its AUTHORED start vertex and the authored hole order, so
+canonical segment `k` is the author's segment `k` for a loop authored
+in its canonical sense and segment `n − 1 − k` for one authored against
+it. No geometric choice enters an index, so a continuous edit cannot
+renumber, and every verb that consumes a profile — a loft's sections
+included — names its entities in that one numbering. `eval/anchor.rs`
+recovers each loop's reversal as a `LoopAnchor` by bit-matching the
+canonical loop against the replayed one, which is how an authored step
+is mapped to the canonical segments it became. Structural edits may
+renumber; stale selections then refuse Vanished.
 
 **V4 — The stored form, chain-only.** `Node::Profile` carries
 `ProfileProgram { plane: RecipeNodeId, loops: Vec<LoopProgram> }`;
@@ -112,19 +125,23 @@ build cannot read refuses `PersistError::Unreadable` with the regenerate
 recourse. `plane` references a `Datum::Frame` node, so a profile has a
 DAG input; evaluation resolves the frame at f64 for structure selection
 (`eval/wire.rs::profile_plane_f64`). Raw loop data stays kernel
-vocabulary through the `RawLoop` trait (`new`, `polygon`,
-`with_tangent_joints`), omitted from the `pncad::profile` façade;
+vocabulary through the `RawLoop` trait (`new`, which takes the
+canonical form, `polygon`, `with_tangent_joints`) and the
+`test_support::bulge_loop` helper, which hands a bulge chain to the
+lowering; both are omitted from the `pncad::profile` façade.
 `ProfileLoop`'s fields are private, so outside this crate a loop exists
-only through the lattice, the `map_scalar` materialization door, or that
-trait — whose item is declared `pub(crate)` in any build satisfying
-neither `test` nor `test-support` (`ProfileLoop`'s own docs are the one
-home for the door list). `continue_to` is a lattice verb
+only through the lattice, the `map_scalar` materialization door, or
+those fixture doors — the trait's item is declared `pub(crate)` and the
+helper's module does not exist in any build satisfying neither `test`
+nor `test-support` (`ProfileLoop`'s own docs are the one home for the
+door list). `continue_to` is a lattice verb
 the document vocabulary does not spell yet
 (`RecordedProgramError::VerbNotInDocumentVocabulary`).
 
 **V5 — The v1-form → program lift is a development tool.** `profile::lift`
-mints a chain- or carrier-vocabulary program from a vertex+bulge loop
-with declared joints: declared junctions become `.tangent()`, every
+mints a chain- or carrier-vocabulary program from a lowered loop (its
+vertices and the bulge each segment was lowered from) with declared
+joints: declared junctions become `.tangent()`, every
 other junction a sharp `line_to`/`arc_to`, the seam rotated to the first
 undeclared joint — and when there is none, seamed at 0 with the closing
 target carrying joint 0's declaration (`Start.arrives_tangent()`); no

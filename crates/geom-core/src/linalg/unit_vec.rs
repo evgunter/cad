@@ -618,7 +618,6 @@ mod tests {
 // the enclosure DECIDES is zero refuses, and an enclosure that merely
 // cannot tell escalates rather than refusing.
 #[cfg(test)]
-#[cfg(feature = "interval")]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod interval_tests {
     use super::{Band, Decide, Real, Sign, UnitVec3, UnitVec3Error, Vec3};

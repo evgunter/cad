@@ -10,7 +10,7 @@
 use geom_core::Tol;
 use geom_core::{OrthoFrame, Point2, Point3, Vec2, Vec3};
 use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, BooleanResult};
 
@@ -84,10 +84,7 @@ pub fn acceptance_bodies() -> Vec<(&'static str, Body<f64>, f64)> {
 /// tessellate through the PR 11 trimmed lane).
 pub fn tiltedcut() -> (Body<f64>, Body<f64>) {
     use topo::splitting::{SplitPart, SplitPlane, split};
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-1.0, 0.0), 1.0),
-        ProfileVertex::new(p2(1.0, 0.0), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(-1.0, 0.0), 1.0), (p2(1.0, 0.0), 1.0)]);
     let cylinder = extrude(
         &validated(vec![lp]),
         Extrusion::Distance(2.5),
@@ -125,11 +122,7 @@ pub fn boss_plate() -> Body<f64> {
         let th = deg.to_radians();
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
-    let boss_loop = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
+    let boss_loop = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
     let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
     let boss_profile = Profile::new(sketch, vec![boss_loop])
         .validate(Tol::witness())
@@ -221,10 +214,7 @@ pub fn l_prism() -> Body<f64> {
 /// carrier), genus 1.
 pub fn holed_prism() -> Body<f64> {
     let outer = ProfileLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, 2.0), p2(-2.0, 2.0)]);
-    let hole = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.0, 0.0), 1.0),
-        ProfileVertex::new(p2(-1.0, 0.0), 1.0),
-    ]);
+    let hole = bulge_loop(vec![(p2(1.0, 0.0), 1.0), (p2(-1.0, 0.0), 1.0)]);
     extrude(
         &validated(vec![outer, hole]),
         Extrusion::Distance(1.0),
@@ -235,10 +225,7 @@ pub fn holed_prism() -> Body<f64> {
 }
 
 pub fn ball() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
     revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -274,10 +261,7 @@ pub fn washer() -> Body<f64> {
 }
 
 pub fn donut() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(2.0, -0.5), 1.0),
-        ProfileVertex::new(p2(2.0, 0.5), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(2.0, -0.5), 1.0), (p2(2.0, 0.5), 1.0)]);
     revolve(
         &validated(vec![lp]),
         axis_y(),

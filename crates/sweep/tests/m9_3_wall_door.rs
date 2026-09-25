@@ -16,7 +16,7 @@
 use crate::common::operands::slab as plate;
 use geom_core::k_stats::Bracket;
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::{
     Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass, FacePairDeclaration,
@@ -34,11 +34,7 @@ fn cyl(z0: f64, h: f64, r: f64) -> Body<f64> {
         let th = deg.to_radians();
         p2(2.0 + r * th.cos(), 2.0 + r * th.sin())
     };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
+    let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
@@ -222,11 +218,7 @@ fn lying_cyl(zc: f64) -> Body<f64> {
         let th = deg.to_radians();
         p2(zc + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(60.0), b120),
-        ProfileVertex::new(at(180.0), b120),
-        ProfileVertex::new(at(300.0), b120),
-    ]);
+    let lp = bulge_loop(vec![(at(60.0), b120), (at(180.0), b120), (at(300.0), b120)]);
     let plane = SketchPlane::new(Affine3::from_parts(
         Mat3::from_cols(Vec3::unit_z(), Vec3::unit_x(), Vec3::unit_y()),
         Point3::new(0.0, 0.5, 0.0) - Point3::origin(),
@@ -332,8 +324,11 @@ fn tangent_door_contradicts_escalates_and_admits() {
     // carriers are distinct by its own verification, so the pair never
     // reaches the planar coplanar-merge door, and the join lane unions
     // the line-contact pair into ONE solid. The contact is a tangent
-    // ruling — measure zero — so the volume is the operands' sum
-    // BITWISE, which is the oracle this row pins.
+    // ruling — measure zero — so the volume is the operands' sum, to
+    // the rounding of the mass integral: it accumulates over the
+    // union's faces in minting order, which the operands' authored
+    // loop starts decide, so the sum agrees to an ulp of the oracle
+    // rather than bit for bit (measured: one ulp above it).
     let Ok(BooleanResult::Body(b)) = out else {
         panic!("the admitted tangent pair must union: {out:?}");
     };
@@ -346,10 +341,10 @@ fn tangent_door_contradicts_escalates_and_admits() {
     let vol = topo::mass_properties(&b.body, Tol::witness())
         .unwrap()
         .volume;
-    assert_eq!(
-        vol,
-        16.0 + 0.75 * core::f64::consts::PI,
-        "plate + lying cylinder, exactly additive across the tangent ruling"
+    let want = 16.0 + 0.75 * core::f64::consts::PI;
+    assert!(
+        (vol - want).abs() <= 2.0 * f64::EPSILON * want,
+        "plate + lying cylinder, additive across the tangent ruling: {vol} against {want}"
     );
 }
 

@@ -7,27 +7,137 @@ use std::collections::BTreeMap;
 
 use eframe::egui;
 use pncad::document::{AxisSense, BooleanOp, DocumentId, MatePrimitive, RecipeNodeId};
+use pncad::select::SplitHalf;
 
 use crate::app::ViewerBehavior;
 use crate::blend::{BlendError, BlendKindChoice, BlendTarget, FREEZE_NOTE};
-use crate::combine::PatternOutputChoice;
+use crate::combine::{DUPLICATE_GAP, PatternOutputChoice, STEP_DIRECTION};
 use crate::drafts::{CommitFault, Drafts, scalars};
 use crate::forms::{
     ANGLE_DRAG_SPEED, COUNT_DRAG_SPEED, DatumKindChoice, FIELD_DRAG_SPEED, MATE_PRIMITIVES,
-    PatternKindChoice, ShapeEdits, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
+    PartSelectChoice, PatternKindChoice, ShapeEdits, ShapeKind, UNIT_DRAG_SPEED, boolean_op_label,
+    split_half_label,
 };
-use crate::frame;
+use crate::frame::{self, Tone};
 use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
-use crate::parts::PartChooser;
+use crate::parts::{PartChooser, PartEntry};
+use crate::props::render_number;
 use crate::seats::{Seat, seat_line};
 use crate::session::{FaceFrameFault, ProfilePlane, Selection, SessionOp, face_frame_seat};
 use crate::sketch;
+use crate::theme::Theme;
 use crate::tools::ToolKind;
 use crate::tree;
 use crate::widgets::{
     angle_picker, length_picker, number_field, point_fields, unit_field, unit_vec3_row, vec3_row,
 };
+
+/// **The smallest instance index the part form offers.**
+///
+/// A pattern's instances are indexed from zero, and an index below it
+/// refuses at evaluation (`InstanceOutOfRange`, typed, on the node's
+/// own badge), so the form declines to author one — the same rule
+/// [`MIN_PATTERN_COUNT`] follows. There is deliberately no upper
+/// bound: how many instances the pattern has is a fact about its
+/// VALUE, not about the document, so a cap here would be a limit read
+/// off a picture that can change under it.
+pub(crate) const MIN_PART_INSTANCE: i64 = 0;
+
+/// **What a projection does to the picture**, said on the panel
+/// before the click: the split or pattern it reads stops being a root,
+/// so every body it does NOT select stops being drawn.
+///
+/// Not a refusal and not a surprise to hide — it is the document's
+/// roots rule (a new node takes its inputs' place), and a person who
+/// wants the other bodies kept projects each one, which is what the
+/// duplicate tool does for a pattern of two.
+///
+/// **It names the feature tree, because that is the only place left.**
+/// Once the split or pattern has left the picture, a viewport click
+/// meets the PROJECTION's body, and the projection tool seats the drawn
+/// body ([`crate::session::Selection::seat_node`]) — which is not a
+/// split or a pattern. Re-reaching the source from the viewport is
+/// `work/forms/a-projected-split-is-unreachable-from-the-viewport`.
+pub(crate) const PROJECTION_HIDES_THE_REST: &str = "only the selected body stays drawn: the split or pattern it is read out of leaves the \
+     picture — to project another of its bodies, pick it again in the feature tree";
+
+/// **The part form's selector rows**: which of the two selections is
+/// being authored, the one field or radio row that selection needs,
+/// and what committing it does to the picture
+/// ([`PROJECTION_HIDES_THE_REST`]).
+///
+/// A free function over the `Ui` for [`profile_plane_row`]'s reason —
+/// `ViewerBehavior` borrows the whole application, so this is the only
+/// seam a headless row can drive, and the method's job is to call it.
+pub(crate) fn part_selector_rows(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    select: &mut PartSelectChoice,
+    half: &mut SplitHalf,
+    instance: &mut i64,
+) {
+    ui.horizontal(|ui| {
+        ui.label("select");
+        for (choice, label) in PartSelectChoice::ALL {
+            ui.radio_value(select, choice, label);
+        }
+    });
+    match select {
+        PartSelectChoice::Half => {
+            ui.horizontal(|ui| {
+                ui.label("half");
+                // One button per half the KERNEL has, in its order:
+                // the form offers the vocabulary, never a copy of it.
+                for side in SplitHalf::ALL {
+                    ui.radio_value(half, side, split_half_label(side));
+                }
+            });
+            crate::widgets::message_toned(
+                ui,
+                "the tool plane's normal side is above",
+                theme,
+                Tone::Advisory,
+            );
+        }
+        PartSelectChoice::Instance => {
+            ui.horizontal(|ui| {
+                ui.label("instance");
+                ui.add(
+                    number_field(instance, COUNT_DRAG_SPEED).range(MIN_PART_INSTANCE..=i64::MAX),
+                );
+            });
+            crate::widgets::message_toned(
+                ui,
+                "instances are numbered from zero, in placement order",
+                theme,
+                Tone::Advisory,
+            );
+        }
+    }
+    crate::widgets::message_toned(ui, PROJECTION_HIDES_THE_REST, theme, Tone::Advisory);
+}
+
+/// **What the duplicate tool tells a user before they click it** —
+/// where the copy will land, which is
+/// [`crate::combine::duplicate_step`]'s RULE: the
+/// step itself is measured off the body at the commit, so what the
+/// panel can promise ahead of it is how the step is chosen, and that
+/// the copy clears the original.
+///
+/// A free function answering a STRING rather than painting, so a
+/// headless row can read the sentence and the panel can only show what
+/// this composed. Its numbers go through [`render_number`], the
+/// crate's one spelling of a number a person reads.
+pub(crate) fn duplicate_note() -> String {
+    let [x, y, z] = STEP_DIRECTION.map(render_number);
+    format!(
+        "the copy lands along ({x}, {y}, {z}), clear of the original by at least {}% of the \
+         body's width — more for a body thin that way — measured off the body as it now is; \
+         every slot is editable afterwards",
+        render_number(DUPLICATE_GAP * 100.0),
+    )
+}
 
 /// **The smallest pattern count the form offers.**
 ///
@@ -52,27 +162,88 @@ pub(crate) const MIN_PATTERN_COUNT: i64 = 1;
 /// commit still carried one.
 fn frame_picker<T: Copy + PartialEq>(
     ui: &mut egui::Ui,
+    theme: &Theme,
     label: &str,
     salt: &str,
     choices: &[T],
     picked: &mut Option<T>,
     text: impl Fn(&T) -> String,
 ) {
+    if choices.is_empty() {
+        // A sentence, so a line of its own under the label rather than
+        // the rest of the label's row.
+        ui.label(label);
+        crate::widgets::message_toned(ui, NO_FRAMES, theme, Tone::Advisory);
+        return;
+    }
     ui.horizontal(|ui| {
         ui.label(label);
-        if choices.is_empty() {
-            ui.weak("none in this document — add a frame datum first");
-        } else {
-            let shown = picked.as_ref().map_or_else(|| "pick one".to_owned(), &text);
-            egui::ComboBox::from_id_salt(salt)
-                .selected_text(shown)
-                .show_ui(ui, |ui| {
-                    for choice in choices {
-                        ui.selectable_value(picked, Some(*choice), text(choice));
-                    }
-                });
-        }
+        let shown = picked.as_ref().map_or_else(|| "pick one".to_owned(), &text);
+        egui::ComboBox::from_id_salt(salt)
+            .selected_text(shown)
+            .show_ui(ui, |ui| {
+                for choice in choices {
+                    ui.selectable_value(picked, Some(*choice), text(choice));
+                }
+            });
     });
+}
+
+/// What [`frame_picker`] says in place of a combo with nothing to offer.
+const NO_FRAMES: &str = "none in this document — add a frame datum first";
+
+/// **The "Add part" chooser's window**, as wide as the pane its door
+/// is drawn in (`opener`) and never under
+/// [`crate::widgets::message_floor`].
+///
+/// The width is given rather than left to egui's own default for a
+/// window, because it is what every sentence in the chooser wraps at:
+/// the chooser answers the pane that opened it, so it lays its
+/// sentences out the way that pane would.
+///
+/// **Pinned, every frame**, as both the least and the most the window
+/// may be. A `default_width` alone is read once per session — egui
+/// persists a window's size under its id and only ratchets it up from
+/// there — so a chooser reopened after the pane narrowed would keep
+/// the old width. Pinning also follows a pane resized while the
+/// chooser is open.
+fn part_window(opener: &egui::Ui) -> egui::Window<'static> {
+    let width = opener
+        .available_width()
+        .max(crate::widgets::message_floor(opener));
+    egui::Window::new("Add part")
+        .collapsible(false)
+        .resizable(false)
+        .min_width(width)
+        .max_width(width)
+}
+
+/// **One part the chooser offers**: its pick button, and the
+/// document's id on a line of its own under it. Answers whether the
+/// button was clicked.
+///
+/// The id is a VALUE, not a sentence: 32 hex digits, bounded by its
+/// source and with no space to break at, so wrapping it at the region
+/// would split one id into two tokens. It is drawn whole or, in a
+/// window narrower than it, elided with the whole id on hover —
+/// egui's own truncation, which never breaks it. The file name above
+/// it is what a reader picks by (`crate::parts::catalogue` sorts on
+/// it); the id tells two same-named files apart.
+///
+/// An entry that cannot be picked stays VISIBLE and disabled, carrying
+/// the op's own refusal — read off the entry, not minted here.
+fn part_entry(ui: &mut egui::Ui, theme: &Theme, entry: &PartEntry) -> bool {
+    let refusal = entry.refusal();
+    let picked = crate::app::refusable_button(ui, entry.file_name(), refusal.as_ref());
+    ui.add(
+        egui::Label::new(crate::app::toned(
+            entry.id.to_string(),
+            theme,
+            Tone::Advisory,
+        ))
+        .truncate(),
+    );
+    picked
 }
 
 /// **What the add-profile form calls the frame it offers to mint.**
@@ -81,6 +252,18 @@ fn frame_picker<T: Copy + PartialEq>(
 /// that is the question being answered — which frame — and a document
 /// with none is the case this entry exists for.
 const NEW_XY_LABEL: &str = "a new xy frame";
+
+/// **The plane choices the add-profile form offers**, in the order it
+/// offers them: the mint, then the document's own frames.
+///
+/// Its own function so that "the mint goes first, whatever the
+/// document holds" is a claim a test can read directly as well as
+/// through the widget.
+fn profile_plane_choices(frames: &[RecipeNodeId]) -> Vec<ProfilePlane> {
+    core::iter::once(ProfilePlane::NewXy)
+        .chain(frames.iter().copied().map(ProfilePlane::Existing))
+        .collect()
+}
 
 /// **The add-profile form's plane row**: the mint, then the document's
 /// own frames, in one combo.
@@ -99,20 +282,9 @@ const NEW_XY_LABEL: &str = "a new xy frame";
 /// is therefore never empty, so [`frame_picker`]'s empty line is
 /// reachable only from the add-datum form, whose axis-in-sketch kind
 /// genuinely does need a frame that already exists.
-/// **The plane choices the add-profile form offers**, in the order it
-/// offers them: the mint, then the document's own frames.
-///
-/// Its own function so that "the mint goes first, whatever the
-/// document holds" is a claim a test can read directly as well as
-/// through the widget.
-fn profile_plane_choices(frames: &[RecipeNodeId]) -> Vec<ProfilePlane> {
-    core::iter::once(ProfilePlane::NewXy)
-        .chain(frames.iter().copied().map(ProfilePlane::Existing))
-        .collect()
-}
-
 pub(crate) fn profile_plane_row(
     ui: &mut egui::Ui,
+    theme: &Theme,
     frames: &[RecipeNodeId],
     names: &impl Fn(&RecipeNodeId) -> String,
     picked: &mut Option<ProfilePlane>,
@@ -120,6 +292,7 @@ pub(crate) fn profile_plane_row(
     let planes = profile_plane_choices(frames);
     frame_picker(
         ui,
+        theme,
         "on frame",
         "profile_plane",
         &planes,
@@ -160,6 +333,14 @@ impl ViewerBehavior<'_> {
             self.transform_tool_ui(ui);
             ui.separator();
             self.pattern_tool_ui(ui);
+            ui.separator();
+            // Beside the pattern they read and author: a projection
+            // takes ONE body out of a split's or a pattern's several,
+            // and a duplicate authors a pattern of two with both
+            // projections already made.
+            self.projection_tool_ui(ui);
+            ui.separator();
+            self.duplicate_tool_ui(ui);
         });
         // The blend tools sit in their own section (GAUTH-5): they
         // take a body that exists and reshape its EDGES, which is a
@@ -188,7 +369,7 @@ impl ViewerBehavior<'_> {
             }
             return;
         };
-        ui.label(ToolKind::Mate.says(&"pick two faces in the viewport"));
+        crate::widgets::message(ui, ToolKind::Mate.says(&"pick two faces in the viewport"));
         match tool.state() {
             MateToolState::Idle => {
                 ui.weak("no picks yet");
@@ -197,10 +378,12 @@ impl ViewerBehavior<'_> {
                 ui.weak(format!("pick a: face of node {}", a.node.0));
             }
             MateToolState::Two { a, b } => {
-                ui.weak(format!(
-                    "pick a: node {}; pick b: node {}",
-                    a.node.0, b.node.0
-                ));
+                crate::widgets::message_toned(
+                    ui,
+                    format!("pick a: node {}; pick b: node {}", a.node.0, b.node.0),
+                    &self.theme,
+                    Tone::Advisory,
+                );
             }
         }
         // The class choice, offered THROUGH the kernel's admission
@@ -218,13 +401,18 @@ impl ViewerBehavior<'_> {
             // The verdict in the table's own words: a minting class
             // says so; a class with no at-rest record shows the
             // table's reason, never a Debug dump of it.
-            ui.weak(format!(
-                "admission: {}",
-                match entry.admission {
-                    pncad::document::ClassAdmission::Mints => "mints an at-rest record",
-                    other => other.no_record_reason(),
-                }
-            ));
+            crate::widgets::message_toned(
+                ui,
+                format!(
+                    "admission: {}",
+                    match entry.admission {
+                        pncad::document::ClassAdmission::Mints => "mints an at-rest record",
+                        other => other.no_record_reason(),
+                    }
+                ),
+                &self.theme,
+                Tone::Advisory,
+            );
         }
         ui.horizontal(|ui| {
             for (ix, (_, label)) in MATE_PRIMITIVES.iter().enumerate() {
@@ -324,71 +512,64 @@ impl ViewerBehavior<'_> {
         let mut rescan = false;
         let mut close = false;
         if let Some(chooser) = self.part_chooser.as_ref() {
-            egui::Window::new("Add part")
-                .collapsible(false)
-                .resizable(false)
-                .show(ui.ctx(), |ui| {
-                    match chooser.dir() {
-                        Some(dir) => ui.weak(format!("parts in {}", dir.display())),
-                        None => ui.weak("no directory"),
-                    };
-                    match chooser.offered() {
-                        // An EMPTY listing is not "no parts here": a
-                        // saved session's own file is in its own
-                        // directory, so the only way to scan clean and
-                        // find nothing is for that file to have gone
-                        // away underneath the session. Say that, since
-                        // it is also why the instances already placed
-                        // will stop resolving.
-                        Ok([]) => {
-                            ui.weak(
-                                "this directory holds no documents at all — not even the open \
+            part_window(ui).show(ui.ctx(), |ui| {
+                match chooser.dir() {
+                    Some(dir) => {
+                        crate::widgets::message_toned(
+                            ui,
+                            format!("parts in {}", dir.display()),
+                            &self.theme,
+                            Tone::Advisory,
+                        );
+                    }
+                    None => {
+                        ui.weak("no directory");
+                    }
+                }
+                match chooser.offered() {
+                    // An EMPTY listing is not "no parts here": a
+                    // saved session's own file is in its own
+                    // directory, so the only way to scan clean and
+                    // find nothing is for that file to have gone
+                    // away underneath the session. Say that, since
+                    // it is also why the instances already placed
+                    // will stop resolving.
+                    Ok([]) => {
+                        crate::widgets::message_toned(
+                            ui,
+                            "this directory holds no documents at all — not even the open \
                                  document's own file, which has gone from it",
-                            );
-                        }
-                        Ok(entries) => {
-                            for entry in entries {
-                                ui.horizontal(|ui| {
-                                    // An entry that cannot be picked
-                                    // stays VISIBLE and disabled,
-                                    // carrying the op's own refusal —
-                                    // read off the entry, not minted
-                                    // here.
-                                    let refusal = entry.refusal();
-                                    let mut pick = ui.add_enabled(
-                                        refusal.is_none(),
-                                        egui::Button::new(entry.file_name()),
-                                    );
-                                    if let Some(refusal) = refusal {
-                                        pick = pick.on_disabled_hover_text(refusal.to_string());
-                                    }
-                                    if pick.clicked() {
-                                        chosen = Some(entry.id);
-                                    }
-                                    ui.weak(entry.id.to_string());
-                                });
+                            &self.theme,
+                            Tone::Advisory,
+                        );
+                    }
+                    Ok(entries) => {
+                        for entry in entries {
+                            if part_entry(ui, &self.theme, entry) {
+                                chosen = Some(entry.id);
                             }
                         }
-                        // The refusing layer's own sentence — the
-                        // store's or the directory rule's — never one
-                        // composed here.
-                        Err(refusal) => {
-                            ui.label(refusal.to_string());
-                        }
                     }
-                    ui.horizontal(|ui| {
-                        if ui
-                            .button("Rescan")
-                            .on_hover_text("re-read this directory")
-                            .clicked()
-                        {
-                            rescan = true;
-                        }
-                        if ui.button("Cancel").clicked() {
-                            close = true;
-                        }
-                    });
+                    // The refusing layer's own sentence — the
+                    // store's or the directory rule's — never one
+                    // composed here.
+                    Err(refusal) => {
+                        crate::widgets::message(ui, refusal.to_string());
+                    }
+                }
+                ui.horizontal(|ui| {
+                    if ui
+                        .button("Rescan")
+                        .on_hover_text("re-read this directory")
+                        .clicked()
+                    {
+                        rescan = true;
+                    }
+                    if ui.button("Cancel").clicked() {
+                        close = true;
+                    }
                 });
+            });
         }
         if let Some(id) = chosen {
             // Exactly one committed edit, and the chooser closes with
@@ -441,7 +622,7 @@ impl ViewerBehavior<'_> {
                 // enters a y that is not square to x gets a frame that
                 // is, and a silent correction is the kind a person
                 // discovers by measuring the model.
-                ui.label("y is squared against x; the normal is x × y");
+                crate::widgets::message(ui, "y is squared against x; the normal is x × y");
             }
             DatumKindChoice::Axis => {
                 self.datum_origin_row(ui, "origin");
@@ -457,6 +638,7 @@ impl ViewerBehavior<'_> {
                 let names = self.frame_names();
                 frame_picker(
                     ui,
+                    &self.theme,
                     "in frame",
                     "datum_frame",
                     &frames,
@@ -482,7 +664,10 @@ impl ViewerBehavior<'_> {
                 // The same-frame rule is the revolve's, and a person
                 // authoring this axis is about to meet it: say it here
                 // rather than at the revolve's refusal.
-                ui.label("x and y are the frame's own; a revolve needs its profile on this frame");
+                crate::widgets::message(
+                    ui,
+                    "x and y are the frame's own; a revolve needs its profile on this frame",
+                );
             }
             DatumKindChoice::FaceFrame => self.datum_face_frame_rows(ui),
             DatumKindChoice::Point => self.datum_origin_row(ui, "position"),
@@ -506,14 +691,14 @@ impl ViewerBehavior<'_> {
             .datum_spec(seat.as_ref().and_then(|seat| seat.as_ref().ok()));
         let unpicked = matches!(datum, Ok(None));
         if unpicked && let Some(wanted) = kind.unmet_seat() {
-            ui.weak(wanted);
+            crate::widgets::message_toned(ui, wanted, &self.theme, Tone::Advisory);
         }
         // `NoFace` is the unmet seat above, in the same words from its
         // one home: the sentence asking for the pick is drawn once.
         if let Some(fault) = refused
             && *fault != FaceFrameFault::NoFace
         {
-            ui.weak(fault.to_string());
+            crate::widgets::message_toned(ui, fault.to_string(), &self.theme, Tone::Advisory);
         }
         if ui
             .add_enabled(
@@ -578,7 +763,10 @@ impl ViewerBehavior<'_> {
         // What the number MEANS, said where it is typed: the origin
         // and the normal are the face's, so this rotation is the whole
         // of what an author chooses here.
-        ui.label("sketch +x, turned about the face's outward normal; the origin is the face's");
+        crate::widgets::message(
+            ui,
+            "sketch +x, turned about the face's outward normal; the origin is the face's",
+        );
     }
 
     /// The add-datum form's 3-D Length row — an origin or a position —
@@ -683,6 +871,7 @@ impl ViewerBehavior<'_> {
         // the property panel.
         profile_plane_row(
             ui,
+            &self.theme,
             &self.frames(),
             &self.frame_names(),
             &mut self.drafts.profile_plane,
@@ -781,7 +970,7 @@ impl ViewerBehavior<'_> {
             }
         }
         if let Some(reason) = blocked {
-            ui.weak(reason);
+            crate::widgets::message_toned(ui, reason, &self.theme, Tone::Advisory);
         }
         // **What the loops would draw, said before they are
         // authored.** The preview ran the commit door's own ladder,
@@ -890,11 +1079,19 @@ impl ViewerBehavior<'_> {
             }
             return;
         };
-        ui.label(ToolKind::Revolve.says(&"pick the profile, then the axis"));
-        ui.weak(seat_line(&[
-            (Seat::RevolveProfile, tool.profile()),
-            (Seat::RevolveAxis, tool.axis()),
-        ]));
+        crate::widgets::message(
+            ui,
+            ToolKind::Revolve.says(&"pick the profile, then the axis"),
+        );
+        crate::widgets::message_toned(
+            ui,
+            seat_line(&[
+                (Seat::RevolveProfile, tool.profile()),
+                (Seat::RevolveAxis, tool.axis()),
+            ]),
+            &self.theme,
+            Tone::Advisory,
+        );
         ui.horizontal(|ui| {
             ui.label("angle");
             unit_field(
@@ -923,11 +1120,16 @@ impl ViewerBehavior<'_> {
             }
             return;
         };
-        ui.label(ToolKind::Boolean.says(&"pick the first body, then the second"));
-        ui.weak(seat_line(&[
-            (Seat::OperandA, tool.a()),
-            (Seat::OperandB, tool.b()),
-        ]));
+        crate::widgets::message(
+            ui,
+            ToolKind::Boolean.says(&"pick the first body, then the second"),
+        );
+        crate::widgets::message_toned(
+            ui,
+            seat_line(&[(Seat::OperandA, tool.a()), (Seat::OperandB, tool.b())]),
+            &self.theme,
+            Tone::Advisory,
+        );
         ui.horizontal(|ui| {
             ui.label("operation");
             // One button per operation the KERNEL has, in its order:
@@ -937,7 +1139,12 @@ impl ViewerBehavior<'_> {
             }
         });
         if self.drafts.boolean_op == BooleanOp::Subtract {
-            ui.weak("subtract removes the second pick from the first");
+            crate::widgets::message_toned(
+                ui,
+                "subtract removes the second pick from the first",
+                &self.theme,
+                Tone::Advisory,
+            );
         }
         self.tool_commit_row(ui, "Commit boolean", ToolKind::Boolean, |drafts| {
             Ok(tool.op(drafts.boolean_op)?)
@@ -953,11 +1160,19 @@ impl ViewerBehavior<'_> {
             }
             return;
         };
-        ui.label(ToolKind::Split.says(&"pick the body, then the datum plane"));
-        ui.weak(seat_line(&[
-            (Seat::SplitTarget, tool.target()),
-            (Seat::SplitPlane, tool.plane()),
-        ]));
+        crate::widgets::message(
+            ui,
+            ToolKind::Split.says(&"pick the body, then the datum plane"),
+        );
+        crate::widgets::message_toned(
+            ui,
+            seat_line(&[
+                (Seat::SplitTarget, tool.target()),
+                (Seat::SplitPlane, tool.plane()),
+            ]),
+            &self.theme,
+            Tone::Advisory,
+        );
         self.tool_commit_row(ui, "Commit split", ToolKind::Split, |_| Ok(tool.op()?));
     }
 
@@ -970,8 +1185,13 @@ impl ViewerBehavior<'_> {
             }
             return;
         };
-        ui.label(ToolKind::Transform.says(&"pick the body to place"));
-        ui.weak(seat_line(&[(Seat::TransformBody, tool.input())]));
+        crate::widgets::message(ui, ToolKind::Transform.says(&"pick the body to place"));
+        crate::widgets::message_toned(
+            ui,
+            seat_line(&[(Seat::TransformBody, tool.input())]),
+            &self.theme,
+            Tone::Advisory,
+        );
         ui.horizontal(|ui| {
             unit_vec3_row(
                 ui,
@@ -1022,11 +1242,19 @@ impl ViewerBehavior<'_> {
             }
             return;
         };
-        ui.label(ToolKind::Pattern.says(&"pick the body, then (circular) the axis"));
-        ui.weak(seat_line(&[
-            (Seat::PatternBody, tool.input()),
-            (Seat::PatternAxis, tool.axis()),
-        ]));
+        crate::widgets::message(
+            ui,
+            ToolKind::Pattern.says(&"pick the body, then (circular) the axis"),
+        );
+        crate::widgets::message_toned(
+            ui,
+            seat_line(&[
+                (Seat::PatternBody, tool.input()),
+                (Seat::PatternAxis, tool.axis()),
+            ]),
+            &self.theme,
+            Tone::Advisory,
+        );
         ui.horizontal(|ui| {
             ui.label("rule");
             for (kind, label) in PatternKindChoice::ALL {
@@ -1101,6 +1329,88 @@ impl ViewerBehavior<'_> {
         );
     }
 
+    /// The projection tool's panel — [`crate::combine::PartTool`],
+    /// which authors a `Node::Part`: one pick of a split or a pattern,
+    /// the selector with its field, and the one committed edit.
+    ///
+    /// Called the PROJECTION tool on screen because "part" is already
+    /// the word the `Add part…` chooser beside it uses for another
+    /// document, and the two gestures have nothing to do with each
+    /// other.
+    ///
+    /// **Two seats, one pick.** A half is read out of a split and an
+    /// index out of a pattern, so the two selections want different
+    /// node kinds and the seat machinery routes a click to the seat
+    /// only it can fill ([`crate::combine::PartTool`]). The selector
+    /// then picks which seat the commit reads, so a user who picked a
+    /// pattern and asked for a half is told which pick is missing
+    /// rather than having one silently substituted.
+    pub(crate) fn projection_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.part() else {
+            if ui.button("Projection tool…").clicked() {
+                self.tools.open(ToolKind::Part);
+            }
+            return;
+        };
+        crate::widgets::message(
+            ui,
+            ToolKind::Part.says(
+                &"pick a split or a pattern, in the viewport or the tree, to project one body out \
+                  of",
+            ),
+        );
+        crate::widgets::message_toned(
+            ui,
+            seat_line(&[
+                (Seat::PartSplit, tool.split()),
+                (Seat::PartInstance, tool.pattern()),
+            ]),
+            &self.theme,
+            Tone::Advisory,
+        );
+        part_selector_rows(
+            ui,
+            &self.theme,
+            &mut self.drafts.part_select,
+            &mut self.drafts.part_half,
+            &mut self.drafts.part_instance,
+        );
+        self.tool_commit_row(ui, "Commit projection", ToolKind::Part, |drafts| {
+            Ok(match drafts.part_select {
+                PartSelectChoice::Half => tool.half_op(drafts.part_half)?,
+                PartSelectChoice::Instance => tool.instance_op(drafts.part_instance)?,
+            })
+        });
+    }
+
+    /// The duplicate tool's panel: one body pick, the sentence saying
+    /// where the copy lands, and the one committed edit.
+    ///
+    /// **No fields, deliberately.** The gesture's whole point is that
+    /// the next thing a user does is move the copy, so a form asking
+    /// where it should go first would be the pattern form again. What
+    /// the panel owes instead is the number it commits without asking,
+    /// which [`duplicate_note`] states.
+    pub(crate) fn duplicate_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.duplicate() else {
+            if ui.button("Duplicate tool…").clicked() {
+                self.tools.open(ToolKind::Duplicate);
+            }
+            return;
+        };
+        crate::widgets::message(ui, ToolKind::Duplicate.says(&"pick the body to duplicate"));
+        crate::widgets::message_toned(
+            ui,
+            seat_line(&[(Seat::DuplicateBody, tool.input())]),
+            &self.theme,
+            Tone::Advisory,
+        );
+        crate::widgets::message_toned(ui, duplicate_note(), &self.theme, Tone::Advisory);
+        self.tool_commit_row(ui, "Commit duplicate", ToolKind::Duplicate, |_| {
+            Ok(tool.op()?)
+        });
+    }
+
     /// The blend tool's panel: activation, the freeze sentence, the
     /// live count of held edges, the all-edges affordance, the kind
     /// choice with its one Length field, and the one committed edit.
@@ -1123,8 +1433,8 @@ impl ViewerBehavior<'_> {
             }
             return;
         };
-        ui.label(ToolKind::Blend.says(&"pick the edges to blend"));
-        ui.weak(FREEZE_NOTE);
+        crate::widgets::message(ui, ToolKind::Blend.says(&"pick the edges to blend"));
+        crate::widgets::message_toned(ui, FREEZE_NOTE, &self.theme, Tone::Advisory);
         ui.weak(match target {
             Some(target) => format!("{count} edges picked on {target}"),
             None => "no edges picked yet".to_owned(),
@@ -1241,10 +1551,7 @@ impl ViewerBehavior<'_> {
                     }
                 }
             }
-            if ui
-                .add_enabled(count > 0, egui::Button::new("Clear picks"))
-                .on_hover_text("drop every picked edge and start on any body")
-                .clicked()
+            if clear_picks_button(ui, count)
                 && let Some(tool) = self.tools.blend_mut()
             {
                 tool.clear();
@@ -1294,6 +1601,26 @@ impl ViewerBehavior<'_> {
     }
 }
 
+/// **The blend tool's `Clear picks`**, live while `count` edges are
+/// held. No operation stands behind it — clearing is tool state — so
+/// with nothing held there is no refusal to read, and the literal here
+/// is the sentence: each state carries its own on the hook egui shows
+/// in that state.
+///
+/// Answers whether it was clicked, which a disabled button never is.
+fn clear_picks_button(ui: &mut egui::Ui, count: usize) -> bool {
+    let button = ui.add_enabled(count > 0, egui::Button::new("Clear picks"));
+    if count > 0 {
+        button
+            .on_hover_text("drop every picked edge and start on any body")
+            .clicked()
+    } else {
+        button
+            .on_disabled_hover_text("no edge is picked, so there is nothing to clear")
+            .clicked()
+    }
+}
+
 /// **The creation forms' own widgets, driven** —
 /// `crate::pane::headless` carries the harness and what it can and
 /// cannot reach.
@@ -1305,8 +1632,132 @@ mod tests {
 
     use pncad::document::RecipeNodeId;
 
-    use super::{NEW_XY_LABEL, ProfilePlane, profile_plane_row};
-    use crate::pane::headless::{painted_after_clicking, painted_text};
+    use pncad::select::SplitHalf;
+
+    use super::{
+        NEW_XY_LABEL, ProfilePlane, clear_picks_button, duplicate_note, part_selector_rows,
+        profile_plane_row,
+    };
+    use crate::forms::PartSelectChoice;
+    use crate::pane::headless::{painted_after_clicking, painted_text, painted_while_hovering};
+    use crate::theme::Theme;
+
+    /// The part form's selector rows, driven: the half choice paints
+    /// the kernel's own two sides and no index field.
+    ///
+    /// The row exists because the two selections are one form: a form
+    /// that painted both a half choice and an index would be offering
+    /// a pairing no node has, and the selector is the only thing
+    /// keeping them apart.
+    #[test]
+    fn the_part_form_paints_the_halves_when_a_half_is_selected() {
+        let (mut select, mut half, mut instance) =
+            (PartSelectChoice::Half, SplitHalf::Above, 1_i64);
+        let drawn = painted_text(|ui| {
+            part_selector_rows(ui, &Theme::DEFAULT, &mut select, &mut half, &mut instance)
+        });
+        assert!(drawn.contains("half"), "{drawn}");
+        assert!(
+            drawn.contains("above") && drawn.contains("below"),
+            "{drawn}"
+        );
+        assert!(
+            !drawn.contains("numbered from zero"),
+            "the index field's own sentence is not painted under the half choice: {drawn}"
+        );
+    }
+
+    /// And the index choice paints the field with its numbering
+    /// sentence, and no half radios.
+    #[test]
+    fn the_part_form_paints_the_index_when_an_instance_is_selected() {
+        let (mut select, mut half, mut instance) =
+            (PartSelectChoice::Instance, SplitHalf::Above, 3_i64);
+        let drawn = painted_text(|ui| {
+            part_selector_rows(ui, &Theme::DEFAULT, &mut select, &mut half, &mut instance)
+        });
+        assert!(drawn.contains("instance"), "{drawn}");
+        assert!(
+            drawn.contains("numbered from zero"),
+            "the field says where the numbering starts: {drawn}"
+        );
+        assert!(
+            !drawn.contains("the tool plane's normal side"),
+            "the half choice's own sentence is not painted here: {drawn}"
+        );
+    }
+
+    /// **The selector row actually switches the form**: clicking the
+    /// instance radio leaves the index field painted where the half
+    /// radios were.
+    ///
+    /// Drives the widget rather than the enum, because a radio row
+    /// that painted the right labels and wrote to nothing would pass
+    /// every assertion above.
+    #[test]
+    fn clicking_the_instance_selector_opens_the_index_field() {
+        let (mut select, mut half, mut instance) =
+            (PartSelectChoice::Half, SplitHalf::Above, 1_i64);
+        let drawn = painted_after_clicking("instance of a pattern", |ui| {
+            part_selector_rows(ui, &Theme::DEFAULT, &mut select, &mut half, &mut instance);
+        });
+        assert_eq!(
+            select,
+            PartSelectChoice::Instance,
+            "the click wrote: {drawn}"
+        );
+        assert!(
+            drawn.contains("numbered from zero"),
+            "and the form now paints the index field: {drawn}"
+        );
+    }
+
+    /// **The duplicate panel says how the copy's step is chosen** —
+    /// along which direction and by how much clear space — in the
+    /// numbers the step rule actually uses.
+    ///
+    /// Held to the landed node from the other side by
+    /// `combine_ops::a_duplicate_keeps_the_notes_promise`, which
+    /// asserts the committed pattern's spacing against the same rule.
+    #[test]
+    fn the_duplicate_note_says_how_the_step_is_chosen() {
+        let note = duplicate_note();
+        assert!(note.contains("(1, 0, 0)"), "along world +x: {note}");
+        assert!(
+            note.contains("at least 25% of the body's width"),
+            "a quarter of the body's width, as a floor: {note}"
+        );
+        assert!(
+            note.contains("measured off the body as it now is"),
+            "and that the step is the body's, not a fixed length: {note}"
+        );
+        assert!(
+            note.contains("editable afterwards"),
+            "and that the slot is not frozen: {note}"
+        );
+    }
+
+    /// **The projection panel says what a projection does to the
+    /// picture**, under either selector — the bodies it does not select
+    /// stop being drawn, and a person should hear that before the
+    /// click, not discover it after.
+    #[test]
+    fn the_part_form_says_the_other_bodies_leave_the_picture() {
+        for choice in [PartSelectChoice::Half, PartSelectChoice::Instance] {
+            let (mut select, mut half, mut instance) = (choice, SplitHalf::Above, 1_i64);
+            let drawn = painted_text(|ui| {
+                part_selector_rows(ui, &Theme::DEFAULT, &mut select, &mut half, &mut instance);
+            });
+            assert!(
+                drawn.contains("only the selected body stays drawn"),
+                "{choice:?}: {drawn}"
+            );
+            assert!(
+                drawn.contains("pick it again in the feature tree"),
+                "and where the rest can still be reached from: {drawn}"
+            );
+        }
+    }
 
     /// A stand-in labeller: the number alone, so a row asserting on
     /// the pose half is asserting on text this closure did not write.
@@ -1324,7 +1775,8 @@ mod tests {
     #[test]
     fn the_plane_row_offers_a_new_frame_when_the_document_holds_none() {
         let mut picked: Option<ProfilePlane> = None;
-        let drawn = painted_text(|ui| profile_plane_row(ui, &[], &numbers, &mut picked));
+        let drawn =
+            painted_text(|ui| profile_plane_row(ui, &Theme::DEFAULT, &[], &numbers, &mut picked));
         assert!(drawn.contains("on frame"), "{drawn}");
         assert!(
             !drawn.contains("add a frame datum first"),
@@ -1351,7 +1803,7 @@ mod tests {
         let frames = [RecipeNodeId(2), RecipeNodeId(5)];
         let mut picked: Option<ProfilePlane> = None;
         let drawn = painted_after_clicking("pick one", |ui| {
-            profile_plane_row(ui, &frames, &numbers, &mut picked);
+            profile_plane_row(ui, &Theme::DEFAULT, &frames, &numbers, &mut picked);
         });
         assert!(
             drawn.contains(NEW_XY_LABEL),
@@ -1366,7 +1818,8 @@ mod tests {
     #[test]
     fn the_plane_row_names_the_frame_it_would_mint() {
         let mut picked = Some(ProfilePlane::NewXy);
-        let drawn = painted_text(|ui| profile_plane_row(ui, &[], &numbers, &mut picked));
+        let drawn =
+            painted_text(|ui| profile_plane_row(ui, &Theme::DEFAULT, &[], &numbers, &mut picked));
         assert!(drawn.contains(NEW_XY_LABEL), "{drawn}");
     }
 
@@ -1380,8 +1833,9 @@ mod tests {
     fn the_plane_row_draws_the_name_it_is_handed() {
         let mut picked = Some(ProfilePlane::Existing(RecipeNodeId(4)));
         let names = |id: &RecipeNodeId| format!("feature {} — xy at (0, 0, 0) m", id.0);
-        let drawn =
-            painted_text(|ui| profile_plane_row(ui, &[RecipeNodeId(4)], &names, &mut picked));
+        let drawn = painted_text(|ui| {
+            profile_plane_row(ui, &Theme::DEFAULT, &[RecipeNodeId(4)], &names, &mut picked)
+        });
         assert!(
             drawn.contains("feature 4 — xy at (0, 0, 0) m"),
             "the closed combo says which frame, in the labeller's words: {drawn}"
@@ -1393,11 +1847,184 @@ mod tests {
     #[test]
     fn the_plane_row_names_a_pick_the_document_no_longer_holds() {
         let mut picked = Some(ProfilePlane::Existing(RecipeNodeId(9)));
-        let drawn = painted_text(|ui| profile_plane_row(ui, &[], &numbers, &mut picked));
+        let drawn =
+            painted_text(|ui| profile_plane_row(ui, &Theme::DEFAULT, &[], &numbers, &mut picked));
         assert!(
             drawn.contains("feature 9"),
             "a pick outside the list is named, not silently drawn as unfilled: {drawn}"
         );
         assert!(!drawn.contains("pick one"), "{drawn}");
+    }
+
+    /// **`Clear picks` says why while it is disabled** — hovered with
+    /// nothing held, it paints its own sentence, and not the enabled
+    /// one that egui would have shown nobody.
+    #[test]
+    fn clear_picks_with_nothing_held_says_there_is_nothing_to_clear() {
+        let hovered = painted_while_hovering("Clear picks", 0, |ui| {
+            clear_picks_button(ui, 0);
+        });
+        assert!(
+            hovered.contains("no edge is picked, so there is nothing to clear"),
+            "{hovered}"
+        );
+        assert!(!hovered.contains("drop every picked edge"), "{hovered}");
+    }
+
+    /// And holding picks, the same hover paints what a click does.
+    #[test]
+    fn clear_picks_with_picks_held_says_what_it_drops() {
+        let hovered = painted_while_hovering("Clear picks", 0, |ui| {
+            clear_picks_button(ui, 3);
+        });
+        assert!(
+            hovered.contains("drop every picked edge and start on any body"),
+            "{hovered}"
+        );
+        assert!(!hovered.contains("nothing to clear"), "{hovered}");
+    }
+}
+
+/// **Where this pane's sentences LAND** — each measured in a pane
+/// narrower than the sentence, through `crate::pane::headless`, as
+/// `crate::pane::properties`'s `layout_tests` measure that pane's.
+///
+/// A sentence drawn beside a control in a `ui.horizontal` is laid out
+/// from the control's right-hand edge at infinite width; each row here
+/// holds that it is on a line of its own instead, under the control it
+/// is about.
+#[cfg(test)]
+mod layout_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
+
+    use std::path::PathBuf;
+
+    use eframe::egui;
+    use pncad::document::{DocumentId, RecipeNodeId};
+
+    use super::{NO_FRAMES, frame_picker, part_entry, part_window};
+    use crate::pane::headless::{
+        SLACK, assert_inside, assert_own_lines, assert_under, drawn_in, find, landed_after,
+    };
+    use crate::parts::PartEntry;
+    use crate::theme::Theme;
+
+    /// A narrow pane, and wider than `crate::widgets::message_floor`,
+    /// so these rows read the region and not the floor.
+    const REGION: f32 = 260.0;
+
+    #[test]
+    fn a_frame_pickers_empty_line_is_said_under_its_label_inside_the_pane() {
+        let mut picked: Option<RecipeNodeId> = None;
+        let (region, painted) = drawn_in(REGION, |ui| {
+            frame_picker(
+                ui,
+                &Theme::DEFAULT,
+                "in frame",
+                "salt",
+                &[],
+                &mut picked,
+                |id| format!("feature {}", id.0),
+            );
+        });
+        let empty = find(&painted, NO_FRAMES);
+        assert_own_lines(region, empty);
+        assert_under(find(&painted, "in frame"), empty);
+    }
+
+    #[test]
+    fn a_parts_id_is_said_under_its_pick_button_inside_the_pane() {
+        let entry = PartEntry {
+            id: DocumentId(0x0123_4567_89ab_cdef_0123_4567_89ab_cdef),
+            path: PathBuf::from("outer-enclosure-lid.pncad"),
+            open_document: false,
+        };
+        let (region, painted) = drawn_in(REGION, |ui| {
+            part_entry(ui, &Theme::DEFAULT, &entry);
+        });
+        let id = find(&painted, &entry.id.to_string());
+        assert_own_lines(region, id);
+        assert_under(find(&painted, &entry.file_name()), id);
+    }
+
+    /// **A part's id is never broken inside itself**: in a pane
+    /// narrower than its 32 digits it is elided on one line, where a
+    /// sentence's wrap would split it into two tokens.
+    #[test]
+    fn a_parts_id_is_drawn_on_one_line_in_a_pane_narrower_than_it() {
+        const NARROW: f32 = 200.0;
+        let entry = PartEntry {
+            id: DocumentId(0x0123_4567_89ab_cdef_0123_4567_89ab_cdef),
+            path: PathBuf::from("lid.pncad"),
+            open_document: false,
+        };
+        let (region, painted) = drawn_in(NARROW, |ui| {
+            part_entry(ui, &Theme::DEFAULT, &entry);
+        });
+        let id = find(&painted, &entry.id.to_string());
+        assert_eq!(
+            id.rows.len(),
+            1,
+            "the id is one line, not two ({:?})",
+            id.rows
+        );
+        assert_inside(region, id);
+    }
+
+    /// **The chooser's window takes the width of the pane that opens
+    /// it, each time it is opened** — at least that width in a wide
+    /// pane, and in a narrow one reopened after a wide one, no more
+    /// than that width, so its sentences wrap there.
+    ///
+    /// One context across both opens, because what egui carries from
+    /// the first open to the second is its memory of the window's
+    /// size. Two frames per open, because a window paints nothing on
+    /// the frame it first appears.
+    #[test]
+    fn the_part_chooser_takes_the_width_of_the_pane_each_time_it_opens() {
+        const WIDE: f32 = 600.0;
+        let sentence = "this directory holds no documents at all — not even the open \
+                        document's own file, which has gone from it";
+        // (opener width, or `None` for a frame with the chooser closed)
+        let frames = [Some(WIDE), Some(WIDE), None, Some(REGION), Some(REGION)];
+        let widths = core::cell::RefCell::new(Vec::new());
+        let mut frame = 0;
+        let painted = landed_after(frames.len(), |ui| {
+            if let Some(Some(width)) = frames.get(frame) {
+                ui.allocate_ui(egui::vec2(*width, 800.0), |opener| {
+                    let shown = part_window(opener).show(opener.ctx(), |ui| {
+                        crate::widgets::message(ui, sentence);
+                    });
+                    let drawn = shown.map_or(f32::NAN, |shown| shown.response.rect.width());
+                    widths.borrow_mut().push((*width, drawn));
+                });
+            }
+            frame += 1;
+        });
+        for (opener, drawn) in widths.borrow().iter().skip(1) {
+            assert!(
+                (drawn - opener).abs() <= SLACK,
+                "a chooser opened from a {opener}-point pane is {drawn} points wide \
+                 ({:?})",
+                widths.borrow()
+            );
+        }
+        let said = find(&painted, sentence);
+        assert!(
+            said.rows.len() > 1,
+            "the sentence is longer than the pane, so it wraps ({:?})",
+            said.rows
+        );
+        let left = said
+            .rows
+            .iter()
+            .map(egui::Rect::left)
+            .fold(f32::INFINITY, f32::min);
+        // A pane as wide as the opener's, starting where the window's
+        // text does: the window sits wherever egui places it.
+        let pane = egui::Rect::from_min_size(egui::pos2(left, 0.0), egui::vec2(REGION, 1.0));
+        assert_inside(pane, said);
     }
 }

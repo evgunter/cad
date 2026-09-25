@@ -3,7 +3,6 @@
 //! These reproduce the PR's measured claims from scratch rather than
 //! reading its numbers back.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Bounds, Interval, Mat3, Point3, Real, Vec3};

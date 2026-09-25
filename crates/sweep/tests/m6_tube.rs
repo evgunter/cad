@@ -13,12 +13,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
-use profile::RawLoop;
 
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::tube_frame;
 use sweep::{Revolution, RevolveAxis, TubeError, TubeWindow, revolve, tube_along_arc};
 use topo::Body;
@@ -46,9 +45,9 @@ fn tube_donut() -> Body<f64> {
 /// The revolve-door donut of the same torus (the corpus `donut()`
 /// construction: a bulge-encoded circle profile about the y-axis).
 fn revolve_donut() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(R - MINOR, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(R + MINOR, 0.0), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(R - MINOR, 0.0), 1.0),
+        (Point2::new(R + MINOR, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -281,7 +280,6 @@ fn tube_window_and_refusal_doors() {
 
 /// **§9.3 interval row:** the tube door at the interval scalar —
 /// build, tier 3, and the Pappus volume bracketed enclosure-style.
-#[cfg(feature = "interval")]
 mod certified {
     use geom_core::Real;
     use geom_core::interval::Interval;

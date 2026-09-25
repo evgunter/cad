@@ -31,7 +31,7 @@ use geom::Curve3;
 use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
 use geom_core::k_stats::Bracket;
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec3};
-use profile::{Profile, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane};
 use sweep::blend::battery::{BlendRequest, RULED_END_NOT_TRANSVERSE, cap_transverse, run_battery};
 use sweep::blend::{BlendError, Blended, CornerConfig, RunOutPolicy, fillet_edges};
 use sweep::test_support::{
@@ -650,10 +650,10 @@ fn the_cap_lever_is_the_links_extent() {
 fn a_curved_end_face_refuses_typed_before_metering() {
     let body = revolved_about_y(
         vec![
-            ProfileVertex::new(p2(0.5, 0.0), 0.0),
-            ProfileVertex::new(p2(1.0, 0.0), 0.0),
-            ProfileVertex::new(p2(1.0, 1.0), 0.3),
-            ProfileVertex::new(p2(0.5, 1.0), 0.0),
+            (p2(0.5, 0.0), 0.0),
+            (p2(1.0, 0.0), 0.0),
+            (p2(1.0, 1.0), 0.3),
+            (p2(0.5, 1.0), 0.0),
         ],
         sweep::Revolution::Partial(core::f64::consts::FRAC_PI_2),
         tol(),

@@ -24,14 +24,18 @@ become a kernel dependency.
 cd demos/tour
 cargo run --release -- ../out                  # build, narrate, export STL + STEP
 cargo run --release -- gallery ../out/gallery  # the same scenes as .pncad documents
+cargo run --release -- certified               # the certified cells: plate tolerance, chain
 ```
 
 The first command builds every scene through the public API, narrates each
 one, and writes binary STL, AP214 STEP and `scenes.json` into `demos/out/`.
 The second writes the document-authored scenes as `.pncad` files the GUI
-opens — *The document gallery*, below.
+opens — *The document gallery*, below. The third narrates the two cells
+whose subject is the certified scalar rather than a scene (`tolerance.rs`,
+`chaintol.rs`); they take minutes where a scene takes seconds, so the walk
+leaves them to their own mode.
 
-**Neither renders anything, and neither needs the render guard's override
+**None of them renders anything, and none needs the render guard's override
 sentence.** The pictures in this repository are produced and committed by
 CI; *Rendering the montages* is that lane, and it is what the rest of this
 page is mostly about.
@@ -825,8 +829,7 @@ each joint carrying an independent normal angular error at σ = 0.01 rad;
 joint `j` rotates every link below it, so the last link has the longest
 lever and the fan gets wider all the way down. The document is
 `demos/tour/src/chain.rs` (read by both of its cells, as `plate.rs` is),
-the sheet is `mcchain.rs`, and the certified half is `chaintol.rs`
-behind the `interval` feature.
+the sheet is `mcchain.rs`, and the certified half is `chaintol.rs`.
 
 Everything the plate's sheet does, this does with a longer document:
 512 replays from `mc::sample_offsets`, the four numbers checked BIT FOR
@@ -863,8 +866,8 @@ the draws moved.
   default-ε measurement and the box MOVES with ε (`0.1083` at `1e-6`,
   measured); why it moves is not established — the wall's refusal is
   a poisoned margin, not a quantity a band classifies — so at another
-  ε it is a different box, and `chaintol` declares that frontier on
-  the same walk. The sheet asks the run's ε and, away from the default, prints
+  ε it is a different box, and `chaintol` (`demo-tour certified`)
+  declares that frontier at the same ε. The sheet asks the run's ε and, away from the default, prints
   the frontier where the legend would have gone and draws no band. A
   run at another ε where the box happens to certify anyway is
   under-claimed, which is the direction to be wrong in.

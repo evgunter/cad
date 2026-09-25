@@ -21,7 +21,6 @@
 //! — the shipped tier certifies the bracket whole an order of magnitude
 //! wider than M10-7's — and both facts are pinned as the positive
 //! statement, with the factor.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};

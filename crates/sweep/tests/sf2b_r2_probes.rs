@@ -8,7 +8,7 @@ use core::f64::consts::PI;
 use crate::common::approx::band;
 use geom::Surface;
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
 
@@ -37,11 +37,11 @@ fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
 
 fn frustum(r0: f64, r1: f64, h: f64) -> Body<f64> {
     revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r0, 0.0), 0.0),
-            ProfileVertex::new(p2(r1, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(r0, 0.0), 0.0),
+            (p2(r1, h), 0.0),
+            (p2(0.0, h), 0.0),
         ]),
         Revolution::Full,
     )
@@ -209,11 +209,11 @@ fn r2_a_conical_wedge_meridian_edge() {
     let (r0, r1, h) = (4.0 / 64.0, 2.0 / 64.0, 8.0 / 64.0);
     for (what, turn) in [("a quarter turn", PI / 2.0), ("a 1/12 turn", PI / 6.0)] {
         let body = revolved(
-            ProfileLoop::new(vec![
-                ProfileVertex::new(p2(0.0, 0.0), 0.0),
-                ProfileVertex::new(p2(r0, 0.0), 0.0),
-                ProfileVertex::new(p2(r1, h), 0.0),
-                ProfileVertex::new(p2(0.0, h), 0.0),
+            bulge_loop(vec![
+                (p2(0.0, 0.0), 0.0),
+                (p2(r0, 0.0), 0.0),
+                (p2(r1, h), 0.0),
+                (p2(0.0, h), 0.0),
             ]),
             Revolution::Partial(turn),
         );
@@ -258,11 +258,11 @@ fn r2_wedge_at_degenerate_turns() {
         ("a 3/4 turn (reflex)", 3.0 * PI / 2.0),
     ] {
         let body = revolved(
-            ProfileLoop::new(vec![
-                ProfileVertex::new(p2(0.0, 0.0), 0.0),
-                ProfileVertex::new(p2(r, 0.0), 0.0),
-                ProfileVertex::new(p2(r, h), 0.0),
-                ProfileVertex::new(p2(0.0, h), 0.0),
+            bulge_loop(vec![
+                (p2(0.0, 0.0), 0.0),
+                (p2(r, 0.0), 0.0),
+                (p2(r, h), 0.0),
+                (p2(0.0, h), 0.0),
             ]),
             Revolution::Partial(turn),
         );
@@ -308,12 +308,12 @@ fn r2_the_carried_azimuth_survives_both_surfaces_moving() {
     let (u, v) = (p2(r_foot, y_foot) - c, p2(r_neck, y_mouth) - c);
     let sweep = u.perp_dot(v).atan2(u.dot(v));
     let pot = revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r_foot, 0.0), 0.0),
-            ProfileVertex::new(p2(r_foot, y_foot), (sweep / 4.0).tan()),
-            ProfileVertex::new(p2(r_neck, y_mouth), 0.0),
-            ProfileVertex::new(p2(0.0, y_mouth), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(r_foot, 0.0), 0.0),
+            (p2(r_foot, y_foot), (sweep / 4.0).tan()),
+            (p2(r_neck, y_mouth), 0.0),
+            (p2(0.0, y_mouth), 0.0),
         ]),
         Revolution::Full,
     );
@@ -373,12 +373,12 @@ fn r2_stepped_vase_lift_branch() {
     let tol = Tol::witness();
     let t = 1.0 / 128.0;
     let body = revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(6.0 / 64.0, 0.0), 0.0),
-            ProfileVertex::new(p2(5.0 / 64.0, 4.0 / 64.0), 0.0),
-            ProfileVertex::new(p2(3.0 / 64.0, 8.0 / 64.0), 0.0),
-            ProfileVertex::new(p2(0.0, 8.0 / 64.0), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(6.0 / 64.0, 0.0), 0.0),
+            (p2(5.0 / 64.0, 4.0 / 64.0), 0.0),
+            (p2(3.0 / 64.0, 8.0 / 64.0), 0.0),
+            (p2(0.0, 8.0 / 64.0), 0.0),
         ]),
         Revolution::Full,
     );
@@ -415,11 +415,11 @@ fn r2_which_branch_each_fixture_takes() {
     let (r, h) = (3.0 / 64.0, 8.0 / 64.0);
     let square = |turn| {
         revolved(
-            ProfileLoop::new(vec![
-                ProfileVertex::new(p2(0.0, 0.0), 0.0),
-                ProfileVertex::new(p2(r, 0.0), 0.0),
-                ProfileVertex::new(p2(r, h), 0.0),
-                ProfileVertex::new(p2(0.0, h), 0.0),
+            bulge_loop(vec![
+                (p2(0.0, 0.0), 0.0),
+                (p2(r, 0.0), 0.0),
+                (p2(r, h), 0.0),
+                (p2(0.0, h), 0.0),
             ]),
             turn,
         )

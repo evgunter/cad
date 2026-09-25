@@ -17,7 +17,7 @@ use crate::common::approx::band;
 use crate::common::census::{genus_of, rings_of};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{block, brick, tube_frame};
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow,
@@ -42,11 +42,11 @@ pub(crate) fn cut(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 /// the `y` axis — a solid cylinder of radius `r` and height `h`,
 /// bounded by one cylinder wall and two planar caps. The perf fixture.
 pub(crate) fn vessel(r: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(r, 0.0), 0.0),
-        ProfileVertex::new(p2(r, h), 0.0),
-        ProfileVertex::new(p2(0.0, h), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(r, 0.0), 0.0),
+        (p2(r, h), 0.0),
+        (p2(0.0, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -67,11 +67,11 @@ pub(crate) fn vessel(r: f64, h: f64) -> Body<f64> {
 /// A tube: the annular meridian revolved a full turn — the curved
 /// two-shell shape the STEP gate is recorded on.
 pub(crate) fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(ri, 0.0), 0.0),
-        ProfileVertex::new(p2(ro, 0.0), 0.0),
-        ProfileVertex::new(p2(ro, h), 0.0),
-        ProfileVertex::new(p2(ri, h), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(ri, 0.0), 0.0),
+        (p2(ro, 0.0), 0.0),
+        (p2(ro, h), 0.0),
+        (p2(ri, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -91,11 +91,7 @@ pub(crate) fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
 
 /// A right prism on a polygon.
 pub(crate) fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        pts.iter()
-            .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
+    let lp = bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect());
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a polygon is a valid profile");
@@ -1135,10 +1131,7 @@ const KLEIN_SWEEP_IN: f64 = 0.5 * core::f64::consts::PI;
 /// A circle profile loop of radius `r` — two semicircular arcs, the
 /// spelling `profile::circle` produces.
 fn circle_loop(r: f64) -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-r, 0.0), 1.0),
-        ProfileVertex::new(p2(r, 0.0), 1.0),
-    ])
+    bulge_loop(vec![(p2(-r, 0.0), 1.0), (p2(r, 0.0), 1.0)])
 }
 
 /// Klein's elbow, revolved about the loop-arc axis exactly as the demo
@@ -1688,11 +1681,11 @@ fn a_curved_face_at_the_junction_moves_by_its_kind() {
     let frustum = revolve(
         &Profile::new(
             SketchPlane::xy(),
-            vec![ProfileLoop::new(vec![
-                ProfileVertex::new(p2(0.0, 0.0), 0.0),
-                ProfileVertex::new(p2(0.30, 0.0), 0.0),
-                ProfileVertex::new(p2(0.20, 0.40), 0.0),
-                ProfileVertex::new(p2(0.0, 0.40), 0.0),
+            vec![bulge_loop(vec![
+                (p2(0.0, 0.0), 0.0),
+                (p2(0.30, 0.0), 0.0),
+                (p2(0.20, 0.40), 0.0),
+                (p2(0.0, 0.40), 0.0),
             ])],
         )
         .validate(tol)
@@ -2146,11 +2139,11 @@ fn sorted_dedup<K: Ord + Copy>(keys: &[K]) -> (Vec<K>, bool) {
 /// revolve seam at all.
 fn holed_box(side: f64, bore: f64, h: f64) -> Body<f64> {
     let square = |a: f64, b: f64| {
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(a, a), 0.0),
-            ProfileVertex::new(p2(b, a), 0.0),
-            ProfileVertex::new(p2(b, b), 0.0),
-            ProfileVertex::new(p2(a, b), 0.0),
+        bulge_loop(vec![
+            (p2(a, a), 0.0),
+            (p2(b, a), 0.0),
+            (p2(b, b), 0.0),
+            (p2(a, b), 0.0),
         ])
     };
     let lo = 0.5 * (side - bore);

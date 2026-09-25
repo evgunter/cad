@@ -173,24 +173,24 @@ fn the_corpus_replays_at_dual_with_bit_identical_values() {
         );
         for (k, (a, b)) in base.vertices().iter().zip(dual.vertices()).enumerate() {
             assert_eq!(
-                a.pos().x.to_bits(),
-                b.pos().x.value.to_bits(),
+                a.x.to_bits(),
+                b.x.value.to_bits(),
                 "row {i} vertex {k}: x value channel"
             );
             assert_eq!(
-                a.pos().y.to_bits(),
-                b.pos().y.value.to_bits(),
+                a.y.to_bits(),
+                b.y.value.to_bits(),
                 "row {i} vertex {k}: y value channel"
             );
             assert_eq!(
-                a.bulge().to_bits(),
-                b.bulge().value.to_bits(),
+                base.bulges()[k].to_bits(),
+                dual.bulges()[k].value.to_bits(),
                 "row {i} vertex {k}: bulge value channel"
             );
             for (what, d) in [
-                ("x", b.pos().x.deriv),
-                ("y", b.pos().y.deriv),
-                ("bulge", b.bulge().deriv),
+                ("x", b.x.deriv),
+                ("y", b.y.deriv),
+                ("bulge", dual.bulges()[k].deriv),
             ] {
                 assert_eq!(
                     d, 0.0,
@@ -217,7 +217,6 @@ fn the_corpus_replays_at_dual_with_bit_identical_values() {
 /// backed by a census rather than left to be trusted — see
 /// [`no_corpus_row_escalates_at_interval`], which pins the escalating
 /// set as EMPTY and says what a row joining it would mean.
-#[cfg(feature = "interval")]
 #[test]
 fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
     use geom_core::{Bounds, Interval};
@@ -239,9 +238,9 @@ fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
         );
         for (k, (a, b)) in base.vertices().iter().zip(iv.vertices()).enumerate() {
             for (what, exact, enc) in [
-                ("x", a.pos().x, b.pos().x),
-                ("y", a.pos().y, b.pos().y),
-                ("bulge", a.bulge(), b.bulge()),
+                ("x", a.x, b.x),
+                ("y", a.y, b.y),
+                ("bulge", base.bulges()[k], iv.bulges()[k]),
             ] {
                 assert!(
                     enc.lo() <= exact && exact <= enc.hi(),
@@ -334,7 +333,6 @@ fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
 /// The census therefore keeps its teeth where its subject is: the
 /// escalations that are NOT the door relaying a stored-form
 /// classification are pinned EMPTY, exactly as before.
-#[cfg(feature = "interval")]
 #[test]
 fn no_corpus_row_escalates_at_interval() {
     use geom_core::Interval;
@@ -446,7 +444,6 @@ fn no_corpus_row_escalates_at_interval() {
 /// safe: an input-width answer is ~1e-16 relative, and a regression to
 /// the composed fold returns a whole period — at unit scale ~6.3, i.e.
 /// sixteen orders up. Any constant in between distinguishes them.
-#[cfg(feature = "interval")]
 #[test]
 fn the_anchor_coincident_corner_reduces_to_input_width_at_interval() {
     use geom_core::{Bounds, Interval};
@@ -520,11 +517,11 @@ fn the_anchor_coincident_corner_reduces_to_input_width_at_interval() {
         let mut widest_rel = 0.0f64;
         for (k, v) in iv.vertices().iter().enumerate() {
             for (what, enc, is_length) in [
-                ("x", v.pos().x, true),
-                ("y", v.pos().y, true),
+                ("x", v.x, true),
+                ("y", v.y, true),
                 // The bulge is a TANGENT — dimensionless, so it does not
                 // scale and is measured against 1, not against `scale`.
-                ("bulge", v.bulge(), false),
+                ("bulge", iv.bulges()[k], false),
             ] {
                 let w = enc.hi() - enc.lo();
                 let unit = if is_length { scale } else { 1.0 };

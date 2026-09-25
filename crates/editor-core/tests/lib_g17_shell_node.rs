@@ -124,7 +124,6 @@ fn the_cup_evaluates_green_and_is_exactly_its_closed_form() {
 
 /// **The interval row**: both documents, green at the certified
 /// scalar — the lane the registry would have run.
-#[cfg(feature = "interval")]
 #[test]
 fn both_documents_evaluate_green_at_the_interval_scalar() {
     let d = cup::document();

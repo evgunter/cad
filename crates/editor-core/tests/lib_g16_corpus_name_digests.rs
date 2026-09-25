@@ -136,9 +136,9 @@ const PINNED: &[(&str, u64)] = &[
     // holds: their rows are byte-identical. That is what this
     // per-document instrument is for.
     ("kitchen_sink", 0x27bd_57ed_25e7_e4b3),
-    ("cut_cylinder", 0x50ce_47ef_bede_96f7),
-    ("measured_web", 0x57a8_bd3d_9ee5_80c8),
-    ("boss_union", 0xd2f8_79b5_6cd2_0efa),
+    ("cut_cylinder", 0x7d4a_4bcc_7a37_04b5),
+    ("measured_web", 0x2225_4923_8ab3_c86c),
+    ("boss_union", 0xeab4_07c7_787e_8f62),
     ("die_fillet", 0x0b3d_4e2d_c53a_dff6),
     ("die_chamfer", 0x0b3d_4e2d_c53a_dff6),
     ("die_pips", 0xc1d7_f994_65ee_de1d),
@@ -153,7 +153,7 @@ const PINNED: &[(&str, u64)] = &[
     ("loft_prism", 0x28f4_e9c8_5810_f1a9),
     ("die_composed", 0x7b0f_2152_5b1d_6487),
     ("die_composed_tour", 0x5cff_0463_6827_a96f),
-    ("plate_param", 0xf74f_e1b0_968d_d6e8),
+    ("plate_param", 0x9efe_0678_bc06_346c),
     ("kiss_carry", 0x4c48_320f_0668_6632),
     // LIB-TUBE. Both tables are minted by `name_revolve` — the
     // tube doors return `Revolved<T>` and the emitter reads only
@@ -165,6 +165,11 @@ const PINNED: &[(&str, u64)] = &[
     ("tube_arc", 0xb4e7_8002_f2ea_4ebc),
     ("hollow_tube_elbow", 0x98e4_97a0_679c_33ad),
     ("hollow_tube_ring", 0xbdb5_5092_7bb6_1e80),
+    // EDIT-PROGRAM: the one document whose log reshapes a profile
+    // under a fillet. Its table is minted over the crease name the
+    // door REBOUND, which is the fact this row makes golden; its
+    // arrival moved no other row.
+    ("reshaped_rod", 0x4230_f042_d025_9e01),
 ];
 
 #[test]

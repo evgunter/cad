@@ -4,9 +4,10 @@
 //! bit-faithful) to `target/switch-dump/<doc>.txt`, and every node's
 //! NAME TABLE (names only, in table order) to
 //! `target/switch-dump/<doc>.names.txt` — separate files so geometry
-//! identity and naming identity diff independently: program-anchored
-//! naming may legitimately RENAME (a reversed or rotated loop's
-//! program indices) where geometry is bit-identical, and a rename
+//! identity and naming identity diff independently: canonical naming
+//! may legitimately RENAME (a loop authored against its canonical
+//! sense reads `s ↦ n − 1 − s`) where geometry is bit-identical, and a
+//! rename
 //! must be a stated finding, never hidden (PR #291 review MINOR-1).
 //! Run here and in a scratch worktree at the merge-base (with the
 //! pre-switch payload spelling), then diff: geometry byte-identical

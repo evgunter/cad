@@ -20,7 +20,7 @@
 
 use geom::Curve3;
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::cube;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
@@ -35,8 +35,8 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(p2(x, y), bulge)
+fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (p2(x, y), bulge)
 }
 
 fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
@@ -57,7 +57,7 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 
 /// A sphere of radius 0.3 centred at `c`, revolved from a half-disc.
 fn ball_at(c: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![v(0.0, -0.3, 1.0), v(0.0, 0.3, 0.0)]);
+    let lp = bulge_loop(vec![v(0.0, -0.3, 1.0), v(0.0, 0.3, 0.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .expect("the ball profile validates");
@@ -151,7 +151,7 @@ fn r2_a_boolean_made_rims_arcs_store_one_circle() {
 /// circular hole through it, whose two hole rims are extrude's.
 #[test]
 fn r2_an_extruded_hole_rims_arcs_store_one_circle() {
-    let outer = ProfileLoop::new(vec![
+    let outer = bulge_loop(vec![
         v(0.0, 0.0, 0.0),
         v(2.0, 0.0, 0.0),
         v(2.0, 2.0, 0.0),
@@ -159,7 +159,7 @@ fn r2_an_extruded_hole_rims_arcs_store_one_circle() {
     ]);
     // A full circle as two half-bulge vertices, wound opposite the
     // outer loop so it reads as a hole.
-    let hole = ProfileLoop::new(vec![v(1.5, 1.0, 1.0), v(0.5, 1.0, 1.0)]);
+    let hole = bulge_loop(vec![v(1.5, 1.0, 1.0), v(0.5, 1.0, 1.0)]);
     let plate = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(tol())
         .expect("the plate profile validates");

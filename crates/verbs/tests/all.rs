@@ -20,6 +20,8 @@
 // directory is not a suite.
 mod fixture;
 
+#[path = "lane3_review_probes.rs"]
+mod lane3_review_probes;
 #[path = "layer_guard.rs"]
 mod layer_guard;
 #[path = "param_flow.rs"]

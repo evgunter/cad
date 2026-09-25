@@ -49,10 +49,7 @@ pub(crate) fn side_of_face<T: Decide>(
             .get_half_edge(he)
             .ok_or_else(|| bug("side_of: dangling half-edge"))?
             .start;
-        let p = *body
-            .get_vertex(v)
-            .and_then(|vd| body.get_point(vd.point))
-            .ok_or_else(|| bug("side_of: vertex without point"))?;
+        let p = super::emit::vertex_point(body, v)?;
         match decide(SIDE_OF, Margin::of((p - origin).dot(normal)), b) {
             Ok(sign) => signs.push(sign),
             Err(source) => {
@@ -163,6 +160,19 @@ pub(crate) const SIDE_OF: &str = "name_frag_side_of";
 /// half.
 pub(crate) const ORDER_ALONG: &str = "name_frag_order_along";
 
+/// The on-member-edge predicate's name (`emit_union`'s member-edge
+/// ranker): whether a vertex of a union's result lies on a member edge,
+/// at which end, and whether two such vertices are one place.
+///
+/// **In the [`FAMILY`], unlike [`CHORD_ON_RIM`].** Its verdicts decide a
+/// member-edge piece's `OrderAlong { rank, of }` — which places cut the
+/// edge, so how many cells there are and which one a piece starts in —
+/// so they enter the name, and a flip of one is an N2 discriminator
+/// flip. `resolve`'s ladder reads a family flip on the path as the
+/// name's own; a flip about a vertex elsewhere on the same member edge
+/// does move that edge's count, so the reading holds for it too.
+pub(crate) const ON_MEMBER_EDGE: &str = "name_frag_on_member_edge";
+
 /// The chord-on-rim predicate's name (`emit_topo`'s `chord_on_rim`):
 /// whether a boolean's chord between two merged faces lies within the
 /// rim its key's side reads it through to.
@@ -197,6 +207,8 @@ pub(crate) fn order_along<T: Decide>(
     b: Band,
 ) -> Result<Option<Vec<u32>>, NamingError> {
     let n = extents.len();
+    // A rank is a `u32`, and every count below is at most `n − 1`.
+    super::emit::to_u32(n, "a ranked group has more members than a rank holds")?;
     let mut before = vec![0u32; n]; // before[i] = #{j : j certified-before i}
     for i in 0..n {
         for j in (i + 1)..n {

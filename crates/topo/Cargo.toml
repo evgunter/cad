@@ -28,7 +28,12 @@ sweep-testing = []
 # of the vocabulary and the copies drift (S52). Off by default and
 # enabled only through the self-dev-dependency below, so it is on
 # exactly for this crate's own tests and off for every normal build.
-test-support = []
+test-support = [
+    "dep:strum",
+    "geom-brep/test-support",
+    "geom/test-support",
+    "geom-core/test-support",
+]
 # THE SCALPEL for D1's once-per-door tier-1 postcondition (the ruling on
 # `work/perf/d1-per-op-tier1-sweep-price`). A door-level failure names
 # the door; with this on, the whole-body sweep runs after EVERY Euler
@@ -46,19 +51,16 @@ test-support = []
 # dependent that turns it on gets slower debug builds and identical
 # behaviour.
 per-op-postcondition = []
-# Forwards geom-core's certified interval scalar so `Body<Interval>` is
-# instantiable — exercised by `tests/interval_body.rs` in CI's interval
-# lane (Q1's pure-replay model: same topology keys, interval geometry).
-interval = ["geom-core/interval", "geom-brep/interval"]
 # Forwards geom-core's K-telemetry recording scalar so the
-# workspace-wide `--features probe` lane builds uniformly. Same shape
-# and same reason as the `interval` row above; see geom-core's manifest
+# workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
 # for why Probe is opt-in (it is a `Real` instantiation, so it
 # monomorphizes every generic-over-`Real` body, and only the K
 # experiment consumes it).
 probe = ["geom-core/probe", "geom-brep/probe"]
 
 [dependencies]
+# Optional: `test-support` above (the `Undecided` roster).
+strum = { version = "0.28", features = ["derive"], optional = true }
 # The boolean sweep's candidate generation (M5 PR 8): the tree prunes,
 # predicates decide — see boolean/reduce.rs module docs.
 bvh = { path = "../bvh" }

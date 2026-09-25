@@ -20,9 +20,10 @@ use std::sync::Arc;
 use editor_core::eval::WitnessSlot;
 use editor_core::{
     Axis3, BooleanOp, CancelToken, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
-    EvalOutcome, Evaluation, FlipSource, NameTable, NamingKey, Node, ProfileDoc, Qualifier,
-    RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SHADOW_EXEC_MAX_PAIRS, SideVerdict,
-    SlotId, StableName, diff_verdicts, evaluate, resolve_with_prior,
+    EvalOutcome, Evaluation, FlipSource, FragmentGroups, GroupCutters, NameTable, NamingKey, Node,
+    ProfileDoc, Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx,
+    SHADOW_EXEC_MAX_PAIRS, SideVerdict, SlotId, StableName, diff_verdicts, evaluate,
+    resolve_with_prior,
 };
 use fixture::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
@@ -71,8 +72,24 @@ fn block(
 /// fully in y behind a `Transform`, subtracted at `cut`.
 struct Slot {
     doc: ProfileDoc,
+    /// The bar's own extrude, whose faces the cut's seams name.
+    bar: RecipeNodeId,
     tr: RecipeNodeId,
     cut: RecipeNodeId,
+}
+
+/// The bar's wall over profile segment `segment` (`block`'s profile
+/// runs counter-clockwise from `(x0, y0)`: wall 0 is y = y0, 1 is
+/// x = x1, 3 is x = x0).
+fn wall(bar: RecipeNodeId, segment: u32) -> StableName {
+    StableName {
+        kind: EntityKind::Face,
+        node: bar,
+        path: vec![RoleSeg::Lateral(editor_core::ProfileEdgeRef {
+            loop_index: 0,
+            segment,
+        })],
+    }
 }
 
 fn slot() -> Slot {
@@ -97,7 +114,12 @@ fn slot() -> Slot {
             declare: None,
         },
     );
-    Slot { doc, tr, cut }
+    Slot {
+        doc,
+        bar: b0,
+        tr,
+        cut,
+    }
 }
 
 /// Slides the bar along `axis` — the interaction-boundary edit.
@@ -410,13 +432,34 @@ fn the_orderalong_vanish_is_diagnosed_as_its_group_resizing() {
         ),
         "the row is about a ranked fragment: {name:?}"
     );
+    // The cutter whose seam vertex with the rim edge is gone is the
+    // other operand's cap VERTEX, a point on the edge, not a face.
+    let Diagnosis::GroupResized {
+        node,
+        was: 2,
+        now: 1,
+        cutters: GroupCutters::Read { gone, new },
+    } = vanished(res)
+    else {
+        panic!("expected a 2 -> 1 resize with its cutters read: {res:?}");
+    };
+    assert_eq!(*node, name.node);
+    assert!(new.is_empty(), "no cutter starts cutting: {new:?}");
+    let [cutter] = gone.as_slice() else {
+        panic!("one cutter stops cutting: {gone:?}");
+    };
+    assert_eq!(cutter.kind, EntityKind::Vertex, "{cutter:?}");
+    assert_ne!(cutter.node, name.node, "{cutter:?}");
     assert_eq!(
-        vanished(res),
-        &Diagnosis::GroupResized {
-            node: name.node,
-            was: 2,
-            now: 1,
-        }
+        cutter.path,
+        [RoleSeg::CapVertex(
+            editor_core::CapEnd::End,
+            editor_core::ProfileVertexRef {
+                loop_index: 0,
+                vertex: 0,
+            },
+        )],
+        "{cutter:?}"
     );
     assert!(f.offers.contains(&base_of(name)), "{:?}", f.offers);
 }
@@ -449,12 +492,14 @@ fn frag(
     }
 }
 
-/// One-node evaluation carrying `t` and the verdict log `log`.
+/// One-node evaluation carrying `t`, the verdict log `log` and the
+/// fragment-group record `groups`.
 fn one_node_eval(
     document: editor_core::DocumentId,
     node: RecipeNodeId,
     t: NameTable,
     log: Vec<Verdict>,
+    groups: FragmentGroups,
 ) -> Evaluation<f64> {
     let mut nodes = std::collections::BTreeMap::new();
     nodes.insert(
@@ -462,6 +507,7 @@ fn one_node_eval(
         editor_core::NodeResult::Ok(editor_core::NodeValue {
             payload: editor_core::ValuePayload::Declarations(vec![]),
             name_table: Arc::new(t),
+            fragment_groups: Arc::new(groups),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
             verdicts: Arc::new(log),
@@ -556,8 +602,14 @@ fn hand_diagnosis(h: &Hand, prior_log: Vec<Verdict>, new_log: Vec<Verdict>) -> D
         t_prior.insert(inner.clone(), ent).unwrap();
         t_new.insert(inner.clone(), ent).unwrap();
     }
-    let prior_ev = one_node_eval(h.doc.id(), h.node, t_prior, prior_log);
-    let new_ev = one_node_eval(h.doc.id(), h.node, t_new, new_log);
+    let prior_ev = one_node_eval(
+        h.doc.id(),
+        h.node,
+        t_prior,
+        prior_log,
+        FragmentGroups::new(),
+    );
+    let new_ev = one_node_eval(h.doc.id(), h.node, t_new, new_log, FragmentGroups::new());
     let res = resolve_with_prior(
         RunCtx {
             doc: &h.doc,
@@ -740,6 +792,13 @@ fn a_collapsed_sideof_group_is_diagnosed_group_resized_and_offers_the_survivor()
                 node: s.cut,
                 was: 2,
                 now: 1,
+                // The bar's two x walls still cut the cap, and its
+                // y = y0 wall, now short of the plate's far edge,
+                // crosses it too.
+                cutters: GroupCutters::Read {
+                    gone: vec![],
+                    new: vec![wall(s.bar, 0)],
+                },
             },
             "y = {to}"
         );
@@ -806,6 +865,12 @@ fn a_collapsed_orderalong_edge_group_at_the_cut_is_diagnosed_group_resized() {
                     node: s.cut,
                     was: 2,
                     now: 1,
+                    // The near rim edge: the bar has left it, both x
+                    // walls at once.
+                    cutters: GroupCutters::Read {
+                        gone: vec![wall(s.bar, 1), wall(s.bar, 3)],
+                        new: vec![],
+                    },
                 },
                 "y = {to}: {name:?}"
             );
@@ -989,14 +1054,21 @@ fn sibling(h: &Hand, v: SideVerdict) -> StableName {
 }
 
 /// Resolves `name` with the prior table holding `prior` rows and the
-/// new table holding `now` rows, each `(name, entities)`; every name
-/// embedded in `h.frag` resolves in both runs, so no Cascade.
+/// new table holding `now` rows, each `(name, entities)`, and each
+/// run's fragment-group record holding the groups `(base, size)` its
+/// run lists; every name embedded in `h.frag` resolves in both runs,
+/// so no Cascade.
+/// One run for [`group_diagnosis`]: its rows `(name, entities)` and
+/// its recorded groups `(base, size)`.
+type Run = (Vec<(StableName, usize)>, Vec<(StableName, usize)>);
+
 fn group_diagnosis(
     h: &Hand,
     name: &StableName,
-    prior: Vec<(StableName, usize)>,
-    now: Vec<(StableName, usize)>,
+    (prior, prior_groups): Run,
+    (now, now_groups): Run,
 ) -> editor_core::ResolutionFailure {
+    let record = FragmentGroups::from_sizes;
     let table = |rows: Vec<(StableName, usize)>| {
         let mut t = NameTable::new();
         let mut next = 0u32;
@@ -1027,8 +1099,14 @@ fn group_diagnosis(
         }
         t
     };
-    let prior_ev = one_node_eval(h.doc.id(), h.node, table(prior), vec![]);
-    let new_ev = one_node_eval(h.doc.id(), h.node, table(now), vec![]);
+    let prior_ev = one_node_eval(
+        h.doc.id(),
+        h.node,
+        table(prior),
+        vec![],
+        record(prior_groups),
+    );
+    let new_ev = one_node_eval(h.doc.id(), h.node, table(now), vec![], record(now_groups));
     let res = resolve_with_prior(
         RunCtx {
             doc: &h.doc,
@@ -1057,14 +1135,23 @@ fn fallback(h: &Hand) -> Diagnosis {
     }
 }
 
+/// One group of `size` under `h`'s base: the record an emitter that
+/// divided the one parent into those rows keeps.
+fn one_group(h: &Hand, size: usize) -> Vec<(StableName, usize)> {
+    vec![(h.base.clone(), size)]
+}
+
 #[test]
 fn a_group_that_stops_being_divided_is_resized_to_one_and_offers_the_base() {
     let h = hand(1);
     let f = group_diagnosis(
         &h,
         &h.frag,
-        vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
-        vec![(h.base.clone(), 1)],
+        (
+            vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
+            one_group(&h, 2),
+        ),
+        (vec![(h.base.clone(), 1)], one_group(&h, 1)),
     );
     assert_eq!(
         diag(&f),
@@ -1072,6 +1159,7 @@ fn a_group_that_stops_being_divided_is_resized_to_one_and_offers_the_base() {
             node: h.node,
             was: 2,
             now: 1,
+            cutters: GroupCutters::NotSeamBounded,
         }
     );
     assert_eq!(f.offers, vec![h.base.clone()]);
@@ -1083,8 +1171,11 @@ fn a_group_whose_parent_no_longer_descends_is_resized_to_zero() {
     let f = group_diagnosis(
         &h,
         &h.frag,
-        vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
-        vec![],
+        (
+            vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
+            one_group(&h, 2),
+        ),
+        (vec![], vec![]),
     );
     assert_eq!(
         diag(&f),
@@ -1092,26 +1183,59 @@ fn a_group_whose_parent_no_longer_descends_is_resized_to_zero() {
             node: h.node,
             was: 2,
             now: 0,
+            cutters: GroupCutters::NotSeamBounded,
         }
     );
     assert!(f.offers.is_empty(), "nothing survives to offer");
 }
 
 #[test]
-fn a_group_that_grows_is_resized_too_and_a_tie_counts_each_candidate() {
-    // Prior: the vanished fragment beside a TIED sibling row of two —
-    // a group of three entities under two names. Now: two distinct
-    // fragments that are neither — a group of two. A tie is several
-    // members sharing one name, so it counts per candidate.
+fn the_count_is_the_record_not_the_rows_spelled_from_the_base() {
+    // The parent passes through under a name that is not the base (a
+    // split that stops dividing a face keeps its upstream name), so no
+    // row is spelled from the base; its group still holds it.
     let h = hand(1);
     let f = group_diagnosis(
         &h,
         &h.frag,
-        vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 2)],
-        vec![
-            (sibling(&h, SideVerdict::Mixed), 1),
-            (sibling(&h, SideVerdict::On), 1),
-        ],
+        (
+            vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
+            one_group(&h, 2),
+        ),
+        (vec![], one_group(&h, 1)),
+    );
+    assert_eq!(
+        diag(&f),
+        &Diagnosis::GroupResized {
+            node: h.node,
+            was: 2,
+            now: 1,
+            cutters: GroupCutters::NotSeamBounded,
+        }
+    );
+}
+
+#[test]
+fn a_group_that_grows_is_resized_too_and_a_tie_inside_it_is_several_members() {
+    // Prior: the vanished fragment beside a TIED sibling row of two,
+    // all three dividing one parent — a group of three entities under
+    // two names. Now: two distinct fragments that are neither — a
+    // group of two.
+    let h = hand(1);
+    let f = group_diagnosis(
+        &h,
+        &h.frag,
+        (
+            vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 2)],
+            one_group(&h, 3),
+        ),
+        (
+            vec![
+                (sibling(&h, SideVerdict::Mixed), 1),
+                (sibling(&h, SideVerdict::On), 1),
+            ],
+            one_group(&h, 2),
+        ),
     );
     assert_eq!(
         diag(&f),
@@ -1119,6 +1243,7 @@ fn a_group_that_grows_is_resized_too_and_a_tie_counts_each_candidate() {
             node: h.node,
             was: 3,
             now: 2,
+            cutters: GroupCutters::NotSeamBounded,
         }
     );
     // And growth: a group of two became three. The new members are
@@ -1134,8 +1259,11 @@ fn a_group_that_grows_is_resized_too_and_a_tie_counts_each_candidate() {
     let f = group_diagnosis(
         &h,
         &h.frag,
-        vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
-        vec![ranked(0), ranked(1), ranked(2)],
+        (
+            vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
+            one_group(&h, 2),
+        ),
+        (vec![ranked(0), ranked(1), ranked(2)], one_group(&h, 3)),
     );
     assert_eq!(
         diag(&f),
@@ -1143,8 +1271,51 @@ fn a_group_that_grows_is_resized_too_and_a_tie_counts_each_candidate() {
             node: h.node,
             was: 2,
             now: 3,
+            cutters: GroupCutters::NotSeamBounded,
         }
     );
+}
+
+#[test]
+fn two_tied_parents_are_counted_one_parent_at_a_time() {
+    // Two tied parents share the base, and the tie lane gives their
+    // members' rows one set of names: each row is TIED across the two
+    // groups. Each parent's group went from two to one; the rows'
+    // candidates, four then two, are not a group.
+    let h = hand(1);
+    let two = |size| vec![(h.base.clone(), size), (h.base.clone(), size)];
+    let f = group_diagnosis(
+        &h,
+        &h.frag,
+        (
+            vec![(h.frag.clone(), 2), (sibling(&h, SideVerdict::Negative), 2)],
+            two(2),
+        ),
+        (vec![(h.base.clone(), 2)], two(1)),
+    );
+    assert_eq!(
+        diag(&f),
+        &Diagnosis::GroupResized {
+            node: h.node,
+            was: 2,
+            now: 1,
+            cutters: GroupCutters::NotSeamBounded,
+        }
+    );
+    // Tied parents whose groups no longer agree have no one count.
+    let f = group_diagnosis(
+        &h,
+        &h.frag,
+        (
+            vec![(h.frag.clone(), 2), (sibling(&h, SideVerdict::Negative), 2)],
+            two(2),
+        ),
+        (
+            vec![(h.base.clone(), 1)],
+            vec![(h.base.clone(), 1), (h.base.clone(), 3)],
+        ),
+    );
+    assert_eq!(diag(&f), &fallback(&h));
 }
 
 #[test]
@@ -1156,11 +1327,17 @@ fn a_group_that_requalified_at_the_same_size_is_not_a_resize() {
     let f = group_diagnosis(
         &h,
         &h.frag,
-        vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
-        vec![
-            (sibling(&h, SideVerdict::Mixed), 1),
-            (sibling(&h, SideVerdict::On), 1),
-        ],
+        (
+            vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
+            one_group(&h, 2),
+        ),
+        (
+            vec![
+                (sibling(&h, SideVerdict::Mixed), 1),
+                (sibling(&h, SideVerdict::On), 1),
+            ],
+            one_group(&h, 2),
+        ),
     );
     assert_eq!(diag(&f), &fallback(&h));
 }
@@ -1174,11 +1351,14 @@ fn a_name_the_prior_run_never_minted_did_not_vanish_by_resizing() {
     let f = group_diagnosis(
         &h,
         &h.frag,
-        vec![
-            (sibling(&h, SideVerdict::Negative), 1),
-            (sibling(&h, SideVerdict::Mixed), 1),
-        ],
-        vec![(h.base.clone(), 1)],
+        (
+            vec![
+                (sibling(&h, SideVerdict::Negative), 1),
+                (sibling(&h, SideVerdict::Mixed), 1),
+            ],
+            one_group(&h, 2),
+        ),
+        (vec![(h.base.clone(), 1)], one_group(&h, 1)),
     );
     assert_eq!(diag(&f), &fallback(&h));
 }
@@ -1191,8 +1371,14 @@ fn a_name_without_a_fragment_tail_never_reaches_the_group_size_rung() {
     let f = group_diagnosis(
         &h,
         &h.base,
-        vec![(h.base.clone(), 1), (h.frag.clone(), 1)],
-        vec![(sibling(&h, SideVerdict::Negative), 1)],
+        (
+            vec![(h.base.clone(), 1), (h.frag.clone(), 1)],
+            one_group(&h, 2),
+        ),
+        (
+            vec![(sibling(&h, SideVerdict::Negative), 1)],
+            one_group(&h, 1),
+        ),
     );
     assert_eq!(diag(&f), &fallback(&h));
 }
@@ -1205,7 +1391,8 @@ fn without_a_prior_run_there_is_no_size_to_change_from() {
     for (i, inner) in h.inner.iter().enumerate() {
         t.insert(inner.clone(), body_ent(1000 + i as u32)).unwrap();
     }
-    let ev = one_node_eval(h.doc.id(), h.node, t, vec![]);
+    let groups = FragmentGroups::from_sizes([(h.base.clone(), 1)]);
+    let ev = one_node_eval(h.doc.id(), h.node, t, vec![], groups);
     let res = editor_core::resolve(
         RunCtx {
             doc: &h.doc,
@@ -1217,11 +1404,11 @@ fn without_a_prior_run_there_is_no_size_to_change_from() {
 }
 
 #[test]
-fn the_group_is_counted_by_kind_and_minting_node_not_by_path_alone() {
-    // A row whose PATH spells the base but whose kind or minting node
-    // differs is another name, and another group: counting it would
-    // turn this 2 → 1 into 2 → 2 and silence the rung. One decoy per
-    // filter, each in its own run, so each filter is pinned alone.
+fn the_group_is_read_by_kind_and_minting_node_not_by_path_alone() {
+    // A group recorded under a base whose PATH is the vanished name's
+    // base but whose kind or minting node differs is another group:
+    // reading it would turn this 2 → 1 into 2 → 2 and silence the
+    // rung. One decoy per field, each in its own run.
     let h = hand(1);
     let other_node = h.inner[1].node;
     assert_ne!(other_node, h.node, "the partner lives at a second node");
@@ -1239,8 +1426,14 @@ fn the_group_is_counted_by_kind_and_minting_node_not_by_path_alone() {
         let f = group_diagnosis(
             &h,
             &h.frag,
-            vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
-            vec![(h.base.clone(), 1), (decoy.clone(), 1)],
+            (
+                vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
+                one_group(&h, 2),
+            ),
+            (
+                vec![(h.base.clone(), 1), (decoy.clone(), 1)],
+                vec![(h.base.clone(), 1), (decoy.clone(), 2)],
+            ),
         );
         assert_eq!(
             diag(&f),
@@ -1248,8 +1441,9 @@ fn the_group_is_counted_by_kind_and_minting_node_not_by_path_alone() {
                 node: h.node,
                 was: 2,
                 now: 1,
+                cutters: GroupCutters::NotSeamBounded,
             },
-            "decoy {decoy:?} was counted"
+            "decoy {decoy:?} was read"
         );
     }
 }

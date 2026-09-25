@@ -27,14 +27,9 @@
 //! whose subject is the acceptance's own vacuity rather than a defect
 //! in the engine.
 //!
-//! The basename carries `interval` because the whole suite is
-//! `#![cfg(feature = "interval")]`, which is what selects it into the
-//! interval legs (`scripts/interval-only-selection.py` derives that set
-//! from the two `nextest list` archives, never from a name); the name
-//! is the ADVISORY half — `_advises_interval` in `scripts/ci-filter.py`
-//! reads every changed basename to suggest the lane pin.
+//! The basename carries `interval` because the suite's subject is the
+//! certified scalar.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

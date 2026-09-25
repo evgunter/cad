@@ -238,12 +238,12 @@ fn internal_arc_arc_tangency_must_be_declared() {
 fn fillet_computes_exact_tangent_points_and_declares() {
     let lp = bracket();
     // Right-angle corner, dyadic legs: T1/T2 are bit-exact.
-    assert_eq!(lp.vertices()[3].pos().x.to_bits(), 1.5f64.to_bits());
-    assert_eq!(lp.vertices()[3].pos().y.to_bits(), 1.0f64.to_bits());
-    assert_eq!(lp.vertices()[4].pos().x.to_bits(), 1.0f64.to_bits());
-    assert_eq!(lp.vertices()[4].pos().y.to_bits(), 1.5f64.to_bits());
+    assert_eq!(lp.vertices()[3].x.to_bits(), 1.5f64.to_bits());
+    assert_eq!(lp.vertices()[3].y.to_bits(), 1.0f64.to_bits());
+    assert_eq!(lp.vertices()[4].x.to_bits(), 1.0f64.to_bits());
+    assert_eq!(lp.vertices()[4].y.to_bits(), 1.5f64.to_bits());
     // The arc bulge is tan(-pi/8) to rounding.
-    assert!((lp.vertices()[3].bulge() + quarter_bulge()).abs() < 1e-15);
+    assert!((lp.bulges()[3] + quarter_bulge()).abs() < 1e-15);
     // Declares by construction, and the declarations verify.
     assert_eq!(lp.tangent_joints(), vec![3, 4]);
     let vp = profile(vec![lp])
@@ -483,10 +483,10 @@ fn the_cusp_verb_declares_a_joint_the_data_gate_already_accepts() {
 fn the_cusp_junction_is_exact_and_the_two_carriers_oppose() {
     let lp = pinned(lune());
     let v = lp.vertices();
-    assert_eq!(v[2].pos().x.to_bits(), 0.0f64.to_bits());
-    assert_eq!(v[2].pos().y.to_bits(), 0.0f64.to_bits());
-    let inner = v[1].bulge();
-    let outer = v[2].bulge();
+    assert_eq!(v[2].x.to_bits(), 0.0f64.to_bits());
+    assert_eq!(v[2].y.to_bits(), 0.0f64.to_bits());
+    let inner = lp.bulges()[1];
+    let outer = lp.bulges()[2];
     assert!(
         inner * outer < 0.0,
         "the lune's two arcs must wind opposite ways: {inner} vs {outer}"

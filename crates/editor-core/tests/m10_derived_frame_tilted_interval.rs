@@ -28,7 +28,6 @@
 //! `failures`, the `budget()` constants — is copied across the `m10_*`
 //! family; the class is
 //! `work/sym/interval-test-preamble-is-copied-across-the-m10-files`.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;

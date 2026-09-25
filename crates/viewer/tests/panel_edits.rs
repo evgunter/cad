@@ -13,7 +13,7 @@
 
 use crate::common;
 
-use pncad::document::{DocEdit, DocParam, ParamName, SlotId};
+use pncad::document::{Dimension, DocEdit, DocParam, ParamName, SlotId};
 use pncad::geom_core::Tol;
 use pncad::prelude::MM;
 use pncad::quantity::WrittenLength;
@@ -93,6 +93,240 @@ fn a_literal_slot_edit_routes_through_setparam_and_lands_in_the_document() {
             .value,
         Ok(SlotValue::Continuous(0.012))
     );
+}
+
+/// One profile, one extrude with a LITERAL distance, and a pattern
+/// over it whose count is a literal too — a continuous slot and a
+/// structural `Count` slot in one document, so both directions of the
+/// Count/continuous divide have a subject.
+fn literal_and_pattern_doc(
+    tol: Tol,
+) -> (
+    pncad::document::Doc<pncad::document::ProfileProgram>,
+    pncad::document::RecipeNodeId,
+    pncad::document::RecipeNodeId,
+) {
+    let doc: pncad::document::Doc<pncad::document::ProfileProgram> =
+        pncad::document::Doc::empty_derived("gui3-literal-range", tol);
+    let (doc, profile) = common::framed_square(&doc, 0.04, tol);
+    let (doc, extrude) = common::inserted(
+        &doc,
+        pncad::document::Node::Extrude {
+            profile,
+            distance: common::len(0.008),
+        },
+        tol,
+    );
+    let (doc, pattern) = common::inserted(
+        &doc,
+        pncad::document::Node::Pattern {
+            input: extrude,
+            count: pncad::document::Expr::count(3),
+            kind: pncad::document::PatternKind::Linear {
+                direction: [common::scl(1.0), common::scl(0.0), common::scl(0.0)],
+                spacing: common::len(0.03),
+            },
+        },
+        tol,
+    );
+    (doc, extrude, pattern)
+}
+
+/// Replace the object a saved document's first `"<key>":` holds, by
+/// matching braces — the file-modality surgery, in the one place this
+/// suite needs it.
+///
+/// Deliberately NOT a parse-and-re-serialize: a round trip through a
+/// JSON value would rewrite bytes this suite has not asked about, and
+/// the point of the row below is that ONE field was hand-edited into
+/// something no door would have written.
+fn retyped_field(text: &str, key: &str, replacement: &str) -> String {
+    let at = text
+        .find(&format!("\"{key}\":"))
+        .expect("the wire carries that key");
+    let start = at + text[at..].find('{').expect("its value is an object");
+    let mut depth = 0usize;
+    let mut end = None;
+    for (i, c) in text[start..].char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    end = Some(start + i + 1);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let end = end.expect("the object closes");
+    let out = format!("{}{replacement}{}", &text[..start], &text[end..]);
+    assert_ne!(out, text, "the corruption really landed");
+    out
+}
+
+/// **A slot the document holds a bare literal for always has a value**
+/// — which is why the range button beside it is gated on the driver
+/// alone, with no second conjunct on the value.
+///
+/// `props::slot_row` evaluates each slot with the branch
+/// `SlotId::dimension` picks, so the only way a leaf carrying no
+/// parameter reference fails to evaluate is a Count/continuous
+/// disagreement between the slot and its expression —
+/// `CountExprInContinuousEval` one way, `ContinuousExprInCountEval`
+/// the other. One predicate answers that disagreement for every door,
+/// `Node::slot_dimension_fault` over `Node::slots()`.
+///
+/// This row reads the rows; the two below hold the doors, **enumerated
+/// by the modality a document arrives through** rather than by code
+/// path, because a claim about every document is only as good as its
+/// list of ways in:
+///
+/// * **an edit** — both directions, `DocEdit::SetParam` and
+///   `DocEdit::SetStructuralParam`, which is what
+///   `SessionOp::SetSlot` and `SetSlotExpression` reach;
+/// * **a file** — `pncad::document::load`, the door the viewer opens
+///   every document through, over bytes a hand edit or another tool
+///   wrote;
+/// * **a hand-built `Node`** — refused when it is inserted, because
+///   insertion is an edit: there is no door that puts a `Node` into a
+///   `Doc` without `apply`.
+///
+/// The one way a row reaches the panel with an `Err` value and no
+/// `EvalError` at all is `SlotFault::NoExpression`, and it closes the
+/// other way: `props::slot_row` reports that row as DRIVEN with an
+/// empty parameter list, so the button refuses it as a driven slot
+/// rather than offering it.
+#[test]
+fn a_literal_slot_always_has_a_value_because_every_door_fixes_its_dimension() {
+    let tol = Tol::witness();
+    let (doc, extrude, pattern) = literal_and_pattern_doc(tol);
+
+    for node in [extrude, pattern] {
+        let rows = props::slot_rows(&doc, node);
+        assert!(
+            rows.iter().any(|row| row.driver == SlotDriver::Literal),
+            "node {} is about literal rows",
+            node.0
+        );
+        for row in &rows {
+            if row.driver == SlotDriver::Literal {
+                assert!(
+                    row.value.is_ok(),
+                    "{} is a literal with no value: {:?}",
+                    row.slot.label(),
+                    row.value
+                );
+            }
+        }
+    }
+    // The Count row really is one of them — otherwise the loop above
+    // says nothing about the second direction of the divide.
+    assert!(
+        props::slot_rows(&doc, pattern)
+            .iter()
+            .any(|row| row.slot == SlotId::Count && row.driver == SlotDriver::Literal),
+        "the pattern's count is a literal row"
+    );
+}
+
+/// **The edit modality, both directions of the divide.** Each
+/// expression below is the one whose row WOULD carry the matching
+/// `EvalError`, refused rather than stored.
+#[test]
+fn the_edit_doors_refuse_both_directions_of_the_count_divide() {
+    let tol = Tol::witness();
+    let (doc, extrude, pattern) = literal_and_pattern_doc(tol);
+
+    let count_into_continuous = pncad::document::apply(
+        &doc,
+        &DocEdit::SetParam {
+            node: extrude,
+            slot: SlotId::Distance,
+            expr: pncad::document::Expr::count(3),
+        },
+        tol,
+        &pncad::document::RefusingReach,
+    );
+    match count_into_continuous {
+        Err(pncad::document::EditError::SlotDimensionMismatch {
+            slot,
+            expected,
+            found,
+        }) => {
+            // The payload, named rather than compared with another
+            // reading of itself: this is the row that says WHICH
+            // dimensions the door reported.
+            assert_eq!(slot, SlotId::Distance);
+            assert_eq!(expected, Dimension::Length);
+            assert_eq!(found, Dimension::Count);
+        }
+        other => panic!("a Count literal in a Length slot must be refused, got {other:?}"),
+    }
+
+    let continuous_into_count = pncad::document::apply(
+        &doc,
+        &DocEdit::SetStructuralParam {
+            node: pattern,
+            slot: SlotId::Count,
+            expr: common::len(0.03),
+        },
+        tol,
+        &pncad::document::RefusingReach,
+    );
+    match continuous_into_count {
+        Err(pncad::document::EditError::SlotDimensionMismatch {
+            slot,
+            expected,
+            found,
+        }) => {
+            assert_eq!(slot, SlotId::Count);
+            assert_eq!(expected, Dimension::Count);
+            assert_eq!(found, Dimension::Length);
+        }
+        other => panic!("a Length literal in a Count slot must be refused, got {other:?}"),
+    }
+}
+
+/// **The file modality** — the door the viewer opens every document
+/// through, over bytes no edit door wrote.
+///
+/// A hand edit or a foreign tool is the only way a Count literal can
+/// be sitting in a `Length` slot, and it is the input the claim above
+/// most needs: everything else in this suite reaches the document
+/// through `apply`. The saved fixture is doctored in ONE field and
+/// `load` is asked what it thinks.
+#[test]
+fn the_load_door_refuses_a_count_literal_in_a_continuous_slot() {
+    let tol = Tol::witness();
+    let (doc, extrude, _pattern) = literal_and_pattern_doc(tol);
+    let text = pncad::document::save(&doc, &[], tol).expect("the fixture saves");
+    pncad::document::load(&text, tol).expect("and loads back as it was written");
+
+    // A `CountLiteral` on the wire is `{"Count": n}`; the extrude's
+    // distance is a `Length` slot.
+    let corrupt = retyped_field(
+        &text,
+        "distance",
+        "{\n              \"Count\": 3\n            }",
+    );
+    match pncad::document::load(&corrupt, tol) {
+        Err(pncad::document::PersistError::Snapshot(
+            pncad::document::SnapshotError::SlotDimension {
+                node,
+                slot,
+                expected,
+                found,
+            },
+        )) => {
+            assert_eq!(node, extrude);
+            assert_eq!(slot, SlotId::Distance);
+            assert_eq!(expected, Dimension::Length);
+            assert_eq!(found, Dimension::Count);
+        }
+        other => panic!("the load door must refuse a Count distance, got {other:?}"),
+    }
 }
 
 #[test]
@@ -445,6 +679,7 @@ test_utils::f6_variants! {
         ParamExists,
         EmptyName,
         WrongNodeKind,
+        Duplicate,
         Edit,
         Dimension,
         Parse,

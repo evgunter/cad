@@ -16,8 +16,9 @@ Final report ≤150 lines.
 hardware not shared with any other lane and its result is a durable artifact.
 
 **A code-tier run gates the whole configuration matrix** (Ev, 2026-09-04):
-every point of {default features, `interval`} x {default eps, 1e-6, 1e-12},
-and every `k-lint (gate, <row>)` feature unification.
+every eps row {default, 1e-6, 1e-12} — over the one compile mode there is,
+which carries the certified interval lane — and every `k-lint (gate, <row>)`
+feature unification.
 The gates, the discipline and parity rows and the render lanes run on every
 code-tier run too. **The python suite runs whenever a seed is a crate a build
 of the wheel compiles** — `pncad-py`'s non-dev dependency closure, which on this
@@ -28,9 +29,9 @@ it; everything else buys it. The `change filter` job's log prints both the seed
 set and `RUN_PNCAD_PY`, so a run says which way it went. Three things follow for
 you:
 
-- **A green run means green at every lane/eps point and every k-lint
+- **A green run means green at every eps row and every k-lint
   unification — and you establish that from the `change filter` log, not by
-  counting job names.** That job prints `LANE`, `EPS` and `KLINT_ROW`, which
+  counting job names.** That job prints `EPS` and `KLINT_ROW`, which
   answers narrowed-or-not directly. **A job's NAME is CI's to change**: a lane
   that moves into a called workflow has its jobs prefixed with the caller's key,
   so a reader matching the start of a name sees a fraction of a full matrix and
@@ -43,7 +44,7 @@ you:
   exist. Some specs and older briefs still instruct one — the run is the
   authority, not the spec, so delete the line, and if the spec wanted one
   configuration proved, dispatch the workflow instead. **To narrow
-  deliberately, dispatch the workflow** with the `lane` / `eps` / `klint`
+  deliberately, dispatch the workflow** with the `eps` / `klint`
   inputs — and say in the PR that you narrowed it: a reader cannot tell a
   deliberate narrowing from a broken matrix except by being told.
 - **A green `k-lint` means green at every row `KLINT_ROWS` declares**, each
@@ -52,10 +53,9 @@ you:
   head commit names a spelling that does not exist; delete it.
 
   **A filename decides nothing** (Ev's ruling, 2026-08-29, on #1122). Nothing
-  pins a lane from a path — not a basename containing `interval`, not a change
-  under `interval-transcendentals/` — because nothing needs to pin a lane the
-  run already gates. The one case left to think about is a run YOU narrowed to
-  `lane=default` over a diff of interval-named files.
+  pins a configuration from a path — not a basename containing `interval`, not
+  a change under `interval-transcendentals/` — because nothing needs to pin
+  what the run already gates.
 
 **A missing run is not a slow queue — it is what a merge conflict looks like.**
 Read the PR's `mergeable_state` before you conclude anything from a run that has
@@ -132,6 +132,12 @@ When you do run locally:
   artefacts into its branch history — unfixable under merge-only rules except
   by abandoning the branch and re-landing the diff (CERT-M2, 2026-09-02). Read
   `git status` before every `git add`; never add with `-A` unattended.
+- **Never kill processes by pattern on a shared box.** `pkill -f cargo` or
+  `pkill -f nextest` matches every lane's build, not yours. Kill only a PID
+  you have attributed to yourself — read `/proc/<pid>/environ` for your own
+  `CARGO_TARGET_DIR`, which is the other reason that directory has to be
+  yours alone.
+- **Prefix every file you write to a shared scratchpad with your lane's name.**
 - **`--workspace` is not every cargo root, and the roots outside it are
   not covered uniformly.** `Cargo.toml` `exclude`s `benches`, `demos`,
   `tools` and `interval-transcendentals`, so

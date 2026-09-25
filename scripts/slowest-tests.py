@@ -49,8 +49,9 @@ prose somewhere:
     for, and offers no per-test average anywhere.
 
 WHAT A LEG IS: one `cargo nextest run` invocation, whose output this script
-is handed as a file. The `test` job runs one; `test-interval`'s shard 1 runs
-three (the archive run plus the two named editor-core rows), and a test that
+is handed as a file. The `test` job runs one on most legs; its shard 1 of the
+first eps row runs three (the archive run plus the two named editor-core
+rows), and a test that
 appears in more than one of them costs the job the sum, which is what the
 table shows and what the `legs` column counts.
 

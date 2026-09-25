@@ -626,8 +626,8 @@ something to read an answer off:
 
     rg -n --no-heading 'let\s+&?([a-z_]\w*::)*[A-Z]\w*\s*\{' crates/viewer/src | wc -l
 
-which prints **24**. Drop the `| wc -l` and it prints one line per
-bind, and no hit is in a comment. The reading half sorts those 24, and
+which prints **25**. Drop the `| wc -l` and it prints one line per
+bind, and no hit is in a comment. The reading half sorts those 25, and
 every member is named so the sort can be argued with rather than
 trusted:
 
@@ -646,7 +646,7 @@ trusted:
   crate's — a field arriving there is a version bump's news, which is
   the upgrade hold `scroll_event`'s own doc calls nominal, and not a
   value of ours whose account has fallen behind it.
-- **The remaining fourteen binds are the thirteen censuses below.**
+- **The remaining fifteen binds are the fourteen censuses below.**
   `PartialEq for Camera` spends two of them, the second over
   `Point3`'s coordinates, which is the one place a census here reaches
   past this crate's own fields.
@@ -662,7 +662,7 @@ because leaving it out is how the two toolkit binds above went unseen
 by an earlier taking of this rule, which then reported a smaller
 population with nothing to say it was short.
 
-Thirteen censuses, none of them a dump:
+Fourteen censuses, none of them a dump:
 
 | census | costs, if it misses a field |
 |---|---|
@@ -672,6 +672,7 @@ Thirteen censuses, none of them a dump:
 | `Display for StoreError` | a store's failure carries a fact the sentence does not say |
 | `Display for Message` | **nothing, by design** — this account is deliberately partial, and that is exactly why the tie is worth having: it makes the NEXT field's omission a decision someone made rather than one nobody noticed |
 | `Display for Withdrawal` | a field joins a value whose whole job is to word itself and goes unworded |
+| `frame::outcome_notices` | a field of `OpOutcome` reaches the chrome and is never worded — an edit's consequence the door reported and the one client never shows, which is what DM7's report exists to end |
 | `Withdrawal::all` | a KIND of withdrawal reaches the chrome's notices and is never worded — the fan-out from a `PruneReport` that three hand-written `extend` calls in `app`-gated code used to do, where no row could execute it |
 | `Display for Disagreement` | the doc above it argues both halves are load-bearing; a third field left out would falsify that sentence silently |
 | `Display for BlendTarget` | a refusal names a scope narrower than the target it refused on |
@@ -689,7 +690,7 @@ it destructures at all: an accessor call is a field READ, so a census
 assembled from accessors is a hand list again and a seventh field
 would leave it silently short.
 
-Three of the thirteen name a field the walk deliberately does not
+Four of the fourteen name a field the walk deliberately does not
 spend. `PickCache::forget` binds `seam: _` and must: the seam is the
 service, not the picture, so forgetting it would drop the worker along
 with the answer it is holding. `DisplayState::clear` binds `revision`
@@ -702,7 +703,11 @@ the arm — because the subject ROUTES the message: it is what retires
 it (`frame::StatusUpdate::Expire`) and what a joined rank-2 line takes
 as its own subject. It does not RANK; `frame::frame_status` ranks by
 SOURCE. A line that printed its own routing would say to the user what
-the chrome says to itself.
+the chrome says to itself. `frame::outcome_notices` binds four of
+`OpOutcome`'s six fields to `_`: the committed and previewed edits are
+the act itself, the minted ids are what a form reads back, and the
+refusal is ranked above every notice by `frame::frame_status` on its
+own.
 
 **A `match` is exhaustive over VARIANTS, not over a variant's FIELDS.**
 The six `Display`s above are the struct half of a population of 41
@@ -770,7 +775,7 @@ neither.
 
 | Module | Holds |
 |---|---|
-| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `DatumKindChoice`, `ShapeKind`, `PatternKindChoice`, `MATE_PRIMITIVES` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the three enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while `MATE_PRIMITIVES` mirrors an enum in another crate deliberately partially and says so. A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
+| `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `DatumKindChoice`, `ShapeKind`, `PatternKindChoice`, `PartSelectChoice`, `MATE_PRIMITIVES` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the four enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while `MATE_PRIMITIVES` mirrors an enum in another crate deliberately partially and says so. A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, the projection form does the same over `select::SplitHalf::ALL` (`split_half_label`), and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts`, `ProfileEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is the add-profile form's editor held over a committed profile, for the edit door), its defaults, and its lowering of typed field values to `Expr`, `LoopProgram` and the add-datum form's `session::DatumSpec` — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge`, the doors that build one and the two that spend one — `apply` for a ranked verdict or a retirement, `deliver` for a policy that may or may not have news), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`), what a folded event stream amounts to (`folded_moved`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
 | `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, `chooser_backend`, `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`), the WSL probe (`running_under_wsl`) and the reason a dialog the environment cannot put up gives for being disabled (`NO_CHOOSER_BACKEND`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
@@ -969,7 +974,9 @@ names no window. `tree::RowStatus::badge`
 is the same shape at the row rather than the toolbar.
 
 Notices — a tool's declined pick, a survival drop, a
-`frame::Withdrawal` — are typed values with `Display`, joined into rank
+`frame::Withdrawal`, an accepted edit's `Maintenance` row (a name
+stranded or rewritten in place, a declaration left unconsumed) — are
+typed values with `Display`, joined into rank
 2 by `frame_status` with one separator. None of them composes prose
 about another value's failure: the failure renders itself, and what the
 chrome adds is its own subject.
@@ -1117,13 +1124,12 @@ number `readout` renders. `widgets::message`'s doc says why the space
 is there and what the floor does not cover, and states the rule for
 which texts are bounded by characters and which by their region.
 
-Its call sites are `app.rs`, `pane/features.rs`, `pane/profile.rs`,
-`pane/properties.rs` and `pane/view.rs` — a roster this page states twice (here and in the
-module table above) and therefore does not keep by hand:
+Its call sites are `app.rs`, `pane/create.rs`, `pane/features.rs`,
+`pane/profile.rs`, `pane/properties.rs` and `pane/view.rs` — a roster
+this page states twice (here and in the module table above) and
+therefore does not keep by hand:
 `widgets::roster_tests::the_message_roster_is_what_the_crate_actually_calls`
-re-derives it from the crate's own source. It is **not yet** the
-creation pane's
-(`work/chrome/messages-in-the-creation-and-properties-panes-still-draw-past-their-row.md`).
+re-derives it from the crate's own source.
 `widgets::message_tests` holds the measurements — that the sentence
 fills the region it is in rather than a width of its own, across three
 region widths; that below the floor it stops narrowing and never breaks
@@ -1694,7 +1700,7 @@ field, the parameter field and the free-move probe; the stake is
 largest at the first two, where a commit reaches the document and costs
 an undo step.
 
-### One open tool, not seven optional ones
+### One open tool, not one optional value per tool
 
 `Tools` holds one `Option<OpenTool>`, an enum with one variant per tool
 kind carrying that tool's state. Two tools open is not a state the door
@@ -1725,22 +1731,23 @@ copy would be the hand-written list again with nothing forcing it.
 
 ### Closed vocabularies are declared once
 
-**Eleven** enums here are closed vocabularies: a fixed set of choices the
+**Ten** enums here are closed vocabularies: a fixed set of choices the
 chrome offers, which something walks in order — a radio row, a combo's
 options, a suite's sweep. Each carried a hand-written `const ALL`
 beside it, and that second copy of the membership was free to fall
 behind the first: adding a variant compiled, the radio row silently
 lost a button, and every sweep keyed on the list quietly narrowed.
 (At the conversion, ten `const ALL` tables existed under `src/` and
-nine were of this kind. The tenth vocabulary is `frame::WithdrawalKind`
-and it is not one of those ten: it carried no membership list at all
-until the fan-out from a `PruneReport` needed holding to it, and the
-list it got was projected rather than written. The eleventh is
-`marks::EdgeLane`, a renderer's draw order rather than a choice the
-chrome offers, declared through the macro from the start. Both censuses are stated
-because this program's counts have gone wrong before — one is the tree
-at the conversion, the other is the vocabularies today, and nothing
-makes them the same number.)
+nine were of this kind. `frame::WithdrawalKind` is not one of those
+ten: it carried no membership list at all until the fan-out from a
+`PruneReport` needed holding to it, and the list it got was projected
+rather than written. `marks::EdgeLane`, a renderer's draw order rather
+than a choice the chrome offers, was declared through the macro from
+the start. Both censuses are stated because this program's counts have
+gone wrong before — one is the tree at the conversion, the other is
+the vocabularies today, and nothing makes them the same number. Today's
+is taken as `git grep -n 'vocabulary! {' -- crates/viewer/src`, less
+the one hit that is `src/vocab.rs`'s own doc example.)
 
 **The enum and its `ALL` are now one declaration.** `src/vocab.rs`'s
 `vocabulary!` takes one list of variants and expands it into both, so a
@@ -1764,7 +1771,7 @@ already holds. If nothing does, they are not table data at all and a
 method beside the enum is the whole of it.
 
 **The sweep that produces the population** is a walk of every loop over
-a vocabulary's `ALL` — one of the nine declared by `vocabulary!`, so a
+a vocabulary's `ALL` — one of the ten declared by `vocabulary!`, so a
 loop over `Theme::ALL`, `pncad`'s `Axis3::ALL` or the path form's
 `profile::Verb::ALL` is outside it — read
 for what the loop asks each entry for. It reads `src/` **and**
@@ -1773,10 +1780,11 @@ in a suite is still a word read off the table; a sweep scoped to `src/`
 would have nothing to discriminate on the two vocabularies it rules
 bare, and the first tests-only word-walk would arrive unseen.
 
-**Five of the nine are walked under `src/` for their words, and all
-five ask for one.** Each binds `(value, label)` and puts that label on the control
+**Six of the ten are walked under `src/` for their words, and all
+six ask for one.** Each binds `(value, label)` and puts that label on the control
 it draws: `pane::create`'s datum row, profile row, pattern-rule row,
-pattern-output row and blend-kind row. So all five are LABELLED, and
+pattern-output row, blend-kind row and projection-selector row. So all
+six are LABELLED, and
 there is no shorter account of them than the sweep itself: their words
 are table data because a table walk reads them.
 
@@ -1820,7 +1828,7 @@ un-converting the enum. `src/vocab.rs`'s own doc carries both, and the
 rustfmt cost below.
 
 **rustfmt does not reach inside the invocation**, so the variants and
-variant docs of all nine are formatted by hand. Demonstrated rather
+variant docs of all ten are formatted by hand. Demonstrated rather
 than assumed, and not fixable by making the body parse: `src/vocab.rs`
 records the experiment and
 `work/view/vocabulary-macro-bodies-are-outside-rustfmt.md` tracks it.
@@ -2085,9 +2093,8 @@ where, exhaustively:
 
   **What the rule cannot match**, stated because the claim above it is a
   universal: a link whose target is reached through a `use`, since the
-  link text then carries the in-scope name and not the defining crate.
-  `sketch.rs`'s `` [`ProfileVertex`] `` is one — it resolves into
-  `pncad`, and no path-shaped sweep can see it. A bare code span naming
+  link text then carries the in-scope name and not the defining crate,
+  and no path-shaped sweep can see it. A bare code span naming
   another crate is not a link at all and is unchecked in both passes.
 
   The ruling's second clause, `nightly.yml:291-293`'s

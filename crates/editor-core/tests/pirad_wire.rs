@@ -8,7 +8,7 @@
 //! REMEMBERS as its symbol STRING, and the rebuild resolves that
 //! string through the closed table — so the spelling is on the wire:
 //! the round trip pins it, and a body carrying the retired symbol
-//! `pi` shows the rebuild's own refusal, naming the symbol. (The
+//! `pi` shows the rebuild's own refusal, carrying the symbol. (The
 //! format carries no schema version — the persist module docs say
 //! why — so there is no version pin here and no older golden to
 //! refuse.)
@@ -17,6 +17,7 @@
 
 use crate::fixture;
 
+use editor_core::expr::DimensionError;
 use editor_core::{Dimension, Expr, Node, PersistError, ProfileDoc, RecipeNodeId, load, save};
 use fixture::{insert, len, on_frame, scl};
 use geom_core::Tol;
@@ -88,28 +89,27 @@ fn a_half_turn_literal_round_trips() {
 }
 
 /// **The spelling's own refusal**: a body carrying the retired symbol
-/// — what a document written before the re-spell looks like — is
-/// unreadable by this build, and the refusal names the symbol.
+/// — what a document written before the re-spell looks like — refuses,
+/// and the refusal carries the symbol it could not read.
 ///
 /// It refuses because the unit table is CLOSED over one spelling: the
-/// rebuild resolves the symbol through it and announces the miss.
+/// rebuild resolves the symbol through it and announces the miss. The
+/// miss is a `DimensionError`, so it crosses the load door whole and
+/// the symbol is a FIELD — the assertion reads the value rather than a
+/// message that happens to quote it.
 #[test]
-fn the_retired_spelling_is_unreadable_by_this_build() {
+fn the_retired_spelling_refuses_and_carries_the_symbol() {
     let text = save(&half_turn_doc(), &[], Tol::witness()).expect("the document saves");
     let retired = text.replace(r#""unit": "pi rad""#, r#""unit": "pi""#);
     assert_ne!(retired, text, "the substitution must actually land");
     match load(&retired, Tol::witness()) {
-        Err(PersistError::Unreadable { detail, .. }) => {
-            // The deserializer's message is the ONLY place the name
-            // exists (serde exposes no structured accessor), so reading
-            // it back is the assertion, not message sniffing; the
-            // fuller phrase keeps a two-letter word from matching by
-            // accident.
-            assert!(
-                detail.contains("unknown display unit \"pi\""),
-                "the refusal names the symbol it could not read: {detail}"
-            );
-        }
-        other => panic!("a retired unit symbol must refuse unreadable, got {other:?}"),
+        Err(PersistError::Dimension { error, .. }) => assert_eq!(
+            error,
+            DimensionError::UnknownDisplayUnit {
+                symbol: "pi".to_owned()
+            },
+            "the refusal carries the symbol it could not read"
+        ),
+        other => panic!("a retired unit symbol must refuse typed, got {other:?}"),
     }
 }

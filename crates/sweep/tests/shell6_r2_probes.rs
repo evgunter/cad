@@ -23,7 +23,7 @@ use crate::common::approx::band;
 use geom::Surface;
 use geom_brep::Nappe;
 use geom_core::{Point2, Point3, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ReplaceFaceError};
 
@@ -39,10 +39,8 @@ const R_NARROW: f64 = 2.0 / 64.0;
 fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     let profile = Profile::new(
         SketchPlane::xy(),
-        vec![ProfileLoop::new(
-            pts.iter()
-                .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-                .collect(),
+        vec![bulge_loop(
+            pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect(),
         )],
     )
     .validate(Tol::witness())

@@ -16,7 +16,6 @@
 //! file is the ceiling-plus-δ half, which is a second whole-box replay
 //! of each — too heavy for the gate and cheap to re-take by hand.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;

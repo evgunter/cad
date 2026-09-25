@@ -12,7 +12,6 @@
 //! so every rim of the rotated body is still two arcs, from either
 //! seed, as a rotation.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;

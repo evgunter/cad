@@ -1180,6 +1180,7 @@ dependencies = [
  "geom-core",
  "nalgebra 0.35.0",
  "proptest",
+ "strum",
  "test-utils",
 ]
 
@@ -1191,6 +1192,7 @@ dependencies = [
  "geom-core",
  "proptest",
  "slotmap",
+ "strum",
  "test-utils",
 ]
 
@@ -1206,6 +1208,7 @@ dependencies = [
  "num-traits",
  "proptest",
  "rayon",
+ "strum",
  "test-utils",
 ]
 

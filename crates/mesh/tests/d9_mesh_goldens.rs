@@ -193,7 +193,7 @@ fn corpus() -> Vec<(&'static str, Body<f64>, [f64; 2])> {
 /// header carries its provenance.
 pub(crate) fn tilted_halves() -> (Body<f64>, Body<f64>) {
     use geom_core::{Point2, Point3, Vec3};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+    use profile::{Profile, SketchPlane, test_support::bulge_loop};
     use sweep::{Extrusion, extrude};
     use topo::splitting::{SplitPart, SplitPlane, split};
 
@@ -203,9 +203,9 @@ pub(crate) fn tilted_halves() -> (Body<f64>, Body<f64>) {
 
     let disc = Profile::new(
         SketchPlane::xy(),
-        vec![ProfileLoop::new(vec![
-            ProfileVertex::new(Point2::new(-R, 0.0), 1.0),
-            ProfileVertex::new(Point2::new(R, 0.0), 1.0),
+        vec![bulge_loop(vec![
+            (Point2::new(-R, 0.0), 1.0),
+            (Point2::new(R, 0.0), 1.0),
         ])],
     )
     .validate(Tol::witness())
@@ -250,7 +250,7 @@ const GOLDEN: &[(&str, [u64; 2])] = &[
     ("axis_wedge", [0x240f_d14f_cb3f_6bea, 0xe181_9a80_1d61_3a02]),
     (
         "rounded_prism",
-        [0xaf9b_9d73_07df_fbef, 0x0948_28db_26f7_5f65],
+        [0xe0cd_3add_7f3c_0dcd, 0x0d7a_8827_002b_0ba9],
     ),
     ("ball", [0x3e4a_62a1_f1e3_d045, 0xefdc_3024_8193_e9e3]),
     (

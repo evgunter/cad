@@ -16,8 +16,7 @@ use geom::Curve3;
 use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, validate, validate_closed, validate_geometric};
@@ -30,10 +29,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// the sketch origin — extrudes to a cylinder of height 1 whose two
 /// wall faces share ONE cylinder surface (the cosurface run).
 fn disc() -> ValidatedProfile<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-0.5, 0.0), 1.0),
-        ProfileVertex::new(p2(0.5, 0.0), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(-0.5, 0.0), 1.0), (p2(0.5, 0.0), 1.0)]);
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap()
@@ -256,7 +252,6 @@ fn tangent_plane_refuses_typed() {
 /// The interval lane: the tilted cut replays at `T = Interval` and the
 /// section ellipses' residual enclosures contain zero against both
 /// surfaces (the exact-in-ℝ claim, certified).
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use geom_core::Tol;
@@ -265,9 +260,9 @@ mod interval {
     #[test]
     fn tilted_cut_at_interval_encloses_zero_residuals() {
         let iv = <Interval as Real>::from_f64;
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(Point2::new(iv(-0.5), iv(0.0)), iv(1.0)),
-            ProfileVertex::new(Point2::new(iv(0.5), iv(0.0)), iv(1.0)),
+        let lp = bulge_loop(vec![
+            (Point2::new(iv(-0.5), iv(0.0)), iv(1.0)),
+            (Point2::new(iv(0.5), iv(0.0)), iv(1.0)),
         ]);
         let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
             .validate(Tol::witness())
@@ -647,14 +642,13 @@ fn repaired_belly_bodies_mint_certified_pcurves() {
 /// construction — so the enclosures stay narrow and the interval lane
 /// now splits the belly document two-sided, with every section arc on
 /// the finite wall.
-#[cfg(feature = "interval")]
 #[test]
 fn even_crossing_belly_cut_at_interval() {
     use geom_core::{Bounds, Interval, Real};
     let iv = <Interval as Real>::from_f64;
-    let lp = profile::ProfileLoop::new(vec![
-        profile::ProfileVertex::new(Point2::new(iv(-0.5), iv(0.0)), iv(1.0)),
-        profile::ProfileVertex::new(Point2::new(iv(0.5), iv(0.0)), iv(1.0)),
+    let lp = bulge_loop(vec![
+        (Point2::new(iv(-0.5), iv(0.0)), iv(1.0)),
+        (Point2::new(iv(0.5), iv(0.0)), iv(1.0)),
     ]);
     let vp = profile::Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())

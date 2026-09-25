@@ -156,8 +156,9 @@
 //! with `λ` lifted once per combination.
 
 use core::num::NonZeroUsize;
+use geom_core::Bounds;
 use geom_core::spline::{self, KnotAlgebraError, KnotVector, Span, SpanLocate, SplineError};
-use geom_core::{Point2, Point3, Real, RingInterval, Vec2, Vec3};
+use geom_core::{Interval, Point2, Point3, Real, Vec2, Vec3};
 
 use crate::net;
 
@@ -354,7 +355,7 @@ macro_rules! nurbs_curve {
             /// and the raw knot slice is read from the same borrow
             /// rather than handed in beside it. `dw` holds the weight
             /// spline's derivative coefficient enclosures.
-            fn rational_span_bound(self, dw: &[RingInterval], origin: $Point<T>) -> T {
+            fn rational_span_bound(self, dw: &[Interval], origin: $Point<T>) -> T {
                 let poison = T::from_f64(f64::NAN);
                 let p = self.span.degree();
                 let knots = self.span.knots().knots();
@@ -444,16 +445,22 @@ macro_rules! nurbs_curve {
                         None => v,
                         Some(m) => m.min(v),
                     });
-                    // `w′`'s SIGNED hull, from the ring-rounded
-                    // coefficients. The refusal is asked by name: the
-                    // ring keeps it in the decoration, so a
+                    // `w′`'s SIGNED hull, from outward-rounded
+                    // coefficients. The refusal is asked by name: it
+                    // lives in the decoration, so a
                     // coefficient that may not certify carries
                     // ordinary endpoints and would widen the hull by a
                     // number instead of collapsing the whole bound.
+                    // No public path hands this a refusal — the only
+                    // caller passes the weight spline's own derivative,
+                    // whose knot differences `KnotVector::clamped` keeps
+                    // positive and whose weights `new` keeps finite and
+                    // positive — so the branch is pinned white-box
+                    // (`span_bound_tests`), not through the curve.
                     let Some(q) = dw.get(i) else {
                         return poison;
                     };
-                    if q.is_poison() {
+                    if !q.is_certified() {
                         return poison;
                     }
                     #[allow(clippy::neg_cmp_op_on_partial_ord)]
@@ -1233,7 +1240,7 @@ macro_rules! nurbs_curve {
             /// - `sup|w′| ≤ max_i |q_i|` over the weight spline's own
             ///   derivative coefficients, taken through
             ///   [`spline::SplineCoeffs::derivative_coeffs`] so the knot
-            ///   difference is rounded in the ring, not at `f64`.
+            ///   difference is rounded in certification arithmetic, not at `f64`.
             ///
             /// **The denominator is `w_max`, not `w_min`.** `w` itself
             /// is a convex combination of the active weights, so
@@ -1289,7 +1296,7 @@ macro_rules! nurbs_curve {
             ///
             /// At `f64` the assembly runs in nearest rounding, like
             /// every other `Real`-generic bound in the kernel: the
-            /// weight-derivative hulls come through the ring (correctly
+            /// weight-derivative hulls come through certification arithmetic (correctly
             /// rounded), but the chord normalisation and the hull folds
             /// do not, so the `f64` reading is a bound only up to about
             /// a relative ulp. **The `Interval` instantiation is the
@@ -1622,22 +1629,22 @@ fn binomial(k: usize, i: usize) -> f64 {
 }
 
 impl<T: geom_core::CertifiedBounds> NurbsCurve3<T> {
-    /// The control coordinates lifted to ring points — the data-in
+    /// The control coordinates lifted to enclosure points — the data-in
     /// shape of `geom_core::spline::compose`: channel `d`, point `i`,
-    /// as `[x, y, z]` channels of ring enclosures. Pair with
+    /// as `[x, y, z]` channels of certification enclosures. Pair with
     /// [`Self::knots`] and [`Self::weights`] to build a `CurveRingData`
     /// for composite bounds. The bracket seam this reads the net
     /// through is the shared one (`net::ring_coords`).
-    pub fn ring_coords(&self) -> Vec<Vec<RingInterval>> {
+    pub fn ring_coords(&self) -> Vec<Vec<Interval>> {
         net::ring_coords(&self.control)
     }
 }
 
 impl<T: geom_core::CertifiedBounds> NurbsCurve2<T> {
     /// [`NurbsCurve3::ring_coords`] at two channels: `[x, y]` channels
-    /// of ring enclosures, through the same bracket seam and the same
+    /// of certification enclosures, through the same bracket seam and the same
     /// body.
-    pub fn ring_coords(&self) -> Vec<Vec<RingInterval>> {
+    pub fn ring_coords(&self) -> Vec<Vec<Interval>> {
         net::ring_coords(&self.control)
     }
 }
@@ -1668,5 +1675,57 @@ impl<T: Real> NurbsCurve3<T> {
     /// the surface and curve halves answer it identically.
     pub fn is_placeholder(&self) -> bool {
         net::is_placeholder(&self.control)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod span_bound_tests {
+    use super::*;
+
+    /// `rational_span_bound` asks `w′`'s refusal by NAME. A coefficient
+    /// that left its domain carries real endpoints — `sqrt([−1, 4]) − 1`
+    /// is `[−1, 1]` at `Trv` — so a check that read only NaI or empty
+    /// would take it as a bracket and answer a finite bound; the span
+    /// bound is poison instead. The control is the same span with a
+    /// certified coefficient of the same magnitude.
+    #[test]
+    fn a_refused_weight_derivative_coefficient_poisons_the_span_bound() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).expect("valid knots");
+        let curve = NurbsCurve3::<f64>::new(
+            kv,
+            vec![
+                Point3::new(0.0, 0.0, 0.0),
+                Point3::new(1.0, 1.0, 0.0),
+                Point3::new(2.0, 0.0, 0.0),
+            ],
+            vec![1.0, 2.0, 1.0],
+        )
+        .expect("valid curve");
+        let index = curve.knots().first_span();
+        let origin = Point3::new(0.0, 0.0, 0.0);
+        let certified = [
+            Interval::from_bounds(1.9, 2.1),
+            Interval::from_bounds(-2.1, -1.9),
+        ];
+        let control = curve
+            .span(index)
+            .expect("a nonempty span")
+            .rational_span_bound(&certified, origin);
+        assert!(control.is_finite(), "control: {control}");
+        let refused = Real::sqrt(Interval::from_bounds(-1.0, 4.0)) - Interval::one();
+        assert!(
+            !refused.is_certified() && (refused.lo(), refused.hi()) == (-1.0, 1.0),
+            "fixture drifted: {refused:?}"
+        );
+        let bound = curve
+            .span(index)
+            .expect("a nonempty span")
+            .rational_span_bound(&[refused, certified[1]], origin);
+        assert!(
+            bound.is_nan(),
+            "a `Trv` w\u{2032} coefficient with real endpoints produced the span bound \
+             {bound} — the refusal was not asked by name"
+        );
     }
 }

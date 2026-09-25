@@ -8,7 +8,7 @@
 //! second, unchecked copy of a set the compiler already knows.
 //!
 //! Each suite keeps its own `//!` docs and its inner attributes
-//! (`#![cfg(feature = "interval")]` and friends work as module-level
+//! (`#![cfg(feature = "probe")]` and friends work as module-level
 //! attributes). What it does NOT keep is a `mod <helper>;` line of its
 //! own: the shared helper trees are declared once, below, as modules of
 //! THIS root, and a suite that wants one says `use crate::<helper>;`.
@@ -66,6 +66,8 @@ mod asm2a_instantiate;
 mod asm2b_multisolid;
 #[path = "asm4_split_inline.rs"]
 mod asm4_split_inline;
+#[path = "asm_parent_held_names.rs"]
+mod asm_parent_held_names;
 #[path = "asm_r2a_mate_solve.rs"]
 mod asm_r2a_mate_solve;
 #[path = "asm_r2a_mate_wire.rs"]
@@ -154,6 +156,8 @@ mod edit_pair_apply_names;
 mod edit_recorded_notation;
 #[path = "edit_ruled_carve.rs"]
 mod edit_ruled_carve;
+#[path = "edit_set_program.rs"]
+mod edit_set_program;
 #[path = "edit_step_segments.rs"]
 mod edit_step_segments;
 #[path = "emit_boolean_vertex_keys.rs"]
@@ -176,8 +180,16 @@ mod fix_loop_polygon_expr;
 mod fix_pattern_mate_crossing;
 #[path = "refusal_concision.rs"]
 mod refusal_concision;
+#[path = "refusal_concision_at_rest.rs"]
+mod refusal_concision_at_rest;
 #[path = "refusal_concision_chains.rs"]
 mod refusal_concision_chains;
+#[path = "remap_reorders_ids.rs"]
+mod remap_reorders_ids;
+#[path = "resolve_group_membership.rs"]
+mod resolve_group_membership;
+#[path = "resolve_upstream_scope.rs"]
+mod resolve_upstream_scope;
 #[path = "rv_dm7_probes.rs"]
 mod rv_dm7_probes;
 
@@ -244,6 +256,8 @@ mod m10_3_r2_probes_interval;
 mod m10_4_r1_probes_interval;
 #[path = "m10_4_seed.rs"]
 mod m10_4_seed;
+#[path = "maintenance_net.rs"]
+mod maintenance_net;
 #[path = "msolve10_door_admission.rs"]
 mod msolve10_door_admission;
 #[path = "msolve1_transform_aware.rs"]
@@ -615,3 +629,11 @@ mod decide_1_self_dot_interval;
 mod emit_seam_edge_merged;
 #[path = "emit_seam_junction.rs"]
 mod emit_seam_junction;
+#[path = "emit_shared_rim_several.rs"]
+mod emit_shared_rim_several;
+#[path = "emit_split_duplicate.rs"]
+mod emit_split_duplicate;
+#[path = "emit_union_flush_names.rs"]
+mod emit_union_flush_names;
+#[path = "emit_union_rim_piece_ranks.rs"]
+mod emit_union_rim_piece_ranks;

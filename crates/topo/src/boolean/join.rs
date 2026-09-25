@@ -1337,8 +1337,9 @@ fn choose_roles<T: Decide>(
 /// # Dimension (audit F4, `docs/predicate-dimension-audit.md`)
 ///
 /// The CANONICAL statement for this predicate's three sites (the other
-/// two are `merge_faces::loop_winding` and `validate`'s tier-3 check 6,
-/// which cross-reference here): the Newell functional is an AREA (m²)
+/// two — the merge's role assigner and `validate`'s tier-3 check 6 —
+/// share one statement, `crate::loop_winding`, which cross-references
+/// here): the Newell functional is an AREA (m²)
 /// and ε is a point deviation (D4), so the decided margin divides it by
 /// the run's boundary PERIMETER `P`. `2A/P` is the region's MEAN WIDTH
 /// — exactly the deviation the winding sign is about: it is the
@@ -1426,29 +1427,16 @@ fn ring_run_ccw<T: Decide>(
         let edge = body
             .get_edge(he_data.edge)
             .ok_or(desync("run edge no longer resolves"))?;
-        let Some(curve) = body
+        // The conic term has one home (`crate::loop_winding`); every
+        // other carrier, and a null-edge scaffold, is its chord.
+        match body
             .get_curve_geom(edge.curve)
             .and_then(crate::null::CurveGeom::certified)
-        else {
-            return Ok((zero, chord()?));
-        };
-        let (t0, t1) = curve.params();
-        let (axis, sa, sb) = match *curve.carrier() {
-            geom::Curve3::Circle { axis, radius, .. } => (axis, radius, radius),
-            geom::Curve3::Ellipse {
-                axis, major, minor, ..
-            } => (axis, major, minor),
-            // A spiric's winding contribution has no conic-bulge
-            // closed form; chord only, as a spline. Unreachable behind
-            // the operand gate today.
-            geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-                return Ok((zero, chord()?));
-            }
-        };
-        let span = if edge.he_plus == he { t1 - t0 } else { t0 - t1 };
-        // `|Δ|·sa` is the circle's exact arc length and the ellipse's
-        // upper bound (fn docs: over-large P escalates, never decides).
-        Ok((axis * (sa * sb * (span - span.sin())), span.abs() * sa))
+            .and_then(|curve| crate::loop_winding::conic_segment_term(curve, edge.he_plus == he))
+        {
+            Some(term) => Ok(term),
+            None => Ok((zero, chord()?)),
+        }
     };
     loop {
         let (bulge, len) = run_term(he)?;
@@ -2614,7 +2602,7 @@ mod frame_dispatch_tests {
 }
 
 /// **The cylinder×cylinder coplanarity split at the CERTIFIED scalar**
-/// (feature `interval`) — the two-arm pin for this unit's new decide
+/// — the two-arm pin for this unit's new decide
 /// site, `bool_germ_frame_axes_coplanar`.
 ///
 /// **Why it lives HERE and not in a body-level suite.** The predicate
@@ -2637,7 +2625,6 @@ mod frame_dispatch_tests {
 /// here would be the arithmetic's doing and is exactly what this row is
 /// for.
 #[cfg(test)]
-#[cfg(feature = "interval")]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod frame_dispatch_interval_tests {
     use geom_core::{Interval, Point3, Real, Tol, Vec3};

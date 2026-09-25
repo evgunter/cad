@@ -29,7 +29,7 @@
 //! `trait` / `enum` / `type`, splits it at top-level commas (so a
 //! multi-line list, and a list whose other parameters are lifetimes or
 //! consts, are read the same as a one-line one), and keeps the parameters
-//! whose WHOLE bound is `Bounds` or `Enclosure`, path-qualified or not.
+//! whose WHOLE bound is `Bounds`, path-qualified or not.
 //! `where` clauses are read the same way.
 //!
 //! **What it cannot match, stated rather than left to be discovered:**
@@ -92,7 +92,7 @@ struct Site {
 
 use Why::{HandedOff, Impl, Payload, Selection};
 
-/// The roster. Every sole-`T: Bounds` / `T: Enclosure` door in
+/// The roster. Every sole-`T: Bounds` door in
 /// `crates/*/src`, and the reason each one is sound at a scalar that may
 /// not certify.
 const ROSTER: &[Site] = &[
@@ -166,14 +166,6 @@ const ROSTER: &[Site] = &[
              carries `T`'s bracket verbatim because the DAG holds no numbers of its \
              own, and nothing in this impl reads one — the two accessors forward and \
              return",
-        ),
-    },
-    Site {
-        path: "crates/geom-core/src/real.rs",
-        subject: "impl<T: Bounds> Enclosure for T",
-        why: Impl(
-            "the one-line seam that makes every `Bounds` scalar an `Enclosure` — and \
-             therefore makes a `Dual` one, which is issue #701",
         ),
     },
     Site {
@@ -336,6 +328,19 @@ const ROSTER: &[Site] = &[
         why: Selection("the C6 inventory gate's `is the trig channel exactly 0.0` read"),
     },
     Site {
+        path: "crates/topo/src/validate.rs",
+        subject: "analytic_datum_verdicts",
+        why: Selection(
+            "tier-3 check 1's representability read: `Bounds::lo` of each STORED datum's \
+             convention margin (`geom::Surface::representability_margins`) compared with \
+             zero — whether a datum lies inside the convention its variant states, a \
+             locally constant fact about data, not a geometric quantity of the body. It \
+             selects the refusal and never crosses into a certificate; the argument is \
+             the `bounds_allowlist` 2026-09-02 certified at-rest entry in `real.rs`, which \
+             discloses this as the file's one bracket read",
+        ),
+    },
+    Site {
         path: "crates/topo/src/query.rs",
         subject: "rim_of",
         why: Selection(
@@ -405,7 +410,7 @@ fn is_sole_bracket(bound: &str) -> bool {
     let b: String = bound.split_whitespace().collect();
     matches!(
         b.trim_end_matches(','),
-        "Bounds" | "Enclosure" | "geom_core::Bounds" | "geom_core::Enclosure" | "crate::Bounds"
+        "Bounds" | "geom_core::Bounds" | "crate::Bounds"
     )
 }
 
@@ -485,7 +490,7 @@ fn subject_of(code: &str, keyword: &str, kw_at: usize, list_end: usize) -> Strin
     if keyword == "impl" {
         let head = &code[kw_at..list_end + 1];
         let head: String = head.split_whitespace().collect::<Vec<_>>().join(" ");
-        // `impl<T: Bounds> Enclosure for T {` keys on the whole header;
+        // `impl<T: Bounds> Bounds for Sym<T> {` keys on the whole header;
         // the trailing type is what tells the two projection impls apart.
         let tail = code[list_end + 1..]
             .split('{')

@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-21
 priority: P3
 cost: D
+parent: ATREST-10
 ---
 
 ## Finding
