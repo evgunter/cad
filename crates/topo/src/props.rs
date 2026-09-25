@@ -966,12 +966,16 @@ pub struct TargetUnreached<T: Real> {
 
 impl<T: Real> fmt::Display for TargetUnreached<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.refusal)?;
-        if let Some(bracket) = &self.bracket {
+        fmt::Display::fmt(&self.refusal, f)?;
+        if let Some(VolumeEnclosure {
+            volume_lo,
+            volume_hi,
+            ..
+        }) = &self.bracket
+        {
             write!(
                 f,
-                " (the sign-level bracket is [{:?}, {:?}])",
-                bracket.volume_lo, bracket.volume_hi
+                " (the sign-level bracket is [{volume_lo:?}, {volume_hi:?}])"
             )?;
         }
         Ok(())
