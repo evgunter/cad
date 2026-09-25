@@ -580,3 +580,111 @@ Evidence behind the PR:
   entities carry author-level string ids, and extrude faces are queried
   by them. FreeCAD 1.0's element map builds names from Sketcher
   geometry ids. Neither versions a rename ledger for sketch elements.
+## 2026-09-24 — rim-piece ranks follow the finished body (PRs 3168 → 3167)
+
+A union now numbers each member edge's pieces by the cells the
+finished body cuts it into (#3168). Before, it ranked them per fold
+step, so one rim-piece name denoted different pieces in different
+member orders. #3167 (the shared-rim rule) lands with it. Alone,
+#3167 would have turned refusals into silent rebinds: on the review
+probe, 407 signature mismatches against main's 108. It was merged
+only after #3168 had been merged into its branch.
+
+What landed with the review rounds:
+- the cell check moved into the `name_frag_` family;
+- `of` counts cells, not pieces;
+- the clustering is an order-free union–find, and refuses when the
+  ambiguity band is narrower than 2 (`NarrowBand`);
+- whole-group re-ranking in `cite_member_edges`;
+- one same-side-rim rule;
+- loud guards for a fold-ranked member-edge piece and for a moved
+  vertex that has no single seam.
+
+The rebind row is now able to go red. It pins the 25 cases that
+refuse in some orders and publish in others (`KNOWN_MIXED`). The two
+causes without an owner are filed P1 as
+`union-refuses-in-some-member-orders-and-publishes-in-others`.
+
+Measured on the review probe:
+- names absent in one order: main 5200, #3167 alone 12478, both
+  7742;
+- no case is worse than main;
+- the remaining absences all belong to
+  `declared-flush-union-edge-and-vertex-names-follow-member-order`
+  (P1), which now carries the evidence that the declared-flush body
+  itself is order-dependent.
+
+Filed:
+- P2 `cite-member-edges-group-rerank-can-reverse-the-folds-rank-direction`
+  (review O4b; unreached, untested branch)
+## 2026-09-24 — a parent's held names rebind silently across a pin update (PR 3187)
+
+Measured, and the row stays P0. A part inserts a leg before its
+wall 1. The part's own door reports the rebind for names the part
+holds. A parent that painted `InPart { part wall 1 }` then moves its
+pin: `UpdateReference` reports nothing, and the held spelling now
+denotes the leg. The new row `asm_parent_held_names` pins that
+behaviour.
+
+The fix needs new persisted state. Nothing connects an old pin to a
+new one at `UpdateReference`:
+- rename rows are not logged;
+- the store keeps one snapshot per id;
+- two snapshots cannot say whether a leg was inserted or a wall was
+  replaced.
+
+The fix would be a per-version rename ledger that `UpdateReference`
+carries as data. The PR lists every carrier that holds a name across
+a document boundary.
+
+The loud interim (strand every held name at every pin move) is not
+landed: it would break every mate on every update. The row is
+`needs_ev`, together with
+`a-value-edits-last-published-numbering-is-not-recipe-state`, whose
+option A is the per-document half of the same ledger. Both go to Ev
+as one question.
+## 2026-09-24 — the group-size rung reads the emitter's groups (PR 3184)
+
+`GroupResized` used to count a group by how its members' names were
+spelled. Tied parents were then summed (4 → 2), and a face a split no
+longer divided read 2 → 0. Now each emitter records the groups it
+forms, by entity (`names::FragmentGroups`, not persisted), and the
+rung only looks the count up. At a union the count is the distinct
+published entities a fold step's group descends to, followed by
+entity through every later step. Where a group is formed by names (a
+seam group a tie formed), the rung declines. No name, stored bit or
+`DIAGNOSIS_DIGEST` row moved.
+
+The review took three rounds:
+- Round 1 found a partly swallowed union group reporting its full step
+  size.
+- The fix for that matched rows across fold steps by name, which
+  summed tied parents again.
+- Round 3 moved the descent to emit time, by entity.
+
+Documented as a known undercount: a piece a later step re-mints as a
+`Seam` edge along its own line is not counted as the parent's
+descendant.
+
+## 2026-09-25 — Ev: profile pieces are named by minted step ids (PR 3193)
+
+Ev ruled "yes this makes sense!" on #3193: a profile piece is named
+`{ step, role }`, where the step id is minted when the step is
+authored. The rule is N1's paragraph "the profile pieces". Three open
+problems share one cause, a name spelled by a position that is
+recomputed from current state:
+- a parent's held names across a pin update (P0);
+- a value edit through an unreadable state (P1);
+- EDIT's zero-fit renumbering (#3163).
+
+Under the rule nothing renumbers, so none of them arises.
+
+- **Filed:** P0 unit `profile-pieces-are-named-by-minted-step-ids`,
+  cost H, which builds the rule.
+- **Parked on that unit:**
+  - `a-child-documents-rebind-leaves-the-parents-held-names-in-the-old-numbering`;
+  - `a-value-edits-last-published-numbering-is-not-recipe-state`;
+  - `the-value-edit-numbering-check-costs-a-replay-per-swept-profile`.
+- **Not EMIT's to close:** EDIT's row, and EDIT's #3158 retirement
+  question. Both are moot under the rule, and EDIT's orchestrator closes
+  them.

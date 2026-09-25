@@ -106,22 +106,24 @@ pub use editor_core::{
 // point is that a verdict is consumed by reports. `ASSERT_BOUND` is
 // the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
 // K-census consumer can name the row rather than spell the string.
-// `MeasureUnavailableAt` and `MinClearanceRefusal` are carried for the
+// `MeasureUnavailableAt` and `ClearanceRefusal` are carried for the
 // reason a payload's payload always is: they are what
 // `UnevaluatedReason::MeasureUnavailable` and
 // `NodeErrorKind::MeasureClearanceRefused` CARRY, so a consumer who can
 // name the outer type and not the inner one can see that there is a
-// reason and never read it.
+// reason and never read it. `CellBudget` and `SelectionRefusal` are
+// `ClearanceRefusal`'s own `Budget` and `Selection` payloads, one rung
+// further down, for the same reason.
 // `SitedFace` is a mate's head — a `SitedRef` whose name is a
 // `FaceName`, so a mate whose head names an edge does not compile —
 // and `FaceName`/`NotAFaceName` are the type that makes that true and
 // the refusal its one constructor answers with. A caller authoring a
 // mate needs all three: the constructor is the door, and its refusal
 // is what a caller who read a name out of a file has to handle.
+pub use editor_core::clearance::{CellBudget, ClearanceRefusal, SelectionRefusal};
 pub use editor_core::{
     ASSERT_BOUND, AssertionDir, AssertionVerdict, FaceName, MeasureExpr, MeasurePrimitive,
-    MeasureUnavailableAt, MinClearanceRefusal, NotAFaceName, SitedFace, SitedRef,
-    UnevaluatedReason,
+    MeasureUnavailableAt, NotAFaceName, SitedFace, SitedRef, UnevaluatedReason,
 };
 
 // Expressions and their text door.

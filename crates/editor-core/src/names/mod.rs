@@ -33,6 +33,7 @@ mod emit_topo;
 mod emit_union;
 mod flush;
 mod geompred;
+mod groups;
 pub(crate) mod interrogate;
 pub(crate) mod merged;
 mod role;
@@ -53,7 +54,10 @@ pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_shell::name_shell;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
-pub(crate) use emit_union::{collapse_name, collapse_table, member_name, member_view, name_union};
+pub(crate) use emit_union::{
+    Member as UnionMember, collapse_name, collapse_table, is_fold_ranked_member_edge, member_name,
+    member_view, name_union,
+};
 pub use flush::{
     CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, DeclareError, DeclaredContact,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare, declare_all, declare_node,
@@ -63,6 +67,8 @@ pub use geompred::{
     ALL_SURFACE_KINDS, Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal,
     SurfaceKindSet,
 };
+pub(crate) use groups::Emitted;
+pub use groups::FragmentGroups;
 pub use interrogate::{
     Denotation, InterrogateError, denotation, edge_carrier_kind, edge_frame, face_carrier_kind,
     face_frame, vertex_position,

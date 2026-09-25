@@ -1259,13 +1259,13 @@ fn the_shadow_exec_refusal_states_which_wall_it_hit() {
     );
 }
 
-/// The group-size diagnosis states the table fact and nothing more —
-/// the same sentence at every count, since a count of one or zero
-/// says nothing about where the parent went (N3 merges and undivided
-/// pass-throughs are rows the group's spellings do not match). Exact
-/// sentences, so a clause that claims more cannot slip in.
+/// The group-size diagnosis states the group fact and nothing more:
+/// how many entities the group the emitter divided the fragment's
+/// parent into held and holds, the same sentence at every count, and
+/// no cause. Exact sentences, so a clause that claims more cannot slip
+/// in.
 #[test]
-fn a_resized_group_states_the_table_fact_and_claims_no_flip() {
+fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
     for (was, now) in [(2, 1), (3, 0), (2, 3)] {
         let d = Diagnosis::GroupResized {
             node: RecipeNodeId(8),
@@ -1275,9 +1275,9 @@ fn a_resized_group_states_the_table_fact_and_claims_no_flip() {
         assert_eq!(
             d.to_string(),
             format!(
-                "at node 8, the rows spelled by this fragment's base name, bare or \
-                 with one fragment qualifier, held {was} entities in the last-good run \
-                 and hold {now} now, and no verdict flip was found that explains the change"
+                "at node 8, the group this fragment's parent was divided into held \
+                 {was} entities in the last-good run and holds {now} now, and no verdict \
+                 flip was found that explains the change"
             )
         );
         assert_f6(&d, &[], &["GroupResized"]);
@@ -2001,6 +2001,8 @@ test_utils::f6_variants! {
         MergedChord,
         MergedChordOffRim,
         SeamLineSides,
+        MemberEdgeTied,
+        NarrowBand,
         Band,
         Escalated,
     ];
@@ -2135,11 +2137,32 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["node 31", "each side of its recorded pair"],
         ),
         (
+            NamingError::MemberEdgeTied {
+                member: RecipeNodeId(37),
+                edge: Box::new(StableName {
+                    kind: EntityKind::Edge,
+                    node: RecipeNodeId(37),
+                    path: vec![RoleSeg::LateralEdge(editor_core::ProfileVertexRef {
+                        loop_index: 0,
+                        vertex: 2,
+                    })],
+                }),
+            },
+            vec!["member node 37", "a tie stands where one edge is needed"],
+        ),
+        (
             NamingError::Band(BandError::Empty {
                 zero: 5e-324,
                 escalate: 5e-324,
             }),
             vec!["naming band", "5e-324"],
+        ),
+        (
+            NamingError::NarrowBand {
+                zero: 1e-9,
+                escalate: 1.5e-9,
+            },
+            vec!["naming band is too narrow", "below 2"],
         ),
         (
             NamingError::Escalated {
