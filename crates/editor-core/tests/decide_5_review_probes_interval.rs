@@ -56,7 +56,8 @@ fn fnv(xs: &[String]) -> u64 {
 }
 
 fn line(name: &str, doc: &ProfileDoc, tol: Tol) {
-    let ev: Evaluation<f64> = evaluate(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+    let ev: Evaluation<f64> =
+        evaluate(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
     let s = spans(&ev);
     let f = (crate::r1_dual_probes::eval_deep(&ev), s.len(), fnv(&s));
     let evd: Evaluation<Dual64> =
@@ -64,37 +65,52 @@ fn line(name: &str, doc: &ProfileDoc, tol: Tol) {
     let sd = spans(&evd);
     let d = (crate::r1_dual_probes::eval_deep(&evd), sd.len(), fnv(&sd));
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
-    for (which, pbox) in [("whole", ParamBox::of(&analyzed)), ("nominal", crate::m10_8_harness::nominal_box(&analyzed))] {
-    for n in pbox.axes().keys() {
-        name_param(&n.0);
-    }
-    let opts = EvalOptions {
-        param_box: Some(Arc::new(pbox)),
-        profile_lift: ProfileLift::Guided,
-        ..EvalOptions::default()
-    };
-    let budget = SymBudget {
-        max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
-        max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
-    };
-    let ((sdeep, ss, fails), counts) =
-        geom_core::sym::with_session_rules(budget, SymRules::shipped(), || {
-            let ev: Evaluation<Sym<Interval>> = evaluate(doc, None, &CancelToken::new(), &opts, tol);
-            let fails = ev
-                .order
-                .iter()
-                .find_map(|id| match ev.result(*id) { Some(NodeResult::Failed(e)) => Some(format!("{}", e.kind)), _ => None })
-                .unwrap_or_default();
-            let s = spans(&ev);
-            (crate::r1_dual_probes::eval_deep(&ev), s, fails)
-        });
-    println!(
-        "REVIEW-E2E {name}: f64 deep {:016x} arcs {} spans {:016x} | dual deep {:016x} arcs {} spans {:016x} | sym<iv> {which} deep {sdeep:016x} arcs {} spans {:016x} first-fail [{}] | receipt {counts:?}",
-        f.0, f.1, f.2, d.0, d.1, d.2, ss.len(), fnv(&ss), &fails[..fails.len().min(120)]
-    );
-    for s in ss.iter().take(3) {
-        println!("REVIEW-E2E {name}:   sym<iv> {which} span {s}");
-    }
+    for (which, pbox) in [
+        ("whole", ParamBox::of(&analyzed)),
+        ("nominal", crate::m10_8_harness::nominal_box(&analyzed)),
+    ] {
+        for n in pbox.axes().keys() {
+            name_param(&n.0);
+        }
+        let opts = EvalOptions {
+            param_box: Some(Arc::new(pbox)),
+            profile_lift: ProfileLift::Guided,
+            ..EvalOptions::default()
+        };
+        let budget = SymBudget {
+            max_terms: editor_core::drive::DEFAULT_SYM_MAX_TERMS,
+            max_degree: editor_core::drive::DEFAULT_SYM_MAX_DEGREE,
+        };
+        let ((sdeep, ss, fails), counts) =
+            geom_core::sym::with_session_rules(budget, SymRules::shipped(), || {
+                let ev: Evaluation<Sym<Interval>> =
+                    evaluate(doc, None, &CancelToken::new(), &opts, tol);
+                let fails = ev
+                    .order
+                    .iter()
+                    .find_map(|id| match ev.result(*id) {
+                        Some(NodeResult::Failed(e)) => Some(format!("{}", e.kind)),
+                        _ => None,
+                    })
+                    .unwrap_or_default();
+                let s = spans(&ev);
+                (crate::r1_dual_probes::eval_deep(&ev), s, fails)
+            });
+        println!(
+            "REVIEW-E2E {name}: f64 deep {:016x} arcs {} spans {:016x} | dual deep {:016x} arcs {} spans {:016x} | sym<iv> {which} deep {sdeep:016x} arcs {} spans {:016x} first-fail [{}] | receipt {counts:?}",
+            f.0,
+            f.1,
+            f.2,
+            d.0,
+            d.1,
+            d.2,
+            ss.len(),
+            fnv(&ss),
+            &fails[..fails.len().min(120)]
+        );
+        for s in ss.iter().take(3) {
+            println!("REVIEW-E2E {name}:   sym<iv> {which} span {s}");
+        }
     }
 }
 
@@ -109,6 +125,14 @@ fn review_decide_5_value_channel_of_both_signs() {
             line(&name, &doc, tol);
         }
     }
-    line("r2_link", &crate::m10_9_r2_probes_interval::link(1.0, tol).0, tol);
-    line("plate", &crate::m10_7_plate::plate(5.0e-5, 1.0e-5, tol).0, tol);
+    line(
+        "r2_link",
+        &crate::m10_9_r2_probes_interval::link(1.0, tol).0,
+        tol,
+    );
+    line(
+        "plate",
+        &crate::m10_7_plate::plate(5.0e-5, 1.0e-5, tol).0,
+        tol,
+    );
 }

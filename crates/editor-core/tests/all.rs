@@ -430,12 +430,12 @@ mod placedunion_wire;
 #[path = "props_verdict_shapes.rs"]
 mod props_verdict_shapes;
 
+#[path = "decide_5_review_probes_interval.rs"]
+mod decide_5_review_probes_interval;
 #[path = "r1_bool11_ec_probe.rs"]
 mod r1_bool11_ec_probe;
 #[path = "r1_dual_probes.rs"]
 mod r1_dual_probes;
-#[path = "decide_5_review_probes_interval.rs"]
-mod decide_5_review_probes_interval;
 #[path = "r1_m10_1_corruptions.rs"]
 mod r1_m10_1_corruptions;
 #[path = "r1_m10_1_probes.rs"]
