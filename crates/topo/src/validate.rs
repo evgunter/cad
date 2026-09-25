@@ -802,8 +802,9 @@ pub enum ValidationError {
     /// its variant's convention — a cylinder or sphere radius, or a
     /// torus tube radius, that is not definitely positive, or a cone
     /// half-angle not definitely inside `(0, π/2)`
-    /// ([`geom::Surface::representability_margins`], where each bound is
-    /// written once).
+    /// ([`geom::Surface::representability_margins`], the one place in
+    /// code the at-rest bounds are computed; that door says where else
+    /// they are stated).
     ///
     /// **Refused on representability, the torus ring convention's
     /// reason**: such a datum describes no 2-manifold a face can bound

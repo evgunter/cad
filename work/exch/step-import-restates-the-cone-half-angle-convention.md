@@ -12,8 +12,8 @@ refs: [ATREST-6]
 ## What
 
 `geom::Surface::representability_margins` (`crates/geom/src/surfaces.rs`)
-is now the one place each analytic kind's datum convention bound is
-written — for the cone, `half_angle` and `π/2 − half_angle`, both
+computes each analytic kind's datum convention bound for the at-rest
+check — for the cone, `half_angle` and `π/2 − half_angle`, both
 required positive — and tier 3's check 1 reads it
 (`ValidationError::UnrepresentableSurfaceDatum`,
 `crates/topo/src/validate.rs`).
