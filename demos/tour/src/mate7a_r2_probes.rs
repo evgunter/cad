@@ -50,11 +50,14 @@ fn aabb(pts: &[Point3<f64>]) -> ([f64; 3], [f64; 3]) {
 
 /// **R2-1: re-measure lily wall 1 from the scene itself.**
 ///
-/// Prints the four things PR #1477's deviation 1 rested on: which pair
-/// the gate names, the two exact loci's separation, the two tube
-/// radii, and what box overlaps. The assertion is on the CURRENT
-/// reading — a weld pair at the annular gap — because the whole-ring
-/// box the deviation measured is gone.
+/// PR #1477's deviation 1 measured the gate's named pair at 2.08 m, an
+/// artefact of the stem wall's whole-ring box. Two things have moved
+/// since: the box is the wall's own chart window, and the torus is on
+/// the operand gate's KIND roster, so the gate names no pair. Wall 1
+/// now stops at the crossing layer, on one of the stem's EDGES against
+/// one of the arch's faces. This row prints both and asserts the pair
+/// is a real approach — the weld's annular gap — rather than an
+/// artefact of anything.
 #[test]
 fn r2_lily_wall_one_remeasured() {
     let tol = Tol::witness();
@@ -64,46 +67,35 @@ fn r2_lily_wall_one_remeasured() {
 
     let err = crate::booleans::try_union_declared(stem, arch, tol).expect_err("wall 1 refuses");
     println!("R2 wall-1 refusal: {err:?}");
-    let BooleanError::CurvedPairUnsupported {
+    let BooleanError::CurvedPierceUnsupported {
         operand,
         face,
-        kind,
-        other_face,
-        other_kind,
+        edge,
         ..
     } = err
     else {
-        panic!("expected the operand gate's refusal")
+        panic!("expected the crossing layer's curved-pierce refusal: {err:?}")
     };
-    println!("R2 named pair: operand={operand:?} kind={kind:?} other_kind={other_kind:?}");
-
-    // The two surfaces the gate named.
-    let sa = stem
-        .get_face(face)
-        .and_then(|f| stem.get_surface(f.surface))
-        .expect("stem face surface");
+    assert_eq!(operand, pncad::topo::Operand::A, "the stem's edge crosses");
     let sb = arch
-        .get_face(other_face)
+        .get_face(face)
         .and_then(|f| arch.get_surface(f.surface))
         .expect("arch face surface");
-    println!("R2 stem face surface: {sa:?}");
+    let curve = stem
+        .get_edge(edge)
+        .and_then(|e| stem.get_curve_geom(e.curve))
+        .and_then(|c| c.certified())
+        .expect("stem edge curve");
     println!("R2 arch face surface: {sb:?}");
+    println!("R2 stem edge carrier: {:?}", curve.carrier());
 
-    // Every torus tube radius on each body.
-    let minors = |b: &Body<f64>| {
-        b.faces()
-            .filter_map(|(_, f)| match b.get_surface(f.surface) {
-                Some(&pncad::geom::Surface::Torus { minor_radius, .. }) => Some(minor_radius),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-    };
-    println!("R2 stem tube radii: {:?}", minors(stem));
-    println!("R2 arch tube radii: {:?}", minors(arch));
-
-    // The EXACT loci, sampled off the tessellation of each named face.
-    let pa = face_points(stem, face, 2e-3);
-    let pb = face_points(arch, other_face, 2e-3);
+    // The stem EDGE, sampled along its own span, against the arch
+    // face's points off its tessellation.
+    let (t0, t1) = curve.params();
+    let pa: Vec<Point3<f64>> = (0..=400)
+        .map(|i| curve.carrier().eval(t0 + (t1 - t0) * f64::from(i) / 400.0))
+        .collect();
+    let pb = face_points(arch, face, 2e-3);
     let mut best = f64::INFINITY;
     for x in &pa {
         for y in &pb {
@@ -115,48 +107,25 @@ fn r2_lily_wall_one_remeasured() {
         pa.len(),
         pb.len()
     );
-    println!("R2 stem face AABB: {:?}", aabb(&pa));
+    println!("R2 stem edge AABB: {:?}", aabb(&pa));
     println!("R2 arch face AABB: {:?}", aabb(&pb));
-
-    // The WHOLE-TORUS box of the stem's named face, computed here from
-    // the stored carrier alone (what a boundary-blind box would be).
-    if let pncad::geom::Surface::Torus {
-        center,
-        axis,
-        major_radius,
-        minor_radius,
-        ..
-    } = *sa
-    {
-        let r = major_radius + minor_radius;
-        println!(
-            "R2 whole-torus carrier box (centre {center:?}, axis {axis:?}): \
-             ring extent ±{r} about the centre in the ring plane, ±{minor_radius} along the axis"
-        );
-    }
-
-    // **The re-aim, pinned.** PR #1477's deviation 1 measured this
-    // pair at 2.08 m — the arch's FAR cap, inside the stem wall's
-    // whole-RING box and nowhere near its locus. With the wall boxed
-    // by the chart window its own boundary states, the gate names a
-    // WELD pair instead, and that pair is a real approach: the stem
-    // tube's end circle (radius 0.060) against the arch's start disc
-    // (radius 0.052), concentric and coplanar, so the two loci stand
-    // 0.008 m apart. `docs/CURVED-TORUS-SPEC.md` §R3 is why no box can
-    // retire the refusal: every AABB of that circle contains that
-    // disc.
+    assert!(
+        matches!(sb, pncad::geom::Surface::Torus { .. }),
+        "R2: the pierced arch face is its tube wall"
+    );
     assert!(
         best < 0.02,
-        "R2: the named pair is now the weld's annular gap, not the 2.08 m far-cap \
-         box artifact; measured {best}"
+        "R2: the refusing pair is a real approach at the weld, measured {best}"
     );
 }
 
-/// **R2-2: which planar face of the arch does the gate name?**
+/// **R2-2: the arch's far cap exists, and nothing names it.**
 /// Prints every planar face of the arch with its origin so the
 /// identification can be checked rather than assumed — and asserts
 /// unconditionally that the far cap EXISTS, so a `find` that misses
-/// cannot make a row vacuous. The named face is no longer that cap.
+/// cannot make a row vacuous. The gate names no pair now (the torus is
+/// on its roster), and the refusal wall 1 does raise is a curved
+/// pierce, which never names a planar cap.
 #[test]
 fn r2_the_arch_far_cap_identification_is_not_conditional() {
     let tol = Tol::witness();
@@ -184,12 +153,16 @@ fn r2_the_arch_far_cap_identification_is_not_conditional() {
         "R2: the shipped row's `find` must actually hit, or its assert_eq never runs"
     );
     let err = crate::booleans::try_union_declared(stem, arch, tol).expect_err("wall 1 refuses");
-    let BooleanError::CurvedPairUnsupported { other_face, .. } = err else {
-        panic!("expected the gate")
-    };
     println!(
-        "R2 named other_face {other_face:?}; far cap {:?}",
+        "R2 wall-1 refusal {err:?}; far cap {:?}",
         far.map(|(k, _, _)| *k)
+    );
+    let BooleanError::CurvedPierceUnsupported { face, .. } = err else {
+        panic!("expected the crossing layer's refusal: {err:?}")
+    };
+    assert!(
+        planes.iter().all(|(k, _, _)| *k != face),
+        "R2: the pierced face is no planar cap of the arch"
     );
 }
 

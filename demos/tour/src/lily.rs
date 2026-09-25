@@ -1980,31 +1980,23 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    an exact coincident planar contact, the crosslap mate — so
     //    the glue is the M5 S1 declared REST zip if it reaches it.
     //
-    //    M9-3 opened the declared-contact door to the
-    //    plane/sphere/cylinder carrier inventory. The TORUS is not in
-    //    that inventory, and this wall is the
-    //    named residue of the ruling that decided so — banked as
-    //    **#968**: the torus declared-Rest lane wants gate admission
-    //    at the operand scan, a torus rung in `carrier_eq` so the
-    //    declared descent has a verdict to consume, and a vocabulary
-    //    for the torus × torus tangency at the shared rim circle,
-    //    which the DEV-1 witness loci (plane × cylinder, parallel
-    //    cylinders) do not cover.
+    //    The torus is on the operand gate's KIND roster now, so the
+    //    glue is no longer the gate's to refuse. It reaches the
+    //    crossing layer and stops at the circle rung: the stem's inner
+    //    equator seam against the arch's tube wall, a circle×torus pair
+    //    with no root lane and no declaration to cover it — the stem
+    //    glue's door (b) in `work/germ/torus-operand-gate-admission`.
     wall(
         1,
         "glue the two stem arcs into one stem (declared coincident-planar mate)",
         crate::booleans::try_union_declared(stem, arch, tol),
-        // The KIND is the claim: the refusal names a TORUS face, i.e.
-        // the tangent tube walls, not the coincident planar discs.
+        // The stem's EDGE crossing the arch's wall: the curved-pierce
+        // frontier, not the gate and not the planar weld discs.
         |e| {
-            // Reviewer pin (r1 probes): PR body claims (Torus, Plane).
             matches!(
                 e,
-                BooleanError::CurvedPairUnsupported {
-                    op: None,
+                BooleanError::CurvedPierceUnsupported {
                     operand: Operand::A,
-                    kind: SurfaceKind::Torus,
-                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             )
@@ -3986,94 +3978,60 @@ mod verbs_gate_r1_probes {
         let glued = crate::booleans::try_union_declared(stem, arch, tol)
             .expect_err("the stem's two arcs still cannot be glued");
         println!("lily wall 1: {glued:?}");
-        assert!(
-            matches!(
-                glued,
-                BooleanError::CurvedPairUnsupported {
-                    op: None,
-                    operand: Operand::A,
-                    kind: SurfaceKind::Torus,
-                    ..
-                }
-            ),
-            "wall 1 must name the stem's tube wall against a face of the arch: \
-             {glued:?}"
-        );
-        // **What this pair is, measured.** The stem's tube wall is
-        // boxed by the window its own boundary states — a 22° arc of
-        // the 5 m ring rather than the whole 10 m ring — so the arch's
-        // FAR cap, whose exact locus is 2.08 m from anything the stem
-        // occupies, no longer shares a box with it. What the gate
-        // names now is a WELD pair, and it is a real approach: the
-        // stem tube's end circle has radius `STEM_R` = 0.060 and the
-        // arch's start disc radius `ARCH_R` = 0.052, concentric and
-        // coplanar on the weld plane, so the two loci stand
-        // `0.060 − 0.052 = 0.008 m` apart.
-        //
-        // **The refusal is NOT retired by the tighter box, and cannot
-        // be** (`docs/CURVED-TORUS-SPEC.md` §R3): a disc concentric
-        // and coplanar with a larger circle lies inside every AABB of
-        // that circle, so the stem's wall box meets the arch's weld
-        // faces under any sound box whatever. `Torus` is not on
-        // `boolean_arm_exists`, so the operand gate refuses on the
-        // first overlapping pair in arena order. Retiring wall 1 needs
-        // the KIND admitted, which is `work/curved/`'s
-        // `torus-operand-gate-admission` after the circle-residual
-        // torus arm — not a box.
-        //
-        // The arch's cap planes, named by position: the far cap is
-        // the disc more than 2 m from the world origin (where the stem
-        // starts); the other is the weld disc at the fork.
-        let cap = |far: bool| {
-            arch.faces()
-                .filter_map(|(k, f)| match arch.get_surface(f.surface) {
-                    Some(&Surface::Plane { origin, .. }) => Some((k, origin)),
-                    _ => None,
-                })
-                .find(|&(_, o)| ((o - pncad::geom_core::Point3::origin()).norm() > 2.0) == far)
-                .unwrap_or_else(|| {
-                    panic!(
-                        "the arch carries {} cap",
-                        if far { "a far" } else { "a weld" }
-                    )
-                })
-        };
-        // Unconditional on both halves. Under an `if let` this row
-        // SELF-DISABLES the moment the refusal's shape changes — which
-        // is exactly when the claim it makes needs re-reading, so the
-        // one arrangement that must not be used is the one that goes
-        // quiet then.
-        let BooleanError::CurvedPairUnsupported {
-            other_face,
-            other_kind,
+        // **Wall 1 is past the gate.** The torus is on the KIND roster,
+        // so the stem glue reaches the crossing layer, where the stem's
+        // INNER equator seam — the circle of radius `5 − STEM_R` about
+        // the stem's ring centre — meets the arch's tube wall at the
+        // circle rung: a circle×torus pair with no root lane and no
+        // declaration to cover it. Unconditional: an `if let` here
+        // would go quiet exactly when the refusal's shape changes.
+        let BooleanError::CurvedPierceUnsupported {
+            operand: Operand::A,
+            face,
+            edge,
             ..
         } = &glued
         else {
-            panic!("wall 1's refusal is the operand gate's, or this reading is stale: {glued:?}");
+            panic!("wall 1 is the stem's seam against the arch's wall: {glued:?}");
         };
-        assert_eq!(
-            *other_kind,
-            SurfaceKind::Plane,
-            "the named arch face is the weld DISC: {glued:?}"
+        assert!(
+            matches!(
+                arch.get_face(*face)
+                    .and_then(|f| arch.get_surface(f.surface)),
+                Some(Surface::Torus { .. })
+            ),
+            "the pierced face is the arch's tube wall: {glued:?}"
         );
-        assert_ne!(
-            *other_face,
-            cap(true).0,
-            "the box artifact is what this unit removed: wall 1 must no longer name the \
-             arch's far cap, 2.08 m from anything the stem occupies: {glued:?}"
+        let seam = stem
+            .get_edge(*edge)
+            .and_then(|e| stem.get_curve_geom(e.curve))
+            .and_then(|c| c.certified())
+            .map(|c| c.carrier().clone());
+        let Some(pncad::geom::Curve3::Circle { center, radius, .. }) = seam else {
+            panic!("the crossing edge is a circle of the stem: {seam:?}");
+        };
+        assert!((center - pncad::geom_core::Point3::new(-5.0, 0.0, 0.0)).norm() < 1e-12);
+        assert!(
+            (radius - (5.0 - STEM_R)).abs() < 1e-12,
+            "the inner equator: {radius}"
         );
-        assert_eq!(
-            *other_face,
-            cap(false).0,
-            "wall 1 names the arch's START cap — the weld disc: {glued:?}"
-        );
-        // The separation, COMPUTED off the two loci the pair names —
-        // the spelling `mate7a_r1_probes::dist_to_stem_center_arc`
-        // uses, on the disc the gate actually named. The stem's tube
-        // wall is `STEM_R` from its 22° spine arc, so a point's
-        // distance to that wall is its distance to the arc minus
-        // `STEM_R`.
-        let weld = cap(false).1;
+        // **The weld itself has no torus contact to declare**, measured
+        // off the two loci: the stem tube's end circle has radius
+        // `STEM_R` = 0.060 and the arch's start disc radius `ARCH_R` =
+        // 0.052, concentric and coplanar on the weld plane, so the two
+        // stand `0.060 − 0.052 = 0.008 m` apart.
+        //
+        // The arch's cap planes, named by position: the weld disc is
+        // the one within 2 m of the world origin (where the stem
+        // starts).
+        let weld = arch
+            .faces()
+            .filter_map(|(_, f)| match arch.get_surface(f.surface) {
+                Some(&Surface::Plane { origin, .. }) => Some(origin),
+                _ => None,
+            })
+            .find(|&o| (o - pncad::geom_core::Point3::origin()).norm() <= 2.0)
+            .expect("the arch carries a weld cap");
         let ring_c = pncad::geom_core::Point3::new(-5.0, 0.0, 0.0);
         let to_stem_wall = |p: pncad::geom_core::Point3<f64>| {
             let rel = p - ring_c;
@@ -4105,8 +4063,7 @@ mod verbs_gate_r1_probes {
         }
         assert!(
             (sep - (STEM_R - ARCH_R)).abs() < 1e-6,
-            "the named pair's true separation is the weld's annular gap \
-             {}, measured {sep}",
+            "the weld's true separation is its annular gap {}, measured {sep}",
             STEM_R - ARCH_R
         );
 

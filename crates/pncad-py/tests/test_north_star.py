@@ -2901,7 +2901,7 @@ class TestTeapot(unittest.TestCase):
             )
         )
 
-        # ---- the two joins the operand gate has no arm for ----
+        # ---- the two joins, both refused ----
         joins = [
             doc.insert(Node.boolean(BooleanOp.Union, cup, handle)),
             doc.insert(Node.boolean(BooleanOp.Union, cup, spout)),
@@ -3232,27 +3232,22 @@ class TestTeapot(unittest.TestCase):
         doc = Doc()
         *_rest, joins = self.teapot(doc)
         ev = evaluate(doc)
-        # **TWO DIFFERENT RUNGS of the operand gate, and the second one
-        # moved when the spout became a canal.**
+        # **TWO DIFFERENT DOORS, each of which has moved.**
         handle_join, spout_join = joins
 
-        # handle union vessel: the PAIR rung — a germ pair (torus x
-        # sphere) with no wired arm. Note what it NAMES rather than
-        # what causes it: the gate is pair-scoped and box-conservative,
-        # so it reports the first pair whose boxes MAY meet (the
-        # scene's wall-7 lesson).
+        # handle union vessel: PAST the operand gate, because the
+        # handle's torus is on the union's kind roster — and dead at
+        # the maximal-faces precondition, on the VESSEL, whose full
+        # revolve mints its planar walls split in two.
         self.assertFalse(ev.succeeded(handle_join))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(handle_join)
         refusal = caught.exception
         self.assertEqual(refusal.kind, "boolean")
         text = str(refusal)
-        # The PAIR sentence, whole: it names the torus face and the
-        # sphere face it may meet, in that order, each by its operand.
         self.assertRegex(
             text,
-            r"the (first|second) operand's torus face may meet "
-            r"the (first|second) operand's sphere face",
+            r"the first operand has two neighbouring faces that lie on one surface",
         )
 
         # spout union vessel: PAST the pair rung, because a loft's
