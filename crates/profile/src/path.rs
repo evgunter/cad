@@ -358,7 +358,6 @@
 //! let again = path.line_to(Start);
 //! ```
 
-use crate::RawLoop;
 use core::marker::PhantomData;
 
 use geom_core::k_stats::decide;
@@ -367,6 +366,7 @@ use geom_core::{
     Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2, is_finite_length,
 };
 
+use crate::ProfileLoop;
 use crate::path::program::{ClosedLoop, Step, Target};
 use crate::seg;
 use crate::sugar::{
@@ -378,7 +378,6 @@ use crate::validate::{
     FILLET_STORED_FORM_INBAND_RECOURSE, FilletLeg, FilletLegCarrier, NoCornerReason,
     fillet_recourse_for,
 };
-use crate::{ProfileLoop, ProfileVertex};
 
 /// The arc-carrier fillet boundary — the algebra's derived-corner
 /// resolution and the lifted S8 ladder (LIB-G2 §3b). It is a separate
@@ -2255,7 +2254,7 @@ struct PendingMeta<T: Real> {
 #[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct Core<T: Real> {
-    verts: Vec<ProfileVertex<T>>,
+    verts: Vec<(Point2<T>, T)>,
     tangent: Vec<usize>,
     start_pos: Option<Point2<T>>,
     start_ang: Option<Dir<T>>,
@@ -2387,7 +2386,7 @@ impl<T: Real> Core<T> {
     /// Seeds the entry vertex (the chain's provisional first vertex —
     /// a seam fillet may later retrim it to the seam arc's end).
     fn seed(&mut self, p: Point2<T>) {
-        self.verts.push(ProfileVertex::new(p, T::zero()));
+        self.verts.push((p, T::zero()));
         self.start_pos = Some(p);
     }
 
@@ -2399,8 +2398,8 @@ impl<T: Real> Core<T> {
             self.first_seg = kind;
         }
         match self.verts.last_mut() {
-            Some(v) => {
-                *v = ProfileVertex::new(v.pos(), bulge);
+            Some((_, leaving)) => {
+                *leaving = bulge;
                 Ok(())
             }
             None => Err(PathError::UnderdeterminedLeg {
@@ -2412,7 +2411,7 @@ impl<T: Real> Core<T> {
     /// Appends a straight segment to `p` (the raw `line_to`).
     fn push_line(&mut self, p: Point2<T>) -> Result<(), PathError<T>> {
         self.set_leaving(T::zero(), FirstSeg::Line)?;
-        self.verts.push(ProfileVertex::new(p, T::zero()));
+        self.verts.push((p, T::zero()));
         Ok(())
     }
 
@@ -2421,7 +2420,7 @@ impl<T: Real> Core<T> {
     /// about an emitted arc beyond the tip's own incoming data.
     fn push_arc(&mut self, p: Point2<T>, bulge: T) -> Result<(), PathError<T>> {
         self.set_leaving(bulge, FirstSeg::Arc)?;
-        self.verts.push(ProfileVertex::new(p, T::zero()));
+        self.verts.push((p, T::zero()));
         Ok(())
     }
 
@@ -2429,7 +2428,7 @@ impl<T: Real> Core<T> {
     fn head(&self) -> Result<Point2<T>, PathError<T>> {
         self.verts
             .last()
-            .map(|v| v.pos)
+            .map(|&(pos, _)| pos)
             .ok_or(PathError::UnderdeterminedLeg {
                 site: "head of an empty chain",
             })
@@ -2957,8 +2956,8 @@ impl<T: Decide> Core<T> {
         let n = self.verts.len();
         for &(leaving, radius) in &self.fillet_arcs {
             let stored = |i: usize| {
-                let (v, end) = (self.verts[i], self.verts[(i + 1) % n].pos());
-                seg::build_seg(v.pos(), end, v.lower_to(end), v.bulge(), band)
+                let ((start, bulge), end) = (self.verts[i], self.verts[(i + 1) % n].0);
+                seg::build_seg(start, end, crate::lower_to(start, bulge, end), bulge, band)
             };
             // A recorded index always names a vertex of the chain it was
             // recorded on: `record_fillet_arc` reads `verts.len() - 1`
@@ -2972,7 +2971,7 @@ impl<T: Decide> Core<T> {
                 .ok_or(PathError::UnderdeterminedLeg {
                     site: "a recorded fillet arc outside the chain it was recorded on",
                 })?;
-            let bulge = self.verts[leaving].bulge();
+            let bulge = self.verts[leaving].1;
             let turn = T::from_f64(4.0) * bulge.atan();
             let flattened =
                 |predicate: &'static str, margin: T| PathError::FilletArcFlattenedInStorage {
@@ -3113,7 +3112,7 @@ impl<T: Decide> Core<T> {
                 self.set_leaving(trims.bulge, FirstSeg::Arc)?;
                 debug_assert_eq!(leaving, self.verts.len() - 1, "{PAIRED}");
                 match self.verts.first_mut() {
-                    Some(v0) => v0.pos = trims.t2,
+                    Some((v0, _)) => *v0 = trims.t2,
                     None => {
                         return Err(PathError::UnderdeterminedLeg {
                             site: "seam fillet on an empty chain",
@@ -3263,7 +3262,7 @@ impl<T: Decide> Core<T> {
         if kind == ArrivalKind::Seam {
             self.set_leaving(trims.bulge, FirstSeg::Arc)?;
             match self.verts.first_mut() {
-                Some(v0) => v0.pos = trims.t2,
+                Some((v0, _)) => *v0 = trims.t2,
                 None => {
                     return Err(PathError::UnderdeterminedLeg {
                         site: "seam fillet on an empty chain",
@@ -3347,8 +3346,8 @@ impl<T: Decide> Core<T> {
     /// what a hand author drawing the leg long would have written.
     fn extend_leg_to(&mut self, t1: Point2<T>) -> Result<(), PathError<T>> {
         match self.verts.last_mut() {
-            Some(v) => {
-                v.pos = t1;
+            Some((v, _)) => {
+                *v = t1;
                 Ok(())
             }
             None => Err(PathError::UnderdeterminedLeg {
@@ -3375,13 +3374,13 @@ impl<T: Decide> Core<T> {
         let from = n
             .checked_sub(2)
             .and_then(|i| self.verts.get(i))
-            .map(|v| v.pos)
+            .map(|&(pos, _)| pos)
             .ok_or(PathError::UnderdeterminedLeg {
                 site: "arc extension without an incoming segment",
             })?;
         let bulge = bulge_from_center(from, t1, centre, sweep);
-        self.verts[n - 2] = ProfileVertex::new(from, bulge);
-        self.verts[n - 1].pos = t1;
+        self.verts[n - 2] = (from, bulge);
+        self.verts[n - 1].0 = t1;
         Ok(())
     }
 
@@ -3573,10 +3572,13 @@ fn circle_kernel<T: Decide>(
         Ok(_) => return Err(PathError::NonpositiveCircleRadius { radius }),
         Err(source) => return Err(PathError::Escalated { source }),
     }
-    Ok(ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(center.x + radius, center.y), T::one()),
-        ProfileVertex::new(Point2::new(center.x - radius, center.y), T::one()),
-    ]))
+    Ok(ProfileLoop::lower(
+        &[
+            (Point2::new(center.x + radius, center.y), T::one()),
+            (Point2::new(center.x - radius, center.y), T::one()),
+        ],
+        Vec::new(),
+    ))
 }
 
 /// The kernel behind the table's split-circle row: the lowered loop
@@ -3599,17 +3601,17 @@ fn circle_split_kernel<T: Decide>(
     }
     let n_t = T::from_f64(n as f64);
     let bulge = (T::pi() / (T::from_f64(2.0) * n_t)).tan();
-    let vertices = (0..n)
+    let chain: Vec<(Point2<T>, T)> = (0..n)
         .map(|k| {
             let theta = phase + T::from_f64(2.0) * T::pi() * T::from_f64(k as f64) / n_t;
             let (s, c) = theta.sin_cos();
-            ProfileVertex::new(
+            (
                 Point2::new(center.x + radius * c, center.y + radius * s),
                 bulge,
             )
         })
         .collect();
-    Ok(ProfileLoop::new(vertices))
+    Ok(ProfileLoop::lower(&chain, Vec::new()))
 }
 
 impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
