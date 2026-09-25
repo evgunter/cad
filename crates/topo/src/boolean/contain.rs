@@ -693,6 +693,27 @@ pub fn curved_face_containment<T: Decide>(
             axis,
             u_ref,
         }) => return sphere_face_containment(body, face, center, radius, axis, u_ref, q, band),
+        Some(&geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        }) => {
+            return torus_face_containment(
+                body,
+                face,
+                TorusChart {
+                    center,
+                    axis,
+                    major_radius,
+                    minor_radius,
+                    u_ref,
+                },
+                q,
+                band,
+            );
+        }
         _ => return Ok(None),
     };
     // ON THE CHART FIRST. The trim below is parameter-domain work and
@@ -809,6 +830,105 @@ fn sphere_face_containment<T: Decide>(
     }
     match super::solid_contain::point_on_sphere_in_face(
         face, center, radius, axis, u_ref, &trim, q, band,
+    ) {
+        Ok(Some(true)) => Ok(Some(FaceContainment::In)),
+        Ok(Some(false)) => Ok(Some(FaceContainment::Out)),
+        Ok(None) => Ok(None),
+        Err(e) => Err(solid_err(e)),
+    }
+}
+
+/// One torus carrier's chart data, as [`torus_face_containment`] reads it.
+struct TorusChart<T: geom_core::Real> {
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major_radius: T,
+    minor_radius: T,
+    u_ref: Vec3<T>,
+}
+
+/// The TORUS chart's arm of [`curved_face_containment`], reached after
+/// the shared boundary walk and the ring test.
+///
+/// The same three steps as the cylinder and sphere arms, in the same
+/// order and for the same reasons: the CARRIER first (the point's
+/// elevation off the tube, `√((ρ − R)² + h²) − r`, which is exact
+/// distance to a ring torus), then the chart trim, then membership in
+/// it. The trim and the membership test are the solid door's own
+/// ([`super::solid_contain::torus_face_windows`],
+/// [`super::solid_contain::point_on_torus_in_face`]), so the face-level
+/// and solid-level doors cannot disagree about which chart points a
+/// torus face holds.
+///
+/// **What differs from the solid door is the question.** The solid door
+/// asks about a closed group's UNION and lets its representative answer
+/// for every member; this door is asked about ONE face, so it reads
+/// that face's own windows whatever group it sits in — a donut's two
+/// faces each wrap the major azimuth and split the minor angle, and
+/// each window answers for its own face alone.
+///
+/// The remainder, per case:
+///
+/// - A face whose own windows the walk **cannot pin**, or cannot take at
+///   all, is the honest remainder rather than corruption of the
+///   caller's query, as in the cylinder arm. `None`.
+/// - A **wrapped** coordinate is NOT a remainder here, unlike the
+///   cylinder arm's full-period guard. The torus walk reports a wrap as
+///   no window at all, and on a ring torus that is evidence (the chart
+///   has no singular junction at which the walk could lose an edge), so
+///   there is no cosine comparison to run in that coordinate and no
+///   period for it to be ambiguous over. A face wrapping BOTH is
+///   refused by the walk itself.
+/// - A **graze** on a window edge that the boundary walk did not place
+///   ON a vertex or an edge is `None`, as everywhere in this door.
+fn torus_face_containment<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    chart: TorusChart<T>,
+    q: Point3<T>,
+    band: Band,
+) -> Result<Option<FaceContainment>, ContainError> {
+    let TorusChart {
+        center,
+        axis,
+        major_radius,
+        minor_radius,
+        u_ref,
+    } = chart;
+    let w = q - center;
+    let h = w.dot(axis);
+    let rho = (w - axis * h).norm();
+    let elevation = ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius;
+    match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
+        Ok(Sign::Zero) => {}
+        Ok(Sign::Positive | Sign::Negative) => return Ok(Some(FaceContainment::Out)),
+        Err(diag) => return Err(ContainError::Escalated(diag)),
+    }
+    let (u_win, v_win) = match super::solid_contain::torus_face_windows(
+        body,
+        face,
+        major_radius,
+        minor_radius,
+        band,
+    ) {
+        Ok(w) => w,
+        Err(
+            super::solid_contain::PointInSolidError::PartialTorusFace { .. }
+            | super::solid_contain::PointInSolidError::CorruptFace { .. },
+        ) => return Ok(None),
+        Err(e) => return Err(solid_err(e)),
+    };
+    match super::solid_contain::point_on_torus_in_face(
+        face,
+        center,
+        axis,
+        major_radius,
+        minor_radius,
+        u_ref,
+        u_win,
+        v_win,
+        q,
+        band,
     ) {
         Ok(Some(true)) => Ok(Some(FaceContainment::In)),
         Ok(Some(false)) => Ok(Some(FaceContainment::Out)),

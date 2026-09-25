@@ -17,7 +17,8 @@
 //!    face's outward normal **at the base vertex**, which for a charted
 //!    face is a local quantity: a plane hands back its stored normal, a
 //!    cylinder its chart-outward radial at the vertex point, a sphere
-//!    the radial from its centre.
+//!    the radial from its centre, a torus the offset from the vertex's
+//!    foot on its core circle.
 //!
 //! **Every arm folds in the face's `sense` bit** (S10) by minting an
 //! [`OutwardNormal`]: each reads a CHART normal and returns it as the
@@ -79,6 +80,9 @@ pub(crate) enum SectorCarrier {
     Cylinder,
     /// A sphere: the normal is the radial from the centre.
     Sphere,
+    /// A ring torus: the normal is the point minus its foot on the
+    /// core circle.
+    Torus,
 }
 
 /// The resolved sector face.
@@ -190,6 +194,26 @@ pub(crate) fn resolve<T: Decide>(
         geom::Surface::Sphere { center, .. } => {
             charted((point()? - *center).normalize(), SectorCarrier::Sphere)
         }
+        // The chart normal of a ring torus at `p` is `p` minus its foot
+        // on the core circle — the circle of radius `major_radius` in
+        // the plane through `center` normal to `axis`. The foot is
+        // `center + R·r̂` with `r̂` the unit radial of `p`, which is
+        // defined because a point ON a ring torus sits at `ρ ≥ R − r > 0`
+        // from the axis (the ring convention tier-3 check 1 enforces at
+        // rest); `p − foot` then has length `r`.
+        geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            ..
+        } => {
+            let w = point()? - *center;
+            let radial = w - *axis * w.dot(*axis);
+            charted(
+                (w - radial.normalize() * *major_radius).normalize(),
+                SectorCarrier::Torus,
+            )
+        }
         // The planar arm returned above; anything else has no arm.
         s => Err(SectorFaceError::Unsupported {
             face,
@@ -277,5 +301,59 @@ mod tests {
         let resolved = resolve(&body, vertex, orbit_he).expect("the sphere arm resolves");
         assert_eq!(resolved.carrier, SectorCarrier::Sphere);
         assert_eq!(resolved.face, face);
+    }
+
+    /// **The torus arm answers the tube's outward normal at the base
+    /// vertex.** A torus is installed on a prism side face so that one
+    /// of the face's vertices sits on the tube at a general minor angle
+    /// `v`; the chart normal there is `cos v·x̂ + sin v·ẑ` (the offset
+    /// from the vertex's foot on the core circle, over `r`). The pose
+    /// separates it from both wrong constructions a torus arm could
+    /// fall into — the axis radial (`x̂`, a cylinder's) and the offset
+    /// from the centre (a sphere's) — and the face's sense bit is
+    /// folded exactly once.
+    #[test]
+    fn the_torus_arm_is_the_tube_normal_at_the_base_vertex() {
+        let p = raw_prism(3, Tol::witness());
+        let face = p.face_side[0];
+        let mut body = p.body;
+        let he = body
+            .get_loop(body.get_face(face).unwrap().outer)
+            .and_then(|l| match l.boundary {
+                crate::entity::LoopBoundary::Cycle { first } => Some(first),
+                crate::entity::LoopBoundary::Empty { .. } => None,
+            })
+            .unwrap();
+        let orbit_he = body.mate(he).unwrap();
+        let vertex = body.get_half_edge(orbit_he).unwrap().start;
+        let at = *body
+            .get_point(body.get_vertex(vertex).unwrap().point)
+            .unwrap();
+        let (big_r, r, v) = (2.0, 0.5, 2.3_f64);
+        let (sv, cv) = v.sin_cos();
+        let x = geom_core::Vec3::new(1.0, 0.0, 0.0);
+        let z = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        let center = at - x * (big_r + r * cv) - z * (r * sv);
+        body.set_face_surface(
+            face,
+            crate::FaceSurface::New(geom::Surface::Torus {
+                center,
+                axis: z,
+                major_radius: big_r,
+                minor_radius: r,
+                u_ref: x,
+            }),
+        )
+        .unwrap();
+        let resolved = resolve(&body, vertex, orbit_he).expect("the torus arm resolves");
+        assert_eq!(resolved.carrier, SectorCarrier::Torus);
+        assert_eq!(resolved.face, face);
+        let tube = x * cv + z * sv;
+        let want = OutwardNormal::from_chart(tube, body.get_face(face).unwrap().sense).vec();
+        assert!(
+            (resolved.normal.vec() - want).norm() < 1e-12,
+            "{:?} is not the tube's outward normal {want:?}",
+            resolved.normal.vec()
+        );
     }
 }

@@ -1155,6 +1155,37 @@ pub(super) fn torus_chart_trim<T: Decide>(
     {
         return Ok((None, None, group.representative));
     }
+    let (u, v) = torus_face_windows(body, face, major_radius, minor_radius, band)?;
+    Ok((u, v, face))
+}
+
+/// **One torus face's own chart windows** — the windowed class of
+/// [`torus_chart_trim`], answered for the face whatever group it sits
+/// in. `(major window, minor window)`, each `None` where the face wraps
+/// that coordinate.
+///
+/// The solid door reads it only for a face OUTSIDE a closed group,
+/// because there the group's union is the question and its
+/// representative answers for every member. A face-scoped caller asks
+/// the other question — which chart points does THIS face hold — and a
+/// closed group's member has windows of its own that answer it (the
+/// donut's two faces each wrap the major azimuth and split the minor
+/// angle between them). Every guard below is a property of the face's
+/// own boundary walk, so nothing in it depends on the group.
+///
+/// # Errors
+///
+/// As [`torus_chart_trim`]: [`PointInSolidError::CorruptFace`],
+/// [`PointInSolidError::PartialTorusFace`] for a face whose own windows
+/// the walk cannot pin, [`PointInSolidError::Escalated`].
+#[allow(clippy::type_complexity)] // the two windows of one face
+pub(super) fn torus_face_windows<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    major_radius: T,
+    minor_radius: T,
+    band: Band,
+) -> Result<(Option<(T, T)>, Option<(T, T)>), PointInSolidError> {
     let Some((u, v)) = torus_chart_windows(body, face, band)? else {
         return Err(PointInSolidError::PartialTorusFace { face });
     };
@@ -1188,7 +1219,7 @@ pub(super) fn torus_chart_trim<T: Decide>(
     if u.is_none() && v.is_none() {
         return Err(PointInSolidError::PartialTorusFace { face });
     }
-    Ok((u, v, face))
+    Ok((u, v))
 }
 
 /// The face's `(major, minor)` chart windows, walked over its outer

@@ -252,8 +252,16 @@ pub fn implicit_outward_normal<T: Real>(
 /// Per kind: sphere/cylinder — the radius; cone — the radial distance
 /// ρ of `p` from the axis (a conservative bound on the osculating
 /// radius ρ/cos α; smaller arms escalate *more*, which is the safe
-/// direction); torus — the minor radius (the tube's curvature
-/// dominates a ring torus).
+/// direction); torus — `min(r, R − r)`, the smallest principal radius
+/// anywhere on the ring. The tube's own radius `r` is one principal
+/// radius everywhere; the other is `r·ρ/|ρ − R|`, which is at least `ρ`
+/// and reaches `R − r` on the inner equator. So a fat ring (`R < 2r`)
+/// curves hardest ALONG its inner equator, not across the tube, and a
+/// lever of `r` there would under-charge every sagitta read from it.
+/// The bound is global rather than local to `p`, the conservative
+/// direction: a sagitta is charged over an arm that leaves `p`. A
+/// spindle or horn torus (`R ≤ r`) has a curvature singularity on the
+/// axis and gets a zero lever, so every charge read from it refuses.
 pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     match *s {
         Surface::Plane { .. } => T::from_f64(f64::MAX),
@@ -262,7 +270,11 @@ pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
             let (_, w) = axial_radial(p, apex, axis);
             w.norm()
         }
-        Surface::Torus { minor_radius, .. } => minor_radius,
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => minor_radius.min((major_radius - minor_radius).max(T::zero())),
         // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
         // carrier has no implicit form — foot-point machinery (C2.1,
         // M5 PR 4) owns that story, not this module.
@@ -850,6 +862,46 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// **The torus lever is the SMALLEST radius of curvature, on a fat
+    /// ring too.** The lever is read as a radius a sagitta is charged
+    /// against, so it must not exceed `1/|κ|` for any normal curvature
+    /// `κ` the surface has. On a fat ring (`R = 0.8`, `r = 0.5` — the
+    /// dumbbell waist) the inner equator bends at `1/(R − r) = 1/0.3`
+    /// along the parallel, harder than the tube's `1/r = 1/0.5` across
+    /// it. The normal curvature is read off the residual's own Hessian
+    /// (`dᵀ∇²F d / |∇F|`, `|∇F| = 1` on the surface), so the row does
+    /// not restate the lever's formula.
+    #[test]
+    fn the_torus_lever_is_no_larger_than_any_radius_of_curvature() {
+        for (big_r, r) in [(0.8, 0.5), (2.0, 0.5), (1.2, 0.3)] {
+            let s = Surface::Torus {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 1.0, 0.0),
+                major_radius: big_r,
+                minor_radius: r,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            // Around the tube at 24 minor angles, both principal
+            // directions: along the parallel (z) and across the tube.
+            for k in 0..24 {
+                let v = f64::from(k) * core::f64::consts::TAU / 24.0;
+                let (sv, cv) = v.sin_cos();
+                let p = Point3::new(big_r + r * cv, r * sv, 0.0);
+                let across = Vec3::new(-sv, cv, 0.0);
+                let along = Vec3::new(0.0, 0.0, 1.0);
+                let lever = curvature_lever_arm(&s, p);
+                for d in [along, across] {
+                    let kappa = implicit_hessian_form(&s, p, d).abs();
+                    assert!(
+                        lever * kappa <= 1.0 + 1e-12,
+                        "R = {big_r}, r = {r}, v = {v}: lever {lever} exceeds the radius \
+                         of curvature 1/{kappa} along {d:?}"
+                    );
+                }
+            }
+        }
+    }
 
     /// The exactly orthonormal tilted frame from PR 1's fixtures
     /// (integer Pythagorean triple over 3).

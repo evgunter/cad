@@ -673,27 +673,28 @@ fn the_k_sample_door_is_not_monotone_and_this_is_the_bound() {
     );
 }
 
-/// **What a COINCIDENT torus pair now reads, and why it is still a
-/// refusal.** MATE-7a's boundary row
+/// **What a COINCIDENT torus pair reads on the sampled enclosure, and
+/// why the crossing layer does not ask it.** MATE-7a's boundary row
 /// (`sweep/tests/mate7a_torus_rest.rs`'s
-/// `the_admitted_torus_lane_stops_at_the_curved_pierce_frontier`) puts
-/// two identical tori through the declared-Rest lane. Its edges are
-/// seam meridians of the torus they ride, so the residual is
-/// identically zero along them — and the sampled enclosure is
-/// therefore `±charge`, whose one-sidedness margin is `−charge`.
+/// `the_admitted_torus_lane_stops_at_the_uncut_shell_probe`) puts two
+/// identical tori through the declared-Rest lane. Its edges are seam
+/// meridians of the torus they ride, so the residual is identically
+/// zero along them — and the sampled enclosure is therefore
+/// `±charge`, whose one-sidedness margin is `−charge`.
 ///
 /// `charge` is 1.83e-5 m for a FULL meridian of that torus, and the
-/// margin is `−charge`. The declared-cover rung behind the circle
-/// rung needs a `Zero`, and a sampled enclosure of a coincident pair
-/// cannot produce one at any `K`: the charge shrinks as `K⁻²` but the
-/// band does not move with it. That is
-/// `work/curved/torus-coincident-pair-cannot-reach-the-covered-rung.md`.
+/// margin is `−charge`. A sampled enclosure of a coincident pair cannot
+/// produce the `Zero` the declared-cover rung needs at any `K`: the
+/// charge shrinks as `K⁻²` but the band does not move with it. So the
+/// circle rung reads the verified `Rest` declaration's carrier identity
+/// BEFORE this enclosure (`topo::boolean::reduce`'s carrier-identity
+/// rung), and this row pins the enclosure's own width — the reason that
+/// rung has to come first.
 ///
 /// The charge is quadratic in the edge's own span, so MATE-7a's
-/// fixture — whose refusing edge is a HALF meridian — carries a
-/// quarter of it, 4.56e-6 m, and that one falls INSIDE the ambiguity
-/// band at `ε = 1e-6`. Its row asserts that landing against the run's
-/// own band.
+/// fixture — whose seam edge is a HALF meridian — carries a quarter of
+/// it, 4.56e-6 m, which falls INSIDE the ambiguity band at
+/// `ε = 1e-6`.
 #[test]
 fn a_coincident_torus_pair_encloses_pm_charge_and_reads_negative() {
     let (big_r, minor) = (5.0, 0.06);
