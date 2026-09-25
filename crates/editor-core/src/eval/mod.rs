@@ -1428,6 +1428,11 @@ pub enum NodeErrorKind {
     /// arm here. The refusal says so in the type rather than degrading
     /// to an emission bug, which would blame this crate for a
     /// document a user wrote.
+    ///
+    /// No evaluation raises it: a union's contacts are judged pairwise
+    /// between member views before the fold, whose rows are all member
+    /// entities, and a fold step's contact refusal is an emission bug
+    /// (DM4: the fold mints no contact verdict).
     UndeclarableContact {
         /// The fold-minted row, in the union's PUBLISHED name space —
         /// the space its other refusals name.

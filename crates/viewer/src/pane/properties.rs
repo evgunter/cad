@@ -135,6 +135,7 @@ impl ViewerBehavior<'_> {
                                 },
                             },
                             self.ops,
+                            self.notices,
                         );
                         // **The unit is the picker's to say.** A
                         // parameter's notation is a fact the document
@@ -774,6 +775,7 @@ impl ViewerBehavior<'_> {
                 },
             },
             self.ops,
+            self.notices,
         );
     }
 

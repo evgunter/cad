@@ -23,14 +23,15 @@ Source: `crates/editor-core/tests/emit_union_rim_piece_ranks.rs`, whose
 rebind row now checks this. It runs PR 3112's review corpus (as
 `probe_corpus`) and the #3168 review fixtures, every order.
 
-25 cases refuse in some orders and publish in others. The row pins
-them in `KNOWN_MIXED`, so a new one, or a change in any of these,
-turns it red.
+23 cases refuse in some orders and publish in others, down from 25
+before the pairwise contact rule (`union-contact-is-judged-pairwise-before-the-fold`),
+which took `row` and `rowids` out. The row pins them in `KNOWN_MIXED`,
+so a new one, or a change in any of these, turns it red.
 
 | refusal | cases | owner |
 |---|---|---|
-| `DeclareResolve` (Vanished): a declared face the fold has consumed | `abg`, `abgids`, `abglow`, `abgg2`, `fam0{00,01,02,12,22}`, `fam1{00,01,02,12,22}`, `fam2{00,01,02,12,22}`, `r1flush`, `r2endsg`, part of `row`/`rowids`/`r4trig` | `work/gather/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md` (P0) |
-| `UndeclaredContact`: `h` (x 1.0..1.1) meets `a`'s x = 1 wall flush when it is folded before `b` covers that wall | part of `row`, `rowids` | none; this row |
+| `DeclareResolve` (Vanished): a declared face the fold has consumed | `abg`, `abgids`, `abglow`, `abgg2`, `fam0{00,01,02,12,22}`, `fam1{00,01,02,12,22}`, `fam2{00,01,02,12,22}`, `r1flush`, `r2endsg`, part of `r4trig` | `work/gather/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md` (P0) |
+| `UndeclaredContact` | none: `row` and `rowids` now refuse it in all 24 orders (measured below) | built by `union-contact-is-judged-pairwise-before-the-fold` |
 | `Boolean(Containment(RayExhausted))`: `c` (x 0.8..2.0), flush with both `a` and `b`, folded between them | `r4tri` (`[0,2,1]`, `[2,0,1]`), part of `r4trig` | `work/reach/a-contained-flush-operand-with-every-vertex-on-the-boundary-refuses-as-ray-exhausted.md` (P0) |
 
 `UndeclaredContact` is a fold-order dependence of the contact check
@@ -89,17 +90,22 @@ four refusal kinds, `r1three` 24 of 24 `UndeclaredContact`). So the
 pre-pass adds new refusals only to `row` and `rowids`, and turns
 `cross` into a uniform `UndeclaredContact`.
 
-**What moves once this is built.**
-- Predicted: `row` and `rowids` undeclared refuse `UndeclaredContact`
-  in all 24 orders, and they leave `KNOWN_MIXED`.
-- Predicted: with (a, h) declared, they fuse in the 6 orders that fuse
-  today. The 8 orders where `a` and `h` meet before `b` keep today's
-  declared outcome: 2 `Emission` and 6 `Vanished`, the emitter row and
-  GATHER.
-- The 10 orders that refuse `Vanished` undeclared today stay
-  `Vanished`, except where the consumed face is contained whole, which
-  is now satisfied. Which of those 10 are containment and which are
-  splits is not measured.
+**What moved once it was built** (measured on `emit/pairwise-contact`;
+pinned by `emit_union_rim_piece_ranks.rs`).
+- `row` and `rowids` with (a, h) undeclared refuse `UndeclaredContact`
+  in all 24 orders, naming a face of `a` and a face of `h`, and they
+  left `KNOWN_MIXED`.
+- With (a, h) declared, they fuse in the 6 orders that fused
+  undeclared before the rule (`[0,1,2,3]`, `[0,1,3,2]`, `[1,0,2,3]`,
+  `[1,0,3,2]`, `[1,2,0,3]`, `[2,1,0,3]`); before the rule, those 6
+  refused `DeclareResolve` declared. The other 18 are unchanged:
+  2 `Emission` (`[0,3,1,2]`, `[3,0,1,2]`) and 16 `DeclareResolve`.
+- So none of the 10 orders that refused `Vanished` undeclared was a
+  face contained whole: all 10 are splits, and they stay GATHER's.
+- `{a, b, h}` refuses `UndeclaredContact` in all 6 orders undeclared.
+  Declared, `[a,b,h]` and `[b,a,h]` fuse (the face `b` consumed whole
+  is satisfied); `[a,h,b]` and `[h,a,b]` refuse `Emission`, and
+  `[b,h,a]` and `[h,b,a]` `DeclareResolve`, as before.
 
 **Cost.** There is no contact-only door in the kernel. The
 cross-operand `UndeclaredCoincidence` is raised inside the boolean

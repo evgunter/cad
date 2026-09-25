@@ -912,7 +912,7 @@ fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
     let tol = Tol::witness();
     let bench = common::asm::bench("vnews-derived-mate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    let offender = common::insert(
+    let offender = common::session_insert(
         &mut session,
         SessionOp::AddMate {
             a: common::head(common::asm::in_part(bench.post_b, &bench.post_top)),
