@@ -3073,14 +3073,14 @@ class DocEdit:
     def set_program(
         node: NodeId,
         outline: ClosedLoop,
-        provenance: list[tuple[Optional[int], list[Optional[int]]]],
+        ids: list[list[Optional[int]]],
     ) -> DocEdit: ...
     @overload
     @staticmethod
     def set_program(
         node: NodeId,
         outline: list[ClosedLoop],
-        provenance: list[tuple[Optional[int], list[Optional[int]]]],
+        ids: list[list[Optional[int]]],
     ) -> DocEdit:
         """Replace a live profile's PROGRAM whole — its loops, their
         verbs, order and count, arc modes and targets — validated
@@ -3088,26 +3088,22 @@ class DocEdit:
 
         `outline` is the description `Node.profile` takes — one closed
         loop, or `[outer, hole, hole]` — read through the same door.
-        `provenance` is one `(from, steps)` per new loop in that order:
-        `from` the OLD loop index it continues (`None` for a new loop),
-        `steps[i]` the old step index new step `i` continues (`None`
-        for a new step). The editor that reshaped the program knows
+        `ids` is one list per new loop in that order, one entry per
+        authored step: the minted id of the OLD step it keeps
+        (`Doc.step_ids` reads them), or `None` for a new step, which
+        the door mints. The editor that reshaped the program knows
         which leg it inserted; the door is told, never guesses.
 
-        Every name spelled in the profile's coordinates — a fillet's
-        selection, a shell's mouth, a derived frame's face, a paint —
-        is rewritten to its new coordinates when its step was kept and
-        reported on `Doc.last_maintenance` as a `rebound` (`name` the
-        old spelling, `rebound_to` the new); a name on a step that was
-        dropped, or whose segment count moved, is retired to a
-        coordinate no program draws and reported `strand` or
-        `stranded_appearance`, resolving to nothing until `rebind`
-        repairs it.
+        A name on a profile piece spells its step's id, so a name on a
+        kept step keeps denoting its piece and is not touched. A step
+        the new program does not keep takes its id with it: every name
+        on it — a fillet's selection, a shell's mouth, a derived
+        frame's face, a paint — keeps its spelling, resolves to
+        nothing, and is reported `strand` or `stranded_appearance` on
+        `Doc.last_maintenance` until `rebind` repairs it.
 
-        Refuses `provenance_malformed` before the program is replayed
-        (`inner_variant`: `loop_count`, `step_count`,
-        `no_such_old_loop`, `no_such_old_step`, `step_of_new_loop`,
-        `old_loop_continued_twice`, `old_step_continued_twice`),
+        Refuses `step_ids_refused` before the program is replayed
+        (`inner_variant`: `shape`, `not_this_profiles`, `repeated`),
         `set_program_on_non_profile`, and then everything an insert
         refuses of a profile: `slot_unknown_doc_param` and its
         siblings over every argument, `profile_program_refused` for a
@@ -3228,13 +3224,36 @@ class Doc:
         insert (a stranded head, a re-pointed `Part`, a loaded
         snapshot), are the solve's at evaluation."""
 
+    def step_ids(self, profile: NodeId) -> list[list[int]]:
+        """The minted id of every step of the profile at `profile`, one
+        list per loop in program order — what `DocEdit.set_program`
+        keeps a step by. Raises `ValueError` for a node that is not a
+        profile."""
+
+    def pieces(self, profile: NodeId) -> list[list[str]]:
+        """The piece every canonical segment of the profile at
+        `profile` is, one list per canonical loop (0 the outer loop,
+        then the holes in description order), one piece per canonical
+        segment in the loop's canonical traversal from its authored
+        start — under the document's current parameter values.
+
+        A piece is opaque text, as a name is: the step that drew the
+        segment, by its minted id, and its role in that step's list.
+        It is what `band`, `band_pi`, `band_rim` and `meridian_vertex`
+        take, and it stays the name of that piece whatever later moves
+        the segment. The vertex a piece STARTS at is spelled by the
+        same text.
+
+        Raises `ValueError` for a node that is not a profile, or whose
+        program does not replay and validate under the current
+        values."""
+
     @property
     def last_maintenance(self) -> list[Maintenance]:
         """The maintenance the LAST accepted edit performed: its
         cluster-record acts, the names its delete or reshaping
-        stranded, the names its reshaping rebound, and the
-        declarations its delete left with no consumer. The strands
-        lead, the rebounds follow them, then the orphaned declarations,
+        stranded, and the declarations its delete left with no
+        consumer. The strands lead, then the orphaned declarations,
         and the cluster acts come last, so read `variant`, never a
         position.
         Empty after an edit that moved no mate graph, stranded no
@@ -3644,6 +3663,8 @@ class SegTag:
     RimEdge: Final[SegTag]
     LateralEdge: Final[SegTag]
     CapVertex: Final[SegTag]
+    LoftWall: Final[SegTag]
+    LoftSeam: Final[SegTag]
     Band: Final[SegTag]
     BandRim: Final[SegTag]
     BandRimPi: Final[SegTag]
@@ -3864,32 +3885,30 @@ class GeomPred:
 # either side of the boundary. The text stays opaque — a caller
 # composes by naming a ROLE, never by assembling the serialization.
 
-def band(node: NodeId, loop_index: int, seg: int) -> str:
-    """The `[0, pi)` band face swept from segment `seg` of profile
-    loop `loop_index` on the revolve at `node`.
+def band(node: NodeId, piece: str) -> str:
+    """The `[0, pi)` band face swept from the profile piece `piece` on
+    the revolve at `node`.
 
-    `loop_index` is 0 for the outer loop and 1.. for the holes, in the
-    profile's description order; `seg` indexes that loop's canonical
-    chain, so a hole's band is reachable here at its own loop. The
-    kind is fixed at the role's own — a face — which is the field a
-    hand-written name gets wrong silently until emission refuses
-    it."""
+    `piece` is a piece's text, from `Doc.pieces`: the step that drew a
+    segment, by its minted id, and its role in that step's list — so
+    the name stays the name of that piece whatever later moves the
+    segment. The kind is fixed at the role's own — a face — which is
+    the field a hand-written name gets wrong silently until emission
+    refuses it."""
 
-def band_pi(node: NodeId, loop_index: int, seg: int) -> str:
-    """The `[pi, 2pi)` band face swept from segment `seg` of loop
-    `loop_index` — `band`'s twin, where a full revolve emits a segment
-    as two faces. A face, as `band` is."""
+def band_pi(node: NodeId, piece: str) -> str:
+    """The `[pi, 2pi)` band face swept from the profile piece `piece` —
+    `band`'s twin, where a full revolve emits a segment as two faces.
+    A face, as `band` is."""
 
-def band_rim(node: NodeId, loop_index: int, vertex: int) -> str:
-    """The latitude rim at vertex `vertex` of loop `loop_index` — the
-    edge between the bands of segments `vertex - 1` and `vertex` on
-    that loop. An edge."""
+def band_rim(node: NodeId, piece: str) -> str:
+    """The latitude rim at the vertex the profile piece `piece` starts
+    at — the edge between the band of the piece ending there and the
+    piece's own. An edge."""
 
-def meridian_vertex(
-    end: MeridianEnd, node: NodeId, loop_index: int, vertex: int
-) -> str:
-    """The meridian vertex at `end`: the copy of vertex `vertex` of
-    loop `loop_index` on a wedge cap plane (`MeridianEnd.Start`,
+def meridian_vertex(end: MeridianEnd, node: NodeId, piece: str) -> str:
+    """The meridian vertex at `end`: the copy of the vertex the profile
+    piece `piece` starts at, on a wedge cap plane (`MeridianEnd.Start`,
     `MeridianEnd.End`) on a partial revolve, or the surviving meridian
     vertex (`MeridianEnd.Seam`) on a full one. A vertex."""
 
@@ -5387,17 +5406,10 @@ class Maintenance:
 
     A `strand` names a node that survived the edit carrying a name
     whose referent the edit removed — its minting node, under a
-    delete, or the profile segment it named, under
+    delete, or the profile step it named a piece of, under
     `DocEdit.set_program`. The name is not a DAG edge, so the edit is
     legal; the name now resolves to nothing, and `DocEdit.rebind` from
     the spelling `name` carries is the repair.
-
-    A `rebound` is the other thing a reshaped program does to a name:
-    one on a step the reshaping kept is rewritten in place to the
-    coordinates the segment sits at now, in every carrier that held
-    it, and the row says so — `name` the spelling before, `rebound_to`
-    the spelling now — so a moved name is visible rather than silently
-    re-denoting.
 
     A `stranded_appearance` is the same loss one carrier over: the
     document's appearance store still holds an attachment under a name
@@ -5428,7 +5440,7 @@ class Maintenance:
     @property
     def variant(self) -> str:
         """`join`, `split`, `gauge_rewrite`, `drop`, `strand`,
-        `stranded_appearance`, `orphaned_declare`, or `rebound`."""
+        `stranded_appearance`, or `orphaned_declare`."""
 
     @property
     def survived(self) -> Optional[NodeId]: ...
@@ -5448,8 +5460,6 @@ class Maintenance:
     def node(self) -> Optional[NodeId]: ...
     @property
     def name(self) -> Optional[str]: ...
-    @property
-    def rebound_to(self) -> Optional[str]: ...
 
 # --- the gather and the at-rest gate ----------------------------------
 
@@ -5745,6 +5755,9 @@ class SplitOutcome:
     @property
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
         """Cut node -> its id in the part document."""
+    @property
+    def step_map(self) -> list[tuple[int, int]]:
+        """Cut profile step id -> the id the part minted for it."""
 
 def split(
     doc: Doc, cut: list[NodeId], part_id: str, *, resolver: Optional[Workspace] = None
@@ -5783,6 +5796,9 @@ class InlineOutcome:
     @property
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
         """Part node -> its id in the spliced document."""
+    @property
+    def step_map(self) -> list[tuple[int, int]]:
+        """Part profile step id -> the id the host minted for it."""
 
 def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
     """Splice a referenced document back in, replacing the instantiate

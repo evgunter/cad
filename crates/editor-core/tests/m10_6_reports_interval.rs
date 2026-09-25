@@ -69,6 +69,7 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
         profile,
@@ -98,8 +99,14 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         Node::measure(
             web,
             vec![
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(0))),
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                ),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                ),
             ],
         )
         .expect("both indices in range"),

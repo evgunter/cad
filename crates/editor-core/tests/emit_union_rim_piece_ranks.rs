@@ -27,8 +27,7 @@ use crate::emit_shared_rim_several::{Bx, document, permutations, probe_corpus, r
 use crate::fixture::{face_vertices, fname, insert, table, wall};
 
 use editor_core::{
-    CapEnd, EntityKey, EntityKind, Entry, Node, ProfileEdgeRef, RecipeNodeId, RoleSeg, SitedRef,
-    StableName,
+    CapEnd, EntityKey, EntityKind, Entry, Node, RecipeNodeId, RoleSeg, SitedRef, StableName,
 };
 
 /// A rounded point, comparable across two evaluations.
@@ -252,7 +251,7 @@ pub(crate) fn runs(
     let flush = |ids: &[RecipeNodeId]| {
         case.flush
             .iter()
-            .flat_map(|&(p, q)| flush_pairs((ids[p], ids[p]), (ids[q], ids[q])))
+            .flat_map(|&(p, q)| flush_pairs(&doc, (ids[p], ids[p]), (ids[q], ids[q])))
             .collect::<Vec<_>>()
     };
     if case.nested {
@@ -518,17 +517,8 @@ fn a_flush_union_publishes_one_table_in_every_member_order() {
 /// `[b, a, c]` and x = 1..2 in `[c, a, b]`.
 #[test]
 fn a_member_flush_with_two_others_numbers_its_rim_by_the_body() {
-    let rim = StableName {
-        kind: EntityKind::Edge,
-        node: RecipeNodeId(0),
-        path: vec![RoleSeg::RimEdge(
-            CapEnd::Start,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment: 0,
-            },
-        )],
-    };
+    let case = r2ends();
+    let (doc, _) = document(&case.blocks, &case.creation);
     let mut fused = 0;
     runs(&r2ends(), |at, ev, ids, unions| {
         let union = unions[0].1;
@@ -540,8 +530,12 @@ fn a_member_flush_with_two_others_numbers_its_rim_by_the_body() {
         fused += 1;
         let a = ids[0];
         let rim = StableName {
+            kind: EntityKind::Edge,
             node: a,
-            ..rim.clone()
+            path: vec![RoleSeg::RimEdge(
+                CapEnd::Start,
+                crate::fixture::piece(&doc, a, 0, 0),
+            )],
         };
         let geo = geometry(ev, union);
         let x = |k: i64| (k * 1_000_000, 0, 0);
@@ -669,14 +663,12 @@ fn fam010_ranks_a_rim_the_same_way_in_both_orders() {
         node: a,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment: 0,
-            },
+            crate::fixture::piece(&doc, a, 0, 0),
         )],
     };
     let span = |order: [editor_core::RecipeNodeId; 3], rank| {
-        let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs((a, a), (b, b)));
+        let (docx, union, _) =
+            declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -704,10 +696,14 @@ const H: Bx = ((1.0, 1.1), (-1.0, 2.0), (0.5, 3.0));
 
 /// `a`'s x = 1 wall (segment 1) against `h`'s x = 1.0 wall (segment 3),
 /// sited at the two members.
-fn a_h_contact(a: RecipeNodeId, h: RecipeNodeId) -> (SitedRef, SitedRef) {
+fn a_h_contact(
+    doc: &editor_core::ProfileDoc,
+    a: RecipeNodeId,
+    h: RecipeNodeId,
+) -> (SitedRef, SitedRef) {
     (
-        SitedRef::new(a, fname(a, wall(1))),
-        SitedRef::new(h, fname(h, wall(3))),
+        SitedRef::new(a, fname(a, wall(doc, a, 1))),
+        SitedRef::new(h, fname(h, wall(doc, h, 3))),
     )
 }
 
@@ -716,9 +712,9 @@ fn a_h_contact(a: RecipeNodeId, h: RecipeNodeId) -> (SitedRef, SitedRef) {
 /// `"fuse"` or the refusal's variant.
 fn outcomes(blocks: &[Bx], creation: &[usize], ah: Option<usize>) -> Vec<(Vec<usize>, String)> {
     let (doc, ids) = document(blocks, creation);
-    let mut pairs = flush_pairs((ids[0], ids[0]), (ids[1], ids[1]));
+    let mut pairs = flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1]));
     if let Some(h) = ah {
-        pairs.push(a_h_contact(ids[0], ids[h]));
+        pairs.push(a_h_contact(&doc, ids[0], ids[h]));
     }
     permutations(&(0..blocks.len()).collect::<Vec<_>>())
         .into_iter()
@@ -785,7 +781,7 @@ fn an_undeclared_covered_contact_refuses_in_every_order_and_declared_fuses_where
             let (docx, union, _) = declared_union(
                 doc.clone(),
                 &members,
-                flush_pairs((ids[0], ids[0]), (ids[1], ids[1])),
+                flush_pairs(&doc, (ids[0], ids[0]), (ids[1], ids[1])),
             );
             let ev = run(&docx);
             match failure(&ev, union) {

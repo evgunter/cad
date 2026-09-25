@@ -63,6 +63,7 @@ fn review_every_sweep_node_hits_the_one_collapsed_frontier_arm() {
             Node::Profile(editor_core::ProfileProgram {
                 plane: path_plane,
                 loops: path_loops,
+                ids: Vec::new(),
             }),
         );
         doc = d;

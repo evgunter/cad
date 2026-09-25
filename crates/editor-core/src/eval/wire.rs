@@ -72,7 +72,7 @@ use topo::{
 use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
-use crate::names::{self, NameTable, ProfileEdgeRef, SplitHalf};
+use crate::names::{self, NameTable, SplitHalf};
 use crate::node::{
     Axis3, BooleanOp, Datum, Node, PartSelect, PatternKind, RecipeNodeId, SitedRef, SlotId,
 };
@@ -1568,6 +1568,7 @@ fn loop_coordinates(n: usize) -> Result<core::ops::Range<u32>, NodeErrorKind> {
 pub(crate) fn prepare_profile(
     placement: Option<profile::SketchPlane<f64>>,
     resolved: &[Vec<profile::Step<f64>>],
+    ids: &[Vec<crate::node::StepId>],
     tol: Tol,
 ) -> Result<ProfilePre, NodeErrorKind> {
     // The 2-D record's assembly frame: the placement where there is
@@ -1594,11 +1595,17 @@ pub(crate) fn prepare_profile(
         // recoverable from the failed derivation; 0 names the walk).
         NodeErrorKind::ProfileAnchor { loop_: 0 }
     })?;
+    // The piece each canonical position is: the records above and the
+    // program's minted ids describe one program, so a disagreement is
+    // an internal break, surfaced as the fault it is.
+    let pieces = super::ProfilePieces::publish(&naming, &replay_records, ids)
+        .map_err(|fault| NodeErrorKind::ProfilePieces { fault })?;
     Ok(ProfilePre {
         profile_f64,
         validated_f64,
         placement_f64: placement,
         naming,
+        pieces,
         structure: profile::ProfileStructure {
             replay: replay_records,
             canonical,
@@ -1724,6 +1731,7 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
     Ok(ValuePayload::Profile(Arc::new(ProfileValue {
         validated,
         naming: pre.naming.clone(),
+        pieces: pre.pieces.clone(),
         edge_radii: edge_radii(program, pre),
     })))
 }
@@ -1732,9 +1740,9 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
 /// `ProfileProgram::segment_radii`'s answer laid out per CANONICAL loop
 /// and segment, which is what a wall record is keyed by.
 ///
-/// The door already answers in canonical refs — the numbering every
-/// published name carries — so this is a lookup by position: canonical
-/// loop `l`, segment `k` is the ref `(l, k)`. Nothing here re-derives a
+/// The door already answers in canonical positions — the numbering a
+/// sweep's walls are indexed by — so this is a lookup by position:
+/// canonical loop `l`, segment `k` is the position `(l, k)`. Nothing here re-derives a
 /// permutation; the door checked the evaluation's two records of it
 /// against each other.
 ///
@@ -1769,7 +1777,7 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
                 });
             (0..anchor.len)
                 .map(|k| {
-                    let want = ProfileEdgeRef {
+                    let want = super::CanonicalSegment {
                         loop_index: u32::try_from(canonical_loop)
                             .unwrap_or_else(|_| unreachable!("a profile's loop count fits in u32")),
                         segment: k,
@@ -1857,7 +1865,7 @@ fn wire_swept<
         .map_err(verb_refused)?;
     // Eager N4 emission from the emitter's own maps, inside the reader,
     // BEFORE the structural handoff is taken apart.
-    let out = (verb.read)(id, record, verb.foreign_record)?;
+    let out = (verb.read)(id, record, &vp.pieces, verb.foreign_record)?;
     let table = out.table;
     let mut body = out.body;
     // The sweep's own surfaces, curves and points are minted HERE
@@ -2130,21 +2138,14 @@ fn tube_args<T: Decide>(
 /// # Naming: the revolve template applies WHOLESALE
 ///
 /// Measured, not assumed. [`names::name_revolve`] reads only the
-/// `Revolved<T>` maps it is handed — walls, rims, poles and the
-/// partial/full kind — and never the profile that produced them; the
-/// tube doors return a `Revolved<T>` built by the very same
-/// `full`/`partial` machinery. So the revolve emitter names a tube
-/// body with no translation and NO new `RoleSeg` variants: a tube's
-/// bands, rims, meridians, caps and poles are those roles, in the
-/// profile-loop/segment coordinates of the two-arc circle traversal
-/// the door constructs (loop 0 the outer circle, loop 1 a hollow
-/// tube's inner one; segments 0 and 1 its two half-circle arcs).
-///
-/// The one tube-specific step is a step NOT taken: there is no
-/// `anchored` rewrite, because that rewrite maps a profile PROGRAM's
-/// loop and step indices onto validate's canonical ones, and a tube
-/// has no profile node. Its traversal is canonical by construction,
-/// so the canonical indices ARE the final ones.
+/// `Revolved<T>` maps it is handed and the pieces it names them by,
+/// never the profile that produced them; the tube doors return a
+/// `Revolved<T>` built by the very same `full`/`partial` machinery. So
+/// the revolve emitter names a tube body with NO new `RoleSeg`
+/// variants: a tube's bands, rims, meridians, caps and poles are those
+/// roles, spelled with the section's structural locators
+/// ([`tube_pieces`]): the outer circle's pieces 0 and 1 — its two
+/// half-circle arcs — and a hollow tube's bore's.
 fn wire_tube<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     spine: RecipeNodeId,
@@ -2156,12 +2157,25 @@ fn wire_tube<T: Decide + geom_brep::PcurveFittedLane>(
     let a = tube_args(spine, window, results, vals, tol)?;
     let mut built = sweep::tube_along_arc(a.frame, a.major_radius, a.window, a.minor_radius, tol)
         .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
-    let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
+    let table =
+        names::name_revolve(id, &built, &tube_pieces(&built)?).map_err(NodeErrorKind::Naming)?;
     stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
         table,
     ))
+}
+
+/// **A tube's section, named structurally**: the door builds the
+/// outer circle (and a hollow tube's bore) itself, so each piece is
+/// named by its place in that construction under the tube node
+/// (`names/README.md`, "N1, the profile pieces") — the shape the node
+/// kind fixes, which nothing can renumber.
+fn tube_pieces<T: Decide>(
+    built: &sweep::Revolved<T>,
+) -> Result<super::ProfilePieces, NodeErrorKind> {
+    let counts: Vec<usize> = built.walls.iter().map(Vec::len).collect();
+    super::ProfilePieces::section(&counts).map_err(NodeErrorKind::Naming)
 }
 
 /// **A hollow tube** — `sweep::tube_along_arc_hollow`, the OTHER
@@ -2193,7 +2207,8 @@ fn wire_hollow_tube<T: Decide + geom_brep::PcurveFittedLane>(
     let mut built =
         sweep::tube_along_arc_hollow(a.frame, a.major_radius, a.window, a.minor_radius, wall, tol)
             .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
-    let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
+    let table =
+        names::name_revolve(id, &built, &tube_pieces(&built)?).map_err(NodeErrorKind::Naming)?;
     stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
@@ -5263,7 +5278,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     id: RecipeNodeId,
     lane: LaneEnv<'_, T>,
     tol: Tol,
-) -> Result<(sweep::Section, Affine3<f64>), NodeErrorKind> {
+) -> Result<(sweep::Section, Affine3<f64>, super::ProfilePieces), NodeErrorKind> {
     let program = node_operand(doc, id, super::family::PROFILE, |n| match n {
         Node::Profile(program) => Some(program),
         _ => None,
@@ -5312,7 +5327,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
             })?
         }
     };
-    let pre = prepare_profile(Some(plane), &resolved, tol)?;
+    let pre = prepare_profile(Some(plane), &resolved, &program.ids, tol)?;
     // The lift's second pass runs HERE TOO, as a GATE. A loft's or a
     // sweep's section stays f64 — the skinned surface's knots, degrees
     // and control bits must be identical in every lane, which is the
@@ -5342,8 +5357,10 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
         .placement;
     // The sections are the REPLAYED loops (program order — exactly
     // the stored-loop handoff LIB-U3 established, one derivation
-    // earlier): positions, bulges, declared joints verbatim.
-    Ok((pre.profile_f64.loops, place))
+    // earlier): positions, bulges, declared joints verbatim. The
+    // pieces are the canonical positions' names, which the skin's
+    // canonical walls and seams are named by.
+    Ok((pre.profile_f64.loops, place, pre.pieces))
 }
 
 /// A structural (Count) slot, refused typed when absent or unusable.
@@ -5367,10 +5384,12 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
     let v_degree = need_count(vals, SlotId::VDegree)?;
     let mut sections = Vec::with_capacity(profiles.len());
     let mut places = Vec::with_capacity(profiles.len());
+    let mut pieces = Vec::with_capacity(profiles.len());
     for pid in profiles {
-        let (chain, place) = section_of::<T>(doc, results, *pid, lane, tol)?;
+        let (chain, place, named) = section_of::<T>(doc, results, *pid, lane, tol)?;
         sections.push(chain);
         places.push(place);
+        pieces.push(named);
     }
     // The geometry/profile doors keep their historical node-error
     // shapes (the §2 compatibility contract predates the builder);
@@ -5381,12 +5400,12 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
             other => NodeErrorKind::Loft(other),
         })?;
     // Eager N4 emission from the builder's own maps, BEFORE the
-    // structural handoff is dropped (the extrude idiom). The refs are
-    // canonical (loop, segment) indices, and the skin paired canonical
-    // segment `k` of every section into wall `k`: canonical traversal
-    // from each loop's AUTHORED start, so wall `k` is every section's
-    // own canonical segment `k` — the numbering every verb publishes.
-    let table = names::name_loft(id, &built).map_err(NodeErrorKind::Naming)?;
+    // structural handoff is dropped (the extrude idiom). The maps are
+    // indexed by canonical (loop, segment), and the skin paired
+    // canonical segment `k` of every section into wall `k`, so wall
+    // `k` is named by the piece each section's canonical segment `k`
+    // is — one locator per section.
+    let table = names::name_loft(id, &built, &pieces).map_err(NodeErrorKind::Naming)?;
     stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
@@ -5410,10 +5429,12 @@ fn wire_sweep<T: Decide + geom_core::Bounds + super::SectionScalar>(
     lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
-    let _stations = need_count(vals, SlotId::Stations)?;
-    let _v_degree = need_count(vals, SlotId::VDegree)?;
-    let _ = section_of::<T>(doc, results, profile, lane, tol)?;
-    let _ = section_of::<T>(doc, results, path, lane, tol)?;
+    // Each door runs for its refusal alone; what it answers has no
+    // reader, because the geometry that would read it does not exist.
+    need_count(vals, SlotId::Stations)?;
+    need_count(vals, SlotId::VDegree)?;
+    section_of::<T>(doc, results, profile, lane, tol)?;
+    section_of::<T>(doc, results, path, lane, tol)?;
     Err(NodeErrorKind::CurvedSolidFrontier {
         what: SWEEP_FRONTIER,
     })

@@ -67,14 +67,14 @@ bvh = { path = "../bvh" }
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
 geom = { path = "../geom" }
-# D9 addendum idiom 1 over the per-face mass-property fluxes
-# (`props.rs`'s `decide_faces`): one slot per face in arena order, the
-# sum a sequential arena-order fold. The workspace pin; `editor-core`
-# takes the same edge for the same idiom.
-rayon = { workspace = true }
 slotmap = { workspace = true }
 
 [dev-dependencies]
+# The explicit-width pools the face walks' thread-count rows run under
+# (`props.rs`'s tests). The walks themselves map through
+# `geom_core::k_stats::map_detached`, so production takes no rayon edge
+# of its own here.
+rayon = { workspace = true }
 # Shared fuzz harness for this crate's randomized sweeps (one RNG, the
 # per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
 # named by [dev-dependencies] only, here and everywhere else — which is

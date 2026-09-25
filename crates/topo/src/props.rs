@@ -785,7 +785,7 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     /// refusal rule, which this walk keeps whatever width it runs at:
     /// the open faces are resumed by an indexed parallel map into one
     /// slot per face in arena order (D9's addendum idiom 1, through
-    /// [`map_faces_detached`], each resumption under a K-funnel frame
+    /// [`geom_core::k_stats::map_detached`], each resumption under a K-funnel frame
     /// of its own) and the walk over those slots is sequential in that
     /// order (idiom 2). So the verdict log, the escalation log and the
     /// `probe` sample population are the serial continuation's at any
@@ -863,10 +863,10 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         // empty too under a symbolic session, where every resumption
         // below is taken on the caller's thread instead, for
         // [`decide_faces_serially`]'s reason.
-        let decided: Vec<ResumedFace<T>> = if decisions_are_thread_portable()
+        let decided: Vec<ResumedFace<T>> = if geom_core::sym::decisions_are_thread_portable()
             && runs[..reached].iter().any(|run| run.open_at.is_some())
         {
-            map_faces_detached(&runs[..reached], |run| {
+            geom_core::k_stats::map_detached(&runs[..reached], |run| {
                 run.open_at.map(|round| resume(run.face, round))
             })
         } else {
@@ -1059,44 +1059,6 @@ type FaceDecision<T> = (Result<FaceRun<T>, MassPropsError>, Detached);
 /// [`SignCertificate::refine_to_target`]'s sequential half.
 type ResumedFace<T> = (Option<Result<FaceRun<T>, MassPropsError>>, Detached);
 
-/// **Whether a face may be decided on a worker thread at all.**
-///
-/// The K-funnel is not the only thread-local a decision writes, and the
-/// others cannot be composed back. A symbolic session
-/// (`geom_core::sym`) is per-CALL and thread-local, and three things
-/// follow from that, only the first of which is about recording:
-///
-/// - **The decision itself changes.** `Sym`'s `sign_within` consults
-///   the session; with none installed `discharge` answers `None`, the
-///   identity tier discharges nothing and the answer is the plain
-///   numeric one. A face on a worker would decide differently from its
-///   siblings on the caller's thread — the one thing D9 forbids
-///   outright.
-/// - **The receipt is written in place.** `count_decision` and
-///   `count_registration_contradicted` mutate the installed session's
-///   `SymCounts`, and `Sym::opaque` advances the per-replay `OPAQUE_SEQ`
-///   counter — a sequence whose determinism rests on the minting ORDER
-///   being a fixed single-threaded walk. Neither is a value handed
-///   back, so neither can be spliced. (Node ids are NOT in this list:
-///   `intern` is a content hash of the node, so the DAG a replay builds
-///   is the same whatever order it is built in.)
-/// - **The shape report goes with it.** `geom_core::sym::report`'s
-///   `ACTIVE`/`SHAPES`/`NAMES` are thread-locals of the same family,
-///   written from `Sym::sign_within` and installed by the evidence rows
-///   that wrap a session.
-///
-/// The walk therefore stays on the caller's thread for exactly as long
-/// as a session is installed, which is the driver's leaf replay
-/// (`editor_core::drive` opens one per leaf and runs the whole leaf on
-/// one worker, so the nesting is real and common). It is a property of
-/// the CALL and not of the scalar: `Sym` with no session installed is
-/// as portable as `f64`, and the check reads the session rather than
-/// the type. The shape report has no query door of its own and needs
-/// none — nothing installs one outside a session.
-fn decisions_are_thread_portable() -> bool {
-    geom_core::sym::session_counts().is_none()
-}
-
 /// **The face walk, in one spelling and two dispatches.** `run` decides
 /// one face; the answer is the faces in arena order, or the first
 /// refusal in arena order.
@@ -1108,7 +1070,7 @@ fn decisions_are_thread_portable() -> bool {
 /// sequential half for the recordings as [`fold_runs`] is for the
 /// fluxes.
 ///
-/// *Not portable* ([`decisions_are_thread_portable`]): this IS the
+/// *Not portable* ([`geom_core::sym::decisions_are_thread_portable`]): this IS the
 /// serial walk. Faces are decided on the caller's thread in arena
 /// order and the walk stops at the first refusal, exactly as it did
 /// before any of this — no detached frame (the decisions are already
@@ -1121,33 +1083,11 @@ fn decide_faces<I: Sync, T: Decide>(
     items: &[I],
     run: impl Fn(&I) -> Result<FaceRun<T>, MassPropsError> + Send + Sync,
 ) -> Result<Vec<FaceRun<T>>, MassPropsError> {
-    if decisions_are_thread_portable() {
-        splice_in_arena_order(map_faces_detached(items, run))
+    if geom_core::sym::decisions_are_thread_portable() {
+        splice_in_arena_order(geom_core::k_stats::map_detached(items, run))
     } else {
         decide_faces_serially(items, run)
     }
-}
-
-/// **Idiom 1, one home**: one slot per item in the caller's order,
-/// each item decided on a worker under a K-funnel frame of ITS OWN, so
-/// the sequential half can splice what it recorded back into the
-/// caller's (`geom_core::k_stats::detached`). Results are written
-/// positionally and never combined arithmetically, so the schedule
-/// cannot reach the bits.
-///
-/// The map is shared; the sequential halves are not, because they
-/// answer different questions — [`splice_in_arena_order`] for the face
-/// walks, and [`SignCertificate::refine_to_target`]'s own, which has a
-/// refusal to check on the slots it left empty.
-fn map_faces_detached<I: Sync, R: Send>(
-    items: &[I],
-    run: impl Fn(&I) -> R + Send + Sync,
-) -> Vec<(R, Detached)> {
-    use rayon::prelude::*;
-    items
-        .par_iter()
-        .map(|item| geom_core::k_stats::detached(|| run(item)))
-        .collect()
 }
 
 /// **The serial face walk, one home**: items decided on the CALLER's
@@ -1161,7 +1101,7 @@ fn map_faces_detached<I: Sync, R: Send>(
 ///
 /// - [`decide_faces`]'s non-portable arm, where a decision also writes
 ///   the installed symbolic session's receipt and the shape report IN
-///   PLACE ([`decisions_are_thread_portable`]), so an item decided
+///   PLACE ([`geom_core::sym::decisions_are_thread_portable`]), so an item decided
 ///   past the point this walk stops inflates both with no way to take
 ///   it back;
 /// - [`classify_shells_of`], where mapping is simply the wrong trade:

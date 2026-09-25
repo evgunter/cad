@@ -168,9 +168,9 @@ pub use path::{
     circle_split,
 };
 pub use structure::{
-    CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,
-    ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure, SegmentShape, StepSpan,
-    StructureRefusal, StructureRefusalKind,
+    CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical, Piece,
+    PieceRole, ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure, SegmentShape,
+    StepSpan, StructureRefusal, StructureRefusalKind,
 };
 pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 pub use validate::{

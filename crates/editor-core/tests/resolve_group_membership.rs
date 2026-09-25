@@ -31,7 +31,7 @@ use editor_core::{
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
 
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         prior,
@@ -379,7 +379,7 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
             node: u,
             path: vec![RoleSeg::FromMember {
                 member,
-                of: editor_core::NameRef::new(wall(of, segment)),
+                of: editor_core::NameRef::new(wall(&doc, of, segment)),
             }],
         };
         let from = |n: &StableName, m: RecipeNodeId| matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == m);
@@ -587,14 +587,16 @@ fn a_tie_carried_through_a_later_fold_step_counts_one_parent() {
 /// Wall `segment` of the block `node` extruded (`block`'s profile runs
 /// counter-clockwise from `(x0, y0)`: wall 0 is y = y0, 1 is x = x1, 2
 /// is y = y1, 3 is x = x0).
-fn wall(node: RecipeNodeId, segment: u32) -> StableName {
+fn wall(doc: &ProfileDoc, node: RecipeNodeId, segment: u32) -> StableName {
     StableName {
         kind: editor_core::EntityKind::Face,
         node,
-        path: vec![RoleSeg::Lateral(editor_core::ProfileEdgeRef {
-            loop_index: 0,
-            segment,
-        })],
+        path: vec![RoleSeg::Lateral(crate::fixture::piece(
+            doc,
+            node,
+            0,
+            segment as usize,
+        ))],
     }
 }
 
@@ -642,14 +644,11 @@ fn from_plate(n: &StableName, plate: RecipeNodeId, seg: &RoleSeg) -> bool {
 
 const TOP: RoleSeg = RoleSeg::Cap(editor_core::CapEnd::End);
 
-/// The top's rim edge over profile segment `segment`.
-fn rim(segment: u32) -> RoleSeg {
+/// The plate's top rim edge over profile segment `segment`.
+fn rim(doc: &ProfileDoc, plate: RecipeNodeId, segment: u32) -> RoleSeg {
     RoleSeg::RimEdge(
         editor_core::CapEnd::End,
-        editor_core::ProfileEdgeRef {
-            loop_index: 0,
-            segment,
-        },
+        crate::fixture::piece(doc, plate, 0, segment as usize),
     )
 }
 
@@ -696,9 +695,11 @@ fn two_to_one(node: RecipeNodeId, gone: Vec<StableName>, new: Vec<StableName>) -
 /// wall. Ranked edges, so no side verdict answers first.
 #[test]
 fn a_cutter_that_stops_cutting_is_named_gone() {
-    let (bar, u, rows) = slid((1.5, 0.0), &[rim(0), rim(2)]);
+    // `slid` builds this same recipe, so its pieces are these.
+    let (doc, plate, ..) = plate_and_bar();
+    let (bar, u, rows) = slid((1.5, 0.0), &[rim(&doc, plate, 0), rim(&doc, plate, 2)]);
     for (n, d) in rows {
-        assert_eq!(d, two_to_one(u, vec![wall(bar, 1)], vec![]), "{n:?}");
+        assert_eq!(d, two_to_one(u, vec![wall(&doc, bar, 1)], vec![]), "{n:?}");
     }
 }
 
@@ -710,9 +711,11 @@ fn a_cutter_that_stops_cutting_is_named_gone() {
 /// gone and that wall new.
 #[test]
 fn a_cutter_that_starts_cutting_is_named_new() {
+    // `slid` builds this same recipe, so its pieces are these.
+    let (doc, ..) = plate_and_bar();
     let (bar, u, rows) = slid((0.0, 2.5), &[TOP]);
     for (n, d) in rows {
-        assert_eq!(d, two_to_one(u, vec![], vec![wall(bar, 0)]), "{n:?}");
+        assert_eq!(d, two_to_one(u, vec![], vec![wall(&doc, bar, 0)]), "{n:?}");
     }
 }
 
@@ -727,6 +730,8 @@ fn a_cutter_that_starts_cutting_is_named_new() {
 /// top and its rim edges. Each list holds every cutter it states.
 #[test]
 fn two_cutters_that_change_at_once_are_both_named() {
+    // `slid` builds this same recipe, so its pieces are these.
+    let (doc, plate, ..) = plate_and_bar();
     let (bar, u, rows) = slid((1.5, 2.5), &[TOP]);
     let mut answered = 0;
     for (n, d) in rows {
@@ -736,13 +741,13 @@ fn two_cutters_that_change_at_once_are_both_named() {
         answered += 1;
         assert_eq!(
             d,
-            two_to_one(u, vec![wall(bar, 1)], vec![wall(bar, 0)]),
+            two_to_one(u, vec![wall(&doc, bar, 1)], vec![wall(&doc, bar, 0)]),
             "{n:?}"
         );
     }
     assert_eq!(answered, 1, "the near fragment is the rung's to answer");
-    let (bar, u, rows) = slid((0.0, 5.0), &[TOP, rim(0), rim(2)]);
-    let mut gone = vec![wall(bar, 1), wall(bar, 3)];
+    let (bar, u, rows) = slid((0.0, 5.0), &[TOP, rim(&doc, plate, 0), rim(&doc, plate, 2)]);
+    let mut gone = vec![wall(&doc, bar, 1), wall(&doc, bar, 3)];
     gone.sort();
     for (n, d) in rows {
         assert_eq!(d, two_to_one(u, gone.clone(), vec![]), "{n:?}");
@@ -806,7 +811,7 @@ fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
             node: u,
             path: vec![RoleSeg::FromMember {
                 member: tr,
-                of: editor_core::NameRef::new(wall(bar, 1)),
+                of: editor_core::NameRef::new(wall(&doc, bar, 1)),
             }],
         };
         for (n, d) in rows {

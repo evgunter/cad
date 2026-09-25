@@ -1,7 +1,8 @@
 //! Sweep-op name emission (spec D2): a mechanical zip of the sweep
-//! emitters' output maps (`Extruded`, `Revolved` — already indexed by
-//! the profile's canonical combinatorial identities) with the role
-//! vocabulary. Rim edges and cap vertices are derived by
+//! emitters' output maps (`Extruded`, `Revolved`, `Lofted` — indexed by
+//! the profile's canonical positions) with the role vocabulary, each
+//! position spelled by the piece it is (`eval::ProfilePieces`,
+//! `names/README.md` "N1, the profile pieces"). Rim edges and cap vertices are derived by
 //! COMBINATORIAL adjacency between emitted anchors (unique shared
 //! edge; endpoint intersection) — exact wiring facts, never geometric
 //! matching.
@@ -15,6 +16,7 @@ use topo::{Body, EdgeKey, VertexKey};
 use super::emit::{NamingError, Rim, RimShare, edge_ends, ent, name1, rim_between};
 use super::role::{CapEnd, EntityKind, MeridianEnd, ProfileEdgeRef, ProfileVertexRef, RoleSeg};
 use super::table::{EntityKey, NameTable};
+use crate::eval::ProfilePieces;
 use crate::node::RecipeNodeId;
 
 /// The typed refusal when an OFF-AXIS meridian vertex stays
@@ -57,11 +59,83 @@ fn cap_rim_contradicted(found: RimShare) -> NamingError {
     }
 }
 
-/// A loop, segment or vertex index, narrowed to the `u32` a profile
-/// reference stores, or [`NamingError::Emission`] when it does not
-/// fit: two indices sharing one stored number would spell one name.
-fn ix(i: usize) -> Result<u32, NamingError> {
-    super::emit::to_u32(i, "a profile loop, segment or vertex index exceeds u32")
+/// The refusal when a canonical position has no piece: the pieces
+/// and the swept maps were built from one profile, so a position the
+/// one has and the other lacks is the two disagreeing.
+const NO_PIECE: NamingError = NamingError::Emission {
+    what: "a swept canonical position has no profile piece to name it by",
+};
+
+/// The piece canonical segment `k` of loop `l` is.
+fn edge_at(pieces: &ProfilePieces, l: usize, k: usize) -> Result<ProfileEdgeRef, NamingError> {
+    pieces.edge(l, k).ok_or(NO_PIECE)
+}
+
+/// The piece starting at canonical vertex `v` of loop `l`.
+fn vertex_at(pieces: &ProfilePieces, l: usize, v: usize) -> Result<ProfileVertexRef, NamingError> {
+    pieces.vertex(l, v).ok_or(NO_PIECE)
+}
+
+/// **How a swept solid's per-position roles are spelled**: an
+/// extrusion's by its one profile's pieces, a loft's walls and seams by
+/// every section's piece at that position and its caps' rims and
+/// vertices by the end section's own (`RoleSeg::LoftWall`,
+/// `RoleSeg::LoftSeam`).
+enum Swept<'a> {
+    /// One profile.
+    Extrude(&'a ProfilePieces),
+    /// One profile per section, first to last.
+    Loft(&'a [ProfilePieces]),
+}
+
+impl Swept<'_> {
+    /// The profile a cap end lies on.
+    fn end(&self, end: CapEnd) -> Result<&ProfilePieces, NamingError> {
+        match self {
+            Self::Extrude(p) => Ok(p),
+            Self::Loft(sections) => match end {
+                CapEnd::Start => sections.first(),
+                CapEnd::End => sections.last(),
+            }
+            .ok_or(NO_PIECE),
+        }
+    }
+
+    /// The wall at canonical segment `k` of loop `l`.
+    fn wall(&self, l: usize, k: usize) -> Result<RoleSeg, NamingError> {
+        match self {
+            Self::Extrude(p) => Ok(RoleSeg::Lateral(edge_at(p, l, k)?)),
+            Self::Loft(sections) => Ok(RoleSeg::LoftWall(
+                sections
+                    .iter()
+                    .map(|p| edge_at(p, l, k))
+                    .collect::<Result<_, _>>()?,
+            )),
+        }
+    }
+
+    /// The wall–wall edge at canonical vertex `v` of loop `l`.
+    fn strut(&self, l: usize, v: usize) -> Result<RoleSeg, NamingError> {
+        match self {
+            Self::Extrude(p) => Ok(RoleSeg::LateralEdge(vertex_at(p, l, v)?)),
+            Self::Loft(sections) => Ok(RoleSeg::LoftSeam(
+                sections
+                    .iter()
+                    .map(|p| vertex_at(p, l, v))
+                    .collect::<Result<_, _>>()?,
+            )),
+        }
+    }
+
+    /// The rim where the wall at `(l, k)` meets the cap at `end`.
+    fn rim(&self, end: CapEnd, l: usize, k: usize) -> Result<RoleSeg, NamingError> {
+        Ok(RoleSeg::RimEdge(end, edge_at(self.end(end)?, l, k)?))
+    }
+
+    /// The cap vertex at `end` over canonical vertex `v` of loop `l`.
+    fn cap_vertex(&self, end: CapEnd, l: usize, v: usize) -> Result<RoleSeg, NamingError> {
+        Ok(RoleSeg::CapVertex(end, vertex_at(self.end(end)?, l, v)?))
+    }
 }
 
 /// Names every boundary entity of an extrusion (spec D2's extrude
@@ -70,9 +144,11 @@ fn ix(i: usize) -> Result<u32, NamingError> {
 pub(crate) fn name_extrude<T: Decide>(
     node: RecipeNodeId,
     built: &Extruded<T>,
+    pieces: &ProfilePieces,
 ) -> Result<Arc<NameTable>, NamingError> {
     name_swept_topology(
         node,
+        &Swept::Extrude(pieces),
         &built.body,
         built.top,
         built.bottom,
@@ -81,16 +157,20 @@ pub(crate) fn name_extrude<T: Decide>(
     )
 }
 
-/// Names every boundary entity of a loft/sweep body (M6-3): the
-/// Lofted bundle is the Extruded one with seam edges where the struts
-/// were, so the SAME combinatorial zip applies — caps, laterals,
-/// rims, seams-as-lateral-edges, cap vertices, output body.
+/// Names every boundary entity of a loft body (M6-3): the Lofted
+/// bundle is the Extruded one with seam edges where the struts were,
+/// so the SAME combinatorial zip applies — caps, walls, rims, seams,
+/// cap vertices, output body — with a wall and a seam named by the
+/// pieces the skin paired, one per section (`sections`, first to
+/// last).
 pub(crate) fn name_loft<T: Decide>(
     node: RecipeNodeId,
     built: &sweep::Lofted<T>,
+    sections: &[ProfilePieces],
 ) -> Result<Arc<NameTable>, NamingError> {
     name_swept_topology(
         node,
+        &Swept::Loft(sections),
         &built.body,
         built.top,
         built.bottom,
@@ -104,6 +184,7 @@ pub(crate) fn name_loft<T: Decide>(
 /// (loop, vertex) lateral edges).
 fn name_swept_topology<T: Decide>(
     node: RecipeNodeId,
+    swept: &Swept<'_>,
     body: &Body<T>,
     end_cap: topo::FaceKey,
     start_cap: topo::FaceKey,
@@ -122,16 +203,12 @@ fn name_swept_topology<T: Decide>(
         )?;
     }
 
-    // Laterals + rims, indexed by the emitter's canonical (loop,
-    // segment) maps.
+    // Walls + rims, indexed by the emitter's canonical (loop,
+    // segment) maps and named by the pieces at those positions.
     for (l, segs) in side_faces.iter().enumerate() {
         for (s, &wall) in segs.iter().enumerate() {
-            let pe = ProfileEdgeRef {
-                loop_index: ix(l)?,
-                segment: ix(s)?,
-            };
             t.insert(
-                name1(EntityKind::Face, node, RoleSeg::Lateral(pe)),
+                name1(EntityKind::Face, node, swept.wall(l, s)?),
                 ent(0, EntityKey::Face(wall)),
             )?;
             for (end, cap) in [(CapEnd::End, end_cap), (CapEnd::Start, start_cap)] {
@@ -140,7 +217,7 @@ fn name_swept_topology<T: Decide>(
                     Rim::NotOne(found) => return Err(cap_rim_contradicted(found)),
                 };
                 t.insert(
-                    name1(EntityKind::Edge, node, RoleSeg::RimEdge(end, pe)),
+                    name1(EntityKind::Edge, node, swept.rim(end, l, s)?),
                     ent(0, EntityKey::Edge(rim)),
                 )?;
             }
@@ -152,12 +229,8 @@ fn name_swept_topology<T: Decide>(
     // vertex with the `end` rim of segment `j`.
     for (l, struts) in lateral_edges.iter().enumerate() {
         for (j, &strut) in struts.iter().enumerate() {
-            let pv = ProfileVertexRef {
-                loop_index: ix(l)?,
-                vertex: ix(j)?,
-            };
             t.insert(
-                name1(EntityKind::Edge, node, RoleSeg::LateralEdge(pv)),
+                name1(EntityKind::Edge, node, swept.strut(l, j)?),
                 ent(0, EntityKey::Edge(strut)),
             )?;
             let (s0, s1) = edge_ends(body, strut)?;
@@ -172,7 +245,7 @@ fn name_swept_topology<T: Decide>(
                     what: "extrude cap vertex: strut and rim share no endpoint",
                 })?;
                 t.insert(
-                    name1(EntityKind::Vertex, node, RoleSeg::CapVertex(end, pv)),
+                    name1(EntityKind::Vertex, node, swept.cap_vertex(end, l, j)?),
                     ent(0, EntityKey::Vertex(vtx)),
                 )?;
             }
@@ -198,6 +271,7 @@ fn name_swept_topology<T: Decide>(
 pub(crate) fn name_revolve<T: Decide>(
     node: RecipeNodeId,
     built: &sweep::Revolved<T>,
+    pieces: &ProfilePieces,
 ) -> Result<Arc<NameTable>, NamingError> {
     let body = &built.body;
     let mut t = NameTable::new();
@@ -205,18 +279,8 @@ pub(crate) fn name_revolve<T: Decide>(
         name1(EntityKind::Body, node, RoleSeg::OutputBody),
         ent(0, EntityKey::Body),
     )?;
-    let pe = |l: usize, s: usize| -> Result<ProfileEdgeRef, NamingError> {
-        Ok(ProfileEdgeRef {
-            loop_index: ix(l)?,
-            segment: ix(s)?,
-        })
-    };
-    let pv = |l: usize, v: usize| -> Result<ProfileVertexRef, NamingError> {
-        Ok(ProfileVertexRef {
-            loop_index: ix(l)?,
-            vertex: ix(v)?,
-        })
-    };
+    let pe = |l: usize, s: usize| edge_at(pieces, l, s);
+    let pv = |l: usize, v: usize| vertex_at(pieces, l, v);
     let insert_face = |t: &mut NameTable, seg: RoleSeg, f| {
         t.insert(
             name1(EntityKind::Face, node, seg),
