@@ -118,7 +118,7 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     Dimension, Expr, LoopProgram, ParamEnv, ParamName, ProfilePayload, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, SlotId,
+    ProgramArcData, ProgramStep, ProgramTarget, SlotId, StepArg,
 };
 use profile::{ArcMode, TargetKind, Verb};
 
@@ -1189,6 +1189,123 @@ fn every_enumerated_slot_is_where_its_refusal_reports() {
     assert!(
         misplaced.is_empty(),
         "the resolver addresses these slots at a role the enumeration does not: {misplaced:#?}"
+    );
+}
+
+/// The value a resolved step carries in the field `arg` NAMES — this
+/// suite's own reading of each role, written from the kernel type and
+/// the role's label and deliberately NOT from the program's role table,
+/// so the two are independent spellings a test may compare.
+///
+/// A role on a step shape that has no such field answers `None`.
+fn field_named(step: &profile::Step<f64>, arg: StepArg) -> Option<f64> {
+    use StepArg as A;
+    use profile::{ArcData as D, Step as S, Target};
+    let target = |t: &Target<f64>, x: bool| match t {
+        Target::Point(p) => Some(if x { p.x } else { p.y }),
+        Target::Start | Target::StartArriving => None,
+    };
+    // A spec's field for an incoming-spec role.
+    let spec = |d: Option<&D<f64>>, role: StepArg| match (d?, role) {
+        (D::Radius { r, .. } | D::Sweep { r, .. } | D::ArcLen { r, .. }, A::CarrierRadius) => {
+            Some(*r)
+        }
+        (D::Bulge { b, .. }, A::Bulge) => Some(*b),
+        (D::Via { q, .. }, A::ViaX) => Some(q.x),
+        (D::Via { q, .. }, A::ViaY) => Some(q.y),
+        (D::Center { c, .. }, A::CenterX) => Some(c.x),
+        (D::Center { c, .. }, A::CenterY) => Some(c.y),
+        (D::Sweep { angle, .. }, A::SweepVal) => Some(*angle),
+        (D::ArcLen { len, .. }, A::ArcLenVal) => Some(*len),
+        (
+            D::Bulge { target: t, .. } | D::Via { target: t, .. } | D::Center { target: t, .. },
+            A::TargetX | A::TargetY,
+        ) => target(t, role == A::TargetX),
+        _ => None,
+    };
+    let (incoming, arrival) = match step {
+        S::ArcTo(d) | S::ArcFillet { spec: d, .. } => (Some(d), None),
+        S::FilletArc { spec: d, .. } => (None, Some(d)),
+        S::ArcFilletArc { spec, spec2, .. } => (Some(spec), Some(spec2)),
+        _ => (None, None),
+    };
+    match (step, arg) {
+        (S::At(p) | S::FarEndTo(p), A::PointX) => Some(p.x),
+        (S::At(p) | S::FarEndTo(p), A::PointY) => Some(p.y),
+        (S::Angle(v), A::AngleVal) | (S::Turn(v), A::TurnVal) | (S::Line(v), A::Length) => Some(*v),
+        (S::Toward { dx, .. }, A::DirX) => Some(*dx),
+        (S::Toward { dy, .. }, A::DirY) => Some(*dy),
+        (S::LineTo(t) | S::ContinueTo(t) | S::TangentArcTo(t), A::TargetX | A::TargetY) => {
+            target(t, arg == A::TargetX)
+        }
+        (
+            S::Fillet { radius }
+            | S::FilletArc { radius, .. }
+            | S::ArcFillet { radius, .. }
+            | S::ArcFilletArc { radius, .. }
+            | S::Circle { radius, .. }
+            | S::CircleSplit { radius, .. },
+            A::Radius,
+        ) => Some(*radius),
+        (S::Circle { centre, .. } | S::CircleSplit { centre, .. }, A::CenterX) => Some(centre.x),
+        (S::Circle { centre, .. } | S::CircleSplit { centre, .. }, A::CenterY) => Some(centre.y),
+        (S::CircleSplit { phase, .. }, A::Phase) => Some(*phase),
+        (_, A::CarrierRadius2) => spec(arrival, A::CarrierRadius),
+        (_, A::Bulge2) => spec(arrival, A::Bulge),
+        (_, A::Via2X) => spec(arrival, A::ViaX),
+        (_, A::Via2Y) => spec(arrival, A::ViaY),
+        (_, A::Center2X) => spec(arrival, A::CenterX),
+        (_, A::Center2Y) => spec(arrival, A::CenterY),
+        (_, A::SweepVal2) => spec(arrival, A::SweepVal),
+        (_, A::ArcLenVal2) => spec(arrival, A::ArcLenVal),
+        (_, A::Target2X) => spec(arrival, A::TargetX),
+        (_, A::Target2Y) => spec(arrival, A::TargetY),
+        (_, role) => spec(incoming, role),
+    }
+}
+
+/// **Every enumerated slot resolves into the field its role NAMES.**
+///
+/// The two censuses above check that enumeration, addressing and
+/// resolution AGREE. All three read one role table (`loop_roles` in
+/// `program.rs`), so a table row that pairs a role with the wrong
+/// field — `ViaX` with the via's y — is read the same wrong way by every
+/// consumer, agrees with itself, and moves y when a user edits "via x".
+/// So each slot's expression is replaced, one at a time, by a sentinel
+/// literal, the program is resolved, and the resolved kernel step must
+/// carry the sentinel in the field [`field_named`] reads for that role.
+///
+/// Blind spot, stated: the corpus's, as for the censuses above.
+#[test]
+fn every_enumerated_slot_resolves_into_the_field_its_role_names() {
+    let program = corpus();
+    let slots = program.slots();
+    assert!(!slots.is_empty(), "the corpus enumerates no slot");
+    // Finite and valid in every dimension; no corpus literal is this.
+    let sentinel = 7.123_456_789;
+    let mut misread = Vec::new();
+    for slot in &slots {
+        let SlotId::Profile { loop_, step, arg } = *slot else {
+            panic!("a profile payload enumerated a non-profile slot: {slot:?}");
+        };
+        let mut probe = program.clone();
+        let expr = probe
+            .expr_mut(*slot)
+            .unwrap_or_else(|| panic!("{} is enumerated but addresses nothing", slot.label()));
+        *expr = Expr::literal(sentinel, expr.dim()).expect("a finite literal");
+        let loops = probe
+            .resolve(&ParamEnv::<f64>::default())
+            .unwrap_or_else(|(at, e)| {
+                panic!("the literal corpus refuses at {}: {e:?}", at.label())
+            });
+        let resolved = &loops[loop_ as usize][step as usize];
+        if field_named(resolved, arg) != Some(sentinel) {
+            misread.push(format!("{} resolves into {resolved:?}", slot.label()));
+        }
+    }
+    assert!(
+        misread.is_empty(),
+        "these slots resolve into a field other than the one their role names: {misread:#?}"
     );
 }
 
