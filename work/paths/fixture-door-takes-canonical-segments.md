@@ -2,12 +2,14 @@
 id: fixture-door-takes-canonical-segments
 kind: unit
 title: The dev-only RawLoop fixture door takes canonical segments; ProfileVertex retires; fixtures migrate through a helper forwarding to arc_to(Bulge)
-status: dispatched
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: D
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
 branch: claude/clever-bardeen-4itqb3
+closed: 2026-09-25
+pr: 3231
 ---
 
 
@@ -74,3 +76,12 @@ byte-identity claim over about 1355 sites deserves falsification.
   tools or docs.
 - (C3) The raw door's gate is unchanged.
 - (C4) The helper has no arithmetic of its own.
+
+## Closed (2026-09-25, #3231)
+
+Merged bit-identical: the reviewer executed the rewrite script over all
+250 files and diffed the result. `ProfileVertex` is gone; `RawLoop::new`
+takes canonical segments; `bulge_loop` forwards to `ProfileLoop::lower`.
+Residue went onto `store-constructed-carriers` (canonical-door loops
+drift under re-lowering: last bits, and a NaN centre for a one-segment
+circle) and `one-segment-loop-through-builders` (a prerequisite).
