@@ -138,3 +138,44 @@ evidence for the widening this row schedules: on an arc-capped loft
 the gate hides a WHOLE-BODY sense inversion, reached through the
 public `topo::Body::set_face_sense` door, with `validate_geometric`
 `Ok(())` and the enclosure unmoved and positive.
+
+## The checker half closed for circles; the arithmetic has one home (ATREST-4, 2026-09-24)
+
+The winding arm moved out of `merge_faces.rs` into
+`crates/topo/src/loop_winding.rs` (`Body::planar_loop_winding`), and
+both the merge's role assigner and tier 3's check 6 planar arm now call
+it — the fourth statement this row's flip condition anticipated was
+not written. The assigner's `merge_faces::loop_winding` is a thin
+wrapper that maps the shared result onto `MergeCoplanarError`; its
+reach is `LoopCarriers::Elliptic`, check 6's is
+`LoopCarriers::Circular`. Two behaviour notes on the assigner side:
+the arithmetic, its order and the escalation are unchanged; a torn
+lookup on the way to a CARRIER now announces `StaleKey` where it
+previously answered `Ok(None)` (a torn point lookup already
+announced) — unreachable on a tier-1 body either way.
+
+What that closes and what it does not:
+
+- A merged face whose outer/ring roles are STORED wrongly — by any
+  producer — is now falsified by check 6 when its loops ride lines and
+  circles.
+- An error in the shared functional itself (MUT-2's sign flip) now
+  moves the assigner and the checker together, so tier 3 cannot see
+  it. That is the price of one home, and it is covered by rows whose
+  roles come from a DIFFERENT derivation: the extruded washer in
+  `crates/sweep/tests/m5_s10_face_sense.rs`
+  (`an_inverted_cap_refuses_at_its_arc_ring_as_well_as_its_outline`),
+  whose roles are `profile`'s containment pass and whose chord terms
+  are zero, refuses the HONEST body under a mis-signed bulge; the cup's
+  `outer[0] > ring[1]` assertion in `verbs_1031b_arcwind.rs` still
+  stands.
+- Ellipse-bearing loops stay outside the checker:
+  `work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`.
+
+The refusal-surface measurement this row asked for was run before the
+arm landed; its table is in ATREST-4's PR.
+
+The `all_lines` gate: the checker's named spelling is gone (the carrier
+class is `LoopCarriers`, computed once in the shared function); the
+test re-derivation in `m5_s10_face_sense.rs`'s `planar_arm_reaches`
+stays, re-cut to `Line`-or-`Circle`.
