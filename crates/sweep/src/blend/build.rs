@@ -135,7 +135,8 @@ pub struct Blended<T: Real> {
 /// [`BlendError::BodyNotIntact`] when the body does not hold together
 /// where the plan reads it;
 /// [`BlendError::RingClearance`] when a carried-through ring does not
-/// clear a trimline; [`BlendError::Op`], carrying the operator's own
+/// clear a trimline, or a cap cycle does not clear the sliver a ruled
+/// cut-off removes; [`BlendError::Op`], carrying the operator's own
 /// typed refusal, when an Euler operator refuses;
 /// [`BlendError::Certify`], carrying the pass's own typed refusal,
 /// when the result's pcurve caches cannot be re-minted.

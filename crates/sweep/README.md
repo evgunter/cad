@@ -136,7 +136,8 @@ becomes that face's new outer boundary, so a ring carries through
 exactly when the trim CONTAINS it, metered before any mutation under
 `fillet3_ring_clearance` (`blend/surgery.rs`'s ring carry-through
 pass, which meters every ring of every touched support face against
-every blend trimline in closed form). A merged cap that is an ANNULUS
+every blend trimline in closed form, and every cycle a convex ruled
+cut-off leaves on its cap against the sliver it removes). A merged cap that is an ANNULUS
 therefore carves on both its rims, one call each. A CURVED single face
 carrying every arc is authorable through `topo`'s `kef` and refuses at
 the half-band gate on both routes
@@ -172,7 +173,16 @@ the cap, one trimline `mef` per support carves its strip along the
 ruling, and the crease's `kef` with two `kef`/`kev` pairs folds the
 slivers in and retires the old vertices — the trimlines described as
 the band's tangent contact with a curved support, the arcs as its
-transverse intersection with the cap, on either material side. An
+transverse intersection with the cap, on either material side. On the
+convex side the cut removes the sliver between the arc and the old
+vertex from the cap, and leaves the cap's other cycles where they were,
+so each of them — a bore's ring, or the outer cycle where the cut runs
+in a ring — is metered before any mutation against the annulus that
+encloses the sliver (inner radius the band's, outer the farthest the
+sliver reaches from the spine's crossing), by the same ring
+carry-through pass and under the same `fillet3_ring_clearance`; a cycle
+not definitely clear of it refuses `RingClearance` at the cap
+(`crates/sweep/tests/band_ruled_cap_ring.rs`). An
 oblique or curved end face refuses typed as the run-out A3-3 reserves.
 Consumer: the rod with a flat milled along it (`cylinder ∖ box`), both
 creases in one call, at the prism closed form `ΔV = A_section · L`

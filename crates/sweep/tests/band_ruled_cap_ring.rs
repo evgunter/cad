@@ -31,7 +31,9 @@ fn tol() -> Tol {
 }
 
 fn volume(body: &Body<f64>) -> f64 {
-    mass_properties(body, tol()).expect("closed-form props").volume
+    mass_properties(body, tol())
+        .expect("closed-form props")
+        .volume
 }
 
 /// A round profile loop: two semicircles about `(x, y)`.
@@ -68,8 +70,14 @@ fn assert_cap_ring_refusal(body: &Body<f64>, what: &str) {
     assert_eq!(creases.len(), 2, "{what}: the D's two creases");
     match fillet_edges(body, &creases, ROD_FILLET, tol()).map_err(|e| e.error) {
         Err(BlendError::RingClearance { face, margin }) => {
-            assert_eq!(margin.sign, Sign::Negative, "{what}: definite, got {margin}");
-            let f = body.get_face(face).expect("the refusal names a source face");
+            assert_eq!(
+                margin.sign,
+                Sign::Negative,
+                "{what}: definite, got {margin}"
+            );
+            let f = body
+                .get_face(face)
+                .expect("the refusal names a source face");
             assert!(
                 !f.rings.is_empty(),
                 "{what}: the face named is a cap carrying the bore"

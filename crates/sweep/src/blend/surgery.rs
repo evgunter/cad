@@ -102,8 +102,10 @@
 //! carry-through honesty check, **`fillet3_ring_clearance`**: a Q1
 //! trilean whose margin (meters) is the closed-form clearance between
 //! a support face's ring and a blend's trimline — circle-vs-line and
-//! circle-vs-circle, exact, never sampled. Positive carries the ring
-//! through; zero/negative refuses typed
+//! circle-vs-circle, exact, never sampled — and, on a transverse cap a
+//! convex ruled band cuts off, between each cycle the cut leaves on the
+//! cap and the annulus enclosing the sliver it removes. Positive
+//! carries the cycle through; zero/negative refuses typed
 //! ([`BlendError::RingClearance`]); in-band escalates with the same
 //! recourse (two-tolerance, D4 ¶1 addendum). And the must-carry rule
 //! over every contact edge at the description pass (`attach_contact`,
@@ -656,7 +658,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 
     // ---- The ring carry-through honesty check (the one decision this
     // module adds — module docs). ----
-    ring_clearance_pass(source, &opens, &rims, band)?;
+    ring_clearance_pass(source, &opens, &rims, &ruled_plans, band)?;
 
     // ---- Mutation, on a clone. From here on every step is an Euler
     // operator or a certified setter; refusals map to Op/Certify. ----
@@ -2073,11 +2075,13 @@ pub fn ring_clearance_for_tests<T: Decide + Bounds>(
 
 /// The pre-mutation honesty pass (module docs): every ring of every
 /// touched support face must clear every blend trimline by a definite
-/// margin, in closed form.
+/// margin, in closed form — and every cycle a convex ruled cut-off
+/// leaves on its cap must clear the sliver it removes.
 fn ring_clearance_pass<T: Decide + Bounds>(
     body: &Body<T>,
     opens: &[AdmittedOpen<'_, T>],
     rims: &[RimPlan<'_, T>],
+    ruled: &[RuledPlan<'_, T>],
     band: Band,
 ) -> Result<(), BlendError> {
     // A ring's EFFECTIVE radius: its own circle, widened to the trim
@@ -2267,6 +2271,78 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                     ring_clearance(rim.host0(), m.external.max(m.trim_inside_other), band)?;
                 }
                 _ => {}
+            }
+        }
+    }
+    // (c) Ruled cut-offs: every cycle of a cap OTHER than the one the
+    // cut runs in stays on the cap through the cut-off `mef`, so every
+    // edge of it must clear the annulus that encloses the sliver the
+    // cut removes ([`CapSliver`](super::open::ruled::CapSliver)). Each
+    // edge is metered by its WHOLE carrier — the full circle, the
+    // infinite line — so a clear carrier is a clear edge, and the
+    // direction this errs in is a loud refusal of an edge whose
+    // carrier, not the edge, meets the annulus. A circle is clear
+    // inside the section circle's open disc (the ball's section, kept
+    // material), or outside the annulus's outer circle, or enclosing
+    // it; a line only beyond the outer circle. A carrier of any other
+    // kind, or a lone-vertex cycle, has no closed form here, and no
+    // other pass meters the cap, so it refuses rather than being
+    // skipped.
+    for plan in ruled {
+        for s in plan.removed_slivers() {
+            let fd = body
+                .get_face(s.cap)
+                .ok_or_else(|| not_intact(EntityId::Face(s.cap), "a ruled cut-off's cap"))?;
+            let others = core::iter::once(fd.outer)
+                .chain(fd.rings.iter().copied())
+                .filter(|&lp| lp != s.cut);
+            for lp in others {
+                let lone = body
+                    .get_loop(lp)
+                    .ok_or_else(|| not_intact(EntityId::Loop(lp), "a ruled cut-off cap's cycle"))?;
+                if let topo::LoopBoundary::Empty { .. } = lone.boundary {
+                    return Err(unbuilt_geometry(
+                        EntityId::Loop(lp),
+                        "a cap beside a ruled cut-off carries a lone-vertex cycle, which the \
+                         sliver meter does not cover",
+                    ));
+                }
+                let walk = loop_walk(body, lp)
+                    .ok_or_else(|| not_intact(EntityId::Loop(lp), "a ruled cut-off cap's cycle"))?;
+                for (_, _, edge) in walk {
+                    let e = body
+                        .get_edge(edge)
+                        .ok_or_else(|| not_intact(EntityId::Edge(edge), "a cap cycle edge"))?;
+                    let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                        return Err(unbuilt_geometry(
+                            EntityId::Edge(edge),
+                            "a cycle edge of a cap beside a ruled cut-off carries no certified \
+                             carrier",
+                        ));
+                    };
+                    let margin = match *c.carrier() {
+                        Curve3::Line { origin, dir } => {
+                            let d = s.center - origin;
+                            (d - dir * d.dot(dir)).norm() - s.reach
+                        }
+                        Curve3::Circle { center, radius, .. } => {
+                            let inner = circle_margins((s.center, s.radius), (center, radius));
+                            let outer = circle_margins((s.center, s.reach), (center, radius));
+                            inner
+                                .other_inside_trim
+                                .max(outer.external)
+                                .max(outer.trim_inside_other)
+                        }
+                        _ => {
+                            return Err(unbuilt_geometry(
+                                EntityId::Edge(edge),
+                                "a cycle edge of a cap beside a ruled cut-off is neither a line \
+                                 nor a circle, the only carriers the sliver meter covers",
+                            ));
+                        }
+                    };
+                    ring_clearance(s.cap, margin, band)?;
+                }
             }
         }
     }

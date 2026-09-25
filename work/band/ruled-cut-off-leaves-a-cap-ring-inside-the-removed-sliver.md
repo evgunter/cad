@@ -65,3 +65,24 @@ circle / the sliver region in closed form (the cut-off arc is a circle
 of radius `r` about `CapEnd::center`, and a ring edge's carrier is
 stored). Refuse `RingClearance` where the margin is not definite, with a
 row at each fixture (the D-rod bore and the keyhole bore).
+
+## Closed by (`band/cap-ring-in-sliver`)
+
+Both routes measured red as stated, plus a third the item did not
+name: a bore STRADDLING the cut-off arc also carved and tier 3 accepted
+it. Every cycle a convex cut-off leaves on its cap — the cap's rings,
+and its outer cycle where the cut runs in a ring — is now metered
+before any mutation by the ring carry-through pass (arm (c) of
+`ring_clearance_pass`, `crates/sweep/src/blend/surgery.rs`) under
+`fillet3_ring_clearance`, against the annulus that encloses the sliver
+(`CapSliver`, `rim_reach` in `crates/sweep/src/blend/open/ruled.rs`).
+Rows: `band_ruled_cap_ring` (the D-rod: inside, straddling, two clear)
+and `review_band_ruled_ring_probes` (the keyhole: inside, clear).
+
+Deviations, each filed: the meter is an enclosing annulus by whole
+carriers, so a definite negative reads "meets the annulus", not "meets
+the sliver", and the bore wholly inside the sliver refuses rather than
+vanishing
+(`ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver`); the
+cut cycle's own non-rim edges are not metered
+(`ruled-cut-off-does-not-meter-the-cut-cycles-own-other-edges`).

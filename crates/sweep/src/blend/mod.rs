@@ -1206,10 +1206,15 @@ pub enum BlendError {
     /// (`fillet3_ring_clearance`): a ring of a support face sits
     /// within (or in band of) a blend trimline, so splitting the face
     /// along that trimline would consume the ring's feature instead
-    /// of carrying it through. Exact closed form (circle-vs-line /
+    /// of carrying it through — or a cycle of a transverse cap (a
+    /// ring, or the outer cycle where the cut runs in a ring) meets
+    /// the annulus enclosing the sliver a convex ruled cut-off removes
+    /// from that cap, so the cut would leave the cycle outside the
+    /// region it bounds. Exact closed form (circle-vs-line /
     /// circle-vs-circle), never sampled.
     RingClearance {
-        /// The support face whose ring is too close.
+        /// The face — a support, or a ruled band's cap — whose ring
+        /// or cycle is too close.
         face: FaceKey,
         /// The ring-to-trimline clearance in meters, as
         /// `fillet3_ring_clearance` classified it: definitely negative,
@@ -1454,7 +1459,7 @@ impl fmt::Display for BlendError {
             ),
             Self::RingClearance { margin, .. } => write!(
                 f,
-                "a ring of a support face sits inside a blend's setback ({margin}). \
+                "a ring of a face the blend cuts sits inside a blend's setback ({margin}). \
                  Recourse: {FILLET3_RING_RECOURSE}"
             ),
             Self::Certify { site, source } => {

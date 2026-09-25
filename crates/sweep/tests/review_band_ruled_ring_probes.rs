@@ -135,13 +135,19 @@ fn a_bore_in_a_keyhole_creases_removed_sliver_refuses_ring_clearance() {
     match fillet_edges(&body, &creases, 0.1, tol()).map_err(|e| e.error) {
         Err(BlendError::RingClearance { face, margin }) => {
             assert_eq!(margin.sign, Sign::Negative, "definite, got {margin}");
-            let f = body.get_face(face).expect("the refusal names a source face");
-            assert_eq!(f.rings.len(), 2, "the face named is a cap: keyhole and bore");
+            let f = body
+                .get_face(face)
+                .expect("the refusal names a source face");
+            assert_eq!(
+                f.rings.len(),
+                2,
+                "the face named is a cap: keyhole and bore"
+            );
         }
         Err(other) => panic!("expected RingClearance at the cap, got {other:?}"),
-        Ok(_) => panic!(
-            "the carve returned a body keeping the bore on a cap that no longer covers it"
-        ),
+        Ok(_) => {
+            panic!("the carve returned a body keeping the bore on a cap that no longer covers it")
+        }
     }
 }
 
