@@ -935,3 +935,56 @@ fn the_neighbour_arm_is_measured_against_the_plates_closest_two_meridians() {
          neighbour arm rules a meridian out by"
     );
 }
+
+/// **A rim edge's rebind suggestions are its trim arcs, never a slit.**
+///
+/// A slit's `band` names the rim edges of the band that made it, and
+/// that is DISCRIMINATION: the slit replaces a piece of a MERIDIAN,
+/// not any rim edge. So a vanished rim edge is offered the two band
+/// trimlines that replace it and nothing else, while a vanished
+/// meridian is offered its slit.
+///
+/// The runtime value that makes it false: the suggestion list. A walk
+/// that treats `band` as derivation adds the hole's slit to every rim
+/// edge's list.
+#[test]
+fn a_rim_edges_rebind_suggestions_are_its_trims_and_not_its_bands_slit() {
+    let (doc, block, fillet) = plate();
+    let ev = fixture::run(&doc, &EvalOptions::default());
+    for rim in rims() {
+        let what = format!("hole {}", rim.loop_index);
+        for s in 0..2 {
+            let edge = rim_edge(block, rim, s);
+            let got = editor_core::rebind_suggestions(&ev, &edge);
+            let roles: Vec<&RoleSeg> = got.iter().map(|n| &n.path[0]).collect();
+            assert_eq!(
+                roles.len(),
+                2,
+                "{what}, rim edge {s}: its host and mate trimlines, got {got:#?}"
+            );
+            assert!(
+                roles
+                    .iter()
+                    .all(|r| matches!(r, RoleSeg::BandTrim { edge: e, .. } if **e == edge)),
+                "{what}, rim edge {s}: only the trimlines replacing it, got {got:#?}"
+            );
+        }
+        let slits: Vec<StableName> = table(&ev, fillet)
+            .iter()
+            .filter(|(n, _)| {
+                matches!(&n.path[..], [RoleSeg::BandSlit { band, .. }] if *band == band_of(block, rim))
+            })
+            .map(|(n, _)| n.clone())
+            .collect();
+        let [slit] = &slits[..] else {
+            panic!("{what}: one slit per band, got {slits:#?}");
+        };
+        let RoleSeg::BandSlit { edge: meridian, .. } = &slit.path[0] else {
+            unreachable!("filtered on BandSlit above")
+        };
+        assert!(
+            editor_core::rebind_suggestions(&ev, meridian).contains(slit),
+            "{what}: the meridian the slit was cut from is offered it"
+        );
+    }
+}

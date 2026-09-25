@@ -2383,7 +2383,8 @@ fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<Stabl
 /// policy menu).
 ///
 /// Two exclusions (review Finding 2): a name that merely MENTIONS
-/// `name` as a `SideOf` discriminator PARTNER is not a derivation of
+/// `name` as a discriminator PARTNER (a `SideOf` partner, a slit's or
+/// crossing's band) is not a derivation of
 /// it — partners are the references fragments are classified
 /// against, so painting a cutter wall must not suggest the other
 /// body's fragments ([`walk_names`] with [`Partners::Skip`]); and
@@ -2567,12 +2568,14 @@ fn upstream_nodes(
     nodes
 }
 
-/// Whether a name walk visits `SideOf` discriminator PARTNERS.
-/// Partners are discrimination references — an edit at a partner's
-/// node can re-qualify the name (N7 localization, cascade), but the
-/// name is not DERIVED from the partner (suggestions must not offer
-/// the other body's fragments for a painted cutter wall — review
-/// Finding 2).
+/// Whether a name walk visits discriminator PARTNERS: a `SideOf`
+/// qualifier's partners, and the `band` of a [`RoleSeg::BandCross`] or
+/// [`RoleSeg::BandSlit`]. Partners are discrimination references — an
+/// edit at a partner's node can re-qualify the name (N7 localization,
+/// cascade), but the name is not DERIVED from the partner (suggestions
+/// must not offer the other body's fragments for a painted cutter
+/// wall — review Finding 2 — nor a band's slit for one of its rim
+/// edges).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Partners {
     /// Visit partner names (localization, cascade).
@@ -2653,10 +2656,16 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
                     visit(n, partners, f);
                 }
             }
+            // The source edge is derivation; the band is a
+            // DISCRIMINATOR — it says which of the bands on that edge
+            // made the entity, and the entity does not replace any of
+            // the band's rim edges — so it is a partner position.
             RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
                 visit(edge, partners, f);
-                for n in band {
-                    visit(n, partners, f);
+                if partners == Partners::Include {
+                    for n in band {
+                        visit(n, partners, f);
+                    }
                 }
             }
             RoleSeg::Seam { a, b } => {

@@ -181,7 +181,9 @@ pub struct BlendNaming {
     pub arcs: Vec<(EdgeKey, VertexKey, EdgeKey)>,
 
     // ---- The rim phase (closed chains). ----
-    /// Torus band face ← the closed chain's source edges, sorted.
+    /// Torus band face ← the band's identity: its closed chain's
+    /// source edges, a SET in chain order (`surgery::band_identity`).
+    /// The seam-split and slit rows below carry the same value.
     pub bands: Vec<(FaceKey, Vec<EdgeKey>)>,
     /// Rim trim arc ← (the source rim edge it replaces, which support
     /// it lies on).
@@ -191,11 +193,9 @@ pub struct BlendNaming {
     /// between two curved walls still mints these).
     pub rim_feet: Vec<(VertexKey, VertexKey)>,
     /// Meridian split vertex ← (the source meridian edge it split, the
-    /// SPLITTING band's closed chain as its source edges, sorted — the
-    /// same set that band's `bands` row carries). The band
-    /// discriminates for the reason `slits` states: two bands whose
-    /// rims are the two ends of one meridian segment each split that
-    /// segment's seam.
+    /// splitting band's identity). Two bands whose rims are the two
+    /// ends of one meridian segment each split that segment's seam, so
+    /// the band discriminates.
     pub meridian_splits: Vec<(VertexKey, EdgeKey, Vec<EdgeKey>)>,
     /// The SURVIVING piece of a source edge the band's carve split ←
     /// that source edge: a seam meridian at a ladder rim's crossing, or
@@ -204,16 +204,17 @@ pub struct BlendNaming {
     /// fragment, so it is named as one.)
     pub meridian_remnants: Vec<(EdgeKey, EdgeKey)>,
     /// A band's SLIT ← (the source meridian whose upper piece became
-    /// it, the SLITTING band's closed chain as its source edges,
-    /// sorted — the same set that band's `bands` row carries). One per
-    /// band, so the band discriminates: two bands whose rims are the
-    /// two ends of one meridian segment both slit that segment's seam,
-    /// and the meridian alone would give their slits one source.
+    /// it, the slitting band's identity). One per band; the band
+    /// discriminates as it does for `meridian_splits`.
     ///
     /// `meridian_remnants` carries no band, and needs none: a band that
     /// splits a piece an earlier band recorded retires that row before
-    /// recording its own (`surgery::split_fragment`), so one source
-    /// meridian's surviving pieces are recorded once each.
+    /// recording its own — `surgery::split_fragment` on the ladder and
+    /// ruled arms, the hand-kept `retain`s in `rim_phase_annulus` on the
+    /// annulus arm (the second spelling
+    /// `work/band/annulus-rim-phase-keeps-a-second-spelling-of-the-split-provenance.md`
+    /// files) — so one source meridian's surviving pieces are recorded
+    /// once each, and their names are unique by that alone.
     pub slits: Vec<(EdgeKey, EdgeKey, Vec<EdgeKey>)>,
 
     /// What the blend retired from the source.

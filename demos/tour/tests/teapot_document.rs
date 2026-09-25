@@ -398,3 +398,294 @@ fn the_rolled_names_are_one_set_at_two_radii() {
     );
     assert_eq!(a, b);
 }
+
+/// Every entity of the rolled body, keyed by its NAME, with a
+/// geometric witness: a vertex's point, an edge's two end points
+/// (sorted), a face's vertex count. Bits, so "same" means same.
+fn named_geometry(
+    ev: &Evaluation<f64>,
+    node: RecipeNodeId,
+) -> std::collections::BTreeMap<StableName, Vec<u64>> {
+    let b = body_at(ev, node);
+    let pt = |v: pncad::topo::VertexKey| -> [u64; 3] {
+        let p = b.get_point(b.get_vertex(v).unwrap().point).unwrap();
+        [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]
+    };
+    let mut out = std::collections::BTreeMap::new();
+    for (k, e) in b.edges() {
+        let n = edge_name(ev, node, 0, k).expect("every edge named").clone();
+        let a = pt(b.get_half_edge(e.he_plus).unwrap().start);
+        let z = pt(b.get_half_edge(e.he_minus).unwrap().start);
+        let mut ends = [a, z];
+        ends.sort_unstable();
+        out.insert(n, ends.concat());
+    }
+    for (n, _) in ev.value(node).unwrap().name_table.iter() {
+        if n.kind == EntityKind::Vertex {
+            let p = pncad::select::vertex_position(ev, node, n).expect("vertex reads");
+            out.insert(n.clone(), vec![p.x.to_bits(), p.y.to_bits(), p.z.to_bits()]);
+        }
+    }
+    out
+}
+
+fn roll_named(
+    vs: &[u32],
+    roll: f64,
+    tol: Tol,
+) -> Result<std::collections::BTreeMap<StableName, Vec<u64>>, String> {
+    let (doc, _, rolled) = rolled_lid(vs, roll, tol);
+    let ev = eval(&doc, tol);
+    match ev.node_error(rolled) {
+        Some(e) => Err(format!("{:?}", e.kind)),
+        None => Ok(named_geometry(&ev, rolled)),
+    }
+}
+
+/// **No set of the lid's rims refuses at a NAME**: every pair of the
+/// six, all six, and each half, at a quarter of the roll. A request
+/// may still refuse on geometry; it may not refuse because two of its
+/// outputs share a name.
+#[test]
+fn every_rim_set_at_a_quarter_roll_is_nameable() {
+    let tol = Tol::witness();
+    let mut sets: Vec<Vec<u32>> = Vec::new();
+    for a in 0..6u32 {
+        for b in (a + 1)..6 {
+            sets.push(vec![a, b]);
+        }
+    }
+    sets.push((0..6).collect());
+    sets.push(vec![0, 1, 2]);
+    sets.push(vec![3, 4, 5]);
+    let mut bad = Vec::new();
+    for s in &sets {
+        if let Err(e) = &roll_once(s, ROLL / 4.0, tol)
+            && (e.contains("Naming") || e.contains("Duplicate"))
+        {
+            bad.push((s.clone(), e.clone()));
+        }
+    }
+    assert!(bad.is_empty(), "naming refusals: {bad:#?}");
+}
+
+/// **Two annulus bands on one PLANE cap compose and name their
+/// output**: the underside (segment 0) carries rims 0 and 1, the top
+/// (segment 4) rims 4 and 5, so each pair's bands both carve the
+/// cap's radial seam. At a quarter of the roll, where the vent's
+/// concave rims have headroom.
+#[test]
+fn two_bands_on_one_plane_cap_compose() {
+    let tol = Tol::witness();
+    for pair in [[0u32, 1], [4, 5]] {
+        assert_eq!(
+            roll_once(&pair, ROLL / 4.0, tol),
+            Ok((8, 16, 8)),
+            "rims {pair:?} share a plane cap"
+        );
+    }
+}
+
+/// **The selection ORDER moves no name** (N4): the kernel carves the
+/// bands one after another, and which one goes first decides which
+/// band records the remnant between two of them — so the name →
+/// geometry map is compared across orders, `BandCut` included.
+#[test]
+fn the_selection_order_moves_no_name() {
+    let tol = Tol::witness();
+    for (a, b) in [
+        (vec![1u32, 2, 4], vec![4u32, 2, 1]),
+        (vec![1, 2], vec![2, 1]),
+        (vec![5, 0], vec![0, 5]),
+    ] {
+        let roll = if a.contains(&5) { ROLL / 4.0 } else { ROLL };
+        let ga = roll_named(&a, roll, tol).expect("a builds");
+        let gb = roll_named(&b, roll, tol).expect("b builds");
+        assert_eq!(
+            ga.keys().collect::<Vec<_>>(),
+            gb.keys().collect::<Vec<_>>(),
+            "{a:?} vs {b:?}: name sets"
+        );
+        for (n, g) in &ga {
+            assert_eq!(Some(g), gb.get(n), "{a:?} vs {b:?}: {n:?} moved");
+        }
+    }
+}
+
+/// **One `BandCut` survives between two bands on one seam**: on the
+/// flange seam exactly one remnant is named, and it runs from one
+/// band's crossing to the other's. Two would share the source
+/// meridian's name — the uniqueness rests on each band retiring the
+/// remnant row an earlier band recorded before recording its own.
+#[test]
+fn one_band_cut_survives_between_two_bands() {
+    let tol = Tol::witness();
+    let (doc, lid, rolled) = rolled_lid(&[1, 2], ROLL, tol);
+    let ev = eval(&doc, tol);
+    assert!(ev.node_error(rolled).is_none());
+    let seam = StableName {
+        kind: EntityKind::Edge,
+        node: lid,
+        path: vec![RoleSeg::Meridian(
+            MeridianEnd::Seam,
+            ProfileEdgeRef {
+                loop_index: 0,
+                segment: 1,
+            },
+        )],
+    };
+    let g = named_geometry(&ev, rolled);
+    let cuts: Vec<_> = g
+        .iter()
+        .filter(|(n, _)| matches!(&n.path[..], [RoleSeg::BandCut(e)] if **e == seam))
+        .collect();
+    let crosses: Vec<_> = g
+        .iter()
+        .filter(|(n, _)| matches!(&n.path[..], [RoleSeg::BandCross { edge, .. }] if **edge == seam))
+        .map(|(_, p)| p.clone())
+        .collect();
+    assert_eq!(cuts.len(), 1, "{cuts:#?}");
+    assert_eq!(crosses.len(), 2);
+    let mut want = [crosses[0].clone(), crosses[1].clone()];
+    want.sort();
+    assert_eq!(
+        cuts[0].1,
+        &want.concat(),
+        "the cut runs crossing to crossing"
+    );
+}
+
+/// **The interval lane mints the f64 lane's names** (N4: a name is
+/// float-free, so the scalar type cannot move it).
+#[test]
+fn the_interval_lane_mints_the_f64_names() {
+    use pncad::geom_core::Interval;
+    let tol = Tol::witness();
+    let (doc, _, rolled) = rolled_lid(&ROLLED, ROLL, tol);
+    let ef = eval(&doc, tol);
+    let ei: Evaluation<Interval> = evaluate::<Interval>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    let nf: Vec<StableName> = ef
+        .value(rolled)
+        .unwrap()
+        .name_table
+        .iter()
+        .map(|(n, _)| n.clone())
+        .collect();
+    let ni: Vec<StableName> = ei
+        .value(rolled)
+        .unwrap_or_else(|| panic!("the interval lane rolls: {:?}", ei.node_error(rolled)))
+        .name_table
+        .iter()
+        .map(|(n, _)| n.clone())
+        .collect();
+    assert_eq!(nf, ni);
+}
+
+/// **An upstream RENAME carries into a held slit's band.** The
+/// program is ROTATED (same solid, starting at the flange), so every
+/// vertex and segment index moves; a downstream node holds the flange
+/// band's slit by name. After the edit the held name must still denote
+/// the SAME slit. Rewriting the slit's `edge` but not its `band` would
+/// leave it naming the OTHER band's slit on the same seam — a silent
+/// retarget that no refusal catches, which is what this row is for.
+#[test]
+fn a_program_rename_carries_a_held_slits_band() {
+    use pncad::document::LoopProvenance;
+    let tol = Tol::witness();
+    let (mut doc, lid, rolled) = rolled_lid(&[1, 2], ROLL, tol);
+    let profile = match doc.node(lid) {
+        Some(Node::Revolve { profile, .. }) => *profile,
+        other => panic!("{other:?}"),
+    };
+    let ev = eval(&doc, tol);
+    assert!(ev.node_error(rolled).is_none());
+    let before = named_geometry(&ev, rolled);
+    let slit = before
+        .keys()
+        .find(|n| {
+            matches!(&n.path[..], [RoleSeg::BandSlit { band, .. }] if *band == vec![band_rim(lid, 0, 1)])
+        })
+        .expect("the flange band's slit")
+        .clone();
+    let holder = insert(
+        &mut doc,
+        Node::fillet(rolled, len(ROLL / 8.0), vec![slit.clone()]),
+        tol,
+    );
+
+    let rotated = LoopProgram::Chain(vec![
+        ProgramStep::At(lpt(R_FLANGE, LID_BASE)),
+        line_to(R_NECK, Y_FLANGE),
+        ProgramStep::ArcTo(ProgramArcData::Center {
+            c: lpt(0.0, DOME_C),
+            winding: ArcSweep::Ccw,
+            target: ProgramTarget::Point(lpt(R_KNOB, Y_KNOB)),
+        }),
+        line_to(R_KNOB, Y_TOP),
+        line_to(R_VENT, Y_TOP),
+        line_to(R_VENT, LID_BASE),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let applied = apply(
+        &doc,
+        &DocEdit::SetProgram {
+            node: profile,
+            loops: vec![rotated],
+            provenance: vec![LoopProvenance {
+                from: Some(0),
+                steps: vec![
+                    Some(0),
+                    Some(2),
+                    Some(3),
+                    Some(4),
+                    Some(5),
+                    Some(6),
+                    Some(1),
+                ],
+            }],
+        },
+        tol,
+        &pncad::document::RefusingReach,
+    )
+    .expect("the rotation applies");
+    let doc = applied.doc;
+    let held = match doc.node(holder) {
+        Some(Node::Fillet { selection, .. }) => selection[0].clone(),
+        other => panic!("{other:?}"),
+    };
+    assert_ne!(
+        held, slit,
+        "the rotation moved the indices (else the probe is vacuous)"
+    );
+    let ev = eval(&doc, tol);
+    assert!(
+        ev.node_error(rolled).is_none(),
+        "{:?}",
+        ev.node_error(rolled)
+    );
+    let after = named_geometry(&ev, rolled);
+    let g = after.get(&held).expect("the held slit still resolves");
+    let close = |a: &[u64], b: &[u64]| {
+        a.iter()
+            .zip(b)
+            .all(|(x, y)| (f64::from_bits(*x) - f64::from_bits(*y)).abs() < 1e-9)
+    };
+    // The endpoint order is by bits; compare as sets of two points.
+    let (b0, b1) = before[&slit].split_at(3);
+    let (a0, a1) = g.split_at(3);
+    assert!(
+        (close(a0, b0) && close(a1, b1)) || (close(a0, b1) && close(a1, b0)),
+        "the held name retargeted: before {:?}, after {:?}",
+        before[&slit]
+            .iter()
+            .map(|x| f64::from_bits(*x))
+            .collect::<Vec<_>>(),
+        g.iter().map(|x| f64::from_bits(*x)).collect::<Vec<_>>()
+    );
+}

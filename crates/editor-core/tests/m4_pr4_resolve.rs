@@ -943,9 +943,10 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::EndArc { vertex: x, edge: y } => under(x) || under(y),
         // A set.
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().any(under),
-        // A source edge and the band that crossed or slit it.
+        // A source edge (derivation) and the band that crossed or slit
+        // it (a discriminator, like a `SideOf` partner).
         RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
-            under(edge) || band.iter().any(under)
+            under(edge) || (partners == Partners::Include && band.iter().any(under))
         }
         // ANOTHER document's id space: a local name and a part-local
         // name that print alike are different names, so a walk that
