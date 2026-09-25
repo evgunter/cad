@@ -409,7 +409,6 @@ pub use validate::{
     validate_geometric, validate_geometric_certificate, validate_geometric_certificate_declared,
     validate_geometric_certificate_declared_structural, validate_geometric_certificate_structural,
     validate_geometric_declared, validate_geometric_declared_structural,
-    validate_geometric_structural, validate_pseudomanifold,
-    validate_pseudomanifold_certificate, validate_pseudomanifold_certificate_structural,
-    validate_pseudomanifold_structural,
+    validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,
+    validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };
