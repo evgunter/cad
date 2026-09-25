@@ -14,19 +14,10 @@ use crate::common;
 
 use common::session_insert;
 use pncad::document::{Doc, DocEdit, Node, ProfileProgram, RecipeNodeId, apply};
-use pncad::geom_core::{Point2, Tol};
-use pncad::profile::{Step, Target};
+use pncad::geom_core::Tol;
+use pncad::profile::Step;
 use viewer::session::{DocSession, ProfilePlane, ProfileShape, Refusal, SessionOp};
 use viewer::sketch::{self, Notation};
-
-fn polygon(points: &[(f64, f64)]) -> Vec<Step<f64>> {
-    let mut steps = vec![Step::At(Point2::new(points[0].0, points[0].1))];
-    for &(x, y) in &points[1..] {
-        steps.push(Step::LineTo(Target::Point(Point2::new(x, y))));
-    }
-    steps.push(Step::LineTo(Target::Start));
-    steps
-}
 
 fn lowered(steps: &[Step<f64>]) -> Vec<pncad::document::LoopProgram> {
     vec![
@@ -48,7 +39,7 @@ fn with_profile(points: &[(f64, f64)]) -> (DocSession, RecipeNodeId) {
         &mut session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),
-            loops: lowered(&polygon(points)),
+            loops: lowered(&common::polygon_steps(points)),
         },
     );
     (session, profile)
@@ -135,7 +126,7 @@ fn accepted_order_refuses_only_when_no_order_lands() {
         let out = session.perform(SessionOp::EditProfile {
             node: profile,
             base: base_program(&session, profile),
-            loops: lowered(&polygon(&target)),
+            loops: lowered(&common::polygon_steps(&target)),
         });
         match out.refusal {
             None => {
@@ -143,7 +134,11 @@ fn accepted_order_refuses_only_when_no_order_lands() {
                 let Some(Node::Profile(now)) = session.committed_doc().node(profile) else {
                     panic!("profile")
                 };
-                assert_eq!(now.loops, lowered(&polygon(&target)), "landed where asked");
+                assert_eq!(
+                    now.loops,
+                    lowered(&common::polygon_steps(&target)),
+                    "landed where asked"
+                );
                 if !out.committed.is_empty() {
                     assert!(session.perform(SessionOp::Undo).refusal.is_none());
                     assert_eq!(session.history().current(), state, "one undo step");
@@ -157,15 +152,16 @@ fn accepted_order_refuses_only_when_no_order_lands() {
                 let Some(Node::Profile(current)) = before.node(profile) else {
                     panic!("profile")
                 };
-                let edits: Vec<_> = sketch::program_edits(current, &lowered(&polygon(&target)))
-                    .expect("same shape")
-                    .into_iter()
-                    .map(|(slot, expr)| DocEdit::SetParam {
-                        node: profile,
-                        slot,
-                        expr,
-                    })
-                    .collect();
+                let edits: Vec<_> =
+                    sketch::program_edits(current, &lowered(&common::polygon_steps(&target)))
+                        .expect("same shape")
+                        .into_iter()
+                        .map(|(slot, expr)| DocEdit::SetParam {
+                            node: profile,
+                            slot,
+                            expr,
+                        })
+                        .collect();
                 let mut used = vec![false; edits.len()];
                 if some_order_lands(&before, &edits, &mut used, tol) {
                     counterexamples.push((base.clone(), target.clone()));

@@ -230,6 +230,9 @@ fn copies(label: &str, copy: u32, part_selects: Option<i64>, tol: Tol) -> Copies
         axis,
         reference: [1.0, 0.0, 0.0],
     };
+    // The mate must MINT while its copy is there: a refusal here would
+    // be a broken fixture, not the fault the rows below read once a
+    // later edit to the named node strands it.
     let (doc, mate) = common::inserted(
         &doc,
         Node::Mate {

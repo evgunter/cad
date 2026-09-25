@@ -1402,14 +1402,14 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     // The two multi-body values the part selectors read. Each is a
     // legal node of SOME kind, so what the part seats refuse is the
     // kind and never the absence — and each is the OTHER's near miss.
-    let split = insert(
+    let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body,
             tool: plane,
         },
     );
-    let pattern = insert(
+    let pattern = session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: body,
@@ -2298,7 +2298,7 @@ fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
 fn box_and_pattern(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     let mut session = session(tol);
     let body = boxed(&mut session, A);
-    let pattern = insert(
+    let pattern = session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: body,
@@ -2320,7 +2320,7 @@ fn a_part_projects_the_named_half_of_a_split() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = boxed(&mut session, A);
-    let plane = insert(
+    let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
@@ -2329,7 +2329,7 @@ fn a_part_projects_the_named_half_of_a_split() {
             },
         },
     );
-    let split = insert(
+    let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body,
@@ -2337,7 +2337,7 @@ fn a_part_projects_the_named_half_of_a_split() {
         },
     );
     let (above, below) = split_volumes(&mut session, split, tol);
-    let part = insert(
+    let part = session_insert(
         &mut session,
         SessionOp::AddPart {
             of: split,
@@ -2374,7 +2374,7 @@ fn a_part_projects_the_named_half_of_a_split() {
 fn a_part_indexes_a_patterns_instances_by_an_exact_count() {
     let tol = Tol::witness();
     let (mut session, _body, pattern) = box_and_pattern(tol);
-    let part = insert(
+    let part = session_insert(
         &mut session,
         SessionOp::AddPart {
             of: pattern,
@@ -2410,7 +2410,7 @@ fn a_part_indexes_a_patterns_instances_by_an_exact_count() {
 fn the_part_door_refuses_the_crossed_selector() {
     let tol = Tol::witness();
     let (mut session, body, pattern) = box_and_pattern(tol);
-    let plane = insert(
+    let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
@@ -2419,7 +2419,7 @@ fn the_part_door_refuses_the_crossed_selector() {
             },
         },
     );
-    let split = insert(
+    let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body,
@@ -2485,7 +2485,7 @@ fn a_part_of_a_pattern_takes_the_pattern_out_of_the_drawn_set() {
     let two_copies = drawn_volume(&mut session, tol);
     assert!(near(two_copies, one * 2.0), "two copies drawn {two_copies}");
 
-    let first = insert(
+    let first = session_insert(
         &mut session,
         SessionOp::AddPart {
             of: pattern,
@@ -2503,7 +2503,7 @@ fn a_part_of_a_pattern_takes_the_pattern_out_of_the_drawn_set() {
         "and the copy it did not select stopped being drawn: {projected}",
     );
 
-    let second = insert(
+    let second = session_insert(
         &mut session,
         SessionOp::AddPart {
             of: pattern,
@@ -2614,7 +2614,7 @@ fn a_duplicates_copy_moves_on_its_own() {
         panic!("three inserts mint three ids: {minted:?}");
     };
 
-    let placed = insert(
+    let placed = session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: copy,
@@ -2640,7 +2640,7 @@ fn a_duplicates_copy_moves_on_its_own() {
     //
     // These splits consume their targets from `roots`, so they come
     // after every claim above.
-    let between = insert(
+    let between = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
@@ -2649,7 +2649,7 @@ fn a_duplicates_copy_moves_on_its_own() {
             },
         },
     );
-    let cut_copy = insert(
+    let cut_copy = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: placed,
@@ -2663,7 +2663,7 @@ fn a_duplicates_copy_moves_on_its_own() {
     );
     assert_eq!(copy_below, 0.0, "and nothing of it is below");
 
-    let cut_original = insert(
+    let cut_original = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: original,
@@ -2701,7 +2701,7 @@ fn the_part_seats_track_the_evaluators_part_door() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = boxed(&mut session, A);
-    let plane = insert(
+    let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
@@ -2710,14 +2710,14 @@ fn the_part_seats_track_the_evaluators_part_door() {
             },
         },
     );
-    let split = insert(
+    let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body,
             tool: plane,
         },
     );
-    let pattern = insert(
+    let pattern = session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: body,
@@ -2814,7 +2814,7 @@ fn the_part_tools_seats_route_a_pick_to_the_one_that_can_hold_it() {
     let tol = Tol::witness();
     let (mut session, _body, pattern) = box_and_pattern(tol);
     let body = boxed(&mut session, B);
-    let plane = insert(
+    let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
@@ -2823,7 +2823,7 @@ fn the_part_tools_seats_route_a_pick_to_the_one_that_can_hold_it() {
             },
         },
     );
-    let split = insert(
+    let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body,
@@ -2941,7 +2941,7 @@ fn a_moved_copy(tol: Tol, lift: f64) -> (DocSession, RecipeNodeId, [f64; 2]) {
         panic!("three inserts mint three ids: {minted:?}");
     };
     let step = spacing_of(&session, pattern);
-    let moved = insert(
+    let moved = session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: copy,
@@ -3202,7 +3202,7 @@ fn the_part_tool_seats_a_split_picked_in_the_viewport() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let body = boxed(&mut session, A);
-    let plane = insert(
+    let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::Plane {
@@ -3211,7 +3211,7 @@ fn the_part_tool_seats_a_split_picked_in_the_viewport() {
             },
         },
     );
-    let split = insert(
+    let split = session_insert(
         &mut session,
         SessionOp::AddSplit {
             target: body,
@@ -3238,7 +3238,7 @@ fn a_duplicate_is_not_measured_off_a_picture_older_than_the_document() {
     let tol = Tol::witness();
     let mut session = session(tol);
     let plane = common::xy_frame_in(&mut session);
-    let profile = insert(
+    let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),
@@ -3248,14 +3248,14 @@ fn a_duplicate_is_not_measured_off_a_picture_older_than_the_document() {
             })],
         },
     );
-    let extrude = insert(
+    let extrude = session_insert(
         &mut session,
         SessionOp::AddExtrude {
             profile,
             distance: len(0.01),
         },
     );
-    let turned = insert(
+    let turned = session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: extrude,

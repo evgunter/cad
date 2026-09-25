@@ -189,7 +189,17 @@ pub fn xy_frame() -> Node<ProfileProgram> {
 /// corner at `origin` in the plane's own coordinates, counter-clockwise
 /// from that corner — the loop [`rectangle`] draws, for a
 /// `SessionOp::AddProfile` that takes loops rather than a node.
+///
+/// # Panics
+///
+/// Unless `w` and `h` are both positive: a non-positive side would
+/// turn the winding or collapse the loop, and "lower-left,
+/// counter-clockwise" would stop being true of what it returns.
 pub fn rectangle_loop(origin: [f64; 2], w: f64, h: f64) -> LoopProgram {
+    assert!(
+        w > 0.0 && h > 0.0,
+        "a rectangle has positive sides: {w} x {h}"
+    );
     let [x0, y0] = origin;
     LoopProgram::polygon([(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)])
         .expect("finite corners")
@@ -435,9 +445,10 @@ pub fn xy_frame_in(session: &mut DocSession) -> RecipeNodeId {
 /// This is the op vocabulary's door, and it holds the session's
 /// contract — no refusal, one committed edit, and that edit an
 /// `InsertNode`. [`inserted`] and [`insert_into`] are the document's
-/// door instead: they call `apply` with no session and read no
-/// outcome, so a fixture that means to exercise the chrome's ops
-/// reaches for this one.
+/// door instead: they call `apply` with no session, and check only
+/// that the edit applies and mints an id — there is no op, so no
+/// outcome to hold to that contract. A fixture that means to exercise
+/// the chrome's ops reaches for this one.
 pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
     let outcome = session.perform(op);
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -451,6 +462,30 @@ pub fn session_insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
         .order()
         .last()
         .expect("the insert landed")
+}
+
+/// **Add an instance of the part `id` through the session**, pump the
+/// seam, and answer the instance node — [`session_insert`] over
+/// `SessionOp::AddInstance`, the step every assembly-authoring suite
+/// takes before it has anything to mate or pick.
+pub fn instance_in(session: &mut DocSession, id: pncad::document::DocumentId) -> RecipeNodeId {
+    let node = session_insert(session, SessionOp::AddInstance { id });
+    session.pump();
+    node
+}
+
+/// A closed polygon through `points`, in order, as the step chain a
+/// `ProfileShape::Path` carries: an `At` on the first point, a line to
+/// each of the rest, and a line back to the start.
+pub fn polygon_steps(points: &[(f64, f64)]) -> Vec<pncad::profile::Step<f64>> {
+    use pncad::geom_core::Point2;
+    use pncad::profile::{Step, Target};
+    let mut steps = vec![Step::At(Point2::new(points[0].0, points[0].1))];
+    for &(x, y) in &points[1..] {
+        steps.push(Step::LineTo(Target::Point(Point2::new(x, y))));
+    }
+    steps.push(Step::LineTo(Target::Start));
+    steps
 }
 
 /// One node's row status out of a tree render — the lookup five

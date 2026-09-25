@@ -514,16 +514,6 @@ fn editing_a_non_profile_refuses_wrong_kind() {
     );
 }
 
-/// A closed polygon through `points`, in order.
-fn polygon(points: &[(f64, f64)]) -> Vec<Step<f64>> {
-    let mut steps = vec![Step::At(pt(points[0].0, points[0].1))];
-    for &(x, y) in &points[1..] {
-        steps.push(Step::LineTo(Target::Point(pt(x, y))));
-    }
-    steps.push(Step::LineTo(Target::Start));
-    steps
-}
-
 /// **Numbers valid together that no order of one-slot writes reaches
 /// refuse `ProfileEditOrder`**, and nothing lands. The pentagon pair
 /// was found by `profile_edit_order`'s search; the door searched every
@@ -546,7 +536,7 @@ fn numbers_no_order_reaches_refuse_edit_order() {
     ];
     let (mut session, profile) = with_profile(
         &[ProfileShape::Path {
-            steps: polygon(&base),
+            steps: common::polygon_steps(&base),
         }],
         Notation::CANONICAL,
     );
@@ -555,7 +545,7 @@ fn numbers_no_order_reaches_refuse_edit_order() {
     let out = session.perform(SessionOp::EditProfile {
         node: profile,
         base: program(&session, profile).clone(),
-        loops: lowered(&[polygon(&target)], Notation::CANONICAL),
+        loops: lowered(&[common::polygon_steps(&target)], Notation::CANONICAL),
     });
     match out.refusal {
         Some(refusal @ Refusal::ProfileEditOrder { .. }) => {
@@ -585,7 +575,7 @@ fn a_move_past_the_search_cap_says_it_was_capped() {
     };
     let (mut session, profile) = with_profile(
         &[ProfileShape::Path {
-            steps: polygon(&corners(0.0)),
+            steps: common::polygon_steps(&corners(0.0)),
         }],
         Notation::CANONICAL,
     );
@@ -594,7 +584,7 @@ fn a_move_past_the_search_cap_says_it_was_capped() {
         node: profile,
         base: program(&session, profile).clone(),
         loops: lowered(
-            &[polygon(&corners(core::f64::consts::PI))],
+            &[common::polygon_steps(&corners(core::f64::consts::PI))],
             Notation::CANONICAL,
         ),
     });

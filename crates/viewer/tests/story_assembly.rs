@@ -125,13 +125,6 @@ fn author_box_part(
     session.committed_doc().id()
 }
 
-/// Perform one `AddInstance`, answering the minted node.
-fn add_instance(session: &mut DocSession, id: DocumentId) -> RecipeNodeId {
-    let node = session_insert(session, SessionOp::AddInstance { id });
-    session.pump();
-    node
-}
-
 /// Pick a face through the session's real ray path, under the current
 /// display view (parked parts are picked where they are drawn).
 fn pick_at(session: &DocSession, index: &PickIndex, ray: &Ray) -> FaceSelection {
@@ -272,8 +265,8 @@ fn the_windmill_story() {
     // undoes — and the next add (the hub) mints a SIBLING in the
     // history: nothing destroyed, the abandoned two-tower state intact
     // on its own branch.
-    let tower_i = add_instance(&mut session, tower_id);
-    let _slip = add_instance(&mut session, tower_id);
+    let tower_i = common::instance_in(&mut session, tower_id);
+    let _slip = common::instance_in(&mut session, tower_id);
     assert_eq!(session.history().len(), 3, "root plus two adds");
     let undone = session.perform(SessionOp::Undo);
     assert!(undone.refusal.is_none(), "{:?}", undone.refusal);
@@ -283,7 +276,7 @@ fn the_windmill_story() {
         .entry(session.history().current())
         .active_child()
         .expect("undo remembers the branch it left");
-    let hub_i = add_instance(&mut session, hub_id);
+    let hub_i = common::instance_in(&mut session, hub_id);
     let history = session.history();
     assert_eq!(history.len(), 4, "the sibling is minted, nothing dropped");
     let parent = history
@@ -603,8 +596,8 @@ fn the_windmill_story() {
     // turned so the blade lands SQUARE to the first — measured against
     // the first blade's solved direction, not assumed from the walls'
     // parameterizations.
-    let sail_a = add_instance(&mut session, sail_id);
-    let sail_b = add_instance(&mut session, sail_id);
+    let sail_a = common::instance_in(&mut session, sail_id);
+    let sail_b = common::instance_in(&mut session, sail_id);
     park(&mut session, sail_a, SAIL_A_PARK);
     park(&mut session, sail_b, SAIL_B_PARK);
     let index = asm::index_of(&session);
