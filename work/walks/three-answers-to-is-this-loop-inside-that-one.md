@@ -33,10 +33,18 @@ the boundary case:
    RING REPRESENTATIVE point against the survivor's outer loop.
    Boundary posture: `OnBoundary` is a typed refusal
    (`SplitJoinError::RingHomingAmbiguous`).
-3. **`validate::ring_nesting`** (this unit) — `point_in_loop` over
-   EVERY ring vertex in cycle order, first definite verdict wins.
-   Boundary posture: `OnBoundary` settles nothing and the walk moves
-   on, because check 9's contact half owns that question.
+3. **`validate::ring_nesting`** (this unit) — every ring vertex in
+   cycle order, first definite verdict wins. Boundary posture:
+   `OnBoundary` settles nothing and the walk moves on, because check
+   9's contact half owns that question. **2026-09-24 (ATREST-5, PR
+   #3179): two instruments now, dispatched on the outer loop's
+   `boolean::contain::loop_shape` class** — `point_in_loop` for
+   `Polygon`, `boolean::contain::disc_side` for `Disc` (made
+   `pub(crate)` for it); `ArcParity` and `NoWalk` are silent. That
+   widens the divergence this row tracks: `ring_nesting` and
+   `boolean::contfp` now dispatch on the loop's shape, `rehome_rings`
+   still does not
+   (`work/reach/rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`).
 
 Two of the three agree on the instrument and disagree on the sample set
 and on the boundary; the first agrees with neither and is not a
@@ -49,8 +57,8 @@ differ, so a fourth caller has no way to choose and the obvious move
 
 `rehome_rings` reaches its normal through `chord_join::face_plane_normal`,
 which matches `Some(geom::Surface::Plane { normal, .. })` and refuses
-typed otherwise. `validate::nesting_normal` now does the same match
-inline, as do `validate`'s check-6 arm, `merge_faces`, `replace_face`,
+typed otherwise. `validate::nesting_region` (named `nesting_normal` until
+2026-09-24) does the same match inline, as do `validate`'s check-6 arm, `merge_faces`, `replace_face`,
 `revert`, `boolean::join` and `face_normal` — nine sites in
 `crates/topo/src`, three of which multiply by `sense_sign` and the rest
 of which do not. `face_normal.rs` already owns the OUTWARD normal door

@@ -1,8 +1,6 @@
 //! **The EXACT half of the witness partition** — the same rows as
 //! `sym11_witness_kind_rows`, at the lane scalar whose value channel is
-//! a certified enclosure, in its own wholly feature-gated file because
-//! `crates/*/tests` owes WHOLE-ITEM gating
-//! (`scripts/check-interval-cfg-additive.py`).
+//! a certified enclosure, in its own file.
 //!
 //! What the twin says is that the residuals the point channel disputes
 //! are not disputable claims: over a box the enclosure of each one
@@ -10,7 +8,6 @@
 //! answers the identity. The residual builders are the inexact file's
 //! own, taking the parameters the caller built — a point there, a box
 //! here — so the two halves are one residual and not two copies of it.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::{Band, Margin};

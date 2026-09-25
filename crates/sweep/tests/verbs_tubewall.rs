@@ -437,7 +437,6 @@ fn hollow_wall_and_shared_refusal_doors() {
 
 /// **The interval row**: the hollow tube at the certified scalar —
 /// build, tier 3, and both closed forms inside the enclosure.
-#[cfg(feature = "interval")]
 mod certified {
     use geom_core::Real;
     use geom_core::interval::Interval;

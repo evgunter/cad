@@ -9,7 +9,7 @@
 use crate::common::oracles::chamfered_cube_volume;
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::arms::chamfer_strip;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
@@ -318,9 +318,9 @@ fn the_strip_mints_an_outward_normal_on_a_concave_edge() {
 /// A circular prism: two half-arc profile segments extruded, so every
 /// rim edge has a plane and a CYLINDER for supports.
 fn cylinder(r: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(-r, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(r, 0.0), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -333,7 +333,7 @@ fn cylinder(r: f64, h: f64) -> Body<f64> {
 /// An L-bracket: the six-vertex L profile extruded by 1 m. Its one
 /// reflex profile corner becomes the body's one concave edge.
 fn l_bracket() -> Body<f64> {
-    let lp = ProfileLoop::new(
+    let lp = bulge_loop(
         [
             (0.0, 0.0),
             (2.0, 0.0),
@@ -343,7 +343,7 @@ fn l_bracket() -> Body<f64> {
             (0.0, 2.0),
         ]
         .into_iter()
-        .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+        .map(|(x, y)| (Point2::new(x, y), 0.0))
         .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])

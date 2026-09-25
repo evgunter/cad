@@ -3,7 +3,6 @@
 //! genericity boundary respected). `NameTable` is scalar-independent
 //! (names + arena keys), so the comparison is direct table equality
 //! per node, over a boolean-and-split-bearing corpus document.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

@@ -11,8 +11,7 @@
 use crate::common::operands::slab as plate;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -34,11 +33,7 @@ fn boss() -> Body<f64> {
         let th = deg.to_radians();
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
+    let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
@@ -134,11 +129,7 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
         let th = deg.to_radians();
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
+    let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
@@ -213,11 +204,7 @@ fn r1_pin(z0: f64, h: f64) -> Body<f64> {
         let th = deg.to_radians();
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(60.0), b120),
-        ProfileVertex::new(at(180.0), b120),
-        ProfileVertex::new(at(300.0), b120),
-    ]);
+    let lp = bulge_loop(vec![(at(60.0), b120), (at(180.0), b120), (at(300.0), b120)]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
@@ -235,13 +222,13 @@ fn r1_pin(z0: f64, h: f64) -> Body<f64> {
 fn r1_cradle(bulge: f64) -> Body<f64> {
     // Bite endpoints at +/-30 degrees: x = 2 + 0.5 cos 30, y = 2 +/- 0.25.
     let xw = 2.0 + 0.5 * (30f64).to_radians().cos();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(5.0, 1.0), 0.0),
-        ProfileVertex::new(p2(5.0, 3.0), 0.0),
-        ProfileVertex::new(p2(xw, 3.0), 0.0),
-        ProfileVertex::new(p2(xw, 2.25), bulge),
-        ProfileVertex::new(p2(xw, 1.75), 0.0),
-        ProfileVertex::new(p2(xw, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(5.0, 1.0), 0.0),
+        (p2(5.0, 3.0), 0.0),
+        (p2(xw, 3.0), 0.0),
+        (p2(xw, 2.25), bulge),
+        (p2(xw, 1.75), 0.0),
+        (p2(xw, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -357,10 +344,7 @@ fn r1_probe_conformal_touch_between_instances_refuses_undecidable() {
 /// interference, not tangency. The probe records the gate's answer.
 #[test]
 fn r1_delta_probe_ball_cap_embedded_in_plate() {
-    let ball_lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
-    ]);
+    let ball_lp = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
     let axis = sweep::RevolveAxis {
         origin: p2(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
@@ -381,11 +365,11 @@ fn r1_delta_probe_ball_cap_embedded_in_plate() {
     // (y = +/-1, z = 0) and seam circles (z = 0 plane) never meet the
     // plate's boundary, and the plate's line edges (|x| = 3 or
     // |y| = 3) are far from the ball.
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-3.0, -3.0), 0.0),
-        ProfileVertex::new(p2(3.0, -3.0), 0.0),
-        ProfileVertex::new(p2(3.0, 3.0), 0.0),
-        ProfileVertex::new(p2(-3.0, 3.0), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(-3.0, -3.0), 0.0),
+        (p2(3.0, -3.0), 0.0),
+        (p2(3.0, 3.0), 0.0),
+        (p2(-3.0, 3.0), 0.0),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
     let plate = extrude(
@@ -438,11 +422,11 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
         let th = deg.to_radians();
         p2(th.cos(), th.sin())
     };
-    let lp = ProfileLoop::new(vec![
+    let lp = bulge_loop(vec![
         // chord from 135 to 225 (straight)
-        ProfileVertex::new(at(135.0), 0.0),
+        (at(135.0), 0.0),
         // the 270-degree arc from 225 around to 135
-        ProfileVertex::new(at(225.0), b270),
+        (at(225.0), b270),
     ]);
     let pac = extrude(
         &Profile::new(SketchPlane::xy(), vec![lp])
@@ -463,10 +447,7 @@ fn r1_final_delta_probe_reflex_arc_cap_stays_loud() {
     // (the cap's vertex hull is the chord x = cos 135 ~ -0.707, so
     // the +x half of the disc is beyond hull + pad on no axis... the
     // probe asks the gate, not the box).
-    let ball_lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -0.3), 1.0),
-        ProfileVertex::new(p2(0.0, 0.3), 0.0),
-    ]);
+    let ball_lp = bulge_loop(vec![(p2(0.0, -0.3), 1.0), (p2(0.0, 0.3), 0.0)]);
     let axis = sweep::RevolveAxis {
         origin: p2(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),

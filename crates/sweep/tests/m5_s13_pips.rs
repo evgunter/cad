@@ -26,13 +26,12 @@
 
 use crate::common::operands::slab;
 use core::f64::consts::PI;
-use profile::RawLoop;
 
 use geom::Curve3;
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, BooleanError};
@@ -57,10 +56,7 @@ fn vol(body: &Body<f64>) -> f64 {
 /// PR 9c authoring) translated to `centre`. Its poles land on a
 /// horizontal axis — the chart the §1 re-cut must re-align.
 fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -r), 1.0),
-        ProfileVertex::new(p2(0.0, r), 0.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.0, -r), 1.0), (p2(0.0, r), 0.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -384,10 +380,7 @@ fn trimmed_sphere_group_operand_assembles_with_a_clear_partner() {
 /// answers.
 #[test]
 fn cylinder_near_sphere_refuses_typed_at_the_scan() {
-    let disc = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.35, 0.0), 1.0),
-        ProfileVertex::new(p2(-0.35, 0.0), 1.0),
-    ]);
+    let disc = bulge_loop(vec![(p2(0.35, 0.0), 1.0), (p2(-0.35, 0.0), 1.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![disc])
         .validate(Tol::witness())
         .unwrap();
@@ -411,10 +404,7 @@ fn cylinder_near_sphere_refuses_typed_at_the_scan() {
 /// `FallbackExtentUnsupported`.
 #[test]
 fn a_ball_above_the_cylinders_cap_is_certified_separated() {
-    let disc = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.35, 0.0), 1.0),
-        ProfileVertex::new(p2(-0.35, 0.0), 1.0),
-    ]);
+    let disc = bulge_loop(vec![(p2(0.35, 0.0), 1.0), (p2(-0.35, 0.0), 1.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![disc])
         .validate(Tol::witness())
         .unwrap();

@@ -1,16 +1,14 @@
 //! VERBS-SHELLFIX PR-2a R2 probe, interval lane: the simultaneous door
 //! instantiated at the certified scalar. No shipped row does this — the
-//! PR's interval drawn point re-runs the f64-typed suites under the
-//! interval BUILD, which never instantiates `offset_planes_together`
-//! at `T = Interval`. This row does, on a box and on an oblique
+//! f64-typed suites never instantiate `offset_planes_together` at
+//! `T = Interval`. This row does, on a box and on an oblique
 //! hexagonal prism, and reads the volume enclosure.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
 use geom_core::{Band, Bounds, Interval, Point2, Real, Tol};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::{Body, ChartMove};
 
@@ -19,9 +17,9 @@ fn p2(x: f64, y: f64) -> Point2<Interval> {
 }
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<Interval> {
-    let lp = ProfileLoop::new(
+    let lp = bulge_loop(
         pts.iter()
-            .map(|&(x, y)| ProfileVertex::new(p2(x, y), Interval::from_f64(0.0)))
+            .map(|&(x, y)| (p2(x, y), Interval::from_f64(0.0)))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])

@@ -304,8 +304,7 @@ fn stacked_rerun_is_bit_identical() {
 }
 
 // ---- Interval lane (Q1 pure replay: the same scenarios at
-// T = Interval, exercised under `--features interval`). ----
-#[cfg(feature = "interval")]
+// T = Interval). ----
 mod interval {
     use super::*;
 

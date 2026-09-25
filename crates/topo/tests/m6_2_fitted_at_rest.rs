@@ -130,7 +130,7 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
 /// The `Dual` lane's refusing side, executed rather than assumed: a
 /// fitted cache cannot be certified by a scalar that may not certify
 /// (D1, 2026-08-19 — a dual now carries a bracket and still may not
-/// reach the C9 ring), and it says so.
+/// reach certification arithmetic, C9), and it says so.
 ///
 /// **The asserted substring changed with D1, and it had to.** This row
 /// used to require the message to contain `"bracket"`, which was the
@@ -180,13 +180,6 @@ fn the_band_is_the_runs_own() {
 // The interval lane — the evidence that the lift happened
 // ==================================================================
 
-test_utils::loud_skip_marker!(
-    feature = "interval",
-    row = interval_lane_skipped_no_certified_coverage_here,
-    absent = "certified coverage of the fitted cache at rest",
-);
-
-#[cfg(feature = "interval")]
 mod certified {
     use super::fixture;
     use geom_brep::{EnvelopeStatement, Pcurve};
@@ -294,7 +287,7 @@ mod certified {
         //
         // The quantity compared is deliberately `on_locus_max`, limb 1's
         // **evaluated** residual, and not `envelope`: the envelope is the
-        // C9 ring's own `f64` hull bound lifted through `from_f64`, so it
+        // C9 certification hull bound, an `f64`, lifted through `from_f64`, so it
         // is THIN at both scalars and a comparison of it would pass by
         // exact equality — a row with no teeth. `on_locus_max` is computed
         // by evaluating `implicit_residual` at the scalar, so the interval
@@ -318,7 +311,7 @@ mod certified {
             f_ssi.on_locus_max
         );
         // The envelope is deliberately NOT compared across scalars.
-        // It is `T::from_f64` of a C9-ring bound, so it is thin at both
+        // It is `T::from_f64` of a C9 certification bound, so it is thin at both
         // — but "thin" is not "the same number": the tube ladder's
         // extent and lever arm are evaluated at `T`
         // (`carrier_diameter`), so the interval lane can select a

@@ -43,14 +43,14 @@ fn rectangle_canonical_form() {
     assert_eq!(vp.loops().len(), 1);
     let lp = &vp.loops()[0];
     assert_eq!(lp.role(), LoopRole::Outer);
-    // Canonical start = lexicographic minimum = (0, 0); CCW input
+    // Canonical start = the authored start (0, 0); CCW input
     // preserved verbatim.
     let vs = lp.vertices();
     assert_eq!(vs.len(), 4);
-    assert_eq!((vs[0].pos().x, vs[0].pos().y), (0.0, 0.0));
-    assert_eq!((vs[1].pos().x, vs[1].pos().y), (2.0, 0.0));
-    assert_eq!((vs[2].pos().x, vs[2].pos().y), (2.0, 2.0));
-    assert_eq!((vs[3].pos().x, vs[3].pos().y), (0.0, 2.0));
+    assert_eq!((vs[0].x, vs[0].y), (0.0, 0.0));
+    assert_eq!((vs[1].x, vs[1].y), (2.0, 0.0));
+    assert_eq!((vs[2].x, vs[2].y), (2.0, 2.0));
+    assert_eq!((vs[3].x, vs[3].y), (0.0, 2.0));
     assert_eq!(kinds(&vp, 0), vec!['L'; 4]);
     // Segment chain is coherent: segment k runs vertex k → k+1.
     let segs = lp.segments();
@@ -70,7 +70,7 @@ fn clockwise_rectangle_canonicalizes_to_the_same_form() {
 fn l_profile_validates_with_canonical_start() {
     let vp = ok(&profile(vec![l_profile()]));
     assert_eq!(vp.loops()[0].role(), LoopRole::Outer);
-    let v0 = vp.loops()[0].vertices()[0].pos();
+    let v0 = vp.loops()[0].vertices()[0];
     assert_eq!((v0.x, v0.y), (0.0, 0.0));
     assert_eq!(kinds(&vp, 0), vec!['L'; 6]);
 }
@@ -80,8 +80,8 @@ fn circle_as_two_arcs_is_the_minimal_closed_carrier() {
     let vp = ok(&profile(vec![circle_h(0.0, 0.0, 2.0)]));
     let lp = &vp.loops()[0];
     assert_eq!(lp.role(), LoopRole::Outer);
-    // Canonical start: the lexicographic minimum (−2, 0).
-    let v0 = lp.vertices()[0].pos();
+    // Canonical start: the authored start (−2, 0).
+    let v0 = lp.vertices()[0];
     assert_eq!((v0.x, v0.y), (-2.0, 0.0));
     assert_eq!(kinds(&vp, 0), vec!['+', '+']);
     for s in lp.segments() {
@@ -90,6 +90,7 @@ fn circle_as_two_arcs_is_the_minimal_closed_carrier() {
                 center,
                 radius,
                 turn,
+                ..
             } => {
                 assert!(center.x.abs() < 1e-12 && center.y.abs() < 1e-12);
                 assert!((radius - 2.0).abs() < 1e-12);
@@ -110,10 +111,10 @@ fn annulus_roles_and_hole_reorientation() {
     // re-oriented clockwise (bulges negated by the reversal).
     assert_eq!(kinds(&vp, 0), vec!['+', '+']);
     assert_eq!(kinds(&vp, 1), vec!['-', '-']);
-    assert_eq!(vp.loops()[1].vertices()[0].bulge(), -1.0);
-    // Canonical starts: lexicographic minima of each circle.
-    let o0 = vp.loops()[0].vertices()[0].pos();
-    let h0 = vp.loops()[1].vertices()[0].pos();
+    assert_eq!(vp.loops()[1].segments()[0].bulge, -1.0);
+    // Canonical starts: each circle's authored start.
+    let o0 = vp.loops()[0].vertices()[0];
+    let h0 = vp.loops()[1].vertices()[0];
     assert_eq!((o0.x, o0.y), (-2.0, 0.0));
     assert_eq!((h0.x, h0.y), (-1.0, 0.0));
 }
@@ -135,16 +136,16 @@ fn rounded_rectangle_alternates_lines_and_ccw_arcs() {
     let vp = ok(&profile(vec![rounded_rect(4.0, 3.0, 0.5)]));
     let lp = &vp.loops()[0];
     assert_eq!(lp.role(), LoopRole::Outer);
-    // Lexicographic minimum vertex: (0, 0.5) — the input's closing
-    // vertex — so the canonical chain starts with its corner arc.
-    let v0 = lp.vertices()[0].pos();
-    assert_eq!((v0.x, v0.y), (0.0, 0.5));
-    assert_eq!(kinds(&vp, 0), vec!['+', 'L', '+', 'L', '+', 'L', '+', 'L']);
-    // Corner arc geometry: the first canonical segment is the corner
-    // about (0.5, 0.5) with radius 0.5.
-    match lp.segments()[0].kind {
+    // The authored start: (0.5, 0) — the input's first vertex — so the
+    // canonical chain starts with the bottom side, then its corner arc.
+    let v0 = lp.vertices()[0];
+    assert_eq!((v0.x, v0.y), (0.5, 0.0));
+    assert_eq!(kinds(&vp, 0), vec!['L', '+', 'L', '+', 'L', '+', 'L', '+']);
+    // Corner arc geometry: the second canonical segment is the corner
+    // about (3.5, 0.5) with radius 0.5.
+    match lp.segments()[1].kind {
         SegmentKind::Arc { center, radius, .. } => {
-            assert!((center.x - 0.5).abs() < 1e-12);
+            assert!((center.x - 3.5).abs() < 1e-12);
             assert!((center.y - 0.5).abs() < 1e-12);
             assert!((radius - 0.5).abs() < 1e-12);
         }
@@ -158,7 +159,7 @@ fn lens_two_vertex_loop_with_distinct_carriers() {
     let lp = &vp.loops()[0];
     assert_eq!(lp.role(), LoopRole::Outer);
     assert_eq!(kinds(&vp, 0), vec!['+', '-']);
-    let v0 = lp.vertices()[0].pos();
+    let v0 = lp.vertices()[0];
     assert_eq!((v0.x, v0.y), (0.0, 0.0));
 }
 
@@ -187,9 +188,11 @@ fn reversal_is_a_bit_exact_involution() {
         // remap is an involution).
         assert_eq!(back.tangent_joints(), lp.tangent_joints());
         for (a, b) in lp.vertices().iter().zip(back.vertices().iter()) {
-            assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits());
-            assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits());
-            assert_eq!(a.bulge().to_bits(), b.bulge().to_bits());
+            assert_eq!(a.x.to_bits(), b.x.to_bits());
+            assert_eq!(a.y.to_bits(), b.y.to_bits());
+        }
+        for (a, b) in lp.bulges().iter().zip(back.bulges().iter()) {
+            assert_eq!(a.to_bits(), b.to_bits());
         }
     }
 }

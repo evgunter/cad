@@ -81,7 +81,6 @@ fn r2_middle_slab_at_every_band_edge_at_the_run_band() {
 /// interval there (the lift and the world transform round outward),
 /// so the exact edges are RECORDED rather than pinned, and only the
 /// off-edge steps are asserted to agree with the f64 lane.
-#[cfg(feature = "interval")]
 #[test]
 fn r2_middle_slab_band_edges_at_interval() {
     use geom_core::Interval;
@@ -120,9 +119,9 @@ fn r2_middle_slab_band_edges_at_interval() {
 
 /// **Claim 2 attack: the top loop's vertex ORDER rotated relative to
 /// the base's.** A 2×1 rectangle lofted onto the same rectangle turned
-/// a quarter turn in its own plane: the canonical lex-min start is a
-/// DIFFERENT geometric corner, so the by-index pairing shifts by one
-/// vertex. The mean displacement is the centroid displacement whatever
+/// a quarter turn in its own plane, written from the image of the
+/// base's first corner: the canonical start is the authored one, so
+/// the by-index pairing is the quarter turn the author drew. The mean displacement is the centroid displacement whatever
 /// the pairing (a sum of differences telescopes), so the verdict is
 /// the centroid's: builds at 1, sliver at ε/2, reversed at −1 — the
 /// same three verdicts the un-rotated stack gives.

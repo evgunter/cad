@@ -151,7 +151,6 @@ fn a_poisoned_or_collapsed_rate_passes_straight_through() {
 /// ops, which is what a widened-but-enclosing door would fail. The
 /// zero, straddling and poison rates at the end are the certified
 /// lane's half of the pass-through claim.
-#[cfg(feature = "interval")]
 #[test]
 fn the_doors_are_the_interval_ops() {
     use geom_core::{Bounds, Interval, Real};

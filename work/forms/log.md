@@ -23,3 +23,29 @@ nothing was held back for it; if #3052's merge of `main` recreates the
 old path instead, the section belongs here.
 
 Signed (CHROME orchestrator).
+
+## Seam note from AUTHOR (AUTH-4 fix pass, PR 3052, 2026-09-24)
+
+**What a seated tool takes from a viewport pick changed, on this
+program's ground** (`crates/viewer/src/tools.rs`,
+`crates/viewer/src/session/select.rs`).
+
+`tools::on_node_pick` — the one route every seated tool's pick takes —
+now reads a new accessor, `Selection::seat_node`: the tree's node for a
+tree click, and for a viewport pick the node whose DRAWN body the ray
+met (`FaceSelection::node` / `EdgeSelection::node`). It used to read
+`Selection::node`, which answers the feature that MINTED the face.
+**`Selection::node` is unchanged** and still serves the feature tree's
+highlight, the property panel's rows and the extrude form — it is the
+right answer there.
+
+Tools whose behaviour changes, all for the better and all held by
+`combine_ops::a_viewport_pick_seats_the_drawn_body_in_every_body_seat`:
+the **boolean, split, transform and pattern** tools (a face on a moved
+copy or a filleted body now seats that body, not the upstream extrude),
+and the two new ones, **projection** and **duplicate**. Unchanged: the
+**revolve** tool (its seats are a profile and an in-sketch axis, which
+no ray meets), and the **mate** and **blend** tools, which never took
+this route — they read the face and the edge whole.
+
+FORMS: `PartSelectChoice` and `split_half_label` (`forms.rs`) are the projection form's vocabulary and landed here with AUTH-4; the README's forms row and closed-vocabulary census now name them.

@@ -17,7 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ReplaceFaceError};
 
@@ -30,12 +30,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 }
 
 fn revolved_by(points: &[(f64, f64)], rev: Revolution<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        points
-            .iter()
-            .map(|(r, y)| ProfileVertex::new(p2(*r, *y), 0.0))
-            .collect(),
-    );
+    let lp = bulge_loop(points.iter().map(|(r, y)| (p2(*r, *y), 0.0)).collect());
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("probe polygon is a valid profile");

@@ -9,8 +9,8 @@
 //! (arena floats via Debug's shortest-round-trip encoding, which is
 //! bit-faithful for the finite values documents carry), verdict logs,
 //! content keys. The CI matrix runs this file at ε ∈ {1e-6, 1e-9,
-//! 1e-12} and under the interval feature
-//! (`m4_pr6_roundtrip_interval` wraps the same corpus).
+//! 1e-12} and at the interval scalar (`m4_pr6_roundtrip_interval`
+//! wraps the same corpus).
 //!
 //! Every evaluated fixture must also be GREEN (#117): fingerprint
 //! identity alone is blind to evaluation health, so a sick fixture

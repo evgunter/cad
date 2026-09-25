@@ -15,8 +15,7 @@
 
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, validate_geometric};
@@ -26,9 +25,9 @@ const H: f64 = 1.0;
 const PHI: f64 = 0.3;
 
 fn disc() -> ValidatedProfile<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(-R, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(R, 0.0), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(-R, 0.0), 1.0),
+        (Point2::new(R, 0.0), 1.0),
     ]);
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -223,9 +222,9 @@ fn halves_sum_to_the_cylinder() {
 fn dual_lane_keeps_the_closed_form_refusal() {
     use geom_core::Dual64;
     let d = |x: f64| Dual64::constant(x);
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(d(-R), d(0.0)), d(1.0)),
-        ProfileVertex::new(Point2::new(d(R), d(0.0)), d(1.0)),
+    let lp = bulge_loop(vec![
+        (Point2::new(d(-R), d(0.0)), d(1.0)),
+        (Point2::new(d(R), d(0.0)), d(1.0)),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())

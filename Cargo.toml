@@ -74,8 +74,7 @@ rayon = "1.11"
 # topology store; `SecondaryMap` carries D5 provenance. Zlib license.
 # 1.1.1 released 2025-12-06.
 slotmap = "1.1.1"
-# Interval arithmetic (Q1's certified scalar), behind geom-core's `interval`
-# feature — never a default dependency. In-repo crate (#115): rigorous
+# Interval arithmetic (Q1's certified scalar). In-repo crate (#115): rigorous
 # enclosures over the same pure-Rust `libm` the kernel already uses, with
 # PROVEN per-function outward error pads, differentially certified against
 # two independent oracles. It replaced `inari` as the backend in M5 PR 1:

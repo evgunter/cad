@@ -404,8 +404,10 @@ pub enum SlotId {
     /// index, step index, argument role. The LOOP coordinate is a VQ3
     /// sharpening of the design's `(step, arg)` sketch — a profile is
     /// plane + several loops, so the address needs it. Step indices are
-    /// stable because program STRUCTURE changes only by re-authoring
-    /// (the frozen-selection argument, V2); for the carrier loop forms
+    /// stable under every slot edit because program STRUCTURE changes
+    /// only by [`crate::DocEdit::SetProgram`], which reports every name
+    /// its reshaping strands and rebinds every name it moves (V2,
+    /// `crates/profile/README.md`); for the carrier loop forms
     /// (`circle`/`circle_split`) `step` is 0.
     Profile {
         /// The loop's index in the program (description order).
@@ -537,9 +539,10 @@ impl SlotId {
             | Self::TubeWindowEnd => Dimension::Angle,
             Self::Count | Self::VDegree | Self::Stations | Self::Instance => Dimension::Count,
             // Profile-program roles carry V2's per-role table; none is
-            // Count, so `is_structural` stays false for every StepArg
-            // (LIB-SWITCH §4c — program structure is the STEP LIST,
-            // changed by re-authoring, never through a slot).
+            // Count, so `is_structural` stays false for every StepArg:
+            // program structure is the STEP LIST, which no slot
+            // addresses — it changes by `DocEdit::SetProgram`, which
+            // rebinds every kept name and retires the rest (DM7).
             Self::Profile { arg, .. } => arg.dimension(),
         }
     }
@@ -1363,9 +1366,9 @@ pub enum InputFault {
     /// a corrupt file, and is refused rather than repaired.
     RepeatedDesignation {
         /// The position of the entry's first occurrence.
-        first: u32,
+        first: usize,
         /// The position at which it is named again.
-        again: u32,
+        again: usize,
     },
     /// A SORTED designation is not in canonical form. A blend's
     /// `selection` ([`Node::Fillet`], [`Node::Chamfer`]) is the payload
@@ -1387,7 +1390,7 @@ pub enum InputFault {
         /// sentence spells both out because a reader comparing two
         /// entries wants both numbers in front of them; the payload
         /// carries the one that is data.
-        at: u32,
+        at: usize,
     },
 }
 
@@ -2028,9 +2031,16 @@ pub enum Node<P> {
     ///
     /// # The `declare` field, and why it records no position
     ///
-    /// Members that touch refuse `UndeclaredContact` exactly as a pair
-    /// boolean's operands do, and the recourse is the same one: a
-    /// [`Node::Declare`] input. Its pairs name SITED entities
+    /// Contact is judged pairwise, before the fold: every two members
+    /// whose boxes meet, or between which a pair is declared, are
+    /// evaluated as the two-member union of just those two, with the
+    /// pairs declared between them, and two members
+    /// that touch with the contact undeclared refuse `UndeclaredContact`
+    /// exactly as a pair boolean's operands do. That holds in every
+    /// member order, and for a contact a third member covers too. The
+    /// fold then builds the body and judges no contact of its own. The
+    /// recourse is the pair boolean's: a [`Node::Declare`] input. Its
+    /// pairs name SITED entities
     /// ([`SitedRef`]) — the entity's name in a MEMBER's own table,
     /// with that member beside it. A declaration therefore says "this
     /// face of member `m` meets that face of member `n`" while naming
@@ -2072,12 +2082,15 @@ pub enum Node<P> {
     /// `c` to `d`) fuses in every order of the three, with
     /// `Merged({a, c, d})` as the fused cap's row in each.
     ///
-    /// Merges are the whole of it. A member face the fold consumed
-    /// otherwise — split by a later member, swallowed by containment,
-    /// or inside a merged row that was later fragmented — is not
-    /// looked through, and a pair naming it resolves only in the
-    /// orders that reach it while it is still a row
-    /// (`work/wire/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`).
+    /// A declared pair authorizes its contact wherever the fold meets
+    /// it, and does not demand that the fold meet it: a pair one of
+    /// whose faces another member contained whole before the pair's
+    /// step, so that no row descends from it, is satisfied. A member
+    /// face that survives only in pieces — split by another member, or
+    /// inside a merged row that was later fragmented — is not looked
+    /// through, and a pair naming it resolves only in the orders that
+    /// reach it while it is still a row
+    /// (`work/gather/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`).
     Union {
         /// The member bodies, in fold order (D9: the order is the
         /// list's, and the list is data). Two or more, pairwise
@@ -2911,10 +2924,7 @@ impl<P> Node<P> {
         if let Node::Shell { open, .. } = self {
             for (again, name) in open.iter().enumerate() {
                 if let Some(first) = open[..again].iter().position(|n| n == name) {
-                    return Some(InputFault::RepeatedDesignation {
-                        first: first as u32,
-                        again: again as u32,
-                    });
+                    return Some(InputFault::RepeatedDesignation { first, again });
                 }
             }
         }
@@ -2926,7 +2936,7 @@ impl<P> Node<P> {
         if let Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } = self
             && let Some(at) = selection.windows(2).position(|w| w[0] >= w[1])
         {
-            return Some(InputFault::SelectionNotCanonical { at: at as u32 });
+            return Some(InputFault::SelectionNotCanonical { at });
         }
         None
     }
@@ -3373,33 +3383,66 @@ impl<P> Node<P> {
     /// already-selected edge SHRINKS the set by one rather than
     /// duplicating it.
     ///
-    /// The two must name the same variants; [`name_free_node`] is where
-    /// that agreement is held.
+    /// [`Node::rewrite_payload_names`] under the one-pair map; that
+    /// walk is the one home for which payloads are rewritten and how
+    /// each re-canonicalizes.
     pub(crate) fn rebind_payload_names(&mut self, from: &StableName, to: &StableName) -> usize {
-        fn rewrite(name: &mut StableName, from: &StableName, to: &StableName) -> usize {
-            if name == from {
-                *name = to.clone();
-                1
-            } else {
-                0
+        self.rewrite_payload_names(&mut |name| (name == from).then(|| to.clone()))
+    }
+
+    /// **Rewrites every payload name through `map`, all at once**,
+    /// returning how many it rewrote: `map` answers the name a site
+    /// now holds, or `None` to leave it. The substrate of both name
+    /// rewrites the edit vocabulary has — [`crate::DocEdit::Rebind`]'s
+    /// one pair ([`Node::rebind_payload_names`]) and the whole-program
+    /// edit's per-segment map, which moves several names of one
+    /// payload in one pass.
+    ///
+    /// ONE pass rather than one pair at a time, because a pair at a
+    /// time is wrong for a permutation: rewriting `1 → 2` and then
+    /// `2 → 3` over a selection holding both collapses the first onto
+    /// the second at the re-canonicalization between them and then
+    /// moves the merged name, so a name is lost. Every site is mapped
+    /// from what it held BEFORE the pass, and the payload
+    /// re-canonicalizes once, after.
+    ///
+    /// The variants named here and in [`Node::payload_names`] are the
+    /// same variants; [`name_free_node`] is where that agreement is
+    /// held.
+    pub(crate) fn rewrite_payload_names(
+        &mut self,
+        map: &mut dyn FnMut(&StableName) -> Option<StableName>,
+    ) -> usize {
+        fn rewrite(
+            name: &mut StableName,
+            map: &mut dyn FnMut(&StableName) -> Option<StableName>,
+        ) -> usize {
+            match map(name) {
+                Some(next) => {
+                    *name = next;
+                    1
+                }
+                None => 0,
             }
         }
-        /// A FACE-typed payload name rewritten onto `to` when it is
-        /// exactly `from`, or `None` when it is some other name —
-        /// the one re-derivation both face-name payloads use (a
-        /// mate's heads, an instance's crossing `outer`s).
+        /// A FACE-typed payload name rewritten through `map`, or
+        /// `None` where the map leaves it — the one re-derivation
+        /// both face-name payloads use (a mate's heads, an instance's
+        /// crossing `outer`s).
         ///
         /// A face name's kind is the TYPE's, not this rewrite's:
         /// [`crate::DocEdit::Rebind`] refuses a cross-kind pair at
-        /// its own door, so what `to` contributes is its DERIVATION,
-        /// and `FaceName::map_derivation` is the one in-crate door
-        /// for that. It cannot change a kind, so there is no arm to
-        /// assert away and `Infallible` is the whole of what can go
-        /// wrong.
-        fn rebind_face(name: &FaceName, from: &StableName, to: &StableName) -> Option<FaceName> {
-            if name.as_ref() != from {
-                return None;
-            }
+        /// its own door and the segment map moves a name's locators
+        /// only, so what the mapped name contributes is its
+        /// DERIVATION, and `FaceName::map_derivation` is the one
+        /// in-crate door for that. It cannot change a kind, so there
+        /// is no arm to assert away and `Infallible` is the whole of
+        /// what can go wrong.
+        fn rewrite_face(
+            name: &FaceName,
+            map: &mut dyn FnMut(&StableName) -> Option<StableName>,
+        ) -> Option<FaceName> {
+            let to = map(name.as_ref())?;
             let Ok(next) = name.map_derivation(|_, _| {
                 Ok::<_, core::convert::Infallible>((to.node, to.path.clone()))
             });
@@ -3414,7 +3457,7 @@ impl<P> Node<P> {
             // for a name whose minting node went away.
             Node::Declare { pairs } => {
                 for r in pairs.iter_mut().flat_map(|((a, b), _)| [a, b]) {
-                    hits += rewrite(&mut r.name, from, to);
+                    hits += rewrite(&mut r.name, map);
                 }
             }
             // A SORTED payload re-canonicalizes through the same door
@@ -3424,7 +3467,7 @@ impl<P> Node<P> {
             // that an edit door would refuse.
             Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
                 for name in selection.iter_mut() {
-                    hits += rewrite(name, from, to);
+                    hits += rewrite(name, map);
                 }
                 if hits > 0 {
                     canonicalize_selection(selection);
@@ -3438,7 +3481,7 @@ impl<P> Node<P> {
             // twice (which the load door refuses as corrupt).
             Node::Shell { open, .. } => {
                 for name in open.iter_mut() {
-                    hits += rewrite(name, from, to);
+                    hits += rewrite(name, map);
                 }
                 if hits > 0 {
                     dedup_keeping_first(open);
@@ -3453,7 +3496,7 @@ impl<P> Node<P> {
             // re-authoring the mate.
             Node::Mate { a, b, .. } => {
                 for r in [a, b] {
-                    let Some(next) = rebind_face(&r.name, from, to) else {
+                    let Some(next) = rewrite_face(&r.name, map) else {
                         continue;
                     };
                     let at_mint = r.at == r.name.node;
@@ -3466,7 +3509,7 @@ impl<P> Node<P> {
             }
             // One name, no set to re-canonicalize.
             Node::Datum(Datum::FaceFrame { face, .. }) => {
-                hits += rewrite(face, from, to);
+                hits += rewrite(face, map);
             }
             // No re-canonicalization: the order IS argument order, and
             // a rebind onto an already-referenced entity must leave two
@@ -3474,7 +3517,7 @@ impl<P> Node<P> {
             // and renumber every index the expression holds.
             Node::Measure { refs, .. } => {
                 for r in refs.iter_mut() {
-                    hits += rewrite(&mut r.name, from, to);
+                    hits += rewrite(&mut r.name, map);
                 }
             }
             // An instance's crossing `outer`s — the reading twin's
@@ -3488,7 +3531,7 @@ impl<P> Node<P> {
             Node::InstantiatePart { interface, .. } => {
                 for crossing in interface.crossings.iter_mut() {
                     let InterfaceCrossing::Mate { outer, .. } = crossing;
-                    let Some(next) = rebind_face(outer, from, to) else {
+                    let Some(next) = rewrite_face(outer, map) else {
                         continue;
                     };
                     *outer = next;
@@ -3498,6 +3541,58 @@ impl<P> Node<P> {
             name_free_node!() => {}
         }
         hits
+    }
+
+    /// **The profile whose canonical coordinates this node's own
+    /// profile locators are spelled in** — the node whose `ProfileEdgeRef`s
+    /// and `ProfileVertexRef`s a `SetProgram` on that profile has to
+    /// remap — or `None` for a node whose names carry no locator of
+    /// its own.
+    ///
+    /// A sweep's table is spelled in the canonical numbering of the
+    /// profile it sweeps (DM8): every `Lateral`, `RimEdge`, `Band`,
+    /// `Pole` and their siblings that the extrude or revolve at this
+    /// node mints names a segment or vertex of THAT profile. A loft's
+    /// table names canonical segment `k` of every section at once, so
+    /// it follows one section's reshaping, its FIRST's: a reshaping of
+    /// a later section moves none of its locators
+    /// (`work/emit/a-lofts-names-follow-only-its-first-sections-reshaping.md`).
+    /// A sweep's frontier publishes no table today; the
+    /// answer is the profile it would anchor to, which is the same
+    /// lowering as the extrude's, and costs nothing while no name
+    /// exists to remap. Everything else mints locator-free names of
+    /// its own and CARRIES upstream ones inside `NameRef`s, whose
+    /// locators are their minting node's — reached by descending the
+    /// name, not by asking here.
+    ///
+    /// Exhaustive with no wildcard arm: a node kind that begins to
+    /// sweep a profile has to say so here or stop compiling.
+    pub fn anchoring_profile(&self) -> Option<RecipeNodeId> {
+        match self {
+            Node::Extrude { profile, .. }
+            | Node::Revolve { profile, .. }
+            | Node::Sweep { profile, .. } => Some(*profile),
+            Node::Loft { profiles, .. } => profiles.first().copied(),
+            Node::Datum(_)
+            | Node::Profile(_)
+            | Node::Tube { .. }
+            | Node::HollowTube { .. }
+            | Node::Fillet { .. }
+            | Node::Chamfer { .. }
+            | Node::Shell { .. }
+            | Node::Split { .. }
+            | Node::Boolean { .. }
+            | Node::Union { .. }
+            | Node::Transform { .. }
+            | Node::Pattern { .. }
+            | Node::Part { .. }
+            | Node::PlacedUnion { .. }
+            | Node::Declare { .. }
+            | Node::InstantiatePart { .. }
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => None,
+        }
     }
 
     /// The node ids [`Node::payload_names`] reaches: the heads whose
@@ -3752,10 +3847,9 @@ impl<P> Node<P> {
         };
         let mut prims = Vec::new();
         expr.primitives(&mut prims);
-        let arity = u32::try_from(refs.len()).unwrap_or(u32::MAX);
         for prim in prims {
             for index in prim.refs() {
-                if index >= arity {
+                if !usize::try_from(index).is_ok_and(|i| i < refs.len()) {
                     return Some(MeasureNodeFault::RefIndexOutOfRange {
                         verb: prim.verb(),
                         index,

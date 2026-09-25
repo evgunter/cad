@@ -16,11 +16,10 @@
 //! described.
 //!
 //! ```text
-//! cargo test -p geom-core --features interval --test all \
+//! cargo test -p geom-core --test all \
 //!     -- --ignored --nocapture onb_signed_zero_evidence
 //! ```
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 // The `f64` column of the table below is the PRODUCT `-1 * 0`, not the
 // literal `-0.0` clippy would rather see: what the row measures is

@@ -281,7 +281,6 @@ fn p4_thick_wall_bump_refuses_typed_with_numbers() {
 /// field declares — the needed clearance at its SUPREMUM, the refused
 /// thickness at its INFIMUM. A fold reading one end everywhere reds
 /// on one of the two.
-#[cfg(feature = "interval")]
 #[test]
 fn p5_the_interval_witness_reports_the_declared_end_of_a_widened_parameter() {
     use editor_core::analysis::{BoxAxis, ParamBox};

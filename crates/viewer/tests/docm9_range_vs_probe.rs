@@ -6,7 +6,6 @@
 //! It lives here and not in `editor-core`'s own suite because the probe
 //! does: `editor-core` sits below this crate, so its suite can only
 //! reproduce the probe's QUESTION. This one runs the probe.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;

@@ -189,7 +189,9 @@ So the chain goes, not the link:
 - **`Node::Union { members: Vec<RecipeNodeId>, declare }`** — an
   n-ary union, two or more members, ONE body out. It evaluates as a
   fold of the kernel's pair verb in member order (D9: the order is the
-  list's, and the list is data). It sits beside `Boolean(Union)`,
+  list's, and the list is data). The fold builds the body. Contact is
+  not judged by the fold: it is judged pairwise before the fold (the
+  contact rule below). It sits beside `Boolean(Union)`,
   which stays for a pair, and beside `PlacedUnion`, which fuses
   instances of one prototype and is a different sentence (`node.rs`).
 - **Naming keys by member, not by depth.** The emitter wraps a
@@ -218,9 +220,44 @@ So the chain goes, not the link:
   else in the vocabulary is a list.
 - The viewer's combining doors take a union seat of N body picks —
   CHROME's build, not in the tree today.
-- **A declaration channel, sited at the members.** Two members that
-  touch refuse `UndeclaredContact` exactly as a pair boolean's operands
-  do, and the union carries the same recourse: `Node::Union { members,
+- **Contact is judged pairwise, in member space, before the fold.**
+  Every two members that touch are a contact. This holds whatever the
+  other members are and whatever the member order, so the union's
+  contacts are the contacts of its member pairs.
+  - Before the fold, each pair of members is judged by the pair verb,
+    as the two-member union `m ∪ n`, with the declared pairs whose
+    sites are `m` and `n`. A pair carrying a declaration is judged
+    whatever its boxes: the declaration is a claim to verify, so its
+    names resolve at their sites and a contradicted one refuses
+    `ContactContradicted` in every member order. Only an undeclared
+    pair whose closed bounding boxes are disjoint is skipped, because
+    it cannot touch. The judgement costs up to n(n−1)/2 two-member
+    unions, bounded by pruning the undeclared pairs that cannot touch;
+    if it becomes a measured performance problem, it is raised to Ev
+    to be revisited, not optimized around the rule.
+  - A pair that touches with the contact undeclared refuses
+    `UndeclaredContact` exactly as the two-member union's operands do.
+    It refuses in every member order.
+  - A declared pair that the geometry contradicts refuses as the pair
+    boolean does.
+  - Any other refusal the pair verb raises on a judged pair is the
+    union's refusal too, and so is order-free: a pair whose contact
+    the pair verb cannot decide inside the tolerance grey band refuses
+    `Escalated` in every member order, even where a third member
+    covers it.
+  - A declared pair that survives the judgement is certified.
+
+  A certified pair authorizes its contact wherever the fold meets it.
+  It is not a demand that the fold meet it. A contact another member
+  covers, whose region lies in a third member's interior, is still a
+  contact of its pair and needs the declaration. Where the fold has
+  consumed the pair's faces before the pair's step, the declaration is
+  satisfied, not refused. Every contact the fold meets is between two
+  members, because the accumulation's boundary is made of member
+  faces. So every contact the fold meets was judged here, and the fold
+  mints no contact verdict of its own.
+- **A declaration channel, sited at the members.** The union carries
+  the pair boolean's recourse: `Node::Union { members,
   declare: Option<RecipeNodeId> }`, the `Declare` node's pairs naming
   SITED entities — `SitedRef { at, name }`, the entity `name` as it
   stands at node `at`, where `at` is the member (for a pair boolean,
@@ -229,9 +266,19 @@ So the chain goes, not the link:
   member beside it, and never names the union. A declaration therefore
   names only what exists before the union does, and is authored in one
   pass: the `Declare` is inserted before the union that carries it.
-  Each pair is fed to the fold step at which both its sites are in the
-  accumulation: the later member's step in list order, the earlier
-  side as the accumulator's operand, the later as the joining member's;
+  Each certified pair is fed to the fold step at which both its sites
+  are in the accumulation. That is the later member's step in list
+  order, with the earlier side as the accumulator's operand and the
+  later side as the joining member's. A pair a face of which the fold
+  consumed whole before that step is satisfied, not `Vanished`: no row
+  of the accumulation descends from the face, because another member
+  contains it, so the contact has nothing left to back. That is DM4's
+  part. What stays
+  `member-space-look-through-stops-at-splits-containment-and-fragmented-merges`'s
+  is a face that survives at its step only in pieces, split by another
+  member or inside a merged row a later step fragmented. Rows do
+  descend from such a face, and which of them carry the contact is
+  that row's question;
   a pair whose two sites are ONE member is that member's carried
   contact at its own step; no fold position is recorded anywhere. A
   name not in its site's table refuses typed through the pair
@@ -251,30 +298,39 @@ So the chain goes, not the link:
   name resolves at its step through whatever merges the fold has
   performed (the union rewrites it to the flat `Merged` row containing
   it before the shared resolver), so a declaration set whose faces are
-  consumed by MERGES fuses in every member order. The bound: a face
-  consumed by a split, by containment, or by a merge a later step
+  consumed by MERGES fuses in every member order, and one whose face a
+  member contains is satisfied (above). The bound: a face
+  consumed by a split, or by a merge a later step
   fragmented is not looked through and stays order-shaped
   (`member-space-look-through-stops-at-splits-containment-and-fragmented-merges`).
-  **The refusal against a fold-minted row.** "The same recourse"
-  above holds for a member's own face verbatim, and for a face the
-  fold MERGED through a constituent: the refusal sites that side at
-  one constituent (the first in member order — any constituent
-  declares the same contact through the look-through, so the pick is
-  immaterial and the finding carries the flat set beside it), and the
-  caller declares what the refusal names. A row the fold minted that
-  no member's entity stands for (a `Fragment` — a `Seam` mints edges
-  and vertices, never a face) has no site to name and so no declare
-  arm: it refuses typed, `UndeclarableContact`, rather than degrading
-  into an emission bug that blames the crate for a document the user
-  wrote. The refusal menu of `docs/SELECT-DESIGN.md` §3d keeps its
-  two arms for every sited row; this one row has only the second.
+  **The refusal names member faces.** A contact is judged between two
+  members, so an `UndeclaredContact` finding sites both of its sides at
+  member faces, and the caller declares exactly what the refusal
+  names. No refusal names a row the fold minted, such as a `Fragment`
+  (a `Seam` mints edges and vertices, never a face). A fold step never
+  meets an undeclared contact, because every contact the fold meets
+  was judged pairwise: a certified pair is fed to its step, satisfied
+  because its face was consumed whole, or refused as the vanished name
+  it is at that step. A fold step that refuses a contact anyway is an
+  emission bug, because the fold mints no contact verdict, and a
+  contact refusal from it would tell the user to declare a pair the
+  judgement already passed. The refusal menu of
+  `docs/SELECT-DESIGN.md` §3d keeps its two arms for every
+  `UndeclaredContact`.
 
 *Record: the node, its naming and `SetMembers` are DOCM-3 (PR 1803);
 the member-space declaration channel is DOCM-7 (PR 2028), re-sited at
 the members by Ev on EDIT's fourth `[ev]` PR (#2795, 2026-09-17;
 `a-declared-union-has-no-one-pass-authoring-path`), built by the unit
 that row names; the flat
-`Merged` mint, the look-through and its bound are DOCM-8 (PR 2073).*
+`Merged` mint, the look-through and its bound are DOCM-8 (PR 2073).
+The contact rule (every pairwise contact is judged before the fold and
+must be declared, a covered contact included; a declared contact is
+satisfied wherever the fold meets it) was ruled by Ev on EMIT's `[ev]`
+PR #3200 (2026-09-25), and built by the unit
+`union-contact-is-judged-pairwise-before-the-fold` (PR 3213), where Ev
+also ruled that a declared pair is judged whatever its boxes and that
+a fold step's contact refusal is a bug assertion.*
 
 ## DM5 — A node's inputs are pairwise distinct
 
@@ -305,16 +361,31 @@ stays the delete for a node with consumers.
 *Record: ruled with DM4's build, DOCM-3 (PR 1803), which is what makes
 the die's chain unnecessary.*
 
-## DM7 — A stranded name is reported at the delete, never refused
+## DM7 — A stranded name is reported at the edit that removes its referent, never refused
 
-`DeleteNode` stays legal when a payload name (`Node::payload_names`)
-names the node being deleted: a name is not a DAG edge, and the
-carve-out in §0 stands. What the door owes is a report: every
-`(node, name)` pair whose minting node the edit removed rides the
-accepted edit's `Applied.maintenance`, typed, computed at the door by
-the same payload walk the insert door checks with. The strand is loud
-where it happens rather than at the next evaluation; `NodeGone` and
-`Rebind` remain the diagnosis and the repair.
+The edit that removes a name's referent — `DeleteNode`, and
+`SetProgram` for the steps it drops or changes — stays legal when a
+payload name (`Node::payload_names`) names what is being removed: a
+name is not a DAG edge, and the carve-out in §0 stands. What the door
+owes is a report: every `(node, name)` pair whose referent the edit
+removed rides the accepted edit's `Applied.maintenance`, typed,
+computed at the door by the same payload walk the insert door checks
+with. The strand is loud where it happens rather than at the next
+evaluation; the N5 ladder's rungs — `NodeGone` for a deleted minting
+node, `Vanished` for a name that denotes nothing — and `Rebind` remain
+the diagnosis and the repair. A reshaping has one more thing to say, which a delete
+never has: a name on a step it KEPT is rewritten in place to the
+coordinates the segment sits at now and reported `Rebound { from, to
+}`, so a moved name is visible in the accepted edit and never silently
+re-denotes (`crates/profile/README.md` V2). The same holds for an edit
+that moves the numbering a name is spelled in rather than its referent:
+a value edit (`SetParam`, `SetExpression`, `SetStructuralParam`,
+`SetDocParam`, `SetDocParamValue`) that changes which loop of a profile
+is outer or which way a loop runs is a reshaping with every step kept.
+The names spelled in that profile's numbering are rewritten and reported
+`Rebound` through the same map, and where either side's numbering cannot
+be read they are reported stranded, as a reshaping reports a program
+whose spans cannot be read (`reanchor_report` in `edit.rs`).
 
 The report covers every reference the document holds under N5
 semantics, not only the node payloads: an appearance attachment is
@@ -344,6 +415,10 @@ carriers; the store is the other carrier.
 row names. The appearance-key widening was ruled by Ev on EDIT's third
 `[ev]` PR of 2026-09-16
 (`stranded-appearance-keys-are-not-reported-by-dm7`), which builds
+it. The subject's widening from the delete to the edit that removes a
+name's referent, with the reshaping's rebound arm, was ruled by Ev on
+EDIT's seventh `[ev]` PR, #2904 (2026-09-20,
+`a-committed-profile-program-has-no-whole-program-edit`), which builds
 it.*
 
 ## DM8 — The authored-step to canonical-segment map is composed in `editor-core`
@@ -356,18 +431,25 @@ span and its per-radius emission (fields of `crates/profile`'s
 `ReplayStructure`, beside its fillet decisions) give the answer — the
 span for a step, the emission for a radius, since the step a radius is
 authored on is not always the step its arc is credited to — in the
-program's own step order —
-the numbering the published names carry, since `eval/anchor.rs`
-renumbers every emitted ref canonical → program before the name table
-is published — and canonicalization's `reversed` and `start` on
-`LoopCanonical` are checked against the naming anchor's record of the
-same permutation, never applied. A disagreement between those two
-records is the evaluation contradicting itself and asserts. The door
-refuses typed where a record is absent or of the wrong shape rather
-than guessing. It is derived from the structure record the geometry
-came from, so it cannot disagree with the geometry, and it is not
-persisted. For a loft the published anchoring is section 0's
-(`work/wire/loft-anchors-every-section-with-section-zeros-map`).
+program's own step order, and the profile's naming anchor carries it
+into the numbering every published name carries: the CANONICAL one.
+The canonical form keeps what the author wrote wherever validity
+allows — each loop's authored start and the authored hole order, with
+only the traversal sense normalized (outer counterclockwise, holes
+clockwise) — so the published segment is the program's own for a loop
+authored in its canonical sense and its reflection `s ↦ n − 1 − s` for
+one authored against it, and every verb that consumes a profile
+publishes that one numbering. A loft is no exception: it pairs
+canonical segment `k` of every section into one wall, so the wall's one
+ref is every section's own canonical segment `k`, and the door answers
+any section through that section's own anchor. The anchor is checked
+against canonicalization's `reversed` and `start` on `LoopCanonical`,
+its own record of the same permutation, before it is read. A
+disagreement between those two records is the evaluation contradicting
+itself and asserts. The door refuses typed where a record is absent or
+of the wrong shape rather than guessing. It is derived from the
+structure record the geometry came from, so it cannot disagree with
+the geometry, and it is not persisted.
 
 - **Why not the viewer.** A second derivation from both endpoints can
   disagree with the first.
@@ -386,7 +468,10 @@ checked rather than applied, a disagreement asserting — was ruled by
 Ev on EDIT's third `[ev]` PR of 2026-09-16
 (`dm8-names-canonical-segments-but-the-published-refs-are-program-anchored`),
 after the unit that built the door measured the original clause's
-composition wrong.*
+composition wrong. The canonical numbering — authored start and hole
+order, orientation normalized, one numbering for every verb — was ruled
+by Ev on PR 3102's thread (2026-09-23)
+(`loft-section-correspondence-is-authored`).*
 
 ## What this doc does not touch
 

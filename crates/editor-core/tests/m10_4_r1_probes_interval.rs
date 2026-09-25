@@ -11,7 +11,6 @@
 //!   shipped behaviour, red-capable if it changes.
 //! - **EVIDENCE-ONLY** — a print, no assertion that can fail on a
 //!   number (`memories/test-suite-cost.md`).
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

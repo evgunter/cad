@@ -17,7 +17,6 @@
 //! own endpoint data. Under the center-anchored form the same fixture
 //! is two orders wider than that and the row is red.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::shared::interval::iv;

@@ -4,6 +4,7 @@
 test here goes through a document; none reaches into the kernel.
 """
 
+import json
 import math
 import struct
 import unittest
@@ -621,6 +622,83 @@ class TestPersistence(unittest.TestCase):
         self.assertGreater(refusal.column, 0)
         self.assertIn("no_such_field", refusal.detail)
         self.assertIsNone(refusal.found)
+
+    def test_a_saved_expression_the_dimension_checker_refuses_crosses_whole(self):
+        """The load door's half of the never-strings contract.
+
+        `load` rebuilds every saved expression through the AUTHORING
+        constructors, so a hand-edited file reaches the document layer's
+        dimension checker with no new binding at all. What it raises is
+        the refusal itself — `variant` says a dimension check failed,
+        `inner_variant` says WHICH, from the same vocabulary
+        `ParseError.kind` uses — rather than a sentence a caller would
+        have to parse.
+        """
+        length = {"Literal": {"value": 1.0, "dim": "Length", "unit": "m"}}
+        angle = {"Literal": {"value": 1.0, "dim": "Angle", "unit": "rad"}}
+        cases = {
+            "mismatch": {"Add": [length, angle]},
+            "mul_needs_scalar": {"Mul": [length, length]},
+            "div_needs_scalar_divisor": {"Div": [length, length]},
+            "trig_needs_angle": {"Sin": length},
+            "unknown_display_unit": {
+                "Literal": {"value": 1.0, "dim": "Length", "unit": "furlong"}
+            },
+        }
+        for inner, wire in cases.items():
+            with self.subTest(refusal=inner):
+                with self.assertRaises(pncad.PersistError) as caught:
+                    load(self._save_with_distance(wire))
+                refusal = caught.exception
+                self.assertEqual(refusal.variant, "dimension")
+                self.assertEqual(refusal.inner_variant, inner)
+                # Position rides along; the reporter's own words do not
+                # — there is nothing on this arm that needs a sentence
+                # to be branchable.
+                self.assertEqual(refusal.line, 1)
+                self.assertGreater(refusal.column, 0)
+                self.assertIsNone(refusal.detail)
+
+    def test_a_dimension_refusal_does_not_tell_the_caller_to_regenerate(self):
+        """`regenerate the file` is the recourse for a document this
+        build has lost the vocabulary for. An expression that is
+        dimensionally wrong is not one — regenerating it produces the
+        same refusal — and the message says what IS wrong instead."""
+        bad = self._save_with_distance(
+            {
+                "Add": [
+                    {"Literal": {"value": 1.0, "dim": "Length", "unit": "m"}},
+                    {"Literal": {"value": 1.0, "dim": "Angle", "unit": "rad"}},
+                ]
+            }
+        )
+        with self.assertRaises(pncad.PersistError) as caught:
+            load(bad)
+        message = str(caught.exception)
+        self.assertNotIn("regenerate", message)
+        self.assertIn("cannot apply `add` to length and angle", message)
+
+    def _save_with_distance(self, wire):
+        """A unit box's save text with the extrude's distance expression
+        replaced by `wire`.
+
+        Structural rather than a string substitution: an expression's
+        spelling carries whatever fields the wire form has today, so a
+        needle written out in full would stop matching without failing,
+        and an assertion nothing reaches asserts nothing. This one fails
+        the test if the slot it aims at is gone.
+        """
+        doc = Doc()
+        unit_box(doc, 1 * m, 1 * m, 1 * m)
+        header, body_text = doc.save().split("\n", 1)
+        body = json.loads(body_text)
+        swapped = 0
+        for node in body["snapshot"]["nodes"].values():
+            if "Extrude" in node:
+                node["Extrude"]["distance"] = wire
+                swapped += 1
+        self.assertEqual(swapped, 1, "the fixture has one extrude to tamper")
+        return header + "\n" + json.dumps(body)
 
     def test_a_header_that_disagrees_with_the_snapshot_names_both_ids(self):
         """A tampered or hand-assembled file: the save door writes the
@@ -1361,9 +1439,11 @@ class TestTheInnerArmBesideTheOpWord(unittest.TestCase):
     def test_the_edit_arms_that_hold_a_refusal_are_pre_checked_elsewhere(self):
         """Why the rows above reach ONE inner word and not four.
 
-        `EditError` has five arms carrying an inner refusal. The
-        placement axis is the only one an authoring caller can reach:
-        each of the others is refused at a NARROWER door first, which
+        Of the `EditError` arms carrying an inner refusal, the
+        placement axis and — through `DocEdit.set_program` — the
+        provenance fault are the ones an authoring caller can reach
+        (the provenance rows are `TestTheWholeProgramEdit`'s); each of
+        the others is refused at a NARROWER door first, which
         is the fail-loud shape working — the refusal a caller gets
         names the thing they typed. Pinned here so that a door
         widening later shows up as this test failing rather than as a
@@ -1430,10 +1510,101 @@ EDIT_ATTRS = (
 )
 
 
+class TestTheWholeProgramEdit(unittest.TestCase):
+    """`DocEdit.set_program` — a live profile's program replaced whole,
+    and the names its reshaping touches reported or rebound."""
+
+    @staticmethod
+    def chain(points):
+        path = Open.at((points[0][0] * m, points[0][1] * m))
+        for x, y in points[1:]:
+            path = path.line_to((x * m, y * m))
+        return path.line_to(Start)
+
+    def filleted_box(self):
+        """A square prism with a fillet on the rim edge its wall 2
+        shares with the end cap; `(doc, profile, box, rim)`."""
+        doc = Doc()
+        frame = doc.sketch_frame()
+        profile = doc.insert(
+            Node.profile(self.chain([(0, 0), (2, 0), (2, 2), (0, 2)]), plane=frame)
+        )
+        box = doc.insert(Node.extrude(profile, Expr.length_in(1, m)))
+        rim = [
+            name
+            for name in evaluate(doc).all_edges(box)
+            if "RimEdge" in name and '"segment":2' in name and '"End"' in name
+        ]
+        self.assertEqual(len(rim), 1, rim)
+        doc.insert(Node.fillet(box, Expr.length_in(0.1, m), rim))
+        return doc, profile, box, rim[0]
+
+    def test_a_reshaped_program_rebinds_a_fillets_name_and_reports_it(self):
+        """A leg inserted before the filleted wall's step moves the
+        wall from segment 2 to segment 3; the fillet's name follows,
+        and the accepted edit says so as a `rebound` carrying both
+        spellings. The document round-trips through the persisted
+        form with the reshaping in its log."""
+        doc, profile, _box, rim = self.filleted_box()
+        reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        doc.apply(DocEdit.set_program(profile, reshaped, [(0, [0, 1, None, 2, 3, 4])]))
+        (row,) = doc.last_maintenance
+        self.assertEqual(row.variant, "rebound")
+        self.assertEqual(row.name, rim)
+        self.assertIn('"segment":3', row.rebound_to)
+        self.assertIsNone(row.node)
+        # `Doc.save` writes the document as a SNAPSHOT with no log
+        # (the binding holds a value, not a history), so the reshaped
+        # program crosses in the snapshot and the loaded document
+        # re-saves to the same bytes.
+        text = doc.save()
+        loaded = load(text)
+        self.assertEqual(loaded.edit_count, 0)
+        self.assertEqual(loaded.doc.save(), text)
+
+    def test_a_step_the_provenance_drops_strands_the_fillets_name(self):
+        """The same program with the wall's step stated as new — wall
+        2 is drawn by the step arriving at `(0, 2)`, old step 3, new
+        step 4 — so the fillet's name is retired to the floor of the
+        retired index space (`editor_core::RETIRED_FLOOR + 2`, the
+        exact spelling asserted) and reported as a `strand` on the
+        fillet node, with `rebound_to` empty. Pushed back through
+        `Evaluation.resolve`, the retired spelling is a typed
+        `vanished` failure and never an error: the resolver does no
+        arithmetic on a locator's index."""
+        doc, profile, _box, rim = self.filleted_box()
+        fillet = doc.order()[-1]
+        reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        doc.apply(DocEdit.set_program(profile, reshaped, [(0, [0, 1, None, 2, None, 4])]))
+        (row,) = doc.last_maintenance
+        self.assertEqual(row.variant, "strand")
+        self.assertEqual(row.node, fillet)
+        # `RETIRED_FLOOR` is `u32::MAX / 2`; the retired wall is the
+        # floor plus its old segment.
+        retired_floor = 2**31 - 1
+        self.assertEqual(
+            row.name, rim.replace('"segment":2', f'"segment":{retired_floor + 2}')
+        )
+        self.assertIsNone(row.rebound_to)
+        verdict = evaluate(doc).resolve(row.name)
+        self.assertEqual(verdict.status, "failed")
+        self.assertEqual(verdict.variant, "vanished")
+
+    def test_a_malformed_provenance_refuses_before_the_program_is_read(self):
+        doc, profile, _box, _rim = self.filleted_box()
+        reshaped = self.chain([(0, 0), (2, 0), (3, 1), (2, 2), (0, 2)])
+        with self.assertRaises(EditError) as caught:
+            doc.apply(DocEdit.set_program(profile, reshaped, [(0, [0, 1, 2, 3, 4])]))
+        self.assertEqual(caught.exception.variant, "provenance_malformed")
+        self.assertEqual(caught.exception.inner_variant, "step_count")
+        self.assertEqual(caught.exception.node, profile)
+        self.assertEqual(doc.last_maintenance, [])
+
+
 class TestTheEditDoorsPayload(unittest.TestCase):
     """The refusing arm's payload, off real edits.
 
-    The document layer's `EditError` has 58 arms and many have no
+    The document layer's `EditError` has 68 arms and many have no
     Python door — a witness, an appearance write and an
     expression-path edit are not among the `DocEdit` verbs. What the
     rows below pin is the half a Python caller can provoke: the

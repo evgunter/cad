@@ -69,7 +69,7 @@ use topo::{
     DATUM_UNIT_NORM, FacePairDeclaration, GeomSource, VfContact, VvContact,
 };
 
-use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
+use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
 use crate::names::{self, NameTable, ProfileEdgeRef, SplitHalf};
@@ -103,6 +103,9 @@ type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
 pub(crate) struct OpOut<T: Decide> {
     pub payload: ValuePayload<T>,
     pub names: Arc<NameTable>,
+    /// The fragment groups the op's emitter formed
+    /// (`names::FragmentGroups`); empty for an op that forms none.
+    pub groups: Arc<names::FragmentGroups>,
     pub contacts: Arc<topo::ContactRecords>,
     /// Whose mate authored each of those records, and which mates of
     /// the documents below could not be minted at all — the same
@@ -118,9 +121,17 @@ impl<T: Decide> OpOut<T> {
         Self {
             payload,
             names,
+            groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
         }
+    }
+}
+
+impl<T: Decide> OpOut<T> {
+    /// This output with the fragment groups its emitter formed.
+    fn grouped(self, groups: Arc<names::FragmentGroups>) -> Self {
+        Self { groups, ..self }
     }
 }
 
@@ -484,6 +495,7 @@ where
     Ok(OpOut {
         payload: ValuePayload::Body(Arc::new(placed)),
         names: table,
+        groups: Arc::default(),
         contacts: Arc::clone(&part.contacts),
         carried: Arc::new(carried),
     })
@@ -1527,12 +1539,25 @@ fn wire_datum<T: Decide>(
     }))
 }
 
+/// The program-order coordinates of a profile's `n` loops, as the
+/// `u32` a program loop is addressed by (a program edit's `loop_`, a
+/// profile name's `loop_index`), or a naming refusal when `n` loops do
+/// not fit: past `u32::MAX` a loop's coordinate would name another
+/// loop's.
+fn loop_coordinates(n: usize) -> Result<core::ops::Range<u32>, NodeErrorKind> {
+    names::to_u32(
+        n,
+        "a profile holds more loops than a u32 loop index addresses",
+    )
+    .map(|n| 0..n)
+    .map_err(NodeErrorKind::Naming)
+}
+
 /// The profile node's F64 PRECOMPUTE (LIB-SWITCH §4b): the resolved
 /// program replays through `profile::replay` — the driver, the ONLY
 /// path from steps to geometry — then the assembled `Profile<f64>`
 /// validates at f64 (the C6 structure-selection gate, which also
-/// yields the canonical form the program-anchor naming map is derived
-/// from). Runs inside the node's verdict frame (`eval_node`) ahead of
+/// yields the canonical form the naming anchor is derived from). Runs inside the node's verdict frame (`eval_node`) ahead of
 /// the op: structure decisions, the successor of the stored f64 bits,
 /// logged as the node's own. The validated form is kept: under the
 /// pinned lift it IS the op's value, lifted (`wire_profile`), so the
@@ -1553,13 +1578,9 @@ pub(crate) fn prepare_profile(
     let plane = placement.unwrap_or_else(profile::SketchPlane::xy);
     let mut loops = Vec::with_capacity(resolved.len());
     let mut replay_records = Vec::with_capacity(resolved.len());
-    for (li, steps) in resolved.iter().enumerate() {
-        let (lp, record) = profile::replay_recording(steps, tol).map_err(|error| {
-            NodeErrorKind::ProfileReplay {
-                loop_: li as u32,
-                error,
-            }
-        })?;
+    for (li, steps) in loop_coordinates(resolved.len())?.zip(resolved) {
+        let (lp, record) = profile::replay_recording(steps, tol)
+            .map_err(|error| NodeErrorKind::ProfileReplay { loop_: li, error })?;
         loops.push(lp);
         replay_records.push(record);
     }
@@ -1601,9 +1622,9 @@ pub(crate) fn prepare_profile(
 /// still zero, and until seeding lands the capability is exercised one
 /// door down, at the program-resolve seam this function calls, which is
 /// where `editor-core`'s `m10_p_lift` suite drives it.
-/// The naming is pass 1's verbatim (PP4): names are program-structural
-/// indices, and the canonical permutation they hang off is pinned by
-/// the record, so `T`-valued geometry changes no name.
+/// The naming is pass 1's verbatim (PP4): names are canonical indices,
+/// and the canonical permutation they hang off is pinned by the record,
+/// so `T`-valued geometry changes no name.
 fn lane_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
     plane: profile::SketchPlane<T>,
@@ -1615,7 +1636,7 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         .resolve(lane.params)
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
     let mut loops = Vec::with_capacity(resolved.len());
-    for (li, steps) in resolved.iter().enumerate() {
+    for (li, steps) in loop_coordinates(resolved.len())?.zip(&resolved) {
         // One record per program loop, by construction of pass 1.
         //
         // The fallback is an EMPTY record, and what that buys depends on
@@ -1628,10 +1649,15 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         // break either way; this comment says which half of the
         // vocabulary is actually holding the line, because the other
         // half is the shape check in `replay_guided`, not this.
-        let record = pre.structure.replay.get(li).cloned().unwrap_or_default();
+        let record = pre
+            .structure
+            .replay
+            .get(li as usize)
+            .cloned()
+            .unwrap_or_default();
         let lp = profile::replay_guided(steps, &record, tol).map_err(|error| {
             NodeErrorKind::ProfileLaneReplay {
-                loop_: li as u32,
+                loop_: li,
                 step: error.step,
                 structure: match error.kind {
                     profile::ReplayErrorKind::Path(profile::PathError::Structure(r)) => Some(r),
@@ -1703,15 +1729,14 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
 }
 
 /// **The per-edge radius expressions, in the sweep's own indexing** —
-/// `ProfileProgram::segment_radii`'s answer re-addressed from program
-/// segments to CANONICAL ones, which is what a wall record is keyed by.
+/// `ProfileProgram::segment_radii`'s answer laid out per CANONICAL loop
+/// and segment, which is what a wall record is keyed by.
 ///
-/// The hop is the anchor's, and only the anchor's: `LoopAnchor::segment`
-/// is the canonical → program reindexing the published names were
-/// rewritten through, so asking it for canonical segment `k` names the
-/// program segment the door answered about. Nothing here re-derives a
-/// permutation; the door already checked the evaluation's two records
-/// of this one against each other.
+/// The door already answers in canonical refs — the numbering every
+/// published name carries — so this is a lookup by position: canonical
+/// loop `l`, segment `k` is the ref `(l, k)`. Nothing here re-derives a
+/// permutation; the door checked the evaluation's two records of it
+/// against each other.
 ///
 /// **A refusal here is the evaluation contradicting itself.** The
 /// records were minted from this program by the same pre-pass, so
@@ -1728,7 +1753,8 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
     pre.naming
         .loops
         .iter()
-        .map(|anchor| {
+        .enumerate()
+        .map(|(canonical_loop, anchor)| {
             let by_program_segment = program
                 .segment_radii(&pre.structure, &pre.naming, anchor.program_loop)
                 .unwrap_or_else(|e| {
@@ -1744,8 +1770,9 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
             (0..anchor.len)
                 .map(|k| {
                     let want = ProfileEdgeRef {
-                        loop_index: anchor.program_loop,
-                        segment: anchor.segment(k),
+                        loop_index: u32::try_from(canonical_loop)
+                            .unwrap_or_else(|_| unreachable!("a profile's loop count fits in u32")),
+                        segment: k,
                     };
                     // FIRST match: one segment carries at most one
                     // emission, because each arc's bulge is set once
@@ -1761,24 +1788,6 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
                 .collect()
         })
         .collect()
-}
-
-/// Applies the program-anchor rewrite to an emitted table (identity
-/// anchors skip the rebuild). A collision is an internal bug (the
-/// rewrite is a bijection per loop), refused typed.
-fn anchored(
-    table: Arc<NameTable>,
-    naming: &ProfileNaming,
-) -> Result<Arc<NameTable>, NodeErrorKind> {
-    if naming.is_identity() {
-        return Ok(table);
-    }
-    match anchor::remap_table(&table, naming) {
-        Some(t) => Ok(Arc::new(t)),
-        None => Err(NodeErrorKind::Naming(names::NamingError::Emission {
-            what: "program-anchor rewrite collided (bijection invariant broken)",
-        })),
-    }
 }
 
 /// **The profile-operand verbs' ONE lowering**, driven by the verb's
@@ -1807,8 +1816,9 @@ fn anchored(
 /// # What it writes
 ///
 /// The body (moved out of the record), the name table (emitted from the
-/// record, then program-anchor rewritten — canonical → program indices,
-/// LIB-SWITCH §6), the provenance stamp on everything the sweep minted,
+/// record, its profile refs in canonical numbering — the one numbering
+/// every profile-consuming verb publishes), the provenance stamp on
+/// everything the sweep minted,
 /// and the per-edge parameter sources the verb's flow declares.
 // The 8th argument is the verb's correspondence — the parameter that
 // REMOVES duplication rather than adding a duty, exactly as
@@ -1848,7 +1858,7 @@ fn wire_swept<
     // Eager N4 emission from the emitter's own maps, inside the reader,
     // BEFORE the structural handoff is taken apart.
     let out = (verb.read)(id, record, verb.foreign_record)?;
-    let table = anchored(out.table, &vp.naming)?;
+    let table = out.table;
     let mut body = out.body;
     // The sweep's own surfaces, curves and points are minted HERE
     // (D1/N6).
@@ -2568,7 +2578,7 @@ mod ladder {
         /// Exactly one entity carries the name.
         Unique(EntityRef),
         /// The name is a tie row of this width.
-        Tied(u32),
+        Tied(usize),
         /// This table does not carry the name.
         Absent,
     }
@@ -2603,7 +2613,7 @@ mod ladder {
     pub(super) fn landing(live: &Live<'_>, table: &NameTable) -> Landing {
         match table.lookup(live.0) {
             Some(Entry::Unique(ent)) => Landing::Unique(*ent),
-            Some(Entry::Tied(ents)) => Landing::Tied(ents.len() as u32),
+            Some(Entry::Tied(ents)) => Landing::Tied(ents.len()),
             None => Landing::Absent,
         }
     }
@@ -2875,8 +2885,9 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
     // about a carrier, and both are read off the one ladder walk below.
     let mut selections: Vec<Option<Selected<'_, T>>> = Vec::with_capacity(refs.len());
     for (index, r) in refs.iter().enumerate() {
-        let index = u32::try_from(index).unwrap_or(u32::MAX);
-        if !read.contains(&index) {
+        // A primitive names a reference by a `u32` index, so one at a
+        // position past `u32::MAX` is one no primitive reads.
+        if !u32::try_from(index).is_ok_and(|i| read.contains(&i)) {
             carriers.push(super::measure::Carrier::Unread);
             selections.push(None);
             continue;
@@ -3146,7 +3157,7 @@ fn wire_split<
     };
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let (ab, bb) = (as_body(&above), as_body(&below));
-    let table = (verb.emitter)(
+    let emitted = (verb.emitter)(
         id,
         ab.as_deref(),
         bb.as_deref(),
@@ -3158,7 +3169,10 @@ fn wire_split<
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
-    Ok(OpOut::plain(ValuePayload::Split { above, below }, table))
+    Ok(
+        OpOut::plain(ValuePayload::Split { above, below }, emitted.table)
+            .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups))),
+    )
 }
 
 /// **The projection node** (DM3): ONE body out of a split's or a
@@ -3326,7 +3340,7 @@ fn wire_boolean<
                 contacts,
                 naming,
             } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
-            let table = (verb.emitter)(
+            let emitted = (verb.emitter)(
                 id,
                 &out.body,
                 &naming,
@@ -3353,8 +3367,9 @@ fn wire_boolean<
                     kind,
                     contacts: Arc::new(contacts),
                 }),
-                table,
-            ))
+                emitted.table,
+            )
+            .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups))))
         }
     }
 }
@@ -3380,6 +3395,18 @@ fn wire_boolean<
 /// resolved by the pair boolean's own [`resolve_declarations`]
 /// against that step's two tables, so the union adds the routing and
 /// reuses the door.
+///
+/// **Contact is judged before the fold, pairwise** (DM4's contact
+/// rule): [`judge_pairwise_contact`] runs each member pair whose boxes
+/// meet, or that carries a declaration, as its own two-member union,
+/// and an undeclared contact refuses there, in every member order. The
+/// fold judges no contact of its own, and a step that refuses one is a
+/// bug ([`fold_step_refusal`]). The census still runs inside each step, because the step is
+/// the pair verb, and a certified pair passes it the one way the
+/// census reads a contact as declared: the pair is fed to the step
+/// that joins its two sites as a declared face pair. A pair whose
+/// accumulation-side face another member contained whole has no row
+/// left to feed, and is satisfied ([`drop_consumed`]).
 ///
 /// **Nothing ∅-absorbing is invented** (D3, "wire, don't invent"). A
 /// member that evaluates to an empty boolean refuses `EmptyOperand`
@@ -3414,37 +3441,79 @@ fn wire_union<
     // fold has no pair to hand the verb, which is the arity class this
     // crate already refuses typed — never a panic, and never a
     // one-member "union" that silently denotes its own input.
-    let Some((first, rest)) = members.split_first().filter(|(_, rest)| !rest.is_empty()) else {
+    let Some((_, rest)) = members.split_first().filter(|(_, rest)| !rest.is_empty()) else {
         return Err(NodeErrorKind::VerbArity {
             verb: verbs::VerbKind::Boolean(BooleanOp::Union),
             given: verbs::Arity::One,
         });
     };
-    let mut acc_body = body_operand(results, *first)?;
-    // The FIRST member enters member-keyed too, so every operand of
-    // every step is already in this node's name space and nothing
-    // downstream has to recover a member from an inner name.
-    let mut acc_table = Arc::new(
-        names::member_view(id, *first, &value_of(results, *first)?.name_table)
-            .map_err(NodeErrorKind::Naming)?,
-    );
+    // Every member's body and member-keyed view, taken once: the
+    // pairwise judgement and the fold both read them. The FIRST member
+    // enters member-keyed too, so every operand of every step is
+    // already in this node's name space and nothing downstream has to
+    // recover a member from an inner name.
+    let operands = members
+        .iter()
+        .map(|&m| {
+            Ok((
+                body_operand(results, m)?,
+                Arc::new(
+                    names::member_view(id, m, &value_of(results, m)?.name_table)
+                        .map_err(NodeErrorKind::Naming)?,
+                ),
+            ))
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+    let mut acc_body = Arc::clone(&operands[0].0);
+    let mut acc_table = Arc::clone(&operands[0].1);
     // The declaration channel, routed BEFORE the fold: each pair goes
     // to the one step that joins the two things it names, derived from
     // the member ids its names carry (`route_declarations`). One bucket
     // per step, so a step with no declared pair runs exactly as it did
     // without the input.
-    let buckets: Vec<Vec<SidedPair<'static>>> = match declare {
-        None => vec![Vec::new(); rest.len()],
-        Some(d) => route_declarations(id, members, declared_pairs(results, d)?, doc)?,
+    let declared: &[DeclaredPair] = match declare {
+        None => &[],
+        Some(d) => declared_pairs(results, d)?,
     };
+    let buckets = route_declarations(id, members, declared, doc)?;
+    // Contact is judged here, pairwise, and nowhere else (DM4's contact
+    // rule): every member pair whose boxes meet, or that carries a
+    // declaration, is its own two-member union with the pairs declared
+    // between those two members. Each member's box is the separation
+    // certificate's hull of its padded face boxes, read through the one
+    // box door the certificate already has (a hull-only door would be a
+    // second compound `Decide + Bounds` seam), and a judged pair's body
+    // is discarded.
+    let hulls = operands
+        .iter()
+        .map(|(body, _)| {
+            topo::Separation::of(body.as_ref(), tol)
+                .map(|s| s.hull())
+                .map_err(NodeErrorKind::Boolean)
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+    let tables: Vec<&NameTable> = operands.iter().map(|(_, t)| t.as_ref()).collect();
+    judge_pairwise_contact(
+        id,
+        members,
+        &tables,
+        &hulls,
+        declared,
+        doc,
+        |p, q, decls| {
+            (verb.build)(BooleanOp::Union, decls)
+                .run_pair(&operands[p].0, &operands[q].0, boolean_sweep, tol)
+                .map(|_| ())
+                .map_err(|err| union_refusal(id, members, tables[p], tables[q], err))
+        },
+    )?;
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
-    for (step, member) in rest.iter().enumerate() {
-        let member_body = body_operand(results, *member)?;
-        let member_table = Arc::new(
-            names::member_view(id, *member, &value_of(results, *member)?.name_table)
-                .map_err(NodeErrorKind::Naming)?,
-        );
-        // This step's declared pairs, resolved against the two tables
+    // Each step's fragment groups, in fold order (`FragmentGroups::folded`).
+    let mut step_groups = Vec::with_capacity(rest.len());
+    for step in 0..rest.len() {
+        let (member_body, member_table) = &operands[step + 1];
+        let (member_body, member_table) = (Arc::clone(member_body), Arc::clone(member_table));
+        // This step's certified pairs, resolved against the two tables
         // the step actually joins by the SAME door the pair boolean
         // resolves its own through — side-picking included, so a name
         // in neither table or in both refuses there and not here.
@@ -3452,13 +3521,21 @@ fn wire_union<
         // The accumulation is presented COLLAPSED. Its own rows are
         // `FromA`/`FromB`-headed, which is the fold's internal space and
         // denotes nothing outside it; a declaration answers what this
-        // node's refusal named, and a refusal names published rows
+        // node's refusal named, and a refusal names collapsed rows
         // (`union_refusal`). So the door reads the accumulation in the
-        // one space a caller can write.
+        // one space a caller can write. The collapse is not the whole of
+        // what the published table gets: `names::name_union` then
+        // renumbers the pieces of member EDGES over the finished body,
+        // which a step that has not finished does not have. A declared
+        // pair cannot name an edge at all: `declared_step` admits face
+        // and vertex pairs only, and refuses any other
+        // (`DeclareUnsupportedPair`).
         //
         // A member-space name the fold has already merged away is
         // rewritten to the accumulation's `Merged` row that holds it
-        // (`look_through_merges`) before the door runs, so the door
+        // (`look_through_merges`), and a pair whose accumulation-side
+        // face the fold consumed whole is satisfied and leaves the
+        // bucket (`drop_consumed`), before the door runs, so the door
         // itself stays the pair boolean's. A refusal it raises is
         // diagnosed against the AUTHORED bucket: the name that fails is
         // one the rewrite left alone, and the pair a caller acts on is
@@ -3467,13 +3544,15 @@ fn wire_union<
             BooleanDeclarations::none()
         } else {
             let acc_view = names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
-            let resolved = look_through_merges(&buckets[step], &acc_view)?;
+            let resolved =
+                drop_consumed(look_through_merges(&buckets[step], &acc_view)?, &acc_view);
             resolve_declarations(&resolved, doc, &acc_view, &member_table)?
         };
         match (verb.build)(BooleanOp::Union, decls)
             .run_pair(&acc_body, &member_body, boolean_sweep, tol)
-            .map_err(|err| union_refusal(id, members, &acc_table, &member_table, err))?
-        {
+            .map_err(|err| {
+                fold_step_refusal(union_refusal(id, members, &acc_table, &member_table, err))
+            })? {
             // A union of two REAL bodies cannot be empty, and both
             // operands here are real: `body_operand` refuses a member
             // whose value is the typed empty before this line, and the
@@ -3509,7 +3588,7 @@ fn wire_union<
                 // tables are the member-keyed views, so an error this
                 // step raises about an operand is about a row in this
                 // node's space.
-                acc_table = (verb.emitter)(
+                let emitted = (verb.emitter)(
                     id,
                     &out.body,
                     &naming,
@@ -3526,11 +3605,29 @@ fn wire_union<
                     tol,
                 )
                 .map_err(NodeErrorKind::Naming)?;
+                acc_table = emitted.table;
+                step_groups.push(emitted.groups);
                 acc_body = Arc::new(out.body);
             }
         }
     }
-    let table = names::name_union(id, &acc_body, &acc_table).map_err(NodeErrorKind::Naming)?;
+    // The members' own bodies and tables: where each member edge the
+    // published table ranks pieces of is defined (`name_union`).
+    let member_bodies = members
+        .iter()
+        .zip(&operands)
+        .map(|(&m, (body, _))| Ok((m, Arc::clone(body), &value_of(results, m)?.name_table)))
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+    let member_views: Vec<names::UnionMember<'_, T>> = member_bodies
+        .iter()
+        .map(|(node, body, table)| names::UnionMember {
+            node: *node,
+            body,
+            table,
+        })
+        .collect();
+    let table = names::name_union(id, &acc_body, &acc_table, &member_views, tol)
+        .map_err(NodeErrorKind::Naming)?;
     let mut body = (*acc_body).clone();
     // ONCE, over the finished body, and not per fold step: the stamp
     // numbers a node's minted descriptions from zero, so a second pass
@@ -3564,7 +3661,151 @@ fn wire_union<
             contacts,
         }),
         table,
-    ))
+    )
+    .grouped(Arc::new(names::FragmentGroups::folded(id, &step_groups))))
+}
+
+/// **DM4's contact rule: every member pair is judged as its own
+/// two-member union, before the fold.** The fold that follows judges no
+/// contact; this is the one place a union's contacts are decided.
+///
+/// Each pair of members whose closed boxes meet
+/// ([`topo::Separation::hull`]) runs the pair verb as `m ∪ n`, handed
+/// the declared pairs whose two sites are `m` and `n` and nothing else.
+/// A touching pair with its contact undeclared refuses
+/// `UndeclaredContact` through [`union_refusal`], naming one face of
+/// each member; a declaration the geometry contradicts refuses as the
+/// pair boolean does; a pair that passes is certified and its body is
+/// discarded. An undeclared pair whose boxes are disjoint cannot touch,
+/// so it is not run. A pair carrying a declaration is run whatever its
+/// boxes: the declaration is a claim to verify, not a contact to
+/// detect, so its names resolve at their sites and a contradicted class
+/// refuses here, in every order. Otherwise the verdict would depend on
+/// whether the fold happened to feed the pair or had consumed its face
+/// ([`drop_consumed`]), and a name absent at a step could be a mistyped
+/// one rather than a consumed one.
+///
+/// **The verdict depends on the members, never on their order.** Pairs
+/// are visited in ascending node-id order, and within a pair the member
+/// with the lesser id is operand A, so which pair a refusal names, and
+/// how the asymmetric pair verb is handed it, are the same in every
+/// member order. A contact a third member covers is judged here like
+/// any other: the pair does not see the third member.
+///
+/// The cost is at most n(n−1)/2 pair booleans; box pruning bounds it by
+/// the pairs that can touch or carry a declaration.
+///
+/// `tables[i]` and `hulls[i]` are member `i`'s view and box; `judge(p,
+/// q, decls)` runs the pair verb on members `p` (operand A) and `q`
+/// (operand B) with `decls`, and returns the refusal it raises. The
+/// scalar stays with the caller, so this function decides which pairs
+/// are judged and with what, and nothing about geometry.
+fn judge_pairwise_contact(
+    id: RecipeNodeId,
+    members: &[RecipeNodeId],
+    tables: &[&NameTable],
+    hulls: &[bvh::Aabb],
+    declared: &[DeclaredPair],
+    doc: &crate::doc::Doc<ProfileProgram>,
+    mut judge: impl FnMut(usize, usize, BooleanDeclarations) -> Result<(), NodeErrorKind>,
+) -> Result<(), NodeErrorKind> {
+    // The declared pairs between two DIFFERENT members, keyed by the
+    // pair's positions with the lesser node id first and sided the same
+    // way. A pair whose two sites are one member is that member's
+    // carried contact, not a contact between members. Every site sites:
+    // `route_declarations` sited the same pairs through the same door
+    // and refused any that does not, so a refusal here is a bug.
+    let site = |r: &SitedRef| {
+        member_site(id, members, r, doc).map_err(|_| {
+            NodeErrorKind::Naming(names::NamingError::Emission {
+                what: PAIRWISE_SITE_UNROUTED,
+            })
+        })
+    };
+    let mut between: std::collections::BTreeMap<(usize, usize), Vec<SidedPair<'static>>> =
+        std::collections::BTreeMap::new();
+    for ((r1, r2), class) in declared {
+        let ((i, n1), (j, n2)) = (site(r1)?, site(r2)?);
+        if i == j {
+            continue;
+        }
+        let (lo, hi) = if members[i] < members[j] {
+            (i, j)
+        } else {
+            (j, i)
+        };
+        let op = |k: usize| {
+            if k == lo {
+                topo::Operand::A
+            } else {
+                topo::Operand::B
+            }
+        };
+        between
+            .entry((lo, hi))
+            .or_default()
+            .push(((op(i), n1), (op(j), n2), *class));
+    }
+    let mut by_id: Vec<usize> = (0..members.len()).collect();
+    by_id.sort_by_key(|&i| members[i]);
+    for (k, &p) in by_id.iter().enumerate() {
+        for &q in &by_id[k + 1..] {
+            let pairs = between.remove(&(p, q)).unwrap_or_default();
+            if pairs.is_empty() && !hulls[p].overlaps(&hulls[q]) {
+                continue;
+            }
+            let decls = if pairs.is_empty() {
+                BooleanDeclarations::none()
+            } else {
+                resolve_declarations(&pairs, doc, tables[p], tables[q])?
+            };
+            judge(p, q, decls)?;
+        }
+    }
+    Ok(())
+}
+
+/// A declared pair's site did not site in the pairwise judgement,
+/// after [`route_declarations`] sited the same pair through the same
+/// door ([`member_site`]).
+const PAIRWISE_SITE_UNROUTED: &str =
+    "a union's pairwise contact judgement met a declared site the routing did not refuse";
+
+/// **A certified pair whose accumulation-side face the fold consumed
+/// whole is satisfied, and leaves the step's bucket** (DM4, the
+/// declaration channel).
+///
+/// Consumed whole means no face row of the accumulation descends from
+/// the face: it is not a row itself, not a constituent of a merged row
+/// (those [`look_through_merges`] has already rewritten), and not the
+/// parent of a fragment, bare, through a pass-through wrapper or inside
+/// a merged row's set ([`names::face_descends_from`], the one reading
+/// of "descends" the pair emitter's seam rule uses too). Another member
+/// contains it, so the contact has nothing left to back.
+///
+/// A face that survives only in pieces is left in the bucket, and the
+/// door refuses it as the vanished name it is at this step: which of
+/// its pieces carry the contact is
+/// `member-space-look-through-stops-at-splits-containment-and-fragmented-merges`'s
+/// question, not this one.
+///
+/// Only a CROSS pair is read, the accumulation side of a pair between
+/// two members. Its names were resolved at their sites by
+/// [`judge_pairwise_contact`], so a name absent here was consumed, not
+/// mistyped. A pair whose two sites are one member is that member's
+/// carried contact at its own step and passes through untouched.
+fn drop_consumed<'n>(bucket: Vec<SidedPair<'n>>, acc_table: &NameTable) -> Vec<SidedPair<'n>> {
+    let consumed = |(op, sided): &(topo::Operand, SidedName<'n>)| {
+        let face = sided.name();
+        *op == topo::Operand::A
+            && !acc_table
+                .iter()
+                .any(|(row, _)| names::face_descends_from(row, face))
+    };
+    bucket
+        .into_iter()
+        .filter(|(s1, s2, _)| s1.0 == s2.0 || !(consumed(s1) || consumed(s2)))
+        .collect()
 }
 
 /// One declared pair as the recipe carries it: the two SITED
@@ -3729,9 +3970,10 @@ fn declared_pairs<T: Decide>(
 /// the pair boolean's own resolver runs on a union's pairs exactly as
 /// it runs on its own. A member face the fold has MERGED away is
 /// rewritten again, at the step it is fed to, by
-/// [`look_through_merges`]; the bound on that — splits, containment
-/// and fragmented merges are not looked through — is DM4's and is
-/// stated there.
+/// [`look_through_merges`], and a pair whose face another member
+/// contained whole leaves the bucket as satisfied ([`drop_consumed`]);
+/// the bound on that — splits and fragmented merges are not looked
+/// through — is DM4's and is stated there.
 ///
 /// A site the member list does not hold — the state `SetMembers`
 /// creates by removing a declared member — refuses through the N5
@@ -3747,39 +3989,54 @@ fn route_declarations(
     // bucket borrows the payload it was built from.
     let mut buckets: Vec<Vec<SidedPair<'static>>> = vec![Vec::new(); steps];
     for ((r1, r2), class) in pairs {
-        // Rung 1 first, as at both doors ([`site_operand`] is where
-        // that order is written): a name whose minting node is gone
-        // says THAT, before anything is said about which step it
-        // would have belonged to.
-        let member_of = |r: &SitedRef| -> Result<usize, NodeErrorKind> {
-            site_operand(r, members, doc, |live| NodeErrorKind::DeclareResolve {
-                error: ladder::vanished(live),
-            })
-            .map(|(i, _)| i)
-        };
-        let (i, j) = (member_of(r1)?, member_of(r2)?);
+        let ((i, n1), (j, n2)) = (
+            member_site(id, members, r1, doc)?,
+            member_site(id, members, r2, doc)?,
+        );
         // The bucket, and the side each name takes in it: the joining
         // member is operand B, and everything the fold has already
         // accumulated is operand A.
         let bucket = i.max(j).saturating_sub(1);
         let joining = bucket + 1;
-        let sided = |index: usize, r: &SitedRef| {
-            let op = if index == joining {
+        let op = |index: usize| {
+            if index == joining {
                 topo::Operand::B
             } else {
                 topo::Operand::A
-            };
-            // The rung-1 token is not carried past here: the name
-            // this mints is a NEW one, minted under the union, and
-            // the landing pays rung 1 on the name it actually reads.
-            (
-                op,
-                SidedName::Rewritten(names::member_name(id, r.at, &r.name)),
-            )
+            }
         };
-        buckets[bucket].push((sided(i, r1), sided(j, r2), *class));
+        buckets[bucket].push(((op(i), n1), (op(j), n2), *class));
     }
     Ok(buckets)
+}
+
+/// **A union's declared side, sited at its member**: the member's
+/// position in the list, and the name rewritten into the node's member
+/// space ([`names::member_name`]). The one siting door both of a
+/// union's readers of its declarations take ([`route_declarations`],
+/// [`judge_pairwise_contact`]); each picks the operand side from the
+/// position by its own rule.
+///
+/// Rung 1 first, as at both declaring doors ([`site_operand`] is where
+/// that order is written): a name whose minting node is gone says
+/// THAT, before anything is said about its site. A site the member list
+/// does not hold refuses as a vanished name (N5). The rung-1 token is
+/// not carried past here: the name this mints is a NEW one, minted
+/// under the union, and the landing pays rung 1 on the name it actually
+/// reads.
+fn member_site(
+    id: RecipeNodeId,
+    members: &[RecipeNodeId],
+    r: &SitedRef,
+    doc: &crate::doc::Doc<ProfileProgram>,
+) -> Result<(usize, SidedName<'static>), NodeErrorKind> {
+    let (i, _) = site_operand(r, members, doc, |live| NodeErrorKind::DeclareResolve {
+        error: ladder::vanished(live),
+    })?;
+    Ok((
+        i,
+        SidedName::Rewritten(names::member_name(id, r.at, &r.name)),
+    ))
 }
 
 /// **A member-space name the fold has merged away, rewritten to the
@@ -3858,8 +4115,43 @@ const MEMBER_FACE_IN_TWO_MERGES: &str =
 /// Unreachable (see the arm that raises it); surfaced typed.
 const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-empty operands";
 
+/// **The fold mints no contact verdict** (DM4's contact rule): a fold
+/// step's refusal, with a contact refusal raised as the emission bug it
+/// is.
+///
+/// Every contact a step meets is between two members' faces, and every
+/// member pair that can touch was judged before the fold
+/// ([`judge_pairwise_contact`]): an undeclared one refused there, and a
+/// certified one is fed to its step, left the bucket as satisfied
+/// ([`drop_consumed`]), or refused as the vanished name it is at that
+/// step. So a step that refuses `UndeclaredContact` or
+/// `UndeclarableContact` would be telling a caller to declare a contact
+/// the judgement already passed, and it refuses as a bug instead. Every
+/// other refusal passes through as [`union_refusal`] gave it.
+fn fold_step_refusal(refused: NodeErrorKind) -> NodeErrorKind {
+    match refused {
+        NodeErrorKind::UndeclaredContact { .. } | NodeErrorKind::UndeclarableContact { .. } => {
+            NodeErrorKind::Naming(names::NamingError::Emission {
+                what: UNION_FOLD_CONTACT_VERDICT,
+            })
+        }
+        other => other,
+    }
+}
+
+/// A union fold step refused a contact, after the pairwise judgement
+/// decided every contact between members.
+const UNION_FOLD_CONTACT_VERDICT: &str =
+    "a union fold step minted a contact verdict the pairwise judgement did not";
+
 /// A union's refusal, with every name it carries in the node's own
 /// published space.
+///
+/// Two callers hand it tables. [`judge_pairwise_contact`] hands it two
+/// members' views, whose rows are already member entities, and that is
+/// where an undeclared contact refuses. A fold step hands it the
+/// accumulation and the joining member, and [`fold_step_refusal`] raises
+/// a contact refusal from there as a bug (DM4).
 ///
 /// [`refusal_menu`] resolves the raise site's face keys through the two
 /// OPERAND tables it is handed. From the second fold step on the `a`
@@ -3868,9 +4160,18 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 /// internal space: no published table holds it, [`mod@crate::resolve`]
 /// cannot look it up, and a selector written against it matches
 /// nothing. Every name the refusal carries is therefore put through
-/// [`names::collapse_name`], the same rewrite the node's own table gets
-/// from `name_union`, so a refusal denotes member-space entities and
-/// nothing else.
+/// [`names::collapse_name`], the collapse the node's own table gets from
+/// `name_union`, so a refusal denotes member-space entities and nothing
+/// else.
+///
+/// The collapse is not all `name_union` does: it then numbers the
+/// pieces of each member EDGE by the cells the finished body cuts it
+/// into, and has seam vertices cite member edges whole. A refusal is
+/// raised before there is a finished body, so a member-edge piece it
+/// carried would keep the fold's rank, which no published table holds.
+/// So one refuses as an emission bug ([`UNION_REFUSAL_FOLD_RANKED_EDGE`])
+/// rather than being handed out; today none reaches it, since
+/// `refusal_menu` resolves face keys and a flush finding names faces.
 ///
 /// A name that will not collapse is an emission bug in the fold's own
 /// table, and it is raised as one rather than swallowed: the union was
@@ -3889,6 +4190,10 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 /// member stands for is refused
 /// [`NodeErrorKind::UndeclarableContact`] — typed, because a sited
 /// declaration cannot name a row that does not exist before the union.
+/// From [`judge_pairwise_contact`] both tables are member views, so
+/// every side is a member's own face; the merged and fold-minted arms
+/// answer only a fold step's refusal, which [`fold_step_refusal`] then
+/// raises as a bug.
 ///
 /// So this door never degrades a user's undeclared contact into an
 /// emission bug. The emission arm below is reached only when the
@@ -3928,6 +4233,15 @@ fn union_refusal<T: crate::lane::Lane>(
     // so there is nothing for the sited arm below to carry.
     for subject in [&a, &b] {
         if let DeclarationSubject::FoldMinted(row) = subject {
+            // A piece of a member edge here carries the FOLD's rank,
+            // which the published table renumbers over the finished
+            // body: handing it out would name nothing. No flush finding
+            // names an edge today; if one ever does, it refuses loudly.
+            if names::is_fold_ranked_member_edge(row) {
+                return NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: UNION_REFUSAL_FOLD_RANKED_EDGE,
+                });
+            }
             return NodeErrorKind::UndeclarableContact {
                 row: Box::new(row.clone()),
                 diag,
@@ -4049,6 +4363,10 @@ fn sited_member(
         _ => DeclarationSubject::FoldMinted(collapsed),
     })
 }
+
+/// A union's refusal named a piece of a member edge by the fold's rank.
+const UNION_REFUSAL_FOLD_RANKED_EDGE: &str = "a union fold's refusal names a piece of a member \
+     edge by the fold's rank, which no published table holds";
 
 /// A union's refusal named a row its own fold table cannot collapse.
 const UNION_REFUSAL_FOREIGN: &str =
@@ -4940,7 +5258,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     id: RecipeNodeId,
     lane: LaneEnv<'_, T>,
     tol: Tol,
-) -> Result<(sweep::Section, Affine3<f64>, ProfileNaming), NodeErrorKind> {
+) -> Result<(sweep::Section, Affine3<f64>), NodeErrorKind> {
     let program = node_operand(doc, id, super::family::PROFILE, |n| match n {
         Node::Profile(program) => Some(program),
         _ => None,
@@ -4965,8 +5283,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // the same C6/D9 pipeline the profile node runs. The profile's own
     // validation door still runs first, so a bad section reads as a
     // profile error at the NODE (the §2 compatibility contract) before
-    // the library door re-gates it — and the f64 canonical form yields
-    // the program-anchor naming map for the loft emitter's refs.
+    // the library door re-gates it.
     let resolved = program
         .resolve(lane.nominal)
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
@@ -5021,7 +5338,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // The sections are the REPLAYED loops (program order — exactly
     // the stored-loop handoff LIB-U3 established, one derivation
     // earlier): positions, bulges, declared joints verbatim.
-    Ok((pre.profile_f64.loops, place, pre.naming))
+    Ok((pre.profile_f64.loops, place))
 }
 
 /// A structural (Count) slot, refused typed when absent or unusable.
@@ -5045,23 +5362,10 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
     let v_degree = need_count(vals, SlotId::VDegree)?;
     let mut sections = Vec::with_capacity(profiles.len());
     let mut places = Vec::with_capacity(profiles.len());
-    let mut first_naming = ProfileNaming::default();
-    for (i, pid) in profiles.iter().enumerate() {
-        let (chain, place, naming) = section_of::<T>(doc, results, *pid, lane, tol)?;
+    for pid in profiles {
+        let (chain, place) = section_of::<T>(doc, results, *pid, lane, tol)?;
         sections.push(chain);
         places.push(place);
-        if i == 0 {
-            // The loft emitter's profile refs are canonical (loop,
-            // segment) indices of the SECTION combinatorics; sections
-            // must correspond, so the FIRST section's anchor is the
-            // rewrite for the emitted table. PINNED LIMITATION
-            // (reported; review NOTE): a later section authored
-            // rotated/reversed relative to section 0 anchors to
-            // section 0's map, not its own — acceptable while the
-            // kernel requires corresponding sections; revisit if loft
-            // ever accepts per-section reparametrization.
-            first_naming = naming;
-        }
     }
     // The geometry/profile doors keep their historical node-error
     // shapes (the §2 compatibility contract predates the builder);
@@ -5072,9 +5376,12 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
             other => NodeErrorKind::Loft(other),
         })?;
     // Eager N4 emission from the builder's own maps, BEFORE the
-    // structural handoff is dropped (the extrude idiom).
+    // structural handoff is dropped (the extrude idiom). The refs are
+    // canonical (loop, segment) indices, and the skin paired canonical
+    // segment `k` of every section into wall `k`: canonical traversal
+    // from each loop's AUTHORED start, so wall `k` is every section's
+    // own canonical segment `k` — the numbering every verb publishes.
     let table = names::name_loft(id, &built).map_err(NodeErrorKind::Naming)?;
-    let table = anchored(table, &first_naming)?;
     stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
@@ -5714,5 +6021,32 @@ mod route_tests {
                 "{row}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod loop_coordinates_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{NodeErrorKind, loop_coordinates};
+    use crate::names::NamingError;
+
+    /// Every loop a `u32` addresses gets its own coordinate; one loop
+    /// more refuses the profile rather than wrapping onto loop 0.
+    #[test]
+    fn addresses_every_loop_and_refuses_one_past_the_bound() {
+        assert_eq!(loop_coordinates(3).ok(), Some(0..3));
+        let max = usize::try_from(u32::MAX).expect("a 32-bit or wider usize");
+        assert_eq!(loop_coordinates(max).ok(), Some(0..u32::MAX));
+        let Some(past) = max.checked_add(1) else {
+            return; // a 32-bit usize holds no count past the bound
+        };
+        assert!(
+            matches!(
+                loop_coordinates(past),
+                Err(NodeErrorKind::Naming(NamingError::Emission { .. }))
+            ),
+            "one loop past u32::MAX is refused"
+        );
     }
 }

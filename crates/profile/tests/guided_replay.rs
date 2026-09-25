@@ -66,19 +66,11 @@ fn vesica_lens(dx: f64) -> Vec<profile::Step<f64>> {
 fn same_bits(a: &ProfileLoop<f64>, b: &ProfileLoop<f64>, what: &str) {
     assert_eq!(a.vertices().len(), b.vertices().len(), "{what}: arity");
     for (i, (u, v)) in a.vertices().iter().zip(b.vertices()).enumerate() {
+        assert_eq!(u.x.to_bits(), v.x.to_bits(), "{what} vertex {i} x");
+        assert_eq!(u.y.to_bits(), v.y.to_bits(), "{what} vertex {i} y");
         assert_eq!(
-            u.pos().x.to_bits(),
-            v.pos().x.to_bits(),
-            "{what} vertex {i} x"
-        );
-        assert_eq!(
-            u.pos().y.to_bits(),
-            v.pos().y.to_bits(),
-            "{what} vertex {i} y"
-        );
-        assert_eq!(
-            u.bulge().to_bits(),
-            v.bulge().to_bits(),
+            a.bulges()[i].to_bits(),
+            b.bulges()[i].to_bits(),
             "{what} vertex {i} b"
         );
     }
@@ -140,13 +132,13 @@ fn guided_validation_at_f64_reproduces_plain_validation() {
             {
                 for (which, got) in [("recorded", v), ("guided", w)] {
                     assert_eq!(
-                        u.pos().x.to_bits(),
-                        got.pos().x.to_bits(),
+                        u.x.to_bits(),
+                        got.x.to_bits(),
                         "{name} loop {li} vertex {k}: {which} x"
                     );
                     assert_eq!(
-                        u.pos().y.to_bits(),
-                        got.pos().y.to_bits(),
+                        u.y.to_bits(),
+                        got.y.to_bits(),
                         "{name} loop {li} vertex {k}: {which} y"
                     );
                 }
@@ -284,7 +276,7 @@ fn guided_replay_consumes_the_recorded_pick_rather_than_ranking() {
         .vertices()
         .iter()
         .zip(flipped.vertices())
-        .any(|(a, b)| a.pos().y.to_bits() != b.pos().y.to_bits());
+        .any(|(a, b)| a.y.to_bits() != b.y.to_bits());
     assert!(
         moved,
         "the guided pass produced the SAME pocket after being told the other one — \
@@ -335,7 +327,6 @@ fn guided_replay_consumes_the_recorded_pick_rather_than_ranking() {
 /// signed sweep folding its raw difference once
 /// ([`geom_core::Real::reduce_periodic_centred`]) the gate classifies,
 /// the ladder is reached, and consumption is observable here.
-#[cfg(feature = "interval")]
 #[test]
 fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
     use geom_core::Interval;
@@ -407,7 +398,7 @@ fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
                 .vertices()
                 .iter()
                 .zip(flipped.vertices())
-                .any(|(a, b)| a.pos().y.hi() < b.pos().y.lo() || b.pos().y.hi() < a.pos().y.lo());
+                .any(|(a, b)| a.y.hi() < b.y.lo() || b.y.hi() < a.y.lo());
             assert!(
                 moved,
                 "the guided pass produced an overlapping pocket after being told the other \
@@ -644,11 +635,10 @@ fn guided_validation_runs_no_canonicalization_decide() {
 /// The same receipt at `Interval`, where it is load-bearing: this
 /// profile's guided validation SUCCEEDS at a scalar whose `lex_min`
 /// comparisons would have to be asked of overlapping enclosures.
-#[cfg(feature = "interval")]
 #[test]
 fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
-    // Used ONLY by this interval-gated row, so imported here rather
-    // than at module scope, where the default build carries them unused.
+    // Used ONLY by this row, so imported here rather than at module
+    // scope.
     use common::lift;
     use geom_core::Interval;
     use geom_core::k_stats::Bracket;

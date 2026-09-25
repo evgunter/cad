@@ -9,7 +9,7 @@ use geom_brep::EdgeDescription;
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::{Body, ValidationError, validate_closed, validate_geometric};
 
@@ -26,12 +26,12 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
 /// A D-shaped profile: one arc (bulge = tan(pi/8), a 90-degree sweep)
 /// plus lines - gives cap rims carrying Arc sketch segments.
 fn d_profile() -> ValidatedProfile<f64> {
-    validated(vec![ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+    validated(vec![bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
         // 90-degree arc
-        ProfileVertex::new(p2(1.0, 0.0), (core::f64::consts::PI / 8.0).tan()),
-        ProfileVertex::new(p2(1.0, 1.0), 0.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+        (p2(1.0, 0.0), (core::f64::consts::PI / 8.0).tan()),
+        (p2(1.0, 1.0), 0.0),
+        (p2(0.0, 1.0), 0.0),
     ])])
 }
 

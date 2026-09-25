@@ -3,7 +3,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use profile::RawLoop;
+use profile::test_support::bulge_loop;
 
 use geom_core::{Affine3, Point2, Vec3};
 use sweep::loft_body;
@@ -22,8 +22,8 @@ use geom_core::Tol;
 /// the class M8-2's rational span meter made BUILDABLE and whose
 /// Hessian/sagitta bounds M8-5 certifies (`nurbs_cert`/`chords`).
 fn rational_pie() -> Body<f64> {
-    let v = |x: f64, y: f64, bulge: f64| sweep::ProfileVertex::new(Point2::new(x, y), bulge);
-    let lp = sweep::ProfileLoop::new(vec![v(1.0, 0.0, 0.4), v(0.0, 1.0, 0.0), v(0.0, 0.0, 0.0)]);
+    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
+    let lp = bulge_loop(vec![v(1.0, 0.0, 0.4), v(0.0, 1.0, 0.0), v(0.0, 0.0, 0.0)]);
     let sections = vec![vec![lp.clone()], vec![lp]];
     let places: Vec<Affine3<f64>> = [0.0, 1.0]
         .iter()

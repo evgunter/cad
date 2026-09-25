@@ -260,7 +260,6 @@ impl ChartCoherenceLane for geom_core::Probe {
     }
 }
 
-#[cfg(feature = "interval")]
 impl ChartCoherenceLane for geom_core::interval::Interval {
     fn examine_chart_coherence(
         _body: &topo::Body<Self>,

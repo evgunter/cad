@@ -1,5 +1,4 @@
-//! The curved pierce RING lane at the CERTIFIED scalar (feature
-//! `interval`) — the two-arm pattern for the lane's new decide sites.
+//! The curved pierce RING lane at the CERTIFIED scalar — the two-arm pattern for the lane's new decide sites.
 //!
 //! Three predicates are new or newly reached here and all three are
 //! metered as LENGTHS (the root-span gaps and the chart certificate;
@@ -18,7 +17,6 @@
 //! enclosure that contains the truth and spans a metre would pass a
 //! containment check while saying nothing.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;

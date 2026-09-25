@@ -7,7 +7,7 @@
 
 use geom::Curve3;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::tube_frame;
 use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
 use topo::{Body, EdgeKey, FaceKey, ReplaceFaceError, ShellError, VertexKey};
@@ -41,11 +41,7 @@ pub(crate) fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64>
 /// A polyline meridian revolved.
 pub(crate) fn polyline(pts: &[(f64, f64)], turn: Revolution<f64>) -> Body<f64> {
     revolved(
-        ProfileLoop::new(
-            pts.iter()
-                .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-                .collect(),
-        ),
+        bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect()),
         turn,
     )
 }

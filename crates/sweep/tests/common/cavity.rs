@@ -42,7 +42,7 @@
 //!   surgery's base rather than a boolean operand.
 
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, subtract};
 
@@ -74,9 +74,9 @@ pub fn brick(lo: Point3<f64>, hi: Point3<f64>) -> Body<f64> {
 /// A circular rod: two half-arc profile segments extruded, so its wall
 /// is a cylinder and the ring it cuts in a plane is a circle.
 pub fn rod(center: Point2<f64>, r: f64, z0: f64, z1: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(center.x - r, center.y), 1.0),
-        ProfileVertex::new(Point2::new(center.x + r, center.y), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(center.x - r, center.y), 1.0),
+        (Point2::new(center.x + r, center.y), 1.0),
     ]);
     let profile = Profile::new(sketch_at(z0), vec![lp])
         .validate(Tol::witness())

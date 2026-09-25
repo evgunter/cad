@@ -147,7 +147,6 @@ fn the_boss_union_document_row_f64_volume_and_roundtrip() {
     );
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn the_boss_union_document_row_interval_bit_replay() {
     // Deviation 9's unauthored row: the first curved boolean under

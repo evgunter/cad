@@ -123,7 +123,13 @@ fn the_readers_gate_runs_one_certificate_and_hands_it_back() {
     let (body, enclosure) = match imported.expect("the closure ran") {
         Ok(StepImport::Solid {
             body, enclosure, ..
-        }) => (body, enclosure),
+        }) => (
+            body,
+            enclosure.expect(
+                "IDENTITY: the ε-scaled prism converges in round 0 at every ε row, so its \
+                 enclosure is measured",
+            ),
+        ),
         other => panic!(
             "ONE CERTIFICATE: the ε-scaled rational prism is a single-solid file that \
              certifies at every ε row, so the reader must ship a Solid: {other:?}"
