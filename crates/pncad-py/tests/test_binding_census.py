@@ -3428,6 +3428,7 @@ MEMBERS_BOUND_AS = {
     "PersistError::ToleranceInvalid": "PersistError.variant",
     "ProductError::EvaluationOfAnotherDocument": "ProductError.variant",
     "ProductError::UnknownNode": "ProductError.variant",
+    "ProductError::PlacedUnderTwoRoots": "ProductError.variant",
     "ProductError::Naming": "ProductError.variant",
     "ProductError::RootFailed": "ProductError.variant",
     "ProductError::RootPoisoned": "ProductError.variant",

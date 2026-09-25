@@ -68,31 +68,6 @@ fn authored_session(bench: &asm::Bench, label: &str, tol: Tol) -> (DocSession, P
     (session, path)
 }
 
-/// Perform one `AddInstance` and answer the node it minted, asserting
-/// the op's own contract: no refusal, exactly one committed edit.
-fn add_instance(session: &mut DocSession, id: DocumentId) -> RecipeNodeId {
-    let before: Vec<RecipeNodeId> = session.doc().order().to_vec();
-    let outcome = session.perform(SessionOp::AddInstance { id });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(
-        outcome.committed.len(),
-        1,
-        "an instance is exactly one committed edit"
-    );
-    session.pump();
-    let minted: Vec<RecipeNodeId> = session
-        .doc()
-        .order()
-        .iter()
-        .copied()
-        .filter(|id| !before.contains(id))
-        .collect();
-    match minted.as_slice() {
-        [only] => *only,
-        other => panic!("one insert mints one node, got {other:?}"),
-    }
-}
-
 /// The instance's node, as the document holds it.
 fn instance_of(session: &DocSession, node: RecipeNodeId) -> (pncad::document::DocRef, bool) {
     match session.doc().node(node) {
@@ -109,8 +84,8 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     let bench = asm::bench("gauth3-author", tol);
     let (mut session, path) = authored_session(&bench, "gauth3-authored", tol);
 
-    let post_i = add_instance(&mut session, bench.post.id);
-    let shelf_i = add_instance(&mut session, bench.shelf.id);
+    let post_i = common::instance_in(&mut session, bench.post.id);
+    let shelf_i = common::instance_in(&mut session, bench.shelf.id);
 
     // What the door authored: the store's CURRENT version of each
     // part, an empty interface record (an authored instance crosses no
@@ -402,8 +377,8 @@ fn two_instances_of_one_part_insert_and_evaluate() {
     let bench = asm::bench("gauth3-twice", tol);
     let (mut session, _) = authored_session(&bench, "gauth3-twice-asm", tol);
 
-    let first = add_instance(&mut session, bench.post.id);
-    let second = add_instance(&mut session, bench.post.id);
+    let first = common::instance_in(&mut session, bench.post.id);
+    let second = common::instance_in(&mut session, bench.post.id);
     assert_ne!(first, second, "each insert mints its own node");
     assert_eq!(instance_of(&session, first).0, bench.post);
     assert_eq!(
@@ -567,7 +542,7 @@ fn the_chooser_holds_a_snapshot_and_rescan_re_reads_it() {
 fn one_instance(tag: &str, label: &str, tol: Tol) -> (asm::Bench, PathBuf, RecipeNodeId) {
     let bench = asm::bench(tag, tol);
     let (mut session, path) = authored_session(&bench, label, tol);
-    let instance = add_instance(&mut session, bench.post.id);
+    let instance = common::instance_in(&mut session, bench.post.id);
     let saved = session.perform(SessionOp::Save(path.clone()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
     (bench, path, instance)

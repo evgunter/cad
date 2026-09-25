@@ -90,9 +90,7 @@ fn extruded(
 
 /// A unit square at `(x0, 0)`, extruded; `(doc, extrude)`.
 fn block(doc: &Doc<ProfileProgram>, x0: f64) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let square = LoopProgram::polygon([(x0, 0.0), (x0 + 1.0, 0.0), (x0 + 1.0, 1.0), (x0, 1.0)])
-        .expect("finite corners");
-    let (doc, _, extrude) = extruded(doc, vec![square]);
+    let (doc, _, extrude) = extruded(doc, vec![common::rectangle_loop([x0, 0.0], 1.0, 1.0)]);
     (doc, extrude)
 }
 
@@ -419,8 +417,7 @@ fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
         &hole_r,
         DocParam::continuous(Dimension::Length, 0.3),
     );
-    let square = LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
-        .expect("finite corners");
+    let square = common::rectangle_loop([0.0, 0.0], 2.0, 2.0);
     let hole = LoopProgram::Circle {
         centre: [common::len(1.0), common::len(1.0)],
         radius: pncad::document::Expr::param(hole_r.clone(), Dimension::Length),

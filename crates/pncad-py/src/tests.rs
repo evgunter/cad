@@ -5015,6 +5015,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "evaluation_of_another_document",
             "graft_refused",
             "no_body_roots",
+            "placed_under_two_roots",
             "product_invalid",
             "product_naming",
             "root_failed",
