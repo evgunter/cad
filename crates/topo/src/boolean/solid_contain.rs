@@ -441,9 +441,8 @@ impl core::fmt::Display for PointInSolidError {
             Self::EdgeCarrierUnsupported { .. } => write!(
                 f,
                 "cannot tell what is inside the solid: a test ray met a flat face \
-                 bounded by a spline or torus-section edge (a cut through a curved face \
-                 can leave one) near enough that the edge decides, and that outline \
-                 cannot be crossed exactly. The solid itself is fine. Recourse: test a \
+                 bounded by a spline or torus-section edge, near enough that the edge \
+                 decides, and that outline cannot be crossed exactly. The solid itself is fine. Recourse: test a \
                  point farther from that face"
             ),
             Self::NoSuchSolid { .. } => write!(
