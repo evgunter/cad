@@ -868,9 +868,10 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// The frame around the faults counts where there is anything to count,
 /// and never names: every [`AdmissionFault`] names its own SUBJECT, so
 /// naming the id again in the preamble would say it twice. It does not
-/// promise a vocabulary for that subject: three of the four say
-/// "instance N" and the absent-node arm says "node N", which is that
-/// enum's own rule and the only honest wording there.
+/// promise a vocabulary for that subject: an arm about an instance says
+/// "instance N" and an arm about an id that names no instance
+/// (`NoSuchNode`, `NotAnInstance`) says "node N", which is that enum's
+/// own rule and the only honest wording there.
 ///
 /// [`crate::display::DisplayFault`]'s own arms name no id at all — they are about a
 /// gesture or a frame rather than a node — and a `Withdrawn` cannot
@@ -1165,9 +1166,9 @@ impl core::fmt::Display for Withdrawal<'_> {
         // [`LIST_SEPARATOR`] would nest inside it and a reader could
         // not see where one cause ends. What keeps that from being a
         // hope about wording is the element type: this joins
-        // [`AdmissionFault`]s, whose four sentences are the whole
-        // population the claim ranges over and which cannot gain a
-        // fifth without an arm there. `DisplayFault::NonRigidFrame`
+        // [`AdmissionFault`]s, whose sentences are the whole
+        // population the claim ranges over and which cannot gain one
+        // without an arm in its `Display`. `DisplayFault::NonRigidFrame`
         // writes the mark inside one sentence and is outside that
         // enum, so this join cannot reach it.
         for (position, entry) in withdrawn.iter().enumerate() {
@@ -1248,12 +1249,12 @@ pub fn cursor_status(step: IdStep) -> StatusUpdate {
 ///
 /// The toolbar's badges are drawn in two colours and the split is a
 /// real rule: `weak` for a report a reader need not act on, the
-/// theme's `unresolved` for a verdict they may. The Features pane
-/// argues it explicitly for rows — a poisoned row is deliberately
-/// QUIET so the eye goes to the failed row a reader can do something
-/// about — and until this type existed no value stated it, so four
-/// badges each picked a colour at the call site and the rule lived
-/// only in prose.
+/// theme's `unresolved` for a verdict they may. The feature tree's
+/// rows follow the same rule, stated by [`crate::tree::RowStatus::tone`]
+/// — a poisoned row is [`Tone::Advisory`], deliberately QUIET, so the
+/// eye goes to the failed row a reader can do something about. Both
+/// families state a tone as a value and neither picks a colour:
+/// `app::toned` is the one place a tone becomes one.
 ///
 /// **The colour is REDUNDANT either way**, which is
 /// [`crate::theme::Theme::unresolved`]'s own stated contract: every
@@ -1427,15 +1428,17 @@ impl Badge {
 /// refusal cannot disagree; and where one seam's refusal arrives as
 /// two types, both impls name ONE constant below, so the seam's
 /// subject is one edit and the two channels move together. That is
-/// what [`tool_news`] buys for its twelve sites by having one door,
+/// what [`tool_news`] buys for its call sites by having one door,
 /// done for a seam that needs two.
 ///
 /// **What it does not buy.** It covers a seam's own refusal TYPE, so
 /// a door whose input is not one — [`tool_news`], [`startup_notices`]
 /// — spells its subject and says so at the door. And a shared
-/// [`Subject`] is not a shared seam: the scene, the δ field and the
-/// pick index are three seams under [`Subject::Display`], which is the
-/// coarser question of what retires a fact.
+/// [`Subject`] is not a shared seam: the scene (which the δ field's
+/// doors share, [`SCENE_SEAM`]) and the pick index
+/// ([`PICK_INDEX_SEAM`]) are separate seams under
+/// [`Subject::Display`], which is the coarser question of what retires
+/// a fact.
 ///
 /// Not public: the doors below are the API, and a caller that could
 /// read this could also assign a subject without one.
@@ -1581,13 +1584,14 @@ pub fn store_refusal(error: &StoreError) -> Message {
 /// and [`LIST_SEPARATOR`] between them was its rendering.
 ///
 /// **So the guarantee is the one the outer level already holds**, and
-/// it is needed here rather than merely available. Three of
-/// [`crate::prefs::Notice`]'s four arms write a [`LIST_SEPARATOR`]
-/// inside one sentence, so a flat join on that mark made a two-notice
-/// line read as four items — reachable with no error path at all, from
+/// it is needed here rather than merely available. A
+/// [`crate::prefs::Notice`] arm may write a [`LIST_SEPARATOR`] inside
+/// one sentence — `WrongType`, `UnknownTheme` and `UnknownPreset` do —
+/// so a flat join on that mark made a two-notice line read as four
+/// items — reachable with no error path at all, from
 /// a file naming a theme and a preset the registries no longer hold.
-/// No second mark could have been chosen instead: two of those four
-/// arms echo a key straight out of the user's file, and a TOML quoted
+/// No second mark could have been chosen instead: `UnknownKey` and
+/// `WrongType` echo a key straight out of the user's file, and a TOML quoted
 /// key may hold any character, so nothing is out of band here. What
 /// holds the line is [`Message::new`] taking the boundary mark out of
 /// every text that reaches it and [`Message::joined`] being the only
@@ -1601,18 +1605,19 @@ pub fn startup_notices(notices: &[String]) -> Option<Message> {
     (!notices.is_empty()).then(|| Message::joined(Subject::Preferences, &notices))
 }
 
-/// **Where a file dialog opens**, from the three places it could: the
-/// current document's own directory, the directory the last dialog
-/// returned a path in, and the directory the viewer was launched from
-/// — in that order, the first that `is_dir` confirms.
+/// **Where a file dialog opens**, from the candidates its signature
+/// takes — the signature, not this sentence, is what holds their
+/// count: the current document's own directory, the directory the last
+/// dialog returned a path in, and the directory the viewer was
+/// launched from — in that order, the first that `is_dir` confirms.
 ///
 /// The order is by how recently a person pointed at the place. The
 /// document's directory is where THIS work lives; the last dialog's is
 /// where they went most recently, and it outlives the session through
 /// the preferences (`crate::prefs::Prefs::last_dir`); the launch
 /// directory is where they were when they started. `None` — reached
-/// only when all three are absent or gone — leaves the dialog to its
-/// backend's own default, whatever that is.
+/// only when every candidate is absent or gone — leaves the dialog to
+/// its backend's own default, whatever that is.
 ///
 /// **A candidate that is not a directory falls through** rather than
 /// refusing. A remembered directory deleted since is the ordinary way
@@ -1693,11 +1698,17 @@ pub fn pick_refusal(error: &PickError) -> Message {
 /// survival drop, a pick a tool declined. [`Subject::Document`],
 /// retired the way that subject says.
 ///
-/// **The one door here that a type does not pin**, because its twelve
-/// sites render through [`crate::tools::ToolKind::says`], [`crate::tools::ToolNotice`]
-/// and the typed forms vocabulary, and arrive as text. What it buys is
-/// that all twelve share one decision: changing the subject of one
-/// changes the subject of all twelve, and a row can see it.
+/// **The one door here that a type does not pin**, because its call
+/// sites hand it text — rendered through
+/// [`crate::tools::ToolKind::says`], [`crate::tools::ToolNotice`] and
+/// the typed forms vocabulary, or formatted at the site. What it buys
+/// is that every site shares one decision: changing the subject here
+/// changes it at all of them, and a row can see it.
+///
+/// The sites are every `frame::tool_news` call under
+/// `crates/viewer/src`, and no number is given for them: that is a
+/// grep over the panes and the app, not a population any type bounds,
+/// so a guard would be a count hand-updated beside each new site.
 pub fn tool_news(text: impl Into<String>) -> Message {
     Message::new(Subject::Document, text)
 }
@@ -1841,9 +1852,10 @@ enum BadgeSite {
 /// is its guard, and a fourth non-`Ok` state reds there. The tree badges each AT the node and carries the typed
 /// cause with it, so a frame badge would say strictly less, in a
 /// louder colour, one row above a status line already reporting the
-/// same root's tessellation refusal. The Features pane goes further
-/// and draws a poisoned row deliberately QUIET, reserving
-/// [`Tone::Actionable`] for the row a reader can act on; a badge
+/// same root's tessellation refusal. The tree's own tone goes further:
+/// [`crate::tree::RowStatus::tone`] makes a poisoned row
+/// [`Tone::Advisory`], reserving [`Tone::Actionable`] for the row a
+/// reader can act on, and the Features pane draws that value; a badge
 /// shouting about the same poisoning would have the chrome saying both
 /// things at once. That is a decision about THIS chrome and not a
 /// classification of the refusal, which is why it is decided here.
@@ -2221,7 +2233,12 @@ pub fn retype_draft(
     })
 }
 
-/// Whether a folded event stream actually moved the camera.
+/// **Whether a folded event stream is a camera event at all**: it
+/// applied a camera operation, or it refused one. A refused fold moved
+/// nothing and still answers `true`, because
+/// [`crate::pane::viewport::land`] both applies a move and delivers a
+/// refusal, and the guard in front of it wants both. The name is
+/// narrower than the value: `true` does not promise the camera moved.
 ///
 /// The stream carries cursor events too, and a stream that denotes no
 /// camera operation is not a camera event.
@@ -2232,8 +2249,8 @@ pub fn retype_draft(
 /// the other end, so the guard is now near-redundant behaviourally —
 /// it saves one call and a `Camera` copy. It is kept because
 /// [`crate::pane::viewport::land`] is documented as the one place a camera MOVE
-/// becomes application state, and calling it on frames where nothing
-/// moved makes that sentence false and hands any writer later added to
+/// becomes application state, and calling it on frames with no camera
+/// event makes that sentence false and hands any writer later added to
 /// it per-frame behaviour nobody asked for.
 pub fn folded_moved(folded: &Folded) -> bool {
     !folded.applied.is_empty() || folded.refused.is_some()
@@ -2305,8 +2322,8 @@ mod tests {
         assert!(
             folded_moved(&folded),
             "the fold MOVED, so the frame loop lands it — a fold that \
-             moved nothing never reaches the line at all, and this row \
-             would be asserting about a case that cannot happen"
+             is no camera event never reaches the line at all, and this \
+             row would be asserting about a case that cannot happen"
         );
         assert_eq!(fold_status(&folded), StatusUpdate::Expire(Subject::Camera));
 
@@ -2321,6 +2338,18 @@ mod tests {
         );
     }
 
+    /// **The first `apply` below is not a live composition.** No
+    /// production caller hands a [`fold_status`] `Show` to [`apply`]: a
+    /// refused fold reaches the line through [`deliver`], onto the
+    /// frame's notices, and the ranking puts it up. It is here as the
+    /// nearest way to put a camera refusal on the line, so the row can
+    /// ask what the next clean fold's `Expire` does to it — which is
+    /// `apply`'s contract and holds whoever placed the refusal.
+    /// `pane::viewport`'s
+    /// `landing_a_clean_fold_retires_the_camera_refusal_it_landed_before`
+    /// is the row on the live path, through `land` and the ranking; it
+    /// is not a duplicate of this one, and this one does not cover that
+    /// path.
     #[test]
     fn a_clean_fold_retires_the_camera_refusal_it_did_write() {
         // The item's own reproduction: refuse a camera operation, then
