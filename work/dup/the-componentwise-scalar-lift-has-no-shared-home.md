@@ -76,7 +76,7 @@ would have been a second spelling of that one. So the door is
 `Point2::map` and `Vec2::map`, and the unit rows it lacked:
 `map_lifts_each_coordinate_into_its_own_slot` (points) and
 `map_lifts_each_component_into_its_own_slot` (vectors), which pin each
-slot's bits at `Interval` and `Dual64`.
+slot's bits at `Interval` and at `Dual64`, in both dimensions.
 
 **The census, re-taken.** Denominator first: every
 `<path>::from_f64(`/`<path>::constant(` call whose argument (balanced
@@ -112,20 +112,44 @@ be used for: `geom-core/src/linalg/affine.rs` `lifted_by_hand` ("calling
 no walk"), `geom/tests/curves/n1r1_lift_probes.rs` ×3 and
 `n1r2_lift_probes_interval.rs` (hand against composed `map_scalar`),
 `profile/tests/{bool9r1_probes,r2_bool9_review_probes}.rs` (retired
-walks kept verbatim). The 45 bare, array and tuple groups have no
-point value to call `map` on. The 41 of them that build a point are
-filed as `coordinates-lifted-into-a-point-are-spelled-per-component`.
+walks kept verbatim). The bare, array and tuple groups have no point
+value to call `map` on. Those that build a point are filed as
+`coordinates-lifted-into-a-point-are-spelled-per-component`, and the
+count (44 at `71f8ce204`) and its instrument live there.
 
 **Re-taken after merging `main` at `4968e6862`**: the same 18 field
 groups remain and no new member appeared. Three folded sites were
-re-resolved onto `main`'s new vertex-and-bulge loop shape. One new
-bare-coordinate group (`geom-core/src/real.rs`) went to the sibling
-row.
+re-resolved onto `main`'s new vertex-and-bulge loop shape. They were
+then routed onto `ProfileLoop::map_scalar`: re-resolved by hand they
+had become a copy of it. A sweep for the same
+`bulge_loop(… .zip(lp.bulges()) …)` rebuild routed two more,
+`profile/tests/scalar_channels.rs` (a NaN-seeded `Dual`) and
+`editor-core/tests/pinned_lift_validates_once.rs`'s `embed`. The
+fixtures that `extrude_acceptance`, `revolve_determinism` and
+`scalar_channels` lift declare no tangent joints, so dropping them was
+never a difference. `profile/tests/common/mod.rs`'s `lift` still pins
+`xy` instead of lifting `p`'s plane, and says so at the site. The
+remaining matches of that rebuild are not scalar maps:
+`bool9r1_probes`/`r2_bool9_review_probes` (oracles),
+`canonical_invariance.rs` (a translation), and the re-indexings in
+`bool9_probes.rs`, `canonical_invariance.rs` and `review_m2_pr2.rs`.
+The `Step` walk `generic_replay.rs`'s `scaled` is named in
+`step-program-embed-has-no-map-door`.
 
 **Reverse direction, not folded.** Lane to `f64` componentwise inside a
 constructor gave 5 hits: 3 `Dual` channel projections in one
 `unit_vec.rs` test, and 2 `SpanBox` reads that are not a point. These
 are projections, not lifts, and below a row's worth.
+
+**The design trade.** The door is `map`, which takes any `Fn(T) -> U`.
+It does not name the lift, so `p.map(Dual64::variable)` or a widening
+closure compiles where a named `from_f64` door would refuse. The fold
+therefore keeps each site's callee spelling: `T::from_f64`,
+`Interval::from_f64`, `Dual::constant`, the aliases `iv` and `d`,
+`Probe`, and the nested `|c| Dual::constant(Interval::from_f64(c))`.
+What a site means by the lift is still read from its callee, not from
+the door. The gain is one walk, whose slot placement is stated and
+tested once.
 
 **Proof.** The plant swapped `x`/`y` in all four leaf maps. It ran on
 the fold head and on the pre-fold tree, each in 4866 rows (6
@@ -139,7 +163,14 @@ other three, `r1_p2_probes` was proved reached by a reach-only run,
 reds the row with the fold and not without it), and `n1r2_dump`'s is
 dark behind an env var. A shift of `x` by one, run on both trees, reds
 8 more rows only with the fold (`intersect_table`, `offset_mint`,
-`m5_pr5_tilted_cut`). The lifted values at seven sites stayed green
+`m5_pr5_tilted_cut`). A red that appears only with the fold shows that
+a site is reached and that its value is asserted. It does not prove the
+fold preserved the value; that rests on `map`'s body and on the clean
+run. The number that carries weight is **0 red only without the
+fold**. The loop routing was planted the same way in
+`ProfileLoop::map_scalar`, over 17 rows: a `panic!` reds 13 rows after
+the routing and 0 before it, and an `x`/`y` swap reds 6 after and 0
+before. The lifted values at seven sites stayed green
 under both answers and are filed with S-TINT as
 `lifted-fixture-values-reached-and-asserted-by-no-row`. The table is in
 the PR.

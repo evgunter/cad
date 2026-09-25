@@ -4,7 +4,7 @@ kind: issue
 title: The recorded Step program is walked through a scalar map by hand seven times in six test files; profile has no Step::map_scalar
 status: open
 opened: 2026-09-24
-priority: P1
+priority: P4
 cost: D
 ---
 
@@ -40,9 +40,16 @@ file with no path argument:
 The copies are not identical: `cert4r1_e2e` and `generic_replay`'s
 `embed_step` cover every `Step` variant, and the other five cover only
 the variants their fixture records and `panic!`/`unreachable!` on the
-rest. So the copies have already DRIFTED in coverage, which is what
-makes this worth a door rather than a shared test helper: a variant added to
-`Step` fails to compile in none of them.
+rest. So the copies have already DRIFTED in coverage. A variant added
+to `Step` fails to compile in the two exhaustive copies; the other five
+compile and reach their catch-all arm only if a fixture records the new
+variant.
+
+**Band: P4.** All seven copies are tests. No `src` code builds on them,
+and nothing in `src` walks a `Step` through a scalar map that a
+`Step::map_scalar` door would serve. Two copies already catch a new
+variant. That makes this non-architectural code improvement under
+`work/README.md`'s bands, not P1.
 
 **Blind spot.** A copy that never names `Target::StartArriving` (one
 that embeds only `Step`s with no target) is invisible to the first

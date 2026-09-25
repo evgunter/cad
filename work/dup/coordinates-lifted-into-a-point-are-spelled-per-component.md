@@ -1,7 +1,7 @@
 ---
 id: coordinates-lifted-into-a-point-are-spelled-per-component
 kind: issue
-title: A point or vector built at T from f64 coordinates that are not already a Point/Vec is spelled per component at 45 sites; pncad::authoring's p2/p3/v2/v3 are the only door and sit uphill
+title: A point or vector built at T from f64 coordinates that are not already a Point/Vec is spelled per component at 44 sites; pncad::authoring's p2/p3/v2/v3 are the only door and sit uphill
 status: open
 opened: 2026-09-24
 priority: P3
@@ -23,25 +23,28 @@ There is no `Point3<f64>` to call `map` on, so `map` does not serve
 them without first building one (`Point3::new(x, y, z).map(T::from_f64)`),
 which no site does.
 
-**44 groups**, re-taken at the lane's head after merging `main` at
-`4968e6862` with the unit's
-denominator-first instrument (every `<path>::from_f64(`/`::constant(`
-call whose argument is a component read or a bare `x`/`y`/`z`, over
-`git ls-files` with no path argument, grouped by file, callee and
-receiver) plus its callee-agnostic second pass (any `F(R.x), F(R.y)`):
+**44 groups at `71f8ce204`** (PR 3242's head after its last `main`
+merge). This is the one count; every other mention defers to it. The
+instrument is the unit's denominator-first pass: every
+`<path>::from_f64(`/`::constant(` call whose argument is a component
+read or a bare `x`/`y`/`z`, over `git ls-files` with no path argument,
+grouped by file, callee and receiver. It finds 46 bare, array and tuple
+groups. Four of them build no point (listed below), which leaves 42.
+The callee-agnostic second pass (any `F(R.x), F(R.y)`) adds 2 more
+through a local alias, for 44:
 
 - **Bare coordinates, 33**: `crates/pncad/src/authoring.rs` ×5 (the
   public `p2`/`p3`/`v2`/`v3` doors and `polygon`'s `at`),
   `crates/sweep/src/test_support.rs` ×3 (`corners`, `waisted_at`,
-  `bowl_at`), `crates/topo/src/test_support_fixtures.rs` ×2 (the prism
-  builders' vertex maps), `crates/geom-brep/tests/shared/point.rs` ×2
+  `bowl_at`), `crates/topo/src/test_support_fixtures.rs` ×3 (the prism
+  builders' vertex maps, and `holed_block`'s `pt`), `crates/geom-brep/tests/shared/point.rs` ×2
   (`p3`, `v3`), `review_m2_pr3_certify.rs` ×2 (`ipt`, `ivec`),
   `onb_c_payoff_interval.rs`, `crates/geom/tests/dual_foot_tangent.rs`,
   `crates/profile/tests/{cert4r2_e2e,interval_lane,review_s2_probe,scalar_channels_probe}.rs`,
   `crates/sweep/tests/{cert_m2r1_passes,extrude_interval,issue93_az_intersect,m5_pr6_pcurves,mass_props_interval,review_m2_pr4_interval,review_m2_pr5_interval,review_m2_pr7_interval,revolve_interval,sf2a_r2_interval_probe}.rs`
   (eight of those ten are the same `fn p2(x, y) -> Point2<Interval>`),
-  `crates/topo/tests/{cube_doors_agree,review_m3_pr3_rings}.rs`, and
-  an `iv` closure in `crates/geom-core/src/real.rs`'s test module.
+  `crates/topo/tests/cube_doors_agree.rs`, and an `iv` closure in
+  `crates/geom-core/src/real.rs`'s test module.
 - **A `[f64; N]` row, 8**: `crates/topo/src/boolean/solid_contain.rs`,
   `chart_bound.rs`, `chart_region.rs` (`SCHEDULE_2D`),
   `splitting/containment.rs`, `splitting/order.rs` — five PRODUCTION
@@ -60,8 +63,13 @@ point), `topo/src/chart_region.rs`'s `decomposition_witness` closure
 lifted to two scalars), `demos/tour/src/klein.rs` (two scalar arguments;
 and demos are never converted).
 
-**Blind spots.** The instrument needs the lift to be written at the
-coordinate; a coordinate lifted into a named local several statements
+**Blind spots.** The instrument sees only the callee names
+`from_f64`/`constant` and the second pass's `F(R.x), F(R.y)` shape. So
+`crates/geom-brep/tests/review_m5_pr7_enclosure.rs`'s
+`[ring(axis.x), ring(axis.y), ring(axis.z)]`, where `ring` wraps
+`Interval::point`, is found only by the second pass and is out of class
+here (its target is an array, not a point). The instrument also needs
+the lift to be written at the coordinate; a coordinate lifted into a named local several statements
 before the constructor, further than the grouping window, is not
 grouped. A macro-assembled constructor is not seen at all.
 

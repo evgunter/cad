@@ -8,6 +8,7 @@ refs: [2139, D385]
 priority: P3
 cost: E
 closed: 2026-09-24
+pr: 3242
 ---
 
 (EVAL orchestrator) From EVAL-1's style review (PR 2139, S2), filed
