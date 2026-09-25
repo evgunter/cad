@@ -56,7 +56,7 @@ unit builds it.
 
 ## Open before build
 
-The ruling leaves four questions whose answers decide which spellings
+The ruling leaves three questions whose answers decide which spellings
 exist. They are asked in `names/README.md`'s "N1, the profile pieces":
 
 - **Q1.** The role list for each verb #3193 did not list. It also covers
@@ -64,7 +64,6 @@ exist. They are asked in `names/README.md`'s "N1, the profile pieces":
 - **Q2.** `circle` draws two segments, but the ruled text gives it one
   carrier role.
 - **Q3.** How a loft's seams, caps and rims are named, beside its walls.
-- **Q4.** What a closing fillet does to the entry vertex's name.
 
 The id, the anchor's translation and the deletions do not depend on
 these answers.

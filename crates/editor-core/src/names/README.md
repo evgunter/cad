@@ -124,12 +124,6 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   belong to one section, and are named by that section's own locators. If a
   value edit changes which pieces pair, the old wall's name vanishes. It
   does not follow `k` to the new pairing.
-- **A closing fillet.** A fillet on the seam draws its arc as the closing
-  segment and retrims the entry vertex to the arc's end. The entry vertex
-  is still where the loop's first piece starts, so its name keeps its
-  spelling and denotes the retrimmed point. The corner the author wrote
-  is no longer a vertex, so no name denotes it. Adding a closing fillet
-  therefore moves what the entry vertex's name denotes.
 
 **N2 — Split discriminators are covariant margined predicates.** When one source
 yields n fragments, `Fragment(Qualifier)` follows the parent-bearing segment:
