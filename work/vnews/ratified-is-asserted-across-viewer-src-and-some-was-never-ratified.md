@@ -220,12 +220,12 @@ found none).
 | `frame.rs` `creation_offer` (:2177) | *"The ratified pattern is refuse-then-offer"* | **PARTIAL** | Refuse-with-an-offer is ratified for ONE case: G4's drag, where the offer is to edit the expression. The parse door's unknown-name refusal offering to CREATE a parameter is `02befd6a9` (agent, 2026-08-28). The GUI log calls it *"the ratified refuse-then-offer pattern"* (PR #1129 entry, *"Ev-requested"*), which is an agent's word for a generalisation. `refuse-then-offer` occurs 0 times in any design doc. The row's *"FALSE so far"* is corrected to PARTIAL |
 | `pane/profile.rs` `tests::drawing_a_locked_split_circle_above_the_cap_leaves_it_alone` (:502) | D4's micron-to-kilometre coverage | TRUE | D4 ¶1, `9f0bb4d91` |
 | the same test (:527) | K = 10 is ratified | TRUE | `docs/DESIGN.md` *"K = 10 is the permanent ratified default (#89 CLOSED)"*, `184f0f813` *"Evan's #169 rulings: #89 CLOSED (K=10 permanent"* |
-| `session/refuse.rs` `Refusal::DrivenByExpression` (:146) | a direct numeric edit is refused, citing the ratified affordance | **PARTIAL** | G4 decides the drag. A typed `set_slot` is not a drag, and the G4 clause does not reach it |
-| `session/refuse.rs` `Refusal::rank` (:382) | `BeginGesture` is refused with the ratified affordance | TRUE | G4: this one is a drag |
-| `session/refuse.rs` `Refusal::rank` (:388) | the affordance is a ratified decision | TRUE | G4. The RANK built on it is the doc's own argument and is not claimed to be ratified |
-| `session/refuse.rs` `Refusal::affordance` (:475) | *"The ratified affordance sentence"* | **PARTIAL** | The behaviour is G4's. The sentence is not decided anywhere (see the note on G4 above) |
-| `session/refuse.rs` `Refusal::affordance` (:478) | *"a ratified micro-decision whose WORDING is part of the decision"* | **PARTIAL** | The same. The quoted clause is Ev's. *"whose WORDING is part of the decision"* is not |
-| `session/refuse.rs` `Refusal`'s `Display::fmt` (:535) | the affordance arm's wording is a RATIFIED decision | **PARTIAL** | The same |
+| `session/refuse.rs` `Refusal::DrivenByExpression` (:189) | a direct numeric edit is refused, citing the ratified affordance | **PARTIAL** | G4 decides the drag. A typed `set_slot` is not a drag, and the G4 clause does not reach it |
+| `session/refuse.rs` `Refusal::rank` (:436) | `BeginGesture` is refused with the ratified affordance | TRUE | G4: this one is a drag |
+| `session/refuse.rs` `Refusal::rank` (:442) | the affordance is a ratified decision | TRUE | G4. The RANK built on it is the doc's own argument and is not claimed to be ratified |
+| `session/refuse.rs` `Refusal::affordance` (:588) | *"The ratified affordance sentence"* | **PARTIAL** | The behaviour is G4's. The sentence is not decided anywhere (see the note on G4 above) |
+| `session/refuse.rs` `Refusal::affordance` (:591) | *"a ratified micro-decision whose WORDING is part of the decision"* | **PARTIAL** | The same. The quoted clause is Ev's. *"whose WORDING is part of the decision"* is not. Found independently by #2960's style review: G4 (`crates/viewer/GUI-DESIGN.md`, Micro-decisions) states no sentence, so the step from behaviour to wording is agent-written, and a lane asked to reword the affordance would read this doc, conclude it needs Ev, and stall. The one-home rule the doc draws is right on its own merits (two copies of a sentence drift), so the repair is to give that reason, not to move the sentence |
+| `session/refuse.rs` `Refusal`'s `Display::fmt` (:648) | the affordance arm's wording is a RATIFIED decision | **PARTIAL** | The same |
 | `app.rs` `ViewerApp::perform_batch` (:1099) | dragging shows the ratified affordance | TRUE | G4: a drag |
 | `tree.rs` module docs (:5) | GQ2's ratified codomain | TRUE | GQ2, `57d762ef1` |
 | `tree.rs` module docs (:6) | the ratified error rule | TRUE | micro-decision 2 (G4), `5267a9193`: *"failures are typed values … never exceptions or strings"* |
@@ -245,8 +245,8 @@ found none).
 | `display.rs` module docs (:14) | free-move is never persisted — *"G3's ratified boundary"* | **PARTIAL** | G3 said so (`d972a1b36`). DI5 (`crates/editor-core/IDENTITY.md`, ratified in chat 2026-09-04, `087779036`) reverses it: *"The viewer may record a free-moved placement persistently"*. The tree still matches G3 because DI5 is unbuilt (`work/vseam/no-persistent-setplacement-session-op`), but the sentence presents a reversed decision as the standing one |
 | `display.rs` `AdmissionFault::NoSuchNode` (:167) | `Standing`'s *"ratified rule"* is that the vanished reference is rendered *"while the affordances that need a live entity switch off"* | **PARTIAL** | Survival is ratified (GUI-PLAN GUI-2 and SELECT-DESIGN §4, as at `select.rs:268`). The switch-off clause, which is the half this sentence rests on, is in no design doc. Its only statement is `Standing`'s own doc |
 | `display.rs` `DisplayState::free_move` (:734) | *"the ratified change (DI5)"* | TRUE | DI5, `087779036` |
-| `props.rs` module docs (:77) | setting a number into a driven slot is refused, *"the ratified micro-decision"* | **PARTIAL** | as `refuse.rs:146`: the drag half holds, the typed-write half does not |
-| `pane/properties.rs` `slot_notes` (:1017) | *"Its wording is the ratified one"* | **PARTIAL** | as `refuse.rs:478`, and a note shown BEFORE any refusal is not a refusal of a drag either |
+| `props.rs` module docs (:77) | setting a number into a driven slot is refused, *"the ratified micro-decision"* | **PARTIAL** | as `refuse.rs:189`: the drag half holds, the typed-write half does not |
+| `pane/properties.rs` `slot_notes` (:1017) | *"Its wording is the ratified one"* | **PARTIAL** | as `refuse.rs:591`, and a note shown BEFORE any refusal is not a refusal of a drag either |
 | `pane/properties.rs` `tests::a_driven_slots_range_button_reads_the_refusal_the_probe_would_give` (:1318) | an assertion message: the button *"renders as the ratified affordance"* | **PARTIAL** | G4 ratifies refusing a drag, and this is a range probe. The words are not decided anywhere. Added by `b62e678bc` (#2961) |
 | `session/op.rs` `SessionOp::BeginParamGesture` (:220) | the ratified preview-vs-commit decision | TRUE | G1 |
 | `session/op.rs` `SessionOp::AddFillet` (:670) | ratified #217 semantics | TRUE | as `blend.rs:36` |
@@ -310,9 +310,9 @@ The row names the blind spot: *"settled"*, *"the GUI plan's rulings"*,
 | `prefs.rs` `FileStore::new` (:532) | *"the one-door ruling"* in that gate | **FALSE** | the same |
 | `pickindex.rs` comment on its `editor_core::resolve` import (:81) | a direct edge, never a new re-export, is *"the ruling `pncad`'s own crate docs state"* | **FALSE** | The only statement is `crates/pncad/src/lib.rs`'s crate docs, `079632988` (agent, 2026-08-20). `docs/LIBRARY-DESIGN.md` U1 ratifies payload reachability, not this rule. `git log -S'direct edge' -- work/ docs/` returns nothing |
 | `theme.rs` module docs (:31) | the same ruling | **FALSE** | the same |
-| `session/refuse.rs` comment on its `UNDECLARED_PARAM_RECOURSE` import (:25) | the same ruling | **FALSE** | the same |
+| `session/refuse.rs` comment on its `UNDECLARED_PARAM_RECOURSE` import (:28) | the same ruling | **FALSE** | the same |
 | `session/op.rs` `SessionOp::NewDocument` (:423) | *"The identity ruling (logged in `docs/GAUTH-LOG.md`)"* | **FALSE** | GAUTH log (`a1425f92f^:work/gauth/log.md`) lists it under *"Unilateral decisions at opening (Ev reviews retroactively)"*, and records no review. The GAUTH plan calls it the orchestrator's and says *"nothing here ratifies an open design question"* |
-| `session/refuse.rs` `Refusal::EmptyName` (:221) | the identity ruling | **FALSE** | the same |
+| `session/refuse.rs` `Refusal::EmptyName` (:264) | the identity ruling | **FALSE** | the same |
 | `session.rs` `DocSession::new_document` (:1937) | the identity ruling | **FALSE** | the same |
 | `forms.rs` `PatternKindChoice` (:52) | `Explicit` is absent *"by the plan's ruling"* | **FALSE** | The GAUTH plan's unit-4 spec (`58500afb1`, agent) says *"`Explicit` is not a form's job"*. Ev ruled that plan's SCOPE (Phase A/B) and not this line. GROUP-BOOLEAN's ratified A′ (`7f174f688`) includes `Explicit` |
 | `session/author.rs` `PatternRuleSpec` (:220) | the same | **FALSE** | the same |
@@ -347,7 +347,7 @@ The claims:
 | `is-instance-collapses-absent-and-wrong-kind:110` (closed) | `Standing`'s ratified rule: a vanished reference is a state | TRUE | GUI-PLAN GUI-2 survival, as at `select.rs:268` |
 | `a-disabled-control-says-why-in-four-shapes:314` (closed) | `probe_bounds` refuses with *"the ratified affordance"* | **PARTIAL** | G4 is a drag, and a range probe is not one |
 | `the-range-button-re-mints-the-ratified-affordance` (id, `:2`) | the button re-mints *the ratified affordance* | **PARTIAL** | The behaviour is ratified for a drag. The sentence is not ratified, and the button is a probe |
-| `the-range-button-…:17` | the home is *"documented as ratified"* | TRUE | accurately hedged: it is documented so, at `refuse.rs:475` |
+| `the-range-button-…:17` | the home is *"documented as ratified"* | TRUE | accurately hedged: it is documented so, at `refuse.rs:588` |
 | `the-range-button-…:45` | quotes `refuse.rs:478` | **PARTIAL** | inherits that verdict |
 | `the-range-button-…:54` | the row shows *"the ratified affordance"* | **PARTIAL** | as `:2` |
 | `log.md:150` | *"a third spelling of the ratified affordance"* | **PARTIAL** | as `the-range-button-…` |

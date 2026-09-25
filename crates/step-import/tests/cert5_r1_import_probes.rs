@@ -333,7 +333,10 @@ fn own_rational_wall_roundtrips_through_the_import_door() {
             // recomputed: a `Solid` exists only because the aggregate
             // tier-3′ gate certified this body, and `enclosure` is the
             // object its +V invariant decided on.
-            let m = enclosure;
+            let m = enclosure.expect(
+                "the native body measured above, so the import's continuation of the same \
+                 quadrature measures too",
+            );
             eprintln!(
                 "CERT5-R1 roundtrip: import+gate in {dt:?}; native {} +- {}, imported {} +- {}",
                 native.volume, native.volume_pad, m.volume, m.volume_pad
