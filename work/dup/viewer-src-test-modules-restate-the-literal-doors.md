@@ -32,6 +32,29 @@ cost: D
   and a 0.04 m square as a corner-by-corner `LoopProgram::polygon` —
   `common::{xy_frame, square}` in a module that cannot import them.
   A `src` test-support home would take those too.
+- **The document insert door, spelled in `src` test modules** (added
+  2026-09-24, same unit, measured at `5fe3dff36`). Scope:
+  `crates/viewer/src/`, every `apply(` call, each classified test or
+  production by its line against its file's first `#[cfg(test)]`, and
+  the test-side ones read. Seven sites take `DocEdit::InsertNode`
+  through `apply` directly, which is `tests/common`'s `inserted` /
+  `insert_into`:
+  - `drafts.rs` — a `let insert` closure in
+    `a_committed_profile_is_not_drawn_again_as_its_preview` (`:1116`),
+    `tests/common`'s `inserted` down to its expect text; and two inline
+    inserts in `authored_by_the_form` (`:1294`, `:1310`);
+  - `pane/profile.rs` — two inline inserts (`:489`, `:603`);
+  - `session.rs` — two inline inserts (`:3055`, `:3077`);
+  - `widgets.rs` — `value_field_tests`' own `edited` / `inserted`
+    (above).
+  Not members: `session.rs:3139` and `:3151` (a refusal premise and a
+  replay fold over logged edits), `drafts.rs:1336` (a `SetParam`
+  fold), and every production `apply` (`scene.rs`'s fallible `insert`,
+  the session's own commit paths, `session/probe.rs`). Blind spot: the
+  test/production split is a line proxy (no file here has production
+  code below its first test module, checked by reading), and a
+  method-form `doc.apply(..)` would be missed (none in `src`, by
+  `git grep 'apply(&' -- crates/viewer/src`).
   The `?`-shaped and `map_err`-shaped calls in the same tree
   (`drafts.rs`, `session/author.rs`, `props.rs`, `scene.rs`) are
   production code doing its job, not members.

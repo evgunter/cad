@@ -80,21 +80,57 @@ found it; `tint` or `view` is the likelier owner, by `git mv`.
   check; folded onto `session_insert`.
 - **Also in this binary, not ours to rename**: `crate::fixture` (the
   `editor-core` tree symlinked in) exports `fixture::insert` and
-  `Recorder::insert`, both `apply`-door. After the rename every
-  `insert` in the `all` binary means the document's door, which is
-  the reading the rename makes consistent. `viewer`'s own `src`
-  holds `scene::insert` (production, fallible) and
-  `widgets::value_field_tests::inserted` (an in-crate copy), both
-  document-door.
+  `Recorder::insert`, both `apply`-door. After the rename no free
+  function named `insert` in the `all` binary is the session door.
+  One `insert` there is neither door: `PartStore::insert`
+  (editor-core's `fixture::resolver`, used by
+  `msolve3_placer_refused`) stores a part document and answers its
+  `DocRef`.
+- **`viewer`'s own `src`**, scope `crates/viewer/src/` (every `apply(`
+  call, classified test or production against its file's first
+  `#[cfg(test)]`): production has one insert door, `scene::insert`
+  (fallible, `Result`-returning, correctly not a test helper). Test
+  modules hold seven document-door insert spellings that cannot reach
+  `tests/common` — a `let insert` closure in `drafts.rs` (a copy of
+  `inserted` down to its expect text), inline `apply(.., InsertNode)`
+  at two sites each in `drafts.rs`, `pane/profile.rs` and
+  `session.rs`, and `widgets.rs`' own `edited`/`inserted` — recorded
+  as evidence on `viewer-src-test-modules-restate-the-literal-doors`.
 - **Every session-door site checked for the contract it wants**: all
   sit in suites that drive a `DocSession`. `docm1_face_frame` uses
   both doors on purpose (a document-door box, then the chrome's op,
   compared by `bit_eq`). No site was found wanting the other door.
-- **Left inline, deliberately**: rows whose SUBJECT is the committed
-  edit (`mate_tool_flow`'s four proposal commits, `review_gui4_r1`'s
-  landing) or that read the outcome's `withdrawn` half. `mate_tool_flow`
-  reads the mate back by kind (`committed_mate`) because its rows
-  assert `fault(mate).is_none()`, which a non-mate id satisfies
-  vacuously; the session door checks `InsertNode`, not the node's
-  kind, so that read stays.
+- **Fix pass (review of `936a62f21`)**:
+  - The fold minted a twin: `instance_authoring` and `story_assembly`
+    each held a private `add_instance` (`session_insert(AddInstance)`
+    then `pump`). One home now, `common::instance_in`.
+  - `mate_tool_flow`'s six proposal commits spelled the session
+    door inline and then read the mate back as the document's LAST
+    `Node::Mate` — which would answer an earlier mate if the op had
+    inserted something else. They now go through a local
+    `commit_mate`: `session_insert`, then an assertion that the
+    returned id IS a `Node::Mate`, which is what keeps the rows'
+    `fault(mate).is_none()` from passing on an id it could never fail
+    on. `committed_mate` is gone.
+  - `assembly_display`'s `mate_nodes(..)[0]` reads were the same read
+    by kind: both now take the id the session door answers
+    (`add_seat_mate` returns it). `mate_nodes` stays for its one
+    remaining row, which compares a fault's WHOLE `mates` payload to
+    every mate in the recipe — a list, not an id.
+  - `docm9_range_vs_probe::slab` names itself `editor-core`'s branch
+    fixture, but the original is private to
+    `editor-core/tests/docm9_range.rs`, not in `fixture/`, so the
+    symlinked `crate::fixture` cannot hand it over. Homing it there is
+    editor-core's ground; the viewer copy is four lines over the
+    shared doors, with the same values.
+  - `review_gui2_r2::inserted` keeps its name: it IS `common::inserted`
+    with the suite's `tol` bound, the arity difference is the binding,
+    and the suite never imports `common::inserted` by bare name, so
+    nothing is shadowed.
+  - Main added 26 more `insert(` calls in `combine_ops` and one in
+    `frame_policy` while this unit was open; routed.
+- **Left inline, deliberately**: `review_gui4_r1`'s landing row, whose
+  SUBJECT is the committed edit, and rows that read the outcome's
+  `withdrawn` half — they need the outcome, and the door answers an
+  id.
 - **Filed**: `the-post-to-shelf-mate-op-is-spelled-sixteen-times-in-seven-suites`.

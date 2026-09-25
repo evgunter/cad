@@ -44,9 +44,11 @@ cost: E
   and one on a single node's faces (`gesture_table.rs`) are read and
   are not this construction. A second instrument on the required
   atom, every `&bench.shelf_bottom` under `crates/viewer/tests/`, finds
-  the same sixteen plus one that is not a member:
+  the same sixteen plus two that are not members:
   `msolve5_read_below_a_root.rs` builds its mate as a document
-  `Node::Mate` through `insert_into`, not as the op. Scope: `crates/viewer/tests/` only,
+  `Node::Mate` through `insert_into`, not as the op, and
+  `review_gui4_r2.rs` (`oracle(&bench.shelf, &bench.shelf_bottom)`)
+  reads the cap's frame for an expectation and builds no mate. Scope: `crates/viewer/tests/` only,
   because the bench is `common::asm`'s and nothing outside this binary
   can reach it.
 - **Raised by**: the S-DUP lane on

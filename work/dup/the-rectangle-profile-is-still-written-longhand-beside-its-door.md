@@ -1,7 +1,7 @@
 ---
 id: the-rectangle-profile-is-still-written-longhand-beside-its-door
 kind: issue
-title: Six longhand axis-aligned rectangle polygons beside common::rectangle, one of them in viewer/src
+title: Seven longhand axis-aligned rectangle polygons beside common::rectangle, two of them in viewer/src
 status: closed
 branch: dup/viewer-insert-doors
 opened: 2026-09-20
@@ -87,6 +87,21 @@ home moves into `src`, by `git mv`.
   `tests/common`; added as evidence to
   `viewer-src-test-modules-restate-the-literal-doors`, which holds the
   same home question.
+- **Re-taken after merging `origin/main` (`5fe3dff36`)**: main had
+  added `edit_maintenance.rs` with two more (`block`'s unit square at
+  `x0`, and the 2 m square under the hole row); both folded onto
+  `rectangle_loop`. `rectangle_loop` now asserts `w, h > 0`, the
+  condition under which its "lower-left, counter-clockwise" holds.
+- **Blind spots, named** (none of them a `polygon(` call, so none in
+  the count above): rectangles written as `Step` chains
+  (`profile_edit.rs`' and `path_authoring.rs`' session profiles,
+  `src/session.rs`'s test module); the byte-identical private
+  `fn polygon` step builder in `profile_edit.rs` and
+  `profile_edit_order.rs`, **folded** onto `common::polygon_steps`;
+  and rectangles drawn through the chrome's
+  `ProfileShape::Rectangle` template, which is where the two session
+  box builders live — filed as
+  `the-session-box-is-built-by-hand-in-two-builders-and-inline`.
 - **Outside `viewer`**: the same scan with no path argument finds 256
   such polygons over 11 roots. They cannot reach this door; the class
   is `the-box-extrusion-written-inline-inside-test-bodies`'s ground.
