@@ -1039,35 +1039,36 @@ fn a_convex_arc_c_shape_cap_is_minted_inside_out_and_check_6_refuses_it() {
     }
 }
 
-/// PROBE (temporary): the C-shape through a partial revolve.
+/// **The same defect through a partial revolve.** The C-shape moved
+/// three units off the axis and revolved a quarter turn: both wedge
+/// caps take their plane from the same `cap_points` Newell, both come
+/// out inside out, and check 6 refuses exactly those two caps. Filed
+/// with the extrude and loft cases
+/// (`work/carve/sweep-cap-plane-winds-against-a-convex-arc-region.md`).
+///
+/// **How it goes red.** When the revolve orients its caps by the
+/// region's winding the body certifies and `expect_err` fails — re-cut
+/// the row then. The runtime value is the error vector.
 #[test]
-fn probe_c_shape_partial_revolve() {
+fn a_convex_arc_c_shape_partial_revolve_mints_both_caps_inside_out() {
     let tol = Tol::witness();
-    let r = revolve(
+    let body = revolve(
         &validated(c_shape(3.0)),
         axis_y(),
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
         tol,
-    );
-    let report = match r {
-        Err(e) => format!("REVOLVE REFUSES: {e:?}"),
-        Ok(x) => {
-            let caps: Vec<String> = x
-                .body
-                .faces()
-                .filter_map(|(k, f)| match x.body.get_surface(f.surface) {
-                    Some(Surface::Plane { origin, normal, .. }) => {
-                        Some(format!("{k:?} o={origin:?} n={normal:?} sense={}", f.sense))
-                    }
-                    _ => None,
-                })
-                .collect();
-            format!(
-                "revolve ok: planes [{}]; validate: {:?}",
-                caps.join("; "),
-                topo::validate_geometric(&x.body, tol)
-            )
-        }
-    };
-    panic!("PROBE REPORT\n{report}");
+    )
+    .expect("the partial revolve builds the C-shape")
+    .body;
+    let caps: Vec<(FaceKey, topo::LoopKey)> = body
+        .faces()
+        .filter(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+        .map(|(k, f)| (k, f.outer))
+        .collect();
+    assert_eq!(caps.len(), 2, "a partial revolve has two planar wedge caps");
+    let errs = topo::validate_geometric(&body, tol)
+        .expect_err("MEASURED PRODUCER DEFECT: both wedge caps are minted inside out and refuse");
+    let mut want = caps;
+    want.sort();
+    assert_eq!(role_inversions(&errs), want);
 }
