@@ -3185,8 +3185,35 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     );
 }
 
+/// **A refusal that arrives as a NOTICE stays under a batch refusal.**
+/// `frame::refusal_message` is the one door for a refusal by either
+/// route, and a refusal is news the same act says again — so a typed
+/// value the chrome refused before any op could carry it does not
+/// ride beside the refusal an op in the same frame met. The frame
+/// shows one refusal, as `Refusal::preferred` keeps one of an op
+/// batch's.
+#[test]
+fn a_refusal_among_the_notices_stays_under_the_batch_refusal() {
+    let noticed = frame::refusal_message(&Refusal::NothingToDo {
+        direction: Step::Redo,
+    });
+    assert_eq!(noticed.retold(), frame::Retold::Again);
+    let refusal = Refusal::NothingToDo {
+        direction: Step::Undo,
+    };
+    let StatusUpdate::Show(line) = frame::frame_status(
+        core::slice::from_ref(&noticed),
+        &[SessionOp::Undo],
+        Some(&refusal),
+    ) else {
+        panic!("a refusing frame shows its refusal");
+    };
+    assert_eq!(line.text(), "nothing to undo");
+}
+
 /// **Every arm of every tool's event vocabulary answers for itself.**
-/// The row above drives two of them through the ranking; this one
+/// `a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not`
+/// drives two of them through the ranking; this one
 /// reads the answer off each of the six, so an arm that flips sides
 /// goes red by name rather than waiting for a frame that happens to
 /// carry it beside a refusal.
