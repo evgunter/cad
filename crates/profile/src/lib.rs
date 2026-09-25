@@ -314,15 +314,16 @@ impl<T: Real> ProfileVertex<T> {
 /// Whether a bulge is exactly zero, of either sign — the line of the
 /// bulge input form.
 ///
-/// [`Real`] compares nothing, so the read is arithmetic: for a finite
-/// `b`, `b / b` is poison exactly when `b` is zero (0/0), and `b · 0`
-/// is poison exactly when `b` is not finite. A poisoned bulge is not a
+/// [`Real`] compares nothing, so the read is arithmetic: `b · 0` is
+/// poison exactly when `b` is not finite, and for a finite `b`,
+/// `b · (1/b)` is poison exactly when `b` is zero (0 · ∞; at `Interval`
+/// the reciprocal of `[0, 0]` is empty). A poisoned bulge is not a
 /// line; it lowers to an arc whose carrier is poison, which validation
 /// refuses typed. This is an exact read, not a tolerance decision:
 /// whether a nonzero bulge is too shallow to be an arc is validation's
 /// `segment_straightness` question, asked of the bulge itself.
 fn is_exact_zero<T: Real>(b: T) -> bool {
-    !(b * T::zero()).is_poison() && (b / b).is_poison()
+    !(b * T::zero()).is_poison() && (b * (T::one() / b)).is_poison()
 }
 
 /// A closed loop: a vertex chain, closed by construction (the last
@@ -1011,5 +1012,82 @@ impl<T: Real> Profile<T> {
             self.plane.map(&f),
             self.loops.iter().map(|lp| lp.map_scalar(&f)).collect(),
         )
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod lowering_tests {
+    use super::*;
+    use geom_core::{Dual64, Interval};
+
+    fn kind_of<T: Real>(b: T) -> &'static str {
+        let v = ProfileVertex::new(Point2::new(T::zero(), T::zero()), b);
+        match v.lower_to(Point2::new(T::one(), T::zero())) {
+            Segment::Line => "line",
+            Segment::Arc { .. } => "arc",
+        }
+    }
+
+    /// The fixture door's kind read: a line exactly at a zero bulge of
+    /// either sign, at every lane scalar; anything else, poison
+    /// included, is an arc.
+    #[test]
+    fn a_bulge_lowers_to_a_line_exactly_at_zero() {
+        for (b, want) in [
+            (0.0, "line"),
+            (-0.0, "line"),
+            (f64::MIN_POSITIVE / 4.0, "arc"),
+            (-1e-300, "arc"),
+            (1.0, "arc"),
+            (f64::NAN, "arc"),
+            (f64::INFINITY, "arc"),
+        ] {
+            assert_eq!(kind_of(b), want, "f64 {b:e}");
+            assert_eq!(kind_of(Dual64::from_f64(b)), want, "Dual {b:e}");
+            if b.is_finite() {
+                assert_eq!(kind_of(Interval::from_f64(b)), want, "Interval {b:e}");
+            }
+        }
+    }
+
+    /// Reversal negates every sweep bit-exactly and keeps each radius,
+    /// and a reversed arc's centre is the same circle's to the last
+    /// bits the reversed chord's midpoint rounds to.
+    #[test]
+    fn reversal_negates_the_sweep_and_keeps_the_carrier() {
+        let lp = ProfileLoop::lower(
+            &[
+                ProfileVertex::new(Point2::new(0.1, 0.3), 0.37),
+                ProfileVertex::new(Point2::new(0.7, -0.2), 0.0),
+                ProfileVertex::new(Point2::new(0.9, 1.1), -1.3),
+            ],
+            Vec::new(),
+        );
+        let back = lp.reversed();
+        let n = lp.segments().len();
+        for k in 0..n {
+            let retraced = back.segments()[(n - k - 1) % n];
+            match (lp.segments()[k], retraced) {
+                (Segment::Line, Segment::Line) => {}
+                (
+                    Segment::Arc {
+                        centre: c,
+                        radius: r,
+                        sweep: s,
+                    },
+                    Segment::Arc {
+                        centre: cb,
+                        radius: rb,
+                        sweep: sb,
+                    },
+                ) => {
+                    assert_eq!(sb.to_bits(), (-s).to_bits(), "segment {k} sweep");
+                    assert_eq!(rb.to_bits(), r.to_bits(), "segment {k} radius");
+                    assert!(c.distance(cb) <= 4.0 * f64::EPSILON, "segment {k} centre");
+                }
+                (a, b) => panic!("segment {k}: {a:?} reversed to {b:?}"),
+            }
+        }
     }
 }
