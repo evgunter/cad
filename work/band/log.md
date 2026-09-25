@@ -63,3 +63,17 @@ refusal names (`merge_coplanar_faces`) has no door above
 The fork goes to Ev as an `[ev]` PR editing F7. The declared-cusp row
 (`sweep-emits-no-contact-record-for-declared-cusps`) was waiting on
 this lane's `extrude.rs` ground and is now free to dispatch.
+
+## 2026-09-25 — the continuation-merge fork ruled
+
+Ev ruled option 1 on the `[ev]` PR: sweeps over a declared straight
+continuation run the structural merge as a documented final stage
+(F7 amended in the same PR). `swept-continuation-walls-reach-the-boolean-unmerged`
+becomes the implementation row; it dispatches after the declared-cusp
+lane lands, because both change what `Extruded`'s face handles mean.
+
+Ev also pointed at the new orchestrator protocol (PR #3247: a designer
+pair weighs every design fork before its `[ev]` PR, and orchestrator
+branches keep the program prefix even when the harness pins another).
+Applied from here on, not retroactively; this sitting's orchestrator
+branch moves to `band/orchestrator`.
