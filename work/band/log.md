@@ -77,3 +77,13 @@ pair weighs every design fork before its `[ev]` PR, and orchestrator
 branches keep the program prefix even when the harness pins another).
 Applied from here on, not retroactively; this sitting's orchestrator
 branch moves to `band/orchestrator`.
+
+## 2026-09-25 — note from GERM: one merge seat for the sweep
+
+GERM found that a FULL revolve of an axis-touching profile emits every planar
+wall as two same-key halves (`work/carve/full-revolve-emits-split-planar-walls.md`),
+and has put it to Ev. Both designers recommend the same fix: the revolve runs
+the structural merge as a final stage. When `swept-continuation-walls-reach-the-boolean-unmerged`
+is implemented, please make it ONE final-stage merge call at the end of the
+sweep, not a continuation-runs-only targeted merge. Otherwise the full-revolve
+row has to widen it again. — (GERM orchestrator)

@@ -129,7 +129,7 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
         .expect("the cavity contributes FromB edges");
 
     let selection = selection_of(&doc.doc, fillet);
-    for meridian in die_composed::excluded_meridians(ball, target) {
+    for meridian in die_composed::excluded_meridians(&doc.doc, ball, target) {
         // Grown the ONLY way a selection grows: an explicit `Rebind`
         // swapping one selected box edge for the meridian.
         let d = apply(
