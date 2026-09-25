@@ -366,6 +366,16 @@ mod source_rules {
                 answers.push((variant.expect("a field sits inside a variant"), tail));
             }
         }
+        assert!(
+            !all.is_empty(),
+            "eval/mod.rs: `NodeErrorKind`'s body yielded no variant at all — the enum moved \
+             or the scan drifted from its layout"
+        );
+        assert!(
+            !answers.is_empty(),
+            "eval/mod.rs: `NodeErrorKind` declares no `found:` field at all — the refusal \
+             vocabulary moved or the scan drifted from its layout"
+        );
         (all, answers)
     }
 
@@ -406,17 +416,7 @@ mod source_rules {
     fn every_found_answer_is_built_by_a_door() {
         let mod_code = source::blanked(source::code_only, "eval/mod.rs", MOD);
         let (all, answers) = variants(&mod_code);
-        assert!(
-            !all.is_empty(),
-            "`eval/mod.rs`'s `NodeErrorKind` body yielded no variant at all — the enum moved \
-             and this row is reading the wrong file"
-        );
         let mut declared: Vec<&str> = answers.iter().map(|(n, _)| *n).collect();
-        assert!(
-            !declared.is_empty(),
-            "`eval/mod.rs` declares no `found:` field at all — the refusal vocabulary moved \
-             and this row is reading the wrong file"
-        );
         let code = wire_code();
         let operand = source::sentinel_region(
             WIRE,
@@ -460,11 +460,6 @@ mod source_rules {
                 built.push(name);
             }
         }
-        assert!(
-            !built.is_empty(),
-            "no `NodeErrorKind` with a `found` field is built in `eval/wire.rs` at all — the \
-             walk read nothing and would pass over every answer `eval/mod.rs` declares"
-        );
         declared.sort_unstable();
         built.sort_unstable();
         assert_eq!(
