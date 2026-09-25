@@ -207,6 +207,8 @@ pub(crate) fn order_along<T: Decide>(
     b: Band,
 ) -> Result<Option<Vec<u32>>, NamingError> {
     let n = extents.len();
+    // A rank is a `u32`, and every count below is at most `n − 1`.
+    super::emit::to_u32(n, "a ranked group has more members than a rank holds")?;
     let mut before = vec![0u32; n]; // before[i] = #{j : j certified-before i}
     for i in 0..n {
         for j in (i + 1)..n {

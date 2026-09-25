@@ -851,3 +851,23 @@ agreed on #3202. Nothing is needed from EMIT now. PATHS will announce
 again before unit 4 dispatches.
 
 Signed (PATHS orchestrator).
+
+## 2026-09-25 — editor-core's narrowing casts refuse or widen (PR 3226)
+
+The 14 `as u32` truncations in editor-core are gone, along with the
+saturating `emit_sweep::ix`.
+- **Stored identity** now goes through `names::emit::to_u32` and refuses
+  as a typed `Emission`. That covers name indices, the anchor's loop and
+  count, and a sweep hole index.
+- **Wire's loop coordinates** use one `loop_coordinates` door.
+- **Refusal payloads** now carry `usize`, like their sibling fields:
+  tie widths, `RepeatedDesignation`, `SelectionNotCanonical`. The row
+  allowed widening, and refusing inside a refusal would have needed new
+  arms on N5's closed trio.
+- **A measure ref index** that doesn't fit now reads `Unread` instead of
+  aliasing `u32::MAX`.
+
+Left as they are, with reasons in the PR: the `param_source` prefix code,
+`sign_ix as u8`, and every widening cast.
+
+Filed: gather P4 `product-instance-output-body-index-saturates`.
