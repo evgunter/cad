@@ -583,8 +583,9 @@
 //! sharing is free, and two builds of the same expression memoize the
 //! same normal form. The hash-consing table is per-leaf-replay
 //! ([`with_session`]), holds nothing across leaves, and is dropped with
-//! the leaf; so are the early and door memos, the registry and the
-//! parameter brackets.
+//! the leaf; so are the early and door memos, the per-node
+//! reduction's memo (`reduce_per_node`), the registry and the parameter
+//! brackets.
 //!
 //! **The PLAIN memo is the exception, and it is per DRIVE when a drive
 //! installs one** ([`DriveMemo`], [`with_session_memo`] and
@@ -2299,6 +2300,12 @@ struct Session {
     /// TWICE before this memo (R2's Q7). Keyed by the argument form's
     /// digest, per session like every other memo here.
     trig_closed: IndetMap<Option<Rc<trig::Closed>>>,
+    /// **The per-node reduction's answers, by input form**
+    /// ([`reduce_per_node`]): each bucket, under the input's digest,
+    /// holds the forms reduced with that digest, compared WHOLE, beside
+    /// the rules and the ring bound each was reduced under and what the
+    /// reduction answered — a refusal included.
+    reductions: IndetMap<Vec<Reduction>>,
     counts: SymCounts,
     /// **The drive's shared plain memo** ([`DriveMemo`]), when a drive
     /// installed one ([`with_session_memo`]). The plain walk consults
@@ -2326,6 +2333,14 @@ struct Session {
     /// rather than stopping at the unrecorded node itself. Kept only
     /// while a drive memo is installed; empty otherwise.
     plain_tainted: IdSet,
+}
+
+/// One memoized per-node reduction ([`Session::reductions`]).
+struct Reduction {
+    input: Form,
+    rules: SymRules,
+    bits: u64,
+    out: Option<Form>,
 }
 
 /// **One retry attempt's two memos** — the early walk's and the door
@@ -2396,6 +2411,7 @@ impl Session {
             atoms: IndetMap::default(),
             registry: IdMap::default(),
             trig_closed: IndetMap::default(),
+            reductions: IndetMap::default(),
             counts: SymCounts::default(),
             memo,
             plain_built: Vec::new(),
@@ -3324,8 +3340,7 @@ fn form_in(
                     }
                     #[cfg(feature = "sym-profile-testing")]
                     let t0 = profile::clock();
-                    let reduced =
-                        algebra::reduce_steps(&f, sess.rules, budget, &sess.atoms, EARLY_STEPS);
+                    let (reduced, _hit) = reduce_per_node(sess, &f);
                     #[cfg(feature = "sym-profile-testing")]
                     if t0.is_some() {
                         let outcome = match &reduced {
@@ -3339,6 +3354,7 @@ fn form_in(
                             f.digest(),
                             outcome,
                             even_powers(&f, &sess.atoms),
+                            _hit,
                         );
                     }
                     reduced
@@ -3438,6 +3454,60 @@ fn mint_atom(sess: &mut Session, id: u128, early: bool, info: impl FnOnce() -> A
     if !early && sess.memo.is_some() {
         sess.plain_atoms.push(id);
     }
+}
+
+/// **The per-node reduction, memoized per session on its input form** —
+/// [`algebra::reduce_steps`] at [`EARLY_STEPS`], answered from
+/// [`Session::reductions`] when this session has already reduced the
+/// same form under the same rules and ring bound, with whether it was.
+///
+/// **The memo answers what the reduction would build, bit for bit.**
+/// The reduction reads its input form, the rules, the budget, the step
+/// cap, the ring bound (`rational::coeff_bound`) and, for each
+/// indeterminate its form carries to an even power, that atom's record
+/// in the session's table. The budget and the step cap are fixed for
+/// the session; the rules and the ring bound are in the key, because a
+/// retry attempt runs its walks under its own. An atom's record never
+/// changes once it is in the table: `mint_atom` and the drive memo's
+/// seeding only insert an id that is absent, and the id is a hash of
+/// the op, the payload and the argument's digest. An indeterminate that
+/// is not in the table — a parameter, or a frozen node's own — is
+/// passed over by the reduction whenever it is asked, and no atom is
+/// ever minted under a frozen node's id. So a form reduced twice is
+/// reduced to the same answer, and a refusal is the same refusal.
+///
+/// **Keyed on the form, not on its digest**: the digest picks the
+/// bucket, and a hit needs the whole form equal (`Form`'s equality: the
+/// canonical terms, the poison flag and the gate), so a collision costs
+/// a miss and never an answer. A form with no exponent past one is
+/// reduced directly and not kept: nothing can be substituted in it, the
+/// reduction answers it after one scan, and keeping it would hold every
+/// linear form the walk builds.
+fn reduce_per_node(sess: &mut Session, f: &Form) -> (Option<Form>, bool) {
+    let squares = [&f.num, &f.den]
+        .iter()
+        .any(|p| p.monos().any(|m| m.iter().any(|&(_, e)| e >= 2)));
+    if !squares {
+        let out = algebra::reduce_steps(f, sess.rules, sess.budget, &sess.atoms, EARLY_STEPS);
+        return (out, false);
+    }
+    let (rules, bits) = (sess.rules, rational::coeff_bound());
+    let key = f.digest();
+    if let Some(r) = sess.reductions.get(&key).and_then(|bucket| {
+        bucket
+            .iter()
+            .find(|r| r.rules == rules && r.bits == bits && r.input == *f)
+    }) {
+        return (r.out.clone(), true);
+    }
+    let out = algebra::reduce_steps(f, rules, sess.budget, &sess.atoms, EARLY_STEPS);
+    sess.reductions.entry(key).or_default().push(Reduction {
+        input: f.clone(),
+        rules,
+        bits,
+        out: out.clone(),
+    });
+    (out, false)
 }
 
 /// Which atom kinds `f` carries to an even power — what rules A/B and

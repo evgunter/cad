@@ -962,8 +962,13 @@ pub(super) fn reduce_outcome(
     input: u128,
     outcome: &'static str,
     powers: &'static str,
+    hit: bool,
 ) {
-    let exit = REDUCE_EXIT.take();
+    let exit = if hit {
+        Some(("answered by the session's reduction memo", 0))
+    } else {
+        REDUCE_EXIT.take()
+    };
     let repeat = active() && !REDUCE_SEEN.with(|s| s.borrow_mut().insert(input));
     with(|p| {
         timed(&mut p.reduce, t0);
