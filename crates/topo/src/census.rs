@@ -2789,9 +2789,11 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
 /// backstop cannot place has no way through yet.
 ///
 /// A raise site names a variant and never writes a sentence:
-/// `the_backstop_writes_no_sentence_of_its_own` holds that, so
-/// [`Undecided::ALL`] is every `what` a run can render.
+/// `the_backstop_writes_no_sentence_of_its_own` holds that, so the
+/// enum's variants are every `what` a run can render.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// Every reason, for the samples: the roster is the enum itself.
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
 pub(crate) enum Undecided {
     /// Arm 1: faces of two solids within reach, one of them curved.
     CurvedWithinReach,
@@ -2831,28 +2833,6 @@ pub(crate) enum Undecided {
 }
 
 impl Undecided {
-    /// Every reason, in declaration order.
-    #[cfg(any(test, feature = "test-support"))]
-    pub(crate) const ALL: [Self; 17] = [
-        Self::CurvedWithinReach,
-        Self::NoSoundReach,
-        Self::Unclaimable,
-        Self::Crossing,
-        Self::Unexamined,
-        Self::MixedTouch,
-        Self::TouchInBand,
-        Self::TouchUnreadable,
-        Self::TouchUnanalysed,
-        Self::DeclaredFacePair,
-        Self::AllOn,
-        Self::NoVertex,
-        Self::WitnessTooClose,
-        Self::ZeroVolume,
-        Self::VolumeUncertified,
-        Self::FaceKindUnsupported,
-        Self::CorruptInstance,
-    ];
-
     /// Whether arm 1 raises it, on a face pair; arm 2 raises the rest,
     /// on a solid pair.
     #[cfg(any(test, feature = "test-support"))]
@@ -4250,11 +4230,17 @@ mod tests {
     }
 
     /// **The backstop writes no sentence of its own**: every `what` it
-    /// raises comes from [`Undecided`], so [`Undecided::ALL`] — what the
-    /// refusal-budget row renders — is every `what` a run can show. A
+    /// raises comes from [`Undecided`], so its variants — what the
+    /// refusal-budget row renders — are every `what` a run can show. A
     /// raise site that wrote a sentence inline would be a `what` no row
     /// measures; this reads the function's source for a multi-word
     /// string literal (a predicate name is one word) and reds on one.
+    ///
+    /// It reads LITERALS, not provenance: a `what` built some other way
+    /// (a `format!`, a string from another module) passes it. A type
+    /// would hold provenance, but `CensusUndecidable.what` is a
+    /// `&'static str` payload, and the refusal standard keeps payloads
+    /// as they are — accepted, and stated here.
     #[test]
     fn the_backstop_writes_no_sentence_of_its_own() {
         use test_utils::source::{Region, balanced_end, code_only, keeping};

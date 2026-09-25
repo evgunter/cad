@@ -2454,6 +2454,9 @@ impl fmt::Display for PlantedError {
         // falls as `Debug` renderings leave the tree's `Display`s (the
         // at-rest findings dropped their arena keys, 2026-09-24, taking
         // the tree from ~340 sites to 280).
+        // Lowered by hand when that happens, and only then: the floor
+        // is a guard against a scan that read nothing, so its number is
+        // set well under the tree's count, never at it.
         assert!(
             sites.len() > 200,
             "the same vacuity one level in: {} sites",

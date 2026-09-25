@@ -190,6 +190,12 @@ pub enum ContactVerdict {
 /// and compare a whole report. No `Eq` — the diagnostics carry `f64`
 /// margins, which is why `ValidationError` has none either.
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(ContactRefusalKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum ContactRefusal {
     /// Definite counter-evidence: the declaration is contradicted
     /// where the lie meets geometry. Every definite verdict wins over

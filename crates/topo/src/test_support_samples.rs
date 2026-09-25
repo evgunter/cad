@@ -41,6 +41,7 @@ use geom_brep::offset_fit::{OffsetFitError, OffsetLimb};
 use geom_brep::pcurve_cache::{FittedMagnitude, PcurveCertifyError, PcurveCheck};
 use geom_brep::props::PropsError;
 use geom_core::{Band, BandError, BandField, Indeterminate, MarginDiag};
+use strum::IntoEnumIterator as _;
 
 use crate::boolean::ContainError;
 use crate::census::Undecided;
@@ -656,24 +657,13 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
 
     // A surface datum, poisoned or outside its range: every datum, at
     // each end of the range.
-    for datum in [
-        geom::SurfaceDatum::Origin,
-        geom::SurfaceDatum::Normal,
-        geom::SurfaceDatum::URef,
-        geom::SurfaceDatum::Axis,
-        geom::SurfaceDatum::Radius,
-        geom::SurfaceDatum::Apex,
-        geom::SurfaceDatum::HalfAngle,
-        geom::SurfaceDatum::Center,
-        geom::SurfaceDatum::MajorRadius,
-        geom::SurfaceDatum::MinorRadius,
-    ] {
+    for datum in geom::SurfaceDatum::iter() {
         let kind = geom_brep::SurfaceKind::Torus;
         s.push((
             label("PoisonedSurfaceDatum", &datum),
             ValidationError::PoisonedSurfaceDatum { face, kind, datum },
         ));
-        for end in [geom::ConventionEnd::Lower, geom::ConventionEnd::Upper] {
+        for end in geom::ConventionEnd::iter() {
             s.push((
                 label("UnrepresentableSurfaceDatum", &datum),
                 ValidationError::UnrepresentableSurfaceDatum {
@@ -789,6 +779,11 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             CensusContact::ConformalPatch { .. } => {
                 crate::census::CONFORMAL_REGION_WITNESS.to_owned()
             }
+            // The crossing arm's real shape: the position, then the side
+            // verdict after " — ", which the message does not render.
+            CensusContact::EdgeEdgeCross { .. } => {
+                "(0.4375, 0.5, 0.25) — side verdict: same-side".to_owned()
+            }
             _ => "(0.4375, 0.5, 0.25)".to_owned(),
         };
         s.push((
@@ -873,7 +868,7 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     }
     // Every `what` the backstop raises, on the pair kind its arm raises
     // it on (`Undecided` is their one source).
-    for why in Undecided::ALL {
+    for why in Undecided::iter() {
         let (a, b) = if why.on_faces() {
             (EntityId::Face(face), EntityId::Face(face))
         } else {
@@ -891,338 +886,99 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
     s
 }
 
-/// Which variants a list covers, against the full roster; `kind` is an
-/// exhaustive match, so a variant added to the enum is a compile error
-/// there before it is a gap here.
+/// The variants of `E` no sample in `seen` carries, as `name::Kind`.
+/// The roster is `E`'s compiler-derived discriminant enum, so a variant
+/// added upstream is a gap here until a sample carries it — no list in
+/// this file names the variants.
 #[cfg(test)]
-fn gaps<T>(
-    enum_name: &str,
-    roster: &[&str],
-    seen: &[T],
-    kind: fn(&T) -> &'static str,
-) -> Vec<String> {
-    roster
-        .iter()
-        .filter(|want| !seen.iter().any(|x| kind(x) == **want))
-        .map(|want| format!("{enum_name}::{want}"))
+fn gaps<E, K>(name: &str, seen: &[E]) -> Vec<String>
+where
+    K: strum::IntoEnumIterator + PartialEq + core::fmt::Debug + for<'a> From<&'a E>,
+{
+    K::iter()
+        .filter(|kind| !seen.iter().any(|e| K::from(e) == *kind))
+        .map(|kind| format!("{name}::{kind:?}"))
         .collect()
 }
 
-/// The nested variants no sample carries, as `Enum::Variant` — empty
-/// when every variant of every enum [`validation_error_samples`]
-/// renders whole is sampled.
+/// The nested variants no sample carries — empty when every variant of
+/// every enum [`validation_error_samples`] renders is sampled.
 #[cfg(test)]
-#[allow(clippy::too_many_lines)] // one roster and one exhaustive match per enum
 pub(crate) fn nested_coverage_gaps() -> Vec<String> {
+    use crate::boolean::ContainErrorKind;
+    use crate::chart_region::ChartRegionErrorKind;
+    use crate::contact::ContactRefusalKind;
+    use crate::pcurves::PcurveMintErrorKind;
+    use crate::props::MassPropsErrorKind;
+    use crate::validate::{
+        CensusContactKind, CensusUnsupportedCauseKind, RingContactKind, StaleDeclarationKind,
+    };
+    use geom_brep::certify::CertifyErrorKind;
+    use geom_brep::edge_nurbs::PlaneNurbsRefusalKind;
+    use geom_brep::offset_fit::OffsetFitErrorKind;
+    use geom_brep::pcurve_cache::PcurveCertifyErrorKind;
+    use geom_brep::props::PropsErrorKind;
+    use geom_core::predicate::{BandErrorKind, MarginDiagKind};
+    let causes: Vec<CensusUnsupportedCause> = validation_error_samples()
+        .into_iter()
+        .filter_map(|(_, e)| match e {
+            ValidationError::CensusUnsupported { cause, .. } => Some(cause),
+            _ => None,
+        })
+        .collect();
+    let margins: Vec<MarginDiag> = diags().iter().map(|d| d.margin).collect();
     let mut out = Vec::new();
-    out.extend(gaps(
+    out.extend(gaps::<_, CensusUnsupportedCauseKind>(
+        "CensusUnsupportedCause",
+        &causes,
+    ));
+    out.extend(gaps::<_, ChartRegionErrorKind>(
         "ChartRegionError",
-        &[
-            "ChartDivergence",
-            "NonPlanarTrim",
-            "MissingCache",
-            "ArmUnbounded",
-            "SeamBranch",
-            "PeriodFold",
-            "CarrierTilt",
-            "TouchingBoundary",
-            "DegenerateLoop",
-            "Escalated",
-            "RayExhausted",
-            "WitnessBudgetExhausted",
-            "Corrupt",
-        ],
         &chart_region_errors(),
-        |e| match e {
-            ChartRegionError::ChartDivergence { .. } => "ChartDivergence",
-            ChartRegionError::NonPlanarTrim { .. } => "NonPlanarTrim",
-            ChartRegionError::MissingCache { .. } => "MissingCache",
-            ChartRegionError::ArmUnbounded { .. } => "ArmUnbounded",
-            ChartRegionError::SeamBranch => "SeamBranch",
-            ChartRegionError::PeriodFold => "PeriodFold",
-            ChartRegionError::CarrierTilt => "CarrierTilt",
-            ChartRegionError::TouchingBoundary => "TouchingBoundary",
-            ChartRegionError::DegenerateLoop { .. } => "DegenerateLoop",
-            ChartRegionError::Escalated(_) => "Escalated",
-            ChartRegionError::RayExhausted => "RayExhausted",
-            ChartRegionError::WitnessBudgetExhausted { .. } => "WitnessBudgetExhausted",
-            ChartRegionError::Corrupt => "Corrupt",
-        },
     ));
-    out.extend(gaps(
+    out.extend(gaps::<_, ContactRefusalKind>(
         "ContactRefusal",
-        &["Contradicted", "Escalated", "Undeclared", "NotCertifiable"],
         &contact_refusals(),
-        |e| match e {
-            ContactRefusal::Contradicted { .. } => "Contradicted",
-            ContactRefusal::Escalated { .. } => "Escalated",
-            ContactRefusal::Undeclared { .. } => "Undeclared",
-            ContactRefusal::NotCertifiable { .. } => "NotCertifiable",
-        },
     ));
-    out.extend(gaps(
+    out.extend(gaps::<_, ContainErrorKind>(
         "ContainError",
-        &["Escalated", "RayExhausted", "Corrupt", "ArcLoopUnsupported"],
         &contain_errors(),
-        |e| match e {
-            ContainError::Escalated(_) => "Escalated",
-            ContainError::RayExhausted => "RayExhausted",
-            ContainError::Corrupt => "Corrupt",
-            ContainError::ArcLoopUnsupported { .. } => "ArcLoopUnsupported",
-        },
     ));
-    out.extend(gaps(
+    out.extend(gaps::<_, CertifyErrorKind>(
         "CertifyError",
-        &[
-            "ChartImageUnavailable",
-            "UnresolvedSurface",
-            "Unimplemented",
-            "IntersectionSameSurface",
-            "SeamOnNonPeriodic",
-            "IntervalNotForward",
-            "WindingExceeded",
-            "ResidualExceeded",
-            "NotTransverse",
-            "NotSecondOrderSeparated",
-            "TangentCertificateUnsupported",
-            "Escalated",
-            "Band",
-            "PlaneNurbs",
-        ],
         &certify_errors(),
-        |e| match e {
-            CertifyError::ChartImageUnavailable { .. } => "ChartImageUnavailable",
-            CertifyError::UnresolvedSurface { .. } => "UnresolvedSurface",
-            CertifyError::Unimplemented => "Unimplemented",
-            CertifyError::IntersectionSameSurface { .. } => "IntersectionSameSurface",
-            CertifyError::SeamOnNonPeriodic => "SeamOnNonPeriodic",
-            CertifyError::IntervalNotForward => "IntervalNotForward",
-            CertifyError::WindingExceeded => "WindingExceeded",
-            CertifyError::ResidualExceeded { .. } => "ResidualExceeded",
-            CertifyError::NotTransverse { .. } => "NotTransverse",
-            CertifyError::NotSecondOrderSeparated { .. } => "NotSecondOrderSeparated",
-            CertifyError::TangentCertificateUnsupported => "TangentCertificateUnsupported",
-            CertifyError::Escalated { .. } => "Escalated",
-            CertifyError::Band(_) => "Band",
-            CertifyError::PlaneNurbs(_) => "PlaneNurbs",
-        },
     ));
-    out.extend(gaps(
+    out.extend(gaps::<_, PlaneNurbsRefusalKind>(
         "PlaneNurbsRefusal",
-        &[
-            "FootPointInconclusive",
-            "NotTransverse",
-            "PcurveFit",
-            "Limb",
-            "TubeStraddles",
-            "Escalated",
-            "Unsupported",
-        ],
         &plane_nurbs_refusals(),
-        |e| match e {
-            PlaneNurbsRefusal::FootPointInconclusive { .. } => "FootPointInconclusive",
-            PlaneNurbsRefusal::NotTransverse { .. } => "NotTransverse",
-            PlaneNurbsRefusal::PcurveFit => "PcurveFit",
-            PlaneNurbsRefusal::Limb { .. } => "Limb",
-            PlaneNurbsRefusal::TubeStraddles { .. } => "TubeStraddles",
-            PlaneNurbsRefusal::Escalated(_) => "Escalated",
-            PlaneNurbsRefusal::Unsupported { .. } => "Unsupported",
-        },
     ));
-    out.extend(gaps(
+    out.extend(gaps::<_, PcurveMintErrorKind>(
         "PcurveMintError",
-        &[
-            "Corrupt",
-            "Certify",
-            "LoopDiscontinuity",
-            "LoopNotClosed",
-            "SingularChartJoint",
-            "OuterSpansPeriod",
-            "LoopWraps",
-            "MissingCache",
-            "Escalated",
-            "Band",
-        ],
         &pcurve_mint_errors(),
-        |e| match e {
-            PcurveMintError::Corrupt => "Corrupt",
-            PcurveMintError::Certify { .. } => "Certify",
-            PcurveMintError::LoopDiscontinuity { .. } => "LoopDiscontinuity",
-            PcurveMintError::LoopNotClosed { .. } => "LoopNotClosed",
-            PcurveMintError::SingularChartJoint { .. } => "SingularChartJoint",
-            PcurveMintError::OuterSpansPeriod => "OuterSpansPeriod",
-            PcurveMintError::LoopWraps { .. } => "LoopWraps",
-            PcurveMintError::MissingCache { .. } => "MissingCache",
-            PcurveMintError::Escalated { .. } => "Escalated",
-            PcurveMintError::Band(_) => "Band",
-        },
     ));
-    out.extend(gaps(
+    out.extend(gaps::<_, PcurveCertifyErrorKind>(
         "PcurveCertifyError",
-        &[
-            "UnsupportedChart",
-            "UnsupportedCarrier",
-            "FittedLaneUnsupported",
-            "FittedMateMissing",
-            "IsoUnsupported",
-            "ChartRow",
-            "FittedCertificate",
-            "FittedEscalated",
-            "IntervalNotForward",
-            "ChartWindingUnsupported",
-            "AzimuthPeriodExceeded",
-            "ResidualExceeded",
-            "TrimEscape",
-            "Escalated",
-            "Band",
-        ],
         &pcurve_certify_errors(),
-        |e| match e {
-            PcurveCertifyError::UnsupportedChart { .. } => "UnsupportedChart",
-            PcurveCertifyError::UnsupportedCarrier => "UnsupportedCarrier",
-            PcurveCertifyError::FittedLaneUnsupported { .. } => "FittedLaneUnsupported",
-            PcurveCertifyError::FittedMateMissing => "FittedMateMissing",
-            PcurveCertifyError::IsoUnsupported { .. } => "IsoUnsupported",
-            PcurveCertifyError::ChartRow { .. } => "ChartRow",
-            PcurveCertifyError::FittedCertificate { .. } => "FittedCertificate",
-            PcurveCertifyError::FittedEscalated { .. } => "FittedEscalated",
-            PcurveCertifyError::IntervalNotForward => "IntervalNotForward",
-            PcurveCertifyError::ChartWindingUnsupported => "ChartWindingUnsupported",
-            PcurveCertifyError::AzimuthPeriodExceeded => "AzimuthPeriodExceeded",
-            PcurveCertifyError::ResidualExceeded { .. } => "ResidualExceeded",
-            PcurveCertifyError::TrimEscape => "TrimEscape",
-            PcurveCertifyError::Escalated { .. } => "Escalated",
-            PcurveCertifyError::Band(_) => "Band",
-        },
     ));
-    out.extend(gaps(
+    out.extend(gaps::<_, MassPropsErrorKind>(
         "MassPropsError",
-        &[
-            "Band",
-            "Face",
-            "RingOnCurvedFace",
-            "Corrupt",
-            "NullScaffoldEdge",
-        ],
         &mass_props_errors(),
-        |e| match e {
-            MassPropsError::Band { .. } => "Band",
-            MassPropsError::Face { .. } => "Face",
-            MassPropsError::RingOnCurvedFace { .. } => "RingOnCurvedFace",
-            MassPropsError::Corrupt { .. } => "Corrupt",
-            MassPropsError::NullScaffoldEdge { .. } => "NullScaffoldEdge",
-        },
     ));
-    out.extend(gaps(
-        "PropsError",
-        &[
-            "Unimplemented",
-            "NotIsoRectangle",
-            "NappeSpanning",
-            "NotOneChartBranch",
-            "DegenerateFace",
-            "Escalated",
-            "QuadratureBudget",
-            "QuadratureUnsupported",
-        ],
-        &props_errors(),
-        |e| match e {
-            PropsError::Unimplemented => "Unimplemented",
-            PropsError::NotIsoRectangle { .. } => "NotIsoRectangle",
-            PropsError::NappeSpanning => "NappeSpanning",
-            PropsError::NotOneChartBranch { .. } => "NotOneChartBranch",
-            PropsError::DegenerateFace => "DegenerateFace",
-            PropsError::Escalated { .. } => "Escalated",
-            PropsError::QuadratureBudget { .. } => "QuadratureBudget",
-            PropsError::QuadratureUnsupported { .. } => "QuadratureUnsupported",
-        },
-    ));
-    out.extend(gaps(
+    out.extend(gaps::<_, PropsErrorKind>("PropsError", &props_errors()));
+    out.extend(gaps::<_, OffsetFitErrorKind>(
         "OffsetFitError",
-        &[
-            "Meter",
-            "PatchBound",
-            "Fit",
-            "Structure",
-            "InvalidRequest",
-            "NonFiniteSample",
-            "BudgetExhausted",
-            "SampleCapReached",
-            "BoundNotFinite",
-            "RefinementStalled",
-            "WindowUnsupported",
-            "Limb",
-        ],
         &offset_fit_errors(),
-        |e| match e {
-            OffsetFitError::Meter(_) => "Meter",
-            OffsetFitError::PatchBound(_) => "PatchBound",
-            OffsetFitError::Fit(_) => "Fit",
-            OffsetFitError::Structure(_) => "Structure",
-            OffsetFitError::InvalidRequest { .. } => "InvalidRequest",
-            OffsetFitError::NonFiniteSample { .. } => "NonFiniteSample",
-            OffsetFitError::BudgetExhausted { .. } => "BudgetExhausted",
-            OffsetFitError::SampleCapReached { .. } => "SampleCapReached",
-            OffsetFitError::BoundNotFinite { .. } => "BoundNotFinite",
-            OffsetFitError::RefinementStalled { .. } => "RefinementStalled",
-            OffsetFitError::WindowUnsupported { .. } => "WindowUnsupported",
-            OffsetFitError::Limb { .. } => "Limb",
-        },
     ));
-    out.extend(gaps(
-        "BandError",
-        &["InvalidValue", "InvalidLeverArm", "Empty"],
-        &band_errors(),
-        |e| match e {
-            BandError::InvalidValue { .. } => "InvalidValue",
-            BandError::InvalidLeverArm { .. } => "InvalidLeverArm",
-            BandError::Empty { .. } => "Empty",
-        },
-    ));
-    out.extend(gaps(
+    out.extend(gaps::<_, BandErrorKind>("BandError", &band_errors()));
+    out.extend(gaps::<_, MarginDiagKind>("MarginDiag", &margins));
+    out.extend(gaps::<_, CensusContactKind>(
         "CensusContact",
-        &[
-            "VertexVertex",
-            "VertexOnFace",
-            "VertexOnEdge",
-            "EdgeFacePierce",
-            "EdgeEdgeCross",
-            "EdgeEdgeOverlap",
-            "EdgeFaceOverlap",
-            "ConformalPatch",
-        ],
         &census_contacts(),
-        |e| match e {
-            CensusContact::VertexVertex { .. } => "VertexVertex",
-            CensusContact::VertexOnFace { .. } => "VertexOnFace",
-            CensusContact::VertexOnEdge { .. } => "VertexOnEdge",
-            CensusContact::EdgeFacePierce { .. } => "EdgeFacePierce",
-            CensusContact::EdgeEdgeCross { .. } => "EdgeEdgeCross",
-            CensusContact::EdgeEdgeOverlap { .. } => "EdgeEdgeOverlap",
-            CensusContact::EdgeFaceOverlap { .. } => "EdgeFaceOverlap",
-            CensusContact::ConformalPatch { .. } => "ConformalPatch",
-        },
     ));
-    out.extend(gaps(
+    out.extend(gaps::<_, StaleDeclarationKind>(
         "StaleDeclaration",
-        &["VertexVertex", "VertexOnFace", "CurveLocus", "Patch"],
         &stale_declarations(),
-        |e| match e {
-            StaleDeclaration::VertexVertex { .. } => "VertexVertex",
-            StaleDeclaration::VertexOnFace { .. } => "VertexOnFace",
-            StaleDeclaration::CurveLocus { .. } => "CurveLocus",
-            StaleDeclaration::Patch { .. } => "Patch",
-        },
     ));
-    out.extend(gaps(
-        "RingContact",
-        &["Vertex", "VertexOnEdge", "Edge"],
-        &ring_contacts(),
-        |e| match e {
-            RingContact::Vertex { .. } => "Vertex",
-            RingContact::VertexOnEdge { .. } => "VertexOnEdge",
-            RingContact::Edge { .. } => "Edge",
-        },
-    ));
+    out.extend(gaps::<_, RingContactKind>("RingContact", &ring_contacts()));
     out
 }

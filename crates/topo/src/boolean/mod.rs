@@ -71,6 +71,9 @@ pub mod carrier_eq;
 pub(crate) mod combine;
 pub mod contact_verify;
 mod contain;
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg(test)]
+pub(crate) use contain::ContainErrorKind;
 mod finish;
 pub(crate) mod insert;
 mod join;

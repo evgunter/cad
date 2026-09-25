@@ -490,6 +490,16 @@ impl core::fmt::Display for CensusSubject {
 /// declined. So this widens what the refusal SAYS and moves no
 /// `AssemblyError` verdict.
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(
+        name(CensusUnsupportedCauseKind),
+        vis(pub(crate)),
+        derive(strum::EnumIter)
+    )
+)]
 pub enum CensusUnsupportedCause {
     /// The chart-region overlap lane refused typed: its own arm,
     /// whole, with the quantities it metred.
@@ -1774,6 +1784,12 @@ pub enum ValidationError {
 /// the vertex-level kinds instead — one finding per configuration
 /// class, deterministically).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(CensusContactKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum CensusContact {
     /// Two distinct vertices at one position.
     VertexVertex {
@@ -1881,6 +1897,12 @@ impl fmt::Display for CensusContact {
 
 /// A declared contact the census could not confirm (tier 3′).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(StaleDeclarationKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum StaleDeclaration {
     /// A v-v record whose vertices are dead, equal, or not coincident.
     VertexVertex {
@@ -2795,6 +2817,12 @@ impl std::error::Error for ValidationError {}
 /// ([`ValidationError::RingMeetsOuter`]) — the three shapes the
 /// position comparison can find.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(RingContactKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum RingContact {
     /// A vertex of the ring stands on a vertex of the outer loop.
     Vertex {
