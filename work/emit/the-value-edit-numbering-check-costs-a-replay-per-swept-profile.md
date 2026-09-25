@@ -2,11 +2,12 @@
 id: the-value-edit-numbering-check-costs-a-replay-per-swept-profile
 kind: issue
 title: The value-edit numbering check replays every swept profile that reads the edited value, twice
-status: parked
+status: closed
 opened: 2026-09-24
 priority: P2
 cost: D
-blocked_on: [profile-pieces-are-named-by-minted-step-ids]
+closed: 2026-09-25
+pr: 3223
 ---
 
 

@@ -2010,6 +2010,7 @@ fn doors_square(
             ProgramStep::LineTo(ProgramTarget::Point([lit(0.0), lit(s)])),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
+        ids: Vec::new(),
     })
 }
 
@@ -2117,6 +2118,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![lifted],
+            ids: Vec::new(),
         }),
     );
     let (doc, body) = doors_insert(
@@ -2246,6 +2248,7 @@ fn doors_square_at(
             ProgramStep::LineTo(ProgramTarget::Point([lit(x), lit(s)])),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
+        ids: Vec::new(),
     })
 }
 
@@ -2433,6 +2436,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
+            ids: Vec::new(),
         }),
     );
     let (doc, plate) = doors_insert(
@@ -2462,6 +2466,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
                 LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
                     .expect("finite tab corners"),
             ],
+            ids: Vec::new(),
         }),
     );
     let (doc, tab) = doors_insert(
@@ -4243,7 +4248,9 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   them: the split's and the inline's id rewrite of one name, for a
 ///   Rust caller carrying its own names across a `NodeMap`; the
 ///   Python surface holds no `NodeMap`, and the names a split or an
-///   inline carries reach it already rewritten.
+///   inline carries reach it already rewritten. `Unmapped` is its
+///   refusal (a node or a profile step the maps do not cover), and
+///   goes where it goes.
 ///   `FragmentGroups` beside them too: the fragment-group record a node
 ///   value carries for the diagnosis ladder. A consumer can hold one
 ///   (`NodeValue::fragment_groups`) and make an empty one, and can read
@@ -4505,6 +4512,7 @@ const NOT_CARRIED: [&str; 96] = [
     "param_env_over",
     "rebind_suggestions",
     "remap_name",
+    "Unmapped",
     "resolve_with_prior",
     "seed_env",
     "sensitivities",
@@ -6140,6 +6148,7 @@ mod the_hollowed_box_through_the_facade {
             Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![square],
+                ids: Vec::new(),
             }),
         );
         let (doc, blank) = insert(

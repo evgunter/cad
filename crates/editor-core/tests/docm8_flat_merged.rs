@@ -38,19 +38,30 @@ fn permutations(items: &[RecipeNodeId]) -> Vec<Vec<RecipeNodeId>> {
 
 /// The declared contacts of a CHAIN: every consecutive pair of
 /// `chain` meets flush, all four families, in member space.
-fn chain_pairs(chain: &[RecipeNodeId]) -> Vec<(SitedRef, SitedRef)> {
+fn chain_pairs(doc: &editor_core::ProfileDoc, chain: &[RecipeNodeId]) -> Vec<(SitedRef, SitedRef)> {
     chain
         .windows(2)
-        .flat_map(|w| flush_pairs((w[0], w[0]), (w[1], w[1])))
+        .flat_map(|w| flush_pairs(doc, (w[0], w[0]), (w[1], w[1])))
         .collect()
+}
+
+/// Flush family `fam` of the extrude `ext` — [`flush_segs`]'s `fam`th,
+/// spelled by `ext`'s own pieces.
+fn family(doc: &ProfileDoc, ext: RecipeNodeId, fam: usize) -> RoleSeg {
+    flush_segs(doc, ext)[fam].clone()
 }
 
 /// The merged row a whole chain's family fuses to: one `Merged` over
 /// every chain member's face of that family, sorted.
-fn chain_merged(union: RecipeNodeId, chain: &[RecipeNodeId], seg: RoleSeg) -> StableName {
+fn chain_merged(
+    doc: &ProfileDoc,
+    union: RecipeNodeId,
+    chain: &[RecipeNodeId],
+    fam: usize,
+) -> StableName {
     let mut set: Vec<StableName> = chain
         .iter()
-        .map(|&m| member_face(union, m, fname(m, seg.clone())))
+        .map(|&m| member_face(union, m, fname(m, family(doc, m, fam))))
         .collect();
     set.sort();
     StableName {
@@ -62,17 +73,23 @@ fn chain_merged(union: RecipeNodeId, chain: &[RecipeNodeId], seg: RoleSeg) -> St
 
 /// The fused body's merged rows are exactly the four chain families,
 /// each a FLAT set over every chain member, whatever order was folded.
-fn assert_chain_rows(t: &NameTable, union: RecipeNodeId, chain: &[RecipeNodeId], label: &str) {
+fn assert_chain_rows(
+    doc: &ProfileDoc,
+    t: &NameTable,
+    union: RecipeNodeId,
+    chain: &[RecipeNodeId],
+    label: &str,
+) {
     let merged = t
         .iter()
         .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
         .count();
     assert_eq!(merged, 4, "{label}: four merged rows, one per family");
-    for seg in flush_segs() {
-        let row = chain_merged(union, chain, seg.clone());
+    for fam in 0..4 {
+        let row = chain_merged(doc, union, chain, fam);
         assert!(
             matches!(t.lookup(&row), Some(Entry::Unique(_))),
-            "{label}: the chain's {seg:?} row {row:?} is not published"
+            "{label}: the chain's family {fam} row {row:?} is not published"
         );
     }
 }
@@ -105,7 +122,7 @@ fn member_space_declarations_survive_every_order() {
     let chain = [a, c, d];
     for order in permutations(&chain) {
         let label = format!("order {order:?}");
-        let (docx, union, _) = declared_union(doc.clone(), &order, chain_pairs(&chain));
+        let (docx, union, _) = declared_union(doc.clone(), &order, chain_pairs(&doc, &chain));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -117,7 +134,7 @@ fn member_space_declarations_survive_every_order() {
             (v - 2.2).abs() < 1e-9,
             "{label}: one fused body, got volume {v}"
         );
-        assert_chain_rows(table(&ev, union), union, &chain, &label);
+        assert_chain_rows(&docx, table(&ev, union), union, &chain, &label);
     }
 }
 
@@ -134,7 +151,7 @@ fn a_four_member_chain_fuses_in_every_order() {
     let chain = [a, c, d, e];
     for order in permutations(&chain) {
         let label = format!("order {order:?}");
-        let (docx, union, _) = declared_union(doc.clone(), &order, chain_pairs(&chain));
+        let (docx, union, _) = declared_union(doc.clone(), &order, chain_pairs(&doc, &chain));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -146,7 +163,7 @@ fn a_four_member_chain_fuses_in_every_order() {
             (v - 2.9).abs() < 1e-9,
             "{label}: one fused body, got volume {v}"
         );
-        assert_chain_rows(table(&ev, union), union, &chain, &label);
+        assert_chain_rows(&docx, table(&ev, union), union, &chain, &label);
     }
 }
 
@@ -163,7 +180,7 @@ fn a_chain_with_a_disjoint_member_fuses_in_every_order() {
     let chain = [a, c, d];
     for order in permutations(&[a, c, d, far]) {
         let label = format!("order {order:?}");
-        let (docx, union, _) = declared_union(doc.clone(), &order, chain_pairs(&chain));
+        let (docx, union, _) = declared_union(doc.clone(), &order, chain_pairs(&doc, &chain));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
@@ -175,7 +192,7 @@ fn a_chain_with_a_disjoint_member_fuses_in_every_order() {
             (v - 3.2).abs() < 1e-9,
             "{label}: the chain plus the far block, got volume {v}"
         );
-        assert_chain_rows(table(&ev, union), union, &chain, &label);
+        assert_chain_rows(&docx, table(&ev, union), union, &chain, &label);
     }
 }
 
@@ -250,12 +267,11 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
     let a = recorded_block(&mut rec, (0.0, 1.0));
     let b = recorded_block(&mut rec, (0.5, 1.5));
     let decl_ab = rec.insert(Node::declare_rest(
-        flush_segs()
-            .into_iter()
-            .map(|seg| {
+        (0..4)
+            .map(|fam| {
                 (
-                    SitedRef::new(a, fname(a, seg.clone())),
-                    SitedRef::new(b, fname(b, seg)),
+                    SitedRef::new(a, fname(a, family(&rec.doc, a, fam))),
+                    SitedRef::new(b, fname(b, family(&rec.doc, b, fam))),
                 )
             })
             .collect(),
@@ -268,22 +284,22 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
     });
     let c = recorded_block(&mut rec, (1.2, 2.2));
     // The inner's merged rows, declared against `c`'s faces by name.
-    let inner_row = |seg: RoleSeg| {
+    let at = rec.doc.clone();
+    let inner_row = |fam: usize| {
         merged(
             inner,
             vec![
-                from_a(inner, fname(a, seg.clone())),
-                from_b(inner, fname(b, seg)),
+                from_a(inner, fname(a, family(&at, a, fam))),
+                from_b(inner, fname(b, family(&at, b, fam))),
             ],
         )
     };
     let decl_ic = rec.insert(Node::declare_rest(
-        flush_segs()
-            .into_iter()
-            .map(|seg| {
+        (0..4)
+            .map(|fam| {
                 (
-                    SitedRef::new(inner, inner_row(seg.clone())),
-                    SitedRef::new(c, fname(c, seg)),
+                    SitedRef::new(inner, inner_row(fam)),
+                    SitedRef::new(c, fname(c, family(&rec.doc, c, fam))),
                 )
             })
             .collect(),
@@ -297,23 +313,23 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
     let ev = run(&rec.doc);
     assert!(failure(&ev, outer).is_none(), "{:?}", failure(&ev, outer));
     let t = table(&ev, outer);
-    for seg in flush_segs() {
+    for fam in 0..4 {
         let row = merged(
             outer,
             vec![
-                from_a(outer, from_a(inner, fname(a, seg.clone()))),
-                from_a(outer, from_b(inner, fname(b, seg.clone()))),
-                from_b(outer, fname(c, seg.clone())),
+                from_a(outer, from_a(inner, fname(a, family(&rec.doc, a, fam)))),
+                from_a(outer, from_b(inner, fname(b, family(&rec.doc, b, fam)))),
+                from_b(outer, fname(c, family(&rec.doc, c, fam))),
             ],
         );
         assert!(
             matches!(t.lookup(&row), Some(Entry::Unique(_))),
-            "the outer merge of {seg:?} is not the flat row {row:?}"
+            "the outer merge of family {fam} is not the flat row {row:?}"
         );
         // And the inner's merged row is retired into it: not a row of
         // the outer, wrapped or not.
         assert!(
-            t.lookup(&from_a(outer, inner_row(seg))).is_none(),
+            t.lookup(&from_a(outer, inner_row(fam))).is_none(),
             "the inner merged row survived as an outer row"
         );
     }
@@ -374,8 +390,8 @@ fn a_member_face_contained_whole_satisfies_its_pair_and_a_contradicted_one_refus
     let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
     let against = |m: RecipeNodeId| {
         vec![(
-            SitedRef::new(a, fname(a, wall(1))),
-            SitedRef::new(m, fname(m, wall(3))),
+            SitedRef::new(a, fname(a, wall(&doc, a, 1))),
+            SitedRef::new(m, fname(m, wall(&doc, m, 3))),
         )]
     };
     let (docx, union, _) = declared_union(doc.clone(), &[a, big, touch], against(touch));
@@ -420,12 +436,11 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
     let a = recorded_block(&mut rec, (0.0, 1.0));
     let b = recorded_block(&mut rec, (0.5, 1.5));
     let decl_ab = rec.insert(Node::declare_rest(
-        flush_segs()
-            .into_iter()
-            .map(|seg| {
+        (0..4)
+            .map(|fam| {
                 (
-                    SitedRef::new(a, fname(a, seg.clone())),
-                    SitedRef::new(b, fname(b, seg)),
+                    SitedRef::new(a, fname(a, family(&rec.doc, a, fam))),
+                    SitedRef::new(b, fname(b, family(&rec.doc, b, fam))),
                 )
             })
             .collect(),
@@ -437,22 +452,22 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
         declare: Some(decl_ab),
     });
     let c = recorded_block(&mut rec, (1.2, 2.2));
-    let inner_row = |seg: RoleSeg| {
+    let at = rec.doc.clone();
+    let inner_row = |fam: usize| {
         merged(
             inner,
             vec![
-                from_a(inner, fname(a, seg.clone())),
-                from_b(inner, fname(b, seg)),
+                from_a(inner, fname(a, family(&at, a, fam))),
+                from_b(inner, fname(b, family(&at, b, fam))),
             ],
         )
     };
     let decl_ic = rec.insert(Node::declare_rest(
-        flush_segs()
-            .into_iter()
-            .map(|seg| {
+        (0..4)
+            .map(|fam| {
                 (
-                    SitedRef::new(inner, inner_row(seg.clone())),
-                    SitedRef::new(c, fname(c, seg)),
+                    SitedRef::new(inner, inner_row(fam)),
+                    SitedRef::new(c, fname(c, family(&rec.doc, c, fam))),
                 )
             })
             .collect(),
@@ -469,28 +484,28 @@ fn a_consumed_inner_merged_face_offers_the_outer_flat_row() {
         doc: &rec.doc,
         eval: &ev,
     };
-    for seg in flush_segs() {
+    for fam in 0..4 {
         let outer_row = merged(
             outer,
             vec![
-                from_a(outer, from_a(inner, fname(a, seg.clone()))),
-                from_a(outer, from_b(inner, fname(b, seg.clone()))),
-                from_b(outer, fname(c, seg.clone())),
+                from_a(outer, from_a(inner, fname(a, family(&rec.doc, a, fam)))),
+                from_a(outer, from_b(inner, fname(b, family(&rec.doc, b, fam)))),
+                from_b(outer, fname(c, family(&rec.doc, c, fam))),
             ],
         );
         // The consumed operand face: the inner merge, wrapped once.
-        let consumed = from_a(outer, inner_row(seg.clone()));
+        let consumed = from_a(outer, inner_row(fam));
         match resolve(ctx, &consumed) {
             Resolution::Failed(f) => assert!(
                 f.offers.contains(&outer_row),
-                "{seg:?}: the consumed inner merged face does not offer the outer row: {:?}",
+                "family {fam}: the consumed inner merged face does not offer the outer row: {:?}",
                 f.offers
             ),
-            other => panic!("{seg:?}: the consumed face resolved: {other:?}"),
+            other => panic!("family {fam}: the consumed face resolved: {other:?}"),
         }
         // And a flat constituent — a name that was never a row of any
         // table — offers the same row.
-        let constituent = from_a(outer, from_a(inner, fname(a, seg)));
+        let constituent = from_a(outer, from_a(inner, fname(a, family(&rec.doc, a, fam))));
         match resolve(ctx, &constituent) {
             Resolution::Failed(f) => assert!(f.offers.contains(&outer_row), "{:?}", f.offers),
             other => panic!("{other:?}"),
@@ -508,20 +523,17 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
     let doc = ProfileDoc::empty_derived("docm8_fromb", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, decl_ab) = insert(
-        doc,
-        Node::declare_rest(
-            flush_segs()
-                .into_iter()
-                .map(|seg| {
-                    (
-                        SitedRef::new(a, fname(a, seg.clone())),
-                        SitedRef::new(b, fname(b, seg)),
-                    )
-                })
-                .collect(),
-        ),
+    let node = Node::declare_rest(
+        (0..4)
+            .map(|fam| {
+                (
+                    SitedRef::new(a, fname(a, family(&doc, a, fam))),
+                    SitedRef::new(b, fname(b, family(&doc, b, fam))),
+                )
+            })
+            .collect(),
     );
+    let (doc, decl_ab) = insert(doc, node);
     let (doc, inner) = insert(
         doc,
         Node::Boolean {
@@ -544,32 +556,29 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
         },
     );
     let (doc, c) = block(doc, (1.2, 2.2), (0.0, 1.0), 0.0, 1.0);
-    let carried = |seg: RoleSeg| {
+    let carried = |fam: usize| {
         from_b(
             mid,
             merged(
                 inner,
                 vec![
-                    from_a(inner, fname(a, seg.clone())),
-                    from_b(inner, fname(b, seg)),
+                    from_a(inner, fname(a, family(&doc, a, fam))),
+                    from_b(inner, fname(b, family(&doc, b, fam))),
                 ],
             ),
         )
     };
-    let (doc, decl_mc) = insert(
-        doc,
-        Node::declare_rest(
-            flush_segs()
-                .into_iter()
-                .map(|seg| {
-                    (
-                        SitedRef::new(mid, carried(seg.clone())),
-                        SitedRef::new(c, fname(c, seg)),
-                    )
-                })
-                .collect(),
-        ),
+    let node1 = Node::declare_rest(
+        (0..4)
+            .map(|fam| {
+                (
+                    SitedRef::new(mid, carried(fam)),
+                    SitedRef::new(c, fname(c, family(&doc, c, fam))),
+                )
+            })
+            .collect(),
     );
+    let (doc, decl_mc) = insert(doc, node1);
     let (doc, outer) = insert(
         doc,
         Node::Boolean {
@@ -582,18 +591,24 @@ fn a_merged_face_passed_through_as_operand_b_is_still_flat() {
     let ev = run(&doc);
     assert!(failure(&ev, outer).is_none(), "{:?}", failure(&ev, outer));
     let t = table(&ev, outer);
-    for seg in flush_segs() {
+    for fam in 0..4 {
         let want = merged(
             outer,
             vec![
-                from_a(outer, from_b(mid, from_a(inner, fname(a, seg.clone())))),
-                from_a(outer, from_b(mid, from_b(inner, fname(b, seg.clone())))),
-                from_b(outer, fname(c, seg.clone())),
+                from_a(
+                    outer,
+                    from_b(mid, from_a(inner, fname(a, family(&doc, a, fam)))),
+                ),
+                from_a(
+                    outer,
+                    from_b(mid, from_b(inner, fname(b, family(&doc, b, fam)))),
+                ),
+                from_b(outer, fname(c, family(&doc, c, fam))),
             ],
         );
         assert!(
             matches!(t.lookup(&want), Some(Entry::Unique(_))),
-            "the FromB pass-through did not mint flat for {seg:?}: {want:?}"
+            "the FromB pass-through did not mint flat for family {fam}: {want:?}"
         );
     }
 }
@@ -642,11 +657,11 @@ fn split_fixture(doc: ProfileDoc) -> (ProfileDoc, [RecipeNodeId; 3], Vec<(SitedR
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
-    let mut pairs = flush_pairs((a, a), (c, c));
-    for seg in [wall(0), wall(2)] {
+    let mut pairs = flush_pairs(&doc, (a, a), (c, c));
+    for k in [0, 2] {
         pairs.push((
-            SitedRef::new(a, fname(a, seg.clone())),
-            SitedRef::new(s, fname(s, seg)),
+            SitedRef::new(a, fname(a, wall(&doc, a, k))),
+            SitedRef::new(s, fname(s, wall(&doc, s, k))),
         ));
     }
     (doc, [a, c, s], pairs)
@@ -774,7 +789,7 @@ fn a_member_face_inside_a_merge_a_later_member_split_refuses_as_a_fragmented_mer
     let doc = ProfileDoc::empty_derived("docm8_fragmented_merge", Tol::witness());
     let (doc, [a, c, s], mut pairs) = split_fixture(doc);
     let (doc, d) = block(doc, (-0.5, 0.1), (0.0, 1.0), 0.0, 1.0);
-    pairs.extend(flush_pairs((a, a), (d, d)));
+    pairs.extend(flush_pairs(&doc, (a, a), (d, d)));
     assert_eq!(
         every_cap_order(&doc, [a, c, s, d], &pairs, a, [c, d], s),
         [6, 10, 4, 4]
@@ -794,12 +809,12 @@ fn the_three_neighbour_star_refuses_as_a_split_or_a_fragmented_merge() {
     let (doc, w) = block(doc, (-0.5, 0.3), (0.0, 1.0), 0.0, 1.0);
     let (doc, e) = block(doc, (0.7, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, t) = block(doc, (0.4, 0.6), (0.0, 1.0), 0.5, 1.0);
-    let mut pairs = flush_pairs((c, c), (w, w));
-    pairs.extend(flush_pairs((c, c), (e, e)));
-    for seg in [wall(0), wall(2)] {
+    let mut pairs = flush_pairs(&doc, (c, c), (w, w));
+    pairs.extend(flush_pairs(&doc, (c, c), (e, e)));
+    for k in [0, 2] {
         pairs.push((
-            SitedRef::new(c, fname(c, seg.clone())),
-            SitedRef::new(t, fname(t, seg)),
+            SitedRef::new(c, fname(c, wall(&doc, c, k))),
+            SitedRef::new(t, fname(t, wall(&doc, t, k))),
         ));
     }
     assert_eq!(
@@ -833,10 +848,10 @@ fn a_contact_against_a_fold_minted_fragment_is_refused_between_members() {
     // `a` and `s` share both y-walls; declare them so the fold reaches
     // the step that matters.
     let mut pairs = Vec::new();
-    for seg in [wall(0), wall(2)] {
+    for k in [0, 2] {
         pairs.push((
-            SitedRef::new(a, fname(a, seg.clone())),
-            SitedRef::new(s, fname(s, seg)),
+            SitedRef::new(a, fname(a, wall(&doc, a, k))),
+            SitedRef::new(s, fname(s, wall(&doc, s, k))),
         ));
     }
     let (docx, union, _) = declared_union(doc.clone(), &[a, s, d], pairs.clone());

@@ -20,7 +20,7 @@ use crate::fixture;
 
 use editor_core::{
     BooleanOp, BooleanValue, CapEnd, EntityKind, Node, NodeErrorKind, NodeResult, ProfileDoc,
-    ProfileVertexRef, RecipeNodeId, RoleSeg, SitedRef, StableName, ValuePayload,
+    RecipeNodeId, RoleSeg, SitedRef, StableName, ValuePayload,
 };
 use fixture::{declare_x_offset_flush, fname, insert, len, on_frame, vname, wall};
 use geom_core::Tol;
@@ -95,6 +95,7 @@ fn kiss_base(doc: ProfileDoc) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, Recipe
 /// The base union's two kiss-vertex names, as the base's table
 /// carries them (FromX-wrapped operand cap vertices at (1,1,1)).
 fn kiss_vertex_names(
+    doc: &editor_core::ProfileDoc,
     a: RecipeNodeId,
     b: RecipeNodeId,
     u: RecipeNodeId,
@@ -102,24 +103,12 @@ fn kiss_vertex_names(
     // a's (1,1) top-cap vertex: profile (0,0)(1,0)(1,1)(0,1) → vertex 2.
     let va = vname(
         a,
-        RoleSeg::CapVertex(
-            CapEnd::End,
-            ProfileVertexRef {
-                loop_index: 0,
-                vertex: 2,
-            },
-        ),
+        RoleSeg::CapVertex(CapEnd::End, crate::fixture::vpiece(doc, a, 0, 2)),
     );
     // b's (1,1) bottom-cap vertex: profile (1,1)(2,1)(2,2)(1,2) → vertex 0.
     let vb = vname(
         b,
-        RoleSeg::CapVertex(
-            CapEnd::Start,
-            ProfileVertexRef {
-                loop_index: 0,
-                vertex: 0,
-            },
-        ),
+        RoleSeg::CapVertex(CapEnd::Start, crate::fixture::vpiece(doc, b, 0, 0)),
     );
     (
         vname(u, RoleSeg::FromA(va.into())),
@@ -161,7 +150,7 @@ fn reused_kiss_certifies_with_declared_intent_and_refuses_without() {
     // reused body's declaration re-enters by name, never arena key):
     // certified 3' pass.
     let (doc_declared, mover) = block(doc, (1.5, 2.5), (1.5, 2.5), 1.5, 1.0);
-    let (va, vb) = kiss_vertex_names(a, b, base);
+    let (va, vb) = kiss_vertex_names(&doc_declared, a, b, base);
     let (doc_declared, decl) = insert(
         doc_declared,
         Node::declare_rest(vec![(SitedRef::new(base, va), SitedRef::new(base, vb))]),
@@ -394,7 +383,7 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     };
 
     // Vanished: a name the operands' tables never carried.
-    let ghost = fname(a, wall(1)); // exists…
+    let ghost = fname(a, wall(&base, a, 1)); // exists…
     let mut ghost = ghost;
     ghost.path = vec![RoleSeg::Cap(CapEnd::End), RoleSeg::Cap(CapEnd::End)]; // …not any more
     let (doc, decl) = insert(
@@ -441,23 +430,11 @@ fn declare_resolution_failures_are_typed_n5_errors() {
     // discovers cross contacts itself; v1 refuses the declaration).
     let va = vname(
         a,
-        RoleSeg::CapVertex(
-            CapEnd::End,
-            ProfileVertexRef {
-                loop_index: 0,
-                vertex: 0,
-            },
-        ),
+        RoleSeg::CapVertex(CapEnd::End, crate::fixture::vpiece(&doc, a, 0, 0)),
     );
     let vb = vname(
         b,
-        RoleSeg::CapVertex(
-            CapEnd::End,
-            ProfileVertexRef {
-                loop_index: 0,
-                vertex: 0,
-            },
-        ),
+        RoleSeg::CapVertex(CapEnd::End, crate::fixture::vpiece(&doc, b, 0, 0)),
     );
     let (doc, decl) = insert(
         base.clone(),
@@ -921,7 +898,7 @@ fn a_tied_first_name_waits_behind_the_second_names_own_faults() {
     let (doc, mate) = block(doc, (0.0, 4.0), (0.0, 4.0), 6.0, 1.0);
     let (doc, ghost) = block(doc, (0.0, 1.0), (0.0, 1.0), 20.0, 1.0);
     // A face name at a LIVE node that names no row there: rung 3.
-    let absent = fname(us, wall(97));
+    let absent = fname(us, RoleSeg::Lateral(fixture::no_piece()));
     assert!(
         table.lookup(&absent).is_none(),
         "the vanished probe must name no row, or it pins nothing"

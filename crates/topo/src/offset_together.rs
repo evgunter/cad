@@ -724,17 +724,17 @@ pub(crate) fn faces_at_vertex<T: Real>(
 /// [`Scope::faces_in_scope`]): the rows of the scope's faces are
 /// re-derived and no others are read or written.
 ///
-/// **Everything else a door does is still O(body), and there is a lot
-/// of it.** In decreasing order of cost:
+/// **Everything else a door does is still O(body):**
 ///
-/// - **The asserting setters.** `set_face_surface` and `set_edge_curve`
-///   each run a whole-body tier-1 [`validate`](crate::validate()) as a
-///   postcondition, and a door performs one per moved face and one per
-///   re-described edge. A scoped planar call on a unit box pays 18 of
-///   them (6 + 12); the axial door pays 16; `shell_open` on the
-///   hollow-hollow-open body pays 90, and on box-beside-vessel opened,
-///   101. This dominates, and it is not this scope's to fix — it is
-///   `attach.rs`'s postcondition convention, filed as TOPO's own.
+/// - **The tier-1 postcondition, once per door call.** The door runs
+///   its mutations under a surgery scope ([`crate::surgery`]), inside
+///   which `set_face_surface` and `set_edge_curve` check their own
+///   arena deltas and nothing else; the whole-body tier-1
+///   [`validate`](crate::validate()) runs once, when the scope closes,
+///   and it is a panic rather than a typed refusal
+///   (`scope_walks::the_door_panics_on_an_out_of_scope_malformed_solid`).
+///   Built with the `per-op-postcondition` feature, every setter sweeps
+///   the whole body instead.
 /// - **Three whole-arena iterations in each door's decide phase**,
 ///   filtered by `holds_face` / `holds_vertex` / `holds_edge`: the
 ///   plane (or chart) sweep, the corner walk and the edge walk visit
@@ -754,11 +754,11 @@ pub(crate) fn faces_at_vertex<T: Real>(
 /// So a scoped call is **linear in the whole body, not in its scope**,
 /// and it is measured that way: the same one-solid move set costs about
 /// 0.20, 0.30, 0.51 and 1.00 ms on bodies of one, two, four and eight
-/// solids. What this unit bought is which entities are WRITTEN and
+/// solids. What the scope buys is which entities are WRITTEN and
 /// which failures are this call's — not the asymptotics. **Nothing
 /// pins that cost**: there is no guard and no register, so the numbers
 /// above are a measurement taken once, not a contract. The residue and
-/// what would close it: `work/shell/doors-still-read-the-whole-body-for-tier1.md`.
+/// what would close it: `work/offset/doors-still-read-the-whole-body-for-tier1.md`.
 ///
 /// **Tier 2 is the whole contract on the result, and it is tier 2
 /// only.** A door returns `Ok` on a body that then fails
@@ -774,6 +774,21 @@ pub(crate) fn faces_at_vertex<T: Real>(
 /// [`Scope::whole`] included. Such a body is tier-1 invalid (a shell's
 /// `solid` back-pointer and its owner's list are validated against
 /// each other), so no valid body has one.
+///
+/// **The same owner index, as a public door, is
+/// [`SolidOwners`](crate::SolidOwners)**, and the two stay separate
+/// because they refuse differently: that one indexes every solid of
+/// the body and SKIPS what does not resolve, so an absent entry is its
+/// answer; this one walks only the solids it names and REFUSES on an
+/// unresolved entity of one of them, because a door must not solve
+/// over a scope it could only partly read. Nor is
+/// [`Body::faces_of_solid`] a home for either walk's face half: it
+/// reads the faces' own back-pointers where both walks read the
+/// solids' shell lists, answers for one solid per whole-arena scan,
+/// and drops a face whose shell does not resolve where this walk
+/// refuses. On a tier-1-valid body the two indices agree
+/// about every face and vertex, lone vertices included, and
+/// `separation::owner_index` reds if they stop.
 #[derive(Clone)]
 pub(crate) struct Scope {
     /// The solids in scope. A `Vec` and a linear `contains`, like
@@ -882,7 +897,7 @@ impl Scope {
     /// instead of typed, so no caller has a wrong answer to mishandle.
     /// Nothing in the crate re-scopes UP today — the verb only narrows
     /// from [`Scope::whole`] — so the arm is exercised by its pin
-    /// alone, `shell10_r2_probes::r2_a_re_scope_up_holds_the_solid_it_was_aimed_at`,
+    /// alone, `scope_walks::a_re_scope_up_holds_the_solid_it_was_aimed_at`,
     /// which reds if this becomes a bare `Vec` swap. The `None` the two
     /// `shell.rs` callers map to `Corrupt` is likewise unreachable from
     /// them by construction, and honest by type.
@@ -952,8 +967,10 @@ pub(crate) fn scope_of_moves<T: Real>(
 
 #[cfg(test)]
 mod scope_walks {
-    //! The two walks SHELL-10 narrowed, pinned on a two-solid body:
-    //! the scope's construction and the doors' closing pcurve pass.
+    //! The scope walk and the doors over it, pinned on a two-solid
+    //! body: the scope's construction and re-scoping, the doors'
+    //! closing pcurve pass, and what a door does with a solid outside
+    //! its scope that is malformed or cannot be charted.
 
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -962,18 +979,17 @@ mod scope_walks {
     use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey};
     use crate::replace_face::ReplaceFaceError;
     use crate::splitting::reassembly::quad_prism;
+    use crate::test_support_fixtures::UNIT_SQUARE;
     use geom_core::{Affine3, Band, Point3, Tol, Vec3};
-
-    const SQUARE: [(f64, f64); 4] = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
 
     /// Two unit boxes, ten apart, as two solids of one body — grafted
     /// through the public disjoint-graft door, so the operand is one a
     /// caller could hold.
     fn two_boxes() -> (Body<f64>, SolidKey, SolidKey) {
         let tol = Tol::witness();
-        let mut body = quad_prism(&SQUARE, 1.0, tol);
+        let mut body = quad_prism(&UNIT_SQUARE, 1.0, tol);
         let first = body.solids().next().unwrap().0;
-        let other = quad_prism(&SQUARE, 1.0, tol);
+        let other = quad_prism(&UNIT_SQUARE, 1.0, tol);
         let placed = crate::transform_rigid(
             &other,
             &Affine3::translation(Vec3::new(10.0, 0.0, 0.0)),
@@ -1039,19 +1055,20 @@ mod scope_walks {
     }
 
     /// **An out-of-scope solid's structural corruption is not this
-    /// call's to find.** `Scope::whole` — the walk the doors used to
-    /// take, and still the shell verb's — refuses this body; the walk a
-    /// move set naming the SOUND solid takes accepts it.
+    /// call's to find.** `Scope::whole` — the shell verb's walk —
+    /// refuses this body; the walk a move set naming the SOUND solid
+    /// takes accepts it.
     ///
     /// **The door as a whole is not** — and the row stops at the scope
     /// deliberately. A structurally corrupt body is refused by two
-    /// arena-global reads this unit did not narrow, both downstream of
-    /// the scope: the door's own tier-1 postcondition, run once over
+    /// arena-global reads that are not scoped, both downstream of the
+    /// scope: the door's own tier-1 postcondition, run once over
     /// the staged clone when its surgery scope closes (a panic, not a
     /// refusal, and compiled into this workspace's release profile
     /// too), and the closing tier-2 check. Driving the door here would
-    /// measure those, not this. The narrowing is the pair of walks
-    /// above.
+    /// measure those, not this; the first is pinned by
+    /// `the_door_panics_on_an_out_of_scope_malformed_solid` below. The
+    /// narrowing is the pair of walks above.
     #[test]
     fn an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk() {
         let (mut body, first, second) = two_boxes();
@@ -1104,7 +1121,7 @@ mod scope_walks {
         let mut whole = body.clone();
         assert!(
             crate::pcurves::mint_pcurves(&mut whole, tol).is_err(),
-            "a whole-body mint refuses this body — the base's pass, and the base's refusal"
+            "a whole-body mint refuses this body"
         );
 
         let moves = moves_of(&body, first, 0.0);
@@ -1185,5 +1202,67 @@ mod scope_walks {
             matches!(err, ReplaceFaceError::Corrupt),
             "hop 2 is the body's own incoherence, not a stale argument: {err:?}"
         );
+    }
+
+    /// **The door PANICS, it does not refuse**, on a body whose
+    /// out-of-scope solid is structurally malformed: the scope walk
+    /// accepts it (`an_out_of_scope_solids_corruption_does_not_refuse_the_scope_walk`),
+    /// and the door's own whole-body tier-1 postcondition asserts.
+    /// Compiled into release too (`debug-assertions = true` in the
+    /// workspace profile).
+    ///
+    /// **Where it fires is the door, not the setter.** D1's tier-1
+    /// sweep runs once per public door (`crate::surgery`), so the
+    /// setters inside this door's surgery scope check their arena
+    /// deltas and nothing else; the whole-body re-derivation is the
+    /// close. The corruption is planted before the door is entered and
+    /// is caught before the door returns, which is the property this
+    /// row is about — and the typed `ResultNotClosed` gate after it is
+    /// NOT what catches it: a kernel bug still panics here rather than
+    /// becoming an error return.
+    #[test]
+    #[should_panic(expected = "postcondition: result is not tier-1 valid")]
+    fn the_door_panics_on_an_out_of_scope_malformed_solid() {
+        let (mut body, first, second) = two_boxes();
+        break_a_loop(&mut body, second);
+        let moves = moves_of(&body, first, 0.0);
+        let tol = Tol::witness();
+        let mut work = body.clone();
+        let _ = offset_planes_together(&mut work, &moves, Band::linear(tol).unwrap(), tol);
+    }
+
+    /// **A re-scope UP walks the difference** — the only path on which
+    /// a `re_scope` that merely swapped the `Vec` answers wrongly. The
+    /// verb only ever re-scopes DOWN from `Scope::whole`, so nothing
+    /// else in the crate reaches it.
+    #[test]
+    fn a_re_scope_up_holds_the_solid_it_was_aimed_at() {
+        let (body, first, second) = two_boxes();
+        let firsts = body.faces_of_solid(first).expect("a live solid");
+        let seconds = body.faces_of_solid(second).expect("a live solid");
+        let mut scope = Scope::of_solids(&body, &[first]).unwrap();
+        for &f in &seconds {
+            assert!(!scope.holds_face(f));
+            assert_eq!(scope.solid_of(f), None);
+        }
+        scope
+            .re_scope(&body, &[second])
+            .expect("the walk of the difference");
+        for &f in &seconds {
+            assert!(
+                scope.holds_face(f),
+                "a re-scope UP holds the new solid's faces"
+            );
+            assert_eq!(scope.solid_of(f), Some(second));
+        }
+        for &f in &firsts {
+            assert!(!scope.holds_face(f), "and no longer names the old one");
+            assert_eq!(
+                scope.solid_of(f),
+                Some(first),
+                "though its maps still hold it"
+            );
+        }
+        assert_eq!(scope.faces_in_scope(), seconds);
     }
 }

@@ -60,3 +60,11 @@ edit would then report `Rebound` for every name after it, or strand
 it, exactly as a reshaping does. That is a widening of what a slot
 edit may report — today it reports nothing but cluster maintenance —
 and is a design question for EDIT, filed here rather than built.
+
+## EMIT note (2026-09-25)
+
+EMIT's PR 3223 builds N1's minted-step-id rule, which Ev ruled on #3193
+and #3202. A profile piece is now named `{ step, role }`. At a zero fit
+the suppressed run vanishes, and every other name keeps what it
+denotes. EDIT's row `edit_set_program::a_slot_edit_through_a_zero_fit_…`
+is updated in that PR. Whether this row is closed is EDIT's call.

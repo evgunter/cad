@@ -20,9 +20,9 @@ use editor_core::{
     EvalError, FrameFault, HitTestError, InputFault, InterrogateError, Lever, LeverRefusal,
     Maintenance, MateFault, MateSide, MeasureNodeFault, MeshPickError, MetaVersionError,
     MintRefusal, NamingError, NodeErrorKind, NodePickError, ParamName, ParseError, PartFault,
-    PersistError, PlacementRuleFault, ProgramFault, ProvenanceFault, RecipeNodeId,
-    RecordedProgramError, RefusedRef, ResolveFault, ResolveIndeterminate, RimShare, RoleSeg,
-    RootFault, Route, SelectRefusal, SlotId, SnapshotError, StableName, StepArg, StepSegmentsError,
+    PersistError, PlacementRuleFault, ProgramFault, RecipeNodeId, RecordedProgramError, RefusedRef,
+    ResolveFault, ResolveIndeterminate, RimShare, RoleSeg, RootFault, Route, SelectRefusal, SlotId,
+    SnapshotError, StableName, StepArg, StepId, StepIdFault, StepSegmentsError,
 };
 use geom_core::BandError;
 
@@ -834,7 +834,38 @@ test_utils::f6_variants! {
         AssertionTarget,
         AssertionBound,
         MetadataUnversioned,
+        StepIds,
+        NameStepBeyondCounter,
     ];
+}
+
+/// A node refusal that names a slot names it through [`SlotId::label`],
+/// never its `Debug`: a profile slot is a struct variant, and its braces
+/// are what the binding's prose predicate refuses — so a dumped slot
+/// would panic the binding at the arm meant to refuse gracefully.
+#[test]
+fn a_node_refusal_names_its_slot_by_its_label() {
+    let slot = SlotId::Profile {
+        loop_: 0,
+        step: 2,
+        arg: StepArg::CenterX,
+    };
+    let dumps = ["Profile", "CenterX", "loop_", "{", "}"];
+    assert_f6(
+        &NodeErrorKind::Expr {
+            slot,
+            source: EvalError::ContinuousExprInCountEval {
+                found: Dimension::Length,
+            },
+        },
+        &["the expression at slot loop 0 step 2 · centre x failed"],
+        &dumps,
+    );
+    assert_f6(
+        &NodeErrorKind::MissingSlot { slot },
+        &["expected its loop 0 step 2 · centre x input"],
+        &dumps,
+    );
 }
 
 /// Every arm of the persistence door's snapshot vocabulary states what
@@ -1034,6 +1065,31 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 error: MetaVersionError::MissingVersion,
             },
             vec!["metadata", "swatch", "\"v\" version field"],
+        ),
+        (
+            SnapshotError::StepIds {
+                node,
+                fault: StepIdFault::Repeated { step: StepId(3) },
+            },
+            vec![
+                "profile node 5's step ids",
+                "step id 3 stands for two steps",
+            ],
+        ),
+        (
+            SnapshotError::NameStepBeyondCounter {
+                name: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node,
+                    path: vec![RoleSeg::Lateral(editor_core::ProfileEdgeRef::Piece {
+                        step: StepId(8),
+                        role: editor_core::PieceRole::Leg,
+                    })],
+                }),
+                step: StepId(8),
+                next_step: 6,
+            },
+            vec!["minted by node 5", "profile step id #8", "step counter 6"],
         ),
     ];
     assert_f6_every_variant(&cases, &SNAPSHOT_ERROR, &[]);
@@ -1277,18 +1333,18 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
         node: RecipeNodeId(5),
         path: vec![RoleSeg::CapVertex(
             CapEnd::End,
-            ProfileVertexRef {
-                loop_index: 0,
-                vertex: 0,
+            ProfileVertexRef::Piece {
+                step: StepId(1),
+                role: editor_core::PieceRole::Leg,
             },
         )],
     };
-    let wall = |segment| StableName {
+    let wall = |step| StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId(6),
-        path: vec![RoleSeg::Lateral(ProfileEdgeRef {
-            loop_index: 0,
-            segment,
+        path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
+            step: StepId(step),
+            role: editor_core::PieceRole::Leg,
         })],
     };
     // A union member's wall, as a union's seams spell it.
@@ -1307,7 +1363,7 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 new: vec![],
             },
             "the parent's seams with the vertex name minted by node 5 (the end cap vertex \
-             over profile vertex 0 of loop 0) are gone",
+             over the start of the leg of the profile step minted #1) are gone",
         ),
         (
             GroupCutters::Read {
@@ -1315,7 +1371,7 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 new: vec![member_wall],
             },
             "the parent has new seams with the face name minted by node 8 (the side wall \
-             over profile segment 2 of loop 0, minted by node 6)",
+             over the leg of the profile step minted #2, minted by node 6)",
         ),
         (
             GroupCutters::Read {
@@ -1323,10 +1379,10 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 new: vec![wall(0)],
             },
             "the parent's seams with 2 cutters (the face name minted by node 6 (the side \
-             wall over profile segment 1 of loop 0); the face name minted by node 6 (the \
-             side wall over profile segment 3 of loop 0)) are gone, and the parent has new \
-             seams with the face name minted by node 6 (the side wall over profile segment \
-             0 of loop 0)",
+             wall over the leg of the profile step minted #1); the face name minted by node 6 (the \
+             side wall over the leg of the profile step minted #3)) are gone, and the parent \
+             has new seams with the face name minted by node 6 (the side wall over the leg \
+             of the profile step minted #0)",
         ),
         (
             GroupCutters::Read {
@@ -2246,9 +2302,9 @@ fn naming_error_display_names_its_content_not_its_struct() {
                         node: RecipeNodeId(node),
                         path: vec![RoleSeg::CapVertex(
                             CapEnd::End,
-                            editor_core::ProfileVertexRef {
-                                loop_index: 0,
-                                vertex: 0,
+                            editor_core::ProfileVertexRef::Piece {
+                                step: StepId(0),
+                                role: editor_core::PieceRole::Leg,
                             },
                         )],
                     })
@@ -2282,9 +2338,9 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 edge: Box::new(StableName {
                     kind: EntityKind::Edge,
                     node: RecipeNodeId(37),
-                    path: vec![RoleSeg::LateralEdge(editor_core::ProfileVertexRef {
-                        loop_index: 0,
-                        vertex: 2,
+                    path: vec![RoleSeg::LateralEdge(editor_core::ProfileVertexRef::Piece {
+                        step: StepId(2),
+                        role: editor_core::PieceRole::Leg,
                     })],
                 }),
             },
@@ -2457,7 +2513,7 @@ test_utils::f6_variants! {
 
 test_utils::f6_variants! {
     /// `Maintenance`'s census — see [`NODE_PICK_ERROR`].
-    const MAINTENANCE: Maintenance = [Cluster, Strand, StrandedAppearance, OrphanedDeclare, Rebound];
+    const MAINTENANCE: Maintenance = [Cluster, Strand, StrandedAppearance, OrphanedDeclare];
 }
 
 /// **Each registry act says what it did to the placement registry.**
@@ -2555,17 +2611,6 @@ fn maintenance_display_says_what_the_edit_did() {
             ],
         ),
         (
-            Maintenance::Rebound {
-                from: face_name(),
-                to: face_name(),
-            },
-            vec![
-                "a face name minted by node 7 was rewritten in place",
-                "draws the same step's segment under the reshaped profile program",
-                "still denotes what it did",
-            ],
-        ),
-        (
             Maintenance::OrphanedDeclare { declare: other },
             vec![
                 "node 5 declares contacts",
@@ -2648,110 +2693,95 @@ fn a_recorded_program_refusal_says_what_the_lift_could_not_take() {
 }
 
 test_utils::f6_variants! {
-    /// `ProvenanceFault`'s census — see [`NODE_PICK_ERROR`]. The
-    /// whole-program edit's shape faults: seven ways a provenance can
-    /// fail to describe its program, each naming the coordinate the
-    /// caller wrote in the caller's own terms.
-    const PROVENANCE_FAULT: ProvenanceFault = [
+    /// `StepIdFault`'s census — see [`NODE_PICK_ERROR`]. The ways a
+    /// profile program's step ids can fail to be the document's minted
+    /// names for its steps, at the edit door and the load door alike.
+    const STEP_ID_FAULT: StepIdFault = [
+        Preminted,
         LoopCount,
-        StepCount,
-        NoSuchOldLoop,
-        NoSuchOldStep,
-        StepOfNewLoop,
-        OldLoopContinuedTwice,
-        OldStepContinuedTwice,
+        Shape,
+        NotThisProfiles,
+        Repeated,
+        BeyondCounter,
     ];
 }
 
-/// **Every provenance shape fault states the coordinate it is about
-/// and the count it was checked against**, in the caller's terms — a
-/// NEW loop or step index where the entry sits, an OLD one where it
-/// points — and the edit's arm that carries one frames it with the
-/// node.
+/// **Every step-id fault names the id or the count it is about**, and
+/// the edit's arm that carries one frames it with the node.
 #[test]
-fn a_provenance_fault_names_the_coordinate_and_the_count() {
+fn a_step_id_fault_names_the_id_or_the_count() {
     let cases = [
         (
-            ProvenanceFault::LoopCount {
-                loops: 2,
-                provenance: 3,
-            },
-            vec!["2 loops", "3 entries", "one entry per loop"],
+            StepIdFault::Preminted,
+            vec!["already carries step ids", "the insert mints them"],
         ),
         (
-            ProvenanceFault::StepCount {
+            StepIdFault::LoopCount { loops: 2, given: 3 },
+            vec!["2 loops", "3 lists of step ids", "one list per loop"],
+        ),
+        (
+            StepIdFault::Shape {
                 loop_: 1,
-                steps: 5,
-                provenance: 4,
-            },
-            vec!["loop 1 authors 5 steps", "4 entries", "one entry per step"],
-        ),
-        (
-            ProvenanceFault::NoSuchOldLoop {
-                loop_: 0,
-                from: 3,
-                old_loops: 2,
-            },
-            vec!["loop 0 continues old loop 3", "has 2 loops"],
-        ),
-        (
-            ProvenanceFault::NoSuchOldStep {
-                loop_: 0,
-                step: 2,
-                from: 1,
-                old_step: 9,
-                old_steps: 5,
+                authored: 5,
+                given: 4,
             },
             vec![
-                "loop 0 step 2 continues old step 9 of old loop 1",
-                "authors 5 steps",
+                "loop 1 authors 5 steps",
+                "4 step ids",
+                "one id per authored step",
             ],
         ),
         (
-            ProvenanceFault::StepOfNewLoop {
-                loop_: 1,
-                step: 0,
-                old_step: 4,
-            },
-            vec![
-                "loop 1 is a new loop",
-                "step 0 continues old step 4",
-                "its steps are all new",
-            ],
+            StepIdFault::NotThisProfiles { step: StepId(9) },
+            vec!["step id 9", "not a step of the program this node holds"],
         ),
         (
-            ProvenanceFault::OldLoopContinuedTwice {
-                from: 0,
-                first: 0,
-                again: 1,
-            },
-            vec!["old loop 0 is continued by loop 0 and again by loop 1"],
+            StepIdFault::Repeated { step: StepId(4) },
+            vec!["step id 4 stands for two steps"],
         ),
         (
-            ProvenanceFault::OldStepContinuedTwice {
-                loop_: 0,
-                from: 0,
-                old_step: 1,
-                first: 1,
-                again: 2,
+            StepIdFault::BeyondCounter {
+                step: StepId(12),
+                next_step: 10,
             },
-            vec![
-                "old step 1 of old loop 0 is continued by loop 0's step 1 and again by its \
-                 step 2",
-            ],
+            vec!["step id 12", "step counter 10", "never minted it"],
         ),
     ];
-    assert_f6_every_variant(&cases, &PROVENANCE_FAULT, &[]);
+    assert_f6_every_variant(&cases, &STEP_ID_FAULT, &[]);
     assert_f6(
-        &EditError::ProvenanceMalformed {
+        &EditError::StepIdsRefused {
             node: RecipeNodeId(4),
-            fault: ProvenanceFault::LoopCount {
-                loops: 1,
-                provenance: 2,
-            },
+            fault: StepIdFault::Repeated { step: StepId(2) },
         },
-        &["node 4's program provenance", "1 loops", "2 entries"],
-        &["ProvenanceMalformed", "LoopCount"],
+        &[
+            "node 4's program step ids",
+            "step id 2 stands for two steps",
+        ],
+        &["StepIdsRefused", "Repeated"],
+    );
+    assert_f6(
+        &EditError::NameStepNeverMinted {
+            name: StableName {
+                kind: EntityKind::Edge,
+                node: RecipeNodeId(3),
+                path: vec![RoleSeg::RimEdge(
+                    CapEnd::End,
+                    editor_core::ProfileEdgeRef::Piece {
+                        step: StepId(9),
+                        role: editor_core::PieceRole::Leg,
+                    },
+                )],
+            },
+            step: StepId(9),
+            next_step: 5,
+        },
+        &[
+            "edge name minted by node 3",
+            "profile step id #9",
+            "never minted",
+            "step counter is 5",
+        ],
+        &["NameStepNeverMinted"],
     );
     assert_f6(
         &EditError::SetProgramOnNonProfile {
