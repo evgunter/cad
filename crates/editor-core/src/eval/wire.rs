@@ -3461,16 +3461,31 @@ fn wire_union<
     let buckets = route_declarations(id, members, declared, doc)?;
     // Contact is judged here, pairwise, and nowhere else (DM4's contact
     // rule): every member pair whose boxes meet is its own two-member
-    // union with the pairs declared between those two members.
+    // union with the pairs declared between those two members. Each
+    // member's box is the separation certificate's hull of its padded
+    // face boxes, and a judged pair's body is discarded.
+    let hulls = operands
+        .iter()
+        .map(|(body, _)| {
+            topo::Separation::of(body.as_ref(), tol)
+                .map(|s| s.hull())
+                .map_err(NodeErrorKind::Boolean)
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+    let tables: Vec<&NameTable> = operands.iter().map(|(_, t)| t.as_ref()).collect();
     judge_pairwise_contact(
-        verb,
         id,
         members,
-        &operands,
+        &tables,
+        &hulls,
         declared,
         doc,
-        boolean_sweep,
-        tol,
+        |p, q, decls| {
+            (verb.build)(BooleanOp::Union, decls)
+                .run_pair(&operands[p].0, &operands[q].0, boolean_sweep, tol)
+                .map(|_| ())
+                .map_err(|err| union_refusal(id, members, tables[p], tables[q], err))
+        },
     )?;
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
     // Each step's fragment groups, in fold order (`FragmentGroups::folded`).
@@ -3658,22 +3673,20 @@ fn wire_union<
 ///
 /// The cost is at most n(n−1)/2 pair booleans; box pruning bounds it by
 /// the pairs that can touch or carry a declaration.
-#[allow(clippy::too_many_arguments)] // `wire_union`'s inputs, passed through
-fn judge_pairwise_contact<
-    T: Decide
-        + geom_core::Bounds
-        + geom_brep::PcurveFittedLane
-        + crate::lane::Lane
-        + topo::AtRestPolicy,
->(
-    verb: &crate::verbs::boolean::PairVerb<T>,
+///
+/// `tables[i]` and `hulls[i]` are member `i`'s view and box; `judge(p,
+/// q, decls)` runs the pair verb on members `p` (operand A) and `q`
+/// (operand B) with `decls`, and returns the refusal it raises. The
+/// scalar stays with the caller, so this function decides which pairs
+/// are judged and with what, and nothing about geometry.
+fn judge_pairwise_contact(
     id: RecipeNodeId,
     members: &[RecipeNodeId],
-    operands: &[(Arc<Body<T>>, Arc<NameTable>)],
+    tables: &[&NameTable],
+    hulls: &[bvh::Aabb],
     declared: &[DeclaredPair],
     doc: &crate::doc::Doc<ProfileProgram>,
-    boolean_sweep: topo::SweepStrategy,
-    tol: Tol,
+    mut judge: impl FnMut(usize, usize, BooleanDeclarations) -> Result<(), NodeErrorKind>,
 ) -> Result<(), NodeErrorKind> {
     let position = |at: RecipeNodeId| members.iter().position(|m| *m == at);
     // The declared pairs between two DIFFERENT members, keyed by the
@@ -3711,19 +3724,10 @@ fn judge_pairwise_contact<
             .or_default()
             .push((side(i, r1), side(j, r2), *class));
     }
-    let hulls = operands
-        .iter()
-        .map(|(body, _)| {
-            topo::Separation::of(body.as_ref(), tol)
-                .map(|s| s.hull())
-                .map_err(NodeErrorKind::Boolean)
-        })
-        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
     let mut by_id: Vec<usize> = (0..members.len()).collect();
     by_id.sort_by_key(|&i| members[i]);
     for (k, &p) in by_id.iter().enumerate() {
         for &q in &by_id[k + 1..] {
-            let (a_table, b_table) = (&operands[p].1, &operands[q].1);
             let pairs = between.remove(&(p, q)).unwrap_or_default();
             if pairs.is_empty() && !hulls[p].overlaps(&hulls[q]) {
                 continue;
@@ -3731,13 +3735,9 @@ fn judge_pairwise_contact<
             let decls = if pairs.is_empty() {
                 BooleanDeclarations::none()
             } else {
-                resolve_declarations(&pairs, doc, a_table, b_table)?
+                resolve_declarations(&pairs, doc, tables[p], tables[q])?
             };
-            // The body is discarded: the pair is judged, and the fold
-            // builds the union's body.
-            (verb.build)(BooleanOp::Union, decls)
-                .run_pair(&operands[p].0, &operands[q].0, boolean_sweep, tol)
-                .map_err(|err| union_refusal(id, members, a_table, b_table, err))?;
+            judge(p, q, decls)?;
         }
     }
     Ok(())
