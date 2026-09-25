@@ -98,3 +98,24 @@ new pin uses subtracted rather than literal scalars, since `0.008` and
 correctly with no helper at all.
 
 Signed (FIX orchestrator).
+
+## 2026-09-25 — a PATHS orchestrator picks the track up
+
+Status `ready` → `active`. Ev's first ask for this sitting is
+`lower-profiles-to-carrier-and-interval-not-vertex-and-bulge` (EMIT's
+filing from #3202): let a circle be one edge by lowering to a
+carrier + interval form instead of vertex + bulge. First step is the
+survey the row asks for — a read-only lane mapping every reader of the
+bulge form (profile, sweep, editor-core, persist, Python, demos) and
+what each needs from a carrier + interval form — then an `[ev]` PR
+against PATHS-DESIGN §2a.1/§6 (the M2 closed-carrier precedent) with
+the design choices it surfaces.
+
+Orchestrator branch is the session's assigned branch, not
+`paths/orchestrator` (the remote session names it); unit branches keep
+the `paths/` prefix.
+
+The track is over budget (38.5/30). Splitting along the priority seam
+is deferred until the lowering survey says how many rows it absorbs or
+spawns — several slate rows (the closers, `circle_split`, the lift
+comparator) may change shape under a carrier + interval lowering.
