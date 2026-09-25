@@ -260,7 +260,9 @@ fn split_err(py: Python<'_>, err: &d::SplitError) -> PyErr {
             named(name),
             none(),
         ),
-        E::NameStraddlesCut { name, .. } | E::BodyNameCrossesCut { name } => (
+        E::NameStraddlesCut { name, .. }
+        | E::BodyNameCrossesCut { name }
+        | E::NameOnDroppedStep { name, .. } => (
             none(),
             none(),
             none(),
@@ -553,7 +555,8 @@ fn inline_err(py: Python<'_>, err: &d::InlineError) -> PyErr {
         ),
         E::InstanceBodyNameReferenced { name }
         | E::ForeignInstanceName { name }
-        | E::StrandedPartName { name, .. } => (
+        | E::StrandedPartName { name, .. }
+        | E::NameOnDroppedStep { name, .. } => (
             none(),
             none(),
             named(name),

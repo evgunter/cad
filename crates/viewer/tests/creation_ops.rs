@@ -545,7 +545,9 @@ fn the_rectangle_template_is_the_centred_polygon() {
             LoopProgram::polygon([(-0.02, -0.01), (0.02, -0.01), (0.02, 0.01), (-0.02, 0.01)])
                 .expect("finite corners"),
         ],
-        ids: Vec::new(),
+        // The session's only profile: its five steps (the start and
+        // four legs) are the document's first minted.
+        ids: vec![(0..5).map(pncad::document::StepId).collect()],
     });
     assert!(
         session

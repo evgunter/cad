@@ -112,6 +112,9 @@ pub(crate) enum SegTag {
     RimEdge,
     LateralEdge,
     CapVertex,
+    // Loft
+    LoftWall,
+    LoftSeam,
     // Revolve
     Band,
     BandRim,
@@ -168,6 +171,8 @@ impl SegTag {
             Self::RimEdge => s::SegTag::RimEdge,
             Self::LateralEdge => s::SegTag::LateralEdge,
             Self::CapVertex => s::SegTag::CapVertex,
+            Self::LoftWall => s::SegTag::LoftWall,
+            Self::LoftSeam => s::SegTag::LoftSeam,
             Self::Band => s::SegTag::Band,
             Self::BandRim => s::SegTag::BandRim,
             Self::BandRimPi => s::SegTag::BandRimPi,
@@ -918,6 +923,8 @@ mod growth_tripwire {
             s::SegTag::RimEdge => SegTag::RimEdge,
             s::SegTag::LateralEdge => SegTag::LateralEdge,
             s::SegTag::CapVertex => SegTag::CapVertex,
+            s::SegTag::LoftWall => SegTag::LoftWall,
+            s::SegTag::LoftSeam => SegTag::LoftSeam,
             s::SegTag::Band => SegTag::Band,
             s::SegTag::BandRim => SegTag::BandRim,
             s::SegTag::BandRimPi => SegTag::BandRimPi,

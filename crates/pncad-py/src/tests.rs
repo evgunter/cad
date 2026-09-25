@@ -4379,6 +4379,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_non_finite",
             "meta_not_set",
             "meta_unversioned",
+            "name_step_never_minted",
             "name_unresolved_in_evaluation",
             "non_finite_alignment",
             "non_finite_doc_param",
@@ -4392,7 +4393,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_on_non_instance",
             "placement_rule_mismatch",
             "profile_program_refused",
-            "provenance_malformed",
             "read_site_missing_node",
             "rebind_appearance_collision",
             "rebind_identity",
@@ -4408,6 +4408,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slot_dimension_mismatch",
             "slot_doc_param_dimension",
             "slot_unknown_doc_param",
+            "step_ids_refused",
             "structural_slot_needs_structural_edit",
             "too_few_members",
             "unknown_node",
@@ -4433,7 +4434,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_version_error_tag",
             "node_error_tag",
             "program_refusal_tag",
-            "provenance_fault_tag",
+            "step_id_fault_tag",
         ],
     },
     TagEntry {
@@ -4573,6 +4574,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "inline_edit",
             "instance_body_name_referenced",
             "instance_consumed",
+            "name_on_dropped_step",
             "not_an_instance",
             "param_conflict",
             "part_carries_metadata",
@@ -4637,7 +4639,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "gauge_rewrite",
             "join",
             "orphaned_declare",
-            "rebound",
             "split",
             "strand",
             "stranded_appearance",
@@ -5020,7 +5021,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "program_refusal_tag",
-        values: &["geometry", "record", "resolve", "transition", "validate"],
+        values: &[
+            "geometry",
+            "resolve",
+            "transition",
+            "unminted",
+            "validate",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5033,19 +5040,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &["cylinder", "plane"],
         delegates: &[],
     },
-    TagEntry {
-        function: "provenance_fault_tag",
-        values: &[
-            "loop_count",
-            "no_such_old_loop",
-            "no_such_old_step",
-            "old_loop_continued_twice",
-            "old_step_continued_twice",
-            "step_count",
-            "step_of_new_loop",
-        ],
-        delegates: &[],
-    },
+
     TagEntry {
         function: "readback_error_tag",
         values: &[
@@ -5274,6 +5269,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_alignment",
             "measure_refs",
             "metadata_unversioned",
+            "name_step_beyond_counter",
             "order_mismatch",
             "payload_doc_param_dimension",
             "payload_unknown_doc_param",
@@ -5285,6 +5281,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slot_dimension",
             "slot_doc_param_dimension",
             "slot_unknown_doc_param",
+            "step_ids",
             "witness_on_missing_node",
             "witness_site",
         ],
@@ -5300,6 +5297,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "body_name_crosses_cut",
             "empty_cut",
+            "name_on_dropped_step",
             "name_straddles_cut",
             "operand_severed_from_mate",
             "part_edit",
@@ -5322,6 +5320,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "stale_declaration_tag",
         values: &["curve_locus", "patch", "vertex_on_face", "vertex_vertex"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "step_id_fault_tag",
+        values: &[
+            "beyond_counter",
+            "loop_count",
+            "not_this_profiles",
+            "preminted",
+            "repeated",
+            "shape",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5634,6 +5644,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("io", 2),
     ("join", 3),
     ("measure_malformed", 2),
+    // A split's and an inline's refusal of a name on a dropped step: one
+    // fact (`editor_core::refactor::Unmapped::Step`), one word.
+    ("name_on_dropped_step", 2),
     ("no_at_rest_record", 2),
     ("no_such_body", 2),
     ("node_failed", 4),

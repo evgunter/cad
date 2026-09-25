@@ -3661,6 +3661,8 @@ class SegTag:
     RimEdge: Final[SegTag]
     LateralEdge: Final[SegTag]
     CapVertex: Final[SegTag]
+    LoftWall: Final[SegTag]
+    LoftSeam: Final[SegTag]
     Band: Final[SegTag]
     BandRim: Final[SegTag]
     BandRimPi: Final[SegTag]

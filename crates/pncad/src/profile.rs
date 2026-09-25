@@ -109,8 +109,8 @@ pub use ::profile::{
 // bisecting lane records at f64 and replays guided at its own scalar
 // through exactly these two functions.
 pub use ::profile::{
-    CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,
-    ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure, SegmentShape, StepSpan,
+    CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical, Piece,
+    PieceRole, ProfileStructure, RadiusEmission, RadiusRole, ReplayStructure, SegmentShape, StepSpan,
     StructureRefusal, StructureRefusalKind, replay_guided, replay_recording, structure,
 };
 

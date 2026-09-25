@@ -1094,7 +1094,7 @@ impl Doc {
             .map_err(|refusal| {
                 pyo3::exceptions::PyValueError::new_err(format!(
                     "node {} has no pieces under the current values: {refusal}",
-                    profile.0
+                    profile.0 .0
                 ))
             })?;
         pieces

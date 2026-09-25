@@ -4244,7 +4244,9 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   them: the split's and the inline's id rewrite of one name, for a
 ///   Rust caller carrying its own names across a `NodeMap`; the
 ///   Python surface holds no `NodeMap`, and the names a split or an
-///   inline carries reach it already rewritten.
+///   inline carries reach it already rewritten. `Unmapped` is its
+///   refusal (a node or a profile step the maps do not cover), and
+///   goes where it goes.
 ///   `FragmentGroups` beside them too: the fragment-group record a node
 ///   value carries for the diagnosis ladder. A consumer can hold one
 ///   (`NodeValue::fragment_groups`) and make an empty one, and can read
@@ -4416,7 +4418,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-const NOT_CARRIED: [&str; 94] = [
+const NOT_CARRIED: [&str; 95] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4504,6 +4506,7 @@ const NOT_CARRIED: [&str; 94] = [
     "param_env_over",
     "rebind_suggestions",
     "remap_name",
+    "Unmapped",
     "resolve_with_prior",
     "seed_env",
     "sensitivities",
