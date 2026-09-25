@@ -1011,15 +1011,12 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
     let table = [(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.5, 4.0), (0.0, 3.0)];
     let loop_: ProfileLoop<f64> = polygon(&table, tol).expect("the outline authors");
 
-    let want: Vec<ProfileVertex<f64>> = table
-        .iter()
-        .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-        .collect();
+    let want: Vec<(Point2<f64>, f64)> = table.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect();
     let got = loop_.vertices();
     assert_eq!(got.len(), want.len(), "one vertex per authored point");
-    for (i, (g, w)) in got.iter().zip(&want).enumerate() {
-        assert_eq!((g.x, g.y), (w.pos().x, w.pos().y), "vertex {i}");
-        assert_eq!(loop_.bulges()[i], w.bulge(), "vertex {i} bulge");
+    for (i, (g, (pos, bulge))) in got.iter().zip(&want).enumerate() {
+        assert_eq!((g.x, g.y), (pos.x, pos.y), "vertex {i}");
+        assert_eq!(loop_.bulges()[i], *bulge, "vertex {i} bulge");
     }
     assert!(
         loop_.tangent_joints().is_empty(),
@@ -1820,12 +1817,12 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
 ///    prelude.
 /// 2. Any `pub use` in `pncad`'s own source that names `RawLoop`.
 /// 3. Any construction call — `ProfileLoop::new` / `ProfileLoop::polygon`
-///    — written in façade source (comments excluded), which would mean
+///    / `bulge_loop` — written in façade source (comments excluded), which would mean
 ///    the façade itself still authors through the retired tier. This
 ///    one is matched on the source with ALL whitespace removed, so a
 ///    call broken across lines is the same pattern as a call written
 ///    on one.
-/// 4. Any `ProfileLoop`/`ProfileVertex` STRUCT LITERAL in façade
+/// 4. Any `ProfileLoop` STRUCT LITERAL in façade
 ///    source. This row's declared blind spot until the seal landed:
 ///    the fields were public, so a literal type-checked wherever the
 ///    type was nameable, and the type must stay nameable. The fields
@@ -1849,7 +1846,7 @@ fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
         ["ProfileLoop::", "new("].concat(),
         ["ProfileLoop::", "polygon("].concat(),
         ["ProfileLoop", "{"].concat(),
-        ["ProfileVertex", "{"].concat(),
+        ["bulge_", "loop("].concat(),
     ];
 
     let mut violations: Vec<String> = Vec::new();
