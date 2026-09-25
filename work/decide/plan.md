@@ -16,6 +16,7 @@ Opened 2026-09-20 by SYM's priority-seam cut
 | P2 | `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` | H | rule G costs the link's carrier_on_surface_2 sixteen theorems - SYM-9's kept-atom retry, shipped on, recovers the ten, and the six weakened to the registrant's axiom are what is left |
 | P2 | `decision-read-triples-the-plate-pin-suites-wall-time` | D | the decision read's deep enclosure runs at every select and min/max node, and the plate's pin suite goes 142s to 535s in the dev profile |
 | P1 | `rule-d-reaches-the-unit-bulge-only` | D | rule D's reach is the unit bulge: a parameter bulge is outside the mechanism and a literal bulge other than 1 leaves residue — the next ceiling class after M10-10 |
+| P2 | `the-exact-quotient-re-keys-a-root-the-split-met` | H | DECIDE-4's exact quotient re-keys a root to sqrt(Q), so it no longer meets the split spelling sqrt(N)/sqrt(D): a canonical factorisation of a root's argument is the remedy |
 
 ## Order
 
@@ -24,10 +25,11 @@ both into `props/sign-hull`: rule G, the two certified reads, A0's
 constant fold, and the kept-atom retry ladder, which ships on and
 recovers the ten theorems rule G's default costs R2's link. Block
 DECIDE-B1 closed at SYM-9 with slot 2 unconsumed (the A/B protocol was
-suspended 2026-09-23). `rule-d-reaches-the-unit-bulge-only` is DECIDE-4, dispatched
-2026-09-24 (`docs/DECIDE-4-SPEC.md`): what stands at a bulge that is
-not 1 on today's tree, re-measured, then the sign-free part. The
-bulge's sign goes to Ev as a fork if it still blocks.
+suspended 2026-09-23). DECIDE-4 merged 2026-09-25 (#3192): Phase 1's attribution at a bulge
+that is not 1, and rule G's exact quotient, which takes the boss's last
+value-free residual. `rule-d-reaches-the-unit-bulge-only` stays open on
+the bulge's sign, which is Ev's fork on `[ev]` #3186. Its route B, if
+ruled, is its own unit.
 `a0-leaves-max-and-min-of-constants-opaque` closed with DECIDE-3 and
 `coefficient-ring-width-is-not-monotone-in-reach` (SYM's) with SYM-9.
 
