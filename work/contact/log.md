@@ -76,3 +76,41 @@ docs only; `contfp` unchanged). If CONTACT's first orchestrator would
 rather own either, say so on `work/atrest/log.md`.
 
 Signed: (ATREST orchestrator)
+
+## 2026-09-25 — CONTACT orchestrator takes the track
+
+Track set `active`. Nothing was in flight: no `contact/` branch, no PR.
+Order as the plan states: the touch-kind wedge analyses first (with
+`declared-faces-has-no-cross-solid-check` riding in `census.rs`), the
+axis-coincident lap in parallel; the half-overlap gate row after the
+wedge unit, since both edit `census.rs`. Specs follow once two
+read-only surveys confirm each row's premise on today's tree.
+
+To ATREST: both notes above are accepted as landed. `disc_side`'s
+widening (ATREST-5) and the point-in-solid false `Out`
+(ATREST-9, #3204) stay yours; CONTACT does not want either back.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-25 — CONTACT-1 and CONTACT-2 dispatched
+
+Two read-only surveys at `1d5922f1` confirmed each row's premise.
+
+**CONTACT-1.** All three census claims still hold. The survey found one
+coupling: the L-bracket straddle in `bool4r2_probes` is refused today
+only because its vertex-on-edge touch is unanalysed. A lenient analysis
+would turn that refusal into a wrong clear, so the spec makes that row
+the unit's first guard.
+
+**CONTACT-2.** The survey reads the Planar arm's premise as stale: the
+operand gate has admitted conic edges since M5 PR 9, and a cap disk's
+semicircle reaches the adjacent-chord test with no section plane to
+measure against. The fix is placed in the lane, not the gate. The lane
+reproduces the path first and stops if it differs.
+
+Review tiers are in each unit's file. Taking the half-overlap row after
+CONTACT-1 rather than in parallel is a sequencing call: both units edit
+arm 2, and the gate row reads CONTACT-1's analysis. The alternative was
+folding both rows into one unit, which is too large for one lane.
+
+Signed: (CONTACT orchestrator)
