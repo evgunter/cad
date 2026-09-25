@@ -33,3 +33,10 @@ shallow to be an arc contributes no circular segment, or the term is
 written in a form that cannot evaluate ∞ · 0. The
 `work/paths/store-constructed-carriers.md` unit deletes this hand copy;
 whichever lands first owns the fix.
+
+## EMIT note (2026-09-25)
+
+EMIT's PR 3223 deletes `signed_area`, `replay_naming` and `naming_of`,
+along with the anchor code this row cites. A profile's names no longer
+depend on its loops' signed areas. Whether this row is closed is WIRE's
+call.

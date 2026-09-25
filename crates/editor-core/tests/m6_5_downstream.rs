@@ -61,7 +61,7 @@ fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     )
 }
 
-fn insert(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let a = apply(
         doc,
         &DocEdit::InsertNode { node },
@@ -113,7 +113,10 @@ fn table_of(
 fn filleted_blank() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m6_5_downstream", Tol::witness());
     let (doc, cube) = block(&doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, blank) = insert(&doc, Node::fillet(cube, len(0.125), prism_edges(cube, 4)));
+    let (doc, blank) = insert(
+        &doc,
+        Node::fillet(cube, len(0.125), prism_edges(&doc, cube, 4)),
+    );
     (doc, cube, blank)
 }
 
@@ -183,10 +186,7 @@ fn an_appearance_record_on_a_fillet_minted_face_resolves() {
                 node: cube,
                 path: vec![RoleSeg::RimEdge(
                     CapEnd::End,
-                    editor_core::ProfileEdgeRef {
-                        loop_index: 0,
-                        segment: 0,
-                    },
+                    crate::fixture::piece(&doc, cube, 0, 0),
                 )],
             }
             .into(),
@@ -384,7 +384,7 @@ fn all_edges_materializes_exactly_the_authored_every_edge_set() {
     let ev = eval(&doc);
 
     let materialized = editor_core::all_edges(&ev, cube);
-    let mut authored = prism_edges(cube, 4);
+    let mut authored = prism_edges(&doc, cube, 4);
     authored.sort();
     assert_eq!(materialized.len(), 12, "a box has twelve edges");
     assert_eq!(

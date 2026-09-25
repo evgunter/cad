@@ -217,6 +217,9 @@ profile = { path = "../profile", features = ["test-support"] }
 # the kernel's own loft-fixture section polygons rather than a second
 # spelling of them, so the mounted tree names `sweep::test_support`.
 sweep = { path = "../sweep", features = ["test-support"] }
+# The mounted fixture's `on_pool` (an explicit-width pool for the
+# evaluator's thread-count rows) names rayon directly. The workspace pin.
+rayon = { workspace = true }
 
 # --- the colourblind check's oracle (tests/theme.rs) ---
 #

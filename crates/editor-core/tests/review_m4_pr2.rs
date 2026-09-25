@@ -20,7 +20,11 @@ use fixture::{
 use geom_core::Tol;
 use topo::{Body, mass_properties};
 
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>, parallel: bool) -> Evaluation<f64> {
+fn run(
+    doc: &editor_core::ProfileDoc,
+    prior: Option<&Evaluation<f64>>,
+    parallel: bool,
+) -> Evaluation<f64> {
     let opts = EvalOptions {
         parallel,
         ..EvalOptions::default()

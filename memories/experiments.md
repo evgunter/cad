@@ -25,6 +25,10 @@ Both leave `docs/` when the experiment concludes.
   (**read it before dispatching a dual**) and `docs/DUAL-REVIEW-LOG.md`.
   What a second independent review buys; every unit the review tiers
   ([[orchestration-model]]) send to a dual is a row.
+- **Design-fork review** — `docs/DESIGN-FORK-PROTOCOL.md` (**read it
+  before dispatching the pair**) and `docs/DESIGN-FORK-LOG.md`. What
+  the Opus and Fable designers recommended, and what Ev then
+  decided; every design fork put to Ev is a row.
 
 **Suspended** (no need to read unless Ev reinstates it):
 
@@ -44,7 +48,9 @@ Both leave `docs/` when the experiment concludes.
   adjudication and dispatch. They live on a branch under `analysis/`,
   and an orchestrator with a dispatch in flight should not read them.
 - **A row rides the unit's own PR as its LAST commit**, after every
-  review is delivered, and a missing field blocks the row.
+  review is delivered, and a missing field blocks the row. (A
+  design-fork row rides its `[ev]` PR instead, in the two commits its
+  protocol names.)
 - **A change to one side's method is recorded, naming the side**, and
   a comparison whose sides ran under different methods is recorded
   but not counted.

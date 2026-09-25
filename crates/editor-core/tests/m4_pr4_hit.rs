@@ -65,7 +65,7 @@ fn bodies_of(payload: &ValuePayload<f64>) -> Vec<(u32, &Body<f64>)> {
 /// Ok node inverts to a name, and the name round-trips through
 /// resolution to the same entity. Returns the number of entities
 /// checked (counted, not vibes).
-fn assert_total(doc: &ProfileDoc, ev: &Evaluation<f64>) -> usize {
+fn assert_total(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> usize {
     let ctx = RunCtx { doc, eval: ev };
     let mut checked = 0usize;
     for &node in &ev.order {

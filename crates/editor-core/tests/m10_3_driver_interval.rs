@@ -138,6 +138,7 @@ pub(crate) fn slab(nominal: f64, half: f64) -> ProfileDoc {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![unit_square()],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -192,6 +193,7 @@ fn two_param_plate(radius: Distribution, depth: Distribution) -> ProfileDoc {
                 radius: param("hole_r"),
             },
         ],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -234,6 +236,7 @@ pub(crate) fn sliver_axis() -> ProfileDoc {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_2,
         loops: vec![unit_square()],
+        ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
         profile: p,
@@ -541,7 +544,7 @@ fn ceiling_at(eps: f64) -> (f64, f64) {
 /// split leaves no trace of what the unsplit box could not decide. This
 /// reads the unsplit evaluation directly, which is the question the
 /// ceiling is about.
-fn node_failures(doc: &ProfileDoc, analyzed: &AnalyzedBox) -> Vec<String> {
+fn node_failures(doc: &editor_core::ProfileDoc, analyzed: &AnalyzedBox) -> Vec<String> {
     let opts = EvalOptions {
         param_box: Some(std::sync::Arc::new(ParamBox::of(analyzed))),
         profile_lift: ProfileLift::Guided,

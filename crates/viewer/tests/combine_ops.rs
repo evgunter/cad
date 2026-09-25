@@ -1886,6 +1886,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         Node::Profile(ProfileProgram {
             plane: sketch_frame,
             loops: vec![LoopProgram::circle(0.05, 0.0, 0.01).expect("finite circle")],
+            ids: Vec::new(),
         }),
         tol,
     );

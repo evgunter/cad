@@ -1,7 +1,8 @@
 //! **The Euler-op fixture family**: the unit cube, the prism builders,
-//! the straddle seat, the cylinder-wall sheet, and the construction
-//! steps they share. Generic over the scalar lane (`f64`, `Dual`,
-//! `Interval` — every `Decide` scalar) wherever the builder is.
+//! the straddle seat, the §9.3 ring and hole surgery, the
+//! cylinder-wall sheet, and the construction steps they share. Generic
+//! over the scalar lane (`f64`, `Dual`, `Interval` — every `Decide`
+//! scalar) wherever the builder is.
 //!
 //! **Two families, and what separates them is the boundary they can
 //! describe.**
@@ -68,7 +69,10 @@
 #![allow(dead_code)] // key bundles expose every minted key; a consumer picks what it needs
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
-use crate::{Body, FaceKey, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+use crate::{
+    Body, FaceKey, FaceSurface, HalfEdgeKey, KemrResult, KfmrhResult, LoopBoundary, MefCreated,
+    MefSite, MevCreated, MevSite, MvfsCreated,
+};
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, newell_plane};
 use geom_core::Tol;
@@ -733,6 +737,278 @@ pub fn flush_declarations<T: geom_core::Decide>(
     let found = crate::flush::find_flush_candidates(a, b, tol)
         .expect("a fixture's flush pairs decide definitely");
     crate::flush::declare_all(&found)
+}
+
+// ---------------------------------------------------------------------
+// The §9.3 surgery: a ring face planted in a face, and a hole drilled
+// through a body
+// ---------------------------------------------------------------------
+
+/// The operator keys [`plant_ring_face`] mints, in construction order.
+pub struct RingFaceOps {
+    /// The strut from `at`'s start vertex to the rim's first corner.
+    /// [`RingFaceOps::kill`] kills its edge; its vertex survives as
+    /// that corner.
+    pub strut: MevCreated,
+    /// The `kemr` that strands the rim's first corner as an empty ring
+    /// of the host face.
+    pub kill: KemrResult,
+    /// The rim chain grown inside the ring, one per corner after the
+    /// first: corner 0 → 1, … , `n - 2` → `n - 1`.
+    pub rim: Vec<MevCreated>,
+    /// The `mef` that closes the rim. Its face is the new face covering
+    /// the ring, and the host keeps the ring as the rim's other side.
+    pub membrane: MefCreated,
+}
+
+/// **Mäntylä §9.3 steps (f)–(i)**: plants the polygon `rim` as a ring
+/// of the face whose loop holds `at`, and covers it with a new face.
+///
+/// A strut from `at`'s start vertex to `rim[0]`, killed by `kemr` so
+/// that corner is left as an empty ring of the host; the rest of the
+/// rim grown inside that ring; one `mef` closing it. The host face
+/// then carries the rim as a ring, and the membrane — the `mef`'s new
+/// face — covers it with the same corners the other way round.
+///
+/// **Face geometry is inherited, not chosen**: `mev_line` and
+/// `mef_chord` mint certified chords and put the membrane on the host
+/// face's surface key, which is the state [`drill_hole`]'s walls and
+/// the ring-face suites start from. A caller wanting a plane per face
+/// runs [`plane_every_face`] afterwards.
+///
+/// `rim` has at least three corners, in the membrane's outward-CCW
+/// order, and lies in the host face; nothing checks the order or the
+/// placement.
+pub fn plant_ring_face<T: geom_core::Decide>(
+    body: &mut Body<T>,
+    at: HalfEdgeKey,
+    rim: &[Point3<T>],
+    tol: Tol,
+) -> RingFaceOps {
+    assert!(rim.len() >= 3, "a ring face needs at least three corners");
+    let strut = body
+        .mev_line(MevSite::Fan { he1: at, he2: at }, rim[0], tol)
+        .unwrap();
+    let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    let mut chain = vec![
+        body.mev_line(MevSite::Lone { r#loop: kill.ring }, rim[1], tol)
+            .unwrap(),
+    ];
+    for &corner in &rim[2..] {
+        let prev = chain.last().unwrap().he_minus;
+        chain.push(
+            body.mev_line(
+                MevSite::Fan {
+                    he1: prev,
+                    he2: prev,
+                },
+                corner,
+                tol,
+            )
+            .unwrap(),
+        );
+    }
+    let membrane = body
+        .mef_chord(
+            MefSite::Chords {
+                he1: chain[0].he_plus,
+                he2: chain.last().unwrap().he_minus,
+            },
+            tol,
+        )
+        .unwrap();
+    RingFaceOps {
+        strut,
+        kill,
+        rim: chain,
+        membrane,
+    }
+}
+
+/// The operator keys [`drill_hole`] mints, in construction order.
+pub struct HoleOps {
+    /// Steps (f)–(i): the rim planted in the entry face and its
+    /// membrane. The membrane face is dead once [`HoleOps::plug`] has
+    /// run; its loop survives as the exit face's ring.
+    pub ring: RingFaceOps,
+    /// One vertical per rim corner, dropped inside the membrane from
+    /// that corner to the matching exit point.
+    pub drops: Vec<MevCreated>,
+    /// The tube walls, one per rim edge: wall `i` joins drop `i` to
+    /// drop `i + 1`, and the last closes onto the first.
+    pub walls: Vec<MefCreated>,
+    /// The `kfmrh` that kills the membrane into the exit face — the
+    /// connected sum that raises the genus by one.
+    pub plug: KfmrhResult,
+}
+
+/// **Mäntylä §9.3 steps (f)–(l)**: drills a polygonal through-hole
+/// from the face whose loop holds `at` to the face `exit`.
+///
+/// [`plant_ring_face`] over `rim` in the entry face; then one vertical
+/// per corner from `rim[i]` to `drops[i]` inside the membrane, the
+/// tube walls cut out of the membrane between consecutive verticals,
+/// and `kfmrh(exit, membrane)`, which leaves the membrane's loop — by
+/// then the polygon `drops` — as a ring of `exit`. The genus rises by
+/// one; the shell and solid counts do not change.
+///
+/// Every face the hole adds inherits the entry face's surface key, as
+/// at [`plant_ring_face`]. `drops` has one point per rim corner and
+/// lies in `exit`; nothing checks the placement.
+pub fn drill_hole<T: geom_core::Decide>(
+    body: &mut Body<T>,
+    at: HalfEdgeKey,
+    exit: FaceKey,
+    rim: &[Point3<T>],
+    drops: &[Point3<T>],
+    tol: Tol,
+) -> HoleOps {
+    assert_eq!(rim.len(), drops.len(), "one drop per rim corner");
+    let ring = plant_ring_face(body, at, rim, tol);
+    // Corner `i`'s vertical hangs off the half-edge that starts there
+    // inside the membrane: `rim[i].he_plus` moved to the membrane as
+    // the `mef`'s `he1` side, and the LAST corner is where the
+    // membrane's own `he_minus` starts.
+    let mut verticals: Vec<MevCreated> = Vec::with_capacity(drops.len());
+    for (i, &drop) in drops.iter().enumerate() {
+        let anchor = ring
+            .rim
+            .get(i)
+            .map_or(ring.membrane.he_minus, |m| m.he_plus);
+        verticals.push(
+            body.mev_line(
+                MevSite::Fan {
+                    he1: anchor,
+                    he2: anchor,
+                },
+                drop,
+                tol,
+            )
+            .unwrap(),
+        );
+    }
+    let mut walls: Vec<MefCreated> = Vec::with_capacity(drops.len());
+    for pair in verticals.windows(2) {
+        walls.push(
+            body.mef_chord(
+                MefSite::Chords {
+                    he1: pair[0].he_minus,
+                    he2: pair[1].he_minus,
+                },
+                tol,
+            )
+            .unwrap(),
+        );
+    }
+    // The last wall closes onto the first wall's far edge, which is
+    // still in the membrane's loop.
+    let first_far = body
+        .find_half_edge(ring.membrane.face, verticals[0].vertex, verticals[1].vertex)
+        .unwrap();
+    walls.push(
+        body.mef_chord(
+            MefSite::Chords {
+                he1: verticals.last().unwrap().he_minus,
+                he2: first_far,
+            },
+            tol,
+        )
+        .unwrap(),
+    );
+    let plug = body.kfmrh(exit, ring.membrane.face).unwrap();
+    HoleOps {
+        ring,
+        drops: verticals,
+        walls,
+        plug,
+    }
+}
+
+/// Gives every face of `body` the Newell plane of its outer loop,
+/// taken in the loop's stored order — so the plane's normal is the
+/// face's OUTWARD normal wherever that loop winds CCW about it, which
+/// is what `sense: true` claims. Each face gets a fresh surface key.
+///
+/// For a body whose faces sit on inherited keys — [`declined_cube`],
+/// and whatever [`plant_ring_face`] and [`drill_hole`] add — this is
+/// the step that makes every face planar in its own right.
+///
+/// # Panics
+///
+/// If a face's outer loop is not a cycle, or its corners do not
+/// certify a plane at `tol`.
+pub fn plane_every_face<T: geom_core::Decide>(body: &mut Body<T>, tol: Tol) {
+    let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
+    for face in faces {
+        let outer = body.get_face(face).unwrap().outer;
+        let first = match body.get_loop(outer).unwrap().boundary {
+            LoopBoundary::Cycle { first } => Some(first),
+            LoopBoundary::Empty { .. } => None,
+        }
+        .expect("every outer loop is a cycle: an empty one has no polygon to plane");
+        let corners: Vec<Point3<T>> = body
+            .loop_cycle(first)
+            .unwrap()
+            .iter()
+            .map(|&he| {
+                let v = body.get_half_edge(he).unwrap().start;
+                *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
+            })
+            .collect();
+        body.set_face_surface(face, FaceSurface::New(plane(&corners, tol)))
+            .unwrap();
+    }
+}
+
+/// **The `w` × 2 × 2 block with square through-holes**: the box over
+/// `[0, w] × [0, 2] × [0, 2]` and, for each `cx` in `hole_centres`, a
+/// unit-square hole centred on `(cx, 1)` drilled top → bottom; then
+/// every face planed ([`plane_every_face`]). The genus is the number of
+/// holes.
+///
+/// [`prism_ops`] with face geometry declined, then one [`drill_hole`]
+/// per centre, each entering the top face (through the first side's
+/// top edge, which lies in the top face's loop) and leaving through
+/// the bottom cap. **No description step**: a caller whose rows need
+/// one runs [`describe_as_intersections`].
+///
+/// The holes must lie inside the top face and clear of one another;
+/// nothing checks either.
+pub fn holed_block<T: geom_core::Decide>(w: f64, hole_centres: &[f64], tol: Tol) -> Body<T> {
+    let pt = |x: f64, y: f64, z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+    let mut body = Body::<T>::new();
+    let ops = prism_ops(
+        &mut body,
+        &[(0.0, 0.0), (w, 0.0), (w, 2.0), (0.0, 2.0)],
+        (0.0, 2.0),
+        pt,
+        FaceGeometry::Declined,
+        tol,
+    );
+    let entry = ops.sides[0].he_plus;
+    for &cx in hole_centres {
+        let (x0, x1, y0, y1) = (cx - 0.5, cx + 0.5, 0.5, 1.5);
+        drill_hole(
+            &mut body,
+            entry,
+            ops.bottom.face,
+            &[
+                pt(x0, y0, 2.0),
+                pt(x1, y0, 2.0),
+                pt(x1, y1, 2.0),
+                pt(x0, y1, 2.0),
+            ],
+            &[
+                pt(x0, y0, 0.0),
+                pt(x1, y0, 0.0),
+                pt(x1, y1, 0.0),
+                pt(x0, y1, 0.0),
+            ],
+            tol,
+        );
+    }
+    plane_every_face(&mut body, tol);
+    body
 }
 
 // ---------------------------------------------------------------------
