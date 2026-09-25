@@ -87,6 +87,7 @@ test_utils::gated_to![
     "crates/topo/src/body.rs",
     "crates/topo/src/entity.rs",
     "crates/topo/src/fixtures.rs",
+    "crates/topo/src/test_support_fixtures.rs",
 ];
 
 use geom_core::Point3;

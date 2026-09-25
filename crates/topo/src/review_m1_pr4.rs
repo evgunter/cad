@@ -43,6 +43,7 @@ test_utils::gated_to![
     "crates/topo/src/iso.rs",
     "crates/topo/src/seqgen.rs",
     "crates/topo/src/fixtures.rs",
+    "crates/topo/src/test_support_fixtures.rs",
 ];
 
 use geom_core::Point3;
