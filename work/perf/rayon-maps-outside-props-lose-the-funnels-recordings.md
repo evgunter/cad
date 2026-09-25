@@ -65,3 +65,16 @@ side. The order is the fold's, so the composed population is the serial
 walk's at any thread count. A `detached` frame around a closure that
 already opens a bracket simply nests, which is defined, so the fix does
 not have to tell the two cases apart.
+
+## Evidence added 2026-09-24 (GATHER, `gather/parallel-node-map`)
+
+The idiom this row's fix names now has one home:
+`geom_core::k_stats::map_detached` (the per-unit `detached` map, which
+`topo::props`' face walks and the evaluator's node map both call) and
+`geom_core::sym::decisions_are_thread_portable` (the session and
+shape-report test a map owes first). At each of the three sites above
+the fix is one `map_detached` call in place of the `par_iter().map`,
+and one `splice` per slot in the fold, in the map's index order.
+`drive.rs`'s leaf map needs the fold to splice the recording before it
+absorbs the leaf's `SymCounts`, and it needs no portability test,
+because its session is opened inside the leaf, on the worker.

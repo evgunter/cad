@@ -1891,7 +1891,8 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Expr { slot, source } => {
                 write!(
                     f,
-                    "the expression at slot {slot:?} failed to evaluate: {source}"
+                    "the expression at slot {} failed to evaluate: {source}",
+                    slot.label()
                 )
             }
             Self::Profile(e) => write!(f, "the replayed profile failed validation: {e}"),
@@ -2031,8 +2032,8 @@ impl core::fmt::Display for NodeErrorKind {
             Self::MissingSlot { slot } => {
                 write!(
                     f,
-                    "the node's wiring expected its {slot:?} input, which is absent (a kernel \
-                     bug)"
+                    "the node's wiring expected its {} input, which is absent (a kernel bug)",
+                    slot.label()
                 )
             }
             // The sentence is single-homed at the run doors' own
@@ -2293,9 +2294,12 @@ impl Epoch {
     }
 }
 
-/// The cooperative cancel token (spec D5): checked BETWEEN nodes
-/// (sequential path) or between levels (parallel path) — node
-/// granularity in v1; tokens are never threaded into kernel ops.
+/// The cooperative cancel token (spec D5): checked BETWEEN nodes on
+/// the serial walk, and between levels on the level schedule — node
+/// granularity in v1; tokens are never threaded into kernel ops. A
+/// `parallel` request that runs as the serial walk (a symbolic session
+/// or shape report installed, [`EvalOptions::parallel`]) is checked
+/// between nodes.
 #[derive(Debug, Clone, Default)]
 pub struct CancelToken(Arc<AtomicBool>);
 
@@ -2566,6 +2570,21 @@ pub struct EvalOptions {
     /// D6). A RUNTIME switch so the D9 determinism cross-check can
     /// compare both schedules in one test run; results land by node
     /// id either way — order is data, not schedule.
+    ///
+    /// The `k_stats` recordings (verdicts, escalations, `probe`
+    /// samples) are the serial walk's at any thread count, in the
+    /// serial walk's order, with one exception. When a document
+    /// instantiates the same part more than once, the part is evaluated
+    /// once, by whichever instance takes the part cache's lock first,
+    /// and that evaluation's `probe` samples are recorded with that
+    /// instance. The serial walk records them with the first instance
+    /// in its order; the level schedule may record them with another
+    /// (`work/wire/part-cache-miss-samples-land-on-whichever-instance-wins-the-lock.md`).
+    ///
+    /// A request, not a guarantee: while the calling thread has a
+    /// symbolic session or shape report installed
+    /// (`geom_core::sym::decisions_are_thread_portable`) the run is the
+    /// serial walk.
     pub parallel: bool,
     /// Which candidate-generation path boolean nodes run (M5 PR 8) —
     /// a runtime switch in the `parallel` mold so the BVH differential
@@ -2839,10 +2858,12 @@ pub fn mate_reach<'a, T: EvalScalar>(opts: &'a EvalOptions, tol: Tol) -> PartRea
 /// whole, recorded on [`Evaluation::prior_refused`], and the run
 /// recomputes every node.
 ///
-/// `cancel` is checked between nodes (sequential) or between levels
-/// (parallel) — spec D5's cooperative yield points at node
-/// granularity; a canceled run returns the completed prefix with
-/// [`EvalOutcome::Canceled`].
+/// `cancel` is checked between nodes on the serial walk and between
+/// levels on the level schedule — spec D5's cooperative yield points at
+/// node granularity; a canceled run returns the completed prefix with
+/// [`EvalOutcome::Canceled`]. A `parallel` request runs as the serial
+/// walk, and is checked between nodes, while a symbolic session or
+/// shape report is installed ([`EvalOptions::parallel`]).
 pub fn evaluate<T>(
     doc: &Doc<ProfileProgram>,
     prior: Option<&Evaluation<T>>,
@@ -2967,7 +2988,20 @@ where
     let mut reused = 0usize;
     let mut outcome = EvalOutcome::Completed;
 
-    if opts.parallel {
+    // The level schedule runs only where a decision is thread-portable
+    // (`geom_core::sym::decisions_are_thread_portable`): under an
+    // installed symbolic session or shape report a node decided on a
+    // worker would decide, count and report differently from one
+    // decided here, so the walk is the serial one below, exactly.
+    if opts.parallel && geom_core::sym::decisions_are_thread_portable() {
+        // What each node recorded outside its own bracket — its `probe`
+        // samples, and anything its bracket did not take — held until
+        // the walk ends and then spliced in `sched.order`, which is the
+        // order the serial walk records in. Levels are not that order
+        // (a later level's node can precede an earlier level's in it),
+        // so splicing level by level would give the same population in
+        // a schedule-shaped sequence.
+        let mut recordings: BTreeMap<RecipeNodeId, geom_core::k_stats::Detached> = BTreeMap::new();
         for level in &sched.levels {
             if cancel.is_canceled() {
                 outcome = EvalOutcome::Canceled;
@@ -2977,14 +3011,20 @@ where
             // per-node slots — results land keyed by node id, the
             // combination is positional (one map entry per node),
             // never arithmetic, so the schedule cannot leak into bits.
-            use rayon::prelude::*;
-            let results: Vec<(RecipeNodeId, NodeStep<T>)> = level
-                .par_iter()
-                .map(|&id| (id, eval_node(doc, &env, id, &nodes, prior, &op_env, tol)))
-                .collect();
-            for (id, step) in results {
+            // Each node runs under a K-funnel frame of its own; its
+            // bracket in `eval_node` nests inside that frame.
+            let results = geom_core::k_stats::map_detached(level, |&id| {
+                eval_node(doc, &env, id, &nodes, prior, &op_env, tol)
+            });
+            for (&id, (step, recording)) in level.iter().zip(results) {
                 bookkeep(&step, &mut recomputed, &mut reused);
                 nodes.insert(id, step.result);
+                recordings.insert(id, recording);
+            }
+        }
+        for id in &sched.order {
+            if let Some(recording) = recordings.remove(id) {
+                geom_core::k_stats::splice(recording);
             }
         }
     } else {

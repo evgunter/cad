@@ -1304,3 +1304,60 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::SectionFace { .. } => Vec::new(),
     }
 }
+
+/// **A run on a rayon pool of exactly `threads` workers** — `install`
+/// binds the pool for the closure, so every `par_iter` under it (the
+/// evaluator's level map, the driver's leaf map) runs on that pool.
+/// A width-blind row cannot tell an ordered fold from a lucky
+/// schedule; a row that names the width can.
+pub fn on_pool<R: Send>(threads: usize, run: impl Fn() -> R + Send + Sync) -> R {
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
+        .build()
+        .expect("the pool builds")
+        .install(run)
+}
+
+/// **Two overlapping unit blocks on two frames, and their union** — the
+/// smallest document whose level schedule and serial order DISAGREE,
+/// which is what a row about the parallel node map needs.
+///
+/// The blocks overlap in all three axes and share no plane, so the union
+/// is a generic one and decides at every scalar the evaluator runs.
+/// Inserted as frame, profile, extrude, frame, profile, extrude, union,
+/// so the serial order (Kahn, least id first) finishes the first block
+/// before starting the second, while the levels are the two frames, the
+/// two profiles, the two extrudes, then the union: every level but the
+/// last holds two independent nodes, and a fold that recorded level by
+/// level would interleave the blocks. Returns the document and the
+/// union's id.
+pub fn two_blocks_and_their_union(label: &str) -> (ProfileDoc, RecipeNodeId) {
+    let block = |doc: ProfileDoc, [x, y, z]: [f64; 3]| {
+        let (doc, p) = on_frame(
+            doc,
+            [0.0, 0.0, z],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![square(x, y, 0.5)],
+        );
+        insert(
+            doc,
+            Node::Extrude {
+                profile: p,
+                distance: len(1.0),
+            },
+        )
+    };
+    let doc = ProfileDoc::empty_derived(label, Tol::witness());
+    let (doc, a) = block(doc, [0.0, 0.0, 0.0]);
+    let (doc, b) = block(doc, [0.5, 0.25, 0.5]);
+    insert(
+        doc,
+        Node::Boolean {
+            op: editor_core::BooleanOp::Union,
+            a,
+            b,
+            declare: None,
+        },
+    )
+}

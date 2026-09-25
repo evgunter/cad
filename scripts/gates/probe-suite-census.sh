@@ -193,6 +193,7 @@ RUN_FLOOR=(
   plain:editor-core:m10_p_fence:2
   plain:editor-core:m4_pr8_k_probe:1
   plain:editor-core:m5_pr5_corpus_probe:1
+  plain:editor-core:parallel_node_map_probe:1
   plain:geom-brep:m8_f67_r1_probes:8
   plain:geom-brep:rim_dim_review_probes:2
   plain:geom-brep:rim_dim_scale_twins:6
