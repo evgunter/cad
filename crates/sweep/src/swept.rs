@@ -131,13 +131,13 @@ pub(crate) enum SweptKind<T: Real> {
 /// direction never enters; callers pass a canonical turn, never a swept
 /// one.
 ///
-/// Total by design. `Zero` is unreachable for a classified arc (a zero
-/// turn classifies as a line) and takes the convex arm, the
-/// [`turn_axis`] posture — decided here once rather than at each
-/// consumer, which is the reason this is a function and not a rule
-/// each verb spells for itself.
+/// Total by design: the turn is read through [`turn_negates`], so a
+/// `Zero` turn (unreachable for a classified arc) takes the convex arm
+/// exactly when [`turn_axis`] takes the positive one. Decided here once
+/// rather than at each consumer, which is the reason this is a
+/// function and not a rule each verb spells for itself.
 pub(crate) fn centre_on_material_side(canonical_turn: Sign) -> bool {
-    !matches!(canonical_turn, Sign::Negative)
+    !turn_negates(canonical_turn)
 }
 
 /// The sketch-level chord data this module's lowering reads from a
@@ -315,14 +315,32 @@ pub(crate) fn arc_span<T: Real>(bulge: T) -> T {
     T::from_f64(4.0) * bulge.abs().atan()
 }
 
+/// **The turn's one reading**: whether a turn negates what it signs —
+/// `true` for a clockwise (`Negative`) turn, `false` for a
+/// counterclockwise one.
+///
+/// `Zero` takes the positive arm, here and nowhere else. It is
+/// unreachable for a classified arc: the profile mints an arc's turn
+/// from a certified non-zero sign (a zero `segment_straightness`
+/// classifies as a line, and `profile::SegmentKind::Arc` never carries
+/// `Zero`), and `revolve::tube` hand-mints only `Positive` and
+/// `Negative`. It is kept total rather than loud because every
+/// consumer reads the turn through this function, so whatever arm
+/// `Zero` took, the carrier's axis and the wall's material side would
+/// take it together: [`turn_axis`] and [`centre_on_material_side`]
+/// read it here, and no consumer spells the convention a second time.
+fn turn_negates(turn: Sign) -> bool {
+    matches!(turn, Sign::Negative)
+}
+
 /// The turn-signed carrier axis (crate docs): `+normal` for a
-/// counterclockwise segment, `−normal` for a clockwise one. `Zero` is
-/// unreachable for classified arcs (a zero turn classified as a line);
-/// kept total by taking the positive arm.
+/// counterclockwise segment, `−normal` for a clockwise one, by
+/// [`turn_negates`].
 pub(crate) fn turn_axis<T: Real>(turn: Sign, normal: Vec3<T>) -> Vec3<T> {
-    match turn {
-        Sign::Positive | Sign::Zero => normal,
-        Sign::Negative => Vec3::zero() - normal,
+    if turn_negates(turn) {
+        Vec3::zero() - normal
+    } else {
+        normal
     }
 }
 
