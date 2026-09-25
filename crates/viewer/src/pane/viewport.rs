@@ -917,7 +917,7 @@ mod tests {
     use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, SessionOp};
     use crate::sketch::PreviewLoop;
-    use pncad::document::SlotId;
+    use pncad::document::{Doc, ProfileProgram, SlotId};
     use pncad::geom_core::Tol;
     use pncad::select::HitTestError;
 
@@ -1401,8 +1401,9 @@ mod tests {
     /// nothing.**
     ///
     /// The refusal is planted the way the kernel declines one: the
-    /// index is asked about an evaluation of ANOTHER document, which
-    /// its hit test refuses before reading a table. Beside it the id
+    /// index is asked about an evaluation of ANOTHER document (a
+    /// different identity, not a twin recipe, which derives the same
+    /// one), and its hit test refuses before reading a table. Beside it the id
     /// pass names a face the plate really draws. The comparison is no
     /// verdict — the refused path made no claim to contradict — where
     /// the same id-pass answer against an empty ANSWER is a
@@ -1420,10 +1421,10 @@ mod tests {
         let mut session = DocSession::inline(doc, tol);
         session.pump();
         let index = plate_index(&session, a_delta(0.5));
-        let (twin, _extrude) = scene::plate_with_hole(tol).expect("the twin authors");
-        let mut other = DocSession::inline(twin, tol);
+        let mut other =
+            DocSession::inline(Doc::<ProfileProgram>::empty_derived("another", tol), tol);
         other.pump();
-        let foreign = other.evaluation().expect("the twin lands");
+        let foreign = other.evaluation().expect("the other document lands");
 
         let camera = framed();
         let pane = ViewportSize {
