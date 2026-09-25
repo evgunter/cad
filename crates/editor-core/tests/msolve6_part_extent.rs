@@ -168,7 +168,7 @@ fn mated(
 /// The reach of every instance in `ids`, through the public door:
 /// each instance's part, read off the document the way the solve
 /// reads it.
-fn reaches(doc: &ProfileDoc, opts: &EvalOptions, ids: &[RecipeNodeId]) -> Vec<f64> {
+fn reaches(doc: &editor_core::ProfileDoc, opts: &EvalOptions, ids: &[RecipeNodeId]) -> Vec<f64> {
     let reach = mate_reach::<f64>(opts, Tol::witness());
     ids.iter()
         .map(|&id| {

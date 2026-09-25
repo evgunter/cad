@@ -73,10 +73,10 @@ edit changes it. An expression is addressed
 `SlotId::Profile { loop_, step, arg: StepArg }`, `StepArg` being the
 closed per-verb role enum; step indices are stable under every slot
 edit because structure changes only by `DocEdit::SetProgram`, which
-replaces a live profile's program whole under a stated provenance and
-reports every name its reshaping strands and rebinds every name it
-moves (`crates/editor-core/REFERENCES.md` DM7; *ruled by Ev on EDIT's
-`[ev]` PR #2904, 2026-09-20*). Evaluation resolves the program at f64
+replaces a live profile's program whole, says which old step each new
+step keeps by its minted id, and reports every name on a step it drops
+(`crates/editor-core/REFERENCES.md` DM7; *ruled by Ev on EDIT's `[ev]`
+PR #2904, 2026-09-20, and on #3193, 2026-09-25*). Evaluation resolves the program at f64
 (`ProfileProgram::resolve`), replays it, embeds the loops into the lane
 scalar and validates there. Structure (junction classes, fillet fits and
 candidate picks, loop orientation, loop roles) is selected once, at f64,
@@ -94,25 +94,34 @@ Validate}`); evaluation re-runs the same ladder per binding.
 
 **V3 — Caches and provenance.** Replayed segments, the structure record
 and the naming anchor are derived values: memoized per node under a
-content key that hashes the program's structure and resolved values
-(and the lane-resolved values under `Guided`), never persisted, rebuilt
-on load; D9 makes the rebuild bit-exact. Profile-entity names
-(`ProfileEdgeRef`/`ProfileVertexRef`) index CANONICAL positions, and
-the canonical form keeps what the author wrote wherever validity allows:
-`validate` orients each loop (outer counterclockwise, holes clockwise)
-and keeps its AUTHORED start vertex and the authored hole order, so
-canonical segment `k` is the author's segment `k` for a loop authored
-in its canonical sense and segment `n − 1 − k` for one authored against
-it. No geometric choice enters an index, so a continuous edit cannot
-renumber, and every verb that consumes a profile — a loft's sections
-included — names its entities in that one numbering. `eval/anchor.rs`
-recovers each loop's reversal as a `LoopAnchor` by bit-matching the
-canonical loop against the replayed one, which is how an authored step
-is mapped to the canonical segments it became. Structural edits may
-renumber; stale selections then refuse Vanished.
+content key that hashes the program's structure, its steps' minted ids
+and its resolved values (and the lane-resolved values under `Guided`),
+never persisted, rebuilt on load; D9 makes the rebuild bit-exact. Every
+verb that consumes a profile — a loft's sections included — iterates
+its CANONICAL positions, and the canonical form keeps what the author
+wrote wherever validity allows: `validate` orients each loop (outer
+counterclockwise, holes clockwise) and keeps its AUTHORED start vertex
+and the authored hole order, so canonical segment `k` is the author's
+segment `k` for a loop authored in its canonical sense and segment
+`n − 1 − k` for one authored against it. A canonical position is not a
+name. Profile-entity names (`ProfileEdgeRef`/`ProfileVertexRef`) spell
+the piece a position is — its step's minted id and its role in that
+step's fixed list (`crates/editor-core/src/names/README.md`, "N1, the
+profile pieces") — which the replay records per segment
+(`ReplayStructure::pieces`), so no value edit, loop-role change or sense
+flip moves a name. `eval/anchor.rs` recovers each loop's reversal as a
+`LoopAnchor` by bit-matching the canonical loop against the replayed
+one, and pairs each canonical segment and vertex with its piece
+(`ProfilePieces`). A step `SetProgram` drops takes its id with it, and
+its names resolve Vanished.
+
+*Record: the canonical numbering was ruled by Ev on PR 3102's thread
+(2026-09-23); that names spell minted step ids rather than canonical
+positions was ruled by Ev on #3193 (2026-09-25), with the role lists on
+#3202.*
 
 **V4 — The stored form, chain-only.** `Node::Profile` carries
-`ProfileProgram { plane: RecipeNodeId, loops: Vec<LoopProgram> }`;
+`ProfileProgram { plane: RecipeNodeId, loops: Vec<LoopProgram>, ids: Vec<Vec<StepId>> }`;
 `LoopProgram` is `Chain(Vec<ProgramStep>)`, `Circle { centre, radius }`
 or `CircleSplit { centre, radius, n, phase }`, the carrier forms being
 one-step programs whose form is structural. There is one wire

@@ -307,7 +307,14 @@ mod tie_tests {
             .unwrap();
         let built = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), Tol::witness())
             .expect("a unit cube extrudes");
-        let table = name_extrude(RecipeNodeId(1), &built).expect("the extrude names");
+        let table = name_extrude(
+            RecipeNodeId(1),
+            &built,
+            &crate::eval::ProfilePieces::numbered(
+                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+            ),
+        )
+        .expect("the extrude names");
         (built.body, table)
     }
 

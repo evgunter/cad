@@ -29,6 +29,7 @@ fn square(plane: RecipeNodeId, s: f64) -> Node<ProfileProgram> {
             ProgramStep::LineTo(ProgramTarget::Point([lit(0.0), lit(s)])),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
+        ids: Vec::new(),
     })
 }
 
