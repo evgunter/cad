@@ -2,12 +2,14 @@
 id: sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts
 kind: issue
 title: inverting every face's sense on an arc-capped loft leaves tier 3 green with an unchanged positive enclosure
-status: review
+status: closed
 opened: 2026-09-12
 priority: P0
 cost: H
 refs: [verbs-1031b-assigner-checker-divergence, m6-sense-gate-recorded-residuals, 2969]
 parent: ATREST-4
+closed: 2026-09-24
+pr: 3190
 ---
 
 
