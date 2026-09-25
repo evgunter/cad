@@ -2,11 +2,13 @@
 id: tier3-prime-still-couples-plus-v-to-the-reporting-target
 kind: issue
 title: tier 3' still couples its +V check to the reporting target, so it refuses bodies tier 3 admits
-status: review
+status: closed
 opened: 2026-09-11
 priority: P0
 cost: D
 parent: ATREST-3
+closed: 2026-09-25
+pr: 3191
 ---
 
 
