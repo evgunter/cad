@@ -26,3 +26,19 @@ on; difficulty S.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Measured by CONTACT-1 (2026-09-25): the premise does not hold for curve records
+
+A structural refusal at `Declared::index` of every `curves`/`patches`
+record whose faces share a solid was built and run, and it refuses a
+designed channel: `tier3_tests::the_pseudomanifold_gate_reads_curve_records_as_the_declarations_they_are`
+(`crates/topo/src/tier3_tests.rs`) declares a cusp as a `CurveContact`
+between two side faces of ONE prism and expects the body to certify —
+a body's own curve records ARE its `Tangent` declarations (the 3′
+channel). With the refusal the row fails (`Err([...within one
+solid...])` against `Ok(())`), so the change was reverted and the item
+left unfixed. What survives: an intra-solid PATCH record (two faces of
+one solid overlapping over an area) has no such reading; whether the
+check should be patches-only, or should instead keep intra-solid pairs
+out of the census's backing index while leaving the 3′ channel alone,
+is a design question for this item's next dispatch.
