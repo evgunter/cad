@@ -1243,6 +1243,8 @@ const PERSISTED_SPELLING: &[&str] = &[
     "Circle",
     "CircleSplit",
     "centre",
+    // The minted step ids, one list per loop (`names/README.md`, N1).
+    "ids",
     "loops",
     "n",
     "phase",

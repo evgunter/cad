@@ -1065,16 +1065,24 @@ pub fn pieces(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> ProfilePi
 }
 
 /// **The profile a sweep node sweeps** — an extrude's or a revolve's
-/// operand, or the node itself where it IS a profile.
+/// operand, or the node itself where it IS a profile; any other node
+/// is read through its first input, so a row spelling a wall-shaped
+/// name in a downstream node's space spells it with the pieces of the
+/// sweep underneath.
 ///
 /// # Panics
 ///
-/// If `node` is none of those.
-pub fn swept(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> RecipeNodeId {
+/// If `node` is not live, or no sweep is upstream of it along first
+/// inputs.
+pub fn swept(doc: &ProfileDoc, node: RecipeNodeId) -> RecipeNodeId {
     match doc.node(node) {
         Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => *profile,
         Some(Node::Profile(_)) => node,
-        other => panic!("node {} sweeps no profile: {other:?}", node.0),
+        Some(other) => match other.inputs().first() {
+            Some(&input) => swept(doc, input),
+            None => panic!("node {} sweeps no profile: {other:?}", node.0),
+        },
+        None => panic!("node {} is not live", node.0),
     }
 }
 
@@ -1109,6 +1117,18 @@ pub fn leg(step: u64) -> ProfileEdgeRef {
         step: editor_core::StepId(step),
         role: editor_core::PieceRole::Leg,
     }
+}
+
+/// **A live node as an author inserts it**: a profile program enters
+/// the document without step ids — the insert door mints them — so a
+/// row that rebuilds a document by re-inserting its nodes clears them;
+/// re-inserted in the same order, they are minted the same.
+pub fn as_authored(node: &Node<ProfileProgram>) -> Node<ProfileProgram> {
+    let mut node = node.clone();
+    if let Node::Profile(program) = &mut node {
+        program.ids = Vec::new();
+    }
+    node
 }
 
 /// **A piece no profile draws**: the first step any document mints,

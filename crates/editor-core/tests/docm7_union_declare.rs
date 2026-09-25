@@ -489,7 +489,7 @@ fn a_declared_name_that_denotes_nothing_refuses() {
     // does not have: the site routes, the lookup finds nothing.
     let named2 = vec![(
             SitedRef::new(a, fname(a, wall(&doc, a, 0))),
-            SitedRef::new(b, fname(b, wall(&doc, b, 7))),
+            SitedRef::new(b, fname(b, RoleSeg::Lateral(crate::fixture::no_piece()))),
         )];
     let (doc, union, _) = declared_union(
         doc,
@@ -683,7 +683,7 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
     let refused = doc.apply(
         &DocEdit::InsertNode {
             node: Node::declare_rest(vec![(
-                SitedRef::new(a, fname(future, wall(&doc, future, 0))),
+                SitedRef::new(a, fname(future, wall(&doc, a, 0))),
                 SitedRef::new(b, fname(b, wall(&doc, b, 0))),
             )]),
         },
@@ -989,7 +989,7 @@ fn a_declared_unions_document_replays_in_document_order() {
     // carrier arrives.
     let mut replay = ProfileDoc::empty_derived("docm7_forward_ref_replay", Tol::witness());
     for id in doc.order() {
-        let node = doc.node(*id).expect("a live node").clone();
+        let node = crate::fixture::as_authored(doc.node(*id).expect("a live node"));
         replay = replay
             .apply(
                 &DocEdit::InsertNode { node },

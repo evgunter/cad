@@ -487,7 +487,8 @@ const DOC_LABEL: &str = "die";
 /// node through one `InsertNode` against the empty document: ids are
 /// minted in insertion order, so replaying `order()`'s nodes and then
 /// the same deletion rebuilds the document — ids and all, hole
-/// included. That is asserted here rather than assumed: a `build` that
+/// included, and the profiles' step ids with them, minted afresh in
+/// the same order. That is asserted here rather than assumed: a `build` that
 /// grows a non-insert edit fails this door instead of quietly
 /// exporting a document that is not the one the scene renders.
 pub fn corpus_text(tol: Tol) -> String {
@@ -497,8 +498,14 @@ pub fn corpus_text(tol: Tol) -> String {
         .doc
         .order()
         .iter()
-        .map(|id| DocEdit::InsertNode {
-            node: die.doc.node(*id).expect("an ordered node exists").clone(),
+        .map(|id| {
+            let mut node = die.doc.node(*id).expect("an ordered node exists").clone();
+            // A program enters the document without step ids: the
+            // insert door mints them, in the same order it did here.
+            if let Node::Profile(program) = &mut node {
+                program.ids = Vec::new();
+            }
+            DocEdit::InsertNode { node }
         })
         .collect();
     edits.push(DocEdit::DeleteNode { id: die.blank });

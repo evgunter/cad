@@ -1176,7 +1176,8 @@ fn rim_circle(
     body: &Body<f64>,
     vertex: u32,
 ) -> (f64, f64) {
-    let want = band_rim(node, vertex_at(doc, node, vertex, Tol::witness()));
+    let start = vertex_at(doc, node, vertex, Tol::witness());
+    let want = band_rim(node, start);
     let carried: Vec<(f64, f64)> = query::all_edges(body)
         .into_iter()
         .filter(|&k| edge_name(ev, node, 0, k).ok() == Some(&want))
@@ -1204,7 +1205,7 @@ fn rim_circle(
     let p = vertex_position(
         ev,
         node,
-        &meridian_vertex(MeridianEnd::Seam, node, 0, vertex),
+        &meridian_vertex(MeridianEnd::Seam, node, start),
     )
     .expect("the meridian vertex's name denotes a vertex");
     assert!(

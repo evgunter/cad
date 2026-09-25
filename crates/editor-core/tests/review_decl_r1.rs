@@ -145,7 +145,7 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
         base.clone(),
         Node::declare_rest(vec![(
             SitedRef::new(a, fname(a, wall(&doc, a, 0))),
-            SitedRef::new(tr, fname(b0, wall(&doc, b0, 7))),
+            SitedRef::new(tr, fname(b0, editor_core::RoleSeg::Lateral(crate::fixture::no_piece()))),
         )]),
     );
     let (doc, u) = boolean(doc, decl);

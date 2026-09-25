@@ -3,6 +3,7 @@ id: 7ddec231df0049f879136a2f7624647d
   "snapshot": {
     "id": "7ddec231df0049f879136a2f7624647d",
     "next_id": 16,
+    "next_step": 34,
     "nodes": {
       "0": {
         "Datum": {
@@ -179,6 +180,15 @@ id: 7ddec231df0049f879136a2f7624647d
                 }
               ]
             }
+          ],
+          "ids": [
+            [
+              0,
+              1,
+              2,
+              3,
+              4
+            ]
           ]
         }
       },
@@ -333,6 +343,20 @@ id: 7ddec231df0049f879136a2f7624647d
                 }
               ]
             }
+          ],
+          "ids": [
+            [
+              5,
+              6,
+              7,
+              8,
+              9,
+              10,
+              11,
+              12,
+              13,
+              14
+            ]
           ]
         }
       },
@@ -488,6 +512,19 @@ id: 7ddec231df0049f879136a2f7624647d
                 }
               ]
             }
+          ],
+          "ids": [
+            [
+              15,
+              16,
+              17,
+              18,
+              19,
+              20,
+              21,
+              22,
+              23
+            ]
           ]
         }
       },
@@ -580,6 +617,15 @@ id: 7ddec231df0049f879136a2f7624647d
                 }
               ]
             }
+          ],
+          "ids": [
+            [
+              24,
+              25,
+              26,
+              27,
+              28
+            ]
           ]
         }
       },
@@ -614,8 +660,10 @@ id: 7ddec231df0049f879136a2f7624647d
                   "RimEdge": [
                     "End",
                     {
-                      "loop_index": 0,
-                      "segment": 0
+                      "Piece": {
+                        "step": 25,
+                        "role": "Leg"
+                      }
                     }
                   ]
                 }
@@ -629,8 +677,10 @@ id: 7ddec231df0049f879136a2f7624647d
                   "RimEdge": [
                     "End",
                     {
-                      "loop_index": 0,
-                      "segment": 1
+                      "Piece": {
+                        "step": 26,
+                        "role": "Leg"
+                      }
                     }
                   ]
                 }
@@ -644,8 +694,10 @@ id: 7ddec231df0049f879136a2f7624647d
                   "RimEdge": [
                     "End",
                     {
-                      "loop_index": 0,
-                      "segment": 2
+                      "Piece": {
+                        "step": 27,
+                        "role": "Leg"
+                      }
                     }
                   ]
                 }
@@ -659,8 +711,10 @@ id: 7ddec231df0049f879136a2f7624647d
                   "RimEdge": [
                     "End",
                     {
-                      "loop_index": 0,
-                      "segment": 3
+                      "Piece": {
+                        "step": 28,
+                        "role": "Leg"
+                      }
                     }
                   ]
                 }
@@ -674,8 +728,10 @@ id: 7ddec231df0049f879136a2f7624647d
                   "RimEdge": [
                     "Start",
                     {
-                      "loop_index": 0,
-                      "segment": 0
+                      "Piece": {
+                        "step": 25,
+                        "role": "Leg"
+                      }
                     }
                   ]
                 }
@@ -689,8 +745,10 @@ id: 7ddec231df0049f879136a2f7624647d
                   "RimEdge": [
                     "Start",
                     {
-                      "loop_index": 0,
-                      "segment": 1
+                      "Piece": {
+                        "step": 26,
+                        "role": "Leg"
+                      }
                     }
                   ]
                 }
@@ -704,8 +762,10 @@ id: 7ddec231df0049f879136a2f7624647d
                   "RimEdge": [
                     "Start",
                     {
-                      "loop_index": 0,
-                      "segment": 2
+                      "Piece": {
+                        "step": 27,
+                        "role": "Leg"
+                      }
                     }
                   ]
                 }
@@ -719,8 +779,10 @@ id: 7ddec231df0049f879136a2f7624647d
                   "RimEdge": [
                     "Start",
                     {
-                      "loop_index": 0,
-                      "segment": 3
+                      "Piece": {
+                        "step": 28,
+                        "role": "Leg"
+                      }
                     }
                   ]
                 }
@@ -732,8 +794,10 @@ id: 7ddec231df0049f879136a2f7624647d
               "path": [
                 {
                   "LateralEdge": {
-                    "loop_index": 0,
-                    "vertex": 0
+                    "Piece": {
+                      "step": 25,
+                      "role": "Leg"
+                    }
                   }
                 }
               ]
@@ -744,8 +808,10 @@ id: 7ddec231df0049f879136a2f7624647d
               "path": [
                 {
                   "LateralEdge": {
-                    "loop_index": 0,
-                    "vertex": 1
+                    "Piece": {
+                      "step": 26,
+                      "role": "Leg"
+                    }
                   }
                 }
               ]
@@ -756,8 +822,10 @@ id: 7ddec231df0049f879136a2f7624647d
               "path": [
                 {
                   "LateralEdge": {
-                    "loop_index": 0,
-                    "vertex": 2
+                    "Piece": {
+                      "step": 27,
+                      "role": "Leg"
+                    }
                   }
                 }
               ]
@@ -768,8 +836,10 @@ id: 7ddec231df0049f879136a2f7624647d
               "path": [
                 {
                   "LateralEdge": {
-                    "loop_index": 0,
-                    "vertex": 3
+                    "Piece": {
+                      "step": 28,
+                      "role": "Leg"
+                    }
                   }
                 }
               ]
@@ -1078,6 +1148,15 @@ id: 7ddec231df0049f879136a2f7624647d
                 }
               ]
             }
+          ],
+          "ids": [
+            [
+              29,
+              30,
+              31,
+              32,
+              33
+            ]
           ]
         }
       },

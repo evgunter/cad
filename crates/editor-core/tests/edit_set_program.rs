@@ -875,22 +875,29 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
         other => panic!("an old file refuses Unreadable, got {other:?}"),
     };
     // No ids on the program.
-    let ids_key = text.find("\"ids\"").expect("the program carries its ids");
-    let ids_end = text[ids_key..].find(']').unwrap() + ids_key;
-    let ids_end = text[ids_end + 1..].find(']').unwrap() + ids_end + 2;
-    let no_ids = format!(
-        "{}{}",
-        &text[..ids_key],
-        &text[ids_end..].trim_start_matches(',')
-    );
+    let (header, body) = text.split_once('\n').expect("an id line, then the body");
+    let mut v: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
+    let program = v["snapshot"]["nodes"][r.profile.0.to_string()]["Profile"]
+        .as_object_mut()
+        .expect("the profile node");
+    assert!(program.remove("ids").is_some(), "the program carries its ids");
+    let no_ids = format!("{header}\n{v}\n");
     unreadable(&no_ids, "ids");
-    // A positional locator in a name.
-    let piece = serde_json::to_string(&fixture::vpiece(&r.doc, r.rod, 0, CREASE)).unwrap();
+    // A positional locator in a name, written compact so the piece is
+    // one run of bytes.
+    let compact: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
+    let compact = compact.to_string();
+    let piece = serde_json::to_value(fixture::vpiece(&r.doc, r.rod, 0, CREASE))
+        .unwrap()
+        .to_string();
     assert!(
-        text.contains(&piece),
+        compact.contains(&piece),
         "the fillet's selection spells the piece"
     );
-    let positional = text.replace(&piece, r#"{"loop_index":0,"vertex":4}"#);
+    let positional = format!(
+        "{header}\n{}\n",
+        compact.replace(&piece, r#"{"loop_index":0,"vertex":4}"#)
+    );
     unreadable(&positional, "loop_index");
 }
 
@@ -1067,21 +1074,26 @@ fn a_value_edit_moves_no_name() {
 /// from the centre), so the profile still validates with the ROLES
 /// swapped — the circle is canonical loop 0 and the square canonical
 /// loop 1, reversed. Nothing is reported, the square's side
-/// `(2,2)→(0,2)` and the circle's first half keep their names, and
-/// each name denotes the wall it denoted before.
+/// `(2,2)→(0,2)` (framed) and the circle's first half (painted) keep
+/// their names, and each name denotes the wall it denoted before.
 #[test]
 fn an_outer_and_hole_swap_moves_no_name() {
     let (doc, _, ext) = square_and_driven_hole("value-jump-hole");
     let side = wall_of(&doc, ext, 0, 2);
     let half = wall_of(&doc, ext, 1, 0);
     let (doc, _) = frame_on(doc, ext, side.clone());
-    let (doc, _) = frame_on(doc, ext, half.clone());
+    let doc = paint(&doc, &half);
     let applied = set_value(&doc, "hole_r", 1.5);
     assert_eq!(applied.maintenance, Vec::new(), "nothing is reported");
-    assert_ne!(
-        wall_of(&applied.doc, ext, 0, 2),
-        side,
-        "the canonical position moved to another piece"
+    let (before, after) = (
+        fixture::pieces(&doc, fixture::swept(&doc, ext)),
+        fixture::pieces(&applied.doc, fixture::swept(&applied.doc, ext)),
+    );
+    let set = |l: &[ProfileEdgeRef]| l.iter().copied().collect::<std::collections::BTreeSet<_>>();
+    assert_eq!(
+        (set(&after.edges[0]), set(&after.edges[1])),
+        (set(&before.edges[1]), set(&before.edges[0])),
+        "canonical loop 0 is the circle now and the square is loop 1"
     );
     let now = corners_of(&applied.doc, ext, &side);
     assert!(
@@ -1143,30 +1155,31 @@ fn a_sense_flip_moves_no_name() {
 
 /// **A document parameter passing through a state that does not
 /// replay moves no name.** `hole_r` `0.3 → 0.0 → 0.3`: at zero the
-/// profile does not replay and the frame on the hole cannot evaluate,
-/// but nothing is reported at either edit, the frame's name keeps its
-/// spelling, and back at 0.3 it denotes the hole's half again.
+/// profile does not replay and the extrude cannot evaluate, but nothing
+/// is reported at either edit, the paint on the hole's half keeps its
+/// spelling, and back at 0.3 it denotes that half again.
 #[test]
 fn a_parameter_through_a_state_that_does_not_replay_moves_no_name() {
     let (doc, _, ext) = square_and_driven_hole("value-through-nonreplay");
     let half = wall_of(&doc, ext, 1, 0);
-    let (doc, frame) = frame_on(doc, ext, half.clone());
+    let doc = paint(&doc, &half);
     let mid = set_value(&doc, "hole_r", 0.0);
     assert_eq!(mid.maintenance, Vec::new());
     let ev = fixture::run(&mid.doc, &EvalOptions::default());
     assert!(
-        ev.value(frame).is_none(),
+        ev.value(ext).is_none(),
         "the parked profile does not evaluate"
     );
     let end = set_value(&mid.doc, "hole_r", 0.3);
     assert_eq!(end.maintenance, Vec::new());
-    assert_eq!(frame_face(&end.doc, frame), half);
+    assert!(end.doc.appearance().contains_key(&half));
     assert!(
         end.doc.bit_eq(&doc),
         "the round trip is the document it left"
     );
     let ev = fixture::run(&end.doc, &EvalOptions::default());
-    assert!(ev.value(frame).is_some(), "{:?}", corpus::failures(&ev));
+    let table = &ev.value(ext).expect("the extrude evaluates").name_table;
+    assert!(table.lookup(&half).is_some(), "the hole's half is named again");
 }
 
 // ---------------------------------------------------------------- //
@@ -1397,15 +1410,16 @@ fn a_loft_names_its_walls_and_seams_by_every_sections_piece() {
 /// with five walls each. Wall 0 pairs the same two pieces and keeps its
 /// name; the old wall 1 paired the lower's leg to `(2, 2)` with the
 /// upper's leg to `(3, 3)`, which the skin now puts at different
-/// positions, so no wall pairs them and a frame on the old wall refuses
-/// `Vanished` rather than following `k` to the new pairing.
+/// positions, so no wall pairs them and the old wall's name (a paint
+/// key here: a loft's walls are not planar carriers a frame could
+/// stand on) denotes nothing rather than following `k` to the new
+/// pairing.
 #[test]
 fn a_loft_wall_whose_pairing_changes_vanishes() {
     let (doc, [sec0, sec1, loft]) = lofted("loft-pairing", square_of(1.0), square_of(1.5));
     let kept = loft_wall(&doc, loft, [sec0, sec1], 0);
     let moved = loft_wall(&doc, loft, [sec0, sec1], 1);
-    let (doc, on_kept) = frame_on(doc, loft, kept.clone());
-    let (doc, on_moved) = frame_on(doc, loft, moved.clone());
+    let doc = paint(&paint(&doc, &kept), &moved);
     let leg_at = |s: f64, at: usize, pt: (f64, f64)| {
         let mut v = vec![
             (0.0, 0.0),
@@ -1425,7 +1439,14 @@ fn a_loft_wall_whose_pairing_changes_vanishes() {
     assert_eq!(applied.maintenance, Vec::new(), "no step was dropped");
     let ev = fixture::run(&applied.doc, &EvalOptions::default());
     assert!(ev.value(loft).is_some(), "{:?}", corpus::failures(&ev));
-    assert!(ev.value(on_kept).is_some(), "wall 0 pairs what it paired");
-    assert_eq!(frame_face(&applied.doc, on_kept), kept);
-    frame_refuses_vanished(&applied.doc, on_moved, &moved);
+    assert!(
+        applied.doc.appearance().contains_key(&kept) && applied.doc.appearance().contains_key(&moved),
+        "both painted names keep their spelling"
+    );
+    let table = &ev.value(loft).expect("the loft evaluates").name_table;
+    assert!(table.lookup(&kept).is_some(), "wall 0 pairs what it paired");
+    assert!(
+        table.lookup(&moved).is_none(),
+        "no wall pairs the old wall 1's pieces, so its name denotes nothing"
+    );
 }

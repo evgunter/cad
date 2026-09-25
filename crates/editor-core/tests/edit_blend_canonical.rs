@@ -41,17 +41,22 @@ fn prism() -> (ProfileDoc, RecipeNodeId) {
     (r.doc, solid)
 }
 
-/// One END-cap rim edge of the prism, by profile segment. The square
-/// is the document's only profile, so its steps are minted 0 to 4 and
-/// canonical segment `k` is step `k + 1`'s leg — the names sort by
-/// segment, so `edge(n, 0) < edge(n, 2)`.
+/// One END-cap rim edge-shaped name on the prism, indexed `segment`:
+/// the first step's piece in role `Piece(segment)`, which the square
+/// never draws. These rows are about the ORDER of a selection, which
+/// the doors check before anything resolves, so the names only have to
+/// be well formed, spell a minted step, and sort by `segment` — so
+/// `edge(n, 0) < edge(n, 2)`.
 fn edge(node: RecipeNodeId, segment: u32) -> StableName {
     StableName {
         kind: EntityKind::Edge,
         node,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            fixture::leg(u64::from(segment) + 1),
+            editor_core::ProfileEdgeRef::Piece {
+                step: editor_core::StepId(1),
+                role: editor_core::PieceRole::Piece(segment),
+            },
         )],
     }
 }
@@ -88,24 +93,22 @@ fn saved_fillet(segments: &[u32]) -> String {
     save(&doc, &[], Tol::witness()).expect("the fixture saves")
 }
 
-/// Rewrites the FIRST `"step": <from + 1>` at or after the
-/// `"selection"` key — [`edge`]'s segment `from` — to segment `to`'s,
-/// leaving the rest of the document alone: the selection is the only
-/// list this suite corrupts, and the caller reads the refusal that
-/// comes back.
+/// Rewrites the FIRST [`edge`] `from` at or after the `"selection"`
+/// key to [`edge`] `to`, leaving the rest of the document alone: the
+/// selection is the only list this suite corrupts, and the caller reads
+/// the refusal that comes back.
 fn corrupt_selection(text: &str, from: u32, to: u32) -> String {
     let sel = text
         .find("\"selection\"")
         .expect("the selection reaches the wire");
-    let needle = format!("\"step\": {}", from + 1);
+    let needle = format!("\"Piece\": {from}");
     let at = sel
         + text[sel..]
             .find(&needle)
             .expect("the selection names the segment");
     format!(
-        "{}\"step\": {}{}",
+        "{}\"Piece\": {to}{}",
         &text[..at],
-        to + 1,
         &text[at + needle.len()..]
     )
 }

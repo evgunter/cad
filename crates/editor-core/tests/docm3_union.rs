@@ -431,7 +431,7 @@ fn a_union_and_a_set_members_replay_bit_identically() {
         .order()
         .iter()
         .map(|id| DocEdit::InsertNode {
-            node: doc.node(*id).expect("an ordered node").clone(),
+            node: crate::fixture::as_authored(doc.node(*id).expect("an ordered node")),
         })
         .collect();
     edits.push(DocEdit::SetMembers {

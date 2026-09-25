@@ -62,7 +62,10 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   (`ProfileProgram::ids`). It is minted from the document's monotone step
   counter when the step is authored, by `InsertNode` or `SetProgram`. Like a
   `RecipeNodeId`, it is never positional and never reused, and it is unique
-  across the whole document; the load door checks all three.
+  across the whole document; the load door checks all three. A name may
+  spell only a step the document has minted: the doors that write a name
+  (`InsertNode`, `Rebind`, `SetAppearance`, `SetAppearanceMeta`) refuse one
+  at or beyond the counter, and so does the load door.
 - **The role.** A step draws its pieces from a fixed list of roles, one list
   per verb:
   - every verb that draws one segment has one role, `Leg`: `line`,

@@ -227,7 +227,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
     let with_fillet = apply(
         &spare.doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(BODY, len(0.125), vec![rim(&doc, spare_id, 0)]),
+            node: Node::fillet(BODY, len(0.125), vec![rim(&spare.doc, spare_id, 0)]),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

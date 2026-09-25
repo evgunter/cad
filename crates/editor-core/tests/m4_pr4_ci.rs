@@ -56,7 +56,7 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 // 2, now: 1 } instead of the evidence-free fallback. The other four
 // row shapes were re-read and are unchanged (cascade → Cascade,
 // structural-param, node-gone, ambiguous).
-const DIAGNOSIS_DIGEST: u64 = 0xf735_449b_3e36_841b;
+const DIAGNOSIS_DIGEST: u64 = 0xf978_9e6e_8af1_7f75;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

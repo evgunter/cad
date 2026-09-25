@@ -262,7 +262,7 @@ fn appearance_edits_replay_bit_identically_and_diff_reports_them() {
             node: doc3.node(plane).unwrap().clone(),
         },
         DocEdit::InsertNode {
-            node: doc3.node(p).unwrap().clone(),
+            node: crate::fixture::as_authored(doc3.node(p).unwrap()),
         },
         DocEdit::InsertNode {
             node: doc3.node(ext).unwrap().clone(),
