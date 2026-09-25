@@ -46,17 +46,23 @@ fn seat_alignment() -> Alignment {
 }
 
 /// Author the seat mate between `a_instance` and the shelf through
-/// the session's one committed-edit door.
-fn add_seat_mate(session: &mut DocSession, bench: &asm::Bench, a_instance: RecipeNodeId) {
-    let outcome = session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(a_instance, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Rest,
-        alignment: seat_alignment(),
-    });
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
+/// the session's insert door, answering the mate's node.
+fn add_seat_mate(
+    session: &mut DocSession,
+    bench: &asm::Bench,
+    a_instance: RecipeNodeId,
+) -> RecipeNodeId {
+    let mate = common::session_insert(
+        session,
+        SessionOp::AddMate {
+            a: common::head(asm::in_part(a_instance, &bench.post_top)),
+            b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+            class: ContactClass::Rest,
+            alignment: seat_alignment(),
+        },
+    );
     session.pump();
+    mate
 }
 
 // --- the resolver (deliverable 1) ---------------------------------
@@ -473,14 +479,16 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     let mut session = asm::open_bench(&bench, tol);
     // One node of another kind, authored through the ordinary door so
     // the wrong-kind arm is driven by a node a user can really select.
-    session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(bench.post_a, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Tangent,
-        alignment: seat_alignment(),
-    });
+    let mate = common::session_insert(
+        &mut session,
+        SessionOp::AddMate {
+            a: common::head(asm::in_part(bench.post_a, &bench.post_top)),
+            b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
+            class: ContactClass::Tangent,
+            alignment: seat_alignment(),
+        },
+    );
     session.pump();
-    let mate = mate_nodes(&session)[0];
     let doc = session.doc();
 
     assert_eq!(
@@ -555,7 +563,7 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     let bench = asm::bench("fmeligible", tol);
     let mut session = asm::open_bench(&bench, tol);
     // Constrain post_a by mating it to the shelf.
-    add_seat_mate(&mut session, &bench, bench.post_a);
+    let mate = add_seat_mate(&mut session, &bench, bench.post_a);
     // Both mate participants refuse, naming the mate.
     for constrained in [bench.post_a, bench.shelf_i] {
         let outcome = session.perform(SessionOp::BeginFreeMove {
@@ -581,7 +589,6 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     // A node that EXISTS and is not an instance — the mate authored
     // above — refuses for being the wrong KIND. That is the arm the
     // block below was labelled for and never drove.
-    let mate = mate_nodes(&session)[0];
     let outcome = session.perform(SessionOp::BeginFreeMove { instance: mate });
     assert!(
         matches!(
