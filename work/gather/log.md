@@ -177,3 +177,26 @@ and the two differ only in lane name and target dir. Class **M /
 STRUCTURAL**. Triage reason, recorded at spec time: it adds refusal
 vocabulary to the naming layer, which every member-space declaration
 reads and which would be hard to change later.
+
+## 2026-09-25 — the member-space dual adjudicated; split halves to review
+
+**PR 3143 dual.** R1 and R2 both returned APPROVE-WITH-FIXES with no
+MAJOR. R1: 180,279 tokens, 37 min (harness). R2: 162,857 tokens, 30 min
+(harness). The fix pass works from the union: stale prose, including
+DM4's carve-out handing "in pieces" back to this row; the "refuses" that
+is false for a split whose every piece is then contained; recursion-arm
+mutants that survive every real document (one survives the unit tests
+as well); and two hand-kept definitions of "descends". Both reviewers
+also executed a pre-existing, order-dependent `Emission` refusal on a
+legal 3-member union. It is outside this unit and goes on EMIT's slate
+as P0. **Process slip:** the implementer's worktree was removed before
+its PR merged, so that lane could not be resumed. The fix pass runs in
+a fresh Opus lane from `fix3143.md` in the scratchpad. Implementer
+worktrees are now kept until their PR merges. The blinded coder is
+dispatched with byte 40.
+
+**PR 3256** (split halves) is green on `97f917982`. A narrowed tie piece
+is marked on its row, the gather defers marked rows, and the two halves
+merge into the split's one `Entry::Tied`. A lone `Part` publishes what it
+did before. Tier: single FULL review. The lane filed
+`the-gather-tie-merge-cannot-tell-a-candidate-carried-twice` (P3).
