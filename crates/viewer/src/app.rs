@@ -1123,21 +1123,18 @@ impl ViewerApp {
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let mut outcome = self.session.perform(op);
-            // **Where a withdrawal reaches the user**: everything
-            // this operation's document transition took out of the
-            // display state, onto the frame's notices like every other
-            // one (`frame::frame_status` carries the argument).
+            // **Where an outcome's news reaches the user**: what this
+            // operation's document transition took out of the display
+            // state, and what its committed edits did that nobody
+            // asked for by name, onto the frame's notices like every
+            // other one (`frame::frame_status` carries the argument).
             //
-            // ONE call, not one per kind. Three hand-written `extend`s
-            // stood here, and the list they fanned out was held to the
-            // report's by nothing — this code is `app`-gated, so no
-            // row can execute it and a kind dropped here is invisible
-            // until a user misses a sentence. `Withdrawal::all`
-            // destructures the report, so the list is the report's and
-            // a fourth kind reds there.
-            notices.extend(
-                frame::Withdrawal::all(&outcome.withdrawn).map(|withdrawal| withdrawal.notice()),
-            );
+            // ONE call. This code is `app`-gated, so no row can
+            // execute it and a kind dropped here is invisible until a
+            // user misses a sentence; `frame::outcome_notices`
+            // destructures the outcome, so a row can run the whole
+            // fan-out and a new field reds there.
+            notices.extend(frame::outcome_notices(&outcome));
             // Read before the match below moves the refusal out: a
             // form that just committed a node it will go on referring
             // to learns its id here and nowhere else.

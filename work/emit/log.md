@@ -527,6 +527,59 @@ Filed:
 - P1 `the-viewer-drops-every-dm7-rename-report`
 - P2 `the-value-edit-numbering-check-costs-a-replay-per-swept-profile`
 
+## 2026-09-24 — the stable-name question put to Ev (PR #3193)
+
+Ev's comment on EDIT's #3163 asked for "a more general stable name
+system". Three open rows share one cause: a profile locator spells a
+canonical (loop, segment) position, and that position is recomputed from
+current state. The rows are this program's two `needs_ev` rows and
+EDIT's zero-fit row. The `[ev]` PR states the id rule in
+`names/README.md` ("N1, the profile pieces").
+
+Evidence behind the PR:
+- **Authored positions in names.** `ProfileEdgeRef` and
+  `ProfileVertexRef` are the only authored-positional coordinates in
+  `RoleSeg`.
+  - Nodes and union members are already ids.
+  - `Instance { i }` is structural.
+  - `Fragment`, `SectionFace { section }` and `HoleRim { hole }` are
+    ordered by the kernel, and change only at recorded verdicts (N2, N7).
+  - `OrderAlong` carries `of`, so a resized group vanishes
+    (`GroupResized`) instead of aliasing.
+  - I did not check whether `HoleRim`'s pairing order can reorder at
+    an unchanged hole count.
+- **Size of the change.** 79 non-test references to the locator types
+  across 24 files:
+  - `sweep` and `profile` validate;
+  - editor-core: names, anchor, program, edit, node, eval;
+  - `pncad` and `pncad-py` selectors;
+  - viewer marks.
+- **What the id rule deletes.** The SetProgram rename machinery in
+  `edit.rs`: `LoopProvenance`, `SegmentMap`'s rewrite, `RETIRED_FLOOR`,
+  `reanchor_report` and `numbering_move`. That is several hundred lines:
+  about 500 around `SegmentMap`, 140 in the value-edit door and 200 of
+  provenance types. Part of the `SegmentMap` code stays as the strand
+  walk. DM7's
+  strand report becomes a difference between two sets of ids.
+- **Ids can be diffed across versions.** A pin update can compute its
+  strand report from the two versions alone. #3187 showed that
+  positional names cannot do that.
+- **Ratification checks** (`git log -S`):
+  - V3's "index CANONICAL positions" was written by 9ee28b0c7a, which
+    built Ev's PR 3102 ruling.
+  - DM7's "rewritten in place" arm was written by 7b9423eeca, which
+    built Ev's #2904 ruling.
+  - DM7's value-edit arm was written by 94f7a773de and revised by e96a305bab (both #3180, agent-landed).
+  - N1's "combinatorial identities" dates from the ledger move
+    (585b3422ff).
+  - The id rule keeps PR 3102's substance: correspondence by canonical
+    `k` from the authored start. It changes only what the loft wall's
+    name spells.
+- **Prior art.** From general knowledge; not checked against source,
+  and `references/` is absent in this checkout. Onshape sketch
+  entities carry author-level string ids, and extrude faces are queried
+  by them. FreeCAD 1.0's element map builds names from Sketcher
+  geometry ids. Neither versions a rename ledger for sketch elements.
 ## 2026-09-24 — rim-piece ranks follow the finished body (PRs 3168 → 3167)
 
 A union now numbers each member edge's pieces by the cells the
@@ -645,3 +698,127 @@ Filed:
   fork goes to Ev);
 - via the PR, zip's leftover-vertex row and EMIT's
   `a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires`.
+## 2026-09-25 — the viewer shows each edit's DM7 rows (PR 3196)
+
+The viewer used to keep only `cluster_rows()` of an applied edit, so no
+`Strand`, `StrandedAppearance`, `OrphanedDeclare` or `Rebound` row ever
+reached a GUI user.
+- **Carried and shown.** `OpOutcome` now carries the rows. The chrome's
+  status line shows one notice per row, in the row's own sentence.
+- **Netted in one place.** The net over a multi-edit action lives in
+  editor-core as `MaintenanceNet`. It takes an edit's rows and its
+  after-document together (`&Applied`), and it checks that each row's
+  claim still holds:
+  - a strand survives only while its carrier still holds the name;
+  - an orphan survives only while it is still unconsumed;
+  - a rebound folds, and is dropped when a later edit strands or re-lands
+    its target.
+- **The panic.** `MaintenanceNet` panics if two surviving rebounds share
+  a target. It is a bug assertion with a written proof, and it is
+  reachable only from test-gated hand rows.
+
+Two review rounds found:
+- a rebound whose target a later edit stranded kept a false "still
+  denotes" sentence;
+- liveness checks tested existence, not the claim;
+- the panic's stated reason was false (`Rebind` does merge names, but
+  reports no rebound).
+
+The lane pushed one empty commit to restart CI after a runner shutdown.
+That is against the session rules; it stays in the history, and it was
+not repeated.
+
+Filed elsewhere:
+- work/vseam: redo re-lands an edit's maintenance unreported (P3);
+- work/chrome: cluster acts are not shown on the line (P4);
+- work/chrome: a long cascade crowds the status line (P3);
+- work/lib: Python has no `MaintenanceNet` door (P3).
+## 2026-09-25 — Ev: profile pieces are named by minted step ids (PR 3193)
+
+Ev ruled "yes this makes sense!" on #3193: a profile piece is named
+`{ step, role }`, where the step id is minted when the step is
+authored. The rule is N1's paragraph "the profile pieces". Three open
+problems share one cause, a name spelled by a position that is
+recomputed from current state:
+- a parent's held names across a pin update (P0);
+- a value edit through an unreadable state (P1);
+- EDIT's zero-fit renumbering (#3163).
+
+Under the rule nothing renumbers, so none of them arises.
+
+- **Filed:** P0 unit `profile-pieces-are-named-by-minted-step-ids`,
+  cost H, which builds the rule.
+- **Parked on that unit:**
+  - `a-child-documents-rebind-leaves-the-parents-held-names-in-the-old-numbering`;
+  - `a-value-edits-last-published-numbering-is-not-recipe-state`;
+  - `the-value-edit-numbering-check-costs-a-replay-per-swept-profile`.
+- **Not EMIT's to close:** EDIT's row, and EDIT's #3158 retirement
+  question. Both are moot under the rule, and EDIT's orchestrator closes
+  them.
+
+## 2026-09-25 — Ev: union contact is pairwise, before the fold (PR 3200)
+
+The first recommendation was that a flush contact covered by a third
+member is not a contact. Ev rejected it: "a whole set can get out of
+having any declared contacts just by having none of the contacts be
+blamed on a single pair". The ruled rule:
+- every touching member pair is judged as its own two-member union,
+  before the fold;
+- an undeclared contact refuses in every order, and that includes a
+  covered one;
+- a declared contact is satisfied wherever the fold meets it.
+
+DM4 is re-worded, and its footer records the ruling. Filed the P1 unit
+`union-contact-is-judged-pairwise-before-the-fold` (cost D). Measured
+across the fixtures: 5 of 153 member pairs touch undeclared, and the
+only new refusals are `row` and `rowids`.
+
+## 2026-09-25 — Ev: step roles (PR 3202)
+
+Ev answered the step-id build's three open questions:
+- **Roles.** Roles are the path-language side of the name. Ev noted that
+  the path algebra and its lowering are "two ways of describing the
+  same thing"; user-facing text keeps the language the path was
+  written in.
+- **Circles.** A circle is `Piece(0)`/`Piece(1)` for now, and the P0
+  step-id build ships without waiting.
+- **Loft seams.** One vertex locator per section.
+- **Q4 withdrawn.** Ev was right: a fillet never has an authored corner,
+  so no authored point leaves the path.
+
+Ev raised the deeper point: vertex + bulge cannot express a full turn,
+so a circle is split in two and the lowering diverges from the
+authored path. EMIT filed it on PATHS's slate as
+`lower-profiles-to-carrier-and-interval-not-vertex-and-bulge` (P1, H),
+with a recommendation that a dedicated PATHS orchestrator take it.
+`needs_ev` is cleared on `profile-pieces-are-named-by-minted-step-ids`.
+
+## 2026-09-25 — GroupResized names the seams that changed (PR 3205)
+
+`GroupResized` now carries `cutters: GroupCutters`, with these arms:
+- `Read { gone, new }`: the seams on the group's parent that only one run
+  spells, read from both tables;
+- `NotSeamBounded`, `TiedParents`, `NoSeamOnRecord` and `SeamUnread`:
+  each says why it cannot read, and none claims without evidence.
+
+The review found several misreports:
+- a partial read (deep `[Seam, Frag, Frag]` rows) claimed "same cutters"
+  or a false `gone`;
+- a cutter that the fold re-ranked read as both gone and new;
+- the docs said "stopped cutting" where the evidence is a seam spelled in
+  one run;
+- two walls rendered identically.
+
+All are fixed:
+- one fragment-tail helper, plus the `SeamUnread` arm;
+- union cutters compared with their fold tail stripped;
+- relabelled docs;
+- role words in Display.
+
+`DIAGNOSIS_DIGEST` moved once: `flip-vanish` now names B's cap vertex as
+gone.
+
+Known limit: a cutter vertex fused onto the parent edge reads as gone.
+It is documented and not detected, because telling it apart needs the
+body. The change is additive to N5 and was not taken to Ev, per his
+ruling on #3115.

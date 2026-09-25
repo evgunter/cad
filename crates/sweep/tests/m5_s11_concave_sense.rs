@@ -677,8 +677,9 @@ fn loft_concave_arc_walls_face_out_and_a_flip_is_invisible_below() {
     assert_eq!(topo::validate_closed(&lied), Ok(()), "tier 2");
     // The recorded residual, stated as what it is: a CHANGE DETECTOR,
     // not a guarantee. Check 6's curved arm skips `Surface::Nurbs` by
-    // name and its planar arm is line-bounded, so an orientation error
-    // on a lofted wall is unreachable today and this assertion cannot
+    // name and its planar arm reads only `Plane` faces, so an
+    // orientation error on a lofted wall is unreachable today and this
+    // assertion cannot
     // fail — which is the point. It fires the day that skip is
     // removed, i.e. exactly when the guard should move out of these
     // rows and into the validator where it belongs.
