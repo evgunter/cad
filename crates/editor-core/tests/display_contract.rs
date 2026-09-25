@@ -2001,6 +2001,8 @@ test_utils::f6_variants! {
         MergedChord,
         MergedChordOffRim,
         SeamLineSides,
+        MemberEdgeTied,
+        NarrowBand,
         Band,
         Escalated,
     ];
@@ -2135,11 +2137,32 @@ fn naming_error_display_names_its_content_not_its_struct() {
             vec!["node 31", "each side of its recorded pair"],
         ),
         (
+            NamingError::MemberEdgeTied {
+                member: RecipeNodeId(37),
+                edge: Box::new(StableName {
+                    kind: EntityKind::Edge,
+                    node: RecipeNodeId(37),
+                    path: vec![RoleSeg::LateralEdge(editor_core::ProfileVertexRef {
+                        loop_index: 0,
+                        vertex: 2,
+                    })],
+                }),
+            },
+            vec!["member node 37", "a tie stands where one edge is needed"],
+        ),
+        (
             NamingError::Band(BandError::Empty {
                 zero: 5e-324,
                 escalate: 5e-324,
             }),
             vec!["naming band", "5e-324"],
+        ),
+        (
+            NamingError::NarrowBand {
+                zero: 1e-9,
+                escalate: 1.5e-9,
+            },
+            vec!["naming band is too narrow", "below 2"],
         ),
         (
             NamingError::Escalated {

@@ -2,11 +2,13 @@
 id: shared-rim-several-is-a-missing-rule-legal-declared-unions-reach
 kind: issue
 title: SharedRim(Several) — a chord over a fragmented merged face — is the commonest naming refusal a legal declared union reaches
-status: dispatched
+status: closed
 opened: 2026-09-23
 priority: P0
 cost: H
 branch: emit/shared-rim-several
+closed: 2026-09-24
+pr: 3167
 ---
 
 

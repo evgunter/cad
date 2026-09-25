@@ -527,6 +527,43 @@ Filed:
 - P1 `the-viewer-drops-every-dm7-rename-report`
 - P2 `the-value-edit-numbering-check-costs-a-replay-per-swept-profile`
 
+## 2026-09-24 — rim-piece ranks follow the finished body (PRs 3168 → 3167)
+
+A union now numbers each member edge's pieces by the cells the
+finished body cuts it into (#3168). Before, it ranked them per fold
+step, so one rim-piece name denoted different pieces in different
+member orders. #3167 (the shared-rim rule) lands with it. Alone,
+#3167 would have turned refusals into silent rebinds: on the review
+probe, 407 signature mismatches against main's 108. It was merged
+only after #3168 had been merged into its branch.
+
+What landed with the review rounds:
+- the cell check moved into the `name_frag_` family;
+- `of` counts cells, not pieces;
+- the clustering is an order-free union–find, and refuses when the
+  ambiguity band is narrower than 2 (`NarrowBand`);
+- whole-group re-ranking in `cite_member_edges`;
+- one same-side-rim rule;
+- loud guards for a fold-ranked member-edge piece and for a moved
+  vertex that has no single seam.
+
+The rebind row is now able to go red. It pins the 25 cases that
+refuse in some orders and publish in others (`KNOWN_MIXED`). The two
+causes without an owner are filed P1 as
+`union-refuses-in-some-member-orders-and-publishes-in-others`.
+
+Measured on the review probe:
+- names absent in one order: main 5200, #3167 alone 12478, both
+  7742;
+- no case is worse than main;
+- the remaining absences all belong to
+  `declared-flush-union-edge-and-vertex-names-follow-member-order`
+  (P1), which now carries the evidence that the declared-flush body
+  itself is order-dependent.
+
+Filed:
+- P2 `cite-member-edges-group-rerank-can-reverse-the-folds-rank-direction`
+  (review O4b; unreached, untested branch)
 ## 2026-09-24 — a parent's held names rebind silently across a pin update (PR 3187)
 
 Measured, and the row stays P0. A part inserts a leg before its
