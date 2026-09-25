@@ -213,3 +213,34 @@ Next dispatchable:
 
 Both are unblocked by this merge. They touch different crates and can
 run in parallel.
+
+## 2026-09-25 — the fixture-door migration (#3231): review adjudicated
+
+The review was a single FULL review: APPROVE-WITH-FIXES, 0 MAJOR. The
+reviewer executed the PR's rewrite script over all 250 migrated files at
+the merge base and diffed the result against head, and C1 held
+(bit-identical migration). All taken:
+- **Canonical-door loops drift, and badly.** They drift under
+  `map_scalar`/`reversed`, and for a one-segment circle the drift is a
+  NaN centre, not last bits. The `RawLoop::new` doc now says so.
+  `one-segment-loop-through-builders` gains a prerequisite: re-lowering
+  must carry the stored carrier before n = 1 is admitted, so
+  `store-constructed-carriers`' carrier half moves ahead of unit 3.
+- **§6 reverted.** My §6 edit is reverted. The sentence is Ev's
+  ("per Evan", 0dca9f945), and `bulge_loop` still authors a vertex+bulge
+  chain, so the old wording is the accurate one.
+- **Stale comments.** Three are fixed.
+- **New carrier→bulge copy.** The copy in `RawLoop::new` is added to
+  unit 5's inventory.
+
+Declined, with reasons:
+- **Deleting the dead shut arm of `raw_door!`.** It would change
+  BOOL-9's reviewed seal shape and census row for no behavioural gain.
+  The `expect(dead_code)` works: the reviewer showed that a shipped
+  call un-fulfils it and a re-export gives E0365.
+- **The seal row's self-consistent tan check.** It is left as is; unit
+  5 deletes the derivation it checks.
+
+Also on this PR: main's `topo` stopped compiling (the `RingMeetsOuter`
+`Display` was missing three `RingContact` arms after #3185 met
+`a3d5c47e1`). The fix is ported here and announced on ATREST's log.

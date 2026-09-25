@@ -318,7 +318,8 @@ fn is_exact_zero<T: Real>(b: T) -> bool {
 ///
 /// - **the authoring door** — the [`path`] lattice's emission layer.
 ///   It classifies every junction and declares every tangency as the
-///   chain is written, then calls the crate's private constructor. The
+///   chain is written, then calls the crate's private lowering
+///   (`ProfileLoop::lower`). The
 ///   only door on the presented surface.
 /// - **the materialization door** — [`ProfileLoop::map_scalar`]: a
 ///   table that already exists, read at another scalar. It authors
@@ -469,7 +470,11 @@ macro_rules! raw_door {
             /// beside each segment ([`ProfileLoop::bulges`]) is zero for
             /// a line and tan(Δθ/4) for an arc; the readers that lower a
             /// loop again ([`ProfileLoop::map_scalar`],
-            /// [`ProfileLoop::reversed`]) re-derive the carrier from it.
+            /// [`ProfileLoop::reversed`]) re-derive the carrier from it,
+            /// so a given carrier comes back off in its last bits, and a
+            /// one-segment full circle (a zero chord) comes back with a
+            /// NaN centre and zero radius. Retiring the kept bulge
+            /// removes both.
             ///
             /// The one method of this trait that is NOT gated, so the
             /// trait has the same shape in both arms.

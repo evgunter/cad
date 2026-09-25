@@ -49,7 +49,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-/// A table only the fixture door can spell: arcs of both signs, a
+/// A table only the fixture helpers can spell: arcs of both signs, a
 /// semicircle, a signed zero, declarations duplicated and out of
 /// order, then the whole thing reversed (so the joints are remapped).
 fn awkward() -> ProfileLoop<f64> {

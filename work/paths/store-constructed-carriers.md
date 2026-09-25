@@ -50,3 +50,11 @@ canonical fixture door stores its carrier as given, but `map_scalar`,
 `tan(Δθ/4)` bulge. So for such loops the result can differ from the
 given carrier in the last bits. Retiring the stored bulge here removes
 that.
+
+From #3231's review:
+- The magnitude is worse than last bits. A one-segment full circle
+  built through the canonical door has a zero chord, so re-lowering it
+  from the kept bulge gives a NaN centre and zero radius.
+- `RawLoop::new` adds a carrier→bulge copy, `(sweep/4).tan()`, which
+  joins `sugar.rs::bulge_from_center`'s tail and `path/verbs.rs`. All
+  three go when the kept bulge retires.

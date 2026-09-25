@@ -271,8 +271,9 @@ fn assert_loops_identical(algebra: &ProfileLoop<f64>, hand: &ProfileLoop<f64>) {
         let (ab, hb) = (algebra.bulges()[i], hand.bulges()[i]);
         assert_eq!(ab.to_bits(), hb.to_bits(), "vertex {i} bulge: {ab} vs {hb}");
         // The two doors lower alike: the emission layer names each
-        // segment's kind from its verb and the fixture door reads it
-        // off the bulge, and the canonical segments agree bit for bit.
+        // segment's kind by the one lowering rule and `bulge_loop`
+        // reaches that same rule, so the canonical segments agree bit
+        // for bit.
         assert_eq!(
             segment_bits(algebra.segments()[i]),
             segment_bits(hand.segments()[i]),

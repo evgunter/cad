@@ -1404,8 +1404,8 @@ runtime but unreachable through the surface.
 ## 6. Decided and open questions
 
 Decided during review (details in #124): mixed authoring is OUT —
-a loop is authored either in the algebra or as a raw segment table
-(since BOOL-9 only through the dev-only fixture door), never both (representation uniqueness); declared cusps are
+a loop is authored either in the algebra or as a raw vertex+bulge
+chain, never both (representation uniqueness); declared cusps are
 legal at the kernel (#131 ruled into D1 tier 3's declared
 second-order wedge arm) with the authoring verb banked at #941 —
 cusps refuse here until it ships; there is no
