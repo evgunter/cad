@@ -112,10 +112,7 @@ impl ViewerBehavior<'_> {
                         .push(frame::tool_news(format!("edit profile: {error}"))),
                 }
             }
-            if ui
-                .add_enabled(moved, egui::Button::new("Revert"))
-                .on_hover_text("put the numbers back to the committed profile's")
-                .clicked()
+            if revert_button(ui, moved)
                 && let Err(error) = edit.revert(doc)
             {
                 self.notices
@@ -292,25 +289,18 @@ pub(crate) fn path_steps_ui(
             // Zero-based, because "loop 0 step 2" is.
             ui.weak(format!("{index}"));
             let free = shape.free();
-            if ui
-                .add_enabled(free, egui::Button::new(GLYPH_REMOVE).small())
-                .on_hover_text("remove this step")
-                .clicked()
-            {
+            // What stops a control, lock first: a locked list offers
+            // no move at all, whichever row it is.
+            let locked = (!free).then_some(SHAPE_LOCKED);
+            if step_control(ui, GLYPH_REMOVE, "remove this step", locked) {
                 remove = Some(index);
             }
-            if ui
-                .add_enabled(free && index > 0, egui::Button::new(GLYPH_UP).small())
-                .on_hover_text("move this step earlier")
-                .clicked()
-            {
+            let first = locked.or((index == 0).then_some(STEP_IS_FIRST));
+            if step_control(ui, GLYPH_UP, "move this step earlier", first) {
                 swap = Some((index, index - 1));
             }
-            if ui
-                .add_enabled(free && index < last, egui::Button::new(GLYPH_DOWN).small())
-                .on_hover_text("move this step later")
-                .clicked()
-            {
+            let final_row = locked.or((index == last).then_some(STEP_IS_LAST));
+            if step_control(ui, GLYPH_DOWN, "move this step later", final_row) {
                 swap = Some((index, index + 1));
             }
             // **Insert after this row.** A chain is written in the
@@ -327,11 +317,7 @@ pub(crate) fn path_steps_ui(
             // sideways. A control that moves under the cursor is
             // worse than one that is not where a reader first
             // looks for it.
-            if ui
-                .add_enabled(free, egui::Button::new("+").small())
-                .on_hover_text("insert a step after this one")
-                .clicked()
-            {
+            if step_control(ui, "+", "insert a step after this one", locked) {
                 insert = Some(index + 1);
             }
             let verb = steps[index].verb();
@@ -414,6 +400,52 @@ pub(crate) fn path_steps_ui(
     });
 }
 
+/// Why a row's move-earlier control is not live in a free list.
+const STEP_IS_FIRST: &str = "it is already the first step";
+
+/// Why a row's move-later control is not live in a free list.
+const STEP_IS_LAST: &str = "it is already the last step";
+
+/// **One of a step row's glyph controls**, live unless `blocked`
+/// names why not.
+///
+/// The glyph is the control's only label, so `action` — what a click
+/// does — is its hover in both states, and a blocked control adds the
+/// reason on the line under it. Every reason is a draft gate's (a
+/// locked list, or a row with nothing past it to move over): no
+/// operation is formed to be refused, so the words are the caller's.
+/// Each state's words ride the hook egui shows in that state.
+///
+/// Answers whether it was clicked, which a blocked control never is.
+fn step_control(ui: &mut egui::Ui, glyph: &str, action: &str, blocked: Option<&str>) -> bool {
+    let button = ui.add_enabled(blocked.is_none(), egui::Button::new(glyph).small());
+    match blocked {
+        None => button.on_hover_text(action).clicked(),
+        Some(why) => button
+            .on_disabled_hover_text(format!("{action}\n{why}"))
+            .clicked(),
+    }
+}
+
+/// **The edit door's Revert**, live once the held numbers have
+/// `moved` off the committed profile's. Revert is a draft reset, not
+/// an operation, so untouched there is nothing to refuse and the
+/// literal here is the sentence.
+///
+/// Answers whether it was clicked, which a disabled button never is.
+fn revert_button(ui: &mut egui::Ui, moved: bool) -> bool {
+    let button = ui.add_enabled(moved, egui::Button::new("Revert"));
+    if moved {
+        button
+            .on_hover_text("put the numbers back to the committed profile's")
+            .clicked()
+    } else {
+        button
+            .on_disabled_hover_text("nothing to revert: the numbers are the committed profile's")
+            .clicked()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
@@ -425,7 +457,9 @@ mod tests {
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::Step;
 
+    use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP};
     use crate::drafts::Drafts;
+    use crate::pane::headless::painted_while_hovering;
     use crate::session::author::datum_node;
     use crate::sketch;
 
@@ -589,5 +623,109 @@ mod tests {
         };
         assert_eq!(held_n, n, "drawing the locked editor rewrote the count");
         assert!(!edit.moved(), "drawing alone made Apply live");
+    }
+
+    /// What a pointer resting on the `nth` painting of `glyph` reads,
+    /// over a list of `rows` fresh steps drawn under `shape`.
+    fn hovering_step_control(
+        shape: crate::forms::ShapeEdits,
+        rows: usize,
+        glyph: &str,
+        nth: usize,
+    ) -> String {
+        let mut steps: Vec<Step<f64>> = (0..rows).map(crate::widgets::new_row_step).collect();
+        painted_while_hovering(glyph, nth, |ui| {
+            super::path_steps_ui(
+                ui,
+                "probe",
+                Tol::witness(),
+                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
+                shape,
+                &mut steps,
+            );
+        })
+    }
+
+    /// **A locked list's step controls say why while disabled**: each
+    /// names what it would do, and under that the lock notice's own
+    /// value — the one reason, on the control the pointer is on. The
+    /// lock is read first, so a lone row's arrows, which the index
+    /// would also stop, still say the list is locked.
+    #[test]
+    fn a_locked_lists_step_controls_each_say_the_list_is_locked() {
+        use crate::forms::{SHAPE_LOCKED, ShapeEdits};
+        for (glyph, action) in [
+            (GLYPH_REMOVE, "remove this step"),
+            (GLYPH_UP, "move this step earlier"),
+            (GLYPH_DOWN, "move this step later"),
+            ("+", "insert a step after this one"),
+        ] {
+            let hovered = hovering_step_control(ShapeEdits::Locked, 1, glyph, 0);
+            assert!(
+                hovered.contains(&format!("{action}\n{SHAPE_LOCKED}")),
+                "{glyph}: {hovered}"
+            );
+            assert!(!hovered.contains("already"), "{glyph}: {hovered}");
+        }
+    }
+
+    /// **A free list's end rows say which end they are at** — a lone
+    /// row is both, and neither arrow has a row to move past.
+    #[test]
+    fn a_lone_free_rows_arrows_say_it_is_first_and_last() {
+        use crate::forms::ShapeEdits;
+        let up = hovering_step_control(ShapeEdits::Free, 1, GLYPH_UP, 0);
+        assert!(
+            up.contains("move this step earlier\nit is already the first step"),
+            "{up}"
+        );
+        let down = hovering_step_control(ShapeEdits::Free, 1, GLYPH_DOWN, 0);
+        assert!(
+            down.contains("move this step later\nit is already the last step"),
+            "{down}"
+        );
+    }
+
+    /// **Live, each control's hover is what a click does, and nothing
+    /// else** — on a two-row list, where row 0's down arrow and row
+    /// 1's up arrow both move.
+    #[test]
+    fn a_free_lists_live_step_controls_say_what_a_click_does() {
+        use crate::forms::ShapeEdits;
+        for (glyph, nth, action) in [
+            (GLYPH_REMOVE, 0, "remove this step"),
+            (GLYPH_UP, 1, "move this step earlier"),
+            (GLYPH_DOWN, 0, "move this step later"),
+            ("+", 0, "insert a step after this one"),
+        ] {
+            let hovered = hovering_step_control(ShapeEdits::Free, 2, glyph, nth);
+            assert!(hovered.contains(action), "{glyph}: {hovered}");
+            assert!(
+                !hovered.contains(&format!("{action}\n")),
+                "a live control carried a reason: {hovered}"
+            );
+        }
+    }
+
+    /// **Revert says why while it is disabled**, and live says what it
+    /// puts back.
+    #[test]
+    fn revert_says_there_is_nothing_to_revert_until_a_number_moves() {
+        let untouched = painted_while_hovering("Revert", 0, |ui| {
+            super::revert_button(ui, false);
+        });
+        assert!(
+            untouched.contains("nothing to revert: the numbers are the committed profile's"),
+            "{untouched}"
+        );
+        assert!(!untouched.contains("put the numbers back"), "{untouched}");
+        let moved = painted_while_hovering("Revert", 0, |ui| {
+            super::revert_button(ui, true);
+        });
+        assert!(
+            moved.contains("put the numbers back to the committed profile's"),
+            "{moved}"
+        );
+        assert!(!moved.contains("nothing to revert"), "{moved}");
     }
 }

@@ -2,11 +2,13 @@
 id: clear-picks-hover-text-is-invisible-while-disabled
 kind: issue
 title: Six gated controls carry their only words on on_hover_text, which shows nothing while they are disabled
-status: open
+status: closed
 opened: 2026-09-19
 refs: [a-disabled-control-says-why-in-four-shapes]
 priority: P1
 cost: E
+closed: 2026-09-24
+branch: vnews/gated-controls-say-why-while-disabled
 ---
 
 Found by the census in `a-disabled-control-says-why-in-four-shapes`, at
@@ -90,3 +92,72 @@ VNEWS's for `pane/create.rs`, which is in this program's `paths`.
 (`work/view/viewer-src-files-no-successor-claims`); the five members
 there are the same defect and a lane that takes them announces the
 crossing.
+
+## Fixed (VNEWS, 2026-09-24)
+
+Each of the six now carries a sentence on each hook — `on_hover_text`
+while it is live, `on_disabled_hover_text` while it is not — with the
+live wording unchanged. None reads a `Refusal`: each is a draft gate,
+and the words stay at the control.
+
+| control | disabled when | what the hover says while disabled |
+|---|---|---|
+| `pane/create.rs`'s `clear_picks_button` | `count == 0` | *"no edge is picked yet, so there is nothing to clear"* |
+| `pane/profile.rs`'s `revert_button` | `!moved` | *"nothing to revert: the numbers are the committed profile's"* |
+| remove (`×`) | locked | *"remove this step"* and under it `forms::SHAPE_LOCKED` |
+| move earlier (`⬆`) | locked; else `index == 0` | the action, and under it `SHAPE_LOCKED`, else *"it is already the first step"* |
+| move later (`⬇`) | locked; else `index == last` | the action, and under it `SHAPE_LOCKED`, else *"it is already the last step"* |
+| insert (`+`) | locked | *"insert a step after this one"* and under it `SHAPE_LOCKED` |
+
+**Where the lock notice covers it.** For the `free` conjunct the
+notice drawn above the list is the reason, so the four glyph controls
+read that value (`SHAPE_LOCKED`) rather than paraphrasing it. What
+the notice did not do was put the reason on the control the pointer is
+on, and a glyph is a control's only label, so a disabled glyph also
+names what it would have done. The lock is checked first: a lone row
+in a locked list is stopped by both the lock and its index, and the
+lock is the reason a reader can act on. `moved`, `index == 0` and
+`index == last` had no sentence anywhere, and each has its own now.
+
+**The exemplar, re-derived.** After #2961, `pane/properties.rs`'s
+`ViewerBehavior::range_button` still has the shape this row cites: one
+`add_enabled`, then a `match` on `probe_refusal` that hands the live
+arm to `on_hover_text` and the refused arm to
+`on_disabled_hover_text`. Its line numbers changed. Its words come from
+a `Refusal`, so it is the shape these six copy and not their source.
+The closer precedent for a draft gate is `pane/create.rs`'s
+`all_edges_row`, which already carries its own literal on each hook.
+Revert and Clear picks copy it. The four step glyphs share one private
+`step_control` because they share the composed disabled sentence
+(action, then reason). It is not a general helper, and it does not
+overlap #2960's `refusable_button`, which reads a `Refusal`.
+
+**Held by headless rows.** `crate::pane::headless` gains
+`painted_while_hovering`, which rests the pointer on a painted widget
+past egui's tooltip delay and reads what the frame painted. Each
+disabled sentence is asserted by its fixed text, and each live one
+too. Clear picks and Revert moved out of their methods into free
+functions so that a row can drive them.
+
+**The sweep, re-run on `main` at `ebc22f34c`.** Every
+`on_hover_text` and `on_hover_ui` in `crates/viewer/src` that is not
+`on_disabled_hover_*` gives 17 lines, the same count as at the
+census's base. The six above are the only ones on a gated receiver.
+Of the rest, `pane/properties.rs`'s `range_button` (live arm) and
+`pane/create.rs`'s `all_edges_row` (ready arm) already branch. The
+others hang off `ui.button`, `ui.label`, `ui.weak`,
+`ui.small_button`, or a response built ungated inside a helper
+(`app.rs`'s `draw_badge`, `widgets.rs`'s `delete_button`).
+
+**What that pattern cannot match, and the second pass at it.**
+(1) A control disabled by an ancestor rather than by its own call.
+There are now **seven** `add_enabled_ui` sites (`pane/profile.rs`'s
+verb combo; `widgets.rs` ×6), not the census's six, and every one
+still gates on `ShapeEdits::free()`. No `on_hover_text` sits inside
+any of them, and `ui.disable()`, `set_enabled`, `UiBuilder` and
+`interactable(false)` appear nowhere in the crate. (2) A hover
+attached through a helper that takes a response. `draw_badge` and
+`delete_button` build their own receivers ungated, and none of their
+callers is inside an `add_enabled_ui`. (3) Tooltips reached through
+`Tooltip::` or `show_tooltip*` directly: none. Nothing in the pass
+turned up a seventh member.

@@ -70,11 +70,9 @@ pub(crate) mod headless {
     ) -> String {
         let ctx = egui::Context::default();
         let run = |input: egui::RawInput, draw: &mut dyn FnMut(&mut egui::Ui)| {
-            let mut output = ctx.run_ui(input, |ui| draw(ui));
-            let landed = landed_in(&output.shapes);
+            let landed = frame(&ctx, input, draw);
             let at = hit(&landed, target, 0);
             let text: Vec<String> = landed.into_iter().map(|landed| landed.text).collect();
-            output.textures_delta.clear();
             (text, at)
         };
         let (_, at) = run(egui::RawInput::default(), &mut draw);
@@ -130,18 +128,15 @@ pub(crate) mod headless {
                 events,
                 ..Default::default()
             };
-            let mut output = ctx.run_ui(input, |ui| draw(ui));
-            let landed = landed_in(&output.shapes);
-            output.textures_delta.clear();
-            landed
+            frame(&ctx, input, draw)
         };
         let laid_out = run(0.0, Vec::new(), &mut draw);
         let at = hit(&laid_out, target, nth)
             .unwrap_or_else(|| panic!("`{target}` was painted fewer than {} times", nth + 1));
         run(1.0, vec![egui::Event::PointerMoved(at)], &mut draw);
         let mut rested = Vec::new();
-        for frame in 1..=3 {
-            rested = run(1.0 + 2.0 * delay * f64::from(frame), Vec::new(), &mut draw);
+        for rest in 1..=3 {
+            rested = run(1.0 + 2.0 * delay * f64::from(rest), Vec::new(), &mut draw);
         }
         rested
             .into_iter()
@@ -214,13 +209,25 @@ pub(crate) mod headless {
         out
     }
 
-    /// One headless frame of `draw`, and [`landed_in`] over what it
-    /// painted.
+    /// **One frame of `draw` on `ctx`, fed `input`**, and [`landed_in`]
+    /// over what it painted.
     ///
     /// **The module's one drive.** The `textures_delta.clear()` is
     /// the reason it is one: no painter took the frame's font atlas,
     /// and `TexturesDelta` panics on drop until one does — a detail
     /// of epaint that no caller should have to remember.
+    fn frame(
+        ctx: &egui::Context,
+        input: egui::RawInput,
+        draw: &mut dyn FnMut(&mut egui::Ui),
+    ) -> Vec<Landed> {
+        let mut output = ctx.run_ui(input, |ui| draw(ui));
+        let landed = landed_in(&output.shapes);
+        output.textures_delta.clear();
+        landed
+    }
+
+    /// One headless frame of `draw`, and what it painted.
     pub(crate) fn landed(draw: impl FnOnce(&mut egui::Ui)) -> Vec<Landed> {
         let mut draw = Some(draw);
         landed_after(1, |ui| {
@@ -238,9 +245,7 @@ pub(crate) mod headless {
         let ctx = egui::Context::default();
         let mut out = Vec::new();
         for _ in 0..passes {
-            let mut output = ctx.run_ui(egui::RawInput::default(), |ui| draw(ui));
-            out = landed_in(&output.shapes);
-            output.textures_delta.clear();
+            out = frame(&ctx, egui::RawInput::default(), &mut draw);
         }
         out
     }

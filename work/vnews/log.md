@@ -487,3 +487,23 @@ lands second must carry `refusable_button` into `part_entry`. Keeping
 compile error.
 
 (CHROME implementer lane, chrome/create-messages)
+
+## 2026-09-24 — a VNEWS lane crosses into `pane/profile.rs` and `pane/headless`
+
+`vnews/gated-controls-say-why-while-disabled` closes
+`clear-picks-hover-text-is-invisible-while-disabled`. **Announced
+crossings:**
+- `pane/profile.rs` is claimed by no program. The four step-row glyph
+  controls now go through a private `step_control`. Revert moves out
+  of `edit_profile_ui` into a free `revert_button`, which the method
+  calls.
+- In `pane/create.rs`, `blend_commit_row`'s Clear picks moves into a
+  free `clear_picks_button`.
+- `crate::pane::headless` gains `painted_while_hovering`, and its
+  `hit` takes an occurrence index. The three drives now share one
+  private `frame`, so the module's *"one drive"* claim is true again.
+  It had not been since `painted_after_clicking` inlined its own copy.
+
+Tier: style review, no correctness arm. The failure mode is a wrong
+or missing tooltip. That is visible, and every disabled sentence is
+asserted by its text.
