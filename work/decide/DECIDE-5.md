@@ -85,3 +85,51 @@ quantity is met against it: it is a sign decided at the classifier, not
 an identity residual. Once the carrier's span moves to the turn,
 `arc_span` has that one caller. It stays in `swept.rs`, renamed for
 what it then is (Phase 2).
+
+## Phase 2
+
+**The change.** `swept::turned_span(turn, bulge)` returns
+`4·atan(σ·b)`, where `σ·b` is `0 − b` on a turn `turn_negates` reads as
+clockwise and `b` otherwise. `placed_segment_spec` spells the carrier's
+`param_end` through it. `arc_span` is renamed `span_magnitude`, keeping
+its one caller, revolve's `axis_arc_span` margin. `register_span_identity`'s
+proof reads the span as `4·atan(σ·b)`, with `σ` the decided sign of that
+`b`; it named `|b|` before. The crate docs say the same.
+
+**The row.** `swept::tests::the_carriers_span_meets_the_pushforwards_at_a_parameter_bulge_of_either_sign`
+lowers an arc through `placed_segment_spec` at `Sym<f64>` with the bulge a
+parameter at `+0.7`, at `−0.7`, and as the reversal `0 − b` of `+0.7`.
+Nine samples each, and at every one the carrier's cosine and turn-signed
+sine against the pushforward's `4·atan b` are THEOREMS. With the call
+spelled `span_magnitude` again, it reds on its first arc: every sine
+but `s = 0` is numeric (run locally, reverted).
+
+**Re-baselined, before → after** (dev, all three ε rows, identical at each):
+- `decide_3_no_predicate_loses_a_decision`, R2's link, G and the read
+  off → shipped:
+  - `carrier_on_surface_2` `([98, 0, 0, 10], [82, 0, 6, 20])` →
+    `([88, 0, 0, 20], [84, 0, 8, 16])`;
+  - `carrier_matches_mapped_source` was not pinned (both sides
+    `[108, 0, 40, 32]`) and is now pinned at
+    `([108, 0, 60, 12], [108, 0, 50, 22])`.
+- `m10_9_no_registrant_lies_on_any_measured_document`, the link:
+  `registered` 96 → 108, `symbolic_zero` 541 → 545. The other four
+  documents are unmoved.
+- `sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`, the link:
+  - without the ladder `[541, 0, 96, 465]` → `[545, 0, 108, 449]`;
+  - with it `[553, 0, 96, 453]` → `[549, 0, 120, 433]`;
+  - retried 12 → 16;
+  - `carrier_on_surface_2` `[92, 0, 6, 10]` → `[88, 0, 8, 12]`.
+- `the_forms_the_walks_build_are_pinned_per_eps_row`, the plate's
+  ledger: five form counts and five digests. Every call and frozen count
+  is identical, and so is the receipt.
+- `m10_bulge_renders.txt`: the parameter control's section.
+
+Route B's numbers are reproduced exactly, the control's ceiling
+included. The item's DECIDE-5 section has the table and the costs, and
+`rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` renders the
+link's four.
+
+**Gates widened.** `sym_9_retry_interval` and `m10_sym_profile_interval`
+were `gated_to!` paths that did not include `crates/sweep/src/swept.rs`,
+and this change to it moves both. The path is added to both.

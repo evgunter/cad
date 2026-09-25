@@ -212,7 +212,8 @@
 //! its constant. Nothing folds at any other argument shape. The two
 //! spellings of an arc — the pushforward's `sin(s·θ)`, `−2·sin²(s·θ/2)`
 //! at `θ = 4·atan b` and the carrier's `cos t`, `sin t` at `t =
-//! (i/8)·4·atan|b|` — are then rational functions of the same atoms,
+//! (i/8)·4·atan(σ·b)`, `σ` the turn the profile decided (`sweep`'s
+//! `turned_span`) — are then rational functions of the same atoms,
 //! and **rules A/B per node** ([`SymRules::early_ab`]) close the ring:
 //! the substitution is linear (`algebra::poly_subst_square` accumulates
 //! one numerator over one common denominator), bounded by
@@ -6067,15 +6068,18 @@ mod tests {
         }
     }
 
-    /// **The two spellings of one arc meet.** The certifier's carrier
-    /// sample `cos t`, `sin t` at `t = 4·atan|b|·(i/8)` against the
-    /// pushforward's `sin(s·θ)` and `1 − 2·sin²(s·θ/2)` at `θ =
-    /// 4·atan b`, `s = i/8`, for a bulge that is a LITERAL (the circle
-    /// kernel's `1`, so `|b|` folds under A0) and for a parameter
+    /// **The two spellings of one arc meet.** A carrier sample
+    /// `cos t`, `sin t` spelled through `abs`, at `t = 4·atan|b|·(i/8)`,
+    /// against the pushforward's `sin(s·θ)` and `1 − 2·sin²(s·θ/2)` at
+    /// `θ = 4·atan b`, `s = i/8`, for a bulge that is a LITERAL (the
+    /// circle kernel's `1`, so `|b|` folds under A0) and for a parameter
     /// bulge — where `atan|b|` and `atan b` are two atoms and the
     /// residual stays numeric, which is the honest limit this rule
-    /// draws: the turn sign the carrier's axis carries is a `Sign`,
-    /// not a form.
+    /// draws: the turn sign is a `Sign`, not a form. The sweep spells
+    /// its carrier's span from that sign (`sweep`'s `turned_span`,
+    /// `4·atan(σ·b)`), which is the spelling that meets the pushforward
+    /// at a parameter bulge; that row is `sweep`'s
+    /// `the_carriers_span_meets_the_pushforwards_at_a_parameter_bulge_of_either_sign`.
     #[test]
     fn rule_d_meets_the_carrier_and_the_pushforward_at_every_sample() {
         let (rows, _) = with_session(budget(), || {

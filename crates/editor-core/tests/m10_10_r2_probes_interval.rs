@@ -233,7 +233,9 @@ fn r2_evidence_every_refused_leaf_of_the_plates_real_study_read_as_its_set() {
 /// inside it, and the measure `distance(hole wall, arc wall)` with an
 /// assertion on it. Two variants: the bulge a LITERAL (0.4) with the
 /// hole's centre and radius varying, and the bulge a PARAMETER (the
-/// honest limit rule D states: `atan|b|` against `atan b`).
+/// carrier's span is spelled from the decided turn, `4·atan(σ·b)`, and
+/// mints the pushforward's atom; spelled `4·atan|b|` it would be the
+/// honest limit rule D states, two atoms).
 ///
 /// Geometry (metres): chord `(4e-3, ∓2e-3)`, bulge `b` → sagitta
 /// `2e-3·b`, radius `(1 + b²)/(2b)·2e-3`, centre `x = 4e-3 + 2e-3·b −
