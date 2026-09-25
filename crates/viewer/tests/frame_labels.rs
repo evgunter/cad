@@ -170,20 +170,8 @@ fn a_face_frame_names_the_node_its_face_is_read_off() {
 fn the_tree_rows_tell_two_frames_apart() {
     let tol = Tol::witness();
     let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-labels", tol);
-    let (doc, _) = common::edited(
-        &doc,
-        DocEdit::InsertNode {
-            node: frame_at([0.0, 0.0, 0.0]),
-        },
-        tol,
-    );
-    let (doc, _) = common::edited(
-        &doc,
-        DocEdit::InsertNode {
-            node: frame_at([0.0, 0.0, 0.01]),
-        },
-        tol,
-    );
+    let (doc, _) = common::inserted(&doc, frame_at([0.0, 0.0, 0.0]), tol);
+    let (doc, _) = common::inserted(&doc, frame_at([0.0, 0.0, 0.01]), tol);
     let poses: Vec<Option<String>> = tree::rows(&doc, None)
         .into_iter()
         .map(|row| row.pose)
@@ -210,13 +198,11 @@ fn a_node_that_is_not_a_frame_has_no_pose() {
         },
         tol,
     );
-    let (doc, _) = common::edited(
+    let (doc, _) = common::inserted(
         &doc,
-        DocEdit::InsertNode {
-            node: Node::Datum(Datum::Point {
-                position: common::len3([1.0, 2.0, 3.0]),
-            }),
-        },
+        Node::Datum(Datum::Point {
+            position: common::len3([1.0, 2.0, 3.0]),
+        }),
         tol,
     );
     let rows = tree::rows(&doc, None);

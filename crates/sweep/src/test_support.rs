@@ -20,8 +20,8 @@
 //!   links the library as an ordinary dependency, so it can name
 //!   neither a `#[cfg(test)]` item (that cfg is off when the library is
 //!   built as a dependency) nor a `pub(crate)` one. `cfg(test)` alone
-//!   therefore cannot serve as this module's gate: it is exactly what
-//!   made six integration suites each declare their own `cube` (S52).
+//!   therefore cannot serve as this module's gate: under it alone,
+//!   every integration suite that wants a fixture declares its own.
 //!   The feature is off by default and turned on only from
 //!   **`[dev-dependencies]`** — this crate's self dev-dependency
 //!   (`sweep = { path = ".", features = ["test-support"] }`), and the
@@ -152,9 +152,7 @@ pub fn cube<T: Decide>(l: f64, tol: Tol) -> Body<T> {
 /// **The second view of [`brick`], not a second body**: the suites are
 /// written in two vocabularies for one box — by bounds (`brick`) and
 /// by extent from the origin (this, and [`cube`] with one extent) —
-/// and both reach the same construction through the same door. The
-/// alternative was seven private copies of the construction under one
-/// more name, which is what this replaced.
+/// and both reach the same construction through the same door.
 pub fn block<T: Decide>(w: f64, d: f64, h: f64, tol: Tol) -> Body<T> {
     brick((0.0, w), (0.0, d), (0.0, h), tol)
 }
@@ -255,9 +253,8 @@ pub fn all_links(body: &Body<f64>, tol: Tol) -> Vec<Link<f64>> {
 }
 
 /// A closed sketch loop revolved about the sketch **y-axis** — the one
-/// home for the revolve fixtures the rim suites build on. Five suites
-/// each carried a byte-identical copy of this before the fix pass; that
-/// is the S52 shape the module header names, and the copies drift.
+/// home for the revolve fixtures the rim suites build on, so that no
+/// suite keeps a copy to drift from the others.
 pub fn revolved_about_y(
     verts: Vec<(Point2<f64>, f64)>,
     rev: crate::Revolution<f64>,
@@ -669,9 +666,8 @@ pub fn prism_on<T: Decide>(
 
 /// **A prism**: one closed profile loop extruded `h` along `+z`.
 ///
-/// The twelfth copy of this four-line helper in the crate's suites was
-/// what got it homed. Takes the vertices rather than a shape so the
-/// L-prism, the arc-sided prism and the turned box are all one door;
+/// Takes the vertices rather than a shape so the L-prism, the
+/// arc-sided prism and the turned box are all one door;
 /// panics on an invalid loop, which is a fixture bug, not an outcome.
 pub fn prism<T: Decide>(verts: Vec<(Point2<T>, T)>, h: T, tol: Tol) -> Body<T> {
     prism_at(verts, T::zero(), h, tol)
@@ -887,13 +883,12 @@ pub fn loft_prism_sections() -> Vec<Section> {
 /// **Placements: `zs` as pure `+z` translations** — the one home for
 /// the four lines every stacked fixture would otherwise re-spell.
 ///
-/// It sits here rather than in a suite because it was seven spellings
-/// when this door was written: `sweep/tests/common`'s `stacked`, which
-/// now delegates here, and a private `at_z` in each of five `tests/`
-/// suites, byte-identical to one another. Only a `src/` home is
-/// reachable from all of them — a `tests/` module is a different crate
-/// to every other crate's suites, and the fixtures here are placed by
-/// `mesh`, `step-export` and `tools/tess-meter` as well.
+/// It sits here rather than in a suite because its callers span
+/// crates: a `tests/` module is a different crate to every other
+/// crate's suites, and the fixtures here are placed by `mesh`,
+/// `step-export` and `tools/tess-meter` as well as by `sweep`'s own
+/// (`sweep/tests/common`'s `stacked` delegates here). Only a `src/`
+/// home is reachable from all of them.
 ///
 /// Not specific to the loft: [`prism_at`] and [`brick`] place their
 /// own sketch planes, and a fixture that stacks anything joins by
@@ -1156,8 +1151,8 @@ pub fn assert_naming_totality<T: Real>(
 }
 
 /// **A recourse sentence promises the carve on EITHER material side and
-/// hedges on nothing** — the one home of the pin three suites used to
-/// spell as a string test each. The negative half names the hedge
+/// hedges on nothing** — the one home of the pin the suites spell
+/// against a recourse sentence. The negative half names the hedge
 /// SHAPES a conditioned clause would take, so a rewording that keeps
 /// the promise but re-conditions it goes red here.
 pub fn assert_promises_either_side(sentence: &str) {
@@ -1974,8 +1969,8 @@ pub fn circle_arcs_at_z(body: &Body<f64>, z: f64) -> Vec<EdgeKey> {
 }
 
 /// **A full revolve's rim is the two arcs its one seam splits it
-/// into** — the fact eight suites state before carving a revolved
-/// rim, said once. Two is the fixture's shape, not the door's limit:
+/// into** — the fact a suite states before carving a revolved rim,
+/// said once. Two is the fixture's shape, not the door's limit:
 /// the N-arc rims are `closed_chain_junctions`' subject.
 ///
 /// # Panics

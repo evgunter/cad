@@ -296,8 +296,8 @@ use pncad::prelude::{
 };
 use pncad::profile::ArcSweep;
 use pncad::select::{
-    band, band_pi, band_rim, edge_name, face_carrier_kind, face_frame, meridian_vertex, select,
-    vertex_position,
+    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_pi, band_rim, edge_name,
+    face_carrier_kind, face_frame, meridian_vertex, select, vertex_position,
 };
 use pncad::topo::readback::euler_counts;
 use pncad::topo::{Body, BooleanError, Operand};
@@ -728,7 +728,15 @@ fn spout_loft(
                 phase: ang(0.0),
             };
             let loops = vec![arcs(outer), arcs(outer * SPOUT_BORE)];
-            insert(doc, Node::Profile(ProfileProgram { plane, loops }), tol)
+            insert(
+                doc,
+                Node::Profile(ProfileProgram {
+                    plane,
+                    loops,
+                    ids: Vec::new(),
+                }),
+                tol,
+            )
         })
         .collect();
     insert(
@@ -803,6 +811,7 @@ fn revolved(
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![loop_],
+            ids: Vec::new(),
         }),
         tol,
     );
@@ -815,6 +824,35 @@ fn revolved(
         },
         tol,
     )
+}
+
+/// **The pieces of the meridian the revolve `sweep` turns**, under the
+/// document's current values: what its bands, rims and meridians are
+/// named by (`editor-core/src/names/README.md`, N1).
+fn pieces_of(doc: &Doc<ProfileProgram>, sweep: RecipeNodeId, tol: Tol) -> ProfilePieces {
+    let Some(Node::Revolve { profile, .. }) = doc.node(sweep) else {
+        panic!("node {} is a revolve", sweep.0);
+    };
+    let Some(Node::Profile(program)) = doc.node(*profile) else {
+        panic!("a revolve's operand is a profile");
+    };
+    program
+        .pieces(&doc.param_env::<f64>(), tol)
+        .expect("the meridian replays")
+}
+
+/// The piece meridian segment `k` is, on the revolve `sweep`.
+fn edge_at(doc: &Doc<ProfileProgram>, sweep: RecipeNodeId, k: u32, tol: Tol) -> ProfileEdgeRef {
+    pieces_of(doc, sweep, tol)
+        .edge(0, k as usize)
+        .expect("the segment is the meridian's")
+}
+
+/// The piece starting at meridian vertex `v`, on the revolve `sweep`.
+fn vertex_at(doc: &Doc<ProfileProgram>, sweep: RecipeNodeId, v: u32, tol: Tol) -> ProfileVertexRef {
+    pieces_of(doc, sweep, tol)
+        .vertex(0, v as usize)
+        .expect("the vertex is the meridian's")
 }
 
 /// **The sketch frame and the axis every meridian here turns about.**
@@ -859,7 +897,8 @@ fn build_doc(tol: Tol) -> Recipe {
     // disc is two half-discs on one plane; the kernel's rim surgery
     // lifts a chart as a whole and the document names both halves,
     // the `Band` half first — which is the half that carries the rim.
-    let mouth = vec![band(bellied, 0, SEG_MOUTH), band_pi(bellied, 0, SEG_MOUTH)];
+    let lip = edge_at(&doc, bellied, SEG_MOUTH, tol);
+    let mouth = vec![band(bellied, lip), band_pi(bellied, lip)];
     let pot = insert(&mut doc, Node::shell(bellied, len(WALL), Vec::new()), tol);
     let cup = insert(&mut doc, Node::shell(bellied, len(WALL), mouth), tol);
 
@@ -880,16 +919,10 @@ fn build_doc(tol: Tol) -> Recipe {
     // flange cone, so both bands slit and cross THAT segment's seam
     // meridian; their names tell the two apart by the band that made
     // each (`tests/teapot_document.rs`).
+    let rims = LID_RIMS.map(|(v, ..)| band_rim(plain_lid, vertex_at(&doc, plain_lid, v, tol)));
     let lid = insert(
         &mut doc,
-        Node::fillet(
-            plain_lid,
-            len(ROLL),
-            LID_RIMS
-                .iter()
-                .map(|&(v, ..)| band_rim(plain_lid, 0, v))
-                .collect(),
-        ),
+        Node::fillet(plain_lid, len(ROLL), rims.to_vec()),
         tol,
     );
 
@@ -1076,12 +1109,14 @@ fn band_faces(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
 /// vertex two names for one place rather than two independent reads
 /// that happen to agree.
 fn rim_circle(
+    doc: &Doc<ProfileProgram>,
     ev: &Evaluation<f64>,
     node: RecipeNodeId,
     body: &Body<f64>,
     vertex: u32,
 ) -> (f64, f64) {
-    let want = band_rim(node, 0, vertex);
+    let start = vertex_at(doc, node, vertex, Tol::witness());
+    let want = band_rim(node, start);
     let carried: Vec<(f64, f64)> = query::all_edges(body)
         .into_iter()
         .filter(|&k| edge_name(ev, node, 0, k).ok() == Some(&want))
@@ -1106,12 +1141,8 @@ fn rim_circle(
     let [(station, radius)] = carried[..] else {
         panic!("the rim's name denotes exactly one edge, got {carried:?}");
     };
-    let p = vertex_position(
-        ev,
-        node,
-        &meridian_vertex(MeridianEnd::Seam, node, 0, vertex),
-    )
-    .expect("the meridian vertex's name denotes a vertex");
+    let p = vertex_position(ev, node, &meridian_vertex(MeridianEnd::Seam, node, start))
+        .expect("the meridian vertex's name denotes a vertex");
     assert!(
         (p.y - station).abs() < 1e-12 && (p.x.hypot(p.z) - radius).abs() < 1e-12,
         "the meridian vertex {p:?} does not stand on the circle its own rim carries \
@@ -1273,14 +1304,19 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-lid-rims", tol);
     let (plane, axis) = frame_and_axis(&mut doc, tol);
     let lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
+    let rims: Vec<StableName> = LID_RIMS
+        .iter()
+        .map(|&(v, ..)| band_rim(lid, vertex_at(&doc, lid, v, tol)))
+        .collect();
     let asked: Vec<(&'static str, RecipeNodeId)> = LID_RIMS
         .iter()
-        .map(|&(v, _, _, what)| {
+        .zip(&rims)
+        .map(|(&(_, _, _, what), rim)| {
             (
                 what,
                 insert(
                     &mut doc,
-                    Node::fillet(lid, len(ROLL), vec![band_rim(lid, 0, v)]),
+                    Node::fillet(lid, len(ROLL), vec![rim.clone()]),
                     tol,
                 ),
             )
@@ -1423,10 +1459,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // THE MOUTH, BY NAME. Two half-discs on ONE plane — the two names
     // the shell node was authored with, asserted to denote exactly
     // that: two planar faces, both on the mouth's own station.
-    let mouth = [
-        band(r.bellied, 0, SEG_MOUTH),
-        band_pi(r.bellied, 0, SEG_MOUTH),
-    ];
+    let lip = edge_at(&r.doc, r.bellied, SEG_MOUTH, tol);
+    let mouth = [band(r.bellied, lip), band_pi(r.bellied, lip)];
     for name in &mouth {
         assert_eq!(
             face_carrier_kind(&ev, r.bellied, name).expect("the mouth half is named"),
@@ -1640,7 +1674,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // retires the scan: the role names the same circle, and it names
     // it through a rebuild rather than through a coordinate.
     for &(v, radius, station, what) in &LID_RIMS {
-        let (y, rho) = rim_circle(&ev, r.plain_lid, &plain_lid, v);
+        let (y, rho) = rim_circle(&r.doc, &ev, r.plain_lid, &plain_lid, v);
         assert!(
             (y - station).abs() < 1e-12 && (rho - radius).abs() < 1e-12,
             "{what} is the rim named at meridian vertex {v}, and its circle is \

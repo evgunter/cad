@@ -53,7 +53,7 @@ fn shelled(shell: RecipeNodeId, kind: EntityKind, seg: RoleSeg) -> StableName {
 
 /// The three names the cup's rows read: the rim of the top, the cavity
 /// twin of the bottom, the outer wall carried through.
-fn cup_names(blank: RecipeNodeId, shell: RecipeNodeId) -> [StableName; 3] {
+fn cup_names(doc: &ProfileDoc, blank: RecipeNodeId, shell: RecipeNodeId) -> [StableName; 3] {
     [
         shelled(
             shell,
@@ -65,7 +65,7 @@ fn cup_names(blank: RecipeNodeId, shell: RecipeNodeId) -> [StableName; 3] {
             EntityKind::Face,
             RoleSeg::Inner(cup::bottom(blank).into()),
         ),
-        editor_core::carried(shell, fixture::fname(blank, fixture::wall(0))),
+        editor_core::carried(shell, fixture::fname(blank, fixture::wall(doc, blank, 0))),
     ]
 }
 
@@ -200,7 +200,7 @@ fn the_rim_inner_and_outer_names_resolve() {
     let ev = eval::<f64>(&d.doc);
     let value = ev.value(shell).expect("the cup evaluated");
     let table = &value.name_table;
-    for name in cup_names(blank, shell) {
+    for name in cup_names(&d.doc, blank, shell) {
         assert!(
             matches!(table.lookup(&name), Some(editor_core::Entry::Unique(_))),
             "{name:?} must resolve to one face"
@@ -263,7 +263,7 @@ fn a_rebuild_moves_the_forms_and_keeps_the_names() {
     let blank = blank_of(&d.doc);
     let shell = d.result.expect("head");
     let before = eval::<f64>(&d.doc);
-    let names = cup_names(blank, shell);
+    let names = cup_names(&d.doc, blank, shell);
     let resolved_before: Vec<_> = names
         .iter()
         .map(|n| before.value(shell).unwrap().name_table.lookup(n).cloned())
@@ -337,7 +337,7 @@ fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
     let rim = shelled(
         shell,
         EntityKind::Face,
-        RoleSeg::Rim(editor_core::band(pot, 0, vessel::SEG_MOUTH).into()),
+        RoleSeg::Rim(editor_core::band(pot, vessel::mouth(&d.doc, pot)).into()),
     );
     assert!(
         matches!(table.lookup(&rim), Some(editor_core::Entry::Unique(_))),
@@ -346,7 +346,7 @@ fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
     let other = shelled(
         shell,
         EntityKind::Face,
-        RoleSeg::Rim(editor_core::band_pi(pot, 0, vessel::SEG_MOUTH).into()),
+        RoleSeg::Rim(editor_core::band_pi(pot, vessel::mouth(&d.doc, pot)).into()),
     );
     assert!(
         table.lookup(&other).is_none(),
@@ -365,10 +365,10 @@ fn the_vessel_opens_its_two_faced_mouth_into_one_rim() {
 #[test]
 fn the_designation_order_moves_the_rim_and_the_content_key() {
     let a = vessel::document();
-    let b = vessel::document_with_open(|pot| {
+    let b = vessel::document_with_open(|doc, pot| {
         [
-            editor_core::band_pi(pot, 0, vessel::SEG_MOUTH),
-            editor_core::band(pot, 0, vessel::SEG_MOUTH),
+            editor_core::band_pi(pot, vessel::mouth(doc, pot)),
+            editor_core::band(pot, vessel::mouth(doc, pot)),
         ]
     });
     let (sa, sb) = (a.result.unwrap(), b.result.unwrap());
@@ -383,7 +383,7 @@ fn the_designation_order_moves_the_rim_and_the_content_key() {
     let rim_pi = shelled(
         sb,
         EntityKind::Face,
-        RoleSeg::Rim(editor_core::band_pi(pot, 0, vessel::SEG_MOUTH).into()),
+        RoleSeg::Rim(editor_core::band_pi(pot, vessel::mouth(&b.doc, pot)).into()),
     );
     assert!(
         matches!(
@@ -399,7 +399,7 @@ fn the_designation_order_moves_the_rim_and_the_content_key() {
 // ---------------------------------------------------------------
 
 /// The typed refusal a shell node produced at `f64`.
-fn refusal(doc: &ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
+fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
     let mut ev = evaluate::<f64>(
         doc,
         None,
@@ -429,7 +429,7 @@ fn cup_with(
 #[test]
 fn the_refusals_are_typed_and_their_texts_pinned() {
     // (a) a name the target never minted — Vanished through N5.
-    let ghost = |blank| fixture::fname(blank, fixture::wall(7));
+    let ghost = |blank| fixture::fname(blank, RoleSeg::Lateral(fixture::no_piece()));
     let (doc, n) = cup_with(|blank| Node::shell(blank, fixture::len(cup::T), vec![ghost(blank)]));
     let e = refusal(&doc, n);
     assert!(matches!(e, NodeErrorKind::ShellOpenResolve { .. }), "{e:?}");
@@ -446,7 +446,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
         Node::shell(
             blank,
             fixture::len(cup::T),
-            vec![fixture::prism_edges(blank, 4)[0].clone()],
+            vec![fixture::prism_edges(&doc, blank, 4)[0].clone()],
         )
     });
     let e = refusal(&doc, n);
@@ -484,10 +484,10 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     // (d) a half-chart designation on the vessel: the kernel's
     // `OpenFaceChartPartial`, carried verbatim — the document layer
     // completes no chart on the author's behalf.
-    let v = vessel::document_with_open(|pot| {
+    let v = vessel::document_with_open(|doc, pot| {
         [
-            editor_core::band(pot, 0, vessel::SEG_MOUTH),
-            editor_core::band(pot, 0, vessel::SEG_BELLY),
+            editor_core::band(pot, vessel::mouth(doc, pot)),
+            editor_core::band(pot, fixture::piece(doc, pot, 0, vessel::SEG_BELLY as usize)),
         ]
     });
     // Replace the two-name designation by the single half: the door
@@ -502,7 +502,7 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
         Node::shell(
             pot,
             fixture::len(vessel::WALL),
-            vec![editor_core::band(pot, 0, vessel::SEG_MOUTH)],
+            vec![editor_core::band(pot, vessel::mouth(&v.doc, pot))],
         ),
     );
     let e = refusal(&doc, n);
@@ -544,8 +544,8 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
 /// list the same way.
 #[test]
 fn the_shell_door_keeps_designation_order_and_drops_repeats() {
-    let a = fixture::fname(RecipeNodeId(1), fixture::wall(0));
-    let b = fixture::fname(RecipeNodeId(1), fixture::wall(1));
+    let a = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(0)));
+    let b = fixture::fname(RecipeNodeId(1), RoleSeg::Lateral(fixture::leg(1)));
     let node: Node<ProfileProgram> = Node::shell(
         RecipeNodeId(1),
         fixture::len(0.1),

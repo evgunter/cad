@@ -215,9 +215,9 @@ mod tests {
         StableName {
             kind: EntityKind::Face,
             node: EXTRUDE,
-            path: vec![RoleSeg::Lateral(ProfileEdgeRef {
-                loop_index: 0,
-                segment: 0,
+            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
+                step: crate::node::StepId(0),
+                role: crate::names::PieceRole::Leg,
             })],
         }
     }

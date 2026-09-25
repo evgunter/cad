@@ -65,7 +65,9 @@ use super::table::{EntityRef, Entry};
 pub enum OpGroup {
     /// Shared across body-producing ops ([`RoleSeg::OutputBody`]).
     Shared,
-    /// Extrude.
+    /// Extrude — and the loft, a swept solid of the same shape, whose
+    /// caps, rims and cap vertices are the extrude's roles and whose
+    /// walls and seams pair one piece per section.
     Extrude,
     /// Revolve (the M2 band/pole/seam taxonomy).
     Revolve,
@@ -133,6 +135,9 @@ seg_tags! {
     RimEdge,
     LateralEdge,
     CapVertex,
+    // Loft
+    LoftWall,
+    LoftSeam,
     // Revolve
     Band,
     BandRim,
@@ -229,6 +234,8 @@ impl SegTag {
             RoleSeg::RimEdge(..) => Self::RimEdge,
             RoleSeg::LateralEdge(..) => Self::LateralEdge,
             RoleSeg::CapVertex(..) => Self::CapVertex,
+            RoleSeg::LoftWall(..) => Self::LoftWall,
+            RoleSeg::LoftSeam(..) => Self::LoftSeam,
             RoleSeg::Band(..) => Self::Band,
             RoleSeg::BandRim(..) => Self::BandRim,
             RoleSeg::BandRimPi(..) => Self::BandRimPi,
@@ -274,9 +281,13 @@ impl SegTag {
     pub fn group(self) -> OpGroup {
         match self {
             Self::OutputBody => OpGroup::Shared,
-            Self::Cap | Self::Lateral | Self::RimEdge | Self::LateralEdge | Self::CapVertex => {
-                OpGroup::Extrude
-            }
+            Self::Cap
+            | Self::Lateral
+            | Self::RimEdge
+            | Self::LateralEdge
+            | Self::CapVertex
+            | Self::LoftWall
+            | Self::LoftSeam => OpGroup::Extrude,
             Self::Band
             | Self::BandRim
             | Self::BandRimPi
@@ -341,6 +352,8 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         RoleSeg::OutputBody
         | RoleSeg::Lateral(_)
         | RoleSeg::LateralEdge(_)
+        | RoleSeg::LoftWall(_)
+        | RoleSeg::LoftSeam(_)
         | RoleSeg::Band(_)
         | RoleSeg::BandRim(_)
         | RoleSeg::BandRimPi(_)

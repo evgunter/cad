@@ -29,17 +29,15 @@
 use core::f64::consts::TAU;
 
 use pncad::document::{
-    CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Evaluation, Expr, LoopProgram, Node,
-    ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, ValuePayload, apply,
-    evaluate,
+    CancelToken, Datum, Dimension, Doc, DocEdit, DocumentId, EvalOptions, Evaluation, Expr,
+    LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
+    ValuePayload, apply, evaluate, split,
 };
 use pncad::geom::Surface;
 use pncad::geom_core::Tol;
-use pncad::prelude::{
-    EntityKind, MeridianEnd, ProfileEdgeRef, RoleSeg, StableName, fillet_edges, query,
-};
+use pncad::prelude::{EntityKind, MeridianEnd, RoleSeg, StableName, fillet_edges, query};
 use pncad::profile::ArcSweep;
-use pncad::select::{band_rim, edge_name};
+use pncad::select::{ProfilePieces, band_rim, edge_name};
 use pncad::topo::{Body, EdgeKey};
 
 // ---- the lid's stations, from `src/teapot.rs` ----
@@ -105,7 +103,11 @@ fn insert(doc: &mut Doc<ProfileProgram>, node: Node<ProfileProgram>, tol: Tol) -
 
 /// A fresh document carrying the sharp lid, and that node's id.
 fn sharp_lid(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-lid", tol);
+    sharp_lid_in(Doc::empty_derived("teapot-lid", tol), tol)
+}
+
+/// [`sharp_lid`] appended to `doc`, whatever it already holds.
+fn sharp_lid_in(mut doc: Doc<ProfileProgram>, tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let plane = insert(
         &mut doc,
         Node::Datum(Datum::Frame {
@@ -129,6 +131,7 @@ fn sharp_lid(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![lid_meridian()],
+            ids: Vec::new(),
         }),
         tol,
     );
@@ -182,6 +185,39 @@ fn bands(b: &Body<f64>) -> Vec<(u64, u64, u64)> {
     out
 }
 
+/// The pieces of the sharp lid's meridian, under `doc`'s values.
+fn pieces_of(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, tol: Tol) -> ProfilePieces {
+    let Some(Node::Revolve { profile, .. }) = doc.node(lid) else {
+        panic!("the lid is a revolve");
+    };
+    let Some(Node::Profile(program)) = doc.node(*profile) else {
+        panic!("a revolve's operand is a profile");
+    };
+    program
+        .pieces(&doc.param_env::<f64>(), tol)
+        .expect("the meridian replays")
+}
+
+/// The latitude rim at meridian vertex `v` of the lid.
+fn rim(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, v: u32, tol: Tol) -> StableName {
+    let piece = pieces_of(doc, lid, tol)
+        .vertex(0, v as usize)
+        .expect("the vertex is the meridian's");
+    band_rim(lid, piece)
+}
+
+/// The seam meridian of segment `k` of the lid.
+fn seam_of(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, k: usize, tol: Tol) -> StableName {
+    let piece = pieces_of(doc, lid, tol)
+        .edge(0, k)
+        .expect("the segment is the meridian's");
+    StableName {
+        kind: EntityKind::Edge,
+        node: lid,
+        path: vec![RoleSeg::Meridian(MeridianEnd::Seam, piece)],
+    }
+}
+
 /// The lid rolled at `roll` over the rims at `vs` in ONE `Node::Fillet`
 /// request: the document, the sharp lid's id and the rolled node's.
 fn rolled_lid(
@@ -190,7 +226,7 @@ fn rolled_lid(
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let (mut doc, lid) = sharp_lid(tol);
-    let sel: Vec<StableName> = vs.iter().map(|&v| band_rim(lid, 0, v)).collect();
+    let sel: Vec<StableName> = vs.iter().map(|&v| rim(&doc, lid, v, tol)).collect();
     let rolled = insert(&mut doc, Node::fillet(lid, len(roll), sel), tol);
     (doc, lid, rolled)
 }
@@ -259,18 +295,8 @@ fn two_slits_on_one_meridian_carry_the_band_that_made_each() {
     let table = &ev.value(rolled).expect("the roll evaluated").name_table;
     // The flange cone's seam meridian: the sharp lid's meridian
     // segment 1, on the revolve's seam.
-    let seam = StableName {
-        kind: EntityKind::Edge,
-        node: lid,
-        path: vec![RoleSeg::Meridian(
-            MeridianEnd::Seam,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment: 1,
-            },
-        )],
-    };
-    let want = |v: u32| vec![band_rim(lid, 0, v)];
+    let seam = seam_of(&doc, lid, 1, tol);
+    let want = |v: u32| vec![rim(&doc, lid, v, tol)];
     for role in ["slit", "cross"] {
         let mut bands: Vec<Vec<StableName>> = table
             .iter()
@@ -317,9 +343,10 @@ fn one_request_builds_the_kernels_body() {
     let keys: Vec<EdgeKey> = ROLLED
         .iter()
         .map(|&v| {
+            let want = rim(&doc, lid, v, tol);
             query::all_edges(&sharp)
                 .into_iter()
-                .find(|&k| edge_name(&ev, lid, 0, k).ok() == Some(&band_rim(lid, 0, v)))
+                .find(|&k| edge_name(&ev, lid, 0, k).ok() == Some(&want))
                 .expect("each rolled rim's key, by its name")
         })
         .collect();
@@ -523,17 +550,7 @@ fn one_band_cut_survives_between_two_bands() {
     let (doc, lid, rolled) = rolled_lid(&[1, 2], ROLL, tol);
     let ev = eval(&doc, tol);
     assert!(ev.node_error(rolled).is_none());
-    let seam = StableName {
-        kind: EntityKind::Edge,
-        node: lid,
-        path: vec![RoleSeg::Meridian(
-            MeridianEnd::Seam,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment: 1,
-            },
-        )],
-    };
+    let seam = seam_of(&doc, lid, 1, tol);
     let g = named_geometry(&ev, rolled);
     let cuts: Vec<_> = g
         .iter()
@@ -587,30 +604,41 @@ fn the_interval_lane_mints_the_f64_names() {
     assert_eq!(nf, ni);
 }
 
-/// **An upstream RENAME carries into a held slit's band.** The
-/// program is ROTATED (same solid, starting at the flange), so every
-/// vertex and segment index moves; a downstream node holds the flange
-/// band's slit by name. After the edit the held name must still denote
-/// the SAME slit. Rewriting the slit's `edge` but not its `band` would
-/// leave it naming the OTHER band's slit on the same seam — a silent
-/// retarget that no refusal catches, which is what this row is for.
+/// **A re-map of node ids carries into a held slit's band.** The lid
+/// is split out of a document whose first node stays behind, so every
+/// id the part mints is one lower; a node holding the flange band's
+/// slit by name travels with it. In the part, the held name must still
+/// denote the SAME slit. Re-mapping the slit's `edge` but not its
+/// `band` would leave it naming a band on another node — or, on a seam
+/// two bands share, the OTHER band's slit: a silent retarget no
+/// refusal catches, which is what this row is for.
 #[test]
-fn a_program_rename_carries_a_held_slits_band() {
-    use pncad::document::LoopProvenance;
+fn a_split_carries_a_held_slits_band() {
     let tol = Tol::witness();
-    let (mut doc, lid, rolled) = rolled_lid(&[1, 2], ROLL, tol);
-    let profile = match doc.node(lid) {
-        Some(Node::Revolve { profile, .. }) => *profile,
-        other => panic!("{other:?}"),
-    };
+    let mut doc: Doc<ProfileProgram> = Doc::empty_derived("teapot-lid-split", tol);
+    let lead = insert(
+        &mut doc,
+        Node::Datum(Datum::Frame {
+            origin: [len(1.0), len(0.0), len(0.0)],
+            u: [scl(1.0), scl(0.0), scl(0.0)],
+            v: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+        tol,
+    );
+    let (mut doc, lid) = sharp_lid_in(doc, tol);
+    let sel = vec![rim(&doc, lid, 1, tol), rim(&doc, lid, 2, tol)];
+    let rolled = insert(&mut doc, Node::fillet(lid, len(ROLL), sel), tol);
     let ev = eval(&doc, tol);
-    assert!(ev.node_error(rolled).is_none());
+    assert!(
+        ev.node_error(rolled).is_none(),
+        "{:?}",
+        ev.node_error(rolled)
+    );
     let before = named_geometry(&ev, rolled);
+    let flange = rim(&doc, lid, 1, tol);
     let slit = before
         .keys()
-        .find(|n| {
-            matches!(&n.path[..], [RoleSeg::BandSlit { band, .. }] if *band == vec![band_rim(lid, 0, 1)])
-        })
+        .find(|n| matches!(&n.path[..], [RoleSeg::BandSlit { band, .. }] if *band == vec![flange.clone()]))
         .expect("the flange band's slit")
         .clone();
     let holder = insert(
@@ -619,73 +647,29 @@ fn a_program_rename_carries_a_held_slits_band() {
         tol,
     );
 
-    let rotated = LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(R_FLANGE, LID_BASE)),
-        line_to(R_NECK, Y_FLANGE),
-        ProgramStep::ArcTo(ProgramArcData::Center {
-            c: lpt(0.0, DOME_C),
-            winding: ArcSweep::Ccw,
-            target: ProgramTarget::Point(lpt(R_KNOB, Y_KNOB)),
-        }),
-        line_to(R_KNOB, Y_TOP),
-        line_to(R_VENT, Y_TOP),
-        line_to(R_VENT, LID_BASE),
-        ProgramStep::LineTo(ProgramTarget::Start),
-    ]);
-    let applied = apply(
-        &doc,
-        &DocEdit::SetProgram {
-            node: profile,
-            loops: vec![rotated],
-            provenance: vec![LoopProvenance {
-                from: Some(0),
-                steps: vec![
-                    Some(0),
-                    Some(2),
-                    Some(3),
-                    Some(4),
-                    Some(5),
-                    Some(6),
-                    Some(1),
-                ],
-            }],
-        },
-        tol,
-        &pncad::document::RefusingReach,
-    )
-    .expect("the rotation applies");
-    let doc = applied.doc;
-    let held = match doc.node(holder) {
+    let cut: std::collections::BTreeSet<RecipeNodeId> =
+        doc.order().iter().copied().filter(|&n| n != lead).collect();
+    let out = split(&doc, &cut, DocumentId::derive("teapot-lid-part"), tol, None)
+        .expect("the lid splits out whole");
+    let (part_rolled, part_holder) = (out.node_map[&rolled], out.node_map[&holder]);
+    let held = match out.part.node(part_holder) {
         Some(Node::Fillet { selection, .. }) => selection[0].clone(),
         other => panic!("{other:?}"),
     };
     assert_ne!(
         held, slit,
-        "the rotation moved the indices (else the probe is vacuous)"
+        "the split moved the ids (else the row is vacuous)"
     );
-    let ev = eval(&doc, tol);
+    let ev = eval(&out.part, tol);
     assert!(
-        ev.node_error(rolled).is_none(),
+        ev.node_error(part_rolled).is_none(),
         "{:?}",
-        ev.node_error(rolled)
+        ev.node_error(part_rolled)
     );
-    let after = named_geometry(&ev, rolled);
-    let g = after.get(&held).expect("the held slit still resolves");
-    let close = |a: &[u64], b: &[u64]| {
-        a.iter()
-            .zip(b)
-            .all(|(x, y)| (f64::from_bits(*x) - f64::from_bits(*y)).abs() < 1e-9)
-    };
-    // The endpoint order is by bits; compare as sets of two points.
-    let (b0, b1) = before[&slit].split_at(3);
-    let (a0, a1) = g.split_at(3);
-    assert!(
-        (close(a0, b0) && close(a1, b1)) || (close(a0, b1) && close(a1, b0)),
-        "the held name retargeted: before {:?}, after {:?}",
-        before[&slit]
-            .iter()
-            .map(|x| f64::from_bits(*x))
-            .collect::<Vec<_>>(),
-        g.iter().map(|x| f64::from_bits(*x)).collect::<Vec<_>>()
+    let after = named_geometry(&ev, part_rolled);
+    assert_eq!(
+        after.get(&held),
+        Some(&before[&slit]),
+        "the held slit names the same edge in the part"
     );
 }

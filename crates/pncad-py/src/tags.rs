@@ -133,9 +133,9 @@ use pncad::document::{
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
     EditError, EvalError, FrameFault, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
     MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
-    MintRefusal, NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault,
-    ProgramRefusal, ProvenanceFault, RecordedProgramError, RefusedRef, Relation, RootFault,
-    ShellClassifyError, SlotId, SnapshotError, SplitError, Subgroup, UpdateError,
+    MintRefusal, NodeErrorKind, ParseError, PersistError, PiecesFault, PlacementRuleFault,
+    ProgramFault, ProgramRefusal, RecordedProgramError, RefusedRef, Relation, RootFault,
+    ShellClassifyError, SlotId, SnapshotError, SplitError, StepIdFault, Subgroup, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -530,7 +530,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::SelectionNotCanonical { .. } => "selection_not_canonical",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
         EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
-        EditError::ProvenanceMalformed { .. } => "provenance_malformed",
+        EditError::StepIdsRefused { .. } => "step_ids_refused",
         EditError::TooFewMembers { .. } => "too_few_members",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
         EditError::UnknownSlot { .. } => "unknown_slot",
@@ -556,6 +556,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PathOffTree { .. } => "path_off_tree",
         EditError::Dimension { .. } => "dimension",
         EditError::DeclareNamesMissingNode { .. } => "declare_names_missing_node",
+        EditError::NameStepNeverMinted { .. } => "name_step_never_minted",
         EditError::ReadSiteMissingNode { .. } => "read_site_missing_node",
         EditError::NonFiniteDocParam { .. } => "non_finite_doc_param",
         EditError::InvalidDistribution { .. } => "invalid_distribution",
@@ -833,6 +834,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::ProfileReplay { .. } => "profile_replay",
         NodeErrorKind::ProfileLaneReplay { .. } => "profile_lane_replay",
         NodeErrorKind::ProfileAnchor { .. } => "profile_anchor",
+        NodeErrorKind::ProfilePieces { .. } => "profile_pieces",
         NodeErrorKind::Extrude { .. } => "extrude",
         NodeErrorKind::Revolve { .. } => "revolve",
         // ONE tag for both tube kinds, matching every other op on
@@ -1024,6 +1026,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             None => None,
         },
         NodeErrorKind::ProfileAnchor { .. } => None,
+        NodeErrorKind::ProfilePieces { fault } => Some(pieces_fault_tag(fault)),
         NodeErrorKind::Extrude(inner) => Some(extrude_error_tag(inner)),
         NodeErrorKind::Revolve(inner) => Some(revolve_error_tag(inner)),
         NodeErrorKind::Tube(inner) => Some(tube_error_tag(inner)),
@@ -1146,8 +1149,8 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::SelectionNotCanonical { .. } => None,
         EditError::SetMembersOnNonList { .. } => None,
         EditError::SetProgramOnNonProfile { .. } => None,
-        // The provenance's shape fault is the arm.
-        EditError::ProvenanceMalformed { fault, .. } => Some(provenance_fault_tag(fault)),
+        // What is wrong with the ids is the arm.
+        EditError::StepIdsRefused { fault, .. } => Some(step_id_fault_tag(fault)),
         EditError::TooFewMembers { .. } => None,
         EditError::DeleteWouldDangle { .. } => None,
         EditError::UnknownSlot { .. } => None,
@@ -1169,6 +1172,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::DocParamUnitMismatch { .. } => None,
         EditError::PathOffTree { .. } => None,
         EditError::DeclareNamesMissingNode { .. } => None,
+        EditError::NameStepNeverMinted { .. } => None,
         EditError::ReadSiteMissingNode { .. } => None,
         EditError::NonFiniteDocParam { .. } => None,
         EditError::RebindTargetMissingNode { .. } => None,
@@ -1612,7 +1616,9 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
         ProgramRefusal::Transition { .. } => "transition",
         ProgramRefusal::Geometry { .. } => "geometry",
         ProgramRefusal::Validate(_) => "validate",
-        ProgramRefusal::Record { .. } => "record",
+        ProgramRefusal::Unminted => "unminted",
+        ProgramRefusal::StepIds(_) => "step_ids",
+        ProgramRefusal::Pieces(_) => "pieces",
     }
 }
 
@@ -1762,6 +1768,8 @@ pub fn snapshot_error_tag(err: &SnapshotError) -> &'static str {
     match err {
         SnapshotError::OrderMismatch => "order_mismatch",
         SnapshotError::IdBeyondCounter { .. } => "id_beyond_counter",
+        SnapshotError::StepIds { .. } => "step_ids",
+        SnapshotError::NameStepBeyondCounter { .. } => "name_step_beyond_counter",
         SnapshotError::DanglingInput { .. } => "dangling_input",
         SnapshotError::ForwardInput { .. } => "forward_input",
         SnapshotError::DeclareInput { .. } => "declare_input",
@@ -1996,6 +2004,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
     match err {
         E::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
         E::UnknownNode { .. } => "unknown_node",
+        E::PlacedUnderTwoRoots { .. } => "placed_under_two_roots",
         E::RootFailed { .. } => "root_failed",
         E::RootPoisoned { .. } => "root_poisoned",
         E::NoBodyRoots => "no_body_roots",
@@ -2272,10 +2281,12 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::UncutParamReference { .. } => "uncut_param_reference",
         SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
         SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
+        SplitError::NameOnDroppedStep { .. } => "name_on_dropped_step",
         SplitError::BodyNameCrossesCut { .. } => "body_name_crosses_cut",
         SplitError::Pin { .. } => "split_pin",
         SplitError::PartEdit { .. } => "part_edit",
         SplitError::RemainderEdit { .. } => "remainder_edit",
+        SplitError::StepMapDiverged(_) => "step_map_diverged",
     }
 }
 
@@ -2299,7 +2310,9 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
         InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
         InlineError::StrandedPartName { .. } => "stranded_part_name",
+        InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
         InlineError::Edit { .. } => "inline_edit",
+        InlineError::StepMapDiverged(_) => "step_map_diverged",
     }
 }
 
@@ -2975,9 +2988,7 @@ pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
 /// because the appearance store is what carries it. An
 /// `orphaned_declare` names the declaration the delete left with no
 /// consumer, on `node`, and carries no name at all: nothing is
-/// dangling there, the node is simply no longer read. A `rebound`
-/// names a profile name a reshaped program moved, `name` its old
-/// spelling and `rebound_to` its new.
+/// dangling there, the node is simply no longer read.
 pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
     match maintenance {
         Maintenance::Cluster(ClusterMaintenance::Join { .. }) => "join",
@@ -2987,23 +2998,32 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::OrphanedDeclare { .. } => "orphaned_declare",
-        Maintenance::Rebound { .. } => "rebound",
     }
 }
 
-/// The stable tag for what is wrong with the SHAPE of a
-/// `DocEdit.set_program`'s provenance — the fault
-/// `EditError::ProvenanceMalformed` carries, published on
-/// `inner_variant` beside the edit's own word.
-pub fn provenance_fault_tag(fault: &ProvenanceFault) -> &'static str {
+/// The stable tag for where a profile's naming anchor, replay record
+/// and minted ids disagree — the fault `NodeErrorKind::ProfilePieces`
+/// carries, published on `inner_variant` beside the node error's word.
+pub fn pieces_fault_tag(fault: &PiecesFault) -> &'static str {
     match fault {
-        ProvenanceFault::LoopCount { .. } => "loop_count",
-        ProvenanceFault::StepCount { .. } => "step_count",
-        ProvenanceFault::NoSuchOldLoop { .. } => "no_such_old_loop",
-        ProvenanceFault::NoSuchOldStep { .. } => "no_such_old_step",
-        ProvenanceFault::StepOfNewLoop { .. } => "step_of_new_loop",
-        ProvenanceFault::OldLoopContinuedTwice { .. } => "old_loop_continued_twice",
-        ProvenanceFault::OldStepContinuedTwice { .. } => "old_step_continued_twice",
+        PiecesFault::NoRecord { .. } => "no_record",
+        PiecesFault::NoIds { .. } => "no_ids",
+        PiecesFault::Length { .. } => "length",
+        PiecesFault::NoStepId { .. } => "no_step_id",
+    }
+}
+
+/// The stable tag for what is wrong with a profile program's step ids
+/// — the fault `EditError::StepIdsRefused` carries, published on
+/// `inner_variant` beside the edit's own word.
+pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
+    match fault {
+        StepIdFault::Preminted => "preminted",
+        StepIdFault::LoopCount { .. } => "loop_count",
+        StepIdFault::Shape { .. } => "shape",
+        StepIdFault::NotThisProfiles { .. } => "not_this_profiles",
+        StepIdFault::Repeated { .. } => "repeated",
+        StepIdFault::BeyondCounter { .. } => "beyond_counter",
     }
 }
 

@@ -222,7 +222,7 @@ const Q: f64 = std::f64::consts::FRAC_PI_2;
 /// (`read_mates`), so a document's cluster membership and its solved
 /// gauges cannot disagree; this asserts that on whatever document it
 /// is handed.
-fn assert_partition_agrees(doc: &ProfileDoc, opts: &EvalOptions, what: &str) {
+fn assert_partition_agrees(doc: &editor_core::ProfileDoc, opts: &EvalOptions, what: &str) {
     let poses = solve(doc, opts, Tol::witness());
     let mut from_solve: BTreeMap<RecipeNodeId, Vec<RecipeNodeId>> = BTreeMap::new();
     for c in clusters(doc) {

@@ -87,8 +87,7 @@ use crate::fixture;
 
 use editor_core::{
     CapEnd, EntityKey, EntityKind, Entry, EvalOptions, LoopProgram, NameRef, NameTable, Node,
-    ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, ProgramStep, ProgramTarget,
-    RecipeNodeId, RoleSeg, StableName,
+    ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, StableName,
 };
 // The name-table and body readers, and the name-authoring shorthands,
 // live in `fixture` — one home for what this suite and
@@ -229,7 +228,14 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             LoopProgram::circle(r.centre.0, r.centre.1, r.radius).expect("a finite hole circle"),
         );
     }
-    let (doc, profile) = fixture::insert(doc, Node::Profile(ProfileProgram { plane, loops }));
+    let (doc, profile) = fixture::insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops,
+            ids: Vec::new(),
+        }),
+    );
     let (doc, block) = fixture::insert(
         doc,
         Node::Extrude {
@@ -237,9 +243,10 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             distance: len(THICK),
         },
     );
+    let at = &doc;
     let mut selection: Vec<StableName> = rims()
         .into_iter()
-        .flat_map(|r| (0..2).map(move |s| rim_edge(block, r, s)))
+        .flat_map(|r| (0..2).map(move |s| rim_edge(at, block, r, s)))
         .collect();
     selection.sort();
     let (doc, fillet) = fixture::insert(
@@ -259,49 +266,60 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 
 /// One arc of a hole's rim on the filleted cap — a source rim edge, and
 /// what a [`RoleSeg::BandFace`] argument is a set of.
-fn rim_edge(block: RecipeNodeId, rim: Rim, segment: u32) -> StableName {
+fn rim_edge(
+    doc: &editor_core::ProfileDoc,
+    block: RecipeNodeId,
+    rim: Rim,
+    segment: u32,
+) -> StableName {
     fixture::rim_edge(
         block,
         CapEnd::End,
-        ProfileEdgeRef {
-            loop_index: rim.loop_index,
-            segment,
-        },
+        crate::fixture::piece(doc, block, rim.loop_index as usize, segment as usize),
     )
 }
 
 /// A hole's whole rim as a band's identity: its source rim edges, as
 /// the sorted set a [`RoleSeg::BandFace`] argument is, and the `band`
 /// a [`RoleSeg::BandCross`] or [`RoleSeg::BandSlit`] carries.
-fn band_of(block: RecipeNodeId, rim: Rim) -> Vec<StableName> {
-    let mut set: Vec<StableName> = (0..2).map(|s| rim_edge(block, rim, s)).collect();
+fn band_of(doc: &editor_core::ProfileDoc, block: RecipeNodeId, rim: Rim) -> Vec<StableName> {
+    let mut set: Vec<StableName> = (0..2).map(|s| rim_edge(doc, block, rim, s)).collect();
     set.sort();
     set
 }
 
 /// A source rim VERTEX on the filleted cap — what a
 /// [`RoleSeg::BandFoot`] argument names.
-fn cap_vertex(block: RecipeNodeId, rim: Rim, vertex: u32) -> StableName {
+fn cap_vertex(
+    doc: &editor_core::ProfileDoc,
+    block: RecipeNodeId,
+    rim: Rim,
+    vertex: u32,
+) -> StableName {
     fixture::cap_vertex(
         block,
         CapEnd::End,
-        ProfileVertexRef {
-            loop_index: rim.loop_index,
-            vertex,
-        },
+        crate::fixture::vpiece(doc, block, rim.loop_index as usize, vertex as usize),
     )
 }
 
 /// The MERIDIAN descending from a rim vertex into the hole's wall — the
 /// extrude's lateral edge at the same profile vertex, and what a
 /// [`RoleSeg::BandCross`] and a [`RoleSeg::BandSlit`] argument name.
-fn meridian(block: RecipeNodeId, rim: Rim, vertex: u32) -> StableName {
+fn meridian(
+    doc: &editor_core::ProfileDoc,
+    block: RecipeNodeId,
+    rim: Rim,
+    vertex: u32,
+) -> StableName {
     fixture::ename(
         block,
-        RoleSeg::LateralEdge(ProfileVertexRef {
-            loop_index: rim.loop_index,
-            vertex,
-        }),
+        RoleSeg::LateralEdge(crate::fixture::vpiece(
+            doc,
+            block,
+            rim.loop_index as usize,
+            vertex as usize,
+        )),
     )
 }
 
@@ -318,15 +336,31 @@ fn host_support(block: RecipeNodeId, fillet: RecipeNodeId) -> StableName {
     )
 }
 
-/// The rim a source name belongs to, decoded from the name's own
-/// profile-loop anchoring — which is how a row keyed on an ARGUMENT
-/// finds the circle that argument sits on.
-fn rim_of(n: &StableName) -> Rim {
-    let l = match n.path.first() {
-        Some(RoleSeg::LateralEdge(v) | RoleSeg::CapVertex(_, v)) => v.loop_index,
-        Some(RoleSeg::RimEdge(_, e)) => e.loop_index,
-        other => panic!("{other:?} is not anchored at a profile loop"),
+/// Where a source name's piece sits on the profile `block` extrudes —
+/// its canonical loop and the vertex it starts at — decoded from the
+/// name's own locator, which is how a row keyed on an ARGUMENT finds
+/// the circle that argument sits on.
+fn position_of(doc: &ProfileDoc, block: RecipeNodeId, n: &StableName) -> (u32, u32) {
+    let v = match n.path.first() {
+        Some(RoleSeg::LateralEdge(v) | RoleSeg::CapVertex(_, v)) => *v,
+        Some(RoleSeg::RimEdge(_, e)) => e.start(),
+        other => panic!("{other:?} is not anchored at a profile piece"),
     };
+    let pieces = fixture::pieces(doc, fixture::swept(doc, block));
+    (0..)
+        .map_while(|l| pieces.vertex(l, 0).map(|_| l))
+        .find_map(|l| {
+            (0..)
+                .map_while(|k| pieces.vertex(l, k).map(|at| (k, at)))
+                .find(|&(_, at)| at == v)
+                .map(|(k, _)| (u32::try_from(l).unwrap(), u32::try_from(k).unwrap()))
+        })
+        .unwrap_or_else(|| panic!("{n:?} names no piece of the profile"))
+}
+
+/// The rim a source name belongs to ([`position_of`]'s loop).
+fn rim_of(doc: &ProfileDoc, block: RecipeNodeId, n: &StableName) -> Rim {
+    let (l, _) = position_of(doc, block, n);
     rims()
         .into_iter()
         .find(|r| r.loop_index == l)
@@ -357,13 +391,14 @@ fn retracted(rim: Rim, p: Point3<f64>, d: f64) -> (f64, f64) {
 /// — the population a row saying "the rim its name carries, and not the
 /// other" discriminates within.
 fn all_rim_vertices(
+    doc: &ProfileDoc,
     src: &NameTable,
     sbody: &Body<f64>,
     block: RecipeNodeId,
 ) -> Vec<(u32, Point3<f64>)> {
     rims()
         .into_iter()
-        .flat_map(|r| (0..2).map(move |j| (r.loop_index, cap_vertex(block, r, j))))
+        .flat_map(|r| (0..2).map(move |j| (r.loop_index, cap_vertex(doc, block, r, j))))
         .map(|(l, n)| (l, point(sbody, vertex_of(src, "a source rim vertex", &n))))
         .collect()
 }
@@ -400,13 +435,14 @@ fn footprint_gap(p: Point3<f64>, ends: [Point3<f64>; 2]) -> f64 {
 /// from — the population a row saying "the meridian its name carries,
 /// and not another" discriminates within.
 fn all_meridians(
+    doc: &ProfileDoc,
     src: &NameTable,
     sbody: &Body<f64>,
     block: RecipeNodeId,
 ) -> Vec<(u32, u32, [Point3<f64>; 2])> {
     rims()
         .into_iter()
-        .flat_map(|r| (0..2).map(move |j| (r.loop_index, j, meridian(block, r, j))))
+        .flat_map(|r| (0..2).map(move |j| (r.loop_index, j, meridian(doc, block, r, j))))
         .map(|(l, j, n)| {
             let [a, b] = ends(sbody, edge_of(src, "a source meridian", &n));
             (l, j, [point(sbody, a), point(sbody, b)])
@@ -451,7 +487,7 @@ fn a_band_foot_is_the_host_support_vertex_retracted_from_its_source_rim_vertex()
     for rim in rims() {
         for j in 0..2 {
             let what = format!("hole {}, profile vertex {j}", rim.loop_index);
-            let source = cap_vertex(block, rim, j);
+            let source = cap_vertex(&doc, block, rim, j);
             let s = point(sbody, vertex_of(src, &what, &source));
             let foot = vertex_of(
                 t,
@@ -512,11 +548,11 @@ fn a_band_crossing_lies_on_the_meridian_its_name_carries() {
     let ev = fixture::run(&doc, &EvalOptions::default());
     let (t, src) = (table(&ev, fillet), table(&ev, block));
     let (body, sbody) = (corpus::body_of(&ev, fillet), corpus::body_of(&ev, block));
-    let all = all_meridians(src, sbody, block);
+    let all = all_meridians(&doc, src, sbody, block);
     for rim in rims() {
         for j in 0..2 {
             let what = format!("hole {}, meridian {j}", rim.loop_index);
-            let source = meridian(block, rim, j);
+            let source = meridian(&doc, block, rim, j);
             let cross = vertex_of(
                 t,
                 &what,
@@ -525,7 +561,7 @@ fn a_band_crossing_lies_on_the_meridian_its_name_carries() {
                     fillet,
                     RoleSeg::BandCross {
                         edge: NameRef::new(source),
-                        band: band_of(block, rim),
+                        band: band_of(&doc, block, rim),
                     },
                 ),
             );
@@ -597,10 +633,10 @@ fn a_band_face_carries_the_set_of_rim_edges_it_rounds() {
     let ev = fixture::run(&doc, &EvalOptions::default());
     let (t, src) = (table(&ev, fillet), table(&ev, block));
     let (body, sbody) = (corpus::body_of(&ev, fillet), corpus::body_of(&ev, block));
-    let population = all_rim_vertices(src, sbody, block);
+    let population = all_rim_vertices(&doc, src, sbody, block);
     for rim in rims() {
         let what = format!("hole {}", rim.loop_index);
-        let mut set: Vec<StableName> = (0..2).map(|s| rim_edge(block, rim, s)).collect();
+        let mut set: Vec<StableName> = (0..2).map(|s| rim_edge(&doc, block, rim, s)).collect();
         set.sort();
         let want: BTreeSet<StableName> = set.iter().cloned().collect();
         let band = face_of(
@@ -678,16 +714,16 @@ fn a_slit_runs_along_the_meridian_it_was_slit_along() {
         let RoleSeg::BandSlit { edge: source, band } = &n.path[0] else {
             continue;
         };
-        let rim = rim_of(source);
+        let rim = rim_of(&doc, block, source);
         let what = format!("the slit on hole {}", rim.loop_index);
         assert_eq!(
             *band,
-            band_of(block, rim),
+            band_of(&doc, block, rim),
             "{what}: the slit carries the band that slit it — its own hole's rim"
         );
         served.push(rim.loop_index);
         let j = match source.path.first() {
-            Some(RoleSeg::LateralEdge(v)) => v.vertex,
+            Some(RoleSeg::LateralEdge(_)) => position_of(&doc, block, source).1,
             other => panic!("{what}: {other:?} is not a lateral edge of the source"),
         };
         // The extrude anchors a lateral edge and a cap vertex at the
@@ -711,7 +747,7 @@ fn a_slit_runs_along_the_meridian_it_was_slit_along() {
             &minted(
                 EntityKind::Vertex,
                 fillet,
-                RoleSeg::BandFoot(NameRef::new(cap_vertex(block, rim, j))),
+                RoleSeg::BandFoot(NameRef::new(cap_vertex(&doc, block, rim, j))),
             ),
         );
         let got = ends(body, edge_of(t, &what, n));
@@ -850,7 +886,7 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source() {
     for rim in rims() {
         for j in 0..2 {
             let what = format!("hole {}, profile vertex {j}", rim.loop_index);
-            let v = cap_vertex(block, rim, j);
+            let v = cap_vertex(&doc, block, rim, j);
             let s = point(sbody, vertex_of(src, &what, &v));
             let foot = point(
                 body,
@@ -865,7 +901,7 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source() {
                 ),
             );
             min = min.min(dist(foot, s));
-            let m = meridian(block, rim, j);
+            let m = meridian(&doc, block, rim, j);
             let cross = point(
                 body,
                 vertex_of(
@@ -876,7 +912,7 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source() {
                         fillet,
                         RoleSeg::BandCross {
                             edge: NameRef::new(m.clone()),
-                            band: band_of(block, rim),
+                            band: band_of(&doc, block, rim),
                         },
                     ),
                 ),
@@ -918,7 +954,7 @@ fn the_neighbour_arm_is_measured_against_the_plates_closest_two_meridians() {
     let (doc, block, _fillet) = plate();
     let ev = fixture::run(&doc, &EvalOptions::default());
     let (src, sbody) = (table(&ev, block), corpus::body_of(&ev, block));
-    let all = all_meridians(src, sbody, block);
+    let all = all_meridians(&doc, src, sbody, block);
     let mut min = f64::INFINITY;
     for (i, &(_, _, a)) in all.iter().enumerate() {
         for &(_, _, b) in &all[i + 1..] {
@@ -954,7 +990,7 @@ fn a_rim_edges_rebind_suggestions_are_its_trims_and_not_its_bands_slit() {
     for rim in rims() {
         let what = format!("hole {}", rim.loop_index);
         for s in 0..2 {
-            let edge = rim_edge(block, rim, s);
+            let edge = rim_edge(&doc, block, rim, s);
             let got = editor_core::rebind_suggestions(&ev, &edge);
             let roles: Vec<&RoleSeg> = got.iter().map(|n| &n.path[0]).collect();
             assert_eq!(
@@ -972,7 +1008,7 @@ fn a_rim_edges_rebind_suggestions_are_its_trims_and_not_its_bands_slit() {
         let slits: Vec<StableName> = table(&ev, fillet)
             .iter()
             .filter(|(n, _)| {
-                matches!(&n.path[..], [RoleSeg::BandSlit { band, .. }] if *band == band_of(block, rim))
+                matches!(&n.path[..], [RoleSeg::BandSlit { band, .. }] if *band == band_of(&doc, block, rim))
             })
             .map(|(n, _)| n.clone())
             .collect();

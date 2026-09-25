@@ -126,7 +126,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     run::<f64>(doc, None, &EvalOptions::default())
 }
 
-fn push(doc: &ProfileDoc, edit: DocEdit<ProfileProgram>) -> ProfileDoc {
+fn push(doc: &editor_core::ProfileDoc, edit: DocEdit<ProfileProgram>) -> ProfileDoc {
     editor_core::apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
@@ -252,6 +252,7 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane: frame,
         loops: vec![chain],
+        ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
         profile,
@@ -263,14 +264,15 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
             LoopProgram::polygon([(5.0, 5.0), (6.0, 5.0), (6.0, 6.0), (5.0, 6.0)])
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile: cube_profile,
         distance: len(1.0),
     });
     let refs = vec![
-        SitedRef::new(block, fname(block, wall(3))),
-        SitedRef::new(block, fname(block, wall(1))),
+        SitedRef::new(block, fname(block, wall(&r.doc, block, 3))),
+        SitedRef::new(block, fname(block, wall(&r.doc, block, 1))),
         SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Start))),
         SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::End))),
     ];
@@ -311,6 +313,7 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
             centre: [len(0.0), len(0.0)],
             radius: len(0.5),
         }],
+        ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
         profile: bore_p,
@@ -322,6 +325,7 @@ pub(crate) fn fit(r_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId) {
             centre: [len(0.1), len(0.0)],
             radius: param("r", Dimension::Length),
         }],
+        ids: Vec::new(),
     }));
     let pin = r.insert(Node::Extrude {
         profile: pin_p,
@@ -364,6 +368,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let a = r.insert(Node::Extrude {
         profile: pa,
@@ -375,6 +380,7 @@ fn caps(h_dist: Option<Distribution>) -> (ProfileDoc, RecipeNodeId, RecipeNodeId
             LoopProgram::polygon([(3.0, 0.0), (4.0, 0.0), (4.0, 1.0), (3.0, 1.0)])
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let b = r.insert(Node::Extrude {
         profile: pb,
@@ -441,12 +447,14 @@ fn loft() -> (ProfileDoc, RecipeNodeId) {
     let p0 = r.insert(Node::Profile(ProfileProgram {
         plane: f0,
         loops: vec![c0],
+        ids: Vec::new(),
     }));
     let (c1, z1) = section(1.0);
     let f1 = frame_at(&mut r, z1);
     let p1 = r.insert(Node::Profile(ProfileProgram {
         plane: f1,
         loops: vec![c1],
+        ids: Vec::new(),
     }));
     let loft = r.insert(Node::Loft {
         profiles: vec![p0, p1],

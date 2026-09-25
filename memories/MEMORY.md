@@ -24,14 +24,16 @@ not what it says.
 
 - [Orchestration model](orchestration-model.md) — orchestrator plans and
   meta-reviews, subagents code and review; when to self-merge vs wait
-  for Ev; standing rules for monitors, channels and dispatches
+  for Ev; the two-designer weighing before a design fork goes to Ev;
+  standing rules for branches, monitors, channels and dispatches
 - [Orchestrator switch runbook](orchestrator-switch-runbook.md) —
   RUNBOOK, read only when handing off to a successor
 - [Agent lane operations](agent-lane-operations.md) — lane creation,
   build-slot locks, disk, liveness, death recovery, and the ways CI
   silently does not run
 - [Experiments](experiments.md) — the process experiments that are
-  live (dual Opus review concordance) or suspended (model A/B), where
+  live (dual Opus review concordance, design-fork review) or suspended
+  (model A/B), where
   each one's normative log is, and what any experiment binds
 
 ## Testing, review, measurement
