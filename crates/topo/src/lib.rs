@@ -171,6 +171,10 @@ pub mod instance;
 #[cfg(test)]
 pub(crate) mod iso;
 pub(crate) mod live;
+// The one statement of a stored planar loop's signed winding, shared by
+// the merge's role assigner and tier 3's check 6. Non-doc comment for
+// the same rustdoc reason as the sector modules below.
+pub(crate) mod loop_winding;
 pub mod merge_faces;
 pub mod movefac;
 #[cfg(test)]

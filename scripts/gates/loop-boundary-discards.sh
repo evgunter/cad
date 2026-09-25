@@ -182,7 +182,7 @@ REGISTER=(
   "crates/topo/src/euler_ring.rs|mekr_both_empty||2|unaudited"
   "crates/topo/src/euler_ring.rs|mekr_empty_ring||1|unaudited"
   "crates/topo/src/euler_ring.rs|mekr_empty_target||1|unaudited"
-  "crates/topo/src/merge_faces.rs|loop_winding||1|unaudited"
+  "crates/topo/src/loop_winding.rs|planar_loop_winding||1|unaudited"
   "crates/topo/src/movefac.rs|movefac||1|unaudited"
   "crates/topo/src/offset_nappe.rs|corner_stations||1|unaudited"
   "crates/topo/src/pcurves.rs|clear_face_caches||1|unaudited"
@@ -220,7 +220,7 @@ REGISTER=(
   "crates/topo/src/splitting/join.rs|loop_starts||1|unaudited"
   "crates/topo/src/validate.rs|loop_cycle_of||1|unaudited"
   "crates/topo/src/validate.rs|tier1||1|unaudited"
-  "crates/topo/src/validate.rs|tier3_local_checks_marked||2|unaudited"
+  "crates/topo/src/validate.rs|tier3_local_checks_marked||1|unaudited"
 )
 
 # The matchers, in one place. Anchored at the start of a record, because
