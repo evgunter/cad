@@ -3361,8 +3361,8 @@ mod value_field_tests {
 
     use super::{FieldVocabulary, number_text, value_field_ops, value_gesture};
     use crate::forms::FieldWriting;
-    use crate::props;
     use crate::frame::{self, StatusUpdate};
+    use crate::props;
     use crate::session::ValueGestureName;
     use crate::session::{DocSession, Refusal, SessionOp};
     use eframe::egui;
@@ -3468,7 +3468,6 @@ mod value_field_tests {
                 emitted: Vec::new(),
                 landed: Vec::new(),
                 texts: Vec::new(),
-                texts: Vec::new(),
                 notices: Vec::new(),
             }
         }
@@ -3530,7 +3529,6 @@ mod value_field_tests {
                 rect: egui::Rect::NOTHING,
                 emitted: Vec::new(),
                 landed: Vec::new(),
-                texts: Vec::new(),
                 texts: Vec::new(),
                 notices: Vec::new(),
             }
@@ -3840,7 +3838,7 @@ mod value_field_tests {
     #[test]
     fn a_count_the_dimension_refuses_is_said_typed_as_dragged() {
         let mut row = Row::pattern_count("vnews-typed-count", 2);
-        assert_eq!(row.showing().1, "2", "the fixture's count is its render");
+        assert_eq!(row.showing().0, 2.0, "the fixture stands at two");
         let before = row.session.history().len();
         row.click_in();
         row.frame(vec![egui::Event::Text("inf".to_owned())]);
@@ -3851,7 +3849,7 @@ mod value_field_tests {
             "a value the slot cannot carry is not an edit: {typed_ops:?}"
         );
         assert_eq!(row.session.history().len(), before, "and nothing lands");
-        assert_eq!(row.showing().1, "2", "and the field keeps the count");
+        assert_eq!(row.showing().0, 2.0, "and the field keeps the count");
         let typed = frame::frame_status(&row.notices, &typed_ops, None);
         let StatusUpdate::Show(said) = &typed else {
             panic!("the typed refusal reaches the line: {typed:?}");
