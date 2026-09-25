@@ -556,6 +556,7 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::PathOffTree { .. } => "path_off_tree",
         EditError::Dimension { .. } => "dimension",
         EditError::DeclareNamesMissingNode { .. } => "declare_names_missing_node",
+        EditError::NameStepNeverMinted { .. } => "name_step_never_minted",
         EditError::ReadSiteMissingNode { .. } => "read_site_missing_node",
         EditError::NonFiniteDocParam { .. } => "non_finite_doc_param",
         EditError::InvalidDistribution { .. } => "invalid_distribution",
@@ -1169,6 +1170,7 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::DocParamUnitMismatch { .. } => None,
         EditError::PathOffTree { .. } => None,
         EditError::DeclareNamesMissingNode { .. } => None,
+        EditError::NameStepNeverMinted { .. } => None,
         EditError::ReadSiteMissingNode { .. } => None,
         EditError::NonFiniteDocParam { .. } => None,
         EditError::RebindTargetMissingNode { .. } => None,
@@ -2988,6 +2990,7 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
 pub fn step_id_fault_tag(fault: &StepIdFault) -> &'static str {
     match fault {
         StepIdFault::Preminted => "preminted",
+        StepIdFault::LoopCount { .. } => "loop_count",
         StepIdFault::Shape { .. } => "shape",
         StepIdFault::NotThisProfiles { .. } => "not_this_profiles",
         StepIdFault::Repeated { .. } => "repeated",

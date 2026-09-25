@@ -51,14 +51,11 @@ use geom_core::Tol;
 /// A vertex name at `node` — the extrude's own END cap vertex on the
 /// document's one outer loop, so the name RESOLVES and the refusal is
 /// about its kind rather than about a name that names nothing.
-fn end_cap_vertex(node: RecipeNodeId, vertex: u32) -> StableName {
+fn end_cap_vertex(doc: &editor_core::ProfileDoc, node: RecipeNodeId, vertex: u32) -> StableName {
     fixture::cap_vertex(
         node,
         CapEnd::End,
-        ProfileVertexRef {
-            loop_index: 0,
-            vertex,
-        },
+        crate::fixture::vpiece(&doc, node, 0, vertex as usize),
     )
 }
 
@@ -80,14 +77,14 @@ fn solid() -> (ProfileDoc, RecipeNodeId, StableName, StableName, StableName) {
             distance: len(1.0),
         },
     );
-    let face = fname(body, wall(2));
-    let edge = fixture::prism_edges(body, 4).remove(2);
-    let vertex = end_cap_vertex(body, 0);
+    let face = fname(body, wall(&doc, body, 2));
+    let edge = fixture::prism_edges(&doc, body, 4).remove(2);
+    let vertex = end_cap_vertex(&doc, body, 0);
     (doc, body, face, edge, vertex)
 }
 
 /// The refusal `node` evaluates to, rendered.
-fn refusal(doc: &ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
+fn refusal(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> NodeErrorKind {
     let mut ev = evaluate::<f64>(
         doc,
         None,

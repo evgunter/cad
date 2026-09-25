@@ -78,7 +78,8 @@ fn filleted_cube(
             distance: len(1.0),
         },
     );
-    let (doc, blend) = insert(doc, Node::fillet(cube, radius, prism_edges(cube, 4)));
+    let node = Node::fillet(cube, radius, prism_edges(&doc, cube, 4));
+    let (doc, blend) = insert(doc, node);
     (doc, blend)
 }
 
@@ -321,7 +322,8 @@ fn the_chamfer_attaches_nothing_because_its_flow_says_so() {
             distance: len(1.0),
         },
     );
-    let (doc, cut) = insert(doc, Node::chamfer(cube, param("r"), prism_edges(cube, 4)));
+    let node1 = Node::chamfer(cube, param("r"), prism_edges(&doc, cube, 4));
+    let (doc, cut) = insert(doc, node1);
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
     assert!(bad.is_empty(), "chamfer document:\n{}", bad.join("\n"));
@@ -458,7 +460,7 @@ fn filleted_lantern(doc: ProfileDoc, cx: f64, radius: Expr) -> (ProfileDoc, Reci
             angle: ang(std::f64::consts::TAU),
         },
     );
-    let mouth = editor_core::band_rim(revolve, 0, 2);
+    let mouth = editor_core::band_rim(revolve, fixture::vpiece(&doc, revolve, 0, 2));
     insert(
         doc,
         Node::Fillet {
@@ -641,7 +643,7 @@ fn two_documents_evaluated_apart_do_not_share_a_token() {
 // The memo: a served body's token is the document's current one.
 // ---------------------------------------------------------------------
 
-fn memo_eval(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn memo_eval(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         prior,

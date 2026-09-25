@@ -35,7 +35,7 @@ use geom_core::Tol;
 /// The realized sweep prunes the disjoint side's pair space empty
 /// (its job); that production-path degradation is pinned in
 /// `m4_pr4_banked` (both strategies) — see `fixture/pr4.rs`'s note.
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     let opts = EvalOptions {
         boolean_sweep: topo::SweepStrategy::Idealized,
         ..EvalOptions::default()
@@ -297,10 +297,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     let base = StableName {
         kind: EntityKind::Edge,
         node,
-        path: vec![RoleSeg::AxisEdge(editor_core::ProfileEdgeRef {
-            loop_index: 0,
-            segment: 0,
-        })],
+        path: vec![RoleSeg::AxisEdge(crate::fixture::no_piece())],
     };
     let mut table = NameTable::new();
     table.insert_tied(base.clone(), vec![e1, e2]).unwrap();
@@ -771,10 +768,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     let bogus = minted(
         EntityKind::Face,
         a,
-        RoleSeg::Lateral(editor_core::ProfileEdgeRef {
-            loop_index: 7,
-            segment: 7,
-        }),
+        RoleSeg::Lateral(crate::fixture::no_piece()),
     );
     let err = apply_with_names(
         &doc,
@@ -831,10 +825,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
         a,
         RoleSeg::RimEdge(
             CapEnd::End,
-            editor_core::ProfileEdgeRef {
-                loop_index: 0,
-                segment: 0,
-            },
+            crate::fixture::piece(&doc, a, 0, 0),
         ),
     );
     assert!(
@@ -855,10 +846,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
         a,
         RoleSeg::RimEdge(
             CapEnd::End,
-            editor_core::ProfileEdgeRef {
-                loop_index: 7,
-                segment: 7,
-            },
+            crate::fixture::no_piece(),
         ),
     );
     let err = apply_with_names(
@@ -972,7 +960,9 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::Pole(_)
         | RoleSeg::AxisEdge(_)
         | RoleSeg::SplitBody(_)
-        | RoleSeg::SectionFace { .. } => false,
+        | RoleSeg::SectionFace { .. }
+        | RoleSeg::LoftWall(_)
+        | RoleSeg::LoftSeam(_) => false,
     })
 }
 

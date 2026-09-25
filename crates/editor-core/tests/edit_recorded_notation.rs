@@ -163,7 +163,7 @@ fn slot(step: u32, arg: StepArg) -> ExprPath {
 
 /// What a reader asking the document what one argument says gets back:
 /// the canonical value, and the notation it was written in.
-fn read_back(doc: &ProfileDoc, step: u32, arg: StepArg) -> (f64, &'static str) {
+fn read_back(doc: &editor_core::ProfileDoc, step: u32, arg: StepArg) -> (f64, &'static str) {
     let Some(e) = doc.expr_at(&slot(step, arg)) else {
         panic!("the document addresses ({step}, {arg:?})")
     };

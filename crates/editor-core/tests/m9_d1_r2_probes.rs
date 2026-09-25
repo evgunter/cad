@@ -79,10 +79,7 @@ fn negative_angle_wedge_of_an_all_on_axis_loop_names_both_poles() {
         assert!(
             t.lookup(&fixture::pole(
                 rev,
-                ProfileVertexRef {
-                    loop_index: 0,
-                    vertex: v
-                }
+                crate::fixture::vpiece(&doc, rev, 0, v as usize)
             ))
             .is_some(),
             "pole {v} unnamed"
@@ -113,10 +110,7 @@ fn partial_revolve_with_hole_and_axis_run_names_totally_both_signs() {
             assert!(
                 t.lookup(&fixture::pole(
                     rev,
-                    ProfileVertexRef {
-                        loop_index: 0,
-                        vertex: v
-                    }
+                    crate::fixture::vpiece(&doc, rev, 0, v as usize)
                 ))
                 .is_some(),
                 "theta {theta}: outer pole {v} unnamed"
@@ -126,10 +120,7 @@ fn partial_revolve_with_hole_and_axis_run_names_totally_both_signs() {
             assert!(
                 t.lookup(&fixture::pole(
                     rev,
-                    ProfileVertexRef {
-                        loop_index: 1,
-                        vertex: v
-                    }
+                    crate::fixture::vpiece(&doc, rev, 1, v as usize)
                 ))
                 .is_none(),
                 "theta {theta}: hole vertex {v} must not be a pole"

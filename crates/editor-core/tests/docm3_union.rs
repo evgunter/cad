@@ -843,7 +843,7 @@ fn the_dies_union_is_the_chain_it_replaced() {
 }
 
 /// How many names a blend node's selection carries.
-fn selection_len(doc: &ProfileDoc, blend: RecipeNodeId) -> usize {
+fn selection_len(doc: &editor_core::ProfileDoc, blend: RecipeNodeId) -> usize {
     match doc.node(blend) {
         Some(Node::Fillet { selection, .. }) => selection.len(),
         other => panic!("expected a fillet, got {other:?}"),

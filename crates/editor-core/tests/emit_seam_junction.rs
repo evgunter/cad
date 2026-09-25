@@ -97,7 +97,8 @@ fn fixture(g_z: (f64, f64), with_h: bool) -> Fixture {
 fn a_seam_junction_in_a_declared_union_is_named_by_its_member_space_lines() {
     let Fixture { doc, a, b, g, h } = fixture((0.5, 3.0), true);
     let h = h.unwrap();
-    let (docx, union, _) = declared_union(doc, &[b, g, a, h], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (docx, union, _) = declared_union(doc, &[b, g, a, h], pairs);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let body = body_of(&ev, union);
@@ -111,9 +112,9 @@ fn a_seam_junction_in_a_declared_union_is_named_by_its_member_space_lines() {
         b: y.into(),
     };
     let a_top = member_face(union, a, fname(a, RoleSeg::Cap(CapEnd::End)));
-    let a_y1 = member_face(union, a, fname(a, wall(2)));
-    let b_y1 = member_face(union, b, fname(b, wall(2)));
-    let g_x0 = member_face(union, g, fname(g, wall(3)));
+    let a_y1 = member_face(union, a, fname(a, wall(&docx, a, 2)));
+    let b_y1 = member_face(union, b, fname(b, wall(&docx, b, 2)));
+    let g_x0 = member_face(union, g, fname(g, wall(&docx, g, 3)));
     let want = StableName {
         kind: EntityKind::Vertex,
         node: union,
@@ -169,7 +170,7 @@ fn a_junction_is_named_the_same_in_every_order_that_fuses() {
         let mut fused = 0;
         let mut rim_named = 0;
         for order in permutations(&members) {
-            let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs((a, a), (b, b)));
+            let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
             let ev = run(&docx);
             match failure(&ev, union) {
                 None => {

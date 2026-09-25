@@ -71,7 +71,7 @@ use topo::{Body, EdgeKey, FaceKey, LoopBoundary, VertexKey};
 /// `f64` with a fresh cancel token and the witness tolerance, which
 /// is what every suite here wants and what none of them should spell
 /// for itself.
-pub fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
+pub fn run(doc: &editor_core::ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), o, Tol::witness())
 }
 
@@ -81,7 +81,7 @@ pub fn run(doc: &ProfileDoc, o: &EvalOptions) -> Evaluation<f64> {
 /// row that solves with a store it does not hand here levers nothing:
 /// every mate on a part faults in the resolver's voice, which is the
 /// kernel's answer and not a fixture default.
-pub fn solve(doc: &ProfileDoc, o: &EvalOptions, tol: Tol) -> SolvedPoses {
+pub fn solve(doc: &editor_core::ProfileDoc, o: &EvalOptions, tol: Tol) -> SolvedPoses {
     let reach = mate_reach::<f64>(o, tol);
     solve_document(doc, &reach, tol)
 }
@@ -92,7 +92,7 @@ pub fn solve(doc: &ProfileDoc, o: &EvalOptions, tol: Tol) -> SolvedPoses {
 /// # Errors
 ///
 /// The gate's own refusal, unaltered.
-pub fn gate(doc: &ProfileDoc, ev: &Evaluation<f64>) -> Result<(), AssemblyError> {
+pub fn gate(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> Result<(), AssemblyError> {
     assemble(doc, ev, Tol::witness()).map(|_| ())
 }
 
@@ -230,7 +230,7 @@ pub fn at_the_door(
 
 /// [`at_the_door`] for a mate the door refuses on the datum alone,
 /// through the refusing reach: the fault it carries.
-pub fn door_refusal(doc: &ProfileDoc, node: Node<ProfileProgram>) -> editor_core::MateFault {
+pub fn door_refusal(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> editor_core::MateFault {
     match at_the_door(doc, &RefusingReach, node) {
         Err((_, fault)) => fault,
         Ok(_) => panic!("the door admitted a mate it refuses on its own datum"),
@@ -347,7 +347,7 @@ pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram>
 ///
 /// If `plane` is not a `Datum::Frame`, if its components are not
 /// literals, or if `u` and `v` span no plane.
-pub fn plane_of(doc: &ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f64> {
+pub fn plane_of(doc: &editor_core::ProfileDoc, plane: RecipeNodeId) -> profile::SketchPlane<f64> {
     let Some(Node::Datum(editor_core::Datum::Frame { origin, u, v })) = doc.node(plane) else {
         panic!("node {} is not a Datum::Frame", plane.0)
     };
@@ -1036,7 +1036,7 @@ pub fn face_edges(body: &Body<f64>, f: FaceKey) -> HashSet<EdgeKey> {
 ///
 /// Authored, not queried: a selection FREEZES, so a corpus document
 /// states the set it means rather than asking an evaluation.
-pub fn prism_edges(doc: &ProfileDoc, node: RecipeNodeId, n: u32) -> Vec<StableName> {
+pub fn prism_edges(doc: &editor_core::ProfileDoc, node: RecipeNodeId, n: u32) -> Vec<StableName> {
     let mut out = Vec::new();
     for seg in 0..n as usize {
         let e = piece(doc, node, 0, seg);
@@ -1055,7 +1055,7 @@ pub fn prism_edges(doc: &ProfileDoc, node: RecipeNodeId, n: u32) -> Vec<StableNa
 ///
 /// If `profile` is not a profile node, or its program does not replay
 /// and validate.
-pub fn pieces(doc: &ProfileDoc, profile: RecipeNodeId) -> ProfilePieces {
+pub fn pieces(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> ProfilePieces {
     match doc.node(profile) {
         Some(Node::Profile(p)) => p
             .pieces(&doc.param_env::<f64>(), Tol::witness())
@@ -1070,7 +1070,7 @@ pub fn pieces(doc: &ProfileDoc, profile: RecipeNodeId) -> ProfilePieces {
 /// # Panics
 ///
 /// If `node` is none of those.
-pub fn swept(doc: &ProfileDoc, node: RecipeNodeId) -> RecipeNodeId {
+pub fn swept(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> RecipeNodeId {
     match doc.node(node) {
         Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => *profile,
         Some(Node::Profile(_)) => node,
@@ -1084,7 +1084,7 @@ pub fn swept(doc: &ProfileDoc, node: RecipeNodeId) -> RecipeNodeId {
 /// # Panics
 ///
 /// Where [`pieces`] does, or where the position is past the profile.
-pub fn piece(doc: &ProfileDoc, sweep: RecipeNodeId, l: usize, k: usize) -> ProfileEdgeRef {
+pub fn piece(doc: &editor_core::ProfileDoc, sweep: RecipeNodeId, l: usize, k: usize) -> ProfileEdgeRef {
     pieces(doc, swept(doc, sweep))
         .edge(l, k)
         .expect("the canonical position is the profile's")
@@ -1096,15 +1096,34 @@ pub fn piece(doc: &ProfileDoc, sweep: RecipeNodeId, l: usize, k: usize) -> Profi
 /// # Panics
 ///
 /// Where [`piece`] does.
-pub fn vpiece(doc: &ProfileDoc, sweep: RecipeNodeId, l: usize, v: usize) -> ProfileVertexRef {
+pub fn vpiece(doc: &editor_core::ProfileDoc, sweep: RecipeNodeId, l: usize, v: usize) -> ProfileVertexRef {
     pieces(doc, swept(doc, sweep))
         .vertex(l, v)
         .expect("the canonical position is the profile's")
 }
 
+/// **The leg step `step` draws**, spelled without a document — for a
+/// row whose names are compared, sorted or carried and never resolved.
+pub fn leg(step: u64) -> ProfileEdgeRef {
+    ProfileEdgeRef::Piece {
+        step: editor_core::StepId(step),
+        role: editor_core::PieceRole::Leg,
+    }
+}
+
+/// **A piece no profile draws**: the first step any document mints,
+/// in a role no verb gives it — a locator that is well formed and
+/// within every document's step counter, and denotes nothing.
+pub fn no_piece() -> ProfileEdgeRef {
+    ProfileEdgeRef::Piece {
+        step: editor_core::StepId(0),
+        role: editor_core::PieceRole::Piece(7),
+    }
+}
+
 /// A wall (lateral) role for outer-loop canonical segment `seg` of the
 /// profile the extrude `ext` sweeps, spelled by the piece it is.
-pub fn wall(doc: &ProfileDoc, ext: RecipeNodeId, seg: u32) -> RoleSeg {
+pub fn wall(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, seg: u32) -> RoleSeg {
     RoleSeg::Lateral(piece(doc, ext, 0, seg as usize))
 }
 
@@ -1112,7 +1131,7 @@ pub fn wall(doc: &ProfileDoc, ext: RecipeNodeId, seg: u32) -> RoleSeg {
 /// y0/y1 (segments 0/2, the `square`/`desc` corner order) and both
 /// caps — in ONE place, so a suite that names them and a suite that
 /// declares them cannot disagree about which four they are.
-pub fn flush_segs(doc: &ProfileDoc, ext: RecipeNodeId) -> [RoleSeg; 4] {
+pub fn flush_segs(doc: &editor_core::ProfileDoc, ext: RecipeNodeId) -> [RoleSeg; 4] {
     [
         wall(doc, ext, 0),
         wall(doc, ext, 2),
@@ -1351,6 +1370,8 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::Pole(_)
         | RoleSeg::AxisEdge(_)
         | RoleSeg::SplitBody(_)
-        | RoleSeg::SectionFace { .. } => Vec::new(),
+        | RoleSeg::SectionFace { .. }
+        | RoleSeg::LoftWall(_)
+        | RoleSeg::LoftSeam(_) => Vec::new(),
     }
 }

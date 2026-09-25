@@ -53,7 +53,7 @@ pub fn document() -> CorpusDoc {
         profile,
         distance: len(L),
     });
-    let blank = r.insert(Node::chamfer(cube, len(D), prism_edges(cube, 4)));
+    let blank = r.insert(Node::chamfer(cube, len(D), prism_edges(&r.doc, cube, 4)));
 
     CorpusDoc {
         name: "die_chamfer",

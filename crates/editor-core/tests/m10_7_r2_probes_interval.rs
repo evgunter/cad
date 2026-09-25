@@ -213,7 +213,7 @@ fn r_mut(r: &mut Recorder) -> &mut Recorder {
     r
 }
 
-fn drive_at(doc: &ProfileDoc, dials: SymbolicDials, tol: Tol) -> Option<String> {
+fn drive_at(doc: &editor_core::ProfileDoc, dials: SymbolicDials, tol: Tol) -> Option<String> {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     drive(
         doc,

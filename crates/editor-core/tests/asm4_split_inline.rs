@@ -540,7 +540,8 @@ fn row3_severing_cut_refuses_naming_the_edge() {
     );
     let (doc, a) = doc;
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, declared, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, declared, decl) = declared_union(doc, &[a, b], pairs);
     let everything_but_the_declaration: BTreeSet<RecipeNodeId> =
         doc.order().iter().copied().filter(|n| *n != decl).collect();
     match split(

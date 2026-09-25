@@ -437,8 +437,8 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(9))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(&r.doc, solid, 9))),
             ],
         )
         .expect("both indices in range"),
@@ -875,8 +875,8 @@ fn plain_distance_doc() -> ProfileDoc {
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                SitedRef::at_mint(fixture::fname(solid, fixture::wall(0))),
-                SitedRef::at_mint(fixture::fname(solid, fixture::wall(2))),
+                SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 0))),
+                SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
             ],
         )
         .expect("indices in range"),

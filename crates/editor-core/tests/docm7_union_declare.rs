@@ -148,7 +148,8 @@ fn a_union_of_two_flush_placements_of_one_prototype_fuses_when_declared() {
     );
     // Declared at the members: the same two placements fuse, in two
     // edits — the `Declare` and the union that consumes it.
-    let (doc, union, _) = declared_union(doc, &[m1, m2], flush_pairs((m1, proto), (m2, proto)));
+    let pairs = flush_pairs(&doc, (m1, proto), (m2, proto));
+    let (doc, union, _) = declared_union(doc, &[m1, m2], pairs);
     let ev = run(&doc);
     assert!(
         failure(&ev, union).is_none(),
@@ -178,9 +179,10 @@ fn the_pair_boolean_declares_between_two_placements_of_one_prototype() {
     let (doc, m2) = placed(doc, proto, 0.5);
     // The four flush planes, each named ONCE in the prototype's
     // vocabulary and sited at the two placements that carry it.
+    let node = Node::declare_rest(flush_pairs(&doc, (m1, proto), (m2, proto)));
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(flush_pairs((m1, proto), (m2, proto))),
+        node,
     );
     let (doc, pair) = insert(
         doc,
@@ -215,12 +217,13 @@ fn a_site_that_is_neither_operand_refuses() {
     let (doc, m2) = placed(doc, proto, 0.5);
     // Sited at the PROTOTYPE, whose table holds the name — but which
     // is neither operand of the boolean below.
+    let node1 = Node::declare_rest(vec![(
+            SitedRef::new(proto, fname(proto, wall(&doc, proto, 0))),
+            SitedRef::new(m2, fname(proto, wall(&doc, proto, 0))),
+        )]);
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(proto, fname(proto, wall(0))),
-            SitedRef::new(m2, fname(proto, wall(0))),
-        )]),
+        node1,
     );
     let (doc, pair) = insert(
         doc,
@@ -274,7 +277,8 @@ fn a_declared_union_is_the_pair_booleans_body() {
             declare: Some(decl),
         },
     );
-    let (doc, union, _) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, _) = declared_union(doc, &[a, b], pairs);
     let ev = run(&doc);
     let (folded, paired) = (body_of(&ev, union), body_of(&ev, pair));
     assert_eq!(folded.faces().count(), paired.faces().count());
@@ -313,7 +317,8 @@ fn a_declaration_mints_merged_rows_and_renames_nothing_else() {
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
-    let (doc, union, _) = declared_union(doc, &[m1, m2], flush_pairs((m1, proto), (m2, proto)));
+    let pairs = flush_pairs(&doc, (m1, proto), (m2, proto));
+    let (doc, union, _) = declared_union(doc, &[m1, m2], pairs);
     let ev = run(&doc);
     let t = table(&ev, union);
     // Four merged faces: the two y-walls and the two caps.
@@ -330,7 +335,7 @@ fn a_declaration_mints_merged_rows_and_renames_nothing_else() {
     // And each merged row's constituents are the declared names, as a
     // sorted set — so a selector spelled against the merged face is
     // exactly this name, and it resolves.
-    for (a, b) in flush_pairs((m1, proto), (m2, proto)) {
+    for (a, b) in flush_pairs(&doc, (m1, proto), (m2, proto)) {
         // The row is the union's, so the constituents are the two
         // sited names in the union's own member space.
         let mut set = vec![
@@ -356,10 +361,7 @@ fn a_declaration_mints_merged_rows_and_renames_nothing_else() {
             member,
             fname(
                 proto,
-                RoleSeg::Lateral(ProfileEdgeRef {
-                    loop_index: 0,
-                    segment: seg,
-                }),
+                RoleSeg::Lateral(crate::fixture::piece(&doc, union, 0, seg as usize)),
             ),
         );
         assert!(
@@ -397,7 +399,8 @@ fn a_declared_pair_routes_by_member_id_and_survives_a_reorder() {
         let (doc, b) = placed(doc, b0, 0.5);
         let all = [a, far, b];
         let members: Vec<RecipeNodeId> = order.iter().map(|i| all[*i]).collect();
-        let (doc, union, _) = declared_union(doc, &members, flush_pairs((a, a), (b, b0)));
+        let pairs = flush_pairs(&doc, (a, a), (b, b0));
+        let (doc, union, _) = declared_union(doc, &members, pairs);
         (doc, union, a, b)
     };
     // Members (a, far, b): the declared pair belongs to step 3.
@@ -484,13 +487,14 @@ fn a_declared_name_that_denotes_nothing_refuses() {
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     // A name the member's table does not carry — a wall the block
     // does not have: the site routes, the lookup finds nothing.
+    let named2 = vec![(
+            SitedRef::new(a, fname(a, wall(&doc, a, 0))),
+            SitedRef::new(b, fname(b, wall(&doc, b, 7))),
+        )];
     let (doc, union, _) = declared_union(
         doc,
         &[a, b],
-        vec![(
-            SitedRef::new(a, fname(a, wall(0))),
-            SitedRef::new(b, fname(b, wall(7))),
-        )],
+        named2,
     );
     let ev = run(&doc);
     assert!(
@@ -511,7 +515,8 @@ fn a_declared_member_removed_by_set_members_refuses() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, _) = declared_union(doc, &[a, b, far], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, _) = declared_union(doc, &[a, b, far], pairs);
     // The declaration survives the edit as written; it is the next
     // evaluation that refuses it.
     let (doc, _) = step(
@@ -554,7 +559,8 @@ fn a_declared_pair_side_that_is_a_bare_name_does_not_load() {
     let doc = ProfileDoc::empty_derived("docm7_bare_side", tol);
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, _union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, _union, decl) = declared_union(doc, &[a, b], pairs);
     let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
     // Doctored BY PATH, through the wire's own structure, so a field
     // rename breaks the probe instead of silently moving it.
@@ -677,8 +683,8 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
     let refused = doc.apply(
         &DocEdit::InsertNode {
             node: Node::declare_rest(vec![(
-                SitedRef::new(a, fname(future, wall(0))),
-                SitedRef::new(b, fname(b, wall(0))),
+                SitedRef::new(a, fname(future, wall(&doc, future, 0))),
+                SitedRef::new(b, fname(b, wall(&doc, b, 0))),
             )]),
         },
         Tol::witness(),
@@ -693,12 +699,12 @@ fn the_insert_door_refuses_a_declare_whose_name_or_site_is_not_live() {
     // admit the second.
     for sides in [
         (
-            SitedRef::new(future, fname(a, wall(0))),
-            SitedRef::new(b, fname(b, wall(0))),
+            SitedRef::new(future, fname(a, wall(&doc, a, 0))),
+            SitedRef::new(b, fname(b, wall(&doc, b, 0))),
         ),
         (
-            SitedRef::new(a, fname(a, wall(0))),
-            SitedRef::new(future, fname(b, wall(0))),
+            SitedRef::new(a, fname(a, wall(&doc, a, 0))),
+            SitedRef::new(future, fname(b, wall(&doc, b, 0))),
         ),
     ] {
         let refused = doc.apply(
@@ -738,7 +744,8 @@ fn a_declare_on_the_edge_is_not_a_declare_in_the_member_list() {
     let doc = ProfileDoc::empty_derived("docm7_key", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
     let (doc, miswired) = insert(
         doc,
         Node::Union {
@@ -787,8 +794,8 @@ fn the_declare_edge_recomputes_the_union_alone() {
         base,
         &[a, b],
         vec![(
-            SitedRef::new(a, fname(a, wall(0))),
-            SitedRef::new(b, fname(b, wall(2))),
+            SitedRef::new(a, fname(a, wall(&bare, a, 0))),
+            SitedRef::new(b, fname(b, wall(&bare, b, 2))),
         )],
     );
     let ev = evaluate::<f64>(
@@ -819,7 +826,8 @@ fn a_declared_union_replays_bit_identically() {
     let doc = ProfileDoc::empty_derived("docm7_wire", tol);
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, _) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, _) = declared_union(doc, &[a, b], pairs);
     let text = editor_core::persist::save(&doc, &[], tol).expect("the document saves");
     let loaded = editor_core::persist::load(&text, tol).expect("the document loads");
     assert!(
@@ -857,10 +865,7 @@ fn a_same_member_declared_pair_is_a_carried_record_at_its_step() {
     let vertex = fixture::cap_vertex(
         a,
         CapEnd::End,
-        ProfileVertexRef {
-            loop_index: 0,
-            vertex: 0,
-        },
+        crate::fixture::vpiece(&doc, a, 0, 0),
     );
     let face = fname(a, RoleSeg::Cap(CapEnd::Start));
     // Two entities of ONE member, sited there: the same pair reads as
@@ -952,7 +957,8 @@ fn a_declared_unions_document_replays_in_document_order() {
     let doc = ProfileDoc::empty_derived("docm7_forward_ref", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
     // The `Declare` precedes the union that consumes it, and names
     // nothing that comes after itself.
     let positions = |id: RecipeNodeId| doc.order().iter().position(|n| *n == id);
@@ -1031,7 +1037,8 @@ fn a_union_refusal_against_a_merged_wall_is_sited_at_a_constituent() {
     let (doc, m2) = placed(doc, proto, 0.5);
     // Flush under the merged y=0 wall (x 0..1.5 once m1 and m2 fuse).
     let (doc, m3) = block(doc, (0.0, 1.5), (-1.0, 0.0), 0.0, 1.0);
-    let (doc, union, _) = declared_union(doc, &[m1, m2, m3], flush_pairs((m1, proto), (m2, proto)));
+    let pairs = flush_pairs(&doc, (m1, proto), (m2, proto));
+    let (doc, union, _) = declared_union(doc, &[m1, m2, m3], pairs);
     let ev = run(&doc);
     let what = failure(&ev, union);
     let Some(NodeErrorKind::UndeclaredContact {
@@ -1056,7 +1063,7 @@ fn a_union_refusal_against_a_merged_wall_is_sited_at_a_constituent() {
     );
     // Declared verbatim, the same document fuses: any constituent
     // names the merged row through the look-through.
-    let mut pairs = flush_pairs((m1, proto), (m2, proto));
+    let mut pairs = flush_pairs(&doc, (m1, proto), (m2, proto));
     pairs.push((finding.pair.0.clone(), finding.pair.1.clone()));
     let (doc, again, _) = declared_union(doc.clone(), &[m1, m2, m3], pairs);
     let ev = run(&doc);
@@ -1079,8 +1086,8 @@ fn a_pass_through_operand_is_the_site_and_the_minting_node_is_not() {
             (m1, m2)
         };
         let pairs: Vec<(SitedRef, SitedRef)> = [
-            wall(0),
-            wall(2),
+            wall(&doc, proto, 0),
+            wall(&doc, proto, 2),
             RoleSeg::Cap(CapEnd::Start),
             RoleSeg::Cap(CapEnd::End),
         ]
@@ -1127,12 +1134,13 @@ fn a_name_the_site_does_not_carry_refuses_vanished_under_node_gone() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, spare) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
+    let node3 = Node::declare_rest(vec![(
+            SitedRef::new(a, fname(a, wall(&doc, a, 0))),
+            SitedRef::new(b, fname(spare, wall(&doc, spare, 0))),
+        )]);
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(a, fname(a, wall(0))),
-            SitedRef::new(b, fname(spare, wall(0))),
-        )]),
+        node3,
     );
     let (doc, pair) = insert(
         doc,
@@ -1174,7 +1182,8 @@ fn a_deleted_site_refuses_at_the_next_evaluation() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, far) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, _) = declared_union(doc, &[a, b, far], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, _) = declared_union(doc, &[a, b, far], pairs);
     let (doc, _) = step(
         doc,
         DocEdit::SetMembers {
@@ -1210,11 +1219,12 @@ fn rebind_moves_the_name_and_leaves_the_site() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, spare) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
     let ev = run(&doc);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
-    let from = fname(a, wall(0));
-    let to = fname(spare, wall(0));
+    let from = fname(a, wall(&doc, a, 0));
+    let to = fname(spare, wall(&doc, spare, 0));
     let applied = doc
         .apply(
             &DocEdit::Rebind {
@@ -1260,12 +1270,13 @@ fn a_name_the_other_operand_carries_is_not_read_at_its_site() {
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     // Both sides name entities of `b`; the first is SITED at `a`,
     // whose table does not carry it.
+    let node4 = Node::declare_rest(vec![(
+            SitedRef::new(a, fname(b, wall(&doc, b, 0))),
+            SitedRef::new(b, fname(b, wall(&doc, b, 2))),
+        )]);
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(a, fname(b, wall(0))),
-            SitedRef::new(b, fname(b, wall(2))),
-        )]),
+        node4,
     );
     let (doc, pair) = insert(
         doc,
@@ -1301,7 +1312,8 @@ fn a_declare_has_no_inputs() {
     let doc = ProfileDoc::empty_derived("docm7_no_inputs", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, decl) = insert(doc, Node::declare_rest(flush_pairs((a, a), (b, b))));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, decl) = insert(doc, Node::declare_rest(pairs));
     let node = doc.node(decl).expect("the Declare is live");
     assert!(
         node.inputs().is_empty(),

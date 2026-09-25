@@ -375,7 +375,7 @@ fn a_cylinder_band_answers_through_a_cut_root() {
     // arc — so the witness this row reads is on the cylinder and not
     // on the coplanar z-caps, which approach each other at the same
     // 0.12 through the same void.
-    let ss = named(solid, vec![fixture::fname(solid, fixture::wall(3))]);
+    let ss = named(solid, vec![fixture::fname(solid, fixture::wall(&doc, solid, 3))]);
     let sp = Selection::body_of(probe);
     let report = clearance(&doc, &box_of("place"), &ss, &sp, 1.0, Tol::witness());
     println!(
@@ -509,7 +509,7 @@ fn a_negative_band_is_not_intersected_with_the_canonical_turn() {
     declare(&mut r, "place", 0.0);
     let peg = split_peg(&mut r, 4, -3.0 * core::f64::consts::FRAC_PI_4);
     let block = block_at_azimuth(&mut r, 7.0 * core::f64::consts::FRAC_PI_8, 0.1);
-    let wall = named(peg, vec![fixture::fname(peg, fixture::wall(3))]);
+    let wall = named(peg, vec![fixture::fname(peg, fixture::wall(&r.doc, peg, 3))]);
     let report = clearance(
         &r.doc,
         &box_of("place"),

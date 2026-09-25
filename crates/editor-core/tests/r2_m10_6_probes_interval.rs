@@ -180,8 +180,8 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(1))),
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(3))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(&r.doc, solid, 1))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(&r.doc, solid, 3))),
             ],
         )
         .expect("both indices in range"),
@@ -796,12 +796,11 @@ fn guide(bound: f64) -> Guide {
         ],
         rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
     });
-    let refs = || {
-        vec![
-            SitedRef::new(rail, fixture::fname(rail, fixture::wall(1))),
-            SitedRef::new(placed, fixture::fname(tongue, fixture::wall(3))),
-        ]
-    };
+    let pair = vec![
+        SitedRef::new(rail, fixture::fname(rail, fixture::wall(&r.doc, rail, 1))),
+        SitedRef::new(placed, fixture::fname(tongue, fixture::wall(&r.doc, tongue, 3))),
+    ];
+    let refs = || pair.clone();
     let by_distance = r.insert(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),

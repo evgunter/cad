@@ -18,7 +18,7 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, CapEnd, DocEdit, EditError, EntityKind, EvalOptions, InputFault, Node,
-    NodeErrorKind, NodeResult, PersistError, ProfileDoc, ProfileEdgeRef, ProfileProgram,
+    NodeErrorKind, NodeResult, PersistError, ProfileDoc, ProfileProgram,
     RecipeNodeId, RoleSeg, SnapshotError, StableName, apply, evaluate, load, save,
 };
 use geom_core::Tol;
@@ -41,18 +41,17 @@ fn prism() -> (ProfileDoc, RecipeNodeId) {
     (r.doc, solid)
 }
 
-/// One END-cap rim edge of the prism, by profile segment — the names
-/// sort by segment, so `edge(n, 0) < edge(n, 2)`.
+/// One END-cap rim edge of the prism, by profile segment. The square
+/// is the document's only profile, so its steps are minted 0 to 4 and
+/// canonical segment `k` is step `k + 1`'s leg — the names sort by
+/// segment, so `edge(n, 0) < edge(n, 2)`.
 fn edge(node: RecipeNodeId, segment: u32) -> StableName {
     StableName {
         kind: EntityKind::Edge,
         node,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment,
-            },
+            fixture::leg(u64::from(segment) + 1),
         )],
     }
 }
@@ -89,22 +88,24 @@ fn saved_fillet(segments: &[u32]) -> String {
     save(&doc, &[], Tol::witness()).expect("the fixture saves")
 }
 
-/// Rewrites the FIRST `"segment": <from>` at or after the `"selection"`
-/// key to `<to>`, leaving the rest of the document alone: the selection
-/// is the only list this suite corrupts, and the caller reads the
-/// refusal that comes back.
+/// Rewrites the FIRST `"step": <from + 1>` at or after the
+/// `"selection"` key — [`edge`]'s segment `from` — to segment `to`'s,
+/// leaving the rest of the document alone: the selection is the only
+/// list this suite corrupts, and the caller reads the refusal that
+/// comes back.
 fn corrupt_selection(text: &str, from: u32, to: u32) -> String {
     let sel = text
         .find("\"selection\"")
         .expect("the selection reaches the wire");
-    let needle = format!("\"segment\": {from}");
+    let needle = format!("\"step\": {}", from + 1);
     let at = sel
         + text[sel..]
             .find(&needle)
             .expect("the selection names the segment");
     format!(
-        "{}\"segment\": {to}{}",
+        "{}\"step\": {}{}",
         &text[..at],
+        to + 1,
         &text[at + needle.len()..]
     )
 }

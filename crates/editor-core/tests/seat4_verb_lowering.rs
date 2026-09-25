@@ -86,7 +86,7 @@ fn both_blends() -> BothBlends {
         profile,
         distance: len(L),
     });
-    let edges: Vec<StableName> = prism_edges(cube, 4);
+    let edges: Vec<StableName> = prism_edges(&r.doc, cube, 4);
     let filleted = r.insert(Node::fillet(cube, len(R), edges.clone()));
     let chamfered = r.insert(Node::chamfer(cube, len(D), edges));
     BothBlends {

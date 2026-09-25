@@ -41,7 +41,7 @@
 
 use editor_core::{
     Dimension, DocEdit, Expr, LoopProgram, Node, ProfileProgram, ProgramArcData, ProgramStep,
-    ProgramTarget, RecipeNodeId, SlotId, StableName, band, band_pi,
+    ProfileDoc, ProfileEdgeRef, ProgramTarget, RecipeNodeId, SlotId, StableName, band, band_pi,
 };
 
 use crate::fixture::{ang, axis_in_plane, frame, len};
@@ -103,7 +103,7 @@ pub fn meridian() -> LoopProgram {
 /// whatever faces they are: the mouth's two halves in either order
 /// (which decides which half carries the rim), or a designation the
 /// kernel refuses. [`document`] names the mouth's `Band` half first.
-pub fn document_with_open(open: fn(RecipeNodeId) -> [StableName; 2]) -> CorpusDoc {
+pub fn document_with_open(open: fn(&ProfileDoc, RecipeNodeId) -> [StableName; 2]) -> CorpusDoc {
     let mut r = Recorder::new();
 
     // u = +X (the radius), v = +Z (the axis): the meridian's own axis
@@ -120,7 +120,7 @@ pub fn document_with_open(open: fn(RecipeNodeId) -> [StableName; 2]) -> CorpusDo
         axis,
         angle: ang(std::f64::consts::TAU),
     });
-    let open = open(pot);
+    let open = open(&r.doc, pot);
     let vessel = r.insert(Node::shell(pot, len(WALL), open.to_vec()));
 
     CorpusDoc {
@@ -141,7 +141,13 @@ pub fn document_with_open(open: fn(RecipeNodeId) -> [StableName; 2]) -> CorpusDo
     }
 }
 
+/// The mouth's piece on the pot `pot` revolves — its profile's
+/// canonical segment [`SEG_MOUTH`].
+pub fn mouth(doc: &ProfileDoc, pot: RecipeNodeId) -> ProfileEdgeRef {
+    crate::fixture::piece(doc, pot, 0, SEG_MOUTH as usize)
+}
+
 /// The vessel's corpus document: the mouth's `Band` half named first.
 pub fn document() -> CorpusDoc {
-    document_with_open(|pot| [band(pot, 0, SEG_MOUTH), band_pi(pot, 0, SEG_MOUTH)])
+    document_with_open(|doc, pot| [band(pot, mouth(doc, pot)), band_pi(pot, mouth(doc, pot))])
 }

@@ -99,7 +99,7 @@ pub fn bump_ids(old: &[StepId]) -> Vec<Vec<Option<StepId>>> {
 }
 
 /// The plain rod's step ids, as `doc` holds them for `profile`.
-pub fn rod_ids(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<StepId> {
+pub fn rod_ids(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> Vec<StepId> {
     match doc.node(profile) {
         Some(Node::Profile(p)) => p.ids[0].clone(),
         other => panic!("node {} is the rod's profile: {other:?}", profile.0),
@@ -108,7 +108,7 @@ pub fn rod_ids(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<StepId> {
 
 /// The strut edge at canonical vertex `vertex` of the rod, spelled by
 /// the piece starting there.
-pub fn lateral_edge(doc: &ProfileDoc, rod: RecipeNodeId, vertex: usize) -> StableName {
+pub fn lateral_edge(doc: &editor_core::ProfileDoc, rod: RecipeNodeId, vertex: usize) -> StableName {
     ename(
         rod,
         RoleSeg::LateralEdge(crate::fixture::vpiece(doc, rod, 0, vertex)),

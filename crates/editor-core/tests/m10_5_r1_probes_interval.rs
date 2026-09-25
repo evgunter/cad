@@ -712,7 +712,7 @@ fn degenerate_queries_land_in_an_arm_with_a_holding_receipt() {
 
     // A duplicated name is one face: the same candidates as the name
     // given once.
-    let wall = fixture::fname(a, fixture::wall(1));
+    let wall = fixture::fname(a, fixture::wall(&doc, a, 1));
     let twice = Selection {
         at: a,
         body: 0,
@@ -933,9 +933,9 @@ fn e2e_channel_slider_over_an_epsilon_box() {
         at: channel,
         body: 0,
         faces: FaceScope::Named(vec![
-            fixture::fname(channel, fixture::wall(3)),
-            fixture::fname(channel, fixture::wall(4)),
-            fixture::fname(channel, fixture::wall(5)),
+            fixture::fname(channel, fixture::wall(&doc, channel, 3)),
+            fixture::fname(channel, fixture::wall(&doc, channel, 4)),
+            fixture::fname(channel, fixture::wall(&doc, channel, 5)),
         ]),
     };
     for (c, expect) in [(0.3, "Holds"), (0.45, "Holds"), (0.55, "Violated")] {

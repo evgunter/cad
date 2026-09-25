@@ -25,7 +25,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
     BooleanOp, EntityKey, Entry, Evaluation, Node, NodeMap, ProfileDoc, RecipeNodeId, RoleSeg,
-    StableName, remap_name,
+    StableName, StepMap, remap_name,
 };
 use geom_core::Tol;
 
@@ -157,10 +157,10 @@ fn orders(n: usize) -> Vec<Vec<usize>> {
 /// Whether `n` is a union's seam (its sides are its own node's names)
 /// whose sides the re-map to `n2` swapped: the scenario is shown to
 /// reorder something, and the union's seams to be read by name.
-fn union_seam_swapped(n: &StableName, n2: &StableName, map: &NodeMap) -> bool {
+fn union_seam_swapped(n: &StableName, n2: &StableName, map: &NodeMap, steps: &StepMap) -> bool {
     match (n.path.first(), n2.path.first()) {
         (Some(RoleSeg::Seam { a, b }), Some(RoleSeg::Seam { a: a2, .. })) if a.node == n.node => {
-            remap_name(b, map).expect("covered") == **a2 && a != b
+            remap_name(b, map, steps).expect("covered") == **a2 && a != b
         }
         _ => false,
     }
@@ -168,10 +168,10 @@ fn union_seam_swapped(n: &StableName, n2: &StableName, map: &NodeMap) -> bool {
 
 /// Whether `n` is a PAIR boolean's seam whose sides the re-map to `n2`
 /// swapped. Never: a pair's seam is sided.
-fn pair_seam_swapped(n: &StableName, n2: &StableName, map: &NodeMap) -> bool {
+fn pair_seam_swapped(n: &StableName, n2: &StableName, map: &NodeMap, steps: &StepMap) -> bool {
     match (n.path.first(), n2.path.first()) {
         (Some(RoleSeg::Seam { a, .. }), Some(RoleSeg::Seam { a: a2, .. })) if a.node != n.node => {
-            remap_name(a, map).expect("covered") != **a2
+            remap_name(a, map, steps).expect("covered") != **a2
         }
         _ => false,
     }
@@ -194,19 +194,27 @@ fn remap_every_order(blocks: &[B], ops: &[Op]) -> (Vec<String>, Vec<String>, boo
         let b2 = build(blocks, ops, &order);
         let ev2 = run(&b2.doc);
         let mut map = NodeMap::new();
+        let mut steps = StepMap::new();
         for (k, v1) in &b1.keyed {
             for (x, y) in v1.iter().zip(&b2.keyed[k]) {
                 map.insert(*x, *y);
+                // A profile's steps are the same steps in both builds,
+                // minted in a different order.
+                if let (Some(Node::Profile(p1)), Some(Node::Profile(p2))) =
+                    (b1.doc.node(*x), b2.doc.node(*y))
+                {
+                    steps.extend(p1.ids.iter().flatten().copied().zip(p2.ids.iter().flatten().copied()));
+                }
             }
         }
         for (&t1, &t2) in b1.ops.iter().zip(&b2.ops) {
             assert!(failure(&ev1, t1).is_none() && failure(&ev2, t2).is_none());
             let (tab1, tab2) = (table(&ev1, t1), table(&ev2, t2));
             for (n, e) in tab1.iter() {
-                let n2 = remap_name(n, &map).expect("the map covers every node");
-                union_swapped |= union_seam_swapped(n, &n2, &map);
+                let n2 = remap_name(n, &map, &steps).expect("the map covers every node");
+                union_swapped |= union_seam_swapped(n, &n2, &map, &steps);
                 assert!(
-                    !pair_seam_swapped(n, &n2, &map),
+                    !pair_seam_swapped(n, &n2, &map, &steps),
                     "{order:?}: a pair boolean's seam swapped its sides: {n:?} -> {n2:?}"
                 );
                 ranked_moved |= matches!(

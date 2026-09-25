@@ -143,7 +143,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
+fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
     editor_core::apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
@@ -970,7 +970,7 @@ fn a_refusing_measure_is_a_per_entry_refusal_not_a_driver_failure() {
     walls.sort();
     let refs = vec![
         SitedRef::new(hole, walls.remove(0)),
-        SitedRef::new(plate_node, fname(plate_node, wall(0))),
+        SitedRef::new(plate_node, fname(plate_node, wall(&doc, plate_node, 0))),
     ];
     let doc = push(
         &doc,

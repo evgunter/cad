@@ -44,7 +44,7 @@ use pncad::geom::Surface;
 use pncad::geom_core::Tol;
 use pncad::prelude::{StableName, fillet_edges, query};
 use pncad::profile::ArcSweep;
-use pncad::select::{band_rim, carried, edge_name};
+use pncad::select::{ProfilePieces, band_rim, carried, edge_name};
 use pncad::topo::{Body, EdgeKey};
 
 // ---- the lid's stations, from `src/teapot.rs` ----
@@ -188,11 +188,42 @@ fn bands(b: &Body<f64>) -> Vec<(u64, u64, u64)> {
     out
 }
 
+/// The pieces of the sharp lid's meridian, under `doc`'s values.
+fn pieces_of(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, tol: Tol) -> ProfilePieces {
+    let Some(Node::Revolve { profile, .. }) = doc.node(lid) else {
+        panic!("the lid is a revolve");
+    };
+    let Some(Node::Profile(program)) = doc.node(*profile) else {
+        panic!("a revolve's operand is a profile");
+    };
+    program
+        .pieces(&doc.param_env::<f64>(), tol)
+        .expect("the meridian replays")
+}
+
+/// The latitude rim at meridian vertex `v` of the lid.
+fn rim(doc: &Doc<ProfileProgram>, lid: RecipeNodeId, v: u32, tol: Tol) -> StableName {
+    let piece = pieces_of(doc, lid, tol)
+        .vertex(0, v as usize)
+        .expect("the vertex is the meridian's");
+    band_rim(lid, piece)
+}
+
+/// How a refusal spells the seam meridian of the flange cone — the
+/// sharp lid's meridian segment 1.
+fn flange_seam(tol: Tol) -> String {
+    let (doc, lid) = sharp_lid(tol);
+    let piece = pieces_of(&doc, lid, tol)
+        .edge(0, 1)
+        .expect("segment 1 is the meridian's");
+    format!("Meridian(Seam, {piece:?})")
+}
+
 /// One `Node::Fillet` request over the rims at `vs`: the census it
 /// built, or the refusal it answered.
 fn roll_once(vs: &[u32], tol: Tol) -> Result<(usize, usize, usize), String> {
     let (mut doc, lid) = sharp_lid(tol);
-    let sel: Vec<StableName> = vs.iter().map(|&v| band_rim(lid, 0, v)).collect();
+    let sel: Vec<StableName> = vs.iter().map(|&v| rim(&doc, lid, v, tol)).collect();
     let rolled = insert(&mut doc, Node::fillet(lid, len(ROLL), sel), tol);
     let ev = eval(&doc, tol);
     match ev.node_error(rolled) {
@@ -216,7 +247,7 @@ fn the_slit_collision_is_per_meridian_and_not_per_adjacency() {
     assert!(
         all.starts_with("Naming(Duplicate")
             && all.contains("BandSlit")
-            && all.contains("Meridian(Seam, ProfileEdgeRef { loop_index: 0, segment: 1 })"),
+            && all.contains(&flange_seam(tol)),
         "the three-rim request refuses at the SLIT's name, on the flange cone's own \
          seam meridian (segment 1): {all}"
     );
@@ -225,7 +256,7 @@ fn the_slit_collision_is_per_meridian_and_not_per_adjacency() {
     // segment 1, so both bands slit its seam.
     let pair = roll_once(&[1, 2], tol).expect_err("the flange rim and the dome foot collide");
     assert!(
-        pair.starts_with("Naming(Duplicate") && pair.contains("segment: 1"),
+        pair.starts_with("Naming(Duplicate") && pair.contains(&flange_seam(tol)),
         "{pair}"
     );
     // Every other pair over the rims the scene rolls composes, ADJACENT
@@ -252,9 +283,10 @@ fn the_slit_collision_is_per_meridian_and_not_per_adjacency() {
 fn two_requests_build_the_kernels_one_request_body() {
     let tol = Tol::witness();
     let (mut doc, lid) = sharp_lid(tol);
+    let rims = ROLLED.map(|v| rim(&doc, lid, v, tol));
     let first = insert(
         &mut doc,
-        Node::fillet(lid, len(ROLL), vec![band_rim(lid, 0, ROLLED[0])]),
+        Node::fillet(lid, len(ROLL), vec![rims[0].clone()]),
         tol,
     );
     let second = insert(
@@ -263,8 +295,8 @@ fn two_requests_build_the_kernels_one_request_body() {
             first,
             len(ROLL),
             vec![
-                carried(first, band_rim(lid, 0, ROLLED[1])),
-                carried(first, band_rim(lid, 0, ROLLED[2])),
+                carried(first, rims[1].clone()),
+                carried(first, rims[2].clone()),
             ],
         ),
         tol,
@@ -281,12 +313,12 @@ fn two_requests_build_the_kernels_one_request_body() {
     // The kernel's ONE request over the same three rims — their keys
     // found through the NAMES, so the two spellings are asked for the
     // same edges and not merely for three edges each.
-    let keys: Vec<EdgeKey> = ROLLED
+    let keys: Vec<EdgeKey> = rims
         .iter()
-        .map(|&v| {
+        .map(|rim| {
             query::all_edges(&sharp)
                 .into_iter()
-                .find(|&k| edge_name(&ev, lid, 0, k).ok() == Some(&band_rim(lid, 0, v)))
+                .find(|&k| edge_name(&ev, lid, 0, k).ok() == Some(rim))
                 .expect("each rolled rim's key, by its name")
         })
         .collect();

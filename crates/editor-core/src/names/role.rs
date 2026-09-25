@@ -1481,24 +1481,24 @@ pub(crate) use name_free_seg;
 /// carries** — the four holes in the one walk [`RoleSeg::rewrite`]
 /// makes over [`RoleSeg`]'s shape.
 ///
-/// Three rewrites of a name's path exist: `eval::anchor`'s canonical →
-/// program re-anchoring of a freshly emitted locator, `refactor`'s
-/// re-mapping of node ids across a split, and the whole-program edit's
-/// segment map. What differs between them is only what each does with
-/// a locator, a carried name and a member edge; what they share —
-/// which variant carries which, and putting the rewritten path back in
-/// canonical form ([`StableName::rewrite_path`], through
-/// `names::canonical`) — is the walk, written once. This trait is the
-/// part that differs.
+/// Three walks of a name's path exist: `refactor`'s re-mapping of node
+/// and step ids across a split or an inline, the union emitter's
+/// citing of whole member edges, and [`StableName::piece_steps`]'s
+/// collection of the steps a name spells. What differs between them is
+/// only what each does with a locator, a carried name and a member
+/// edge; what they share — which variant carries which, and putting
+/// the rewritten path back in canonical form
+/// ([`StableName::rewrite_path`], through `names::canonical`) — is the
+/// walk, written once. This trait is the part that differs.
 ///
 /// Every method defaults to the identity, because "not this rewrite's
-/// concern" IS the identity: the anchor moves locators and nothing
-/// else, the split re-map moves names and member edges and no
-/// locator. A rewrite that descends into a carried name does so from
-/// its own [`SegRewrite::name`], through [`StableName::rewrite_path`]
-/// — the walk itself never recurses, so a rewriter that must not (the
-/// anchor: a carried name's locators are its minting node's, and
-/// re-anchoring them would be wrong) simply does not.
+/// concern" IS the identity: the union's citing moves member edges and
+/// nothing else, the step collection reads locators and moves nothing.
+/// A rewrite that descends into a carried name does so from its own
+/// [`SegRewrite::name`], through [`StableName::rewrite_path`] — the
+/// walk itself never recurses, so a rewriter that must not (the
+/// union's: a member's own name is final in the member) simply does
+/// not.
 pub(crate) trait SegRewrite {
     /// What stops the rewrite; [`core::convert::Infallible`] where
     /// nothing can.

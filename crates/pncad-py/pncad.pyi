@@ -5743,6 +5743,9 @@ class SplitOutcome:
     @property
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
         """Cut node -> its id in the part document."""
+    @property
+    def step_map(self) -> list[tuple[int, int]]:
+        """Cut profile step id -> the id the part minted for it."""
 
 def split(
     doc: Doc, cut: list[NodeId], part_id: str, *, resolver: Optional[Workspace] = None
@@ -5781,6 +5784,9 @@ class InlineOutcome:
     @property
     def node_map(self) -> list[tuple[NodeId, NodeId]]:
         """Part node -> its id in the spliced document."""
+    @property
+    def step_map(self) -> list[tuple[int, int]]:
+        """Part profile step id -> the id the host minted for it."""
 
 def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
     """Splice a referenced document back in, replacing the instantiate

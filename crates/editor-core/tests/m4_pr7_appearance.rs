@@ -25,7 +25,7 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn rerun(doc: &ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
+fn rerun(doc: &editor_core::ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         Some(prior),
@@ -110,10 +110,7 @@ fn set_appearance_validates_and_applies_purely() {
         ext,
         RoleSeg::RimEdge(
             CapEnd::End,
-            editor_core::ProfileEdgeRef {
-                loop_index: 0,
-                segment: 0,
-            },
+            crate::fixture::piece(&doc, ext, 0, 0),
         ),
     );
     assert_eq!(

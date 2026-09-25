@@ -64,7 +64,7 @@ fn failures<T: geom_core::Decide>(ev: &Evaluation<T>) -> Vec<String> {
         .collect()
 }
 
-fn opts(doc: &ProfileDoc, lift: ProfileLift) -> EvalOptions {
+fn opts(doc: &editor_core::ProfileDoc, lift: ProfileLift) -> EvalOptions {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
@@ -73,7 +73,7 @@ fn opts(doc: &ProfileDoc, lift: ProfileLift) -> EvalOptions {
     }
 }
 
-fn plain(doc: &ProfileDoc, lift: ProfileLift) -> Vec<String> {
+fn plain(doc: &editor_core::ProfileDoc, lift: ProfileLift) -> Vec<String> {
     let ev: Evaluation<Interval> = evaluate(
         doc,
         None,

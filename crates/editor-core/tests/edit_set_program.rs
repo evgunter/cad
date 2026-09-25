@@ -111,7 +111,7 @@ fn rod(label: &str, creases: &[usize]) -> Rod {
 
 /// The wall at canonical segment `k` of loop `l` of the profile `ext`
 /// sweeps, spelled by the piece it is under `doc`'s current values.
-fn wall_of(doc: &ProfileDoc, ext: RecipeNodeId, l: usize, k: usize) -> StableName {
+fn wall_of(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, l: usize, k: usize) -> StableName {
     fname(ext, RoleSeg::Lateral(fixture::piece(doc, ext, l, k)))
 }
 
@@ -121,7 +121,7 @@ fn wall_by(ext: RecipeNodeId, step: StepId, role: PieceRole) -> StableName {
 }
 
 /// The ids a profile node holds, per loop.
-fn ids_of(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<Vec<StepId>> {
+fn ids_of(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> Vec<Vec<StepId>> {
     match doc.node(profile) {
         Some(Node::Profile(p)) => p.ids.clone(),
         other => panic!("node {} is a profile: {other:?}", profile.0),
@@ -129,7 +129,7 @@ fn ids_of(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<Vec<StepId>> {
 }
 
 /// Every id of `doc`'s profile kept, as `SetProgram` spells it.
-fn keep_all(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<Vec<Option<StepId>>> {
+fn keep_all(doc: &editor_core::ProfileDoc, profile: RecipeNodeId) -> Vec<Vec<Option<StepId>>> {
     ids_of(doc, profile)
         .into_iter()
         .map(|l| l.into_iter().map(Some).collect())
@@ -160,7 +160,7 @@ fn accepted(
 }
 
 /// A blend node's selection as the document holds it.
-fn selection_of(doc: &ProfileDoc, node: RecipeNodeId) -> Vec<StableName> {
+fn selection_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> Vec<StableName> {
     match doc.node(node) {
         Some(Node::Fillet { selection, .. }) => selection.clone(),
         other => panic!("node {node:?} is a fillet, got {other:?}"),
@@ -181,14 +181,14 @@ fn frame_on(doc: ProfileDoc, at: RecipeNodeId, face: StableName) -> (ProfileDoc,
 }
 
 /// The face a derived frame carries, as the document holds it.
-fn frame_face(doc: &ProfileDoc, frame: RecipeNodeId) -> StableName {
+fn frame_face(doc: &editor_core::ProfileDoc, frame: RecipeNodeId) -> StableName {
     match doc.node(frame) {
         Some(Node::Datum(Datum::FaceFrame { face, .. })) => face.clone(),
         other => panic!("a frame, got {other:?}"),
     }
 }
 
-fn paint(doc: &ProfileDoc, name: &StableName) -> ProfileDoc {
+fn paint(doc: &editor_core::ProfileDoc, name: &StableName) -> ProfileDoc {
     apply(
         doc,
         &DocEdit::SetAppearance {
@@ -202,7 +202,7 @@ fn paint(doc: &ProfileDoc, name: &StableName) -> ProfileDoc {
     .doc
 }
 
-fn volume(doc: &ProfileDoc, node: RecipeNodeId) -> f64 {
+fn volume(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> f64 {
     let ev = fixture::run(doc, &EvalOptions::default());
     let bad = corpus::failures(&ev);
     assert!(
@@ -218,7 +218,7 @@ fn volume(doc: &ProfileDoc, node: RecipeNodeId) -> f64 {
 /// The `(x, y)` both ends of the strut edge `name` stand at, on the
 /// evaluated extrude `rod` — a strut runs along `z`, so the two ends
 /// share them, and they are the profile vertex the name denotes.
-fn strut_at(doc: &ProfileDoc, rod: RecipeNodeId, name: &StableName) -> (f64, f64) {
+fn strut_at(doc: &editor_core::ProfileDoc, rod: RecipeNodeId, name: &StableName) -> (f64, f64) {
     let ev = fixture::run(doc, &EvalOptions::default());
     let body = corpus::body_of(&ev, rod);
     let [a, b] = ends(body, edge_of(table(&ev, rod), "strut", name));
@@ -237,7 +237,7 @@ fn near(got: (f64, f64), want: (f64, f64)) -> bool {
 /// The sorted `(x, y, z)` corners of the face `name` denotes on the
 /// evaluated `node` — what a name DENOTES, read off the solid rather
 /// than off a spelling.
-fn corners_of(doc: &ProfileDoc, node: RecipeNodeId, name: &StableName) -> Vec<(f64, f64, f64)> {
+fn corners_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId, name: &StableName) -> Vec<(f64, f64, f64)> {
     let ev = fixture::run(doc, &EvalOptions::default());
     let body = corpus::body_of(&ev, node);
     let mut out: Vec<(f64, f64, f64)> =
@@ -260,7 +260,7 @@ fn has_corner3(corners: &[(f64, f64, f64)], want: (f64, f64, f64)) -> bool {
 
 /// The frame at `frame` refuses `Vanished` on exactly `name` at the
 /// next evaluation — the node is live and its table has no such entry.
-fn frame_refuses_vanished(doc: &ProfileDoc, frame: RecipeNodeId, name: &StableName) {
+fn frame_refuses_vanished(doc: &editor_core::ProfileDoc, frame: RecipeNodeId, name: &StableName) {
     let ev = fixture::run(doc, &EvalOptions::default());
     match ev.nodes.get(&frame) {
         Some(NodeResult::Failed(e)) => match &e.kind {
@@ -487,6 +487,65 @@ fn a_dropped_step_strands_the_names_on_its_pieces_and_they_never_alias() {
     }
 }
 
+/// **A name may spell a step a `SetProgram` dropped, never one the
+/// document has not minted.** The dropped id was minted, so a frame on
+/// it inserts (and resolves to nothing, as the stranded fillet does
+/// above); an id at the step counter would be minted for the next new
+/// step, and a name written on it before then would come to denote that
+/// step — the insert, rebind and appearance doors refuse it typed, as
+/// the load door does.
+#[test]
+fn a_name_on_a_dropped_step_inserts_and_one_on_a_never_minted_step_refuses() {
+    let r = rod("set-program-never-minted", &[]);
+    let old = rod_ids(&r.doc, r.profile);
+    let mut ids = bump_ids(&old);
+    ids[0][7] = None;
+    let reshaped = accepted(&r.doc, r.profile, vec![rod_loop(true)], ids).doc;
+    let dropped = wall_by(r.rod, old[5], PieceRole::Leg);
+    let (_, frame) = frame_on(reshaped.clone(), r.rod, dropped.clone());
+    assert!(frame.0 > 0, "a name on a dropped step inserts");
+
+    let next = StepId(reshaped.next_step());
+    let unminted = wall_by(r.rod, next, PieceRole::Leg);
+    let never = |edit: DocEdit<ProfileProgram>| {
+        match apply(&reshaped, &edit, tol(), &editor_core::RefusingReach) {
+            Err(EditError::NameStepNeverMinted {
+                name,
+                step,
+                next_step,
+            }) => {
+                assert_eq!((name, step, next_step), (unminted.clone(), next, next.0));
+            }
+            other => panic!("a never-minted step refuses typed, got {other:?}"),
+        }
+    };
+    never(DocEdit::InsertNode {
+        node: Node::Datum(editor_core::Datum::FaceFrame {
+            at: r.rod,
+            face: unminted.clone(),
+            spin: fixture::ang(0.0),
+        }),
+    });
+    let painted = paint(&reshaped, &dropped);
+    never(DocEdit::SetAppearance {
+        name: unminted.clone(),
+        attr: editor_core::Attr::Color(editor_core::Rgba8::opaque(1, 2, 3)),
+    });
+    assert!(
+        apply(
+            &painted,
+            &DocEdit::Rebind {
+                from: dropped.clone(),
+                to: unminted.clone(),
+            },
+            tol(),
+            &editor_core::RefusingReach,
+        )
+        .is_err_and(|e| matches!(e, EditError::NameStepNeverMinted { .. })),
+        "a rebind onto a never-minted step refuses typed"
+    );
+}
+
 /// **A dropped step's names strand in every carrier, in the contract's
 /// order**: the payload strands first, in document order, then the
 /// store's keys. A frame and a paint on one dropped wall.
@@ -544,11 +603,7 @@ fn every_step_id_fault_refuses_typed_before_the_program_is_checked() {
     };
     assert_eq!(
         refused(Vec::new()),
-        StepIdFault::Shape {
-            loop_: 0,
-            authored: 1,
-            given: 0
-        }
+        StepIdFault::LoopCount { loops: 1, given: 0 }
     );
     let mut short = ids.clone();
     short[0].pop();
@@ -810,11 +865,12 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
     let r = rod("set-program-old-file", &[CREASE]);
     let text = save(&r.doc, &[], tol()).expect("saves");
     let unreadable = |text: &str, what: &str| match load(text, tol()) {
-        Err(PersistError::Unreadable {
-            detail, recourse, ..
-        }) => {
+        Err(e @ PersistError::Unreadable { .. }) => {
+            let PersistError::Unreadable { detail, .. } = &e else {
+                unreachable!()
+            };
             assert!(detail.contains(what), "{detail}");
-            assert_eq!(recourse, editor_core::REGENERATE_RECOURSE);
+            assert!(e.to_string().contains(editor_core::REGENERATE_RECOURSE), "{e}");
         }
         other => panic!("an old file refuses Unreadable, got {other:?}"),
     };
@@ -941,7 +997,7 @@ fn square_and_driven_hole(label: &str) -> (ProfileDoc, RecipeNodeId, RecipeNodeI
 }
 
 /// A document parameter's value written through the value door.
-fn set_value(doc: &ProfileDoc, name: &str, v: f64) -> editor_core::Applied<ProfileProgram> {
+fn set_value(doc: &editor_core::ProfileDoc, name: &str, v: f64) -> editor_core::Applied<ProfileProgram> {
     apply(
         doc,
         &DocEdit::SetDocParamValue {

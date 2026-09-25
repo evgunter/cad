@@ -92,7 +92,7 @@ pub use editor_core::{
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKind,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
     NameOrigin, NamePat, NameRef, NameTable, NamingError, OpGroup, PieceRole, ProfileEdgeRef,
-    ProfileVertexRef, RimShare, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle,
+    ProfilePieces, ProfileVertexRef, RimShare, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle,
     SegPat, SegTag, SelectRefusal, Selector, Side, SplitHalf, StepId, SurfaceKindSet, TagPat,
     all_bodies, all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim, carried,
     declare, declare_all, declare_node, denotation, edge_carrier_kind, edge_frame, edge_name,

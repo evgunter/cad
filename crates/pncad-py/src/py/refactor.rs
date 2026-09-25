@@ -318,6 +318,7 @@ pub(crate) struct SplitOutcome {
     part_maintenance: Vec<d::Maintenance>,
     instance: NodeId,
     node_map: Vec<(NodeId, NodeId)>,
+    step_map: Vec<(u64, u64)>,
 }
 
 #[pymethods]
@@ -384,6 +385,15 @@ impl SplitOutcome {
         self.node_map.clone()
     }
 
+    /// Each cut profile step's id → the id the part document minted
+    /// for it, as pairs in the part's own order: a name the caller
+    /// holds on a cut profile's piece is spelled in the part by this
+    /// map, as its node is by `node_map`.
+    #[getter]
+    fn step_map(&self) -> Vec<(u64, u64)> {
+        self.step_map.clone()
+    }
+
     fn __repr__(&self) -> String {
         format!("SplitOutcome(instance={})", self.instance.0.0)
     }
@@ -438,6 +448,7 @@ pub(crate) fn split(
             .into_iter()
             .map(|(a, b)| (NodeId(a), NodeId(b)))
             .collect(),
+        step_map: out.step_map.into_iter().map(|(a, b)| (a.0, b.0)).collect(),
     })
 }
 
@@ -592,6 +603,7 @@ pub(crate) struct InlineOutcome {
     edits: Vec<d::DocEdit<d::ProfileProgram>>,
     maintenance: Vec<d::Maintenance>,
     node_map: Vec<(NodeId, NodeId)>,
+    step_map: Vec<(u64, u64)>,
 }
 
 #[pymethods]
@@ -624,6 +636,13 @@ impl InlineOutcome {
     #[getter]
     fn node_map(&self) -> Vec<(NodeId, NodeId)> {
         self.node_map.clone()
+    }
+
+    /// Each part profile step's id → the id the host minted for it on
+    /// the splice, the step half of `node_map`.
+    #[getter]
+    fn step_map(&self) -> Vec<(u64, u64)> {
+        self.step_map.clone()
     }
 
     fn __repr__(&self) -> String {
@@ -663,6 +682,7 @@ pub(crate) fn inline(
             .into_iter()
             .map(|(a, b)| (NodeId(a), NodeId(b)))
             .collect(),
+        step_map: out.step_map.into_iter().map(|(a, b)| (a.0, b.0)).collect(),
     })
 }
 

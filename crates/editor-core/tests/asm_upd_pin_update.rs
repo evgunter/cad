@@ -74,7 +74,7 @@ fn with_shelf(shelf: VersionShelf) -> EvalOptions {
     }
 }
 
-fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), opts, Tol::witness())
 }
 
@@ -82,7 +82,7 @@ fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
 /// session, which is the only place a stale-serving bug can hide: a
 /// fresh evaluation rebuilds the part cache from nothing, so it cannot
 /// serve yesterday's geometry no matter how the node is keyed.
-fn run_warm(doc: &ProfileDoc, prior: &Evaluation<f64>, opts: &EvalOptions) -> Evaluation<f64> {
+fn run_warm(doc: &editor_core::ProfileDoc, prior: &Evaluation<f64>, opts: &EvalOptions) -> Evaluation<f64> {
     evaluate::<f64>(doc, Some(prior), &CancelToken::new(), opts, Tol::witness())
 }
 
@@ -136,7 +136,7 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
 }
 
 /// The reference a node carries — the value every row reads back.
-fn pin_at(doc: &ProfileDoc, node: RecipeNodeId) -> DocRef {
+fn pin_at(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> DocRef {
     match doc.node(node) {
         Some(Node::InstantiatePart { doc_ref, .. }) => *doc_ref,
         other => panic!("expected an instantiate node, got {other:?}"),
@@ -150,7 +150,7 @@ fn volume(body: &topo::Body<f64>) -> f64 {
 }
 
 /// The assembly's whole-product volume, gathered through the shelf.
-fn product_volume(doc: &ProfileDoc, opts: &EvalOptions) -> f64 {
+fn product_volume(doc: &editor_core::ProfileDoc, opts: &EvalOptions) -> f64 {
     let ev = run(doc, opts);
     volume(&product(doc, &ev, Tol::witness()).expect("the product gathers"))
 }

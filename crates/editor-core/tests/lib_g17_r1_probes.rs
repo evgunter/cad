@@ -75,10 +75,10 @@ fn a_rebind_onto_a_designated_face_shrinks_keeping_the_earlier() {
 #[test]
 fn an_order_swap_changes_only_the_rim_name() {
     let a = vessel::document();
-    let b = vessel::document_with_open(|pot| {
+    let b = vessel::document_with_open(|doc, pot| {
         [
-            editor_core::band_pi(pot, 0, vessel::SEG_MOUTH),
-            editor_core::band(pot, 0, vessel::SEG_MOUTH),
+            editor_core::band_pi(pot, vessel::mouth(doc, pot)),
+            editor_core::band(pot, vessel::mouth(doc, pot)),
         ]
     });
     let (sa, sb) = (a.result.unwrap(), b.result.unwrap());
@@ -124,14 +124,14 @@ fn an_order_swap_changes_only_the_rim_name() {
         only_a,
         vec![&format!(
             "{:?}",
-            rim(sa, editor_core::band(pot, 0, vessel::SEG_MOUTH))
+            rim(sa, editor_core::band(pot, vessel::mouth(&a.doc, pot)))
         )]
     );
     assert_eq!(
         only_b,
         vec![&format!(
             "{:?}",
-            rim(sb, editor_core::band_pi(pot, 0, vessel::SEG_MOUTH))
+            rim(sb, editor_core::band_pi(pot, vessel::mouth(&b.doc, pot)))
         )]
     );
 }
@@ -196,7 +196,7 @@ fn designating_a_side_wall_opens_the_cup_on_its_side() {
         Node::shell(
             blank,
             fixture::len(cup::T),
-            vec![fixture::fname(blank, fixture::wall(0))],
+            vec![fixture::fname(blank, fixture::wall(&d.doc, blank, 0))],
         ),
     );
     let ev = eval::<f64>(&doc);
@@ -217,7 +217,7 @@ fn designating_a_side_wall_opens_the_cup_on_its_side() {
                 vec![StableName {
                     kind: EntityKind::Face,
                     node: n,
-                    path: vec![RoleSeg::Rim(fixture::fname(blank, fixture::wall(0)).into())],
+                    path: vec![RoleSeg::Rim(fixture::fname(blank, fixture::wall(&doc, blank, 0)).into())],
                 }]
             );
         }

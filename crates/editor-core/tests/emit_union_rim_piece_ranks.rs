@@ -243,7 +243,7 @@ fn runs(
     let flush = |ids: &[RecipeNodeId]| {
         case.flush
             .iter()
-            .flat_map(|&(p, q)| flush_pairs((ids[p], ids[p]), (ids[q], ids[q])))
+            .flat_map(|&(p, q)| flush_pairs(&doc, (ids[p], ids[p]), (ids[q], ids[q])))
             .collect::<Vec<_>>()
     };
     if case.nested {
@@ -449,17 +449,8 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
 /// `[b, a, c]` and x = 1..2 in `[c, a, b]`.
 #[test]
 fn a_member_flush_with_two_others_numbers_its_rim_by_the_body() {
-    let rim = StableName {
-        kind: EntityKind::Edge,
-        node: RecipeNodeId(0),
-        path: vec![RoleSeg::RimEdge(
-            CapEnd::Start,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment: 0,
-            },
-        )],
-    };
+    let case = r2ends();
+    let (doc, _) = document(&case.blocks, &case.creation);
     let mut fused = 0;
     runs(&r2ends(), |at, ev, ids, unions| {
         let union = unions[0].1;
@@ -471,8 +462,12 @@ fn a_member_flush_with_two_others_numbers_its_rim_by_the_body() {
         fused += 1;
         let a = ids[0];
         let rim = StableName {
+            kind: EntityKind::Edge,
             node: a,
-            ..rim.clone()
+            path: vec![RoleSeg::RimEdge(
+                CapEnd::Start,
+                crate::fixture::piece(&doc, a, 0, 0),
+            )],
         };
         let geo = geometry(ev, union);
         let x = |k: i64| (k * 1_000_000, 0, 0);
@@ -600,14 +595,11 @@ fn fam010_ranks_a_rim_the_same_way_in_both_orders() {
         node: a,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment: 0,
-            },
+            crate::fixture::piece(&doc, a, 0, 0),
         )],
     };
     let span = |order: [editor_core::RecipeNodeId; 3], rank| {
-        let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs((a, a), (b, b)));
+        let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),

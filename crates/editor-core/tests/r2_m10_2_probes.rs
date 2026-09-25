@@ -41,7 +41,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
+fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
     apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
@@ -194,7 +194,7 @@ fn boxed(
 
 /// A sphere of radius `r` centred at (0, 0, cz): a bulge-1 half-disc on
 /// the XZ frame, revolved a full turn about the world Z axis.
-fn sphere(doc: &ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, RecipeNodeId) {
+fn sphere(doc: &editor_core::ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, RecipeNodeId) {
     let half = LoopProgram::Chain(vec![
         ProgramStep::At([len(0.0), len(-r)]),
         ProgramStep::ArcTo(ProgramArcData::Bulge {

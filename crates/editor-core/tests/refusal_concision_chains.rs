@@ -2499,15 +2499,12 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
             distance: len(1.0),
         },
     );
-    let face = fname(body, wall(2));
-    let edge = fixture::prism_edges(body, 4).remove(2);
+    let face = fname(body, wall(&doc, body, 2));
+    let edge = fixture::prism_edges(&doc, body, 4).remove(2);
     let vertex = fixture::cap_vertex(
         body,
         CapEnd::End,
-        ProfileVertexRef {
-            loop_index: 0,
-            vertex: 0,
-        },
+        crate::fixture::vpiece(&doc, body, 0, 0),
     );
     let (doc, shell) = insert(doc, Node::shell(body, len(0.1), vec![edge.clone()]));
     let (doc, fillet) = insert(doc, Node::fillet(body, len(0.1), vec![face.clone()]));

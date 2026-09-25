@@ -265,7 +265,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // fields inside it stay on that type's own door.
         EditError::ProfileProgramRefused { node, refusal: _ }
         | EditError::MeasureMalformed { node, fault: _ }
-        | EditError::ProvenanceMalformed { node, fault: _ } => EditPayload {
+        | EditError::StepIdsRefused { node, fault: _ } => EditPayload {
             node: Some(*node),
             ..none
         },
@@ -445,7 +445,10 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         | EditError::RebindNoReferences { name }
         | EditError::NameUnresolvedInEvaluation { name }
         | EditError::AppearanceWrongKind { name }
-        | EditError::AppearanceNamesMissingNode { name } => EditPayload {
+        | EditError::AppearanceNamesMissingNode { name }
+        // The step and the counter cross in the message; the name is
+        // what the caller wrote and repairs.
+        | EditError::NameStepNeverMinted { name, .. } => EditPayload {
             name: Some(name),
             ..none
         },

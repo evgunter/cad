@@ -2326,7 +2326,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocParamValue,
         DocumentId, EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
-        ProvenanceFault, RecipeNodeId, RootFault, SlotId,
+        RecipeNodeId, RootFault, SlotId, StepId, StepIdFault,
     };
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};
@@ -2354,12 +2354,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::SetMembersOnNonList { node: id(1) }, &["node"]);
     carries(&E::SetProgramOnNonProfile { node: id(1) }, &["node"]);
     carries(
-        &E::ProvenanceMalformed {
+        &E::StepIdsRefused {
             node: id(1),
-            fault: ProvenanceFault::LoopCount {
-                loops: 1,
-                provenance: 2,
-            },
+            fault: StepIdFault::Repeated { step: StepId(2) },
         },
         &["node"],
     );
@@ -2570,6 +2567,11 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // ---- names, kinds and appearance ----
     for arm in [
         E::DeclareNamesMissingNode { name: named() },
+        E::NameStepNeverMinted {
+            name: named(),
+            step: StepId(9),
+            next_step: 4,
+        },
         E::RebindTargetMissingNode { name: named() },
         E::RebindUnknownName { name: named() },
         E::RebindIdentity { name: named() },

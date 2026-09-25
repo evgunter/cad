@@ -544,7 +544,7 @@ fn ceiling_at(eps: f64) -> (f64, f64) {
 /// split leaves no trace of what the unsplit box could not decide. This
 /// reads the unsplit evaluation directly, which is the question the
 /// ceiling is about.
-fn node_failures(doc: &ProfileDoc, analyzed: &AnalyzedBox) -> Vec<String> {
+fn node_failures(doc: &editor_core::ProfileDoc, analyzed: &AnalyzedBox) -> Vec<String> {
     let opts = EvalOptions {
         param_box: Some(std::sync::Arc::new(ParamBox::of(analyzed))),
         profile_lift: ProfileLift::Guided,

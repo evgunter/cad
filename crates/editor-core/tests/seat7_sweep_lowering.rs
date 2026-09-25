@@ -876,7 +876,7 @@ fn every_wall_of_a_split_carrier_carries_the_loops_one_radius() {
 }
 
 /// One evaluation, optionally served from a prior one.
-fn memo_eval(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn memo_eval(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         prior,

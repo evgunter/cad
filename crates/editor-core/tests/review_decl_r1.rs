@@ -58,7 +58,8 @@ fn a_union_refusal_against_a_merged_cap_is_sited_at_a_constituent() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, d) = block(doc, (0.2, 1.3), (0.2, 0.8), 1.0, 0.5);
-    let (doc, union, _) = declared_union(doc, &[a, c, d], flush_pairs((a, a), (c, c)));
+    let pairs = flush_pairs(&doc, (a, a), (c, c));
+    let (doc, union, _) = declared_union(doc, &[a, c, d], pairs);
     let ev = run(&doc);
     let got = failure(&ev, union);
     let Some(NodeErrorKind::UndeclaredContact {
@@ -88,7 +89,7 @@ fn a_merged_row_contact_is_declared_through_a_constituent() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, d) = block(doc, (0.2, 1.3), (0.2, 0.8), 1.0, 0.5);
-    let mut pairs = flush_pairs((a, a), (c, c));
+    let mut pairs = flush_pairs(&doc, (a, a), (c, c));
     pairs.push((
         SitedRef::new(c, fname(c, RoleSeg::Cap(CapEnd::End))),
         SitedRef::new(d, fname(d, RoleSeg::Cap(CapEnd::Start))),
@@ -128,8 +129,8 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
     let (doc, decl) = insert(
         base.clone(),
         Node::declare_rest(vec![(
-            SitedRef::new(a, fname(a, wall(0))),
-            SitedRef::new(b0, fname(b0, wall(0))),
+            SitedRef::new(a, fname(a, wall(&base, a, 0))),
+            SitedRef::new(b0, fname(b0, wall(&base, b0, 0))),
         )]),
     );
     let (doc, u) = boolean(doc, decl);
@@ -143,8 +144,8 @@ fn a_pair_boolean_site_at_the_minting_node_refuses_and_an_absent_row_vanishes() 
     let (doc, decl) = insert(
         base.clone(),
         Node::declare_rest(vec![(
-            SitedRef::new(a, fname(a, wall(0))),
-            SitedRef::new(tr, fname(b0, wall(7))),
+            SitedRef::new(a, fname(a, wall(&doc, a, 0))),
+            SitedRef::new(tr, fname(b0, wall(&doc, b0, 7))),
         )]),
     );
     let (doc, u) = boolean(doc, decl);
@@ -172,12 +173,13 @@ fn rung_one_outranks_a_foreign_site_at_the_pair_boolean() {
     let (doc, c) = block(doc, (8.0, 9.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, x) = block(doc, (12.0, 13.0), (0.0, 1.0), 0.0, 1.0);
     // The name is `c`'s; the site is `x`, live but not an operand.
+    let node = Node::declare_rest(vec![(
+            SitedRef::new(a, fname(a, wall(&doc, a, 0))),
+            SitedRef::new(x, fname(c, wall(&doc, c, 0))),
+        )]);
     let (doc, decl) = insert(
         doc,
-        Node::declare_rest(vec![(
-            SitedRef::new(a, fname(a, wall(0))),
-            SitedRef::new(x, fname(c, wall(0))),
-        )]),
+        node,
     );
     let (doc, u) = insert(
         doc,
@@ -219,7 +221,8 @@ fn a_declare_orphaned_by_a_cascade_is_reported_at_the_delete_that_orphans_it() {
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
-    let (doc, union, decl) = declared_union(doc, &[m1, m2], flush_pairs((m1, proto), (m2, proto)));
+    let pairs = flush_pairs(&doc, (m1, proto), (m2, proto));
+    let (doc, union, decl) = declared_union(doc, &[m1, m2], pairs);
     let order = editor_core::cascade_delete_order(&doc, m2);
     assert_eq!(order, vec![union, m2], "{order:?}");
     let mut doc = doc;

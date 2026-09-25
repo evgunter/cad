@@ -155,8 +155,8 @@ fn dumbbell() -> Dumbbell {
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(9))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
+                SitedRef::new(placed, fixture::fname(solid, fixture::wall(&r.doc, solid, 9))),
             ],
         )
         .expect("both indices in range"),
@@ -208,7 +208,7 @@ impl<'v> Neck<'v> {
             panic!("a transform's value is one body");
         };
         let key = |seg: u32| {
-            let n = fixture::fname(f.solid, fixture::wall(seg));
+            let n = fixture::fname(f.solid, fixture::wall(&f.doc, f.solid, seg));
             let Some(editor_core::Entry::Unique(ent)) = value.name_table.lookup(&n) else {
                 panic!("the wall name resolves uniquely at the placed node");
             };
@@ -490,8 +490,8 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
                 // profile vertex 0 — so the reference resolves and the
                 // refusal is about its KIND rather than about a name
                 // that names nothing.
-                SitedRef::at_mint(fixture::prism_edges(solid, 4).remove(2)),
-                SitedRef::at_mint(fixture::fname(solid, fixture::wall(2))),
+                SitedRef::at_mint(fixture::prism_edges(&r.doc, solid, 4).remove(2)),
+                SitedRef::at_mint(fixture::fname(solid, fixture::wall(&r.doc, solid, 2))),
             ],
         )
         .expect("both indices in range"),

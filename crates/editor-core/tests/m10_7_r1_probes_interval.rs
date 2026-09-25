@@ -37,7 +37,7 @@ fn param(n: &str) -> Expr {
 
 /// Every `Failed` node of a leaf replay, with its kind — the first is
 /// what refuses.
-fn failures(doc: &ProfileDoc, box_: ParamBox, dials: SymbolicDials, tol: Tol) -> Vec<String> {
+fn failures(doc: &editor_core::ProfileDoc, box_: ParamBox, dials: SymbolicDials, tol: Tol) -> Vec<String> {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_)),
         profile_lift: ProfileLift::Guided,

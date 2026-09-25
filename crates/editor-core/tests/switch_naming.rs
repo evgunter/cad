@@ -80,7 +80,7 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
     .doc
 }
 
-fn names_of(doc: &ProfileDoc, id: RecipeNodeId) -> BTreeSet<StableName> {
+fn names_of(doc: &editor_core::ProfileDoc, id: RecipeNodeId) -> BTreeSet<StableName> {
     let ev = evaluate::<f64>(
         doc,
         None,
@@ -232,10 +232,7 @@ fn stale_program_refs_refuse_vanished() {
         node: BODY,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment: 9, // the program has 4 segments
-            },
+            crate::fixture::no_piece(), // the program draws no such piece
         )],
     };
     let table = &ev.value(BODY).expect("extrude").name_table;
@@ -251,10 +248,7 @@ fn stale_program_refs_refuse_vanished() {
         node: BODY,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment: 0,
-            },
+            crate::fixture::piece(&doc, BODY, 0, 0),
         )],
     };
     assert!(table.lookup(&real).is_some());
@@ -381,16 +375,13 @@ fn hole_circle_anchor_recovers_reversal() {
     // Denotation at the name layer: both semicircle walls exist under
     // the hole's CANONICAL indices — its two program segments,
     // reflected.
-    use editor_core::{EntityKind, ProfileEdgeRef, RoleSeg};
+    use editor_core::{EntityKind, RoleSeg};
     let table = &ev.value(BODY).expect("extrude").name_table;
     for seg in 0..2u32 {
         let name = StableName {
             kind: EntityKind::Face,
             node: BODY,
-            path: vec![RoleSeg::Lateral(ProfileEdgeRef {
-                loop_index: 1,
-                segment: seg,
-            })],
+            path: vec![RoleSeg::Lateral(crate::fixture::piece(&doc, BODY, 1, seg as usize))],
         };
         assert!(
             table.lookup(&name).is_some(),

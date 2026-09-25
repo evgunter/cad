@@ -244,8 +244,8 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     // Segment 3 is the x = 0 wall, segment 1 the x = w wall; their
     // distance is `w`, so ∂m/∂w = 1 exactly.
     let refs = vec![
-        SitedRef::new(slab, fname(slab, wall(3))),
-        SitedRef::new(slab, fname(slab, wall(1))),
+        SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 3))),
+        SitedRef::new(slab, fname(slab, wall(&r.doc, slab, 1))),
     ];
     let m = r.insert(
         Node::measure(

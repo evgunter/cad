@@ -10,7 +10,7 @@
 
 use crate::fixture;
 
-use editor_core::{
+use editor_core::{RecipeNodeId, 
     CancelToken, EntityKind, EvalOptions, Evaluation, MeridianEnd, Node, ProfileDoc,
     ProfileEdgeRef, RoleSeg, band, band_pi, band_rim, evaluate, meridian_vertex,
 };
@@ -27,11 +27,12 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn pe(l: u32, s: u32) -> ProfileEdgeRef {
-    ProfileEdgeRef {
-        loop_index: l,
-        segment: s,
-    }
+fn pe(doc: &editor_core::ProfileDoc, node: RecipeNodeId, l: u32, s: u32) -> ProfileEdgeRef {
+    crate::fixture::piece(doc, node, l as usize, s as usize)
+}
+
+fn pv(doc: &editor_core::ProfileDoc, node: RecipeNodeId, l: u32, v: u32) -> editor_core::ProfileVertexRef {
+    crate::fixture::vpiece(doc, node, l as usize, v as usize)
 }
 
 #[test]
@@ -71,21 +72,21 @@ fn full_wire_holed_revolve_names_totally() {
     // The hole's entities land under loop index 1, seam-meridian
     // taxonomy (holes are lamina even under a wire outer).
     for s in 0..4 {
-        assert!(t.lookup(&band(rev, 1, s)).is_some());
-        assert!(t.lookup(&band_rim(rev, 1, s)).is_some());
+        assert!(t.lookup(&band(rev, pe(&doc, rev, 1, s))).is_some());
+        assert!(t.lookup(&band_rim(rev, pv(&doc, rev, 1, s))).is_some());
         assert!(
             t.lookup(&minted(
                 EntityKind::Edge,
                 rev,
-                RoleSeg::Meridian(MeridianEnd::Seam, pe(1, s))
+                RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 1, s))
             ))
             .is_some()
         );
         assert!(
-            t.lookup(&meridian_vertex(MeridianEnd::Seam, rev, 1, s))
+            t.lookup(&meridian_vertex(MeridianEnd::Seam, rev, pv(&doc, rev, 1, s)))
                 .is_some()
         );
     }
     // And the wire outer keeps its π-band names (loop 0).
-    assert!((0..4).any(|s| t.lookup(&band_pi(rev, 0, s)).is_some()));
+    assert!((0..4).any(|s| t.lookup(&band_pi(rev, pe(&doc, rev, 0, s))).is_some()));
 }

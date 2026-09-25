@@ -41,7 +41,7 @@ fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> (ProfileDoc, editor_core
 
 /// The frame a document evaluated to — x axis, y axis and the normal
 /// the pair derives — or a panic naming what it got.
-fn evaluated(doc: &ProfileDoc, id: editor_core::RecipeNodeId) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
+fn evaluated(doc: &editor_core::ProfileDoc, id: editor_core::RecipeNodeId) -> (Vec3<f64>, Vec3<f64>, Vec3<f64>) {
     match run(doc).nodes.get(&id) {
         Some(NodeResult::Ok(val)) => match &val.payload {
             ValuePayload::Datum(DatumValue::Frame(f)) => (f.u().get(), f.v().get(), f.w().get()),

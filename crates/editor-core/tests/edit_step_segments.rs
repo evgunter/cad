@@ -56,7 +56,7 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, CapEnd, EntityKey, Entry, EvalOptions, Evaluation, Expr, LoopProgram, Node,
-    ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    ProfileDoc, CanonicalSegment, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, RoleSeg, StepSegmentsError, ValuePayload, eval::ProfileNaming, evaluate,
 };
 use fixture::{insert, len, on_frame, tol};
@@ -98,7 +98,7 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// what holds that pairing honest: a rebuild that had drifted from the
 /// evaluation would disagree with the published anchor's permutation
 /// and every row here would refuse rather than pass.
-fn records(doc: &ProfileDoc, program: &ProfileProgram) -> Records {
+fn records(doc: &editor_core::ProfileDoc, program: &ProfileProgram) -> Records {
     let env = doc.param_env::<f64>();
     let resolved = program.resolve::<f64>(&env).expect("the corpus resolves");
     let mut loops = Vec::new();
@@ -167,7 +167,7 @@ impl Records {
     /// canonical sense, `k ↦ n − 1 − k` for one authored against it.
     /// The ref's loop is checked against the canonical loop the
     /// program loop's geometry is.
-    fn prog(&self, li: usize, e: &ProfileEdgeRef) -> usize {
+    fn prog(&self, li: usize, e: &CanonicalSegment) -> usize {
         assert_eq!(
             e.loop_index, self.canonical_loop[li],
             "program loop {li}'s ref names canonical loop {}, the loop its geometry is",
@@ -193,7 +193,7 @@ fn edges_by_step(
     loop_: u32,
     steps: usize,
     what: &str,
-) -> Vec<Vec<ProfileEdgeRef>> {
+) -> Vec<Vec<CanonicalSegment>> {
     (0..steps)
         .map(|step| {
             program
@@ -213,7 +213,7 @@ fn edges_by_step(
 /// loop's own and that no step's span was dropped or duplicated on the
 /// way through the permutation check — which the profile-side row
 /// cannot see.
-fn assert_partition(r: &Records, per_step: &[Vec<ProfileEdgeRef>], li: usize, what: &str) {
+fn assert_partition(r: &Records, per_step: &[Vec<CanonicalSegment>], li: usize, what: &str) {
     let mut seen: Vec<usize> = Vec::new();
     for edges in per_step {
         for e in edges {
@@ -260,8 +260,14 @@ fn face_vertex_points(body: &Body<f64>, face: FaceKey) -> Vec<geom_core::Point3<
 
 /// The face a lateral name addresses, `None` where the table has no
 /// such name.
-fn lateral(ev: &Evaluation<f64>, node: RecipeNodeId, e: ProfileEdgeRef) -> Option<FaceKey> {
-    let name = fixture::fname(node, RoleSeg::Lateral(e));
+fn lateral(
+    ev: &Evaluation<f64>,
+    node: RecipeNodeId,
+    pieces: &editor_core::ProfilePieces,
+    e: CanonicalSegment,
+) -> Option<FaceKey> {
+    let piece = pieces.edge(e.loop_index as usize, e.segment as usize)?;
+    let name = fixture::fname(node, RoleSeg::Lateral(piece));
     match ev.value(node)?.name_table.lookup(&name)? {
         Entry::Unique(r) => match r.key {
             EntityKey::Face(f) => Some(f),
@@ -446,7 +452,7 @@ fn assert_steps_bound_their_walls(id: &str, points: Vec<(f64, f64)>, want: Perm)
     let mut walls = BTreeSet::new();
     for (step, edges) in per_step.iter().enumerate() {
         for e in edges {
-            let face = lateral(&ev, ext, *e)
+            let face = lateral(&ev, ext, &pv.pieces, *e)
                 .unwrap_or_else(|| panic!("{id}: step {step}'s ref {e:?} names no wall"));
             walls.insert(face);
             let pts = face_vertex_points(body, face);
@@ -570,12 +576,40 @@ fn rim(
     ev: &Evaluation<f64>,
     node: RecipeNodeId,
     end: CapEnd,
-    e: ProfileEdgeRef,
+    pieces: &editor_core::ProfilePieces,
+    e: CanonicalSegment,
 ) -> Option<EdgeKey> {
-    let name = fixture::ename(node, RoleSeg::RimEdge(end, e));
+    let piece = pieces.edge(e.loop_index as usize, e.segment as usize)?;
+    let name = fixture::ename(node, RoleSeg::RimEdge(end, piece));
     match ev.value(node)?.name_table.lookup(&name)? {
         Entry::Unique(r) => match r.key {
             EntityKey::Edge(k) => Some(k),
+            _ => None,
+        },
+        Entry::Tied(_) => None,
+    }
+}
+
+/// The loft wall at canonical segment `e`: named by the piece every
+/// section draws there, `None` where a section draws none or the table
+/// has no such name.
+fn loft_wall(
+    ev: &Evaluation<f64>,
+    loft: RecipeNodeId,
+    sections: &[RecipeNodeId],
+    e: CanonicalSegment,
+) -> Option<FaceKey> {
+    let pieces = sections
+        .iter()
+        .map(|&s| match &ev.value(s)?.payload {
+            ValuePayload::Profile(pv) => pv.pieces.edge(e.loop_index as usize, e.segment as usize),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let name = fixture::fname(loft, RoleSeg::LoftWall(pieces));
+    match ev.value(loft)?.name_table.lookup(&name)? {
+        Entry::Unique(r) => match r.key {
+            EntityKey::Face(f) => Some(f),
             _ => None,
         },
         Entry::Tied(_) => None,
@@ -644,7 +678,7 @@ fn assert_sections_bound_their_walls(
                     "{id}: section {si} loop {li} step {step} answers one ref per segment"
                 );
                 for (e, s) in edges.iter().zip(span.iter()) {
-                    let face = lateral(ev, loft, *e).unwrap_or_else(|| {
+                    let face = loft_wall(ev, loft, ids, *e).unwrap_or_else(|| {
                         panic!("{id}: section {si} loop {li} step {step}: {e:?} names no wall")
                     });
                     walls.insert(face);
@@ -671,7 +705,7 @@ fn assert_sections_bound_their_walls(
                         _ => None,
                     };
                     if let Some(cap) = cap {
-                        let edge = rim(ev, loft, cap, *e).unwrap_or_else(|| {
+                        let edge = rim(ev, loft, cap, &pv.pieces, *e).unwrap_or_else(|| {
                             panic!(
                                 "{id}: section {si} step {step}'s ref {e:?} names no {cap:?} rim"
                             )
@@ -958,7 +992,7 @@ fn a_twisted_loft_takes_the_twist_the_author_wrote() {
         .iter()
         .map(|&(x, y)| (cs * x - sn * y, sn * x + cs * y))
         .collect();
-    let (doc, _, loft) =
+    let (doc, sections, loft) =
         loft_of_loops("loft-twist", &[vec![square.clone()], vec![rotated.clone()]]);
     let ev = run(&doc);
     let ValuePayload::Body(body) = &ev
@@ -971,10 +1005,12 @@ fn a_twisted_loft_takes_the_twist_the_author_wrote() {
     for (k, (&(x0, y0), &(x1, y1))) in square.iter().zip(&rotated).enumerate() {
         let name = fixture::ename(
             loft,
-            RoleSeg::LateralEdge(editor_core::ProfileVertexRef {
-                loop_index: 0,
-                vertex: u32::try_from(k).unwrap(),
-            }),
+            RoleSeg::LoftSeam(
+                sections
+                    .iter()
+                    .map(|&s| fixture::vpiece(&doc, s, 0, k))
+                    .collect(),
+            ),
         );
         let strut = fixture::edge_of(&ev.value(loft).unwrap().name_table, "strut", &name);
         let [a, b] = fixture::ends(body, strut);
@@ -1093,18 +1129,18 @@ struct Tally {
 fn assert_attribution(
     r: &Records,
     li: usize,
-    per_step: &[Vec<ProfileEdgeRef>],
+    per_step: &[Vec<CanonicalSegment>],
     what: &str,
     tally: &mut Tally,
 ) {
     let steps = &r.steps[li];
     let verts = &r.verts[li];
-    let seg = |e: &ProfileEdgeRef| r.prog(li, e);
+    let seg = |e: &CanonicalSegment| r.prog(li, e);
     let n = verts.len();
     let near = |a: Point2<f64>, b: Point2<f64>| (a - b).norm_squared() <= 1e-18;
     for (j, step) in steps.iter().enumerate() {
         let edges = &per_step[j];
-        let arrives = |edges: &[ProfileEdgeRef]| {
+        let arrives = |edges: &[CanonicalSegment]| {
             let e = edges.last().unwrap_or_else(|| {
                 panic!(
                     "{what} step {j} ({:?}) names where it ends, so it produced \
@@ -1390,7 +1426,7 @@ fn a_naming_without_this_loop_refuses_rather_than_asserting() {
 /// typed.**
 ///
 /// The three are the arms that stand between a FOREIGN record and an
-/// out-of-range `ProfileEdgeRef`. A consumer holds a structure and a
+/// out-of-range `CanonicalSegment`. A consumer holds a structure and a
 /// naming that it believes go with this program, and nothing in the
 /// types says they do; `SpanOffTheLoop` in particular is the last guard
 /// before the door mints refs for segments the loop does not have.
@@ -1529,8 +1565,13 @@ fn arc_prism(
 
 /// The radius the wall named by `e` stores, `None` where that wall is
 /// not a cylinder at all.
-fn wall_radius(ev: &Evaluation<f64>, ext: RecipeNodeId, e: ProfileEdgeRef) -> Option<f64> {
-    let face = lateral(ev, ext, e)?;
+fn wall_radius(
+    ev: &Evaluation<f64>,
+    ext: RecipeNodeId,
+    pieces: &editor_core::ProfilePieces,
+    e: CanonicalSegment,
+) -> Option<f64> {
+    let face = lateral(ev, ext, pieces, e)?;
     let ValuePayload::Body(body) = &ev.value(ext)?.payload else {
         return None;
     };
@@ -1583,7 +1624,7 @@ fn assert_arcs_are_answered(id: &str, side: profile::ArcSide, radii: &[f64], wan
             "{id}: the edges are answered in program-step order, so pair {k} carries \
              arc {k}'s own expression"
         );
-        let got = wall_radius(&ev, ext, *e).unwrap_or_else(|| {
+        let got = wall_radius(&ev, ext, &pv.pieces, *e).unwrap_or_else(|| {
             panic!("{id}: {e:?} names no cylindrical wall, so it is not an arc's edge")
         });
         assert!(
@@ -1598,12 +1639,12 @@ fn assert_arcs_are_answered(id: &str, side: profile::ArcSide, radii: &[f64], wan
         if answered.contains(&segment) {
             continue;
         }
-        let e = ProfileEdgeRef {
+        let e = CanonicalSegment {
             loop_index: 0,
             segment,
         };
         assert_eq!(
-            wall_radius(&ev, ext, e),
+            wall_radius(&ev, ext, &pv.pieces, e),
             None,
             "{id}: {e:?} was answered for by nobody, so its wall must not be an arc's"
         );
@@ -1855,7 +1896,7 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         "and that arrival step holds no radius of its own: {:?}",
         steps[emitter]
     );
-    let got = wall_radius(&ev, ext, edge)
+    let got = wall_radius(&ev, ext, &pv.pieces, edge)
         .unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall, so it is not the arc's"));
     assert!(
         (got - 0.5).abs() < 1e-9,
@@ -1952,7 +1993,7 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
         r.structure.replay[0].steps[emitter]
     );
     let got =
-        wall_radius(&ev, ext, edge).unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
+        wall_radius(&ev, ext, &pv.pieces, edge).unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
     assert!(
         (got - 0.5).abs() < 1e-9,
         "the answered edge is the FILLET arc's wall, at its own radius, not {got}"
@@ -1966,7 +2007,8 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
             wall_radius(
                 &ev,
                 ext,
-                ProfileEdgeRef {
+                &pv.pieces,
+                CanonicalSegment {
                     loop_index: 0,
                     segment: *s,
                 },
@@ -2043,7 +2085,7 @@ fn the_per_edge_door_refuses_where_the_map_does() {
 /// The record arrives as a second argument, so nothing in the types
 /// says it belongs to this program. An emission crediting a segment
 /// the loop does not have would mint an out-of-range
-/// [`ProfileEdgeRef`]; one crediting an argument the step it names
+/// [`CanonicalSegment`]; one crediting an argument the step it names
 /// does not hold — a different role, or a step past the end of the
 /// program — would pair an edge with somebody else's expression, or
 /// with none. Both refuse where they are read, and neither guesses.
@@ -2235,7 +2277,7 @@ fn assert_rotated_arcs_are_answered(id: &str, side: profile::ArcSide, want_rever
     let radii = [1.0, 0.25];
     for (k, ((e, expr), want)) in answer.iter().zip(&exprs).enumerate() {
         assert_eq!(*expr, want, "{id}: pair {k} carries arc {k}'s expression");
-        let got = wall_radius(&ev, ext, *e)
+        let got = wall_radius(&ev, ext, &pv.pieces, *e)
             .unwrap_or_else(|| panic!("{id}: {e:?} names no cylindrical wall"));
         assert!(
             (got - radii[k]).abs() < 1e-9,
@@ -2244,11 +2286,11 @@ fn assert_rotated_arcs_are_answered(id: &str, side: profile::ArcSide, want_rever
         );
     }
     for (j, slot) in pv.edge_radii[0].iter().enumerate() {
-        let e = ProfileEdgeRef {
+        let e = CanonicalSegment {
             loop_index: 0,
             segment: u32::try_from(j).unwrap(),
         };
-        let wall = wall_radius(&ev, ext, e);
+        let wall = wall_radius(&ev, ext, &pv.pieces, e);
         match (slot, wall) {
             (Some(expr), Some(got)) => {
                 let want = if *expr == exprs[0] { 1.0 } else { 0.25 };
@@ -2625,7 +2667,7 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
         "and the step that drew it is not the step that emitted it"
     );
     let got =
-        wall_radius(&ev, ext, edge).unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
+        wall_radius(&ev, ext, &pv.pieces, edge).unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
     assert!(
         (got - 0.2).abs() < 1e-9,
         "the answered wall is the fillet arc's, at its own radius, not {got}"
@@ -2718,7 +2760,7 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
         .expect("the door answers");
     assert_eq!(answer.len(), 3, "three radii, three arcs — got {answer:?}");
     for ((edge, expr), want) in answer.iter().zip([2.0, 0.25, 3.0]) {
-        let got = wall_radius(&ev, ext, *edge)
+        let got = wall_radius(&ev, ext, &pv.pieces, *edge)
             .unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
         assert!(
             (got - want).abs() < 1e-9,
@@ -2808,16 +2850,16 @@ fn assert_rotated_fillet_is_answered(id: &str, s: f64, want_reversed: bool) {
         3,
         "{id}: credited to the binder, emitted elsewhere"
     );
-    let got = wall_radius(&row.ev, row.ext, edge)
+    let got = wall_radius(&row.ev, row.ext, &pv.pieces, edge)
         .unwrap_or_else(|| panic!("{id}: {edge:?} names no cylindrical wall — the neighbour"));
     assert!((got - 0.5).abs() < 1e-9, "{id}: the wall stores {got}");
     let mut cylinders = 0;
     for (j, slot) in pv.edge_radii[0].iter().enumerate() {
-        let e = ProfileEdgeRef {
+        let e = CanonicalSegment {
             loop_index: 0,
             segment: u32::try_from(j).unwrap(),
         };
-        match (slot, wall_radius(&row.ev, row.ext, e)) {
+        match (slot, wall_radius(&row.ev, row.ext, &pv.pieces, e)) {
             (Some(expr), Some(got)) => {
                 cylinders += 1;
                 assert_eq!(*expr, radius);
@@ -2891,7 +2933,7 @@ fn a_reversed_via_closes_fillet_arc_reaches_its_wall() {
     };
     assert_eq!(*expr, radius);
     let got =
-        wall_radius(&row.ev, row.ext, edge).unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
+        wall_radius(&row.ev, row.ext, &pv.pieces, edge).unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
     assert!(
         (got - 0.5).abs() < 1e-9,
         "the FILLET arc's wall, not the Via arc's: {got}"
@@ -2904,11 +2946,11 @@ fn a_reversed_via_closes_fillet_arc_reaches_its_wall() {
     let [j] = attached[..] else {
         panic!("one canonical slot: {attached:?}");
     };
-    let e = ProfileEdgeRef {
+    let e = CanonicalSegment {
         loop_index: 0,
         segment: u32::try_from(j).unwrap(),
     };
-    let got = wall_radius(&row.ev, row.ext, e).expect("the attached slot is a cylinder");
+    let got = wall_radius(&row.ev, row.ext, &pv.pieces, e).expect("the attached slot is a cylinder");
     assert!(
         (got - 0.5).abs() < 1e-9,
         "the attach lands on the fillet arc's wall: {got}"
@@ -2969,7 +3011,7 @@ fn an_exact_fit_closing_fillet_arc_reaches_its_wall() {
     assert_eq!(*expr, radius);
     assert_eq!(edge.segment, 2, "the closing segment");
     let got =
-        wall_radius(&row.ev, row.ext, edge).unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
+        wall_radius(&row.ev, row.ext, &pv.pieces, edge).unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
     assert!(
         (got - 0.5).abs() < 1e-9,
         "a cylinder at the fillet's radius: {got}"
@@ -3030,7 +3072,7 @@ fn a_fillet_arcs_two_radii_each_reach_their_own_wall() {
             **expr == fillet || **expr == carrier,
             "each pair carries one of the step's own two radii"
         );
-        let got = wall_radius(&row.ev, row.ext, *edge)
+        let got = wall_radius(&row.ev, row.ext, &pv.pieces, *edge)
             .unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
         assert!(
             (got - want).abs() < 1e-9,

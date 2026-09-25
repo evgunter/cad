@@ -25,7 +25,7 @@ use editor_core::{
 use fixture::{ang, fname, insert, len, scl, wall};
 use geom_core::Tol;
 
-fn delete(doc: &ProfileDoc, id: RecipeNodeId) -> editor_core::Applied<editor_core::ProfileProgram> {
+fn delete(doc: &editor_core::ProfileDoc, id: RecipeNodeId) -> editor_core::Applied<editor_core::ProfileProgram> {
     apply(
         doc,
         &DocEdit::DeleteNode { id },
@@ -48,13 +48,14 @@ fn delete(doc: &ProfileDoc, id: RecipeNodeId) -> editor_core::Applied<editor_cor
 fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     let doc = ProfileDoc::empty_derived("rv_self_naming", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, fillet) = insert(
-        doc,
-        Node::Fillet {
+    let node = Node::Fillet {
             target: body,
             radius: len(0.1),
-            selection: vec![fname(body, wall(0))],
-        },
+            selection: vec![fname(body, wall(&doc, body, 0))],
+        };
+    let (doc, fillet) = insert(
+        doc,
+        node,
     );
     // The repair door moves the fillet's selection into the fillet's
     // OWN space: `to` must name a live node and nothing forbids that
@@ -62,8 +63,8 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     let applied = apply(
         &doc,
         &DocEdit::Rebind {
-            from: fname(body, wall(0)),
-            to: fname(fillet, wall(2)),
+            from: fname(body, wall(&doc, body, 0)),
+            to: fname(fillet, wall(&doc, fillet, 2)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -75,7 +76,7 @@ fn rv_a_self_naming_carrier_reports_nothing_when_it_is_deleted() {
     };
     assert_eq!(
         selection,
-        &vec![fname(fillet, wall(2))],
+        &vec![fname(fillet, wall(&doc, fillet, 2))],
         "the carrier now names its own space"
     );
 
@@ -215,7 +216,8 @@ fn rv_a_sited_declaration_strands_nothing_inside_a_cascade() {
     let doc = ProfileDoc::empty_derived("rv_cascade_noise", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
 
     let order = cascade_delete_order(&doc, decl);
     assert_eq!(order, vec![union, decl], "the union consumes the declare");
@@ -272,7 +274,7 @@ fn rv_a_stranded_appearance_key_round_trips_after_the_delete() {
     let doc = ProfileDoc::empty_derived("rv_app_persist", Tol::witness());
     let (doc, _body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let painted = fname(victim, wall(0));
+    let painted = fname(victim, wall(&doc, victim, 0));
     let doc = apply(
         &doc,
         &DocEdit::SetAppearance {
@@ -310,7 +312,7 @@ fn rv_a_reported_appearance_strand_is_rebindable() {
     let doc = ProfileDoc::empty_derived("rv_app_rebind", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let painted = fname(victim, wall(0));
+    let painted = fname(victim, wall(&doc, victim, 0));
     let doc = apply(
         &doc,
         &DocEdit::SetAppearance {
@@ -331,7 +333,7 @@ fn rv_a_reported_appearance_strand_is_rebindable() {
         }],
         "the door named the key"
     );
-    let live = fname(body, wall(0));
+    let live = fname(body, wall(&doc, body, 0));
     let repaired = apply(
         &applied.doc,
         &DocEdit::Rebind {

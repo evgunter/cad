@@ -127,10 +127,7 @@ impl Twins {
             sq,
             RoleSeg::RimEdge(
                 CapEnd::End,
-                ProfileEdgeRef {
-                    loop_index: 0,
-                    segment: 3,
-                },
+                crate::fixture::piece(&square, sq, 0, 3),
             ),
         );
         let edit = DocEdit::InsertNode {
@@ -308,10 +305,7 @@ fn the_pairing_is_identity_and_survives_a_new_version_of_the_document() {
         sq,
         RoleSeg::RimEdge(
             CapEnd::End,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment: 3,
-            },
+            crate::fixture::piece(&square, sq, 0, 3),
         ),
     );
     let edit = DocEdit::InsertNode {

@@ -1228,9 +1228,8 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         };
         let fault = |fault| SnapshotError::StepIds { node: id, fault };
         if program.ids.len() != program.loops.len() {
-            return Err(fault(crate::program::StepIdFault::Shape {
-                loop_: crate::program::program_index(program.ids.len().min(program.loops.len())),
-                authored: program.loops.len(),
+            return Err(fault(crate::program::StepIdFault::LoopCount {
+                loops: program.loops.len(),
                 given: program.ids.len(),
             }));
         }

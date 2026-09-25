@@ -1069,6 +1069,21 @@ pub enum EditError {
         /// The name whose node is not live.
         name: StableName,
     },
+    /// A name written into the document spells a profile step the
+    /// document never minted — one at or beyond its step counter. The
+    /// node half's rule ([`EditError::DeclareNamesMissingNode`]) for
+    /// the half of a name that is a step id: a never-minted id is a
+    /// typo, and one written anyway would be minted for another step
+    /// later. (A step a `SetProgram` dropped was minted, so a name on
+    /// it is ALLOWED — it strands, DM7.)
+    NameStepNeverMinted {
+        /// The name.
+        name: StableName,
+        /// The step it spells.
+        step: StepId,
+        /// The document's step counter.
+        next_step: u64,
+    },
     /// A reference's READ SITE — the operand a mate is authored
     /// against ([`Node::payload_read_sites`]) — names a node that does
     /// not exist at edit time. The name half's rule, applied to the
@@ -1671,6 +1686,16 @@ impl core::fmt::Display for EditError {
                 )
             }
             Self::Dimension(e) => write!(f, "{e}"),
+            Self::NameStepNeverMinted {
+                name,
+                step,
+                next_step,
+            } => write!(
+                f,
+                "the {name} spells profile step {}, which this document never minted (its step \
+                 counter is {next_step})",
+                step.0
+            ),
             Self::DeclareNamesMissingNode { name } => {
                 write!(f, "the declared {name} refers to a node that is not live")
             }
@@ -2177,9 +2202,8 @@ fn settle_step_ids(
     use crate::program::{StepIdFault, program_index};
     let refuse = |fault| EditError::StepIdsRefused { node, fault };
     if ids.len() != new.len() {
-        return Err(refuse(StepIdFault::Shape {
-            loop_: program_index(new.len().min(ids.len())),
-            authored: new.len(),
+        return Err(refuse(StepIdFault::LoopCount {
+            loops: new.len(),
             given: ids.len(),
         }));
     }
@@ -2453,6 +2477,21 @@ impl MaintenanceNet {
                 Maintenance::Cluster(_) => true,
             })
             .collect()
+    }
+}
+
+/// A name written into the document spells only steps the document
+/// minted ([`EditError::NameStepNeverMinted`]) — the edit door's half
+/// of the load door's `SnapshotError::NameStepBeyondCounter`, so a
+/// document this door accepts is one the load door reads back.
+fn check_name_steps<P>(doc: &Doc<P>, name: &StableName) -> Result<(), EditError> {
+    match name.piece_steps().into_iter().find(|s| s.0 >= doc.next_step) {
+        None => Ok(()),
+        Some(step) => Err(EditError::NameStepNeverMinted {
+            name: name.clone(),
+            step,
+            next_step: doc.next_step,
+        }),
     }
 }
 
@@ -2984,6 +3023,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
                 if !new.nodes.contains_key(&name.node) {
                     return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
                 }
+                check_name_steps(&new, name)?;
             }
             // The same check for the node a reference is READ AT
             // where that node is not also an input
@@ -3321,6 +3361,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             if !new.nodes.contains_key(&to.node) {
                 return Err(EditError::RebindTargetMissingNode { name: to.clone() });
             }
+            check_name_steps(&new, to)?;
             // The source must have ONCE existed (ids are monotone and
             // never reused): dead-but-once-lived is exactly the
             // NodeGone repair; never-minted is a typo.
@@ -3382,6 +3423,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             if !new.nodes.contains_key(&name.node) {
                 return Err(EditError::AppearanceNamesMissingNode { name: name.clone() });
             }
+            check_name_steps(&new, name)?;
             new.appearance
                 .entry(name.clone())
                 .or_default()
@@ -3461,6 +3503,7 @@ fn apply_maintaining<P: Clone + crate::ProfilePayload>(
             if !new.nodes.contains_key(&name.node) {
                 return Err(EditError::AppearanceNamesMissingNode { name: name.clone() });
             }
+            check_name_steps(&new, name)?;
             // D7's producer convention, by the one predicate
             // `MetaValue::require_versioned`, which the save/load
             // validator also calls. Only the WALK differs between the

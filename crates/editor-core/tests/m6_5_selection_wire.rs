@@ -55,10 +55,7 @@ fn the_selection_reaches_the_wire_canonical() {
         node: editor_core::RecipeNodeId(2),
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment: seg,
-            },
+            crate::fixture::piece(&doc, editor_core::RecipeNodeId(2), 0, seg as usize),
         )],
     };
     doc = apply(

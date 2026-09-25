@@ -96,7 +96,7 @@ pub fn document() -> CorpusDoc {
     // the cube without minting or retiring an edge, so the frozen
     // selection still resolves, which is what makes this document a
     // covariance row as well as a shape row.
-    let blank = r.insert(Node::fillet(cube, len(R), prism_edges(cube, 4)));
+    let blank = r.insert(Node::fillet(cube, len(R), prism_edges(&r.doc, cube, 4)));
 
     CorpusDoc {
         name: "die_fillet",

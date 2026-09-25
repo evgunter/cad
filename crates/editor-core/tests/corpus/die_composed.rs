@@ -107,7 +107,7 @@ const PIP_C: f64 = DIE_L + (PIP_R - PIP_H);
 /// The result is still FROZEN: materializing happens once, at
 /// authoring time, and the names go into the recipe (`Node::Fillet`'s
 /// payload docs; the growth path is still `DocEdit::Rebind`).
-pub fn selection(cube: RecipeNodeId, ball: RecipeNodeId, pipped: RecipeNodeId) -> Vec<StableName> {
+pub fn selection(doc: &editor_core::ProfileDoc, cube: RecipeNodeId, ball: RecipeNodeId, pipped: RecipeNodeId) -> Vec<StableName> {
     let at = |seg: RoleSeg| StableName {
         kind: EntityKind::Edge,
         node: pipped,
@@ -123,11 +123,8 @@ pub fn selection(cube: RecipeNodeId, ball: RecipeNodeId, pipped: RecipeNodeId) -
         node: ball,
         path: vec![seg],
     };
-    let lower = ProfileEdgeRef {
-        loop_index: 0,
-        segment: 0,
-    };
-    let mut out: Vec<StableName> = prism_edges(cube, 4)
+    let lower = crate::fixture::piece(&doc, ball, 0, 0);
+    let mut out: Vec<StableName> = prism_edges(&doc, cube, 4)
         .into_iter()
         .map(|e| at(RoleSeg::FromA(e.into())))
         .collect();
@@ -183,7 +180,7 @@ pub fn selector() -> Selector {
 /// The two cavity meridians — the names the selection deliberately
 /// LEAVES OUT (the co-surface seams). Named here so the pin that
 /// checks the exclusion reads the same list the docs above describe.
-pub fn excluded_meridians(ball: RecipeNodeId, pipped: RecipeNodeId) -> Vec<StableName> {
+pub fn excluded_meridians(doc: &editor_core::ProfileDoc, ball: RecipeNodeId, pipped: RecipeNodeId) -> Vec<StableName> {
     [MeridianEnd::Seam, MeridianEnd::Pi]
         .into_iter()
         .map(|end| StableName {
@@ -194,10 +191,7 @@ pub fn excluded_meridians(ball: RecipeNodeId, pipped: RecipeNodeId) -> Vec<Stabl
                 node: ball,
                 path: vec![RoleSeg::Meridian(
                     end,
-                    ProfileEdgeRef {
-                        loop_index: 0,
-                        segment: 0,
-                    },
+                    crate::fixture::piece(&doc, ball, 0, 0),
                 )],
             }))],
         })

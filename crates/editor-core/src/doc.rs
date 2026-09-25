@@ -895,6 +895,14 @@ impl<P> Doc<P> {
         self.id
     }
 
+    /// The document's step counter: the [`crate::StepId`] the next
+    /// authored profile step will be minted — every id below it was
+    /// minted once, and none at or above it ever was.
+    #[must_use]
+    pub fn next_step(&self) -> u64 {
+        self.next_step
+    }
+
     /// The same document under a different identity: `id` replaces
     /// this one's and NOTHING else moves.
     ///

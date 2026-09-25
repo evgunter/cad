@@ -163,7 +163,7 @@ fn an_assertion_bound_of_the_wrong_dimension_is_refused_at_both_doors() {
 /// The saved text of `doc` plus one well-formed assertion, and that
 /// assertion's id — the rows above corrupt the text BY PATH, so they
 /// need the id to aim with.
-fn saved_assertion(doc: &ProfileDoc, measure: RecipeNodeId, bound: Expr) -> (String, RecipeNodeId) {
+fn saved_assertion(doc: &editor_core::ProfileDoc, measure: RecipeNodeId, bound: Expr) -> (String, RecipeNodeId) {
     let applied = apply(
         doc,
         &DocEdit::InsertNode {
@@ -714,7 +714,7 @@ fn a_placement_off_the_gauge_is_keyed_on_it_rather_than_refused() {
 
 /// The saved text of `doc` carrying one placement, which the rows
 /// above corrupt.
-fn saved_placement(doc: &ProfileDoc, node: RecipeNodeId, frame: Frame) -> String {
+fn saved_placement(doc: &editor_core::ProfileDoc, node: RecipeNodeId, frame: Frame) -> String {
     let (doc, _) = step(doc.clone(), DocEdit::SetPlacement { node, frame });
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     load(&text, Tol::witness()).expect("the fixture loads");
@@ -761,7 +761,7 @@ fn witness() -> editor_core::WitnessDatum {
 
 /// The saved text of `doc` carrying one witness on `node`, which the
 /// rows below then re-key.
-fn saved_witness(doc: &ProfileDoc, node: RecipeNodeId) -> String {
+fn saved_witness(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> String {
     let (doc, _) = step(
         doc.clone(),
         DocEdit::ReWitness {

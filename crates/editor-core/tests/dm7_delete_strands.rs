@@ -57,8 +57,7 @@ fn strands(applied: &[Maintenance]) -> Vec<(RecipeNodeId, StableName)> {
             Maintenance::Strand { node, name } => Some((*node, name.clone())),
             Maintenance::Cluster(_)
             | Maintenance::StrandedAppearance { .. }
-            | Maintenance::OrphanedDeclare { .. }
-            | Maintenance::Rebound { .. } => None,
+            | Maintenance::OrphanedDeclare { .. } => None,
         })
         .collect()
 }
@@ -72,15 +71,14 @@ fn appearance_strands(applied: &[Maintenance]) -> Vec<StableName> {
             Maintenance::StrandedAppearance { name } => Some(name.clone()),
             Maintenance::Strand { .. }
             | Maintenance::Cluster(_)
-            | Maintenance::OrphanedDeclare { .. }
-            | Maintenance::Rebound { .. } => None,
+            | Maintenance::OrphanedDeclare { .. } => None,
         })
         .collect()
 }
 
 /// Paint one face red, expecting the door to accept it: the name's
 /// node is live at the edit, which is all `SetAppearance` asks.
-fn paint(doc: &ProfileDoc, name: &StableName) -> ProfileDoc {
+fn paint(doc: &editor_core::ProfileDoc, name: &StableName) -> ProfileDoc {
     apply(
         doc,
         &DocEdit::SetAppearance {
@@ -98,7 +96,7 @@ fn paint(doc: &ProfileDoc, name: &StableName) -> ProfileDoc {
 /// these rows delete from hold no mated instance, so the reach is the
 /// refusing one; a row whose delete moves a cluster's gauge goes
 /// through [`delete_with`] and the store's reach.
-fn delete(doc: &ProfileDoc, id: RecipeNodeId) -> editor_core::Applied<editor_core::ProfileProgram> {
+fn delete(doc: &editor_core::ProfileDoc, id: RecipeNodeId) -> editor_core::Applied<editor_core::ProfileProgram> {
     delete_with(doc, id, &editor_core::RefusingReach)
 }
 
@@ -132,7 +130,8 @@ fn deleting_a_declared_member_names_its_pairs_and_its_site_reports_nothing() {
     let doc = ProfileDoc::empty_derived("dm7_declared_union", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
 
     assert!(
         matches!(
@@ -221,9 +220,9 @@ fn every_payload_kind_that_carries_a_name_reports_its_strand() {
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
 
-    let f0 = fname(victim, wall(0));
-    let f1 = fname(victim, wall(1));
-    let f2 = fname(victim, wall(2));
+    let f0 = fname(victim, wall(&doc, victim, 0));
+    let f1 = fname(victim, wall(&doc, victim, 1));
+    let f2 = fname(victim, wall(&doc, victim, 2));
     let f3 = fname(victim, RoleSeg::Cap(CapEnd::End));
     let f4 = fname(victim, RoleSeg::Cap(CapEnd::Start));
 
@@ -352,13 +351,14 @@ fn a_delete_that_strands_nothing_reports_nothing() {
     let doc = ProfileDoc::empty_derived("dm7_silent", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, spare) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, _fillet) = insert(
-        doc,
-        Node::Fillet {
+    let node = Node::Fillet {
             target: body,
             radius: len(0.1),
-            selection: vec![fname(body, wall(0))],
-        },
+            selection: vec![fname(body, wall(&doc, body, 0))],
+        };
+    let (doc, _fillet) = insert(
+        doc,
+        node,
     );
 
     let applied = delete(&doc, spare);
@@ -377,13 +377,14 @@ fn a_delete_that_strands_nothing_reports_nothing() {
 fn a_carrier_deleted_with_the_node_it_names_reports_nothing() {
     let doc = ProfileDoc::empty_derived("dm7_self", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, fillet) = insert(
-        doc,
-        Node::Fillet {
+    let node1 = Node::Fillet {
             target: body,
             radius: len(0.1),
-            selection: vec![fname(body, wall(0))],
-        },
+            selection: vec![fname(body, wall(&doc, body, 0))],
+        };
+    let (doc, fillet) = insert(
+        doc,
+        node1,
     );
 
     let order = cascade_delete_order(&doc, body);
@@ -417,15 +418,16 @@ fn a_cascade_reports_each_strand_at_the_step_that_made_it() {
     let doc = ProfileDoc::empty_derived("dm7_cascade", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, other) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, fillet) = insert(
-        doc,
-        Node::Fillet {
+    let node2 = Node::Fillet {
             target: body,
             radius: len(0.1),
-            selection: vec![fname(body, wall(0))],
-        },
+            selection: vec![fname(body, wall(&doc, body, 0))],
+        };
+    let (doc, fillet) = insert(
+        doc,
+        node2,
     );
-    let face = fname(fillet, wall(2));
+    let face = fname(fillet, wall(&doc, fillet, 2));
     let (doc, derived) = insert(
         doc,
         Node::Datum(Datum::FaceFrame {
@@ -574,7 +576,8 @@ fn a_round_tripped_document_reports_the_same_strands() {
     let doc = ProfileDoc::empty_derived("dm7_round_trip", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, _decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, _decl) = declared_union(doc, &[a, b], pairs);
 
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
     let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
@@ -613,9 +616,9 @@ fn a_delete_reports_the_appearance_keys_it_stranded() {
     let doc = ProfileDoc::empty_derived("dm7_appearance", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let one = fname(victim, wall(0));
-    let two = fname(victim, wall(2));
-    let live = fname(body, wall(0));
+    let one = fname(victim, wall(&doc, victim, 0));
+    let two = fname(victim, wall(&doc, victim, 2));
+    let live = fname(body, wall(&doc, body, 0));
     let doc = paint(&doc, &one);
     let doc = paint(&doc, &two);
     let doc = paint(&doc, &live);
@@ -650,8 +653,8 @@ fn an_appearance_key_minted_by_a_live_node_is_never_reported() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_live", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let live = fname(body, wall(0));
-    let doomed = fname(victim, wall(0));
+    let live = fname(body, wall(&doc, body, 0));
+    let doomed = fname(victim, wall(&doc, victim, 0));
     let doc = paint(&doc, &live);
     let doc = paint(&doc, &doomed);
 
@@ -683,7 +686,7 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
     // The fillet's own DAG input is `body`; what it NAMES is a face of
     // `victim`, which is a payload name and not an edge, so deleting
     // `victim` is accepted and strands it.
-    let carried = fname(victim, wall(0));
+    let carried = fname(victim, wall(&doc, victim, 0));
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
@@ -692,7 +695,7 @@ fn an_appearance_strand_follows_the_payload_strands_of_the_same_delete() {
             selection: vec![carried.clone()],
         },
     );
-    let painted = fname(victim, wall(2));
+    let painted = fname(victim, wall(&doc, victim, 2));
     let doc = paint(&doc, &painted);
 
     let applied = delete(&doc, victim);
@@ -792,16 +795,17 @@ fn an_appearance_strand_precedes_the_cluster_acts_of_the_same_delete() {
 fn a_cascade_reports_each_appearance_strand_at_the_step_that_made_it() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_cascade", Tol::witness());
     let (doc, body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, fillet) = insert(
-        doc,
-        Node::Fillet {
+    let node3 = Node::Fillet {
             target: body,
             radius: len(0.1),
-            selection: vec![fname(body, wall(0))],
-        },
+            selection: vec![fname(body, wall(&doc, body, 0))],
+        };
+    let (doc, fillet) = insert(
+        doc,
+        node3,
     );
-    let on_fillet = fname(fillet, wall(2));
-    let on_body = fname(body, wall(2));
+    let on_fillet = fname(fillet, wall(&doc, fillet, 2));
+    let on_body = fname(body, wall(&doc, body, 2));
     let doc = paint(&doc, &on_fillet);
     let doc = paint(&doc, &on_body);
     let before = doc.appearance().clone();
@@ -838,7 +842,7 @@ fn a_reported_appearance_strand_is_still_clearable() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_clear", Tol::witness());
     let (doc, _body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let painted = fname(victim, wall(0));
+    let painted = fname(victim, wall(&doc, victim, 0));
     let doc = paint(&doc, &painted);
 
     let applied = delete(&doc, victim);
@@ -875,8 +879,8 @@ fn a_round_tripped_document_reports_the_same_appearance_strands() {
     let doc = ProfileDoc::empty_derived("dm7_appearance_round_trip", Tol::witness());
     let (doc, _body) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, victim) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let doc = paint(&doc, &fname(victim, wall(0)));
-    let doc = paint(&doc, &fname(victim, wall(2)));
+    let doc = paint(&doc, &fname(victim, wall(&doc, victim, 0)));
+    let doc = paint(&doc, &fname(victim, wall(&doc, victim, 2)));
 
     let text = editor_core::persist::save(&doc, &[], Tol::witness()).expect("the document saves");
     let loaded = editor_core::persist::load(&text, Tol::witness()).expect("and loads");
@@ -914,7 +918,8 @@ fn an_orphan_is_reported_by_the_delete_that_takes_the_last_consumer() {
     let doc = ProfileDoc::empty_derived("dm7_orphan_two_consumers", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, first, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, first, decl) = declared_union(doc, &[a, b], pairs);
     let (doc, second) = insert(
         doc,
         Node::Union {
@@ -991,9 +996,11 @@ fn no_delete_can_report_two_orphans_today() {
     let doc = ProfileDoc::empty_derived("dm7_orphan_at_most_one", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
     // A second declaration, consumerless, in the same document.
-    let (doc, spare) = insert(doc, Node::declare_rest(flush_pairs((a, a), (b, b))));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, spare) = insert(doc, Node::declare_rest(pairs));
     let applied = delete(&doc, union);
     assert_eq!(
         applied.maintenance,
@@ -1028,7 +1035,8 @@ fn set_members_cannot_orphan_a_declaration() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (1.0, 2.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
 
     let applied = apply(
         &doc,
@@ -1067,7 +1075,8 @@ fn a_consumerless_declare_is_not_reported_by_an_unrelated_delete() {
     let doc = ProfileDoc::empty_derived("dm7_orphan_transition", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, unrelated) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, decl) = insert(doc, Node::declare_rest(flush_pairs((a, a), (a, a))));
+    let pairs = flush_pairs(&doc, (a, a), (a, a));
+    let (doc, decl) = insert(doc, Node::declare_rest(pairs));
 
     let applied = delete(&doc, unrelated);
     assert_eq!(
@@ -1097,7 +1106,8 @@ fn cascading_a_declare_away_reports_the_orphan_and_then_removes_it() {
     let doc = ProfileDoc::empty_derived("dm7_orphan_cascade_decl", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
 
     let order = cascade_delete_order(&doc, decl);
     assert_eq!(
@@ -1140,7 +1150,8 @@ fn the_orphan_transient_is_cancellable_at_the_cascade_door() {
     let doc = ProfileDoc::empty_derived("dm7_orphan_cancellable", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, _union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, _union, decl) = declared_union(doc, &[a, b], pairs);
 
     let doomed = cascade_delete_order(&doc, decl);
     let mut walked = doc;
@@ -1176,7 +1187,8 @@ fn the_orphaned_declaration_is_re_rooted_by_the_same_delete() {
     let doc = ProfileDoc::empty_derived("dm7_orphan_roots", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
     assert_eq!(doc.roots(), [union], "the union is the document's product");
 
     let applied = delete(&doc, union);
@@ -1204,12 +1216,13 @@ fn an_orphaned_declare_follows_the_strands_of_the_same_delete() {
     let doc = ProfileDoc::empty_derived("dm7_orphan_order", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, decl) = declared_union(doc, &[a, b], flush_pairs((a, a), (b, b)));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
+    let (doc, union, decl) = declared_union(doc, &[a, b], pairs);
     let (doc, elsewhere) = block(doc, (4.0, 5.0), (0.0, 1.0), 0.0, 1.0);
     // The fillet's DAG input is `elsewhere`; what it NAMES is a face
     // of the union, which is a payload name and not an edge — so the
     // fillet survives the union's delete and carries a dead name.
-    let carried = fname(union, wall(0));
+    let carried = fname(union, wall(&doc, union, 0));
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {

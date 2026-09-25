@@ -51,7 +51,7 @@ impl editor_core::PartResolver for VersionShelf {
     }
 }
 
-fn run(doc: &ProfileDoc, shelf: &Arc<VersionShelf>) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, shelf: &Arc<VersionShelf>) -> Evaluation<f64> {
     let opts = EvalOptions {
         resolver: Some(shelf.clone() as Arc<dyn editor_core::PartResolver>),
         ..EvalOptions::default()
@@ -85,7 +85,7 @@ fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
 
 /// The part's wall at canonical segment `k` of its one loop, as the
 /// part names it: the piece its profile draws there.
-fn part_wall(doc: &ProfileDoc, ext: RecipeNodeId, k: u32) -> StableName {
+fn part_wall(doc: &editor_core::ProfileDoc, ext: RecipeNodeId, k: u32) -> StableName {
     fixture::fname(ext, fixture::wall(doc, ext, k))
 }
 

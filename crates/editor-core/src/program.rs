@@ -2491,11 +2491,17 @@ pub enum StepIdFault {
     /// A program entering the document by `InsertNode` already carries
     /// ids: they are minted by the door, never supplied.
     Preminted,
-    /// The ids do not have the program's shape: one list per loop, one
-    /// id per authored step.
+    /// The ids carry a different number of lists than the program has
+    /// loops: one list per loop.
+    LoopCount {
+        /// How many loops the program has.
+        loops: usize,
+        /// How many lists were given.
+        given: usize,
+    },
+    /// One loop's list is not one id per authored step.
     Shape {
-        /// The loop whose list is the wrong length, or the loop count
-        /// where the lists are one too many or too few.
+        /// The loop whose list is the wrong length.
         loop_: u32,
         /// How many the program authors there.
         authored: usize,
@@ -2529,6 +2535,11 @@ impl core::fmt::Display for StepIdFault {
             Self::Preminted => f.write_str(
                 "the program already carries step ids; a program entering the document carries \
                  none, and the insert mints them",
+            ),
+            Self::LoopCount { loops, given } => write!(
+                f,
+                "the program has {loops} loops but {given} lists of step ids were given; the ids \
+                 carry one list per loop"
             ),
             Self::Shape {
                 loop_,

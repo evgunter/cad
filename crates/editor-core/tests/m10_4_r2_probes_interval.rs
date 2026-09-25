@@ -126,7 +126,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     run::<f64>(doc, None, &EvalOptions::default())
 }
 
-fn push(doc: &ProfileDoc, edit: DocEdit<ProfileProgram>) -> ProfileDoc {
+fn push(doc: &editor_core::ProfileDoc, edit: DocEdit<ProfileProgram>) -> ProfileDoc {
     editor_core::apply(doc, &edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
@@ -271,8 +271,8 @@ fn slab(w_dist: Option<Distribution>, d_dist: Option<Distribution>) -> Slab {
         distance: len(1.0),
     });
     let refs = vec![
-        SitedRef::new(block, fname(block, wall(3))),
-        SitedRef::new(block, fname(block, wall(1))),
+        SitedRef::new(block, fname(block, wall(&r.doc, block, 3))),
+        SitedRef::new(block, fname(block, wall(&r.doc, block, 1))),
         SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::Start))),
         SitedRef::new(block, fname(block, RoleSeg::Cap(CapEnd::End))),
     ];

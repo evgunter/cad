@@ -36,13 +36,13 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
+fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
     apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
 
-fn insert(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
         &DocEdit::InsertNode { node },
@@ -411,7 +411,7 @@ fn r1_plane_gap_matches_its_formula_and_rides_the_outer_chart_normal() {
 
 /// A ball of radius `r` centred `c` up the y-axis: the natural
 /// meridian (bulge-1 semicircle) revolved 2π about y.
-fn ball(doc: &ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
+fn ball(doc: &editor_core::ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
     let p2 = |x: f64, y: f64| [len(x), len(y)];
     let meridian = LoopProgram::Chain(vec![
         ProgramStep::At(p2(0.0, c - r)),
