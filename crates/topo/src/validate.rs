@@ -3829,8 +3829,10 @@ fn contact_marks_declared_via<
 /// getting the argument rather than two copies of the check.
 type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, &[FaceKey], Band, Tol) -> Check7Certificate<T>;
 
-/// **Check 1's verdicts on one analytic surface**, in the order they
-/// are asked, each gated on the one before it having found nothing:
+/// **Check 1's DATUM verdicts on one analytic surface**, in the order
+/// they are asked, the second gated on the first having found nothing.
+/// (The torus's ring half `R > r` is a decided geometric margin and is
+/// asked at the call site, after these.)
 ///
 /// 1. **Poison** ([`poisoned_datums`]): `geom`'s totality-and-poison
 ///    rule is about no particular surface kind, so a stored datum that
@@ -3845,15 +3847,11 @@ type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, &[FaceKey], Band, Tol) -> Check7Ce
 ///    read that decides nothing, unmetered: the `Bounds` scope rule's
 ///    entry for this file (`geom_core::real`, `bounds_allowlist`, the
 ///    2026-09-02 certified at-rest entry) — one home, not restated here.
-/// 3. **The torus's ring half `R > r`**: a GEOMETRIC question — two
-///    datums of the body compared, not one against its bound — so it
-///    goes through `decide`. Asked only after `r > 0` has held, because
-///    `R − r` metered against a nonpositive `r` would quote it: at
-///    `r = −R` the difference reads `2R`, definitely positive.
-fn analytic_surface_verdicts<T: Decide + geom_core::Bounds>(
+///
+/// A SOLE bracket bound, deliberately: nothing here decides.
+fn analytic_datum_verdicts<T: geom_core::Bounds>(
     face: FaceKey,
     surface: &Surface<T>,
-    band: Band,
 ) -> Vec<ValidationError> {
     let kind = geom_brep::SurfaceKind::of(surface);
     let poisoned = poisoned_datums(surface);
@@ -3863,7 +3861,7 @@ fn analytic_surface_verdicts<T: Decide + geom_core::Bounds>(
             .map(|datum| ValidationError::PoisonedSurfaceDatum { face, kind, datum })
             .collect();
     }
-    let unrepresentable = surface
+    surface
         .representability_margins()
         .into_iter()
         .flatten()
@@ -3872,32 +3870,15 @@ fn analytic_surface_verdicts<T: Decide + geom_core::Bounds>(
                 geom_core::Bounds::lo(m.margin).partial_cmp(&0.0),
                 Some(core::cmp::Ordering::Greater)
             )
-        });
-    if let Some(m) = unrepresentable {
-        return vec![ValidationError::UnrepresentableSurfaceDatum {
+        })
+        .map(|m| ValidationError::UnrepresentableSurfaceDatum {
             face,
             kind,
             datum: m.datum,
             end: m.end,
-        }];
-    }
-    let Surface::Torus {
-        major_radius,
-        minor_radius,
-        ..
-    } = surface
-    else {
-        return Vec::new();
-    };
-    match decide(
-        "ring_torus_convention",
-        Margin::of(*major_radius - *minor_radius),
-        band,
-    ) {
-        Ok(Sign::Positive) => Vec::new(),
-        Ok(Sign::Zero | Sign::Negative) => vec![ValidationError::DegenerateTorus { face }],
-        Err(cause) => vec![ValidationError::DegenerateTorusEscalated { face, cause }],
-    }
+        })
+        .into_iter()
+        .collect()
 }
 
 /// **Check 1's poison read of an analytic surface**: every stored datum
@@ -4123,15 +4104,50 @@ pub(crate) fn tier3_local_checks_marked<
                 }
             },
             // Every analytic kind: its datums first, then its
-            // convention, then — for the torus — the one convention
-            // that relates two datums (`analytic_surface_verdicts`).
+            // convention (`analytic_datum_verdicts`), then — for the
+            // torus — the one convention that relates two datums.
             Some(
                 surface @ (Surface::Plane { .. }
                 | Surface::Cylinder { .. }
                 | Surface::Cone { .. }
                 | Surface::Sphere { .. }
                 | Surface::Torus { .. }),
-            ) => errors.extend(analytic_surface_verdicts(face_key, surface, band)),
+            ) => {
+                let verdicts = analytic_datum_verdicts(face_key, surface);
+                if !verdicts.is_empty() {
+                    errors.extend(verdicts);
+                    continue;
+                }
+                // The torus's ring half `R > r` is a GEOMETRIC question
+                // — two datums of the body compared, not one against its
+                // bound — so it goes through `decide`. It is asked only
+                // after `r > 0` has held, because `R − r` metered against
+                // a nonpositive `r` would quote it: at `r = −R` the
+                // difference reads `2R`, definitely positive.
+                if let Surface::Torus {
+                    major_radius,
+                    minor_radius,
+                    ..
+                } = surface
+                {
+                    match decide(
+                        "ring_torus_convention",
+                        Margin::of(*major_radius - *minor_radius),
+                        band,
+                    ) {
+                        Ok(Sign::Positive) => {}
+                        Ok(Sign::Zero | Sign::Negative) => {
+                            errors.push(ValidationError::DegenerateTorus { face: face_key });
+                        }
+                        Err(cause) => {
+                            errors.push(ValidationError::DegenerateTorusEscalated {
+                                face: face_key,
+                                cause,
+                            });
+                        }
+                    }
+                }
+            }
             // Cascade discipline: a face whose surface key does not
             // resolve is tier 1's `DanglingGeometry`, already reported,
             // and the coarse gate means we never reach here in that
@@ -6819,7 +6835,6 @@ mod tests {
         use geom_brep::SurfaceKind as K;
         use geom_core::{Interval, Vec3};
         let face = FaceKey::default();
-        let band = Band::linear(Tol::witness()).expect("the witness tolerance is a band");
         let plane = |normal: Vec3<f64>| Surface::Plane {
             origin: Point3::new(0.0, 0.0, 0.0),
             normal,
@@ -6885,9 +6900,9 @@ mod tests {
             ),
         ];
         for (name, surface, expected) in rows {
-            let at_f64 = analytic_surface_verdicts(face, &surface, band);
+            let at_f64 = analytic_datum_verdicts(face, &surface);
             let lifted: Surface<Interval> = surface.map_scalar(Interval::from_f64);
-            let at_interval = analytic_surface_verdicts(face, &lifted, band);
+            let at_interval = analytic_datum_verdicts(face, &lifted);
             assert_eq!(at_f64, expected, "{name}, at f64");
             assert_eq!(at_interval, expected, "{name}, at Interval");
         }
