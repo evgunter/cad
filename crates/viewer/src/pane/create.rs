@@ -1616,7 +1616,7 @@ fn clear_picks_button(ui: &mut egui::Ui, count: usize) -> bool {
             .clicked()
     } else {
         button
-            .on_disabled_hover_text("no edge is picked yet, so there is nothing to clear")
+            .on_disabled_hover_text("no edge is picked, so there is nothing to clear")
             .clicked()
     }
 }
@@ -1865,7 +1865,7 @@ mod tests {
             clear_picks_button(ui, 0);
         });
         assert!(
-            hovered.contains("no edge is picked yet, so there is nothing to clear"),
+            hovered.contains("no edge is picked, so there is nothing to clear"),
             "{hovered}"
         );
         assert!(!hovered.contains("drop every picked edge"), "{hovered}");

@@ -507,3 +507,11 @@ crossings:**
 Tier: style review, no correctness arm. The failure mode is a wrong
 or missing tooltip. That is visible, and every disabled sentence is
 asserted by its text.
+
+The fix pass on #3216 (2026-09-25) also crosses into
+`crates/viewer/src/forms.rs`, which belongs to author, chrome, forms and
+vseam. Only doc text changed there: `SHAPE_LOCKED`'s doc and
+`ShapeEdits`'s doc no longer say the notice is drawn "once" above the
+list, because the step controls' disabled hovers now read it too.
+`pane/profile.rs`'s Revert moved into `apply_and_revert`, and Apply
+moved with it.

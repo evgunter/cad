@@ -212,10 +212,12 @@ pub(crate) mod headless {
     /// **One frame of `draw` on `ctx`, fed `input`**, and [`landed_in`]
     /// over what it painted.
     ///
-    /// **The module's one drive.** The `textures_delta.clear()` is
+    /// **This module's one drive.** The `textures_delta.clear()` is
     /// the reason it is one: no painter took the frame's font atlas,
     /// and `TexturesDelta` panics on drop until one does — a detail
-    /// of epaint that no caller should have to remember.
+    /// of epaint that no caller should have to remember. Test rows
+    /// elsewhere in the crate still spell the pair inline
+    /// (`work/vnews/a-gated-button-with-a-reason-is-spelled-five-ways`).
     fn frame(
         ctx: &egui::Context,
         input: egui::RawInput,

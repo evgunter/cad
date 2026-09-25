@@ -92,15 +92,8 @@ impl ViewerBehavior<'_> {
         let refused = preview_verdict(ui, self.theme, self.profile_previews.edit.as_ref());
         let moved = edit.moved();
         ui.horizontal(|ui| {
-            // **Apply only what moved.** Untouched, there is nothing
-            // to write and the button says so by being unavailable;
-            // the door itself also writes nothing for an untouched
-            // program, so the two agree rather than one trusting the
-            // other.
-            if ui
-                .add_enabled(moved && !refused, egui::Button::new("Apply"))
-                .clicked()
-            {
+            let (apply, revert) = apply_and_revert(ui, moved, refused);
+            if apply {
                 match edit.programs(notation) {
                     Ok(loops) => self.ops.push(SessionOp::EditProfile {
                         node,
@@ -112,9 +105,7 @@ impl ViewerBehavior<'_> {
                         .push(frame::tool_news(format!("edit profile: {error}"))),
                 }
             }
-            if revert_button(ui, moved)
-                && let Err(error) = edit.revert(doc)
-            {
+            if revert && let Err(error) = edit.revert(doc) {
                 self.notices
                     .push(frame::tool_news(format!("revert profile: {error}")));
             }
@@ -289,18 +280,19 @@ pub(crate) fn path_steps_ui(
             // Zero-based, because "loop 0 step 2" is.
             ui.weak(format!("{index}"));
             let free = shape.free();
-            // What stops a control, lock first: a locked list offers
-            // no move at all, whichever row it is.
-            let locked = (!free).then_some(SHAPE_LOCKED);
-            if step_control(ui, GLYPH_REMOVE, "remove this step", locked) {
+            // Why each control is stopped, if it is — the lock first:
+            // a locked list offers no move at all, whichever row it
+            // is.
+            let lock_reason = (!free).then_some(SHAPE_LOCKED);
+            if step_control(ui, GLYPH_REMOVE, "remove this step", lock_reason) {
                 remove = Some(index);
             }
-            let first = locked.or((index == 0).then_some(STEP_IS_FIRST));
-            if step_control(ui, GLYPH_UP, "move this step earlier", first) {
+            let earlier_reason = lock_reason.or((index == 0).then_some(STEP_IS_FIRST));
+            if step_control(ui, GLYPH_UP, "move this step earlier", earlier_reason) {
                 swap = Some((index, index - 1));
             }
-            let final_row = locked.or((index == last).then_some(STEP_IS_LAST));
-            if step_control(ui, GLYPH_DOWN, "move this step later", final_row) {
+            let later_reason = lock_reason.or((index == last).then_some(STEP_IS_LAST));
+            if step_control(ui, GLYPH_DOWN, "move this step later", later_reason) {
                 swap = Some((index, index + 1));
             }
             // **Insert after this row.** A chain is written in the
@@ -317,7 +309,7 @@ pub(crate) fn path_steps_ui(
             // sideways. A control that moves under the cursor is
             // worse than one that is not where a reader first
             // looks for it.
-            if step_control(ui, "+", "insert a step after this one", locked) {
+            if step_control(ui, "+", "insert a step after this one", lock_reason) {
                 insert = Some(index + 1);
             }
             let verb = steps[index].verb();
@@ -427,23 +419,38 @@ fn step_control(ui: &mut egui::Ui, glyph: &str, action: &str, blocked: Option<&s
     }
 }
 
-/// **The edit door's Revert**, live once the held numbers have
-/// `moved` off the committed profile's. Revert is a draft reset, not
-/// an operation, so untouched there is nothing to refuse and the
-/// literal here is the sentence.
+/// Why the edit door's Apply and Revert are not live on an untouched
+/// draft.
+const UNTOUCHED: &str = "the numbers are the committed profile's";
+
+/// **The edit door's Apply and Revert**, both live only once the held
+/// numbers have `moved` off the committed profile's; Apply also waits
+/// on the preview not having `refused`.
 ///
-/// Answers whether it was clicked, which a disabled button never is.
-fn revert_button(ui: &mut egui::Ui, moved: bool) -> bool {
-    let button = ui.add_enabled(moved, egui::Button::new("Revert"));
-    if moved {
-        button
-            .on_hover_text("put the numbers back to the committed profile's")
-            .clicked()
+/// **Apply only what moved.** Untouched, there is nothing to write,
+/// and the door itself also writes nothing for an untouched program,
+/// so the button and the door agree rather than one trusting the
+/// other. That is a draft gate on both buttons — no operation is
+/// formed to be refused — so each says [`UNTOUCHED`] on its disabled
+/// hover. A refused preview has its sentence already, drawn under the
+/// step list by [`preview_verdict`], so Apply adds none for it.
+///
+/// Answers whether each was clicked — Apply, then Revert — which a
+/// disabled button never is.
+fn apply_and_revert(ui: &mut egui::Ui, moved: bool, refused: bool) -> (bool, bool) {
+    let apply = ui.add_enabled(moved && !refused, egui::Button::new("Apply"));
+    let apply = if moved {
+        apply
     } else {
-        button
-            .on_disabled_hover_text("nothing to revert: the numbers are the committed profile's")
-            .clicked()
-    }
+        apply.on_disabled_hover_text(format!("nothing to apply: {UNTOUCHED}"))
+    };
+    let revert = ui.add_enabled(moved, egui::Button::new("Revert"));
+    let revert = if moved {
+        revert.on_hover_text("put the numbers back to the committed profile's")
+    } else {
+        revert.on_disabled_hover_text(format!("nothing to revert: {UNTOUCHED}"))
+    };
+    (apply.clicked(), revert.clicked())
 }
 
 #[cfg(test)]
@@ -707,12 +714,49 @@ mod tests {
         }
     }
 
+    /// **On a list of more than one row, only the ends are stopped** —
+    /// row 0's up arrow and row 1's down arrow on two rows, each
+    /// saying which end it is at. A lone row is both ends, so it
+    /// cannot tell an end-of-list gate from a one-row gate.
+    #[test]
+    fn a_two_row_free_lists_end_arrows_say_which_end() {
+        use crate::forms::ShapeEdits;
+        let up = hovering_step_control(ShapeEdits::Free, 2, GLYPH_UP, 0);
+        assert!(
+            up.contains("move this step earlier\nit is already the first step"),
+            "{up}"
+        );
+        let down = hovering_step_control(ShapeEdits::Free, 2, GLYPH_DOWN, 1);
+        assert!(
+            down.contains("move this step later\nit is already the last step"),
+            "{down}"
+        );
+    }
+
+    /// **Apply says why while an untouched draft disables it**, and
+    /// says nothing of its own for a refused preview, whose sentence
+    /// [`super::preview_verdict`] draws.
+    #[test]
+    fn apply_says_there_is_nothing_to_apply_until_a_number_moves() {
+        let untouched = painted_while_hovering("Apply", 0, |ui| {
+            super::apply_and_revert(ui, false, false);
+        });
+        assert!(
+            untouched.contains("nothing to apply: the numbers are the committed profile's"),
+            "{untouched}"
+        );
+        let refused = painted_while_hovering("Apply", 0, |ui| {
+            super::apply_and_revert(ui, true, true);
+        });
+        assert!(!refused.contains("nothing to apply"), "{refused}");
+    }
+
     /// **Revert says why while it is disabled**, and live says what it
     /// puts back.
     #[test]
     fn revert_says_there_is_nothing_to_revert_until_a_number_moves() {
         let untouched = painted_while_hovering("Revert", 0, |ui| {
-            super::revert_button(ui, false);
+            super::apply_and_revert(ui, false, false);
         });
         assert!(
             untouched.contains("nothing to revert: the numbers are the committed profile's"),
@@ -720,7 +764,7 @@ mod tests {
         );
         assert!(!untouched.contains("put the numbers back"), "{untouched}");
         let moved = painted_while_hovering("Revert", 0, |ui| {
-            super::revert_button(ui, true);
+            super::apply_and_revert(ui, true, false);
         });
         assert!(
             moved.contains("put the numbers back to the committed profile's"),

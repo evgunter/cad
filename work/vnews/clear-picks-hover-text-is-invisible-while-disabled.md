@@ -102,8 +102,8 @@ and the words stay at the control.
 
 | control | disabled when | what the hover says while disabled |
 |---|---|---|
-| `pane/create.rs`'s `clear_picks_button` | `count == 0` | *"no edge is picked yet, so there is nothing to clear"* |
-| `pane/profile.rs`'s `revert_button` | `!moved` | *"nothing to revert: the numbers are the committed profile's"* |
+| `pane/create.rs`'s `clear_picks_button` | `count == 0` | *"no edge is picked, so there is nothing to clear"* |
+| Revert, in `pane/profile.rs`'s `apply_and_revert` | `!moved` | *"nothing to revert: the numbers are the committed profile's"* |
 | remove (`×`) | locked | *"remove this step"* and under it `forms::SHAPE_LOCKED` |
 | move earlier (`⬆`) | locked; else `index == 0` | the action, and under it `SHAPE_LOCKED`, else *"it is already the first step"* |
 | move later (`⬇`) | locked; else `index == last` | the action, and under it `SHAPE_LOCKED`, else *"it is already the last step"* |
@@ -116,7 +116,7 @@ the notice did not do was put the reason on the control the pointer is
 on, and a glyph is a control's only label, so a disabled glyph also
 names what it would have done. The lock is checked first: a lone row
 in a locked list is stopped by both the lock and its index, and the
-lock is the reason a reader can act on. `moved`, `index == 0` and
+lock is the one reason that holds whichever row it is. `moved`, `index == 0` and
 `index == last` had no sentence anywhere, and each has its own now.
 
 **The exemplar, re-derived.** After #2961, `pane/properties.rs`'s
@@ -128,16 +128,27 @@ a `Refusal`, so it is the shape these six copy and not their source.
 The closer precedent for a draft gate is `pane/create.rs`'s
 `all_edges_row`, which already carries its own literal on each hook.
 Revert and Clear picks copy it. The four step glyphs share one private
-`step_control` because they share the composed disabled sentence
-(action, then reason). It is not a general helper, and it does not
-overlap #2960's `refusable_button`, which reads a `Refusal`.
+`step_control`, because they build the same disabled sentence (action,
+then reason). These are near-copies of one another and of
+`app::refusable_button`, and consolidating them is filed as
+`a-gated-button-with-a-reason-is-spelled-five-ways`.
+
+**Apply, beside Revert.** Apply is disabled on the same `moved`. Its
+comment used to defend silence ("the button says so by being
+unavailable"), and that is the argument this row rejects. So Apply now
+says *"nothing to apply: the numbers are the committed profile's"*.
+Both buttons read one `UNTOUCHED` clause. Apply's `!refused` conjunct
+adds no hover of its own, because `preview_verdict` already draws that
+sentence under the step list.
 
 **Held by headless rows.** `crate::pane::headless` gains
 `painted_while_hovering`, which rests the pointer on a painted widget
 past egui's tooltip delay and reads what the frame painted. Each
 disabled sentence is asserted by its fixed text, and each live one
-too. Clear picks and Revert moved out of their methods into free
-functions so that a row can drive them.
+too. The end arrows are also asserted on a two-row list, where a
+one-row gate would pass a one-row test. Clear picks, Apply and Revert
+moved out of their methods into free functions (`clear_picks_button`,
+`apply_and_revert`) so that a test can drive them.
 
 **The sweep, re-run on `main` at `ebc22f34c`.** Every
 `on_hover_text` and `on_hover_ui` in `crates/viewer/src` that is not
