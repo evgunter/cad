@@ -16,9 +16,10 @@ find**, and your deliverable is a recommendation with its argument.
 The orchestrator's statement of the problem is **a hypothesis, not a
 finding**. Check it against the tree before you build on it.
 
-- **Is the problem one level up, or somewhere else?** A problem often exists
-  only because the layer above asks the wrong question, or because a
-  responsibility sits in the wrong place.
+- **Is the problem one level up, one level down, or somewhere else?** A
+  problem often exists only because the layer above asks the wrong question,
+  because the layer below produces the wrong thing and everything after it
+  compensates, or because a responsibility sits in the wrong place.
 - **Is this a question at all?** If one answer is plainly right, or the
   choice is only sequencing, say so.
 - **Report a correction to the premise first**, before any design.
