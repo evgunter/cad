@@ -527,8 +527,8 @@ impl Message {
 /// ([`StatusUpdate::Expire`]) and what a joined rank-2 line takes as
 /// its own subject, so one recurring event can retire the joined
 /// sentence. It does not RANK: [`frame_status`] ranks by SOURCE — a
-/// refusal, else the frame's notices, else the batch's own verdict —
-/// and no rank reads a subject. A line that printed its own routing
+/// refusal with the frame's losses, else the frame's notices, else the
+/// batch's own verdict — and no rank reads a subject. A line that printed its own routing
 /// would be saying to the user what the chrome says to itself.
 ///
 /// `loss` is the same decision for the converse reason: it RANKS — it

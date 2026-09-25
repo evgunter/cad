@@ -3056,4 +3056,104 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
         frame::frame_status(&[], core::slice::from_ref(&mate), outcome.refusal.as_ref()),
         StatusUpdate::Clear,
     );
+
+    // **A refusing sibling op does not take the sentence.** The same
+    // frame also carries a drag the user started on the post — which
+    // the mate that just landed has made unmovable, so it refuses. The
+    // refusal is about an op that did nothing; the notice is about a
+    // placement that is GONE, which no undo returns. Both are on the
+    // line, the refusal first. The text is written out, so a rule that
+    // drops the loss, or reorders the two, cannot pass by comparing the
+    // line with another rendering of itself.
+    let drag = SessionOp::BeginFreeMove {
+        instance: bench.post_b,
+    };
+    let refused = session.perform(drag.clone());
+    let refusal = refused
+        .refusal
+        .as_ref()
+        .expect("the premise: a mated instance refuses a free move");
+    let notices: Vec<frame::Message> = frame::outcome_notices(&outcome)
+        .chain(frame::outcome_notices(&refused))
+        .collect();
+    let StatusUpdate::Show(line) = frame::frame_status(&notices, &[mate, drag], Some(refusal))
+    else {
+        panic!("a refusing frame shows its refusal");
+    };
+    // The fault is said twice, once as why the drag refused and once
+    // as why the placement went: two typed values, each rendering
+    // itself, which is the join's rule.
+    assert_eq!(
+        line.text(),
+        "instance 2 is mate-constrained (mate node(s) 3): its pose is mate-derived, so the \
+         free-move probe refuses — delete the mate(s) if free relative motion is intended \
+         \u{2022} free move: a committed placement was discarded — instance 2 is \
+         mate-constrained (mate node(s) 3): its pose is mate-derived, so the free-move probe \
+         refuses — delete the mate(s) if free relative motion is intended"
+    );
+    assert_eq!(bench.post_b.0, 2, "the premise the literal above names");
+}
+
+/// **What rides beside a refusal is a loss, and only a loss** — the
+/// rule `frame::frame_status`'s ranking states, pinned in both
+/// directions through the doors the frame loop uses.
+///
+/// A tool's survival drop and its declined pick arrive through ONE
+/// door (`frame::tool_notice`), and the event's arm decides: the drop
+/// took a pick the tool held, which no history holds, so it rides
+/// beside the refusal; the declined pick took nothing, and a panel's
+/// own refusal took nothing, so they stay under it. The frame and its
+/// notices are the same in both halves of the row — only the refusal
+/// differs — so what moves is the rule and nothing else.
+#[test]
+fn a_loss_rides_beside_a_refusal_and_a_declined_pick_does_not() {
+    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::seats::{Seat, SeatEvent};
+    use viewer::tools::{ToolKind, ToolNotice};
+
+    let declined = frame::tool_notice(&ToolNotice::Blend(BlendEvent::OtherTarget {
+        held: BlendTarget {
+            node: RecipeNodeId(3),
+            body: 0,
+        },
+        picked: BlendTarget {
+            node: RecipeNodeId(5),
+            body: 0,
+        },
+    }));
+    let dropped = frame::tool_notice(&ToolNotice::Seated {
+        tool: ToolKind::Revolve,
+        event: SeatEvent::PickLost {
+            seat: Seat::RevolveProfile,
+            node: RecipeNodeId(4),
+        },
+    });
+    let panel = frame::tool_news("mate tool: no landed evaluation to derive frames from");
+    let notices = [declined, dropped, panel];
+    let acted = [SessionOp::Select(Selection::None)];
+
+    // No refusal: rank 2, every notice, as before.
+    let StatusUpdate::Show(all) = frame::frame_status(&notices, &acted, None) else {
+        panic!("three notices are news");
+    };
+    assert_eq!(
+        all.text(),
+        "blend tool: the held edges are on feature 3 body 0, so the edge on feature 5 body 0 \
+         was not taken; cancel to start on another body \u{2022} revolve tool: the profile \
+         pick (node 4) is no longer in the document; the tool dropped it \u{2022} mate tool: \
+         no landed evaluation to derive frames from"
+    );
+
+    // A refusal: it, then the loss, and neither of the other two.
+    let refusal = Refusal::NothingToDo {
+        direction: Step::Undo,
+    };
+    let StatusUpdate::Show(line) = frame::frame_status(&notices, &acted, Some(&refusal)) else {
+        panic!("a refusing frame shows its refusal");
+    };
+    assert_eq!(
+        line.text(),
+        "nothing to undo \u{2022} revolve tool: the profile pick (node 4) is no longer in the \
+         document; the tool dropped it"
+    );
 }
