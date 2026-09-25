@@ -628,6 +628,80 @@ mod instrument {
             walk,
         }
     }
+
+    /// The instrument's claim, executed: where the id-walk refuses, the
+    /// enclosure returns nothing, and where it passes the enclosure
+    /// is built — at the shapes a decision form carries (an opaque id
+    /// at the top, an atom whose argument is bracketed or unbracketed
+    /// two levels down, an atom no enclosure reaches, and a chain of
+    /// roots either side of the depth cap).
+    #[cfg(test)]
+    #[allow(clippy::unwrap_used)]
+    mod tests {
+        use std::sync::Arc;
+
+        use super::super::super::{AtomInfo, IndetMap, SymOp};
+        use super::super::{ENCLOSE_DEPTH, Form, Poly, enclose_deep};
+        use super::reach;
+
+        const PARAM: u128 = 1;
+        const OPAQUE: u128 = 999;
+
+        fn atom(op: SymOp, arg: u128) -> AtomInfo {
+            let a = Some(Arc::new(Form::poly(Poly::indet(arg))));
+            AtomInfo {
+                op,
+                payload: 0,
+                args: [a.clone(), a, None],
+            }
+        }
+
+        /// `k` nested `sqrt` atoms over `leaf`, ids `100 ..`; answers
+        /// the outermost.
+        fn chain(atoms: &mut IndetMap<AtomInfo>, k: usize, leaf: u128) -> u128 {
+            let mut inner = leaf;
+            for i in 0..k {
+                let id = 100 + i as u128;
+                atoms.insert(id, atom(SymOp::Sqrt, inner));
+                inner = id;
+            }
+            inner
+        }
+
+        #[test]
+        fn the_walk_refuses_exactly_where_the_enclosure_does() {
+            let mut params = IndetMap::default();
+            params.insert(PARAM, (1.0, 2.0));
+            let cases: [(&str, usize, u128, bool); 7] = [
+                ("the parameter itself", 0, PARAM, true),
+                ("an opaque id at the top", 0, OPAQUE, false),
+                ("bracketed two levels down", 2, PARAM, true),
+                ("unbracketed two levels down", 2, OPAQUE, false),
+                ("a chain at the cap", ENCLOSE_DEPTH, PARAM, true),
+                ("a chain past the cap", ENCLOSE_DEPTH + 1, PARAM, false),
+                ("opaque past the cap", ENCLOSE_DEPTH + 1, OPAQUE, false),
+            ];
+            for (what, k, leaf, encloses) in cases {
+                let mut atoms = IndetMap::default();
+                let top = chain(&mut atoms, k, leaf);
+                // `top + p`: a second term the enclosure meets first.
+                let p = Poly::indet(PARAM).add(&Poly::indet(top)).unwrap();
+                let walked = reach(&p, &params, &atoms, 0);
+                let enclosed = enclose_deep(&p, &params, &atoms, 0);
+                assert_eq!(walked.is_ok(), encloses, "{what}: the walk {walked:?}");
+                assert_eq!(enclosed.is_some(), encloses, "{what}: the enclosure");
+                if let Ok(d) = walked {
+                    assert_eq!(d, k, "{what}: the depth the enclosure enters");
+                }
+            }
+            // An atom no enclosure reaches, over a bracketed argument.
+            let mut atoms = IndetMap::default();
+            atoms.insert(7, atom(SymOp::Select, PARAM));
+            let p = Poly::indet(7);
+            assert!(reach(&p, &params, &atoms, 0).is_err());
+            assert!(enclose_deep(&p, &params, &atoms, 0).is_none());
+        }
+    }
 }
 
 #[cfg(test)]
