@@ -29,3 +29,21 @@ what stops a lane typing `pkill -f` — and it is written nowhere in
 A bullet in `docs/prompts/implementer-discipline.md` §2, beside the two
 `CARGO_TARGET_DIR` bullets, since owning your target dir is what makes
 your processes attributable. The `[ev]` PR carries the text.
+
+## A second shared-box hazard, added 2026-09-25
+
+The same PR now carries a second bullet, for the same reason and the
+same class. Two VNEWS lanes each wrote `body.md` to the session's shared
+scratchpad; the `frame.rs` prose-pass lane's `gh pr edit` then published
+the gated-controls lane's PR body onto #3215, and restored it within
+minutes from a namespaced copy. The old VIEW lane register carried a
+*namespace the scratchpad* rule and it went with #3024; this is the
+first recurrence since, and it produced a wrong public artifact rather
+than a near-miss. It passes Ev's test on the same grounds as the first
+bullet: an actual problem, prevented by an advance warning, written
+nowhere in `docs/prompts/` or `memories/` (grepped for `scratchpad`).
+
+The orchestrator's own share: VNEWS's wave-1 briefs gave each lane a
+scratchpad prefix, and the briefs were trimmed after #3024 on the
+reasoning that standing obligations live in `docs/prompts/`. This one
+did not live there, so trimming it from the briefs removed it entirely.

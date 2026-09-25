@@ -138,6 +138,12 @@ When you do run locally:
   (VNEWS, 2026-09-20). Kill only a PID you have attributed to yourself —
   read `/proc/<pid>/environ` for your own `CARGO_TARGET_DIR`, which is the
   other reason that directory has to be yours alone.
+- **Prefix every file you write to a shared scratchpad with your lane's
+  name.** The scratchpad is one directory for every lane in a session,
+  and a lane cannot tell whether a file there is its own: two lanes both
+  wrote `body.md`, and one published the other's PR body onto its own PR
+  (VNEWS, 2026-09-25). A generic name is a collision waiting for the
+  second lane to choose it too.
 - **`--workspace` is not every cargo root, and the roots outside it are
   not covered uniformly.** `Cargo.toml` `exclude`s `benches`, `demos`,
   `tools` and `interval-transcendentals`, so
