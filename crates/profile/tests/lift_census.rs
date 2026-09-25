@@ -436,9 +436,13 @@ fn an_undeclared_cocircular_run_lifts_as_the_declared_joint() {
     for k in 0..n {
         let w = raw.vertices()[(rotation + k) % n];
         let g = replayed.vertices()[k];
-        assert_eq!(w.pos().x.to_bits(), g.pos().x.to_bits(), "vertex {k} x");
-        assert_eq!(w.pos().y.to_bits(), g.pos().y.to_bits(), "vertex {k} y");
-        assert_eq!(w.bulge().to_bits(), g.bulge().to_bits(), "vertex {k} bulge");
+        assert_eq!(w.x.to_bits(), g.x.to_bits(), "vertex {k} x");
+        assert_eq!(w.y.to_bits(), g.y.to_bits(), "vertex {k} y");
+        assert_eq!(
+            raw.bulges()[(rotation + k) % n].to_bits(),
+            replayed.bulges()[k].to_bits(),
+            "vertex {k} bulge"
+        );
     }
     assert_eq!(replayed.tangent_joints(), &[(1 + n - rotation) % n]);
 }

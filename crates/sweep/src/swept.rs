@@ -253,6 +253,7 @@ pub(crate) fn swept_segments<T: Real>(
                 center,
                 radius,
                 turn,
+                ..
             } => SweptKind::Arc {
                 center,
                 radius,

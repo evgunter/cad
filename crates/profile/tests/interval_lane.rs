@@ -30,7 +30,7 @@ fn rectangle_validates_at_interval() {
             .all(|s| matches!(s.kind, SegmentKind::Line))
     );
     // The canonical start's enclosure is the exact point (0, 0).
-    let v0 = vp.loops()[0].vertices()[0].pos();
+    let v0 = vp.loops()[0].vertices()[0];
     use geom_core::Bounds;
     assert_eq!((v0.x.lo(), v0.x.hi()), (0.0, 0.0));
     assert_eq!((v0.y.lo(), v0.y.hi()), (0.0, 0.0));
@@ -293,9 +293,9 @@ fn vesica_near_pick_agrees_with_the_f64_lane_at_interval() {
         .enumerate()
     {
         for (what, exact, enc) in [
-            ("x", a.pos().x, b.pos().x),
-            ("y", a.pos().y, b.pos().y),
-            ("bulge", a.bulge(), b.bulge()),
+            ("x", a.x, b.x),
+            ("y", a.y, b.y),
+            ("bulge", f.loop_.bulges()[k], iv.loop_.bulges()[k]),
         ] {
             assert!(
                 enc.lo() <= exact && exact <= enc.hi(),

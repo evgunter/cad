@@ -70,9 +70,13 @@ fn the_materialization_door_reproduces_the_table_bit_for_bit() {
         .zip(crossed.vertices().iter())
         .enumerate()
     {
-        assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits(), "vertex {i} x");
-        assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits(), "vertex {i} y");
-        assert_eq!(a.bulge().to_bits(), b.bulge().to_bits(), "vertex {i} bulge");
+        assert_eq!(a.x.to_bits(), b.x.to_bits(), "vertex {i} x");
+        assert_eq!(a.y.to_bits(), b.y.to_bits(), "vertex {i} y");
+        assert_eq!(
+            source.bulges()[i].to_bits(),
+            crossed.bulges()[i].to_bits(),
+            "vertex {i} bulge"
+        );
     }
     assert_eq!(
         crossed.tangent_joints(),
@@ -156,7 +160,12 @@ fn a_declared_joint_closing_straight_lifts_as_the_continuation() {
     // stored bit survives, which is what lets the row below ask for
     // bit-identity.
     let reseamed: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::new(
-        (0..n).map(|k| source.vertices()[(k + 1) % n]).collect(),
+        (0..n)
+            .map(|k| {
+                let j = (k + 1) % n;
+                ProfileVertex::new(source.vertices()[j], source.bulges()[j])
+            })
+            .collect(),
     )
     .with_tangent_joints((0..n).collect());
 

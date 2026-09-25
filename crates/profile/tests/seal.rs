@@ -35,10 +35,10 @@ fn accessors_read_back_everything_the_doors_wrote() {
 
     // ProfileVertex: pos() and bulge() return the constructor's
     // arguments, bit for bit.
-    for (got, want) in lp.vertices().iter().zip(&vs) {
-        assert_eq!(got.pos().x.to_bits(), want.pos().x.to_bits());
-        assert_eq!(got.pos().y.to_bits(), want.pos().y.to_bits());
-        assert_eq!(got.bulge().to_bits(), want.bulge().to_bits());
+    for ((got, b), want) in lp.vertices().iter().zip(lp.bulges()).zip(&vs) {
+        assert_eq!(got.x.to_bits(), want.pos().x.to_bits());
+        assert_eq!(got.y.to_bits(), want.pos().y.to_bits());
+        assert_eq!(b.to_bits(), want.bulge().to_bits());
     }
 
     // ProfileLoop: vertices() is the chain in traversal order;
@@ -59,16 +59,23 @@ fn accessors_read_back_everything_the_doors_wrote() {
         Point2::new(0.0, 2.0),
     ]);
     assert_eq!(poly.vertices().len(), 3);
-    assert!(poly.vertices().iter().all(|v| v.bulge() == 0.0));
-    assert_eq!(poly.vertices()[1].pos().x, 2.0);
+    assert!(poly.bulges().iter().all(|&b| b == 0.0));
+    assert!(
+        poly.segments()
+            .iter()
+            .all(|s| matches!(s, profile::Segment::Line))
+    );
+    assert_eq!(poly.vertices()[1].x, 2.0);
 
     // reversed() survives the seal: it reads and rebuilds through the
     // same private representation, and it is still an involution.
     let there_and_back = declared.reversed().reversed();
     assert_eq!(there_and_back.tangent_joints(), declared.tangent_joints());
     for (a, b) in there_and_back.vertices().iter().zip(declared.vertices()) {
-        assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits());
-        assert_eq!(a.bulge().to_bits(), b.bulge().to_bits());
+        assert_eq!(a.x.to_bits(), b.x.to_bits());
+    }
+    for (a, b) in there_and_back.bulges().iter().zip(declared.bulges()) {
+        assert_eq!(a.to_bits(), b.to_bits());
     }
 }
 
