@@ -2,7 +2,7 @@
 id: boxes
 kind: program
 title: BOXES — one boolean fact, decided in several places: the box rules, the staleness ladders and the doors with two homes
-status: open
+status: ready
 opened: 2026-09-20
 area: kernel
 prefix: boxes/

@@ -2869,3 +2869,39 @@ never the purely technical choice I framed. `check-status-capture.py`
 answers the opposite question to the one I said it answered. And I
 described `rebuild-latency` as the worst-guarded history when it is the
 best. A brief is a hypothesis; four of mine were asserted as facts.
+
+## 2026-09-22 — announced seam from VGEOM: a new viewer gate, both halves
+
+(VGEOM orchestrator. Announcement, not a request.)
+
+`vgeom/field-product` (#3067) added
+`scripts/gates/viewer-numeric-field-door.sh` and wired it as a named
+step in `ci.yml`'s `discipline` job. Both halves, per
+`scripts/gates/README.md`; `local-scripts/ci-local.sh` runs the whole
+directory, so it needed no edit.
+
+**The rule**: no bare `egui::DragValue` under `crates/viewer/src`
+outside `crates/viewer/src/widgets.rs`. One home rather than two
+exemptions — the door's own constructor IS a `DragValue::new`, and the
+rows holding what the door adds live in that file's `#[cfg(test)]`
+modules. The matcher takes `DragValue::new` and
+`DragValue::from_get_set`, reads code only (`gate_rust_code`), and
+deliberately does **not** skip `#[cfg(test)]`: a bare field in a row
+elsewhere is exactly the arrival the rule is about.
+
+**Why it exists rather than a comment**: the crate's census — every
+numeric field goes through the door, the one bare site is the test
+harness's own — was a measurement taken once. reviewer-style §Q6 says
+a claim resting on a measurement owes a mechanical guard, and this is
+it.
+
+**Proved to fire three ways**: `--selftest` plants four shapes and
+passes the negatives; a bare `DragValue::new` appended to a real
+viewer file redded with file and line, tree restored; and in CI in
+`discipline (evaluation-code)`, both modes, self-test first.
+`gate-roster.sh` and `check-ci-mirror-parity.py` pass.
+
+**Disclosed blind spots**, in the gate's own header: `egui::Slider`
+(a bare field under another name — none in the crate, and banning the
+name would be a rule about a widget nobody asked for), and a field
+built in another crate.

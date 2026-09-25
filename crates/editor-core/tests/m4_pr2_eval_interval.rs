@@ -3,7 +3,6 @@
 //! interval scalar, through profile validation, extrude, a
 //! translation-only rigid transform (re-certification at Interval),
 //! and a subtract — the enclosure brackets the exact dyadic oracle.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

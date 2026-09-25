@@ -256,7 +256,6 @@ fn tangent_plane_refuses_typed() {
 /// The interval lane: the tilted cut replays at `T = Interval` and the
 /// section ellipses' residual enclosures contain zero against both
 /// surfaces (the exact-in-ℝ claim, certified).
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use geom_core::Tol;
@@ -647,7 +646,6 @@ fn repaired_belly_bodies_mint_certified_pcurves() {
 /// construction — so the enclosures stay narrow and the interval lane
 /// now splits the belly document two-sided, with every section arc on
 /// the finite wall.
-#[cfg(feature = "interval")]
 #[test]
 fn even_crossing_belly_cut_at_interval() {
     use geom_core::{Bounds, Interval, Real};
@@ -797,7 +795,14 @@ fn near_graze_escalates_typed() {
     let err = split(&body, &plane, Tol::witness()).unwrap_err();
     let msg = format!("{err}");
     assert!(msg.contains("split_conic_belly_graze"), "{msg}");
-    assert_eq!(msg.matches(geom_core::COINCIDENCE_RECOURSE).count(), 1);
+    // One recourse, the split's own: a split takes no declaration.
+    assert_eq!(
+        msg.matches(&format!("Recourse: {}", geom_core::SPLIT_PLANE_RECOURSE)[..])
+            .count(),
+        1,
+        "{msg}"
+    );
+    assert!(!msg.contains("declare"), "{msg}");
 }
 
 /// The exact graze (plane through the rim apexes): the double root
@@ -819,7 +824,13 @@ fn exact_graze_refuses_typed() {
         ),
         Err(e) => {
             let msg = format!("{e}");
-            assert!(msg.contains("split"), "typed refusal expected: {msg}");
+            assert!(
+                matches!(
+                    e,
+                    topo::SplitError::Join(topo::SplitJoinError::DegenerateSection { .. })
+                ) && msg.contains("one-sided tangency"),
+                "the graze refuses as the degenerate section it is: {msg}"
+            );
         }
     }
 }

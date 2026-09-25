@@ -38,7 +38,7 @@
 # from source — 0.98.4+) and cargo-nextest (test rows; pinned 0.9.140 to
 # match hosted — `cargo install cargo-nextest --locked --version 0.9.140`
 # or the prebuilt from https://get.nexte.st/0.9.140/linux). Nothing here
-# needs a C toolchain: the `interval` feature's backend is the in-repo,
+# needs a C toolchain: the interval scalar's backend is the in-repo,
 # pure-Rust `interval-transcendentals`.
 #
 # THE VERSIONS ABOVE ARE LITERALS AND THEY ARE CHECKED. ci.yml's
@@ -73,10 +73,10 @@
 # lane fires across recent merges. Nothing in this repo re-takes those,
 # and nothing here computes with them.
 #
-# BUILD ONCE PER COMPILE MODE (2026-08-03): hosted CI now compiles the
-# test binaries once per feature graph (`build` / `build-interval`, via
-# `cargo nextest archive`) and fans the eps rows out over the archived
-# binaries — CAD_TOLERANCE_EPS is runtime env, so the eps rows were
+# BUILD ONCE (2026-08-03): hosted CI compiles the test binaries once
+# (`build`, via `cargo nextest archive`; there was a second compile mode,
+# `build-interval`, until RING-4 deleted the `interval` feature) and fans
+# the eps rows out over the archived binaries — CAD_TOLERANCE_EPS is runtime env, so the eps rows were
 # recompiling bit-identical binaries. LOCALLY that build-once property is
 # automatic: every row shares the one target/ dir, so the first test row
 # compiles and the rest reuse. The mirror below is therefore about the
@@ -88,11 +88,12 @@
 # shards for wall-clock fan-out; the shards' union is exactly the row,
 # so the unsharded rows here gate the same test set.
 #
-# BOTH HALVES RUN THE WHOLE LANE/EPS MATRIX AGAIN (2026-09-04). From
+# BOTH HALVES RUN THE WHOLE EPS MATRIX AGAIN (2026-09-04). From
 # 2026-08-22 hosted CI gated ONE point of {default, interval} x {default,
 # 1e-6, 1e-12} per run, drawn from the head SHA, and this half was the only
-# lane that ran all six on one tree. That draw is gone — the argument is in
-# scripts/ci-filter.py's CONFIGURATION COVERAGE note; the currency it bought
+# lane that ran all six on one tree. The lane half of that product is gone
+# with the `interval` feature (RING-4): one compile mode, three eps rows.
+# The draw is gone too — the argument is in scripts/ci-filter.py's CONFIGURATION COVERAGE note; the currency it bought
 # was billed runner minutes on a private repository, and the repository went
 # public on 2026-09-03. Nothing bills this half by the minute either, and
 # nothing here was ever sampled.
@@ -101,7 +102,7 @@
 # as a superlative, because the superlative was true for thirteen days and is
 # the kind of sentence that outlives its fact: the opt-in `--nightly` row
 # below, and that is now the whole list. Hosted stopped sampling the lane and
-# the ε rows on 2026-09-04 and stopped sampling the k-lint unification the same
+# the ε rows on 2026-09-04 (and the lane axis itself went with RING-4) and stopped sampling the k-lint unification the same
 # day, so the two halves gate the same configuration set. The row SEMANTICS
 # were always identical, which is what the mirror convention is about; what
 # changed is that the COVERAGE is too.
@@ -116,7 +117,7 @@
 # runs, so a narrowing can only ever make hosted gate LESS than this half,
 # never more, and there is nothing here for a request to buy.
 #
-# NOT MIRRORED, deliberately (2026-08-04): ci.yml's two build jobs set
+# NOT MIRRORED, deliberately (2026-08-04): ci.yml's build jobs set
 # RUSTFLAGS=-C link-arg=-fuse-ld=mold and CARGO_PROFILE_{DEV,TEST}_DEBUG=
 # line-tables-only. Those are hosted-runner throughput knobs — they cut
 # the cost of the 261 test-binary links, they do not change which targets
@@ -420,17 +421,8 @@ discipline() {
   # milliseconds, no build.
   # HOSTED MIRROR: discipline / k-probe sweep guard selftest (run_dump)
   scripts/rundump-guard-selftest.sh || rc=1
-  # The `interval` feature must stay purely additive, calling the SAME
-  # script the hosted step calls. This is what makes it sound for the
-  # interval rows below to run only the tests that feature ADDS; read
-  # the script's header before touching either half.
-  # HOSTED MIRROR: discipline / interval-feature additivity (gates the interval run legs)
-  if ! (python3 scripts/check-interval-cfg-additive.py --selftest \
-        && python3 scripts/check-interval-cfg-additive.py); then
-    rc=1
-  fi
-  # The hosted build jobs start warm only while their `env:` block and their
-  # `shared-key` still match the `cache-prime*` jobs that write the entry on
+  # The hosted build job starts warm only while its `env:` block and its
+  # `shared-key` still match the `cache-prime` job that writes the entry on
   # main. Drift is silent up there and free to catch down here — the script
   # reads .github/workflows/ only, so this box can run it.
   # HOSTED MIRROR: discipline / cache-prime key parity (the build jobs' warm start)
@@ -695,8 +687,8 @@ nextest_check() {
 # outside `SEMANTIC_FLAGS` can still drift with nothing noticing.
 #
 # `$TEST_FILTER` IS COMPOSED WITH `&`, NEVER PASSED AS A SECOND `-E`. nextest
-# ORs its `-E` expressions, so a row that already selects a set — the interval
-# rows below do — would get the gated suites ADDED BACK by a second flag
+# ORs its `-E` expressions, so a row that already selects a set — the
+# nightly row below does — would get the gated suites ADDED BACK by a second flag
 # rather than subtracted, which is the one way this could silently un-gate
 # what it means to gate. One `-E` per row, built by `gated_expr`.
 #
@@ -729,62 +721,6 @@ test_eps() {
 # shellcheck disable=SC2086
 # HOSTED MIRROR: build / doc-tests
 doc_tests() { cargo test --doc $SCOPE; }
-# The interval rows run ONLY the tests the feature adds. NO HOSTED MIRROR
-# ANY MORE (2026-08-22): hosted's `test-interval` runs the WHOLE suite. The
-# reason it started doing so was the lane draw — the default legs this
-# selection subtracts did not run on an interval draw. That draw is gone
-# (2026-09-04) and hosted still runs the whole suite on both lanes: the
-# subtraction is a COST lever, restoring it would reduce what a hosted run
-# gates, and that decision is filed rather than taken. See that job's header
-# in .github/workflows/ci.yml.
-#
-# THE SELECTION IS STILL RIGHT HERE, and the asymmetry is the point rather
-# than drift: this half runs BOTH lanes over one tree, so the 42% of test
-# time that is re-execution of already-executed code is the pure waste it
-# always was. The soundness premise is the one hosted still relies on — the
-# feature is additive, and check-interval-cfg-additive.py above gates that
-# it stays so.
-#
-# This is the script's only caller now, declared in
-# scripts/check-ci-mirror-parity.py's MIRROR_EXEMPT with that reason.
-INTERVAL_SEL="target/ci-local/interval-selection.txt"
-# shellcheck disable=SC2086
-interval_selection() {
-  mkdir -p target/ci-local \
-    && cargo nextest list $SCOPE --message-format json \
-         > target/ci-local/nextest-list-default.json \
-    && cargo nextest list $SCOPE --features interval --message-format json \
-         > target/ci-local/nextest-list-interval.json \
-    && scripts/interval-only-selection.py \
-         target/ci-local/nextest-list-default.json \
-         target/ci-local/nextest-list-interval.json > "$INTERVAL_SEL"
-}
-# `--no-tests` is decided by the SELECTION, mirroring hosted's identical
-# conditional: nextest exits 4 on a zero-test run, which is the alarm we
-# want when a real filter matches nothing, and exactly wrong for the
-# `none()` the selection script emits for a scope carrying no
-# interval-gated tests. Any other filter that selects nothing still
-# fails the row.
-#
-# THE MARKER BELOW CITES A HOSTED STEP THAT RUNS MORE THAN THIS ROW DOES, and
-# says so rather than implying equivalence. Hosted's `test-interval / run
-# archived tests` executes the WHOLE interval archive, once per eps row;
-# this row executes the interval-only difference at both eps rows, because
-# this half subtracts what its own default legs already ran. The JOB correspondence the marker
-# asserts is real — both are the interval-feature test row of their half —
-# and the difference in what each executes is the declared asymmetry recorded
-# at INTERVAL_SEL above and in MIRROR_EXEMPT.
-# HOSTED MIRROR: test-interval / run archived tests
-# shellcheck disable=SC2086
-interval_tests() {
-  nextest_check && interval_selection || return 1
-  local sel extra=""
-  local -a g
-  sel=$(cat "$INTERVAL_SEL")
-  [ "$sel" = "none()" ] && extra="--no-tests=pass"
-  mapfile -t g < <(gated_expr "$sel")
-  cargo nextest run $SCOPE --features interval ${g[@]+"${g[@]}"} $extra --no-fail-fast
-}
 # THE DEMOTED (NIGHTLY-ONLY) TESTS. A test carrying
 #
 #     #[cfg_attr(not(nightly_suite), ignore = "nightly-only: <reason>")]
@@ -796,8 +732,7 @@ interval_tests() {
 # hosted half of it is nightly.yml's `demoted` job.
 #
 # THE SET IS DERIVED, NOT DECLARED — `scripts/nightly-only-selection.py`, the
-# difference between two `cargo nextest list` outputs, exactly as
-# `interval_selection` above derives the interval feature's own tests. Its
+# difference between two `cargo nextest list` outputs. Its
 # header carries the details; the two that matter at this call site are that
 # the difference is over the `ignored` FLAG (nextest lists ignored tests, so a
 # name-set difference is empty for every tree) and that a pre-existing plain
@@ -827,8 +762,8 @@ nightly_selection() {
          target/ci-local/nextest-list-gate.json \
          target/ci-local/nextest-list-nightly.json > "$NIGHTLY_SEL"
 }
-# `--no-tests` is decided by the SELECTION, the same conditional the interval
-# rows above carry and hosted's `demoted` job repeats: nextest exits 4 on a
+# `--no-tests` is decided by the SELECTION, the same conditional hosted's
+# `demoted` job carries: nextest exits 4 on a
 # zero-test run, which is the alarm we want when a real filter matches
 # nothing, and exactly wrong for the `none()` the selection script emits for a
 # tree that carries no markers at all.
@@ -847,21 +782,6 @@ nightly_demoted() {
     cargo nextest run --workspace -E "$sel" $extra --no-fail-fast
 }
 
-# shellcheck disable=SC2086
-interval_eps() {
-  nextest_check && interval_selection || return 1
-  local sel extra=""
-  local -a g
-  sel=$(cat "$INTERVAL_SEL")
-  [ "$sel" = "none()" ] && extra="--no-tests=pass"
-  mapfile -t g < <(gated_expr "$sel")
-  CAD_TOLERANCE_EPS=1e-6 cargo nextest run $SCOPE --features interval \
-    ${g[@]+"${g[@]}"} $extra --no-fail-fast
-}
-# shellcheck disable=SC2086
-# HOSTED MIRROR: lint-interval / doc-tests (interval)
-interval_doc_tests() { cargo test --doc $SCOPE --features interval; }
-
 # THE `persist_roundtrip` / `persist_eps_diff` / `persist_refusal` /
 # `corpus_eps` ROWS STOOD HERE, AND ARE DELETED (2026-08-22) along with
 # the hosted `persistence` and `band 4 corpus` jobs they mirrored —
@@ -873,12 +793,11 @@ interval_doc_tests() { cargo test --doc $SCOPE --features interval; }
 # redundant there — they pinned two bands the draw existed to spread out.)
 #
 # The two `(interval)` rows below are NOT part of that and stay: they
-# mirror named steps of the hosted `test-interval` job, which the
-# interval rows above do not cover — `interval_tests` runs the
-# interval-only selection, and these two are in its subtracted half.
-persist_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)' --no-fail-fast; }
+# mirror named steps of the hosted `test` job, which names the obligation
+# even though the archive run already executes both modules.
+persist_interval() { nextest_check && cargo nextest run -p editor-core -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)' --no-fail-fast; }
 
-corpus_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)' --no-fail-fast; }
+corpus_interval() { nextest_check && cargo nextest run -p editor-core -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)' --no-fail-fast; }
 
 # M4 PR 8a spec D2 (F8): rebuild-latency REPORTING — prints the
 # per-document table and diffs the newest entry in the timing history,
@@ -988,9 +907,7 @@ demos_hygiene() {
 # spelling of the lily's and the bottle's frontier pins.
 # HOSTED MIRROR: k-lint / demos tour suite (the #99 ε pin + the tour's own probes)
 demos_eps_pin() {
-  # `--features interval` since M10-6, matching the hosted row: it is
-  # what compiles the tolerance cell and runs its row.
-  (cd demos/tour && cargo test --release --features interval)
+  (cd demos/tour && cargo test --release)
 }
 
 # Spec D3: the large-K fragility lint (mirrors ci.yml's `k-lint` job —
@@ -1150,18 +1067,15 @@ tesslint_gate() {
 }
 
 # The wasm32 guard (#807).
-# ONE LEG, the interval one, on Ev's ruling of 2026-08-21 that the
-# purely-additive lint suffices for the default build. Read that step's
-# comment for the subsumption argument, for the lint residual this guard
-# now inherits, and for the dated third-party graph measurement the
-# argument rests on. Unscoped here for the same reason it is unscoped
+# ONE LEG, on Ev's ruling of 2026-08-21 (the interval build only), which
+# since RING-4 is the only build there is. Unscoped here for the same reason it is unscoped
 # there. `rustup target add` is idempotent and is part of the row on
 # purpose: a row that silently degrades to "target not installed,
 # nothing checked" is not a guard.
 wasm_check() {
   rustup target add wasm32-unknown-unknown \
     && cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer \
-         --features interval --target wasm32-unknown-unknown
+         --target wasm32-unknown-unknown
 }
 
 # The browser entry point, which the row above cannot reach: it excludes
@@ -1221,16 +1135,15 @@ run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D w
 # HOSTED MIRROR: viewer-toolkit / rustdoc (viewer, all features)
 #
 # BOTH HOSTED ROWS NOW SIT IN `fmt`, which carries no lane gate. They
-# used to sit in `clippy`, which does — so on an interval draw the whole
-# job vanished and the seed-keyed verdict step with it, which made a
-# seed-keyed axis lane-sampled and left the ruling's "never a green job
+# used to sit in `clippy`, which did while the lane was drawn — so on an
+# interval draw the whole job vanished and the seed-keyed verdict step
+# with it, which made a seed-keyed axis lane-sampled and left the ruling's "never a green job
 # name over a silent skip" false half the time.
 #
 # UNCONDITIONAL HERE, GATED HOSTED: the hosted gate skips the eframe/wgpu
 # graph unless the change filter's SEEDS intersect {viewer, pncad, bvh}
 # (Ev's viewer-CI-posture ruling, 2026-08-27, in the closed GUI program's
-# log, which left the tracker with that program's directory in DOC-LEDGER
-# sweep 5 and reads at
+# log, which left the tracker with that program's directory and reads at
 # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`). This half is
 # not billed by anyone's minute — it is billed in one developer's wall
 # clock, on a run they chose to make — and it runs every point of every
@@ -1265,9 +1178,8 @@ run_row "clippy (viewer app)"          cargo clippy -p viewer --features app --a
 # feature rows' PASS list.
 run_row "test (viewer app)"            cargo nextest run -p viewer --features app --success-output immediate
 # EVERY OPT-IN FEATURE AT ONCE — the selection no other row here
-# compiles. The rows above each pin ONE: default features, `--features
-# interval`, `-p viewer --features app`, `-p pncad-py --features
-# python`. Code behind `probe` or `budget`, and every conjunction of
+# compiles. The rows above each pin ONE: default features,
+# `-p viewer --features app`, `-p pncad-py --features python`. Code behind `probe` or `budget`, and every conjunction of
 # two opt-ins, is linted by none of them, so a warning in it has no row
 # it can red and accumulates unseen. That is the class this row exists
 # for; `k-lint`'s probe-gated compile loop builds those suites but
@@ -1356,7 +1268,7 @@ rustdoc_gate() {
   scripts/doc-gate.sh --selftest && scripts/doc-gate.sh
 }
 run_row "rustdoc (gate)"               rustdoc_gate
-# HOSTED MIRROR: fmt / wasm32 check (kernel + editor-core, --features interval)
+# HOSTED MIRROR: fmt / wasm32 check (kernel + editor-core)
 run_row "wasm32 check (#807)"          wasm_check
 # HOSTED MIRROR: fmt / wasm32 clippy (viewer app feature + its workspace deps - the browser entry point)
 run_row "wasm32 clippy (viewer app + deps)" wasm_clippy_viewer
@@ -1371,11 +1283,6 @@ run_row "test (eps = 1e-12)"           test_eps 1e-12
 # Doc-tests: nextest never runs them; hosted keeps them in the build
 # jobs, this script as their own rows.
 run_row "doc-tests"                    doc_tests
-# HOSTED MIRROR: lint-interval / clippy (interval)
-run_row "clippy (interval)"            cargo clippy $SCOPE --all-targets --features interval -- -D warnings
-run_row "test (interval)"              interval_tests
-run_row "test (interval, eps = 1e-6)"  interval_eps
-run_row "doc-tests (interval)"         interval_doc_tests
 # Opt-in; the reasoning is at RUN_NIGHTLY near the top of this file, and the
 # derivation is at `nightly_demoted` above.
 run_row_opt_in "$RUN_NIGHTLY" "nightly-only tests (demoted)" \
@@ -1384,8 +1291,8 @@ run_row_opt_in "$RUN_NIGHTLY" "nightly-only tests (demoted)" \
 # named eps batteries (persistence D6.*, band 4 corpus D1) went with the
 # hosted jobs that mirrored them on 2026-08-22 — the `test (eps = ...)`
 # rows above already run every one of those modules, at all three eps. What
-# is left is the two INTERVAL members, which those rows do not cover, and
-# the latency table (D2).
+# is left is the two INTERVAL members, which the hosted `test` job names as
+# steps of their own, and the latency table (D2).
 run_row_if "$RUN_EDITOR_CORE" "persist roundtrip (interval)"    persist_interval
 run_row_if "$RUN_EDITOR_CORE" "band 4 corpus (interval)"        corpus_interval
 run_row_if "$RUN_EDITOR_CORE" "rebuild latency (reporting)"     rebuild_latency

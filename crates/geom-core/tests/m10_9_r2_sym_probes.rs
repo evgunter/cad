@@ -18,7 +18,6 @@
 //! proposed for merge: the branch carries a probe instrument in
 //! `geom_core::sym::report` (the enclosure column).
 
-#![cfg(feature = "interval")]
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,

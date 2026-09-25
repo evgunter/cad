@@ -6,7 +6,7 @@
 //! `T: Bounds` construction door is exercised HERE at `T = f64` only:
 //! `Bounds: Real`, so a bracket scalar cannot be minted in a test crate
 //! without an entire `Real` implementation, and the crate's own
-//! dependency carries no interval feature. The certified-scalar
+//! dependency carries no interval scalar. The certified-scalar
 //! instantiation — the one the door exists for — is pinned where the
 //! scalar lives, in `editor-core`'s clearance suite, against the same
 //! doors. What is checked here is everything scalar-independent: the

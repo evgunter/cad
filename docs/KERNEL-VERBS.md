@@ -458,25 +458,32 @@ the table.
   rather than read as nested — the same escalate-never-guess direction
   the contact arms take.
 
+  An outer loop that is ONE circle — `loop_shape`'s `Disc` class, the
+  annular rim of every shelled vessel of revolution — is decided too,
+  by `boolean::contain::disc_side`, the exact radial decide `contfp`
+  uses on that class.
+
   **What the nesting half does NOT match, in the same shape**: any face
   on a non-planar surface, and any planar face whose outer loop bears
-  an ARC at all — the loop classes `boolean::contain`'s `loop_shape`
-  calls `ArcParity` (arcs over three or more vertices, where the
-  polygon through them is a proper region but not the loop's region:
-  an arc bowing outward leaves region between polygon and boundary),
-  `Disc` (every edge an arc of one circle, whose region `disc_side`
-  decides exactly and tier 3 does not yet reach) and `NoWalk`
-  (arc-bearing over fewer than three vertices, whose polygon has zero
-  area). All three are silent rather than answered, and so is a loop
-  the classifier could not read, because this arm REFUSES a body on an
-  `Out` and answering from a polygon that is not the region would
+  an arc and is not one circle — the loop classes `loop_shape` calls
+  `ArcParity` (arcs over three or more vertices, where the polygon
+  through them is a proper region but not the loop's region: an arc
+  bowing outward leaves region between polygon and boundary) and
+  `NoWalk` (arc-bearing over fewer than three vertices, whose polygon
+  has zero area). Both are silent rather than answered, and so is a
+  loop the classifier could not read, because this arm REFUSES a body
+  on an `Out` and answering from a polygon that is not the region would
   refuse valid ones — measured, on a bored D-rod's transverse cap.
   `contfp` takes the opposite posture on `ArcParity` because one
-  point's classification is not a refusal. And inside the gate: a ring
-  that CROSSES its outer loop, part in and part out, passes whenever
-  the first vertex the walk decides is an inside one. Filed, with the
-  widening that closes the disc third:
-  `work/topo/check-9-nesting-is-line-bounded-only.md`.
+  point's classification is not a refusal. Filed:
+  `work/atrest/check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk.md`.
+  And inside the gate: a ring that CROSSES its outer loop, part in and
+  part out, passes whenever the first vertex decided is an inside one,
+  and so does a ring arc bowing past the outer loop between inside
+  vertices — both are the contact half's unmatched crossing,
+  `work/atrest/check-9-contact-half-misses-a-crossing-and-a-tangency.md`
+  (why the nesting arm does not answer the second: `validate::ring_nesting`'s
+  doc).
 
   **Why nothing caught it, and the transferable lesson.** Not "the rim
   lift never had a consumer": `offd2_r1_probes::probe_opened_vessel_cup`

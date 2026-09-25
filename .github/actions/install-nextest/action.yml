@@ -1,7 +1,7 @@
 # Install the PINNED cargo-nextest prebuilt, cached and retried.
 #
-# Every test-carrying job in ci.yml needs this binary — the build jobs
-# and every run leg across `test` / `test-interval` — so before this
+# Every test-carrying job in ci.yml needs this binary — the build job
+# and every run leg of `test` — so before this
 # action a CI run made one independent fetch of get.nexte.st per such job,
 # all on the critical path and none retried: one bad minute on that host
 # red-lined the whole gate.

@@ -31,7 +31,7 @@ use topo::{Body, EdgeKey};
 
 /// A circle as a two-vertex bulge loop — an ARC-bearing section, so
 /// the canonical form carries real decisions (segment classification,
-/// traversal sense, the lex-min start) and the lift has arc carriers
+/// traversal sense) and the lift has arc carriers
 /// to rebuild.
 fn circle(r: f64) -> ProfileLoop<f64> {
     ProfileLoop::new(vec![
@@ -115,7 +115,6 @@ fn each_seam_strut_joins_its_canonical_vertexs_two_world_points() {
 /// The interval twin: the same struts at `Interval` carry the same
 /// points as POINT enclosures. Nothing widens, because the end
 /// profiles are lifted rather than re-derived at the scalar.
-#[cfg(feature = "interval")]
 mod interval {
     use super::{Bits, cone_sections, edge_points, expected_struts};
     use geom_core::{Affine3, Bounds, Interval, Point2, Point3, Real, Tol, Vec3};

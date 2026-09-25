@@ -360,8 +360,9 @@ which is what actually moves the number.
 | props/curved.rs (`level_coincides`, `props_rim_level_group` call) | props_rim_level_group (Unit) | rooted (sin,cos) CHORD × `RimArms::level` (sphere ×R, torus ×minor) | m | **FIXED — N1 RETIRED** (S81: one rule, one arm. Was Δ(sin,cos) componentwise × `major` on the torus) |
 | props/curved.rs (`du_of_rims`) | props_du_consistent | Δu (rad) × `RimArms::azimuth` | m | OK |
 | props/curved.rs (`require_rim_interior_sides`) | props_rim_interior_side | `rim_offset_margin` pointed by σ: the same per-kind comparand as `props_rim_side`, bare (Length) / × `RimArms::level` (Unit), multiplied by an exact ±1 | m | OK (note N2; σ is a product of two discrete signs and reads no margin of its own) |
-| props/curved.rs (`sphere_rim_only_pole_level`, and `boundary_material_sign`'s sphere arm) | props_rim_only_extent | `sphere_extent_margin` — `(hi − lo)·R`, `require_extent`'s own sphere comparand asked one step earlier, from the one helper both read | m | OK (note N9: ONE comparand under TWO names, so a meridian-free rim-bearing sphere face records both; note N8 applies verbatim — the sine extent shrinks by `cos v̄` near the poles, in the FOLDING direction here, which is the direction that serves the cap) |
-| props/curved.rs (`require_rim_only_closed`) | props_rim_only_closed | `(Δu − τ)` × `RimArms::azimuth` — the arc a folded-pole rim fails to close by | m | OK (the azimuthal arm `props_du_consistent` already meters) |
+| props/curved.rs (`sphere_rim_only_pole_level`, `cone_apex_level`, and `boundary_material_sign`'s sphere arm) | props_rim_only_extent | per kind, `require_extent`'s OWN comparand asked one step earlier: `sphere_extent_margin` — `(hi − lo)·R` — on the sphere, from the one helper both read; the bare slant difference `hi − lo` on the cone, as `require_extent`'s cone call reads it | m | OK (note N9: ONE comparand under TWO names, so a meridian-free rim-bearing sphere face records both; note N8 applies verbatim — the sine extent shrinks by `cos v̄` near the poles, in the FOLDING direction here, which is the direction that serves the cap) |
+| props/curved.rs (`require_rim_only_closed`) | props_rim_only_closed | `(Δu − τ)` × `RimArms::azimuth` — the arc a rim whose face folded a missing extreme fails to close by; the sphere's pole and the cone's apex share it, at each kind's own azimuthal arm (`R`, and the cone's first rim radius) | m | OK (the azimuthal arm `props_du_consistent` already meters) |
+| props/curved.rs (`require_rim_only_closed`) | props_rim_only_join | `‖p_end(i) − p_start(i+1)‖` over the group's arcs, cyclically — a point deviation, bare (metres already), the comparand `require_rim_incidence` meters an incidence with | m | OK (the tiling half of the closure guard: the sum says the spans total a turn, this says the arcs actually chain, and a sum without a chain covered half a circle and answered a whole cap) |
 | props/curved.rs (`linear_rim_side`'s nested `side`) | props_rim_side | per-kind: bare (Length) / × `RimArms::level` (Unit) | m | FIXED (#89's unit); note N8 open — the sphere margin reads the PRIMARY component (`lo + hi − 2·sin v`), an axial quantity that shrinks by `cos v̄` near the poles, refusing direction |
 | props/curved.rs (`cylinder_boundary`'s line arm / `cone_boundary`'s line arm) | props_meridian_axial / props_meridian_generator | sin (or cos-diff) × parameter span (m for lines) | m | OK |
 | props/curved.rs (the four `*_boundary` parses) | props_meridian_on_surface / props_rim_fit (all kinds) | residuals; sphere/torus fits ROOTED before compare | m | OK |
@@ -457,6 +458,7 @@ which is what actually moves the number.
 | chord_join.rs:1490 | split_chart_azimuth_frame | radial·u_ref (m) — branch selection | m | OK (note N5) |
 | chord_join.rs:1623/1639 | split_sphere_window_pole(_side) | radius − axial distance | m | OK |
 | splitting/join.rs:377 | split_section_area | 2·\|A\|/P mean width | m | FIXED (factor-2 doc/code mismatch; dimension was already m) |
+| splitting/join.rs:463 | split_section_spur | distance between a spur tip's two neighbours, through the `Margin::norm3` door | m | OK (new) |
 | splitting/finish.rs:414 | classify_dihedral arm | edge extents (m) | m | OK |
 
 > **Anchors moved (2026-08-20).** The nine rows above that read
@@ -917,7 +919,12 @@ suites are green:
   refused before reaching it — `boundary_material_sign`'s three
   linearly-leveled arms run the premise first, so the population loses
   the non-rectangular faces it used to include and the K stream stops
-  carrying sides that were a property of loop-flattening order.
+  carrying sides that were a property of loop-flattening order. It also
+  records at the SHAPE door now, once per rim of every rim-bearing
+  linearly-leveled face `require_iso_rectangle` is asked about
+  (`linear_rims_at_extremes`, which takes the sense-free unanimity
+  residue): a population the door contributed nothing to before, on the
+  same comparand and lever as the two lanes above.
 
 Notes (verified honest, kept for the design conversation):
 

@@ -20,9 +20,9 @@ use std::sync::Arc;
 use editor_core::eval::WitnessSlot;
 use editor_core::{
     Axis3, BooleanOp, CancelToken, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
-    EvalOutcome, Evaluation, FlipSource, NameTable, NamingKey, Node, ProfileDoc, Qualifier,
-    RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SHADOW_EXEC_MAX_PAIRS, SideVerdict,
-    SlotId, StableName, diff_verdicts, evaluate, resolve_with_prior,
+    EvalOutcome, Evaluation, FlipSource, FragmentGroups, NameTable, NamingKey, Node, ProfileDoc,
+    Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SHADOW_EXEC_MAX_PAIRS,
+    SideVerdict, SlotId, StableName, diff_verdicts, evaluate, resolve_with_prior,
 };
 use fixture::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
@@ -144,6 +144,25 @@ fn sign_of(v: SideVerdict) -> geom_core::Sign {
         SideVerdict::On => geom_core::Sign::Zero,
         SideVerdict::Mixed => panic!("a Mixed verdict has no single sign"),
     }
+}
+
+/// A fragment name's base: the name without its trailing `Fragment`
+/// qualifier (the suite's one spelling of that pop).
+fn base_of(name: &StableName) -> StableName {
+    assert!(
+        matches!(name.path.last(), Some(RoleSeg::Fragment(_))),
+        "{name:?} has no fragment tail"
+    );
+    let mut base = name.clone();
+    base.path.pop();
+    base
+}
+
+fn failure(res: &Resolution) -> &editor_core::ResolutionFailure {
+    let Resolution::Failed(f) = res else {
+        panic!("expected Failed, got {res:?}");
+    };
+    f
 }
 
 fn vanished(res: &Resolution) -> &Diagnosis {
@@ -370,21 +389,36 @@ fn the_rung_writes_to_no_log() {
 }
 
 #[test]
-fn the_orderalong_half_of_the_issue_is_not_recovered() {
-    // The corpus's own pruned-pair row. `OrderAlong { rank, of }`
-    // records no partner, so the pair it was ranked against cannot be
-    // read back out of the name — and the pruned run has no sibling
-    // to rank against either. The row keeps the documented
-    // evidence-free fallback, deliberately.
+fn the_orderalong_vanish_is_diagnosed_as_its_group_resizing() {
+    // The corpus's own pruned-pair row: the ranked rim edge's group
+    // goes from two to one (why no flip exists there:
+    // `resolve::group_resized`'s docs). The undivided rim edge rides
+    // in the offers.
     let rows = fixture::pr4::diagnosis_corpus::<f64>();
     let (_, res) = rows
         .iter()
         .find(|(label, _)| *label == "flip-vanish")
         .expect("the corpus carries the flip-vanish row");
-    match vanished(res) {
-        Diagnosis::RecipeEdit { .. } => {}
-        other => panic!("the OrderAlong half is not recovered by this rung, got {other:?}"),
-    }
+    let f = failure(res);
+    let ResolveError::Vanished { name, .. } = &f.error else {
+        panic!("expected Vanished, got {:?}", f.error);
+    };
+    assert!(
+        matches!(
+            name.path.last(),
+            Some(RoleSeg::Fragment(Qualifier::OrderAlong { of: 2, .. }))
+        ),
+        "the row is about a ranked fragment: {name:?}"
+    );
+    assert_eq!(
+        vanished(res),
+        &Diagnosis::GroupResized {
+            node: name.node,
+            was: 2,
+            now: 1,
+        }
+    );
+    assert!(f.offers.contains(&base_of(name)), "{:?}", f.offers);
 }
 
 // ---------------------------------------------------------------
@@ -415,12 +449,14 @@ fn frag(
     }
 }
 
-/// One-node evaluation carrying `t` and the verdict log `log`.
+/// One-node evaluation carrying `t`, the verdict log `log` and the
+/// fragment-group record `groups`.
 fn one_node_eval(
     document: editor_core::DocumentId,
     node: RecipeNodeId,
     t: NameTable,
     log: Vec<Verdict>,
+    groups: FragmentGroups,
 ) -> Evaluation<f64> {
     let mut nodes = std::collections::BTreeMap::new();
     nodes.insert(
@@ -428,6 +464,7 @@ fn one_node_eval(
         editor_core::NodeResult::Ok(editor_core::NodeValue {
             payload: editor_core::ValuePayload::Declarations(vec![]),
             name_table: Arc::new(t),
+            fragment_groups: Arc::new(groups),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
             verdicts: Arc::new(log),
@@ -522,8 +559,14 @@ fn hand_diagnosis(h: &Hand, prior_log: Vec<Verdict>, new_log: Vec<Verdict>) -> D
         t_prior.insert(inner.clone(), ent).unwrap();
         t_new.insert(inner.clone(), ent).unwrap();
     }
-    let prior_ev = one_node_eval(h.doc.id(), h.node, t_prior, prior_log);
-    let new_ev = one_node_eval(h.doc.id(), h.node, t_new, new_log);
+    let prior_ev = one_node_eval(
+        h.doc.id(),
+        h.node,
+        t_prior,
+        prior_log,
+        FragmentGroups::new(),
+    );
+    let new_ev = one_node_eval(h.doc.id(), h.node, t_new, new_log, FragmentGroups::new());
     let res = resolve_with_prior(
         RunCtx {
             doc: &h.doc,
@@ -655,16 +698,32 @@ fn the_pruned_pair_whose_sides_did_not_change_is_not_recovered() {
         "no side changed, so the rung has nothing honest to say: {:?}",
         vanished(&res)
     );
+    // And what DOES answer it is the log: withdrawing the bar leaves a
+    // recorded containment flip at the cut, and a recorded flip names
+    // a predicate where the group-size rung (which this edit also
+    // satisfies: two fragments became one) names only the effect. So
+    // the recorded flip wins, and this row goes red if the group-size
+    // rung is ever raised above the recorded flips.
+    assert!(
+        matches!(
+            vanished(&res),
+            Diagnosis::PredicateFlip {
+                predicate: "bool_point_in_solid_plane",
+                source: FlipSource::VerdictLog,
+                ..
+            }
+        ),
+        "the recorded flip outranks the group-size rung: {:?}",
+        vanished(&res)
+    );
 }
 
 #[test]
-fn the_collapse_half_of_the_sideof_vanish_is_not_recovered() {
-    // The other half of the same limit, and the one the issue's own
-    // vocabulary calls a collapse: the bar stops CROSSING the cap (it
-    // lands short in y), so the group is no longer multi-fragment and
-    // the qualifier is not minted — while the walls have not moved
-    // relative to the fragment at all. The pair population is empty
-    // and there is no flip to recover.
+fn a_collapsed_sideof_group_is_diagnosed_group_resized_and_offers_the_survivor() {
+    // The collapse: the bar stops CROSSING the cap (it lands short in
+    // y) and no side moves (`resolve::group_resized`'s docs). The
+    // cap's group goes from two to one, and the undivided cap is
+    // offered for an explicit rebind.
     for to in [2.5_f64, 3.5] {
         let s = slot();
         let ev1 = run(&s.doc, None);
@@ -684,17 +743,82 @@ fn the_collapse_half_of_the_sideof_vanish_is_not_recovered() {
             &frags[0],
             Tol::witness(),
         );
-        assert!(
-            !matches!(
-                vanished(&res),
-                Diagnosis::PredicateFlip {
-                    source: FlipSource::ShadowExec { .. },
-                    ..
-                } | Diagnosis::ShadowExecDeclined { .. }
-            ),
-            "y = {to}: the collapse half stays at the evidence-free rungs, got {:?}",
-            vanished(&res)
+        assert_eq!(
+            vanished(&res),
+            &Diagnosis::GroupResized {
+                node: s.cut,
+                was: 2,
+                now: 1,
+            },
+            "y = {to}"
         );
+        let base = base_of(&frags[0]);
+        assert!(
+            failure(&res).offers.contains(&base),
+            "y = {to}: the undivided cap is the offer, got {:?}",
+            failure(&res).offers
+        );
+    }
+}
+
+#[test]
+fn a_collapsed_orderalong_edge_group_at_the_cut_is_diagnosed_group_resized() {
+    // The same collapse, read off the ranked EDGE fragments the cut
+    // mints along the cap's rim: the second, non-flush witness of the
+    // `OrderAlong` half, on a subtract rather than the corpus union.
+    for to in [2.5_f64, 3.5] {
+        let s = slot();
+        let ev1 = run(&s.doc, None);
+        let ranked: Vec<StableName> = ev1
+            .value(s.cut)
+            .expect("the cut evaluates")
+            .name_table
+            .iter()
+            .filter_map(|(n, e)| {
+                let hit = matches!(
+                    n.path.last(),
+                    Some(RoleSeg::Fragment(Qualifier::OrderAlong { .. }))
+                );
+                (hit && matches!(e, Entry::Unique(_))).then(|| n.clone())
+            })
+            .collect();
+        assert!(!ranked.is_empty(), "the cut ranks some edge fragments");
+        let doc2 = slide(&s, Axis3::Y, to);
+        let ev2 = run(&doc2, Some(&ev1));
+        let gone: Vec<&StableName> = ranked
+            .iter()
+            .filter(|n| {
+                ev2.value(s.cut)
+                    .expect("the cut evaluates")
+                    .name_table
+                    .lookup(n)
+                    .is_none()
+            })
+            .collect();
+        assert!(!gone.is_empty(), "y = {to}: some ranked fragment vanishes");
+        for name in gone {
+            let res = resolve_with_prior(
+                RunCtx {
+                    doc: &doc2,
+                    eval: &ev2,
+                },
+                RunCtx {
+                    doc: &s.doc,
+                    eval: &ev1,
+                },
+                name,
+                Tol::witness(),
+            );
+            assert_eq!(
+                vanished(&res),
+                &Diagnosis::GroupResized {
+                    node: s.cut,
+                    was: 2,
+                    now: 1,
+                },
+                "y = {to}: {name:?}"
+            );
+        }
     }
 }
 
@@ -848,4 +972,415 @@ fn a_partner_behind_a_pattern_and_a_part_is_probed_at_the_operand() {
         recorded_verdict(&frags[0], partner).map(sign_of),
         "and it calibrates against the qualifier through three placers"
     );
+}
+
+// ---------------------------------------------------------------
+// The group-size rung's own boundary, on hand-built runs: when it
+// answers, what it counts, and when it declines to the fallback.
+// Geometry-free, like the ladder-order rows above — the shadow-exec
+// rung finds no face on a body-kind name and stays silent, so each
+// row is about the group-size rung alone.
+// ---------------------------------------------------------------
+
+/// The fixed cast: a hand document, the vanished fragment `frag`
+/// (partner verdict Positive), and its sibling (Negative) — a group
+/// of two in the prior run.
+fn sibling(h: &Hand, v: SideVerdict) -> StableName {
+    let RoleSeg::Fragment(Qualifier::SideOf(vector)) = h.frag.path.last().unwrap() else {
+        unreachable!("hand() mints a SideOf fragment");
+    };
+    let mut name = h.base.clone();
+    name.path.push(RoleSeg::Fragment(Qualifier::SideOf(vec![(
+        vector[0].0.clone(),
+        v,
+    )])));
+    name
+}
+
+/// Resolves `name` with the prior table holding `prior` rows and the
+/// new table holding `now` rows, each `(name, entities)`, and each
+/// run's fragment-group record holding the groups `(base, size)` its
+/// run lists; every name embedded in `h.frag` resolves in both runs,
+/// so no Cascade.
+/// One run for [`group_diagnosis`]: its rows `(name, entities)` and
+/// its recorded groups `(base, size)`.
+type Run = (Vec<(StableName, usize)>, Vec<(StableName, usize)>);
+
+fn group_diagnosis(
+    h: &Hand,
+    name: &StableName,
+    (prior, prior_groups): Run,
+    (now, now_groups): Run,
+) -> editor_core::ResolutionFailure {
+    let record = FragmentGroups::from_sizes;
+    let table = |rows: Vec<(StableName, usize)>| {
+        let mut t = NameTable::new();
+        let mut next = 0u32;
+        for (row, n) in rows {
+            // A row's entity has the row's kind (the table refuses a
+            // kind disagreement); only the kind-decoy row is a face.
+            let kind = row.kind;
+            let ents: Vec<_> = (0..n)
+                .map(|_| {
+                    next += 1;
+                    match kind {
+                        EntityKind::Face => editor_core::EntityRef {
+                            body: next,
+                            key: editor_core::EntityKey::Face(topo::FaceKey::default()),
+                        },
+                        _ => body_ent(next),
+                    }
+                })
+                .collect();
+            if n == 1 {
+                t.insert(row, ents[0]).unwrap();
+            } else {
+                t.insert_tied(row, ents).unwrap();
+            }
+        }
+        for (i, inner) in h.inner.iter().enumerate() {
+            t.insert(inner.clone(), body_ent(1000 + i as u32)).unwrap();
+        }
+        t
+    };
+    let prior_ev = one_node_eval(
+        h.doc.id(),
+        h.node,
+        table(prior),
+        vec![],
+        record(prior_groups),
+    );
+    let new_ev = one_node_eval(h.doc.id(), h.node, table(now), vec![], record(now_groups));
+    let res = resolve_with_prior(
+        RunCtx {
+            doc: &h.doc,
+            eval: &new_ev,
+        },
+        RunCtx {
+            doc: &h.doc,
+            eval: &prior_ev,
+        },
+        name,
+        Tol::witness(),
+    );
+    failure(&res).clone()
+}
+
+fn diag(f: &editor_core::ResolutionFailure) -> &Diagnosis {
+    let ResolveError::Vanished { diagnosis, .. } = &f.error else {
+        panic!("expected Vanished, got {:?}", f.error);
+    };
+    diagnosis
+}
+
+fn fallback(h: &Hand) -> Diagnosis {
+    Diagnosis::RecipeEdit {
+        edit: editor_core::RecipeEditRef::NodeChanged { node: h.node },
+    }
+}
+
+/// One group of `size` under `h`'s base: the record an emitter that
+/// divided the one parent into those rows keeps.
+fn one_group(h: &Hand, size: usize) -> Vec<(StableName, usize)> {
+    vec![(h.base.clone(), size)]
+}
+
+#[test]
+fn a_group_that_stops_being_divided_is_resized_to_one_and_offers_the_base() {
+    let h = hand(1);
+    let f = group_diagnosis(
+        &h,
+        &h.frag,
+        (
+            vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
+            one_group(&h, 2),
+        ),
+        (vec![(h.base.clone(), 1)], one_group(&h, 1)),
+    );
+    assert_eq!(
+        diag(&f),
+        &Diagnosis::GroupResized {
+            node: h.node,
+            was: 2,
+            now: 1,
+        }
+    );
+    assert_eq!(f.offers, vec![h.base.clone()]);
+}
+
+#[test]
+fn a_group_whose_parent_no_longer_descends_is_resized_to_zero() {
+    let h = hand(1);
+    let f = group_diagnosis(
+        &h,
+        &h.frag,
+        (
+            vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
+            one_group(&h, 2),
+        ),
+        (vec![], vec![]),
+    );
+    assert_eq!(
+        diag(&f),
+        &Diagnosis::GroupResized {
+            node: h.node,
+            was: 2,
+            now: 0,
+        }
+    );
+    assert!(f.offers.is_empty(), "nothing survives to offer");
+}
+
+#[test]
+fn the_count_is_the_record_not_the_rows_spelled_from_the_base() {
+    // The parent passes through under a name that is not the base (a
+    // split that stops dividing a face keeps its upstream name), so no
+    // row is spelled from the base; its group still holds it.
+    let h = hand(1);
+    let f = group_diagnosis(
+        &h,
+        &h.frag,
+        (
+            vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
+            one_group(&h, 2),
+        ),
+        (vec![], one_group(&h, 1)),
+    );
+    assert_eq!(
+        diag(&f),
+        &Diagnosis::GroupResized {
+            node: h.node,
+            was: 2,
+            now: 1,
+        }
+    );
+}
+
+#[test]
+fn a_group_that_grows_is_resized_too_and_a_tie_inside_it_is_several_members() {
+    // Prior: the vanished fragment beside a TIED sibling row of two,
+    // all three dividing one parent — a group of three entities under
+    // two names. Now: two distinct fragments that are neither — a
+    // group of two.
+    let h = hand(1);
+    let f = group_diagnosis(
+        &h,
+        &h.frag,
+        (
+            vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 2)],
+            one_group(&h, 3),
+        ),
+        (
+            vec![
+                (sibling(&h, SideVerdict::Mixed), 1),
+                (sibling(&h, SideVerdict::On), 1),
+            ],
+            one_group(&h, 2),
+        ),
+    );
+    assert_eq!(
+        diag(&f),
+        &Diagnosis::GroupResized {
+            node: h.node,
+            was: 3,
+            now: 2,
+        }
+    );
+    // And growth: a group of two became three. The new members are
+    // spelled with a different qualifier kind on purpose — the count
+    // is of the group, whatever qualifies its members, and a SideOf
+    // sibling one sign away would be the qualifier-delta rung's flip.
+    let ranked = |rank| {
+        let mut n = h.base.clone();
+        n.path
+            .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 3 }));
+        (n, 1)
+    };
+    let f = group_diagnosis(
+        &h,
+        &h.frag,
+        (
+            vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
+            one_group(&h, 2),
+        ),
+        (vec![ranked(0), ranked(1), ranked(2)], one_group(&h, 3)),
+    );
+    assert_eq!(
+        diag(&f),
+        &Diagnosis::GroupResized {
+            node: h.node,
+            was: 2,
+            now: 3,
+        }
+    );
+}
+
+#[test]
+fn two_tied_parents_are_counted_one_parent_at_a_time() {
+    // Two tied parents share the base, and the tie lane gives their
+    // members' rows one set of names: each row is TIED across the two
+    // groups. Each parent's group went from two to one; the rows'
+    // candidates, four then two, are not a group.
+    let h = hand(1);
+    let two = |size| vec![(h.base.clone(), size), (h.base.clone(), size)];
+    let f = group_diagnosis(
+        &h,
+        &h.frag,
+        (
+            vec![(h.frag.clone(), 2), (sibling(&h, SideVerdict::Negative), 2)],
+            two(2),
+        ),
+        (vec![(h.base.clone(), 2)], two(1)),
+    );
+    assert_eq!(
+        diag(&f),
+        &Diagnosis::GroupResized {
+            node: h.node,
+            was: 2,
+            now: 1,
+        }
+    );
+    // Tied parents whose groups no longer agree have no one count.
+    let f = group_diagnosis(
+        &h,
+        &h.frag,
+        (
+            vec![(h.frag.clone(), 2), (sibling(&h, SideVerdict::Negative), 2)],
+            two(2),
+        ),
+        (
+            vec![(h.base.clone(), 1)],
+            vec![(h.base.clone(), 1), (h.base.clone(), 3)],
+        ),
+    );
+    assert_eq!(diag(&f), &fallback(&h));
+}
+
+#[test]
+fn a_group_that_requalified_at_the_same_size_is_not_a_resize() {
+    // Two fragments before, two after, the vanished one not among
+    // them. No single pure-sign delta either (Mixed/On have no sign),
+    // so every rung is silent and the fallback is the honest answer.
+    let h = hand(1);
+    let f = group_diagnosis(
+        &h,
+        &h.frag,
+        (
+            vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
+            one_group(&h, 2),
+        ),
+        (
+            vec![
+                (sibling(&h, SideVerdict::Mixed), 1),
+                (sibling(&h, SideVerdict::On), 1),
+            ],
+            one_group(&h, 2),
+        ),
+    );
+    assert_eq!(diag(&f), &fallback(&h));
+}
+
+#[test]
+fn a_name_the_prior_run_never_minted_did_not_vanish_by_resizing() {
+    // The prior group had two members and the current one has one —
+    // but neither was the referenced name, so its group changing size
+    // is not why it does not resolve.
+    let h = hand(1);
+    let f = group_diagnosis(
+        &h,
+        &h.frag,
+        (
+            vec![
+                (sibling(&h, SideVerdict::Negative), 1),
+                (sibling(&h, SideVerdict::Mixed), 1),
+            ],
+            one_group(&h, 2),
+        ),
+        (vec![(h.base.clone(), 1)], one_group(&h, 1)),
+    );
+    assert_eq!(diag(&f), &fallback(&h));
+}
+
+#[test]
+fn a_name_without_a_fragment_tail_never_reaches_the_group_size_rung() {
+    // The base itself vanishing: no qualifier, so no group to count,
+    // even though the table it was in had company.
+    let h = hand(1);
+    let f = group_diagnosis(
+        &h,
+        &h.base,
+        (
+            vec![(h.base.clone(), 1), (h.frag.clone(), 1)],
+            one_group(&h, 2),
+        ),
+        (
+            vec![(sibling(&h, SideVerdict::Negative), 1)],
+            one_group(&h, 1),
+        ),
+    );
+    assert_eq!(diag(&f), &fallback(&h));
+}
+
+#[test]
+fn without_a_prior_run_there_is_no_size_to_change_from() {
+    let h = hand(1);
+    let mut t = NameTable::new();
+    t.insert(h.base.clone(), body_ent(0)).unwrap();
+    for (i, inner) in h.inner.iter().enumerate() {
+        t.insert(inner.clone(), body_ent(1000 + i as u32)).unwrap();
+    }
+    let groups = FragmentGroups::from_sizes([(h.base.clone(), 1)]);
+    let ev = one_node_eval(h.doc.id(), h.node, t, vec![], groups);
+    let res = editor_core::resolve(
+        RunCtx {
+            doc: &h.doc,
+            eval: &ev,
+        },
+        &h.frag,
+    );
+    assert_eq!(vanished(&res), &fallback(&h));
+}
+
+#[test]
+fn the_group_is_read_by_kind_and_minting_node_not_by_path_alone() {
+    // A group recorded under a base whose PATH is the vanished name's
+    // base but whose kind or minting node differs is another group:
+    // reading it would turn this 2 → 1 into 2 → 2 and silence the
+    // rung. One decoy per field, each in its own run.
+    let h = hand(1);
+    let other_node = h.inner[1].node;
+    assert_ne!(other_node, h.node, "the partner lives at a second node");
+    let decoys = [
+        StableName {
+            kind: EntityKind::Face,
+            ..h.base.clone()
+        },
+        StableName {
+            node: other_node,
+            ..h.base.clone()
+        },
+    ];
+    for decoy in decoys {
+        let f = group_diagnosis(
+            &h,
+            &h.frag,
+            (
+                vec![(h.frag.clone(), 1), (sibling(&h, SideVerdict::Negative), 1)],
+                one_group(&h, 2),
+            ),
+            (
+                vec![(h.base.clone(), 1), (decoy.clone(), 1)],
+                vec![(h.base.clone(), 1), (decoy.clone(), 2)],
+            ),
+        );
+        assert_eq!(
+            diag(&f),
+            &Diagnosis::GroupResized {
+                node: h.node,
+                was: 2,
+                now: 1,
+            },
+            "decoy {decoy:?} was read"
+        );
+    }
 }

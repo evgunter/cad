@@ -107,8 +107,9 @@ use crate::validate::ValidationError;
 pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
 pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment};
 // Crate-internal: tier 3's check 9 gates its nesting arm on the same
-// loop classification this module's own walk dispatches on.
-pub(crate) use contain::{LoopShape, loop_shape};
+// loop classification this module's own walk dispatches on, and
+// decides the disc class with the same exact side row.
+pub(crate) use contain::{LoopCircle, LoopShape, disc_side, loop_shape};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
@@ -632,6 +633,26 @@ pub enum BooleanError {
     /// the operand gate and pair-level refusals fire where an arm is
     /// actually exercised, citing the table's routing; `Cone`/`Torus`
     /// keep the gate refusal — no wired arm involves them).
+    ///
+    /// What is missing at the raising site is the boolean's own
+    /// crossing layer for the kind — edge×face sweep events, curved trim
+    /// containment, and the fitted-chord join lane — even where
+    /// `geom_brep::intersect::route` already implements the pair at the
+    /// INTERSECTION layer (plane×NURBS). One raising site is the
+    /// germ-pair JOIN dispatch's catch-all (`join::join_germ_pair`), so
+    /// a `(Sphere, Sphere)` or `(Cylinder, Sphere)` germ reaches it too,
+    /// not only a cone or torus one; the pairs that dispatch does wire
+    /// are stated once, at `meeting_recourse`. The pair-general
+    /// SECTION-FRAME dispatch beside it is wider, but a frame is not a
+    /// join arm: it names the locus's centre and axis for the facing
+    /// test and moves no seam lane.
+    ///
+    /// `kind` is one half of the pair and says nothing about the other,
+    /// so the Display never reads as "this kind is unsupported": a
+    /// sphere reaches here from a sphere×sphere germ while plane×sphere
+    /// is live. The Display is written for the person holding the
+    /// mouse: what could not be done and the recourse, never this
+    /// routing.
     CurvedBooleanUnsupported {
         /// The offending operand and face.
         operand: Operand,
@@ -955,12 +976,11 @@ pub enum BooleanError {
     ///   re-cut; no longer gated here.
     /// - **Cone / torus**: the germ-pair JOIN dispatch —
     ///   `join::join_germ_pair`'s match on the two germ faces'
-    ///   surfaces — wires `(Plane, Plane)`, `(Plane, Cylinder)` and
-    ///   `(Plane, Sphere)` (plus the two mirrors) and NOTHING else. Its
-    ///   catch-all is the site that raises THIS error, so it is not
-    ///   only a cone or torus germ that reaches it: a
-    ///   `(Sphere, Sphere)` or `(Cylinder, Sphere)` germ lands there
-    ///   too.
+    ///   surfaces — wires only the pairs `meeting_recourse` names, and
+    ///   no cone or torus pair. Its catch-all raises
+    ///   [`BooleanError::CurvedBooleanUnsupported`], not this error,
+    ///   and a `(Sphere, Sphere)` or `(Cylinder, Sphere)` germ lands
+    ///   there too.
     ///
     ///   **A wider dispatch sits beside it and must not be confused
     ///   with it.** `join::pair_section_frame` — the pair-general
@@ -983,7 +1003,9 @@ pub enum BooleanError {
     ///   re-verified rather than moved: the coaxial arm's locus is two
     ///   exact CIRCLES and needs no fitted chord at all, so it gives
     ///   the window nothing to read. What would retire the sentence is
-    ///   the window itself, for the TRANSVERSAL poses that march.
+    ///   the window itself, for the TRANSVERSAL poses that march (the
+    ///   DECLARED-coaxial classification, `geom_brep::cylinder_sphere_section`,
+    ///   and its germ-frame arm exist and do not change this).
     /// - **NURBS**: no edge×NURBS-face crossing layer at all
     ///   (deviation 5), and the fallback's extent test is unwritable
     ///   for the kind ([`BooleanError::NurbsExtentUnsupported`]).
@@ -1001,15 +1023,6 @@ pub enum BooleanError {
     /// (a revert-wiring unit is the wrong place to re-cut the
     /// containment fallback), so ∪ is not gated here and the row is
     /// what keeps it visible.
-    ///
-    /// **The "cyl×sphere fitted-chord window has no window analog"
-    /// clause in this variant's Display is RE-VERIFIED, not moved.**
-    /// The exact DECLARED-coaxial classification
-    /// (`geom_brep::cylinder_sphere_section`) and its germ-frame arm
-    /// both exist now, and neither gives the window anything: the
-    /// coaxial locus is two exact CIRCLES and is never a fitted chord.
-    /// The window is a deliberate scope cut for the TRANSVERSAL poses,
-    /// which still march, and it is what would retire the clause.
     CurvedPairUnsupported {
         /// The op this refusal is specific to (never `Union`), or
         /// `None` when the kind has no arm under any op.
@@ -1416,236 +1429,207 @@ impl From<EulerOpError> for BooleanError {
     }
 }
 
+/// How a refusal names an operand to the person who built it: by its
+/// place in the operation, never by the enum spelling.
+fn operand_word(operand: Operand) -> &'static str {
+    match operand {
+        Operand::A => "first",
+        Operand::B => "second",
+    }
+}
+
+/// The operation, as the noun a refusal sentence uses.
+fn op_noun(op: BooleanOp) -> &'static str {
+    match op {
+        BooleanOp::Union => "union",
+        BooleanOp::Intersect => "intersection",
+        BooleanOp::Subtract => "subtraction",
+    }
+}
+
+/// A surface kind as the person holding the mouse reads it. The
+/// spline kinds get one spelling everywhere a Boolean refusal names
+/// them; every other kind is its own name.
+fn kind_word(kind: geom_brep::SurfaceKind) -> &'static str {
+    match kind {
+        geom_brep::SurfaceKind::Nurbs => "spline (NURBS)",
+        geom_brep::SurfaceKind::Approx => "approximated spline",
+        other => other.name(),
+    }
+}
+
+/// The recourse every "these faces cannot meet yet" refusal ends on.
+///
+/// **This is the one statement of the pairs the Boolean can join**: the
+/// germ-pair JOIN dispatch (`join::join_germ_pair`) wires a plane face
+/// against a plane, cylinder or sphere face, mirrors included, and
+/// nothing else. The rustdoc that needs the set points here. The
+/// operand gate's box test is conservative (a box overlap is a MAY),
+/// so moving the face clear of the other solid is a real recourse even
+/// where the faces never touch in exact geometry.
+fn meeting_recourse(kind: &str) -> String {
+    format!(
+        "Recourse: reshape the parts so they meet only where a plane face meets \
+         a plane, cylinder or sphere face, or move them so the {kind} face stays \
+         clear of the other solid"
+    )
+}
+
 impl core::fmt::Display for BooleanError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Band(e) => write!(f, "boolean_reduce: invalid band: {e}"),
-            Self::CurvedBooleanUnsupported {
-                operand,
-                face,
-                kind,
-            } => write!(
+            // The band's own refusal names itself and carries its recourse.
+            Self::Band(e) => write!(f, "{e}"),
+            // No operand is named: the raise sites disagree on whether
+            // `operand` is the face's own operand or the operand of the
+            // edge that met it.
+            Self::CurvedBooleanUnsupported { kind, .. } => write!(
                 f,
-                "boolean_reduce: face {face:?} of operand {operand:?} is a {} — the \
-                 classification this site required has no wired boolean arm for the \
-                 kind in this build (the refusal retires one table arm at a time, \
-                 never wholesale). Pairs involving this kind route per \
-                 geom_brep::intersect::route; where a route is already implemented \
-                 at the INTERSECTION layer (plane×NURBS), what is missing here is \
-                 the boolean's own crossing layer for the kind — edge×face sweep \
-                 events, curved \
-                 trim containment, and the fitted chord join lane. The curved \
-                 containment/pierce door covers the sphere half; the blocker is the \
-                 fitted-chord join lane, which has no cyl×sphere azimuth-window \
-                 analog to read. One of the sites that raises this is the germ-pair \
-                 JOIN dispatch's catch-all, and what that dispatch wires is (Plane, \
-                 Plane), (Plane, Cylinder) and (Plane, Sphere) only, mirrors \
-                 included — so a (Sphere, Sphere) or (Cylinder, Sphere) germ reaches \
-                 the catch-all too, not only a cone or torus one. The pair-general \
-                 SECTION-FRAME dispatch beside it is wider (it names the sphere pair, \
-                 the cylinder pair, and a DECLARED-coaxial cylinder x sphere), but a \
-                 frame is not a join arm: it names the locus's centre and axis for \
-                 the facing test and moves no seam lane",
-                kind.name()
+                "the Boolean cannot yet work out where one solid's {} face meets the \
+                 face of the other solid it runs into: that pairing of faces is not \
+                 supported yet. {}",
+                kind_word(*kind),
+                meeting_recourse(kind_word(*kind)),
             ),
-            Self::CurvedPierceUnsupported {
-                operand,
-                face,
-                edge,
-                band,
-            } => write!(
+            Self::CurvedPierceUnsupported { operand, .. } => write!(
                 f,
-                "boolean_reduce: edge {edge:?} of operand {operand:?} definitely meets \
-                 curved face {face:?} away from a shared boundary (clearance classified \
-                 against band [zero {:e}, escalate {:e}]) — and the curved pierce \
-                 door cannot take this one. The door exists for a LINE carrier \
-                 definitely crossing a CYLINDER wall; a tangency, a Circle carrier, \
-                 a sphere face, an undeclared on-carrier edge, or a trim the chart \
-                 door will not express stay at this typed frontier. The same margin \
-                 one band-width away escalates as a sliver instead; {}",
-                band.zero(),
-                band.escalate(),
-                COINCIDENCE_RECOURSE
+                "an edge of the {} operand touches or crosses a curved face of the \
+                 other operand away from that face's edges, and the Boolean cannot yet \
+                 settle where or whether it passes through. Recourse: \
+                 {COINCIDENCE_RECOURSE}",
+                operand_word(*operand),
             ),
-            Self::CurvedSectorSideUnsupported { band } => write!(
+            Self::CurvedSectorSideUnsupported { .. } => write!(
                 f,
-                "boolean_reduce: a pierce sector's first-order material verdict cannot \
-                 be certified against the pierced face's curvature — the sagitta at \
-                 the sector's own lever arm is not definitely smaller than the \
-                 first-order displacement (classified against band \
-                 [zero {:e}, escalate {:e}]), so the tangent-plane verdict may have \
-                 the material side backwards. Answering it at first order would be a \
-                 wrong topology, not a conservative one. The recourse is the \
-                 second-order sector trilean, which no lane wires into this verdict \
-                 yet; {}",
-                band.zero(),
-                band.escalate(),
-                COINCIDENCE_RECOURSE
+                "where an edge pierces a curved face, the Boolean cannot be sure which \
+                 side of the face the material is on: the face curves too sharply \
+                 there for the check it has. Recourse: {COINCIDENCE_RECOURSE}"
             ),
-            Self::CurvedEdgeUnsupported { operand, edge } => write!(
+            Self::CurvedEdgeUnsupported { operand, .. } => write!(
                 f,
-                "boolean_reduce: edge {edge:?} of operand {operand:?} has a rung-3 \
-                 (Nurbs) carrier — refused at the operand gate: rung-3 edges are what \
-                 the curved zip MINTS, not what it consumes"
+                "an edge of the {} operand is a spline (NURBS) curve, and the Boolean \
+                 cannot yet take a solid with spline edges as an input. Recourse: \
+                 rebuild that solid so its edges are lines, circles or ellipses",
+                operand_word(*operand),
             ),
-            Self::PointSplitCarrierUnsupported { operand, edge } => write!(
+            Self::PointSplitCarrierUnsupported { operand, .. } => write!(
                 f,
-                "boolean_reduce: edge {edge:?} of operand {operand:?} must be split at \
-                 an event point, and its carrier has no exact point parameter — a Line \
-                 and a Circle do. The operand gate admits Ellipse; this lane is \
-                 narrower, and refuses rather than solving for the parameter"
+                "an ellipse edge of the {} operand has to be split where the solids \
+                 meet, and the Boolean can split only lines and circles there. \
+                 Recourse: move the parts so that edge does not meet the other solid",
+                operand_word(*operand),
             ),
-            Self::ArcLoopContainmentUnsupported { operand, r#loop } => write!(
+            // No operand is named, for the same reason as above: some
+            // raise sites carry the operand of the edge being placed, not
+            // of the face whose loop has no walk.
+            Self::ArcLoopContainmentUnsupported { .. } => write!(
                 f,
-                "boolean_reduce: loop {loop:?} of operand {operand:?} bounds a planar \
-                 region with an ARC on its boundary and fewer than three vertices, so \
-                 the ray-parity walk's polygon through those vertices has zero area — \
-                 it would report every interior point of the region as outside it. A \
-                 loop of arcs of one circle is decided exactly; this one is not, and \
-                 the general arc-aware walk does not exist yet (issue #1076). Refused \
-                 rather than answered"
+                "the Boolean cannot yet tell what lies inside a flat face whose outline \
+                 mixes arcs with fewer than three corners (a half-disc or a lens, say), \
+                 so it refuses rather than guess. Recourse: split an arc so the outline \
+                 has at least three corners, or make it a whole circle"
             ),
-            Self::ScaffoldingOperand { operand, edge } => write!(
+            Self::ScaffoldingOperand { operand, .. } => write!(
                 f,
-                "boolean_reduce: operand {operand:?} carries null scaffolding at {edge:?} \
-                 (mid-surgery body)"
+                "the {} operand is a body left in the middle of an edit (it still \
+                 carries unfinished edges), so the Boolean refuses it. This is a bug in \
+                 whatever produced that body; please report it",
+                operand_word(*operand),
             ),
-            Self::NonMaximalFaces { operand, edge } => write!(
+            Self::NonMaximalFaces { operand, .. } => write!(
                 f,
-                "boolean_reduce: operand {operand:?} has coincident adjacent faces across edge \
-                 {edge:?} (not maximal-faced); run merge_coplanar_faces explicitly first"
+                "the {} operand has two neighbouring faces that lie on one surface, so \
+                 the Boolean refuses it. Recourse: merge those faces first \
+                 (merge_coplanar_faces)",
+                operand_word(*operand),
             ),
             Self::CurvedPairUnsupported {
                 op,
                 operand,
-                face,
                 kind,
-                other_face,
                 other_kind,
+                ..
             } => write!(
                 f,
-                "boolean: face {face:?} of operand {operand:?} is a {} and its box MAY \
-                 INTERSECT face {other_face:?} ({}) of operand {:?}{}. Box overlap is a \
-                 MAY, not a DOES: both boxes are supersets of their faces, so the two \
-                 may in exact geometry be disjoint — what the kernel cannot do is rule \
-                 the meeting out, and it has no seam lane for the ({}, {}) germ pair if \
-                 they do meet. A face of this kind whose box CLEARS the other operand \
-                 does not gate the operation at all. The refusal is PER PAIR: \
-                 plane×CYLINDER and plane×SPHERE subtract and intersect are live \
-                 (blind and through holes, exact closed-form volumes, tier 3, both \
-                 sweep strategies). What is still refused is blocked on a JOIN lane, \
-                 not on revert: a cone or torus germ pair has no seam lane at all — the \
-                 germ-pair JOIN dispatch wires (Plane, Plane), (Plane, Cylinder) and \
-                 (Plane, Sphere) only, mirrors included, and the wider SECTION-FRAME \
-                 dispatch beside it names a frame, never a join arm — \
-                 and a cyl×sphere fitted-chord window has no window analog to read — \
-                 and a NURBS face has no crossing layer. The refusal is UP FRONT and \
-                 structural because the downstream failure is SILENT, not typed: with \
-                 no crossings found the pipeline falls through to vertex-probed \
-                 containment, and a curved face leaves the other solid between its \
-                 vertices with no vertex noticing. Recourse: move the two apart, or \
-                 express the cut with cylindrical or spherical tooling, or wait on the \
-                 join lane",
-                kind.name(),
-                other_kind.name(),
-                operand.other(),
-                op.map_or(String::new(), |op| format!(" under {op:?}")),
-                kind.name(),
-                other_kind.name(),
+                "the {} operand's {} face may meet the {} operand's {} face, and the \
+                 Boolean{} cannot yet work out where such a face meets another solid. \
+                 {}",
+                operand_word(*operand),
+                kind_word(*kind),
+                operand_word(operand.other()),
+                kind_word(*other_kind),
+                op.map_or(String::new(), |op| format!(" {}", op_noun(op))),
+                meeting_recourse(kind_word(*kind)),
             ),
-            Self::NurbsExtentUnsupported { operand, face } => write!(
+            Self::NurbsExtentUnsupported { operand, .. } => write!(
                 f,
-                "boolean fallback: face {face:?} of operand {operand:?} is NURBS-surfaced \
-                 and the no-crossings containment fallback's curved-extent test cannot be \
-                 written for the kind: implicit_residual(Nurbs) is poison, so a certified \
-                 extent would have to be argued through a foot point plus a bound on how \
-                 far the patch reaches past it, and no such argument has been written. \
-                 Projection is not the obstacle: NurbsSurface::project is generic \
-                 over any bracket-carrying scalar, so the Interval lane is \
-                 available. The class is re-gated HERE, typed and pinned, so a future \
-                 NURBS body constructor cannot re-open the vertex-probe silence. \
-                 Recourse: write the NURBS extent test, then retire this gate per \
-                 class"
+                "the Boolean found no crossing between the two solids and cannot yet \
+                 check whether the {} operand's spline (NURBS) face lies inside or \
+                 outside the other, so it refuses rather than guess. Recourse: make \
+                 the solids' boundaries cross, or build that face from planes, \
+                 cylinders or spheres",
+                operand_word(*operand),
             ),
-            Self::FallbackExtentUnsupported {
-                operand,
-                face,
-                what,
-            } => write!(
+            // No operand is named: the raise sites pass the operand being
+            // scanned, which is not always the one whose face the refusal cites.
+            Self::FallbackExtentUnsupported { what, .. } => write!(
                 f,
-                "boolean fallback: the curved-extent scan cannot certify the \
-                 no-crossings configuration at face {face:?} of operand {operand:?}: \
-                 {what}. The vertex-probed answer a curved boundary defeats is never \
-                 given; refused typed instead"
+                "the solids' boundaries do not cross, and the Boolean cannot be sure \
+                 whether one lies inside the other ({what}). Recourse: move them so \
+                 their boundaries cross, or so their curved faces stand further apart"
             ),
-            Self::GermFrameUnsupported {
-                a_face,
-                a_kind,
-                b_face,
-                b_kind,
-            } => write!(
+            Self::GermFrameUnsupported { a_kind, b_kind, .. } => write!(
                 f,
-                "boolean join: the germ pair (face {a_face:?} of A, a {}; face \
-                 {b_face:?} of B, a {}) has no section-frame arm, so the locus its \
-                 germ line rides is unknown. A missing frame MEANS a straight locus \
-                 and selects the chord facing test, an answer a pair earns only by \
-                 proof, so a pair without an arm is refused here rather than \
-                 defaulted into it. Recourse: wire the pair's section arm, or \
-                 express the cut with tooling whose germ pairs are wired",
-                a_kind.name(),
-                b_kind.name(),
+                "the Boolean cannot yet trace where the first operand's {} face meets \
+                 the second operand's {} face, so it refuses rather than guess. {}",
+                kind_word(*a_kind),
+                kind_word(*b_kind),
+                meeting_recourse(kind_word(*a_kind)),
             ),
-            Self::GermFrameCylinderPinch {
-                a_face,
-                b_face,
-                evidence,
-            } => write!(
+            // True for BOTH radius cases: the raise site refuses on the
+            // axis relation alone when no radius evidence exists, so the
+            // walls may have equal radii (the section crosses itself) or
+            // not (a space quartic).
+            Self::GermFrameCylinderPinch { .. } => write!(
                 f,
-                "boolean join: the germ pair (face {a_face:?} of A, face {b_face:?} of B) \
-                 is two cylinder walls whose axes definitely intersect, and that pair has \
-                 no section frame to name. With equal radii the section is the two \
-                 bisector-plane ellipses, which CROSS at the two points p ± r·n̂ where \
-                 n̂ = unit(a1 x a2) — the walls are mutually tangent there — four arcs at \
-                 two valence-4 pinch \
-                 vertices, not one conic, so no point selects a branch. With unequal \
-                 radii the locus is a space quartic and has no conic frame at all. Which \
-                 holds is a radius-equality question, answered by the lowered \
-                 parameter-identity channel and never inferred from values: this pair's \
-                 evidence is {evidence:?} — Declared means the ellipse pair, verified \
-                 against the geometry; None means no declaration exists and the pair \
-                 routes the general rung with the question open. Recourse: a chord lane \
-                 that walks a self-intersecting section, geometry whose germ pairs are \
-                 wired, or a document that declares the shared radius",
+                "two cylinder walls whose axes cross meet here, and the Boolean cannot \
+                 yet trace where they meet, whether their radii are equal (the curve \
+                 crosses itself) or not (a curve it has no form for). Recourse: \
+                 reshape the parts so these two walls do not meet each other",
             ),
             Self::Pcurves { source } => write!(
                 f,
-                "boolean: the result's pcurve mint pass refused (curved results carry \
+                "the result's pcurve mint pass refused (curved results carry \
                  certified per-half-edge pcurves at rest): {source}"
             ),
-            Self::NonFiniteSectorChord { vertex, face } => write!(
+            Self::NonFiniteSectorChord { .. } => write!(
                 f,
-                "boolean_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has no \
-                 finite length \u{2014} its components overflow the norm, or one of them \
-                 is not a number; scale the geometry into the session's range"
+                "a direction the Boolean measures where the solids meet has no finite \
+                 length \u{2014} its components overflow, or one of them is not a \
+                 number. Recourse: {}",
+                geom_core::RANGE_RECOURSE
             ),
-            Self::UnderflowedSectorChord { vertex, face } => write!(
+            Self::UnderflowedSectorChord { .. } => write!(
                 f,
-                "boolean_reduce: a sector chord at vertex {vertex:?} (face {face:?}) has a \
-                 length that underflowed out of the format \u{2014} its components are too \
-                 small for the norm to hold, so it measures exactly zero while still \
-                 naming a direction; no tolerance reaches this, scale the geometry into \
-                 the session's range"
+                "a direction the Boolean measures where the solids meet is too small \
+                 for its length to be represented, so it measures exactly zero; no \
+                 tolerance reaches this. Recourse: {}",
+                geom_core::RANGE_RECOURSE
             ),
             Self::Escalated { diag } => write!(
                 f,
-                "boolean_reduce: predicate escalated ({diag}); the operand pair is \
-                 ill-conditioned at this tolerance — never resolved by snapping"
+                "parts of the two solids are too close to call at this tolerance ({}), \
+                 and the Boolean never snaps them together. Recourse: \
+                 {COINCIDENCE_RECOURSE}",
+                diag.payload()
             ),
-            Self::UndeclaredCoincidence { diag, .. } => {
-                f.write_str(
-                    "boolean_reduce: geometric coincidence (exact or within tolerance) without \
-                     a shared recipe source or declared intent (",
-                )?;
+            Self::UndeclaredCoincidence { diag, pair, .. } => {
+                if pair[0].0 == pair[1].0 {
+                    write!(f, "two faces of the {} operand", operand_word(pair[0].0))?;
+                } else {
+                    f.write_str("a face of the first operand and a face of the second")?;
+                }
+                f.write_str(" coincide, or nearly (")?;
                 // The rung-4 definite arm synthesizes `MarginDiag::Invalid`
                 // for a decided-zero offset (plane_eq keeps the decision
                 // machinery); rendering that payload verbatim would claim a
@@ -1668,8 +1652,8 @@ impl core::fmt::Display for BooleanError {
                 }
                 write!(
                     f,
-                    "); coincidence is structural or declared, never inferred from values — \
-                     {COINCIDENCE_RECOURSE}"
+                    "), and the Boolean never assumes that touching faces are the same \
+                     face. Recourse: {COINCIDENCE_RECOURSE}"
                 )
             }
             Self::ContactContradicted {
@@ -1678,7 +1662,7 @@ impl core::fmt::Display for BooleanError {
                 steer,
             } => write!(
                 f,
-                "boolean op: the declared {} contact between faces {:?} and {:?} is \
+                "the declared {} contact between faces {:?} and {:?} is \
                  contradicted by {} — every definite verdict wins over every declaration; \
                  {}{}",
                 declaration.class.name(),
@@ -1690,13 +1674,13 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::DeclarationContradicted { diag } => write!(
                 f,
-                "boolean op: a declared coincidence contradicts the geometry ({diag}) — the \
+                "a declared coincidence contradicts the geometry ({diag}) — the \
                  declared pair's planes are definitely distinct; fix the declaration or the \
                  geometry, the op never glues a lie"
             ),
             Self::UnsupportedDeclarationClass { class } => write!(
                 f,
-                "boolean op: a declared contact of class {} lies outside the envelope this \
+                "a declared contact of class {} lies outside the envelope this \
                  op's classification acts on (Rest on the plane/sphere/cylinder carrier \
                  inventory; Tangent where the closed-form witness lane reaches — \
                  plane×cylinder along a ruling, parallel cylinders) — the declaration is \
@@ -1705,50 +1689,46 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::RimSeamNotDeclarable { declaration } => write!(
                 f,
-                "boolean op: faces {:?}/{:?} share a rim circle the ratified routing \
-                 (docs/MATE-7-TANGENCY-DESIGN.md) classified as the SEAM (wedge π) — the two \
-                 walls continue one another smoothly through it. That arm is BUILT and it \
-                 answered; what is refused is the DECLARATION. A seam is structural and takes \
-                 no contact declaration at all, so a {} claim on it names the wrong class — \
-                 and separately, the join wiring that would consume this verdict while \
-                 zipping is not built, so the op cannot proceed on the pair either",
-                declaration.a,
-                declaration.b,
+                "the declared faces continue smoothly into each other across their \
+                 shared rim, so they are one wall and the {} declaration on them is \
+                 wrong; and the Boolean cannot yet join two solids across such a rim \
+                 with or without it. There is no way through this in the kernel yet",
                 declaration.class.name()
             ),
             Self::RimCuspArmUnbuilt { declaration, wedge } => write!(
                 f,
-                "boolean op: faces {:?}/{:?} share a rim circle whose material wedge is {} — \
-                 the ratified routing (docs/MATE-7-TANGENCY-DESIGN.md) sends a wedge-0/2π rim \
-                 to the declared-{} cusp family, whose certified rim witness is DEFINED BUT \
-                 UNBUILT: the declaration is the right instrument and there is nothing yet to \
-                 verify it against",
-                declaration.a,
-                declaration.b,
-                wedge.name(),
+                "the declared faces meet along a rim circle where the material {}, and \
+                 the Boolean cannot yet verify a {} declaration there. The declaration \
+                 is the right one; there is no way through this in the kernel yet",
+                match wedge {
+                    geom_brep::MaterialWedge::Cusp => "pinches to a knife edge",
+                    geom_brep::MaterialWedge::Slit => "opens to a thin slit",
+                    geom_brep::MaterialWedge::Seam | geom_brep::MaterialWedge::Transverse => {
+                        wedge.name()
+                    }
+                },
                 declaration.class.name()
             ),
             Self::InvalidDeclaration { operand, what } => write!(
                 f,
-                "boolean op: invalid declaration payload on operand {operand:?}: {what}"
+                "a declaration on the {} operand is invalid: {what}",
+                operand_word(*operand)
             ),
             Self::PairingMismatch { a_vertex, b_vertex } => write!(
                 f,
-                "boolean_reduce: null-edge pairing mismatch at vertex pair \
+                "null-edge pairing mismatch at vertex pair \
                  ({a_vertex:?}, {b_vertex:?}): a surviving crossing-record pair is not \
                  cyclically adjacent in both neighborhoods (the 15.11 invariant's guarded \
                  refusal)"
             ),
             Self::ClassificationInvariant { what } => {
-                write!(
-                    f,
-                    "boolean_reduce: classification invariant violated: {what}"
-                )
+                write!(f, "classification invariant violated: {what}")
             }
             Self::CorruptOperand { operand, vertex } => write!(
                 f,
-                "boolean_reduce: neighborhood of vertex {vertex:?} in operand {operand:?} \
-                 could not be walked"
+                "the neighbourhood of vertex {vertex:?} in the {} operand could not be \
+                 walked (a broken body)",
+                operand_word(*operand)
             ),
             Self::CrossingInsertion {
                 operand,
@@ -1756,62 +1736,68 @@ impl core::fmt::Display for BooleanError {
                 source,
             } => write!(
                 f,
-                "boolean_reduce: crossing insertion refused on edge {edge:?} of operand \
-                 {operand:?}: {source}"
+                "crossing insertion refused on edge {edge:?} of the {} operand: \
+                 {source}",
+                operand_word(*operand)
             ),
-            Self::Euler(e) => write!(f, "boolean_reduce: euler operation refused: {e}"),
-            Self::Join(e) => write!(f, "boolean op: joining refused: {e}"),
+            Self::Euler(e) => write!(f, "euler operation refused: {e}"),
+            Self::Join(e) => write!(
+                f,
+                "joining the operands' sections refused: {}",
+                crate::chord_join::UnderBoolean(e)
+            ),
             Self::RestZipUnsupported { what } => write!(
                 f,
-                "boolean op: declared-REST union zip: {what} — a named \
+                "declared-REST union zip: {what} — a named \
                  sub-frontier of the boundary-on-boundary REST lane (planar declared \
                  contacts whose seam splits cleanly are covered); \
                  {COINCIDENCE_RECOURSE}"
             ),
             Self::JoinDesync { what } => write!(
                 f,
-                "boolean op: A/B lockstep invariant violated: {what} (kernel bug or corrupt \
+                "A/B lockstep invariant violated: {what} (kernel bug or corrupt \
                  reduction)"
             ),
             Self::TornComponent { operand, shell } => write!(
                 f,
-                "boolean op: component {shell:?} of operand {operand:?} carries section faces \
-                 of both sides (kernel bug)"
+                "component {shell:?} of the {} operand carries section faces \
+                 of both sides (kernel bug)",
+                operand_word(*operand)
             ),
-            Self::Containment(e) => write!(f, "boolean op: containment fallback: {e}"),
-            Self::Revert(e) => write!(f, "boolean op: revert of the ∖ B side refused: {e}"),
+            // The payload does not say which operand was being tested, so
+            // the sentence says "one of the solids" rather than guess.
+            Self::Containment(e) => write!(f, "the solids do not cross, and the Boolean {e}"),
+            Self::Revert(e) => write!(f, "revert of the ∖ B side refused: {e}"),
             Self::SeamOrientation { a_face, b_face } => write!(
                 f,
-                "boolean op: seam cycles of faces {a_face:?}/{b_face:?} are not antiparallel \
+                "seam cycles of faces {a_face:?}/{b_face:?} are not antiparallel \
                  (orientation chain broke — kernel bug)"
             ),
-            Self::ZipCorrespondence { what } => write!(
-                f,
-                "boolean op: seam zip correspondence failed: {what} (kernel bug)"
-            ),
-            Self::Merge(e) => write!(f, "boolean op: coplanar-merge output stage refused: {e}"),
+            Self::ZipCorrespondence { what } => {
+                write!(f, "seam zip correspondence failed: {what} (kernel bug)")
+            }
+            Self::Merge(e) => write!(f, "coplanar-merge output stage refused: {e}"),
             Self::ResultInvalid { errors } => write!(
                 f,
-                "boolean op: finished result failed a tier gate ({} finding(s), first: {:?}) — \
+                "finished result failed a tier gate ({} finding(s), first: {:?}) — \
                  kernel bug, no invalid body is returned",
                 errors.len(),
                 errors.first()
             ),
             Self::ResultVolumeImplausible { which, got, bound } => write!(
                 f,
-                "boolean op: kernel invariant violated — this is a bug in the kernel, not in \
+                "kernel invariant violated — this is a bug in the kernel, not in \
                  your geometry: {which} failed (got {got}, bound {bound}); no such body is \
                  returned. Please report it, with the model that produced it"
             ),
             Self::UnrepresentableResult => write!(
                 f,
-                "boolean op: the result would be unbounded (complement operands) — no boundary \
+                "the result would be unbounded (complement operands) — no boundary \
                  representation exists"
             ),
-            Self::GraftRecertify(e) => write!(
-                f,
-                "boolean op: grafted edge description failed re-certification: {e}"
-            ),
+            Self::GraftRecertify(e) => {
+                write!(f, "grafted edge description failed re-certification: {e}")
+            }
         }
     }
 }
@@ -2578,7 +2564,7 @@ mod tests {
     /// `ALL`. The row forces the visit, not the edit. That is the
     /// idiom's hole and not this row's alone — it is inherited from the
     /// two censuses cited above — so it is filed as
-    /// `work/door/all-census-idiom-forces-the-visit-not-the-update`
+    /// `work/census/all-census-idiom-forces-the-visit-not-the-update`
     /// rather than patched here in one of three places.
     #[test]
     fn all_is_every_operation() {
@@ -2652,8 +2638,8 @@ mod tests {
         assert!(!msg.contains("margin is invalid"), "{msg}");
     }
 
-    /// The non-finite chord arm names the lane, the vertex and the
-    /// face, gives the cause and a recourse that can WORK, and offers
+    /// The non-finite chord arm gives the cause and a recourse that can
+    /// WORK, and offers
     /// the coincidence recourse ZERO times — no tolerance lever
     /// reaches an overflowed chord, so naming one would be the
     /// wrong-recourse defect `memories/refusal-text-is-not-cause.md`
@@ -2673,12 +2659,8 @@ mod tests {
             face: FaceKey::default(),
         }
         .to_string();
-        assert!(msg.contains("boolean_reduce:"), "{msg}");
         assert!(msg.contains("has no finite length"), "{msg}");
-        assert!(
-            msg.contains("scale the geometry into the session's range"),
-            "{msg}"
-        );
+        assert!(msg.contains(geom_core::RANGE_RECOURSE), "{msg}");
         assert_eq!(msg.matches(COINCIDENCE_RECOURSE).count(), 0, "{msg}");
         assert!(!msg.contains("zero length"), "{msg}");
         assert_eq!(

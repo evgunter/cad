@@ -46,7 +46,7 @@ impl Rng {
     }
     /// The r2 lane's spelling of the same draw, kept so its rows read as
     /// they were written. These three are used only by the enclosure
-    /// rows, which the `interval` feature gates.
+    /// rows.
     #[allow(dead_code)]
     fn unit(&mut self) -> f64 {
         self.sym()
@@ -324,7 +324,6 @@ fn negative_axis_normal_at_origin_flips_a_zero_sign() {
 /// midpoint on the plane, a displacement along the normal; a rejection
 /// orthogonal to `onto` and a difference parallel to it) — so a wrong
 /// formula fails them.
-#[cfg(feature = "interval")]
 mod geometric_containment {
     use super::{Rng, retired_rejection};
     use geom_core::linalg::frame::mirror_across_plane;
@@ -503,7 +502,6 @@ mod geometric_containment {
 /// it, and it is kept because it draws three `onto` radii against two
 /// `self` rows and reports the ratio per component. `props1_evidence.rs`
 /// carries the gating bound; this row carries the table behind it.
-#[cfg(feature = "interval")]
 mod wide_onto {
     use super::retired_rejection;
     use geom_core::{Bounds, Interval, Vec3};
@@ -580,7 +578,6 @@ mod wide_onto {
 /// mirror sweep checks each wide enclosure against a point evaluation
 /// taken through the RETIRED association, so agreement is not a
 /// property of the shipped formula alone.
-#[cfg(feature = "interval")]
 mod random_containment {
     use super::Rng;
     use geom_core::linalg::frame::mirror_across_plane;

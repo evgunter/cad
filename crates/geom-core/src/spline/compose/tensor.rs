@@ -16,11 +16,11 @@
 //!    carrier as the same-shifted `(A_x, A_y, A_z, W_C)`; the parameter
 //!    curve `(U, V, W_P) = (w·u, w·v, w)` is chart-valued and carries
 //!    no center. The residual is shift-invariant in exact arithmetic,
-//!    but the ring's outward rounding scales with coefficient
+//!    but interval arithmetic's outward rounding scales with coefficient
 //!    magnitude — unshifted, a wall 1e6 m from the origin costs six
 //!    orders of bound (the PR 7b review's executed witness). No
 //!    division happens until the very last per-span quotient, so every
-//!    intermediate is polynomial and the ring's products stay
+//!    intermediate is polynomial and interval arithmetic's products stay
 //!    exact-up-to-rounding.
 //! 2. **Bézier decomposition, tensor-product.** The surface is
 //!    decomposed by knot insertion **in u and in v** — the tensor
@@ -48,7 +48,7 @@
 //!    coordinate `d`: `num_d = N_d·W_C − A_d·N_w`, `den = N_w·W_C`, and
 //!    `num_d/den = S(P(t))_d − C_d(t)` **exactly** (the common factor
 //!    divides out). Per-span coefficient hulls of numerator and
-//!    denominator, the rational quotient per span (the ring refuses a
+//!    denominator, the rational quotient per span (interval arithmetic refuses a
 //!    zero-touching divisor, so a degenerate denominator poisons
 //!    loudly), hulled across spans.
 //!
@@ -66,8 +66,8 @@
 //! width (~1e-2 m on the M5 wall fixture) no matter how small the true
 //! residual (~1e-10 m) is. Composition-then-hull instead forms the
 //! coefficients of the **single polynomial** `num_d = N_d·W_C − A_d·N_w`
-//! in the ring: the large, correlated parts of the two products are the
-//! *same numbers* and subtract to ring rounding, so the surviving
+//! in certification arithmetic: the large, correlated parts of the two products are the
+//! *same numbers* and subtract to outward rounding, so the surviving
 //! coefficients are the residual polynomial's own — small because the
 //! residual is small — and the convexity fact (a Bernstein polynomial
 //! lies in the hull of its coefficients) turns them into a sup bound at
@@ -117,7 +117,7 @@
 //! # C6 and the poison posture
 //!
 //! Structure (knots, degrees, binomials, break merges, cell selection)
-//! is `f64`; everything coefficient-valued is [`RingInterval`].
+//! is `f64`; everything coefficient-valued is [`Interval`].
 //! Checkable structural errors at the entry point are typed
 //! ([`ComposeError`], closed per D3); anything downstream (degenerate
 //! weights, budget overrun, zero-touching denominator) poisons the
@@ -127,7 +127,8 @@ use super::super::knots::{KnotVector, SplineError};
 use super::{
     BernsteinSpans, ComposeError, CurveRingData, bern_mul_row, binom_row, to_bezier_spans_extra,
 };
-use crate::ring_interval::RingInterval;
+use crate::interval::Interval;
+use crate::real::Bounds;
 
 // ---------------------------------------------------------------------
 // Data-in: the surface's structure + ring-lifted control net
@@ -136,13 +137,13 @@ use crate::ring_interval::RingInterval;
 /// A tensor-product NURBS surface's structure plus ring-lifted control
 /// coordinates — the surface-side data-in shape. `coords[d][i]` is the
 /// `d`-th coordinate (`d < 3`) of control point `i` in the **row-major
-/// `iu·nv + iv` layout** as a ring enclosure.
+/// `iu·nv + iv` layout** as a certification enclosure.
 #[derive(Clone, Debug)]
 pub struct SurfaceRingData<'a> {
     ku: &'a KnotVector,
     kv: &'a KnotVector,
     weights: &'a [f64],
-    coords: &'a [Vec<RingInterval>],
+    coords: &'a [Vec<Interval>],
 }
 
 // `!(w > 0)` is deliberate (NaN-catching): see `algebra::check_weights`.
@@ -159,7 +160,7 @@ impl<'a> SurfaceRingData<'a> {
         ku: &'a KnotVector,
         kv: &'a KnotVector,
         weights: &'a [f64],
-        coords: &'a [Vec<RingInterval>],
+        coords: &'a [Vec<Interval>],
     ) -> Result<Self, ComposeError> {
         let n = ku.control_count() * kv.control_count();
         if weights.len() != n {
@@ -210,7 +211,7 @@ impl<'a> SurfaceRingData<'a> {
 // ---------------------------------------------------------------------
 
 /// The composite residual `S(P(t)) − C(t)`, bounded: per shared
-/// `t`-span, one certified ring enclosure per coordinate. Where the
+/// `t`-span, one certified certification enclosure per coordinate. Where the
 /// curve module's [`super::CompositeForm`] is one global rational form,
 /// this is per-span data — the surface's Bézier **cell** serving a span
 /// changes along the curve, so no single rational form spans the
@@ -218,7 +219,7 @@ impl<'a> SurfaceRingData<'a> {
 #[derive(Clone, Debug)]
 pub struct SurfaceResidual {
     breaks: Vec<f64>,
-    spans: Vec<[RingInterval; 3]>,
+    spans: Vec<[Interval; 3]>,
 }
 
 impl SurfaceResidual {
@@ -229,20 +230,20 @@ impl SurfaceResidual {
     }
 
     /// Per-span certified enclosures of the residual, `[x, y, z]`.
-    pub fn span_bounds(&self) -> &[[RingInterval; 3]] {
+    pub fn span_bounds(&self) -> &[[Interval; 3]] {
         &self.spans
     }
 
     /// The whole-domain per-coordinate enclosure: the hull of the span
     /// bounds (fixed ascending fold, D9). Poison if any span poisons.
-    pub fn bound(&self) -> [RingInterval; 3] {
-        let mut acc = [RingInterval::poison(); 3];
+    pub fn bound(&self) -> [Interval; 3] {
+        let mut acc = [Interval::poison(); 3];
         for (n, row) in self.spans.iter().enumerate() {
             for d in 0..3 {
                 acc[d] = if n == 0 {
                     row[d]
                 } else {
-                    RingInterval::hull(acc[d], row[d])
+                    Interval::hull(acc[d], row[d])
                 };
             }
         }
@@ -276,7 +277,7 @@ struct TensorSpans {
     deg_v: usize,
     breaks_u: Vec<f64>,
     breaks_v: Vec<f64>,
-    patches: Vec<Vec<Vec<RingInterval>>>,
+    patches: Vec<Vec<Vec<Interval>>>,
 }
 
 /// Tensor-product Bézier decomposition of one scalar channel over the
@@ -284,15 +285,15 @@ struct TensorSpans {
 /// decomposition applied per v-column, then the v-direction one per
 /// (u-span, u-index) row — the tensor product of the two univariate
 /// insertions, `α` a ring quotient in **both** directions.
-fn tensor_channel(ku: &KnotVector, kv: &KnotVector, grid: &[RingInterval]) -> TensorSpans {
+fn tensor_channel(ku: &KnotVector, kv: &KnotVector, grid: &[Interval]) -> TensorSpans {
     let nv = kv.control_count();
     // Stage 1 (u): one decomposition per v-column; identical structure.
     let mut breaks_u = Vec::new();
     let mut deg_u = ku.degree();
     // stage1[su][a][jv]
-    let mut stage1: Vec<Vec<Vec<RingInterval>>> = Vec::new();
+    let mut stage1: Vec<Vec<Vec<Interval>>> = Vec::new();
     for jv in 0..nv {
-        let col: Vec<RingInterval> = (0..ku.control_count())
+        let col: Vec<Interval> = (0..ku.control_count())
             .map(|iu| grid[iu * nv + jv])
             .collect();
         let bs = to_bezier_spans_extra(ku, &col, &[]);
@@ -315,9 +316,9 @@ fn tensor_channel(ku: &KnotVector, kv: &KnotVector, grid: &[RingInterval]) -> Te
     // Stage 2 (v): per u-span and u-index, decompose the v-row.
     let mut breaks_v = Vec::new();
     let mut deg_v = kv.degree();
-    let mut patches: Vec<Vec<Vec<RingInterval>>> = Vec::new();
+    let mut patches: Vec<Vec<Vec<Interval>>> = Vec::new();
     for span_rows in &stage1 {
-        let mut cells: Vec<Vec<RingInterval>> = Vec::new();
+        let mut cells: Vec<Vec<Interval>> = Vec::new();
         for (a, vrow) in span_rows.iter().enumerate() {
             let bs = to_bezier_spans_extra(kv, vrow, &[]);
             if a == 0 {
@@ -346,31 +347,27 @@ fn tensor_channel(ku: &KnotVector, kv: &KnotVector, grid: &[RingInterval]) -> Te
 
 /// `a_k − c·b_k` elementwise (equal degrees by construction; the
 /// association is exactly as written).
-fn row_sub_scaled(a: &[RingInterval], c: f64, b: &[RingInterval]) -> Vec<RingInterval> {
-    let cc = RingInterval::point(c);
+fn row_sub_scaled(a: &[Interval], c: f64, b: &[Interval]) -> Vec<Interval> {
+    let cc = Interval::point(c);
     a.iter().zip(b.iter()).map(|(x, y)| *x - cc * *y).collect()
 }
 
 /// `c·b_k − a_k` elementwise.
-fn row_scaled_sub(c: f64, b: &[RingInterval], a: &[RingInterval]) -> Vec<RingInterval> {
-    let cc = RingInterval::point(c);
+fn row_scaled_sub(c: f64, b: &[Interval], a: &[Interval]) -> Vec<Interval> {
+    let cc = Interval::point(c);
     a.iter().zip(b.iter()).map(|(x, y)| cc * *y - *x).collect()
 }
 
 /// `a_k − b_k` elementwise.
-fn row_sub(a: &[RingInterval], b: &[RingInterval]) -> Vec<RingInterval> {
+fn row_sub(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
     a.iter().zip(b.iter()).map(|(x, y)| *x - *y).collect()
 }
 
 /// The coefficient hull of one row (ascending fold, D9).
-fn row_hull(row: &[RingInterval]) -> RingInterval {
-    let mut acc = RingInterval::poison();
+fn row_hull(row: &[Interval]) -> Interval {
+    let mut acc = Interval::poison();
     for (n, c) in row.iter().enumerate() {
-        acc = if n == 0 {
-            *c
-        } else {
-            RingInterval::hull(acc, *c)
-        };
+        acc = if n == 0 { *c } else { Interval::hull(acc, *c) };
     }
     acc
 }
@@ -378,10 +375,10 @@ fn row_hull(row: &[RingInterval]) -> RingInterval {
 /// The table `T_i = g^i·h^{m−i}` for `i = 0..=m`, every entry of one
 /// degree `m·deg(g)` (ascending powers built by repeated
 /// [`bern_mul_row`], fixed order).
-fn power_table(g: &[RingInterval], h: &[RingInterval], m: usize) -> Vec<Vec<RingInterval>> {
-    let one = vec![RingInterval::one()];
-    let mut gp: Vec<Vec<RingInterval>> = vec![one.clone()];
-    let mut hp: Vec<Vec<RingInterval>> = vec![one];
+fn power_table(g: &[Interval], h: &[Interval], m: usize) -> Vec<Vec<Interval>> {
+    let one = vec![Interval::one()];
+    let mut gp: Vec<Vec<Interval>> = vec![one.clone()];
+    let mut hp: Vec<Vec<Interval>> = vec![one];
     for i in 1..=m {
         gp.push(bern_mul_row(&gp[i - 1], g));
         hp.push(bern_mul_row(&hp[i - 1], h));
@@ -396,31 +393,31 @@ fn power_table(g: &[RingInterval], h: &[RingInterval], m: usize) -> Vec<Vec<Ring
 /// One `t`-span's homogeneous curve rows: the parameter curve's
 /// `(U, V, W_P)` and the carrier's `(A_x, A_y, A_z, W_C)`.
 struct SpanRows<'a> {
-    u: &'a [RingInterval],
-    v: &'a [RingInterval],
-    wp: &'a [RingInterval],
-    ac: [&'a [RingInterval]; 3],
-    wc: &'a [RingInterval],
+    u: &'a [Interval],
+    v: &'a [Interval],
+    wp: &'a [Interval],
+    ac: [&'a [Interval]; 3],
+    wc: &'a [Interval],
 }
 
 /// The residual enclosure of one `t`-span against one surface cell:
 /// the module-docs composition, the difference formed at the
-/// coefficient level, then hull quotients. `[RingInterval; 3]`, poison
-/// entries wherever the ring poisons (budget, zero-touching
+/// coefficient level, then hull quotients. `[Interval; 3]`, poison
+/// entries wherever interval arithmetic poisons (budget, zero-touching
 /// denominator).
 fn cell_residual(
     surf: &[&TensorSpans; 4],
     su: usize,
     sv: usize,
     rows: &SpanRows<'_>,
-) -> [RingInterval; 3] {
+) -> [Interval; 3] {
     let (mu, mv) = (surf[0].deg_u, surf[0].deg_v);
     // The one budget case the automatic row poison cannot reach: a
     // degree-0 curve pair composes to degree-0 rows whose binomials
     // never overflow, while `C(m_u,i)·C(m_v,j)` still could. Poison
     // explicitly rather than round silently.
     if mu + mv > super::BINOM_EXACT_MAX {
-        return [RingInterval::poison(); 3];
+        return [Interval::poison(); 3];
     }
     let (ua, ub) = (surf[0].breaks_u[su], surf[0].breaks_u[su + 1]);
     let (va, vb) = (surf[0].breaks_v[sv], surf[0].breaks_v[sv + 1]);
@@ -437,12 +434,11 @@ fn cell_residual(
     // (i, j), the cell coefficient times its exact binomial pair on the
     // left of the basis row (fixed association).
     let deg_n = tu[0].len() - 1 + tv[0].len() - 1;
-    let mut n: [Vec<RingInterval>; 4] =
-        core::array::from_fn(|_| vec![RingInterval::zero(); deg_n + 1]);
+    let mut n: [Vec<Interval>; 4] = core::array::from_fn(|_| vec![Interval::zero(); deg_n + 1]);
     for i in 0..=mu {
         for j in 0..=mv {
             let basis = bern_mul_row(&tu[i], &tv[j]);
-            let w = RingInterval::point(bmu[i] * bmv[j]);
+            let w = Interval::point(bmu[i] * bmv[j]);
             for (c, ch) in n.iter_mut().enumerate() {
                 let f = surf[c].patches[su][sv][i * (mv + 1) + j];
                 let fw = f * w;
@@ -507,7 +503,7 @@ fn cells_touched(breaks: &[f64], lo: f64, hi: f64) -> (usize, usize) {
 }
 
 /// The composite residual `S(P(t)) − C(t)` per coordinate, in certified
-/// per-span ring enclosures (module docs: the pipeline, the
+/// per-span certification enclosures (module docs: the pipeline, the
 /// cancellation note, and the degree budget).
 ///
 /// `pcurve` is the 2-channel parameter curve `P(t) = (u(t), v(t))` in
@@ -569,25 +565,32 @@ pub fn surface_curve_residual(
     // coordinate, one exact `f64` per coordinate, applied identically
     // to the surface's and the carrier's spatial channels. The chart
     // channels are parameter-valued and carry no center.
-    let center: [f64; 3] = core::array::from_fn(|d| carrier.coords[d][0].lo());
+    //
+    // A refused coefficient has no center to give, and it says so with
+    // `NaN` — which `Interval::point` refuses, so the whole
+    // composition poisons. The refusal is asked by name because it
+    // lives in the decoration: reading `.lo()` off a refused
+    // coefficient would hand back an ordinary number and shift every
+    // channel by it, laundering the refusal out of the SURFACE's
+    // coefficients (the carrier's own would still carry it).
+    let center: [f64; 3] = core::array::from_fn(|d| {
+        let c = carrier.coords[d][0];
+        if !c.is_certified() { f64::NAN } else { c.lo() }
+    });
 
     // Homogeneous channels on the shared breaks, the weight channel
     // carried; spatial channels center-shifted at the lift.
     let homog = |data: &CurveRingData<'_>, d: usize, shift: f64| -> BernsteinSpans {
-        let s = RingInterval::point(shift);
-        let coeffs: Vec<RingInterval> = data.coords[d]
+        let s = Interval::point(shift);
+        let coeffs: Vec<Interval> = data.coords[d]
             .iter()
             .zip(data.weights.iter())
-            .map(|(x, w)| RingInterval::point(*w) * (*x - s))
+            .map(|(x, w)| Interval::point(*w) * (*x - s))
             .collect();
         to_bezier_spans_extra(data.kv, &coeffs, &merged)
     };
     let weight = |data: &CurveRingData<'_>| -> BernsteinSpans {
-        let coeffs: Vec<RingInterval> = data
-            .weights
-            .iter()
-            .map(|w| RingInterval::point(*w))
-            .collect();
+        let coeffs: Vec<Interval> = data.weights.iter().map(|w| Interval::point(*w)).collect();
         to_bezier_spans_extra(data.kv, &coeffs, &merged)
     };
     let (pu, pv, pw) = (homog(pcurve, 0, 0.0), homog(pcurve, 1, 0.0), weight(pcurve));
@@ -600,28 +603,27 @@ pub fn surface_curve_residual(
 
     // The surface's four homogeneous channels, tensor-decomposed —
     // spatial channels shifted by the SAME center.
-    let lift = |f: &dyn Fn(usize) -> RingInterval| -> Vec<RingInterval> {
+    let lift = |f: &dyn Fn(usize) -> Interval| -> Vec<Interval> {
         (0..surface.weights.len()).map(f).collect()
     };
     let schan: Vec<TensorSpans> = (0..3)
         .map(|d| {
-            let c = RingInterval::point(center[d]);
-            let grid =
-                lift(&|i| RingInterval::point(surface.weights[i]) * (surface.coords[d][i] - c));
+            let c = Interval::point(center[d]);
+            let grid = lift(&|i| Interval::point(surface.weights[i]) * (surface.coords[d][i] - c));
             tensor_channel(surface.ku, surface.kv, &grid)
         })
         .collect();
     let swt = tensor_channel(
         surface.ku,
         surface.kv,
-        &lift(&|i| RingInterval::point(surface.weights[i])),
+        &lift(&|i| Interval::point(surface.weights[i])),
     );
     let surf: [&TensorSpans; 4] = [&schan[0], &schan[1], &schan[2], &swt];
 
     // Per shared t-span: the parameter window, the cells it touches,
     // and the hull across cells (ascending, D9).
     let breaks = pu.breaks.clone();
-    let mut spans: Vec<[RingInterval; 3]> = Vec::with_capacity(breaks.len() - 1);
+    let mut spans: Vec<[Interval; 3]> = Vec::with_capacity(breaks.len() - 1);
     for s in 0..breaks.len() - 1 {
         let rows = SpanRows {
             u: &pu.spans[s],
@@ -633,8 +635,8 @@ pub fn surface_curve_residual(
         let wden = row_hull(rows.wp);
         let wu = row_hull(rows.u) / wden;
         let wv = row_hull(rows.v) / wden;
-        if wu.is_poison() || wv.is_poison() {
-            spans.push([RingInterval::poison(); 3]);
+        if !wu.is_certified() || !wv.is_certified() {
+            spans.push([Interval::poison(); 3]);
             continue;
         }
         // Located in the SAME break arrays `cell_residual` indexes
@@ -647,18 +649,18 @@ pub fn surface_curve_residual(
         // below an in-range read without a `.get`.
         let (u0, u1) = cells_touched(&surf[0].breaks_u, wu.lo(), wu.hi());
         let (v0, v1) = cells_touched(&surf[0].breaks_v, wv.lo(), wv.hi());
-        let mut acc: Option<[RingInterval; 3]> = None;
+        let mut acc: Option<[Interval; 3]> = None;
         for su in u0..=u1 {
             for sv in v0..=v1 {
                 let b = cell_residual(&surf, su, sv, &rows);
                 acc = Some(match acc {
                     None => b,
-                    Some(prev) => core::array::from_fn(|d| RingInterval::hull(prev[d], b[d])),
+                    Some(prev) => core::array::from_fn(|d| Interval::hull(prev[d], b[d])),
                 });
             }
         }
         // `cells_touched` always returns at least one cell.
-        spans.push(acc.unwrap_or([RingInterval::poison(); 3]));
+        spans.push(acc.unwrap_or([Interval::poison(); 3]));
     }
     Ok(SurfaceResidual { breaks, spans })
 }

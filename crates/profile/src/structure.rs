@@ -10,8 +10,8 @@
 //! generic, so an interval lane can evaluate it and enclose the answer.
 //! A small, enumerable remainder is DISCRETE: which derived corner the
 //! gates admit, which surviving fillet candidate the selection ladder
-//! ranks first, which way a fit classifies, which vertex is the
-//! canonical start, which loop is the outer one. Those choices are
+//! ranks first, which way a fit classifies, which way a loop is
+//! traversed, which loop is the outer one. Those choices are
 //! structure, and structure is selected ONCE, at `f64`, identically for
 //! every lane — the alternative is two lanes describing two different
 //! solids and calling the disagreement a tolerance.
@@ -370,11 +370,10 @@ pub struct LoopCanonical {
     /// containment representative point.
     pub representative: usize,
     /// Whether canonicalization reversed the input chain to reach the
-    /// role's required winding.
+    /// role's required winding. The only permutation it applies: the
+    /// canonical start is always the authored vertex 0, which reversal
+    /// keeps in place.
     pub reversed: bool,
-    /// The rotation: which vertex of the oriented chain became the
-    /// canonical start.
-    pub start: usize,
     /// The canonical chain's per-segment shapes.
     pub segments: Vec<SegmentShape>,
     /// The canonical chain's declared tangent joints, sorted and
@@ -687,9 +686,8 @@ impl core::fmt::Display for StructureRefusal {
         match &self.kind {
             StructureRefusalKind::Indeterminate(source) => write!(
                 f,
-                "{} cannot be re-verified at this scalar: {source} — the elaboration's \
-                 structure stands unconfirmed, so nothing is assumed about it; \
-                 narrow the parameter box and try again",
+                "{} cannot be re-verified at this scalar: {source}. The structure stays \
+                 unconfirmed; narrow the parameter box and try again",
                 self.decision
             ),
             StructureRefusalKind::Flipped { recorded, found } => write!(

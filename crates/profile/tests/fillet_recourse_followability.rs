@@ -10,7 +10,7 @@
 //! caller the gate was written for.** All six are rendered by one arm —
 //! `PathError::Escalated`'s, which asks `fillet_recourse_for` for the
 //! sentence belonging to the escalation's predicate name, names the site
-//! ("resolving the fillet at this corner") and appends that sentence
+//! ("the fillet at this corner is undecided") and appends that sentence
 //! with no coincidence tail. `fillet_recourse_for` is the crate's ONE
 //! name-to-sentence map; nothing else spells it.
 //!
@@ -51,7 +51,7 @@
 //!   exact-order band `(f64::from_bits(1), f64::from_bits(2))`, inside
 //!   which no representable f64 lies, so `sign_within` is total on every
 //!   finite f64 margin. That is a statement about `f64` and nothing
-//!   wider: under `--features interval` a margin is an enclosure, and
+//!   wider: at the interval scalar a margin is an enclosure, and
 //!   `tests/interval_lane.rs` already drives `fillet_leg_fit` in band
 //!   there. The two rows below are scalar-scoped by construction.
 //!
@@ -151,7 +151,7 @@ fn carries_no_fillet_recourse(err: &PathError<f64>, what: &str) {
 fn carries_its_own_recourse(err: &PathError<f64>, sentence: &str, what: &str) {
     let shown = err.to_string();
     assert!(
-        shown.starts_with("resolving the fillet at this corner"),
+        shown.starts_with("the fillet at this corner is undecided"),
         "{what}: the refusal must name the site the door was resolving.\n  got: {shown}"
     );
     assert!(
@@ -1008,7 +1008,7 @@ fn the_stored_form_inband_recourse_is_followed_by_dropping_the_fillet() {
     );
     let shown = err.to_string();
     assert!(
-        shown.starts_with("reading back the fillet arc this door is about to store"),
+        shown.starts_with("the fillet arc about to be stored is undecided"),
         "the escalation names the site the door read, not a junction.\n  got: {shown}"
     );
     // The wrong site's prose is what this row watches for: a junction

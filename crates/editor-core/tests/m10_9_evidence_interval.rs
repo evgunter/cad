@@ -16,10 +16,9 @@
 //! (`m10_8_harness::ceiling`) is the shared probe. Run them:
 //!
 //! ```sh
-//! cargo test -p editor-core --features interval --test all -- \
+//! cargo test -p editor-core --test all -- \
 //!   m10_9_evidence_interval:: --ignored --nocapture
 //! ```
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
@@ -42,12 +41,16 @@ type NamedStudy = (&'static str, Box<dyn Fn(f64) -> ProfileDoc>);
 type StudyAtCeiling<'a> = (&'static str, f64, Study<'a>);
 
 /// The two rule sets this unit is a differential between: the shipped
-/// tier with the registered-identity door open, and M10-8's exactly
-/// (`SymRules::shipped_without_the_door`).
+/// tier with the registered-identity door open, and the same tier with
+/// the door shut (`SymRules::shipped_without_the_door` — shipped minus
+/// the door and nothing else; M10-8's tier itself is `a0_alone()`).
 fn door_rows() -> [(&'static str, SymRules); 2] {
     [
-        ("door OFF (M10-8)", SymRules::shipped_without_the_door()),
-        ("door ON  (M10-9)", SymRules::shipped()),
+        (
+            "door OFF (shipped minus the door)",
+            SymRules::shipped_without_the_door(),
+        ),
+        ("door ON  (shipped)", SymRules::shipped()),
     ]
 }
 
@@ -341,8 +344,7 @@ fn the_two_fillet_forms() {
 /// the door was a wider coefficient ring: the plate's rim residual needs
 /// ~640 bits and up, and the shipped bound is 256
 /// (`geom_core::sym::COEFF_BITS`,
-/// M10's closed `plate-rim-residual-needs-the-wide-coefficient-ring`,
-/// `docs/DOC-LEDGER.md` sweep 13).
+/// M10's closed `plate-rim-residual-needs-the-wide-coefficient-ring`).
 ///
 /// `COEFF_BITS` is a compile-time constant, so this row is run three
 /// times against three edited values (256, 1024, 4096) and the numbers

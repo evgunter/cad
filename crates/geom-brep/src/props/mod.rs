@@ -113,20 +113,30 @@
 //! altogether — a rim-only polar cap — that traversal supplies the
 //! missing extreme instead of refusing the face
 //! (`curved::sphere_rim_only_pole_level`). Both live on the sphere arm
-//! because that is where the extent can be silent and where a face's
-//! complement shares its whole boundary; the linear kinds' rim-only
-//! faces have no extent to name at all.
+//! because that is where the extent can be silent AND where the sense
+//! bit is what settles it: a rim of a ball bounds the cap under one
+//! bit and the ball minus the cap under the other.
 //!
-//! **The SHAPE DOOR asks only the first of the two**, and that is a
-//! divergence rather than an oversight: σ reads the face's sense bit
-//! and [`require_iso_rectangle`] is handed a surface and a loop, with
-//! no face, so that it answers a question about the boundary alone.
-//! The executed case is issue 1598's L-shaped complement — `Ok(())`
-//! from the door, `NotIsoRectangle { what: "props_rim_interior_side" }`
+//! **The cone's rim-only face has a missing extreme too, and it needs
+//! no bit** (`curved::cone_apex_level`): a cone is bounded on the apex
+//! side only, so `0` is the single candidate, and the fold sits in the
+//! shared parse where all three doors read it. What it does require is
+//! the sphere's premise transposed — every rim's traversal agreeing,
+//! which is unanimity of σ without σ, since σ is `d_u_sign` under one
+//! bit. A cylinder is unbounded along its axis both ways and has no
+//! candidate at all, so its rim-only face stays extent-less.
+//!
+//! **The SHAPE DOOR cannot ask the second, and asks its sense-free
+//! residue instead.** σ reads the face's sense bit and
+//! [`require_iso_rectangle`] is handed a surface and a loop, with no
+//! face, so that it answers a question about the boundary alone. What
+//! needs no bit is that every rim encodes the SAME side
+//! (`curved::unanimous_rim_side`), and the door takes that. The
+//! divergence it leaves is one rim: issue 1598's L-shaped complement
+//! has nothing for unanimity to compare — `Ok(())` from the door,
+//! `NotIsoRectangle { what: "props_rim_interior_side" }`
 //! from the flux lane, on one face. The door's own docs say what a
-//! consumer that needs the stronger premise reads instead, and the
-//! sense-free residue it could take is
-//! `work/props/the-shape-door-could-take-the-sense-free-rim-side-residue.md`. The total
+//! consumer that needs the stronger premise reads instead. The total
 //! `u`-measure `w(v)` changes only where a rim is (between rim levels
 //! the boundary is meridians, which move no `u`-endpoint), so the rule
 //! establishes `w ≡ Δu`. Before S58 the property was re-derived per
@@ -313,6 +323,17 @@ impl<T: SpanLocate> LoopEdge<T> {
     pub(crate) fn tag_at_t0(&self) -> u32 {
         if self.forward { self.start } else { self.end }
     }
+
+    /// The carrier points at the edge's TRAVERSAL ends, in traversal
+    /// order — `(p0, p1)` forward, swapped otherwise, the geometric
+    /// twin of the `(start, end)` tag pair.
+    pub(crate) fn traversal_ends(&self) -> (Point3<T>, Point3<T>) {
+        if self.forward {
+            (self.p0(), self.p1())
+        } else {
+            (self.p1(), self.p0())
+        }
+    }
 }
 
 /// The identity of the original edge a boundary edge is a piece of —
@@ -371,6 +392,14 @@ pub enum PropsError {
     /// `props_meridian_pieces_*` names on a reconstructed torus
     /// meridian) — an arc no closed form here may fold. The payload
     /// names the structural expectation that failed.
+    ///
+    /// **Name-only**, like [`Self::NotOneChartBranch`] and for the
+    /// same reason. Where a margin decided the refusal, `what` is that
+    /// decision's predicate name (`props_rim_level`, `props_rim_side`)
+    /// and the K stream holds the margin under it; the other arms'
+    /// `what` is a structural sentence no margin decided. Either way
+    /// this `Decide`-generic lane does not read a margin back as
+    /// `f64`.
     NotIsoRectangle {
         /// Which structural expectation failed (static description).
         what: &'static str,
@@ -399,19 +428,22 @@ pub enum PropsError {
     /// mirror nappe at the apex. A single sentence here would be a
     /// sphere sentence printed over a cone refusal.
     ///
-    /// **No measured overshoot in the payload, and that is a
-    /// scheduled gap, not a choice** (issue 1602). The margin IS
-    /// measured — it is the same `props_meridian_pole` /
-    /// `props_cone_apex` quantity the funnel records, levered to
-    /// metres — but reading a DEFINITE margin back as `f64` from a
-    /// `Decide`-generic lane needs a compound `Bounds`/`Enclosure`
-    /// bound, which `scripts/gates/bounds-allowlist.sh` does not
-    /// ratify for `props/curved.rs`. Every arm of this enum that
-    /// carries a measured `f64` gets it from a concrete scalar
-    /// ([`Self::QuadratureBudget`], from a `RingInterval`); the
-    /// generic arms are name-only, exactly as
-    /// [`Self::NotIsoRectangle`] is. Issue 1602 is the ratification
-    /// that would let this arm carry the number.
+    /// **Name-only: the measured overshoot's record is the K
+    /// stream, not this payload.** The margin that decided the
+    /// refusal is the `props_meridian_pole` / `props_cone_apex`
+    /// decision, levered to metres, and `k_stats::decide` records it
+    /// under that name — so the number that separates "re-author the
+    /// part" from "kernel bug" exists, where a diagnosis reads
+    /// margins. The caller's recourse (state the edge as two meeting
+    /// at the singularity) does not depend on its size. Carrying it
+    /// here would mean reading a definite margin back as `f64` from a
+    /// `Decide`-generic lane, a compound `Bounds` bound that
+    /// `scripts/gates/bounds-allowlist.sh` exists to keep off
+    /// `props/curved.rs`; one payload does not earn that seam. Every
+    /// arm of this enum that carries a measured `f64` gets it from a
+    /// concrete scalar ([`Self::QuadratureBudget`], from an
+    /// `Interval`), and the generic arms are name-only, as
+    /// [`Self::NotIsoRectangle`] is.
     NotOneChartBranch {
         /// Which boundary edge, as its index in the loop slice the
         /// caller handed in — the same order `topo::props::loop_edges`

@@ -12,7 +12,6 @@ Re-scoped 2026-09-20 by SYM's priority-seam cut
 | pri | item | cost | title |
 |---|---|---|---|
 | P0 | `a-face-frame-on-a-revolved-cap-refuses-on-pcurve-loop-continuity` | H | A boss on a FaceFrame taken from a revolved body's cap refuses on pcurve_loop_continuity at every symbolic dial, and the tier's rule E makes the freeze population 300x worse without moving the refusal |
-| P0 | `coefficient-ring-width-is-not-monotone-in-reach` | D | widening the coefficient ring can lose discharges: a frozen node matches itself as one opaque indeterminate, and the same node expanded may not close |
 | P0 | `derived-frame-placement-freezes-on-the-symbolic-lane` | H | A profile placed on a derived frame whose AXES carry a widened parameter does not certify on the symbolic lane: the re-normalised stored unit vectors freeze on degree and the identity is not reached (on a purely TRANSLATED derived frame the chain is constant and rule A0 folds it) |
 | P0 | `leaf-frozen-column-is-schedule-dependent-under-the-drive-memo` | D | A leaf receipt's frozen column is schedule-dependent under the drive-scoped plain memo |
 | P0 | `sym-f64-far-placement-trips-the-theorem-vs-numeric-assert` | H | Sym<f64>/Sym<Probe> at a far placement panic in Decide's theorem-vs-numeric debug_assert: the point channel is not a proof |
@@ -26,6 +25,20 @@ Re-scoped 2026-09-20 by SYM's priority-seam cut
 | None | `SYM-7` | None | the plain form outlives the leaf: a drive-scoped memo, shared across the drive's workers, with frozen re-defined as distinct-over-the-drive |
 | None | `the-span-identity-is-not-a-theorem-of-the-floats` | None | the arc span identity is a theorem of the reals and not of the floats: an adversarial torus at minor radius 1e18 contradicts it at the witness |
 | None | `the-witness-slack-is-eps-independent` | None | the door's f64 witness is a relative constant, not the run's eps: at a tight eps row it is many band-widths loose |
+
+## SYM-14 — requested by Ev (2026-09-22, P1), MERGED
+
+`SYM-14` merged 2026-09-22 (#3073): the chain demo — four links joined
+with an angular error at each joint, its dispersion drawn like the
+plate's, and the certified lane measured on it: the symbolic tier
+certifies the four-link chain whole at 0.111 of the study and the
+enclosure per joint is drawn beside the cloud (half the pin radius at
+the tip, whatever the link count); the plain interval lane refuses at
+every link count. Rows it left at P1 with Ev's request: the wedge wall
+(and why the box moves with ε), the arm straddle, the plain-interval
+refusal, the façade row (on LIB), and
+`the-chain-demo-detects-no-self-intersection` (Ev, on #3073; its
+certified half blocked on CLEAR's `symbolic-tier-and-clearance-engine`).
 
 ## Order
 
@@ -46,8 +59,23 @@ as inward — take it early and tell FRAME when it lands.
 
 ## Review posture
 
-OPEN, for this program's first dispatch. SYM inherits protocol v7
-(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
-only, opus/opus outside it. Nobody has re-asked the triage question for
-this slate, so the first orchestrator answers it here rather than
-inheriting an answer.
+Protocol v7 (`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on
+triaged-in units only, opus/opus outside it. **Answered per unit at
+spec time, recorded here:** `SYM-11`
+(`sym-f64-far-placement-trips-the-theorem-vs-numeric-assert`) IN — an
+architectural decision on the `Decide` door's contract per witness
+kind, H / STRUCTURAL, block SYM-B3 slot 0; the two placement-freeze
+rows are the default IN (they change what the tier decides on a
+document) and are triaged when spec'd (SYM-12 = the derived-frame
+freeze's next shape, H / NUMERIC, slot 1 — CLOSED 2026-09-22, #3046:
+rule F's negative arm; its seam with DECIDE-3,
+`the-negative-arms-denominator-clause-widens-with-decide-3s-definite-quadratic`,
+is scheduled at the `props/sign-hull` merge, whoever merges it owing
+the ladder and the eight with both units in);
+`leaf-frozen-column-is-schedule-dependent-under-the-drive-memo`
+(SYM-13, D / STRUCTURAL, slot 2, Opus by the block's draw) is IN as a
+receipt-contract decision — MERGED 2026-09-22 (#3054; the spec deleted with its ledger entry; block SYM-B3 concluded),
+branch `sym/13-leaf-need`;
+the ring item and the pcurve row are triaged when spec'd (the latter
+is not certainly SYM's). The block's pre-draw fields and draw are on
+`sym/b3-block`.

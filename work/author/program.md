@@ -2,13 +2,13 @@
 id: author
 kind: program
 title: AUTHOR — what the GUI cannot author: the doors a person needs to build geometry without leaving the viewer
-status: open
+status: active
 opened: 2026-09-20
 area: gui
 prefix: author/
 tag: (AUTHOR orchestrator)
 ab_band: 6800-6899
-paths: [crates/viewer/src/forms.rs, crates/viewer/src/props.rs, crates/viewer/src/sketch.rs]
+paths: [crates/viewer/src/pane/create.rs, crates/viewer/src/pane/properties.rs, crates/viewer/src/forms.rs, crates/viewer/src/props.rs, crates/viewer/src/drafts.rs, crates/viewer/src/datums.rs, crates/viewer/src/widgets.rs, crates/viewer/src/blend.rs, crates/viewer/src/tree.rs, crates/viewer/src/bounds.rs, crates/viewer/src/sketch.rs, crates/viewer/src/session.rs, crates/viewer/src/session/op.rs, crates/viewer/src/session/author.rs, crates/viewer/src/session/refuse.rs]
 keep_out: [opened by CHROME's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - CHROME keeps the viewer's reported defects and its entrenching architecture and its band 1600-1699, the six prose rows of the same cut went to VDOC whose charter is claims the tree makes about itself, the kernel doors these rows wait on are EDIT's (the DocEdit vocabulary) and WIRE's (the placement lift) - a row here that needs one says so and rides the kernel unit rather than reaching across, crates/viewer/src/app.rs and session.rs are shared with CHROME VSEAM and VGEOM by the 2026-09-17 re-scope and stay shared, announce the seam in the PR]
 priority: P0
 ---
@@ -36,3 +36,55 @@ probe reports every negative extrude distance as valid.
 
 Charter and order: `work/author/plan.md`; narrative in
 `work/author/log.md`.
+
+## Territory widened 2026-09-21, after the first two dispatches
+
+The opening `paths` named three files and **not one of them is where
+either of the first two units did its work**. Every row on this slate
+is a creation or property FORM, and those live in
+`crates/viewer/src/pane/create.rs` and `pane/properties.rs`, with the
+vocabularies they fill in at `drafts.rs`, `session/author.rs` and
+`session/refuse.rs`. A program whose declared territory cannot see its
+own units tells `work.py territory` nothing, which is the one thing
+that list is for: a lane learns at the moment it matters which other
+program claims the ground it is on.
+
+Added rather than swapped — the three opening globs stay, `forms.rs`
+in particular being where the offering enums live. **All five
+additions are shared ground with CHROME**, and with VIEW, VNEWS,
+VSEAM or VGEOM depending on the file; that is legitimate and expected
+(`work/README.md`, 2026-09-20: shared ground is fine, what is owed is
+awareness while a lane is LIVE). The seam is announced on CHROME's
+log. No `keep_out` clause is written for the overlap, because none of
+it needs explaining beyond this paragraph.
+
+## `paths` widened a second time (2026-09-21), from evidence rather than guess
+
+The 2026-09-20 widening below was still short. AUTH-1 and AUTH-2
+between them changed **thirteen** files under `crates/viewer/src/`;
+`paths` named eight, six of which overlapped. `blend.rs`,
+`datums.rs`, `session.rs`, `session/op.rs` and `widgets.rs` were all
+edited by a merged AUTHOR unit while unclaimed, so
+`work.py territory` could not have warned a sibling lane about any of
+them — the second time in two days that this list failed at the one
+job it has.
+
+This revision is taken from `git diff --name-only` over the two merged
+units plus the files the eight open rows name in their own bodies
+(`tree.rs` and `blend.rs` for the three label sites,
+`bounds.rs` for `a-negative-extrude-distance-probes-as-valid`, whose
+paragraph in `plan.md` was itself corrected on 2026-09-21 after naming
+the wrong two files). It is evidence, not estimate.
+
+`lib.rs` was edited by both units too and is deliberately LEFT OUT
+rather than counted among the five above — the omission is a choice,
+not a sixth miss (CHROME caught the two lists disagreeing, 2026-09-21):
+the
+edits are one-line module declarations, and claiming a file every
+viewer lane touches would make this program appear in every warning
+and so make the warning worth less. Over-claiming has a cost too, and
+the honest list is the files where AUTHOR's work actually collides.
+
+A file-list correction with no design implication is not an `[ev]`
+question (Ev, PR 1916). Shared ground stays legitimate; what is owed
+is awareness while a lane is live (`work/README.md`, 2026-09-20).

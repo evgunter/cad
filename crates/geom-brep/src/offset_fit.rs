@@ -184,7 +184,7 @@
 //! The **production** door takes [`Tol`] — [`fit_offset`],
 //! [`certify_offset`], [`certify_offset_over`],
 //! [`approx_offset_surface`], [`recertify_approx`]. That is the whole
-//! surface the kernel reaches: `topo::props`'s lane doors call the last
+//! surface the kernel reaches: [`crate::OffsetFitLane`] calls the last
 //! two, and the mint calls down to the first three. A caller has no
 //! number to pass, so two callers cannot fit against two epsilons, and
 //! the value is read once (`precision_target`, private — the doors
@@ -202,7 +202,7 @@
 //! `crates/sweep/tests/` are the whole population.
 //!
 //! **One production caller reaches an `_at` routine**, named at its own
-//! door: the transform lane's `PcurveFittedLane::remap_certificate`
+//! door: the transform door's [`crate::OffsetFitLane::remap`]
 //! classifies a MAPPED pair against the tolerance the surface's own
 //! claim was made at, which is a stored datum and deliberately not the
 //! run's ε. Nothing else does, and
@@ -212,15 +212,16 @@
 //!
 //! The whole stack is **f64 substrate**: fitting is C6 structure
 //! selection (same inputs ⇒ same knots and control bits, D9), and the
-//! C9 ring's hull bounds are `f64` upper bounds by construction — the
+//! certification's hull bounds are `f64` upper bounds by construction — the
 //! `SsiCertificate::hull_sup` posture. Predicates decide through the
 //! kernel's one classification funnel.
 
 use geom::curves::fit::{FitError, interpolate_columns};
 use geom::surfaces::{NurbsSurface, Surface};
+use geom_core::Bounds;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotVector, SplineError};
-use geom_core::{Band, Point3, Tol, ring_interval::RingInterval};
+use geom_core::{Band, Interval, Point3, Tol};
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, norm_sup, sqrt_down};
 use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
@@ -565,20 +566,20 @@ impl From<FitError> for OffsetFitError {
 impl core::fmt::Display for OffsetFitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Meter(e) => write!(f, "fit_offset refused at a door meter: {e}"),
-            Self::PatchBound(e) => write!(f, "fit_offset: {e}"),
-            Self::Fit(e) => write!(f, "fit_offset: the interpolation stack refused: {e}"),
-            Self::Structure(e) => write!(f, "fit_offset: spline structure refused: {e}"),
+            Self::Meter(e) => write!(f, "the offset surface could not be fitted: {e}"),
+            Self::PatchBound(e) => write!(f, "{e}"),
+            Self::Fit(e) => write!(f, "the offset surface's interpolation refused: {e}"),
+            Self::Structure(e) => write!(f, "the offset surface's spline structure refused: {e}"),
             Self::InvalidRequest { d, tolerance } => write!(
                 f,
-                "fit_offset: the request is not fittable — offset distance {d} m must be \
+                "the offset request is not fittable — offset distance {d} m must be \
                  finite and non-zero, tolerance {tolerance} m finite and positive; both are \
                  this call's own arguments, so supply them from the request rather than \
                  from a derived quantity that went non-finite"
             ),
             Self::NonFiniteSample { uv } => write!(
                 f,
-                "fit_offset: the base surface evaluated to a non-finite offset point at \
+                "the base surface evaluated to a non-finite offset point at \
                  (u, v) = ({}, {}) — poison in, refusal out: the door meters admitted this \
                  sample in bound, so the base's own description is what to repair, not the \
                  offset request",
@@ -591,7 +592,7 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "fit_offset: the round budget of {budget} refinement rounds ran out on a \
+                "the offset fit's round budget of {budget} refinement rounds ran out on a \
                  {}x{} sample grid with the bound still converging — the achieved sup \
                  bound is {achieved} m against a tolerance of {tolerance} m; the lever is \
                  OFFSET_FIT_BUDGET; nothing uncertified is returned",
@@ -605,7 +606,7 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "fit_offset: the per-direction sample cap of {cap} stopped the refinement \
+                "the offset fit's per-direction sample cap of {cap} stopped the refinement \
                  loop on a {}x{} sample grid after {rounds} of {OFFSET_FIT_BUDGET} rounds — \
                  the next round's schedule would exceed the cap — with an achieved sup \
                  bound of {achieved} m against a tolerance of {tolerance} m; the lever is \
@@ -621,7 +622,7 @@ impl core::fmt::Display for OffsetFitError {
                 last_finite: None,
             } => write!(
                 f,
-                "fit_offset: the refinement loop stopped on a {}x{} sample grid after \
+                "the offset fit's refinement loop stopped on a {}x{} sample grid after \
                  {rounds} rounds without any round producing a finite sup bound, at \
                  d = {d} m against a tolerance of {tolerance} m — the certifying limb \
                  answered +∞ on every grid reached, so there is no achieved bound to \
@@ -640,7 +641,7 @@ impl core::fmt::Display for OffsetFitError {
                 last_finite: Some(b),
             } => write!(
                 f,
-                "fit_offset: the refinement loop stopped on a {}x{} sample grid after \
+                "the offset fit's refinement loop stopped on a {}x{} sample grid after \
                  {rounds} rounds with a non-finite sup bound on its last grid, at d = {d} m \
                  against a tolerance of {tolerance} m — a coarser grid reached {b} m and \
                  the finer one lost it, so the schedule is the lever and {b} m is the \
@@ -654,7 +655,7 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "fit_offset: the refinement loop STALLED on a {}x{} sample grid after \
+                "the offset fit's refinement loop STALLED on a {}x{} sample grid after \
                  {rounds} rounds — bisecting every failing cell in both directions did \
                  not lower the achieved sup bound of {achieved} m, against a tolerance \
                  of {tolerance} m, so the remaining round budget cannot reach it and \
@@ -677,7 +678,7 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "fit_offset: {} measured {bound} m against a tolerance of {tolerance} m \
+                "the offset fit's {} measured {bound} m against a tolerance of {tolerance} m \
                  — a fit handed in does not certify at the tolerance asked (an on-locus \
                  max above it is a fit wrong where the samples looked; a hull sup above it \
                  is a bound too weak between them), so re-fit through fit_offset at this \
@@ -704,8 +705,8 @@ impl std::error::Error for OffsetFitError {}
 // module never runs at. It arrives there as provenance and never as
 // authority: at `f64` the validator re-derives against the
 // description and never consults the stored copy, and at a scalar
-// with no re-derivation lane — `PropsQuadLane::recertify_approx` in
-// `topo::props` answering `None` — tier 3 REFUSES the face with
+// with no re-derivation lane — `topo::AtRestPolicy::offset_fit_lane`
+// answering `None` — tier 3 REFUSES the face with
 // `ValidationError::ApproxLaneUnsupported` rather than accepting the
 // carried record. That refusal is about the derivation missing at
 // that scalar, never about a value that could not arrive.
@@ -1053,9 +1054,9 @@ pub fn certify_offset_at(
 /// **The window rule and the certification behind it, one home.**
 /// Every door that certifies an offset fit against a described base
 /// goes through here: the storage mint ([`approx_offset_surface`]),
-/// the validator's re-derivation ([`recertify_approx`], which tier 3
-/// reaches through `topo::props::PropsQuadLane`) and the transform
-/// door's lane (`crate::PcurveFittedLane::remap_certificate`).
+/// the validator's re-derivation ([`recertify_approx`]) and the
+/// transform door's remap ([`crate::OffsetFitLane::remap`]) — all
+/// three reached through [`crate::OffsetFitLane`].
 ///
 /// The rule: [`certify_offset`] derives over the base's WHOLE chart
 /// rectangle, so a `window` is honoured exactly when it IS that
@@ -1083,7 +1084,7 @@ pub fn certify_offset_over(
 /// ε — the engine as an instrument (module docs).
 ///
 /// **It has one production caller**, and that is not a leak: the
-/// transform door's lane (`crate::PcurveFittedLane::remap_certificate`)
+/// transform door's remap ([`crate::OffsetFitLane::remap`])
 /// re-derives a MAPPED pair against the tolerance the surface's own
 /// claim was made at, which is the property that keeps the map and the
 /// validator agreeing about a given surface (`topo::transform`'s
@@ -1772,7 +1773,7 @@ struct Composite {
     breaks_v: Vec<f64>,
 }
 
-/// A row-major ring net of one spatial channel of a control net,
+/// A row-major enclosure net of one spatial channel of a control net,
 /// optionally weighted (the homogeneous `A^c = w·P^c`).
 ///
 /// `patch_bound::comp_nets` is the same extraction, and the two now
@@ -1794,21 +1795,21 @@ struct Composite {
 /// RING's, not `f64`'s, which is what makes this sound — an `f64`
 /// difference would round to a control point the base does not have,
 /// and the certificate would then be about a surface nobody supplied.
-/// The ring's outward rounding of `P − centre` is one ulp of the
+/// Interval arithmetic's outward rounding of `P − centre` is one ulp of the
 /// DIFFERENCE, i.e. of the patch's extent, where the unrecentred net
 /// carried one ulp of the coordinate.
-fn channel(n: &NurbsSurface<f64>, c: usize, form: NetForm, origin: &Origin) -> Vec<RingInterval> {
+fn channel(n: &NurbsSurface<f64>, c: usize, form: NetForm, origin: &Origin) -> Vec<Interval> {
     n.control()
         .iter()
         .zip(n.weights().iter())
         .map(|(p, w)| {
-            let x = RingInterval::point(match c {
+            let x = Interval::point(match c {
                 0 => p.x,
                 1 => p.y,
                 _ => p.z,
-            }) - RingInterval::point(origin.0[c]);
+            }) - Interval::point(origin.0[c]);
             match form {
-                NetForm::Homogeneous => RingInterval::point(*w) * x,
+                NetForm::Homogeneous => Interval::point(*w) * x,
                 NetForm::Spatial => x,
             }
         })
@@ -1940,13 +1941,13 @@ impl Composite {
         extra_u.extend(fit.knots_u().interior_knots().map(|(t, _)| t));
         let mut extra_v: Vec<f64> = kv.interior_knots().map(|(t, _)| t).collect();
         extra_v.extend(fit.knots_v().interior_knots().map(|(t, _)| t));
-        let dec = |kku: &KnotVector, kkv: &KnotVector, grid: &[RingInterval]| {
+        let dec = |kku: &KnotVector, kkv: &KnotVector, grid: &[Interval]| {
             PatchSpans::decompose(kku, kkv, grid, &extra_u, &extra_v)
         };
         // The FIT's homogeneous net `F̃ = w_fit·P_fit` and its weight
         // channel. On a unit-weight fit `w_fit ≡ 1`, the spatial net
         // IS the homogeneous one and `wf` is not formed: the identity
-        // product would widen the ring for nothing.
+        // product would widen the enclosure for nothing.
         // The one recentring origin every net below is built against.
         let ctr = recentre_origin(base);
         let fit_form = NetForm::of(fit);
@@ -1957,26 +1958,22 @@ impl Composite {
             dec(fit.knots_u(), fit.knots_v(), &fc(2)),
         ];
         let wf = (fit_form == NetForm::Homogeneous).then(|| {
-            let g: Vec<RingInterval> = fit
-                .weights()
-                .iter()
-                .map(|x| RingInterval::point(*x))
-                .collect();
+            let g: Vec<Interval> = fit.weights().iter().map(|x| Interval::point(*x)).collect();
             dec(fit.knots_u(), fit.knots_v(), &g)
         });
         // The base's homogeneous nets and their first derivatives.
-        let a_grid: Vec<Vec<RingInterval>> = (0..3)
+        let a_grid: Vec<Vec<Interval>> = (0..3)
             .map(|c| channel(base, c, NetForm::of(base), &ctr))
             .collect();
         let ku1 = derived_knots(ku)?;
         let kv1 = derived_knots(kv)?;
-        let du = |g: &[RingInterval]| {
+        let du = |g: &[Interval]| {
             Net::from_flat(nu, nv, g.to_vec())
                 .diff_u_knots(ku)
                 .as_flat()
                 .to_vec()
         };
-        let dv = |g: &[RingInterval]| {
+        let dv = |g: &[Interval]| {
             Net::from_flat(nu, nv, g.to_vec())
                 .diff_v_knots(kv)
                 .as_flat()
@@ -1997,15 +1994,11 @@ impl Composite {
             dec(ku, &kv1, &dv(&a_grid[1])),
             dec(ku, &kv1, &dv(&a_grid[2])),
         ];
-        let w_grid: Vec<RingInterval> = base
-            .weights()
-            .iter()
-            .map(|x| RingInterval::point(*x))
-            .collect();
+        let w_grid: Vec<Interval> = base.weights().iter().map(|x| Interval::point(*x)).collect();
         let w = if rational {
             dec(ku, kv, &w_grid)
         } else {
-            a[0].constant(RingInterval::one())
+            a[0].constant(Interval::one())
         };
         // Ẽ = F̃·w − A·w_fit = w·w_fit·(S_fit − S). The composite is
         // homogeneous in the PRODUCT of the two weights, which is
@@ -2048,7 +2041,7 @@ impl Composite {
         } else {
             auav
         };
-        let x = dot_spans(&e, &e).sub(&wt.mul(&wt).scale(RingInterval::point(d).sqr()));
+        let x = dot_spans(&e, &e).sub(&wt.mul(&wt).scale(Interval::point(d).sqr()));
         let y = cross_spans(&e, &m_tilde);
         let dd = dot_spans(&e, &m_tilde);
         let (bu, bv) = x.breaks();
@@ -2079,7 +2072,7 @@ impl Composite {
     /// It is the DIVISOR of a lower bound on `‖E‖`
     /// ([`Composite::e_floors`]), so an upper bound short by one ulp
     /// makes that quotient unsound. [`norm_sup`] rounds every step
-    /// outward — the per-channel square and both sums in the ring,
+    /// outward — the per-channel square and both sums in certification arithmetic,
     /// then `sqrt_up`; an `f64` fold of the same three endpoints
     /// rounds to nearest at each multiply and add and lands below
     /// this reading on most cells of a real grid.
@@ -2123,17 +2116,24 @@ impl Composite {
     /// selects between these two intervals rather than re-spelling
     /// either: the reading under test is the only thing that differs
     /// between the row and production.
-    fn e_floors(&self, su: usize, sv: usize) -> (RingInterval, RingInterval) {
+    fn e_floors(&self, su: usize, sv: usize) -> (Interval, Interval) {
         let wt = self.wt.cell_hull(su, sv);
-        let e_mig_sq = RingInterval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
-            + RingInterval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
-            + RingInterval::point(mig(self.e[2].cell_hull(su, sv))).sqr();
-        let e_mig_iv = RingInterval::point(sqrt_down(e_mig_sq.lo())) / wt;
+        let e_mig_sq = Interval::point(mig(self.e[0].cell_hull(su, sv))).sqr()
+            + Interval::point(mig(self.e[1].cell_hull(su, sv))).sqr()
+            + Interval::point(mig(self.e[2].cell_hull(su, sv))).sqr();
+        // The re-mint through `point` was poison-preserving only
+        // while a refused square had NaN endpoints. It does not: the
+        // refusal is asked by name and carried across by hand.
+        let e_mig_iv = if !e_mig_sq.is_certified() {
+            Interval::poison()
+        } else {
+            Interval::point(sqrt_down(e_mig_sq.lo())) / wt
+        };
         let m_sup = self.m_tilde_sup(su, sv);
         let e_proj_iv = if m_sup > 0.0 && m_sup.is_finite() {
-            RingInterval::point(mig(self.dd.cell_hull(su, sv))) / (RingInterval::point(m_sup) * wt)
+            Interval::point(mig(self.dd.cell_hull(su, sv))) / (Interval::point(m_sup) * wt)
         } else {
-            RingInterval::zero()
+            Interval::zero()
         };
         (e_mig_iv, e_proj_iv)
     }
@@ -2142,17 +2142,23 @@ impl Composite {
     /// (module docs). `f64::INFINITY` whenever a side condition is
     /// not proved — never a finite wrong answer.
     ///
-    /// **The whole assembly stays in the ring**, with `.hi()` read
+    /// **The whole assembly stays in certification arithmetic**, with `.hi()` read
     /// exactly once at the end: every intermediate is a
-    /// [`RingInterval`], so the outward rounding of each quotient,
-    /// product and sum is the ring's. An `f64` fold of ring endpoints
+    /// [`Interval`], so the outward rounding of each quotient,
+    /// product and sum is interval arithmetic's. An `f64` fold of enclosure endpoints
     /// would round to nearest at each step and under-cover the real
     /// bound by ulps, which "certified" does not permit.
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
     fn cell_bound(&self, su: usize, sv: usize, floor: f64, d: f64) -> f64 {
+        // **Every refusal below is asked by name before its
+        // endpoint is read.** A refusal is its decoration, so
+        // a refused hull carries ordinary endpoints: `w_lo > 0.0` and
+        // `w_lo.is_finite()` are both TRUE of one, and so is the
+        // `hi.is_finite()` at the end. `f64::INFINITY` is the whole
+        // function's answer for anything not proved.
         let w = self.w.cell_hull(su, sv);
         let w_lo = w.lo();
-        if !(w_lo > 0.0) || !w_lo.is_finite() {
+        if !w.is_certified() || !(w_lo > 0.0) || !w_lo.is_finite() {
             return f64::INFINITY;
         }
         // `w̃ = w·w_fit`, the weight `Ẽ`, `X` and the sign witness are
@@ -2160,34 +2166,39 @@ impl Composite {
         // both factors, and it is proved here rather than assumed.
         let wt = self.wt.cell_hull(su, sv);
         let wt_lo = wt.lo();
-        if !(wt_lo > 0.0) || !wt_lo.is_finite() {
+        if !wt.is_certified() || !(wt_lo > 0.0) || !wt_lo.is_finite() {
             return f64::INFINITY;
         }
         // The sign witness: `sign(E·n) = sign(D)` (the denominator
         // `w·‖M̃‖` is positive), and the normal-component bound below
         // needs `E·n` to carry `d`'s sign.
         let dh = self.dd.cell_hull(su, sv);
-        if !(if d > 0.0 {
-            dh.lo() > 0.0
-        } else {
-            dh.hi() < 0.0
-        }) {
+        if !dh.is_certified()
+            || !(if d > 0.0 {
+                dh.lo() > 0.0
+            } else {
+                dh.hi() < 0.0
+            })
+        {
             return f64::INFINITY;
         }
-        let abs_d = RingInterval::point(d.abs());
+        let abs_d = Interval::point(d.abs());
         let (e_mig_iv, e_proj_iv) = self.e_floors(su, sv);
         // The larger of two sound lower bounds on the same norm is a
         // sound lower bound, and the only thing either is read for is
         // its low end — so the selection hands back that number
         // rather than the interval it came out of.
+        if !e_mig_iv.is_certified() || !e_proj_iv.is_certified() {
+            return f64::INFINITY;
+        }
         let e_hull_lo = e_mig_iv.lo().max(e_proj_iv.lo());
         // | ‖E‖ − |d| | = |X| / (w̃²·(‖E‖ + |d|)).
-        let x_mag = RingInterval::from_bounds(0.0, self.x.cell_hull(su, sv).mag());
-        let dist_iv = x_mag / (wt.sqr() * (RingInterval::point(e_hull_lo) + abs_d));
+        let x_mag = Interval::from_bounds(0.0, self.x.cell_hull(su, sv).mag());
+        let dist_iv = x_mag / (wt.sqr() * (Interval::point(e_hull_lo) + abs_d));
         // τ = ‖Y‖ / (w̃·‖M̃‖) ≤ sup‖Y‖ / (floor·w̃·w³), using
-        // ‖M̃‖ = w³·‖m‖ ≥ w³·floor. `‖Y‖` from above is the ring's
+        // ‖M̃‖ = w³·‖m‖ ≥ w³·floor. `‖Y‖` from above is interval arithmetic's
         // own fold, for the reason [`norm_sup`] gives.
-        let y_mag = RingInterval::from_bounds(
+        let y_mag = Interval::from_bounds(
             0.0,
             norm_sup(&[
                 self.y[0].cell_hull(su, sv),
@@ -2195,17 +2206,23 @@ impl Composite {
                 self.y[2].cell_hull(su, sv),
             ]),
         );
-        let tau_iv = y_mag / (RingInterval::point(floor) * wt * w.powi(3));
+        let tau_iv = y_mag / (Interval::point(floor) * wt * w.powi(3));
         // `‖E‖` from below once more, for the `τ²/‖E‖` term: the
         // better of the two hull readings above, or `|d| − dist` when
         // that is larger. The three are lower bounds on the same
         // norm, so their max is one too — the same `max`, spelled the
         // same way.
+        if !dist_iv.is_certified() {
+            return f64::INFINITY;
+        }
         let e_floor = e_hull_lo.max(d.abs() - dist_iv.hi());
         if !(e_floor > 0.0) {
             return f64::INFINITY;
         }
-        let bound = dist_iv + tau_iv + tau_iv.sqr() / RingInterval::point(e_floor);
+        let bound = dist_iv + tau_iv + tau_iv.sqr() / Interval::point(e_floor);
+        if !bound.is_certified() {
+            return f64::INFINITY;
+        }
         let hi = bound.hi();
         if hi.is_finite() { hi } else { f64::INFINITY }
     }
@@ -2216,8 +2233,9 @@ impl Composite {
 mod tests {
     use super::{Composite, Refine, directional_mark, stall_verdict};
     use crate::offset_meters::{norm_sup, sqrt_up};
+    use geom_core::Bounds;
     use geom_core::spline::KnotVector;
-    use geom_core::{Band, Point3, Tol, ring_interval::RingInterval};
+    use geom_core::{Band, Interval, Point3, Tol};
 
     /// One cell's certificate, split into the terms the module doc
     /// names, with the lower bound on `‖E‖` selectable: `Witness`
@@ -2265,7 +2283,7 @@ mod tests {
         {
             return unproved;
         }
-        let abs_d = RingInterval::point(d.abs());
+        let abs_d = Interval::point(d.abs());
         // THE one expression the two modes differ in: both readings
         // come out of the shipped `e_floors`, and the mode chooses
         // which of them the rest of this decomposition runs on.
@@ -2274,9 +2292,9 @@ mod tests {
             ELow::Componentwise => e_mig_iv.lo(),
             ELow::Witness => e_mig_iv.lo().max(e_proj_iv.lo()),
         };
-        let x_mag = RingInterval::from_bounds(0.0, comp.x.cell_hull(su, sv).mag());
-        let dist_iv = x_mag / (wt.sqr() * (RingInterval::point(e_hull_lo) + abs_d));
-        let y_mag = RingInterval::from_bounds(
+        let x_mag = Interval::from_bounds(0.0, comp.x.cell_hull(su, sv).mag());
+        let dist_iv = x_mag / (wt.sqr() * (Interval::point(e_hull_lo) + abs_d));
+        let y_mag = Interval::from_bounds(
             0.0,
             norm_sup(&[
                 comp.y[0].cell_hull(su, sv),
@@ -2284,18 +2302,18 @@ mod tests {
                 comp.y[2].cell_hull(su, sv),
             ]),
         );
-        let tau_iv = y_mag / (RingInterval::point(floor) * wt * w.powi(3));
+        let tau_iv = y_mag / (Interval::point(floor) * wt * w.powi(3));
         let e_floor = e_hull_lo.max(d.abs() - dist_iv.hi());
         if !(e_floor > 0.0) {
             return unproved;
         }
-        let t3 = (tau_iv.sqr() / RingInterval::point(e_floor)).hi();
+        let t3 = (tau_iv.sqr() / Interval::point(e_floor)).hi();
         (
             dist_iv.hi(),
             tau_iv.hi(),
             t3,
             e_hull_lo,
-            (dist_iv + tau_iv + tau_iv.sqr() / RingInterval::point(e_floor)).hi(),
+            (dist_iv + tau_iv + tau_iv.sqr() / Interval::point(e_floor)).hi(),
         )
     }
 
@@ -2505,7 +2523,7 @@ mod tests {
     /// a LOWER bound on `‖E‖`, so a divisor that is even slightly too
     /// small makes the quotient too large and the certificate
     /// unsound. The row reads the shipped [`Composite::m_tilde_sup`]
-    /// against the ring reading assembled independently here, on
+    /// against interval arithmetic reading assembled independently here, on
     /// every cell of the micron grid, and reds if the shipped one is
     /// ever below it. One grid carries the claim — it is per-cell, so
     /// 308 cells is 308 chances — and the fits here are seconds each.
@@ -2513,7 +2531,7 @@ mod tests {
     /// **What the row is guarding against is a specific regression**,
     /// which is why it also counts the other spelling: an `f64` fold
     /// of the same three endpoints — three round-to-nearest multiplies
-    /// and two adds, then one `next_up` — lands BELOW the ring
+    /// and two adds, then one `next_up` — lands BELOW interval arithmetic
     /// reading on almost every cell of every grid measured: 306 of
     /// 308 here, 428 of 434 on the quarter cylinder's `d = 1e-5`
     /// grid, 768 of 810 on the bumpy patch's. The counter is printed
@@ -2543,7 +2561,7 @@ mod tests {
                 assert!(
                     shipped >= ring,
                     "{name} d={d:e} cell ({su},{sv}): the divisor {shipped:e} is below \
-                     the ring reading {ring:e} — it is not certified from above"
+                     interval arithmetic reading {ring:e} — it is not certified from above"
                 );
                 let fold = sqrt_up(h[0].mag().powi(2) + h[1].mag().powi(2) + h[2].mag().powi(2));
                 if fold < ring {
@@ -2552,7 +2570,7 @@ mod tests {
             }
         }
         eprintln!(
-            "{name} d={d:e}: {cells} cells, an f64 fold would sit below the ring \
+            "{name} d={d:e}: {cells} cells, an f64 fold would sit below interval arithmetic \
              reading on {fold_below} of them"
         );
     }
@@ -2776,7 +2794,8 @@ mod recourse_tests {
         // the lever the caller turns satisfies the claim the same way
         // an imperative does.
         const RECOURSE_WORDS: &[&str] = &[
-            "lever", "supply", "repair", "loosen", "ask", "re-fit", "schedule",
+            "lever", "supply", "repair", "loosen", "ask", "re-fit", "schedule", "split", "report",
+            "describe", "drop",
         ];
         let meter = MeterError::NormalFloor {
             floor: 0.0,
@@ -2857,9 +2876,17 @@ mod recourse_tests {
                 OffsetFitError::Structure(_) => Some(structure.to_string()),
                 _ => None,
             };
+            // The four carriers below each hold an enforcement row of
+            // their own (`every_meter_error_arm_names_a_recourse`,
+            // `every_patch_bound_error_arm_names_a_recourse`,
+            // `every_fit_error_arm_names_a_recourse`,
+            // `every_spline_error_arm_names_a_recourse`), so these arms
+            // are asserted TRANSITIVELY: the carrier is rendered whole
+            // AND its clause survives into the message a caller reads.
+            // The carrier's row is what makes that a statement about
+            // every payload rather than about the one built here.
             if let Some(carrier) = delegated {
                 assert!(msg.contains(&carrier), "carrier not rendered whole: {msg}");
-                continue;
             }
             let lower = msg.to_lowercase();
             assert!(

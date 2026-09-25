@@ -33,10 +33,10 @@ curated surface a Python caller is measured against. `analysis.rs`
 joined them at LIB-MC: it was outside this alphabet in BOTH directions
 while it curated the whole E1/E2 analysis lane and E11.1's advisory
 estimator, which is how three of one family's four chartered doors and
-a whole un-gated lane went unreported. Its certified half is behind
-`#[cfg(feature = "interval")]` and this reader cannot see a `cfg`
-attribute at all, so those names arrive looking exactly like the
-ungated ones beside them and are dispositioned by hand in `NOT_BOUND`
+a whole lane went unreported. Its certified half answers at the
+certified scalar, which this binding never evaluates at, and nothing in
+a `pub use` list says so, so those names arrive looking exactly like the
+`f64` ones beside them and are dispositioned by hand in `NOT_BOUND`
 — stated here because a blind spot nobody wrote down is an unverified
 claim. They are read with the Rust guard's own technique: comments
 stripped first, then the leaf name of every `pub use` item, so prose
@@ -596,6 +596,42 @@ BOUND_AS = {
     "IN": "inch",
     "M": "m",
     "MM": "mm",
+    # THE SECOND SAME-SPELLED PAIR was here, and this roster is where
+    # it ends up now that the collision is gone. `pncad.pyi` published
+    # a `DimensionError` class that was the QUANTITY boundary's
+    # operator check — `1 * m + 1 * rad`, with `op`/`left`/`right` —
+    # while the curated name is `editor_core`'s document-layer refusal,
+    # a different type answering a different question; rule 1 matched
+    # them on spelling alone, exactly as it matched the two `Datum`s.
+    # The quantity refusal now crosses under its own Rust name
+    # (`QuantityOpMismatch`), so no Python class shares this spelling
+    # and rule 1 has nothing to match — the name is argued whole, here.
+    #
+    # Its ten arms cross at SIX doors under four class names, each
+    # class named for the DOOR and each carrying this type's own tag
+    # beside it. The roster, with the attribute each door spells the
+    # tag as, is on `ErrorClass::DIMENSION_DOORS` in
+    # `crates/pncad-py/src/errors.rs` — ONE statement of the count,
+    # because this comment and three others each carried their own and
+    # they disagreed. One attribute is named in the row below because a
+    # row takes one; it is not the only spelling, and the roster says
+    # which are which.
+    #
+    # WHAT THIS ROW COST THE CENSUS, stated rather than filed as
+    # bookkeeping: it replaced TEN member rows
+    # (`DimensionError::Mismatch` and its nine siblings) with one
+    # whole-name row. That was mechanically forced — the member rule
+    # only reaches a curated name the stub declares top-level, and
+    # `pncad.pyi` declares no `DimensionError` any more — but the
+    # effect is real. Before, a new arm on the kernel type showed up
+    # here as an unaccounted member; now it does not. What pins the
+    # arms instead is `crate::tags::expr_dimension_error_tag`'s own
+    # exhaustive match — a new arm stops the BUILD — and
+    # `TAG_INVENTORY`'s row for it, held by
+    # `tests::the_whole_tag_table_matches_its_committed_inventory`. The
+    # census sees LESS than it did; those two are why that is
+    # survivable, not why it did not happen.
+    "DimensionError": "ParseError.kind",
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
     # The gather's refusal class, flattened to the tag its carrier
@@ -869,6 +905,15 @@ BOUND_AS = {
     # cross at the two carriers' second words.
     "NamingError": "EvaluationError.inner_kind",
     "ProgramRefusal": "EditError.inner_variant",
+    # The whole-program edit's two payload types. `LoopProvenance` is
+    # what `DocEdit.set_program` takes as its `provenance` argument —
+    # a list of `(from, steps)` tuples, one per loop, which is the
+    # struct's two fields spelled as Python data rather than a class
+    # of its own. `ProvenanceFault` is what
+    # `EditError::ProvenanceMalformed` carries, and its seven arms
+    # cross at the carrier's second word.
+    "LoopProvenance": "DocEdit.set_program",
+    "ProvenanceFault": "EditError.inner_variant",
     # `MetaVersionError` is the same row one arm over, and it arrives
     # by the same reading failing. It was `NOT_CARRIED` under "the
     # curated face is a different shape", qualified: it is a nested
@@ -1268,13 +1313,13 @@ BOUND_AS = {
     "tail_mass": "AnalyzedBox.tail_mass",
     # The two payloads the analysis surface carries UNCONDITIONALLY,
     # and it says why at the site: they are what `NodeErrorKind`'s
-    # `ParamBox` and `Seed` arms hold, and those arms exist on every
-    # build even though the door that fills them is behind `interval`.
+    # `ParamBox` and `Seed` arms hold, and those arms exist whatever
+    # scalar the door that fills them answers at.
     # They cross exactly as their carrier does — flattened to the tag
     # `EvaluationError.kind` answers, the `NodeErrorKind` row's shape
-    # one level in. A default-feature evaluation cannot produce either
-    # today, which is the same sentence `MinClearanceRefusal` carries
-    # one roster down: the LANE decides, not the feature.
+    # one level in. An `f64` evaluation cannot produce either today,
+    # which is the same sentence `ClearanceRefusal` carries one
+    # roster down: the LANE decides.
     "ParamBoxError": "EvaluationError.kind",
     "SeedError": "EvaluationError.kind",
 }
@@ -1432,6 +1477,24 @@ FAMILIES: dict[str, str] = {
         "asserting that a leg authored `25 * mm` reads back `mm` off "
         "the document slot — the disagreement with `Node.polygon` that "
         "opened the family, inverted."
+    ),
+    # THE SIXTH ARRIVED WITH ITS DOOR. `MaintenanceNet` (DM7's
+    # net-over-an-action rule) landed in `editor-core` with EMIT's
+    # `the-viewer-drops-every-dm7-rename-report`, and the stub's
+    # `orphaned_declare` paragraph already tells a Python caller that a
+    # cascade's net is read off the document the walk ended at — by
+    # hand, since nothing bound folds the rows. `crates/pncad-py/*` is
+    # LIB's ground; `work/lib/python-has-no-maintenance-net-door`
+    # carries the finding.
+    "B-MAINT-NET": (
+        "the net of a sequence of accepted edits' maintenance rows — "
+        "`MaintenanceNet`, pushed one applied edit at a time and "
+        "finished against the end document. Closing it needs a Python "
+        "door that folds each `Doc.apply` result with the document it "
+        "produced, a `pncad.pyi` entry the `orphaned_declare` paragraph "
+        "points at instead of 'read it off the document', and one "
+        "Python row cascading a declared union's `Declare` away and "
+        "asserting an empty net."
     ),
 }
 
@@ -1612,7 +1675,7 @@ FAMILIES: dict[str, str] = {
 #: hands to Python.** The operation results and their geometry
 #: (`Extruded`, `Extrusion`, `Revolved`, `Revolution`, `Lofted`,
 #: `Filleted`, `BooleanBody`, `BooleanResult`, `BooleanResultKind`,
-#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `PropsQuadLane`,
+#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`,
 #: `ChartCoherenceLane`):
 #: the document layer consumes them and Python receives a `Value`. The
 #: profile ladder's rungs (`Profile`, `ProfileLoop`, `ProfileVertex`,
@@ -2146,14 +2209,12 @@ NOT_BOUND = {
     "EditRecord": SHAPE,
     # Python's document keeps no edit log: `Doc.save` writes an empty
     # log and `load` replays below the wrapper, so the logged entry
-    # (an edit with the cluster-maintenance rows it performed), the
-    # replay door that re-applies those rows, and the migration door
-    # that re-derives them for a log from before they were recorded
-    # have no Python shape to bind.
+    # (an edit with the cluster-maintenance rows it performed) and the
+    # replay door that re-applies those rows have no Python shape to
+    # bind.
     "LoggedEdit": SHAPE,
     "apply_logged": SHAPE,
-    "replay_entry": SHAPE,
-    "load_with": SHAPE,
+    "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
     # `Evaluation.canceled`, bound at LIB-B-CANCEL.
@@ -2305,6 +2366,12 @@ NOT_BOUND = {
     "ProfileDoc": SHAPE,
     "ProfileLift": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
+    # The floor of the retired index space — the coordinate
+    # `SetProgram` retires a stranded name to. A Python caller reads
+    # the retired spelling off the `strand` row's `name` and rebinds
+    # from it; it never mints one, so the number is not a door here
+    # (`test_document.py`'s strand row pins the spelling by value).
+    "RETIRED_FLOOR": SHAPE,
     "Real": SHAPE,
     "RecordedNotation": f"{GAP}: B-PATH-NOTATION the notation a recorded path leg was authored in",
     "RecordedProgramError": SHAPE,
@@ -2405,7 +2472,7 @@ NOT_BOUND = {
     "Relation": INTERIOR,
     "Route": INTERIOR,
     "Chamfered": INTERIOR,
-    # The `PropsQuadLane` shape, one registry over: a trait naming
+    # A lane trait, one registry over: a trait naming
     # WHICH decision lanes carry a chart-coherence examination, written
     # as a bound on the two registry doors. Python's `run_checks` is
     # monomorphic at the `f64` lane, so a Python caller never chooses
@@ -2584,7 +2651,6 @@ NOT_BOUND = {
     "ProgramArcData": INTERIOR,
     "ProgramStep": INTERIOR,
     "ProgramTarget": INTERIOR,
-    "PropsQuadLane": INTERIOR,
     "Revolution": INTERIOR,
     "Revolved": INTERIOR,
     # `Revolved::kind` — the ratified case split, curated at the
@@ -2626,6 +2692,21 @@ NOT_BOUND = {
     # second door.
     "table_gap": INTERIOR,
     "validated": INTERIOR,
+    # **The MC lane's reduction, which `monte_carlo` has already
+    # applied by the time anything crosses.** `summarize` is public so
+    # that a Rust consumer holding its OWN replay of the lane's draws
+    # can reduce it with the function the report was reduced with — the
+    # tour's two density cells check their replay against a `McReport`
+    # bit for bit, and a transcription of the reduction would make that
+    # a comparison of two spellings. Python cannot pose that question:
+    # producing a replay needs `sample_offsets`, which is itself
+    # `gap: B-MC-DRAWS` below, and the four numbers a Python caller
+    # wants are already fields of the `McMeasure` rows `monte_carlo`
+    # hands back. So there is nothing here a Python caller cannot say —
+    # not a debt, a door they arrive behind. If B-MC-DRAWS is ever
+    # answered this moves with it, because a caller replaying draws in
+    # Python would then need exactly this reduction to compare.
+    "summarize": INTERIOR,
     # **The gathered-product doors, one family, and they are what the
     # binding CALLS.** `Product` is the document's product with
     # everything the gather knows about it, `product_recorded` is the
@@ -2726,11 +2807,12 @@ NOT_BOUND = {
     # as `EvaluationError.kind == "measure_clearance_refused"`
     # (`src/tags.rs`), which is this bullet's ordinary shape. What is
     # NOT ordinary is that no Python evaluation can produce one: the
-    # refusal's only producer is
-    # `impl MinClearanceLane for geom_core::Interval`, and the binding
-    # evaluates at `f64` alone (`src/py/value.rs`), so the FEATURE is
-    # not what gates it — the SCALAR is, and `pncad-py --features
-    # interval` reaches it no better. That is `profile_lift`'s
+    # refusal's only producer on the measure path is
+    # `impl MinClearanceLane for geom_core::Interval` (the leaf-level
+    # query engine refuses with it too, and the façade does not carry
+    # that engine at all), and the binding
+    # evaluates at `f64` alone (`src/py/value.rs`), so the SCALAR is
+    # what gates it. That is `profile_lift`'s
     # sentence above arriving on the refusal side: the door starts
     # answering differently exactly when Python gains a non-`f64`
     # evaluation, and it should gain its spelling in the unit that
@@ -2741,9 +2823,15 @@ NOT_BOUND = {
     # Its SIBLING went the other way and the pair is the measurement:
     # `MeasureUnavailableAt` is what the `f64` lane answers a
     # `min_clearance` WITH, so it is reachable today and is bound
-    # top-level under rule 1. One kernel file, one verb, two refusals,
-    # and the lane decides which of them a Python caller can ever see.
-    "MinClearanceRefusal": SHAPE,
+    # top-level under rule 1. One verb, two refusals, and the lane
+    # decides which of them a Python caller can ever see.
+    "ClearanceRefusal": SHAPE,
+    # Its `Budget` and `Selection` payloads, curated beside it so a
+    # Rust consumer can read the arm it matched. They cross exactly as
+    # their carrier does — inside the one tag — and no `f64` evaluation
+    # reaches them for the same reason.
+    "CellBudget": SHAPE,
+    "SelectionRefusal": SHAPE,
     # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at
     # LIB-B-FACE-FRAME, and the id left `FAMILIES` with it. It cited
     # exactly ONE name here — `face_carrier_kind` — which is now in
@@ -2796,15 +2884,14 @@ NOT_BOUND = {
     # as methods on the box, `OffsetInterval` in `NOT_BOUND` — with
     # forty certified-half names arriving beside them.
     #
-    # THE GATE, MEASURED, because a reader of the roster cannot see it
-    # either: `crates/pncad/src/analysis.rs` splits into one UNGATED
-    # `pub use` list and five behind `#[cfg(feature = "interval")]`.
-    # All three chartered doors are on the ungated list, so the family
-    # closes on the DEFAULT build the wheel is made from; what is
-    # gated is the E6 driver with its `ParamBox`, the E4/E5 stackup,
-    # `assertion_at` and the E10 reporting layer, none of which this
-    # family chartered. The positive form is
-    # `tests/test_distributions.py`.
+    # THE SPLIT, MEASURED, because a reader of the roster cannot see it
+    # either: `crates/pncad/src/analysis.rs` carries one scalar-free
+    # `pub use` list and five for the certified half. All three
+    # chartered doors are on the scalar-free list, so the family
+    # closes without the certified scalar; the certified half is the E6
+    # driver with its `ParamBox`, the E4/E5 stackup, `assertion_at` and
+    # the E10 reporting layer, none of which this family chartered. The
+    # positive form is `tests/test_distributions.py`.
     # B-MEASURES IS GONE FROM THIS ROSTER, closed at LIB-B-MEASURES,
     # and the id left `FAMILIES` with it — which emptied that map, the
     # last census-owned charter closing. It cited SEVEN names and they
@@ -2823,6 +2910,12 @@ NOT_BOUND = {
     #     type whose two halves are what the doors take, the other a
     #     refusal flattened to a tag no `f64` evaluation can raise.
     #
+    #     (2026-09-24, PR #3188: `MinClearanceRefusal` is deleted — the
+    #     measure path carries the engine's own `ClearanceRefusal` — and
+    #     its entry is now `ClearanceRefusal`'s, with the two payloads
+    #     curated beside it, `CellBudget` and `SelectionRefusal`, all
+    #     three `SHAPE` for the same reason.)
+    #
     # THE CHARTER NAMED A SPELLING THIS FILE HAD ALREADY TAKEN. The
     # analysis lane's `MeasureUnavailable` bound at LIB-B-DISTRIBUTIONS
     # one unit earlier, and this family's `MeasureUnavailableAt` is a
@@ -2834,10 +2927,10 @@ NOT_BOUND = {
     #
     # THE GATE, MEASURED, and it is not the one B-DISTRIBUTIONS found:
     # every name this family owns is curated in
-    # `crates/pncad/src/document.rs`, which carries NO `cfg`, so
-    # nothing here is behind `interval` on the façade. The limit is a
-    # LANE — see the `MinClearanceRefusal` entry — and it bites one
-    # refusal out of the family's whole surface.
+    # `crates/pncad/src/document.rs`, which carries NO `cfg`. The limit is a
+    # LANE — see the `ClearanceRefusal` entry — and it bites one
+    # refusal, with the two payloads curated beside it, out of the
+    # family's whole surface.
     #
     # WHAT THIS FILE COULD NOT SEE, in both directions. `Node::Measure`
     # and `Node::Assertion` are ARMS of `Node`, which rule 1 accounts
@@ -2965,28 +3058,26 @@ NOT_BOUND = {
     # arrive at once, in one family, because they are the analysis
     # surface's certified half.
     #
-    # THEY ARE NOT IN THE CRATE THIS BINDING COMPILES INTO. Each is
-    # behind `#[cfg(feature = "interval")]` on that page, and the wheel
-    # is built from the DEFAULT feature set: the E6 subdivision driver
-    # and its `ParamBox`, the E4/E5 sensitivity and stackup, E10's
-    # `assertion_at` and the reporting layer. Binding one would mean
-    # shipping a door absent from the artifact a user installs, so this
-    # is `different-shape` and not a `gap:` — there is no work owed
-    # while the shape of the thing is "no certified scalar on this
-    # side". The reader this scan CANNOT be: it strips comments and
-    # reads `pub use` statements, so a `cfg` attribute above one is
-    # invisible to it and these forty look exactly like the ungated
-    # names beside them. That is why the disposition is argued here
-    # rather than inferred, and why a name moving across that gate
-    # kernel-side moves no row here on its own.
+    # THEY ANSWER AT A SCALAR THIS BINDING NEVER EVALUATES AT. The E6
+    # subdivision driver and its `ParamBox`, the E4/E5 sensitivity and
+    # stackup, E10's `assertion_at` and the reporting layer all compile
+    # into the crate this binding compiles into, and every one of them
+    # needs the certified scalar to have an answer at all, so this is
+    # `different-shape` and not a `gap:` — there is no work owed while
+    # the shape of the thing is "no certified scalar on this side"
+    # (`work/bind/certified-analysis-half-compiles-into-the-wheel-unbound.md`
+    # asks whether that shape should change). The reader this scan
+    # CANNOT be: it strips comments and reads `pub use` statements, so
+    # nothing tells it which scalar a door answers at and these forty
+    # look exactly like the `f64` names beside them. That is why the
+    # disposition is argued here rather than inferred.
     #
     # WHAT WOULD MAKE THIS ROW STOP BEING HONEST, in `EvalOutcome`'s
     # shape: a Python surface that evaluates at a certified scalar. On
     # that day these are doors a caller can reach and every one of them
-    # owes a spelling or a `gap:`. `MinClearanceRefusal`'s entry two
+    # owes a spelling or a `gap:`. `ClearanceRefusal`'s entry two
     # screens up is the same sentence from the refusal side, and it is
-    # the sharper statement of it: the FEATURE is not always what
-    # gates, the LANE is.
+    # the sharper statement of it: the LANE is what gates.
     "BoxAxis": SHAPE,
     "BudgetKind": SHAPE,
     "Certified": SHAPE,
@@ -3027,8 +3118,8 @@ NOT_BOUND = {
     "render_sensitivity": SHAPE,
     "report_key": SHAPE,
     "stackup": SHAPE,
-    # The offset interval an analyzed axis varies over — UNGATED, and
-    # its Python shape is the `(lo, hi)` pair `AnalyzedParam.offsets`
+    # The offset interval an analyzed axis varies over — scalar-free,
+    # and its Python shape is the `(lo, hi)` pair `AnalyzedParam.offsets`
     # and `AnalyzedParam.absolute()` answer, in the axis's own
     # dimension. The leaf-pricing door takes the same two ends as two
     # arguments (`AnalyzedBox.box_mass`). A class holding two offsets
@@ -3145,28 +3236,12 @@ MEMBERS_BOUND_AS = {
     "Maintenance::Strand": "Maintenance.variant",
     "Maintenance::StrandedAppearance": "Maintenance.variant",
     "Maintenance::OrphanedDeclare": "Maintenance.variant",
-    # THE SECOND SAME-SPELLED PAIR, and this rule is what found it.
-    # `pncad.pyi`'s `DimensionError` is the QUANTITY boundary's refusal —
-    # `1 * m + 1 * rad`, with `op`/`left`/`right` — while the curated
-    # name is `editor_core`'s document-layer refusal, a different type
-    # answering a different question. Rule 1 matched them on spelling
-    # alone, exactly as it matched the two `Datum`s. The ten arms cross
-    # where the class's own docstring says they do: `Doc.parse_expr`
-    # raises `ParseError` with `variant == "dimension"` and the
-    # mismatch's own tag as `kind`, which is the one of the three
-    # crossings that keeps it branchable (literal construction is
-    # `LiteralError.kind`; a save file's arrives as `PersistError`
-    # `variant == "parse"`, issue #694).
-    "DimensionError::Mismatch": "ParseError.kind",
-    "DimensionError::MulNeedsScalar": "ParseError.kind",
-    "DimensionError::DivNeedsScalarDivisor": "ParseError.kind",
-    "DimensionError::TrigNeedsAngle": "ParseError.kind",
-    "DimensionError::CountNeedsExplicitPromotion": "ParseError.kind",
-    "DimensionError::NotCount": "ParseError.kind",
-    "DimensionError::LiteralCountIsInteger": "ParseError.kind",
-    "DimensionError::NonFiniteLiteral": "ParseError.kind",
-    "DimensionError::DisplayUnitMismatch": "ParseError.kind",
-    "DimensionError::UnknownDisplayUnit": "ParseError.kind",
+    # `Maintenance::Rebound` needs a profile name a reshaping moved:
+    # `Node.fillet` takes a name selection and `DocEdit.set_program`
+    # is bound, and `test_document.py`'s
+    # `test_a_reshaped_program_rebinds_a_fillets_name_and_reports_it`
+    # is the Python program that makes one appear.
+    "Maintenance::Rebound": "Maintenance.variant",
     "DistributionFault::NonFinite": "DistributionFault.variant",
     "DistributionFault::SigmaNotPositive": "DistributionFault.variant",
     "DistributionFault::NominalOutsideSupport": "DistributionFault.variant",
@@ -3178,6 +3253,8 @@ MEMBERS_BOUND_AS = {
     "EditError::RepeatedDesignation": "EditError.variant",
     "EditError::SelectionNotCanonical": "EditError.variant",
     "EditError::SetMembersOnNonList": "EditError.variant",
+    "EditError::SetProgramOnNonProfile": "EditError.variant",
+    "EditError::ProvenanceMalformed": "EditError.variant",
     "EditError::TooFewMembers": "EditError.variant",
     "EditError::DeleteWouldDangle": "EditError.variant",
     "EditError::UnknownSlot": "EditError.variant",
@@ -3333,6 +3410,7 @@ MEMBERS_BOUND_AS = {
     "PersistError::IdMismatch": "PersistError.variant",
     "PersistError::Parse": "PersistError.variant",
     "PersistError::Unreadable": "PersistError.variant",
+    "PersistError::Dimension": "PersistError.variant",
     "PersistError::EditReplay": "PersistError.variant",
     "PersistError::MaintenanceFrame": "PersistError.variant",
     "PersistError::ToleranceConflict": "PersistError.variant",
@@ -3434,6 +3512,8 @@ MEMBERS_BOUND_AS = {
     "TessellateError::SelfTouchingTrimLoop": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedDomain": "TessellateError.variant",
     "TessellateError::UnsupportedCurvedShape": "TessellateError.variant",
+    "TessellateError::MeridianFreeCurvedFace": "TessellateError.variant",
+    "TessellateError::SingleColumnCurvedFace": "TessellateError.variant",
     "TessellateError::Band": "TessellateError.variant",
     "UpdateError::NoSuchReference": "UpdateError.variant",
     "UpdateError::AlreadyPinned": "UpdateError.variant",

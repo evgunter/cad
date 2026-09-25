@@ -127,3 +127,44 @@ the row were caught — one by diffing against the live API before
 patching, one by noticing the overwrite — and "caught twice" is what the
 deferral rests on. A third instance that is caught changes nothing; one
 that is not is a new fact.
+
+## Third instance, 2026-09-21 (AUTHOR) — caught, so the deferral STANDS
+
+Reported unprompted by AUTH-1's implementer lane. Two AUTHOR lanes in
+separate clones, dispatched from one orchestrator session, both wrote a
+CI-poll script to the session scratchpad under the same filename.
+AUTH-1's was silently replaced by AUTH-2's, and **for one poll round
+AUTH-1 read job counts for AUTH-2's run believing they were its own.**
+It noticed, moved its poller to a lane-private path, and re-verified its
+own run from scratch against its head SHA.
+
+**No work was lost, so by this row's own re-opening rule nothing
+changes**: *"A third instance that is caught changes nothing; one that
+is not is a new fact."* Recorded for the reason shape 3 gives — so a
+fourth is not re-derived — and because two things about it are new.
+
+**1. The blast radius is larger than the row's two instances.** Both
+earlier ones were drafts, where the failure mode was one lane
+publishing another's text. This one landed in the file feeding a
+lane's reading of **hosted CI, the verification of record**: the
+failure available is a lane reporting green from a run that is not its
+own. That is the `CARGO_TARGET_DIR` hazard exactly — *"behind a green
+claim over ten broken assertions"* — reached through a different
+directory. It does not re-open the row, because the deferral rests on
+"caught", not on "cheap"; it does say the third shape's *"the cost is a
+re-write"* is not the whole of what is at stake.
+
+**2. One unverified fact is now half-settled.** `## What is verified`
+records as NOT verified *"whether the sharing is per-session or
+wider"*. Both colliding lanes here were subagents of ONE orchestrator
+session, so this confirms the sharing is at least per-session across
+worktrees. The cross-SESSION case — the one that would decide between
+shapes 1 and 2 — is still unverified and was not exercised.
+
+**Shape 2 is in force in AUTHOR regardless**, as the orchestrator
+convention it is: every AUTHOR lane is now handed a lane-private
+scratch path at dispatch. That fixes nothing for a lane dispatched by
+someone who has not read this, which is the limitation shape 2 was
+always recorded with, and is not an argument for shape 1 — Ev ruled
+against a `memories/` sentence on 2026-09-11 and nothing here
+disturbs that.

@@ -181,8 +181,8 @@ pub fn narration(tol: Tol) {
     // tangent. `sweep_geometry` carries that frame along the path from
     // there.
     let (t0, _) = path.domain();
-    let place = path_start_frame(path.eval(t0), path.deriv(t0), tol)
-        .expect("the arc path's start tangent fixes a frame");
+    let (p, tau) = path.ders1(t0);
+    let place = path_start_frame(p, tau, tol).expect("the arc path's start tangent fixes a frame");
     let swept =
         sweep_geometry(&chain(1.0, tol), place, &path, 5, 3, tol).expect("the arc sweep skins");
     println!(
@@ -353,8 +353,7 @@ fn tube_place(path: &pncad::geom::NurbsCurve3<f64>, i: usize, roll: f64, tol: To
     #[allow(clippy::cast_precision_loss)]
     let u = i as f64 / (TUBE_STATIONS - 1) as f64;
     let t = (hi - lo).mul_add(u, lo);
-    let station = path.eval(t);
-    let tangent = path.deriv(t);
+    let (station, tangent) = path.ders1(t);
     let plane = path_start_frame(station, tangent, tol)
         .expect("the spine's tangent fixes a frame at every station");
     // The roll turns the AXES about the tangent and leaves the origin
@@ -630,8 +629,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // near +z but not on it, so an identity placement would draw the
     // square in a plane 1.3e-3 rad off the one the sweep carries.
     let (s_t0, _) = path.domain();
-    let s_place = path_start_frame(path.eval(s_t0), path.deriv(s_t0), tol)
-        .expect("the S path's start tangent fixes a frame");
+    let (s_p, s_tau) = path.ders1(s_t0);
+    let s_place =
+        path_start_frame(s_p, s_tau, tol).expect("the S path's start tangent fixes a frame");
     let s_duct = pncad::sweep::sweep_body::<f64>(
         &quad(
             [
@@ -786,7 +786,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // Profile plane normal to the start tangent — the same door the
     // narration opens with.
     let (tc_t0, _) = cubic_path.domain();
-    let place = path_start_frame(cubic_path.eval(tc_t0), cubic_path.deriv(tc_t0), tol)
+    let (tc_p, tc_tau) = cubic_path.ders1(tc_t0);
+    let place = path_start_frame(tc_p, tc_tau, tol)
         .expect("the twisted cubic's start tangent fixes a frame");
     let twisted = pncad::sweep::sweep_body::<f64>(
         &quad(

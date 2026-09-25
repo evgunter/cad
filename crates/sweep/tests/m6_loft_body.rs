@@ -199,9 +199,9 @@ fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
     let text = err.to_string();
     println!("cut-loft refusal: {text}");
     assert!(
-        text.contains("a NURBS face has no crossing layer"),
-        "the refusal names the true missing layer (the M5 PR 9c item 5 lineage's \
-         edge×NURBS-face crossing layer): {text}"
+        text.contains("spline (NURBS) face") && text.contains("Recourse: reshape the parts"),
+        "the refusal names the face kind with no crossing layer and ends on its \
+         recourse: {text}"
     );
 }
 
@@ -210,7 +210,6 @@ fn cut_loft_refuses_typed_naming_the_missing_boolean_layer() {
 /// genuinely enclosure-valued scalar), and the certified volume
 /// ENCLOSURE brackets the derived 9 m³ — asserted enclosure-style,
 /// never by equality.
-#[cfg(feature = "interval")]
 mod certified {
     use geom_core::interval::Interval;
 

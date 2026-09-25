@@ -13,8 +13,7 @@
 
 // The meter is opt-in (`mesh`'s `budget` feature, gated at the module
 // boundary — see `mesh::budget`), so this suite is too: without it
-// there is no `arm`/`take` to drive. CI runs it in its own row, the
-// way the `interval` lane's rows work.
+// there is no `arm`/`take` to drive. CI runs it in its own row.
 #![cfg(feature = "budget")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -86,9 +85,28 @@ fn every_nurbs_face_is_measured_once_and_by_key() {
             "the whole-patch bound is certified and finite, first-derivative sups \
              included: {m:?}"
         );
+        // **A PLANAR wall certifies exactly zero**, and that is the
+        // producer's own admitted reading of a `0.0` here — "a
+        // genuinely tight face" ([`budget::FaceMeasure::worst_cert`]).
+        // The other reading that field names, a face that certified
+        // nothing, is excluded by the discriminant the same doc names:
+        // this fixture's own `tessellate` result, which the `expect`
+        // above took. The C9 ring padded every operation one step
+        // outward, so a flat wall's second-derivative bound came out
+        // subnormal-positive and its certificate with it; the backend
+        // pads only where the operation is inexact, so a plane's
+        // certificate is the exact `0` the reals give.
         assert!(
-            m.worst_cert.is_finite() && m.worst_cert > 0.0,
+            m.worst_cert.is_finite() && m.worst_cert >= 0.0,
             "the face's worst certificate is recorded: {m:?}"
+        );
+        // What a bug can still break, which the strict `> 0.0` above
+        // was standing in for: a CURVED face certifying exactly zero
+        // is a bound nothing computed, not a tight one.
+        assert!(
+            m.worst_cert > 0.0 || (m.muu == 0.0 && m.muv == 0.0 && m.mvv == 0.0),
+            "a face whose second-derivative bound is nonzero certified EXACTLY zero, \
+             so its certificate is one nothing computed rather than a tight face: {m:?}"
         );
         assert!(
             m.worst_dev.is_nan() && m.worst_ratio.is_nan() && m.dev_samples == 0,

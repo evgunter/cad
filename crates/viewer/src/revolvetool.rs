@@ -7,8 +7,10 @@
 //! The mate tool's pattern one vocabulary over: single-select stays
 //! ruled, so the tool holds its two picks in tool state and consumes
 //! the ordinary selection stream — a tree click is a node pick
-//! directly, a viewport face or edge pick reaches the FEATURE it
-//! belongs to (`Selection::node`, the one viewport→tree inversion).
+//! directly, a viewport face or edge pick reaches the node whose drawn
+//! body the ray met (`Selection::seat_node`). Neither of this tool's
+//! seats is a body, so in practice both are filled from the tree: a
+//! profile and an axis are not drawn bodies a ray can meet.
 //! Everything before the commit is tool state; the document transition
 //! is one [`SessionOp::AddRevolve`], which commits one
 //! `DocEdit::InsertNode` through the session's ordinary commit door.
@@ -16,7 +18,7 @@
 //! The seats, their pick rule, the survival step, the divergence from
 //! the mate tool's promoting one, and the id-reuse hazard reconcile
 //! does not cover (issue #1384) are all [`crate::seats`]'s — this tool
-//! is that value with two roles and a commit door, exactly as the four
+//! is that value with two roles and a commit door, exactly as the
 //! combining tools are.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no

@@ -21,6 +21,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Bounds;
 use geom_core::spline::KnotVector;
 use geom_core::spline::basis::basis_funs;
 
@@ -59,7 +60,7 @@ fn the_hull_window_is_the_spans_window_and_the_basis_reads_the_same_one() {
             let Some(span) = k.span(index) else { continue };
             let base = base_coeffs(n);
             let hull0 = k.with_coeffs(&base).unwrap().span(index).unwrap().hull();
-            assert!(!hull0.is_poison(), "{name}: span {index} must bound");
+            assert!(hull0.is_certified(), "{name}: span {index} must bound");
             let mid = 0.5 * (k.knots()[index] + k.knots()[index + 1]);
             let value0 = eval(&k, &base, mid);
             for moved in 0..n {
@@ -132,7 +133,7 @@ fn the_rational_window_refuses_on_exactly_its_own_weights() {
                     .unwrap()
                     .hull_rational();
                 assert_eq!(
-                    h.is_poison(),
+                    !h.is_certified(),
                     span.window().contains(&bad),
                     "{name}: span {index} window {:?}, zero weight at {bad}",
                     span.window(),
@@ -159,7 +160,7 @@ fn the_derivative_window_is_the_window_minus_its_top() {
                 .span(index)
                 .unwrap()
                 .derivative_hull();
-            assert!(!d0.is_poison(), "{name}: span {index} derivative bound");
+            assert!(d0.is_certified(), "{name}: span {index} derivative bound");
             for moved in 0..n {
                 // `Q_i` mixes `c_i` and `c_{i+1}`, so a coefficient is
                 // read by the hulled range `[s − p, s − 1]` when it or

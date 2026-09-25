@@ -1103,7 +1103,6 @@ fn die_pips() -> Vec<Body<f64>> {
 // Interval lane: the new fixture families decide identically.
 // =====================================================================
 
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use geom_core::Interval;

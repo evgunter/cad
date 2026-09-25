@@ -4,7 +4,6 @@ kind: issue
 title: step-import renders {source:?} on TransformError and BooleanError, both of which have a Display — a live panic at py::typed_err
 status: open
 opened: 2026-09-04
-refs: [debug-in-prose-at-blend-and-step-import]
 priority: P0
 cost: E
 ---
@@ -68,3 +67,7 @@ conclusion, and it holds here.
 
 `work/exch/` — `crates/step-import/` is EXCH's territory and
 code-quality Track U's, which EXCH claims for its STEP/STL rows.
+
+## Reference note (FIX's sweep, 2026-09-21)
+
+`debug-in-prose-at-blend-and-step-import` was dropped from this row's `refs` because the row closed with **FIX**, which left the tracker at sweep 18 — `work/fix/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 6f0e04ce1534:work/fix/debug-in-prose-at-blend-and-step-import.md`.

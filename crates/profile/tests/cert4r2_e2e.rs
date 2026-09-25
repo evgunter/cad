@@ -46,7 +46,6 @@ fn an_asymmetric_fused_pocket_replays_at_f64() {
 /// The same authored numbers at `Interval`: the pocket replays, every
 /// enclosure is hairline (the issue-1191 acceptance shape, on MY
 /// numbers rather than the unit's), and each encloses the f64 lane.
-#[cfg(feature = "interval")]
 #[test]
 fn the_asymmetric_fused_pocket_replays_hairline_at_interval() {
     use geom_core::{Bounds, Interval, Real};

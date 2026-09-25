@@ -15,7 +15,7 @@
 //! **NO TEST IN THIS FILE IS EXECUTED BY CI**, and that is deliberate
 //! rather than a filter's accident: both rows are `#[ignore]`d evidence
 //! probes that print and assert nothing a gate could read, and the whole
-//! file is behind `#![cfg(all(feature = "interval", feature = "probe"))]`
+//! file is behind `#![cfg(feature = "probe")]`
 //! besides. They are run by hand when the census or the ceiling has to be
 //! re-measured — which is a unit's act, not a per-run one — and their
 //! output is quoted where it is read: `geom_core::sym`'s module docs and
@@ -26,10 +26,10 @@
 //! Run them:
 //!
 //! ```sh
-//! cargo test -p editor-core --features probe,interval --test all -- \
+//! cargo test -p editor-core --features probe --test all -- \
 //!   m10_7_census_probe:: --ignored --nocapture
 //! ```
-#![cfg(all(feature = "interval", feature = "probe"))]
+#![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
@@ -178,8 +178,7 @@ fn measure_the_ceiling_on_the_two_hole_plate() {
     // multiple of the ceiling — past the ceiling several predicates
     // are over the band at once and the first name is evaluation
     // order (M10's closed
-    // `first-refusal-at-twice-the-ceiling-is-an-order-artefact`,
-    // `docs/DOC-LEDGER.md` sweep 13).
+    // `first-refusal-at-twice-the-ceiling-is-an-order-artefact`).
     let doc = doc_at(on_hi);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     let (shapes, refusal, counts) = crate::m10_8_arc_family_interval::replay(

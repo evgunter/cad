@@ -419,7 +419,7 @@ pub(crate) enum SurgeryPosture {
 /// door the walk may silently lose before anything reds; left far
 /// enough behind, the floor stops being evidence about the walk at all.
 /// Lowering it is only ever correct when doors were deleted.
-const DOORS_MEASURED: usize = 52;
+const DOORS_MEASURED: usize = 54;
 
 /// Every public mutation door into a [`crate::Body`] declared in this
 /// crate's `src/`: a public `fn` whose parameter list takes

@@ -30,7 +30,6 @@
 //! comment says EVIDENCE-ONLY assert that a documented behaviour is
 //! still what it is and gate nothing new.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -535,6 +534,18 @@ fn the_point_scalar_door_refuses_by_bits_not_by_value() {
 /// serialized verdict and its content key are bit-identical across a
 /// repeat and across the rayon schedule, on a drive with certified
 /// leaves, a real refusal class and hundreds of splits.
+///
+/// **The leaf-list comparisons below are whole `PartialEq`s, so they
+/// compare `decisions` and therefore `frozen`.** That column is each
+/// leaf's NEED of the drive's frozen set — a function of the leaf's box
+/// and of the drive, never of the order (`geom_core::SymCounts::frozen`
+/// and `geom_core::sym::memo`'s header) — so this row asks for
+/// something schedule-independent by construction. It was accidentally
+/// satisfied before SYM-13, when the column was the work a leaf
+/// happened to do and this document's every leaf happened to inherit
+/// its forms from the root;
+/// `m10_sym_drive_memo_interval::the_leaves_of_a_racing_drive_report_one_column_under_every_schedule`
+/// drives the adversary that made the difference visible.
 #[test]
 fn my_own_drive_is_bit_identical_across_repeats_and_schedules() {
     let doc = pinched(20.0 * eps(), 40.0 * eps());

@@ -124,7 +124,6 @@ fn the_cup_evaluates_green_and_is_exactly_its_closed_form() {
 
 /// **The interval row**: both documents, green at the certified
 /// scalar — the lane the registry would have run.
-#[cfg(feature = "interval")]
 #[test]
 fn both_documents_evaluate_green_at_the_interval_scalar() {
     let d = cup::document();
@@ -478,8 +477,8 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
     }
     assert_eq!(
         e.to_string(),
-        "the shell op refused: shell: the wall thickness (-0.125 m) is not certifiably \
-         positive, so there is no thin solid to build"
+        "the shell op refused: the wall thickness (-0.125 m) is not certifiably \
+         positive. Recourse: supply a positive thickness"
     );
 
     // (d) a half-chart designation on the vessel: the kernel's
@@ -516,11 +515,10 @@ fn the_refusals_are_typed_and_their_texts_pinned() {
         }
         other => panic!("expected the shell op's refusal, got {other:?}"),
     }
-    // The op row's tail quotes arena keys, so it is prefix-pinned.
     let text = e.to_string();
     assert!(
-        text.starts_with("the shell op refused: shell: ")
-            && text.contains("shares its chart and was not"),
+        text.starts_with("the shell op refused: ")
+            && text.contains("another face on its chart was not"),
         "the partial-chart refusal text moved: {text}"
     );
     // (e) a CURVED designated face: the belly is a sphere zone, and a

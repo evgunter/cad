@@ -312,19 +312,20 @@ class ValidationError(PncadError):
     failure_count: int
     findings: list[ValidationFinding]
 
-class DimensionError(PncadError):
+class QuantityOpMismatch(PncadError):
     """An operator applied to two QUANTITIES whose dimensions do not
     admit it — `1 * m + 1 * rad`.
 
-    The quantity boundary only, and not the library's only dimension
-    check. The document layer's own refusal type reaches Python three
-    other ways: through literal construction (as LiteralError),
-    through `Doc.parse_expr` (as ParseError with `variant ==
-    "dimension"` and the mismatch's own tag as `kind` — the one of the
-    three that keeps it branchable), and through `load`, where a save
-    file's ill-dimensioned expression arrives as PersistError with
-    `variant == "parse"` rather than as any dimension class (issue
-    #694)."""
+    The class is the Rust type's own name. This is the quantity
+    boundary only, and not the library's only dimension check: the
+    document layer's own refusal type reaches Python at SIX doors
+    under four DOOR names rather than one type name — LiteralError
+    (literal construction, the MeasureExpr arithmetic constructors,
+    and the recorded-program lift), ParseError with `variant ==
+    "dimension"` (`Doc.parse_expr`), EditError (`Doc.apply`), and
+    PersistError with `variant == "dimension"` (`load`). Each carries
+    the failing check's own tag, so which check refused is branchable
+    at every one."""
 
     op: str
     left: str
@@ -352,11 +353,13 @@ class LiteralError(PncadError):
     """A value the expression layer refused (`Expr::literal`'s own
     curated error). `value` is the offending number.
 
-    Not DimensionError, which is the quantity boundary's operator
-    check. The expression layer's refusal type has dimension-mismatch
-    arms too, and three other doors reach them: `load` does, from a
-    hand-edited save file, and they arrive as PersistError with
-    `variant == "parse"` (issue #694); `Doc.parse_expr` does, and they
+    Not QuantityOpMismatch, which is the quantity boundary's operator
+    check and a different type. The expression layer's refusal type has
+    dimension-mismatch arms too, and reaches Python at six doors under
+    four class names in all: `load` does, from a hand-edited save file,
+    and they arrive as PersistError with `variant == "dimension"` and
+    the check's own tag as `inner_variant`; `Doc.apply` does, as
+    EditError; `Doc.parse_expr` does, and they
     arrive as ParseError; and the MEASUREMENT sublanguage's arithmetic
     constructors do (`MeasureExpr.add` and its siblings), arriving on
     THIS class with the mismatch's own tag as `kind` — the same kernel
@@ -427,19 +430,22 @@ class PersistError(PncadError):
 
     `variant` is the refusing arm's tag — `non_finite`,
     `profile_program`, `distribution`, `display_unit`, `serialize`,
-    `header_id`, `id_mismatch`, `parse`, `unreadable`, `snapshot`,
-    `edit_replay`, `maintenance_frame`, `tolerance_conflict` or
+    `header_id`, `id_mismatch`, `parse`, `unreadable`, `dimension`,
+    `snapshot`, `edit_replay`, `maintenance_frame`, `tolerance_conflict`
+    or
     `tolerance_invalid`.
 
     Five arms wrap a refusal of their own, and its word rides beside
     the carrier's on `inner_variant`: a profile-program fault, a
     distribution fault, a snapshot invariant, the `EditError` a
-    replayed edit raised, or what a recorded maintenance row's frame
-    fails to be a placement (`non_finite`, `improper` — the
-    `SetPlacement` door's own rule, applied to the log's rows at load;
-    `index` is the entry's, and the row within it is in the message).
-    The nested refusal's own payload is the inner door's surface and
-    stays in the message.
+    replayed edit raised, what a recorded maintenance row's frame fails
+    to be a placement (`non_finite`, `improper` — the `SetPlacement`
+    door's own rule, applied to the log's rows at load; `index` is the
+    entry's, and the row within it is in the message), or the dimension
+    check a saved expression failed. The nested refusal's own payload is
+    the inner door's surface and stays in the message.
+
+    `dimension` is
 
     Two names are shared by arms that carry one concept under
     different spellings: `detail` is the underlying reporter's own
@@ -1121,7 +1127,7 @@ class AnalysisPolicyError(PncadError):
 # --- quantities -------------------------------------------------------
 # Canonical metres and radians underneath. The arithmetic is
 # exactly `crates/quantity`'s infallible subset; anything else raises
-# DimensionError.
+# QuantityOpMismatch.
 
 class Length:
     """A length. Construct as `25 * mm`.
@@ -2507,7 +2513,7 @@ class ParamName:
 # analysis doors below are its ONE interpreter. Offsets are typed
 # quantities in the PARAMETER's dimension — the annotation carries no
 # dimension of its own, so it borrows the one the parameter declares,
-# and a mismatch is a DimensionError at the door rather than a
+# and a mismatch is a QuantityOpMismatch at the door rather than a
 # plausible number later.
 
 _Offset: TypeAlias = Length | Angle | float
@@ -2526,7 +2532,7 @@ class Distribution:
 
     Every offset in one distribution must be the same dimension, and
     the wrapper remembers which: `Distribution.band(-0.1 * mm, 1 * deg)`
-    is a DimensionError. Construction also runs the kernel's own E2
+    is a QuantityOpMismatch. Construction also runs the kernel's own E2
     check, so a broken invariant refuses here as `DistributionFault`
     rather than at the edit."""
 
@@ -2658,7 +2664,7 @@ class AnalyzedBox:
         `(lo, hi)` — the leaf-pricing door.
 
         The offsets are quantities in the axis's own dimension; another
-        dimension is a DimensionError. `None` when the document
+        dimension is a QuantityOpMismatch. `None` when the document
         declares no such continuous parameter. An unannotated axis is a
         point mass at its nominal, so it answers `1.0` for any interval
         containing offset zero and `0.0` otherwise. A band raises
@@ -2823,7 +2829,7 @@ class DocParam:
 
     The three continuous constructors take an optional `distribution`
     (ERROR-DESIGN E1/E2) whose offsets must be in the dimension the
-    constructor declares — a mismatch is a DimensionError. `count`
+    constructor declares — a mismatch is a QuantityOpMismatch. `count`
     takes none and cannot: a structural count is fixed under any error
     analysis."""
 
@@ -3060,6 +3066,51 @@ class DocEdit:
         Refuses `update_on_non_instance`, and `pin_unchanged` when the
         site already names that version."""
 
+    @overload
+    @staticmethod
+    def set_program(
+        node: NodeId,
+        outline: ClosedLoop,
+        provenance: list[tuple[Optional[int], list[Optional[int]]]],
+    ) -> DocEdit: ...
+    @overload
+    @staticmethod
+    def set_program(
+        node: NodeId,
+        outline: list[ClosedLoop],
+        provenance: list[tuple[Optional[int], list[Optional[int]]]],
+    ) -> DocEdit:
+        """Replace a live profile's PROGRAM whole — its loops, their
+        verbs, order and count, arc modes and targets — validated
+        once, as one edit. The plane is not carried and does not move.
+
+        `outline` is the description `Node.profile` takes — one closed
+        loop, or `[outer, hole, hole]` — read through the same door.
+        `provenance` is one `(from, steps)` per new loop in that order:
+        `from` the OLD loop index it continues (`None` for a new loop),
+        `steps[i]` the old step index new step `i` continues (`None`
+        for a new step). The editor that reshaped the program knows
+        which leg it inserted; the door is told, never guesses.
+
+        Every name spelled in the profile's coordinates — a fillet's
+        selection, a shell's mouth, a derived frame's face, a paint —
+        is rewritten to its new coordinates when its step was kept and
+        reported on `Doc.last_maintenance` as a `rebound` (`name` the
+        old spelling, `rebound_to` the new); a name on a step that was
+        dropped, or whose segment count moved, is retired to a
+        coordinate no program draws and reported `strand` or
+        `stranded_appearance`, resolving to nothing until `rebind`
+        repairs it.
+
+        Refuses `provenance_malformed` before the program is replayed
+        (`inner_variant`: `loop_count`, `step_count`,
+        `no_such_old_loop`, `no_such_old_step`, `step_of_new_loop`,
+        `old_loop_continued_twice`, `old_step_continued_twice`),
+        `set_program_on_non_profile`, and then everything an insert
+        refuses of a profile: `slot_unknown_doc_param` and its
+        siblings over every argument, `profile_program_refused` for a
+        program that does not close, replay or validate."""
+
     @staticmethod
     def rebind(from_name: str, to_name: str) -> DocEdit:
         """Repair a stored name: rewrite every document site that
@@ -3178,10 +3229,12 @@ class Doc:
     @property
     def last_maintenance(self) -> list[Maintenance]:
         """The maintenance the LAST accepted edit performed: its
-        cluster-record acts, the payload names its delete stranded,
-        and the declarations that delete left with no consumer. The
-        strands lead, the orphaned declarations follow them and the
-        cluster acts come last, so read `variant`, never a position.
+        cluster-record acts, the names its delete or reshaping
+        stranded, the names its reshaping rebound, and the
+        declarations its delete left with no consumer. The strands
+        lead, the rebounds follow them, then the orphaned declarations,
+        and the cluster acts come last, so read `variant`, never a
+        position.
         Empty after an edit that moved no mate graph, stranded no
         name and orphaned no declaration, and on a document that has
         applied none; a REFUSED edit leaves it untouched, as it
@@ -5322,10 +5375,19 @@ class Maintenance:
     absorbed cluster's frame is consumed here, and a stranded name is
     said at the delete rather than at the next evaluation.
 
-    A `strand` names a node that survived the delete carrying a name
-    whose minting node did not. The name is not a DAG edge, so the
-    delete is legal; the name now resolves to nothing, and
-    `DocEdit.rebind` is the repair.
+    A `strand` names a node that survived the edit carrying a name
+    whose referent the edit removed — its minting node, under a
+    delete, or the profile segment it named, under
+    `DocEdit.set_program`. The name is not a DAG edge, so the edit is
+    legal; the name now resolves to nothing, and `DocEdit.rebind` from
+    the spelling `name` carries is the repair.
+
+    A `rebound` is the other thing a reshaped program does to a name:
+    one on a step the reshaping kept is rewritten in place to the
+    coordinates the segment sits at now, in every carrier that held
+    it, and the row says so — `name` the spelling before, `rebound_to`
+    the spelling now — so a moved name is visible rather than silently
+    re-denoting.
 
     A `stranded_appearance` is the same loss one carrier over: the
     document's appearance store still holds an attachment under a name
@@ -5356,7 +5418,7 @@ class Maintenance:
     @property
     def variant(self) -> str:
         """`join`, `split`, `gauge_rewrite`, `drop`, `strand`,
-        `stranded_appearance`, or `orphaned_declare`."""
+        `stranded_appearance`, `orphaned_declare`, or `rebound`."""
 
     @property
     def survived(self) -> Optional[NodeId]: ...
@@ -5376,6 +5438,8 @@ class Maintenance:
     def node(self) -> Optional[NodeId]: ...
     @property
     def name(self) -> Optional[str]: ...
+    @property
+    def rebound_to(self) -> Optional[str]: ...
 
 # --- the gather and the at-rest gate ----------------------------------
 

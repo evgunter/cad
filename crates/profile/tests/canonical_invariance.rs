@@ -1,16 +1,18 @@
 //! The canonical-form key property (D9-load-bearing): validation's
-//! output is invariant — byte-level on `Debug` — under starting-vertex
-//! rotation and traversal reversal of every input loop.
+//! output is invariant — byte-level on `Debug` — under traversal
+//! reversal of every input loop, and FOLLOWS each loop's authored
+//! starting vertex: canonical vertex 0 is the vertex the author wrote
+//! first.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the code it tests (TCOST-1). The claim is that validation's
-// output is byte-identical under starting-vertex rotation and traversal
-// reversal of every input loop — a property of the canonicalisation inside
+// output is byte-identical under traversal reversal of every input loop
+// and keeps each loop's authored start — a property of the canonicalisation inside
 // validation and of the structure it emits, not of the fixtures. It rests
 // on the validator, on the loop/segment types whose `Debug` form is the
 // byte-level comparison, and on the lift that turns a raw loop into one.
 // `geom-core`'s tolerance and predicate are named because a rotation-
-// invariant answer is only invariant if the decisions taken along the way
+// reversal-invariant answer is only invariant if the decisions taken along the way
 // are, and both are decided there.
 // `tests/common/` is named for the same reason: every fixture loop and the
 // tolerance the byte comparison is taken at come from `common`. A marker's own
@@ -86,38 +88,53 @@ fn fixtures() -> Vec<(&'static str, Profile<f64>)> {
 }
 
 proptest! {
-    /// Rotating and/or reversing every loop of every fixture leaves the
-    /// canonical form byte-identical.
+    /// Reversing any loop of any fixture — authored from any starting
+    /// vertex — leaves the canonical form byte-identical, and every
+    /// canonical loop starts at the vertex its input loop was authored
+    /// from.
     #[test]
-    fn canonical_form_is_rotation_and_reversal_invariant(
+    fn canonical_form_is_reversal_invariant_and_keeps_the_authored_start(
         rot in prop::collection::vec(0usize..64, 3),
         rev in prop::collection::vec(any::<bool>(), 3),
     ) {
         for (name, base) in fixtures() {
-            let canon = base.validate(tol()).expect(name);
+            let turned: Vec<ProfileLoop<f64>> = base
+                .loops
+                .iter()
+                .enumerate()
+                .map(|(i, lp)| rotated(lp, rot[i % rot.len()] % lp.vertices().len()))
+                .collect();
+            let canon = Profile::new(base.plane, turned.clone())
+                .validate(tol())
+                .expect(name);
             let transformed = Profile::new(
                 base.plane,
-                base.loops
+                turned
                     .iter()
                     .enumerate()
-                    .map(|(i, lp)| {
-                        let r = rot[i % rot.len()] % lp.vertices().len();
-                        let turned = rotated(lp, r);
-                        if rev[i % rev.len()] {
-                            turned.reversed()
-                        } else {
-                            turned
-                        }
-                    })
+                    .map(|(i, lp)| if rev[i % rev.len()] { lp.reversed() } else { lp.clone() })
                     .collect(),
             );
             let canon2 = transformed.validate(tol()).expect(name);
             prop_assert_eq!(
                 format!("{canon:?}"),
                 format!("{canon2:?}"),
-                "canonical form of {} not invariant",
+                "canonical form of {} not reversal-invariant",
                 name
             );
+            // Every input loop's authored vertex 0 is some canonical
+            // loop's vertex 0 — the start is the author's.
+            let bits = |p: geom_core::Point2<f64>| (p.x.to_bits(), p.y.to_bits());
+            let starts: Vec<_> = canon2.loops().iter().map(|cl| bits(cl.vertices()[0].pos())).collect();
+            for (i, lp) in turned.iter().enumerate() {
+                prop_assert!(
+                    starts.contains(&bits(lp.vertices()[0].pos())),
+                    "{}: input loop {} was authored from {:?}, and no canonical loop starts there",
+                    name,
+                    i,
+                    lp.vertices()[0].pos()
+                );
+            }
         }
     }
 

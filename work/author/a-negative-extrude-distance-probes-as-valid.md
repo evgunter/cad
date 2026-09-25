@@ -59,7 +59,7 @@ rows CI gates, failing nodes each time:
    0.8 mm seed reports `low: Open { probed: -1.6304 }`; a 1 m seed
    reports `Open { probed: -2047.992 }`. Any row asserting a bracket
    on a length field rests on that coincidence, which is what
-   `work/chrome/probe-rows-assert-in-one-direction-only.md`'s
+   `work/vacuity/probe-rows-assert-in-one-direction-only.md`'s
    discharge note now says out loud. At `ε = 1e-6` the region is wide
    enough (~1e-5) that the same ladder lands in it for a different
    reason — the bracket is not evidence of a point.

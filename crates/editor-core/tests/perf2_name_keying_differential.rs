@@ -147,9 +147,9 @@ const PINNED: &[(&str, u64, u64)] = &[
         0xb740_afe6_3ac0_3b9e,
     ),
     ("kitchen_sink", 0xee5d_6ad7_b931_ff55, 0xa3d3_c0a9_a4df_32a3),
-    ("cut_cylinder", 0xe0d5_2931_ec58_c9b1, 0xa4f1_a604_21f6_2494),
-    ("measured_web", 0x8f05_d4ee_185c_a667, 0x9620_7fc9_b6fc_5050),
-    ("boss_union", 0xd970_c774_1a5d_58dd, 0xf0b7_3067_97fb_9e6a),
+    ("cut_cylinder", 0x18cf_06e4_b967_a251, 0xa4f1_a604_21f6_2494),
+    ("measured_web", 0x612f_876a_ed5e_4997, 0x9620_7fc9_b6fc_5050),
+    ("boss_union", 0x0ce9_8909_1c72_c5b1, 0xf0b7_3067_97fb_9e6a),
     ("die_fillet", 0x0c71_d910_5626_b94b, 0xf9cb_f3b8_9f20_15be),
     ("die_chamfer", 0x0c71_d910_5626_b94b, 0x6dea_76ae_1356_c167),
     ("die_pips", 0x3d27_f3a0_918b_8c3d, 0x95ca_004d_9b43_7b93),
@@ -168,7 +168,7 @@ const PINNED: &[(&str, u64, u64)] = &[
         0xad42_480f_3efe_b3d7,
         0xeb72_eb6d_b988_d8d8,
     ),
-    ("plate_param", 0xc650_c981_5207_32b4, 0xcc04_5e8e_2d92_2a98),
+    ("plate_param", 0x80d1_6cc4_2851_7260, 0xcc04_5e8e_2d92_2a98),
     ("kiss_carry", 0x71d9_43b3_9ed1_9338, 0x55f1_062f_7b47_35c1),
     ("tube_ring", 0x4fe2_260e_a6e8_0fd3, 0x3285_e0b9_de61_a44c),
     ("tube_arc", 0xd83d_2ab3_aebe_7035, 0x0af4_9808_bde0_8619),
@@ -182,6 +182,9 @@ const PINNED: &[(&str, u64, u64)] = &[
         0x8b51_65bd_2a3d_89c3,
         0xc2b6_c5f9_eb37_f948,
     ),
+    // The first persisted `SetProgram` in the tree: its text digest
+    // is the first taken over a log holding one.
+    ("reshaped_rod", 0x480d_3fba_a01b_e397, 0x9e25_c74c_af93_f81f),
 ];
 
 #[test]

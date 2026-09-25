@@ -21,7 +21,6 @@
 //! — the shipped tier certifies the bracket whole an order of magnitude
 //! wider than M10-7's — and both facts are pinned as the positive
 //! statement, with the factor.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::analysis::{AnalysisPolicy, analyzed_box};
@@ -51,7 +50,13 @@ fn m10_8_the_a0_set_is_a0_alone() {
         "rule C is built and dial-selectable, and does not ship (inert)"
     );
     assert!(
-        !s.early_ab && !s.trig_of_atan && !s.sqrt_square && !s.pythagoras && !s.registered,
+        !s.early_ab
+            && !s.trig_of_atan
+            && !s.sqrt_square
+            && !s.pythagoras
+            && !s.common_factor
+            && !s.manifest_sign
+            && !s.registered,
         "nothing else: {s:?}"
     );
     assert_eq!(SymRules::default(), SymRules::shipped(), "one default");
@@ -77,7 +82,10 @@ fn m10_8_the_a0_set_is_a0_alone() {
 }
 
 /// **M10-8's set (A0 alone) is exactly the tier with the algebra off
-/// and the door shut.**
+/// and the door shut.** "The algebra" is the six early-walk dials
+/// `without_the_algebra` names — rules A/B per node, rule D, rule E and
+/// rule F — and the census above asserts each of them off by name, so a
+/// seventh rule added to the early walk without a line here reds.
 fn a0_alone() -> SymRules {
     SymRules {
         registered: false,

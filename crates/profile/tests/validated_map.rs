@@ -32,8 +32,8 @@ fn fixtures() -> Vec<(&'static str, Profile<f64>)> {
         (3.0, 1.0, 0.0),
         (3.0, 0.0, 0.0),
     ]);
-    // A rotated start: canonicalization starts each loop at its
-    // lex-min vertex, so the carried start is a decision too.
+    // A rotated start: canonicalization keeps each loop's authored
+    // start, so the carried start is the author's too.
     let rotated = chain(&[
         (2.0, 0.0, 0.0),
         (2.0, 1.0, 0.0),
@@ -273,7 +273,6 @@ fn the_lift_to_dual_equals_validating_at_dual() {
     }
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn the_lift_to_interval_equals_validating_at_interval() {
     use geom_core::Bounds;
@@ -285,7 +284,7 @@ fn the_lift_to_interval_equals_validating_at_interval() {
 
 /// The decided facts, read at `Dual64` on the fixtures whose input
 /// contradicts them: the clockwise rectangle comes back
-/// counterclockwise, the rotated one starts at its lex-min vertex, the
+/// counterclockwise, the rotated one keeps its authored start, the
 /// hole listed first comes back behind its outer, the annulus's hole
 /// arcs turn clockwise.
 #[test]
@@ -324,13 +323,13 @@ fn the_carried_decisions_are_the_f64_ones() {
                 }
             }
             let start = lu.vertices()[0].pos();
-            for v in lu.vertices() {
-                let p = v.pos();
-                assert!(
-                    (start.x.value, start.y.value) <= (p.x.value, p.y.value),
-                    "{name} loop {li}: the canonical start is the lex-min vertex"
-                );
-            }
+            let authored: Vec<_> = raw.loops.iter().map(|lp| lp.vertices()[0].pos()).collect();
+            assert!(
+                authored
+                    .iter()
+                    .any(|p| (p.x, p.y) == (start.x.value, start.y.value)),
+                "{name} loop {li}: the canonical start is an input loop's authored start"
+            );
         }
     }
     let ring = annulus()

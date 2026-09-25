@@ -2,10 +2,13 @@
 id: name-placed-union-spells-the-narrowing-rule-itself
 kind: issue
 title: The 1-vs-many tie decision is hand-written at eight sites outside the door that owns it
-status: open
+status: closed
 opened: 2026-09-12
 priority: P1
 cost: D
+branch: emit/narrowing-door
+closed: 2026-09-24
+pr: 3169
 ---
 
 

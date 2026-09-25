@@ -8,6 +8,7 @@ enforces; this header says only what the contract does not.
     work.py new ID --kind K --title T [--program P] [--set key=value ...]
     work.py set ID key=value [key=value ...]
     work.py territory (--base REF | --files LIST) [--branch NAME] [--strict]
+    work.py incoming [--base REF] [--program P]   what the base carries into work/P/ that HEAD lacks
     work.py --selftest
 
 STDLIB ONLY, AND ITS OWN FRONT-MATTER READER. The header format is a
@@ -53,7 +54,8 @@ ISSUES_DIR = "issues"
 FREE_FILES = {"README.md", "STATUS.md"}       # unparsed: top of work/, and
                                               # README.md inside work/issues/
 NARRATIVE = {"plan.md", "log.md", "process-observations.md"}   # inside a program, unparsed
-LOG_EXEMPT = {"docs/MODEL-AB-LOG.md"}         # the one non-program log in docs/
+LOG_EXEMPT = {"docs/MODEL-AB-LOG.md",        # the two non-program logs in docs/
+              "docs/DUAL-REVIEW-LOG.md"}
 STALE_DAYS = 14
 
 KINDS = ("program", "unit", "issue", "ruling")
@@ -62,7 +64,17 @@ ITEM_STATUS = ("open", "spec", "dispatched", "review", "closed", "parked", "defe
 # from dispatchable: `parked` waits on a named trigger, `deferred` is a
 # ratified not-now whose reason is prose in the body (see work/README.md).
 RULING_STATUS = ("open", "closed")
-PROGRAM_STATUS = ("open", "closed")
+# A PROGRAM's status is about the track, not about a row. Two facts tell the
+# three apart: whether an orchestrator holds the track, and whether anything on
+# it can be picked up (`DISPATCHABLE`, below). Only the second is in the tree,
+# so it is the only one lint checks; `active` is the program's own word.
+# `blocked` never has an orchestrator BY CONSTRUCTION: an orchestrator that has
+# run out of non-blocked units cuts the blocked rows into a new program and
+# closes what it finishes, rather than holding a whole track hostage to its
+# slowest blocker (Ev, in chat, 2026-09-21; work/README.md).
+# There is no `closed`: a program that closes is DELETED in the sweep that
+# closes it, so a closed program is an ABSENT one and no status has to say so.
+PROGRAM_STATUS = ("ready", "active", "blocked")
 AREAS = ("kernel", "api", "gui", "infra")
 
 # The priority bands (work/README.md, "Priority"). P0 is most urgent. A band
@@ -531,6 +543,10 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
                          f"goes unchecked")
     resolves = {gh: c[0] for gh, c in by_github.items() if len(c) == 1}
     programs = {it.id: it for it in items if it.kind == "program" and it.id}
+    owned: dict[str, list[Item]] = defaultdict(list)
+    for it in items:
+        if it.kind != "program" and it.program:
+            owned[it.program].append(it)
     tracked: list[str] | None = None
     for it in items:
         # status-coupled fields
@@ -589,10 +605,21 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
         if isinstance(carrier, str) and carrier in by_id and by_id[carrier].status == "closed" and it.status != "closed":
             errors.append(f"{it.path}: rides with `{carrier}`, which is closed — re-home it (a struck row may not delete its passengers)")
         if it.kind == "program":
-            if it.status == "closed":
-                live = [o.id for o in items if o.program == it.id and o.kind != "program" and o.status != "closed"]
-                if live:
-                    errors.append(f"{it.path}: program is closed but {live} are not")
+            live = [o for o in owned.get(it.id, []) if o.status != "closed"]
+            disp = [o.id for o in live if o.status in DISPATCHABLE]
+            if it.status == "blocked":
+                # What `blocked` claims about an orchestrator is unfalsifiable
+                # here; what it claims about the slate is not.
+                if disp:
+                    errors.append(f"{it.path}: program is blocked but {disp} are dispatchable — a track with "
+                                  f"a row to pick up is `ready`, or `active` if an orchestrator holds it")
+                elif not live:
+                    errors.append(f"{it.path}: program is blocked but holds no live row — a track waiting on "
+                                  f"nothing is finished, not blocked; close it")
+            elif it.status == "ready" and live and not disp:
+                errors.append(f"{it.path}: program is ready but none of its {len(live)} live rows is "
+                              f"dispatchable — a track nobody can pick up is `blocked`, or `active` if an "
+                              f"orchestrator holds it")
             prefix = it.get("prefix")
             if isinstance(prefix, str) and not prefix.endswith("/"):
                 errors.append(f"{it.path}: `prefix` must end in `/`")
@@ -708,7 +735,10 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
     out.append("`P0`–`P4` count this program's LIVE rows in each band "
                "(`work/README.md`, Priority); a row is counted whatever its "
                "status, and the status columns say which of them are "
-               "dispatchable. `load` is the DISPATCHABLE weight against the "
+               "dispatchable. `status` is the TRACK's own state: `ready` "
+               "(no orchestrator, and a row to pick up), `active` (an "
+               "orchestrator holds it), `blocked` (no orchestrator, and "
+               "nothing dispatchable). `load` is the DISPATCHABLE weight against the "
                "track's budget (Track size); bold is over. `pri` is the band "
                "of the track's spine, never a ceiling on its rows.")
     out.append("")
@@ -725,10 +755,9 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
         if meta:
             out.append("; ".join(meta) + ".")
             out.append("")
-        if p.status == "closed":
-            out.append("Closed; every item is closed.")
+        if p.status == "blocked":
+            out.append("Blocked: no orchestrator, and no row that can be picked up.")
             out.append("")
-            continue
         if not rows:
             out.append("No open items.")
             out.append("")
@@ -897,14 +926,8 @@ def territory(root: str, base: str | None, branch: str | None, files: list[str] 
         raise Bail("invalid tree; run `work.py lint`")
     programs = [it for it in items if it.kind == "program"]
     if branch is None:
-        r = subprocess.run(["git", "-C", root, "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, check=False)
-        branch = r.stdout.decode().strip() if r.returncode == 0 else ""
-    mine = None
-    best = -1
-    for p in programs:
-        pre = p.get("prefix")
-        if isinstance(pre, str) and branch.startswith(pre) and len(pre) > best:
-            mine, best = p.id, len(pre)
+        branch = _current_branch(root)
+    mine = _branch_program(programs, branch)
     if files is None:
         if base is None:
             raise Bail("territory needs --base or --files")
@@ -914,8 +937,8 @@ def territory(root: str, base: str | None, branch: str | None, files: list[str] 
         files = r.stdout.decode().split("\n")
     lines = []
     for path in sorted(p.strip() for p in files if p.strip()):
-        owners = sorted(p.id for p in programs if p.status != "closed"
-                        and any(fnmatch.fnmatchcase(path, g) for g in _listed(p, "paths") if isinstance(g, str)))
+        owners = sorted(p.id for p in programs
+                        if any(fnmatch.fnmatchcase(path, g) for g in _listed(p, "paths") if isinstance(g, str)))
         others = [o for o in owners if o != mine]
         if not others:
             continue
@@ -932,6 +955,61 @@ def territory(root: str, base: str | None, branch: str | None, files: list[str] 
             lines.append(f"{path}: owned by {', '.join(others)}"
                          + (f"; this branch is {mine}'s" if mine else "; this branch has no program prefix"))
     return lines, mine
+
+
+def _current_branch(root: str) -> str:
+    r = subprocess.run(["git", "-C", root, "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, check=False)
+    return r.stdout.decode().strip() if r.returncode == 0 else ""
+
+
+def _branch_program(programs: list, branch: str) -> str | None:
+    """The program whose `prefix` is the longest one `branch` starts with."""
+    mine = None
+    best = -1
+    for p in programs:
+        pre = p.get("prefix")
+        if isinstance(pre, str) and branch.startswith(pre) and len(pre) > best:
+            mine, best = p.id, len(pre)
+    return mine
+
+
+# --------------------------------------------------------------------------
+# incoming
+# --------------------------------------------------------------------------
+
+def incoming(root: str, base: str, program: str | None, branch: str | None) -> tuple[str, int, str]:
+    """(program, commit count, `git log -p`) for every commit on `base` that
+    touches `work/<program>/` and is not yet in HEAD.
+
+    WHY IT IS KEYED TO BASE, NOT TO A MERGE. A program's `log.md` merges with
+    git's union driver (`.gitattributes`), so another program's notice lands
+    in it with no conflict to point at it. The conflict never was a reliable
+    alert — it fired only when the owner had appended too, buried among its
+    own lanes' collisions — so the read is made explicit instead. `HEAD..base`
+    lists a commit until it reaches this branch by any route (a base merge, a
+    reset onto the base), so no merge direction can skip one; the owner's own
+    lane entries show too, once their units land, and are recognisable as its
+    own."""
+    items, errors = load_tree(root)
+    if errors:
+        raise Bail("invalid tree; run `work.py lint`")
+    programs = [it for it in items if it.kind == "program"]
+    if program is None:
+        branch = branch if branch is not None else _current_branch(root)
+        program = _branch_program(programs, branch)
+        if program is None:
+            raise Bail(f"branch {branch!r} carries no program prefix; pass --program")
+    elif program not in {p.id for p in programs}:
+        raise Bail(f"no program {program!r} under {WORK}/")
+    rng, path = f"HEAD..{base}", f"{WORK}/{program}/"
+    r = subprocess.run(["git", "-C", root, "rev-list", "--count", rng, "--", path], capture_output=True, check=False)
+    if r.returncode != 0:
+        raise Bail(f"git rev-list {rng} failed (fetch {base} first?): {r.stderr.decode(errors='replace').strip()}")
+    count = int(r.stdout.decode().strip())
+    r = subprocess.run(["git", "-C", root, "log", "-p", "--reverse", rng, "--", path], capture_output=True, check=False)
+    if r.returncode != 0:
+        raise Bail(f"git log {rng} failed: {r.stderr.decode(errors='replace').strip()}")
+    return program, count, r.stdout.decode(errors="replace")
 
 
 # --------------------------------------------------------------------------
@@ -953,7 +1031,7 @@ def _fixture(root: str) -> None:
     _write(root, "crates/topo/src/lib.rs", "")
     _write(root, "work/README.md", "contract\n")
     _write(root, "work/mesh/program.md",
-           "---\nid: mesh\nkind: program\ntitle: S-MESH\nstatus: open\nopened: 2026-08-31\n"
+           "---\nid: mesh\nkind: program\ntitle: S-MESH\nstatus: active\nopened: 2026-08-31\n"
            "area: kernel\nprefix: mesh/\nab_band: 1200-1299\npaths: [crates/mesh/*]\n---\n")
     _write(root, "work/mesh/plan.md", "plan\n")
     _write(root, "work/mesh/log.md", "log\n")
@@ -963,8 +1041,8 @@ def _fixture(root: str) -> None:
     _write(root, "work/mesh/MESH-2.md",
            "---\nid: MESH-2\nkind: issue\ntitle: second\nstatus: open\nopened: 2026-09-01\nneeds_ev: true\n---\n")
     _write(root, "work/topo/program.md",
-           "---\nid: topo\nkind: program\ntitle: closed one\nstatus: closed\nopened: 2026-08-01\n"
-           "closed: 2026-08-20\narea: kernel\nprefix: topo/\npaths: [crates/topo/*]\n---\n")
+           "---\nid: topo\nkind: program\ntitle: swept clean\nstatus: ready\nopened: 2026-08-01\n"
+           "area: kernel\nprefix: topo/\npaths: [crates/topo/*]\n---\n")
     _write(root, "work/topo/T-1.md",
            "---\nid: T-1\nkind: unit\ntitle: done\nstatus: closed\nopened: 2026-08-01\nclosed: 2026-08-19\n---\n")
     _write(root, "work/issues/stray-thing.md",
@@ -1043,7 +1121,6 @@ def selftest() -> int:
             ("bad status", "work/mesh/MESH-1.md", "status: review", "status: landed"),
             ("closed needs date", "work/mesh/MESH-1.md", "status: review", "status: closed"),
             ("parked needs blocker", "work/mesh/MESH-2.md", "status: open", "status: parked"),
-            ("closed program with live item", "work/topo/T-1.md", "status: closed\nopened: 2026-08-01\nclosed: 2026-08-19", "status: open\nopened: 2026-08-01"),
             ("glob matches nothing", "work/mesh/program.md", "paths: [crates/mesh/*]", "paths: [crates/nope/*]"),
             ("prefix shape", "work/mesh/program.md", "prefix: mesh/", "prefix: mesh"),
             ("program field on a unit", "work/mesh/MESH-1.md", "pr: 1605", "prefix: x/"),
@@ -1059,7 +1136,7 @@ def selftest() -> int:
              "status: review", "status: deferred"),
         ]
         expectations = ["unknown key", "either `true` or absent", "no item", "must equal the file name", "must be one of",
-                        "needs a `closed:` date", "non-empty `blocked_on`", "program is closed but",
+                        "needs a `closed:` date", "non-empty `blocked_on`",
                         "matches no tracked path", "must end in `/`", "not a field of kind unit",
                         "indented line", "only kind issue lives under",
                         "nothing else gates this row", "so prune the fired entry",
@@ -1076,6 +1153,31 @@ def selftest() -> int:
             expect(name, lint(root, warns) + warns, needle)
             _write(root, rel, original)
         expect("restored fixture", lint(root))
+
+        # THE PROGRAM'S OWN STATUS. `active` is unfalsifiable from the tree,
+        # so the two checkable halves are the ones tested: a blocked track with
+        # a row to pick up, and a ready track with nothing to pick up.
+        mp0 = open(os.path.join(root, "work/mesh/program.md"), encoding="utf-8").read()
+        _write(root, "work/mesh/program.md", mp0.replace("status: active", "status: blocked"))
+        expect("blocked with a dispatchable row", lint(root), "but ['MESH-2'] are dispatchable")
+        _write(root, "work/mesh/program.md", mp0.replace("status: active", "status: ready"))
+        expect("ready with a dispatchable row is clean", lint(root))
+        o2 = open(os.path.join(root, "work/mesh/MESH-2.md"), encoding="utf-8").read()
+        _write(root, "work/mesh/MESH-2.md", o2.replace("status: open", "status: deferred"))
+        expect("ready with nothing dispatchable", lint(root), "none of its 2 live rows is dispatchable")
+        _write(root, "work/mesh/program.md", mp0.replace("status: active", "status: blocked"))
+        expect("blocked with nothing dispatchable is clean", lint(root))
+        text = render(root, today=far)
+        if "Blocked: no orchestrator" not in text:
+            failures.append("render: a blocked track does not say so on its slate")
+        _write(root, "work/mesh/MESH-2.md", o2)
+        _write(root, "work/topo/program.md",
+               open(os.path.join(root, "work/topo/program.md"), encoding="utf-8").read()
+               .replace("status: ready", "status: blocked"))
+        expect("blocked with no live row at all", lint(root), "waiting on nothing is finished")
+        subprocess.run(["git", "-C", root, "checkout", "-q", "--", "work/topo/program.md"], check=True)
+        _write(root, "work/mesh/program.md", mp0)
+        expect("restored after the program-status cases", lint(root))
 
         # deferred: a ratified not-now, no blocker, its own render column, and
         # NOT the fired-trigger error's subject
@@ -1185,7 +1287,7 @@ def selftest() -> int:
         # silence once both keep_outs name the other
         mp = open(os.path.join(root, "work/mesh/program.md"), encoding="utf-8").read()
         _write(root, "work/verbs/program.md",
-               "---\nid: verbs\nkind: program\ntitle: VERBS\nstatus: open\nopened: 2026-09-01\n"
+               "---\nid: verbs\nkind: program\ntitle: VERBS\nstatus: ready\nopened: 2026-09-01\n"
                "area: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\n---\n")
         _write(root, "work/verbs/plan.md", "plan\n")
         _write(root, "work/verbs/log.md", "log\n")
@@ -1193,24 +1295,24 @@ def selftest() -> int:
         expect("a double claim is not an error", lint(root, warns))
         if any("shares" in w and "verbs" in w for w in warns):
             failures.append("shared ground must not warn on lint: it is legitimate (Ev, 2026-09-20)")
-        progs = [it for it in load_tree(root)[0] if it.kind == "program" and it.status != "closed"]
+        progs = [it for it in load_tree(root)[0] if it.kind == "program"]
         rep = " ".join(_double_claims(root, progs))
         for want in ("shares", "verbs", "recorded by neither"):
             if want not in rep:
                 failures.append(f"the at-rest overlap report should still name it: {want!r} not in {rep!r}")
         _write(root, "work/verbs/program.md",
-               "---\nid: verbs\nkind: program\ntitle: VERBS\nstatus: open\nopened: 2026-09-01\n"
+               "---\nid: verbs\nkind: program\ntitle: VERBS\nstatus: ready\nopened: 2026-09-01\n"
                "area: kernel\nprefix: verbs/\npaths: [crates/mesh/*]\nkeep_out: [the mesh crate is S-MESH's until it cedes it]\n---\n")
         warns = []
         expect("a one-sided record is not an error", lint(root, warns))
-        progs = [it for it in load_tree(root)[0] if it.kind == "program" and it.status != "closed"]
+        progs = [it for it in load_tree(root)[0] if it.kind == "program"]
         if "recorded by `verbs` only" not in " ".join(_double_claims(root, progs)):
             failures.append("the report should say which side recorded a one-sided overlap")
         _write(root, "work/mesh/program.md",
                mp.replace("paths: [crates/mesh/*]", "paths: [crates/mesh/*]\nkeep_out: [verbs holds the verb seat inside this crate]"))
         warns = []
         expect("an overlap both keep_outs name is silent", lint(root, warns))
-        progs = [it for it in load_tree(root)[0] if it.kind == "program" and it.status != "closed"]
+        progs = [it for it in load_tree(root)[0] if it.kind == "program"]
         if any("verbs" in line for line in _double_claims(root, progs)):
             failures.append("an overlap both keep_outs name should leave the report too")
         _write(root, "work/mesh/program.md", mp)
@@ -1222,7 +1324,7 @@ def selftest() -> int:
         # rides-along on a closed carrier
         _write(root, "work/topo/T-2.md",
                "---\nid: T-2\nkind: issue\ntitle: passenger\nstatus: open\nopened: 2026-08-02\nrides_with: T-1\n---\n")
-        expect("passenger on struck row", lint(root), "re-home it", "program is closed but")
+        expect("passenger on struck row", lint(root), "re-home it")
         os.remove(os.path.join(root, "work/topo/T-2.md"))
 
         # a plan left in docs/
@@ -1238,17 +1340,19 @@ def selftest() -> int:
         _write(root, "crates/topo/src/other.rs", "")
         subprocess.run(["git", "-C", root, "add", "-A"], check=True)
         subprocess.run(["git", "-C", root, "commit", "-q", "-m", "x"], check=True)
+        crossing = "crates/topo/src/other.rs"
         lines, mine = territory(root, "master" if _branch_exists(root, "master") else "main", "mesh/y")
-        if mine != "mesh" or lines:
-            failures.append(f"territory (own program): {mine} {lines}")
+        if mine != "mesh" or [ln for ln in lines if crossing not in ln] or len(lines) != 1:
+            failures.append(f"territory (own program is silent, the crossing is not): {mine} {lines}")
         lines, mine = territory(root, "master" if _branch_exists(root, "master") else "main", "verbs/z")
-        if mine is not None or len(lines) != 1 or "crates/mesh/src/other.rs" not in lines[0]:
-            failures.append(f"territory (foreign branch, closed program ignored): {mine} {lines}")
+        if mine is not None or len(lines) != 2 or not all(
+                any(f"crates/{c}/src/other.rs" in ln for ln in lines) for c in ("mesh", "topo")):
+            failures.append(f"territory (foreign branch, every program's claim counts): {mine} {lines}")
         # THE BLIND SPOT: a path the branch's OWN program claims and another
         # program claims too was reported by nothing until 2026-09-11.
         mp2 = open(os.path.join(root, "work/mesh/program.md"), encoding="utf-8").read()
         _write(root, "work/verbs2/program.md",
-               "---\nid: verbs2\nkind: program\ntitle: VERBS2\nstatus: open\nopened: 2026-09-01\n"
+               "---\nid: verbs2\nkind: program\ntitle: VERBS2\nstatus: ready\nopened: 2026-09-01\n"
                "area: kernel\nprefix: verbs2/\npaths: [crates/mesh/*]\n---\n")
         _write(root, "work/verbs2/plan.md", "plan\n")
         _write(root, "work/verbs2/log.md", "log\n")
@@ -1259,9 +1363,27 @@ def selftest() -> int:
             os.remove(os.path.join(root, "work/verbs2", name))
         os.rmdir(os.path.join(root, "work/verbs2"))
         lines, mine = territory(root, "master" if _branch_exists(root, "master") else "main", "mesh/y")
-        if lines:
+        if any("crates/mesh" in ln for ln in lines) or len(lines) != 1:
             failures.append(f"territory (own program, sole claimant): {lines}")
         _write(root, "work/mesh/program.md", mp2)
+
+        # incoming: a note another program leaves in mesh's log reaches the
+        # base; it is listed until this branch has it, however it arrives.
+        base = "master" if _branch_exists(root, "master") else "main"
+        subprocess.run(["git", "-C", root, "checkout", "-q", base], check=True)
+        with open(os.path.join(root, "work/mesh/log.md"), "a", encoding="utf-8") as f:
+            f.write("a note from topo\n")
+        subprocess.run(["git", "-C", root, "commit", "-q", "-am", "topo: note on mesh's log"], check=True)
+        subprocess.run(["git", "-C", root, "checkout", "-q", "topo/x"], check=True)
+        prog, n, text = incoming(root, base, "mesh", None)
+        if prog != "mesh" or n != 1 or "a note from topo" not in text:
+            failures.append(f"incoming (a foreign note on the base is listed): {prog} {n} {text!r}")
+        prog, n, _ = incoming(root, base, None, "topo/x")
+        if prog != "topo" or n != 0:
+            failures.append(f"incoming (the branch's program, untouched on the base): {prog} {n}")
+        subprocess.run(["git", "-C", root, "merge", "-q", "--no-edit", base], check=True)
+        if incoming(root, base, "mesh", None)[1] != 0:
+            failures.append("incoming (a note already merged in is still listed)")
 
     if failures:
         for f in failures:
@@ -1314,6 +1436,9 @@ def main(argv: list[str]) -> int:
     s.add_argument("--strict", action="store_true", help="exit 1 on a collision")
     s.add_argument("--overlaps", action="store_true",
                    help="instead of a diff: the at-rest map of which open programs share ground")
+    s = sub.add_parser("incoming")
+    s.add_argument("--base", default="origin/main", help="the branch notices arrive on (fetch it first)")
+    s.add_argument("--program", help="default: the program whose prefix the current branch carries")
     args = ap.parse_args(argv)
 
     try:
@@ -1352,7 +1477,7 @@ def main(argv: list[str]) -> int:
             return 0
         if args.cmd == "territory":
             if args.overlaps:
-                progs = [it for it in load_tree(root)[0] if it.kind == "program" and it.status != "closed"]
+                progs = [it for it in load_tree(root)[0] if it.kind == "program"]
                 lines = _double_claims(root, progs)
                 for line in lines:
                     print(f"overlap: {line}")
@@ -1368,6 +1493,12 @@ def main(argv: list[str]) -> int:
                     print(f"::warning file={line.split(':', 1)[0]}::{line}")
             print(f"work.py territory: branch program {mine or '(none)'}, {len(lines)} path(s) in another program's territory")
             return 1 if (lines and args.strict) else 0
+        if args.cmd == "incoming":
+            prog, n, text = incoming(root, args.base, args.program, None)
+            if text:
+                print(text, end="" if text.endswith("\n") else "\n")
+            print(f"work.py incoming: {n} commit(s) on {args.base} touch {WORK}/{prog}/ that this branch lacks")
+            return 0
         raise AssertionError(args.cmd)
     except Bail as e:
         print(f"work.py: {e}", file=sys.stderr)

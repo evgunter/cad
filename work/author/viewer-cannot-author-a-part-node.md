@@ -2,10 +2,13 @@
 id: viewer-cannot-author-a-part-node
 kind: issue
 title: The viewer has no AddPart op, so a Part { Instance(i) } node — the road to a nested copy the mate tool now admits — is reachable only from a file or the Python API
-status: open
+status: closed
 opened: 2026-09-06
 priority: P0
 cost: D
+branch: author/part-and-duplicate
+pr: 3052
+closed: 2026-09-24
 ---
 
 
@@ -57,3 +60,43 @@ viewer's authoring ops)", and the sibling gap —
 lacked for a kernel node the combine layer already admitted — was
 CHROME's and closed by CHROME in PR 1762. That is the shape to copy and
 the argument for where the row belongs.
+
+## A second consumer refuses on it (2026-09-21, AUTH-1)
+
+Found by AUTH-1's implementer lane, inside AUTHOR's own fence, and
+recorded here rather than as a second row.
+
+The add-datum form's new `frame on face` seat declines a face picked on
+a node whose value is several bodies, because `Datum::FaceFrame` reads
+its face through the evaluator's single-body operand door
+(`eval::wire::body_operand`, reached from the `Datum::FaceFrame` arm of
+`wire_datum`) and a split's sides and a pattern's instances are not one
+body. The refusal is a value — `session::refuse::FaceFrameFault::
+NotOneBody`, with `session::add_datum`'s `WrongNodeKind { wanted: Body }`
+behind it — and
+`docm1_face_frame::several_bodies_is_no_seat_for_a_face_frame` drives
+both.
+
+So the gap this row names now costs a SECOND ordinary gesture, not just
+the nested-copy one: click the top of one half of a split, and the GUI
+cannot put a sketch frame on it. `combine::denotes_body`'s own doc says
+the recipe's way of naming one of several is `Node::Part` and that "the
+door that authors one is CHROME's" — the door this row asks for. An
+`AddPart` op would make the face-frame seat reachable there with no
+further change to the datum path: the author projects the half, picks
+the face on the projection, and the same gate admits it.
+
+## Closed 2026-09-24 — PR 3052 merged (`2273a3a1`)
+
+`SessionOp::AddPart { of, select: PartSelectSpec }`, with the instance
+index an `i64` at the op door on `AddPattern`'s structural-slot
+precedent. The panel calls it the **projection tool**, since "part"
+already names another document in the `Add part…` chooser beside it.
+It seats a split or a pattern picked in the viewport or the tree, and
+says that projecting one body stops drawing the rest.
+
+Residue: `work/forms/a-projected-split-is-unreachable-from-the-viewport`
+(after one projection the other half is reachable only from the tree),
+the body-seat kind-vs-value disagreement now pinned as a named
+exception on `work/forms/body-seat-reads-through-the-placer-chain`, and
+`no-row-holds-that-the-create-pane-offers-the-tools-it-has`.

@@ -69,7 +69,6 @@ fn n2r2_class3_dual_poisoned_derivative_only() {
     );
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn n2r2_class3_interval() {
     use geom_core::{Bounds, Interval};

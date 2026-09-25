@@ -3,6 +3,7 @@
 //! deterministic f64 lane. Raw `f64` comparisons are legal throughout
 //! this file (structure selection, never a topology decision).
 
+use crate::readable::Readable;
 use core::num::NonZeroUsize;
 
 /// A typed construction failure for spline structure — fail-loud per
@@ -71,22 +72,36 @@ impl core::fmt::Display for SplineError {
             }
             SplineError::NonPositiveWeight { index, weight } => write!(
                 f,
-                "weight {index} is {weight}, not strictly positive (convex-hull invariant)"
+                "weight {index} is {}, not strictly positive (convex-hull invariant) — \
+                 every hull bound this kernel certifies stands on the convex-combination \
+                 licence, so supply a strictly positive weight there rather than a zero, a \
+                 negative or a NaN",
+                Readable(*weight)
             ),
-            SplineError::NonFiniteWeight { index, weight } => {
-                write!(f, "weight {index} is {weight}, not finite")
-            }
+            SplineError::NonFiniteWeight { index, weight } => write!(
+                f,
+                "weight {index} is {}, not finite — an infinite weight passes `> 0` and \
+                 is not usable structure: supply a finite strictly positive weight there",
+                Readable(*weight)
+            ),
             SplineError::ControlCountMismatch { control, expected } => write!(
                 f,
-                "control-point count {control} does not match the knot vector (expected {expected})"
+                "control-point count {control} does not match the knot vector (expected \
+                 {expected}) — the two are one description: supply {expected} control points, \
+                 or a knot vector of control + degree + 1 knots"
             ),
             SplineError::WeightCountMismatch { weights, control } => write!(
                 f,
-                "weight count {weights} does not match control-point count {control}"
+                "weight count {weights} does not match control-point count {control} — supply \
+                 one weight per control point"
             ),
             SplineError::DomainInvalid { lo, hi } => write!(
                 f,
-                "the domain [{lo}, {hi}] is not a finite increasing interval of finite width"
+                "the domain [{}, {}] is not a finite increasing interval of finite width \
+                 — the defect is the REQUEST's, not the vector's: ask on a domain whose ends \
+                 are finite with lo < hi and whose width does not overflow",
+                Readable(*lo),
+                Readable(*hi)
             ),
         }
     }
@@ -131,19 +146,45 @@ pub enum KnotVectorIssue {
 impl core::fmt::Display for KnotVectorIssue {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            KnotVectorIssue::DegreeZero => f.write_str("degree 0 is unsupported"),
-            KnotVectorIssue::TooShort => f.write_str("fewer than 2(degree+1) knots"),
-            KnotVectorIssue::NonFinite { index } => write!(f, "knot {index} is not finite"),
-            KnotVectorIssue::Decreasing { index } => write!(f, "knot {index} decreases"),
-            KnotVectorIssue::StartNotClamped => {
-                f.write_str("start multiplicity is not exactly degree+1")
-            }
-            KnotVectorIssue::EndNotClamped => {
-                f.write_str("end multiplicity is not exactly degree+1")
-            }
-            KnotVectorIssue::InteriorMultiplicityTooHigh { index } => {
-                write!(f, "interior knot {index} has multiplicity > degree")
-            }
+            KnotVectorIssue::DegreeZero => f.write_str(
+                "degree 0 is unsupported — a degree-0 locus is a step function rather than a \
+                 curve, and the form is a designed absence until a consumer exists: describe \
+                 the geometry at degree 1 or above",
+            ),
+            KnotVectorIssue::TooShort => f.write_str(
+                "fewer than 2(degree+1) knots — a clamped vector carries degree+1 of them at \
+                 each end: supply the missing knots, or describe at the degree the knots you \
+                 have can clamp",
+            ),
+            KnotVectorIssue::NonFinite { index } => write!(
+                f,
+                "knot {index} is not finite — knots are structure, compared exactly and never \
+                 to a tolerance: supply a finite value there"
+            ),
+            KnotVectorIssue::Decreasing { index } => write!(
+                f,
+                "knot {index} decreases — a knot vector is non-decreasing: supply the values \
+                 in ascending order, repeating one to raise its multiplicity rather than \
+                 stepping back"
+            ),
+            KnotVectorIssue::StartNotClamped => f.write_str(
+                "start multiplicity is not exactly degree+1 — clamped-v1 pins both ends so \
+                 the first span is nonempty and the curve interpolates the first control \
+                 point: repeat the first knot exactly degree+1 times (the periodic and \
+                 unclamped forms are a designed absence, not this refusal)",
+            ),
+            KnotVectorIssue::EndNotClamped => f.write_str(
+                "end multiplicity is not exactly degree+1 — clamped-v1 pins both ends so the \
+                 last span is nonempty and the curve interpolates the last control point: \
+                 repeat the last knot exactly degree+1 times (the periodic and unclamped \
+                 forms are a designed absence, not this refusal)",
+            ),
+            KnotVectorIssue::InteriorMultiplicityTooHigh { index } => write!(
+                f,
+                "interior knot {index} has multiplicity > degree — an interior value may \
+                 repeat up to degree times, which drops continuity to C⁰, and never past it: \
+                 drop the surplus copies there"
+            ),
         }
     }
 }
@@ -1162,6 +1203,21 @@ mod tests {
             domain(1.0, 0.0),
             SplineError::DomainInvalid { lo: 1.0, hi: 0.0 }
         );
+        // A width that overflows is a domain whose ends sit near the
+        // ceiling of the range, and the refusal names them readably.
+        let e = domain(-1e308, 1e308);
+        assert_eq!(
+            e,
+            SplineError::DomainInvalid {
+                lo: -1e308,
+                hi: 1e308
+            }
+        );
+        assert!(
+            e.to_string()
+                .starts_with("the domain [-1e308, 1e308] is not a finite increasing interval"),
+            "{e}"
+        );
 
         // Two distinct interior knots whose images coincide: at 1e16
         // the ulp is 2, so `0.3·8` and `0.35·8` both round onto
@@ -1377,5 +1433,99 @@ mod tests {
             "the probe list no longer reaches this exit, so the contract it states is \
              unchecked here",
         );
+    }
+
+    /// Every rendering of a knot-vector violation names what to change
+    /// in the description, not only what is wrong with it.
+    ///
+    /// The vocabulary is a vocabulary and not a part-of-speech test:
+    /// an arm that names the thing a caller supplies satisfies the
+    /// claim the same way an imperative does.
+    #[test]
+    fn every_knot_vector_issue_arm_names_a_recourse() {
+        const RECOURSE_WORDS: &[&str] = &["supply", "describe", "repeat", "drop"];
+        let arms = knot_vector_issue_arms();
+        assert_eq!(arms.len(), 7, "an arm was added without a row here");
+        for arm in &arms {
+            let msg = arm.to_string().to_lowercase();
+            assert!(
+                RECOURSE_WORDS.iter().any(|w| msg.contains(w)),
+                "no recourse in: {msg}"
+            );
+        }
+    }
+
+    /// One of each [`KnotVectorIssue`], so the row above and the
+    /// transitive arm of the row below read the same population.
+    fn knot_vector_issue_arms() -> [KnotVectorIssue; 7] {
+        [
+            KnotVectorIssue::DegreeZero,
+            KnotVectorIssue::TooShort,
+            KnotVectorIssue::NonFinite { index: 2 },
+            KnotVectorIssue::Decreasing { index: 3 },
+            KnotVectorIssue::StartNotClamped,
+            KnotVectorIssue::EndNotClamped,
+            KnotVectorIssue::InteriorMultiplicityTooHigh { index: 4 },
+        ]
+    }
+
+    /// Every `SplineError` rendering names a repair — and
+    /// `KnotVectorInvalid`, which renders its carrier whole and
+    /// contributes four words of its own, is asserted TRANSITIVELY: at
+    /// every payload, not at one chosen because it happens to carry a
+    /// clause. `KnotVectorIssue` has an enforcement row of its own
+    /// directly above, which is what licenses the transitive reading
+    /// here.
+    #[test]
+    fn every_spline_error_arm_names_a_recourse() {
+        const RECOURSE_WORDS: &[&str] = &["supply", "ask", "describe", "repeat", "drop"];
+        let arms = [
+            SplineError::KnotVectorInvalid {
+                reason: KnotVectorIssue::DegreeZero,
+            },
+            SplineError::NonPositiveWeight {
+                index: 1,
+                weight: 0.0,
+            },
+            SplineError::NonFiniteWeight {
+                index: 1,
+                weight: f64::INFINITY,
+            },
+            SplineError::ControlCountMismatch {
+                control: 3,
+                expected: 4,
+            },
+            SplineError::WeightCountMismatch {
+                weights: 3,
+                control: 4,
+            },
+            SplineError::DomainInvalid { lo: 1.0, hi: 1.0 },
+        ];
+        assert_eq!(arms.len(), 6, "an arm was added without a row here");
+        let check = |msg: &str| {
+            let lower = msg.to_lowercase();
+            assert!(
+                RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
+                "no recourse in: {msg}"
+            );
+        };
+        for arm in &arms {
+            match arm {
+                SplineError::KnotVectorInvalid { .. } => {
+                    for reason in &knot_vector_issue_arms() {
+                        let msg = SplineError::KnotVectorInvalid {
+                            reason: reason.clone(),
+                        }
+                        .to_string();
+                        assert!(
+                            msg.contains(&reason.to_string()),
+                            "carrier not rendered whole: {msg}"
+                        );
+                        check(&msg);
+                    }
+                }
+                _ => check(&arm.to_string()),
+            }
+        }
     }
 }

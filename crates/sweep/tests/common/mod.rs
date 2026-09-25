@@ -248,6 +248,42 @@ pub fn quintic_prism() -> Body<f64> {
     .body
 }
 
+/// **The square prism**: two identical unbulged unit squares two apart,
+/// v-degree 1 — planar caps whose loops are four `Line` carriers, and
+/// four degree-1 NURBS walls, which the patch engine answers on its
+/// exact per-span arm.
+///
+/// The line-bounded control for any row about tier 3's check 6: it is
+/// [`arc_prism`] with the bulge taken out, so a row that runs both
+/// isolates the CARRIER and nothing else.
+pub fn square_prism() -> Body<f64> {
+    let sq = || quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
+    sweep::loft_body::<f64>(&[sq(), sq()], &stacked(&[0.0, 2.0], 1.0), 1, Tol::witness())
+        .expect("the square prism lofts")
+        .body
+}
+
+/// **The arc prism**: three identical [`arc_section`]s stacked one
+/// apart at v-degree 2, so every wall is a RATIONAL patch and the
+/// quotient composite answers. Each planar cap's loop carries three
+/// `Line`s and one `Circle`.
+///
+/// One copy for the crate, for [`arc_section`]'s reason: the digest
+/// suite, the S10 sense suite and `m8_3_rational_volume` each held a
+/// byte-identical spelling. The scaled and two-station variants
+/// elsewhere in this corpus are NOT folded in — each states at its own
+/// site why its shape differs.
+pub fn arc_prism() -> Body<f64> {
+    sweep::loft_body::<f64>(
+        &[arc_section(1.0), arc_section(1.0), arc_section(1.0)],
+        &stacked(&[0.0, 1.0, 2.0], 1.0),
+        2,
+        Tol::witness(),
+    )
+    .expect("the arc prism lofts")
+    .body
+}
+
 /// The tilted cylinder cut, upper part: a cylinder split by a plane at
 /// `φ = 0.3`, whose wall pieces are bounded by exact `Ellipse`
 /// carriers — the CYLINDER chart's Green form, which no loft or sweep

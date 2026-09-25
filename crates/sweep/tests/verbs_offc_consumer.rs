@@ -741,8 +741,8 @@ fn a_narrowed_window_refuses_at_the_validator_and_at_the_map() {
     body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(planted))))
         .unwrap();
 
-    // The validator, through production code (`PropsQuadLane`'s
-    // re-derivation lane, which is what tier 3 calls per face).
+    // The validator, through production code (the offset-fit door
+    // check 1 reads off `AtRestPolicy`, which is what tier 3 calls per face).
     let findings = match topo::validate_geometric(&body, Tol::witness()) {
         Ok(()) => Vec::new(),
         Err(e) => e.iter().map(|f| format!("{f:?}")).collect(),
@@ -895,7 +895,6 @@ fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
 /// `transform_rigid` takes `&Body<T>` and works on a CLONE, so what
 /// there is to pin is that the clone is dropped rather than returned: no
 /// body comes back at all.
-#[cfg(feature = "interval")]
 #[test]
 fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
     use common::approx::{planar_patch, pulled_back};

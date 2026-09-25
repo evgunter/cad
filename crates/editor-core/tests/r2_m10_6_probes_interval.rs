@@ -12,7 +12,6 @@
 //! hand-written and still unchecked — the weld is on NAMES, never on
 //! prose.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 test_utils::roster! {

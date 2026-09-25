@@ -2,10 +2,11 @@
 id: coefficient-ring-width-is-not-monotone-in-reach
 kind: issue
 title: widening the coefficient ring can lose discharges: a frozen node matches itself as one opaque indeterminate, and the same node expanded may not close
-status: open
+status: closed
 opened: 2026-09-14
 priority: P0
 cost: D
+closed: 2026-09-24
 ---
 
 
@@ -111,3 +112,141 @@ whose pivot is a power of two and leaves the rest alone. That is a
 narrower canonical form — two spellings whose pivots differ by a
 non-dyadic factor would stop meeting — so it trades reach for width
 and wants its own measurement before it is taken.
+
+## A third measurement: SYM-8's rule F (2026-09-15)
+
+This row's `abs` patches are re-taken, against the narrower predicate
+SYM-8's rule F uses. Patch C folded `abs(X) = X` for a SYNTACTICALLY
+NON-NEGATIVE `X` and lost ten decisions on R1's boss with patch A at
+256 bits; rule F folds only where `X` is manifestly POSITIVE — every
+term non-negative and at least one term strictly positive, with
+`sqrt`/`abs` atoms counting as positive only when their own argument
+is. The boss's atom is `abs((5/8)·sqrt(L²))`, whose `sqrt` is over a
+BARE SQUARE: non-negative, not positive, so the predicate declines it.
+
+Measured (the split at the nominal, whole, rule F off → on):
+
+| document | rule F off | rule F on |
+| --- | --- | --- |
+| R1's segment boss at `bulge = 2` | the shipped table | **bit-identical**, every row |
+| R2's D-tab, bulge a literal `0.4` | the shipped table | **bit-identical** |
+| R2's D-tab, bulge a parameter | the shipped table | **bit-identical** |
+| its whole-certifying ceiling (boss) | `9.3559e2 .. 9.3595e2 · ε` | identical to the digit |
+
+So the narrowed predicate does not re-take the loss this row recorded:
+rule F never fires on the bulge family. `sym_rule_f_rows`'s
+`abs(sqrt(t²)) − sqrt(t²)` row is the pin that keeps it declining.
+
+**But the class is alive, and rule F pays it once.** On R2's rounded
+pad, at the scale it certifies whole at, the same 1953 decisions split
+`symbolic_zero: 858, registered: 104, numeric: 991` with the rule off
+and `854 / 128 / 971` with it on — 24 decisions into the door, twenty
+out of `numeric` and FOUR out of `symbolic_zero`. `frozen` is 2750 at
+both dials and no ceiling on any of the eight measured documents moves
+by a digit. Those four are this row's mechanism exactly: the early walk
+was cancelling OVER an opaque `abs` atom, opening it expands both sides
+into forms the ring must now close, and where it cannot the theorem is
+lost — here the registry re-takes them, so no decision is lost, but the
+claim is weakened from a theorem the tier proved to an axiom a
+constructor stated. A unit that folds an atom owes this reading, not
+only the predicate it is after; SYM-8's is the third.
+
+**And it is not rule E's hazard twice.** Rule E's loss is demonstrated
+at the SCALAR — `sym_rule_e_rows::rule_e_can_cost_a_theorem_to_the_coefficient_ring`,
+a hand-built residual at a 200-bit coefficient — and no measured
+document pays it. Rule F's is realised ON a measured document, at the
+scale that document certifies whole at. Both reviews of SYM-8 read the
+spec's Phase-1.3 stop clause as literally tripped by it; the SYM
+orchestrator ratified the ship-on as a spec deviation on 2026-09-21
+(`work/decide/SYM-8.md`). The guard that was missing is in:
+`m10_9_pins_interval`'s `Study` now pins `symbolic_zero` beside
+`registered` on all five documents, so the next four theorems to leave
+red rather than living in a comment.
+
+
+## What SYM-9 answered (2026-09-22, fix pass 2026-09-24)
+
+This row's thesis — that the ring's width is not monotone in reach, and
+neither is opening an atom — is what SYM-9 built a RETRY LADDER on
+rather than a wider ring (`geom_core::SymRetry`, and the unit's PR).
+The ladder cannot pay this row's cost, because a retry is asked only
+where every rung of the first attempt declined: the first attempt is
+identical with the ladder installed and without it, so `numeric` can
+only fall and no discharge can be lost. That is the row's mechanism
+turned into a design constraint rather than worked around.
+
+**The measurement, per shape, as a RETRY at the nominal, on five of the
+six documents** (the dev nominal replay; R2's rounded pad does not
+return one on the measuring box —
+`work/sym/the-pads-nominal-replay-is-not-takeable-on-a-four-core-box`):
+
+| shape, as a RETRY | plate | annulus | boss | bracket | link |
+| --- | --- | --- | --- | --- | --- |
+| the ring at 512 bits | 0 | 0 | 0 | **6** (4.41x) | **8** (1.29x) |
+| the ring at 1024 bits | 0 | 0 | 0 | **19** (11.57x) | 8 (1.28x) |
+| rule A shut | 0 | 0 | 0 | **6** (1.11x) | 0 (1.04x) |
+| rule G shut | 0 | 0 | 0 | 0 (1.25x) | **12** (1.14x) |
+| rule A and rule G shut in ONE mask | 0 | 0 | 0 | 6 (1.05x) | **0** (1.07x) |
+| rule E shut / rule F shut | 0 | 0 | 0 | 0 | 0 |
+| the companion rewrite shut / the magnitude door shut | 0 | 0 | 0 | 0 | 0 |
+
+The ratio is one whole nominal replay against the same replay with the
+ladder off, a dev build on a four-core box. The pad is measured on the
+OTHER instrument, one whole-box leaf in release at `1e2·ε`, where its
+receipt is `[890, 6, 150, 907]` with the kept-atom ladder and without
+it: nothing recovered, at 131.3 → 147.7 s.
+
+**At 512 bits the ring recovers, predicate by predicate, no more than
+the kept-atom attempts do**, at four times the cost on the bracket. At
+1024 bits it recovers THIRTEEN more decisions on the bracket than the
+kept-atom attempts (19 in all, `tangent_on_surface_2` `[9, 0, 0, 9]`
+-> `[18, 0, 0, 0]` among them), at 11.57x — reach the ring has and the
+kept atom does not, at a price no default pays.
+
+**The two kept-atom shapes are not composable in one mask** — rule A
+and rule G shut together keep the bracket's six and lose all twelve of
+the link's — so `SymRetry` carries one mask per shape (the free const
+`geom_core::sym::MASKS`). Why the joint mask loses the twelve is not
+executed on the link; the working hypothesis is that they close
+through rule A's `sqrt(X)² = X` once rule G has stopped re-keying the
+atom, and the render of those residuals under both masks is what would
+confirm it
+(`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`,
+shape 2).
+
+**Rule E's scale step — the second mechanism above — is RECOVERABLE by
+a retry at the scalar and costs no measured document anything a retry
+recovers.** SYM-9's `geom-core/tests/sym_9_retry_rows.rs`
+(`a_fewer_rules_retry_closes_the_rule_e_loss`) drives the hand-built
+residual above through a retry with rule E shut and it closes as a
+theorem; rule E shut as a retry recovers zero on the five documents.
+
+**What ships.** `SymRetry::kept_atom`, ON by default, across the 1.6 s
+line as a disclosed trade, the way rule E shipped: on the affordability
+line's instrument the ladder acts only on documents already over the line
+at one attempt per rung, adds 12.5–36 % there, changes no certification,
+and its rule-G attempt returns the ten theorems the default rule G costs
+R2's link (`editor_core::drive::DEFAULT_SYM_RETRY` carries the table;
+the rule-A attempt is the weaker half, six registrations and no theorem).
+The fix pass first set the default to none on the leaf line and the
+delta review reversed that; the leaf numbers stand either way.
+
+**What is left open here.** The pad's nominal replay is unmeasured
+(its own row), and the ring's non-monotonicity is now a DESIGN
+CONSTRAINT the ladder respects rather than a defect anything closes —
+the row stays open as the record the next unit that reaches for
+`COEFF_BITS` reads its own split against, which is what it was filed
+as.
+
+## Closed (2026-09-24)
+
+Closed at SYM-9's merge (#3083, into `props/sign-hull`). The row's
+second way to settle it — "the walk keeps an atom opaque where opening
+it buys nothing" — is what shipped: a retry ladder that leaves the first
+attempt exactly as it was and asks a kept-atom attempt only into its
+silence, so the non-monotonicity this row measured can no longer lose
+a discharge. The ring's width stays a dial (`SymRetry::ring`) with its
+table above: at 1024 bits it reaches thirteen bracket decisions the
+kept atom does not, at a price no default pays. A unit that reaches for
+`COEFF_BITS` still owes the full per-document split and the bracket;
+this closed row is the record it reads.

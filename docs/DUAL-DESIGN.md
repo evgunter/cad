@@ -83,8 +83,10 @@ exists: `evaluate(doc, prior, …)`, `eval/mod.rs:1002`).
 
 **The measured problem**: if `evaluate::<Dual64>` compiled today, a
 corpus document with an ellipse-trimmed or spline face would FAIL
-the product gather's tier-3 (+V through `PropsQuadLane`, whose
-`Dual` arm refuses) with `VolumeUncomputable`; `Approx` faces
+the product gather's tier-3 (+V through the quadrature door
+`topo::QuadLane`, which a `Dual` cannot construct, so the walk holds
+none and check 7's closed form refuses) with `VolumeUncomputable`;
+`Approx` faces
 report `ApproxLaneUnsupported`; curved coincident pairs
 `CensusUnsupported`. Those refusals are the system correctly
 saying *a dual may not certify* — asking a dual evaluation to
@@ -93,16 +95,18 @@ validate IS asking it to certify.
 **Proposal**: the E4 sensitivity pass evaluates WITHOUT the
 certified gates: the evaluation service gains a scalar-policy seam
 — certified validation (the product gather's `validate_geometric`,
-`recertify_approx`, the census door) runs at scalars with
-certification rights (f64's decide-with-escalation lane and
-`Interval`), and is structurally absent at `Dual`. This is sound
-because the sensitivity is OF THE AS-BUILT BODY: the dual's value
-channel is bit-identical to the f64 build (D9), which was already
-validated in the f64 evaluation E4 rides beside; re-validating the
-same bits through refusing arms adds no information and subtracts
-availability. The E4 driver asserts (cheaply, by content key
-equality of the value channel where it needs a hook) that it is
-differentiating the build the f64 run validated.
+the offset fit's `OffsetFitLane::recertify`, the hollowing verb's
+`ShellDoor`, the census door) runs at scalars with certification
+rights (f64's decide-with-escalation lane and `Interval`), and is
+structurally absent at `Dual`. This
+is sound because the sensitivity is OF THE AS-BUILT BODY: the
+dual's value channel is bit-identical to the f64 build (D9), which
+was already validated in the f64 evaluation E4 rides beside;
+re-validating the same bits through refusing arms adds no
+information and subtracts availability. The E4 driver asserts
+(cheaply, by content key equality of the value channel where it
+needs a hook) that it is differentiating the build the f64 run
+validated.
 
 - Not a weakening: nothing a dual pass produces is consumed as a
   certificate anywhere (DL1); its outputs are E4-marked
@@ -111,18 +115,20 @@ differentiating the build the f64 run validated.
 - Foreclosed by this shape: "tolerate refusals per-face and limp"
   — availability by policy, not by swallowing typed errors.
 
-## DL4 — `Enclosure` joins the allowlist gate (closes issue 701)
+## DL4 — `…Enclosure` names ride the allowlist gate (closes issue 701)
 
-**Proposal**: `bounds-allowlist.sh` greps `Enclosure` (and
-`CertifiedEnclosure` as today's skip-list handles) exactly as it
-greps `Bounds`, same file allowlist. The blanket
-`impl<T: Bounds> Enclosure for T` makes every `Dual` an
-`Enclosure` since D1; no `Enclosure`-bounded signature exists in
-`crates/*/src` today (`real.rs:727-740`), so the gate lands green
-and the hole (a future `T: Enclosure` bound on certifying code,
-with no CI row saying so) closes while it is still hypothetical.
-The known alias gap (#279's class) is unchanged in scope — this
-adds a name to the existing instrument, not a new instrument.
+**Proposal**: `bounds-allowlist.sh` reads an identifier ending in
+`Enclosure` exactly as it reads one ending in `Bounds`, against the
+same file allowlist, so a compound bound naming `CertifiedEnclosure`
+beside a deciding term is counted and gated like a `Bounds`
+compound, and an `…Enclosure` bracket door written later is gated
+the day it is written. There is one bracket-reading trait, `Bounds`
+— certification values are `Interval`, which carries it — so the
+issue-701 hole (a bracket bound on certifying code under a name the
+gate does not read, with no CI row saying so) stays closed. The
+known alias gap (#279's class) is unchanged in scope — this is a
+name-shaped reading of the existing instrument, not a new
+instrument.
 
 ## DL5 — The fillet seam's lapsed justification: discharge by
 ## ratifying the delegation rule, not by building an empty lane

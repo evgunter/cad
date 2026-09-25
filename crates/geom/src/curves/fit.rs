@@ -66,7 +66,7 @@
 
 use geom_core::linalg::lsq::{self, LsqError};
 use geom_core::spline::{KnotAlgebraError, KnotVector, KnotVectorIssue, SplineError, basis};
-use geom_core::{Point2, Point3};
+use geom_core::{Point2, Point3, Readable};
 
 use crate::curves::{NurbsCurve2, NurbsCurve3};
 
@@ -148,35 +148,54 @@ pub enum FitError {
 impl core::fmt::Display for FitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            FitError::TooFewPoints { have, need } => {
-                write!(f, "fit: {have} points, need at least {need}")
-            }
-            FitError::NonFinitePoint { index } => {
-                write!(f, "fit: point {index} has a non-finite coordinate")
-            }
-            FitError::DegenerateChord { index } => {
-                write!(f, "fit: zero-length chord ending at point {index}")
-            }
-            FitError::InvalidTolerance { tolerance } => {
-                write!(f, "fit: invalid tolerance {tolerance}")
-            }
+            FitError::TooFewPoints { have, need } => write!(
+                f,
+                "the fit has {have} points and needs at least {need} — supply the missing samples; \
+                 a degree-p interpolant needs p+1 of them and any fit needs 2, so a \
+                 lower degree lowers this floor only down to 2"
+            ),
+            FitError::NonFinitePoint { index } => write!(
+                f,
+                "fit point {index} has a non-finite coordinate — the fit never repairs \
+                 data it was handed: supply a finite point there, or drop the sample"
+            ),
+            FitError::DegenerateChord { index } => write!(
+                f,
+                "the fit's chord ending at point {index} has zero length — chord-length \
+                 parameterization has no parameter step across a repeated sample: drop \
+                 the duplicate point"
+            ),
+            FitError::InvalidTolerance { tolerance } => write!(
+                f,
+                "the fit's tolerance {} is invalid — the tolerance is the loop's \
+                 acceptance budget and has to be a number to compare against: ask with a \
+                 finite tolerance strictly above zero",
+                Readable(*tolerance)
+            ),
             FitError::ParamCountMismatch { params, points } => write!(
                 f,
-                "fit: {params} explicit parameters for {points} points — the fitting \
+                "the fit was given {params} explicit parameters for {points} points — the fitting \
                  stack needs one strictly-ascending finite parameter per point running \
-                 exactly 0 to 1"
+                 exactly 0 to 1: supply that, or ask through the door that takes no \
+                 parameters and chord-parameterizes the data itself"
             ),
-            FitError::Lsq(e) => write!(f, "fit: {e}"),
-            FitError::Structure(e) => write!(f, "fit: {e}"),
-            FitError::KnotAlgebra(e) => write!(f, "fit: {e}"),
+            FitError::Lsq(e) => write!(f, "the fit refused: {e}"),
+            FitError::Structure(e) => write!(f, "the fit refused: {e}"),
+            FitError::KnotAlgebra(e) => write!(f, "the fit refused: {e}"),
             FitError::RaggedRows { row, width, found } => write!(
                 f,
-                "fit: column row {row} is {found} wide, row 0 is {width} — every row of \
-                 an interpolated column block must describe the same tensor structure"
+                "the fit's column row {row} is {found} wide, row 0 is {width} — every row of \
+                 an interpolated column block must describe the same tensor structure: \
+                 supply {width} scalars in row {row}, or re-block the data so every row \
+                 agrees"
             ),
             FitError::BudgetExhausted { budget, achieved } => write!(
                 f,
-                "fit: removal budget {budget} exhausted (achieved bound {achieved:e})"
+                "the fit's removal budget {budget} ran out (achieved bound {achieved:e}) — \
+                 FIT_REMOVAL_BUDGET is the lever, sized for fitting-sized inputs of a few \
+                 hundred samples: fit the data in pieces, or raise the constant for a \
+                 genuinely larger fit; the achieved bound rides the refusal so a caller \
+                 can see what the loop reached before it expired"
             ),
         }
     }
@@ -871,5 +890,87 @@ mod tests {
             NurbsCurve3::approximate(&quarter_arc_samples(8), 3, -1.0),
             Err(FitError::InvalidTolerance { .. })
         ));
+    }
+
+    /// Every `FitError` rendering names a repair — with the
+    /// delegations read as the parent class reads them.
+    ///
+    /// `Structure` is asserted TRANSITIVELY: `SplineError` carries
+    /// `every_spline_error_arm_names_a_recourse` (and, below it,
+    /// `every_knot_vector_issue_arm_names_a_recourse`), which is what
+    /// makes one payload here a statement about all of them — this row
+    /// adds that the carrier is rendered whole and that its clause
+    /// survives into the message a caller reads.
+    ///
+    /// `Lsq` and `KnotAlgebra` are asserted as DELEGATIONS only. Their
+    /// carriers have no enforcement row yet, so a recourse assertion
+    /// over them would be a claim about whichever payload this test
+    /// happened to build.
+    #[test]
+    fn every_fit_error_arm_names_a_recourse() {
+        // A vocabulary, not a part-of-speech test: an arm that names
+        // the lever the caller turns satisfies the claim the same way
+        // an imperative does.
+        const RECOURSE_WORDS: &[&str] = &["supply", "drop", "ask", "lever", "raise"];
+        let lsq = LsqError::LsqDegenerate {
+            pivot_index: 2,
+            pivot: 0.0,
+        };
+        let knot_algebra = KnotAlgebraError::Structure(SplineError::ControlCountMismatch {
+            control: 3,
+            expected: 4,
+        });
+        let structure = SplineError::ControlCountMismatch {
+            control: 3,
+            expected: 4,
+        };
+        let arms = [
+            FitError::TooFewPoints { have: 3, need: 4 },
+            FitError::NonFinitePoint { index: 2 },
+            FitError::DegenerateChord { index: 2 },
+            FitError::InvalidTolerance {
+                tolerance: f64::NAN,
+            },
+            FitError::Lsq(lsq.clone()),
+            FitError::Structure(structure.clone()),
+            FitError::KnotAlgebra(knot_algebra.clone()),
+            FitError::ParamCountMismatch {
+                params: 3,
+                points: 4,
+            },
+            FitError::RaggedRows {
+                row: 1,
+                width: 3,
+                found: 2,
+            },
+            FitError::BudgetExhausted {
+                budget: FIT_REMOVAL_BUDGET,
+                achieved: 2e-3,
+            },
+        ];
+        assert_eq!(arms.len(), 10, "an arm was added without a row here");
+        for arm in &arms {
+            let msg = arm.to_string();
+            let carrier = match arm {
+                FitError::Lsq(e) => Some(e.to_string()),
+                FitError::KnotAlgebra(e) => Some(e.to_string()),
+                _ => None,
+            };
+            if let Some(carrier) = carrier {
+                assert!(msg.contains(&carrier), "carrier not rendered whole: {msg}");
+                continue;
+            }
+            if let FitError::Structure(e) = arm {
+                assert!(
+                    msg.contains(&e.to_string()),
+                    "carrier not rendered whole: {msg}"
+                );
+            }
+            let lower = msg.to_lowercase();
+            assert!(
+                RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
+                "no recourse in: {msg}"
+            );
+        }
     }
 }

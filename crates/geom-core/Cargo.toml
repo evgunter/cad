@@ -9,14 +9,6 @@ rust-version.workspace = true
 workspace = true
 
 [features]
-# Interval scalar (M0 PR 4, issue #4), opt-in: an enclosure is a different
-# cost regime from `f64`, so it never rides along in a default build. The
-# backend is the in-repo `interval-transcendentals` crate since M5 PR 1 —
-# pure Rust over the same `libm` the kernel already depends on. The feature
-# therefore no longer drags a C toolchain or the LGPL `gmp-mpfr-sys` build
-# (it did while the backend was `inari/gmp`), and no longer needs an
-# AVX+FMA floor of its own on x86-64.
-interval = ["dep:interval-transcendentals"]
 # K-telemetry recording scalar (`k_stats::Probe`), opt-in. Probe is a
 # `Real` instantiation like `Interval`, so every generic-over-`Real` body
 # monomorphizes at it — measured 2026-08-12 at 20.0% of geom-brep's LLVM
@@ -29,7 +21,7 @@ interval = ["dep:interval-transcendentals"]
 # It exists only to collect margin distributions for the K experiment
 # (docs/K-REPORT.md, scripts/k_probe_sweep.sh), so before this gate the
 # python wheel, both demos and the release renders all shipped a
-# diagnostics scalar they never run. Same opt-in shape as `interval`.
+# diagnostics scalar they never run.
 #
 # The funnel itself (`k_stats::decide`) is NOT gated: it is the path every
 # shipped decision takes, and it must be byte-identical with the feature
@@ -83,7 +75,13 @@ libm = { workspace = true }
 num-bigint = { workspace = true }
 num-integer = { workspace = true }
 num-traits = { workspace = true }
-interval-transcendentals = { workspace = true, optional = true }
+# The `Interval` scalar's backend (`src/interval.rs`): proven per-function
+# libm error pads, pure Rust over the same `libm` this crate already
+# carries, and a separate workspace root so its own gmp-backed
+# certification oracle never enters this graph. A NORMAL dependency. It
+# is also the differential oracle the
+# ring's default-lane tests read (`tests/ring_interval_differential.rs`).
+interval-transcendentals = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
@@ -92,15 +90,6 @@ proptest = { workspace = true }
 # named by [dev-dependencies] only, here and everywhere else — which is
 # what keeps it off every shipped build path.
 test-utils = { path = "../test-utils" }
-# DEV-ONLY differential oracle for the M5 PR 2 interval ring (M5-PR2-SPEC
-# family 2). Since M5 PR 1 this crate is ALSO the `interval` feature's
-# backend (the optional dependency above) — the dev-entry is what makes it
-# available on the DEFAULT, featureless build path, where the ring lives
-# and where its differential lane must run. It is libm-only, so it drags
-# nothing new into geom-core's graph; its own inari/gmp certification
-# oracle is a dev-dependency of *that* crate and is never resolved from
-# here. The kernel's runtime dependency set is unchanged: `libm`.
-interval-transcendentals = { workspace = true }
 # Derivative oracle for Dual<f64> tests only — never a runtime dependency
 # (see the deviation note in src/dual.rs module docs).
 num-dual = { workspace = true }

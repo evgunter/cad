@@ -1,5 +1,5 @@
 //! Issue 1011, the cone half: the cone containment doors at the
-//! CERTIFIED scalar (feature `interval`).
+//! CERTIFIED scalar.
 //!
 //! The point of the lane is that the arm's margins are honest
 //! enclosures rather than `f64` luck. Three of them straddle zero on a
@@ -21,7 +21,6 @@
 //! Probes are dyadic where the geometry allows, so the enclosures are
 //! points and every margin decides definitely.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;

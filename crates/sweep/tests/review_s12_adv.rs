@@ -287,7 +287,9 @@ fn probe_involution_on_a_boolean_result_body() {
     assert_eq!(vol(&rev).to_bits(), (-v).to_bits(), "volume bit-negated");
     assert_eq!(
         topo::validate_geometric(&rev, Tol::witness()),
-        Err(vec![topo::ValidationError::NegativeVolume])
+        Err(vec![topo::ValidationError::NegativeVolume {
+            solid: rev.solids().next().expect("one solid").0
+        }])
     );
     assert_eq!(
         format!("{:?}", rev.revert().unwrap()),

@@ -26,7 +26,6 @@
 //! NOT proposed for merge: the branch carries a probe instrument
 //! (`DecisionShape::enclosure`, `Decide::enclosure_probe`).
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
@@ -497,8 +496,7 @@ fn r2_link_end_to_end_with_and_without_the_door() {
         // The bound: the over-band SET at ceiling + δ, never a first
         // refusal at a multiple of the ceiling
         // (M10's closed
-        // `first-refusal-at-twice-the-ceiling-is-an-order-artefact`,
-        // `docs/DOC-LEDGER.md` sweep 13).
+        // `first-refusal-at-twice-the-ceiling-is-an-order-artefact`).
         let beyond = at(hi);
         let analyzed = analyzed_box(&beyond, &AnalysisPolicy::default());
         let (shapes, refusal, counts) = replay(&beyond, &ParamBox::of(&analyzed), rules, tol);

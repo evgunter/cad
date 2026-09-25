@@ -6,10 +6,10 @@
 //! `Dual { value: x, deriv: 1 }` yields `Dual { value: f(x), deriv: f'(x) }`
 //! — exact forward-mode differentiation, no finite differences, one pass.
 //! The wrapper is generic over the base scalar: `Dual<f64>` ([`Dual64`])
-//! gives fast sensitivities, `Dual<Interval>` ([`DualInterval`], behind the
-//! `interval` cargo feature) gives *certified* derivative enclosures — the
-//! same chain-rule code serves both, which is the point of writing the
-//! chain rules in [`Real`]-surface operations.
+//! gives fast sensitivities, `Dual<Interval>` ([`DualInterval`]) gives
+//! *certified* derivative enclosures — the same chain-rule code serves
+//! both, which is the point of writing the chain rules in
+//! [`Real`]-surface operations.
 //!
 //! # In-house generic wrapper; num-dual demoted to a test oracle
 //!
@@ -145,15 +145,14 @@ use crate::predicate::{Band, Decide, Indeterminate, Sign};
 use crate::real::{Bounds, Real};
 use crate::tolerance::Tol;
 
-#[cfg(feature = "interval")]
 use crate::interval::Interval;
 
 /// A forward-mode dual number over the base scalar `T`: a value and the
 /// derivative of that value with respect to one scalar parameter.
 ///
-/// Implements [`Real`] for the kernel's base scalars (`f64` and, behind
-/// the `interval` feature, [`Interval`]), so any evaluation code generic
-/// over [`Real`] differentiates itself when instantiated here. See the
+/// Implements [`Real`] for the kernel's base scalars (`f64` and
+/// [`Interval`]), so any evaluation code generic over [`Real`]
+/// differentiates itself when instantiated here. See the
 /// [module docs](self) for the value-channel contract, the kink
 /// conventions, and the decide-by-value rule.
 ///
@@ -203,9 +202,8 @@ impl<T: Real> Dual<T> {
 /// The non-smooth selectors [`Dual`]'s chain rules need from their base
 /// scalar — a **sealed, crate-private helper trait** (written with
 /// [`Real`] as its supertrait) implemented for `f64` here and for
-/// [`Interval`] in `crate::interval` (feature-gated). It carries exactly
-/// the three kink selectors: the `abs` sign factor and the `min`/`max`
-/// tangent choice.
+/// [`Interval`] in `crate::interval`. It carries exactly the three kink
+/// selectors: the `abs` sign factor and the `min`/`max` tangent choice.
 ///
 /// [`Real`] deliberately has no comparisons, and `d|x|/dx` or "whose
 /// tangent does `min` keep" are order decisions *by nature* — not
@@ -431,6 +429,14 @@ impl<T: Real> Neg for Dual<T> {
 /// poisons alongside through its arithmetic (division by a poisoned or
 /// zero denominator, multiplication by a poisoned factor).
 impl<T: KinkJacobian> Real for Dual<T> {
+    /// **`T`'s.** The dual's value channel is bit-identical to the
+    /// plain-`T` computation of the same recipe (the module-level
+    /// contract), so what a comparison here proves is exactly what one
+    /// at `T` proves — the same reason [`Real::register_equal`] below
+    /// is `T`'s verbatim. The derivative channel is not a witness of
+    /// anything and is not consulted.
+    const WITNESS: crate::real::Witness = T::WITNESS;
+
     /// A constant embed: `(T::from_f64(x), 0)`. Exact because `T`'s
     /// embedding is; the derivative of a constant is exactly zero.
     fn from_f64(x: f64) -> Self {
@@ -454,7 +460,8 @@ impl<T: KinkJacobian> Real for Dual<T> {
     /// Nothing is recorded — a `Dual` tracks no expression
     /// ([`Real::register_equal`]). Which refusal arm it can answer is
     /// `T`'s: over `f64` it is `Disputed` and never `Contradicted`,
-    /// over `Interval` the reverse.
+    /// over `Interval` the reverse — which is [`Real::WITNESS`] above,
+    /// forwarded from the same `T` for the same reason.
     fn register_equal(self, other: Self, tol: Tol) -> crate::sym::SymRegistration {
         self.value.register_equal(other.value, tol)
     }
@@ -802,7 +809,7 @@ where
 /// # This grants no certification right
 ///
 /// [`crate::CertifiedEnclosure`] is deliberately unimplemented for `Dual`
-/// and this impl does not change that: every C9-ring door is bounded by it
+/// and this impl does not change that: every C9 certification door is bounded by it
 /// and stays uninstantiable at a dual. What opens is the bracket half —
 /// boxes, pruning, the `f64` margin payloads a typed refusal reports,
 /// and **selections**, which are the ones with a condition on them: a
@@ -850,7 +857,6 @@ pub type Dual64 = Dual<f64>;
 /// Forward-mode dual over the certified interval scalar: derivative
 /// *enclosures* riding on enclosure values (the instantiation that never
 /// existed off the shelf — see the module-doc deviation note).
-#[cfg(feature = "interval")]
 pub type DualInterval = Dual<Interval>;
 
 #[cfg(test)]
@@ -1781,14 +1787,13 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Dual<Interval> (feature-gated)
+    // Dual<Interval>
     // ------------------------------------------------------------------
 
     /// `Dual<Interval>` through the public API only ([`crate::real::Bounds`]
     /// on the channels); the decoration-level pins for the interval kink
     /// selectors live in `crate::interval`'s test module, which can see
     /// the wrapped `DecInterval`.
-    #[cfg(feature = "interval")]
     mod interval_duals {
         use super::*;
         use crate::interval::Interval;
@@ -2225,7 +2230,6 @@ mod tests {
         /// endpoints — not a point, and not touched by an unbounded
         /// tangent (E9: tangent poison never refuses). Red if the impl
         /// hulls the channels together: `[−∞, ∞]` would swallow `[−1, 2]`.
-        #[cfg(feature = "interval")]
         #[test]
         fn dual_interval_bracket_is_the_value_enclosure() {
             use crate::interval::Interval;

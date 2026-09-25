@@ -2,10 +2,11 @@
 id: tier3-prime-still-couples-plus-v-to-the-reporting-target
 kind: issue
 title: tier 3' still couples its +V check to the reporting target, so it refuses bodies tier 3 admits
-status: open
+status: dispatched
 opened: 2026-09-11
 priority: P0
 cost: D
+parent: ATREST-3
 ---
 
 
@@ -68,3 +69,22 @@ already take either subject.
 
 Measure before it moves: what tier 3' costs today on the corpus's
 NURBS-walled bodies, and what fraction of that is check 7.
+
+## The fix sketch above names a symbol the tree no longer has
+
+Checked at the ATREST cut (2026-09-20). `PlusVSubject` was introduced
+by `da8f803fd` ("tier 3's +V check certifies a sign") and **removed by
+`ee74cdbc6`** ("check 7 stops on a VERDICT, not a stopping condition"),
+which landed after this row was filed. There is no `PlusVSubject` in
+the tree, so *"`plus_v_decide` and `PlusVSubject` already take either
+subject"* is half a stale claim: `plus_v_decide` exists
+(`crates/topo/src/validate.rs`) and takes an enclosure and a band; the
+type that carried the subject does not.
+
+What the sketch was reaching for survives in a different shape —
+`validate_geometric_certified` hands `sign_certified` a `settle`
+closure and a `last_word` closure, and it is the HOOK inside
+`sign_certified` (`certified_hook`) that is certified rather than the
+lane's. So the missing piece is still a lane-hooked sign walk; the
+spelling has moved. Re-derive it from the tree, not from the paragraph
+above.

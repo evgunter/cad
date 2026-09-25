@@ -4,7 +4,7 @@ kind: issue
 title: the prose census types no binding introduced by a nested pattern, a closure parameter or a catch-all arm
 status: open
 opened: 2026-09-12
-refs: [prose-census-undecided-residue, error-census-keyed-on-bare-type-name]
+refs: [prose-census-undecided-residue]
 priority: P4
 cost: E
 ---
@@ -87,3 +87,7 @@ them.
 Nothing about the finding is changed by the move: same id, same
 evidence, still `open`, and no part of its question is answered for
 you except where this note says Ev answered it.
+
+## Reference note (FIX's sweep, 2026-09-21)
+
+`error-census-keyed-on-bare-type-name` was dropped from this row's `refs` because the row closed with **FIX**, which left the tracker at sweep 18 — `work/fix/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 6f0e04ce1534:work/fix/error-census-keyed-on-bare-type-name.md`.

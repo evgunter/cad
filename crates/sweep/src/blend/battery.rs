@@ -915,8 +915,7 @@ pub(crate) fn resolve_link<T: Decide + Bounds>(
     let (carrier, t0, t1) = carrier_of(body, edge).ok_or_else(broken)?;
     let extent = extent_of(&carrier, t0, t1);
     let mid = mid_param(t0, t1);
-    let p = carrier.eval(mid);
-    let tau = carrier.deriv(mid);
+    let (p, tau) = carrier.ders1(mid);
     let n_a = outward(body, face_a, p).ok_or_else(broken)?;
     let n_b = outward(body, face_b, p).ok_or_else(broken)?;
     // Predicate 5 first at the link level: the arm's side depends on
@@ -982,8 +981,8 @@ pub fn arm_roster() -> &'static str {
 
 /// The refusal a pair takes when its supports ARE an arm's kinds but do
 /// not share the axis (or the ruling) that arm's spine is derived from.
-pub(super) const NOT_COAXIAL: &str = "a curved support pair whose two supports do not share one axis of revolution (nor one \
-     ruling); its spine is neither a line nor a circle";
+pub(super) const NOT_COAXIAL: &str =
+    "a curved support pair whose supports do not share one axis of revolution or one ruling";
 
 /// **`fillet3_support_coaxiality`** — do a curved pair's two supports
 /// really share the axis (or the ruling) its arm's spine is derived
@@ -1726,9 +1725,8 @@ fn is_seam_vertex<T: Decide>(body: &Body<T>, edges: &[EdgeKey]) -> bool {
 /// mid-curve taxonomy reserves, not corner configurations, so they
 /// carry the run-out vocabulary and the corner recourse's "general
 /// run-outs" clause.
-pub const RULED_END_NOT_TRANSVERSE: &str = "a ruled band's edge ends at a face that is not a plane perpendicular to its ruling; \
-     the transverse cut-off is the only ruled termination built, and the oblique or \
-     curved-face run-out is not implemented";
+pub const RULED_END_NOT_TRANSVERSE: &str =
+    "a ruled band's edge ends at a face that is not a plane perpendicular to its ruling";
 
 /// **`fillet3_cap_transverse`** — does a ruled link's end face lie
 /// perpendicular to the band's ruling, so the band can be cut off in

@@ -50,7 +50,8 @@ use viewer::input::ViewportSize;
 use viewer::matetool::{MateTool, MateToolState};
 use viewer::pickindex::PickIndex;
 use viewer::session::{
-    AtRestBadge, DocSession, FaceSelection, Hovered, ProfileShape, Refusal, Selection, SessionOp,
+    AtRestBadge, DocSession, FaceSelection, Hovered, ProfilePlane, ProfileShape, Refusal,
+    Selection, SessionOp,
 };
 use viewer::tree::RowStatus;
 
@@ -104,7 +105,7 @@ fn author_box_part(
     let profile = insert(
         session,
         SessionOp::AddProfile {
-            plane,
+            plane: ProfilePlane::Existing(plane),
             loops: vec![shape(&ProfileShape::Rectangle { width, height })],
         },
     );

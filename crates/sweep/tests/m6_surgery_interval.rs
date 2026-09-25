@@ -1,5 +1,5 @@
 //! M6 surgery, interval lane: the composition surgery at the
-//! CERTIFIED scalar (feature `interval`).
+//! CERTIFIED scalar.
 //!
 //! One pip suffices to reach every arm — the in-place box-edge
 //! blends over a ringed face (carry-through decided by
@@ -12,13 +12,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::loud_skip_marker!(
-    feature = "interval",
-    row = interval_lane_skipped_no_certified_coverage_here,
-    absent = "certified coverage of the M6 composition surgery",
-);
-
-#[cfg(feature = "interval")]
 mod certified {
     use core::f64::consts::PI;
     use geom_core::Tol;

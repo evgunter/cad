@@ -139,13 +139,13 @@
 # FEATURES: --all-features EVERYWHERE, WITH ONE NAMED EXCEPTION.
 #
 # --all-features on the WORKSPACE pass, UNLIKE the clippy job. Clippy
-# avoids it because the `interval` feature is a second build graph whose
-# test targets would double that job's compile time for no extra
-# coverage, and the interval job owns its own clippy pass. Neither
-# reason survives here: rustdoc builds no test targets, and there is no
-# second doc job. What the flag buys is real — under default features
-# alone, every doc link into `#[cfg(feature = "probe")]` or
-# `#[cfg(feature = "interval")]` code resolves to nothing, so rustdoc
+# avoids it because a second feature selection in one job mixes two
+# graphs into one cache entry, and `clippy (--all-features)` owns that
+# selection. That reason does not reach here: rustdoc builds no test
+# targets, and there is no second doc job. What the flag buys is real —
+# under default features alone, every doc link into
+# `#[cfg(feature = "probe")]` code (and, until RING-4 deleted it, into
+# code behind the `interval` feature) resolves to nothing, so rustdoc
 # reported 12 CORRECT links as broken while the prose on those items
 # went unchecked entirely. Documenting the full feature set is also what
 # docs.rs does by default.
@@ -162,7 +162,7 @@
 #
 # THE EXCEPTION IS ONE ROOT, AND IT IS NAMED. `interval-transcendentals`
 # is documented under DEFAULT features, a ruling this repo has already
-# made once: ci.yml's `interval backend crate` job is "deliberately the
+# made once: interval.yml's `interval backend crate` job is "deliberately the
 # crate's DEFAULT feature set: without `oracle-inari` there is no
 # inari/gmp-mpfr-sys and no C toolchain in the graph". That crate's ONLY
 # feature is that test-only oracle (its manifest: `src/` must never
@@ -312,10 +312,10 @@
 # exist". Additivity constrains ONE crate's own feature set and not a
 # DEPENDENCY's, which cargo lets you set independently: measured
 # 2026-09-04, `cargo doc -p editor-core --no-default-features --features
-# geom-core/interval` compiles editor-core with its own `interval` OFF
-# while `geom_core::Interval` exists, 7 unresolved sites down to 6 — and
-# `interval = ["geom-core/interval", …]` forwarding is the shape this
-# workspace is built out of. Only the intra-crate claim survives, and
+# geom-core/interval` compiled editor-core with its own `interval` OFF
+# while `geom_core::Interval` existed, 7 unresolved sites down to 6 — and
+# that feature forwarding was the shape this workspace was built out of
+# (`probe` and `budget` still are). Only the intra-crate claim survives, and
 # the differential does not need it.
 #
 # A `--output-format json` census at --all-features could
@@ -828,7 +828,7 @@ gate() {
   # and only the `app`-gated ones (which drag ~140 eframe/wgpu crates in)
   # are skipped. Ev's viewer-CI-posture ruling, 2026-08-27, recorded in the
   # closed GUI program's log, which left the tracker with that program's
-  # directory in DOC-LEDGER sweep 5 and reads at
+  # directory and reads at
   # `git show f955ddc75cda454a268f9214d2a753ae1a9bbd0f:work/gui/log.md`;
   # the caller decides, this script only obeys, and the
   # hosted caller passes the flag off the change filter's seed-keyed

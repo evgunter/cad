@@ -9,7 +9,7 @@
 //!    compare it with BOTH former walks, restated here verbatim, on a
 //!    table the lattice would not author (arcs of both signs, a
 //!    semicircle, a signed zero, duplicate and unordered declarations,
-//!    then reversed) — at `f64` and, under `--features interval`, at
+//!    then reversed) — at `f64` and at
 //!    the interval scalar, where `from_f64` is not the identity.
 //! 2. **The widened lift on loops the unit's rows do not reach**: the
 //!    all-declared loop at every seam rotation, a two-arc circle with
@@ -187,7 +187,6 @@ fn r1_embed_is_total_on_a_poisoned_table() {
 /// At the interval scalar `from_f64` is an embedding, not the
 /// identity, so this is where a door that chose a different
 /// conversion than the sites it replaced would show.
-#[cfg(feature = "interval")]
 #[test]
 fn r1_embed_is_both_former_walks_at_interval() {
     use geom_core::Interval;
@@ -198,13 +197,6 @@ fn r1_embed_is_both_former_walks_at_interval() {
     assert_eq!(table(&door), table(&loft), "door vs loft.rs's walk");
     assert_eq!(table(&door), table(&anchor), "door vs anchor.rs's walk");
     // And the coordinates are point intervals of the stored bits.
-    //
-    // ADOPTION FIX: as delivered this used a `#[cfg(feature =
-    // "interval")]` free `fn table_scalar`, which
-    // `scripts/check-interval-cfg-additive.py` refuses in `tests/` — an
-    // interval cfg there must gate a WHOLE ITEM of an allowed kind
-    // (`impl`/`mod`/`use`/`type`/`#[test]`), and a bare `fn` is not one.
-    // A local closure needs no gate of its own and says the same thing.
     let table_scalar = |x: &dyn std::fmt::Debug| format!("{x:?}");
     for (d, s) in door.vertices().iter().zip(src.vertices()) {
         assert_eq!(

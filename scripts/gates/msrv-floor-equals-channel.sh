@@ -51,7 +51,8 @@
 # a channel bump and leave the other two behind silently — the failure
 # this gate exists to prevent, one directory over, and
 # `interval-transcendentals` is in the kernel's build closure through
-# `geom-core`'s `interval` feature, so its floor is a live claim.
+# `geom-core`'s dependency on it — every build — so its floor is a live
+# claim.
 #
 # HOW THE MANIFEST SET IS DERIVED, and why not from
 # `scripts/doc-gate.sh --print-roots`. That script derives the CARGO

@@ -295,7 +295,7 @@ fn c1_a_window_discarded_crossing_that_really_refused_is_dropped() {
     );
     let rendered = one.to_string();
     assert_eq!(
-        rendered.matches("at the corner near").count(),
+        rendered.matches("at corner (").count(),
         1,
         "one sentence, for one of the two crossings: {rendered}"
     );
@@ -327,7 +327,7 @@ fn c3_the_envelope_radius_is_the_authored_one_on_every_arm() {
         // Every entry's sentence is rendered under this one radius.
         let rendered = err.to_string();
         assert_eq!(
-            rendered.matches("at the corner near").count(),
+            rendered.matches("at corner (").count(),
             corners.len(),
             "one sentence per entry: {rendered}"
         );

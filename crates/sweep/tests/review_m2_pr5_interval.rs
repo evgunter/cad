@@ -1,10 +1,9 @@
-//! Adversarial review suite for M2 PR 5, interval lane (feature
-//! `interval`): the reviewer's shapes that go beyond the shipped
+//! Adversarial review suite for M2 PR 5, interval lane: the
+//! reviewer's shapes that go beyond the shipped
 //! four-acceptance set — a multi-segment two-band wire (dome), the
 //! wrap-run donut, and a NEGATIVE-angle non-dyadic wedge. Refusals
 //! here are defects, not honesty (the lane is fully live post-B1).
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
