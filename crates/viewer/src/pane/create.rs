@@ -234,10 +234,7 @@ fn part_window(opener: &egui::Ui) -> egui::Window<'static> {
 /// the op's own refusal — read off the entry, not minted here.
 fn part_entry(ui: &mut egui::Ui, theme: &Theme, entry: &PartEntry) -> bool {
     let refusal = entry.refusal();
-    let mut pick = ui.add_enabled(refusal.is_none(), egui::Button::new(entry.file_name()));
-    if let Some(refusal) = refusal {
-        pick = pick.on_disabled_hover_text(refusal.to_string());
-    }
+    let picked = crate::app::refusable_button(ui, entry.file_name(), refusal.as_ref());
     ui.add(
         egui::Label::new(crate::app::toned(
             entry.id.to_string(),
@@ -246,7 +243,7 @@ fn part_entry(ui: &mut egui::Ui, theme: &Theme, entry: &PartEntry) -> bool {
         ))
         .truncate(),
     );
-    pick.clicked()
+    picked
 }
 
 /// **What the add-profile form calls the frame it offers to mint.**
@@ -1554,10 +1551,7 @@ impl ViewerBehavior<'_> {
                     }
                 }
             }
-            if ui
-                .add_enabled(count > 0, egui::Button::new("Clear picks"))
-                .on_hover_text("drop every picked edge and start on any body")
-                .clicked()
+            if clear_picks_button(ui, count)
                 && let Some(tool) = self.tools.blend_mut()
             {
                 tool.clear();
@@ -1607,6 +1601,26 @@ impl ViewerBehavior<'_> {
     }
 }
 
+/// **The blend tool's `Clear picks`**, live while `count` edges are
+/// held. No operation stands behind it — clearing is tool state — so
+/// with nothing held there is no refusal to read, and the literal here
+/// is the sentence: each state carries its own on the hook egui shows
+/// in that state.
+///
+/// Answers whether it was clicked, which a disabled button never is.
+fn clear_picks_button(ui: &mut egui::Ui, count: usize) -> bool {
+    let button = ui.add_enabled(count > 0, egui::Button::new("Clear picks"));
+    if count > 0 {
+        button
+            .on_hover_text("drop every picked edge and start on any body")
+            .clicked()
+    } else {
+        button
+            .on_disabled_hover_text("no edge is picked, so there is nothing to clear")
+            .clicked()
+    }
+}
+
 /// **The creation forms' own widgets, driven** —
 /// `crate::pane::headless` carries the harness and what it can and
 /// cannot reach.
@@ -1621,10 +1635,11 @@ mod tests {
     use pncad::select::SplitHalf;
 
     use super::{
-        NEW_XY_LABEL, ProfilePlane, duplicate_note, part_selector_rows, profile_plane_row,
+        NEW_XY_LABEL, ProfilePlane, clear_picks_button, duplicate_note, part_selector_rows,
+        profile_plane_row,
     };
     use crate::forms::PartSelectChoice;
-    use crate::pane::headless::{painted_after_clicking, painted_text};
+    use crate::pane::headless::{painted_after_clicking, painted_text, painted_while_hovering};
     use crate::theme::Theme;
 
     /// The part form's selector rows, driven: the half choice paints
@@ -1839,6 +1854,34 @@ mod tests {
             "a pick outside the list is named, not silently drawn as unfilled: {drawn}"
         );
         assert!(!drawn.contains("pick one"), "{drawn}");
+    }
+
+    /// **`Clear picks` says why while it is disabled** — hovered with
+    /// nothing held, it paints its own sentence, and not the enabled
+    /// one that egui would have shown nobody.
+    #[test]
+    fn clear_picks_with_nothing_held_says_there_is_nothing_to_clear() {
+        let hovered = painted_while_hovering("Clear picks", 0, |ui| {
+            clear_picks_button(ui, 0);
+        });
+        assert!(
+            hovered.contains("no edge is picked, so there is nothing to clear"),
+            "{hovered}"
+        );
+        assert!(!hovered.contains("drop every picked edge"), "{hovered}");
+    }
+
+    /// And holding picks, the same hover paints what a click does.
+    #[test]
+    fn clear_picks_with_picks_held_says_what_it_drops() {
+        let hovered = painted_while_hovering("Clear picks", 0, |ui| {
+            clear_picks_button(ui, 3);
+        });
+        assert!(
+            hovered.contains("drop every picked edge and start on any body"),
+            "{hovered}"
+        );
+        assert!(!hovered.contains("nothing to clear"), "{hovered}");
     }
 }
 

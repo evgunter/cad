@@ -362,7 +362,7 @@ pub fn band_midpoint(tol: Tol) -> f64 {
 /// fewer.
 ///
 /// Here rather than in a suite because three suites count the same
-/// thing (`tcost_k3_certificate`, `sign_certified_plus_v`, and
+/// thing (`tcost_k3_certificate`, `sign_walk_plus_v`, and
 /// `step-import`'s import-path row across the crate boundary), and a
 /// counter that drifts between them is two different instruments
 /// reporting one number. The routing rule above does not have a slot

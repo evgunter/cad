@@ -612,7 +612,14 @@ fn the_types_public_surface_mints_nothing() {
     // materialization door (a loop that already exists, at another
     // scalar); `reversed` derives from an existing loop. None of them
     // takes a vertex table.
-    let pinned = ["map_scalar", "reversed", "tangent_joints", "vertices"];
+    let pinned = [
+        "bulges",
+        "map_scalar",
+        "reversed",
+        "segments",
+        "tangent_joints",
+        "vertices",
+    ];
     assert_eq!(
         found, pinned,
         "the public surface of `ProfileLoop` moved.\n  \

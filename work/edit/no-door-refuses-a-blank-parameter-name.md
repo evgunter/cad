@@ -138,3 +138,35 @@ identifier-shaped name is what makes each assumption true:
   line: the blocking names joined on a bare `,`, the content key's input.
 - `crates/editor-core/src/report.rs`, `MassBasis::Forced`'s `Display`:
   the forcing names joined on `", "`.
+
+## More evidence, and a live asymmetry (2026-09-20, from #2960)
+
+VNEWS's `vnews/app-controls-read-their-refusals` gave the viewer's
+OTHER Create button the rule this one still lacks, so the two are now
+visibly out of step in one crate:
+
+- **The New-document Create button** (`crates/viewer/src/app.rs`,
+  `toolbar_ui`) gates on `Refusal::new_document_name`, which trims and
+  refuses a blank with `Refusal::EmptyName` — the same door
+  `DocSession::new_document` refuses at — and shows that refusal's
+  words while it is disabled.
+- **The add-parameter Create button** (`crates/viewer/src/pane/properties.rs`,
+  the `ready` gate) still reads
+  `!name.is_empty() && self.drafts.new_param_dimension.is_some()`.
+  **Untrimmed**: a name of spaces passes the gate, and `create_param`
+  refuses only `ParamExists`, so the click reaches a door that refuses
+  nothing and a parameter named `"   "` is what comes out.
+
+The trim is the cheap half and could be fixed in the panel today, but
+doing it there alone would mint a chrome-side rule with no door behind
+it — which is the defect this row exists to prevent. **The order is:
+this row first** (a door that refuses a blank parameter name, with its
+own sentence), and the panel's gate reads it afterwards the way the
+toolbar's now reads its own.
+
+One naming consequence worth knowing when this lands. The viewer's door
+is deliberately named `Refusal::new_document_name` rather than
+`empty_name`, so it does not read as the general blank-name rule and
+get reached for from the parameter side; its sentence is
+document-specific (*"a new document needs a name; its identity is
+derived from it"*) and would be wrong here.

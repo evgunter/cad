@@ -666,6 +666,38 @@ Documented as a known undercount: a piece a later step re-mints as a
 `Seam` edge along its own line is not counted as the parent's
 descendant.
 
+## 2026-09-25 — a declared flush union names vertices and member edges the same in every order (PR 3198)
+
+Four end passes in `emit_union::name_union` replace fold history with
+facts read off the finished body:
+- **`Flush`:** a flush stretch is named for the least member edge it
+  lies along.
+- **`least_vertex`:** a member corner is named for the least member
+  vertex, among faces that descend there.
+- **`crossing`:** a face crossing a member edge is `Seam{edge, face}`.
+- **`retire_into_merges`:** a seam side cites the merge only when the
+  merge is the face beside it. It never cites a duplicate or a false
+  adjacency.
+
+Absences on the rebind probe fell from 7398 to 816, with vertices and
+member-edge pieces at 0.
+
+The review found three regressions against main, all fixed with rows
+that go red:
+- a two-shell member refused;
+- the ZIP document refused `Duplicate`;
+- 46 seam sides named a face they do not border.
+
+A new permanent row checks seam adjacency across the corpus. Cost is
+about 1.1–1.3× main on a 100-step union chain.
+
+Closed `declared-flush-union-edge-and-vertex-names-follow-member-order`.
+
+Filed:
+- P1 `union-face-names-follow-fold-order` (the faces that remain; the
+  fork goes to Ev);
+- via the PR, zip's leftover-vertex row and EMIT's
+  `a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires`.
 ## 2026-09-25 — the viewer shows each edit's DM7 rows (PR 3196)
 
 The viewer used to keep only `cluster_rows()` of an applied edit, so no
@@ -790,3 +822,52 @@ Known limit: a cutter vertex fused onto the parent edge reads as gone.
 It is documented and not detected, because telling it apart needs the
 body. The change is additive to N5 and was not taken to Ev, per his
 ruling on #3115.
+
+## 2026-09-25 — a cited seam-vertex group always ranks along its member edge (PR 3219)
+
+`cite_member_edges` ranks every group of two or more vertices that
+share one seam citing one member edge. It ranks along that edge,
+oriented as in the member's own body, whether or not a vertex of the
+group moved. Before, an unmoved group kept the fold's ranks, and those
+could run the other way, so `#0 of 2` could name different vertices in
+different member orders.
+
+The case is latent. Instrumented, the corpus and union rows form no
+group of two or more, since planar members meet a line at most once,
+and the curved probes refuse in the boolean first. Unit rows red on
+main pin the case, plus the two refusal arms that were untested before.
+No name moved.
+
+After #3198 landed, the unit fixture needed a `Flush` argument. The
+merge added it.
+## Announced seam from PATHS (2026-09-25)
+
+Ev ruled on #3218 that a profile lowers to verbatim vertices +
+`Line | Arc { centre, radius, Δθ }`, so a circle becomes one segment.
+PATHS's `circle-lowers-to-one-segment` (unit 4 of 6, parked behind three
+refactor units) will re-spell a circle's step-id pieces from
+`Piece(0)`/`Piece(1)` to one `Carrier`, which is the second names break
+agreed on #3202. Nothing is needed from EMIT now. PATHS will announce
+again before unit 4 dispatches.
+
+Signed (PATHS orchestrator).
+
+## 2026-09-25 — editor-core's narrowing casts refuse or widen (PR 3226)
+
+The 14 `as u32` truncations in editor-core are gone, along with the
+saturating `emit_sweep::ix`.
+- **Stored identity** now goes through `names::emit::to_u32` and refuses
+  as a typed `Emission`. That covers name indices, the anchor's loop and
+  count, and a sweep hole index.
+- **Wire's loop coordinates** use one `loop_coordinates` door.
+- **Refusal payloads** now carry `usize`, like their sibling fields:
+  tie widths, `RepeatedDesignation`, `SelectionNotCanonical`. The row
+  allowed widening, and refusing inside a refusal would have needed new
+  arms on N5's closed trio.
+- **A measure ref index** that doesn't fit now reads `Unread` instead of
+  aliasing `u32::MAX`.
+
+Left as they are, with reasons in the PR: the `param_source` prefix code,
+`sign_ix as u8`, and every widening cast.
+
+Filed: gather P4 `product-instance-output-body-index-saturates`.

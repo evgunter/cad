@@ -388,9 +388,28 @@ boss at bulge 2 stood at `carrier_matches_mapped_source` 6 of 54 and
 `carrier_on_surface_2` 27 of 90 numeric with its ceiling unmoved until
 SYM-5's rule E; it is 0 of 54 and 9 of 90 now and the ceiling has moved
 `8.2611e2 → 9.3559e2 · ε`), and
-a PARAMETER bulge is entirely outside the mechanism (R2's D-tab:
-`3.52e2 · ε` with the algebra on and off alike) —
-`work/sym/rule-d-reaches-the-unit-bulge-only`, the next ceiling class.
+a PARAMETER bulge was outside the mechanism until the carrier's span was
+spelled from the arc's decided turn, `4·atan(σ·b)` (`sweep`'s
+`turned_span`): it now meets the pushforward's `4·atan b`, and what
+stands at such a bulge is the coefficient ring (R2's D-tab at
+`fl(0.4)`: `3.52e2 · ε` either way), the term budget and the sign of
+the apothem — `work/decide/rule-d-reaches-the-unit-bulge-only`.
+
+**Two more of the link's decisions on the term budget** (2026-09-25).
+Spelling the span from the turn sends two `carrier_on_surface_2`
+decisions on the link from the door to `numeric`. Both are sample 3 of
+the two edges on the end arc whose bulge is `tan(½·atan2(…))` over
+`cos(2·atan2(…))`, indices 57 and 66. Their walks freeze on terms: the
+causes read `{Terms: 2, Degree: 3}` with rule G shut and
+`{Terms: 6, Degree: 3}` on the ladder's render. A 512-bit ring does not
+take them back. A session budget of 32,768 terms and degree 256
+(`max_terms`/`max_degree`, a local patch, reverted) leaves both numeric
+at `{Terms: 2, Degree: 3}`, so what freezes them is not the session's
+term budget. The render is `m10_10_evidence_interval` at
+`CAD_M10_10_DOC=r2_link CAD_M10_10_RETRY=default CAD_M10_10_PROFILE=1
+CAD_M10_10_DUMP=<file>`, and
+`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`
+places them among the link's other moves.
 
 `line_span` and `contact_at_shared_vertex` were measured under the
 new rules too: unmoved (`line_span` 0/0/0/8 on the plate at the

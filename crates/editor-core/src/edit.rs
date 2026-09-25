@@ -977,9 +977,9 @@ pub enum EditError {
         /// The node whose designation repeats.
         node: RecipeNodeId,
         /// The position of the entry's first occurrence.
-        first: u32,
+        first: usize,
         /// The position at which it is named again.
-        again: u32,
+        again: usize,
     },
     /// The node this edit writes carries a blend selection that is not
     /// canonical — sorted and deduplicated
@@ -994,7 +994,7 @@ pub enum EditError {
         node: RecipeNodeId,
         /// The position of the entry that does not sort strictly
         /// before the one after it.
-        at: u32,
+        at: usize,
     },
     /// `SetMembers` aimed at a node that has no list input
     /// ([`Node::list_input`]) — a boolean's operands are named slots,
