@@ -411,13 +411,15 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 - **Maximal-faces precondition and the merge stage.** Booleans
   precondition no two adjacent coplanar faces (`NonMaximalFaces`); the
   explicit opt-in normalization op is `merge_coplanar_faces` (merging
-  is never silent), and two ops run it as a documented final stage of
-  their contract, because each manufactures coplanar pairs by
-  construction: boolean *outputs* (the seam zip), and *sweeps* over a
-  profile side the author subdivided with a declared straight
-  continuation (the two walls are one carrier by that declaration, so
-  they share a surface key and merge on the structural rung). In
-  either case the recipe records one node, not hidden healing. Merge glues on the structural and declared rungs
+  is never silent). An op that mints adjacent faces on one surface
+  key by its own construction runs it as a documented final stage of
+  its contract, so what it returns is maximal: boolean *outputs* (the
+  seam zip), and *sweeps* — the walls of a profile side the author
+  subdivided with a declared straight continuation (one carrier by that
+  declaration), and a full revolve's two π-bands of one planar profile
+  segment (the second minted on the first's key by the revolve itself).
+  Each pair shares its key by construction and merges on the structural
+  rung. The recipe records the op's one node, not hidden healing. Merge glues on the structural and declared rungs
   only; numeric coincidence never merges. Load-bearing dependency:
   `merge_coplanar_faces` **never elides vertices**, and tier 3′'s
   strict record-drop rule (a contact record whose vertex pair fused

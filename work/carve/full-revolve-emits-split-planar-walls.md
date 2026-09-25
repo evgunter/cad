@@ -7,6 +7,7 @@ opened: 2026-09-25
 priority: P0
 cost: D
 refs: [swept-continuation-walls-reach-the-boolean-unmerged, torus-operand-gate-admission]
+needs_ev: true
 ---
 
 
@@ -51,3 +52,13 @@ What the revolve should produce, and where maximality is owed, changes
 F7's text or N3/N4's. So this is a design fork for Ev. GERM is running
 the designer pair on it and will open the `[ev]` PR. The implementation
 is CARVE's (`revolve/*`), with the naming half in the emitter.
+
+## Put to Ev (2026-09-25)
+
+Both designers recommend the same seat: the full revolve runs the
+structural merge as its own documented final stage, the boolean gate is
+unchanged, and a merged planar wall is named plain `Band(s)`, with no
+`BandPi(s)` and no pole vertex. The `[ev]` PR asks Ev about that, about
+F7's wording (a general rule, or a widened enumeration), and whether the
+π revolve is answered now or separately. Its implementation shares ONE
+final-stage merge with `swept-continuation-walls-reach-the-boolean-unmerged`.
