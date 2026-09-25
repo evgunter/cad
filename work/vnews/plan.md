@@ -351,6 +351,38 @@ time* and reads as a rule about this program's lanes; it is not one a
 sibling program's dispatch can see. Whoever dispatches group A
 announces it.
 
+### 8. Rows that arrived while the program was paused (triaged 2026-09-24)
+
+Seven rows reached this slate from other programs' re-homings and
+reviews between 2026-09-17 and 2026-09-22 and had no position here.
+Ordered by what a reader sees, then by which slot is free:
+
+1. **`a-derived-pick-index-failure-outshouts-its-cause` — P1, Ev's own
+   report, and first in the next `frame.rs` slot**, ahead of group 7's
+   B–E. A pick-index failure that is a CONSEQUENCE of a failed node is
+   the loud banner and names root 11, while the cause — node 13's
+   Boolean refusal — is the quiet line. That is this program's charter
+   exactly (how news is ranked against the news it follows from), and
+   it is the one row here a user has already hit. It reaches FIT's
+   `pickindex.rs` for the fault; announce.
+2. `a-swallowed-ray-refusal-is-announced-as-a-picking-disagreement` —
+   P2, `pane/viewport.rs` and `idpass.rs`. Independent of `frame.rs`;
+   first free code slot.
+3. `a-refused-typed-value-reaches-no-word` — P2, E. Reaches
+   `session/refuse.rs`, so it waits for the undo/redo unit (#2960) to
+   release that file.
+4. `the-profiles-badge-names-the-arc-case-only` — P3, E, a `frame.rs`
+   badge sentence. Rides the `frame.rs` slot after item 1.
+5. `an-overlay-leg-past-the-display-seam-is-not-badged` — P3, `marks.rs`
+   with a `frame.rs` badge; after item 4 in the same file.
+6. `the-mirror-class-is-unswept-outside-the-properties-pane` — P3, a
+   census before a fix, over `widgets.rs`, `pane/profile.rs` and
+   `pane/features.rs`. Reading work; dispatchable whenever a slot is free
+   for it.
+7. `no-test-can-reach-a-pane-function` — P3, a test-reach question about
+   `pane.rs`. Last: it names a gap, and the units above will say whether
+   they hit it.
+
 ## Inbound
 
 `joined-notices-nest-their-own-separator` is this program's row and is
