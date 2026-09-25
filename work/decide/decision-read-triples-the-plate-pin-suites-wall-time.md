@@ -86,80 +86,101 @@ answers in the order it names them.
 
 ## Where the read's cost is (DECIDE-6)
 
-**The read is not where the suite's time is.** DECIDE-6 instrumented
-the read (`geom_core::sym::profile::ReadProfile`, under
-`sym-profile-testing`) and ran it on the plate's pin-suite documents
-and the link. On every replay the read is under half a percent of the
-wall time, and its enclosure is less than that. The 143 s → 535 s this
-row measured came with DECIDE-3, which also added rule G, and rule G is
-where the time went: `work/decide/rule-g-is-the-link-and-pads-leaf-cost`.
+**What the measurement found, and why this row closes.** The read is
+not where the suite's time is. DECIDE-6 instrumented it
+(`geom_core::sym::profile::ReadProfile`, under `sym-profile-testing`)
+on the plate's pin-suite documents: the plate, the annulus, the link,
+the bracket and the pad. On every replay the read, `order`'s `a − b`
+included, is under half a percent of the wall time. Shutting the read
+moves no replay beyond noise, and running it ten times at every call
+does not move `m10_10_pins_interval`. The 143 s → 535 s this row
+measured came with DECIDE-3, which added rule G, A0's `min`/`max` folds
+and the read together. Measured separately, rule G carries the time
+and the other two do not: `work/decide/rule-g-is-the-link-and-pads-leaf-cost`.
+The title above is the premise as filed; this section is what the
+measurement says of it.
 
-**Where the read's cost is.** The dev table comes from
-`decide_6_read_cost_interval::decide_6_where_the_reads_cost_is` at
-ε = 1e-9, the shipped set, no ladder, one profiled replay each. Leaves
-are at the certifying end of each pinned bracket. "Asked" counts the
-`signed::decision` calls. Every one came through `min`/`max`
-(`signed::order`), and no document asked the read at a `Select`. The
-pre-pass, memo and depth columns are §What each answer would save.
+**The baselines have moved, and the 143 s was not re-taken.** At
+DECIDE-6's head (`019d14841` base, dev, `--test-threads 2`, this box)
+the suites are `m10_10_pins_interval` 341.59 s (535 s at DECIDE-3),
+`m10_9_pins_interval` 326.35 s (~81 s at DECIDE-3) and
+`m10_8_pins_interval` 108.89 s. Rows have been added since, and the
+pre-DECIDE-3 tier is not a rule set of today's tree, so no run here
+reproduces the 143 s.
 
-| replay | wall | asked | settled | declined | read time | enclosing | pre-pass-provable declines (their time) | id-walk, every call | digest repeats (their time) |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| plate, nominal | 2.78 s | 36 | 36 | 0 | 0.62 ms | 0.24 ms | 0 | 0.05 ms | 30 (0.49 ms) |
-| plate, leaf at 0.2630 | 2.81 s | 36 | 36 | 0 | 0.63 ms | 0.22 ms | 0 | 0.06 ms | 30 (0.52 ms) |
-| annulus, leaf at 0.8416 | 2.96 s | 36 | 36 | 0 | 0.62 ms | 0.25 ms | 0 | 0.05 ms | 30 (0.52 ms) |
-| link, leaf at 4.930e2·ε | 37.98 s | 175 | 32 | 143 | 2.75 ms | 0.71 ms | 143 (2.30 ms) | 0.36 ms | 104 (1.51 ms) |
-| bracket, leaf at 3.870e2·ε | 13.79 s | 188 | 89 | 99 | 58.85 ms | 44.48 ms | 99 (12.26 ms) | 12.09 ms | 117 (40.20 ms) |
+**The table.** The rows come from
+`decide_6_read_cost_interval::decide_6_where_the_reads_cost_is`: dev,
+ε = 1e-9, the shipped set, no ladder, one profiled replay each, at
+DECIDE-6's fix-pass head. Leaves are at the certifying end of each
+pinned bracket.
+- "Asked" counts `signed::decision`'s calls. Every one came through
+  `min`/`max` (`signed::order`), and no document asked the read at a
+  `Select`.
+- "Read" is the read's own time, from entering `decision` to its
+  answer; the instrument's work is outside it.
+- "`a − b`" is `order` building the difference, before the read; the
+  refusals there are budget or ring refusals.
 
-The pad is measured on the release leaf instrument only
-(`m10_10_evidence_interval::m10_10_leaf_cost_with_and_without_the_algebra`
-with `CAD_M10_10_PROFILE`, 1e2·ε). It asks 440 reads, settles 114 and
-declines 326, and all 326 are pre-pass-provable. The read takes 2.48 ms
-of a 75.3 s leaf, 0.53 ms of it enclosing.
+| replay | wall | asked | settled | declined | read (enclosing) | `a − b` (refused) | pre-pass-provable declines: their read (enclosing) | digest repeats (their read) |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| plate, nominal | 3.05 s | 36 | 36 | 0 | 0.34 ms (0.23 ms) | 0.13 ms (13) | 0 | 30 (0.27 ms) |
+| plate, leaf at 0.2630 | 2.94 s | 36 | 36 | 0 | 0.39 ms (0.26 ms) | 0.17 ms (13) | 0 | 30 (0.33 ms) |
+| annulus, leaf at 0.8416 | 2.94 s | 36 | 36 | 0 | 0.38 ms (0.27 ms) | 0.10 ms (0) | 0 | 30 (0.31 ms) |
+| link, leaf at `4.930e2·ε` | 38.12 s | 175 | 32 | 143 | 1.09 ms (0.67 ms) | 0.76 ms (8) | 143: 0.87 ms (0.53 ms) | 104 (0.62 ms) |
+| bracket, leaf at `3.870e2·ε` | 13.91 s | 188 | 89 | 99 | 49.98 ms (49.28 ms) | 2.91 ms (12) | 99: 9.01 ms (8.76 ms) | 117 (33.05 ms) |
+| pad, leaf at `2.4990e3·ε` | 293.15 s | 440 | 114 | 326 | 4.21 ms (2.60 ms) | 10.38 ms (0) | 326: 2.72 ms (1.52 ms) | 269 (2.64 ms) |
 
-**Declines by cause** (the enclosure's first failure, in its own order):
-- **Link:** all 143 are an indeterminate with no bracket.
-  - `tan`: 12 at the top level, 71 below it.
-  - `cos`: 54, all at depth 2 or deeper.
-  - 6 exhausted the depth cap.
-- **Bracket:** all 99 are an opaque id or the depth cap.
-  - Opaque id: 1 at the top level, 66 below it.
-  - 32 exhausted the depth cap.
-- **Pad:** all 326 are unbracketed or the depth cap.
-  - `sin`: 156.
-  - Opaque id: 110.
-  - `cos`: 6.
-  - 54 exhausted the depth cap.
+The pad's leaf returns in dev on this box: 277.34 s unprofiled, the
+certifying end `m10_10_pins_interval`'s ceiling row replays. On the
+release leaf instrument (`m10_10_leaf_cost_with_and_without_the_algebra`
+with `CAD_M10_10_PROFILE`, at `1e2·ε`) the same counts come back — 440
+asked, 114 settled, 326 declined.
 
-No decline anywhere is a straddle or a poisoned enclosure.
+**Declines by cause.** The cause is the enclosure's own refusal, noted
+at the arm of `signed::enclose_indet` / `enclose_deep` that made it;
+the cap's test comes first, as the enclosure makes it. `@k` is the
+atom level the unbracketed id sits at (0: the top of a half).
 
-**The suite, directly.** The table accounts for the read's time per replay. Two
-executions account for it at the suite's scale:
-- **Read shut against read on** (the same row, unprofiled, shipped against
-  `SymRules::without_the_reads`): 2.52 / 2.35 s on the plate nominal,
-  2.45 / 2.63 s on the annulus leaf, 34.72 / 35.01 s on the link leaf and
-  12.34 / 12.59 s on the bracket leaf. Shutting the read moves no
-  replay beyond run-to-run noise.
+| cause | link | bracket | pad |
+| --- | --- | --- | --- |
+| depth exhausted | 8 | 34 | 64 |
+| `tan` @0 / @1 / @2 / @3 / @4 / @5 / @6 / @7 | 12 / 37 / 8 / 14 / 4 / 2 / 2 / 2 | — | — |
+| `cos` @0 / @1 / @2 / @3 / @4 / @5 / @6 / @7 | 0 / 0 / 18 / 12 / 18 / 2 / 2 / 2 | — | 2 / 4 / 0 / 0 / 0 / 0 / 0 / 0 |
+| `sin` @1 / @2 / @3 / @4 / @5 / @6 / @7 | — | — | 45 / 53 / 16 / 18 / 10 / 4 / 4 |
+| opaque @0 / @1 / @2 / @3 / @4 / @5 / @6 / @7 | — | 1 / 36 / 16 / 0 / 4 / 4 / 4 / 0 | 0 / 50 / 22 / 16 / 4 / 6 / 4 / 4 |
+
+No decline anywhere is a straddle or a poisoned bracket.
+
+**The suite, directly.** Two executions account for the read at the
+suite's scale:
+- **Read shut against read on** (the same row, unprofiled, shipped
+  against `SymRules::without_the_reads`, at DECIDE-6's first head):
+  2.52 / 2.35 s on the plate nominal, 2.45 / 2.63 s on the annulus
+  leaf, 34.72 / 35.01 s on the link leaf and 12.34 / 12.59 s on the
+  bracket leaf. No replay moves beyond run-to-run noise.
 - **The read run ten times at every call** (a local patch, not
   committed): `decision` asserted that nine more calls of the read
-  returned the same answer. `m10_10_pins_interval` took 340.75 s against
-  337.83 s unpatched (dev, `--test-threads 2`). Ten times the read's
-  whole cost moves the suite by less than its noise.
+  returned the same answer. `m10_10_pins_interval` took 340.75 s
+  against 337.83 s unpatched.
 
 ## What each answer would save (DECIDE-6)
 
 - **The pre-pass.** It could answer every decline on these documents
-  (99 on the bracket, 143 on the link, 326 on the pad) and none on
-  the plate or the annulus, which decline nothing. The most it saves
-  is the time of those calls: 12.26 ms on the bracket's dev leaf and
-  2.30 ms on the link's. Its own id-walk, run beside the read on every
-  call, costs 12.09 ms and 0.36 ms. On the bracket it would cost about
-  what it saves. It cannot take `m10_10_pins_interval` (337.83 s at
-  this head) back within 1.2× of 143 s, because the read-×10 patch
-  shows the read's whole cost is inside the suite's noise.
+  (143 on the link, 99 on the bracket, 326 on the pad) and none on the
+  plate or the annulus, which decline nothing. It must strip the
+  halves before it walks them, so the most it saves is the ENCLOSING
+  time of those calls: 0.53 ms on the link's leaf, 8.76 ms on the
+  bracket's, 1.52 ms on the pad's — before its own walk's cost, which
+  was not measured because the walk was not built. The largest, the
+  bracket's, is 0.06 % of that leaf. It cannot take
+  `m10_10_pins_interval` back within 1.2× of 143 s: the read-×10 patch
+  puts the read's whole cost inside the suite's noise.
 - **The digest memo.** It would hit 117 of 188 calls on the bracket,
   104 of 175 on the link, 30 of 36 on the plate and the annulus, and
-  269 of 440 on the pad. Those calls take 40.20 ms of a 13.79 s dev
-  leaf on the bracket (0.3 %), and at most 1.51 ms elsewhere.
+  269 of 440 on the pad — floors, because the digest carries the
+  `gated` bit, which the read does not look at. Those calls take
+  33.05 ms of a 13.91 s leaf on the bracket (0.24 %) and at most
+  2.64 ms elsewhere.
 - **Depth-1 first.** It settles no read on the plate or the annulus,
   where every read needs depth 2. It settles 14 of the link's 32
   settled reads, 18 of the bracket's 89 and 18 of the pad's 114. On

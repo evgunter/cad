@@ -13,18 +13,20 @@ refs: [decision-read-triples-the-plate-pin-suites-wall-time]
 
 ## What
 
-`decision-read-triples-the-plate-pin-suites-wall-time`. The decision
-read encloses both halves of every `Select`/`min`/`max` decision to
-depth 8 before it can decline, and most calls decline, so DECIDE-3 took
-the plate's dev pin suite from 143 s to 535 s.
+`decision-read-triples-the-plate-pin-suites-wall-time`. The row put
+the plate's dev pin suite going from 143 s to 535 s at DECIDE-3 on the
+decision read's depth-8 enclosure, and named three cheap answers to
+take before it: an enclosability pre-pass, a memo per form digest, and
+a depth-1 attempt first.
 
-This unit makes the read decline before paying for the enclosure, with
-every decision unchanged. It measures first (calls, declines by cause,
-enclosure time), then takes the item's three cheap answers in order,
-only as far as the measurement justifies:
-1. an enclosability pre-pass;
-2. a memo per form digest;
-3. a depth-1 attempt first.
+This unit measured first (calls, declines by cause, the read's and the
+enclosure's time) and found the premise false. On every document of
+the plate's pin suite the read is under half a percent of a replay,
+and running it ten times at every call does not move the suite. So it
+took none of the three answers. What it lands is the read's
+instrument, its evidence rows, and the finding: on the row itself, and
+in `rule-g-is-the-link-and-pads-leaf-cost`, which holds the measured
+separation putting DECIDE-3's cost on rule G.
 
 Spec: `docs/DECIDE-6-SPEC.md`. Opus implementer. Review tier: single
 FULL review (`work/decide/log.md`, 2026-09-25).

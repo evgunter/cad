@@ -672,6 +672,10 @@ mod instrument {
             inner
         }
 
+        /// One atom at the top: what it is, its op, its arguments, and
+        /// the note its enclosure must make (`None`: it encloses).
+        type AtTop<'a> = (&'a str, SymOp, [Option<Arc<Form>>; 3], Option<&'a str>);
+
         fn noted(
             p: &Poly,
             params: &IndetMap<(f64, f64)>,
@@ -722,7 +726,7 @@ mod instrument {
                 Poly::indet(PARAM),
                 Poly::indet(OPAQUE),
             )));
-            let atoms_at: [(&str, SymOp, [Option<Arc<Form>>; 3], Option<&str>); 9] = [
+            let atoms_at: [AtTop<'_>; 9] = [
                 (
                     "abs of the parameter",
                     SymOp::Abs,
