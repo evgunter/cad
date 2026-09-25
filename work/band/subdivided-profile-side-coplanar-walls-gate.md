@@ -33,3 +33,31 @@ Refs BOOL-8 (#1508), BOOL-11 (#1520), BOOL-12, issue 433.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to BLEND (the sweep crate and the profile fillet door are BLEND's charter; crates/sweep/src/loft.rs passes to BLEND at this exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Measured (2026-09-25)
+
+Rows: `crates/sweep/tests/band_subdivided_side_walls.rs`.
+
+- **Extrude, and revolve full or partial: ONE surface key per
+  continuation run.** The key comes from `sweep_loop` / `side_surface`
+  in `crates/sweep/src/extrude.rs` and their revolve twins. The walls
+  are not merged. The body is tier-3 valid, and it is maximal-faced
+  everywhere except the continuation's planar same-key pair. The
+  boolean refuses that pair: `gate_maximal_faces` returns
+  `NonMaximalFaces` at the extrude's continuation strut and at the
+  revolve's annulus split circle. A same-key cylinder pair passes the
+  gate as the canonical maximal form. The structural rung merges the
+  pair on request (`merge_coplanar_faces`), and the merged prism
+  unions with the crossing cube to the exact volume.
+- **Loft: one NURBS key per segment.** Nothing merges it. The boolean
+  refuses the body's spline edges before its gate is reached.
+  Filed on CARVE as `loft-walls-keyed-per-segment-on-a-declared-carrier`.
+- **Fillet** of the subdivided rim refuses as junction carry-through,
+  merged or not. Filed as `subdivided-rim-fillet-refuses-at-the-collinear-joint`.
+
+The declaration survives extrude and revolve (one key), and the
+refusal names its recourse. What is still missing is a door to that
+recourse above the kernel. Closing that gap changes the F7 clause in
+DESIGN.md, which makes it Ev's call. It is filed as
+`swept-continuation-walls-reach-the-boolean-unmerged`, with the fork
+and a recommendation.
