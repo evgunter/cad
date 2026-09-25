@@ -2,8 +2,13 @@
 //! trilean validation into [`ValidatedProfile`] (M2 PR 2).
 //!
 //! A profile is the *input* to sweeps (M2 PR 4/5): closed 2-D loops on a
-//! [`SketchPlane`], stored as plain data whose consistency conditions
-//! are verified at validation, never trusted. Sweeps accept only a
+//! [`SketchPlane`], stored as plain data. The one consistency
+//! condition the stored form has — an arc's carrier and sweep agree
+//! with its two vertices — holds by construction: every loop is lowered
+//! from its chords and bulges, and validation reads the carrier without
+//! re-checking it. A predicate that verifies a stored carrier against
+//! its vertices is owed once carriers are stored rather than derived.
+//! Sweeps accept only a
 //! [`ValidatedProfile`], the canonicalized output of
 //! [`Profile::validate`]; arcs lower to `geom` circle carriers at
 //! sweep time — this crate stays 2-D and depends on `geom-core` only.
@@ -25,7 +30,8 @@
 //! - **The bulge input form.** Loops are written as a vertex chain
 //!   `[{pos, bulge}, …]` ([`ProfileVertex`]) — vertex k's `bulge`
 //!   describes the segment leaving it — and LOWERED to the stored form
-//!   once: a zero bulge is a line, and a nonzero one an arc whose
+//!   once: a bulge of exactly zero (either sign) is a line, and any
+//!   other an arc whose
 //!   carrier is the closed form below and whose sweep is
 //!   Δθ = 4·atan(b). The bulge each segment was lowered from is kept
 //!   beside it ([`ProfileLoop::bulges`]).
@@ -130,7 +136,13 @@
 //! no panics; garbage in (NaN coordinates, a through-point coincident
 //! with a chord endpoint) produces well-defined poison or degenerate
 //! data *values*, which validation catches with typed errors — never a
-//! guess (the poison policy of `geom_core::real`).
+//! guess (the poison policy of `geom_core::real`). The lowering adds no
+//! poison of its own: a bulge of exactly zero lowers to a line, so no
+//! stored arc has its centre at infinity. A stored arc's carrier is
+//! poison only when its input was — a bulge or coordinate that is not
+//! finite, which validation refuses typed — or when a tiny finite bulge
+//! overflows its radius, which is a sub-tolerance arc that validation
+//! classifies a line before any carrier is read.
 
 mod fillet_select;
 pub mod lift;
@@ -196,6 +208,14 @@ pub use validate::{
 /// Segment `k` leaves vertex `k` and ends at vertex `k + 1 (mod n)`; the
 /// vertices themselves are stored verbatim beside it and are
 /// authoritative, so a segment carries no endpoint.
+///
+/// **The stored kind is exact, not a tolerance decision.** A segment
+/// is stored as a `Line` exactly when the bulge it was lowered from is
+/// exactly zero, of either sign, so a stored `Arc` is never built from
+/// b = 0 and its carrier is always the finite-bulge closed form. A
+/// stored `Arc` may still be sub-tolerance: whether it is too shallow
+/// to be an arc is validation's ε-decision, and a
+/// [`ValidatedSegment`]'s [`SegmentKind`] may classify it `Line`.
 #[derive(Clone, Copy, Debug)]
 pub enum Segment<T: Real> {
     /// A straight segment: its carrier is the chord between its two
@@ -225,10 +245,6 @@ pub enum Segment<T: Real> {
 pub struct ProfileVertex<T: Real> {
     pos: Point2<T>,
     bulge: T,
-    /// Whether the leaving segment lowers to an arc. The emission layer
-    /// sets it from the verb that wrote the segment; [`Self::new`] reads
-    /// it off the bulge (an arc unless the bulge is exactly zero).
-    arc: bool,
 }
 
 impl<T: Real> ProfileVertex<T> {
@@ -246,23 +262,12 @@ impl<T: Real> ProfileVertex<T> {
     /// the only doors a shipped build has, and neither takes one. A
     /// caller holding a bag of vertices has nothing to put them in.
     pub fn new(pos: Point2<T>, bulge: T) -> Self {
-        Self {
-            pos,
-            bulge,
-            arc: !is_exact_zero(bulge),
-        }
-    }
-
-    /// The vertex a verb wrote: the emission layer knows which kind of
-    /// segment it emitted, so it says so rather than reading it off the
-    /// bulge.
-    pub(crate) fn emitted(pos: Point2<T>, bulge: T, arc: bool) -> Self {
-        Self { pos, bulge, arc }
+        Self { pos, bulge }
     }
 
     /// **The leaf rung of the profile scalar lift**: the same vertex
     /// read at another scalar — the position through [`Point2::map`],
-    /// the bulge through `f`, the segment kind carried.
+    /// the bulge through `f`.
     ///
     /// `map`, not `map_scalar`, because a vertex is a fixed pair of
     /// scalars with no structure to carry: `geom`'s `scalar_lift`
@@ -274,11 +279,7 @@ impl<T: Real> ProfileVertex<T> {
     /// nothing is computed, so the lift is exact whenever `f` is.
     #[must_use]
     pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> ProfileVertex<U> {
-        ProfileVertex {
-            pos: self.pos.map(&f),
-            bulge: f(self.bulge),
-            arc: self.arc,
-        }
+        ProfileVertex::new(self.pos.map(&f), f(self.bulge))
     }
 
     /// The vertex position in sketch-plane coordinates (meters).
@@ -295,19 +296,51 @@ impl<T: Real> ProfileVertex<T> {
     }
 
     /// The canonical segment this vertex's leaving segment lowers to,
-    /// given the vertex it ends at: a line, or the arc whose carrier is
-    /// [`seg::arc_carrier`] on the chord and whose sweep is
-    /// Δθ = 4·atan(b).
+    /// given the vertex it ends at, by the one rule every lowering
+    /// shares: a [`Segment::Line`] exactly when the bulge is exactly
+    /// zero (either sign), and otherwise the arc [`lower_arc`] builds.
     pub(crate) fn lower_to(self, end: Point2<T>) -> Segment<T> {
-        if !self.arc {
+        if is_exact_zero(self.bulge) {
             return Segment::Line;
         }
-        let carrier = seg::arc_carrier(&seg::ChordFrame::of(self.pos, end), self.bulge);
+        let LoweredArc {
+            centre,
+            radius,
+            sweep,
+        } = lower_arc(self.pos, end, self.bulge);
         Segment::Arc {
-            centre: carrier.center,
-            radius: carrier.radius,
-            sweep: T::from_f64(4.0) * self.bulge.atan(),
+            centre,
+            radius,
+            sweep,
         }
+    }
+}
+
+/// An arc's carrier and sweep, as [`lower_arc`] derives them.
+pub(crate) struct LoweredArc<T: Real> {
+    /// The carrier circle's centre.
+    pub centre: Point2<T>,
+    /// The carrier circle's radius.
+    pub radius: T,
+    /// The signed sweep Δθ.
+    pub sweep: T,
+}
+
+/// **The arc lowering**: the carrier [`seg::arc_carrier`] puts on the
+/// chord `start → end` for `bulge`, and the sweep Δθ = 4·atan(b).
+///
+/// Pure arithmetic over its inputs, so it is the same expression at
+/// every scalar: [`ProfileVertex::lower_to`] mints a stored arc
+/// through it, and the validated form's lift rebuilds a validated
+/// arc's carrier and sweep through it at the target scalar. A bulge of
+/// exactly zero has no carrier (its centre is at infinity), and the
+/// lowering rule sends it to a line before it reaches here.
+pub(crate) fn lower_arc<T: Real>(start: Point2<T>, end: Point2<T>, bulge: T) -> LoweredArc<T> {
+    let carrier = seg::arc_carrier(&seg::ChordFrame::of(start, end), bulge);
+    LoweredArc {
+        centre: carrier.center,
+        radius: carrier.radius,
+        sweep: T::from_f64(4.0) * bulge.atan(),
     }
 }
 
@@ -322,6 +355,9 @@ impl<T: Real> ProfileVertex<T> {
 /// refuses typed. This is an exact read, not a tolerance decision:
 /// whether a nonzero bulge is too shallow to be an arc is validation's
 /// `segment_straightness` question, asked of the bulge itself.
+///
+/// At `f64` the read is exactly `b == 0.0`, so a stored segment's kind
+/// is the reading every consumer of the bulge form makes.
 fn is_exact_zero<T: Real>(b: T) -> bool {
     !(b * T::zero()).is_poison() && (b * (T::one() / b)).is_poison()
 }
@@ -541,8 +577,7 @@ impl<T: Real> ProfileLoop<T> {
     /// [`Affine3::map`](geom_core::Affine3::map),
     /// [`SketchPlane::map`], [`ProfileVertex::map`] — a fixed tuple of
     /// scalars), `map_scalar` wherever the lift has structure to carry,
-    /// which here is the vertex count, the segment kinds and the joint
-    /// index set. One name per operation, on the type it lifts. It
+    /// which here is the vertex count and the joint index set. One name per operation, on the type it lifts. It
     /// takes `&self` where a leaf takes `self`, because a loop owns its
     /// `Vec`s and its caller holds a borrow.
     ///
@@ -550,11 +585,13 @@ impl<T: Real> ProfileLoop<T> {
     /// exists — it was emitted by the lattice, or read back from a
     /// validated profile — and an evaluation at another scalar needs the
     /// same table in that scalar's arithmetic. The positions, the bulges
-    /// the segments were lowered from, each segment's kind and the
-    /// declared tangent joints all travel; each arc's carrier and sweep
-    /// are DERIVED data, so they are lowered again at `U` from the
-    /// mapped endpoints and bulge (at a certified scalar, that
-    /// derivation is what mints their enclosure). The declarations are
+    /// the segments were lowered from and the declared tangent joints
+    /// travel; each segment is DERIVED data, so it is lowered again at
+    /// `U` from the mapped endpoints and bulge — its kind by the one
+    /// lowering rule (a line exactly at a zero bulge, which `from_f64`
+    /// preserves), an arc's carrier and sweep by the arc lowering (at a
+    /// certified scalar, that derivation is what mints their
+    /// enclosure). The declarations are
     /// re-verified in the evaluation scalar by [`Profile::validate`], so
     /// nothing is taken on trust by crossing.
     ///
@@ -571,10 +608,15 @@ impl<T: Real> ProfileLoop<T> {
         ProfileLoop::lower(&chain, self.tangent_joints.clone())
     }
 
-    /// **The lowering** — the crate's one private constructor: a chain
-    /// in the bulge input form becomes verbatim vertices and one
-    /// canonical segment per edge ([`ProfileVertex::lower_to`]), the
-    /// bulges kept beside them.
+    /// **The lowering** — the one constructor every `ProfileLoop` comes
+    /// out of: a chain in the bulge input form becomes verbatim vertices
+    /// and one canonical segment per edge ([`ProfileVertex::lower_to`]),
+    /// the bulges kept beside them. The emission layer, the fixture
+    /// door, [`Self::map_scalar`], [`Self::reversed`] and the lift's
+    /// re-seaming all build through it, so every stored segment is the
+    /// lowering of its own chord and bulge. The fixture door's
+    /// `with_tangent_joints` replaces the joint set of a loop it already
+    /// lowered and touches nothing else.
     pub(crate) fn lower(chain: &[ProfileVertex<T>], tangent_joints: Vec<usize>) -> Self {
         let n = chain.len();
         Self {
@@ -588,15 +630,12 @@ impl<T: Real> ProfileLoop<T> {
     }
 
     /// The input chain this loop was lowered from: each vertex with the
-    /// bulge and the kind of its leaving segment.
-    fn input_chain(&self) -> impl Iterator<Item = ProfileVertex<T>> + '_ {
+    /// bulge of its leaving segment.
+    pub(crate) fn input_chain(&self) -> impl Iterator<Item = ProfileVertex<T>> + '_ {
         self.vertices
             .iter()
-            .zip(&self.segments)
             .zip(&self.bulges)
-            .map(|((&pos, segment), &bulge)| {
-                ProfileVertex::emitted(pos, bulge, matches!(segment, Segment::Arc { .. }))
-            })
+            .map(|(&pos, &bulge)| ProfileVertex::new(pos, bulge))
     }
 }
 
@@ -610,6 +649,11 @@ impl<T: Real> ProfileLoop<T> {
     /// The canonical segments, segment `k` running from vertex `k` to
     /// vertex `k + 1 (mod n)`: a line, or an arc's carrier and signed
     /// sweep.
+    ///
+    /// A stored `Line` is exactly a segment lowered from a zero bulge,
+    /// so a stored `Arc` never comes from b = 0; a stored `Arc` may
+    /// still be sub-tolerance, and validation may classify it a line
+    /// (see [`Segment`]).
     pub fn segments(&self) -> &[Segment<T>] {
         &self.segments
     }
@@ -688,9 +732,10 @@ impl<T: Real> ProfileLoop<T> {
     ///
     /// Reindexing: the reversed chain visits `v0, v(n−1), v(n−2), …,
     /// v1`, and each segment retraces the original segment
-    /// `(n−k−1) mod n` backwards: same kind, bulge **negated** (b ↦ −b,
-    /// the reversal involution of the crate docs), so an arc keeps its
-    /// carrier circle and radius and its sweep changes sign
+    /// `(n−k−1) mod n` backwards with its bulge **negated** (b ↦ −b,
+    /// the reversal involution of the crate docs). Negation keeps a zero
+    /// bulge zero, so a line stays a line; an arc keeps its carrier
+    /// circle and radius, and its sweep changes sign
     /// (4·atan(−b) = −4·atan(b), atan being odd).
     ///
     /// The reversed chain is LOWERED like any other, so an arc's centre
@@ -716,10 +761,7 @@ impl<T: Real> ProfileLoop<T> {
         }
         let input: Vec<ProfileVertex<T>> = self.input_chain().collect();
         let chain: Vec<ProfileVertex<T>> = (0..n)
-            .map(|k| {
-                let retraced = input[(n - k - 1) % n];
-                ProfileVertex::emitted(input[(n - k) % n].pos, -retraced.bulge, retraced.arc)
-            })
+            .map(|k| ProfileVertex::new(input[(n - k) % n].pos, -input[(n - k - 1) % n].bulge))
             .collect();
         // Out-of-range indices (garbage data) pass through untouched —
         // total code; validation refuses them typed.
@@ -1019,8 +1061,9 @@ impl<T: Real> Profile<T> {
 #[allow(clippy::panic)]
 mod lowering_tests {
     use super::*;
-    use geom_core::{Dual64, Interval};
+    use geom_core::{Dual, Dual64, DualInterval, Interval};
 
+    /// The kind `b` lowers to on a unit chord.
     fn kind_of<T: Real>(b: T) -> &'static str {
         let v = ProfileVertex::new(Point2::new(T::zero(), T::zero()), b);
         match v.lower_to(Point2::new(T::one(), T::zero())) {
@@ -1029,11 +1072,14 @@ mod lowering_tests {
         }
     }
 
-    /// The fixture door's kind read: a line exactly at a zero bulge of
-    /// either sign, at every lane scalar; anything else, poison
-    /// included, is an arc.
+    /// **The lowering rule, at every lane scalar**: a line exactly at a
+    /// bulge of exactly zero — `±0`, and at `Interval` only the
+    /// degenerate hull `[−0, 0]` — and an arc for anything else, poison
+    /// and every enclosure that merely contains zero included. A dual
+    /// is read on its value: its derivative, seeded or not, does not
+    /// make a zero bulge an arc.
     #[test]
-    fn a_bulge_lowers_to_a_line_exactly_at_zero() {
+    fn exact_zero_read_across_scalars() {
         for (b, want) in [
             (0.0, "line"),
             (-0.0, "line"),
@@ -1045,30 +1091,73 @@ mod lowering_tests {
         ] {
             assert_eq!(kind_of(b), want, "f64 {b:e}");
             assert_eq!(kind_of(Dual64::from_f64(b)), want, "Dual {b:e}");
+            assert_eq!(kind_of(Dual::variable(b)), want, "seeded Dual {b:e}");
+            assert_eq!(kind_of(Dual::new(b, -3.5)), want, "Dual {b:e}, d = −3.5");
             if b.is_finite() {
-                assert_eq!(kind_of(Interval::from_f64(b)), want, "Interval {b:e}");
+                let i = Interval::from_f64(b);
+                assert_eq!(kind_of(i), want, "Interval {b:e}");
+                assert_eq!(
+                    kind_of(DualInterval::from_f64(b)),
+                    want,
+                    "Dual<Interval> {b:e}"
+                );
+                assert_eq!(
+                    kind_of(Dual::variable(i)),
+                    want,
+                    "seeded Dual<Interval> {b:e}"
+                );
             }
+        }
+        let hull =
+            |lo: f64, hi: f64| Interval::hull(Interval::from_f64(lo), Interval::from_f64(hi));
+        for (lo, hi, want) in [
+            (-0.0, 0.0, "line"),
+            (0.0, -0.0, "line"),
+            (-0.0, -0.0, "line"),
+            (0.0, 1e-300, "arc"),
+            (-1e-300, 0.0, "arc"),
+            (-1e-300, 1e-300, "arc"),
+            (-1.0, 1.0, "arc"),
+            (0.5, 2.0, "arc"),
+        ] {
+            assert_eq!(kind_of(hull(lo, hi)), want, "Interval [{lo:e}, {hi:e}]");
+            assert_eq!(
+                kind_of(Dual::constant(hull(lo, hi))),
+                want,
+                "Dual<Interval> [{lo:e}, {hi:e}]"
+            );
         }
     }
 
-    /// Reversal negates every sweep bit-exactly and keeps each radius,
-    /// and a reversed arc's centre is the same circle's to the last
-    /// bits the reversed chord's midpoint rounds to.
-    #[test]
-    fn reversal_negates_the_sweep_and_keeps_the_carrier() {
-        let lp = ProfileLoop::lower(
-            &[
-                ProfileVertex::new(Point2::new(0.1, 0.3), 0.37),
-                ProfileVertex::new(Point2::new(0.7, -0.2), 0.0),
-                ProfileVertex::new(Point2::new(0.9, 1.1), -1.3),
-            ],
-            Vec::new(),
-        );
-        let back = lp.reversed();
+    /// A loop whose second segment's centre, derived on the reversed
+    /// chord, differs from the forward centre in its last bits: the
+    /// chord's two endpoints are three orders of magnitude apart in x,
+    /// so `a + (b − a)/2` and `b + (a − b)/2` round differently.
+    fn discriminating() -> Vec<ProfileVertex<f64>> {
+        vec![
+            ProfileVertex::new(Point2::new(0.1, 0.3), 0.37),
+            ProfileVertex::new(Point2::new(0.000_524_560_164_915_884, 0.7), 0.37),
+            ProfileVertex::new(Point2::new(0.039_166_573_353_688_7, 1.9), 0.0),
+            ProfileVertex::new(Point2::new(0.9, 1.1), -1.3),
+        ]
+    }
+
+    /// Asserts that `back` is `lp` reversed segment by segment: each
+    /// reversed segment is BIT-identical to a fresh lowering of the
+    /// retraced chord with the negated bulge, its sweep is the forward
+    /// sweep negated and its radius the forward radius. Returns how many
+    /// arcs' centres differ from the forward centre, which a copied
+    /// centre would have matched.
+    fn check_reversal<T: Real>(lp: &ProfileLoop<T>, back: &ProfileLoop<T>) -> usize {
+        let bits = |x: &dyn core::fmt::Debug| format!("{x:?}");
         let n = lp.segments().len();
+        let mut moved = 0;
         for k in 0..n {
-            let retraced = back.segments()[(n - k - 1) % n];
-            match (lp.segments()[k], retraced) {
+            let j = (n - k - 1) % n;
+            let (a, b) = (back.vertices()[k], back.vertices()[(k + 1) % n]);
+            let relowered = ProfileVertex::new(a, -lp.bulges()[j]).lower_to(b);
+            assert_eq!(bits(&back.segments()[k]), bits(&relowered), "segment {k}");
+            match (lp.segments()[j], back.segments()[k]) {
                 (Segment::Line, Segment::Line) => {}
                 (
                     Segment::Arc {
@@ -1082,12 +1171,31 @@ mod lowering_tests {
                         sweep: sb,
                     },
                 ) => {
-                    assert_eq!(sb.to_bits(), (-s).to_bits(), "segment {k} sweep");
-                    assert_eq!(rb.to_bits(), r.to_bits(), "segment {k} radius");
-                    assert!(c.distance(cb) <= 4.0 * f64::EPSILON, "segment {k} centre");
+                    assert_eq!(bits(&sb), bits(&-s), "segment {k} sweep");
+                    assert_eq!(bits(&rb), bits(&r), "segment {k} radius");
+                    if bits(&cb) != bits(&c) {
+                        moved += 1;
+                    }
                 }
-                (a, b) => panic!("segment {k}: {a:?} reversed to {b:?}"),
+                (f, r) => panic!("segment {k}: {f:?} reversed to {r:?}"),
             }
         }
+        moved
+    }
+
+    /// **Reversal lowers the retraced chords again**, at `f64` and at
+    /// `Interval`: every reversed segment is the lowering of its own
+    /// chord and negated bulge, bit for bit, so a forward centre copied
+    /// across would fail on the fixture's discriminating chord.
+    #[test]
+    fn reversal_negates_the_sweep_and_keeps_the_carrier() {
+        let lp = ProfileLoop::lower(&discriminating(), Vec::new());
+        let moved = check_reversal(&lp, &lp.reversed());
+        assert!(
+            moved > 0,
+            "the fixture no longer tells a copied centre apart"
+        );
+        let lp = lp.map_scalar(Interval::from_f64);
+        check_reversal(&lp, &lp.reversed());
     }
 }

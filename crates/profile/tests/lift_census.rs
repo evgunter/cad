@@ -25,7 +25,10 @@ use geom_core::Point2;
 use geom_core::Tol;
 use profile::RawLoop;
 use profile::lift::{Fidelity, LiftOutcome, LiftRefusal, lift, lift_checked};
-use profile::{ProfileLoop, ProfileVertex, Step, Verb, circle, circle_split, replay};
+use profile::{
+    Bulge, Open, ProfileLoop, ProfileVertex, Segment, Start, Step, Target, Verb, circle,
+    circle_split, replay,
+};
 
 /// The coarse bucket a census row falls in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -445,4 +448,89 @@ fn an_undeclared_cocircular_run_lifts_as_the_declared_joint() {
         );
     }
     assert_eq!(replayed.tangent_joints(), &[(1 + n - rotation) % n]);
+}
+
+/// The 2 × 2 square whose first side is written as an ARC of bulge
+/// `b`: `arc_to(Bulge { b })` with `b` a signed zero is the straight
+/// segment the bulge form says it is.
+fn zero_bulge_square(b: f64) -> ProfileLoop<f64> {
+    let t = Tol::witness();
+    Open.at(Point2::new(0.0, 0.0))
+        .arc_to(
+            Bulge {
+                p: Point2::new(2.0, 0.0),
+                b,
+            },
+            t,
+        )
+        .unwrap()
+        .line_to(Point2::new(2.0, 2.0), t)
+        .unwrap()
+        .line_to(Point2::new(0.0, 2.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap()
+        .loop_
+}
+
+/// The same square with its first side a `tangent_arc_to` whose target
+/// lies straight ahead of the incoming leg: the tangent arc through a
+/// collinear point is the straight continuation, bulge zero.
+fn collinear_tangent_arc_square() -> ProfileLoop<f64> {
+    let t = Tol::witness();
+    Open.at(Point2::new(0.0, 0.0))
+        .angle(0.0, t)
+        .unwrap()
+        .line(1.0, t)
+        .unwrap()
+        .tangent()
+        .tangent_arc_to(Point2::new(2.0, 0.0), t)
+        .unwrap()
+        .line_to(Point2::new(2.0, 2.0), t)
+        .unwrap()
+        .line_to(Point2::new(0.0, 2.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap()
+        .loop_
+}
+
+/// **A zero bulge is stored as a line, whichever verb wrote it**, so it
+/// lifts as the straight step: an arc lowered from b = 0 would lift as
+/// `ArcTo(Bulge { b: 0 })`, a spelling the loop never had.
+#[test]
+fn zero_bulge_arc_to_lifts_as_a_line() {
+    for b in [0.0, -0.0] {
+        let lp = zero_bulge_square(b);
+        assert!(
+            matches!(lp.segments()[0], Segment::Line),
+            "b = {b:e}: {:?}",
+            lp.segments()[0]
+        );
+        assert_eq!(lp.bulges()[0].to_bits(), b.to_bits(), "b = {b:e}");
+        let program = lift(&lp, Tol::witness()).expect("the square lifts");
+        assert!(
+            matches!(program[1], Step::LineTo(Target::Point(p)) if (p.x, p.y) == (2.0, 0.0)),
+            "b = {b:e}: {program:?}"
+        );
+    }
+}
+
+/// The collinear `tangent_arc_to` sibling: its segment is stored as a
+/// line, and the lift spells it straight.
+#[test]
+fn collinear_tangent_arc_to_lifts_as_a_line() {
+    let lp = collinear_tangent_arc_square();
+    assert!(
+        matches!(lp.segments()[1], Segment::Line),
+        "{:?}",
+        lp.segments()[1]
+    );
+    let program = lift(&lp, Tol::witness()).expect("the square lifts");
+    assert!(
+        program
+            .iter()
+            .all(|s| !matches!(s, Step::ArcTo(_) | Step::TangentArcTo(_))),
+        "{program:?}"
+    );
 }

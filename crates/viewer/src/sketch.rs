@@ -1015,7 +1015,7 @@ pub fn preview(
         .zip(&closed_flags)
         .enumerate()
         .map(|(loop_, (lp, closed))| {
-            let (points, vertices) = flatten(lp.vertices(), lp.bulges(), chord)
+            let (points, vertices) = flatten(lp.vertices(), lp.bulges().iter().copied(), chord)
                 .map_err(|vertex| PreviewError::Unflattenable { loop_, vertex })?;
             Ok(PreviewLoop {
                 points,
@@ -1113,8 +1113,8 @@ pub fn committed(
             .loops()
             .iter()
             .map(|lp| {
-                let bulges: Vec<f64> = lp.segments().iter().map(|s| s.bulge).collect();
-                flatten(lp.vertices(), &bulges, chord).map(|(points, vertices)| PreviewLoop {
+                let bulges = lp.segments().iter().map(|s| s.bulge);
+                flatten(lp.vertices(), bulges, chord).map(|(points, vertices)| PreviewLoop {
                     points,
                     vertices,
                     closed: true,
@@ -1330,7 +1330,7 @@ fn drawable(point: [f64; 2]) -> bool {
 /// along.
 fn flatten(
     vertices: &[Point2<f64>],
-    bulges: &[f64],
+    bulges: impl IntoIterator<Item = f64>,
     chord: f64,
 ) -> Result<(Vec<[f64; 2]>, Vec<usize>), usize> {
     let mut out: Vec<[f64; 2]> = Vec::with_capacity(vertices.len());
@@ -1340,7 +1340,7 @@ fn flatten(
     // indistinguishable from its ends — so the flattener, which is the
     // one place that knows, says it.
     let mut at: Vec<usize> = Vec::with_capacity(vertices.len());
-    for (index, (&from, &bulge)) in vertices.iter().zip(bulges).enumerate() {
+    for (index, (&from, bulge)) in vertices.iter().zip(bulges).enumerate() {
         let to = vertices[(index + 1) % vertices.len()];
         // The loop's own vertex, asked the same question its arcs are
         // asked below and asked BEFORE it is emitted. A replay whose

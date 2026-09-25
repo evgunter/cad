@@ -2387,7 +2387,7 @@ impl<T: Real> Core<T> {
     /// Seeds the entry vertex (the chain's provisional first vertex —
     /// a seam fillet may later retrim it to the seam arc's end).
     fn seed(&mut self, p: Point2<T>) {
-        self.verts.push(ProfileVertex::emitted(p, T::zero(), false));
+        self.verts.push(ProfileVertex::new(p, T::zero()));
         self.start_pos = Some(p);
     }
 
@@ -2400,7 +2400,7 @@ impl<T: Real> Core<T> {
         }
         match self.verts.last_mut() {
             Some(v) => {
-                *v = ProfileVertex::emitted(v.pos(), bulge, kind == FirstSeg::Arc);
+                *v = ProfileVertex::new(v.pos(), bulge);
                 Ok(())
             }
             None => Err(PathError::UnderdeterminedLeg {
@@ -2412,7 +2412,7 @@ impl<T: Real> Core<T> {
     /// Appends a straight segment to `p` (the raw `line_to`).
     fn push_line(&mut self, p: Point2<T>) -> Result<(), PathError<T>> {
         self.set_leaving(T::zero(), FirstSeg::Line)?;
-        self.verts.push(ProfileVertex::emitted(p, T::zero(), false));
+        self.verts.push(ProfileVertex::new(p, T::zero()));
         Ok(())
     }
 
@@ -2421,7 +2421,7 @@ impl<T: Real> Core<T> {
     /// about an emitted arc beyond the tip's own incoming data.
     fn push_arc(&mut self, p: Point2<T>, bulge: T) -> Result<(), PathError<T>> {
         self.set_leaving(bulge, FirstSeg::Arc)?;
-        self.verts.push(ProfileVertex::emitted(p, T::zero(), false));
+        self.verts.push(ProfileVertex::new(p, T::zero()));
         Ok(())
     }
 
@@ -3380,7 +3380,7 @@ impl<T: Decide> Core<T> {
                 site: "arc extension without an incoming segment",
             })?;
         let bulge = bulge_from_center(from, t1, centre, sweep);
-        self.verts[n - 2] = ProfileVertex::emitted(from, bulge, true);
+        self.verts[n - 2] = ProfileVertex::new(from, bulge);
         self.verts[n - 1].pos = t1;
         Ok(())
     }
@@ -3574,8 +3574,8 @@ fn circle_kernel<T: Decide>(
         Err(source) => return Err(PathError::Escalated { source }),
     }
     Ok(ProfileLoop::new(vec![
-        ProfileVertex::emitted(Point2::new(center.x + radius, center.y), T::one(), true),
-        ProfileVertex::emitted(Point2::new(center.x - radius, center.y), T::one(), true),
+        ProfileVertex::new(Point2::new(center.x + radius, center.y), T::one()),
+        ProfileVertex::new(Point2::new(center.x - radius, center.y), T::one()),
     ]))
 }
 
@@ -3603,10 +3603,9 @@ fn circle_split_kernel<T: Decide>(
         .map(|k| {
             let theta = phase + T::from_f64(2.0) * T::pi() * T::from_f64(k as f64) / n_t;
             let (s, c) = theta.sin_cos();
-            ProfileVertex::emitted(
+            ProfileVertex::new(
                 Point2::new(center.x + radius * c, center.y + radius * s),
                 bulge,
-                true,
             )
         })
         .collect();

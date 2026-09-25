@@ -145,7 +145,7 @@ use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
 use crate::structure::{
     CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
 };
-use crate::{Profile, ProfileLoop, Segment};
+use crate::{Profile, ProfileLoop};
 
 /// Identifies a segment of the *input* profile: `segment_index` k is the
 /// segment from vertex k to vertex k+1 (mod n) of loop `loop_index`, in
@@ -477,12 +477,13 @@ pub const FILLET_FIT_RECOURSE: &str =
 
 /// **The recourse for a fillet arc too shallow to be STORED as an arc.**
 ///
-/// A profile holds an arc as a chord and a bulge, and a reader
-/// classifies that pair back through `segment_straightness`, whose
-/// margin is the sagitta `r(1 − cos(θ/2)) ≈ r·θ²/8`. Below the run's ε
-/// the stored segment is read as a line and the carrier the door
-/// computed is simply not in the loop, so the tangency the fillet
-/// declares has nothing to be about.
+/// A profile stores an arc as its vertices plus a carrier and sweep
+/// lowered from the chord and the bulge, and validation classifies the
+/// segment through `segment_straightness`, whose margin is the sagitta
+/// `r(1 − cos(θ/2)) ≈ r·θ²/8`. Below the run's ε the stored arc is
+/// read as a line and the carrier the door computed is simply not in
+/// the validated loop, so the tangency the fillet declares has nothing
+/// to be about.
 ///
 /// Both levers move the sagitta, and the sentence says which way each
 /// runs — a larger turn, or a larger radius. The radius lever has a
@@ -1101,9 +1102,12 @@ pub struct ValidatedSegment<T: Real> {
     /// (reversal negated it if the input wound the other way) — see
     /// [`crate::ProfileLoop::bulges`] for why it is kept beside the
     /// canonical form. **Consumers select carriers by
-    /// [`ValidatedSegment::kind`] and read an arc's span from its
-    /// sweep, never from the bulge** — a sub-tolerance bulge classifies
-    /// as `Line` while retaining its value.
+    /// [`ValidatedSegment::kind`], never by the bulge** — a
+    /// sub-tolerance bulge classifies as `Line` while retaining its
+    /// value. The one boundary that still reads the bulge itself is the
+    /// `geom-brep` sketch segment, whose form is the bulge: the sweep's
+    /// arc span (`4·atan|b|`) and apex are spelled on it there, beside
+    /// the segment they build.
     pub bulge: T,
     /// The classified carrier — the decision sweeps consume (PR 4
     /// lowers `Arc` to a circle carrier, `Line` to a line carrier).
@@ -1114,9 +1118,9 @@ impl ValidatedSegment<f64> {
     /// The `f64` segment embedded at `U`: the endpoints and the bulge
     /// through `from_f64`, the classification and turn carried, and an
     /// arc's carrier and sweep REBUILT at `U` from the embedded
-    /// endpoints and bulge through the lowering's own arithmetic
-    /// ([`crate::ProfileVertex::lower_to`]: [`seg::arc_carrier`] on the
-    /// segment's [`seg::ChordFrame`], and Δθ = 4·atan(b)) — the carrier
+    /// endpoints and bulge through the arc lowering
+    /// ([`crate::lower_arc`]: [`seg::arc_carrier`] on the segment's
+    /// [`seg::ChordFrame`], and Δθ = 4·atan(b)) — the carrier
     /// and sweep are derived data, not stored values, and at a
     /// certified scalar the derivation is what mints their enclosure.
     /// See [`ValidatedProfile::lift_onto`].
@@ -1129,18 +1133,16 @@ impl ValidatedSegment<f64> {
         let kind = match self.kind {
             SegmentKind::Line => SegmentKind::Line,
             SegmentKind::Arc { turn, .. } => {
-                match crate::ProfileVertex::emitted(start, bulge, true).lower_to(end) {
-                    Segment::Arc {
-                        centre,
-                        radius,
-                        sweep,
-                    } => SegmentKind::Arc {
-                        center: centre,
-                        radius,
-                        sweep,
-                        turn,
-                    },
-                    Segment::Line => SegmentKind::Line,
+                let crate::LoweredArc {
+                    centre,
+                    radius,
+                    sweep,
+                } = crate::lower_arc(start, end, bulge);
+                SegmentKind::Arc {
+                    center: centre,
+                    radius,
+                    sweep,
+                    turn,
                 }
             }
         };

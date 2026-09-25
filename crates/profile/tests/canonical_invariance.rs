@@ -163,5 +163,12 @@ proptest! {
         for (a, b) in lp.bulges().iter().zip(back.bulges().iter()) {
             prop_assert_eq!(a.to_bits(), b.to_bits());
         }
+        // The segments too: kind, centre, radius and sweep, to the bit
+        // (`Debug` prints every f64 bit pattern apart, signed zeros
+        // included).
+        prop_assert_eq!(lp.segments().len(), back.segments().len());
+        for (a, b) in lp.segments().iter().zip(back.segments().iter()) {
+            prop_assert_eq!(format!("{a:?}"), format!("{b:?}"));
+        }
     }
 }

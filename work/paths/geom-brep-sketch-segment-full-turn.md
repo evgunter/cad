@@ -18,3 +18,9 @@ comes back 0.9999999999999999. So `swept::sketch_segment`, `arc_span`
 (`param_end`, `axis_arc_span`), `arc_apex` and `axis.rs::radial_extent`
 still read the kept bulge. This unit moves them to Δθ along with
 `register_span_identity` and the sym rules, and re-baselines what moves.
+
+`arc_span`'s equality to |sweep| has only been shown at f64. At
+Interval, `|4·atan b|` and `4·atan|b|` are different enclosures on a
+box that straddles zero, so the move to Δθ has to decide which one the
+span is (and what `register_span_identity` is stated about). Found in
+review of #3224.

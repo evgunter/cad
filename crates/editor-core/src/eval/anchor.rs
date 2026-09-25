@@ -217,8 +217,11 @@ pub(crate) struct ProfilePre {
 /// close, where positions already decide.) The bulge is the datum
 /// matched rather than an arc's sweep because it is present on every
 /// segment of both loops: a sub-tolerance arc is a validated `Line`
-/// with no sweep, and a lowered carrier is a function of the positions
-/// and the bulge, so matching those two matches it. Declared joints
+/// with no sweep. Matching positions and bulges matches the stored
+/// segments too, because every stored segment is lowered from exactly
+/// those: its kind by the exact-zero rule (a line iff its bulge is
+/// ±0, which negation preserves) and an arc's carrier and sweep from
+/// its two positions and bulge alone. Declared joints
 /// ride the same maps and are checked as sets.
 pub(crate) fn derive_naming(
     validated: &ValidatedProfile<f64>,
@@ -379,4 +382,78 @@ fn signed_area(lp: &ProfileLoop<f64>) -> f64 {
 /// profile, per edit.
 pub(crate) fn readable_naming(loops: &[ProfileLoop<f64>]) -> Vec<Option<LoopAnchor>> {
     replay_naming(loops).unwrap_or_default()
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use geom_core::{Point2, Tol};
+    use profile::{Bulge, Open, Start};
+
+    /// The 2 × 2 square whose first side is `arc_to(Bulge { b })`.
+    fn zero_bulge_square(b: f64) -> ProfileLoop<f64> {
+        let t = Tol::witness();
+        Open.at(Point2::new(0.0, 0.0))
+            .arc_to(
+                Bulge {
+                    p: Point2::new(2.0, 0.0),
+                    b,
+                },
+                t,
+            )
+            .unwrap()
+            .line_to(Point2::new(2.0, 2.0), t)
+            .unwrap()
+            .line_to(Point2::new(0.0, 2.0), t)
+            .unwrap()
+            .line_to(Start, t)
+            .unwrap()
+            .loop_
+    }
+
+    /// The same square with its first side split by a `tangent_arc_to`
+    /// through a point straight ahead of the incoming leg.
+    fn collinear_tangent_arc_square() -> ProfileLoop<f64> {
+        let t = Tol::witness();
+        Open.at(Point2::new(0.0, 0.0))
+            .angle(0.0, t)
+            .unwrap()
+            .line(1.0, t)
+            .unwrap()
+            .tangent()
+            .tangent_arc_to(Point2::new(2.0, 0.0), t)
+            .unwrap()
+            .line_to(Point2::new(2.0, 2.0), t)
+            .unwrap()
+            .line_to(Point2::new(0.0, 2.0), t)
+            .unwrap()
+            .line_to(Start, t)
+            .unwrap()
+            .loop_
+    }
+
+    /// A zero-bulge side encloses what the chord polygon does, and the
+    /// replay-only anchor agrees with the validated one — the agreement
+    /// the `SetProgram` door asserts on every program it admits.
+    fn reads_as_the_square(lp: ProfileLoop<f64>) {
+        assert_eq!(signed_area(&lp).to_bits(), 4.0_f64.to_bits(), "{lp:?}");
+        let loops = [lp];
+        let validated = naming_of(&loops, Tol::witness())
+            .map(|n| n.loops.into_iter().map(Some).collect::<Vec<_>>());
+        assert!(validated.is_some(), "the square validates");
+        assert_eq!(replay_naming(&loops), validated);
+    }
+
+    #[test]
+    fn a_zero_bulge_arc_to_names_as_its_square() {
+        for b in [0.0, -0.0] {
+            reads_as_the_square(zero_bulge_square(b));
+        }
+    }
+
+    #[test]
+    fn a_collinear_tangent_arc_names_as_its_square() {
+        reads_as_the_square(collinear_tangent_arc_square());
+    }
 }

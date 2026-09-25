@@ -232,19 +232,19 @@ pub(crate) fn build_seg<T: Decide>(
         band,
     )
     .map_err(SegIssue::Escalated)?;
-    // A lowered line's bulge is a signed zero, whose sagitta margin
-    // classifies `Zero` at every band, so a turn is only ever an arc's;
-    // the line arm keeps the match total.
-    let kind = match (straightness, segment) {
-        (Sign::Zero, _) | (_, Segment::Line) => SegKind::Line,
-        (
-            turn,
-            Segment::Arc {
-                centre: center,
-                radius,
-                sweep,
-            },
-        ) => {
+    // The decision is fired for every segment, since the K stream
+    // records it for every segment, but only an arc's is read: a stored
+    // line's bulge is exactly zero (the lowering rule), so there is no
+    // turn for its margin to report.
+    let kind = match segment {
+        Segment::Line => SegKind::Line,
+        Segment::Arc { .. } if straightness == Sign::Zero => SegKind::Line,
+        Segment::Arc {
+            centre: center,
+            radius,
+            sweep,
+        } => {
+            let turn = straightness;
             let apex = frame.mid - frame.normal * sagitta;
             let span_chord = a.distance(apex);
             let clearance = radius + radius - span_chord;

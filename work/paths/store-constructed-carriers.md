@@ -28,3 +28,18 @@ on it except the geom-brep boundary, which is unit 2's:
 - `viewer::flatten`.
 
 Unit 1's report on the PR lists each with its reason.
+
+Two more readers of the kept bulge, found in review of #3224:
+- `lift.rs::chain_form` writes `ArcData::Bulge { b: bulges[src] }`, and
+  `lift_seamed` refuses a loop whose bulges are not finite. Once bulges
+  retire, that writer needs a b derived from Δθ, and `tan(Δθ/4)` is
+  lossy (b = 1.0 comes back 0.9999999999999999), so the lift owes a
+  lossless route: a program step spelled on the carrier, or a bulge
+  derivation shown exact.
+- **The validate-time carrier check arrives with this unit.** D1 says a
+  stored carrier is verified at validation. Unit 1 derives every
+  carrier at the lowering, so it holds by construction and `build_seg`
+  does not re-check it. Once this unit stores the carriers the
+  constructions build, the carrier is no longer a function of the
+  chord and b, and validation needs the predicate that verifies it
+  against its vertices.

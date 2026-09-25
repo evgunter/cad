@@ -549,24 +549,24 @@ fn is_carrier_continuation(kind: &ReplayErrorKind<f64>) -> bool {
 // Comparison
 // ------------------------------------------------------------------
 
-/// The source loop re-seamed at `rotation` — pure reindexing, so every
-/// stored bit survives.
+/// The source loop re-seamed at `rotation`: its input chain reindexed
+/// and lowered again. Each segment's lowering reads only its own chord
+/// and bulge, which the reindexing carries verbatim, so every stored
+/// bit survives.
 fn rotated(loop_: &ProfileLoop<f64>, rotation: usize) -> ProfileLoop<f64> {
     let n = loop_.vertices.len();
     if rotation == 0 || n == 0 {
         return loop_.clone();
     }
     let r = rotation % n;
-    ProfileLoop {
-        vertices: (0..n).map(|k| loop_.vertices[(r + k) % n]).collect(),
-        segments: (0..n).map(|k| loop_.segments[(r + k) % n]).collect(),
-        bulges: (0..n).map(|k| loop_.bulges[(r + k) % n]).collect(),
-        tangent_joints: loop_
-            .tangent_joints
-            .iter()
-            .map(|&j| (j % n + n - r) % n)
-            .collect(),
-    }
+    let input: Vec<_> = loop_.input_chain().collect();
+    let chain: Vec<_> = (0..n).map(|k| input[(r + k) % n]).collect();
+    let tangent_joints = loop_
+        .tangent_joints
+        .iter()
+        .map(|&j| (j % n + n - r) % n)
+        .collect();
+    ProfileLoop::lower(&chain, tangent_joints)
 }
 
 /// The differential verdict for one loop pair.

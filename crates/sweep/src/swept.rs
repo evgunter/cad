@@ -313,8 +313,9 @@ pub(crate) fn arc_apex<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> Point2<
 /// The arc parameter span |Δθ| = 4·atan|b|, on the bulge the segment
 /// was lowered from — never endpoint `atan2`.
 ///
-/// Equal in value to the canonical segment's `|sweep|` (atan is odd),
-/// and spelled on the bulge rather than read off the sweep because the
+/// Equal at `f64` to the canonical segment's `|sweep|` (atan is odd;
+/// at an interval that straddles zero, `|4·atan b|` and `4·atan|b|`
+/// are different enclosures), and spelled on the bulge rather than read off the sweep because the
 /// symbolic tier normalizes the two expressions differently: this one
 /// is the opaque atom `atan(|b|)` the swept span identity
 /// ([`register_span_identity`]) is stated about, and the bulge is what
