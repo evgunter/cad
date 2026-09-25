@@ -138,21 +138,25 @@ fn r1_a_first_order_exits_verdict_on_a_hole_wall_is_contradicted_at_its_own_arm(
 ///
 /// The PR argues the curved ring's join refusal is the same absent arm
 /// the planar cap pierce already has. The two doors are measured here
-/// side by side: they are NOT the same sub-case. The planar one is
-/// `SectionLoopMixed`, whose own variant doc reads "kernel bug,
-/// loudly"; the curved one is `SectionArcWindow{NoChartedRun}`, whose
-/// doc reads "A cylinder face's run ALWAYS carries one on the shipped
-/// lane; this is the typed door for a corrupt or frontier-carrier run"
-/// — a sentence this PR falsifies and leaves standing.
+/// side by side: they are NOT the same sub-case. The planar cap pierce
+/// JOINS — its `SectionLoopMixed` was the role probe misreading the
+/// arc-bounded cap through `point_in_solid`'s planar arm, not a missing
+/// join arm, and it answers the truth now; the curved one is
+/// `SectionArcWindow{NoChartedRun}`, whose doc reads "A cylinder face's
+/// run ALWAYS carries one on the shipped lane; this is the typed door
+/// for a corrupt or frontier-carrier run" — a sentence this PR
+/// falsifies and leaves standing.
 #[test]
 fn r1_the_planar_and_curved_ring_joins_refuse_at_different_gates() {
     let tol = Tol::witness();
-    let cap = topo::union(
+    let cap = match topo::union(
         &cyl(0.0, 0.0, 1.0, 0.0, 2.0),
         &brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol),
         tol,
-    )
-    .expect_err("the planar cap pierce has no join arm");
+    ) {
+        Ok(topo::BooleanResult::Body(out)) => out.body,
+        other => panic!("the planar cap pierce joins, got {other:?}"),
+    };
     // RE-DERIVED after this probe was written (authorship otherwise
     // untouched): the review's own MAJ-1 landed the sector-side
     // curvature charge, and at `x = ±3` against `r = 1` the pierce
@@ -169,12 +173,10 @@ fn r1_the_planar_and_curved_ring_joins_refuse_at_different_gates() {
         tol,
     )
     .expect_err("the curved wall pierce has no join arm");
+    let v = topo::mass_properties(&cap, tol).unwrap().volume;
     assert!(
-        matches!(
-            cap,
-            BooleanError::Join(topo::SplitJoinError::SectionLoopMixed { .. })
-        ),
-        "planar sibling: {cap:?}"
+        (v - 6.643185307179586).abs() < 1e-12,
+        "planar sibling: the overlap is counted once, volume {v}"
     );
     assert!(
         matches!(

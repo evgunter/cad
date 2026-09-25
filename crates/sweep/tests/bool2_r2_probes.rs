@@ -390,8 +390,9 @@ fn r2_planar_base_cap_interior_out_of_unit() {
     let r = point_in_solid(&cyl, Point3::new(0.3, 0.0, 0.2), band(), Tol::witness());
     assert_eq!(
         r.as_ref().ok(),
-        Some(&SolidContainment::Out),
-        "reproducing the PR's reported out-of-unit misread (truth is OnBoundary)"
+        Some(&SolidContainment::OnBoundary),
+        "the base cap's interior is the solid's boundary (the planar arm once read \
+         this half-disc cap as its zero-area vertex polygon and answered Out)"
     );
 }
 

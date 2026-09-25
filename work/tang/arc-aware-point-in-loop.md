@@ -88,3 +88,34 @@ in-chat direction): the plan's lane that carries this item is in
   class no longer needs this issue's walk. `boolean::contain::disc_side`
   is `pub(crate)` as of ATREST-5, so that third can close by the same
   dispatch `contfp` does, independently of the arc-aware walk.
+
+## 2026-09-24 — the `point_in_face` site is fixed; `ArcParity` is measured unsound (ATREST-9)
+
+ATREST-9 (branch `atrest/9-pis-torus-pose`) closes this issue's
+`solid_contain::point_in_face` sibling site with the walk item 2 asks
+for: `solid_contain::arc_loop_region` runs in-plane ray parity over a
+loop that carries arcs, crossing each arc at the roots of its
+ray×circle quadratic inside `contain::point_on_arc`'s window; a loop of
+lines keeps `point_in_loop`; a boundary edge on any other carrier
+refuses `PointInSolidError::PartialPlaneFace` (item 3's conics stay
+open). `bool3_torus_doors`' `issue_1076_*` row is un-ignored and green.
+
+**Item 1 is now measured, not just unproven — and the gate's count is
+the wrong test.** Through `point_in_face`, before the fix
+(`crates/sweep/tests/pis_arc_capped_poses.rs`, 9 fixtures × 6 poses):
+
+- a revolved cap is a half-disc whose THREE vertices (rim, axis
+  vertex, rim) are collinear: `vertices ≥ 3`, so `loop_shape` would
+  class it `ArcParity`, yet its polygon has zero area and every
+  interior point reads `Out` (revolved cylinder, frustum, hemisphere
+  base, torus barrel and belly: 21–124 wrong probes per failing pose);
+- a notched plate (6 vertices, a semicircle bowing IN) read `In` in
+  the notch; a D-plate (4 vertices, a quarter arc bowing OUT) read
+  `Out` in the lune beyond its chord.
+
+**Sites still on the polygon walk with arc-bearing loops** (read, not
+measured through the site): `contain::contfp` (`LoopShape::ArcParity`
+walks the polygon; `NoWalk` refuses — both could call the new walk,
+and the half-disc-with-axis-vertex cap above reaches `ArcParity`
+there); `chord_join::rehome_rings` (`point_in_loop` over the new face's
+outer loop, whatever its carriers).
