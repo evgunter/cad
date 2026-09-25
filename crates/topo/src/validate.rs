@@ -5502,7 +5502,9 @@ fn segments_meet<T: Decide>(
             let (existence, candidates) =
                 match decide("ring_outer_meet_reach", Margin::of(radius - h), band) {
                     Ok(Sign::Negative) => return Meet::Apart,
-                    Ok(Sign::Positive) => (None, vec![foot + e * half_chord, foot - e * half_chord]),
+                    Ok(Sign::Positive) => {
+                        (None, vec![foot + e * half_chord, foot - e * half_chord])
+                    }
                     // Tangent within the band: the foot is the touching
                     // point, and the two chord ends — as far apart as
                     // `√(2·r·band)` — are asked as well, so a crossing
@@ -5517,7 +5519,13 @@ fn segments_meet<T: Decide>(
                         vec![foot, foot + e * half_chord, foot - e * half_chord],
                     ),
                 };
-            meet_at(existence, &candidates, MeetSegment::Line { a, b }, arc, band)
+            meet_at(
+                existence,
+                &candidates,
+                MeetSegment::Line { a, b },
+                arc,
+                band,
+            )
         }
         (
             first @ MeetSegment::Arc {
@@ -5607,9 +5615,8 @@ fn lines_meet<T: Decide>(
     if let Some(&Err(source)) = on_a.iter().chain(&on_b).find(|r| r.is_err()) {
         return Meet::Unsure(source);
     }
-    let collinear = |pair: &[Result<Sign, Indeterminate>; 2]| {
-        matches!(pair, [Ok(Sign::Zero), Ok(Sign::Zero)])
-    };
+    let collinear =
+        |pair: &[Result<Sign, Indeterminate>; 2]| matches!(pair, [Ok(Sign::Zero), Ok(Sign::Zero)]);
     // Collinear: do the spans overlap, measured along one edge's own
     // axis? A point of overlap is a meeting too.
     let overlap = |o0: geom_core::Point3<T>,
