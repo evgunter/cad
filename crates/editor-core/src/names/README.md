@@ -100,9 +100,11 @@ union's collapse rather than flattened (the fragment carve-out is stated once,
 at `RoleSeg::Merged`). A merged row COVERS a name when the name is a constituent
 or is a merged face all of whose faces are (`names/merged.rs`), which is how the
 offers and the union's look-through read a flat set. The
-constituents retire: a name a union publishes embeds the merge a
-constituent retired into, never the constituent
-(`emit_union::retire_into_merges`); referencing one fails with the merged name offered, and
+constituents retire: a union's seam cites, as each side, the face beside
+it that side retired into, and a `SideOf` partner cites the one published
+merge listing it; a constituent a published face still is (a piece a step
+cut and merged at once leaves bare) or that two published merges list is
+cited as it is (`emit_union::retire_into_merges`); referencing one fails with the merged name offered, and
 when an edit removes the coincidence the merged name vanishes with its
 constituents offered. Numeric coplanarity never merges, so merges change only at
 recipe edits, structural parameters, or recorded flips; nothing rebinds itself.

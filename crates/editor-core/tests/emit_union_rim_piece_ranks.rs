@@ -80,7 +80,7 @@ fn geometry(
 /// two touching shells differ; an edge is its two ends so described; a
 /// face is its vertex points; a tie is its candidates', sorted and
 /// marked.
-fn signature(
+pub(crate) fn signature(
     ev: &editor_core::Evaluation<f64>,
     union: editor_core::RecipeNodeId,
 ) -> BTreeMap<StableName, String> {
@@ -134,8 +134,8 @@ fn signature(
 }
 
 /// A document and how each of its member orders is built into a union.
-struct Case {
-    label: String,
+pub(crate) struct Case {
+    pub(crate) label: String,
     blocks: Vec<Bx>,
     creation: Vec<usize>,
     /// Pairs of blocks declared flush on all four families; none makes
@@ -147,7 +147,7 @@ struct Case {
 }
 
 impl Case {
-    fn flat(
+    pub(crate) fn flat(
         label: &str,
         blocks: Vec<Bx>,
         creation: Vec<usize>,
@@ -196,7 +196,7 @@ const CEND: Bx = ((-1.0, 1.0), (0.0, 1.0), (0.0, 1.0));
 /// flush with the other two (`r4tri`, `r4trig`), a member touching
 /// another along a line (`r4touch`), and a declared union nested in an
 /// undeclared one (`r3nest`, `r3nest2`).
-fn cases() -> Vec<Case> {
+pub(crate) fn cases() -> Vec<Case> {
     let g = ((0.3, 0.4), (-1.0, 2.0), (0.5, 3.0));
     let smid = ((1.4, 1.6), (-1.0, 2.0), (0.5, 3.0));
     let mut out: Vec<Case> = probe_corpus()
@@ -242,7 +242,7 @@ fn r2ends() -> Case {
 
 /// Every run of `case`: `each` is handed the orders that built it, the
 /// evaluation, the member ids by block, and the unions to read, tagged.
-fn runs(
+pub(crate) fn runs(
     case: &Case,
     mut each: impl FnMut(&str, &editor_core::Evaluation<f64>, &[RecipeNodeId], &[(&str, RecipeNodeId)]),
 ) {

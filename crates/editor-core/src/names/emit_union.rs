@@ -47,9 +47,11 @@
 //! because they read the finished table or the finished body. Each
 //! replaces something the fold wrote down about WHEN it met an entity
 //! with something the finished union says about WHAT the entity is:
-//! - a face a name embeds is cited as the merge it retired into, when
-//!   one published merge lists it ([`retire_into_merges`]) — whether a
-//!   step cut it before or after the merge is fold history;
+//! - a seam's side is cited as the face beside the seam that it retired
+//!   into, and a `SideOf` partner as the one published merge that lists
+//!   it, unless the constituent is itself published
+//!   ([`retire_into_merges`]) — whether a step met the face before or
+//!   after the merge is fold history;
 //! - an entity of the finished body that belongs to several members at
 //!   once (a flush stretch, a corner on another member's rim) is named
 //!   for the least member entity that holds it, and every edge lying
@@ -72,7 +74,7 @@
 //! the names differ with them. What stays fold history is how a face
 //! that was both merged and cut is named: merged then cut, it is a
 //! fragment of the merge; cut then merged, its pieces are the merge and
-//! a bare constituent
+//! a bare constituent, and a seam beside the bare piece cites it
 //! (`work/emit/declared-flush-union-edge-and-vertex-names-follow-member-order.md`).
 //!
 //! A refusal raised mid-fold, and the declaration door's view of an
@@ -109,7 +111,8 @@ use geom_core::{Margin, Sign};
 use crate::names::defer::TieRows;
 use crate::names::discriminate::{Extent, ON_MEMBER_EDGE, band, order_along};
 use crate::names::emit::{
-    Incidence, NamingError, check_total, edge_ends, ent, rims_between, vertex_point,
+    Incidence, NamingError, check_total, edge_ends, ent, face_half_edges, rims_between,
+    vertex_point,
 };
 use crate::names::emit_topo::{OnSegment, Segment, insert_ranked_or_tied};
 use crate::names::role::{
@@ -197,7 +200,7 @@ pub(crate) fn name_union<T: geom_core::Decide>(
 ) -> Result<Arc<NameTable>, NamingError> {
     let bnd = band(tol)?;
     let t = collapse_table(node, folded)?;
-    let t = retire_into_merges(node, t)?;
+    let t = retire_into_merges(node, t, body)?;
     let flush = Flush::of(node, body, members, &t, bnd)?;
     let t = rank_member_edges(t, body, members, &flush, bnd)?;
     let t = cite_member_edges(t, body, members, &flush, bnd)?;
@@ -273,7 +276,7 @@ fn rank_member_edges<T: geom_core::Decide>(
         }
     }
     for ((member, edge), rows) in groups {
-        let (member_body, member_edge) = member_edge(members, member, &edge)?;
+        let (member_body, member_edge) = member_edge(members, member, edge.name())?;
         let pieces = rows
             .iter()
             .map(|(_, entry)| match entry {
@@ -283,12 +286,12 @@ fn rank_member_edges<T: geom_core::Decide>(
                 },
                 Entry::Tied(_) => Err(NamingError::MemberEdgeTied {
                     member,
-                    edge: Box::new(edge.clone()),
+                    edge: Box::new(edge.name().clone()),
                 }),
             })
             .collect::<Result<Vec<_>, _>>()?;
         let cells = Cells::of(body, &Segment::of_edge(member_body, member_edge)?, bnd)?;
-        let head = member_name(flush.union, member, &edge);
+        let head = entity_name(flush.union, &(member, edge));
         for (e, k) in pieces {
             let mut name = head.clone();
             let of = cells.count()?;
@@ -322,10 +325,7 @@ fn member_edge<'a, T: geom_core::Decide>(
     edge: &StableName,
 ) -> Result<(&'a topo::Body<T>, topo::EdgeKey), NamingError> {
     let bug = |what| NamingError::Emission { what };
-    let m = members
-        .iter()
-        .find(|m| m.node == member)
-        .ok_or_else(|| bug("a union's row is keyed by a node that is not one of its members"))?;
+    let m = member_of(members, member)?;
     match m.table.lookup(edge) {
         Some(Entry::Unique(e)) => match e.key {
             EntityKey::Edge(k) => Ok((m.body, k)),
@@ -339,6 +339,20 @@ fn member_edge<'a, T: geom_core::Decide>(
             "a union's member-keyed row names nothing in its member",
         )),
     }
+}
+
+/// The member of a union whose node is `node`; every member-keyed row
+/// came from a member, so another node is an emission bug.
+fn member_of<'a, T: geom_core::Decide>(
+    members: &'a [Member<'a, T>],
+    node: RecipeNodeId,
+) -> Result<&'a Member<'a, T>, NamingError> {
+    members
+        .iter()
+        .find(|m| m.node == node)
+        .ok_or(NamingError::Emission {
+            what: "a union's row is keyed by a node that is not one of its members",
+        })
 }
 
 /// **The places on a member edge's segment where a vertex of the
@@ -494,7 +508,13 @@ impl Cells {
 /// A member's entity: the member, and the entity's name in that
 /// member's own table. Ordered as the union's [`RoleSeg::FromMember`]
 /// names for them are, member first.
-type MemberEntity = (RecipeNodeId, StableName);
+type MemberEntity = (RecipeNodeId, NameRef);
+
+/// The union's name for member entity `(member, of)`, sharing the
+/// member's handle for `of` so its order cache comes along.
+fn entity_name(union: RecipeNodeId, (member, of): &MemberEntity) -> StableName {
+    keyed(union, *member, of.clone(), of.kind)
+}
 
 /// **An entity of the finished body that belongs to several members
 /// at once is named for the least of them.**
@@ -514,9 +534,9 @@ type MemberEntity = (RecipeNodeId, StableName);
 ///   faces descend from `e`'s two faces in `n` (their names cite them,
 ///   through a `Merged` set or a `Fragment`) and both its ends lie on
 ///   `e`'s closed segment ([`ON_MEMBER_EDGE`]);
-/// - a finished VERTEX sits at member `n`'s vertex `w` when a face
-///   around it descends from a face of `n` and it lies at an end of an
-///   edge of `n` that ends at `w`.
+/// - a finished VERTEX sits at member `n`'s vertex `w` when it is at
+///   `w`'s point ([`ON_MEMBER_EDGE`]) and a face around it descends
+///   from a face of `n` that `w` lies on.
 ///
 /// The face test is what keeps two shells apart that only touch: a
 /// shell's entity lies on the other member's edge or corner, but none
@@ -532,8 +552,6 @@ struct Flush<'a, T: geom_core::Decide> {
     edges: BTreeMap<topo::EdgeKey, BTreeSet<MemberEntity>>,
     /// Finished face → its name.
     face_names: BTreeMap<topo::FaceKey, StableName>,
-    /// Constituent → the published merge it retired into.
-    merges: BTreeMap<StableName, StableName>,
     bnd: geom_core::Band,
 }
 
@@ -574,7 +592,6 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             faces,
             edges: BTreeMap::new(),
             face_names,
-            merges: merges_of(t),
             bnd,
         };
         let mut edges = BTreeMap::new();
@@ -589,12 +606,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     }
 
     fn member(&self, node: RecipeNodeId) -> Result<&'a Member<'a, T>, NamingError> {
-        self.members
-            .iter()
-            .find(|m| m.node == node)
-            .ok_or(NamingError::Emission {
-                what: "a union's row cites a node that is not one of its members",
-            })
+        member_of(self.members, node)
     }
 
     /// The member edges finished edge `k`, between faces `fs`, lies
@@ -617,7 +629,9 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         for (n, g0) in from0 {
             for (_, g1) in from1.iter().filter(|(n1, g1)| n1 == n && g1 != g0) {
                 let m = self.member(*n)?;
-                let (Some(a), Some(b)) = (face_key(m.table, g0), face_key(m.table, g1)) else {
+                let (Some(a), Some(b)) =
+                    (face_key(m.table, g0.name()), face_key(m.table, g1.name()))
+                else {
                     continue;
                 };
                 for r in rims_between(m.body, a, b)? {
@@ -658,8 +672,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
     /// one line — every finished edge at `v` that lies within a member
     /// edge names the same least one; the face is the one face at `v`
     /// that descends from none of the faces of the member edges along
-    /// that line, cited as the face the crossing met (its `Fragment`s
-    /// dropped, and retired into its merge). Anything else is `None`.
+    /// that line, cited without its `Fragment`s. Anything else is `None`.
     fn crossing(&self, v: topo::VertexKey) -> Result<Option<StableName>, NamingError> {
         let at = self.inc.vertex_edges.get(&v).map_or(&[][..], Vec::as_slice);
         let mut lines = BTreeSet::new();
@@ -677,7 +690,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let mut sides = BTreeSet::new();
         for (n, name) in &along {
             let m = self.member(*n)?;
-            let Some(Entry::Unique(e)) = m.table.lookup(name) else {
+            let Some(Entry::Unique(e)) = m.table.lookup(name.name()) else {
                 continue;
             };
             let EntityKey::Edge(r) = e.key else { continue };
@@ -698,20 +711,14 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                 let Some(name) = self.face_names.get(f) else {
                     return Ok(None);
                 };
-                let mut parent = name.clone();
-                while parent.path.len() > 1
-                    && matches!(parent.path.last(), Some(RoleSeg::Fragment(_)))
-                {
-                    parent.path.pop();
-                }
-                others.insert(self.merges.get(&parent).cloned().unwrap_or(parent));
+                others.insert(unfragmented(name));
             }
         }
         let mut others = others.into_iter();
         let (Some(face), None) = (others.next(), others.next()) else {
             return Ok(None);
         };
-        let edge = member_name(self.union, member, &edge);
+        let edge = entity_name(self.union, &(member, edge));
         let (a, b) = if edge < face {
             (edge, face)
         } else {
@@ -743,19 +750,35 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         least
     }
 
-    /// The least member vertex finished vertex `v` sits at, if any.
+    /// The least member vertex finished vertex `v` sits at, if any: a
+    /// vertex `w` of member `n` at `v`'s point that lies on a face of `n`
+    /// a face around `v` descends from.
     fn least_vertex(&self, v: topo::VertexKey) -> Result<Option<MemberEntity>, NamingError> {
-        let mut near = BTreeSet::new();
+        let mut cited = BTreeSet::new();
         for k in self.inc.vertex_edges.get(&v).into_iter().flatten() {
             for f in self.inc.edge_faces.get(k).into_iter().flatten() {
-                near.extend(self.faces.get(f).into_iter().flatten().map(|(n, _)| *n));
+                cited.extend(self.faces.get(f).into_iter().flatten());
             }
         }
         let p = vertex_point(self.body, v)?;
+        let mut seen = BTreeSet::new();
         let mut least: Option<MemberEntity> = None;
-        for n in near {
-            let m = self.member(n)?;
-            for (w, _) in m.body.vertices() {
+        for (n, face) in cited {
+            let m = self.member(*n)?;
+            let Some(f) = face_key(m.table, face.name()) else {
+                continue;
+            };
+            for he in face_half_edges(m.body, f)? {
+                let w = m
+                    .body
+                    .get_half_edge(he)
+                    .ok_or(NamingError::Emission {
+                        what: "a member face's half-edge is dangling",
+                    })?
+                    .start;
+                if !seen.insert((*n, w)) {
+                    continue;
+                }
                 let gap = Margin::of((vertex_point(m.body, w)? - p).norm());
                 let at = decide(ON_MEMBER_EDGE, gap, self.bnd).map_err(|source| {
                     NamingError::Escalated {
@@ -767,7 +790,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
                     continue;
                 }
                 if let Some(name) = unique_name(m.table, EntityKey::Vertex(w)) {
-                    let c = (n, name);
+                    let c = (*n, name);
                     if least.as_ref().is_none_or(|l| c < *l) {
                         least = Some(c);
                     }
@@ -784,7 +807,7 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
 fn member_faces(name: &StableName, out: &mut BTreeSet<MemberEntity>) {
     match name.path.first() {
         Some(RoleSeg::FromMember { member, of }) if of.kind == EntityKind::Face => {
-            out.insert((*member, (**of).clone()));
+            out.insert((*member, of.clone()));
         }
         Some(RoleSeg::Merged(set)) => {
             for c in set {
@@ -833,15 +856,15 @@ fn face_key(table: &NameTable, name: &StableName) -> Option<topo::FaceKey> {
 }
 
 /// The name a member's table gives its entity `key`, unless it is tied.
-fn unique_name(table: &NameTable, key: EntityKey) -> Option<StableName> {
-    let name = table.name_of(&ent(0, key))?;
-    (!table.is_tied(name)).then(|| name.clone())
+fn unique_name(table: &NameTable, key: EntityKey) -> Option<NameRef> {
+    let name = table.name_ref_of(&ent(0, key))?;
+    (!table.is_tied(name.name())).then(|| name.clone())
 }
 
 /// The (member, member edge) an EDGE name of this shape is about —
 /// `FromMember(m, e)`, `e` an edge, then nothing but
 /// `Fragment(OrderAlong)` ranks — and whether any rank follows.
-fn member_edge_piece(name: &StableName) -> Option<(RecipeNodeId, StableName, bool)> {
+fn member_edge_piece(name: &StableName) -> Option<(RecipeNodeId, NameRef, bool)> {
     if name.kind != EntityKind::Edge {
         return None;
     }
@@ -855,7 +878,7 @@ fn member_edge_piece(name: &StableName) -> Option<(RecipeNodeId, StableName, boo
     {
         return None;
     }
-    Some((*member, (**of).clone(), !tail.is_empty()))
+    Some((*member, of.clone(), !tail.is_empty()))
 }
 
 /// **A vertex is named for what it sits on in the finished body, and a
@@ -913,7 +936,7 @@ fn cite_member_edges<T: geom_core::Decide>(
             _ => None,
         };
         let cited = match (member_vertex, crossing) {
-            (Some((member, vertex)), _) => member_name(name.node, member, &vertex),
+            (Some(vertex), _) => entity_name(name.node, &vertex),
             (None, Some(crossing)) => crossing,
             (None, None) => name.clone().rewrite_path(&mut WholeMemberEdges {
                 union: name.node,
@@ -926,15 +949,7 @@ fn cite_member_edges<T: geom_core::Decide>(
             continue;
         }
         let moved = cited != *name;
-        let mut base = cited.clone();
-        while base.path.len() > 1
-            && matches!(
-                base.path.last(),
-                Some(RoleSeg::Fragment(Qualifier::OrderAlong { .. }))
-            )
-        {
-            base.path.pop();
-        }
+        let base = without_tail(&cited, |q| matches!(q, Qualifier::OrderAlong { .. }));
         vertices
             .entry(base)
             .or_default()
@@ -969,7 +984,7 @@ fn cite_member_edges<T: geom_core::Decide>(
             let Entry::Unique(e) = entry else {
                 return Err(NamingError::MemberEdgeTied {
                     member,
-                    edge: Box::new(edge),
+                    edge: Box::new(edge.name().clone()),
                 });
             };
             let EntityKey::Vertex(v) = e.key else {
@@ -1041,7 +1056,7 @@ impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
                 Some(v) => self.flush.least_at(v, (member, edge)),
                 None => (member, edge),
             };
-            let whole = member_name(self.union, member, &edge);
+            let whole = entity_name(self.union, &(member, edge));
             return Ok((whole != *n).then_some(whole));
         }
         let walked = n.clone().rewrite_path(self)?;
@@ -1049,95 +1064,287 @@ impl<T: geom_core::Decide> SegRewrite for WholeMemberEdges<'_, '_, T> {
     }
 }
 
-/// **A name a published row embeds is never a face the union retired
-/// into a merge.**
+/// **A face a published name cites is the face its entity borders.**
 ///
-/// N3: a merged face's constituents retire into it. A later fold step
-/// that cut a face after a merge embeds the merge (`Seam { Merged(..),
-/// .. }`, a `SideOf` partner `Merged(..)`); one that cut it BEFORE the
-/// merge, or in the step that merged it, embeds the constituent it met.
-/// Which of the two a name says is fold history, and the constituent is
-/// retired in the finished table either way. So an embedded face that
-/// one published `Merged` set lists is replaced by that set. A merged
-/// face's own set is its constituents and is left as it is; a
-/// constituent two published sets list is left as it is too, since no
-/// one merge stands for it.
-fn retire_into_merges(node: RecipeNodeId, t: NameTable) -> Result<NameTable, NamingError> {
-    let into = merges_of(&t);
-    if into.is_empty() {
+/// N3: a merged face's constituents retire into it. A fold step that met
+/// a face after a merge cites the merge (`Seam { Merged(..), .. }`, a
+/// `SideOf` partner `Merged(..)`); one that met it before the merge, or
+/// in the step that merged it, cites the constituent it met. Which of
+/// the two a name says is fold history, so the cited face is read off
+/// the finished body instead: a constituent `c` that a name of entity
+/// `x` cites is rewritten to the merge `M` when a face beside `x` (the
+/// edge's two faces, a vertex's faces, a face's neighbours) is `M` or a
+/// fragment of it, `M` lists `c`, and no face beside `x` is `c` itself
+/// or a fragment of it; so is an earlier merge whose set is part of the
+/// set of exactly one such `M`. Otherwise the citation stays: the constituent
+/// is still published where a step cut and merged one face together
+/// (`work/emit/a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires.md`),
+/// and a name citing it then borders it.
+///
+/// A `SideOf` partner names a plane, not a neighbour, and a merge lies
+/// in the plane of each constituent: a partner is cited as the one
+/// published merge that lists it, wherever that merge is, unless the
+/// partner is itself published.
+///
+/// A name embedded in another that is itself a published row is
+/// spelled as that row publishes it. A merged face's own set is its
+/// constituents and is left as it is.
+///
+/// Two rows can come out with one name — a seam line the finished body
+/// holds as two edges (a vertex a declared merge left on it) cites the
+/// same two faces twice. Neither is rewritten then, and the rewrite is
+/// re-run until no two rows collide, so the table never aliases.
+fn retire_into_merges<T: geom_core::Decide>(
+    node: RecipeNodeId,
+    t: NameTable,
+    body: &topo::Body<T>,
+) -> Result<NameTable, NamingError> {
+    // Nothing retired where nothing merged.
+    if !t
+        .iter()
+        .any(|(n, _)| matches!(n.path.first(), Some(RoleSeg::Merged(_))))
+    {
         return Ok(t);
     }
-    let mut out = NameTable::new();
+    let inc = Incidence::of(body)?;
+    let mut cx = Retire {
+        union: node,
+        t: &t,
+        inc: &inc,
+        faces: BTreeMap::new(),
+        beside_face: BTreeMap::new(),
+        merges: BTreeMap::new(),
+        frozen: BTreeSet::new(),
+        memo: BTreeMap::new(),
+    };
     for (name, entry) in t.iter() {
-        let own = match name.path.first() {
-            Some(RoleSeg::Merged(set)) => set.clone(),
-            _ => Vec::new(),
-        };
-        let retired = name.clone().rewrite_path(&mut RetireIntoMerges {
-            union: node,
-            into: &into,
-            own,
-        })?;
-        put_entry(&mut out, retired, entry)?;
+        if let Entry::Unique(e) = entry
+            && let EntityKey::Face(f) = e.key
+        {
+            cx.faces.insert(f, name.clone());
+        }
     }
-    Ok(out)
-}
-
-/// Constituent → the one published merge that lists it, as a bare
-/// `Merged` face; a constituent two published sets list is left out.
-fn merges_of(t: &NameTable) -> BTreeMap<StableName, StableName> {
-    let mut into: BTreeMap<StableName, Option<StableName>> = BTreeMap::new();
-    for (name, _) in t.iter() {
-        let Some(RoleSeg::Merged(set)) = name.path.first() else {
+    // Constituent → the one published merge listing it, unless the
+    // constituent is itself published (a face, or pieces of one).
+    let published: BTreeSet<StableName> = cx.faces.values().map(unfragmented).collect();
+    let mut merges: BTreeMap<StableName, Option<StableName>> = BTreeMap::new();
+    for merge in &published {
+        let [RoleSeg::Merged(set)] = merge.path.as_slice() else {
             continue;
         };
-        let merge = StableName {
-            kind: name.kind,
-            node: name.node,
-            path: vec![RoleSeg::Merged(set.clone())],
-        };
-        for c in set {
-            let slot = into.entry(c.clone()).or_insert_with(|| Some(merge.clone()));
-            if slot.as_ref() != Some(&merge) {
+        for c in set.iter().filter(|c| !published.contains(*c)) {
+            let slot = merges
+                .entry(c.clone())
+                .or_insert_with(|| Some(merge.clone()));
+            if slot.as_ref() != Some(merge) {
                 *slot = None;
             }
         }
     }
-    into.into_iter()
+    cx.merges = merges
+        .into_iter()
         .filter_map(|(c, m)| Some((c, m?)))
-        .collect()
+        .collect();
+    for fs in inc.edge_faces.values() {
+        if let [f0, f1] = fs.as_slice() {
+            cx.beside_face.entry(*f0).or_default().insert(*f1);
+            cx.beside_face.entry(*f1).or_default().insert(*f0);
+        }
+    }
+    loop {
+        cx.memo.clear();
+        let mut out: BTreeMap<StableName, Vec<StableName>> = BTreeMap::new();
+        for (name, entry) in t.iter() {
+            let spelled = match entry {
+                Entry::Unique(e) => cx.published(name, e.key)?,
+                Entry::Tied(_) => name.clone(),
+            };
+            out.entry(spelled).or_default().push(name.clone());
+        }
+        let mut collided = false;
+        for (spelled, rows) in &out {
+            if rows.len() > 1 {
+                for row in rows.iter().filter(|r| *r != spelled) {
+                    collided |= cx.frozen.insert(row.clone());
+                }
+            }
+        }
+        if !collided {
+            let mut table = NameTable::new();
+            for (name, entry) in t.iter() {
+                let spelled = match entry {
+                    Entry::Unique(e) => cx.published(name, e.key)?,
+                    Entry::Tied(_) => name.clone(),
+                };
+                put_entry(&mut table, spelled, entry)?;
+            }
+            return Ok(table);
+        }
+    }
 }
 
-/// The [`SegRewrite`] of [`retire_into_merges`].
-struct RetireIntoMerges<'m> {
+/// The state of [`retire_into_merges`]: the table, the body's
+/// adjacency, and each row's spelling once worked out.
+struct Retire<'t> {
     union: RecipeNodeId,
-    /// Constituent → the one published merge that lists it.
-    into: &'m BTreeMap<StableName, StableName>,
-    /// The set the name being walked is a merge of, whose constituents
-    /// stay.
-    own: Vec<StableName>,
+    t: &'t NameTable,
+    inc: &'t Incidence,
+    /// Finished face → its name as the collapsed table has it.
+    faces: BTreeMap<topo::FaceKey, StableName>,
+    /// Finished face → the faces sharing an edge with it.
+    beside_face: BTreeMap<topo::FaceKey, BTreeSet<topo::FaceKey>>,
+    /// Constituent → the one published merge that lists it, for a
+    /// constituent no published face is or is a piece of.
+    merges: BTreeMap<StableName, StableName>,
+    /// Rows left as they are, because rewriting them collides.
+    frozen: BTreeSet<StableName>,
+    /// Row → its published spelling.
+    memo: BTreeMap<StableName, StableName>,
 }
 
-impl SegRewrite for RetireIntoMerges<'_> {
-    type Error = NamingError;
+impl Retire<'_> {
+    /// The faces beside entity `key`.
+    fn beside(&self, key: EntityKey) -> BTreeSet<topo::FaceKey> {
+        match key {
+            EntityKey::Face(f) => self.beside_face.get(&f).cloned().unwrap_or_default(),
+            EntityKey::Edge(e) => self
+                .inc
+                .edge_faces
+                .get(&e)
+                .into_iter()
+                .flatten()
+                .copied()
+                .collect(),
+            EntityKey::Vertex(v) => self
+                .inc
+                .vertex_edges
+                .get(&v)
+                .into_iter()
+                .flatten()
+                .flat_map(|e| self.inc.edge_faces.get(e).into_iter().flatten().copied())
+                .collect(),
+            _ => BTreeSet::new(),
+        }
+    }
 
-    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, NamingError> {
-        if n.node != self.union || self.own.contains(n) {
-            return Ok(None);
+    /// Row `name`, naming `key`, as it is published.
+    fn published(&mut self, name: &StableName, key: EntityKey) -> Result<StableName, NamingError> {
+        if self.frozen.contains(name) {
+            return Ok(name.clone());
         }
-        if let Some(merge) = self.into.get(n) {
-            return Ok(Some(merge.clone()));
+        if let Some(done) = self.memo.get(name) {
+            return Ok(done.clone());
         }
-        let own = match n.path.first() {
+        let parents: BTreeSet<StableName> = self
+            .beside(key)
+            .into_iter()
+            .filter_map(|f| self.faces.get(&f).map(unfragmented))
+            .collect();
+        let mut retire: BTreeMap<StableName, Option<StableName>> = BTreeMap::new();
+        for merge in &parents {
+            let [RoleSeg::Merged(set)] = merge.path.as_slice() else {
+                continue;
+            };
+            for c in set.iter().filter(|c| !parents.contains(*c)) {
+                let slot = retire
+                    .entry(c.clone())
+                    .or_insert_with(|| Some(merge.clone()));
+                if slot.as_ref() != Some(merge) {
+                    *slot = None;
+                }
+            }
+        }
+        let own = match name.path.first() {
             Some(RoleSeg::Merged(set)) => set.clone(),
             _ => Vec::new(),
         };
-        let walked = n.clone().rewrite_path(&mut RetireIntoMerges {
-            union: self.union,
-            into: self.into,
+        let (mut partners, mut sides) = (BTreeSet::new(), BTreeSet::new());
+        for seg in &name.path {
+            match seg {
+                RoleSeg::Fragment(Qualifier::SideOf(v)) => {
+                    partners.extend(v.iter().map(|(p, _)| p.clone()));
+                }
+                RoleSeg::Seam { a, b } => {
+                    sides.extend([(**a).clone(), (**b).clone()]);
+                }
+                _ => {}
+            }
+        }
+        let partners = partners.difference(&sides).cloned().collect();
+        let spelled = name.clone().rewrite_path(&mut RetireIntoMerges {
+            partners,
+            cx: self,
+            retire: retire
+                .into_iter()
+                .filter_map(|(c, m)| Some((c, m?)))
+                .collect(),
+            beside: parents,
             own,
         })?;
-        Ok((walked != *n).then_some(walked))
+        self.memo.insert(name.clone(), spelled.clone());
+        Ok(spelled)
+    }
+}
+
+/// `name` without the `Fragment`s after its head: the face a fragment
+/// is a piece of.
+fn unfragmented(name: &StableName) -> StableName {
+    without_tail(name, |_| true)
+}
+
+/// `name` without the trailing `Fragment`s whose qualifier `drop`
+/// accepts, its head always kept.
+fn without_tail(name: &StableName, drop: impl Fn(&Qualifier) -> bool) -> StableName {
+    let mut base = name.clone();
+    while base.path.len() > 1 && matches!(base.path.last(), Some(RoleSeg::Fragment(q)) if drop(q)) {
+        base.path.pop();
+    }
+    base
+}
+
+/// The [`SegRewrite`] of [`retire_into_merges`], for one row.
+struct RetireIntoMerges<'c, 't> {
+    cx: &'c mut Retire<'t>,
+    /// The row's `SideOf` partners: a partner is a plane, so it is cited
+    /// as the merge its face retired into wherever that merge is.
+    partners: BTreeSet<StableName>,
+    /// Constituent → the merge beside this row's entity it retired into.
+    retire: BTreeMap<StableName, StableName>,
+    /// The faces beside this row's entity, `Fragment`s dropped.
+    beside: BTreeSet<StableName>,
+    /// The set the row is a merge of, whose constituents stay.
+    own: Vec<StableName>,
+}
+
+impl SegRewrite for RetireIntoMerges<'_, '_> {
+    type Error = NamingError;
+
+    fn name(&mut self, n: &StableName) -> Result<Option<StableName>, NamingError> {
+        if n.node != self.cx.union || self.own.contains(n) {
+            return Ok(None);
+        }
+        if self.partners.contains(n) {
+            return Ok(self.cx.merges.get(n).cloned());
+        }
+        if let Some(merge) = self.retire.get(n) {
+            return Ok(Some(merge.clone()));
+        }
+        if let [RoleSeg::Merged(sub)] = n.path.as_slice()
+            && !self.beside.contains(n)
+        {
+            let mut into = self.beside.iter().filter(|m| {
+                matches!(m.path.as_slice(), [RoleSeg::Merged(set)] if sub.iter().all(|c| set.contains(c)))
+            });
+            if let (Some(merge), None) = (into.next(), into.next()) {
+                return Ok(Some(merge.clone()));
+            }
+        }
+        let Some(Entry::Unique(e)) = self.cx.t.lookup(n) else {
+            return Ok(None);
+        };
+        let key = e.key;
+        let spelled = self.cx.published(n, key)?;
+        Ok((spelled != *n).then_some(spelled))
     }
 }
 

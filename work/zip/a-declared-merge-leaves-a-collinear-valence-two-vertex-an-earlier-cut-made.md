@@ -18,8 +18,11 @@ order.
 
 Found by EMIT while working
 `work/emit/declared-flush-union-edge-and-vertex-names-follow-member-order.md`,
-and measured on `emit/declared-flush-order` with a scratch probe that
-prints each fused order's vertices at x = 0.5.
+and measured with a scratch probe that prints each fused order's
+vertices at x = 0.5. The probe ran on `emit/shared-rim-several` at
+`4140d6886c`, whose union code is now on main, before any change of
+`emit/declared-flush-order`. The counts are the kernel's body, which
+naming does not touch.
 
 The document:
 - `a` = x∈(0,1), `b` = x∈(0.5,1.5), both y,z∈(0,1);

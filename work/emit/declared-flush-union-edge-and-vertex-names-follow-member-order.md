@@ -192,8 +192,10 @@ instances published in one fused order and absent in another.
 **What the branch changes.** The published table now names four things
 from the finished body rather than from the fold
 (`crates/editor-core/src/names/emit_union.rs`):
-- `retire_into_merges`: a face a name embeds is cited as the published
-  merge it retired into.
+- `retire_into_merges`: a seam's side is cited as the merge it retired
+  into where that merge is the face beside the seam, and a `SideOf`
+  partner as the one published merge listing it, unless the constituent
+  is itself published.
 - `Flush`: an edge lying along several members' edges is a piece of
   the least of them. An edge lying along a member edge is a piece of it
   whatever the fold named it.
@@ -206,9 +208,9 @@ from the finished body rather than from the fold
 |---|---|---|
 | vertices (`FromMember`, `Seam`, junctions) | 3478 | 0 |
 | member-edge pieces (`FromMember` edges) | 1366 | 0 |
-| seam edges | 1776 | 208 |
+| seam edges | 1776 | 330 |
 | faces | 778 | 486 |
-| **total** | **7398** | **694** |
+| **total** | **7398** | **816** |
 
 No pair of fused orders rebinds a name, and `KNOWN_MIXED` is unchanged.
 22 cases now publish one table in every fused order. The rebind row
@@ -217,7 +219,9 @@ fails on any absent vertex or member-edge piece, and
 cases.
 
 **What is left is fold history in how FACES are named.** Every one of
-the 694 is a face, or a seam edge citing one.
+the 816 is a face, or a seam edge citing one. A seam beside a bare
+constituent cites it (it borders it), so the seam names follow the face
+names.
 
 1. **Merged, then cut; or cut, then merged.** When `a` and `b` are
    folded before a slab, it cuts the merged face, and the pieces are

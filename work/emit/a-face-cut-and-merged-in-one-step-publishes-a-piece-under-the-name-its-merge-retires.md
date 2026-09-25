@@ -48,9 +48,17 @@ it merged.
   does so in some member orders and not in others. In `[a, b, g]` the
   wall merges before `g` cuts it, and both pieces are fragments of the
   merge.
-- The union's `retire_into_merges` rewrites an EMBEDDED constituent to
-  its merge. It has to leave the row itself alone: the row IS a
-  published face.
+- A seam beside the bare piece has to cite the bare constituent. The
+  union's `retire_into_merges` rewrites a seam side into its merge only
+  where the merge is the face beside the seam, and here the bare piece
+  is. An earlier draft rewrote every listed constituent. In `abg`
+  `[b, g, a]`, that published `Seam { g.Lateral(3), Merged([a.Cap(End),
+  b.Cap(End)]) }` along the bare `a.Cap(End)`: 46 seam edges across the
+  corpus cited a face they do not border. So the seam names around this
+  piece differ between member orders too.
+  `emit_union_flush_names::a_union_cites_only_what_the_finished_body_holds`
+  pins that no seam cites a face it does not border.
+- The row itself is published, so no rewrite can retire it.
 
 ## Fix direction
 
