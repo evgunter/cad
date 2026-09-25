@@ -4,6 +4,7 @@ kind: issue
 title: rule G is the link's and the pad's leaf cost: shutting it takes the pad's release leaf 73.8s to 17.2s and the link's 8.5s to 3.8s, where shutting the decision read moves neither
 status: open
 priority: P2
+cost: D
 opened: 2026-09-25
 refs: [decision-read-triples-the-plate-pin-suites-wall-time, DECIDE-6]
 ---

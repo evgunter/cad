@@ -2,10 +2,11 @@
 id: decision-read-triples-the-plate-pin-suites-wall-time
 kind: issue
 title: the decision read's deep enclosure runs at every select and min/max node, and the plate's pin suite goes 142s to 535s in the dev profile
-status: dispatched
+status: closed
 opened: 2026-09-21
 priority: P2
 cost: D
+closed: 2026-09-25
 ---
 
 
@@ -191,3 +192,10 @@ suite's scale:
 
 DECIDE-6 therefore took none of the three. The instrument and its
 evidence row stay, so the table can be re-taken.
+
+## Closed (2026-09-25, DECIDE-6, #3229)
+
+The premise is falsified by measurement: the decision read is not where
+the pin suites' time is (the two DECIDE-6 sections above). The time
+DECIDE-3 added is rule G's, and it is carried by
+`rule-g-is-the-link-and-pads-leaf-cost`.
