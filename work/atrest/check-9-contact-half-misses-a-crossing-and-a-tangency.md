@@ -2,11 +2,13 @@
 id: check-9-contact-half-misses-a-crossing-and-a-tangency
 kind: issue
 title: check 9's contact half does not see a ring CROSSING or TANGENT to its outer loop at a point that is a vertex of neither, and the nesting arm is premised on the crossing being absent
-status: review
+status: closed
 opened: 2026-09-24
 priority: P1
 cost: D
 parent: ATREST-11
+closed: 2026-09-25
+pr: 3217
 ---
 
 
