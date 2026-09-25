@@ -2,11 +2,12 @@
 id: undo-and-redo-are-disabled-in-silence-over-a-refusal-that-has-words
 kind: issue
 title: Undo and Redo are disabled on exactly the condition Refusal::NothingToDo refuses, and say nothing
-status: review
+status: closed
 opened: 2026-09-19
 refs: [a-disabled-control-says-why-in-four-shapes]
 priority: P1
 cost: E
+closed: 2026-09-25
 ---
 
 Found by the census in `a-disabled-control-says-why-in-four-shapes`, at
@@ -149,3 +150,7 @@ reads them — the second composition this program exists to remove,
 minted on purpose. If a keyboard route or a second producer is ever
 added, the status line becomes a real reader and the question re-opens
 with a real second surface behind it; it does not have one today.
+
+## Closed 2026-09-25
+
+Landed in #2960 (merged 2026-09-25), with the argument and the mutation table in that PR and in the `## Done` section above. The row read `review` after the merge; closed here so the board says what `main` holds.
