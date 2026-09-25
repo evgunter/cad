@@ -66,6 +66,8 @@ mod asm2a_instantiate;
 mod asm2b_multisolid;
 #[path = "asm4_split_inline.rs"]
 mod asm4_split_inline;
+#[path = "asm_parent_held_names.rs"]
+mod asm_parent_held_names;
 #[path = "asm_r2a_mate_solve.rs"]
 mod asm_r2a_mate_solve;
 #[path = "asm_r2a_mate_wire.rs"]
@@ -182,6 +184,8 @@ mod refusal_concision;
 mod refusal_concision_chains;
 #[path = "remap_reorders_ids.rs"]
 mod remap_reorders_ids;
+#[path = "resolve_group_membership.rs"]
+mod resolve_group_membership;
 #[path = "resolve_upstream_scope.rs"]
 mod resolve_upstream_scope;
 #[path = "rv_dm7_probes.rs"]
@@ -250,6 +254,8 @@ mod m10_3_r2_probes_interval;
 mod m10_4_r1_probes_interval;
 #[path = "m10_4_seed.rs"]
 mod m10_4_seed;
+#[path = "maintenance_net.rs"]
+mod maintenance_net;
 #[path = "msolve10_door_admission.rs"]
 mod msolve10_door_admission;
 #[path = "msolve1_transform_aware.rs"]
@@ -617,5 +623,9 @@ mod decide_1_self_dot_interval;
 mod emit_seam_edge_merged;
 #[path = "emit_seam_junction.rs"]
 mod emit_seam_junction;
+#[path = "emit_shared_rim_several.rs"]
+mod emit_shared_rim_several;
 #[path = "emit_split_duplicate.rs"]
 mod emit_split_duplicate;
+#[path = "emit_union_rim_piece_ranks.rs"]
+mod emit_union_rim_piece_ranks;

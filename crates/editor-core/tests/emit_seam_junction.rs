@@ -138,15 +138,24 @@ fn a_seam_junction_in_a_declared_union_is_named_by_its_member_space_lines() {
 }
 
 /// **Every order of every junction document: no emission bug, and the
-/// orders that fuse name their junctions identically.**
+/// orders that name a junction name it identically.**
 ///
 /// Three documents reach the junction: the row's four members, the
 /// same without `h`, and `g` lowered through the bottom cap. Orders
 /// that refuse for reasons of their own (a declaration that no longer
 /// resolves, an undeclared contact, a missing rule) are other rows'
 /// subjects; what is asserted of them is only that none of them is an
-/// `Emission`. At least two orders of each document fuse, so the
-/// equality is not vacuous.
+/// `Emission`. At least two orders of each document name a junction,
+/// so the equality is not vacuous.
+///
+/// Some fusing orders publish NO junction row. When `a` and `b` fold
+/// before `g`, `g` cuts a chord out of one piece of `a`'s top/y-wall
+/// rim, the chord is named as that piece, and the point where the
+/// three lines meet is a vertex on that rim edge — named from the edge
+/// and `g`'s wall, not as a junction of three seams. That is the
+/// member-order dependence
+/// `work/emit/declared-flush-union-edge-and-vertex-names-follow-member-order.md`
+/// owns; those orders refused before the rim piece had a rule.
 #[test]
 fn a_junction_is_named_the_same_in_every_order_that_fuses() {
     for (label, g_z, with_h) in [
@@ -158,15 +167,25 @@ fn a_junction_is_named_the_same_in_every_order_that_fuses() {
         let members: Vec<_> = [a, b, g].into_iter().chain(h).collect();
         let mut named = BTreeSet::new();
         let mut fused = 0;
+        let mut rim_named = 0;
         for order in permutations(&members) {
             let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs((a, a), (b, b)));
             let ev = run(&docx);
             match failure(&ev, union) {
                 None => {
                     let js = junctions(table(&ev, union));
-                    assert!(!js.is_empty(), "{label} {order:?}: no junction row");
-                    named.insert(js);
-                    fused += 1;
+                    let ab_first = order[..2].contains(&a) && order[..2].contains(&b);
+                    assert_eq!(
+                        js.is_empty(),
+                        ab_first,
+                        "{label} {order:?}: a junction row is missing exactly when a and b fold first"
+                    );
+                    if js.is_empty() {
+                        rim_named += 1;
+                    } else {
+                        named.insert(js);
+                        fused += 1;
+                    }
                 }
                 Some(e @ NodeErrorKind::Naming(NamingError::Emission { .. })) => {
                     panic!("{label} {order:?}: {e}")
@@ -174,7 +193,11 @@ fn a_junction_is_named_the_same_in_every_order_that_fuses() {
                 Some(_) => {}
             }
         }
-        assert!(fused >= 2, "{label}: {fused} orders fused");
+        assert!(fused >= 2, "{label}: {fused} orders named a junction");
+        assert!(
+            rim_named >= 1,
+            "{label}: no order folds a and b first and fuses"
+        );
         assert_eq!(
             named.len(),
             1,

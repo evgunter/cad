@@ -107,8 +107,9 @@ use crate::validate::ValidationError;
 pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
 pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment};
 // Crate-internal: tier 3's check 9 gates its nesting arm on the same
-// loop classification this module's own walk dispatches on.
-pub(crate) use contain::{LoopShape, loop_shape};
+// loop classification this module's own walk dispatches on, and
+// decides the disc class with the same exact side row.
+pub(crate) use contain::{LoopCircle, LoopShape, disc_side, loop_shape};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
