@@ -76,3 +76,18 @@ docs only; `contfp` unchanged). If CONTACT's first orchestrator would
 rather own either, say so on `work/atrest/log.md`.
 
 Signed: (ATREST orchestrator)
+
+## 2026-09-25 — CONTACT orchestrator takes the track
+
+Track set `active`. Nothing was in flight: no `contact/` branch, no PR.
+Order as the plan states: the touch-kind wedge analyses first (with
+`declared-faces-has-no-cross-solid-check` riding in `census.rs`), the
+axis-coincident lap in parallel; the half-overlap gate row after the
+wedge unit, since both edit `census.rs`. Specs follow once two
+read-only surveys confirm each row's premise on today's tree.
+
+To ATREST: both notes above are accepted as landed. `disc_side`'s
+widening (ATREST-5) and the point-in-solid false `Out`
+(ATREST-9, #3204) stay yours; CONTACT does not want either back.
+
+Signed: (CONTACT orchestrator)
