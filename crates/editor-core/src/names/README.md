@@ -232,7 +232,8 @@ last_good: Option<Tombstone> }`, `Ambiguous { name, candidates, tie: TieWitness 
 or `NodeGone { name, edit }`. `Diagnosis` is `PredicateFlip { predicate, from,
 to }`, `StructuralParam { node, param }`, `RecipeEdit { edit }`, `Cascade
 { through }` (an embedded operand name vanished first), `GroupResized { node,
-was, now }` (the rows spelling the fragment's group changed in number), `Upstream
+was, now, cutters }` (the fragment's group changed in number, and `cutters`
+names the seams on its parent only one run spells), `Upstream
 { node, cause }` (evidence upstream of the minting node, off the derivation
 path) or `WitnessBifurcation` (SOLVER-DESIGN W3). Diagnosis is computable
 because every node evaluation records its verdict log (`k_stats`);
@@ -265,7 +266,7 @@ GROUP-SIZE rung (`resolve::group_resized`, whose docs say why a fragment name
 can vanish with no flip) needs a prior run: when the last-good table at the
 minting node carried the name, and the group its emitter divided the
 fragment's parent into held `was` entities there and holds `now ≠ was` in the
-current run, the diagnosis is `GroupResized { node, was, now }`. The group is
+current run, the diagnosis is `GroupResized { node, was, now, cutters }`. The group is
 the one the emitter formed, read from the record it keeps beside the table
 (`names::FragmentGroups`, not persisted), not re-derived from the names: it
 counts the distinct entities of the node's output descended from the parent
@@ -277,7 +278,24 @@ a descendant by that descent and is not counted. Two tied parents that
 share a base are two groups, each counted on its own, where the emitter groups
 by parent entity; where it groups by parent names (the seam lanes) their
 pieces share one group and the rung declines. That is a statement about two
-recorded groups, not a claimed flip. The ladder orders cause before effect: the flips, the qualifier delta,
+recorded groups, not a claimed flip. `cutters` (`GroupCutters`,
+`resolve::group_cutters`) reads the minting node's two tables for the `Seam`
+rows on the group's parent — a face group's seam edges, an edge group's seam
+vertices, matched on the `Seam { a, b }` pair with any `Fragment` tail and never
+on the row — and names every cutter whose seam with the parent only the
+last-good table spells (`gone`) or only the current one does (`new`); both empty
+says the two tables spell seams on the parent with the same cutters. A seam is a
+crossing, not a division: a contact that only trims or notches the parent is
+listed alike, so the field states which seams one run spells, not which cutters
+stopped or started dividing the group. At a union a cutter is compared without
+the fold's `Fragment` tail, which is the fold's and not the member's; a renamed
+cutter reads as one gone and one new; a cutter vertex fused onto the parent
+edge is spelled as a pass-down vertex, not a seam, so a crossing that became a
+touch reads as gone. It names none, and says why, where the tables cannot say:
+a group no seam rows on one parent name bound (a split's, a pair boolean's own
+seam chain or merged face), tied parents whose shared name the seams are
+spelled on, a prior table that spells no seam on the parent, and a seam on the
+parent spelled in a shape the reading does not follow. The ladder orders cause before effect: the flips, the qualifier delta,
 the doc-diff lanes and `Upstream` name a cause, the group-size change is an
 effect whose cause the evidence does not hold, so it runs after every cause-naming rung
 and before the fallback. A collapsed fragment's undivided base, when it

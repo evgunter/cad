@@ -626,7 +626,6 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ValidationError::PoisonedSurfaceDescription { face },
         ValidationError::ApproxLaneUnsupported { face },
         ValidationError::DegenerateTorus { face },
-        ValidationError::NonpositiveTorusTube { face },
         ValidationError::DescriptionNotAdjacent { edge },
         ValidationError::PlanarFaceResidual { face, vertex },
         ValidationError::PlanarBoundaryResidual { face, edge },
@@ -653,6 +652,38 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         },
     ] {
         s.push((label("", &e).trim_start_matches('/').to_owned(), e));
+    }
+
+    // A surface datum, poisoned or outside its range: every datum, at
+    // each end of the range.
+    for datum in [
+        geom::SurfaceDatum::Origin,
+        geom::SurfaceDatum::Normal,
+        geom::SurfaceDatum::URef,
+        geom::SurfaceDatum::Axis,
+        geom::SurfaceDatum::Radius,
+        geom::SurfaceDatum::Apex,
+        geom::SurfaceDatum::HalfAngle,
+        geom::SurfaceDatum::Center,
+        geom::SurfaceDatum::MajorRadius,
+        geom::SurfaceDatum::MinorRadius,
+    ] {
+        let kind = geom_brep::SurfaceKind::Torus;
+        s.push((
+            label("PoisonedSurfaceDatum", &datum),
+            ValidationError::PoisonedSurfaceDatum { face, kind, datum },
+        ));
+        for end in [geom::ConventionEnd::Lower, geom::ConventionEnd::Upper] {
+            s.push((
+                label("UnrepresentableSurfaceDatum", &datum),
+                ValidationError::UnrepresentableSurfaceDatum {
+                    face,
+                    kind,
+                    datum,
+                    end,
+                },
+            ));
+        }
     }
 
     // Tier 3 arms that render something nested: one sample per variant.
